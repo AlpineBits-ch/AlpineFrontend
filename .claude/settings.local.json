@@ -123,7 +123,9 @@
       "Bash(cp /c/Users/Domin/AppData/Local/Temp/claude/C--Users-Domin-WebstormProjects-Alpine/1b2b7932-32d9-4041-bc48-e8585472a10f/scratchpad/orig.ts src/app/shared/call/call-share-tile/call-share-tile.component.ts)",
       "Bash(cp src/app/shared/call/call-share-tile/call-share-tile.component.ts /c/Users/Domin/AppData/Local/Temp/claude/C--Users-Domin-WebstormProjects-Alpine/1b2b7932-32d9-4041-bc48-e8585472a10f/scratchpad/orig2.ts)",
       "Bash(cp /c/Users/Domin/AppData/Local/Temp/claude/C--Users-Domin-WebstormProjects-Alpine/1b2b7932-32d9-4041-bc48-e8585472a10f/scratchpad/orig2.ts src/app/shared/call/call-share-tile/call-share-tile.component.ts)",
-      "Bash(node node_modules/@angular/cli/bin/ng.js test --include=\"src/app/shared/call/**/*.spec.ts\" --watch=false)"
+      "Bash(node node_modules/@angular/cli/bin/ng.js test --include=\"src/app/shared/call/**/*.spec.ts\" --watch=false)",
+      "Read(//c/Users/Domin/RiderProjects/Echo/**)",
+      "Bash(sed -i 's|/api/v1/guild/api/v1/|/api/v1/guild/|g' Guild.Application/docs/notification-settings-frontend-guide.md Guild.Application/docs/permissions-and-nicknames-frontend-guide.md)"
     ]
   },
   "enabledPlugins": {

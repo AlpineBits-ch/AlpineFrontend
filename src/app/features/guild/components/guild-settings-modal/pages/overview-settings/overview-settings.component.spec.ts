@@ -99,6 +99,31 @@ describe('OverviewSettingsComponent system channel picker', () => {
         expect(req.request.body.systemChannelId).toBeUndefined();
         req.flush(guildFixture({name: 'Renamed'}));
     });
+
+    it('sends an explicit null when the picker is cleared', () => {
+        const {component, ctrl} = setup(guildFixture());
+        component.systemChannelId.set(null);
+        expect(component.dirty()).toBe(true);
+
+        component.save();
+        const req = ctrl.expectOne(`${BASE}/guilds/g1`);
+        expect(req.request.body).toEqual({name: 'Test Guild', description: '', systemChannelId: null});
+        req.flush(guildFixture({systemChannelId: null}));
+    });
+
+    it('warns instead of claiming success when the server keeps a channel the user cleared', () => {
+        const {component, ctrl} = setup(guildFixture());
+        const addSpy = vi.spyOn(TestBed.inject(MessageService), 'add');
+        component.systemChannelId.set(null);
+
+        component.save();
+        ctrl.expectOne(`${BASE}/guilds/g1`).flush(guildFixture());
+
+        expect(addSpy).toHaveBeenCalledTimes(1);
+        const call = addSpy.mock.calls[0][0];
+        expect(call.severity).toBe('warn');
+        expect(call.summary).toContain('GUILD_SETTINGS.OVERVIEW.SYSTEM_CHANNEL_CLEAR_UNSUPPORTED');
+    });
 });
 
 describe('OverviewSettingsComponent verification level picker', () => {
@@ -187,6 +212,41 @@ describe('OverviewSettingsComponent dirty tracking', () => {
         expect(component.saving()).toBe(false);
         ctrl.expectNone(`${BASE}/guilds/g1`);
     });
+
+    it('does not issue a request when nothing changed', () => {
+        const {component, ctrl} = setup(guildFixture());
+
+        component.save();
+
+        expect(component.saving()).toBe(false);
+        ctrl.expectNone(`${BASE}/guilds/g1`);
+    });
+});
+
+describe('OverviewSettingsComponent icon selection', () => {
+    afterEach(() => TestBed.inject(HttpTestingController).verify());
+
+    function selectionEvent(file: File): Event {
+        const input = document.createElement('input');
+        input.type = 'file';
+        Object.defineProperty(input, 'files', {value: [file]});
+        return {target: input} as unknown as Event;
+    }
+
+    it('refuses an oversized image before it reaches the cropper', () => {
+        const {component} = setup(guildFixture());
+        const addSpy = vi.spyOn(TestBed.inject(MessageService), 'add');
+        const file = new File(['x'], 'huge.png', {type: 'image/png'});
+        Object.defineProperty(file, 'size', {value: 9 * 1024 * 1024});
+
+        component.onIconSelected(selectionEvent(file));
+
+        expect(component.cropVisible()).toBe(false);
+        expect(addSpy).toHaveBeenCalledTimes(1);
+        const call = addSpy.mock.calls[0][0];
+        expect(call.severity).toBe('error');
+        expect(call.summary).toContain('GUILD_SETTINGS.OVERVIEW.ICON_TOO_LARGE');
+    });
 });
 
 describe('OverviewSettingsComponent delete confirmation', () => {
@@ -209,8 +269,37 @@ describe('OverviewSettingsComponent delete confirmation', () => {
     });
 });
 
-describe('OverviewSettingsComponent save error handling', () => {
+describe('OverviewSettingsComponent save feedback', () => {
     afterEach(() => TestBed.inject(HttpTestingController).verify());
+
+    it('confirms a successful save with a toast', () => {
+        const {component, ctrl} = setup(guildFixture());
+        const addSpy = vi.spyOn(TestBed.inject(MessageService), 'add');
+
+        component.name.set('Renamed');
+        component.save();
+        ctrl.expectOne(`${BASE}/guilds/g1`).flush(guildFixture({name: 'Renamed'}));
+
+        expect(addSpy).toHaveBeenCalledTimes(1);
+        const call = addSpy.mock.calls[0][0];
+        expect(call.severity).toBe('success');
+        expect(call.summary).toContain('GUILD_SETTINGS.OVERVIEW.SAVE_SUCCESS');
+    });
+
+    it('says the icon already landed when only the settings PATCH fails', () => {
+        const {component, ctrl} = setup(guildFixture());
+        const addSpy = vi.spyOn(TestBed.inject(MessageService), 'add');
+
+        component.pendingIconFile.set(new File(['x'], 'icon.png', {type: 'image/png'}));
+        component.save();
+        ctrl.expectOne(`${BASE}/guilds/g1/icon`).flush(guildFixture());
+        ctrl.expectOne(`${BASE}/guilds/g1`).flush('nope', {status: 500, statusText: 'Server Error'});
+
+        expect(component.saving()).toBe(false);
+        const call = addSpy.mock.calls[0][0];
+        expect(call.severity).toBe('error');
+        expect(call.summary).toContain('GUILD_SETTINGS.OVERVIEW.SAVE_ERROR_ICON_UPLOADED');
+    });
 
     it('surfaces a toast and clears saving when the save request fails', () => {
         const {component, ctrl} = setup(guildFixture());

@@ -20,10 +20,16 @@ import {ToastService} from '../../../../../../services/toast.service';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {UserNameStyleDirective} from '../../../../../../directives/user-name-style.directive';
 
+/** Just the bits a chip needs: the roles array on the guild is a per-user membership row. */
+interface MemberRole {
+    name: string;
+    color: string;
+}
+
 interface MemberRow {
     member: GuildMemberDto;
     profile: ProfileDto | null;
-    roleNames: string[];
+    roles: MemberRole[];
 }
 
 @Component({
@@ -47,6 +53,10 @@ export class MembersSettingsComponent implements OnInit {
     confirmKickMember = signal<MemberRow | null>(null);
     showKickDialog = signal(false);
     kicking = signal(false);
+    confirmBanMember = signal<MemberRow | null>(null);
+    showBanDialog = signal(false);
+    banReason = signal('');
+    banning = signal(false);
     /** True while the list is showing server-side search hits rather than the paged roster. */
     isSearching = signal(false);
     searchPending = signal(false);
@@ -59,6 +69,8 @@ export class MembersSettingsComponent implements OnInit {
     private toastService = inject(ToastService);
     private translate = inject(TranslateService);
     private readonly TAKE = 50;
+    /** Beyond this a row's roles are summarised as "+n" - a long list pushed the actions off-row. */
+    private readonly MAX_ROLE_CHIPS = 3;
     private nextSkip = 0;
     private searchTimer?: ReturnType<typeof setTimeout>;
 
@@ -109,7 +121,10 @@ export class MembersSettingsComponent implements OnInit {
 
     openEditPermissions(row: MemberRow): void {
         this.editMember.set(row);
-        this.editPerms.set(parsePermissionCarrier(row.member.permissions));
+        // `allowPermissions`, not `permissions`: the member row has no single mask, and reading the
+        // field that does not exist opened this dialog with every box unticked no matter what the
+        // member had been granted - so a save that meant to add one permission removed the rest.
+        this.editPerms.set(parsePermissionCarrier(row.member.allowPermissions));
         this.showEditDialog.set(true);
     }
 
@@ -123,10 +138,12 @@ export class MembersSettingsComponent implements OnInit {
         this.editSaving.set(true);
         const perm = stringifyPermissionCarrier(this.editPerms());
         this.guildService.updateMemberPermissions(this.guild().id, row.member.id, perm).subscribe({
-            next: updated => {
+            next: masks => {
+                // The response is the four masks, not a member row - merged in rather than swapped
+                // for, or the row would lose its profile, roles and presence.
                 this.members.update(list =>
-                    list.map(r => r.member.id === updated.id
-                        ? {...r, member: updated}
+                    list.map(r => r.member.id === row.member.id
+                        ? {...r, member: {...r.member, ...masks}}
                         : r
                     )
                 );
@@ -167,11 +184,78 @@ export class MembersSettingsComponent implements OnInit {
         this.showKickDialog.set(false);
     }
 
+    openBanDialog(row: MemberRow): void {
+        this.confirmBanMember.set(row);
+        this.banReason.set('');
+        this.showBanDialog.set(true);
+    }
+
+    closeBanDialog(): void {
+        this.confirmBanMember.set(null);
+        this.showBanDialog.set(false);
+    }
+
+    /**
+     * Bans are addressed by **user id**, not member id - the row goes away either way, so the
+     * list drops it here rather than refetching the page it sat on.
+     */
+    banMember(row: MemberRow): void {
+        if (this.banning()) return;
+        this.banning.set(true);
+        const reason = this.banReason().trim();
+        this.guildService.banMember(this.guild().id, {userId: row.member.userId, reason: reason || undefined}).subscribe({
+            next: () => {
+                this.members.update(list => list.filter(r => r.member.id !== row.member.id));
+                this.closeBanDialog();
+                this.banning.set(false);
+                this.toastService.success(this.translate.instant('GUILD_SETTINGS.MEMBERS.BAN_SUCCESS'));
+            },
+            error: err => {
+                this.banning.set(false);
+                this.toastService.httpError(this.translate.instant('GUILD_SETTINGS.MEMBERS.BAN_ERROR'), err);
+            },
+        });
+    }
+
+    /**
+     * Whether kick and ban are worth offering at all. The server refuses both for the owner and
+     * for the caller's own membership, so showing them only bought the user an error toast.
+     * Leaving is its own control elsewhere; this page is for acting on other people.
+     */
+    canModerate(row: MemberRow): boolean {
+        const userId = row.member.userId;
+        return userId !== this.guild().ownerId && userId !== this.profileService.ownProfile()?.userId;
+    }
+
+    /** No profile yet and nothing else to show: the row renders a placeholder, never a raw id. */
+    isResolving(row: MemberRow): boolean {
+        return !row.profile && !row.member.nickname;
+    }
+
     displayName(row: MemberRow): string {
         if (this.isBot(row)) {
-            return row.member.nickname ?? row.member.userId.slice(0, 8) + '…';
+            return row.member.nickname ?? row.profile?.userName ?? this.unknownName();
         }
-        return row.profile?.userName ?? row.member.userId.slice(0, 8) + '…';
+        return row.profile?.userName ?? row.member.nickname ?? this.unknownName();
+    }
+
+    /** The chips that fit on the row; the rest are counted by {@link extraRoleCount}. */
+    visibleRoles(row: MemberRow): MemberRole[] {
+        return row.roles.slice(0, this.MAX_ROLE_CHIPS);
+    }
+
+    extraRoleCount(row: MemberRow): number {
+        return Math.max(0, row.roles.length - this.MAX_ROLE_CHIPS);
+    }
+
+    /** Tooltip for the "+n" chip, so a long role list is still readable. */
+    extraRoleNames(row: MemberRow): string {
+        return row.roles.slice(this.MAX_ROLE_CHIPS).map(r => r.name).join(', ');
+    }
+
+    /** Roles saved without a colour come back empty; fall back to the brand accent. */
+    roleColor(role: MemberRole): string {
+        return role.color || 'var(--color-brand)';
     }
 
     // The API sends an avatarUrl for every profile, uploaded or not, so a URL that has already
@@ -189,16 +273,24 @@ export class MembersSettingsComponent implements OnInit {
         return row.member.type === MemberType.Bot;
     }
 
+    private unknownName(): string {
+        return this.translate.instant('GUILD_SETTINGS.MEMBERS.UNKNOWN_MEMBER');
+    }
+
+    /**
+     * Deliberately does not touch `loading`: that swaps the whole list for a spinner, and with a
+     * 300ms debounce the page blinked on every keystroke. `searchPending` drives an inline
+     * indicator instead and the current rows stay put until the hits arrive.
+     */
     private runSearch(query: string): void {
         this.isSearching.set(true);
-        this.loading.set(true);
         this.hasMore.set(false);
         this.guildService.searchMembers(this.guild().id, query).subscribe({
             next: incoming => {
                 const rows: MemberRow[] = incoming.map(m => ({
                     member: m,
                     profile: m.profile ?? null,
-                    roleNames: this.roleNamesFor(m),
+                    roles: this.rolesFor(m),
                 }));
                 this.members.set(rows);
                 this.loading.set(false);
@@ -232,7 +324,7 @@ export class MembersSettingsComponent implements OnInit {
                 const rows: MemberRow[] = incoming.map(m => ({
                     member: m,
                     profile: m.profile ?? null,
-                    roleNames: this.roleNamesFor(m),
+                    roles: this.rolesFor(m),
                 }));
 
                 if (skip === 0) {
@@ -256,9 +348,9 @@ export class MembersSettingsComponent implements OnInit {
         });
     }
 
-    private roleNamesFor(member: GuildMemberDto): string[] {
+    private rolesFor(member: GuildMemberDto): MemberRole[] {
         return this.guild().roles
             .filter(r => r.userId === member.userId)
-            .map(r => r.name);
+            .map(r => ({name: r.name, color: r.color}));
     }
 }

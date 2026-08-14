@@ -1,18 +1,36 @@
-import {Component, inject, input, OnInit, signal} from '@angular/core';
+import {Component, computed, inject, input, OnDestroy, OnInit, signal} from '@angular/core';
 import {DatePipe} from '@angular/common';
+import {FormsModule} from '@angular/forms';
+import {Button} from 'primeng/button';
+import {InputText} from 'primeng/inputtext';
+import {Select} from 'primeng/select';
 import {GuildDto} from '../../../../../../dtos/response/guild.dto';
 import {AuditLogEntryDto} from '../../../../../../dtos/response/audit-log-entry.dto';
 import {ProfileDto} from '../../../../../../dtos/response/profile.dto';
 import {GuildService} from '../../../../../../services/guild.service';
 import {ProfileService} from '../../../../../../services/profile.service';
 import {ToastService} from '../../../../../../services/toast.service';
+import {RelativeTimePipe} from '../../../../../../pipes/relative-time.pipe';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
+
+interface MetadataPair {
+    label: string;
+    value: string;
+}
 
 interface AuditRow {
     entry: AuditLogEntryDto;
-    actorProfile: ProfileDto | null;
-    targetProfile: ProfileDto | null;
     metadata: Record<string, unknown> | null;
+    /** Readable metadata, built once on arrival rather than on every change detection pass. */
+    details: MetadataPair[];
+}
+
+/** One day's worth of entries. `label` is a translation key, or null when the date is spelled out. */
+interface AuditDay {
+    key: string;
+    date: Date;
+    label: string | null;
+    rows: AuditRow[];
 }
 
 const USER_TARGET_ACTIONS = new Set([
@@ -22,6 +40,9 @@ const USER_TARGET_ACTIONS = new Set([
 /**
  * Action type to translation-key stem. Actions with a `_GENERIC` counterpart fall back to
  * it when the target can't be resolved -a deleted role has no name left to print.
+ *
+ * <p>Also the source of the filter dropdown, so the options can never drift from the set of
+ * actions the page knows how to describe.</p>
  */
 const ACTION_KEYS: Record<string, string> = {
     MemberBanned: 'MEMBER_BANNED',
@@ -51,19 +72,117 @@ const TARGETLESS_ACTIONS = new Set([
     'MemberLeft', 'RolePositionsChanged', 'GuildUpdated', 'GuildDeleted', 'InviteCreated', 'InviteDeleted',
 ]);
 
+const ACTION_ICONS: Record<string, string> = {
+    MemberBanned: 'pi-ban',
+    MemberUnbanned: 'pi-check-circle',
+    MemberKicked: 'pi-user-minus',
+    MemberMuted: 'pi-volume-off',
+    MemberUnmuted: 'pi-volume-up',
+    MemberLeft: 'pi-sign-out',
+    RoleCreated: 'pi-shield',
+    RoleUpdated: 'pi-shield',
+    RoleDeleted: 'pi-shield',
+    RolePositionsChanged: 'pi-sort-alt',
+    ChannelCreated: 'pi-hashtag',
+    ChannelUpdated: 'pi-hashtag',
+    ChannelDeleted: 'pi-hashtag',
+    ChannelPermissionChanged: 'pi-lock',
+    CategoryCreated: 'pi-folder',
+    CategoryDeleted: 'pi-folder',
+    GuildUpdated: 'pi-cog',
+    GuildDeleted: 'pi-trash',
+    InviteCreated: 'pi-link',
+    InviteDeleted: 'pi-link',
+};
+
+/** Anything that takes something away, so it stands out from routine configuration noise. */
+const DESTRUCTIVE_ACTIONS = new Set([
+    'MemberBanned', 'MemberKicked', 'MemberMuted',
+    'RoleDeleted', 'ChannelDeleted', 'CategoryDeleted', 'GuildDeleted', 'InviteDeleted',
+]);
+
+const ADDITIVE_ACTIONS = new Set([
+    'MemberUnbanned', 'MemberUnmuted',
+    'RoleCreated', 'ChannelCreated', 'CategoryCreated', 'InviteCreated',
+]);
+
+const EDIT_ACTIONS = new Set([
+    'RoleUpdated', 'ChannelUpdated', 'ChannelPermissionChanged', 'GuildUpdated',
+]);
+
+/**
+ * Metadata fields the server may carry the target's name in, newest wording first.
+ *
+ * <p>The only way an entry about a <b>deleted</b> role or channel can still name it: `targetLabel`
+ * resolves names out of the live guild, and the thing the entry is about is precisely what is no
+ * longer there.</p>
+ */
+const NAME_METADATA_KEYS = ['name', 'targetName', 'roleName', 'channelName', 'categoryName', 'oldName'];
+
+/** How often the relative timestamps are recomputed. */
+const TICK_INTERVAL = 60_000;
+
 @Component({
     selector: 'app-audit-log-settings',
-    imports: [DatePipe, TranslateModule],
+    imports: [DatePipe, FormsModule, Button, InputText, Select, RelativeTimePipe, TranslateModule],
     templateUrl: './audit-log-settings.component.html',
 })
-export class AuditLogSettingsComponent implements OnInit {
+export class AuditLogSettingsComponent implements OnInit, OnDestroy {
     guild = input.required<GuildDto>();
     rows = signal<AuditRow[]>([]);
     loading = signal(true);
     loadingMore = signal(false);
+    refreshing = signal(false);
     hasMore = signal(true);
+    actionFilter = signal<string | null>(null);
+    actorFilter = signal('');
+    /** Ticks so `relativeTime` (a pure pipe) doesn't freeze at the timestamps it first rendered. */
+    now = signal(Date.now());
+
+    readonly actionOptions = computed(() => Object.entries(ACTION_KEYS)
+        .map(([type, stem]) => ({
+            value: type,
+            label: this.translate.instant(`GUILD_SETTINGS.AUDIT_LOG.TYPE.${stem}`) as string,
+        }))
+        .sort((a, b) => a.label.localeCompare(b.label)));
+
+    readonly filtersActive = computed(() => !!this.actionFilter() || this.actorFilter().trim().length > 0);
+
+    /**
+     * The audit log endpoint takes `skip`/`take` and nothing else, so both filters run over the
+     * pages already fetched. The template says so rather than passing a partial answer off as the
+     * whole log -the mistake the members list had to undo.
+     */
+    readonly filteredRows = computed(() => {
+        const action = this.actionFilter();
+        const actor = this.actorFilter().trim().toLowerCase();
+        if (!action && !actor) return this.rows();
+        return this.rows().filter(row => {
+            if (action && row.entry.actionType !== action) return false;
+            return !actor || this.actorName(row).toLowerCase().includes(actor);
+        });
+    });
+
+    readonly days = computed<AuditDay[]>(() => {
+        const tick = this.now();
+        const groups: AuditDay[] = [];
+        for (const row of this.filteredRows()) {
+            const date = new Date(row.entry.createdAt);
+            const key = date.toDateString();
+            const current = groups[groups.length - 1];
+            if (current && current.key === key) current.rows.push(row);
+            else groups.push({key, date, label: this.dayLabel(date, tick), rows: [row]});
+        }
+        return groups;
+    });
+
     private readonly TAKE = 50;
     private nextSkip = 0;
+    private profiles = signal<Record<string, ProfileDto>>({});
+    private expanded = signal<ReadonlySet<string>>(new Set());
+    /** Ids already asked for, so a second page of the same three moderators costs nothing. */
+    private requestedProfileIds = new Set<string>();
+    private ticker?: ReturnType<typeof setInterval>;
     private guildService = inject(GuildService);
     private profileService = inject(ProfileService);
     private toastService = inject(ToastService);
@@ -71,20 +190,30 @@ export class AuditLogSettingsComponent implements OnInit {
 
     ngOnInit(): void {
         this.load();
+        this.ticker = setInterval(() => this.now.set(Date.now()), TICK_INTERVAL);
+    }
+
+    ngOnDestroy(): void {
+        clearInterval(this.ticker);
     }
 
     load(): void {
         this.loading.set(true);
-        this.nextSkip = 0;
-        this.hasMore.set(true);
         this.rows.set([]);
-        this.fetchPage();
+        this.fetchPage('initial');
+    }
+
+    /** Keeps the current entries on screen while it re-reads page one, so the list doesn't blink. */
+    refresh(): void {
+        if (this.refreshing() || this.loading()) return;
+        this.refreshing.set(true);
+        this.fetchPage('refresh');
     }
 
     loadMore(): void {
-        if (this.loadingMore() || !this.hasMore() || this.loading()) return;
+        if (this.loadingMore() || !this.hasMore() || this.loading() || this.refreshing()) return;
         this.loadingMore.set(true);
-        this.fetchPage();
+        this.fetchPage('more');
     }
 
     onScroll(event: Event): void {
@@ -92,8 +221,14 @@ export class AuditLogSettingsComponent implements OnInit {
         if (el.scrollHeight - el.scrollTop - el.clientHeight < 150) this.loadMore();
     }
 
+    clearFilters(): void {
+        this.actionFilter.set(null);
+        this.actorFilter.set('');
+    }
+
     actorName(row: AuditRow): string {
-        return row.actorProfile?.userName ?? row.entry.actorUserId.slice(0, 8) + '…';
+        const profile = this.profiles()[row.entry.actorUserId];
+        return profile?.userName ?? this.translate.instant('GUILD_SETTINGS.AUDIT_LOG.UNKNOWN_ACTOR');
     }
 
     describe(row: AuditRow): string {
@@ -110,12 +245,41 @@ export class AuditLogSettingsComponent implements OnInit {
             : this.translate.instant(`${base}_GENERIC`);
     }
 
-    /** Compact "key: value" summary of the entry's metadata, or null if empty/absent. */
-    metadataSummary(row: AuditRow): string | null {
-        if (!row.metadata) return null;
-        const entries = Object.entries(row.metadata).filter(([, v]) => v !== null && v !== undefined);
-        if (entries.length === 0) return null;
-        return entries.map(([k, v]) => `${k}: ${v}`).join(' · ');
+    actionIcon(row: AuditRow): string {
+        return ACTION_ICONS[row.entry.actionType] ?? 'pi-history';
+    }
+
+    actionTone(row: AuditRow): string {
+        const type = row.entry.actionType;
+        if (DESTRUCTIVE_ACTIONS.has(type)) return 'text-offline';
+        if (ADDITIVE_ACTIONS.has(type)) return 'text-online';
+        if (EDIT_ACTIONS.has(type)) return 'text-connecting';
+        return 'text-brand-dim';
+    }
+
+    isExpanded(id: string): boolean {
+        return this.expanded().has(id);
+    }
+
+    toggleDetails(id: string): void {
+        this.expanded.update(open => {
+            const next = new Set(open);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    }
+
+    private dayLabel(date: Date, tick: number): string | null {
+        const today = new Date(tick);
+        const days = Math.round((this.startOfDay(today) - this.startOfDay(date)) / 86_400_000);
+        if (days === 0) return 'GUILD_SETTINGS.AUDIT_LOG.TODAY';
+        if (days === 1) return 'GUILD_SETTINGS.AUDIT_LOG.YESTERDAY';
+        return null;
+    }
+
+    private startOfDay(date: Date): number {
+        return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
     }
 
     private targetLabel(row: AuditRow): string | null {
@@ -125,74 +289,127 @@ export class AuditLogSettingsComponent implements OnInit {
             case 'RoleCreated':
             case 'RoleUpdated':
             case 'RoleDeleted':
-                return this.guild().roles.find(r => r.id === entry.targetId)?.name ?? null;
+                return this.guild().roles.find(r => r.id === entry.targetId)?.name ?? this.metadataName(row);
             case 'ChannelCreated':
             case 'ChannelUpdated':
             case 'ChannelDeleted':
             case 'ChannelPermissionChanged':
-                return this.guild().channels.find(c => c.id === entry.targetId)?.name ?? null;
+                return this.guild().channels.find(c => c.id === entry.targetId)?.name ?? this.metadataName(row);
             case 'CategoryCreated':
             case 'CategoryDeleted':
-                return this.guild().categories.find(c => c.id === entry.targetId)?.name ?? null;
+                return this.guild().categories.find(c => c.id === entry.targetId)?.name ?? this.metadataName(row);
             case 'MemberBanned':
             case 'MemberUnbanned':
             case 'MemberKicked':
             case 'MemberMuted':
             case 'MemberUnmuted':
-                return row.targetProfile?.userName ?? null;
+                return this.profiles()[entry.targetId]?.userName ?? this.metadataName(row);
             default:
                 return null;
         }
     }
 
-    private fetchPage(): void {
-        const skip = this.nextSkip;
+    /** The target's name as it was when the action happened, if the entry recorded one. */
+    private metadataName(row: AuditRow): string | null {
+        if (!row.metadata) return null;
+        for (const key of NAME_METADATA_KEYS) {
+            const value = row.metadata[key];
+            if (typeof value === 'string' && value.trim()) return value.trim();
+        }
+        return null;
+    }
+
+    private fetchPage(mode: 'initial' | 'refresh' | 'more'): void {
+        const skip = mode === 'more' ? this.nextSkip : 0;
         this.guildService.getAuditLog(this.guild().id, skip, this.TAKE).subscribe({
             next: entries => {
-                const rows: AuditRow[] = entries.map(entry => ({
-                    entry,
-                    actorProfile: null,
-                    targetProfile: null,
-                    metadata: this.parseMetadata(entry.metadata),
-                }));
-                if (skip === 0) {
-                    this.rows.set(rows);
-                    this.loading.set(false);
-                } else {
-                    this.rows.update(list => [...list, ...rows]);
-                    this.loadingMore.set(false);
-                }
+                const rows = entries.map(entry => this.toRow(entry));
+                if (mode === 'more') this.rows.update(list => [...list, ...rows]);
+                else this.rows.set(rows);
                 this.nextSkip = skip + entries.length;
-                if (entries.length < this.TAKE) this.hasMore.set(false);
-
-                const baseIdx = skip === 0 ? 0 : this.rows().length - rows.length;
-                rows.forEach((row, i) => {
-                    this.profileService.fetchByUserId(row.entry.actorUserId).subscribe({
-                        next: p => this.rows.update(list => {
-                            const next = [...list];
-                            const idx = baseIdx + i;
-                            if (next[idx]) next[idx] = {...next[idx], actorProfile: p};
-                            return next;
-                        }),
-                    });
-                    if (row.entry.targetId && USER_TARGET_ACTIONS.has(row.entry.actionType)) {
-                        this.profileService.fetchByUserId(row.entry.targetId).subscribe({
-                            next: p => this.rows.update(list => {
-                                const next = [...list];
-                                const idx = baseIdx + i;
-                                if (next[idx]) next[idx] = {...next[idx], targetProfile: p};
-                                return next;
-                            }),
-                        });
-                    }
-                });
+                this.hasMore.set(entries.length === this.TAKE);
+                this.settle();
+                this.resolveProfiles(rows);
             },
             error: err => {
-                this.loading.set(false);
-                this.loadingMore.set(false);
+                this.settle();
                 this.toastService.httpError(this.translate.instant('GUILD_SETTINGS.AUDIT_LOG.LOAD_ERROR'), err);
             },
         });
+    }
+
+    private settle(): void {
+        this.loading.set(false);
+        this.loadingMore.set(false);
+        this.refreshing.set(false);
+    }
+
+    /**
+     * One request per distinct user id.
+     *
+     * <p>This used to fire an actor fetch, and for moderation entries a target fetch too, per row -
+     * up to a hundred parallel requests for one page of fifty, for what is nearly always the same
+     * handful of moderators. `getByUserId` also answers from the profile cache when the person is
+     * already on screen elsewhere.</p>
+     */
+    private resolveProfiles(rows: AuditRow[]): void {
+        const ids = new Set<string>();
+        for (const row of rows) {
+            ids.add(row.entry.actorUserId);
+            if (row.entry.targetId && USER_TARGET_ACTIONS.has(row.entry.actionType)) ids.add(row.entry.targetId);
+        }
+
+        for (const id of ids) {
+            if (this.requestedProfileIds.has(id)) continue;
+            this.requestedProfileIds.add(id);
+            this.profileService.getByUserId(id).subscribe({
+                next: profile => {
+                    // The service hands out a placeholder profile while its breaker is open. Storing
+                    // that would pin "Unknown User" to the row for the session; forgetting the id
+                    // instead lets a refresh ask again.
+                    if (profile.userId === 'unknown') {
+                        this.requestedProfileIds.delete(id);
+                        return;
+                    }
+                    this.profiles.update(map => ({...map, [id]: profile}));
+                },
+                error: () => this.requestedProfileIds.delete(id),
+            });
+        }
+    }
+
+    private toRow(entry: AuditLogEntryDto): AuditRow {
+        const metadata = this.parseMetadata(entry.metadata);
+        return {entry, metadata, details: this.toDetails(metadata)};
+    }
+
+    private toDetails(metadata: Record<string, unknown> | null): MetadataPair[] {
+        if (!metadata) return [];
+        return Object.entries(metadata)
+            .filter(([, value]) => value !== null && value !== undefined && value !== '')
+            .map(([key, value]) => ({label: this.humaniseKey(key), value: this.formatValue(value)}));
+    }
+
+    /**
+     * `oldName` to "Old name". The keys are server field names with no translation to look up, so
+     * this reshapes them rather than pretending there is a catalogue of them somewhere.
+     */
+    private humaniseKey(key: string): string {
+        const words = key
+            .replace(/[_-]+/g, ' ')
+            .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+            .trim()
+            .toLowerCase();
+        return words.charAt(0).toUpperCase() + words.slice(1);
+    }
+
+    private formatValue(value: unknown): string {
+        if (typeof value === 'boolean') {
+            return this.translate.instant(value ? 'GUILD_SETTINGS.AUDIT_LOG.VALUE_YES' : 'GUILD_SETTINGS.AUDIT_LOG.VALUE_NO');
+        }
+        if (Array.isArray(value)) return value.map(item => this.formatValue(item)).join(', ');
+        if (typeof value === 'object') return JSON.stringify(value);
+        return String(value);
     }
 
     private parseMetadata(raw: string | null): Record<string, unknown> | null {

@@ -4,7 +4,7 @@ import {CategoryDto, ChannelDto, ChannelPermission, GuildDto, GuildKind, RoleDto
 import {GuildVerificationLevel} from '../dtos/response/guild-safety.dto';
 import {environment} from '../../environments/environment';
 import {catchError, finalize, map, Observable, of, shareReplay, Subject, tap, throwError} from 'rxjs';
-import {GuildMemberDto, RoleMemberDto, SelfGuildMemberDto} from '../dtos/response/member.dto';
+import {GuildMemberDto, MemberPermissionsDto, RoleMemberDto, SelfGuildMemberDto} from '../dtos/response/member.dto';
 import {InviteDto} from "../dtos/response/invite.dto";
 import {CreateInviteDto} from "../dtos/request/create-invite.dto";
 import {ReorderChannesDto} from "../dtos/request/reorder-channel.dto";
@@ -312,13 +312,21 @@ export class GuildService {
 
 
     /**
-     * The member id is somebody else's in every screen that calls this today, but the route does
+     * Sets the member's own guild-level allow mask - their overrides, not the sum of their roles.
+     *
+     * <p>Only `allowPermissions` is sent. The other three masks the endpoint accepts (deny, and
+     * both module masks) are omitted, which it reads as "leave alone": the dialog driving this is a
+     * two-state grid over the core space and has no way to show, let alone preserve, the rest.</p>
+     *
+     * <p>The member id is somebody else's in every screen that calls this today, but the route does
      * not stop it being ours and the cached row would keep the old mask if it were. Dropping it
-     * costs one refetch; not dropping it costs a permission gate that disagrees with the server.
+     * costs one refetch; not dropping it costs a permission gate that disagrees with the server.</p>
      */
-    updateMemberPermissions(guildId: string, memberId: string, permissions: string): Observable<GuildMemberDto> {
-        return this.http.patch<GuildMemberDto>(`${this.base}/guild/${guildId}/member/${memberId}`, {permissions})
-            .pipe(tap(() => this.invalidateOwnMember(guildId)));
+    updateMemberPermissions(guildId: string, memberId: string, permissions: string): Observable<MemberPermissionsDto> {
+        return this.http.patch<MemberPermissionsDto>(
+            `${this.base}/guilds/${guildId}/members/${memberId}/permissions`,
+            {allowPermissions: permissions},
+        ).pipe(tap(() => this.invalidateOwnMember(guildId)));
     }
 
     kickMember(guildId: string, memberId: string): Observable<void> {

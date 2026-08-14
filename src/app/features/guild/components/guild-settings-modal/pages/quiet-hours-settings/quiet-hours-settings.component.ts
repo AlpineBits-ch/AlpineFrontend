@@ -3,6 +3,7 @@ import {FormsModule} from '@angular/forms';
 import {HttpErrorResponse} from '@angular/common/http';
 import {Button} from 'primeng/button';
 import {InputText} from 'primeng/inputtext';
+import {Select} from 'primeng/select';
 import {ToggleSwitch} from 'primeng/toggleswitch';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {GuildDto} from '../../../../../../dtos/response/guild.dto';
@@ -25,9 +26,25 @@ const DEFAULT_START = 22 * 60;
 /** 07:00. Together with the default start this is a wrapped window, which is the point. */
 const DEFAULT_END = 7 * 60;
 
+/**
+ * Every zone this runtime knows, so nobody has to spell `Europe/Zurich` from memory.
+ *
+ * <p>Feature-detected rather than assumed: `Intl.supportedValuesOf` is recent enough that some
+ * runtimes we ship to are missing it, and an empty list here is what makes the page fall back to
+ * the free-text field. Either way `isValidTimeZoneId` is what decides whether the id is usable.</p>
+ */
+function supportedTimeZoneIds(): string[] {
+    if (typeof (Intl as {supportedValuesOf?: unknown}).supportedValuesOf !== 'function') return [];
+    try {
+        return Intl.supportedValuesOf('timeZone');
+    } catch {
+        return [];
+    }
+}
+
 @Component({
     selector: 'app-quiet-hours-settings',
-    imports: [FormsModule, Button, InputText, ToggleSwitch, TranslateModule],
+    imports: [FormsModule, Button, InputText, Select, ToggleSwitch, TranslateModule],
     templateUrl: './quiet-hours-settings.component.html',
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -45,6 +62,23 @@ export class QuietHoursSettingsComponent implements OnInit {
     protected startTime = signal(formatMinuteOfDay(DEFAULT_START));
     protected endTime = signal(formatMinuteOfDay(DEFAULT_END));
     protected timeZoneId = signal(browserTimeZoneId());
+
+    private baseTimeZoneOptions = supportedTimeZoneIds().map(id => ({label: id, value: id}));
+    /** False on a runtime with no zone list, where the template keeps the old free-text field. */
+    protected timeZonePickerAvailable = this.baseTimeZoneOptions.length > 0;
+
+    /**
+     * The zone list, with the current id folded in when the platform does not list it.
+     *
+     * <p>A saved zone can be an alias this runtime resolves but never enumerates
+     * (`Asia/Calcutta` for `Asia/Kolkata`). Without this the picker would render blank over a
+     * perfectly valid value and the first click would silently change it.</p>
+     */
+    protected timeZoneOptions = computed(() => {
+        const current = this.timeZoneId().trim();
+        if (!current || this.baseTimeZoneOptions.some(o => o.value === current)) return this.baseTimeZoneOptions;
+        return [{label: current, value: current}, ...this.baseTimeZoneOptions];
+    });
 
     /** Recomputed every minute so "currently quiet" does not sit wrong for an hour. */
     private nowTick = signal(Date.now());
@@ -68,6 +102,18 @@ export class QuietHoursSettingsComponent implements OnInit {
     protected error = computed<QuietHoursError | null>(() => validateQuietHours(this.draft()));
 
     protected timeZoneUnknown = computed(() => !isValidTimeZoneId(this.timeZoneId().trim()));
+
+    /**
+     * The window's own validation error, shown under the times.
+     *
+     * <p>`UNKNOWN_TIME_ZONE` is dropped because the zone field reports itself, and it has to do so
+     * independently: `validateQuietHours` returns the first error only, so a cleared start time
+     * would otherwise hide a bad zone.</p>
+     */
+    protected windowError = computed(() => {
+        const err = this.error();
+        return err === 'UNKNOWN_TIME_ZONE' ? null : err;
+    });
 
     /**
      * True whenever `start > end`. Surfaced rather than hidden: a household setting 22:00 → 07:00
@@ -119,8 +165,9 @@ export class QuietHoursSettingsComponent implements OnInit {
             error: (err: HttpErrorResponse) => {
                 this.loading.set(false);
                 if (err.status === 403) {
-                    // Renders nothing rather than a denial - "your house doesn't do this" is not
-                    // "you're not allowed", and from here the two are the same response.
+                    // Says the feature is not available rather than that access was denied -
+                    // "your house doesn't do this" is not "you're not allowed", and from here the
+                    // two are the same response, so the wording has to cover both.
                     this.unavailable.set(true);
                     return;
                 }
@@ -136,6 +183,9 @@ export class QuietHoursSettingsComponent implements OnInit {
                     return;
                 }
                 this.toast.httpError(this.translate.instant('QUIET_HOURS.LOAD_ERROR'), err);
+                // The form is still usable after a failed read, so what is on screen becomes the
+                // baseline. Without one, `dirty` never flips and Save stays disabled forever.
+                this.saved.set(this.draft());
             },
         });
     }

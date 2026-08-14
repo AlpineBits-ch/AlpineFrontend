@@ -1,23 +1,49 @@
 <div class="flex gap-4 h-full min-h-0">
 
     <!-- Roles list -->
-    <div class="w-44 shrink-0 flex flex-col gap-2">
-        <p-button (onClick)="showCreateDialog.set(true)" [label]="'GUILD_SETTINGS.ROLES.NEW_ROLE' | translate" icon="pi pi-plus"
+    <div class="w-52 shrink-0 flex flex-col gap-2">
+        <p-button (onClick)="openCreateDialog()" [label]="'GUILD_SETTINGS.ROLES.NEW_ROLE' | translate" icon="pi pi-plus"
                   severity="secondary"
                   size="small" styleClass="w-full !justify-start"/>
 
         <div class="flex-1 overflow-y-auto space-y-0.5 thin-scrollbar">
             @for (role of roles(); track role.id; let i = $index) {
-                <div class="group/role flex items-center gap-0.5">
+                <div (dragover)="onDragOver($event, i)"
+                     (drop)="onDrop(i)"
+                     class="relative flex items-center gap-1">
+
+                    <!-- Insertion line: dragging used to give no hint at all where a role would land -->
+                    @if (dropIndex() === i) {
+                        <div [ngClass]="dropBefore() ? 'top-0' : 'bottom-0'"
+                             class="absolute inset-x-0 h-0.5 rounded-full bg-brand pointer-events-none"></div>
+                    }
+
+                    <!-- Dragging lives on the handle so the row itself is an ordinary click target -->
+                    @if (isPinned(role)) {
+                        <span [pTooltip]="'GUILD_SETTINGS.ROLES.EVERYONE_PINNED' | translate"
+                              class="w-5 h-6 shrink-0 flex items-center justify-center text-text-muted"
+                              tooltipPosition="right">
+                            <i class="pi pi-lock text-[0.5rem]"></i>
+                        </span>
+                    } @else {
+                        <span (dragend)="onDragEnd()"
+                              (dragstart)="onDragStart(i)"
+                              [draggable]="true"
+                              [pTooltip]="'GUILD_SETTINGS.ROLES.DRAG_HANDLE' | translate"
+                              class="w-5 h-6 shrink-0 flex items-center justify-center rounded text-text-muted hover:text-text-primary cursor-grab active:cursor-grabbing"
+                              tooltipPosition="right">
+                            <i class="pi pi-bars text-[0.625rem]"></i>
+                        </span>
+                    }
+
                     <button
-                            (click)="selectRole(role)"
-                            (dragover)="onDragOver($event)"
-                            (dragstart)="onDragStart(i)"
-                            (drop)="onDrop(i)"
+                            (click)="onRoleClick(role)"
                             [attr.aria-current]="selectedRole()?.id === role.id ? 'true' : null"
-                            [draggable]="true"
-                            [ngClass]="selectedRole()?.id === role.id ? 'bg-[color-mix(in_srgb,var(--color-brand)_15%,transparent)] text-[var(--color-brand-dim)]' : 'text-white/50 hover:bg-white/[0.05]'"
-                            class="flex-1 min-w-0 flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-sm font-medium transition-all cursor-grab active:cursor-grabbing border-0">
+                            [ngClass]="selectedRole()?.id === role.id ? 'bg-[color-mix(in_srgb,var(--color-brand)_15%,transparent)] text-[var(--color-brand-dim)]' : 'text-text-secondary hover:bg-white/[0.05]'"
+                            [pTooltip]="role.name"
+                            [showDelay]="500"
+                            class="flex-1 min-w-0 flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-left text-sm font-medium transition-all cursor-pointer border-0"
+                            tooltipPosition="right">
               <span [style.background]="role.color || '#4B5BC4'"
                     class="w-3 h-3 rounded-full shrink-0"></span>
                         <span class="truncate">{{ role.name }}</span>
@@ -27,17 +53,17 @@
                     </button>
 
                     <!-- Arrow controls: drag-and-drop was the only way to reorder -->
-                    <div class="flex flex-col shrink-0 opacity-0 group-hover/role:opacity-100 focus-within:opacity-100 transition-opacity">
+                    <div class="flex flex-col shrink-0">
                         <button (click)="moveRoleBy(i, -1)"
                                 [attr.aria-label]="'GUILD_SETTINGS.ROLES.MOVE_UP' | translate"
                                 [disabled]="!canMove(i, -1)"
-                                class="flex items-center justify-center w-4 h-3.5 rounded border-0 bg-transparent text-white/40 hover:text-white/80 disabled:opacity-20 disabled:cursor-default cursor-pointer p-0">
+                                class="flex items-center justify-center w-6 h-6 rounded border-0 bg-transparent text-text-muted hover:text-text-primary transition-colors disabled:opacity-40 disabled:cursor-default cursor-pointer p-0">
                             <i class="pi pi-chevron-up text-[0.5rem]"></i>
                         </button>
                         <button (click)="moveRoleBy(i, 1)"
                                 [attr.aria-label]="'GUILD_SETTINGS.ROLES.MOVE_DOWN' | translate"
                                 [disabled]="!canMove(i, 1)"
-                                class="flex items-center justify-center w-4 h-3.5 rounded border-0 bg-transparent text-white/40 hover:text-white/80 disabled:opacity-20 disabled:cursor-default cursor-pointer p-0">
+                                class="flex items-center justify-center w-6 h-6 rounded border-0 bg-transparent text-text-muted hover:text-text-primary transition-colors disabled:opacity-40 disabled:cursor-default cursor-pointer p-0">
                             <i class="pi pi-chevron-down text-[0.5rem]"></i>
                         </button>
                     </div>
@@ -45,7 +71,7 @@
             }
         </div>
 
-        <p class="text-[0.625rem] text-white/25 leading-relaxed px-1">{{ 'GUILD_SETTINGS.ROLES.DRAG_HINT' | translate }}</p>
+        <p class="text-[0.625rem] text-text-secondary leading-relaxed px-1">{{ 'GUILD_SETTINGS.ROLES.DRAG_HINT' | translate }}</p>
     </div>
 
     <!-- Role editor -->
@@ -68,12 +94,12 @@
             <!-- Tabs -->
             <div class="flex gap-1 shrink-0 border-b border-white/[0.08] pb-2 mb-3">
                 <button (click)="switchTab('settings')"
-                        [ngClass]="activeTab() === 'settings' ? 'bg-[color-mix(in_srgb,var(--color-brand)_15%,transparent)] text-[var(--color-brand-dim)]' : 'text-white/50 hover:bg-white/[0.05]'"
+                        [ngClass]="activeTab() === 'settings' ? 'bg-[color-mix(in_srgb,var(--color-brand)_15%,transparent)] text-[var(--color-brand-dim)]' : 'text-text-secondary hover:bg-white/[0.05]'"
                         class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all border-0 cursor-pointer">
                     {{ 'GUILD_SETTINGS.ROLES.TAB_SETTINGS' | translate }}
                 </button>
                 <button (click)="switchTab('members')"
-                        [ngClass]="activeTab() === 'members' ? 'bg-[color-mix(in_srgb,var(--color-brand)_15%,transparent)] text-[var(--color-brand-dim)]' : 'text-white/50 hover:bg-white/[0.05]'"
+                        [ngClass]="activeTab() === 'members' ? 'bg-[color-mix(in_srgb,var(--color-brand)_15%,transparent)] text-[var(--color-brand-dim)]' : 'text-text-secondary hover:bg-white/[0.05]'"
                         class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all border-0 cursor-pointer">
                     {{ 'GUILD_SETTINGS.ROLES.TAB_MEMBERS' | translate }}
                 </button>
@@ -87,7 +113,7 @@
 
                         <!-- Name -->
                         <div>
-                            <label class="block text-xs font-semibold text-white/40 uppercase tracking-widest mb-2">{{ 'GUILD_SETTINGS.ROLES.ROLE_NAME' | translate }}</label>
+                            <label class="block text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2">{{ 'GUILD_SETTINGS.ROLES.ROLE_NAME' | translate }}</label>
                             <input (ngModelChange)="editName.set($event); onEditField()"
                                    [disabled]="selectedRole()!.type === RoleType.Everyone"
                                    [maxlength]="100"
@@ -95,13 +121,13 @@
                                    class="w-full"
                                    pInputText/>
                             @if (selectedRole()!.type === RoleType.Everyone) {
-                                <p class="text-[0.6875rem] text-white/25 mt-1.5">{{ 'GUILD_SETTINGS.ROLES.EVERYONE_HINT' | translate }}</p>
+                                <p class="text-[0.6875rem] text-text-secondary mt-1.5">{{ 'GUILD_SETTINGS.ROLES.EVERYONE_HINT' | translate }}</p>
                             }
                         </div>
 
                         <!-- Description -->
                         <div>
-                            <label class="block text-xs font-semibold text-white/40 uppercase tracking-widest mb-2">{{ 'GUILD_SETTINGS.ROLES.DESCRIPTION' | translate }}</label>
+                            <label class="block text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2">{{ 'GUILD_SETTINGS.ROLES.DESCRIPTION' | translate }}</label>
                             <textarea (ngModelChange)="editDescription.set($event); onEditField()"
                                       [maxlength]="300"
                                       [ngModel]="editDescription()"
@@ -111,7 +137,7 @@
 
                         <!-- Color -->
                         <div>
-                            <label class="block text-xs font-semibold text-white/40 uppercase tracking-widest mb-2">{{ 'GUILD_SETTINGS.ROLES.ROLE_COLOR' | translate }}</label>
+                            <label class="block text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2">{{ 'GUILD_SETTINGS.ROLES.ROLE_COLOR' | translate }}</label>
                             <div class="flex items-center gap-3">
                                 <input (ngModelChange)="editColor.set($event); onEditField()"
                                        [ngModel]="editColor()"
@@ -172,7 +198,7 @@
                                           [label]="'GUILD_SETTINGS.ROLES.SAVE_CHANGES' | translate"
                                           [loading]="editSaving()"
                                           severity="primary" size="small"/>
-                                <p-button (onClick)="selectRole(selectedRole()!)" [label]="'GUILD_SETTINGS.ROLES.RESET' | translate"
+                                <p-button (onClick)="resetEdits()" [label]="'GUILD_SETTINGS.ROLES.RESET' | translate"
                                           [text]="true" severity="secondary"
                                           size="small"/>
                             </div>
@@ -188,7 +214,7 @@
                     <!-- Search + Add -->
                     <div class="flex gap-2 shrink-0">
                         <div class="relative flex-1">
-                            <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-white/30 text-xs pointer-events-none"></i>
+                            <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-xs pointer-events-none"></i>
                             <input (ngModelChange)="onQueryChange($event)"
                                    [ngModel]="roleMembersQuery()"
                                    [placeholder]="'GUILD_SETTINGS.ROLES.SEARCH_PLACEHOLDER' | translate"
@@ -200,19 +226,31 @@
                                   tooltipPosition="top"/>
                     </div>
 
-                    <!-- Count -->
-                    <p class="text-xs text-white/30 shrink-0">
-                        {{
-                            (roleMembersDisplay().length !== 1 ? 'GUILD_SETTINGS.MEMBERS.COUNT_PLURAL' : 'GUILD_SETTINGS.MEMBERS.COUNT_SINGLE') | translate: {
-                                count: roleMembersDisplay().length
-                            }
-                        }}
+                    <!-- Count. Only the loaded page is known, so an unfinished list says "30+" -->
+                    <p class="text-xs text-text-secondary shrink-0">
+                        @if (roleMembersLoading()) {
+                            {{ 'GUILD_SETTINGS.ROLES.MEMBERS_LOADING' | translate }}
+                        } @else if (roleMembersIsSearch()) {
+                            {{
+                                (roleMembersDisplay().length === 1 ? 'GUILD_SETTINGS.MEMBERS.RESULTS_SINGLE' : 'GUILD_SETTINGS.MEMBERS.RESULTS_PLURAL') | translate: {
+                                    count: roleMembersDisplay().length
+                                }
+                            }}
+                        } @else if (roleMembersHasMore()) {
+                            {{ 'GUILD_SETTINGS.MEMBERS.COUNT_MORE' | translate: {count: roleMembersDisplay().length} }}
+                        } @else {
+                            {{
+                                (roleMembersDisplay().length !== 1 ? 'GUILD_SETTINGS.MEMBERS.COUNT_PLURAL' : 'GUILD_SETTINGS.MEMBERS.COUNT_SINGLE') | translate: {
+                                    count: roleMembersDisplay().length
+                                }
+                            }}
+                        }
                     </p>
 
                     <!-- List -->
                     @if (roleMembersLoading()) {
                         <div class="flex items-center justify-center py-8">
-                            <i class="pi pi-spin pi-spinner text-white/30 text-xl"></i>
+                            <i class="pi pi-spin pi-spinner text-text-secondary text-xl"></i>
                         </div>
                     } @else {
                         <div (scroll)="onMembersScroll($event)"
@@ -220,25 +258,25 @@
 >
 
                             @for (row of roleMembersDisplay(); track row.roleMember.id) {
-                                <div class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-white/[0.04] transition-colors group">
+                                <div class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-white/[0.04] transition-colors">
 
                                     <!-- Avatar -->
                                     <div class="w-8 h-8 rounded-full overflow-hidden bg-card shrink-0 flex items-center justify-center">
                                         @if (avatarUrl(row.profile); as url) {
                                             <img (error)="onAvatarError(url)"
-                                                 [alt]="displayName(row.profile, row.userId)"
+                                                 [alt]="displayName(row.profile)"
                                                  [src]="url"
                                                  class="w-full h-full object-cover"/>
                                         } @else {
-                                            <span class="text-xs font-semibold text-white/40">{{ displayName(row.profile, row.userId).charAt(0).toUpperCase() }}</span>
+                                            <span class="text-xs font-semibold text-text-secondary">{{ displayName(row.profile).charAt(0).toUpperCase() }}</span>
                                         }
                                     </div>
 
                                     <!-- Name -->
-                                    <span class="flex-1 min-w-0 text-sm text-white/80 truncate">{{ displayName(row.profile, row.userId) }}</span>
+                                    <span class="flex-1 min-w-0 text-sm text-white/80 truncate">{{ displayName(row.profile) }}</span>
 
-                                    <!-- Remove button: focus-within keeps it keyboard-reachable -->
-                                    <div class="opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity shrink-0">
+                                    <!-- Remove button: hiding it until hover made it a blind tap target on touch -->
+                                    <div class="shrink-0">
                                         <p-button (onClick)="removeMember(row.roleMember)" [disabled]="removing() !== null" [loading]="removing() === row.roleMember.memberId" [pTooltip]="'GUILD_SETTINGS.ROLES.REMOVE_FROM_ROLE' | translate"
                                                   [text]="true"
                                                   icon="pi pi-times"
@@ -250,12 +288,12 @@
                             }
 
                             @if (roleMembers().length === 0) {
-                                <p class="text-sm text-white/25 text-center py-8">{{ 'GUILD_SETTINGS.ROLES.NO_MEMBERS' | translate }}</p>
+                                <p class="text-sm text-text-secondary text-center py-8">{{ 'GUILD_SETTINGS.ROLES.NO_MEMBERS' | translate }}</p>
                             }
 
                             @if (roleMembersLoadingMore()) {
                                 <div class="flex items-center justify-center py-3">
-                                    <i class="pi pi-spin pi-spinner text-white/30 text-sm"></i>
+                                    <i class="pi pi-spin pi-spinner text-text-secondary text-sm"></i>
                                 </div>
                             }
                         </div>
@@ -264,7 +302,7 @@
             }
 
         } @else {
-            <div class="flex flex-col items-center justify-center h-full text-center gap-2 text-white/30">
+            <div class="flex flex-col items-center justify-center h-full text-center gap-2 text-text-secondary">
                 <i class="pi pi-shield text-2xl"></i>
                 <p class="text-sm">{{ 'GUILD_SETTINGS.ROLES.SELECT_HINT' | translate }}</p>
             </div>
@@ -283,7 +321,7 @@
     </ng-template>
     <div class="space-y-4 py-2">
         <div>
-            <label class="block text-xs font-semibold text-white/40 uppercase tracking-widest mb-2">{{ 'GUILD_SETTINGS.ROLES.CREATE_NAME' | translate }}
+            <label class="block text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2">{{ 'GUILD_SETTINGS.ROLES.CREATE_NAME' | translate }}
                 <span class="text-rose-400">*</span></label>
             <!-- Enter creates. `createRole()` re-checks the trimmed name and the in-flight flag,
                  so a held key cannot mint two roles. The colour swatch below is a native picker
@@ -293,21 +331,26 @@
                    class="w-full" pInputText/>
         </div>
         <div>
-            <label class="block text-xs font-semibold text-white/40 uppercase tracking-widest mb-2">{{ 'GUILD_SETTINGS.ROLES.CREATE_COLOR' | translate }}</label>
+            <label class="block text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2">{{ 'GUILD_SETTINGS.ROLES.CREATE_COLOR' | translate }}</label>
             <div class="flex items-center gap-3">
                 <input (ngModelChange)="createColor.set($event)"
                        [ngModel]="createColor()" class="w-10 h-10 rounded-xl cursor-pointer border border-white/[0.08] bg-transparent p-0.5"
                        type="color"/>
                 <input (keydown.enter)="createRole()" (ngModelChange)="createColor.set($event)"
+                       [attr.aria-invalid]="createColorInvalid()"
+                       [maxlength]="7"
                        [ngModel]="createColor()" class="w-28 font-mono text-sm"
                        pInputText/>
             </div>
+            @if (createColorInvalid()) {
+                <p class="text-[0.6875rem] text-rose-400 mt-1.5">{{ 'GUILD_SETTINGS.ROLES.COLOR_INVALID' | translate }}</p>
+            }
         </div>
     </div>
     <div class="flex gap-2 justify-end mt-4 pt-4 border-t border-white/[0.10]">
         <p-button (onClick)="showCreateDialog.set(false)" [label]="'GUILD_SETTINGS.ROLES.CANCEL' | translate" [text]="true" severity="secondary"
                   size="small"/>
-        <p-button (onClick)="createRole()" [disabled]="!createName().trim()" [label]="'GUILD_SETTINGS.ROLES.CREATE_BTN' | translate"
+        <p-button (onClick)="createRole()" [disabled]="!createName().trim() || createColorInvalid()" [label]="'GUILD_SETTINGS.ROLES.CREATE_BTN' | translate"
                   [loading]="creating()" severity="primary"
                   size="small"/>
     </div>
@@ -350,7 +393,7 @@
     <div class="flex flex-col h-full gap-3 pt-1">
         <!-- Search -->
         <div class="relative shrink-0">
-            <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-white/30 text-xs pointer-events-none"></i>
+            <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-xs pointer-events-none"></i>
             <input (ngModelChange)="onAddSearchChange($event)"
                    [ngModel]="addSearch()"
                    [placeholder]="'GUILD_SETTINGS.ROLES.SEARCH_PLACEHOLDER' | translate"
@@ -358,10 +401,17 @@
                    pInputText/>
         </div>
 
+        <!-- Without a search term this is one page of the guild, not the guild. Say so. -->
+        @if (addPartial()) {
+            <p class="text-[0.6875rem] text-text-secondary shrink-0 leading-relaxed">
+                {{ 'GUILD_SETTINGS.ROLES.ADD_PARTIAL_HINT' | translate: {count: TAKE} }}
+            </p>
+        }
+
         <!-- Candidates list -->
         @if (addLoading()) {
             <div class="flex items-center justify-center flex-1">
-                <i class="pi pi-spin pi-spinner text-white/30 text-xl"></i>
+                <i class="pi pi-spin pi-spinner text-text-secondary text-xl"></i>
             </div>
         } @else {
             <div class="flex-1 overflow-y-auto space-y-0.5 min-h-0 thin-scrollbar"
@@ -375,7 +425,7 @@
                                 <img (error)="onAvatarError(url)" [alt]="addDisplayName(member)" [src]="url"
                                      class="w-full h-full object-cover"/>
                             } @else {
-                                <span class="text-xs font-semibold text-white/40">{{ addDisplayName(member).charAt(0).toUpperCase() }}</span>
+                                <span class="text-xs font-semibold text-text-secondary">{{ addDisplayName(member).charAt(0).toUpperCase() }}</span>
                             }
                         </div>
 
@@ -391,9 +441,32 @@
                 }
 
                 @if (addCandidates().length === 0) {
-                    <p class="text-sm text-white/25 text-center py-8">{{ 'GUILD_SETTINGS.ROLES.NO_MEMBERS_TO_ADD' | translate }}</p>
+                    <p class="text-sm text-text-secondary text-center py-8">{{ 'GUILD_SETTINGS.ROLES.NO_MEMBERS_TO_ADD' | translate }}</p>
                 }
             </div>
         }
+    </div>
+</p-dialog>
+
+<!-- Unsaved edits guard. Mirrors the shell's dialog, because the role list bypasses it. -->
+<p-dialog
+        [closable]="false"
+        [closeOnEscape]="false"
+        [dismissableMask]="false"
+        [draggable]="false"
+        [modal]="true"
+        [resizable]="false"
+        [style]="{width: '400px'}"
+        [visible]="showUnsavedDialog()"
+        appendTo="body">
+    <ng-template pTemplate="header">
+        <span class="text-sm font-semibold text-white/85">{{ 'GUILD_SETTINGS.UNSAVED.TITLE' | translate }}</span>
+    </ng-template>
+    <p class="text-sm text-white/60 py-2">{{ 'GUILD_SETTINGS.ROLES.UNSAVED_DESC' | translate }}</p>
+    <div class="flex gap-2 justify-end mt-4 pt-4 border-t border-white/[0.10]">
+        <p-button (onClick)="keepEditing()" [label]="'GUILD_SETTINGS.UNSAVED.KEEP_EDITING' | translate" [text]="true"
+                  severity="secondary" size="small"/>
+        <p-button (onClick)="discardAndContinue()" [label]="'GUILD_SETTINGS.UNSAVED.DISCARD' | translate"
+                  [outlined]="true" severity="danger" size="small"/>
     </div>
 </p-dialog>

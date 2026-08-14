@@ -70,6 +70,12 @@ export class OnboardingPromptEditorComponent {
 
     protected draft = signal<OnboardingPrompt>(this.emptyPrompt());
     protected showValidation = signal(false);
+    protected showDiscard = signal(false);
+
+    /** What the draft looked like when the dialog opened, so a close can tell whether it matters. */
+    private seeded = signal(JSON.stringify(this.emptyPrompt()));
+
+    protected changed = computed(() => JSON.stringify(this.draft()) !== this.seeded());
 
     private translate = inject(TranslateService);
 
@@ -125,8 +131,11 @@ export class OnboardingPromptEditorComponent {
             // Re-seed each time the dialog opens so a cancelled edit leaves nothing behind.
             if (!this.visible()) return;
             const source = this.prompt();
-            this.draft.set(source ? structuredClone(source) : this.emptyPrompt());
+            const draft = source ? structuredClone(source) : this.emptyPrompt();
+            this.draft.set(draft);
+            this.seeded.set(JSON.stringify(draft));
             this.showValidation.set(false);
+            this.showDiscard.set(false);
         });
     }
 
@@ -175,6 +184,23 @@ export class OnboardingPromptEditorComponent {
             return;
         }
         this.save.emit(this.draft());
+        this.visible.set(false);
+    }
+
+    /**
+     * The dialog owns its own close: nothing here has been written anywhere yet, so walking
+     * away from a half-built question throws it away for good.
+     */
+    protected requestClose(): void {
+        if (this.changed()) {
+            this.showDiscard.set(true);
+            return;
+        }
+        this.visible.set(false);
+    }
+
+    protected discard(): void {
+        this.showDiscard.set(false);
         this.visible.set(false);
     }
 

@@ -31,7 +31,6 @@ import {guildFeatures} from '../../../../guild-features';
 interface RoleMemberDisplay {
     roleMember: RoleMemberDto;
     profile: ProfileDto | undefined;
-    userId: string;
 }
 
 /** Hex colours only; the free-text field used to accept anything and persist it. */
@@ -65,6 +64,12 @@ export class RolesSettingsComponent implements OnInit {
     permQuery = signal('');
     editSaving = signal(false);
     editDirty = signal(false);
+    /**
+     * Local unsaved-changes guard. The shell already blocks nav-away and close, but the role
+     * list sits inside this page and switching rows used to overwrite every edit signal
+     * without asking.
+     */
+    showUnsavedDialog = signal(false);
     // Create role dialog
     showCreateDialog = signal(false);
     createName = signal('');
@@ -88,6 +93,8 @@ export class RolesSettingsComponent implements OnInit {
     addCandidates = signal<GuildMemberDto[]>([]);
     addLoading = signal(false);
     adding = signal<string | null>(null);
+    /** True while the candidate list is just the first page, so the dialog can say so. */
+    addPartial = signal(false);
     protected readonly RoleType = RoleType;
     private guildService = inject(GuildService);
     private guildWsService = inject(GuildWebsocketService);
@@ -100,7 +107,6 @@ export class RolesSettingsComponent implements OnInit {
             return {
                 roleMember: rm,
                 profile: userId ? this.profileService.getCachedByUserId(userId) : undefined,
-                userId,
             };
         })
     );
@@ -109,13 +115,19 @@ export class RolesSettingsComponent implements OnInit {
     /** Member ids known to already hold the selected role, used to filter add candidates. */
     private assignedMemberIds = signal<ReadonlySet<string>>(new Set());
     // Members tab -raw list; profiles resolved from store
-    private readonly TAKE = 30;
+    protected readonly TAKE = 30;
     private memberNextSkip = 0;
     private memberSearchTimer?: ReturnType<typeof setTimeout>;
     private addSearchTimer?: ReturnType<typeof setTimeout>;
 
+    /** What to run once the user confirms discarding pending edits. */
+    private pendingAction = signal<(() => void) | null>(null);
+
     /** Blocks Save on a malformed hex value instead of writing it to the role. */
     protected colorInvalid = computed(() => !HEX_COLOR_PATTERN.test(this.editColor().trim()));
+
+    /** The create dialog used to persist whatever was typed; it gets the same check as the editor. */
+    protected createColorInvalid = computed(() => !HEX_COLOR_PATTERN.test(this.createColor().trim()));
 
     /** Module set for this guild: permission groups whose module is off aren't offered. */
     protected features = computed(() => guildFeatures(this.guild()));
@@ -146,18 +158,36 @@ export class RolesSettingsComponent implements OnInit {
     }
 
     private dragIndex = signal<number | null>(null);
+    /** Row the pointer is currently over, so the list can draw an insertion line. */
+    dropIndex = signal<number | null>(null);
+
+    /** The line sits above the target when the role is travelling up, below it when down. */
+    dropBefore = computed(() => {
+        const from = this.dragIndex();
+        const to = this.dropIndex();
+        return from !== null && to !== null && to < from;
+    });
 
     onDragStart(index: number): void {
         this.dragIndex.set(index);
     }
 
-    onDragOver(event: DragEvent): void {
+    onDragOver(event: DragEvent, index: number): void {
+        const from = this.dragIndex();
+        if (from === null) return;
         event.preventDefault();
+        this.dropIndex.set(this.canReorder(from, index) ? index : null);
+    }
+
+    onDragEnd(): void {
+        this.dragIndex.set(null);
+        this.dropIndex.set(null);
     }
 
     onDrop(targetIndex: number): void {
         const fromIndex = this.dragIndex();
         this.dragIndex.set(null);
+        this.dropIndex.set(null);
         if (fromIndex === null) return;
         this.moveRole(fromIndex, targetIndex);
     }
@@ -168,15 +198,40 @@ export class RolesSettingsComponent implements OnInit {
     }
 
     canMove(index: number, delta: number): boolean {
-        const target = index + delta;
-        return target >= 0 && target < this.roles().length;
+        return this.canReorder(index, index + delta);
+    }
+
+    /**
+     * The everyone role is the implicit one every member carries; the editor already refuses to
+     * rename or delete it, but the hierarchy let it be dragged anywhere. It stays where it is.
+     */
+    isPinned(role: RoleDto): boolean {
+        return role.type === RoleType.Everyone;
+    }
+
+    /**
+     * A move is legal when it neither picks up the pinned role nor steps over it: splicing a role
+     * across the pinned one shifts that role's own index, which is the same thing by another route.
+     */
+    private canReorder(fromIndex: number, targetIndex: number): boolean {
+        const roles = this.roles();
+        if (fromIndex === targetIndex) return false;
+        if (fromIndex < 0 || fromIndex >= roles.length) return false;
+        if (targetIndex < 0 || targetIndex >= roles.length) return false;
+        if (this.isPinned(roles[fromIndex])) return false;
+
+        const low = Math.min(fromIndex, targetIndex);
+        const high = Math.max(fromIndex, targetIndex);
+        return !roles.some((r, i) => i >= low && i <= high && i !== fromIndex && this.isPinned(r));
     }
 
     private moveRole(fromIndex: number, targetIndex: number): void {
-        if (fromIndex === targetIndex) return;
-        if (targetIndex < 0 || targetIndex >= this.roles().length) return;
+        if (!this.canReorder(fromIndex, targetIndex)) return;
 
-        const reordered = [...this.roles()];
+        // Rolling back to guild().roles threw away every earlier reorder from this session, since
+        // the input never carries them. The order we were just showing is the honest fallback.
+        const previous = this.roles();
+        const reordered = [...previous];
         const [moved] = reordered.splice(fromIndex, 1);
         reordered.splice(targetIndex, 0, moved);
         const withPositions = reordered.map((r, i) => ({...r, position: i}));
@@ -187,20 +242,49 @@ export class RolesSettingsComponent implements OnInit {
         }).subscribe({
             error: err => {
                 this.toastService.httpError(this.translate.instant('GUILD_SETTINGS.ROLES.REORDER_ERROR'), err);
-                this.roles.set([...this.guild().roles].sort((a, b) => a.position - b.position));
+                this.roles.set(previous);
             },
         });
     }
 
+    /** Clicking a role in the list discarded pending edits without a word. Ask first. */
+    onRoleClick(role: RoleDto): void {
+        if (this.selectedRole()?.id === role.id) return;
+        this.guardUnsaved(() => this.selectRole(role));
+    }
+
+    /** Creating a role selects it, so it drops pending edits by the same route as a list click. */
+    openCreateDialog(): void {
+        this.guardUnsaved(() => this.showCreateDialog.set(true));
+    }
+
+    keepEditing(): void {
+        this.showUnsavedDialog.set(false);
+        this.pendingAction.set(null);
+    }
+
+    discardAndContinue(): void {
+        const action = this.pendingAction();
+        this.showUnsavedDialog.set(false);
+        this.pendingAction.set(null);
+        // Discard has to mean discard whatever the pending action was. The create path would
+        // otherwise leave the edits sitting there dirty after the user agreed to drop them.
+        this.resetEdits();
+        action?.();
+    }
+
+    /**
+     * Reset restores the settings fields and nothing else. It used to run through selectRole(),
+     * which also emptied the Members tab and bounced the user back to Settings.
+     */
+    resetEdits(): void {
+        const role = this.selectedRole();
+        if (role) this.applyRoleToFields(role);
+    }
+
     selectRole(role: RoleDto): void {
         this.selectedRole.set(role);
-        this.editName.set(role.name);
-        this.editDescription.set(role.description ?? '');
-        this.editColor.set(role.color ?? '#4B5BC4');
-        this.editPerms.set(parsePermissionCarrier(role.permissions));
-        this.editModulePerms.set(parseModulePermissionCarrier(role.modulePermissions));
-        this.permQuery.set('');
-        this.editDirty.set(false);
+        this.applyRoleToFields(role);
         this.activeTab.set('settings');
         this.resetMembersTab();
     }
@@ -270,12 +354,12 @@ export class RolesSettingsComponent implements OnInit {
     }
 
     createRole(): void {
-        if (this.creating() || !this.createName().trim()) return;
+        if (this.creating() || !this.createName().trim() || this.createColorInvalid()) return;
         this.creating.set(true);
         const dto: CreateRoleDto = {
             guildId: this.guild().id,
             name: this.createName().trim(),
-            color: this.createColor(),
+            color: this.createColor().trim(),
             permissions: 'None',
             modulePermissions: 'None',
         };
@@ -284,6 +368,7 @@ export class RolesSettingsComponent implements OnInit {
                 this.roles.update(list => [...list, role]);
                 this.showCreateDialog.set(false);
                 this.createName.set('');
+                this.createColor.set('#4B5BC4');
                 this.creating.set(false);
                 this.selectRole(role);
                 this.rolesChanged.emit(this.roles());
@@ -365,8 +450,9 @@ export class RolesSettingsComponent implements OnInit {
         });
     }
 
-    displayName(profile: ProfileDto | undefined, userId: string): string {
-        return profile?.userName ?? (userId ? userId.slice(0, 8) + '…' : '?');
+    // A half-printed user id is not a name; while the profile resolves, say so in words.
+    displayName(profile: ProfileDto | undefined): string {
+        return profile?.userName ?? this.translate.instant('GUILD_SETTINGS.ROLES.UNKNOWN_MEMBER');
     }
 
     // The API sends an avatarUrl for every profile, uploaded or not, so a URL that has already
@@ -383,6 +469,7 @@ export class RolesSettingsComponent implements OnInit {
     openAddDialog(): void {
         this.addSearch.set('');
         this.addCandidates.set([]);
+        this.addPartial.set(false);
         this.showAddDialog.set(true);
 
         // Exclusion is computed from the role's current members. Opening this dialog
@@ -427,19 +514,47 @@ export class RolesSettingsComponent implements OnInit {
             },
             error: err => {
                 this.adding.set(null);
+                // assignedMemberIds only ever holds the pages we fetched, so on a big role this
+                // list can still offer someone who already has it. The server treats a repeat as
+                // a no-op, but if it does answer 409 that is not a failure worth a red toast.
+                if (err.status === 409) {
+                    this.addCandidates.update(list => list.filter(m => m.id !== member.id));
+                    this.assignedMemberIds.update(ids => new Set(ids).add(member.id));
+                    this.toastService.info(this.translate.instant('GUILD_SETTINGS.ROLES.ALREADY_HAS_ROLE'));
+                    return;
+                }
                 this.toastService.httpError(this.translate.instant('GUILD_SETTINGS.ROLES.ADD_ERROR'), err);
             },
         });
     }
 
     addDisplayName(member: GuildMemberDto): string {
-        return member.profile?.userName ?? member.userId.slice(0, 8) + '…';
+        return this.displayName(member.profile);
     }
 
     // ── Add member dialog ──────────────────────────────────────────────────────
 
     addAvatarUrl(member: GuildMemberDto): string | undefined {
         return this.avatarUrl(member.profile);
+    }
+
+    private guardUnsaved(action: () => void): void {
+        if (!this.editDirty()) {
+            action();
+            return;
+        }
+        this.pendingAction.set(action);
+        this.showUnsavedDialog.set(true);
+    }
+
+    private applyRoleToFields(role: RoleDto): void {
+        this.editName.set(role.name);
+        this.editDescription.set(role.description ?? '');
+        this.editColor.set(role.color ?? '#4B5BC4');
+        this.editPerms.set(parsePermissionCarrier(role.permissions));
+        this.editModulePerms.set(parseModulePermissionCarrier(role.modulePermissions));
+        this.permQuery.set('');
+        this.editDirty.set(false);
     }
 
     private resetMembersTab(): void {
@@ -514,14 +629,19 @@ export class RolesSettingsComponent implements OnInit {
         this.addLoading.set(true);
         const obs = query
             ? this.guildService.searchMembers(this.guild().id, query)
-            : this.guildService.getMembers(this.guild().id, 0, 30);
+            : this.guildService.getMembers(this.guild().id, 0, this.TAKE);
         obs.subscribe({
             next: members => {
                 const existingIds = this.assignedMemberIds();
+                // The unsearched list is one page of the guild, never the whole roster.
+                this.addPartial.set(!query && members.length >= this.TAKE);
                 this.addCandidates.set(members.filter(m => !existingIds.has(m.id)));
                 this.addLoading.set(false);
             },
-            error: () => this.addLoading.set(false),
+            error: () => {
+                this.addPartial.set(false);
+                this.addLoading.set(false);
+            },
         });
     }
 }

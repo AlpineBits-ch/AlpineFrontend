@@ -12,6 +12,7 @@ import {
     OnboardingMode,
     OnboardingPrompt,
     OnboardingPromptType,
+    WelcomeScreen,
 } from '../../../../../../dtos/response/guild-safety.dto';
 
 const BASE = 'https://api.test.example/api/v1/guild';
@@ -179,7 +180,7 @@ describe('OnboardingSettingsComponent save - client-side guard', () => {
         component['save']();
         expect(component['validationErrors']().length).toBeGreaterThan(0);
 
-        component['onRulesTextChange']('be nice');
+        component['rulesText'].set('be nice');
         expect(component['validationErrors']()).toEqual([]);
     });
 
@@ -267,5 +268,123 @@ describe('OnboardingSettingsComponent save - payload', () => {
         req.flush(onboardingFixture({prompts: [promptFixture({id: 'onbp_generated'})]}));
 
         expect(component['prompts']()[0].id).toBe('onbp_generated');
+    });
+});
+
+/**
+ * Both halves save through their own endpoint but share one dirty flag, and the welcome
+ * half used to report nothing at all - a whole welcome screen could be typed and then
+ * thrown away by a nav click without a prompt.
+ */
+describe('OnboardingSettingsComponent dirty tracking', () => {
+    afterEach(() => TestBed.inject(HttpTestingController).verify());
+
+    it('starts clean once both halves have loaded', () => {
+        const {fixture, component, ctrl} = setup();
+        flushInitialLoad(ctrl, onboardingFixture({enabled: true, rulesText: 'be nice'}));
+        fixture.detectChanges();
+
+        expect(component['dirty']()).toBe(false);
+    });
+
+    it('goes clean again when an edit is undone', () => {
+        const {component, ctrl} = setup();
+        flushInitialLoad(ctrl);
+
+        component['enabled'].set(true);
+        expect(component['dirty']()).toBe(true);
+
+        component['enabled'].set(false);
+        expect(component['dirty']()).toBe(false);
+    });
+
+    it('reports a prompt reorder and settles on save', () => {
+        const {component, ctrl} = setup();
+        flushInitialLoad(ctrl, onboardingFixture({
+            prompts: [promptFixture({id: 'onbp_a', position: 0}), promptFixture({id: 'onbp_b', position: 1})],
+        }));
+
+        component['movePrompt'](0, 1);
+        expect(component['configDirty']()).toBe(true);
+
+        component['save']();
+        const req = ctrl.expectOne(`${BASE}/guilds/g1/onboarding`);
+        req.flush(req.request.body as OnboardingConfig);
+
+        expect(component['configDirty']()).toBe(false);
+    });
+
+    it('reports a welcome screen edit even while the onboarding half is untouched', () => {
+        const {fixture, component, ctrl} = setup();
+        const emitted: boolean[] = [];
+        component.dirtyChange.subscribe(value => emitted.push(value));
+        flushInitialLoad(ctrl);
+
+        component['welcomeDescription'].set('a house for the four of us');
+        fixture.detectChanges();
+
+        expect(component['configDirty']()).toBe(false);
+        expect(component['welcomeDirty']()).toBe(true);
+        expect(emitted.at(-1)).toBe(true);
+    });
+
+    it('reports an added and a removed welcome channel', () => {
+        const {component, ctrl} = setup();
+        flushInitialLoad(ctrl);
+
+        component['addWelcomeChannel']('c1');
+        expect(component['welcomeDirty']()).toBe(true);
+
+        component['removeWelcomeChannel'](0);
+        expect(component['welcomeDirty']()).toBe(false);
+    });
+
+    it('reports an edited welcome channel description', () => {
+        const {component, ctrl} = setup();
+        flushInitialLoad(ctrl);
+
+        component['addWelcomeChannel']('c1');
+        component['saveWelcomeScreen']();
+        const added = ctrl.expectOne(`${BASE}/guilds/g1/welcome-screen`);
+        added.flush(added.request.body as WelcomeScreen);
+        expect(component['welcomeDirty']()).toBe(false);
+
+        component['patchWelcomeChannel'](0, {description: 'say hello here'});
+        expect(component['welcomeDirty']()).toBe(true);
+    });
+
+    it('clears the welcome half on save without touching the onboarding half', () => {
+        const {fixture, component, ctrl} = setup();
+        flushInitialLoad(ctrl);
+
+        component['welcomeEnabled'].set(true);
+        component['rulesText'].set('be nice');
+        component['saveWelcomeScreen']();
+
+        const req = ctrl.expectOne(`${BASE}/guilds/g1/welcome-screen`);
+        expect(req.request.method).toBe('PUT');
+        req.flush(req.request.body as WelcomeScreen);
+        fixture.detectChanges();
+
+        expect(component['welcomeDirty']()).toBe(false);
+        expect(component['configDirty']()).toBe(true);
+        expect(component['dirty']()).toBe(true);
+    });
+});
+
+describe('OnboardingSettingsComponent prompt removal', () => {
+    afterEach(() => TestBed.inject(HttpTestingController).verify());
+
+    it('keeps the question until the confirmation is accepted', () => {
+        const {component, ctrl} = setup();
+        flushInitialLoad(ctrl, onboardingFixture({prompts: [promptFixture()]}));
+
+        component['askRemovePrompt'](0);
+        expect(component['prompts']().length).toBe(1);
+        expect(component['showRemovePrompt']()).toBe(true);
+
+        component['removePrompt']();
+        expect(component['prompts']()).toEqual([]);
+        expect(component['showRemovePrompt']()).toBe(false);
     });
 });

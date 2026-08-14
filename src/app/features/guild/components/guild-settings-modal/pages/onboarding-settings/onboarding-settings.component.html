@@ -3,158 +3,198 @@
         <i class="pi pi-spin pi-spinner text-text-muted"></i>
     </div>
 } @else {
-    <div class="flex flex-col gap-10 max-w-2xl">
+    <div class="flex flex-col gap-12 max-w-2xl">
 
-        <!-- ── Enable ─────────────────────────────────────────────────────── -->
-        <section class="flex flex-col gap-4">
-            <div class="flex items-start justify-between gap-4 p-3 rounded-xl bg-card/60 border border-border-subtle">
-                <div class="min-w-0">
-                    <p class="text-sm text-text-primary m-0">{{ 'GUILD_SETTINGS.ONBOARDING.ENABLE_TITLE' | translate }}</p>
-                    <p class="text-xs text-text-muted m-0 mt-0.5">{{ 'GUILD_SETTINGS.ONBOARDING.ENABLE_DESC' | translate }}</p>
+        <!-- ── Onboarding config: everything down to its own Save button ───── -->
+        <div class="flex flex-col gap-10">
+            <h2 class="text-base font-semibold text-text-primary m-0">{{ 'GUILD_SETTINGS.ONBOARDING.SECTION_TITLE' | translate }}</h2>
+
+            <!-- ── Enable ─────────────────────────────────────────────────── -->
+            <section class="flex flex-col gap-4">
+                <div class="flex items-start justify-between gap-4 p-3 rounded-xl bg-card/60 border border-border-subtle">
+                    <div class="min-w-0">
+                        <p class="text-sm text-text-primary m-0">{{ 'GUILD_SETTINGS.ONBOARDING.ENABLE_TITLE' | translate }}</p>
+                        <p class="text-xs text-text-secondary m-0 mt-0.5">{{ 'GUILD_SETTINGS.ONBOARDING.ENABLE_DESC' | translate }}</p>
+                    </div>
+                    <p-toggleswitch (ngModelChange)="enabled.set($event)" [ngModel]="enabled()"/>
                 </div>
-                <p-toggleswitch (ngModelChange)="setEnabled($event)" [ngModel]="enabled()"/>
-            </div>
 
-            <p class="text-xs text-text-muted m-0 flex items-start gap-1.5">
-                <i class="pi pi-info-circle text-[0.6875rem] mt-0.5"></i>
-                {{ 'GUILD_SETTINGS.ONBOARDING.NOT_RETROACTIVE_NOTE' | translate }}
-            </p>
-        </section>
+                <p class="text-xs text-text-secondary m-0 flex items-start gap-1.5">
+                    <i class="pi pi-info-circle text-[0.6875rem] mt-0.5"></i>
+                    {{ 'GUILD_SETTINGS.ONBOARDING.NOT_RETROACTIVE_NOTE' | translate }}
+                </p>
+            </section>
 
-        <!-- ── Rules ──────────────────────────────────────────────────────── -->
-        <section class="flex flex-col gap-3">
-            <div>
-                <h2 class="text-sm font-semibold text-text-primary m-0">{{ 'GUILD_SETTINGS.ONBOARDING.RULES_TITLE' | translate }}</h2>
-                <p class="text-xs text-text-muted m-0 mt-1">{{ 'GUILD_SETTINGS.ONBOARDING.RULES_DESC' | translate }}</p>
-            </div>
-            <textarea (ngModelChange)="onRulesTextChange($event)" [maxlength]="limits.rulesTextLength"
-                      [ngModel]="rulesText()" [placeholder]="'GUILD_SETTINGS.ONBOARDING.RULES_PLACEHOLDER' | translate"
-                      pTextarea rows="6"></textarea>
-            <span class="text-[0.6875rem] text-text-muted self-end tabular-nums">
-                {{ rulesText().length }}/{{ limits.rulesTextLength }}
-            </span>
-        </section>
-
-        <!-- ── Prompts ────────────────────────────────────────────────────── -->
-        <section class="flex flex-col gap-3">
-            <div class="flex items-start justify-between gap-4">
-                <div class="min-w-0">
-                    <h2 class="text-sm font-semibold text-text-primary m-0">{{ 'GUILD_SETTINGS.ONBOARDING.PROMPTS_TITLE' | translate }}</h2>
-                    <p class="text-xs text-text-muted m-0 mt-1">{{ 'GUILD_SETTINGS.ONBOARDING.PROMPTS_DESC' | translate }}</p>
+            <!-- ── Rules ──────────────────────────────────────────────────── -->
+            <section class="flex flex-col gap-3">
+                <div>
+                    <h3 class="text-sm font-semibold text-text-primary m-0">{{ 'GUILD_SETTINGS.ONBOARDING.RULES_TITLE' | translate }}</h3>
+                    <p class="text-xs text-text-secondary m-0 mt-1">{{ 'GUILD_SETTINGS.ONBOARDING.RULES_DESC' | translate }}</p>
                 </div>
-                <div class="flex items-center gap-2 shrink-0">
-                    <span [class]="atPromptCap() ? 'text-connecting' : 'text-text-muted'"
-                          class="text-[0.6875rem] tabular-nums">
-                        {{ prompts().length }}/{{ limits.promptsPerGuild }}
-                    </span>
-                    <p-button (onClick)="addPrompt()" [disabled]="atPromptCap()"
-                              [label]="'GUILD_SETTINGS.ONBOARDING.ADD_PROMPT' | translate" icon="pi pi-plus"
-                              severity="secondary" size="small"/>
-                </div>
-            </div>
+                <textarea (ngModelChange)="rulesText.set($event)" [maxlength]="limits.rulesTextLength"
+                          [ngModel]="rulesText()" [placeholder]="'GUILD_SETTINGS.ONBOARDING.RULES_PLACEHOLDER' | translate"
+                          pTextarea rows="6"></textarea>
+                <span class="text-[0.6875rem] text-text-muted self-end tabular-nums">
+                    {{ rulesText().length }}/{{ limits.rulesTextLength }}
+                </span>
 
-            @if (prompts().length === 0) {
-                <div class="flex flex-col items-center gap-2 py-10 rounded-xl border border-dashed border-border-subtle">
-                    <i class="pi pi-question-circle text-2xl text-white/10"></i>
-                    <p class="text-xs text-text-muted m-0">{{ 'GUILD_SETTINGS.ONBOARDING.PROMPTS_EMPTY' | translate }}</p>
+                @if (needsContent()) {
+                    <p class="text-xs text-offline m-0 flex items-start gap-1.5">
+                        <i class="pi pi-exclamation-circle text-[0.6875rem] mt-0.5"></i>
+                        {{ 'GUILD_SETTINGS.ONBOARDING.ERR_NEEDS_CONTENT' | translate }}
+                    </p>
+                }
+                @if (rulesTooLong()) {
+                    <p class="text-xs text-offline m-0 flex items-start gap-1.5">
+                        <i class="pi pi-exclamation-circle text-[0.6875rem] mt-0.5"></i>
+                        {{ 'GUILD_SETTINGS.ONBOARDING.ERR_RULES_TOO_LONG' | translate }}
+                    </p>
+                }
+            </section>
+
+            <!-- ── Prompts ────────────────────────────────────────────────── -->
+            <section class="flex flex-col gap-3">
+                <div class="flex items-start justify-between gap-4">
+                    <div class="min-w-0">
+                        <h3 class="text-sm font-semibold text-text-primary m-0">{{ 'GUILD_SETTINGS.ONBOARDING.PROMPTS_TITLE' | translate }}</h3>
+                        <p class="text-xs text-text-secondary m-0 mt-1">{{ 'GUILD_SETTINGS.ONBOARDING.PROMPTS_DESC' | translate }}</p>
+                    </div>
+                    <div class="flex items-center gap-2 shrink-0">
+                        <span [class]="atPromptCap() ? 'text-connecting' : 'text-text-muted'"
+                              class="text-[0.6875rem] tabular-nums">
+                            {{ prompts().length }}/{{ limits.promptsPerGuild }}
+                        </span>
+                        <p-button (onClick)="addPrompt()" [disabled]="atPromptCap()"
+                                  [label]="'GUILD_SETTINGS.ONBOARDING.ADD_PROMPT' | translate" icon="pi pi-plus"
+                                  severity="secondary" size="small"/>
+                    </div>
                 </div>
-            } @else {
-                <div class="flex flex-col gap-1.5">
-                    @for (prompt of prompts(); track $index) {
-                        <div class="group/prompt flex items-center gap-3 p-3 rounded-xl bg-card/60 border border-border-subtle
-                                    hover:border-border-default transition-colors">
-                            <div class="flex-1 min-w-0">
-                                <div class="flex items-center gap-2">
-                                    <span class="text-sm font-medium text-text-primary truncate">{{ prompt.title }}</span>
-                                    @if (prompt.required) {
-                                        <span class="shrink-0 text-[0.5625rem] font-semibold uppercase tracking-wider
-                                                     text-offline border border-offline/40 rounded px-1 py-px">
-                                            {{ 'GUILD_SETTINGS.ONBOARDING.BADGE_REQUIRED' | translate }}
-                                        </span>
-                                    }
-                                    @if (!prompt.inOnboarding) {
-                                        <span [pTooltip]="'ONBOARDING_EDIT.IN_ONBOARDING_DESC' | translate"
-                                              class="shrink-0 text-[0.5625rem] font-semibold uppercase tracking-wider
-                                                     text-text-muted border border-border-default rounded px-1 py-px"
-                                              tooltipPosition="top">
-                                            {{ 'GUILD_SETTINGS.ONBOARDING.BADGE_POST_JOIN' | translate }}
-                                        </span>
+
+                @if (prompts().length === 0) {
+                    <div class="flex flex-col items-center gap-2 py-10 rounded-xl border border-dashed border-border-subtle">
+                        <i class="pi pi-question-circle text-2xl text-text-muted"></i>
+                        <p class="text-xs text-text-secondary m-0">{{ 'GUILD_SETTINGS.ONBOARDING.PROMPTS_EMPTY' | translate }}</p>
+                    </div>
+                } @else {
+                    <div class="flex flex-col gap-1.5">
+                        @for (prompt of prompts(); track $index) {
+                            <div class="flex items-center gap-3 p-3 rounded-xl bg-card/60 border border-border-subtle
+                                        hover:border-border-default transition-colors">
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-sm font-medium text-text-primary truncate">{{ prompt.title }}</span>
+                                        @if (prompt.required) {
+                                            <span class="shrink-0 text-[0.5625rem] font-semibold uppercase tracking-wider
+                                                         text-offline border border-offline/40 rounded px-1 py-px">
+                                                {{ 'GUILD_SETTINGS.ONBOARDING.BADGE_REQUIRED' | translate }}
+                                            </span>
+                                        }
+                                        @if (!prompt.inOnboarding) {
+                                            <span [pTooltip]="'ONBOARDING_EDIT.IN_ONBOARDING_DESC' | translate"
+                                                  class="shrink-0 text-[0.5625rem] font-semibold uppercase tracking-wider
+                                                         text-text-secondary border border-border-default rounded px-1 py-px"
+                                                  tooltipPosition="top">
+                                                {{ 'GUILD_SETTINGS.ONBOARDING.BADGE_POST_JOIN' | translate }}
+                                            </span>
+                                        }
+                                    </div>
+                                    <p class="text-xs text-text-secondary m-0 mt-0.5">{{ promptSummary(prompt) }}</p>
+                                    @if (promptIssue(prompt); as issue) {
+                                        <p class="text-[0.6875rem] text-offline m-0 mt-1 flex items-center gap-1.5">
+                                            <i class="pi pi-exclamation-circle text-[0.625rem]"></i>
+                                            {{ issue | translate }}
+                                        </p>
                                     }
                                 </div>
-                                <p class="text-xs text-text-muted m-0 mt-0.5">{{ promptSummary(prompt) }}</p>
+
+                                <div class="flex flex-col shrink-0">
+                                    <button (click)="movePrompt($index, -1)" [attr.aria-label]="'ONBOARDING_EDIT.MOVE_UP' | translate"
+                                            [disabled]="$index === 0"
+                                            class="h-6 w-6 grid place-items-center text-text-secondary hover:text-text-primary disabled:opacity-30 transition-colors"
+                                            type="button">
+                                        <i class="pi pi-chevron-up text-[0.5rem]"></i>
+                                    </button>
+                                    <button (click)="movePrompt($index, 1)" [attr.aria-label]="'ONBOARDING_EDIT.MOVE_DOWN' | translate"
+                                            [disabled]="$index === prompts().length - 1"
+                                            class="h-6 w-6 grid place-items-center text-text-secondary hover:text-text-primary disabled:opacity-30 transition-colors"
+                                            type="button">
+                                        <i class="pi pi-chevron-down text-[0.5rem]"></i>
+                                    </button>
+                                </div>
+
+                                <p-button (onClick)="editPrompt($index)" [text]="true" icon="pi pi-pencil"
+                                          severity="secondary" size="small"/>
+                                <p-button (onClick)="askRemovePrompt($index)" [text]="true" icon="pi pi-trash"
+                                          severity="danger" size="small"/>
                             </div>
+                        }
+                    </div>
 
-                            <div class="flex flex-col shrink-0 opacity-0 group-hover/prompt:opacity-100 focus-within:opacity-100 transition-opacity">
-                                <button (click)="movePrompt($index, -1)" [attr.aria-label]="'ONBOARDING_EDIT.MOVE_UP' | translate"
-                                        [disabled]="$index === 0"
-                                        class="h-3.5 w-5 grid place-items-center text-text-muted hover:text-text-primary disabled:opacity-25 transition-colors"
-                                        type="button">
-                                    <i class="pi pi-chevron-up text-[0.5rem]"></i>
-                                </button>
-                                <button (click)="movePrompt($index, 1)" [attr.aria-label]="'ONBOARDING_EDIT.MOVE_DOWN' | translate"
-                                        [disabled]="$index === prompts().length - 1"
-                                        class="h-3.5 w-5 grid place-items-center text-text-muted hover:text-text-primary disabled:opacity-25 transition-colors"
-                                        type="button">
-                                    <i class="pi pi-chevron-down text-[0.5rem]"></i>
-                                </button>
-                            </div>
-
-                            <p-button (onClick)="editPrompt($index)" [text]="true" icon="pi pi-pencil"
-                                      severity="secondary" size="small"/>
-                            <p-button (onClick)="removePrompt($index)" [text]="true" icon="pi pi-trash" severity="danger"
-                                      size="small"/>
-                        </div>
-                    }
-                </div>
-
-                <p class="text-xs text-text-muted m-0 flex items-start gap-1.5">
-                    <i class="pi pi-info-circle text-[0.6875rem] mt-0.5"></i>
-                    {{ 'GUILD_SETTINGS.ONBOARDING.DELETE_NOT_REVOKED_NOTE' | translate }}
-                </p>
-            }
-        </section>
-
-        <!-- ── Default channels ───────────────────────────────────────────── -->
-        <section class="flex flex-col gap-3">
-            <div>
-                <h2 class="text-sm font-semibold text-text-primary m-0">{{ 'GUILD_SETTINGS.ONBOARDING.CHANNELS_TITLE' | translate }}</h2>
-                <p class="text-xs text-text-muted m-0 mt-1">{{ 'GUILD_SETTINGS.ONBOARDING.CHANNELS_DESC' | translate }}</p>
-            </div>
-            <p-multiSelect (ngModelChange)="setDefaultChannels($event)" [filter]="true" [ngModel]="defaultChannelIds()"
-                           [options]="channelOptions()"
-                           [placeholder]="'GUILD_SETTINGS.ONBOARDING.CHANNELS_PLACEHOLDER' | translate"
-                           [selectionLimit]="limits.defaultChannels" appendTo="body" optionLabel="label"
-                           optionValue="value" styleClass="w-full"/>
-            <p class="text-xs text-text-muted m-0 flex items-start gap-1.5">
-                <i class="pi pi-info-circle text-[0.6875rem] mt-0.5"></i>
-                {{ 'GUILD_SETTINGS.ONBOARDING.CHANNELS_NO_ACCESS_NOTE' | translate }}
-            </p>
-        </section>
-
-        @if (validationErrors().length > 0) {
-            <div class="flex flex-col gap-1 rounded-xl border border-offline/40
-                        bg-[color-mix(in_srgb,var(--color-offline)_10%,transparent)] p-3">
-                @for (error of validationErrors(); track error) {
-                    <p class="text-xs text-offline m-0">{{ error | translate }}</p>
+                    <p class="text-xs text-text-secondary m-0 flex items-start gap-1.5">
+                        <i class="pi pi-info-circle text-[0.6875rem] mt-0.5"></i>
+                        {{ 'GUILD_SETTINGS.ONBOARDING.DELETE_NOT_REVOKED_NOTE' | translate }}
+                    </p>
                 }
-            </div>
-        }
+            </section>
 
-        <div class="flex justify-end">
-            <p-button (onClick)="save()" [label]="'COMMON.SAVE' | translate" [loading]="saving()" severity="primary"/>
+            <!-- ── Default channels ───────────────────────────────────────── -->
+            <section class="flex flex-col gap-3">
+                <div>
+                    <h3 class="text-sm font-semibold text-text-primary m-0">{{ 'GUILD_SETTINGS.ONBOARDING.CHANNELS_TITLE' | translate }}</h3>
+                    <p class="text-xs text-text-secondary m-0 mt-1">{{ 'GUILD_SETTINGS.ONBOARDING.CHANNELS_DESC' | translate }}</p>
+                </div>
+                <p-multiSelect (ngModelChange)="defaultChannelIds.set($event)" [filter]="true"
+                               [ngModel]="defaultChannelIds()" [options]="channelOptions()"
+                               [placeholder]="'GUILD_SETTINGS.ONBOARDING.CHANNELS_PLACEHOLDER' | translate"
+                               [selectionLimit]="limits.defaultChannels" appendTo="body" optionLabel="label"
+                               optionValue="value" styleClass="w-full"/>
+                @if (tooManyChannels()) {
+                    <p class="text-xs text-offline m-0 flex items-start gap-1.5">
+                        <i class="pi pi-exclamation-circle text-[0.6875rem] mt-0.5"></i>
+                        {{ 'GUILD_SETTINGS.ONBOARDING.ERR_TOO_MANY_CHANNELS' | translate }}
+                    </p>
+                }
+                <p class="text-xs text-text-secondary m-0 flex items-start gap-1.5">
+                    <i class="pi pi-info-circle text-[0.6875rem] mt-0.5"></i>
+                    {{ 'GUILD_SETTINGS.ONBOARDING.CHANNELS_NO_ACCESS_NOTE' | translate }}
+                </p>
+            </section>
+
+            <!-- ── Advanced ───────────────────────────────────────────────── -->
+            <!-- Lives here rather than at the foot of the page: the Save below is what writes it. -->
+            <section class="flex flex-col gap-2">
+                <h3 class="text-sm font-semibold text-text-primary m-0">{{ 'GUILD_SETTINGS.ONBOARDING.ADVANCED_TITLE' | translate }}</h3>
+                <label class="flex flex-col gap-1.5">
+                    <span class="text-xs font-medium text-text-secondary">{{ 'GUILD_SETTINGS.ONBOARDING.MODE' | translate }}</span>
+                    <p-select (ngModelChange)="mode.set($event)" [ngModel]="mode()" [options]="modeOptions()"
+                              appendTo="body" optionLabel="label" optionValue="value" styleClass="w-full sm:w-64"/>
+                    <span class="text-[0.6875rem] text-text-secondary">{{ 'GUILD_SETTINGS.ONBOARDING.MODE_HINT' | translate }}</span>
+                </label>
+            </section>
+
+            <div class="flex items-center justify-end gap-3">
+                @if (validationErrors().length > 0) {
+                    <span class="text-xs text-offline">{{ 'GUILD_SETTINGS.ONBOARDING.FIX_ERRORS' | translate }}</span>
+                } @else if (configDirty()) {
+                    <span class="text-xs text-text-secondary">{{ 'GUILD_SETTINGS.ONBOARDING.UNSAVED' | translate }}</span>
+                }
+                <p-button (onClick)="save()" [disabled]="validationErrors().length > 0"
+                          [label]="'GUILD_SETTINGS.ONBOARDING.SAVE_CONFIG' | translate" [loading]="saving()"
+                          severity="primary"/>
+            </div>
         </div>
 
-        <!-- ── Welcome screen ─────────────────────────────────────────────── -->
-        <section class="flex flex-col gap-4 pt-8 border-t border-border-subtle">
+        <!-- ── Welcome screen: saved on its own, by its own button ─────────── -->
+        <div class="flex flex-col gap-6 pt-10 border-t border-border">
             <div>
-                <h2 class="text-sm font-semibold text-text-primary m-0">{{ 'GUILD_SETTINGS.WELCOME.TITLE' | translate }}</h2>
-                <p class="text-xs text-text-muted m-0 mt-1">{{ 'GUILD_SETTINGS.WELCOME.DESC' | translate }}</p>
+                <h2 class="text-base font-semibold text-text-primary m-0">{{ 'GUILD_SETTINGS.WELCOME.TITLE' | translate }}</h2>
+                <p class="text-xs text-text-secondary m-0 mt-1">{{ 'GUILD_SETTINGS.WELCOME.DESC' | translate }}</p>
             </div>
 
             <div class="flex items-start justify-between gap-4 p-3 rounded-xl bg-card/60 border border-border-subtle">
                 <div class="min-w-0">
                     <p class="text-sm text-text-primary m-0">{{ 'GUILD_SETTINGS.WELCOME.ENABLE' | translate }}</p>
-                    <p class="text-xs text-text-muted m-0 mt-0.5">{{ 'GUILD_SETTINGS.WELCOME.ENABLE_DESC' | translate }}</p>
+                    <p class="text-xs text-text-secondary m-0 mt-0.5">{{ 'GUILD_SETTINGS.WELCOME.ENABLE_DESC' | translate }}</p>
                 </div>
                 <p-toggleswitch (ngModelChange)="welcomeEnabled.set($event)" [ngModel]="welcomeEnabled()"/>
             </div>
@@ -172,7 +212,7 @@
 
             <div class="flex flex-col gap-2">
                 <div class="flex items-center justify-between gap-3">
-                    <span class="text-xs font-semibold uppercase tracking-wider text-text-muted">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-text-secondary">
                         {{ 'GUILD_SETTINGS.WELCOME.CHANNELS' | translate }}
                     </span>
                     <span [class]="atWelcomeCap() ? 'text-connecting' : 'text-text-muted'"
@@ -187,7 +227,7 @@
                                [ngModel]="wc.emoji ?? ''" [placeholder]="'ONBOARDING_EDIT.EMOJI' | translate"
                                class="w-14 text-center" pInputText type="text"/>
                         <span class="flex items-center gap-1 text-sm text-text-primary shrink-0 max-w-[9rem] truncate">
-                            <i class="pi pi-hashtag text-[0.625rem] text-text-muted"></i>{{ channelName(wc.channelId) }}
+                            <i class="pi pi-hashtag text-[0.625rem] text-text-secondary"></i>{{ channelName(wc.channelId) }}
                         </span>
                         <input (ngModelChange)="patchWelcomeChannel($index, {description: $event})"
                                [maxlength]="limits.welcomeChannelDescriptionLength" [ngModel]="wc.description"
@@ -206,43 +246,60 @@
                 }
             </div>
 
-            <div class="flex justify-end">
+            <div class="flex items-center justify-end gap-3">
+                @if (welcomeDirty()) {
+                    <span class="text-xs text-text-secondary">{{ 'GUILD_SETTINGS.ONBOARDING.UNSAVED' | translate }}</span>
+                }
                 <p-button (onClick)="saveWelcomeScreen()" [label]="'GUILD_SETTINGS.WELCOME.SAVE' | translate"
                           [loading]="savingWelcome()" severity="secondary"/>
             </div>
-        </section>
+        </div>
 
         <!-- ── Pending members ────────────────────────────────────────────── -->
         @if (pendingLoaded() && pendingMembers().length > 0) {
-            <section class="flex flex-col gap-3 pt-8 border-t border-border-subtle">
+            <section class="flex flex-col gap-3 pt-10 border-t border-border">
                 <div>
-                    <h2 class="text-sm font-semibold text-text-primary m-0">
+                    <h2 class="text-base font-semibold text-text-primary m-0">
                         {{ 'GUILD_SETTINGS.ONBOARDING.PENDING_TITLE' | translate: {count: pendingMembers().length} }}
                     </h2>
-                    <p class="text-xs text-text-muted m-0 mt-1">{{ 'GUILD_SETTINGS.ONBOARDING.PENDING_DESC' | translate }}</p>
+                    <p class="text-xs text-text-secondary m-0 mt-1">{{ 'GUILD_SETTINGS.ONBOARDING.PENDING_DESC' | translate }}</p>
                 </div>
                 <div class="flex flex-col gap-1">
                     @for (member of pendingMembers(); track member.memberId) {
                         <div class="flex items-center gap-2 px-3 py-2 rounded-xl bg-card/60 border border-border-subtle">
-                            <i class="pi pi-user text-[0.6875rem] text-text-muted shrink-0"></i>
-                            <span class="text-sm text-text-primary truncate">{{ member.nickname || member.userId }}</span>
+                            <i class="pi pi-user text-[0.6875rem] text-text-secondary shrink-0"></i>
+                            <!-- No nickname means there is no name to show. The fallback used to be the raw user id. -->
+                            @if (member.nickname) {
+                                <span class="text-sm text-text-primary truncate">{{ member.nickname }}</span>
+                            } @else {
+                                <span class="text-sm text-text-secondary truncate">{{ 'GUILD_SETTINGS.ONBOARDING.PENDING_UNKNOWN' | translate }}</span>
+                            }
                         </div>
                     }
                 </div>
             </section>
         }
-
-        <!-- ── Advanced ───────────────────────────────────────────────────── -->
-        <section class="flex flex-col gap-2 pt-8 border-t border-border-subtle">
-            <label class="flex flex-col gap-1.5">
-                <span class="text-xs font-medium text-text-secondary">{{ 'GUILD_SETTINGS.ONBOARDING.MODE' | translate }}</span>
-                <p-select (ngModelChange)="setMode($event)" [ngModel]="mode()" [options]="modeOptions()" appendTo="body"
-                          optionLabel="label" optionValue="value" styleClass="w-full sm:w-64"/>
-                <span class="text-[0.6875rem] text-text-muted">{{ 'GUILD_SETTINGS.ONBOARDING.MODE_HINT' | translate }}</span>
-            </label>
-        </section>
     </div>
 }
 
 <app-onboarding-prompt-editor (save)="onPromptSaved($event)" [(visible)]="showPromptEditor" [guild]="guild()"
                               [prompt]="editingPrompt()"/>
+
+<!-- Deleting a question takes its answers with it, so it asks first. -->
+<p-dialog [(visible)]="showRemovePrompt" [draggable]="false" [modal]="true" [resizable]="false"
+          [style]="{width: '400px'}" appendTo="body">
+    <ng-template pTemplate="header">
+        <span class="text-sm font-semibold text-text-primary">{{ 'GUILD_SETTINGS.ONBOARDING.DELETE_PROMPT_TITLE' | translate }}</span>
+    </ng-template>
+    @if (promptPendingRemoval(); as pending) {
+        <p class="text-sm text-text-secondary py-2 m-0">
+            {{ 'GUILD_SETTINGS.ONBOARDING.DELETE_PROMPT_CONFIRM' | translate: {title: pending.title, count: pending.options.length} }}
+        </p>
+        <div class="flex gap-2 justify-end mt-4 pt-4 border-t border-border-subtle">
+            <p-button (onClick)="showRemovePrompt.set(false)" [label]="'COMMON.CANCEL' | translate" [text]="true"
+                      severity="secondary" size="small"/>
+            <p-button (onClick)="removePrompt()" [label]="'COMMON.DELETE' | translate" [outlined]="true"
+                      severity="danger" size="small"/>
+        </div>
+    }
+</p-dialog>

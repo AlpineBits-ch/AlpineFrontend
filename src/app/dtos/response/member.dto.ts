@@ -8,9 +8,27 @@ export interface GuildMemberDto {
     guildId: string;
     userId: string;
     inviteId: string;
-    permissions: string;
+    /**
+     * Optional because the server does not send it: the member row has no single mask, it has the
+     * allow/deny pair below. Kept declared because `unionMemberPermissions` and the Superadmin
+     * checks still read it, and reading `undefined` there is the same answer as reading `"None"` -
+     * but nothing will ever put a value in it.
+     */
+    permissions?: string;
     /** The member's own module bits, in the separate {@link ModulePermissions} space. */
     modulePermissions?: string;
+    /**
+     * The member's own guild-level overrides, applied after their roles are unioned and before any
+     * channel or category overwrite. Written by
+     * `PATCH /guilds/{guildId}/members/{memberId}/permissions`.
+     */
+    allowPermissions?: string;
+    /** @see allowPermissions */
+    denyPermissions?: string;
+    /** @see allowPermissions */
+    allowModulePermissions?: string;
+    /** @see allowPermissions */
+    denyModulePermissions?: string;
     status: OnlineStatus;
     type: MemberType;
     nickname: string | null;
@@ -57,6 +75,19 @@ export interface SelfGuildMemberDto extends GuildMemberDto {
      * `modulePermissions` either, so that union resolves each role out of `guild.roles`.</p>
      */
     effectivePermissions?: string | number
+}
+
+/**
+ * What `PATCH /guilds/{guildId}/members/{memberId}/permissions` answers with: the four masks as
+ * they now stand, not a member row. The endpoint does not project one - see the note on its C#
+ * side - so a caller holding a `GuildMemberDto` merges these four fields into it rather than
+ * replacing it.
+ */
+export interface MemberPermissionsDto {
+    allowPermissions: string;
+    denyPermissions: string;
+    allowModulePermissions: string;
+    denyModulePermissions: string;
 }
 
 

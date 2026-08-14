@@ -22,6 +22,16 @@ interface Baseline {
     verificationLevel: GuildVerificationLevel;
 }
 
+/**
+ * The shared `UpdateGuildDto` types `systemChannelId` as `string | undefined`, so "clear it"
+ * has no representation there and the payload is widened locally to send an explicit `null`.
+ * Omitting the key is exactly what used to swallow a cleared picker.
+ */
+type UpdateGuildPayload = Omit<UpdateGuildDto, 'systemChannelId'> & { systemChannelId?: string | null };
+
+/** What happened to the icon before the settings PATCH went out, so a failure can say so. */
+type IconOutcome = 'none' | 'uploaded' | 'removed';
+
 @Component({
     selector: 'app-overview-settings',
     imports: [FormsModule, Button, InputText, Textarea, Dialog, Select, ImageCropperComponent, TranslateModule, PrimeTemplate],
@@ -66,6 +76,16 @@ export class OverviewSettingsComponent implements OnInit, OnDestroy {
 
     /** Trimmed empty names are rejected client-side; the field is marked required. */
     protected nameInvalid = computed(() => this.name().trim().length === 0);
+
+    /** Mirrors the template `maxlength` values so the counters cannot drift from the real cap. */
+    protected readonly nameLimit = 100;
+    protected readonly descriptionLimit = 300;
+    protected nameAtCap = computed(() => this.name().length >= this.nameLimit);
+    protected descriptionAtCap = computed(() => this.description().length >= this.descriptionLimit);
+
+    /** Matches the "up to 8 MB" promise in ICON_HINT. */
+    private readonly maxIconMb = 8;
+    private readonly maxIconBytes = this.maxIconMb * 1024 * 1024;
 
     /**
      * Compared against a local baseline rather than `guild()`, because a successful save
@@ -137,6 +157,12 @@ export class OverviewSettingsComponent implements OnInit, OnDestroy {
         const file = input.files?.[0];
         input.value = '';
         if (!file) return;
+        // Without this the whole file is read into a data URL and handed to the cropper, so a
+        // phone photo froze the dialog for seconds before the server would have refused it anyway.
+        if (file.size > this.maxIconBytes) {
+            this.toastService.error(this.translate.instant('GUILD_SETTINGS.OVERVIEW.ICON_TOO_LARGE', {max: this.maxIconMb}));
+            return;
+        }
         const reader = new FileReader();
         reader.onload = () => {
             this.cropSrc.set(reader.result as string);
@@ -171,18 +197,21 @@ export class OverviewSettingsComponent implements OnInit, OnDestroy {
     }
 
     save(): void {
-        if (this.saving() || this.nameInvalid()) return;
+        if (this.saving() || !this.dirty() || this.nameInvalid()) return;
         this.saving.set(true);
 
-        const doUpdate = (g: GuildDto) => {
-            const dto: UpdateGuildDto = {name: this.name().trim(), description: this.description()};
-            if (this.systemChannelId() !== g.systemChannelId && this.systemChannelId()) {
-                dto.systemChannelId = this.systemChannelId()!;
+        const doUpdate = (g: GuildDto, icon: IconOutcome) => {
+            const dto: UpdateGuildPayload = {name: this.name().trim(), description: this.description()};
+            const clearingSystemChannel = this.systemChannelId() === null && g.systemChannelId !== null;
+            // Sent even when it is null: the guard here also required a truthy value, so clearing
+            // the picker dropped the change and the form went clean with the channel still set.
+            if (this.systemChannelId() !== g.systemChannelId) {
+                dto.systemChannelId = this.systemChannelId();
             }
             if (this.verificationLevel() !== (g.verificationLevel ?? GuildVerificationLevel.None)) {
                 dto.verificationLevel = this.verificationLevel();
             }
-            this.guildService.updateGuild(g.id, dto).subscribe({
+            this.guildService.updateGuild(g.id, dto as UpdateGuildDto).subscribe({
                 next: updated => {
                     this.guildService.guildUpdated$.next(updated);
                     this.guildUpdated.emit(updated);
@@ -200,10 +229,19 @@ export class OverviewSettingsComponent implements OnInit, OnDestroy {
                     this.pendingIconFile.set(null);
                     this.iconRemoved.set(false);
                     this.saving.set(false);
+                    // The server ignores a null systemChannelId, so say so rather than let the
+                    // clean form imply the channel was cleared.
+                    if (clearingSystemChannel && updated.systemChannelId !== null) {
+                        this.toastService.warn(this.translate.instant('GUILD_SETTINGS.OVERVIEW.SYSTEM_CHANNEL_CLEAR_UNSUPPORTED'));
+                    } else {
+                        this.toastService.success(this.translate.instant('GUILD_SETTINGS.OVERVIEW.SAVE_SUCCESS'));
+                    }
                 },
+                // A failure here can arrive after the icon already changed, so the message has to
+                // say which half landed.
                 error: err => {
                     this.saving.set(false);
-                    this.toastService.httpError(this.translate.instant('GUILD_SETTINGS.OVERVIEW.SAVE_ERROR'), err);
+                    this.toastService.httpError(this.translate.instant(this.saveErrorKey(icon)), err);
                 },
             });
         };
@@ -212,7 +250,7 @@ export class OverviewSettingsComponent implements OnInit, OnDestroy {
             this.guildService.uploadGuildIcon(this.guild().id, this.pendingIconFile()!).subscribe({
                 next: () => {
                     this.pendingIconFile.set(null);
-                    doUpdate(this.guild());
+                    doUpdate(this.guild(), 'uploaded');
                 },
                 // Both icon calls used to fail silently: the spinner stopped, nothing
                 // changed on screen, and the user had no way to tell it hadn't worked.
@@ -223,15 +261,21 @@ export class OverviewSettingsComponent implements OnInit, OnDestroy {
             });
         } else if (this.iconRemoved()) {
             this.guildService.removeGuildIcon(this.guild().id).subscribe({
-                next: updated => doUpdate(updated),
+                next: updated => doUpdate(updated, 'removed'),
                 error: err => {
                     this.saving.set(false);
                     this.toastService.httpError(this.translate.instant('GUILD_SETTINGS.OVERVIEW.ICON_REMOVE_ERROR'), err);
                 },
             });
         } else {
-            doUpdate(this.guild());
+            doUpdate(this.guild(), 'none');
         }
+    }
+
+    private saveErrorKey(icon: IconOutcome): string {
+        if (icon === 'uploaded') return 'GUILD_SETTINGS.OVERVIEW.SAVE_ERROR_ICON_UPLOADED';
+        if (icon === 'removed') return 'GUILD_SETTINGS.OVERVIEW.SAVE_ERROR_ICON_REMOVED';
+        return 'GUILD_SETTINGS.OVERVIEW.SAVE_ERROR';
     }
 
     openDeleteDialog(): void {

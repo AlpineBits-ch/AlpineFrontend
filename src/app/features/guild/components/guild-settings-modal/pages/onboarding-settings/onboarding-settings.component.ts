@@ -1,4 +1,4 @@
-import {ChangeDetectionStrategy, Component, computed, inject, input, OnInit, output, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, effect, inject, input, OnInit, output, signal} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {Button} from 'primeng/button';
 import {InputText} from 'primeng/inputtext';
@@ -7,6 +7,8 @@ import {ToggleSwitch} from 'primeng/toggleswitch';
 import {MultiSelect} from 'primeng/multiselect';
 import {Select} from 'primeng/select';
 import {Tooltip} from 'primeng/tooltip';
+import {Dialog} from 'primeng/dialog';
+import {PrimeTemplate} from 'primeng/api';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {ChannelType, GuildDto} from '../../../../../../dtos/response/guild.dto';
 import {
@@ -25,8 +27,8 @@ import {OnboardingPromptEditorComponent} from './onboarding-prompt-editor.compon
 @Component({
     selector: 'app-onboarding-settings',
     imports: [
-        FormsModule, Button, InputText, Textarea, ToggleSwitch, MultiSelect, Select, Tooltip, TranslateModule,
-        OnboardingPromptEditorComponent,
+        FormsModule, Button, InputText, Textarea, ToggleSwitch, MultiSelect, Select, Tooltip, Dialog, PrimeTemplate,
+        TranslateModule, OnboardingPromptEditorComponent,
     ],
     templateUrl: './onboarding-settings.component.html',
     changeDetection: ChangeDetectionStrategy.OnPush,
@@ -48,12 +50,15 @@ export class OnboardingSettingsComponent implements OnInit {
     protected rulesText = signal('');
     protected defaultChannelIds = signal<string[]>([]);
     protected prompts = signal<OnboardingPrompt[]>([]);
-    protected validationErrors = signal<string[]>([]);
 
     // ── Prompt editor ────────────────────────────────────────────────────────
     protected showPromptEditor = signal(false);
     protected editingPrompt = signal<OnboardingPrompt | null>(null);
     private editingIndex = signal<number | null>(null);
+
+    protected showRemovePrompt = signal(false);
+    protected promptPendingRemoval = signal<OnboardingPrompt | null>(null);
+    private removeIndex = signal<number | null>(null);
 
     // ── Welcome screen ───────────────────────────────────────────────────────
     protected welcomeEnabled = signal(false);
@@ -63,6 +68,32 @@ export class OnboardingSettingsComponent implements OnInit {
     // ── Pending members ──────────────────────────────────────────────────────
     protected pendingMembers = signal<PendingMember[]>([]);
     protected pendingLoaded = signal(false);
+
+    /**
+     * The two halves save through different endpoints, so each keeps its own baseline and
+     * the shell is told about the union. Serialising is what lets a prompt reorder or an
+     * edit-and-undo settle back to clean; the previous flag latched true until a save.
+     */
+    private configSnapshot = computed(() => JSON.stringify({
+        enabled: this.enabled(),
+        mode: this.mode(),
+        rulesText: this.rulesText(),
+        defaultChannelIds: this.defaultChannelIds(),
+        prompts: this.prompts(),
+    }));
+
+    private welcomeSnapshot = computed(() => JSON.stringify({
+        enabled: this.welcomeEnabled(),
+        description: this.welcomeDescription(),
+        channels: this.welcomeChannels(),
+    }));
+
+    private configBaseline = signal(this.configSnapshot());
+    private welcomeBaseline = signal(this.welcomeSnapshot());
+
+    protected configDirty = computed(() => this.configSnapshot() !== this.configBaseline());
+    protected welcomeDirty = computed(() => this.welcomeSnapshot() !== this.welcomeBaseline());
+    protected dirty = computed(() => this.configDirty() || this.welcomeDirty());
 
     private safety = inject(GuildSafetyService);
     private toast = inject(ToastService);
@@ -88,8 +119,43 @@ export class OnboardingSettingsComponent implements OnInit {
     protected atWelcomeCap = computed(() => this.welcomeChannels().length >= this.limits.welcomeChannels);
     protected atPromptCap = computed(() => this.prompts().length >= this.limits.promptsPerGuild);
 
+    // ── Validation ───────────────────────────────────────────────────────────
+    // Live, so a blocking problem is visible next to the field that caused it instead of
+    // appearing in a summary box only after the Save button has already been pressed.
+    protected needsContent = computed(() =>
+        this.enabled() && !this.rulesText().trim() && !this.prompts().some(p => p.inOnboarding));
+
+    protected rulesTooLong = computed(() => this.rulesText().length > this.limits.rulesTextLength);
+
+    protected tooManyChannels = computed(() => this.defaultChannelIds().length > this.limits.defaultChannels);
+
+    protected validationErrors = computed(() => {
+        const errors: string[] = [];
+        if (this.needsContent()) errors.push('GUILD_SETTINGS.ONBOARDING.ERR_NEEDS_CONTENT');
+        if (this.rulesTooLong()) errors.push('GUILD_SETTINGS.ONBOARDING.ERR_RULES_TOO_LONG');
+        if (this.tooManyChannels()) errors.push('GUILD_SETTINGS.ONBOARDING.ERR_TOO_MANY_CHANNELS');
+        for (const prompt of this.prompts()) {
+            const issue = this.promptIssue(prompt);
+            if (issue && !errors.includes(issue)) errors.push(issue);
+        }
+        return errors;
+    });
+
+    /** Mirrors the server's per-prompt rules so the offending row can say so itself. */
+    protected promptIssue(prompt: OnboardingPrompt): string | null {
+        if (prompt.options.length === 0) return 'ONBOARDING_EDIT.ERR_NO_OPTIONS';
+        if (prompt.options.some(o => o.roleIds.length === 0 && o.channelIds.length === 0)) {
+            return 'ONBOARDING_EDIT.ERR_OPTION_EMPTY';
+        }
+        return null;
+    }
+
     protected channelName(channelId: string): string {
         return this.guild().channels.find(c => c.id === channelId)?.name ?? channelId;
+    }
+
+    constructor() {
+        effect(() => this.dirtyChange.emit(this.dirty()));
     }
 
     ngOnInit(): void {
@@ -100,6 +166,7 @@ export class OnboardingSettingsComponent implements OnInit {
                 this.rulesText.set(cfg.rulesText ?? '');
                 this.defaultChannelIds.set(cfg.defaultChannelIds ?? []);
                 this.prompts.set([...(cfg.prompts ?? [])].sort((a, b) => a.position - b.position));
+                this.configBaseline.set(this.configSnapshot());
                 this.loading.set(false);
             },
             error: err => {
@@ -113,8 +180,10 @@ export class OnboardingSettingsComponent implements OnInit {
                 this.welcomeEnabled.set(screen.enabled);
                 this.welcomeDescription.set(screen.description ?? '');
                 this.welcomeChannels.set([...(screen.channels ?? [])].sort((a, b) => a.position - b.position));
+                this.welcomeBaseline.set(this.welcomeSnapshot());
             },
-            // A guild that has never configured one is a normal, non-noteworthy state.
+            // A guild that has never configured one is a normal, non-noteworthy state, and the
+            // untouched baseline already matches the empty form it leaves on screen.
             error: () => undefined,
         });
 
@@ -126,27 +195,6 @@ export class OnboardingSettingsComponent implements OnInit {
             // Needs ModerateMembers/ManageGuild - a 403 here just means "don't show it".
             error: () => this.pendingLoaded.set(true),
         });
-    }
-
-    // ── Config edits ─────────────────────────────────────────────────────────
-    protected setEnabled(value: boolean): void {
-        this.enabled.set(value);
-        this.markDirty();
-    }
-
-    protected setMode(value: OnboardingMode): void {
-        this.mode.set(value);
-        this.markDirty();
-    }
-
-    protected onRulesTextChange(value: string): void {
-        this.rulesText.set(value);
-        this.markDirty();
-    }
-
-    protected setDefaultChannels(ids: string[]): void {
-        this.defaultChannelIds.set(ids);
-        this.markDirty();
     }
 
     // ── Prompts ──────────────────────────────────────────────────────────────
@@ -169,16 +217,24 @@ export class OnboardingSettingsComponent implements OnInit {
             const next = index === null ? [...list, prompt] : list.map((p, i) => i === index ? prompt : p);
             return next.map((p, position) => ({...p, position}));
         });
-        this.markDirty();
     }
 
     /**
      * Removal is local until Save - and even then, deleting a prompt does not take back
      * roles or channels it already granted. Only a member deselecting an option revokes.
      */
-    protected removePrompt(index: number): void {
+    protected askRemovePrompt(index: number): void {
+        this.removeIndex.set(index);
+        this.promptPendingRemoval.set(this.prompts()[index]);
+        this.showRemovePrompt.set(true);
+    }
+
+    protected removePrompt(): void {
+        const index = this.removeIndex();
+        this.showRemovePrompt.set(false);
+        if (index === null) return;
         this.prompts.update(list => list.filter((_, i) => i !== index).map((p, position) => ({...p, position})));
-        this.markDirty();
+        this.removeIndex.set(null);
     }
 
     protected movePrompt(index: number, delta: number): void {
@@ -190,7 +246,6 @@ export class OnboardingSettingsComponent implements OnInit {
         const [moved] = next.splice(index, 1);
         next.splice(target, 0, moved);
         this.prompts.set(next.map((p, position) => ({...p, position})));
-        this.markDirty();
     }
 
     protected promptSummary(prompt: OnboardingPrompt): string {
@@ -209,14 +264,7 @@ export class OnboardingSettingsComponent implements OnInit {
 
     // ── Save ─────────────────────────────────────────────────────────────────
     protected save(): void {
-        if (this.saving()) return;
-
-        const errors = this.validate();
-        if (errors.length > 0) {
-            this.validationErrors.set(errors);
-            return;
-        }
-        this.validationErrors.set([]);
+        if (this.saving() || this.validationErrors().length > 0) return;
 
         // A full-document PUT: anything absent from this payload is deleted server-side,
         // which is why the prompt ids read back from the GET are round-tripped verbatim.
@@ -235,7 +283,7 @@ export class OnboardingSettingsComponent implements OnInit {
                 // Adopt the response: newly created prompts and options come back with
                 // their generated ids, and dropping them would re-create them next save.
                 this.prompts.set([...(saved.prompts ?? [])].sort((a, b) => a.position - b.position));
-                this.dirtyChange.emit(false);
+                this.configBaseline.set(this.configSnapshot());
                 this.toast.success(this.translate.instant('GUILD_SETTINGS.ONBOARDING.SAVE_SUCCESS'));
             },
             error: err => {
@@ -243,28 +291,6 @@ export class OnboardingSettingsComponent implements OnInit {
                 this.toast.httpError(this.translate.instant('GUILD_SETTINGS.ONBOARDING.SAVE_ERROR'), err);
             },
         });
-    }
-
-    /** Mirrors the server's rules so the screen can flag problems inline, not via a toast. */
-    private validate(): string[] {
-        const errors: string[] = [];
-
-        if (this.enabled() && !this.rulesText().trim() && !this.prompts().some(p => p.inOnboarding)) {
-            errors.push('GUILD_SETTINGS.ONBOARDING.ERR_NEEDS_CONTENT');
-        }
-        if (this.rulesText().length > this.limits.rulesTextLength) {
-            errors.push('GUILD_SETTINGS.ONBOARDING.ERR_RULES_TOO_LONG');
-        }
-        if (this.defaultChannelIds().length > this.limits.defaultChannels) {
-            errors.push('GUILD_SETTINGS.ONBOARDING.ERR_TOO_MANY_CHANNELS');
-        }
-        if (this.prompts().some(p => p.options.length === 0)) {
-            errors.push('ONBOARDING_EDIT.ERR_NO_OPTIONS');
-        }
-        if (this.prompts().some(p => p.options.some(o => o.roleIds.length === 0 && o.channelIds.length === 0))) {
-            errors.push('ONBOARDING_EDIT.ERR_OPTION_EMPTY');
-        }
-        return errors;
     }
 
     // ── Welcome screen ───────────────────────────────────────────────────────
@@ -289,15 +315,20 @@ export class OnboardingSettingsComponent implements OnInit {
         if (this.savingWelcome()) return;
         this.savingWelcome.set(true);
 
+        const channels = this.welcomeChannels().map((c, position) => ({...c, position}));
         const screen: WelcomeScreen = {
             enabled: this.welcomeEnabled(),
             description: this.welcomeDescription().trim() ? this.welcomeDescription() : null,
-            channels: this.welcomeChannels().map((c, position) => ({...c, position})),
+            channels,
         };
 
         this.safety.updateWelcomeScreen(this.guild().id, screen).subscribe({
             next: () => {
                 this.savingWelcome.set(false);
+                // Baseline on the renumbered list that was actually sent, so the half goes
+                // clean even when a removal left the local positions one step behind.
+                this.welcomeChannels.set(channels);
+                this.welcomeBaseline.set(this.welcomeSnapshot());
                 this.toast.success(this.translate.instant('GUILD_SETTINGS.WELCOME.SAVE_SUCCESS'));
             },
             error: err => {
@@ -305,10 +336,5 @@ export class OnboardingSettingsComponent implements OnInit {
                 this.toast.httpError(this.translate.instant('GUILD_SETTINGS.WELCOME.SAVE_ERROR'), err);
             },
         });
-    }
-
-    private markDirty(): void {
-        if (this.validationErrors().length > 0) this.validationErrors.set([]);
-        this.dirtyChange.emit(true);
     }
 }

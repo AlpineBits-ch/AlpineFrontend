@@ -3,26 +3,34 @@
     <!-- Actions: expiry is set first, since it applies to whichever button is pressed -->
     <div class="flex flex-wrap items-end gap-3">
         <div>
-            <label class="block text-xs font-semibold text-white/40 uppercase tracking-widest mb-2" for="invite-expiry">
+            <label class="block text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2"
+                   for="invite-expiry-preset">
                 {{ 'GUILD_SETTINGS.INVITES.EXPIRY_LABEL' | translate }}
             </label>
             <div class="flex items-center gap-2">
-                <input [(ngModel)]="createExpiryHours"
-                       [placeholder]="'GUILD_SETTINGS.INVITES.EXPIRY_PLACEHOLDER' | translate"
-                       class="w-28"
-                       id="invite-expiry"
-                       min="1"
-                       pInputText
-                       type="number"/>
-                <span class="text-xs text-white/40">{{ 'GUILD_SETTINGS.INVITES.EXPIRY_SUFFIX' | translate }}</span>
+                <p-select (ngModelChange)="selectExpiryPreset($event)" [ngModel]="expiryPreset()"
+                          [options]="expiryPresetOptions()" inputId="invite-expiry-preset" optionLabel="label"
+                          optionValue="value" size="small" styleClass="w-44"/>
+                @if (expiryPreset() === 'custom') {
+                    <input [(ngModel)]="createExpiryHours"
+                           [placeholder]="'GUILD_SETTINGS.INVITES.EXPIRY_PLACEHOLDER' | translate"
+                           [attr.aria-label]="'GUILD_SETTINGS.INVITES.EXPIRY_CUSTOM_LABEL' | translate"
+                           class="w-28"
+                           id="invite-expiry"
+                           min="0.25"
+                           pInputText
+                           step="0.25"
+                           type="number"/>
+                    <span class="text-xs text-text-secondary">{{ 'GUILD_SETTINGS.INVITES.EXPIRY_SUFFIX' | translate }}</span>
+                }
             </div>
         </div>
         <div class="flex items-center gap-2">
-            <p-button (onClick)="createPermanentInvite()" [disabled]="creatingType() !== null"
+            <p-button (onClick)="createPermanentInvite()" [disabled]="creatingType() !== null || expiryError() !== null"
                       [label]="'GUILD_SETTINGS.INVITES.PERMANENT' | translate"
                       [loading]="creatingType() === InviteType.Permanent"
                       icon="pi pi-plus" severity="secondary" size="small"/>
-            <p-button (onClick)="createOneTimeInvite()" [disabled]="creatingType() !== null"
+            <p-button (onClick)="createOneTimeInvite()" [disabled]="creatingType() !== null || expiryError() !== null"
                       [label]="'GUILD_SETTINGS.INVITES.ONE_TIME' | translate"
                       [loading]="creatingType() === InviteType.OneTime"
                       icon="pi pi-plus" severity="secondary" size="small"/>
@@ -30,28 +38,43 @@
     </div>
 
     <div class="space-y-1">
-        <p class="text-xs text-white/30 m-0">{{ 'GUILD_SETTINGS.INVITES.HINT' | translate }}</p>
-        <p class="text-xs text-white/25 m-0">{{ 'GUILD_SETTINGS.INVITES.EXPIRY_HINT' | translate }}</p>
+        @if (expiryError(); as error) {
+            <p class="text-xs text-offline m-0">{{ error | translate }}</p>
+        }
+        <p class="text-xs text-text-secondary m-0">{{ 'GUILD_SETTINGS.INVITES.HINT' | translate }}</p>
+        <p class="text-xs text-text-secondary m-0">{{ 'GUILD_SETTINGS.INVITES.EXPIRY_PRESET_HINT' | translate }}</p>
     </div>
 
     @if (loading()) {
         <div class="flex items-center justify-center py-10">
-            <i class="pi pi-spin pi-spinner text-white/30 text-xl"></i>
+            <i class="pi pi-spin pi-spinner text-text-secondary text-xl"></i>
         </div>
     } @else if (invites().length === 0) {
         <div class="flex flex-col items-center justify-center py-12 gap-3 text-center">
-            <i class="pi pi-link text-3xl text-white/15"></i>
-            <p class="text-sm text-white/30">{{ 'GUILD_SETTINGS.INVITES.EMPTY_TITLE' | translate }}</p>
-            <p class="text-xs text-white/20">{{ 'GUILD_SETTINGS.INVITES.EMPTY_HINT' | translate }}</p>
+            <i class="pi pi-link text-3xl text-text-muted"></i>
+            <p class="text-sm text-text-secondary">{{ 'GUILD_SETTINGS.INVITES.EMPTY_TITLE' | translate }}</p>
+            <p class="text-xs text-text-secondary">{{ 'GUILD_SETTINGS.INVITES.EMPTY_HINT' | translate }}</p>
         </div>
     } @else {
+        @if (expiredCount() > 0) {
+            <div class="flex justify-end">
+                <p-button (onClick)="hideExpired.set(!hideExpired())"
+                          [icon]="hideExpired() ? 'pi pi-eye' : 'pi pi-eye-slash'"
+                          [label]="(hideExpired() ? 'GUILD_SETTINGS.INVITES.SHOW_EXPIRED' : 'GUILD_SETTINGS.INVITES.HIDE_EXPIRED') | translate: {count: expiredCount()}"
+                          [text]="true" severity="secondary" size="small"/>
+            </div>
+        }
+
         <div class="space-y-2">
-            @for (invite of invites(); track invite.id) {
-                <div class="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/[0.03] border border-white/[0.05]">
+            @for (invite of visibleInvites(); track invite.id) {
+                <div [ngClass]="highlightId() === invite.id
+                        ? 'border-[var(--color-brand)] bg-[color-mix(in_srgb,var(--color-brand)_12%,transparent)]'
+                        : 'border-white/[0.05] bg-white/[0.03]'"
+                     class="flex items-start gap-3 px-4 py-3 rounded-xl border transition-colors">
 
                     <!-- Icon + info -->
                     <div class="flex-1 min-w-0">
-                        <div class="flex items-center gap-2 mb-0.5">
+                        <div class="flex items-center gap-2 mb-1">
               <span [ngClass]="invite.type === InviteType.Permanent ? 'bg-[color-mix(in_srgb,var(--color-brand)_15%,transparent)] text-[var(--color-brand-dim)]' : 'bg-amber-500/15 text-amber-400'"
                     class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[0.625rem] font-semibold uppercase tracking-wide">
                 @if (invite.type === InviteType.Permanent) {
@@ -60,28 +83,36 @@
                     <i class="pi pi-ticket text-[0.5625rem]"></i> {{ 'GUILD_SETTINGS.INVITES.TYPE_ONE_TIME' | translate }}
                 }
               </span>
-                            @if (invite.state === InviteState.Expired) {
+                            @if (isExpired(invite)) {
                                 <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[0.625rem] font-semibold uppercase tracking-wide bg-rose-500/15 text-rose-400">
                   {{ 'GUILD_SETTINGS.INVITES.EXPIRED' | translate }}
                 </span>
                             }
                         </div>
-                        <p class="text-xs font-mono text-white/35 truncate">{{ inviteLink(invite) }}</p>
-                        <p class="text-[0.6875rem] text-white/25 mt-0.5">{{
-                                'GUILD_SETTINGS.INVITES.CREATED' | translate: {
-                                    date: formatDate(invite.createdAt)
-                                }
-                            }} </p>
-                        <div class="flex items-center gap-2 mt-0.5">
-                            <span class="text-[0.6875rem] text-white/30">
+                        <!-- The link is the whole point of the row: full length, selectable, wrapped rather
+                             than truncated so it can be read and dragged over. -->
+                        <p class="text-xs font-mono text-text-primary break-all select-all leading-relaxed">{{ inviteLink(invite) }}</p>
+                        <div class="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1">
+                            <span class="text-[0.6875rem] text-text-muted"
+                                  [title]="formatDateTime(invite.createdAt)">{{
+                                    'GUILD_SETTINGS.INVITES.CREATED' | translate: {date: formatDate(invite.createdAt)}
+                                }}</span>
+                            <span class="text-[0.6875rem] text-text-secondary">
                                 @if (invite.maxUses) {
                                     {{ 'GUILD_SETTINGS.INVITES.USES_OF_MAX' | translate: {count: invite.useCount, max: invite.maxUses} }}
                                 } @else {
                                     {{ (invite.useCount === 1 ? 'GUILD_SETTINGS.INVITES.USES_SINGLE' : 'GUILD_SETTINGS.INVITES.USES_PLURAL') | translate: {count: invite.useCount} }}
                                 }
                             </span>
-                            @if (invite.expiresAt) {
-                                <span class="text-[0.6875rem] text-white/30">{{ 'GUILD_SETTINGS.INVITES.EXPIRES' | translate: {date: (invite.expiresAt | date:'short')} }}</span>
+                            @if (invite.expiresAt; as expiresAt) {
+                                <!-- Remaining time is what anyone handing out a link actually needs; the exact
+                                     moment stays one hover away. -->
+                                <span [ngClass]="isExpired(invite) ? 'text-rose-400' : 'text-text-secondary'"
+                                      [title]="formatDateTime(expiresAt)"
+                                      class="text-[0.6875rem]">{{
+                                        (isExpired(invite) ? 'GUILD_SETTINGS.INVITES.EXPIRED_AGO' : 'GUILD_SETTINGS.INVITES.EXPIRES')
+                                            | translate: {date: (expiresAt | relativeTime: clock.now())}
+                                    }}</span>
                             }
                         </div>
                     </div>
@@ -90,7 +121,9 @@
                     <div class="flex items-center gap-1 shrink-0">
                         <p-button
                                 (onClick)="copyInvite(invite)"
-                                [icon]="copiedId() === invite.id ? 'pi pi-check' : 'pi pi-copy'" [pTooltip]="copiedId() === invite.id ? ('GUILD.COPIED' | translate) : ('GUILD_SETTINGS.INVITES.COPY_LINK' | translate)" [text]="true"
+                                [disabled]="isExpired(invite)"
+                                [icon]="copiedId() === invite.id ? 'pi pi-check' : 'pi pi-copy'"
+                                [pTooltip]="copyTooltipKey(invite) | translate" [text]="true"
                                 severity="secondary"
                                 size="small"
                                 tooltipPosition="top"/>
@@ -100,6 +133,8 @@
                                   tooltipPosition="top"/>
                     </div>
                 </div>
+            } @empty {
+                <p class="text-sm text-text-secondary text-center py-8">{{ 'GUILD_SETTINGS.INVITES.ALL_EXPIRED_HIDDEN' | translate }}</p>
             }
         </div>
     }
@@ -113,7 +148,7 @@
     </ng-template>
     @if (confirmRevokeInvite()) {
         <p class="text-sm text-white/60 py-2 leading-relaxed">{{ 'GUILD_SETTINGS.INVITES.REVOKE_CONFIRM' | translate }}</p>
-        <p class="text-xs font-mono text-white/35 truncate bg-white/[0.04] rounded-lg px-3 py-2">{{ inviteLink(confirmRevokeInvite()!) }}</p>
+        <p class="text-xs font-mono text-text-primary break-all select-all bg-white/[0.04] rounded-lg px-3 py-2">{{ inviteLink(confirmRevokeInvite()!) }}</p>
         <div class="flex gap-2 justify-end mt-4 pt-4 border-t border-white/[0.10]">
             <p-button (onClick)="closeRevokeDialog()" [label]="'GUILD_SETTINGS.INVITES.CANCEL' | translate" [text]="true"
                       severity="secondary" size="small"/>

@@ -1,7 +1,21 @@
-import {Component, computed, effect, inject, input, model, output, signal, untracked} from '@angular/core';
+import {
+    Component,
+    computed,
+    effect,
+    ElementRef,
+    HostListener,
+    inject,
+    input,
+    model,
+    output,
+    signal,
+    untracked,
+    viewChild,
+} from '@angular/core';
 import {NgClass} from '@angular/common';
 import {Dialog} from 'primeng/dialog';
 import {Button} from 'primeng/button';
+import {ZIndexUtils} from 'primeng/utils';
 import {GuildDto, RoleDto} from '../../../../dtos/response/guild.dto';
 import {environment} from '../../../../../environments/environment';
 import {OverviewSettingsComponent} from './pages/overview-settings/overview-settings.component';
@@ -162,6 +176,11 @@ export class GuildSettingsModalComponent {
     protected pendingClose = signal(false);
     protected showUnsavedDialog = computed(() => this.pendingPage() !== null || this.pendingClose());
 
+    /** Only for the Escape handler's topmost-overlay test; see `isTopmostOverlay`. */
+    private mainDialog = viewChild<Dialog>('mainDialog');
+    /** The strip the nav scrolls in: horizontally on mobile, vertically once it's a sidebar. */
+    private navScroller = viewChild<ElementRef<HTMLElement>>('navScroller');
+
     private guildService = inject(GuildService);
     private profileService = inject(ProfileService);
     private ownMember = signal<SelfGuildMemberDto | null>(null);
@@ -190,8 +209,10 @@ export class GuildSettingsModalComponent {
     navGroups = computed<NavGroup[]>(() => buildGuildNavGroups(this.guild()));
 
     constructor() {
-        // Esc bypasses `requestClose`, so a page can be left dirty. Clearing on close
-        // stops that stale flag from guarding the next visit for no reason.
+        // A dirty flag can only outlive the page that set it once we're closed. Esc used to
+        // be how that happened; it routes through `requestClose` now, but a caller flipping
+        // `isVisible` from outside still gets here, and a stale flag would guard the next
+        // visit for no reason.
         effect(() => {
             if (this.isVisible()) return;
             untracked(() => {
@@ -227,6 +248,15 @@ export class GuildSettingsModalComponent {
         effect(() => {
             this.guildIconUrl();
             untracked(() => this.headerIconFailed.set(false));
+        });
+
+        // On mobile the nav is one horizontal strip, so the active page is usually scrolled
+        // out of sight - and the user doesn't always put it there, since switching a module
+        // off drops us back to Overview at the far left.
+        effect(() => {
+            const page = this.activePage();
+            const scroller = this.navScroller()?.nativeElement;
+            if (scroller) this.revealNavItem(scroller, page);
         });
     }
 
@@ -274,6 +304,34 @@ export class GuildSettingsModalComponent {
         this.pendingClose.set(false);
     }
 
+    /**
+     * Escape is a close request like any other, not a way past the guard.
+     *
+     * <p>Both dialogs have PrimeNG's `closeOnEscape` switched off, because it sets `visible`
+     * false on the spot - the `@switch` then destroys the page and the unsaved edits go with
+     * it. Handling the key here instead makes Escape show the guard on a dirty page and close
+     * on a clean one, which is all the header X ever did.</p>
+     */
+    // Typed `Event`, which is what `$event` is declared as - narrowing it to KeyboardEvent in the
+    // signature is a compile error under the strict template/host checks, and nothing here reads a
+    // key field anyway.
+    @HostListener('document:keydown.escape', ['$event'])
+    protected onEscape(event: Event): void {
+        if (!this.isVisible()) return;
+
+        // On the guard itself Escape means the safe half of it. Discarding stays a button
+        // press - a keystroke should never be the thing that throws the edits away.
+        if (this.showUnsavedDialog()) {
+            event.preventDefault();
+            this.keepEditing();
+            return;
+        }
+
+        if (!this.isTopmostOverlay()) return;
+        event.preventDefault();
+        this.requestClose();
+    }
+
     navItemClasses(id: string): Record<string, boolean> {
         const active = this.activePage() === id;
         return {
@@ -297,6 +355,33 @@ export class GuildSettingsModalComponent {
 
     onRolesChanged(_roles: RoleDto[]): void {
         // roles are managed locally in the page; emit updated guild if needed
+    }
+
+    /**
+     * Whether anything a page opened - a select's panel, its own confirm dialog - is sitting
+     * above us, in which case that overlay owns the Escape. Same z-index test PrimeNG's own
+     * `closeOnEscape` makes. With nothing to compare we close, which is what Escape did before.
+     */
+    private isTopmostOverlay(): boolean {
+        const container = this.mainDialog()?.container();
+        const topZIndex = ZIndexUtils.getCurrent();
+        if (!container || !topZIndex) return true;
+        return ZIndexUtils.get(container) >= topZIndex;
+    }
+
+    /** Centres the active mobile nav pill in the strip, as far as the ends allow. */
+    private revealNavItem(scroller: HTMLElement, pageId: string): void {
+        const item = scroller.querySelector<HTMLElement>(`[data-page-id="${pageId}"]`);
+        // `offsetParent` is null while the strip is display:none, which is every viewport
+        // wide enough for the sidebar nav.
+        if (!item?.offsetParent) return;
+
+        const itemBox = item.getBoundingClientRect();
+        const stripBox = scroller.getBoundingClientRect();
+        scroller.scrollBy({
+            left: itemBox.left - stripBox.left - (stripBox.width - itemBox.width) / 2,
+            behavior: 'smooth',
+        });
     }
 
     private loadOwnMember(guildId: string): void {

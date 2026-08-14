@@ -441,7 +441,13 @@ describe('GuildService own-member invalidation on mutations', () => {
         warm(service, ctrl);
 
         service.updateMemberPermissions('g1', 'm1', 'ManageGuild').subscribe();
-        ctrl.expectOne(`${BASE}/guild/g1/member/m1`).flush({});
+        // The path is asserted rather than just matched loosely: this spec previously agreed with
+        // the service on a route the server has never had, so both were wrong together and the
+        // screen 404'd with a green suite.
+        const req = ctrl.expectOne(`${BASE}/guilds/g1/members/m1/permissions`);
+        expect(req.request.method).toBe('PATCH');
+        expect(req.request.body).toEqual({allowPermissions: 'ManageGuild'});
+        req.flush({});
 
         service.getOwnMember('g1').subscribe();
         ctrl.expectOne(`${BASE}/guilds/g1/me`).flush(selfMember('g1', 'ViewChannel'));
@@ -452,7 +458,8 @@ describe('GuildService own-member invalidation on mutations', () => {
         warm(service, ctrl);
 
         service.updateMemberPermissions('g1', 'm1', 'ManageGuild').subscribe({error: () => undefined});
-        ctrl.expectOne(`${BASE}/guild/g1/member/m1`).flush('no', {status: 403, statusText: 'Forbidden'});
+        ctrl.expectOne(`${BASE}/guilds/g1/members/m1/permissions`)
+            .flush('no', {status: 403, statusText: 'Forbidden'});
 
         service.getOwnMember('g1').subscribe();
         ctrl.expectNone(`${BASE}/guilds/g1/me`);

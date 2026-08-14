@@ -5,6 +5,7 @@ import {Button} from 'primeng/button';
 import {InputText} from 'primeng/inputtext';
 import {Select} from 'primeng/select';
 import {Dialog} from 'primeng/dialog';
+import {Tooltip} from 'primeng/tooltip';
 import {PrimeTemplate} from 'primeng/api';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {GuildDto, RoleDto, RoleType} from '../../../../../../dtos/response/guild.dto';
@@ -12,14 +13,21 @@ import {GuildMemberDto, RoleMemberDto} from '../../../../../../dtos/response/mem
 import {GuildService} from '../../../../../../services/guild.service';
 import {GuestAccessApiService} from '../../../../../../services/guest-access-api.service';
 import {ProfileService} from '../../../../../../services/profile.service';
+import {BrokenImageService} from '../../../../../../services/broken-image.service';
 import {ToastService} from '../../../../../../services/toast.service';
+import {RelativeTimePipe} from '../../../../../../pipes/relative-time.pipe';
 import {ModulePermissions} from '../../../../../../enums/module-permissions.enum';
 import {guildAbilities} from '../../../../guild-permissions';
 import {GUEST_DURATIONS, grantState, guestExpiryFromNow} from '../../../../guest-access';
 
+/** How many members the picker asks for when nothing has been typed. */
+const CANDIDATE_PAGE = 30;
+
 interface GrantRow {
     userId: string;
     displayName: string;
+    /** False while the profile is still resolving, so the row draws a placeholder and not an id. */
+    named: boolean;
     avatarUrl: string | undefined;
     expiresAt: string;
     lapsed: boolean;
@@ -35,13 +43,14 @@ interface GrantRow {
  */
 @Component({
     selector: 'app-guest-access-settings',
-    imports: [FormsModule, Button, InputText, Select, Dialog, PrimeTemplate, TranslateModule],
+    imports: [FormsModule, Button, InputText, Select, Dialog, Tooltip, PrimeTemplate, TranslateModule, RelativeTimePipe],
     templateUrl: './guest-access-settings.component.html',
 })
 export class GuestAccessSettingsComponent implements OnInit {
     guild = input.required<GuildDto>();
 
     protected readonly DURATIONS = GUEST_DURATIONS;
+    protected readonly candidatePage = CANDIDATE_PAGE;
 
     protected selectedRoleId = signal<string | null>(null);
     protected loading = signal(false);
@@ -57,13 +66,22 @@ export class GuestAccessSettingsComponent implements OnInit {
     protected search = signal('');
     protected candidates = signal<GuildMemberDto[]>([]);
     protected searching = signal(false);
+    /** The unsearched load came back full, so there are members the picker is not showing. */
+    protected candidatesTruncated = signal(false);
     protected durationMs = signal<number>(GUEST_DURATIONS[3].ms);
+    /**
+     * The member picked out of the list, waiting on a yes. Picking a name used to grant on the
+     * spot, for whatever the duration select happened to say - and that select sits above the
+     * list, so its value was easy to never read.
+     */
+    protected pendingGrant = signal<GuildMemberDto | null>(null);
     protected granting = signal<string | null>(null);
     protected revoking = signal<string | null>(null);
 
     private guildService = inject(GuildService);
     private api = inject(GuestAccessApiService);
     private profiles = inject(ProfileService);
+    private brokenImages = inject(BrokenImageService);
     private toast = inject(ToastService);
     private translate = inject(TranslateService);
     private searchTimer?: ReturnType<typeof setTimeout>;
@@ -79,6 +97,14 @@ export class GuestAccessSettingsComponent implements OnInit {
 
     protected selectedRole = computed<RoleDto | null>(() =>
         this.assignableRoles().find(r => r.id === this.selectedRoleId()) ?? null);
+
+    /** When the pending grant would end, resolved against the clock rather than left as "1 week". */
+    protected grantEndsAt = computed(() => guestExpiryFromNow(this.durationMs(), this.now()));
+
+    protected grantEndsLabel = computed(() => {
+        const iso = this.grantEndsAt();
+        return iso ? this.absoluteLabel(iso) : '';
+    });
 
     private classified = computed(() => {
         const now = this.now();
@@ -141,6 +167,8 @@ export class GuestAccessSettingsComponent implements OnInit {
     protected openGrant(): void {
         this.search.set('');
         this.candidates.set([]);
+        this.candidatesTruncated.set(false);
+        this.pendingGrant.set(null);
         this.durationMs.set(GUEST_DURATIONS[3].ms);
         this.showGrant.set(true);
         this.fetchCandidates('');
@@ -152,9 +180,20 @@ export class GuestAccessSettingsComponent implements OnInit {
         this.searchTimer = setTimeout(() => this.fetchCandidates(query.trim()), 300);
     }
 
-    protected grant(member: GuildMemberDto): void {
+    /** Picking a name only proposes the grant; `confirmGrant` is what hands out the role. */
+    protected askGrant(member: GuildMemberDto): void {
+        this.now.set(Date.now());
+        this.pendingGrant.set(member);
+    }
+
+    protected cancelPendingGrant(): void {
+        this.pendingGrant.set(null);
+    }
+
+    protected confirmGrant(): void {
+        const member = this.pendingGrant();
         const role = this.selectedRole();
-        if (!role || this.granting()) return;
+        if (!member || !role || this.granting()) return;
         const expiresAt = guestExpiryFromNow(this.durationMs());
         if (!expiresAt) {
             this.toast.error(this.translate.instant('GUEST_ACCESS.ERROR.BAD_DURATION'));
@@ -165,7 +204,16 @@ export class GuestAccessSettingsComponent implements OnInit {
         this.api.grant(this.guild().id, member.userId, role.id, expiresAt).subscribe({
             next: () => {
                 this.granting.set(null);
+                this.pendingGrant.set(null);
                 this.showGrant.set(false);
+                this.toast.success(
+                    this.translate.instant('GUEST_ACCESS.GRANT_SUCCESS', {
+                        name: this.candidateName(member),
+                        role: role.name,
+                        time: this.absoluteLabel(expiresAt),
+                    }),
+                    {detail: this.translate.instant('GUEST_ACCESS.GRANT_SUCCESS_DETAIL')},
+                );
                 this.loadRoleMembers(role.id);
             },
             error: (err: HttpErrorResponse) => {
@@ -201,20 +249,40 @@ export class GuestAccessSettingsComponent implements OnInit {
         });
     }
 
+    /**
+     * The date and time a grant ends. The rows lead with "expires in six hours" instead, because
+     * that is the question a temporary grant raises; this is what the hover reveals behind it.
+     */
     protected expiryLabel(row: GrantRow): string {
-        const at = new Date(row.expiresAt);
-        return `${at.toLocaleDateString()} ${at.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}`;
+        return this.absoluteLabel(row.expiresAt);
+    }
+
+    // The API sends an avatarUrl for every profile, uploaded or not, so a URL that has already
+    // failed is the only signal that this user has no avatar. See BrokenImageService.
+    protected avatarUrl(row: GrantRow): string | undefined {
+        return this.brokenImages.isBroken(row.avatarUrl) ? undefined : row.avatarUrl;
+    }
+
+    protected onAvatarError(url: string): void {
+        this.brokenImages.markBroken(url);
     }
 
     protected candidateName(member: GuildMemberDto): string {
-        return member.profile?.userName ?? member.userId.slice(0, 8) + '…';
+        return member.profile?.userName ?? this.translate.instant('GUEST_ACCESS.UNKNOWN_MEMBER');
+    }
+
+    private absoluteLabel(iso: string): string {
+        const at = new Date(iso);
+        if (Number.isNaN(at.getTime())) return '';
+        return `${at.toLocaleDateString()} ${at.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}`;
     }
 
     private toRow(userId: string, rm: RoleMemberDto, lapsed: boolean): GrantRow {
         const profile = this.profiles.getCachedByUserId(userId);
         return {
             userId,
-            displayName: profile?.userName ?? userId.slice(0, 8) + '…',
+            displayName: profile?.userName ?? this.translate.instant('GUEST_ACCESS.UNKNOWN_MEMBER'),
+            named: !!profile?.userName,
             avatarUrl: profile?.avatarUrl,
             expiresAt: rm.expiresAt ?? '',
             lapsed,
@@ -243,10 +311,13 @@ export class GuestAccessSettingsComponent implements OnInit {
         this.searching.set(true);
         const obs = query
             ? this.guildService.searchMembers(this.guild().id, query)
-            : this.guildService.getMembers(this.guild().id, 0, 30);
+            : this.guildService.getMembers(this.guild().id, 0, CANDIDATE_PAGE);
         obs.subscribe({
             next: members => {
                 this.candidates.set(members);
+                // A full page back from the unsearched load means there are almost certainly
+                // members missing from the picker, and nothing on screen would otherwise say so.
+                this.candidatesTruncated.set(!query && members.length >= CANDIDATE_PAGE);
                 this.searching.set(false);
             },
             error: () => this.searching.set(false),

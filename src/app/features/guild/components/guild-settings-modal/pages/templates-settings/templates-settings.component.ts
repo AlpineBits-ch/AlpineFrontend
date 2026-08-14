@@ -2,6 +2,7 @@ import {ChangeDetectionStrategy, Component, computed, inject, input, OnInit, sig
 import {FormsModule} from '@angular/forms';
 import {Button} from 'primeng/button';
 import {InputText} from 'primeng/inputtext';
+import {Textarea} from 'primeng/textarea';
 import {Tooltip} from 'primeng/tooltip';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {GuildDto} from '../../../../../../dtos/response/guild.dto';
@@ -15,7 +16,7 @@ import {unionMemberPermissions} from '../../../../guild-permissions';
 
 @Component({
     selector: 'app-templates-settings',
-    imports: [FormsModule, Button, InputText, Tooltip, TranslateModule],
+    imports: [FormsModule, Button, InputText, Textarea, Tooltip, TranslateModule],
     templateUrl: './templates-settings.component.html',
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -25,8 +26,16 @@ export class TemplatesSettingsComponent implements OnInit {
     name = signal('');
     description = signal('');
     saving = signal(false);
-    created = signal<CreatedTemplateDto | null>(null);
-    copied = signal(false);
+    copiedId = signal<string | null>(null);
+
+    /** Every template made since this page was opened. The API has no way to list templates back
+     * (create, get-by-id and use are the only routes), and an id that isn't copied is an id that
+     * is gone, so holding them here is the only recall there is until a listing route exists. */
+    created = signal<CreatedTemplateDto[]>([]);
+
+    /** Mirrors the template `maxlength` values so the counters cannot drift from the real cap. */
+    readonly nameLimit = 100;
+    readonly descriptionLimit = 300;
 
     private guildTemplateService = inject(GuildTemplateService);
     private guildService = inject(GuildService);
@@ -63,7 +72,10 @@ export class TemplatesSettingsComponent implements OnInit {
         }).subscribe({
             next: template => {
                 this.saving.set(false);
-                this.created.set(template);
+                this.created.update(ts => [template, ...ts]);
+                this.name.set('');
+                this.description.set('');
+                this.toastService.success(this.translate.instant('GUILD_SETTINGS.TEMPLATES.SUCCESS_TITLE'));
             },
             error: err => {
                 this.saving.set(false);
@@ -72,18 +84,15 @@ export class TemplatesSettingsComponent implements OnInit {
         });
     }
 
-    copyId(): void {
-        const template = this.created();
-        if (!template) return;
-        navigator.clipboard.writeText(template.id).then(() => {
-            this.copied.set(true);
-            setTimeout(() => this.copied.set(false), 2000);
-        });
-    }
-
-    createAnother(): void {
-        this.created.set(null);
-        this.name.set('');
-        this.description.set('');
+    copyId(template: CreatedTemplateDto): void {
+        navigator.clipboard.writeText(template.id).then(
+            () => {
+                this.copiedId.set(template.id);
+                setTimeout(() => this.copiedId.set(null), 2000);
+            },
+            // Clipboard writes are refused in insecure contexts and when permission is
+            // denied; without this the button just sat there looking broken.
+            () => this.toastService.error(this.translate.instant('GUILD_SETTINGS.TEMPLATES.COPY_ERROR')),
+        );
     }
 }
