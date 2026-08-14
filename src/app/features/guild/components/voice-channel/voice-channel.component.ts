@@ -22,6 +22,7 @@ import {CallStatusBarComponent} from '../../../../shared/call/call-status-bar/ca
 import {CallParticipant, CallParticipantMenuData, CallScreenShare} from '../../../../shared/call/call.types';
 import {WatchScope, scopeKey} from '../../../../services/share-watch.service';
 import {CallFocusService} from '../../../../services/call-focus.service';
+import {CallStagePresenceService} from '../../../../services/call-stage-presence.service';
 import {guildCallParticipants, guildScreenShares} from '../../../../shared/call/call-projection';
 import {trackAudioWait} from '../../../../shared/call/audio-wait';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
@@ -114,6 +115,7 @@ export class VoiceChannelComponent {
     private ownMemberRevision = inject(OwnMemberRevisionService);
     private guildVoice = inject(GuildVoiceService);
     private callFocus = inject(CallFocusService);
+    private presence = inject(CallStagePresenceService);
     private ownMember = signal<GuildMemberDto | null>(null);
 
     // ── Permission checks ──────────────────────────────────────────────────────
@@ -131,6 +133,19 @@ export class VoiceChannelComponent {
     // ── Context menu ───────────────────────────────────────────────────────────
 
     constructor() {
+        // Tells the app-level mini-player that this session's full stage is on screen, so it can
+        // stand down - see CallStagePresenceService. Keyed by this channel rather than by "guild
+        // voice", so browsing a *different* voice channel while connected leaves the mini-player up
+        // for the channel actually being listened to. Registering unconditionally (lobby included)
+        // is safe for the same reason: the only way this key matches the one the mini-player asks
+        // about is if this is the joined channel, and then this view is the real stage, never a
+        // lobby.
+        this.presence.track(computed(() => scopeKey({
+            kind: 'channel',
+            guildId: this.channel().guildId,
+            channelId: this.channel().id,
+        })));
+
         effect(() => {
             const guildId = this.channel().guildId;
             // Re-runs when guild.MemberUpdated says our own roles changed - see ownMemberRevision.

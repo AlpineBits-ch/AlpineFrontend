@@ -7,6 +7,10 @@
     <app-titlebar/>
     <app-status-banner/>
     <app-call-overlay/>
+    <!-- Both call stages are part of the view they live in, so navigating away unmounts them while
+         the session keeps running. This is the tile that keeps the picture. It lives here, above
+         the router outlet, because that is the only place either stage cannot reach. -->
+    <app-call-mini-player/>
     <app-screen-picker/>
     <app-isle-proximity-bar/>
 }

@@ -4,6 +4,7 @@ import {NavigationEnd, Router, RouterOutlet} from "@angular/router";
 import {ProfileService} from "./services/profile.service";
 import {AuthService} from "./services/auth.service";
 import {CallOverlayComponent} from "./features/call/call-overlay/call-overlay.component";
+import {CallMiniPlayerComponent} from "./features/call/call-mini-player/call-mini-player.component";
 import {TitlebarComponent} from "./titlebar/titlebar.component";
 import {ResizeHandlesComponent} from "./titlebar/resize-handles.component";
 import {CallWebRtcService} from "./services/call-webrtc.service";
@@ -39,7 +40,7 @@ import {PlatformStatusService} from './services/platform-status.service';
 
 @Component({
     selector: "app-root",
-    imports: [RouterOutlet, CallOverlayComponent, TitlebarComponent, ResizeHandlesComponent, UpdateDialogComponent, Toast, ScreenPickerComponent, EmailVerificationDialogComponent, MfaChallengeDialogComponent, PasswordResetDialogComponent, InviteDialogComponent, IsleProximityBarComponent, BotInstallDialogComponent, BotCommandDialogComponent, BotModalDialogComponent, DiscordImportProgressDialogComponent, LegalConsentDialogComponent, StatusBannerComponent],
+    imports: [RouterOutlet, CallOverlayComponent, CallMiniPlayerComponent, TitlebarComponent, ResizeHandlesComponent, UpdateDialogComponent, Toast, ScreenPickerComponent, EmailVerificationDialogComponent, MfaChallengeDialogComponent, PasswordResetDialogComponent, InviteDialogComponent, IsleProximityBarComponent, BotInstallDialogComponent, BotCommandDialogComponent, BotModalDialogComponent, DiscordImportProgressDialogComponent, LegalConsentDialogComponent, StatusBannerComponent],
     templateUrl: "./app.component.html",
     styleUrl: "./app.component.css",
 })

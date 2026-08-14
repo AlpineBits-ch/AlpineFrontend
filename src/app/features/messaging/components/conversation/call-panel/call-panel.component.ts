@@ -14,7 +14,8 @@ import {CallContextMenuComponent} from '../../../../../shared/call/call-context-
 import {CallStatusBarComponent} from '../../../../../shared/call/call-status-bar/call-status-bar.component';
 import {CallStatsPopoverComponent} from '../../../../../shared/call/call-stats-popover/call-stats-popover.component';
 import {formatAloneDeadline} from './alone-countdown';
-import {WatchScope} from '../../../../../services/share-watch.service';
+import {scopeKey, WatchScope} from '../../../../../services/share-watch.service';
+import {CallStagePresenceService} from '../../../../../services/call-stage-presence.service';
 import {dmScreenShares} from '../../../../../shared/call/call-projection';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 
@@ -109,6 +110,17 @@ export class CallPanelComponent implements OnInit, OnDestroy {
 
     private resizeStartY = 0;
     private resizeStartHeight = 0;
+    private presence = inject(CallStagePresenceService);
+
+    constructor() {
+        // Tells the app-level mini-player that this call's full stage is on screen, so it can stand
+        // down - see CallStagePresenceService. Keyed by the call, so leaving the conversation (which
+        // tears this panel down without ending the call) hands the picture over to the mini-player.
+        this.presence.track(computed(() => {
+            const scope = this.watchScope();
+            return scope ? scopeKey(scope) : null;
+        }));
+    }
 
     ngOnInit(): void {
         this.durationInterval = setInterval(() => {
