@@ -1,4 +1,4 @@
-import {inject, Injectable, signal} from '@angular/core';
+import {DestroyRef, inject, Injectable, signal} from '@angular/core';
 import {Subject} from 'rxjs';
 import {CaptureGeometry} from '../models/capture-geometry';
 import {StreamPreset} from '../models/stream-preset';
@@ -214,6 +214,10 @@ export class RustMediaService {
      */
     readonly publishEnded$ = this.publishEndedSignal.asObservable();
 
+    /** Bound once so it can be handed to both `addEventListener` and `removeEventListener` - see the
+     *  `ngOnDestroy` cleanup this class does not have, but `DestroyRef.onDestroy` below does. */
+    private readonly onVisibilityChange = (): void => this.reconsiderPreviewIdle();
+
     constructor() {
         this.host?.onPreviewFrame(dataUrl => {
             // Paused means "stop applying" specifically. The frame still crossed the IPC boundary
@@ -221,6 +225,10 @@ export class RustMediaService {
             // webview declines to do anything with it.
             if (this._previewPaused()) return;
             this._publishPreview.set(dataUrl);
+            // The first frame is what makes a share pausable at all - see reconsiderPreviewIdle's own
+            // guard. Re-evaluating here, not just from startScreenPublish, is what starts the idle
+            // clock for a share whose first frame arrives after publish already returned.
+            this.reconsiderPreviewIdle();
         });
         this.host?.onPublishEnded(() => {
             this._publishPreview.set(null);
@@ -231,9 +239,11 @@ export class RustMediaService {
         });
 
         // The other half of what drives the idle pause, alongside the render claims - see
-        // reconsiderPreviewIdle. A permanent listener on a root singleton, never removed: this
-        // service lives for the app's whole lifetime.
-        document.addEventListener('visibilitychange', () => this.reconsiderPreviewIdle());
+        // reconsiderPreviewIdle. A root singleton lives for the app's whole lifetime in production,
+        // so this never needed removing there - but ~110 TestBed instantiations across the suite each
+        // leak one onto `document` without it, so it is torn down like any other listener would be.
+        document.addEventListener('visibilitychange', this.onVisibilityChange);
+        inject(DestroyRef).onDestroy(() => document.removeEventListener('visibilitychange', this.onVisibilityChange));
     }
 
     /**
@@ -343,6 +353,10 @@ export class RustMediaService {
      * are what other clients subscribe to, exactly as they would for a track the webview published.
      */
     async startScreenPublish(options: ScreenPublishOptions): Promise<ScreenPublishResult> {
+        // A pause from whatever previously held activeShareId must not survive into this one - without
+        // this, a second publish starting while an earlier paused share was still active would begin
+        // already paused, frozen over the old share's last frame.
+        this.resetPreviewPause();
         const result = await this.publisher.start(options);
         this.activeShareId = options.shareId;
         // Derived from both halves, because that is the only place both facts are in hand: what the user
@@ -350,9 +364,10 @@ export class RustMediaService {
         this._screenAudioOutcome.set(
             !options.shareAudio ? 'off' : result.audioTrackName === null ? 'unavailable' : 'published',
         );
-        // A fresh share starts the idle clock immediately if nobody has claimed the preview yet -
-        // reconsiderPreviewIdle is otherwise only driven by a claim changing or the window's
-        // visibility changing, neither of which necessarily happens the moment sharing starts.
+        // Usually a no-op here - reconsiderPreviewIdle's own guard holds off arming the clock until
+        // publishPreview has a first frame (see onPreviewFrame). Called anyway so stale claim or
+        // visibility state left over from before this publish started is picked up immediately
+        // rather than waiting for whatever next touches a claim or the window's visibility.
         this.reconsiderPreviewIdle();
         return result;
     }
@@ -573,9 +588,18 @@ export class RustMediaService {
      * {@link previewPaused} true with no share behind it, which no consumer could render sanely
      * (they all gate the paused card on {@link publishPreview} already being non-null, but the flag
      * itself would still be a lie).</p>
+     *
+     * <p>Equally, never schedules one before {@link publishPreview} holds a first frame. A share
+     * whose first frame simply hasn't arrived yet - a slow encoder start, a browser publish that
+     * produces no preview at all - must not have the clock ticking against it: once the timer fires,
+     * `onPreviewFrame` starts dropping every frame it is handed (paused means "stop applying"), so a
+     * share paused before it ever had a preview would have no frame to fall back to and no way out,
+     * for its whole lifetime. See `onPreviewFrame`'s own call back into this method for the other
+     * half - what (re)starts the clock once that first frame does land.</p>
      */
     private reconsiderPreviewIdle(): void {
         if (this.activeShareId === null) return;
+        if (this._publishPreview() === null) return;
 
         if (this.isPreviewActive()) {
             this.clearPreviewIdleTimer();

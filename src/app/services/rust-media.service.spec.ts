@@ -534,4 +534,67 @@ describe('RustMediaService: idle preview pause', () => {
 
         expect(service.previewPaused()).toBe(true);
     });
+
+    /**
+     * The actual bug: a share whose first preview frame arrives after the idle window would end up
+     * permanently frame-locked. The idle timer used to arm at `startScreenPublish` regardless of
+     * whether a preview existed yet, fire at {@link PREVIEW_IDLE_MS} with no frame ever received, and
+     * then `onPreviewFrame`'s own pause check would drop every frame after that forever - there was
+     * no card to click "resume" on, because the paused card is itself gated on a preview existing.
+     */
+    it('does not pre-arm the idle timer before a first preview frame exists, so a late first frame still lands', async () => {
+        setHidden(false);
+        const fake = new FakePublisher();
+        const {service} = setup(fake);
+        await service.startScreenPublish(options());
+
+        // No frame yet - a share that has never had a preview has nothing to pause.
+        vi.advanceTimersByTime(PREVIEW_IDLE_MS * 3);
+        expect(service.previewPaused()).toBe(false);
+
+        fake.previewSink?.('data:image/jpeg;base64,LATE');
+
+        expect(service.previewPaused()).toBe(false);
+        expect(service.publishPreview()).toBe('data:image/jpeg;base64,LATE');
+    });
+
+    it('starts the idle countdown from the first frame, not from startScreenPublish, when the frame arrives late', async () => {
+        setHidden(false);
+        const fake = new FakePublisher();
+        const {service} = setup(fake);
+        await service.startScreenPublish(options());
+
+        vi.advanceTimersByTime(PREVIEW_IDLE_MS - 1000);
+        fake.previewSink?.('data:image/jpeg;base64,LATE');
+
+        // The countdown starts now, not PREVIEW_IDLE_MS - 1000 ago.
+        vi.advanceTimersByTime(PREVIEW_IDLE_MS - 1);
+        expect(service.previewPaused()).toBe(false);
+
+        vi.advanceTimersByTime(1);
+        expect(service.previewPaused()).toBe(true);
+    });
+
+    /**
+     * `startScreenPublish` re-arms the idle clock but, before this fix, never cleared a pause left
+     * over from whatever previously held `activeShareId` - so a second publish starting while an
+     * earlier paused one was still active began already paused, frozen over the old share's frame.
+     */
+    it('does not begin already paused when a new publish starts over a stale pause from a previous share', async () => {
+        setHidden(false);
+        const fake = new FakePublisher();
+        const {service} = setup(fake);
+        await service.startScreenPublish(options({shareId: 'first'}));
+        fake.previewSink?.('data:image/jpeg;base64,AAAA');
+        vi.advanceTimersByTime(PREVIEW_IDLE_MS);
+        expect(service.previewPaused()).toBe(true);
+
+        // A second publish starting without an intervening stop - startScreenPublish itself must
+        // clear the stale pause, not only stopScreenPublish.
+        await service.startScreenPublish(options({shareId: 'second'}));
+
+        expect(service.previewPaused()).toBe(false);
+        fake.previewSink?.('data:image/jpeg;base64,BBBB');
+        expect(service.publishPreview()).toBe('data:image/jpeg;base64,BBBB');
+    });
 });
