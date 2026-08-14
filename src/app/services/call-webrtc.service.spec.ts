@@ -444,3 +444,95 @@ describe('inbound screen-share fps', () => {
         expect(service.inboundVideoFpsByShare()).toEqual({});
     });
 });
+
+
+/**
+ * A stream's volume is its own gain, independent of its owner's voice - the gap task 6 closes.
+ * `setUserVolume`/`getUserVolume` already had this shape for voice; these pin the mirrored
+ * `setScreenVolume`/`getScreenVolume` pair, and - the requirement most likely to get missed - that
+ * muting a stream never destroys the level stored for it.
+ */
+describe('stream volume', () => {
+    function subscribeScreenAudio(service: CallWebRtcService, userId: string, trackName: string) {
+        return (service as unknown as {
+            subscribeToTrack(u: string, s: string, t: string, k: 'screenAudio'): Promise<void>;
+        }).subscribeToTrack(userId, 'cf-theirs', trackName, 'screenAudio');
+    }
+
+    it('defaults to full volume for a stream nothing has touched', () => {
+        const {service} = setup();
+        expect(service.getScreenVolume('them')).toBe(1);
+    });
+
+    it('remembers a level set before the share is even subscribed', async () => {
+        const {service, engineVolume, resolveStart} = setup();
+        resolveStart({slot: 'slot-1', mediaSessionId: 'cf-rust', trackName: 'audio'} as VoiceSession);
+
+        service.setScreenVolume('them', 0.4);
+        expect(service.getScreenVolume('them')).toBe(0.4);
+
+        await subscribeScreenAudio(service, 'them', 'screen-audio-abc');
+
+        // Applied to the share's mixer source (the track name), not the participant's voice.
+        expect(engineVolume).toHaveBeenCalledWith('screen-audio-abc', 0.4);
+        expect(engineVolume).not.toHaveBeenCalledWith('them', 0.4);
+    });
+
+    it('applies a volume change live once the share is already subscribed', async () => {
+        const {service, engineVolume, resolveStart} = setup();
+        resolveStart({slot: 'slot-1', mediaSessionId: 'cf-rust', trackName: 'audio'} as VoiceSession);
+        await subscribeScreenAudio(service, 'them', 'screen-audio-abc');
+        engineVolume.mockClear();
+
+        service.setScreenVolume('them', 0.25);
+
+        expect(engineVolume).toHaveBeenCalledWith('screen-audio-abc', 0.25);
+    });
+
+    it('clamps out-of-range input the same way setUserVolume does', () => {
+        const {service} = setup();
+
+        service.setScreenVolume('them', 4);
+        expect(service.getScreenVolume('them')).toBe(1);
+
+        service.setScreenVolume('them', -1);
+        expect(service.getScreenVolume('them')).toBe(0);
+    });
+
+    /**
+     * Mute and volume are independent controls. Muting must not zero the stored level, and
+     * unmuting must bring back exactly what was set - not unity, which is what a naive
+     * "mute = set gain to 0, unmute = set gain to 1" implementation would do, and the bug would
+     * only show up on the *second* unmute.
+     */
+    it('round-trips the stored volume through a mute and an unmute', async () => {
+        const {service, engineVolume, resolveStart} = setup();
+        resolveStart({slot: 'slot-1', mediaSessionId: 'cf-rust', trackName: 'audio'} as VoiceSession);
+        await subscribeScreenAudio(service, 'them', 'screen-audio-abc');
+        service.setScreenVolume('them', 0.6);
+        engineVolume.mockClear();
+
+        service.toggleScreenAudioMute('them');
+        expect(engineVolume).toHaveBeenCalledWith('screen-audio-abc', 0);
+        // The stored preference survives the mute - it is the mute overlay that changed, not it.
+        expect(service.getScreenVolume('them')).toBe(0.6);
+
+        service.toggleScreenAudioMute('them');
+        expect(engineVolume).toHaveBeenLastCalledWith('screen-audio-abc', 0.6);
+        expect(service.getScreenVolume('them')).toBe(0.6);
+    });
+
+    it('does not apply a volume change made while the stream is muted, but remembers it for unmute', async () => {
+        const {service, engineVolume, resolveStart} = setup();
+        resolveStart({slot: 'slot-1', mediaSessionId: 'cf-rust', trackName: 'audio'} as VoiceSession);
+        await subscribeScreenAudio(service, 'them', 'screen-audio-abc');
+        service.toggleScreenAudioMute('them'); // mute
+        engineVolume.mockClear();
+
+        service.setScreenVolume('them', 0.7);
+        expect(engineVolume).not.toHaveBeenCalled();
+
+        service.toggleScreenAudioMute('them'); // unmute
+        expect(engineVolume).toHaveBeenCalledWith('screen-audio-abc', 0.7);
+    });
+});

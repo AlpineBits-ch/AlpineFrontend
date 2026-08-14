@@ -607,10 +607,15 @@ export class ChannelListComponent {
         event.stopPropagation();
         if (p.isLocal) return;
         const volume = Math.round(this.voiceChannelSvc.getUserVolume(p.userId) * 100);
+        // Left undefined when not sharing - that is what the menu template reads to decide whether
+        // the second slider has anything to control.
+        const streamVolume = p.isScreenSharing
+            ? Math.round(this.voiceChannelSvc.getScreenVolume(p.userId) * 100)
+            : undefined;
         const x = Math.min(event.clientX, window.innerWidth - 236);
         const y = Math.min(event.clientY, window.innerHeight - 200);
         this.participantChannelId.set(channelId);
-        this.participantMenu.set({x: Math.max(0, x), y: Math.max(0, y), participant: p, volume});
+        this.participantMenu.set({x: Math.max(0, x), y: Math.max(0, y), participant: p, volume, streamVolume});
     }
 
     protected onParticipantVolumeChange(value: number): void {
@@ -618,6 +623,13 @@ export class ChannelListComponent {
         if (!menu) return;
         this.participantMenu.set({...menu, volume: value});
         this.voiceChannelSvc.setUserVolume(menu.participant.userId, value / 100);
+    }
+
+    protected onParticipantStreamVolumeChange(value: number): void {
+        const menu = this.participantMenu();
+        if (!menu) return;
+        this.participantMenu.set({...menu, streamVolume: value});
+        this.voiceChannelSvc.setScreenVolume(menu.participant.userId, value / 100);
     }
 
     protected async kickParticipant(): Promise<void> {

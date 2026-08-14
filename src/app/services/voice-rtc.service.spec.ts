@@ -606,3 +606,90 @@ describe('inbound screen-share fps', () => {
         expect(service.inboundVideoFps()).toEqual({});
     });
 });
+
+
+/**
+ * A stream's volume is its own gain, independent of its owner's voice - the gap task 6 closes.
+ * `setUserVolume`/`getUserVolume` already had this shape for voice; these pin the mirrored
+ * `setScreenVolume`/`getScreenVolume` pair, and - the requirement most likely to get missed - that
+ * muting a stream never destroys the level stored for it.
+ */
+describe('stream volume', () => {
+    const screenTarget = (userId = 'user_a', mediaSessionId = 'sess_1', trackName = 'screen-audio-abc') => ({
+        userId, mediaSessionId, trackName, kind: 'screenAudio' as const,
+    });
+
+    it('defaults to full volume for a stream nothing has touched', () => {
+        expect(service.getScreenVolume('user_a')).toBe(1);
+    });
+
+    it('remembers a level set before the share is even subscribed', async () => {
+        service.setScreenVolume('user_a', 0.4);
+        expect(service.getScreenVolume('user_a')).toBe(0.4);
+
+        await service.subscribeAudio([screenTarget()]);
+
+        // Applied to the share's mixer source (the track name), not the participant's voice.
+        expect(engine.setUserVolume).toHaveBeenCalledWith('screen-audio-abc', 0.4);
+        expect(engine.setUserVolume).not.toHaveBeenCalledWith('user_a', 0.4);
+    });
+
+    it('applies a volume change live once the share is already subscribed', async () => {
+        await service.subscribeAudio([screenTarget()]);
+        engine.setUserVolume.mockClear();
+
+        service.setScreenVolume('user_a', 0.25);
+
+        expect(engine.setUserVolume).toHaveBeenCalledWith('screen-audio-abc', 0.25);
+    });
+
+    it('clamps out-of-range input the same way setUserVolume does', () => {
+        service.setScreenVolume('user_a', 4);
+        expect(service.getScreenVolume('user_a')).toBe(1);
+
+        service.setScreenVolume('user_a', -1);
+        expect(service.getScreenVolume('user_a')).toBe(0);
+    });
+
+    /**
+     * Mute and volume are independent controls. Muting must not zero the stored level, and
+     * unmuting must bring back exactly what was set - not unity, which is what a naive
+     * "mute = set gain to 0, unmute = set gain to 1" implementation would do, and the bug would
+     * only show up on the *second* unmute.
+     */
+    it('round-trips the stored volume through a mute and an unmute', async () => {
+        await service.subscribeAudio([screenTarget()]);
+        service.setScreenVolume('user_a', 0.6);
+        engine.setUserVolume.mockClear();
+
+        service.toggleScreenAudioMute('user_a');
+        expect(engine.setUserVolume).toHaveBeenCalledWith('screen-audio-abc', 0);
+        // The stored preference survives the mute - it is the mute overlay that changed, not it.
+        expect(service.getScreenVolume('user_a')).toBe(0.6);
+
+        service.toggleScreenAudioMute('user_a');
+        expect(engine.setUserVolume).toHaveBeenLastCalledWith('screen-audio-abc', 0.6);
+        expect(service.getScreenVolume('user_a')).toBe(0.6);
+    });
+
+    it('does not apply a volume change made while the stream is muted, but remembers it for unmute', async () => {
+        await service.subscribeAudio([screenTarget()]);
+        service.toggleScreenAudioMute('user_a'); // mute
+        engine.setUserVolume.mockClear();
+
+        service.setScreenVolume('user_a', 0.7);
+        expect(engine.setUserVolume).not.toHaveBeenCalled();
+
+        service.toggleScreenAudioMute('user_a'); // unmute
+        expect(engine.setUserVolume).toHaveBeenCalledWith('screen-audio-abc', 0.7);
+    });
+
+    it('never lets the stream volume path touch the participant voice source', async () => {
+        await service.subscribeAudio([screenTarget()]);
+        service.setScreenVolume('user_a', 0.5);
+        service.toggleScreenAudioMute('user_a');
+        service.toggleScreenAudioMute('user_a');
+
+        expect(engine.setUserVolume).not.toHaveBeenCalledWith('user_a', expect.anything());
+    });
+});

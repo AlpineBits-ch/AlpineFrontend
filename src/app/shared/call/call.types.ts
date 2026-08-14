@@ -37,6 +37,12 @@ export interface CallParticipantMenuData {
     y: number;
     participant: CallParticipant;
     volume: number;
+    /**
+     * The participant's *stream* volume, separate from `volume` (their voice). Undefined when they
+     * are not currently sharing - there is nothing to attach a stream slider to - which is also what
+     * the template reads to decide whether to render the second slider at all.
+     */
+    streamVolume?: number;
 }
 
 export interface CallScreenLayoutContextMenuEvent {

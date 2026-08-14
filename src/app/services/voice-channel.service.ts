@@ -672,6 +672,15 @@ export class VoiceChannelService {
         return this.rtc.getUserVolume(userId);
     }
 
+    /** A participant's stream volume, independent of their voice - see VoiceRTCService.setScreenVolume. */
+    setScreenVolume(userId: string, volume: number): void {
+        this.rtc.setScreenVolume(userId, volume);
+    }
+
+    getScreenVolume(userId: string): number {
+        return this.rtc.getScreenVolume(userId);
+    }
+
     isScreenAudioMuted(userId: string): boolean {
         return this.rtc.isScreenAudioMuted(userId);
     }

@@ -163,6 +163,11 @@ export class VoiceRTCService {
     // Per-user volume, 0-1. The slider position lives here; the gain it produces lives in Rust.
     private readonly userVolumes = new Map<string, number>();
 
+    // Per-share volume, 0-1. Its own map rather than reusing userVolumes: a stream's audio is a
+    // different mixer source than its author's voice (see remoteScreenAudioIds below), and the two
+    // must stay adjustable independently.
+    private readonly screenVolumes = new Map<string, number>();
+
     // userId → the mixer source id of their stream's audio, so the per-stream mute can find it.
     private readonly remoteScreenAudioIds = new Map<string, string>();
 
@@ -717,6 +722,13 @@ export class VoiceRTCService {
                     // A stream that starts while its author is already muted must stay muted.
                     if (this.screenAudioMutedSignal().has(target.userId)) {
                         void this.voiceEngine.setUserVolume(id, 0);
+                    } else {
+                        // Re-apply the stored slider position, exactly as the voice branch below
+                        // does: Rust starts every source at unity, and a volume set before this
+                        // share existed (or before it restarted at a new track name) would
+                        // otherwise be silently lost.
+                        const volume = this.screenVolumes.get(target.userId);
+                        if (volume !== undefined) void this.voiceEngine.setUserVolume(id, volume);
                     }
                 } else {
                     this.participantsWithAudio.update(s => new Set(s).add(target.userId));
@@ -1186,6 +1198,27 @@ export class VoiceRTCService {
         return this.userVolumes.get(userId) ?? 1;
     }
 
+    /**
+     * Set one participant's *stream* volume, independent of their voice - the gap Discord parity
+     * task 6 closes. Mirrors {@link setUserVolume} exactly, applied to the share's mixer source
+     * instead of the participant's.
+     *
+     * <p>Mute is layered on top of this, not folded into it: if the stream is currently muted the
+     * new level is only remembered, not applied, so it does not audibly un-mute the stream out from
+     * under the user. {@link toggleScreenAudioMute} reads it back on unmute.</p>
+     */
+    setScreenVolume(userId: string, volume: number): void {
+        const clamped = Math.max(0, Math.min(1, volume));
+        this.screenVolumes.set(userId, clamped);
+        if (this.screenAudioMutedSignal().has(userId)) return;
+        const shareId = this.remoteScreenAudioIds.get(userId);
+        if (shareId) void this.voiceEngine.setUserVolume(shareId, clamped);
+    }
+
+    getScreenVolume(userId: string): number {
+        return this.screenVolumes.get(userId) ?? 1;
+    }
+
     isScreenAudioMuted(userId: string): boolean {
         return this.screenAudioMutedSignal().has(userId);
     }
@@ -1200,7 +1233,9 @@ export class VoiceRTCService {
     toggleScreenAudioMute(userId: string): void {
         const willMute = !this.screenAudioMutedSignal().has(userId);
         const shareId = this.remoteScreenAudioIds.get(userId);
-        if (shareId) void this.voiceEngine.setUserVolume(shareId, willMute ? 0 : 1);
+        // Unmuting restores whatever volume was set, not unity - mute must not clobber the stored
+        // level. See getScreenVolume/setScreenVolume.
+        if (shareId) void this.voiceEngine.setUserVolume(shareId, willMute ? 0 : this.getScreenVolume(userId));
         this.screenAudioMutedSignal.update(s => {
             const n = new Set(s);
             willMute ? n.add(userId) : n.delete(userId);
