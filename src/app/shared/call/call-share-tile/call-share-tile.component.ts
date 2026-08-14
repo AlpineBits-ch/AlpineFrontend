@@ -86,15 +86,28 @@ export class CallShareTileComponent implements OnDestroy {
         return {name: s.displayName};
     });
 
+    /** Whether the picture is currently living in a pop-out window. */
+    protected readonly poppedOut = signal(false);
+
     /**
      * Which kind of picture-in-picture this tile can actually perform right now, or null for none.
      *
-     * <p>This is the capability gate and the dispatch table in one value, deliberately: the first
-     * version of the gate answered "is any PiP API present" while the action could only ever do
-     * video PiP, so on a host with document PiP and no video PiP - the exact WebView2 skew this
-     * feature lives under - the button rendered and the click did nothing. Deriving both the
-     * rendering and the branch taken from the same computed makes that class of drift impossible:
-     * there is no state in which this returns a route the action cannot follow.</p>
+     * <p>This is the capability gate and the dispatch table in one value, deliberately, and the
+     * invariant runs in both directions: the control is never rendered without a route the press
+     * can follow, <em>and</em> the route is never withdrawn while the press is still in effect.</p>
+     *
+     * <p>The first direction is what the original gate got wrong. It answered "is any PiP API
+     * present" while the action could only ever do video PiP, so on a host with document PiP and no
+     * video PiP - the exact WebView2 skew this feature lives under - the button rendered and the
+     * click did nothing. Deriving both the rendering and the branch taken from this one value makes
+     * that impossible rather than merely discouraged.</p>
+     *
+     * <p>The second direction is the same fault reversed, and is why `poppedOut()` is consulted
+     * first. A share can lose its stream and its preview while its picture is sitting in an open
+     * pop-out window; without this line the route would go null, the `@if` would drop the button,
+     * and the user would be left with a picture in a window the app no longer offers any way to
+     * close and an empty tile behind it. While a pop-out is open, the route stays the one that
+     * opened it, because closing it is still something the press can do.</p>
      *
      * <p>Document PiP wins when both are available. It carries the whole picture surface, including
      * the local share's `<img>` preview - the Rust-published desktop path puts no `MediaStream` in
@@ -109,6 +122,7 @@ export class CallShareTileComponent implements OnDestroy {
      * webview only grants later - or a test stub - is picked up on the next read.</p>
      */
     protected readonly pipRoute = computed<PipRoute | null>(() => {
+        if (this.poppedOut()) return 'document';
         const s = this.share();
         if (!s.stream && !s.previewSrc) return null;
         if (documentPipApi()) return 'document';
@@ -126,13 +140,12 @@ export class CallShareTileComponent implements OnDestroy {
     protected readonly pipLabelKey = computed(() =>
         this.pipRoute() === 'document' ? 'CALL.POP_OUT' : 'CALL.PICTURE_IN_PICTURE');
 
-    /** Whether the picture is currently living in a pop-out window. */
-    protected readonly poppedOut = signal(false);
-
     /**
      * Pressed state for the control, so a tile whose picture has left is not just an unexplained
-     * black box. Null on the video route: the browser owns that overlay's lifetime and never tells
-     * us it closed, so announcing it as a toggle would be announcing a state we cannot track.
+     * black box. Null on the video route: that overlay's state is not tracked here. The platform
+     * does report it - `document.pictureInPictureElement` and the enter/leave events - but nothing
+     * in this component subscribes, so announcing `aria-pressed` would be announcing a value that
+     * only ever changes when this tile happens to be the thing that opened the overlay.
      */
     protected readonly pipPressed = computed(() =>
         this.pipRoute() === 'document' ? this.poppedOut() : null);

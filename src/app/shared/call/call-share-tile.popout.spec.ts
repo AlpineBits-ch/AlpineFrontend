@@ -97,6 +97,10 @@ describe('CallShareTileComponent pop-out', () => {
 
     beforeEach(() => {
         TestBed.resetTestingModule();
+        // index.html puts the theme class on <body> and the harness does not, so without this the
+        // "the class was carried over" assertion would compare '' to '' and survive deleting the
+        // line it exists to guard.
+        document.body.className = 'dark';
         // jsdom implements neither play() nor pause(); an unhandled "not implemented" would fail the
         // run before the assertion it is standing in the way of.
         HTMLMediaElement.prototype.play = vi.fn(() => Promise.resolve());
@@ -111,6 +115,7 @@ describe('CallShareTileComponent pop-out', () => {
 
     afterEach(() => {
         markerStyle.remove();
+        document.body.className = '';
         delete (document as {pictureInPictureEnabled?: unknown}).pictureInPictureEnabled;
         delete (window as {documentPictureInPicture?: unknown}).documentPictureInPicture;
     });
@@ -180,7 +185,7 @@ describe('CallShareTileComponent pop-out', () => {
         expect(pip.document.body.style.background).toBe('var(--color-stage)');
         expect(pip.document.body.style.margin).toBe('0px');
         // The dark tokens hang off a class on <body>; without it the pop-out renders light-theme.
-        expect(pip.document.body.className).toBe(document.body.className);
+        expect(pip.document.body.className).toBe('dark');
     });
 
     it('asks for a window the size of the tile', async () => {
@@ -245,6 +250,30 @@ describe('CallShareTileComponent pop-out', () => {
 
         expect(picture.parentElement).toBe(pip.document.body);
         expect(pip.document.body.querySelector('img')).not.toBeNull();
+    });
+
+    it('keeps the control while the pop-out is open, even after the share loses its picture', async () => {
+        // A share can go contentless mid-call - the publisher stops, the preview stops arriving -
+        // and the gate would otherwise withdraw the route from under an open window, leaving the
+        // picture in an OS window the app offers no way to close and an empty tile behind it.
+        const pip = fakePipWindow();
+        installDocumentPip(pip);
+        const fixture = setup(share({stream: {} as MediaStream}));
+        const picture = surface(fixture);
+        const root = tileRoot(fixture);
+
+        await pressPip(fixture);
+        fixture.componentRef.setInput('share', share({stream: undefined, previewSrc: null}));
+        fixture.detectChanges();
+
+        expect((fixture.nativeElement as HTMLElement)
+            .querySelector('app-call-tile-action[icon="pi-external-link"]')).not.toBeNull();
+
+        // The half that matters: still rendered is worth nothing if pressing it no longer works.
+        await pressPip(fixture);
+
+        expect(pip.close).toHaveBeenCalledTimes(1);
+        expect(picture.parentElement).toBe(root);
     });
 
     it('leaves the picture alone when the request is refused', async () => {
