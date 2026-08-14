@@ -25,6 +25,7 @@
     "@primeuix/themes": "^2.0.3",
     "@sentry/angular": "^10.59.0",
     "@sentry/cli": "2",
+    "@stripe/stripe-js": "^9.13.0",
     "@tailwindcss/postcss": "^4.2.4",
     "@tauri-apps/api": "^2.11.0",
     "@tauri-apps/plugin-autostart": "~2.5.1",

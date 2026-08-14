@@ -3,6 +3,8 @@ import {TranslateModule} from '@ngx-translate/core';
 import {EntitlementStore, EntitlementSubjectRef} from '../../../stores/entitlement.store';
 import {entitlementRemedyCopy} from '../../../core/entitlement-message';
 import {guildFeatureLabelKey} from '../../guild/guild-features';
+import {PlanPickerComponent} from '../../billing/plan-picker/plan-picker.component';
+import {PaymentMethodsComponent} from '../../billing/payment-methods/payment-methods.component';
 
 /**
  * What plan a subject is on, for the one screen where they would change it.
@@ -22,7 +24,7 @@ import {guildFeatureLabelKey} from '../../guild/guild-features';
  */
 @Component({
     selector: 'app-plan-panel',
-    imports: [TranslateModule],
+    imports: [TranslateModule, PlanPickerComponent, PaymentMethodsComponent],
     templateUrl: './plan-panel.component.html',
 })
 export class PlanPanelComponent {
@@ -75,6 +77,15 @@ export class PlanPanelComponent {
         const subject = this.subject();
         return subject.kind === 'guild' ? subject.id : null;
     });
+
+    /**
+     * Whether the cards on file belong on this screen.
+     *
+     * <p>They are an account's, never a guild's: a guild subscription is paid for by whichever
+     * person bought it, and the cards behind it are theirs. A guild plan page listing somebody's
+     * cards to every admin who can open it would be the same mistake in the other direction.</p>
+     */
+    protected isOwnAccount = computed(() => this.subject().kind === 'user');
 
     constructor() {
         effect(() => {

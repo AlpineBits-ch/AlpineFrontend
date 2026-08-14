@@ -45,6 +45,16 @@
         }
     </section>
 
+    <!-- What is for sale, and the buy path. It draws its own gates: no publishable key or a
+         catalogue that says nothing is enabled means a comparison with nothing to press. -->
+    <app-plan-picker [subject]="subject()"/>
+
+    <!-- Cards are an account's, so this is absent on a guild's plan page rather than showing the
+         payer's cards to every admin who can open it. -->
+    @if (isOwnAccount()) {
+        <app-payment-methods/>
+    }
+
     <!-- Guild only, and only when the plan is actually withholding something. -->
     @if (withheldModules().length > 0) {
         <section class="flex flex-col gap-3">

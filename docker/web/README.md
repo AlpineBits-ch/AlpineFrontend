@@ -73,7 +73,7 @@ the keys.
 
 The rest of the policy is fixed and documented directive by directive in
 [`security-headers.conf.template`](security-headers.conf.template) — `script-src 'self'
-'wasm-unsafe-eval'` with no `unsafe-inline`, a per-response nonce for inline styles,
+'wasm-unsafe-eval' https://js.stripe.com` with no `unsafe-inline`, a per-response nonce for inline styles,
 `frame-ancestors 'none'`. `Cross-Origin-Embedder-Policy` is deliberately absent: the wasm engine is
 single-threaded, so it buys nothing, and it would break the third-party image and GIF embeds in
 messages.

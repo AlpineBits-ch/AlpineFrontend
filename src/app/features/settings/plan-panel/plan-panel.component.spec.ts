@@ -6,9 +6,13 @@
  * quietly dropped, and a subject with no plan gets no plan row rather than an invented "Free".</p>
  */
 import {ComponentFixture, TestBed} from '@angular/core/testing';
+import {provideHttpClient} from '@angular/common/http';
+import {provideHttpClientTesting} from '@angular/common/http/testing';
+import {signal} from '@angular/core';
 import {provideTranslateService} from '@ngx-translate/core';
 import {describe, expect, it} from 'vitest';
 import {PlanPanelComponent} from './plan-panel.component';
+import {ApiConfigService} from '../../../services/api-config.service';
 import {EntitlementStore, EntitlementSubjectRef, MY_ENTITLEMENTS} from '../../../stores/entitlement.store';
 import {EntitlementPlanDto, EntitlementSnapshotDto, GuildFeatureResolutionDto} from '../../../dtos/response/entitlement.dto';
 
@@ -44,6 +48,16 @@ function setup(opts: {
         imports: [PlanPanelComponent],
         providers: [
             provideTranslateService({defaultLanguage: 'en'}),
+            // The panel now hosts the plan picker and the payment methods list, both of which talk
+            // to Billing. Neither is asserted here - these tests are about what the panel says
+            // about the plan a subject is *on* - so the requests are left in flight and no
+            // `verify()` is called. `stripePublishableKey` answers blank, which is what makes the
+            // picker draw a comparison with nothing to press.
+            provideHttpClient(),
+            provideHttpClientTesting(),
+            // Stubbed rather than real: the real one reaches for OAuthService, and none of this
+            // file is about which instance the requests would have gone to.
+            {provide: ApiConfigService, useValue: {baseUrl: () => 'https://api.test.example'}},
             {
                 provide: EntitlementStore,
                 useValue: {
@@ -52,6 +66,7 @@ function setup(opts: {
                     features: () => opts.features ?? null,
                     ensureLoaded: () => undefined,
                     ensureFeaturesLoaded: () => undefined,
+                    stripePublishableKey: signal(''),
                 },
             },
         ],

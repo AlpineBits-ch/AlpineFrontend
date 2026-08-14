@@ -1,0 +1,143 @@
+<section class="flex flex-col gap-4">
+
+    <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">
+        {{ 'BILLING.CARDS.SECTION' | translate }}
+    </h2>
+
+    @if (loading()) {
+        <p class="text-xs text-text-muted m-0">{{ 'BILLING.CARDS.LOADING' | translate }}</p>
+    } @else if (loadFailed()) {
+        <!-- Not an empty list. "You have no cards" would invite somebody to add a second copy of
+             the one that is already on file. -->
+        <div class="flex flex-col gap-2 bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3.5">
+            <p class="text-sm text-text-secondary m-0">{{ 'BILLING.CARDS.LOAD_FAILED' | translate }}</p>
+            <button
+                    (click)="load()"
+                    class="self-start text-xs font-semibold text-[var(--color-brand-dim)] hover:text-white transition-colors duration-[var(--duration-fast)]"
+                    type="button">
+                {{ 'BILLING.CARDS.RETRY' | translate }}
+            </button>
+        </div>
+    } @else {
+
+        @if (cards().length === 0) {
+            <p class="text-xs text-text-muted m-0 leading-relaxed">{{ 'BILLING.CARDS.NONE' | translate }}</p>
+        } @else {
+            <ul class="flex flex-col divide-y divide-white/[0.06] bg-white/[0.03] border border-white/[0.10] rounded-xl m-0 p-0 list-none">
+                @for (card of cards(); track card.method.id) {
+                    <li class="flex flex-wrap items-center gap-3 px-4 py-3">
+                        <div class="flex flex-col gap-0.5 min-w-0 flex-1">
+                            <p class="text-sm text-text-primary m-0">
+                                <!-- A brand this build has no spelling for gets a sentence with no
+                                     brand in it, rather than the raw token Stripe sent. -->
+                                @if (card.brandName; as brand) {
+                                    {{ 'BILLING.CARD.LINE' | translate:{brand: brand, last4: card.method.last4} }}
+                                } @else {
+                                    {{ 'BILLING.CARD.LINE_UNKNOWN' | translate:{last4: card.method.last4} }}
+                                }
+                            </p>
+                            <p class="text-xs text-text-muted m-0">
+                                {{ 'BILLING.CARD.EXPIRES' | translate:{expiry: card.expiry} }}
+                            </p>
+                        </div>
+
+                        @if (card.method.isDefault) {
+                            <span class="text-[0.625rem] font-semibold uppercase tracking-widest text-[var(--color-brand-dim)]">
+                                {{ 'BILLING.CARD.DEFAULT' | translate }}
+                            </span>
+                        } @else {
+                            <button
+                                    (click)="makeDefault(card.method)"
+                                    [disabled]="busyId() !== null"
+                                    class="text-xs font-semibold text-[var(--color-brand-dim)] hover:text-white disabled:opacity-40 transition-colors duration-[var(--duration-fast)]"
+                                    type="button">
+                                {{ 'BILLING.CARD.MAKE_DEFAULT' | translate }}
+                            </button>
+                        }
+
+                        <button
+                                (click)="detach(card.method)"
+                                [disabled]="busyId() !== null"
+                                class="text-xs font-semibold text-text-muted hover:text-[var(--color-offline)] disabled:opacity-40 transition-colors duration-[var(--duration-fast)]"
+                                type="button">
+                            {{ 'BILLING.CARD.REMOVE' | translate }}
+                        </button>
+                    </li>
+                }
+            </ul>
+        }
+
+        @if (errorText(); as text) {
+            <p class="text-xs text-[var(--color-offline)] m-0 leading-relaxed">{{ text }}</p>
+        } @else if (errorKey(); as key) {
+            <p class="text-xs text-[var(--color-offline)] m-0 leading-relaxed">{{ key | translate }}</p>
+        }
+
+        <button
+                (click)="addVisible.set(true)"
+                class="self-start rounded-lg border border-white/[0.10] hover:border-white/[0.16] px-3 py-2 text-xs font-semibold text-text-secondary hover:text-text-primary transition-colors duration-[var(--duration-fast)]"
+                type="button">
+            {{ 'BILLING.CARDS.ADD' | translate }}
+        </button>
+    }
+
+</section>
+
+<p-dialog
+        (visibleChange)="addVisible.set($event)"
+        [breakpoints]="{ '640px': '100vw' }"
+        [draggable]="false"
+        [modal]="true"
+        [resizable]="false"
+        [style]="{ width: '460px' }"
+        [visible]="addVisible()"
+        appendTo="body">
+
+    <ng-template pTemplate="header">
+        <span class="text-sm font-semibold text-text-primary">{{ 'BILLING.CARDS.ADD_TITLE' | translate }}</span>
+    </ng-template>
+
+    <div class="flex flex-col gap-4 pb-1">
+        @switch (addStep()) {
+            @case ('starting') {
+                <p class="text-sm text-text-secondary m-0">{{ 'BILLING.CARDS.ADD_PREPARING' | translate }}</p>
+            }
+            @case ('refused') {
+                <p class="text-sm text-text-secondary m-0 leading-relaxed">
+                    @if (addErrorText(); as text) {
+                        {{ text }}
+                    } @else if (addErrorKey(); as key) {
+                        {{ key | translate }}
+                    }
+                </p>
+                <p-button (onClick)="closeAdd()" [label]="'BILLING.CHECKOUT.CLOSE' | translate" severity="secondary"
+                          styleClass="justify-center"/>
+            }
+            @default {
+                @if (setupSecret(); as secret) {
+                    <!-- The same iframe a purchase uses, against a SetupIntent instead. No address
+                         here: the tax calculation belongs to the purchase, and this screen is only
+                         putting a card on file. -->
+                    <app-payment-element (mounted)="elementReady.set(true)" [clientSecret]="secret"/>
+
+                    @if (addErrorText(); as text) {
+                        <p class="text-xs text-[var(--color-offline)] m-0 leading-relaxed">{{ text }}</p>
+                    } @else if (addErrorKey(); as key) {
+                        <p class="text-xs text-[var(--color-offline)] m-0 leading-relaxed">{{ key | translate }}</p>
+                    }
+
+                    <div class="flex items-center gap-2">
+                        <p-button (onClick)="closeAdd()" [label]="'BILLING.CHECKOUT.CANCEL' | translate" [text]="true"
+                                  severity="secondary" styleClass="flex-1 justify-center"/>
+                        <p-button (onClick)="confirmAdd()"
+                                  [disabled]="addStep() !== 'collecting' || !elementReady()"
+                                  [label]="'BILLING.CARDS.SAVE' | translate"
+                                  [loading]="addStep() === 'confirming'" severity="primary"
+                                  styleClass="flex-1 justify-center"/>
+                    </div>
+                }
+            }
+        }
+    </div>
+
+</p-dialog>

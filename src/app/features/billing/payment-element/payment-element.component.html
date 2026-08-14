@@ -1,0 +1,48 @@
+<div class="flex flex-col gap-4">
+
+    @if (status() === 'unavailable') {
+        <!-- Two reasons, two sentences. An instance that sells nothing needs no explanation and no
+             retry; a script that did not arrive is our side broken while somebody is trying to pay
+             us, and that one gets both. -->
+        <div class="flex flex-col gap-2 bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3.5">
+            @if (reason() === 'load_failed') {
+                <p class="text-sm text-text-secondary m-0">{{ 'BILLING.STRIPE.LOAD_FAILED' | translate }}</p>
+                <button
+                        (click)="retry()"
+                        class="self-start text-xs font-semibold text-[var(--color-brand-dim)] hover:text-white transition-colors duration-[var(--duration-fast)]"
+                        type="button">
+                    {{ 'BILLING.STRIPE.RETRY' | translate }}
+                </button>
+            } @else {
+                <p class="text-sm text-text-secondary m-0">{{ 'BILLING.STRIPE.NOT_CONFIGURED' | translate }}</p>
+            }
+        </div>
+    }
+
+    <!-- Always in the DOM, never behind an @if: Stripe mounts into these nodes, so a node that
+         appears only once the mount has succeeded can never be mounted into. Hidden instead. -->
+    <div [class.hidden]="status() === 'unavailable'" class="flex flex-col gap-4">
+
+        @if (status() === 'loading') {
+            <p class="text-xs text-text-muted m-0">{{ 'BILLING.STRIPE.LOADING' | translate }}</p>
+        }
+
+        <div #cardHost></div>
+
+        @if (collectAddress()) {
+            <div class="flex flex-col gap-2">
+                <p class="text-xs font-semibold text-white/30 uppercase tracking-widest m-0">
+                    {{ 'BILLING.CHECKOUT.ADDRESS_LABEL' | translate }}
+                </p>
+                <!-- On this screen and not the next one: the tax the server calculates needs it,
+                     and a second screen after the payment is a screen people abandon. -->
+                <p class="text-xs text-text-muted m-0 leading-relaxed">
+                    {{ 'BILLING.CHECKOUT.ADDRESS_WHY' | translate }}
+                </p>
+                <div #addressHost></div>
+            </div>
+        }
+
+    </div>
+
+</div>

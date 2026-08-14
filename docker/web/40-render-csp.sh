@@ -111,10 +111,13 @@ done
 #   Sentry      the ingest host from the DSN in main.ts
 #   AI          the three providers the assistant calls directly from the browser with
 #               `dangerouslyAllowBrowser: true`
+#   Stripe      Stripe.js confirming a payment from this document. Our own billing endpoints are on
+#               the API host above; nothing we wrote ever calls api.stripe.com.
 connect_src="$connect_src https://api.klipy.com"
 connect_src="$connect_src https://o4511596550946816.ingest.de.sentry.io"
 connect_src="$connect_src https://api.anthropic.com https://api.openai.com"
 connect_src="$connect_src https://generativelanguage.googleapis.com"
+connect_src="$connect_src https://api.stripe.com"
 
 # `|` as the sed delimiter: the value contains slashes and no pipes, and the validation above is
 # what guarantees the second half of that.
