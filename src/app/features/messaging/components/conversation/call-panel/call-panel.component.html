@@ -1,7 +1,10 @@
 @let s = session();
 @if (s) {
 
-    <div [class.panel--resizing]="isResizing()" [style.height.px]="panelHeight()" class="panel">
+    <div [class.panel--full]="isFullView()"
+         [class.panel--resizing]="isResizing()"
+         [style.height.px]="isFullView() ? null : panelHeight()"
+         class="panel">
 
         <!-- ── Status ──────────────────────────────────────────────────────────
              One row for every condition, ranked. This was a status bar plus up to
@@ -28,12 +31,12 @@
                 </button>
 
                 <button (click)="toggleMaximize()"
-                        [attr.aria-label]="(isMaximized() ? 'CALL.RESTORE' : 'CALL.MAXIMIZE') | translate"
-                        [attr.aria-pressed]="isMaximized()"
-                        [attr.title]="(isMaximized() ? 'CALL.RESTORE' : 'CALL.MAXIMIZE') | translate"
+                        [attr.aria-label]="(isFullView() ? 'CALL.RESTORE' : 'CALL.MAXIMIZE') | translate"
+                        [attr.aria-pressed]="isFullView()"
+                        [attr.title]="(isFullView() ? 'CALL.RESTORE' : 'CALL.MAXIMIZE') | translate"
                         [class]="chipClass(false)"
                         type="button">
-                    @if (isMaximized()) {
+                    @if (isFullView()) {
                         <svg aria-hidden="true" fill="none" height="12" stroke="currentColor" stroke-width="2"
                              viewBox="0 0 24 24" width="12">
                             <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/>
@@ -105,13 +108,18 @@
             </div>
         </div>
 
-        <!-- ── Resize handle ───────────────────────────────────────────────────── -->
-        <div (mousedown)="onResizeStart($event)"
-             [attr.aria-label]="'CALL.RESIZE_PANEL' | translate"
-             class="resize-handle"
-             role="separator">
-            <div class="resize-grip"></div>
-        </div>
+        <!-- ── Resize handle ───────────────────────────────────────────────────────
+             Removed outright in full view rather than disabled: there is no height left to drag
+             against once the panel fills its container, so a handle that could not change anything
+             is a dead control. -->
+        @if (!isFullView()) {
+            <div (mousedown)="onResizeStart($event)"
+                 [attr.aria-label]="'CALL.RESIZE_PANEL' | translate"
+                 class="resize-handle"
+                 role="separator">
+                <div class="resize-grip"></div>
+            </div>
+        }
 
     </div>
 

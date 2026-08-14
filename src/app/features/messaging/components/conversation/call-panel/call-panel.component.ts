@@ -44,12 +44,22 @@ export class CallPanelComponent implements OnInit, OnDestroy {
     protected rustMedia = inject(RustMediaService);
     protected showStats = signal(false);
     protected participantMenu = signal<CallParticipantMenuData | null>(null);
+    /** The dragged (or default) strip height. Kept untouched by full view, so restoring out of it
+     *  lands back where the user left it rather than snapping to DEFAULT_HEIGHT. */
     protected panelHeight = signal(DEFAULT_HEIGHT);
     protected isResizing = signal(false);
     /** A signal, not a field: it is bound into the status bar, which is OnPush. */
     protected duration = signal('00:00');
-    /** Named rather than comparing the height to a literal 900 at the point of use. */
-    protected isMaximized = computed(() => this.panelHeight() >= MAX_HEIGHT);
+    /**
+     * Whether the panel fills its container instead of being a clamped, draggable strip.
+     *
+     * Deliberately not `protected`: `ConversationComponent` reads it through `viewChild()` to
+     * collapse the message list while a call is full-view, and to un-collapse it - with no reset
+     * code anywhere - the moment this component is torn down, because the panel only exists behind
+     * `@if (activeCall())`. A fresh call gets a fresh `CallPanelComponent` instance and this signal
+     * starts `false` again, so full view can never leak from one call into the next.
+     */
+    readonly isFullView = signal(false);
     private callSession = inject(CallSessionService);
     private callWebRtc = inject(CallWebRtcService);
     private translate = inject(TranslateService);
@@ -142,6 +152,10 @@ export class CallPanelComponent implements OnInit, OnDestroy {
     // ── Resize ─────────────────────────────────────────────────────────────────
 
     protected onResizeStart(event: MouseEvent): void {
+        // The handle is removed from the template while full-view is on (nothing for it to resize),
+        // but a component-level guard as well means that stays true even if a stray mousedown ever
+        // reaches this handler before Angular has finished tearing the element down.
+        if (this.isFullView()) return;
         this.isResizing.set(true);
         this.resizeStartY = event.clientY;
         this.resizeStartHeight = this.panelHeight();
@@ -201,8 +215,13 @@ export class CallPanelComponent implements OnInit, OnDestroy {
         this.showStats.update(v => !v);
     }
 
+    /**
+     * Full view means the panel fills the whole content area rather than being clamped to
+     * MAX_HEIGHT - `panelHeight` is never touched here, so toggling back off restores exactly the
+     * height the user last dragged to, not DEFAULT_HEIGHT.
+     */
     protected toggleMaximize(): void {
-        this.panelHeight.set(this.isMaximized() ? DEFAULT_HEIGHT : MAX_HEIGHT);
+        this.isFullView.update(v => !v);
     }
 
     /** The two small square buttons that sit at the end of the status row. */

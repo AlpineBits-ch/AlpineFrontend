@@ -24,6 +24,14 @@
     user-select: none;
 }
 
+/* Full view: fills whatever room is left below the header instead of being a fixed-height strip.
+   `.panel.panel--full` (two classes) rather than a bare utility class like `flex-1` - a utility
+   class would fight `.panel`'s own `flex-shrink: 0` for cascade order across stylesheets, which
+   Angular's build does not guarantee, whereas the extra class here always wins on specificity. */
+.panel.panel--full {
+    flex: 1 1 0%;
+}
+
 /* ── Resize handle ───────────────────────────────────────────────────────── */
 
 .resize-handle {

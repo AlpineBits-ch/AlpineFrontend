@@ -11,6 +11,7 @@ import {
     signal,
     untracked,
     ViewChild,
+    viewChild,
 } from '@angular/core';
 import {DatePipe, NgClass} from '@angular/common';
 import {catchError, EMPTY, firstValueFrom, from, tap} from 'rxjs';
@@ -171,6 +172,19 @@ export class ConversationComponent implements AfterViewInit {
         if (this.isRinging()) return null;
         return s;
     });
+    /** Only exists while `activeCall()` does - see `CallPanelComponent.isFullView`. */
+    private callPanelRef = viewChild(CallPanelComponent);
+    /**
+     * Whether the docked call currently fills the content area, so the message column below it can
+     * be collapsed - without that, `app-call-panel`'s own `flex-1` in full view would just split the
+     * remaining space with this column instead of actually filling the container.
+     *
+     * Derived rather than pushed down from the panel through an output: `callPanelRef()` reads
+     * `undefined` the instant the panel is gone (call ended, or never started), so this falls back
+     * to `false` on its own - a call that ends while full-view is on can never leave the message
+     * column stuck collapsed, and a fresh call always starts from a fresh (non-full) panel.
+     */
+    protected isCallFullView = computed(() => this.callPanelRef()?.isFullView() ?? false);
     // Concrete evidence the call is still ringing and hasn't been answered -
     // ticks while the ringing banner is shown.
     protected ringElapsed = signal('0:00');
