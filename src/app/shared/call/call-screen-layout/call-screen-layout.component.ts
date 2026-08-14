@@ -1,10 +1,18 @@
 import {Component, computed, effect, inject, input, OnDestroy, output, signal} from '@angular/core';
 import {TranslateModule} from '@ngx-translate/core';
-import {CallParticipant, CallScreenLayoutContextMenuEvent, CallScreenShare} from '../call.types';
+import {
+    CallParticipant,
+    CallScreenLayoutContextMenuEvent,
+    CallScreenShare,
+    CallStageTile,
+    cameraTile,
+    shareTile,
+} from '../call.types';
 import {AppAvatarComponent} from '../../../components/avatar/avatar.component';
 import {StreamSrcDirective} from '../../../directives/stream-src.directive';
 import {trackAudioWait} from '../audio-wait';
 import {CallAudioStatusComponent} from '../call-audio-status/call-audio-status.component';
+import {CallParticipantTileComponent} from '../call-participant-tile/call-participant-tile.component';
 import {CallShareTileComponent} from '../call-share-tile/call-share-tile.component';
 import {CallTileActionComponent} from '../call-tile-action/call-tile-action.component';
 import {ShareWatchService, WatchScope, scopeKey} from '../../../services/share-watch.service';
@@ -18,6 +26,7 @@ import {RustMediaService} from '../../../services/rust-media.service';
         AppAvatarComponent,
         StreamSrcDirective,
         CallAudioStatusComponent,
+        CallParticipantTileComponent,
         CallShareTileComponent,
         CallTileActionComponent,
     ],
@@ -91,6 +100,63 @@ export class CallScreenLayoutComponent implements OnDestroy {
         return remote.length > 0 ? remote : this.screenShares().filter(s => !hidden.has(s.shareId));
     });
 
+    /**
+     * Everyone whose camera earns a full tile on the stage.
+     *
+     * <p>Gated on `isCameraOn` alone rather than on a stream having arrived, because
+     * `app-call-participant-tile` draws the "camera on, track still negotiating" state itself. Waiting
+     * for the track would mean the seat appearing a beat late and the whole grid reflowing under the
+     * other tiles the moment it did.</p>
+     */
+    private readonly cameraTiles = computed(() => this.participants().filter(p => p.isCameraOn).map(cameraTile));
+
+    /**
+     * The one stage: screen shares and cameras as tiles in the same grid, at the same size.
+     *
+     * <p><b>Shares first.</b> A share is what somebody opened the channel to look at; a camera is who
+     * they are looking at it with. Within each kind the caller's order is kept - see
+     * {@link toggleGridFocus} for the one place that order is load-bearing.</p>
+     *
+     * <p><b>The share half is exactly {@link displayedShares}</b>, and that is not an implementation
+     * detail to be optimised away. The watch claim is driven by `displayedShares()` (see the
+     * constructor), so the set this grid renders and the set this client tells other people's
+     * streamers it is watching are the same list read twice. Building the share tiles from anything
+     * else - `screenShares()`, a re-derived filter - would let a streamer's viewer count drift away
+     * from what is actually on screen.</p>
+     *
+     * <p><b>Maximise drops the cameras too.</b> Maximised means one tile, and a camera left beside it
+     * would make "hide the other streams" a half-truth. Maximise stays a share-only idea in the other
+     * direction as well: `maximizedId` holds a bare share id, not a {@link CallStageTile} id, because
+     * the only controls that set it are the share tile's own maximise button, its double-click, and
+     * `CallFocusService` - all three of which speak in share ids. `app-call-participant-tile` offers
+     * fullscreen and picture-in-picture, which are a camera's equivalents, and no maximise.</p>
+     */
+    protected readonly displayedTiles = computed<CallStageTile[]>(() => {
+        const shares = this.displayedShares().map(shareTile);
+        if (this.maximizedId() !== null) return shares;
+        return [...shares, ...this.cameraTiles()];
+    });
+
+    /**
+     * Who is left for the participants strip: everyone whose face is not already on the stage.
+     *
+     * <p>A camera tile is a complete replacement for a strip entry - it carries the name, the muted
+     * glyph, the speaking ring, the audio-wait badge and the context menu (see
+     * call-participant-tile.component.html), so leaving the same person in the strip below would be
+     * showing them twice.</p>
+     *
+     * <p>A share tile is <em>not</em>, and a sharer with their camera off therefore keeps their seat
+     * here. It shows a screen, not a person: none of the audio-wait badge, the participant context
+     * menu or the per-person stream mute exist on it, and dropping a sharer from the strip would take
+     * all three away with nothing offering them instead.</p>
+     */
+    protected readonly stripParticipants = computed(() => {
+        const onStage = new Set(this.displayedTiles()
+            .filter(t => t.kind === 'camera')
+            .map(t => t.participant.userId));
+        return this.participants().filter(p => !onStage.has(p.userId));
+    });
+
     /** The hidden shares still live in {@link screenShares}, for the restore-chip row - see the
      *  template. Deriving from `screenShares()` rather than trusting `hiddenIds` alone is what keeps
      *  a chip from naming a streamer who already left: a share that ends drops out of `screenShares`
@@ -118,14 +184,33 @@ export class CallScreenLayoutComponent implements OnDestroy {
         return !!self && !self.stream && !!self.previewSrc;
     });
 
-    /** Columns for the count actually on screen. Two was the only answer before, so three streams
-     *  left a lone tile stranded on its own row at half width. */
+    /**
+     * Columns for the count actually on screen. Two was the only answer before, so three streams
+     * left a lone tile stranded on its own row at half width.
+     *
+     * <p>Counted over {@link displayedTiles} rather than the shares alone, and carrying a fourth
+     * column, because the stage now holds cameras as well: a channel where five people have their
+     * camera on beside two streams reaches counts the share-only thresholds never had to answer for,
+     * and three columns of nine tiles is a wall of letterboxes.</p>
+     */
     protected gridClass = computed(() => {
-        const count = this.displayedShares().length;
+        const count = this.displayedTiles().length;
         if (count <= 1) return 'grid-cols-1';
         if (count <= 4) return 'grid-cols-2';
-        return 'grid-cols-3';
+        if (count <= 9) return 'grid-cols-3';
+        return 'grid-cols-4';
     });
+
+    /**
+     * Whether to offer the persistent grid/focus control - see {@link toggleGridFocus}.
+     *
+     * <p>Needs something to focus <em>and</em> something to focus away from. A stage of nothing but
+     * cameras satisfies the second and not the first: there is no share for the press to maximise, so
+     * the button would render and do nothing. Once maximised it is always offered, since going back
+     * to the grid is the whole reason it exists for a caller that set `maximizedId` from outside.</p>
+     */
+    protected readonly canToggleFocus = computed(() =>
+        this.maximizedId() !== null || (this.displayedTiles().length > 1 && this.displayedShares().length > 0));
 
     constructor() {
         // Driven by what is actually rendered, not by what is subscribed. Maximising one share
@@ -247,6 +332,12 @@ export class CallScreenLayoutComponent implements OnDestroy {
      * in. In the grid, there is no single "the" share to focus without a specific tile having been
      * picked, so it focuses the first one displayed; a double-click on a particular tile (see
      * call-share-tile.component.html) is the precise way to choose which.
+     *
+     * <p>Still the first <em>share</em>, not the first tile, now that cameras share the grid: the
+     * cameras sort after the shares (see {@link displayedTiles}) and there is no maximise for one
+     * anyway, so `displayedShares()[0]` and "the first tile that could be focused" are the same
+     * thing. Which of several shares that is remains array order rather than relevance - shares carry
+     * no speaking or recency signal to rank by, so there is nothing better to pick.</p>
      */
     protected toggleGridFocus(): void {
         if (this.maximizedId() !== null) {
