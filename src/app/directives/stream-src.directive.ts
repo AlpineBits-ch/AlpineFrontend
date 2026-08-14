@@ -14,7 +14,11 @@ import {Directive, ElementRef, Input, OnDestroy} from '@angular/core';
  *
  * <p>A video already in Picture-in-Picture is left alone. PiP's entire purpose is to keep playing
  * while the host window is not the thing on screen, so pausing it the moment the window backgrounds
- * would defeat it outright.</p>
+ * would defeat it outright. This covers two distinct pop-out routes: video-element PiP, where the
+ * element stays in this document and `document.pictureInPictureElement` points at it, and Document
+ * PiP, where the element is moved into a separate pop-out window's own document entirely - for that
+ * route `pictureInPictureElement` never points at it, so it is detected instead by its `ownerDocument`
+ * no longer being this one.</p>
  */
 @Directive({selector: '[streamSrc]', standalone: true})
 export class StreamSrcDirective implements OnDestroy {
@@ -44,7 +48,9 @@ export class StreamSrcDirective implements OnDestroy {
     private applyVisibility(): void {
         const el = this.el.nativeElement;
         if (!(el instanceof HTMLVideoElement) || !this.stream) return;
+        // Both PiP pop-out routes must keep playing while this window is hidden - see the class doc.
         if (document.pictureInPictureElement === el) return;
+        if (el.ownerDocument !== document) return;
 
         if (document.hidden) el.pause();
         else void el.play().catch(() => {

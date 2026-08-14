@@ -85,6 +85,20 @@ describe('StreamSrcDirective visibility pause', () => {
         expect(video.pause).not.toHaveBeenCalled();
     });
 
+    it('leaves an element moved into a Document-PiP pop-out window alone', () => {
+        // Document PiP moves the element into a separate pop-out window's own document, so
+        // `document.pictureInPictureElement` never points at it - it must be detected via
+        // `ownerDocument` instead, or the pop-out freezes the moment the host window hides.
+        const {video} = render();
+        const otherDocument = document.implementation.createHTMLDocument('pip');
+        otherDocument.body.appendChild(video);
+
+        setHidden(true);
+        document.dispatchEvent(new Event('visibilitychange'));
+
+        expect(video.pause).not.toHaveBeenCalled();
+    });
+
     it('does nothing when there is no stream bound', () => {
         TestBed.configureTestingModule({imports: [HostComponent]});
         const fixture = TestBed.createComponent(HostComponent);
