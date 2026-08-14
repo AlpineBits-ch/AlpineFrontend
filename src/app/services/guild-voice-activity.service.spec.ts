@@ -202,6 +202,52 @@ describe('GuildVoiceActivityService', () => {
         expect(service.presence()).toEqual({});
     });
 
+    // ── setStreaming / share-id-precise stop ─────────────────────────────────────
+    //
+    // Regression coverage for the bug found in Task 11's investigation: `WsVoiceScreenShareStopped`
+    // carries a `shareId`, never a `userId`, and the handler used to clear the whole channel's
+    // streamer list on every stop. That is wrong the moment two people are streaming in the same
+    // channel at once.
+
+    it('keeps the marker lit when one of two streamers in a channel stops', () => {
+        const {service, ws, connectionState} = setup({
+            snapshot: [activity({
+                channels: [{
+                    channelId: CHANNEL, participantCount: 2, userIds: ['user-1', 'user-2'],
+                    hasStream: false, streamerIds: [],
+                }],
+            })],
+        });
+        connect(connectionState);
+
+        ws.voiceScreenShareStartedObservable.next({userId: 'user-1', shareId: 's1', channelId: CHANNEL});
+        ws.voiceScreenShareStartedObservable.next({userId: 'user-2', shareId: 's2', channelId: CHANNEL});
+
+        ws.voiceScreenShareStoppedObservable.next({shareId: 's1', channelId: CHANNEL});
+
+        // Before the fix this cleared the whole channel's streamer list on every stop, so the
+        // marker went dark even though user-2 was still sharing.
+        expect(service.presence()[GUILD].hasStream).toBe(true);
+    });
+
+    it('is a no-op for a stop naming a share nobody saw start', () => {
+        const {service, ws, connectionState} = setup({
+            snapshot: [activity({
+                channels: [{
+                    channelId: CHANNEL, participantCount: 1, userIds: ['user-1'],
+                    hasStream: true, streamerIds: ['user-1'],
+                }],
+            })],
+        });
+        connect(connectionState);
+
+        // Joined mid-share: the snapshot says user-1 is live, but this client never saw the start
+        // event, so it has no shareId to resolve the stop against.
+        ws.voiceScreenShareStoppedObservable.next({shareId: 'never-seen', channelId: CHANNEL});
+
+        expect(service.presence()[GUILD].hasStream).toBe(true);
+    });
+
     it('re-reads the snapshot on reconnect rather than trusting counts from before the gap', () => {
         const {service, guildVoice, connectionState} = setup({snapshot: [activity()]});
         connect(connectionState);
