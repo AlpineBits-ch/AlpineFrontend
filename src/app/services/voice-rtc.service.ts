@@ -144,9 +144,14 @@ export class VoiceRTCService {
 
     /**
      * Remote screen shares' arriving frame rate, by user id - the guild-side twin of
-     * `CallWebRtcService.inboundVideoFps`. Polled the same way, off the same `getStats()` mechanism
-     * this connection never used to run at all: nothing here read stats before this existed, since
-     * nothing downstream needed a number until `CallScreenShare.inboundFps` did.
+     * `CallWebRtcService.inboundVideoFpsByShare`. Polled the same way, off the same `getStats()`
+     * mechanism this connection never used to run at all: nothing here read stats before this
+     * existed, since nothing downstream needed a number until `CallScreenShare.inboundFps` did.
+     *
+     * <p>Keyed by user, not share, unlike the DM side: `midMeta` carries no per-share id at all, and
+     * `voice-channel.component.ts` builds its `CallScreenShare[]` one row per participant
+     * (`screenSharers()`), so a userId can never collide here the way it can on the DM surface - see
+     * `inbound-fps.ts`'s module doc for the full reasoning.</p>
      */
     private readonly inboundVideoFpsSignal = signal<Record<string, number>>({});
     readonly inboundVideoFps = this.inboundVideoFpsSignal.asReadonly();

@@ -23,7 +23,7 @@ import {CallParticipant, CallParticipantMenuData, CallScreenShare} from '../../.
 import {WatchScope, scopeKey} from '../../../../services/share-watch.service';
 import {CallFocusService} from '../../../../services/call-focus.service';
 import {trackAudioWait} from '../../../../shared/call/audio-wait';
-import {TranslateModule} from '@ngx-translate/core';
+import {TranslateModule, TranslateService} from '@ngx-translate/core';
 
 @Component({
     selector: 'app-voice-channel',
@@ -47,6 +47,7 @@ export class VoiceChannelComponent {
     protected voiceSvc = inject(VoiceChannelService);
     protected navService = inject(NavigationService);
     protected rustMedia = inject(RustMediaService);
+    private translate = inject(TranslateService);
     protected participants = computed(() =>
         this.voiceSvc.channelParticipants().get(this.channel().id) ?? [],
     );
@@ -123,11 +124,14 @@ export class VoiceChannelComponent {
      * CallScreenLayoutComponent.nameOf for why the layout takes this as an input rather than
      * reaching for a guild member lookup itself. A viewer of a share in this channel is, by
      * construction, someone `setWatching` could only have been called for while in the channel, so
-     * the roster this component already computes for the participant strip is enough; falling back
-     * to the id is only ever seen for a viewer whose join notification has not landed yet.
+     * the roster this component already computes for the participant strip is enough; the
+     * translated fallback below is only ever seen for a viewer whose join notification has not
+     * landed yet, and should be brief in practice - never the raw user id, which is an internal
+     * identifier with no business appearing in a user-facing popover.
      */
     protected readonly resolveMemberName = (userId: string): string =>
-        this.participants().find(p => p.userId === userId)?.displayName ?? userId;
+        this.participants().find(p => p.userId === userId)?.displayName
+        ?? this.translate.instant('CALL.UNKNOWN_VIEWER');
 
     // ── Computed helpers ───────────────────────────────────────────────────────
     protected participantGridClass = computed(() => {

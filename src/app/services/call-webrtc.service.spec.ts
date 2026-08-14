@@ -349,7 +349,12 @@ describe('screen-share audio', () => {
  * track writes (see `subscribeToTrack`). These reach into both as private state - the alternative is
  * driving a full subscribe through a stub RTCPeerConnection whose `addTransceiver` always returns the
  * same mid, which would not let two shares exist at once. Reaching in directly is what makes the
- * "two shares, two numbers" case possible to state at all.
+ * "two shares, two numbers" cases possible to state at all.
+ *
+ * Keyed by share id, not user id - see `inbound-fps.ts`'s module doc.
+ * `CallSessionService.onScreenShareStarted` dedupes incoming shares by `shareId` alone, so a stale
+ * share can briefly sit in the model alongside its replacement under the same `userId` (a rapid
+ * stop/restart race); the "same user, two shares" case below is exactly that scenario.
  */
 describe('inbound screen-share fps', () => {
     function internals(service: CallWebRtcService) {
@@ -364,7 +369,7 @@ describe('inbound screen-share fps', () => {
         return {type: 'inbound-rtp', kind: 'video', mid, framesPerSecond};
     }
 
-    it('reports a remote share fps keyed by user id once a stat carries one', async () => {
+    it('reports a remote share fps keyed by share id once a stat carries one', async () => {
         const {service} = setup();
         const internal = internals(service);
         internal.midMap.set('m1', {userId: 'them', kind: 'screen', shareId: 'share-1'});
@@ -372,10 +377,10 @@ describe('inbound screen-share fps', () => {
 
         await internal.pollStats();
 
-        expect(service.inboundVideoFps()).toEqual({them: 24});
+        expect(service.inboundVideoFpsByShare()).toEqual({'share-1': 24});
     });
 
-    it('gives two concurrent remote shares two independent fps numbers', async () => {
+    it('gives two concurrent remote shares (different users) two independent fps numbers', async () => {
         const {service} = setup();
         const internal = internals(service);
         internal.midMap.set('m1', {userId: 'them-a', kind: 'screen', shareId: 'share-a'});
@@ -389,7 +394,29 @@ describe('inbound screen-share fps', () => {
 
         await internal.pollStats();
 
-        expect(service.inboundVideoFps()).toEqual({'them-a': 30, 'them-b': 12});
+        expect(service.inboundVideoFpsByShare()).toEqual({'share-a': 30, 'share-b': 12});
+    });
+
+    /**
+     * The exact case the review round exists for: a stale share lingering across a rapid
+     * stop/restart race sits alongside its replacement under the same userId. Keyed by user, one of
+     * these two would have silently reported the other's number.
+     */
+    it('gives two shares from the SAME remote user two independent fps numbers', async () => {
+        const {service} = setup();
+        const internal = internals(service);
+        internal.midMap.set('m1', {userId: 'them', kind: 'screen', shareId: 'share-old'});
+        internal.midMap.set('m2', {userId: 'them', kind: 'screen', shareId: 'share-new'});
+        internal.pc = {
+            getStats: async () => new Map([
+                ['s1', inboundRtpVideo('m1', 5)],
+                ['s2', inboundRtpVideo('m2', 30)],
+            ]),
+        };
+
+        await internal.pollStats();
+
+        expect(service.inboundVideoFpsByShare()).toEqual({'share-old': 5, 'share-new': 30});
     });
 
     it('leaves a share out rather than reporting 0 while its stat has not arrived yet', async () => {
@@ -400,7 +427,7 @@ describe('inbound screen-share fps', () => {
 
         await internal.pollStats();
 
-        expect(service.inboundVideoFps()).toEqual({});
+        expect(service.inboundVideoFpsByShare()).toEqual({});
     });
 
     it('clears a share that stops appearing in the report, rather than keeping its last number', async () => {
@@ -409,11 +436,11 @@ describe('inbound screen-share fps', () => {
         internal.midMap.set('m1', {userId: 'them', kind: 'screen', shareId: 'share-1'});
         internal.pc = {getStats: async () => new Map([['s1', inboundRtpVideo('m1', 24)]])};
         await internal.pollStats();
-        expect(service.inboundVideoFps()).toEqual({them: 24});
+        expect(service.inboundVideoFpsByShare()).toEqual({'share-1': 24});
 
         internal.pc = {getStats: async () => new Map()};
         await internal.pollStats();
 
-        expect(service.inboundVideoFps()).toEqual({});
+        expect(service.inboundVideoFpsByShare()).toEqual({});
     });
 });

@@ -15,7 +15,7 @@ import {CallStatusBarComponent} from '../../../../../shared/call/call-status-bar
 import {CallStatsPopoverComponent} from '../../../../../shared/call/call-stats-popover/call-stats-popover.component';
 import {formatAloneDeadline} from './alone-countdown';
 import {WatchScope} from '../../../../../services/share-watch.service';
-import {TranslateModule} from '@ngx-translate/core';
+import {TranslateModule, TranslateService} from '@ngx-translate/core';
 
 const MIN_HEIGHT = 200;
 const MAX_HEIGHT = 900;
@@ -52,6 +52,7 @@ export class CallPanelComponent implements OnInit, OnDestroy {
     protected isMaximized = computed(() => this.panelHeight() >= MAX_HEIGHT);
     private callSession = inject(CallSessionService);
     private callWebRtc = inject(CallWebRtcService);
+    private translate = inject(TranslateService);
     protected callParticipants = computed((): CallParticipant[] => this.session()?.participants ?? []);
     protected callScreenShares = computed((): CallScreenShare[] =>
         (this.session()?.screenShares ?? []).map(sh => ({
@@ -70,11 +71,15 @@ export class CallPanelComponent implements OnInit, OnDestroy {
             isAudioMuted: sh.isLocal
                 ? this.callSession.localScreenAudioMuted()
                 : this.callWebRtc.isScreenAudioMuted(sh.userId),
-            // Read off the inbound-rtp video stat for this user's screen track - see
-            // CallWebRtcService.inboundVideoFps. Left at null rather than 0 when the stat has not
-            // arrived yet, so a stream that just started and one that has stalled do not look the
-            // same (CallScreenShare.inboundFps).
-            inboundFps: sh.isLocal ? null : (this.callWebRtc.inboundVideoFps()[sh.userId] ?? null),
+            // Read off the inbound-rtp video stat for this share's own track - see
+            // CallWebRtcService.inboundVideoFpsByShare. Keyed by share id, not user id:
+            // CallSessionService.onScreenShareStarted dedupes incoming shares by shareId alone, so a
+            // stale share can briefly sit in the model alongside its replacement under the same
+            // userId (a rapid stop/restart race) - keying by user would make one silently report the
+            // other's number. Left at null rather than 0 when the stat has not arrived yet, so a
+            // stream that just started and one that has stalled do not look the same
+            // (CallScreenShare.inboundFps).
+            inboundFps: sh.isLocal ? null : (this.callWebRtc.inboundVideoFpsByShare()[sh.shareId] ?? null),
         }))
     );
     protected session = this.callSession.session;
@@ -88,11 +93,13 @@ export class CallPanelComponent implements OnInit, OnDestroy {
      * Resolves a viewer count popover's user ids against this call's own roster - see
      * CallScreenLayoutComponent.nameOf for why the layout takes this as an input rather than
      * reaching for a call-participant lookup itself. Only someone in the call can watch a share in
-     * it, so this roster is enough; the id fallback is only ever seen for a viewer whose join has
-     * not reached this client yet.
+     * it, so this roster is enough; the translated fallback below is only ever seen for a viewer
+     * whose join has not reached this client yet, and should be brief in practice - never the raw
+     * user id, which is an internal identifier with no business appearing in a user-facing popover.
      */
     protected readonly resolveParticipantName = (userId: string): string =>
-        this.callParticipants().find(p => p.userId === userId)?.displayName ?? userId;
+        this.callParticipants().find(p => p.userId === userId)?.displayName
+        ?? this.translate.instant('CALL.UNKNOWN_VIEWER');
     protected screenPreset = this.callSession.screenPreset;
     /** Set only while the local user is the last one in the call. */
     protected aloneUntil = computed(() => formatAloneDeadline(this.callSession.aloneDeadline()));

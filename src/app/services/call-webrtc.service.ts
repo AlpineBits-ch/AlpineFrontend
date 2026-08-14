@@ -33,7 +33,7 @@ import {
     preferVideoCodecs,
 } from './webrtc-encoding';
 import {SUBSCRIBE_RETRY_DELAYS_MS} from './voice-rtc.service';
-import {inboundScreenFpsByUser} from '../shared/call/inbound-fps';
+import {inboundScreenFpsByShare} from '../shared/call/inbound-fps';
 
 export interface CallStats {
     inboundKbps: number;
@@ -64,13 +64,18 @@ export class CallWebRtcService {
     // ── Stats polling ────────────────────────────────────────────────────────
     readonly stats = signal<CallStats | null>(null);
     /**
-     * Remote screen shares' arriving frame rate, by user id - see `inboundScreenFpsByUser` for how
+     * Remote screen shares' arriving frame rate, by share id - see `inboundScreenFpsByShare` for how
      * this is read off the same `getStats()` report {@link stats} comes from, and
      * `CallScreenShare.inboundFps` for why a share missing from this map must render as "no data"
      * rather than 0.
+     *
+     * <p>Keyed by share id, not user id: `CallSessionService.onScreenShareStarted` dedupes incoming
+     * shares by `shareId` alone, so a stale share can briefly sit in the model alongside its
+     * replacement under the same `userId` (a rapid stop/restart race). Keying this by user would
+     * make one of the two silently report the other's number.</p>
      */
-    private readonly inboundVideoFpsSignal = signal<Record<string, number>>({});
-    readonly inboundVideoFps = this.inboundVideoFpsSignal.asReadonly();
+    private readonly inboundVideoFpsByShareSignal = signal<Record<string, number>>({});
+    readonly inboundVideoFpsByShare = this.inboundVideoFpsByShareSignal.asReadonly();
     // ── Connection state ──────────────────────────────────────────────────────
     private readonly pcState = signal<RTCPeerConnectionState>('new');
     private readonly engineUp = signal(false);
@@ -825,7 +830,7 @@ export class CallWebRtcService {
         clearInterval(this.statsInterval);
         this.statsInterval = undefined;
         this.stats.set(null);
-        this.inboundVideoFpsSignal.set({});
+        this.inboundVideoFpsByShareSignal.set({});
         this.prevStatsTs = 0;
     }
 
@@ -837,7 +842,7 @@ export class CallWebRtcService {
         // Independent of the kbps accounting below, which needs two samples to produce a rate -
         // framesPerSecond arrives from the browser pre-computed, so there is no reason to wait for a
         // second poll before showing it.
-        this.inboundVideoFpsSignal.set(inboundScreenFpsByUser(report, this.midMap));
+        this.inboundVideoFpsByShareSignal.set(inboundScreenFpsByShare(report, this.midMap));
 
         let inAudio = 0, inVideo = 0, outAudio = 0, outVideo = 0, packetsLost = 0;
         report.forEach((stat: RTCStats) => {
