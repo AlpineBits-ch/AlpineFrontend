@@ -25,6 +25,7 @@
 
         <!-- Lobby view -->
         <app-voice-channel-lobby
+                (joinAndWatch)="joinAndWatch($event)"
                 (joinVoice)="joinChannel()"
                 [channel]="channel()"
                 [participants]="participants()"

@@ -24,6 +24,8 @@ import {NavigationService} from '../../../main-page/navigation.service';
 import {GuildService} from '../../../../services/guild.service';
 import {OwnMemberRevisionService} from '../../../../services/own-member-revision.service';
 import {VoiceChannelParticipant, VoiceChannelService} from '../../../../services/voice-channel.service';
+import {CallFocusService} from '../../../../services/call-focus.service';
+import {scopeKey} from '../../../../services/share-watch.service';
 import {CallContextMenuComponent} from '../../../../shared/call/call-context-menu/call-context-menu.component';
 import {CallParticipantMenuData} from '../../../../shared/call/call.types';
 import {ProfileService} from '../../../../services/profile.service';
@@ -100,6 +102,7 @@ export class ChannelListComponent {
     protected navService = inject(NavigationService);
     protected drag = inject(ChannelListDragService);
     private voiceChannelSvc = inject(VoiceChannelService);
+    private callFocus = inject(CallFocusService);
     private profileService = inject(ProfileService);
     private readStateService = inject(GuildReadStateService);
     // ── Local mutable copies for optimistic updates ───────────────────────────
@@ -460,6 +463,20 @@ export class ChannelListComponent {
             this.voiceChannelSvc.joinChannel(channel, this.guild().name);
         }
         this.navService.mobileNavOpen.set(false);
+    }
+
+    /**
+     * Opens the channel exactly as a plain row click would, then arms a focus request for that
+     * user's stream. It does not join voice - joining someone's microphone into a room because they
+     * clicked a badge would be presumptuous. If they join right after, `CallScreenLayoutComponent`
+     * consumes the request when the stage mounts; if they never do, it lapses on its own TTL.
+     */
+    protected onWatchStream(event: {channel: ChannelDto; userId: string}): void {
+        this.navService.openChannel(event.channel);
+        this.callFocus.request(
+            scopeKey({kind: 'channel', guildId: event.channel.guildId, channelId: event.channel.id}),
+            {userId: event.userId},
+        );
     }
 
     protected isCollapsed(id: string): boolean {

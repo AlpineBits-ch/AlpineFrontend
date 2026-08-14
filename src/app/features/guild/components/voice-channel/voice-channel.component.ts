@@ -20,7 +20,8 @@ import {GuildFeature, guildHasFeature} from '../../guild-features';
 import {CallScreenLayoutComponent} from '../../../../shared/call/call-screen-layout/call-screen-layout.component';
 import {CallStatusBarComponent} from '../../../../shared/call/call-status-bar/call-status-bar.component';
 import {CallParticipant, CallParticipantMenuData, CallScreenShare} from '../../../../shared/call/call.types';
-import {WatchScope} from '../../../../services/share-watch.service';
+import {WatchScope, scopeKey} from '../../../../services/share-watch.service';
+import {CallFocusService} from '../../../../services/call-focus.service';
 import {trackAudioWait} from '../../../../shared/call/audio-wait';
 import {TranslateModule} from '@ngx-translate/core';
 
@@ -127,6 +128,7 @@ export class VoiceChannelComponent {
     private guildSvc = inject(GuildService);
     private ownMemberRevision = inject(OwnMemberRevisionService);
     private guildVoice = inject(GuildVoiceService);
+    private callFocus = inject(CallFocusService);
     private ownMember = signal<GuildMemberDto | null>(null);
     protected isSuperadmin = computed(() => {
         const m = this.ownMember();
@@ -207,9 +209,27 @@ export class VoiceChannelComponent {
     // ── Channel actions ────────────────────────────────────────────────────────
 
     protected joinChannel(): void {
+        void this.doJoinChannel();
+    }
+
+    /**
+     * The lobby's "join and watch a specific streamer" action. Joins exactly like the plain join
+     * button, then arms a focus request for that user - unlike a LIVE badge click (Task 3, channel
+     * list), this is an explicit join affordance, so joining voice here is the right call.
+     */
+    protected async joinAndWatch(userId: string): Promise<void> {
+        await this.doJoinChannel();
+        const channel = this.channel();
+        this.callFocus.request(
+            scopeKey({kind: 'channel', guildId: channel.guildId, channelId: channel.id}),
+            {userId},
+        );
+    }
+
+    private async doJoinChannel(): Promise<void> {
         const view = this.navService.workspace();
         const guildName = view.type === 'server' ? view.guild.name : '';
-        void this.voiceSvc.joinChannel(this.channel(), guildName);
+        await this.voiceSvc.joinChannel(this.channel(), guildName);
     }
 
     protected leaveChannel(): void {

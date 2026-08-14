@@ -8,6 +8,7 @@
                 (open)="openVoiceChannel.emit(channel)"
                 (openMenu)="openChannelMenu.emit({event: $event, channel})"
                 (openParticipantMenu)="openParticipantMenu.emit($event)"
+                (watch)="watchVoiceStream.emit({channel, userId: $event.userId})"
                 [canReorder]="canReorder()"
                 [channel]="channel"/>
     } @else {

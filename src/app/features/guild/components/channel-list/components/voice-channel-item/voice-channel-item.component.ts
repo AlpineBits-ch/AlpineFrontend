@@ -27,6 +27,8 @@ export class VoiceChannelItemComponent {
     readonly open = output<void>();
     readonly openMenu = output<MouseEvent>();
     readonly openParticipantMenu = output<ParticipantMenuRequest>();
+    /** A participant's LIVE badge was clicked - forward whose stream it was. */
+    readonly watch = output<{userId: string}>();
 
     protected drag = inject(ChannelListDragService);
     private navService = inject(NavigationService);

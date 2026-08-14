@@ -34,17 +34,36 @@
                         }
                     </span>
                     <span class="max-w-[4.375rem] truncate text-center text-xs text-white/70">{{ p.displayName }}</span>
+                    <!-- You cannot tell someone is streaming from the lobby otherwise - avatar and
+                         mute state are the only other signals here. -->
+                    @if (p.isScreenSharing) {
+                        <app-call-live-badge size="sm" variant="soft"/>
+                    }
                 </div>
             }
         </div>
     }
 
-    <button
-            (click)="joinVoice.emit()"
-            class="call-focusable cursor-pointer rounded-xl border-0 bg-brand px-10 py-3 font-semibold text-white
-                   transition-colors hover:bg-brand-hover"
-            type="button">
-        {{ 'CALL.JOIN_VOICE' | translate }}
-    </button>
+    <div class="flex items-center gap-3">
+        <button
+                (click)="joinVoice.emit()"
+                class="call-focusable cursor-pointer rounded-xl border-0 bg-brand px-10 py-3 font-semibold text-white
+                       transition-colors hover:bg-brand-hover"
+                type="button">
+            {{ 'CALL.JOIN_VOICE' | translate }}
+        </button>
+
+        <!-- Only offered when someone is actually live - otherwise it is a second button that does
+             the same thing as the first one, for no reason. -->
+        @if (liveStreamer(); as streamer) {
+            <button
+                    (click)="joinAndWatch.emit(streamer.userId)"
+                    class="call-focusable cursor-pointer rounded-xl border border-live/30 bg-live/10 px-10 py-3
+                           font-semibold text-live transition-colors hover:bg-live/15"
+                    type="button">
+                {{ 'CALL.JOIN_AND_WATCH' | translate }}
+            </button>
+        }
+    </div>
 
 </div>

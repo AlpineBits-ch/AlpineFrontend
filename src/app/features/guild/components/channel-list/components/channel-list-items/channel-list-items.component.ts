@@ -28,6 +28,8 @@ export class ChannelListItemsComponent {
     readonly openVoiceChannel = output<ChannelDto>();
     readonly openChannelMenu = output<ChannelMenuRequest>();
     readonly openParticipantMenu = output<ParticipantMenuRequest>();
+    /** A LIVE badge was clicked - carries which channel so the host can build a focus scope. */
+    readonly watchVoiceStream = output<{channel: ChannelDto; userId: string}>();
 
     protected readonly ChannelType = ChannelType;
     protected readonly isForumLike = isForumLike;

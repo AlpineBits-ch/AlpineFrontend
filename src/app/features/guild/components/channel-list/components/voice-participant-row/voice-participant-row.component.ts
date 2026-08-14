@@ -18,4 +18,12 @@ export class VoiceParticipantRowComponent {
     /** Row was clicked - the parent decides what that means (join / focus the channel). */
     readonly open = output<void>();
     readonly openMenu = output<MouseEvent>();
+    /** The LIVE badge was clicked - focus this participant's stream, do not join anything. */
+    readonly watch = output<void>();
+
+    /** Stops the click reaching the row's own handler - a watch click must not also open/join. */
+    protected onWatchClick(event: MouseEvent): void {
+        event.stopPropagation();
+        this.watch.emit();
+    }
 }

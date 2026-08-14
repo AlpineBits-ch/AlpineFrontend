@@ -14,7 +14,15 @@
         {{ p.displayName }}
     </span>
     @if (p.isScreenSharing) {
-        <app-call-live-badge class="shrink-0" size="sm" variant="soft"/>
+        <!-- A real button, not a clickable span: it needs its own accessible name and to stop the
+             click before it reaches the row, so watching a stream never also opens/joins it. -->
+        <button (click)="onWatchClick($event)"
+                [attr.aria-label]="'CALL.WATCH_STREAM' | translate"
+                [title]="'CALL.WATCH_STREAM' | translate"
+                class="shrink-0 cursor-pointer rounded border-0 bg-transparent p-0"
+                type="button">
+            <app-call-live-badge size="sm" variant="soft"/>
+        </button>
     } @else if (p.isMuted) {
         <!-- Drawn slash - PrimeIcons has no slashed microphone, see .icon-slashed. -->
         <span [attr.aria-label]="'CALL.MUTED' | translate"

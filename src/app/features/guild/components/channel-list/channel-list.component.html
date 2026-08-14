@@ -91,6 +91,7 @@
                         (openParticipantMenu)="onParticipantContextMenu($event.event, $event.participant, $event.channelId)"
                         (openTextChannel)="onChannelClick($event)"
                         (openVoiceChannel)="onVoiceChannelClick($event)"
+                        (watchVoiceStream)="onWatchStream($event)"
                         [canReorder]="canReorder()"
                         [channels]="uncategorizedChannels()"/>
             </div>
@@ -135,6 +136,7 @@
                             (openParticipantMenu)="onParticipantContextMenu($event.event, $event.participant, $event.channelId)"
                             (openTextChannel)="onChannelClick($event)"
                             (openVoiceChannel)="onVoiceChannelClick($event)"
+                            (watchVoiceStream)="onWatchStream($event)"
                             [canReorder]="canReorder()"
                             [channels]="categoryChannels(category.id)"/>
                 }

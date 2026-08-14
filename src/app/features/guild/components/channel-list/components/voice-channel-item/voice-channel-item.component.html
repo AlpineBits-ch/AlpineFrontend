@@ -43,6 +43,7 @@
         <app-voice-participant-row
                 (open)="open.emit()"
                 (openMenu)="onParticipantMenu($event, p)"
+                (watch)="watch.emit({userId: p.userId})"
                 [participant]="p"/>
     }
 </div>
