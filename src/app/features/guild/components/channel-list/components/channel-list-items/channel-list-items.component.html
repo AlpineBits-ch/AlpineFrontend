@@ -6,6 +6,7 @@
     @if (channel.type === ChannelType.Voice) {
         <app-voice-channel-item
                 (open)="openVoiceChannel.emit(channel)"
+                (openInvite)="openInvitePanel.emit({event: $event, channel})"
                 (openMenu)="openChannelMenu.emit({event: $event, channel})"
                 (openParticipantMenu)="openParticipantMenu.emit($event)"
                 (watch)="watchVoiceStream.emit({channel, userId: $event.userId})"

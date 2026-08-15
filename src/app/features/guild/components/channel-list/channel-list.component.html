@@ -82,6 +82,7 @@
             <div (dragover)="$event.preventDefault()">
                 <app-channel-list-items
                         (openChannelMenu)="onChannelContextMenu($event.event, $event.channel)"
+                        (openInvitePanel)="openInvitePanel($event.event, $event.channel)"
                         (openParticipantMenu)="onParticipantContextMenu($event.event, $event.participant, $event.channelId)"
                         (openTextChannel)="onChannelClick($event)"
                         (openVoiceChannel)="onVoiceChannelClick($event)"
@@ -129,6 +130,7 @@
                 @if (!isCollapsed(category.id)) {
                     <app-channel-list-items
                             (openChannelMenu)="onChannelContextMenu($event.event, $event.channel)"
+                            (openInvitePanel)="openInvitePanel($event.event, $event.channel)"
                             (openParticipantMenu)="onParticipantContextMenu($event.event, $event.participant, $event.channelId)"
                             (openTextChannel)="onChannelClick($event)"
                             (openVoiceChannel)="onVoiceChannelClick($event)"
@@ -152,9 +154,57 @@
 
 <!-- ── Popup menus ──────────────────────────────────────────────────────────── -->
 <p-menu #guildMenu [model]="guildMenuItems()" [popup]="true" appendTo="body"/>
-<p-menu #channelMenu [model]="[]" [popup]="true" appendTo="body"/>
+
+<!--
+  The channel menu draws its own items so that one of them - Invite People - can open a panel on
+  hover, which a MenuItem command cannot express. The template replaces only the link inside each
+  item: PrimeNG keeps the row around it, and with it the click that runs `command` and closes the
+  menu, so every other item behaves exactly as it did. Keep the class names - the theme styles them,
+  and the menu's own Enter handling looks for the anchor.
+-->
+<p-menu #channelMenu [model]="[]" [popup]="true" appendTo="body">
+    <ng-template let-item pTemplate="item">
+        @if (item.id === 'invite') {
+            <a (click)="openInvitePanel($event, contextChannel())"
+               (mouseenter)="openInvitePanel($event, contextChannel())"
+               class="p-menu-item-link">
+                <span [class]="item.icon" class="p-menu-item-icon"></span>
+                <span class="p-menu-item-label">{{ item.label }}</span>
+                <i class="pi pi-angle-right ml-auto text-[0.625rem] opacity-40"></i>
+            </a>
+        } @else {
+            <a class="p-menu-item-link">
+                <span [class]="item.icon" class="p-menu-item-icon"></span>
+                <span class="p-menu-item-label">{{ item.label }}</span>
+            </a>
+        }
+    </ng-template>
+</p-menu>
+
 <p-menu #categoryMenu [model]="[]" [popup]="true" appendTo="body"/>
 <p-contextMenu #listMenu [model]="guildMenuItems()" appendTo="body"/>
+
+<!-- ── Per-person invite panel ─────────────────────────────────────────────── -->
+<p-popover #invitePopover (onHide)="onInvitePanelHide()" [style]="{padding: '0'}" appendTo="body">
+    @if (invitePanelChannel(); as channel) {
+        <app-channel-invite-panel
+                (more)="openRingPicker()"
+                [alreadyIn]="participantIdsOf(channel.id)"
+                [channelId]="channel.id"
+                [channelName]="channel.name"
+                [guildId]="guild().id"/>
+    }
+</p-popover>
+
+<!-- Mounted only while it is open: everything behind it - the roster reads, the ring state - is
+     built by opening it, and a sidebar nobody invites anyone from pays for none of it. -->
+@if (showRingPicker() && pickerChannel(); as channel) {
+    <app-voice-ring-picker
+            [(visible)]="showRingPicker"
+            [alreadyIn]="participantIdsOf(channel.id)"
+            [channelId]="channel.id"
+            [guildId]="guild().id"/>
+}
 
 <!-- ── Voice participant context menu ─────────────────────────────────────── -->
 @if (participantMenu(); as menu) {

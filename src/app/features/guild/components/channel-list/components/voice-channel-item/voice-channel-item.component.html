@@ -35,7 +35,7 @@
         }
     </button>
 
-    @if (participants().length > 0) {
+    @if (participants().length > 0 || showInviteRow()) {
         <div class="chan-nest">
             @for (p of participants(); track p.userId) {
                 <app-voice-participant-row
@@ -43,6 +43,12 @@
                         (openMenu)="onParticipantMenu($event, p)"
                         (watch)="watch.emit({userId: p.userId})"
                         [participant]="p"/>
+            }
+
+            <!-- Last, which is directly under your own name: the row only ever shows while you are
+                 the one person in here. -->
+            @if (showInviteRow()) {
+                <app-invite-friends-row (open)="openInvite.emit($event)"/>
             }
         </div>
     }

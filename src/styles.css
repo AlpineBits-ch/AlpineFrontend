@@ -374,6 +374,54 @@ html, body {
   font-weight: 400;
 }
 
+/* ── The invite nudge, under your own name ───────────────────────────────────
+   Opens on its own height rather than on a max-height guess: a grid track from
+   0fr to 1fr is the row's real height at both ends, so the rows below it are
+   never pushed past where they land and then pulled back. The child owns the
+   overflow, which is what a collapsing track needs to clip against. */
+@keyframes invite-nudge-in {
+  from {
+    grid-template-rows: 0fr;
+    opacity: 0;
+  }
+  to {
+    grid-template-rows: 1fr;
+    opacity: 1;
+  }
+}
+
+.invite-nudge {
+  display: grid;
+  grid-template-rows: 1fr;
+  animation: invite-nudge-in var(--duration-base) var(--ease-brand);
+}
+
+.invite-nudge > * {
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* The empty seat: an avatar-sized hole where a person would be, in the slot the
+   participant rows put their faces in. Dashed rather than filled - it is the one
+   row in this column that is not somebody. */
+.invite-nudge-slot {
+  display: flex;
+  flex-shrink: 0;
+  width: 1.125rem;
+  height: 1.125rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed rgb(255 255 255 / 0.25);
+  border-radius: 9999px;
+  transition: border-color var(--duration-fast) var(--ease-brand),
+              color var(--duration-fast) var(--ease-brand);
+}
+
+.chan-row:hover .invite-nudge-slot {
+  border-color: var(--color-brand-dim);
+  color: var(--color-brand-dim);
+}
+
 /* One badge shape, three tones. Before this the column carried four: a rose
    mention pill, a white/8 count pill, a green LIVE pill and a bare number. */
 .chan-badge {
@@ -528,7 +576,9 @@ button, a, [role="button"], input, select, textarea, label {
 
 @media (prefers-reduced-motion: reduce) {
   .status-pulse,
-  .speaking-ring {
+  .speaking-ring,
+  /* The row still appears - it just arrives at full height instead of growing into it. */
+  .invite-nudge {
     animation: none;
   }
 

@@ -5,10 +5,12 @@ import {ChannelDto} from '../../../../../../dtos/response/guild.dto';
 import {ScheduledEventDto} from '../../../../../../dtos/response/scheduled-event.dto';
 import {ScheduledEventStore} from '../../../../../../stores/scheduled-event.store';
 import {MinuteClockService} from '../../../../../../services/minute-clock.service';
+import {InviteNudgeService} from '../../../../../../services/invite-nudge.service';
 import {VoiceChannelParticipant, VoiceChannelService} from '../../../../../../services/voice-channel.service';
 import {NavigationService} from '../../../../../main-page/navigation.service';
 import {ChannelListDragService} from '../../channel-list-drag.service';
 import {ParticipantMenuRequest} from '../channel-item.types';
+import {InviteFriendsRowComponent} from '../invite-friends-row/invite-friends-row.component';
 import {VoiceParticipantRowComponent} from '../voice-participant-row/voice-participant-row.component';
 import {phaseOf} from '../../../events-panel/event-timing';
 
@@ -16,7 +18,7 @@ import {phaseOf} from '../../../events-panel/event-timing';
 @Component({
     selector: 'app-voice-channel-item',
     host: {class: 'contents'},
-    imports: [VoiceParticipantRowComponent, TranslateModule, Tooltip],
+    imports: [VoiceParticipantRowComponent, InviteFriendsRowComponent, TranslateModule, Tooltip],
     templateUrl: './voice-channel-item.component.html',
 })
 export class VoiceChannelItemComponent {
@@ -28,16 +30,28 @@ export class VoiceChannelItemComponent {
     readonly openParticipantMenu = output<ParticipantMenuRequest>();
     /** A participant's LIVE badge was clicked - forward whose stream it was. */
     readonly watch = output<{userId: string}>();
+    /** The invite-friends row was clicked - carries the event so the host can anchor its panel. */
+    readonly openInvite = output<MouseEvent>();
 
     protected drag = inject(ChannelListDragService);
     private navService = inject(NavigationService);
     private voiceChannelSvc = inject(VoiceChannelService);
+    private inviteNudge = inject(InviteNudgeService);
 
     protected participants = computed<VoiceChannelParticipant[]>(() =>
         this.voiceChannelSvc.channelParticipants().get(this.channel().id) ?? []
     );
 
     protected isJoined = computed(() => this.voiceChannelSvc.joinedChannelId() === this.channel().id);
+
+    /**
+     * Whether the empty seat is showing under this channel's roster.
+     *
+     * <p>Read rather than decided: every rule about when it appears and when it goes lives in
+     * {@link InviteNudgeService}, which can see the three things that end it and this component
+     * cannot.</p>
+     */
+    protected showInviteRow = computed(() => this.inviteNudge.channelId() === this.channel().id);
     protected isActive = computed(() => this.navService.isChannelActive(this.channel().id));
 
     private eventStore = inject(ScheduledEventStore);

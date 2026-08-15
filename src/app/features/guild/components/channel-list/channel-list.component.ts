@@ -15,6 +15,7 @@ import {firstValueFrom} from 'rxjs';
 import {NgClass} from '@angular/common';
 import {Menu} from 'primeng/menu';
 import {ContextMenu} from 'primeng/contextmenu';
+import {Popover} from 'primeng/popover';
 import {Button} from 'primeng/button';
 import {Dialog} from 'primeng/dialog';
 import {InputText} from 'primeng/inputtext';
@@ -27,7 +28,12 @@ import {VoiceChannelParticipant, VoiceChannelService} from '../../../../services
 import {CallFocusService} from '../../../../services/call-focus.service';
 import {scopeKey} from '../../../../services/share-watch.service';
 import {CallContextMenuComponent} from '../../../../shared/call/call-context-menu/call-context-menu.component';
+import {VoiceRingPickerComponent} from '../../../../shared/call/voice-ring-picker/voice-ring-picker.component';
 import {CallParticipantMenuData} from '../../../../shared/call/call.types';
+import {InviteNudgeService} from '../../../../services/invite-nudge.service';
+import {
+  ChannelInvitePanelComponent
+} from './components/channel-invite-panel/channel-invite-panel.component';
 import {ProfileService} from '../../../../services/profile.service';
 import {GuildReadStateService} from '../../../../services/guild-read-state.service';
 import {GuildSettingsModalComponent} from '../guild-settings-modal/guild-settings-modal.component';
@@ -71,6 +77,7 @@ import {phaseOf} from '../events-panel/event-timing';
         NgClass,
         Menu,
         ContextMenu,
+        Popover,
         Button,
         Dialog,
         InputText,
@@ -84,6 +91,8 @@ import {phaseOf} from '../events-panel/event-timing';
         PrimeTemplate,
         CallContextMenuComponent,
         ChannelsAndRolesModalComponent,
+        ChannelInvitePanelComponent,
+        VoiceRingPickerComponent,
         TranslateModule,
     ],
     templateUrl: './channel-list.component.html',
@@ -95,6 +104,7 @@ export class ChannelListComponent {
     @ViewChild('channelMenu') channelMenu!: Menu;
     @ViewChild('categoryMenu') categoryMenu!: Menu;
     @ViewChild('listMenu') listMenu!: ContextMenu;
+    @ViewChild('invitePopover') invitePopover!: Popover;
     @ViewChild(GuildSettingsModalComponent) guildSettingsModal?: GuildSettingsModalComponent;
     @ViewChild(ChannelSettingsModalComponent) channelSettingsModal?: ChannelSettingsModalComponent;
     @ViewChild(CategorySettingsModalComponent) categorySettingsModal?: CategorySettingsModalComponent;
@@ -175,6 +185,18 @@ export class ChannelListComponent {
     protected inviteLink = signal('');
     protected inviteLoading = signal(false);
     protected inviteCopied = signal(false);
+    // ── Per-person invite panel ───────────────────────────────────────────────
+    /**
+     * The channel the quick invite panel is open for.
+     *
+     * <p>Doubles as the panel's own existence: the body is only built while this holds a channel, so
+     * the two reads behind it are paid for by opening it and by nothing else. Cleared when the
+     * popover closes.</p>
+     */
+    protected invitePanelChannel = signal<ChannelDto | null>(null);
+    /** Search everyone. Held separately because opening it closes the panel that asked for it. */
+    protected pickerChannel = signal<ChannelDto | null>(null);
+    protected showRingPicker = signal(false);
     // ── Create channel / category dialogs ─────────────────────────────────────
     protected showCreateChannel = signal(false);
     protected showCreateCategory = signal(false);
@@ -217,6 +239,7 @@ export class ChannelListComponent {
     // ── Voice participant context menu ────────────────────────────────────────
     protected participantMenu = signal<CallParticipantMenuData | null>(null);
     private guildService = inject(GuildService);
+    private inviteNudge = inject(InviteNudgeService);
     private ownMemberRevision = inject(OwnMemberRevisionService);
     private guildVoiceSvc = inject(GuildVoiceService);
     private guildUiActions = inject(GuildUiActionsService);
@@ -246,6 +269,8 @@ export class ChannelListComponent {
         this.guild().ownerId,
         this.profileService.ownProfile()?.userId,
     ));
+    /** Set only between a move's `hide` and the `show` that follows it. @see openInvitePanel */
+    private invitePanelMovingTo: ChannelDto | null = null;
     // ── Collapse state ────────────────────────────────────────────────────────
     private collapsedIds = signal(new Set<string>());
     private participantChannelId = signal<string | null>(null);
@@ -537,6 +562,14 @@ export class ChannelListComponent {
                 icon: 'pi pi-pencil',
                 command: () => this.channelSettingsModal?.open(channel, this.guild()),
             },
+            // Named people rather than a link, and only on a voice channel - the endpoint behind it
+            // is the voice ring's, which answers 400 for anything else. Carries no command: the
+            // item template opens its panel on hover, which a command cannot express.
+            ...(channel.type === ChannelType.Voice ? [{
+                id: 'invite',
+                label: 'Invite People',
+                icon: 'pi pi-user-plus',
+            }] : []),
             {
                 label: 'Create Invite',
                 icon: 'pi pi-link',
@@ -602,6 +635,69 @@ export class ChannelListComponent {
 
     protected onListContextMenu(event: MouseEvent): void {
         this.listMenu.show(event);
+    }
+
+    // ── Per-person invite panel ───────────────────────────────────────────────
+    /**
+     * Opens the five-name panel against whatever was pointed at.
+     *
+     * <p>Anchored to the event's own element rather than to the channel row, because the two ways in
+     * sit in different places - a menu item over the list, and the empty seat inside it - and each
+     * wants the panel beside itself.</p>
+     */
+    protected openInvitePanel(event: MouseEvent, channel: ChannelDto | null): void {
+        if (!channel) return;
+        // Already open over this channel - a mouse leaving for the panel and coming back across the
+        // item it came from is not a second request to open it.
+        const open = this.invitePanelChannel();
+        if (open?.id === channel.id) return;
+
+        // Reaching for it is the interaction the row's fifteen seconds were waiting for.
+        this.inviteNudge.keep();
+
+        if (!open) {
+            this.invitePanelChannel.set(channel);
+            // Anchored through the event alone, never `show(event, target)`: that overload stops the
+            // click, and this one has somewhere to be - the menu it came from closes on it. The
+            // popover takes the same element either way, and will not read that click as an outside
+            // one, because it ignores anything inside the element it was anchored to.
+            this.invitePopover.show(event);
+            return;
+        }
+
+        // Moving to a different channel. A popover measures itself while it is entering and never
+        // again, so re-anchoring an open one leaves it beside the row it used to belong to. It has
+        // to leave first.
+        const anchor = event.currentTarget as HTMLElement;
+        this.invitePanelMovingTo = channel;
+        this.invitePopover.hide();
+
+        setTimeout(() => {
+            const next = this.invitePanelMovingTo;
+            this.invitePanelMovingTo = null;
+            if (!next) return;
+
+            this.invitePanelChannel.set(next);
+            this.invitePopover.show({currentTarget: anchor} as unknown as MouseEvent);
+        });
+    }
+
+    protected onInvitePanelHide(): void {
+        // Half of a move rather than a close: the reopen above owns the channel from here.
+        if (this.invitePanelMovingTo) return;
+        this.invitePanelChannel.set(null);
+    }
+
+    /** Five names give way to the whole roster. The panel closes behind it. */
+    protected openRingPicker(): void {
+        this.pickerChannel.set(this.invitePanelChannel());
+        this.invitePopover.hide();
+        this.showRingPicker.set(true);
+    }
+
+    /** Who is in the room already, so neither surface offers somebody who is standing in it. */
+    protected participantIdsOf(channelId: string): string[] {
+        return (this.voiceChannelSvc.channelParticipants().get(channelId) ?? []).map(p => p.userId);
     }
 
     // ── Quick invite ──────────────────────────────────────────────────────────

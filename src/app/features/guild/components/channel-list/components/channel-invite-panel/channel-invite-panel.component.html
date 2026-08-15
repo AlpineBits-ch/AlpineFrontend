@@ -1,0 +1,91 @@
+<div class="w-[16.5rem] p-1.5">
+
+    <!-- Which channel this invitation is for. The panel is opened from two places and lands over a
+         list of many rooms, so the name is the one piece of context it cannot leave out. -->
+    <div class="flex items-center gap-1.5 px-2 pb-2 pt-1">
+        <i class="pi pi-volume-up shrink-0 text-[0.5625rem] text-white/25"></i>
+        <span class="truncate text-[0.625rem] font-semibold uppercase tracking-[0.12em] text-white/35">
+            {{ channelName() }}
+        </span>
+    </div>
+
+    @if (loading()) {
+        <div class="flex items-center justify-center py-6">
+            <i class="pi pi-spin pi-spinner text-white/30 text-sm"></i>
+        </div>
+    } @else {
+        <div class="flex flex-col">
+            @for (candidate of candidates(); track candidate.userId) {
+                <!-- The row and the bell are siblings rather than nested: a <button> inside a
+                     <button> is invalid markup and the inner click is not reliably delivered. -->
+                <div class="group flex items-center gap-0.5">
+                    <button (click)="invite(candidate)"
+                            [disabled]="!!inviting() || invited().has(candidate.userId)"
+                            class="flex h-8 min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-lg border-0
+                                   bg-transparent px-2 text-left transition-colors hover:bg-hover
+                                   disabled:cursor-default disabled:hover:bg-transparent"
+                            type="button">
+                        <app-avatar [label]="candidate.name.charAt(0).toUpperCase()"
+                                    [userId]="candidate.userId"
+                                    styleClass="!w-5 !h-5 !text-[0.5625rem]"/>
+
+                        <!-- A friend who is offline is still worth offering - the invitation waits in
+                             their conversation - but reads quieter than somebody who is around now. -->
+                        <span [ngClass]="candidate.online ? 'text-white/75' : 'text-white/40'"
+                              class="flex-1 truncate text-[0.8125rem]">{{ candidate.name }}</span>
+
+                        @if (inviting() === candidate.userId) {
+                            <i class="pi pi-spin pi-spinner shrink-0 text-[0.625rem] text-white/40"></i>
+                        } @else if (invited().has(candidate.userId)) {
+                            <span class="flex shrink-0 items-center gap-1 text-[0.625rem] text-online">
+                                <i class="pi pi-check text-[0.5rem]"></i>
+                                {{ 'VOICE_RING.INVITE_SENT' | translate }}
+                            </span>
+                        }
+                    </button>
+
+                    <!-- The escalation. Only from inside the room, because that is the only place the
+                         server accepts it - and only on hover, because it is not the primary act. -->
+                    @if (canRing()) {
+                        <button (click)="ring(candidate, $event)"
+                                [attr.aria-label]="'VOICE_RING.RING_THEM' | translate"
+                                [disabled]="ringState.sending() || !!pendingRing()"
+                                [title]="'VOICE_RING.RING_THEM' | translate"
+                                class="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-lg
+                                       border-0 bg-transparent text-white/30 opacity-0 transition-all
+                                       hover:bg-hover hover:text-brand-dim focus-visible:opacity-100
+                                       disabled:cursor-default disabled:opacity-30 group-hover:opacity-100
+                                       motion-reduce:transition-none"
+                                type="button">
+                            <i class="pi pi-bell text-[0.625rem]"></i>
+                        </button>
+                    }
+                </div>
+
+                @if (refusal(); as refused) {
+                    @if (refused.userId === candidate.userId) {
+                        <p class="m-0 mb-1 px-2 text-[0.6875rem] text-rose-400/70">{{ refused.messageKey | translate }}</p>
+                    }
+                }
+            } @empty {
+                <!-- An empty list is an invitation to use the search below it, not an apology. -->
+                <p class="m-0 px-2 py-4 text-center text-[0.75rem] text-white/30">
+                    {{ 'VOICE_RING.NOBODY_AROUND' | translate }}
+                </p>
+            }
+        </div>
+
+        <!-- The icon sits in the avatar column, so the shortcut reads as the last row of the list
+             rather than as a control bolted under it. -->
+        <div class="mt-1 border-t border-border-subtle pt-1">
+            <button (click)="more.emit()"
+                    class="flex h-8 w-full cursor-pointer items-center gap-2 rounded-lg border-0
+                           bg-transparent px-2 text-left text-white/45 transition-colors
+                           hover:bg-hover hover:text-white/75"
+                    type="button">
+                <span class="flex w-5 shrink-0 justify-center"><i class="pi pi-search text-[0.6875rem]"></i></span>
+                <span class="text-[0.8125rem]">{{ 'VOICE_RING.SEARCH_EVERYONE' | translate }}</span>
+            </button>
+        </div>
+    }
+</div>

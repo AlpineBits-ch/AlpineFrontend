@@ -30,6 +30,8 @@ export class ChannelListItemsComponent {
     readonly openParticipantMenu = output<ParticipantMenuRequest>();
     /** A LIVE badge was clicked - carries which channel so the host can build a focus scope. */
     readonly watchVoiceStream = output<{channel: ChannelDto; userId: string}>();
+    /** The invite-friends row was clicked - carries the event so the host can anchor its panel. */
+    readonly openInvitePanel = output<ChannelMenuRequest>();
 
     protected readonly ChannelType = ChannelType;
     protected readonly isForumLike = isForumLike;
