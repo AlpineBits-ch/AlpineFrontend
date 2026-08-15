@@ -113,8 +113,30 @@ Things worth knowing before changing it:
 - **DM screen share is still the webview path**, which has always published its own audio via
   `getDisplayMedia`. Only the guild path uses the Rust publisher today.
 
+## The declared video size
+
+`POST .../tracks` and `PUT .../negotiate` both take an optional `video: {height, framerate}`. It is
+what the server computes its per-plan fan-out cap from: Cloudflare is a non-transcoding SFU, so the
+cap is applied to which simulcast layer subscribers are served, not to what we encode.
+
+- **Declare the solved geometry, not the preset's nominal height.** `publishOptions`/`solveGeometry`
+  fit the source into the preset's box, so an ultrawide at 1080p genuinely encodes 540 lines.
+  Claiming 1080 there has the server cap a share that is well inside its rung.
+- **Omitting it never moves the cap**, in either direction. An ICE restart, a reconnect, a track
+  close and the immediate re-offer the SFU asks for after a publish all send the body they always
+  sent. The renegotiation is never refused over this and carries no `degradations[]`.
+- **Isle does not get the field.** Its route is Cloudflare's own passthrough with no entitlement
+  layer in front of it, so the field would be sent to an SFU rather than to Echo. `Dialect` drops it,
+  on both hosts, pinned by tests.
+
 ## Outstanding on the client
 
+- **A mid-share quality change never reaches the server.** `setScreenPreset` changes resolution with
+  `applyConstraints` plus `setParameters` on the web host and an in-place encoder retype on the
+  desktop one - see `screen-publisher.web.ts` `setGeometry` and `session.rs` `set_geometry`. None of
+  that is an SDP event, so no `PUT .../negotiate` happens and the size declared at publish time goes
+  stale for the rest of the share. Re-declaring needs a path the server can hear that is not tied to
+  a renegotiation; that is a backend decision and nothing here fakes one.
 - **DM receive skips `screenAudio`.** `call-webrtc.service.ts` explicitly ignores that kind rather
   than mis-subscribing it as video, because the call UI has no per-stream audio control and the
   mixer source would have nothing driving it. Guild receive handles it.

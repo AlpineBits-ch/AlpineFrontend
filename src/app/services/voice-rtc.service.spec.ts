@@ -18,7 +18,7 @@ import {OAuthService} from 'angular-oauth2-oidc';
 import {of, Subject, throwError} from 'rxjs';
 import {GuildVoiceService} from './guild-voice.service';
 import {
-    cameraIntent,
+    trackIntent,
     MAX_PUBLICATION_REBUILDS,
     SUBSCRIBE_RETRY_DELAYS_MS,
     VoiceRTCService,
@@ -28,6 +28,7 @@ import {VoiceEngineService} from './voice-engine.service';
 import {RustMediaService} from './rust-media.service';
 import {ScreenPickerService} from './screen-picker.service';
 import {DeviceIdentityService} from './device-identity.service';
+import {bitrateFor} from '../models/stream-preset';
 import {ApiConfigService} from './api-config.service';
 import {AudioSettingsService} from './audio-settings.service';
 import {EntitlementStore} from '../stores/entitlement.store';
@@ -568,55 +569,99 @@ describe('a subscribe onto a session the server calls spent', () => {
 });
 
 /**
- * Rebuilding the publish at a new resolution is the only path that stops one share in order to
- * start another. The old share is dead the moment the stop returns, and the room learns that only
- * from what this hands back - so a rebuild that fails must still report the stop. Swallowing it
- * left the share on the server's roster with no session behind it, which is the state every viewer
- * then loops against.
+ * A resolution change must not restart anything.
+ *
+ * <p>It used to. The encoder was built for one geometry, so changing resolution stopped the publish
+ * and started a fresh one - which meant a new Cloudflare session, a new share id, and a
+ * stopped-then-started pair announced to the room. On every viewer that read as the stream ending:
+ * the tile left the grid, the layout reflowed under it, and anyone watching it maximised was left
+ * on a completely empty stage for one to four seconds. The encoder is retyped in place instead.</p>
+ *
+ * <p>So these assert on what did <b>not</b> happen. `stopScreenPublish` and `startScreenPublish` are
+ * the two calls that would change the share id, and a resolution change must touch neither.</p>
  */
-describe('rebuilding a share at a new resolution', () => {
+describe('changing resolution mid-share', () => {
     const preset = {resolution: '1440p', framerate: 30} as const;
 
-    function sharing(): {startScreenPublish: ReturnType<typeof vi.fn>} {
+    interface Publisher {
+        stopScreenPublish: ReturnType<typeof vi.fn>;
+        startScreenPublish: ReturnType<typeof vi.fn>;
+        setPublishGeometry: ReturnType<typeof vi.fn>;
+        setPublishFps: ReturnType<typeof vi.fn>;
+    }
+
+    function sharing(): Publisher {
         const rustMedia = TestBed.inject(RustMediaService) as unknown as Record<string, unknown>;
         rustMedia['stopScreenPublish'] = vi.fn(async () => undefined);
         rustMedia['startScreenPublish'] = vi.fn();
-        // `publishOptions` reads this; the shared stub only carries the method other tests need.
-        (TestBed.inject(DeviceIdentityService) as unknown as Record<string, unknown>)['deviceId'] =
-            vi.fn(async () => 'device');
+        rustMedia['setPublishGeometry'] = vi.fn(async () => undefined);
+        rustMedia['setPublishFps'] = vi.fn(async () => undefined);
 
         // The state a running Rust publish leaves behind, reached into directly rather than stood
         // up through a real publish and its signalling.
         Object.assign(service as unknown as Record<string, unknown>, {
             rustPublishing: true,
-            screenShareId: 'old-share',
+            screenShareId: 'live-share',
+            screenSourceSize: {width: 1920, height: 1080},
             rustChoice: {sourceId: 'monitor:0', sourceWidth: 1920, sourceHeight: 1080, preset: {resolution: '1080p', framerate: 30}, shareAudio: false},
         });
         service.screenPreset.set({resolution: '1080p', framerate: 30});
-        return {startScreenPublish: rustMedia['startScreenPublish'] as ReturnType<typeof vi.fn>};
+        return rustMedia as unknown as Publisher;
     }
 
-    it('reports the swap when the new publish comes up', async () => {
-        const {startScreenPublish} = sharing();
-        startScreenPublish.mockResolvedValue({encoder: 'media-foundation', audioTrackName: null});
+    it('retypes the running encoder instead of restarting the publish', async () => {
+        const rustMedia = sharing();
 
-        const restart = await service.setScreenPreset(preset, 'g1', 'c1');
+        await service.setScreenPreset(preset);
 
-        expect(restart?.oldShareId).toBe('old-share');
-        expect(restart?.newShareId).toBeTruthy();
+        expect(rustMedia.setPublishGeometry).toHaveBeenCalled();
+        expect(rustMedia.stopScreenPublish).not.toHaveBeenCalled();
+        expect(rustMedia.startScreenPublish).not.toHaveBeenCalled();
     });
 
-    it('still reports the stop when the new publish fails', async () => {
-        // Not exotic: the rebuild constructs an encoder at a resolution the hardware may refuse,
-        // which is exactly the case this path exists for.
-        const {startScreenPublish} = sharing();
-        startScreenPublish.mockRejectedValue(new Error('no H.264 encoder available'));
+    it('keeps the share id every viewer is already holding', async () => {
+        const rustMedia = sharing();
 
-        const restart = await service.setScreenPreset(preset, 'g1', 'c1');
+        await service.setScreenPreset(preset);
 
-        expect(restart).not.toBeNull();
-        expect(restart?.oldShareId).toBe('old-share');
-        expect(restart?.newShareId).toBeNull();
+        expect((service as unknown as {screenShareId: string}).screenShareId).toBe('live-share');
+        expect(rustMedia.startScreenPublish).not.toHaveBeenCalled();
+    });
+
+    it('asks for the box and bitrate the new preset solves to', async () => {
+        // 1440p out of a 1080p source fits into the source rather than upscaling to it, and the
+        // bitrate is the preset's own - the pair is what makes maintain-resolution degradation safe,
+        // so sending the new geometry with the old budget would starve the encoder.
+        const rustMedia = sharing();
+
+        await service.setScreenPreset(preset);
+
+        const [width, height, kbps] = rustMedia.setPublishGeometry.mock.calls[0]!;
+        expect(width % 2).toBe(0);
+        expect(height % 2).toBe(0);
+        expect(kbps).toBe(bitrateFor(preset));
+    });
+
+    it('leaves the publish alone when only the framerate moves', async () => {
+        const rustMedia = sharing();
+
+        await service.setScreenPreset({resolution: '1080p', framerate: 60});
+
+        expect(rustMedia.setPublishFps).toHaveBeenCalledWith(60);
+        expect(rustMedia.setPublishGeometry).not.toHaveBeenCalled();
+        expect(rustMedia.stopScreenPublish).not.toHaveBeenCalled();
+    });
+
+    it('remembers the new preset for a publish that does restart later', async () => {
+        // Sharing a different source genuinely does restart, and it must open at the resolution the
+        // user is watching rather than the one they first picked.
+        const rustMedia = sharing();
+
+        await service.setScreenPreset(preset);
+
+        const choice = (service as unknown as {rustChoice: {preset: unknown}}).rustChoice;
+        expect(choice.preset).toEqual(preset);
+        expect(rustMedia.startScreenPublish).not.toHaveBeenCalled();
     });
 });
 
@@ -825,12 +870,12 @@ describe('the stated video intent', () => {
     }
 
     it('states what the camera actually opened at, not what was asked for', () => {
-        expect(cameraIntent(track({height: 720, frameRate: 30}))).toEqual({height: 720, framerate: 30});
+        expect(trackIntent(track({height: 720, frameRate: 30}))).toEqual({height: 720, framerate: 30});
     });
 
     /** Cameras report fractional rates; the wire carries whole frames. */
     it('rounds a fractional framerate', () => {
-        expect(cameraIntent(track({height: 1080, frameRate: 29.97})))
+        expect(trackIntent(track({height: 1080, frameRate: 29.97})))
             .toEqual({height: 1080, framerate: 30});
     });
 
@@ -840,10 +885,10 @@ describe('the stated video intent', () => {
      * number this client invented.
      */
     it('states nothing when the device reports nothing', () => {
-        expect(cameraIntent(track({height: 720}))).toBeUndefined();
-        expect(cameraIntent(track({frameRate: 30}))).toBeUndefined();
-        expect(cameraIntent(track({height: 0, frameRate: 30}))).toBeUndefined();
-        expect(cameraIntent(track(null))).toBeUndefined();
+        expect(trackIntent(track({height: 720}))).toBeUndefined();
+        expect(trackIntent(track({frameRate: 30}))).toBeUndefined();
+        expect(trackIntent(track({height: 0, frameRate: 30}))).toBeUndefined();
+        expect(trackIntent(track(null))).toBeUndefined();
     });
 });
 

@@ -18,6 +18,11 @@ export interface ScreenShareUi {
     displayName: string;
     isLocal: boolean;
     stream: MediaStream | undefined;        // local = getDisplayMedia; remote = WebRTC (set via onScreenShareStarted)
+    /**
+     * Whether this share's picture is live or between tracks - see `CallScreenShare.state`, which
+     * this feeds. Absent reads as live.
+     */
+    state?: 'live' | 'resuming';
 }
 
 export interface LocalCallState {

@@ -6,6 +6,7 @@ import {CallDto} from '../dtos/response/call.dto';
 import {OngoingCallDto} from '../dtos/response/ongoing-call.dto';
 import {ShareViewersDto} from '../dtos/response/share-viewers.dto';
 import {CreateCallDto} from '../dtos/request/create-call.dto';
+import {VideoPublishIntentDto} from '../dtos/response/entitlement.dto';
 import {ApiConfigService} from "./api-config.service";
 import {VoiceRoomSnapshot, VoiceSubscriberUpdate} from '../models/voice-room';
 
@@ -26,6 +27,14 @@ export interface CfTrackNew {
 export interface CfTracksNewRequest {
     sessionDescription: RTCSessionDescriptionInit;
     tracks: CfTrackNew[];
+    /**
+     * What this client is about to encode, so the server can clamp it rather than guess.
+     *
+     * <p>Additive and optional in both directions: a server built before the entitlement contract
+     * ignores it, and an audio-only publish omits it because nothing about audio is laddered. Sent on
+     * the publish that carries the video track, never on a subscribe.</p>
+     */
+    video?: VideoPublishIntentDto;
 }
 
 export interface CfTrackResult {
@@ -190,14 +199,24 @@ export class VoiceService {
         );
     }
 
+    /**
+     * Re-offer on an open session, optionally re-declaring what the video now is.
+     *
+     * <p>`video` belongs here only when this renegotiation is what changes the picture. The server's
+     * fan-out cap is computed from the last declaration it saw, so an absent field leaves that cap
+     * exactly where it is - it neither applies one nor lifts one, and a renegotiation is never
+     * refused over it. An ICE restart, a reconnect and the immediate re-offer the SFU asks for after
+     * a publish all send the body they always sent.</p>
+     */
     cfRenegotiate(
         callId: string,
         mediaSessionId: string,
         sessionDescription: RTCSessionDescriptionInit,
+        video?: VideoPublishIntentDto,
     ): Observable<CfRenegotiateResponse> {
         return this.client.put<CfRenegotiateResponse>(
             `${this.base}/calls/${callId}/negotiate`,
-            {mediaSessionId, sessionDescription}
+            {mediaSessionId, sessionDescription, ...(video ? {video} : {})}
         );
     }
 

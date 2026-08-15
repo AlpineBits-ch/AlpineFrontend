@@ -632,6 +632,32 @@ button, a, [role="button"], input, select, textarea, label {
   animation: speaking-ring 1.4s ease-in-out infinite;
 }
 
+/* A share whose track closed and whose picture is expected back. The tile holds its last frame
+   under a wash; this hairline on the top edge is the only thing that moves, and it is the whole
+   signal that something is in progress rather than broken. */
+@keyframes tile-resuming-sweep {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.tile-resuming-line {
+  overflow: hidden;
+  background: color-mix(in srgb, var(--color-brand-dim) 20%, transparent);
+}
+
+.tile-resuming-line::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--color-brand-dim),
+    transparent
+  );
+  animation: tile-resuming-sweep 1.6s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .status-pulse,
   .speaking-ring,
@@ -644,6 +670,13 @@ button, a, [role="button"], input, select, textarea, label {
   /* The ring is the only thing marking a speaker, so it stays - it just stops moving. */
   .speaking-ring {
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-online) 55%, transparent);
+  }
+
+  /* The line stays - it is the only mark that a picture is coming back - and becomes a steady bar
+     rather than disappearing, which would leave the frozen frame with no explanation at all. */
+  .tile-resuming-line::after {
+    animation: none;
+    background: color-mix(in srgb, var(--color-brand-dim) 40%, transparent);
   }
 }
 

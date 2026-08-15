@@ -1,3 +1,4 @@
+import type {VideoPublishIntentDto} from '../../dtos/response/entitlement.dto';
 import {DEFAULT_STREAM_PRESET} from '../../models/stream-preset';
 import {
     applyScreenEncoding,
@@ -7,7 +8,12 @@ import {
     STREAM_AUDIO_KBPS,
     withStartBitrate,
 } from '../../services/webrtc-encoding';
-import {captureDisplay, DisplayCapture, retargetDisplayFps} from '../display-capture';
+import {
+    captureDisplay,
+    DisplayCapture,
+    retargetDisplayFps,
+    retargetDisplayGeometry,
+} from '../display-capture';
 import {
     ScreenPublisher,
     ScreenPublishOptions,
@@ -186,7 +192,12 @@ export class WebScreenPublisher extends ScreenPublisher implements ScreenPublish
             // Both halves in one negotiation, as the contract asks: two would announce the halves of
             // one share separately, and a viewer would build the tile and then have audio arrive
             // against a share it had already laid out.
-            const response = await signalling.publish(mediaSessionId, pc.localDescription!, tracks);
+            //
+            // The declared size is the solved capture geometry, not the preset's nominal height: an
+            // ultrawide fitted into a 1080p box encodes 540 lines, and stating 1080 there would have
+            // the server cap a share that is already well inside its rung.
+            const response = await signalling.publish(
+                mediaSessionId, pc.localDescription!, tracks, publishIntent(o));
             await pc.setRemoteDescription(response.sessionDescription);
             if (response.requiresImmediateRenegotiation) {
                 await this.renegotiate(pc, signalling, mediaSessionId);
@@ -260,6 +271,21 @@ export class WebScreenPublisher extends ScreenPublisher implements ScreenPublish
             // layer would otherwise keep the old cap and be the only person a framerate change did
             // not reach.
             for (const encoding of params.encodings) encoding.maxFramerate = rounded;
+            await live.videoSender.setParameters(params);
+        } catch { /* setParameters unsupported, or the share already ended */
+        }
+    }
+
+    async setGeometry(shareId: string, width: number, height: number, kbps: number): Promise<void> {
+        const live = this.assertLive(shareId, 'setGeometry');
+        // Both halves, exactly as setFps does. The capture constraint decides what size the browser
+        // hands the encoder; the encoding's bitrate is what the preset budgeted for that size, and
+        // leaving it behind would either starve the new resolution or overspend on it.
+        await retargetDisplayGeometry(live.capture.video, Math.round(width), Math.round(height));
+        try {
+            const params = live.videoSender.getParameters();
+            if (!params.encodings?.length) params.encodings = [{}];
+            for (const encoding of params.encodings) encoding.maxBitrate = Math.round(kbps) * 1000;
             await live.videoSender.setParameters(params);
         } catch { /* setParameters unsupported, or the share already ended */
         }
@@ -437,6 +463,18 @@ export class WebScreenPublisher extends ScreenPublisher implements ScreenPublish
     }
 }
 
+/**
+ * What this share is about to encode, or nothing when it cannot be stated.
+ *
+ * <p>`publishOptions` is the one place a preset becomes pixels, so these are the numbers the capture
+ * constraints and the encoder both get - which is what makes the declaration true rather than a
+ * restatement of what the picker offered.</p>
+ */
+function publishIntent(o: ScreenPublishOptions): VideoPublishIntentDto | undefined {
+    if (o.height <= 0 || o.fps <= 0) return undefined;
+    return {height: Math.round(o.height), framerate: Math.round(o.fps)};
+}
+
 /** The mid a sender ended up on, with the same fallback the webview publish path uses. */
 function midOf(pc: RTCPeerConnection, sender: RTCRtpSender, fallback: string): string {
     return pc.getTransceivers().find(t => t.sender === sender)?.mid ?? fallback;
@@ -488,20 +526,33 @@ class Signalling {
         mediaSessionId: string,
         sessionDescription: RTCSessionDescriptionInit,
         tracks: PublishTrackRef[],
+        video?: VideoPublishIntentDto,
     ): Promise<NegotiateResponse> {
         return this.send<NegotiateResponse>('POST', `${this.base}/tracks`, {
             mediaSessionId,
             sessionDescription,
             tracks,
+            ...(video ? {video} : {}),
         });
     }
 
-    /** PUT, not POST - the verb differs from the publish route. */
+    /**
+     * PUT, not POST - the verb differs from the publish route.
+     *
+     * <p>`video` re-declares what this session now encodes, and belongs here only when this
+     * renegotiation is what changed it. Absent leaves the server's recorded size alone in both
+     * directions, so the renegotiation that follows a publish sends nothing new.</p>
+     */
     renegotiate(
         mediaSessionId: string,
         sessionDescription: RTCSessionDescriptionInit,
+        video?: VideoPublishIntentDto,
     ): Promise<{sessionDescription: RTCSessionDescriptionInit}> {
-        return this.send('PUT', `${this.base}/negotiate`, {mediaSessionId, sessionDescription});
+        return this.send('PUT', `${this.base}/negotiate`, {
+            mediaSessionId,
+            sessionDescription,
+            ...(video ? {video} : {}),
+        });
     }
 
     closeTracks(mediaSessionId: string, trackNames: string[]): Promise<unknown> {

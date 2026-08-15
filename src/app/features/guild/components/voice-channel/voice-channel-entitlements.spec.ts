@@ -96,6 +96,7 @@ function render(room: RoomState = {}) {
                     getVideoStream: () => null,
                     getScreenStream: () => null,
                     isScreenAudioMuted: () => false,
+                    isScreenResuming: () => false,
                     getUserVolume: () => 1,
                     rtc: {screenPreset: signal({resolution: '720p', framerate: 30})},
                     videoBlock: () => room.videoBlock ?? null,

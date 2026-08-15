@@ -453,6 +453,8 @@ impl VoicePublication {
                     mid,
                     track_name: TRACK_NAME.to_owned(),
                 }],
+                // The microphone. Nothing about audio is laddered, so there is nothing to declare.
+                None,
             )
             .await?;
 
@@ -730,6 +732,9 @@ impl VoicePublication {
                     sdp_type: "offer".to_owned(),
                     sdp: offer.sdp,
                 },
+                // Subscriptions and the SFU's own re-offers. Neither touches what this session
+                // sends, so there is nothing to re-declare.
+                None,
             )
             .await?;
 

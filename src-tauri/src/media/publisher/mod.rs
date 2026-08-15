@@ -150,16 +150,29 @@ pub async fn start_screen_publish(
     Ok(result)
 }
 
-/// Change the capture rate of the running publish.
-///
-/// Framerate is the only part of a preset that can change without rebuilding the encoder, which is
-/// fixed to one geometry and bitrate for its lifetime. A resolution change goes through
-/// stop-then-start instead.
+/// Change the capture rate of the running publish. Lands within one frame.
 #[tauri::command]
 pub fn set_publish_fps(fps: u32) {
     if let Ok(guard) = active().lock() {
         if let Some(handle) = guard.as_ref() {
             handle.set_fps(fps);
+        }
+    }
+}
+
+/// Change the resolution and bitrate of the running publish, without ending it.
+///
+/// <p>The encoder is retyped in place at the next frame boundary - see
+/// [`session::PublishHandle::set_geometry`]. The session, the track and the share id all survive,
+/// so this announces nothing and viewers see only a picture that changed size.</p>
+///
+/// <p>This used to be a stop followed by a start, which cost a new share id and left every viewer's
+/// tile out of the grid for as long as the new publish took to negotiate.</p>
+#[tauri::command]
+pub fn set_publish_geometry(width: u32, height: u32, kbps: u32) {
+    if let Ok(guard) = active().lock() {
+        if let Some(handle) = guard.as_ref() {
+            handle.set_geometry(width, height, kbps);
         }
     }
 }

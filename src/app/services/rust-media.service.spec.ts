@@ -21,7 +21,7 @@ import {
     SourceThumbnail,
 } from '../platform/ports/screen-publisher.port';
 import {LocalStreamChunk, ScreenPublisherHost} from '../platform/screen-publisher-host';
-import {PREVIEW_IDLE_MS, RustMediaService} from './rust-media.service';
+import {BACKGROUND_IDLE_MS, PREVIEW_IDLE_MS, RustMediaService} from './rust-media.service';
 
 /**
  * A publisher that records what it was asked to do.
@@ -40,6 +40,7 @@ class FakePublisher extends ScreenPublisher implements ScreenPublisherHost {
     readonly started: ScreenPublishOptions[] = [];
     readonly stopped: string[] = [];
     readonly fps: {shareId: string; fps: number}[] = [];
+    readonly geometry: {shareId: string; width: number; height: number; kbps: number}[] = [];
     readonly muted: {shareId: string; muted: boolean}[] = [];
 
     previewSink: ((dataUrl: string) => void) | null = null;
@@ -73,6 +74,10 @@ class FakePublisher extends ScreenPublisher implements ScreenPublisherHost {
 
     async setFps(shareId: string, fps: number): Promise<void> {
         this.fps.push({shareId, fps});
+    }
+
+    async setGeometry(shareId: string, width: number, height: number, kbps: number): Promise<void> {
+        this.geometry.push({shareId, width, height, kbps});
     }
 
     async setAudioMuted(shareId: string, muted: boolean): Promise<void> {
@@ -146,6 +151,9 @@ class PortOnlyPublisher extends ScreenPublisher {
     }
 
     async setFps(): Promise<void> {
+    }
+
+    async setGeometry(): Promise<void> {
     }
 
     async setAudioMuted(): Promise<void> {
@@ -455,7 +463,7 @@ describe('RustMediaService: idle preview pause', () => {
         expect(service.publishPreview()).toBe('data:image/jpeg;base64,AAAA');
     });
 
-    it('stops applying frames once the idle window elapses with the window hidden, even while claimed', async () => {
+    it('stops applying frames the moment the window is hidden, even while claimed', async () => {
         setHidden(false);
         const fake = new FakePublisher();
         const {service} = setup(fake);
@@ -465,8 +473,9 @@ describe('RustMediaService: idle preview pause', () => {
 
         setHidden(true);
         document.dispatchEvent(new Event('visibilitychange'));
-        vi.advanceTimersByTime(PREVIEW_IDLE_MS);
 
+        // No advance: hidden means the window left the screen, which gets no grace at all - see
+        // `previewPauseDelay` and the background block below, where merely losing focus does.
         expect(service.previewPaused()).toBe(true);
         fake.previewSink?.('data:image/jpeg;base64,BBBB');
         expect(service.publishPreview()).toBe('data:image/jpeg;base64,AAAA');
@@ -636,15 +645,22 @@ describe('RustMediaService: idle preview pause', () => {
  * The background pause: the app is not the window you are looking at, so nothing here can see the
  * preview and decoding frames into it is work nobody benefits from.
  *
- * <p>Separate from the idle pause above and deliberately not built on its timer. Idle asks "has
- * anyone been looking at this for a while"; this asks "is this window in front of you", and the
- * answer to the second is known the instant it changes. Waiting {@link PREVIEW_IDLE_MS} to act on
- * something already certain would burn thirty seconds of decode per alt-tab, and alt-tabbing away
- * is what someone sharing their screen does immediately after starting.</p>
+ * <p><b>What changed, and why the old tests here inverted.</b> `blur` used to pause on the spot and
+ * `focus` used to un-pause on the spot, on the reasoning that a window behind another window is one
+ * nobody is looking at. Correct about the window, wrong about the user: alt-tabbing to the thing you
+ * are sharing is the most ordinary half-minute in a screen share, and it froze the card every time.
+ * So the two are now separate questions - <i>when</i> it pauses (after {@link BACKGROUND_IDLE_MS},
+ * not at once) and <i>how</i> it comes back (the resume button, and nothing else).</p>
  *
- * <p>`document.hidden` does not cover it. On a desktop window it flips on minimise, not when another
- * window simply comes to the front, which is the ordinary case: you share, you switch to the game,
- * the app is still "visible" behind it.</p>
+ * <p>Minimising is deliberately still immediate. `document.hidden` means the window left the screen,
+ * which is a decision rather than a glance - see the minimise tests below, and
+ * `previewPauseDelay`.</p>
+ *
+ * <p><b>What these cannot reach.</b> Every assertion here is on the JPEG thumbnail, because the
+ * saving that actually matters - `setLocalStreamEnabled`, which stops the share-bitrate encoded feed
+ * crossing IPC - hangs off `localRenderer`, and jsdom has no `VideoDecoder` to build one with. So
+ * these prove the timing rule and the latch; they cannot prove the effect that acts on it. Mutate
+ * that effect and this file stays green.</p>
  */
 describe('RustMediaService: background preview pause', () => {
     beforeEach(() => {
@@ -658,14 +674,33 @@ describe('RustMediaService: background preview pause', () => {
         window.dispatchEvent(new Event('focus'));
     });
 
-    it('pauses the instant the window loses focus, without waiting for the idle window', async () => {
+    /** A share that is publishing, claimed, visible, and has a frame to freeze over. */
+    async function sharing(): Promise<{fake: FakePublisher; service: RustMediaService}> {
         const fake = new FakePublisher();
         const {service} = setup(fake);
         await service.startScreenPublish(options());
         service.claimPreviewRender({});
         fake.previewSink?.('data:image/jpeg;base64,AAAA');
+        return {fake, service};
+    }
+
+    it('keeps applying frames for the whole background grace after the window loses focus', async () => {
+        const {fake, service} = await sharing();
 
         window.dispatchEvent(new Event('blur'));
+        vi.advanceTimersByTime(BACKGROUND_IDLE_MS - 1);
+
+        // The regression this whole change is about: a glance away from the app is not a pause.
+        expect(service.previewPaused()).toBe(false);
+        fake.previewSink?.('data:image/jpeg;base64,BBBB');
+        expect(service.publishPreview()).toBe('data:image/jpeg;base64,BBBB');
+    });
+
+    it('pauses once the background grace elapses', async () => {
+        const {fake, service} = await sharing();
+
+        window.dispatchEvent(new Event('blur'));
+        vi.advanceTimersByTime(BACKGROUND_IDLE_MS);
 
         expect(service.previewPaused()).toBe(true);
         // The assertion that outlives the flag: a frame arriving afterwards must not land.
@@ -673,19 +708,99 @@ describe('RustMediaService: background preview pause', () => {
         expect(service.publishPreview()).toBe('data:image/jpeg;base64,AAAA');
     });
 
-    it('resumes as soon as the window is focused again, with no click needed', async () => {
-        const fake = new FakePublisher();
-        const {service} = setup(fake);
-        await service.startScreenPublish(options());
-        service.claimPreviewRender({});
-        fake.previewSink?.('data:image/jpeg;base64,AAAA');
+    it('stays paused when the window comes back, until the resume button is pressed', async () => {
+        const {fake, service} = await sharing();
         window.dispatchEvent(new Event('blur'));
+        vi.advanceTimersByTime(BACKGROUND_IDLE_MS);
 
         window.dispatchEvent(new Event('focus'));
+
+        // Coming back to the app is a request for the app, not for a decode of your own screen.
+        expect(service.previewPaused()).toBe(true);
+        fake.previewSink?.('data:image/jpeg;base64,BBBB');
+        expect(service.publishPreview()).toBe('data:image/jpeg;base64,AAAA');
+
+        service.resumePreview();
+
+        expect(service.previewPaused()).toBe(false);
+        fake.previewSink?.('data:image/jpeg;base64,CCCC');
+        expect(service.publishPreview()).toBe('data:image/jpeg;base64,CCCC');
+    });
+
+    it('cancels the countdown outright when the window comes back inside the grace', async () => {
+        const {fake, service} = await sharing();
+
+        window.dispatchEvent(new Event('blur'));
+        vi.advanceTimersByTime(BACKGROUND_IDLE_MS / 2);
+        window.dispatchEvent(new Event('focus'));
+        // Cancelled, not merely restarted - sitting in the focused app must never pause on a clock
+        // that started before the user came back.
+        vi.advanceTimersByTime(BACKGROUND_IDLE_MS * 3);
 
         expect(service.previewPaused()).toBe(false);
         fake.previewSink?.('data:image/jpeg;base64,BBBB');
         expect(service.publishPreview()).toBe('data:image/jpeg;base64,BBBB');
+    });
+
+    it('restarts the countdown from scratch on a second blur rather than resuming the first', async () => {
+        const {service} = await sharing();
+
+        window.dispatchEvent(new Event('blur'));
+        vi.advanceTimersByTime(BACKGROUND_IDLE_MS - 1000);
+        window.dispatchEvent(new Event('focus'));
+        window.dispatchEvent(new Event('blur'));
+        vi.advanceTimersByTime(BACKGROUND_IDLE_MS - 1);
+
+        expect(service.previewPaused()).toBe(false);
+        vi.advanceTimersByTime(1);
+        expect(service.previewPaused()).toBe(true);
+    });
+
+    /**
+     * The reason the deadline is stored as a wall-clock instant rather than left to the timer. A
+     * backgrounded renderer is under Chromium's intensive throttling, so the very `setTimeout` this
+     * feature arms is the one least likely to fire on time - see the same trap in
+     * `voice-liveness-backgrounded.spec.ts`. `onPreviewFrame` runs off the IPC feed instead, so the
+     * next frame after the deadline is what lands the pause.
+     */
+    it('pauses on the next frame when the timer is throttled past its deadline', async () => {
+        const {fake, service} = await sharing();
+        window.dispatchEvent(new Event('blur'));
+
+        // The clock moves; the timer does not run. That is what throttling looks like from here.
+        vi.setSystemTime(Date.now() + BACKGROUND_IDLE_MS + 60_000);
+        expect(service.previewPaused()).toBe(false);
+
+        fake.previewSink?.('data:image/jpeg;base64,BBBB');
+
+        expect(service.previewPaused()).toBe(true);
+        // That frame was the one that noticed, so it is allowed to land - the freeze starts after.
+        fake.previewSink?.('data:image/jpeg;base64,CCCC');
+        expect(service.publishPreview()).toBe('data:image/jpeg;base64,BBBB');
+    });
+
+    it('pauses at once when the window is minimised, without waiting out the grace', async () => {
+        const {fake, service} = await sharing();
+
+        Object.defineProperty(document, 'hidden', {configurable: true, get: () => true});
+        document.dispatchEvent(new Event('visibilitychange'));
+
+        expect(service.previewPaused()).toBe(true);
+        fake.previewSink?.('data:image/jpeg;base64,BBBB');
+        expect(service.publishPreview()).toBe('data:image/jpeg;base64,AAAA');
+    });
+
+    it('stays paused after being un-minimised, exactly as it does after being un-backgrounded', async () => {
+        const {service} = await sharing();
+        Object.defineProperty(document, 'hidden', {configurable: true, get: () => true});
+        document.dispatchEvent(new Event('visibilitychange'));
+
+        Object.defineProperty(document, 'hidden', {configurable: true, get: () => false});
+        document.dispatchEvent(new Event('visibilitychange'));
+
+        expect(service.previewPaused()).toBe(true);
+        service.resumePreview();
+        expect(service.previewPaused()).toBe(false);
     });
 
     it('never claims to be paused while nothing is being shared', async () => {
@@ -695,6 +810,7 @@ describe('RustMediaService: background preview pause', () => {
         const {service} = setup(fake);
 
         window.dispatchEvent(new Event('blur'));
+        vi.advanceTimersByTime(BACKGROUND_IDLE_MS * 3);
 
         expect(service.previewPaused()).toBe(false);
     });
@@ -707,6 +823,7 @@ describe('RustMediaService: background preview pause', () => {
         await service.startScreenPublish(options());
 
         window.dispatchEvent(new Event('blur'));
+        vi.advanceTimersByTime(BACKGROUND_IDLE_MS * 3);
         expect(service.previewPaused()).toBe(false);
 
         // And the first frame still lands while backgrounded, so there is something to freeze over.
@@ -714,21 +831,23 @@ describe('RustMediaService: background preview pause', () => {
         expect(service.publishPreview()).toBe('data:image/jpeg;base64,FIRST');
     });
 
-    it('holds the pause across the idle window rather than arming a second one behind it', async () => {
+    /**
+     * Two reasons at once must not add up to the longer wait. Nobody rendering the preview is the
+     * stronger signal of the two and keeps its own thirty seconds, whether or not the window
+     * happens to be in the background as well.
+     */
+    it('keeps the shorter unclaimed window when a blurred preview also loses its last claim', async () => {
         const fake = new FakePublisher();
         const {service} = setup(fake);
         await service.startScreenPublish(options());
-        service.claimPreviewRender({});
+        const token = {};
+        service.claimPreviewRender(token);
         fake.previewSink?.('data:image/jpeg;base64,AAAA');
+
         window.dispatchEvent(new Event('blur'));
+        service.releasePreviewRender(token);
+        vi.advanceTimersByTime(PREVIEW_IDLE_MS);
 
-        vi.advanceTimersByTime(PREVIEW_IDLE_MS * 3);
-        window.dispatchEvent(new Event('focus'));
-
-        // Coming back must be enough on its own. An idle timer armed while backgrounded would have
-        // fired in the meantime and left the preview frozen with the window in front of you.
-        expect(service.previewPaused()).toBe(false);
-        fake.previewSink?.('data:image/jpeg;base64,BBBB');
-        expect(service.publishPreview()).toBe('data:image/jpeg;base64,BBBB');
+        expect(service.previewPaused()).toBe(true);
     });
 });

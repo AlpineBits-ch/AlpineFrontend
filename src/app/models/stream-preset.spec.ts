@@ -7,7 +7,6 @@ import {
     isAudioOnlyCeiling,
     isFramerateAllowed,
     isResolutionAllowed,
-    publishHeight,
     RESOLUTION_LABELS,
     resolutionHeight,
     StreamFramerate,
@@ -149,11 +148,4 @@ describe('a granted video rung', () => {
             .toEqual({resolution: '1080p', framerate: 30});
     });
 
-    it('states the source height for source and the fixed height for everything else', () => {
-        expect(publishHeight({resolution: '1080p', framerate: 30})).toBe(1080);
-        expect(publishHeight({resolution: 'source', framerate: 30}, 1600)).toBe(1600);
-        // Nothing to state rather than a made-up number: the caller omits the field entirely.
-        expect(publishHeight({resolution: 'source', framerate: 30})).toBe(0);
-        expect(publishHeight({resolution: 'source', framerate: 30}, 0)).toBe(0);
-    });
 });

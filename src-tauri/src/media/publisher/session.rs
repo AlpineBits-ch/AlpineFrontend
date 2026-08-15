@@ -9,7 +9,7 @@ use image::RgbaImage;
 use super::encoder::{new_encoder, EncoderSpec};
 use super::pump::FramePump;
 use super::rtc::{FrameSink, Publication};
-use super::signalling::Signalling;
+use super::signalling::{Signalling, VideoIntent};
 use crate::media::screen::{find_capture_source, run_capture_loop};
 
 /// How many encoded frames may queue between the capture thread and the async writer.
@@ -48,9 +48,12 @@ pub struct PublishHandle {
     capture_gone: Mutex<std::sync::mpsc::Receiver<()>>,
     /// Read every frame by the capture loop, so a framerate change lands within one frame.
     fps: Arc<AtomicU32>,
-    /// Fixed output geometry, and the target the encoder was built for.
+    /// Output geometry, and the target the encoder is currently built for. Moves under
+    /// [`PublishHandle::set_geometry`], which is the only thing that may change either.
     width: AtomicU32,
     height: AtomicU32,
+    /// Where [`PublishHandle::set_geometry`] posts a resolution change for the pump to pick up.
+    pending_spec: Arc<Mutex<Option<super::encoder::EncoderSpec>>>,
     pub media_session_id: String,
     pub track_name: String,
     /// Present only when this share carries its own sound. Viewers read it out of the snapshot's
@@ -80,15 +83,50 @@ impl PublishHandle {
         )
     }
 
+    /// Move the running publish to a new resolution and bitrate, without ending it.
+    ///
+    /// <p>This is what a resolution change is now. Everything the wire and the room can see - the
+    /// Cloudflare session, the peer connection, the RTP stream, the track name, and therefore the
+    /// share id - is untouched; only the encoder behind them is retyped, at a frame boundary, by
+    /// the capture thread that owns it. Viewers receive a new SPS/PPS and an IDR at the new size,
+    /// which is indistinguishable from any encoder adapting on its own, and nothing is announced
+    /// to anybody.</p>
+    ///
+    /// <p>Previously this was a stop and a start: a new session, a new share id, and a hole of one
+    /// to four seconds during which every viewer's tile left the grid entirely.</p>
+    ///
+    /// <p>The geometry recorded here is what was <em>asked for</em>. [`super::pump::FramePump`] is
+    /// free to refuse it - a driver that declines a retype leaves the share running at the old size
+    /// - so this is the request, not a reading of the encoder.</p>
+    pub fn set_geometry(&self, width: u32, height: u32, kbps: u32) {
+        let spec = super::encoder::EncoderSpec {
+            width,
+            height,
+            fps: self.fps.load(Ordering::Relaxed).clamp(1, 60),
+            kbps,
+        };
+        if let Ok(mut cell) = self.pending_spec.lock() {
+            // Overwritten rather than queued. Two changes arriving between frames means the user
+            // clicked twice; only the second one is a resolution anybody asked to watch.
+            *cell = Some(spec);
+        }
+        self.width.store(width, Ordering::Relaxed);
+        self.height.store(height, Ordering::Relaxed);
+    }
+
     /// Stop capturing, and do not return until the capture thread has actually gone.
     ///
     /// <p>The wait is the point. Asking the thread to stop and returning immediately leaves it
     /// running for the rest of the frame it is in the middle of - up to 300 ms at 4K in an
-    /// unoptimised build - and the one caller that cannot tolerate that is the one that stops a
-    /// publish in order to start another. A resolution change does exactly that, and every part of
-    /// the pipeline is then live twice over: two capture sessions duplicating the same monitor,
-    /// two Media Foundation encoders configuring against the same hardware, and the outgoing one's
-    /// `Drop` sending `END_STREAMING` while the incoming one negotiates its media types.</p>
+    /// unoptimised build - and the caller that cannot tolerate that is the one that stops a publish
+    /// in order to start another, because every part of the pipeline is then live twice over: two
+    /// capture sessions duplicating the same monitor, two Media Foundation encoders configuring
+    /// against the same hardware, and the outgoing one's `Drop` sending `END_STREAMING` while the
+    /// incoming one negotiates its media types.</p>
+    ///
+    /// <p>A resolution change used to be exactly that caller and no longer is - it goes through
+    /// [`PublishHandle::set_geometry`] instead, which never stops anything. What still reaches here
+    /// is stopping a share to share a different source, which starts a new publish just the same.</p>
     ///
     /// <p>Bounded rather than an outright join, so a driver call that never returns costs a pause
     /// instead of a screen share that can never be started again.</p>
@@ -270,8 +308,17 @@ pub async fn start(
         None
     };
 
-    let publication =
-        Publication::start(signalling, &share_id, ice_servers, screen_audio.is_some()).await?;
+    // The solved output geometry, which is what the encoder above was just built for - not the
+    // preset's nominal height. An ultrawide fitted into a 1080p box encodes 540 lines, and declaring
+    // 1080 would have the server cap a share that is well inside its rung.
+    let publication = Publication::start(
+        signalling,
+        &share_id,
+        ice_servers,
+        screen_audio.is_some(),
+        VideoIntent::new(height, fps),
+    )
+    .await?;
     let media_session_id = publication.media_session_id.clone();
     let track_name = publication.track_name.clone();
     // Taken before the publication is moved into the writer task below.
@@ -326,6 +373,9 @@ pub async fn start(
     if let Some(channel) = on_local_stream {
         pump = pump.with_local_stream(Box::new(channel), Arc::clone(&local_stream_on));
     }
+    // Taken before the pump moves onto the capture thread below - the last point at which the pump
+    // and the handle are reachable from the same place.
+    let pending_spec = pump.pending_spec();
 
     let (capture_gone_tx, capture_gone) = std::sync::mpsc::sync_channel::<()>(0);
 
@@ -354,6 +404,7 @@ pub async fn start(
         fps: handle_fps,
         width: AtomicU32::new(width),
         height: AtomicU32::new(height),
+        pending_spec,
         media_session_id,
         track_name,
         audio_track_name,
@@ -393,6 +444,7 @@ mod tests {
             fps: Arc::new(AtomicU32::new(30)),
             width: AtomicU32::new(1920),
             height: AtomicU32::new(1080),
+            pending_spec: Arc::new(Mutex::new(None)),
             media_session_id: "sess".into(),
             track_name: "screen-1".into(),
             audio_track_name: None,

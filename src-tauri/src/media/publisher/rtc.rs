@@ -24,7 +24,7 @@ use webrtc::rtp_transceiver::rtp_codec::RTCRtpCodecCapability;
 use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample;
 use webrtc::track::track_local::TrackLocal;
 
-use super::signalling::{LocalTrack, SessionDescription, Signalling};
+use super::signalling::{LocalTrack, SessionDescription, Signalling, VideoIntent};
 use crate::media::voice::rtc::opus_capability;
 
 /// One ICE server, mirroring the browser's `RTCIceServer`.
@@ -156,6 +156,7 @@ impl Publication {
         share_id: &str,
         ice_servers: Vec<IceServerConfig>,
         with_audio: bool,
+        video: Option<VideoIntent>,
     ) -> Result<Self, String> {
         let api = publisher_api()?;
 
@@ -302,6 +303,7 @@ impl Publication {
                     sdp: local.sdp,
                 },
                 &tracks,
+                video,
             )
             .await?;
 
@@ -359,6 +361,9 @@ impl Publication {
                     sdp_type: "offer".to_owned(),
                     sdp: offer.sdp,
                 },
+                // The publish this follows already declared the size, and it has not changed. An
+                // absent declaration leaves the server's recorded one exactly where it is.
+                None,
             )
             .await?;
 

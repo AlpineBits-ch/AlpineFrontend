@@ -43,9 +43,10 @@
                  canvas with no explanation on it - and `previewPaused()` is only ever true for the
                  local tile, so no remote stream can be shadowed by this. -->
             @if (previewPaused()) {
-                <!-- Task 10: idle-paused. The stream itself is still going out - only this local
-                     render stopped, see RustMediaService.previewPaused - so the copy here has to say
-                     that plainly rather than reading like the share ended. -->
+                <!-- Paused: unclaimed, minimised, or two minutes behind another window. The stream
+                     itself is still going out - only this local render stopped, see
+                     RustMediaService.previewPaused - so the copy here has to say that plainly
+                     rather than reading like the share ended. -->
                 <!-- The one thing inside the picture that stops the press reaching the surface's
                      own handler: resuming a frozen preview is what this press is asking for, not
                      maximising the frozen frame. -->
@@ -65,7 +66,10 @@
                         {{ 'CALL.RESUME_PREVIEW' | translate }}
                     </button>
                 </div>
-            } @else if (s.stream; as stream) {
+            } @else if (pictureStream(); as stream) {
+                <!-- `pictureStream()`, not `s.stream`: across a resume this is the stream the tile
+                     already had, kept mounted so the browser goes on showing its last decoded
+                     frame. See the computed - the held frame is the loading state. -->
                 <video #video [streamSrc]="stream" autoplay class="h-full w-full object-contain" muted
                        playsinline></video>
             } @else if (s.previewSrc) {
@@ -83,6 +87,24 @@
             }
         </div>
     </div>
+
+    <!-- Between tracks. The tile keeps its slot and its picture; this only says why the picture has
+         stopped moving.
+
+         Deliberately not a spinner over black. A spinner says the stream died and this box is now
+         empty; a held frame under a wash says the picture is paused and still yours. The one moving
+         thing is the hairline on the top edge - `.tile-resuming-line`, which flattens to a static
+         bar under prefers-reduced-motion. Pointer-events-none throughout: the picture underneath is
+         still the click target for maximise, and a resume is not a state anybody has to dismiss. -->
+    @if (resuming()) {
+        <div class="pointer-events-none absolute inset-0 z-20 flex items-end justify-center
+                    bg-[color-mix(in_srgb,var(--color-app-bg)_55%,transparent)]">
+            <div class="tile-resuming-line absolute inset-x-0 top-0 h-px"></div>
+            <p class="mb-4 select-none text-[0.6875rem] font-medium tracking-wide text-text-secondary">
+                {{ 'CALL.STREAM_RESUMING' | translate }}
+            </p>
+        </div>
+    }
 
     <!-- Top-left: what this stream is. The badge and the viewer count are always visible because
          they are information; the buttons beside them appear on hover because they are not. -->

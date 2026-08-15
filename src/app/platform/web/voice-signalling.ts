@@ -1,5 +1,6 @@
 import type {HttpClient} from '@angular/common/http';
 import {firstValueFrom} from 'rxjs';
+import type {VideoPublishIntentDto} from '../../dtos/response/entitlement.dto';
 import type {VoiceTarget} from '../ports/voice-publisher.port';
 
 /**
@@ -194,11 +195,30 @@ export function closeTracksMethod(dialect: VoiceDialect): 'post' | 'put' {
     return dialect === 'neutral' ? 'post' : 'put';
 }
 
+/**
+ * The size a video publish is about to encode, when there is one to state.
+ *
+ * <p>Neutral surface only. Isle's route is Cloudflare's own passthrough and has no entitlement layer
+ * in front of it, so a field it does not declare would be sent to an SFU rather than to Echo.</p>
+ *
+ * <p>Omitted rather than guessed when either axis is non-positive: the server reads an unstated axis
+ * as "leave it alone", which is the honest answer for a source nothing has measured.</p>
+ */
+function videoIntent(
+    dialect: VoiceDialect,
+    video: VideoPublishIntentDto | undefined,
+): {video: VideoPublishIntentDto} | Record<string, never> {
+    if (dialect !== 'neutral' || !video) return {};
+    if (video.height <= 0 || video.framerate <= 0) return {};
+    return {video};
+}
+
 export function publishBody(
     dialect: VoiceDialect,
     sessionId: string,
     sessionDescription: SdpPayload,
     tracks: LocalTrackRef[],
+    video?: VideoPublishIntentDto,
 ): Record<string, unknown> {
     return {
         [sessionKey(dialect)]: sessionId,
@@ -208,6 +228,7 @@ export function publishBody(
             mid: t.mid,
             trackName: t.trackName,
         })),
+        ...videoIntent(dialect, video),
     };
 }
 
@@ -229,12 +250,25 @@ export function subscribeBody(
     };
 }
 
+/**
+ * A renegotiation, optionally re-declaring what this session's video now is.
+ *
+ * <p>`video` belongs here only when <i>this</i> renegotiation is what changes the picture. The server
+ * computes its fan-out cap from the last declaration it saw, so an absent field leaves that cap
+ * exactly where it is - it neither applies one nor lifts one. An ICE restart, a reconnect and the
+ * immediate renegotiation the SFU asks for after a publish all send the body they always sent.</p>
+ */
 export function renegotiateBody(
     dialect: VoiceDialect,
     sessionId: string,
     sessionDescription: SdpPayload,
+    video?: VideoPublishIntentDto,
 ): Record<string, unknown> {
-    return {[sessionKey(dialect)]: sessionId, sessionDescription};
+    return {
+        [sessionKey(dialect)]: sessionId,
+        sessionDescription,
+        ...videoIntent(dialect, video),
+    };
 }
 
 export function closeTracksBody(
@@ -307,10 +341,15 @@ export class VoiceSignalling {
         return id;
     }
 
-    publish(sessionId: string, sdp: SdpPayload, tracks: LocalTrackRef[]): Promise<TracksResponseDto> {
+    publish(
+        sessionId: string,
+        sdp: SdpPayload,
+        tracks: LocalTrackRef[],
+        video?: VideoPublishIntentDto,
+    ): Promise<TracksResponseDto> {
         return firstValueFrom(this.http.post<TracksResponseDto>(
             tracksUrl(this.apiBase, this.target),
-            publishBody(this.dialect, sessionId, sdp, tracks),
+            publishBody(this.dialect, sessionId, sdp, tracks, video),
         ));
     }
 
@@ -321,10 +360,14 @@ export class VoiceSignalling {
         ));
     }
 
-    renegotiate(sessionId: string, sdp: SdpPayload): Promise<RenegotiateResponseDto> {
+    renegotiate(
+        sessionId: string,
+        sdp: SdpPayload,
+        video?: VideoPublishIntentDto,
+    ): Promise<RenegotiateResponseDto> {
         return firstValueFrom(this.http.put<RenegotiateResponseDto>(
             negotiateUrl(this.apiBase, this.target),
-            renegotiateBody(this.dialect, sessionId, sdp),
+            renegotiateBody(this.dialect, sessionId, sdp, video),
         ));
     }
 

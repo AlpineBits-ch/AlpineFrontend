@@ -47,6 +47,8 @@ export interface GuildMediaSources {
     localScreenAudioMuted(): boolean;
     isScreenAudioMuted(userId: string): boolean;
     inboundVideoFps(): Record<string, number>;
+    /** Whether this user's picture is between tracks and expected back - see `screen-resume.ts`. */
+    isScreenResuming(userId: string): boolean;
 }
 
 /** The slice of `CallSessionService` the DM projections read. */
@@ -110,6 +112,8 @@ export interface DmShareEntry {
     displayName: string;
     isLocal: boolean;
     stream: MediaStream | undefined;
+    /** Set by `CallSessionService` while a seat is being held - see `CallScreenShare.state`. */
+    state?: 'live' | 'resuming';
 }
 
 /**
@@ -175,6 +179,9 @@ export function guildScreenShares(
             // than 0 when the stat has not arrived yet, so a stream that just started and one that has
             // stalled do not look the same (CallScreenShare.inboundFps).
             inboundFps: p.isLocal ? publish.inboundFps() : (media.inboundVideoFps()[p.userId] ?? null),
+            // Never for the local share. This client is the publisher: it knows the moment its own
+            // share ends and never has to wait to find out, so it has no gap to hold a tile across.
+            state: !p.isLocal && media.isScreenResuming(p.userId) ? 'resuming' : 'live',
         };
     });
 }
@@ -215,6 +222,9 @@ export function dmScreenShares(
             // stream that just started and one that has stalled do not look the same
             // (CallScreenShare.inboundFps).
             inboundFps: sh.isLocal ? null : (rtc.inboundVideoFpsByShare()[sh.shareId] ?? null),
+            // Never for the local share, for the same reason as the guild projection: this client
+            // is the publisher and knows the moment its own share ends.
+            state: !sh.isLocal && sh.state === 'resuming' ? 'resuming' : 'live',
         };
     });
 }

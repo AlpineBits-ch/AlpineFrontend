@@ -1,6 +1,6 @@
 [package]
 name = "Venta"
-version = "3.0.204"
+version = "3.0.205"
 description = ""
 authors = ["you"]
 edition = "2021"
@@ -124,9 +124,10 @@ tauri-plugin-notifications = { version = "0.4.6", features = ["push-notification
 
 # `[patch.crates-io]` used to live here. Cargo only honours a patch section in the *workspace root*
 # manifest, and this crate became a workspace member when `crates/venta-crypto` was split out - a
-# patch left here would be ignored with a warning, un-patching MSVC echo cancellation, the `hrtf`
-# debug-assertion panic and the window-state maximize bit all at once. All three moved to
-# `../Cargo.toml` verbatim, with `src-tauri/` prepended to their paths.
+# patch left here would be ignored with a warning, un-patching MSVC echo cancellation and the
+# `hrtf` debug-assertion panic. Both moved to `../Cargo.toml` verbatim, with `src-tauri/` prepended
+# to their paths. (A third, `tauri-plugin-window-state`, went with them and has since been dropped
+# entirely in favour of `src/window_state`.)
 
 [features]
 default = ["aec"]
@@ -151,7 +152,6 @@ tempfile = "3"
 reqwest = { version = "0.12", default-features = false, features = ["native-tls", "json"] }
 tauri-plugin-autostart = "2"
 tauri-plugin-single-instance = "2"
-tauri-plugin-window-state = "2"
 tauri-plugin-global-shortcut = "2"
 cpal = "0.15"
 xcap = "0.9"

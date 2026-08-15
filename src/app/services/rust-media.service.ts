@@ -91,14 +91,30 @@ export interface ScreenPublishOptions {
 }
 
 /**
- * How long the local preview goes unclaimed - nobody rendering it, or the window hidden - before
- * frames stop being applied. See {@link RustMediaService.previewPaused}.
+ * How long the local preview goes unclaimed - nobody rendering it at all - before frames stop being
+ * applied. See {@link RustMediaService.previewPaused}.
  *
  * <p>Matches Discord's own resource-saving pause: the stream keeps going, only the local render
  * stops, and there is a way back. Exported so a spec can advance fake timers by exactly this much
  * rather than a magic number that could silently drift from the real constant.</p>
  */
 export const PREVIEW_IDLE_MS = 30_000;
+
+/**
+ * How long the preview keeps running after this window goes behind another one.
+ *
+ * <p><b>Why this is not zero.</b> It used to be: `blur` paused on the spot, on the reasoning that a
+ * window you cannot see is a window nobody is looking at. That is true of the window and false of
+ * the user - alt-tabbing to the thing you are sharing, or to a browser to check a link, is the most
+ * ordinary half-minute in a screen share, and coming back to a frozen card every time reads as the
+ * share having broken rather than as a saving. Two minutes is past the point where a switch is a
+ * glance and into the point where the app has genuinely been left behind.</p>
+ *
+ * <p>Minimising is deliberately <i>not</i> this - see {@link RustMediaService.previewPauseDelay}.
+ * `document.hidden` means the window is gone from the screen entirely, which is a decision about the
+ * app rather than a glance away from it, and there is nothing to be gentle about.</p>
+ */
+export const BACKGROUND_IDLE_MS = 120_000;
 
 export interface ScreenPublishResult {
     mediaSessionId: string;
@@ -192,26 +208,31 @@ export class RustMediaService {
     private localFpsInterval: ReturnType<typeof setInterval> | undefined;
     private readonly _previewPaused = signal(false);
     /**
-     * Whether this window is behind another one - see {@link previewPaused}, which folds it in.
+     * Whether this window is behind another one.
      *
-     * <p>Tracked separately from the idle pause because the two are undone by different things. Idle
-     * is cleared by a click on the paused card; this one is cleared by the window coming back to the
-     * front, and nothing else can clear it - a click on the card is only reachable with the window
-     * already focused, so the two can never disagree about what the user just did.</p>
+     * <p>Deliberately a plain field rather than a signal: nothing renders it any more. It is one of
+     * the three inputs to {@link isPreviewActive}, read imperatively from
+     * {@link reconsiderPreviewIdle}, and every event that changes it calls straight back into that.
+     * Making it reactive would only invite an effect to depend on a fact that is not the state
+     * anyone means - which is precisely the mistake this replaces, where being backgrounded <i>was
+     * itself</i> a pause.</p>
      */
-    private readonly _windowBackgrounded = signal(false);
+    private windowBlurred = false;
     /**
      * True while frames are not being applied to {@link publishPreview}.
      *
-     * <p>Two independent reasons, either of which is enough: nobody has been looking at the preview
-     * for {@link PREVIEW_IDLE_MS}, or this window is not the one in front of the user
-     * ({@link _windowBackgrounded}). The stream itself is unaffected by both - only the local render
+     * <p><b>A latch, not a live condition.</b> Something inactive - nobody rendering the preview,
+     * the window behind another one, the window minimised - starts a countdown, and when that
+     * elapses this goes true and <i>stays</i> true until {@link resumePreview}. Whatever ended the
+     * inactivity does not end the pause: coming back to the app is not a request to start decoding
+     * your own screen again, it is a request for the app. See {@link previewPauseDelay} for how long
+     * each reason gets. The stream itself is unaffected by any of it - only the local render
      * stops.</p>
      *
      * <p>Gated on a preview actually existing, so the flag never claims a pause for a share with
      * nothing to freeze. Backgrounding while a share's first frame is still on its way must leave
      * that frame free to land, or the share would be frozen over nothing for its whole lifetime with
-     * no card to click - the same rule {@link reconsiderPreviewIdle} follows for the idle half.</p>
+     * no card to click - the same rule {@link reconsiderPreviewIdle} follows throughout.</p>
      *
      * <p>{@link publishPreview} is left holding whatever frame it last had rather than being reset
      * to null, so a consumer can tell "paused" from "no share at all" and render the two
@@ -219,11 +240,20 @@ export class RustMediaService {
      * in a call nobody is sharing in. Frames keep crossing the IPC boundary from Rust exactly as
      * before; only whether the webview applies them changes - see {@link claimPreviewRender}.</p>
      */
-    readonly previewPaused = computed(() =>
-        this._publishPreview() !== null && (this._previewPaused() || this._windowBackgrounded()));
+    readonly previewPaused = computed(() => this._publishPreview() !== null && this._previewPaused());
     /** Renderers currently claiming "I am showing the preview" - see {@link claimPreviewRender}. */
     private readonly previewClaimants = new Set<object>();
     private previewIdleTimer: ReturnType<typeof setTimeout> | null = null;
+    /**
+     * When {@link previewIdleTimer} is due, as a wall-clock instant.
+     *
+     * <p>Held alongside the timer rather than derived from it because the timer cannot be trusted to
+     * fire on time: a backgrounded renderer is under Chromium's intensive throttling, where a
+     * `setTimeout` wakes at minute granularity - and the whole point of {@link BACKGROUND_IDLE_MS}
+     * is that it is armed exactly when the window is backgrounded. See
+     * {@link reconsiderPreviewIdle}, which compares this against the clock on every call.</p>
+     */
+    private previewPauseAt: number | null = null;
     private readonly _inboundFps = signal(0);
     /** Frames received from the native pipeline per second. Stays 0 where frames never enter the webview. */
     readonly inboundFps = this._inboundFps.asReadonly();
@@ -236,6 +266,13 @@ export class RustMediaService {
 
     /** The share {@link startScreenPublish} last opened, or null when nothing is publishing. */
     private activeShareId: string | null = null;
+
+    /**
+     * What the running publish was opened with, kept so the local decoder can be rebuilt against
+     * it - see {@link setPublishGeometry}, which is the only thing that reads it and the only
+     * thing that changes it after a publish starts.
+     */
+    private lastPublishOptions: ScreenPublishOptions | null = null;
 
     private readonly _screenAudioOutcome = signal<ScreenAudioOutcome>('off');
     /**
@@ -269,19 +306,21 @@ export class RustMediaService {
     private readonly onVisibilityChange = (): void => this.reconsiderPreviewIdle();
 
     /**
-     * The window went behind something else. Acted on at once rather than through the idle timer -
-     * "is this window in front of you" is answered the moment it changes, and waiting
-     * {@link PREVIEW_IDLE_MS} to act on it would decode thirty seconds of frames per alt-tab.
+     * The window went behind something else. Starts the {@link BACKGROUND_IDLE_MS} countdown rather
+     * than pausing on the spot: see that constant for why the spot is the wrong moment.
      */
-    private readonly onWindowBlur = (): void => this._windowBackgrounded.set(true);
+    private readonly onWindowBlur = (): void => {
+        this.windowBlurred = true;
+        this.reconsiderPreviewIdle();
+    };
 
     /**
-     * The window came back. Resumes on its own - the user asked for the app, not for a frozen
-     * picture of their own screen - and re-arms the idle clock, which was deliberately never
-     * running while backgrounded.
+     * The window came back. Cancels a countdown that has not fired yet, and deliberately does
+     * <b>not</b> undo one that has - {@link _previewPaused} is a latch, and only the resume button
+     * clears it.
      */
     private readonly onWindowFocus = (): void => {
-        this._windowBackgrounded.set(false);
+        this.windowBlurred = false;
         this.reconsiderPreviewIdle();
     };
 
@@ -306,6 +345,7 @@ export class RustMediaService {
             this._publishPreview.set(null);
             this.closeLocalRenderer();
             this.activeShareId = null;
+            this.lastPublishOptions = null;
             this._screenAudioOutcome.set('off');
             this.resetPreviewPause();
             this.publishEndedSignal.next();
@@ -326,15 +366,15 @@ export class RustMediaService {
                 .catch(e => console.warn('[screen] toggling the local stream failed', e));
         });
 
-        // The other half of what drives the idle pause, alongside the render claims - see
+        // One of the three things that drive the pause, alongside the render claims and focus - see
         // reconsiderPreviewIdle. A root singleton lives for the app's whole lifetime in production,
         // so this never needed removing there - but ~110 TestBed instantiations across the suite each
         // leak one onto `document` without it, so it is torn down like any other listener would be.
         document.addEventListener('visibilitychange', this.onVisibilityChange);
         // `visibilitychange` alone misses the ordinary case: on a desktop window it flips on
         // minimise, not when another window simply comes to the front. Sharing your screen and then
-        // switching to the thing you are sharing is exactly that case, and it is the one moment
-        // nobody can possibly be looking at the preview.
+        // switching to the thing you are sharing is exactly that case - and it is why the two are
+        // now told apart rather than both meaning "paused", see previewPauseDelay.
         window.addEventListener('blur', this.onWindowBlur);
         window.addEventListener('focus', this.onWindowFocus);
         inject(DestroyRef).onDestroy(() => {
@@ -455,8 +495,8 @@ export class RustMediaService {
         // this, a second publish starting while an earlier paused share was still active would begin
         // already paused, frozen over the old share's last frame.
         this.resetPreviewPause();
-        // Same reasoning, one layer down: a resolution change stops and restarts the publish, and a
-        // decoder still holding the old geometry would letterbox the new share into the old frame.
+        // Same reasoning, one layer down: a decoder still holding the previous share's geometry
+        // would letterbox this one into the old frame.
         this.closeLocalRenderer();
 
         // Settled before the publish, because the answer decides what Rust is asked to send. A host
@@ -464,6 +504,7 @@ export class RustMediaService {
         const codec = await (this.h264Codec ??= pickH264Codec());
         const result = await this.publisher.start({...options, localStream: codec !== null});
         this.activeShareId = options.shareId;
+        this.lastPublishOptions = options;
         if (codec !== null) this.openLocalRenderer(options, codec);
         // Derived from both halves, because that is the only place both facts are in hand: what the user
         // asked for, and what came back.
@@ -479,12 +520,18 @@ export class RustMediaService {
     }
 
     /**
-     * Resumes the preview after an idle pause - the button on the paused card, or any other
-     * interaction with it.
+     * Resumes the preview - the button on the paused card, or any other interaction with it.
      *
-     * <p>Clears the paused flag only. Whether the feed goes straight back to landing frames or has
-     * to wait out another idle window before it can pause again depends on the render claims and
-     * window visibility exactly as it did before pausing - see {@link reconsiderPreviewIdle}.</p>
+     * <p><b>The only thing that lifts a pause.</b> {@link _previewPaused} is a latch: nothing about
+     * the window coming back to the front, being un-minimised, or a tile starting to render again
+     * undoes it. That is deliberate, and it is what makes the pause card mean something - a share
+     * frozen because the app spent two minutes behind a game should not silently thaw and re-freeze
+     * every time the user glances at it.</p>
+     *
+     * <p>Clears the flag only. Whether the feed goes straight back to landing frames or immediately
+     * starts counting down again depends on the render claims, focus and visibility exactly as it
+     * did before pausing - see {@link reconsiderPreviewIdle}. In practice a press arrives with the
+     * window focused, so it counts down from a full window rather than from whatever was left.</p>
      */
     resumePreview(): void {
         this._previewPaused.set(false);
@@ -564,20 +611,47 @@ export class RustMediaService {
         this.resetPreviewPause();
         const shareId = this.activeShareId;
         this.activeShareId = null;
+        this.lastPublishOptions = null;
         if (shareId === null) return;
         await this.publisher.stop(shareId).catch(e => console.warn('[screen] stopping the publish failed', e));
     }
 
-    /**
-     * Change the publisher's capture rate mid-stream.
-     *
-     * Framerate is the only part of a preset that changes without rebuilding the encoder, which is
-     * fixed to one geometry and bitrate for its lifetime; a resolution change restarts the publish.
-     */
+    /** Change the publisher's capture rate mid-stream. Lands within one frame. */
     async setPublishFps(fps: number): Promise<void> {
         if (this.activeShareId === null) return;
         await this.publisher.setFps(this.activeShareId, fps)
             .catch(e => console.warn('[screen] setting the publish framerate failed', e));
+    }
+
+    /**
+     * Change the publisher's output resolution and bitrate mid-stream.
+     *
+     * <p>The publish is not restarted, so the share id every viewer holds stays valid and nothing is
+     * announced. See {@link ScreenPublisher.setGeometry} for what this replaced and why.</p>
+     *
+     * <p><b>The local decoder is rebuilt here.</b> The sharer's own tile decodes the same H.264 the
+     * wire carries, through a `VideoDecoder` configured for one geometry, and a decoder still
+     * holding the old size letterboxes the new picture into the old frame. That used to be handled
+     * incidentally by {@link startScreenPublish}, because a resolution change happened to pass
+     * through it; now nothing else will do it.</p>
+     */
+    async setPublishGeometry(width: number, height: number, kbps: number): Promise<void> {
+        const shareId = this.activeShareId;
+        if (shareId === null) return;
+
+        await this.publisher.setGeometry(shareId, width, height, kbps)
+            .catch(e => console.warn('[screen] setting the publish geometry failed', e));
+
+        // Only where one was open. A host with no `VideoDecoder` has been on the thumbnail all
+        // along, and the thumbnail carries its own dimensions per frame.
+        const options = this.lastPublishOptions;
+        if (!this.localRenderer || !options) return;
+        const codec = await this.h264Codec;
+        if (!codec) return;
+
+        this.lastPublishOptions = {...options, width, height, kbps};
+        this.closeLocalRenderer();
+        this.openLocalRenderer(this.lastPublishOptions, codec);
     }
 
     /**
@@ -729,12 +803,35 @@ export class RustMediaService {
 
     // ── Idle preview pause ───────────────────────────────────────────────────
 
+    /** Somebody is rendering the preview, in a window that is on screen and in front. */
     private isPreviewActive(): boolean {
-        return !document.hidden && this.previewClaimants.size > 0;
+        return !document.hidden && !this.windowBlurred && this.previewClaimants.size > 0;
     }
 
     /**
-     * Re-evaluates the idle timer against the current render claims and window visibility.
+     * How long the preview may keep running, given why it is currently inactive. Zero means pause
+     * now.
+     *
+     * <p>The three reasons are not equally strong, so they do not share a delay. Minimised is the
+     * strongest - the window is off the screen, which nobody does by accident, so there is nothing
+     * to wait for. Unclaimed is next: the app is right there in front of the user and not one thing
+     * in it is rendering the preview, which is the original {@link PREVIEW_IDLE_MS} case. Merely
+     * being behind another window is the weakest, and gets {@link BACKGROUND_IDLE_MS}.</p>
+     *
+     * <p>Tested in that order so that when two apply at once the shorter wins - a preview nobody is
+     * rendering has no reason to be spared just because the window also happens to be in the
+     * background.</p>
+     */
+    private previewPauseDelay(): number {
+        if (document.hidden) return 0;
+        if (this.previewClaimants.size === 0) return PREVIEW_IDLE_MS;
+        return BACKGROUND_IDLE_MS;
+    }
+
+    /**
+     * Re-evaluates the pause countdown against the current render claims, window focus and
+     * visibility. Cheap and idempotent, so every event that could change any of those simply calls
+     * it.
      *
      * <p>Only ever schedules a pause while a share is actually publishing - {@link activeShareId}
      * null means there is nothing to pause, and letting the timer run anyway would eventually flip
@@ -758,17 +855,44 @@ export class RustMediaService {
             this.clearPreviewIdleTimer();
             return;
         }
-        // Already paused, or already counting down to it - either way there is nothing new to
-        // schedule. Resuming while still inactive (resumePreview called from somewhere that is not
-        // actually visible/claimed) falls through here too, and correctly starts the next countdown.
-        if (this.previewPaused() || this.previewIdleTimer !== null) return;
-        this.previewIdleTimer = setTimeout(() => {
-            this.previewIdleTimer = null;
-            this._previewPaused.set(true);
-        }, PREVIEW_IDLE_MS);
+        // Already paused. The latch is only ever lifted by resumePreview, so there is nothing to
+        // schedule and nothing to re-check.
+        if (this._previewPaused()) return;
+
+        const delay = this.previewPauseDelay();
+        if (delay === 0) {
+            this.pausePreviewNow();
+            return;
+        }
+
+        const deadline = Date.now() + delay;
+        if (this.previewPauseAt !== null) {
+            // A countdown already due at or before the one this call would arm stays as it is -
+            // otherwise a reason that arrives second (the window blurring behind an already-idle
+            // preview) would push the deadline out rather than leaving it alone.
+            if (this.previewPauseAt <= deadline) {
+                // Unless it is already overdue. `onPreviewFrame` calls in here off the IPC feed
+                // rather than a timer, so this is what lands the pause on time on a backgrounded
+                // renderer whose setTimeout is being woken at minute granularity - see
+                // previewPauseAt.
+                if (Date.now() >= this.previewPauseAt) this.pausePreviewNow();
+                return;
+            }
+            // The new reason is more urgent than the pending one - the only way here is a claim
+            // being released while the window was already blurred, dropping 120s to 30s.
+        }
+        this.clearPreviewIdleTimer();
+        this.previewPauseAt = deadline;
+        this.previewIdleTimer = setTimeout(() => this.pausePreviewNow(), delay);
+    }
+
+    private pausePreviewNow(): void {
+        this.clearPreviewIdleTimer();
+        this._previewPaused.set(true);
     }
 
     private clearPreviewIdleTimer(): void {
+        this.previewPauseAt = null;
         if (this.previewIdleTimer === null) return;
         clearTimeout(this.previewIdleTimer);
         this.previewIdleTimer = null;

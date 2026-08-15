@@ -14,11 +14,11 @@ export const ACTIVATION_CLICK_MS = 300;
  *
  * <p>Clicking an app that is not in front of you does two things at once on Windows: it activates
  * the window <em>and</em> delivers the click to whatever is under the cursor. Usually harmless -
- * until focusing the app also changes what is under the cursor. That is exactly the call stage:
- * regaining focus resumes the local preview (see `RustMediaService.previewPaused`), the paused card
- * the press was aimed at is replaced by the live picture, and the press lands on the picture
- * instead, which opens the stream full-stage. Pressing "resume preview" would maximise every
- * time.</p>
+ * until what is under the cursor is a control about the window's own absence. That is exactly the
+ * call stage: after two minutes in the background the local preview pauses
+ * (see `RustMediaService.previewPaused`) and the paused card is what sits where the picture was, so
+ * the press that brings the app back lands on "resume preview" - or, in the version of this that
+ * shipped first, on the live picture that focus had just restored, opening it full-stage.</p>
  *
  * <p>So the rule is simply that the press which brings the app back is not also a command. That is
  * the same thing macOS does for background windows, and the same thing every user already expects

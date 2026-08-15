@@ -60,13 +60,26 @@ export abstract class ScreenPublisher {
      */
     abstract stop(shareId: string): Promise<void>;
 
-    /**
-     * Change the capture rate mid-stream.
-     *
-     * <p>Framerate is the only part of a preset that changes without rebuilding the encoder, which is
-     * fixed to one geometry and bitrate for its lifetime; a resolution change restarts the publish.</p>
-     */
+    /** Change the capture rate mid-stream. Lands within one frame on either host. */
     abstract setFps(shareId: string, fps: number): Promise<void>;
+
+    /**
+     * Change the output resolution and bitrate mid-stream, without ending the publish.
+     *
+     * <p><b>Nothing a viewer can see changes identity.</b> The session, the track and therefore the
+     * `shareId` all survive this, so a resolution change is not announced to anybody - viewers get a
+     * picture that changes size, which is what any encoder adapting on its own already produces.</p>
+     *
+     * <p>This used to be a stop followed by a start on the desktop host, because its encoder is
+     * built for one geometry. That cost a new share id, and every viewer's tile left the grid for
+     * one to four seconds - long enough that a maximised stream emptied the stage completely. The
+     * encoder is retyped in place instead; the web host has always done the equivalent.</p>
+     *
+     * <p>Best-effort by contract. A host that declines - a driver refusing a retype - leaves the
+     * share running at the resolution it already had, which is a picture the viewer can still
+     * watch. Callers must not treat this as a gate on anything.</p>
+     */
+    abstract setGeometry(shareId: string, width: number, height: number, kbps: number): Promise<void>;
 
     /** Mute the share's own sound. Stops packets, not the capture device, so unmuting is instant. */
     abstract setAudioMuted(shareId: string, muted: boolean): Promise<void>;

@@ -8,12 +8,12 @@
 //! proves the picture was *produced*, never that it was delivered.
 
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use image::RgbaImage;
 
-use super::encoder::{EncodeOutcome, VideoEncoder};
+use super::encoder::{EncodeOutcome, EncoderSpec, VideoEncoder};
 use super::fit::fit_into;
 use super::session::PreviewFrame;
 
@@ -98,9 +98,17 @@ pub struct PumpStats {
 
 /// Turns captured frames into queued access units.
 pub struct FramePump<P: PreviewSink> {
-    /// Fixed output geometry. The source can change size mid-session; the encoder cannot.
+    /// Output geometry. The source can change size at any moment and is fitted to this; this
+    /// itself moves only when [`Self::pending_spec`] is filled in, and only at a frame boundary.
     width: u32,
     height: u32,
+    /// A resolution change waiting to be applied, written from outside the capture thread.
+    ///
+    /// <p>A cell rather than a direct call because the encoder belongs to this thread and cannot be
+    /// touched from the IPC one, exactly as the keyframe request cannot - see `keyframe_wanted`.
+    /// Applied at the top of [`Self::on_frame`], which is the only place `width`/`height` and the
+    /// encoder's own geometry can be moved as one step.</p>
+    pending_spec: Arc<Mutex<Option<EncoderSpec>>>,
     /// Read every frame, so a framerate change lands within one frame.
     fps: Arc<AtomicU32>,
     encoder: Box<dyn VideoEncoder>,
@@ -148,6 +156,7 @@ impl<P: PreviewSink> FramePump<P> {
         Self {
             width,
             height,
+            pending_spec: Arc::new(Mutex::new(None)),
             fps,
             encoder,
             keyframe_wanted,
@@ -189,11 +198,61 @@ impl<P: PreviewSink> FramePump<P> {
         self.stats
     }
 
+    /// The cell a resolution change is posted into, for whoever outlives this pump.
+    ///
+    /// <p>Handed out rather than passed in so [`Self::new`]'s signature - and its four call sites -
+    /// stay as they were. `session::start` takes it before the pump moves onto the capture thread,
+    /// which is the last moment either half is reachable from the same place.</p>
+    pub fn pending_spec(&self) -> Arc<Mutex<Option<EncoderSpec>>> {
+        Arc::clone(&self.pending_spec)
+    }
+
+    /// Move this pump and its encoder to a new geometry, in one step.
+    ///
+    /// <p><b>The single step is the whole point.</b> `SoftwareEncoder::encode` rejects any frame
+    /// whose dimensions differ from the spec it was built for, and that rejection is
+    /// [`EncodeOutcome::Failed`] - which ends the capture loop. So a window in which `width` and
+    /// the encoder disagree is not a glitch, it is a dead share. Nothing between the two
+    /// assignments below may encode a frame.</p>
+    ///
+    /// <p>A refused reconfigure leaves the old geometry running rather than propagating. The share
+    /// carries on at the resolution it already had, which is a picture the viewer can still watch;
+    /// tearing it down because a driver declined a retype would turn a cosmetic failure into the
+    /// outage this whole change exists to remove.</p>
+    fn apply_spec(&mut self, spec: EncoderSpec) {
+        if let Err(e) = self.encoder.reconfigure(spec) {
+            eprintln!(
+                "[publisher] the encoder refused {}x{} ({e}); staying at {}x{}",
+                spec.width, spec.height, self.width, self.height
+            );
+            return;
+        }
+        self.width = spec.width;
+        self.height = spec.height;
+        // The encoder was just built to expect this rate, and the capture loop paces off the same
+        // atomic. Leaving them to disagree would have rate control dividing its budget by a number
+        // nothing is producing at.
+        self.fps.store(spec.fps.clamp(1, 60), Ordering::Relaxed);
+        // The replacement shares no prediction state with what it replaced - and on the software
+        // path it is a different object entirely - so the next frame has to be an IDR carrying the
+        // SPS/PPS that describe the new size. Without it every viewer decodes garbage until the
+        // periodic keyframe comes round.
+        self.encoder.request_keyframe();
+        eprintln!("[publisher] now encoding at {}x{} ({} kbps)", spec.width, spec.height, spec.kbps);
+    }
+
     /// Fit, preview, encode and enqueue one captured frame.
     ///
     /// Never blocks. A writer that has fallen behind costs a dropped frame, not a stalled capture
     /// thread - for a live screen, bounded latency matters far more than completeness.
     pub fn on_frame(&mut self, rgba: &RgbaImage) {
+        // Before the frame is fitted, because fitting reads the very geometry this moves. Taken
+        // out of the cell rather than read from it, so a spec is applied once and a lock is never
+        // held across the encode below.
+        if let Some(spec) = self.pending_spec.lock().ok().and_then(|mut cell| cell.take()) {
+            self.apply_spec(spec);
+        }
+
         // Read the clock before the work, not after: the timestamp belongs to when the frame was
         // captured, and fitting and encoding it takes long enough at high resolutions to matter.
         let now = Instant::now();
@@ -352,14 +411,32 @@ mod tests {
     use super::*;
     use crate::media::publisher::encoder::EncodedChunk;
 
-    /// Hands back one chunk per frame and records the timestamp it was given.
+    /// What a [`RecordingEncoder`] was asked to do, readable from outside the pump that owns it.
+    #[derive(Default)]
+    struct EncoderLog {
+        /// Presentation timestamps, one per encoded frame.
+        seen: Vec<u64>,
+        /// The dimensions of each frame as it reached the encoder. This is what proves the pump
+        /// fits to the geometry it just moved to, rather than to the one it moved from.
+        sizes: Vec<(u32, u32)>,
+        /// Every spec the encoder was retyped to, in order.
+        reconfigured: Vec<EncoderSpec>,
+        keyframes_requested: u32,
+    }
+
+    /// Hands back one chunk per frame and records everything it was asked to do.
     struct RecordingEncoder {
-        seen: Arc<std::sync::Mutex<Vec<u64>>>,
+        log: Arc<Mutex<EncoderLog>>,
+        /// Set to make [`VideoEncoder::reconfigure`] refuse, the way a driver declining a retype
+        /// does. The pump must then keep running at the geometry it already had.
+        refuse_reconfigure: bool,
     }
 
     impl VideoEncoder for RecordingEncoder {
-        fn encode(&mut self, _frame: &RgbaImage, timestamp_us: u64) -> EncodeOutcome {
-            self.seen.lock().unwrap().push(timestamp_us);
+        fn encode(&mut self, frame: &RgbaImage, timestamp_us: u64) -> EncodeOutcome {
+            let mut log = self.log.lock().unwrap();
+            log.seen.push(timestamp_us);
+            log.sizes.push((frame.width(), frame.height()));
             EncodeOutcome::Chunk(EncodedChunk {
                 data: vec![0, 0, 0, 1, 0x65],
                 is_keyframe: false,
@@ -367,7 +444,17 @@ mod tests {
             })
         }
 
-        fn request_keyframe(&mut self) {}
+        fn request_keyframe(&mut self) {
+            self.log.lock().unwrap().keyframes_requested += 1;
+        }
+
+        fn reconfigure(&mut self, spec: EncoderSpec) -> Result<(), String> {
+            if self.refuse_reconfigure {
+                return Err("this encoder refuses retypes".into());
+            }
+            self.log.lock().unwrap().reconfigured.push(spec);
+            Ok(())
+        }
 
         fn name(&self) -> &'static str {
             "recording"
@@ -376,26 +463,44 @@ mod tests {
 
     struct Harness {
         pump: FramePump<()>,
-        seen: Arc<std::sync::Mutex<Vec<u64>>>,
+        log: Arc<Mutex<EncoderLog>>,
+        fps: Arc<AtomicU32>,
         frames: tokio::sync::mpsc::Receiver<(Vec<u8>, Duration)>,
+    }
+
+    impl Harness {
+        fn seen(&self) -> Vec<u64> {
+            self.log.lock().unwrap().seen.clone()
+        }
     }
 
     /// A pump declaring `fps`, with a queue deep enough that nothing under test is dropped.
     fn harness(fps: u32) -> Harness {
-        let seen = Arc::new(std::sync::Mutex::new(Vec::new()));
+        harness_with(fps, false)
+    }
+
+    fn harness_with(fps: u32, refuse_reconfigure: bool) -> Harness {
+        let log = Arc::new(Mutex::new(EncoderLog::default()));
+        let fps = Arc::new(AtomicU32::new(fps));
         let (frame_tx, frames) = tokio::sync::mpsc::channel(64);
         let pump = FramePump::new(
             64,
             64,
-            Arc::new(AtomicU32::new(fps)),
+            Arc::clone(&fps),
             Box::new(RecordingEncoder {
-                seen: Arc::clone(&seen),
+                log: Arc::clone(&log),
+                refuse_reconfigure,
             }),
             Arc::new(AtomicBool::new(false)),
             (),
             frame_tx,
         );
-        Harness { pump, seen, frames }
+        Harness {
+            pump,
+            log,
+            fps,
+            frames,
+        }
     }
 
     fn frame() -> RgbaImage {
@@ -428,7 +533,7 @@ mod tests {
             std::thread::sleep(REAL_GAP);
         }
 
-        let seen = h.seen.lock().unwrap().clone();
+        let seen = h.seen();
         let span = seen.last().unwrap() - seen.first().unwrap();
 
         // Four gaps of 100 ms is 400 ms of real time. Counting frames at the declared 30 fps
@@ -467,7 +572,7 @@ mod tests {
     fn the_first_frame_starts_at_zero() {
         let mut h = harness(DECLARED_FPS);
         h.pump.on_frame(&frame());
-        assert_eq!(h.seen.lock().unwrap()[0], 0);
+        assert_eq!(h.seen()[0], 0);
     }
 
     #[test]
@@ -479,7 +584,7 @@ mod tests {
             std::thread::sleep(Duration::from_millis(33));
         }
 
-        let seen = h.seen.lock().unwrap().clone();
+        let seen = h.seen();
         let span = seen.last().unwrap() - seen.first().unwrap();
         assert!(
             (70_000..170_000).contains(&span),
@@ -579,5 +684,113 @@ mod tests {
         let mut h = harness(DECLARED_FPS);
         h.pump.on_frame(&frame());
         assert_eq!(durations(&mut h).len(), 1);
+    }
+
+    // ── Resolution changes ────────────────────────────────────────────────────
+
+    fn spec_at(width: u32, height: u32) -> EncoderSpec {
+        EncoderSpec {
+            width,
+            height,
+            fps: DECLARED_FPS,
+            kbps: 2500,
+        }
+    }
+
+    /// The hazard this whole path is built around.
+    ///
+    /// `SoftwareEncoder::encode` rejects any frame whose dimensions differ from the spec it was
+    /// built for, and that rejection is `Failed`, which ends the capture loop. So the geometry
+    /// frames are fitted to and the geometry the encoder expects must never disagree, not even for
+    /// one frame. Asserting on the size the encoder was actually handed is the only way to see it:
+    /// a pump that reconfigured the encoder and went on fitting to the old box would look
+    /// completely healthy from every other angle and kill the share on a real encoder.
+    #[test]
+    fn a_resolution_change_moves_the_fit_and_the_encoder_in_the_same_frame() {
+        let mut h = harness(DECLARED_FPS);
+        h.pump.on_frame(&frame());
+
+        *h.pump.pending_spec().lock().unwrap() = Some(spec_at(32, 48));
+        h.pump.on_frame(&frame());
+
+        let log = h.log.lock().unwrap();
+        assert_eq!(
+            log.reconfigured,
+            vec![spec_at(32, 48)],
+            "the encoder was not retyped"
+        );
+        assert_eq!(
+            log.sizes,
+            vec![(64, 64), (32, 48)],
+            "frames were fitted to a geometry the encoder was not built for"
+        );
+    }
+
+    #[test]
+    fn a_resolution_change_asks_for_a_keyframe() {
+        // The new encoder configuration shares no prediction state with the old one, and carries
+        // the SPS/PPS describing the new size. Without an IDR every viewer decodes garbage until
+        // the wall-clock interval comes round.
+        let mut h = harness(DECLARED_FPS);
+        h.pump.on_frame(&frame());
+        let before = h.log.lock().unwrap().keyframes_requested;
+
+        *h.pump.pending_spec().lock().unwrap() = Some(spec_at(32, 48));
+        h.pump.on_frame(&frame());
+
+        assert!(
+            h.log.lock().unwrap().keyframes_requested > before,
+            "a retype must be followed by an IDR"
+        );
+    }
+
+    #[test]
+    fn a_resolution_change_is_applied_once() {
+        // Taken out of the cell rather than read from it. Re-applying it every frame would retype
+        // the encoder - and on the software path rebuild it outright - at the capture rate.
+        let mut h = harness(DECLARED_FPS);
+
+        *h.pump.pending_spec().lock().unwrap() = Some(spec_at(32, 48));
+        h.pump.on_frame(&frame());
+        h.pump.on_frame(&frame());
+        h.pump.on_frame(&frame());
+
+        assert_eq!(h.log.lock().unwrap().reconfigured.len(), 1);
+    }
+
+    #[test]
+    fn a_refused_retype_keeps_the_share_running_at_the_old_size() {
+        // A driver that declines is a cosmetic failure. Propagating it would turn "the resolution
+        // did not change" into "the stream ended", which is the outage this path exists to remove.
+        let mut h = harness_with(DECLARED_FPS, true);
+
+        *h.pump.pending_spec().lock().unwrap() = Some(spec_at(32, 48));
+        h.pump.on_frame(&frame());
+        h.pump.on_frame(&frame());
+
+        let log = h.log.lock().unwrap();
+        assert_eq!(
+            log.sizes,
+            vec![(64, 64), (64, 64)],
+            "a refused retype must leave the fit geometry where it was"
+        );
+        assert_eq!(log.seen.len(), 2, "the pump stopped encoding");
+    }
+
+    #[test]
+    fn a_resolution_change_carries_its_framerate_to_the_capture_loop() {
+        // The encoder is rebuilt expecting this rate and the capture loop paces off the same
+        // atomic. Leaving them to disagree has rate control dividing its budget by a number
+        // nothing is producing at, which is what makes a slow share look like mush rather than
+        // merely stutter.
+        let mut h = harness(DECLARED_FPS);
+
+        *h.pump.pending_spec().lock().unwrap() = Some(EncoderSpec {
+            fps: 15,
+            ..spec_at(32, 48)
+        });
+        h.pump.on_frame(&frame());
+
+        assert_eq!(h.fps.load(Ordering::Relaxed), 15);
     }
 }

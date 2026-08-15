@@ -27,12 +27,12 @@ type TauriCore = typeof import('@tauri-apps/api/core');
  * host selected, and a constructor that touched the IPC module would pull it into the web bundle
  * through the very indirection meant to keep it out.</p>
  *
- * <p><b>The Rust commands behind `stop`, `setFps` and `setAudioMuted` are singletons</b> - they take no
- * id and address "the share". {@link liveShareId} is what makes the port's `shareId` mean something
- * here: a caller holding a share that has already been replaced is told so, rather than silently
- * stopping the one that replaced it. That case is real - a resolution change tears the publish down
- * and starts a new one with a new id, and anything still holding the old id (a queued UI action, a
- * retry) would otherwise land on the new share.</p>
+ * <p><b>The Rust commands behind `stop`, `setFps`, `setGeometry` and `setAudioMuted` are
+ * singletons</b> - they take no id and address "the share". {@link liveShareId} is what makes the
+ * port's `shareId` mean something here: a caller holding a share that has already been replaced is
+ * told so, rather than silently stopping the one that replaced it. That case is real - sharing a
+ * different source stops one publish and starts another under a new id, and anything still holding
+ * the old id (a queued UI action, a retry) would otherwise land on the new share.</p>
  */
 export class TauriScreenPublisher extends ScreenPublisher implements ScreenPublisherHost {
     /** The in-app picker: the desktop host can enumerate windows, so it does. */
@@ -162,6 +162,18 @@ export class TauriScreenPublisher extends ScreenPublisher implements ScreenPubli
         this.assertLive(shareId, 'setFps');
         const {invoke} = await this.tauri();
         await invoke('set_publish_fps', {fps: Math.round(fps)});
+    }
+
+    async setGeometry(shareId: string, width: number, height: number, kbps: number): Promise<void> {
+        this.assertLive(shareId, 'setGeometry');
+        const {invoke} = await this.tauri();
+        // Rust applies it at the next frame boundary and answers immediately; a retype the driver
+        // refuses is logged there and leaves the share at its current size. See the port.
+        await invoke('set_publish_geometry', {
+            width: Math.round(width),
+            height: Math.round(height),
+            kbps: Math.round(kbps),
+        });
     }
 
     async setAudioMuted(shareId: string, muted: boolean): Promise<void> {

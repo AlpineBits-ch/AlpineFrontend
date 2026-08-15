@@ -41,6 +41,12 @@ mod keychain;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod update_gate;
 
+/// Size, display and maximized/fullscreen state of the main window, remembered
+/// across launches. Replaces `tauri-plugin-window-state`, which had no notion of
+/// which monitor a window was on and stored physical pixels, so it could not
+/// survive a resolution, scale or arrangement change. See the module docs.
+mod window_state;
+
 /// The main (`echo`) window, built in code rather than declared in
 /// `tauri.conf.json`. See the module docs for why that distinction matters.
 /// Not desktop-gated: removing the window from the config removed it on every
@@ -392,16 +398,9 @@ pub fn run() {
     let builder = builder
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_single_instance::Builder::new().build())
-        // `splash` is denylisted: it is transient and always centered, but
-        // on_window_ready fires for it like any other window, so without this the
-        // plugin persists its geometry and restores it on the next launch -
-        // overriding .center() and, once a bad position is recorded, reopening the
-        // splash off-screen with no way for the user to move it back.
-        .plugin(
-            tauri_plugin_window_state::Builder::new()
-                .with_denylist(&["splash"])
-                .build(),
-        )
+        // No window-state plugin: `window_state` handles the main window from
+        // `main_window::build`. `splash` is simply never attached there, which
+        // is what the plugin's denylist existed to achieve.
         .plugin(tauri_plugin_autostart::Builder::new().build())
          .plugin(tauri_plugin_single_instance::init(|_app, argv, _cwd| {
                           println!("a new app instance was opened with {argv:?} and the deep link event was already triggered");
@@ -585,6 +584,7 @@ fn build_and_run(builder: tauri::Builder<tauri::Wry>) {
             media::publisher::start_screen_publish,
             media::publisher::stop_screen_publish,
             media::publisher::set_publish_fps,
+            media::publisher::set_publish_geometry,
             media::publisher::set_screen_audio_muted,
             media::publisher::set_local_stream_enabled,
             media::voice::voice_start,

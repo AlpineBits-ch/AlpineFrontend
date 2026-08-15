@@ -51,7 +51,6 @@ dependencies = [
  "tauri-plugin-single-instance",
  "tauri-plugin-store",
  "tauri-plugin-updater",
- "tauri-plugin-window-state",
  "tempfile",
  "tokio",
  "uuid",
@@ -7478,19 +7477,6 @@ dependencies = [
  "url",
  "windows-sys 0.60.2",
  "zip",
-]
-
-[[package]]
-name = "tauri-plugin-window-state"
-version = "2.4.1"
-dependencies = [
- "bitflags 2.11.1",
- "log",
- "serde",
- "serde_json",
- "tauri",
- "tauri-plugin",
- "thiserror 2.0.18",
 ]
 
 [[package]]

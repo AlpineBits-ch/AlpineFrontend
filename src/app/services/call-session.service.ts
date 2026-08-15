@@ -9,7 +9,8 @@ import {ScreenPickerService} from './screen-picker.service';
 import type {CallDto} from '../dtos/response/call.dto';
 import type {ActiveCallSession, CallParticipantUi, ScreenShareUi,} from './call-session.types';
 import {OAuthService} from 'angular-oauth2-oidc';
-import {StreamPreset} from '../models/stream-preset';
+import {bitrateFor, StreamPreset} from '../models/stream-preset';
+import {ScreenResumeTracker} from '../shared/call/screen-resume';
 import {solveGeometry} from '../models/capture-geometry';
 import {publishOptions, useRustPublisher} from './screen-publish';
 import {ScreenPickerChoice} from './screen-picker.service';
@@ -39,8 +40,14 @@ export class CallSessionService {
     private screenSourceSize: { width: number; height: number } | null = null;
     /** True while the running share is owned by the Rust publisher rather than the webview. */
     private rustPublishing = false;
-    /** The picker choice behind the running publish, so a resolution change can rebuild it. */
+    /** The picker choice behind the running publish, so a later restart reopens the same source. */
     private rustChoice: ScreenPickerChoice | null = null;
+    /**
+     * Seats held for shares whose track closed and whose picture is expected back - see
+     * `ScreenResumeTracker`. Keyed by share id here, because a DM call carries a real per-share id
+     * and one person can hold more than one.
+     */
+    private readonly screenResume = new ScreenResumeTracker(shareId => this.removeScreenShare(shareId));
     /**
      * Whether the running share actually carries its own sound, and whether it is locally muted.
      *
@@ -113,6 +120,9 @@ export class CallSessionService {
         s.screenShares.find(sh => sh.isLocal)?.stream?.getTracks().forEach(t => t.stop());
         // TODO(webrtc): disconnect all peer connections
         if (!silent) this.voiceService.leaveCall(s.callId).subscribe();
+        // Held seats belong to the call that is ending. An expiry firing afterwards would splice a
+        // session that is already gone.
+        this.screenResume.clear();
         this.session.set(null);
         this.aloneDeadline.set(null);
     }
@@ -324,44 +334,16 @@ export class CallSessionService {
     }
 
     /**
-     * Rebuild the publish at a new resolution.
-     *
-     * The encoder is fixed to one geometry, so this restarts the publish. The share is replaced in
-     * session state under a new id, and CallWebRtcService's TrackPublished flow carries the new
-     * session to the other side.
-     */
-    private async restartRustPublish(preset: StreamPreset): Promise<void> {
-        const choice = this.rustChoice;
-        const ownId = this.profileService.ownProfile()?.userId ?? '';
-        if (!choice) return;
-
-        const callId = this.session()?.callId;
-        const oldShareIds = (this.session()?.screenShares ?? [])
-            .filter(sh => sh.isLocal)
-            .map(sh => sh.shareId);
-
-        await this.rustMedia.stopScreenPublish();
-        this.rustPublishing = false;
-        this.session.update(st => st ? {
-            ...st,
-            screenShares: st.screenShares.filter(sh => !sh.isLocal),
-        } : st);
-
-        // Told to the room, not just dropped locally. This path only ever announced the *new*
-        // share, so every resolution change left the old id on the server's roster with no session
-        // behind it - and peers acting on the snapshot then pulled a track the SFU had already
-        // dropped. Sent before the rebuild, so it lands even if the rebuild fails.
-        if (callId) for (const shareId of oldShareIds) this.voiceWs.invokeScreenShareStopped(callId, shareId);
-
-        await this.startRustPublish({...choice, preset}, crypto.randomUUID(), ownId);
-    }
-
-    /**
      * Change stream quality mid-share.
      *
-     * Only the capture side is handled here; CallWebRtcService watches {@link screenPreset} and
-     * re-applies the sender encoding itself. A framerate change is free - the Rust capture loop
-     * reads it each frame - while a resolution change costs one renegotiation and keyframe.
+     * <p>Only the capture side is handled here; CallWebRtcService watches {@link screenPreset} and
+     * re-applies the sender encoding itself. Nothing in here restarts the publish or announces
+     * anything: a framerate change is read by the capture loop on its next frame, and a resolution
+     * change retypes the encoder in place, leaving the session, the track and the share id alone.</p>
+     *
+     * <p>A resolution change used to stop the publish and start a new one under a fresh share id,
+     * which meant announcing a stop and a start and leaving every peer's tile out of the call panel
+     * for as long as the new publish took to negotiate.</p>
      */
     async setScreenPreset(preset: StreamPreset): Promise<void> {
         const previous = this.screenPreset();
@@ -373,11 +355,14 @@ export class CallSessionService {
             if (preset.framerate !== previous.framerate) {
                 await this.rustMedia.setPublishFps(preset.framerate);
             }
-            // Resolution and bitrate are baked into the encoder at construction, so a change means
-            // tearing the publish down and starting a fresh one.
-            if (preset.resolution !== previous.resolution && this.rustChoice) {
-                await this.restartRustPublish(preset);
+            if (preset.resolution !== previous.resolution && this.screenSourceSize) {
+                const {width, height} = this.screenSourceSize;
+                const box = solveGeometry(width, height, preset.resolution);
+                await this.rustMedia.setPublishGeometry(box.width, box.height, bitrateFor(preset));
             }
+            // Kept in step with what the encoder is now producing, so a publish that genuinely does
+            // restart later - sharing a different source - opens at the resolution being watched.
+            if (this.rustChoice) this.rustChoice = {...this.rustChoice, preset};
             return;
         }
 
@@ -477,21 +462,58 @@ export class CallSessionService {
         const s = this.session();
         const conv = this.conversationStore.entities().find(c => c.id === s?.conversationId);
         const displayName = conv?.members.find(m => m.userId === userId)?.cachedUserName ?? 'Unknown';
+        // Anything this person was holding a seat for has just been replaced. Dropped here rather
+        // than left to expire, so the stage never briefly shows the same person twice - once frozen
+        // and once live.
+        const superseded = (s?.screenShares ?? [])
+            .filter(sh => sh.userId === userId && sh.shareId !== shareId && sh.state === 'resuming')
+            .map(sh => sh.shareId);
+        for (const old of superseded) this.screenResume.cancel(old);
+
         this.session.update(st => {
             if (!st) return st;
-            const idx = st.screenShares.findIndex(sh => sh.shareId === shareId);
+            const kept = superseded.length === 0
+                ? st.screenShares
+                : st.screenShares.filter(sh => !superseded.includes(sh.shareId));
+            const idx = kept.findIndex(sh => sh.shareId === shareId);
             if (idx !== -1) {
-                if (!stream) return st;
-                const updated = [...st.screenShares];
-                updated[idx] = {...updated[idx], stream};
+                const updated = [...kept];
+                // `state` unconditionally, `stream` only when one came with the event: a share that
+                // was being held is live again the moment it is announced, even if its track
+                // arrives a beat later.
+                updated[idx] = {...updated[idx], state: 'live', ...(stream ? {stream} : {})};
                 return {...st, screenShares: updated};
             }
-            const share: ScreenShareUi = {shareId, userId, displayName, isLocal: false, stream};
-            return {...st, screenShares: [...st.screenShares, share]};
+            const share: ScreenShareUi = {shareId, userId, displayName, isLocal: false, stream, state: 'live'};
+            return {...st, screenShares: [...kept, share]};
         });
     }
 
+    /**
+     * A share's track ended.
+     *
+     * <p>Held rather than removed - see `ScreenResumeTracker`. Removing it immediately is what made
+     * a source switch or a renegotiation read as the stream ending: the tile left the panel and the
+     * layout closed over the gap. Expiry is what finally removes it.</p>
+     */
     onScreenShareStopped(shareId: string): void {
+        const share = this.session()?.screenShares.find(sh => sh.shareId === shareId);
+        // A local share ends because this client ended it - there is nothing to wait for, and
+        // holding a seat for our own stopped stream would be waiting on ourselves.
+        if (!share || share.isLocal) {
+            this.removeScreenShare(shareId);
+            return;
+        }
+        this.screenResume.hold(shareId);
+        this.session.update(s => s ? {
+            ...s,
+            screenShares: s.screenShares.map(sh =>
+                sh.shareId === shareId ? {...sh, state: 'resuming' as const} : sh),
+        } : s);
+    }
+
+    private removeScreenShare(shareId: string): void {
+        this.screenResume.cancel(shareId);
         this.session.update(s =>
             s ? {...s, screenShares: s.screenShares.filter(sh => sh.shareId !== shareId)} : s
         );

@@ -72,6 +72,28 @@ pub struct LocalTrack {
     pub track_name: String,
 }
 
+/// What a publish is about to encode, stated so the server can clamp it rather than guess.
+///
+/// Additive and optional on the wire: a server built before the entitlement contract ignores it, and
+/// an audio-only publish never carries one because nothing about audio is laddered.
+///
+/// [`Signalling`] drops it on the Cloudflare dialect. Isle's route is Cloudflare's own passthrough
+/// with no entitlement layer in front of it, so a field it does not declare would be sent to an SFU
+/// rather than to Echo.
+#[derive(Debug, Clone, Copy)]
+pub struct VideoIntent {
+    pub height: u32,
+    pub framerate: u32,
+}
+
+impl VideoIntent {
+    /// `None` when either axis is unmeasured. The server reads an unstated axis as "leave it alone",
+    /// which is the honest answer for a source nothing could size.
+    pub fn new(height: u32, framerate: u32) -> Option<Self> {
+        (height > 0 && framerate > 0).then_some(Self { height, framerate })
+    }
+}
+
 /// A track to pull from another participant's session.
 ///
 /// A separate type from [`LocalTrack`] rather than the same one with an optional `mid`: a remote
@@ -447,6 +469,7 @@ impl Signalling {
         media_session_id: &str,
         session_description: &SessionDescription,
         tracks: &[LocalTrack],
+        video: Option<VideoIntent>,
     ) -> Result<Value, String> {
         let dialect = self.dialect();
         let mut body = self.body_with_session(media_session_id);
@@ -469,6 +492,12 @@ impl Signalling {
                     .collect(),
             ),
         );
+        if let (Dialect::Neutral, Some(video)) = (dialect, video) {
+            body.insert(
+                "video".into(),
+                json!({"height": video.height, "framerate": video.framerate}),
+            );
+        }
         Ok(Value::Object(body))
     }
 
@@ -477,8 +506,9 @@ impl Signalling {
         media_session_id: &str,
         session_description: &SessionDescription,
         tracks: &[LocalTrack],
+        video: Option<VideoIntent>,
     ) -> Result<TracksNewResponse, String> {
-        let body = self.publish_body(media_session_id, session_description, tracks)?;
+        let body = self.publish_body(media_session_id, session_description, tracks, video)?;
         self.post(&self.tracks_url(), &body).await
     }
 
@@ -529,16 +559,30 @@ impl Signalling {
         self.post(&self.tracks_url(), &body).await
     }
 
+    /// Re-offer on an open session, optionally re-declaring what the video now is.
+    ///
+    /// `video` belongs here only when *this* renegotiation is what changes the picture. The server's
+    /// fan-out cap is computed from the last declaration it saw, so `None` leaves that cap exactly
+    /// where it is - it neither applies one nor lifts one, and a renegotiation is never refused over
+    /// it. An ICE restart, a reconnect and the immediate re-offer the SFU asks for after a publish
+    /// all send the body they always sent.
     pub async fn renegotiate(
         &self,
         media_session_id: &str,
         session_description: &SessionDescription,
+        video: Option<VideoIntent>,
     ) -> Result<RenegotiateResponse, String> {
         let mut body = self.body_with_session(media_session_id);
         body.insert(
             "sessionDescription".into(),
             serde_json::to_value(session_description).map_err(|e| e.to_string())?,
         );
+        if let (Dialect::Neutral, Some(video)) = (self.dialect(), video) {
+            body.insert(
+                "video".into(),
+                json!({"height": video.height, "framerate": video.framerate}),
+            );
+        }
         self.put(&self.negotiate_url(), &Value::Object(body)).await
     }
 
@@ -773,7 +817,7 @@ mod tests {
             track_name: "screen-abc".into(),
         }];
         let json = signalling()
-            .publish_body("sess", &offer(), &tracks)
+            .publish_body("sess", &offer(), &tracks, None)
             .unwrap();
 
         assert_eq!(json["mediaSessionId"], "sess");
@@ -785,6 +829,34 @@ mod tests {
             json["tracks"][0].get("location").is_none(),
             "the neutral surface deserialises `direction`; a stray `location` leaves it null"
         );
+        assert!(
+            json.get("video").is_none(),
+            "an audio-only publish has nothing to declare"
+        );
+    }
+
+    /// The declaration the server computes its fan-out cap from. It is the solved output geometry -
+    /// what the encoder was built for - not the preset's nominal height.
+    #[test]
+    fn a_publish_states_the_size_it_is_about_to_encode() {
+        let tracks = [LocalTrack {
+            mid: "0".into(),
+            track_name: "screen-abc".into(),
+        }];
+        let json = signalling()
+            .publish_body("sess", &offer(), &tracks, VideoIntent::new(540, 30))
+            .unwrap();
+
+        assert_eq!(json["video"]["height"], 540);
+        assert_eq!(json["video"]["framerate"], 30);
+    }
+
+    /// Negative: a source nothing could size. The field is omitted rather than filled with a guess -
+    /// the server would otherwise cap this session against a size nothing is sending.
+    #[test]
+    fn an_unmeasured_axis_states_nothing() {
+        assert!(VideoIntent::new(0, 30).is_none());
+        assert!(VideoIntent::new(1080, 0).is_none());
     }
 
     /// Isle stayed on the Cloudflare shape because it drives `CloudflareService` directly. Sending
@@ -797,13 +869,17 @@ mod tests {
             track_name: "audio".into(),
         }];
         let json = isle_signalling()
-            .publish_body("sess", &offer(), &tracks)
+            .publish_body("sess", &offer(), &tracks, VideoIntent::new(1080, 60))
             .unwrap();
 
         assert_eq!(json["cfSessionId"], "sess");
         assert_eq!(json["tracks"][0]["location"], "local");
         assert!(json.get("mediaSessionId").is_none());
         assert!(json["tracks"][0].get("direction").is_none());
+        assert!(
+            json.get("video").is_none(),
+            "Isle's route is Cloudflare's own passthrough, and does not declare this field"
+        );
     }
 
     #[test]

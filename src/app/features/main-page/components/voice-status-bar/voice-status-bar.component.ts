@@ -9,6 +9,7 @@ import {NavigationService} from '../../navigation.service';
 import {CallStatus, resolveCallStatus} from '../../../../shared/call/call-status';
 import {CallLiveBadgeComponent} from '../../../../shared/call/call-live-badge/call-live-badge.component';
 import {CallMiniPlayerService} from '../../../../services/call-mini-player.service';
+import {trackActivationClick} from '../../../../shared/call/activation-click';
 
 @Component({
     selector: 'app-voice-status-bar',
@@ -177,5 +178,20 @@ export class VoiceStatusBarComponent {
 
     protected showMiniPlayer(): void {
         this.miniPlayer.restore();
+    }
+
+    /** The press that brought the app back to the front is not also a command - see the helper. */
+    private readonly isActivationClick = trackActivationClick();
+
+    /**
+     * Resumes the paused thumbnail.
+     *
+     * <p>Guarded exactly like the paused card on the call stage. A pause now outlives the window
+     * coming back, so this button is on screen at the moment the user clicks the app to return to
+     * it - and that press is a request for the app, not for the preview.</p>
+     */
+    protected resumePreview(): void {
+        if (this.isActivationClick()) return;
+        this.rustMedia.resumePreview();
     }
 }

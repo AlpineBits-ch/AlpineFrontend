@@ -13,7 +13,6 @@ import {
     bitrateFor,
     clampPreset,
     DEFAULT_STREAM_PRESET,
-    publishHeight,
     StreamPreset,
 } from '../models/stream-preset';
 import {VoiceLimitsService} from './voice-limits.service';
@@ -76,17 +75,17 @@ export const MAX_PUBLICATION_REBUILDS = 3;
  * can raise it (this one, and the Rust engine's) both live below anything that owns a snapshot.
  */
 /**
- * What a camera publish is about to send, read off the track the device actually opened.
+ * What a video publish is about to send, read off the track the device actually opened.
  *
  * <p>The settings rather than the constraint, because a camera negotiates its own: asking for 720p
  * and being handed 1080p is ordinary, and stating the request would have the server clamp against a
- * resolution nothing is sending.</p>
+ * resolution nothing is sending. The same holds for a capture the host resized on us.</p>
  *
  * <p>Undefined when either half is unknown, which omits the field entirely. The server then behaves
  * as it did before the field existed - a clamp it cannot compute is better than one computed from a
  * number this client made up.</p>
  */
-export function cameraIntent(track: MediaStreamTrack): VideoPublishIntentDto | undefined {
+export function trackIntent(track: MediaStreamTrack): VideoPublishIntentDto | undefined {
     const settings = typeof track.getSettings === 'function' ? track.getSettings() : null;
     const height = settings?.height;
     const framerate = settings?.frameRate;
@@ -97,16 +96,6 @@ export function cameraIntent(track: MediaStreamTrack): VideoPublishIntentDto | u
 export interface StaleSubscription {
     /** Whose track we asked for, when it is known. */
     userId?: string;
-}
-
-/**
- * A publish that was rebuilt at a new resolution. The share id changed, so viewers have to be told
- * to drop the old track and pick up the new one.
- */
-export interface ScreenPublishRestart {
-    oldShareId: string;
-    /** Null when the rebuild failed: the old share is still gone and must still be announced. */
-    newShareId: string | null;
 }
 
 @Injectable({providedIn: 'root'})
@@ -1085,7 +1074,7 @@ export class VoiceRTCService {
                     // What the camera actually opened at, not what was asked for: the device
                     // negotiates its own settings against the constraint, and stating the request
                     // would have the server clamp against a resolution nothing is sending.
-                    video: cameraIntent(this.localVideoTrack!),
+                    video: trackIntent(this.localVideoTrack!),
                 }));
                 cfTrackName = this.cfVideoTrackName = resp.tracks[0]?.trackName ?? 'video';
                 await this.pc.setRemoteDescription(resp.sessionDescription);
@@ -1211,15 +1200,17 @@ export class VoiceRTCService {
                     tracks.push({direction: 'publish', mid: audioMid, trackName: `screen-audio-${shareId}`});
                 }
 
-                const height = publishHeight(preset, sourceHeight);
                 const resp = await firstValueFrom(this.guildVoiceSvc.negotiateTracks(guildId, channelId, {
                     mediaSessionId: this.mediaSessionId!,
                     sessionDescription: this.pc.localDescription!,
                     tracks,
-                    // `source` has no height of its own, so the source's is what goes out. Nothing
-                    // here maps a picker option onto a rung: the server owns that decision, and
-                    // this only states what is genuinely being sent.
-                    video: height > 0 ? {height, framerate: preset.framerate} : undefined,
+                    // The solved capture height, which is what the encoder is handed - not the
+                    // preset's nominal one. An ultrawide fitted into a 1080p box encodes 540 lines,
+                    // and declaring 1080 there has the server cap a share already inside its rung.
+                    // Nothing here maps a picker option onto a rung; the server owns that.
+                    video: geometry.height > 0
+                        ? {height: geometry.height, framerate: preset.framerate}
+                        : undefined,
                 }));
                 await this.pc.setRemoteDescription(resp.sessionDescription);
                 if (resp.requiresImmediateRenegotiation) await this.renegotiate(guildId, channelId);
@@ -1344,14 +1335,17 @@ export class VoiceRTCService {
     /**
      * Change stream quality mid-share, the way Discord's stream-settings cog does.
      *
-     * A framerate change is free - the Rust capture loop reads it each frame. A resolution change
-     * costs one renegotiation and keyframe, which is acceptable because the user asked for it.
+     * <p>Nothing here restarts anything, and nothing here is announced. A framerate change is read
+     * by the capture loop on its next frame; a resolution change retypes the encoder in place at a
+     * frame boundary. The session, the track and therefore the share id all survive both, so a
+     * viewer sees one keyframe at a new size and is told nothing.</p>
+     *
+     * <p>A resolution change used to tear the publish down and start a fresh one. That meant a new
+     * share id, a stopped-then-started pair on the wire, and every viewer's tile leaving the grid
+     * for one to four seconds - long enough that anyone watching it maximised was left on an empty
+     * stage. See `ScreenPublisher.setGeometry`.</p>
      */
-    async setScreenPreset(
-        requested: StreamPreset,
-        guildId?: string,
-        channelId?: string,
-    ): Promise<ScreenPublishRestart | null> {
+    async setScreenPreset(requested: StreamPreset): Promise<void> {
         const previous = this.screenPreset() ?? DEFAULT_STREAM_PRESET;
         // Both pickers - this bar and the pre-share dialog - already disable what the rung does not
         // permit, so this only catches a ceiling that moved between the render and the click, and a
@@ -1364,16 +1358,19 @@ export class VoiceRTCService {
             if (preset.framerate !== previous.framerate) {
                 await this.rustMedia.setPublishFps(preset.framerate);
             }
-            // Resolution and bitrate are baked into the encoder at construction, so changing them
-            // means a new encoder, a new session and therefore a new share id. The caller has to
-            // announce the swap; it cannot be done silently.
-            if (preset.resolution !== previous.resolution && guildId && channelId && this.rustChoice) {
-                return await this.restartRustPublish(guildId, channelId, preset);
+            if (preset.resolution !== previous.resolution && this.screenSourceSize) {
+                const {width, height} = this.screenSourceSize;
+                const box = solveGeometry(width, height, preset.resolution);
+                await this.rustMedia.setPublishGeometry(box.width, box.height, bitrateFor(preset));
             }
-            return null;
+            // Kept in step with what the encoder is now producing, so a publish that genuinely does
+            // restart later - sharing a different source - opens at the resolution the user is
+            // watching rather than the one they first picked.
+            if (this.rustChoice) this.rustChoice = {...this.rustChoice, preset};
+            return;
         }
 
-        if (!this.localScreenTrack) return null;
+        if (!this.localScreenTrack) return;
 
         if (preset.framerate !== previous.framerate) {
             await this.rustMedia.setCaptureFps(preset.framerate);
@@ -1384,39 +1381,6 @@ export class VoiceRTCService {
         }
         const sender = this.localSenders.get('screenVideo');
         if (sender) await applyScreenEncoding(sender, preset);
-        return null;
-    }
-
-    /**
-     * Rebuild the publish at a new resolution.
-     *
-     * The encoder is fixed to one geometry, so this tears the publish down and starts a fresh one.
-     * That yields a new Cloudflare session and a new share id, which the caller must announce so
-     * viewers drop the old track and subscribe to the new one.
-     */
-    private async restartRustPublish(
-        guildId: string,
-        channelId: string,
-        preset: StreamPreset,
-    ): Promise<ScreenPublishRestart | null> {
-        const choice = this.rustChoice;
-        const oldShareId = this.screenShareId;
-        if (!choice || !oldShareId) return null;
-
-        await this.rustMedia.stopScreenPublish();
-        this.rustPublishing = false;
-
-        const started = await this.publishScreenFromRust(guildId, channelId, {...choice, preset});
-        // Reported either way. The old publish is gone the moment the line above returns, so the
-        // room has to be told even when nothing replaced it - and a rebuild is exactly when that
-        // fails, because the encoder is being constructed at a resolution it may refuse. Returning
-        // null here used to swallow the stop entirely, leaving the share on the server's roster
-        // with no session behind it: every viewer then pulled a track the SFU no longer had.
-        if (!started) {
-            this.screenShareId = null;
-            return {oldShareId, newShareId: null};
-        }
-        return {oldShareId, newShareId: started.shareId};
     }
 
     // ── Volume / per-user audio controls ──────────────────────────────────────

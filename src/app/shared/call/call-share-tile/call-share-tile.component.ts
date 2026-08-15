@@ -109,6 +109,35 @@ export class CallShareTileComponent implements OnDestroy {
     /** Paused only means anything while this tile is the one actually showing the preview. */
     protected readonly previewPaused = computed(() => this.showingLocalPreview() && this.rustMedia.previewPaused());
 
+    /** Whether this share's picture is between tracks - see `CallScreenShare.state`. */
+    protected readonly resuming = computed(() => this.share().state === 'resuming');
+
+    /**
+     * The last stream this tile was given, kept so the picture can be held across a resume.
+     *
+     * <p>Written from an effect rather than derived, because the point is to survive the input going
+     * away - a computed reading `share().stream` would go null with it.</p>
+     */
+    private readonly lastStream = signal<MediaStream | null>(null);
+
+    /**
+     * What the `<video>` element actually plays.
+     *
+     * <p><b>Why this is not just `share().stream`.</b> A share whose track closes loses its stream,
+     * the `<video>` unmounts, and the tile falls through to the "waiting for a picture" placeholder
+     * - so a two-second renegotiation reads as the stream having died. Keeping the element mounted
+     * on the stream it already had holds its last painted frame instead, which costs nothing: a
+     * `<video>` whose tracks have ended goes on showing the last frame it decoded for as long as
+     * the element and its `srcObject` are alive. That frozen frame <em>is</em> the loading state,
+     * and it is a far better one than a spinner over black - it tells the viewer they are still
+     * looking at the thing they chose to look at.</p>
+     *
+     * <p>Only while {@link resuming}. Once the grace window expires the share is really gone, the
+     * whole tile goes with it, and holding a dead frame any longer would be a lie.</p>
+     */
+    protected readonly pictureStream = computed(() =>
+        this.share().stream ?? (this.resuming() ? this.lastStream() ?? undefined : undefined));
+
     protected readonly zoom = signal(1);
     protected readonly pan = signal({x: 0, y: 0});
 
@@ -210,6 +239,14 @@ export class CallShareTileComponent implements OnDestroy {
     private restorePoint: {parent: Node; nextSibling: Node | null} | null = null;
 
     constructor() {
+        // Remembers the picture, so {@link pictureStream} has something to hold when the track
+        // closes. Only ever set from a stream that exists: clearing it on the way out would empty
+        // the very thing this is for.
+        effect(() => {
+            const stream = this.share().stream;
+            if (stream) this.lastStream.set(stream);
+        }, {allowSignalWrites: true});
+
         // Claims "somebody is rendering the preview" for Task 10's idle pause - see
         // RustMediaService.claimPreviewRender. onCleanup releases it the moment showingLocalPreview
         // goes false, whether that is because this tile stopped being the local one, the share
@@ -231,8 +268,16 @@ export class CallShareTileComponent implements OnDestroy {
         );
     }
 
-    /** The resume button on the paused card, and any other interaction with it. */
+    /**
+     * The resume button on the paused card, and any other interaction with it.
+     *
+     * <p>Guarded like the surface's own press - see {@link trackActivationClick}. The card now
+     * survives the window coming back to the front, so the press that reactivates the app can land
+     * on it, and "I clicked the app and it started decoding my screen again" is not what that press
+     * meant. The deliberate second press does resume.</p>
+     */
     protected resumePreview(): void {
+        if (this.isActivationClick()) return;
         this.rustMedia.resumePreview();
     }
 

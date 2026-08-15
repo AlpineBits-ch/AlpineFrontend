@@ -109,6 +109,25 @@ impl VideoEncoder for SoftwareEncoder {
         self.encoder.force_intra_frame();
     }
 
+    /// Rebuilt rather than retyped: openh264 fixes geometry at construction and offers no way to
+    /// move it.
+    ///
+    /// <p>Cheap, and safe in a way the hardware path is not - there is no driver object to
+    /// destroy, so the crash that forced [`super::encoder_mf`] to park and retype one encoder
+    /// forever does not apply here.</p>
+    ///
+    /// <p>The replacement shares no prediction state with the encoder it replaces, so its first
+    /// output must be an IDR or every viewer decodes garbage. openh264 opens on one by itself, and
+    /// the pump asks for one as well; between them the SPS/PPS describing the new size reaches the
+    /// wire in front of the first frame that needs it.</p>
+    fn reconfigure(&mut self, spec: EncoderSpec) -> Result<(), String> {
+        // Unconditional, including for a geometry that did not move: bitrate and frame rate are
+        // configured at construction here too, so there is no cheaper path to fall into.
+        *self = Self::new(spec)
+            .ok_or_else(|| format!("could not rebuild openh264 at {}x{}", spec.width, spec.height))?;
+        Ok(())
+    }
+
     fn name(&self) -> &'static str {
         "openh264"
     }

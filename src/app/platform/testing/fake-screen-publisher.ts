@@ -54,6 +54,15 @@ export class FakeScreenPublisher extends ScreenPublisher {
     /** Every framerate change, as `[shareId, fps]`. */
     readonly fpsChanges: [string, number][] = [];
 
+    /**
+     * Every resolution change, as `[shareId, width, height, kbps]`.
+     *
+     * <p>What a spec asserts on to prove a resolution change did <b>not</b> restart the publish: a
+     * change that lands here and leaves {@link stopped} and {@link started} untouched is one no
+     * viewer was ever told about.</p>
+     */
+    readonly geometryChanges: [string, number, number, number][] = [];
+
     /** Every share-audio mute, as `[shareId, muted]`. */
     readonly audioMutes: [string, boolean][] = [];
 
@@ -95,6 +104,10 @@ export class FakeScreenPublisher extends ScreenPublisher {
 
     async setFps(shareId: string, fps: number): Promise<void> {
         this.fpsChanges.push([shareId, fps]);
+    }
+
+    async setGeometry(shareId: string, width: number, height: number, kbps: number): Promise<void> {
+        this.geometryChanges.push([shareId, width, height, kbps]);
     }
 
     async setAudioMuted(shareId: string, muted: boolean): Promise<void> {

@@ -21,6 +21,7 @@ import {ChannelDto, ChannelType} from '../dtos/response/guild.dto';
 import {EntitlementStore} from '../stores/entitlement.store';
 import {installMemoryStorage} from '../testing/memory-storage';
 import {VoiceParticipantSnapshot, VoiceRoomSnapshot} from '../models/voice-room';
+import {SCREEN_RESUME_GRACE_MS} from '../shared/call/screen-resume';
 
 /** A room at v1 with nobody in it - what most of these tests want the recovery path to return. */
 function emptySnapshot(roomId: string): VoiceRoomSnapshot {
@@ -955,54 +956,34 @@ describe('a hub reconnect', () => {
 });
 
 /**
- * A resolution change rebuilds the encoder, which means a new Cloudflare session and a new share
- * id. The old one is dead the moment the rebuild starts, and the room only learns that from the
- * `ScreenShareStopped` sent here - there is no other path. Losing it leaves the share on the
- * server's roster with no session behind it, and every viewer then pulls a track the SFU has
- * already dropped.
+ * A quality change is nobody else's business.
+ *
+ * <p>It used to be. A resolution change rebuilt the encoder, which meant a new Cloudflare session
+ * and a new share id, so this relayed a `ScreenShareStopped` and a `ScreenShareStarted` to the
+ * room. Every viewer acted on the stop: the tile left the grid, the layout reflowed under it, and
+ * anyone watching that stream maximised was left on an empty stage until the start arrived one to
+ * four seconds later. The encoder is retyped in place now and the share id never moves, so there is
+ * nothing to say - and saying it anyway would recreate the whole failure on its own.</p>
  */
-describe('a screen share rebuilt at a new resolution', () => {
+describe('changing stream quality mid-share', () => {
     const preset = {resolution: '1440p', framerate: 30} as const;
 
-    it('announces the swap when the rebuild works', async () => {
+    it('announces nothing to the room', async () => {
         const {service, rtc, wsCalls} = setup();
-        rtc.setScreenPreset.mockResolvedValue({oldShareId: 'old', newShareId: 'new'});
 
         await service.setScreenPreset(preset);
 
-        expect(wsCalls['invokeVoiceScreenShareStopped']).toHaveBeenCalledWith('chan-1', 'old');
-        expect(wsCalls['invokeVoiceScreenShareStarted']).toHaveBeenCalledWith('chan-1', 'new');
-    });
-
-    it('still announces the stop when the rebuild fails', async () => {
-        // The failing case is not exotic: the rebuild constructs an encoder at a resolution the
-        // hardware may refuse, which is exactly when this path is taken.
-        const {service, rtc, wsCalls} = setup();
-        rtc.setScreenPreset.mockResolvedValue({oldShareId: 'old', newShareId: null});
-
-        await service.setScreenPreset(preset);
-
-        expect(wsCalls['invokeVoiceScreenShareStopped']).toHaveBeenCalledWith('chan-1', 'old');
-    });
-
-    it('does not announce a start for a publish that never happened', async () => {
-        const {service, rtc, wsCalls} = setup();
-        rtc.setScreenPreset.mockResolvedValue({oldShareId: 'old', newShareId: null});
-
-        await service.setScreenPreset(preset);
-
-        expect(wsCalls['invokeVoiceScreenShareStarted']).not.toHaveBeenCalled();
-    });
-
-    it('announces nothing when only the framerate changed', async () => {
-        // Framerate is applied in place, so there is no swap and nothing to tell the room.
-        const {service, rtc, wsCalls} = setup();
-        rtc.setScreenPreset.mockResolvedValue(null);
-
-        await service.setScreenPreset(preset);
-
+        expect(rtc.setScreenPreset).toHaveBeenCalledWith(preset);
         expect(wsCalls['invokeVoiceScreenShareStopped']).not.toHaveBeenCalled();
         expect(wsCalls['invokeVoiceScreenShareStarted']).not.toHaveBeenCalled();
+    });
+
+    it('does nothing at all outside a channel', async () => {
+        const {service, rtc} = setup({inChannel: false});
+
+        await service.setScreenPreset(preset);
+
+        expect(rtc.setScreenPreset).not.toHaveBeenCalled();
     });
 });
 
@@ -1110,5 +1091,117 @@ describe('starting video in a room that will not carry it', () => {
 
         expect(toast.error).toHaveBeenCalledWith('ENTITLEMENT.REASON.GUILD_PLAN_LIMIT');
         expect(service.limits.notices()).toHaveLength(1);
+    });
+});
+
+/**
+ * A screen track closing is not the same event as somebody stopping their share.
+ *
+ * <p><b>What this pins.</b> `onTrackClosed` used to clear `isScreenSharing` the instant a screen
+ * track went away. That is right for a share that ended and wrong for every other reason one ends -
+ * a sharer switching from a window to a monitor, a publication that gave up after a run of failed
+ * writes, a network blip - all of which open a replacement seconds later. On every viewer the wrong
+ * reading played out the same way: the sharer left `guildScreenSharers`, their tile left the grid,
+ * the layout reflowed over the gap, and anyone watching that stream maximised was left on a blank
+ * stage until the replacement was announced.</p>
+ *
+ * <p>So the seat is held for `SCREEN_RESUME_GRACE_MS` and only expiry really ends the share.</p>
+ */
+describe('a screen track closing', () => {
+    /**
+     * Seeds the roster with somebody already streaming, so the flag has a participant to be on.
+     *
+     * <p>Fake timers are installed <em>after</em> the seed, not before. The snapshot is applied
+     * asynchronously and `tick()` is a real `setTimeout(0)`, so faking the clock first leaves it
+     * waiting on a timer nothing will advance and every test times out at five seconds.</p>
+     */
+    async function sharingChannel() {
+        const harness = setup();
+        harness.ws['voiceSnapshotObservable'].next({
+            ...emptySnapshot('chan-1'),
+            participants: [publisher('them', {
+                isStreaming: true,
+                shares: [{shareId: 'abc', trackNames: ['screen-abc'], mediaSessionId: 'cf-screen-them'}],
+            })],
+        });
+        await tick();
+        vi.useFakeTimers();
+        return harness;
+    }
+
+    function closeScreenTrack(ws: Record<string, Subject<unknown>>): void {
+        ws['guildTrackClosedObservable'].next({channelId: 'chan-1', userId: 'them', trackName: 'screen-abc'});
+    }
+
+    function announceShare(ws: Record<string, Subject<unknown>>, shareId: string): void {
+        ws['voiceScreenShareStartedObservable'].next({channelId: 'chan-1', userId: 'them', shareId});
+    }
+
+    /** Whether the roster still has this person down as sharing - what the stage projections read. */
+    function stillSharing(service: VoiceChannelService): boolean {
+        return (service.channelParticipants().get('chan-1') ?? [])
+            .some(p => p.userId === 'them' && p.isScreenSharing);
+    }
+
+    afterEach(() => vi.useRealTimers());
+
+    it('holds the seat rather than taking the sharer off the stage', async () => {
+        const {service, ws} = await sharingChannel();
+
+        closeScreenTrack(ws);
+
+        expect(service.isScreenResuming('them')).toBe(true);
+        expect(stillSharing(service)).toBe(true);
+    });
+
+    it('ends the share once nothing has come back in time', async () => {
+        const {service, ws} = await sharingChannel();
+
+        closeScreenTrack(ws);
+        // Still up just before the window closes. Asserted as well as the end state, so this test
+        // fails for a client that simply drops the share on the spot - which is the behaviour being
+        // replaced, and which would otherwise satisfy the expectation below on its own.
+        vi.advanceTimersByTime(SCREEN_RESUME_GRACE_MS - 1);
+        expect(stillSharing(service)).toBe(true);
+
+        vi.advanceTimersByTime(2);
+
+        expect(service.isScreenResuming('them')).toBe(false);
+        expect(stillSharing(service)).toBe(false);
+    });
+
+    it('adopts a replacement that arrives inside the window', async () => {
+        const {service, ws} = await sharingChannel();
+
+        closeScreenTrack(ws);
+        vi.advanceTimersByTime(SCREEN_RESUME_GRACE_MS / 2);
+        announceShare(ws, 'def');
+
+        expect(service.isScreenResuming('them')).toBe(false);
+        expect(stillSharing(service)).toBe(true);
+    });
+
+    it('does not end an adopted share when the original window would have expired', async () => {
+        // The timer has to be cancelled, not merely ignored. An expiry firing after a replacement
+        // was adopted would clear `isScreenSharing` out from under a stream that is playing
+        // perfectly well - the original bug, arriving late and far harder to spot.
+        const {service, ws} = await sharingChannel();
+
+        closeScreenTrack(ws);
+        announceShare(ws, 'def');
+        vi.advanceTimersByTime(SCREEN_RESUME_GRACE_MS * 2);
+
+        expect(stillSharing(service)).toBe(true);
+    });
+
+    it('drops held seats on the way out of the channel', async () => {
+        // An expiry firing after the roster is gone would patch a channel this client has left.
+        const {service, ws} = await sharingChannel();
+
+        closeScreenTrack(ws);
+        await service.leaveChannel();
+        vi.advanceTimersByTime(SCREEN_RESUME_GRACE_MS * 2);
+
+        expect(service.isScreenResuming('them')).toBe(false);
     });
 });

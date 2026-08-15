@@ -22,7 +22,10 @@ pub enum EncodeOutcome {
     Failed,
 }
 
-/// Geometry and rate an encoder is built for. Fixed for the life of a session.
+/// Geometry and rate an encoder is built for.
+///
+/// Changeable mid-session through [`VideoEncoder::reconfigure`], but only at a frame boundary and
+/// only together with the geometry the pump fits frames to - see [`super::pump::FramePump`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EncoderSpec {
     pub width: u32,
@@ -40,6 +43,22 @@ pub trait VideoEncoder: Send {
 
     /// Ask for the next frame to be an IDR, e.g. when a new viewer joins or after a fallback.
     fn request_keyframe(&mut self);
+
+    /// Point this encoder at a new geometry, bitrate or frame rate without replacing it.
+    ///
+    /// This is what makes a resolution change something other than a new publish. The encoder
+    /// keeps producing into the same RTP stream, so the session, the track and the share id all
+    /// survive it and no viewer is told anything happened - they get a new SPS/PPS and an IDR at
+    /// the new size, which is exactly what every adaptive encoder emits anyway.
+    ///
+    /// <p><b>The caller owns the ordering.</b> An encoder built for one geometry rejects frames of
+    /// any other (see [`super::encoder_sw::SoftwareEncoder::encode`]), and a rejection is fatal to
+    /// the capture loop. So whatever fits frames to a size must change in the same step as this,
+    /// never around it.</p>
+    ///
+    /// <p>Required rather than defaulted. A default would let a new encoder silently not implement
+    /// it and leave resolution changes quietly doing nothing on whichever machines picked it.</p>
+    fn reconfigure(&mut self, spec: EncoderSpec) -> Result<(), String>;
 
     /// Human-readable name of the backing implementation, for logging and diagnostics.
     fn name(&self) -> &'static str;
@@ -219,6 +238,19 @@ impl VideoEncoder for ResilientEncoder {
         self.active.request_keyframe();
     }
 
+    /// Retype the active encoder, and remember the spec for a fallback that has not happened yet.
+    ///
+    /// Recording it is the whole reason this is not a bare delegation: [`Self::fall_back`] builds
+    /// the software encoder from `self.spec`, so a share that changed resolution and *then* lost
+    /// its hardware encoder would otherwise come back at the geometry the share opened with -
+    /// producing frames the pump's fitted output no longer matches, which is fatal rather than
+    /// merely wrong.
+    fn reconfigure(&mut self, spec: EncoderSpec) -> Result<(), String> {
+        self.active.reconfigure(spec)?;
+        self.spec = spec;
+        Ok(())
+    }
+
     fn name(&self) -> &'static str {
         self.active.name()
     }
@@ -369,6 +401,10 @@ mod tests {
 
         fn request_keyframe(&mut self) {
             self.keyframe_requested = true;
+        }
+
+        fn reconfigure(&mut self, _spec: EncoderSpec) -> Result<(), String> {
+            Ok(())
         }
 
         fn name(&self) -> &'static str {

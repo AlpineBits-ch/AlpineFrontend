@@ -143,7 +143,7 @@ Arun Raghavan <arun.raghavan@collabora.co.uk>
 
 ## Rust crates
 
-Compiled into the application binary. 910 packages, 449 distinct notices.
+Compiled into the application binary. 909 packages, 449 distinct notices.
 
 ### adler2 2.0.1
 
@@ -9993,7 +9993,7 @@ the License, but only in their entirety and only with respect to the Combined
 Software.
 ```
 
-### tauri 2.11.1, tauri-build 2.6.1, tauri-codegen 2.6.1, tauri-macros 2.6.1, tauri-plugin-autostart 2.5.1, tauri-plugin-deep-link 2.4.9, tauri-plugin-dialog 2.7.1, tauri-plugin-fs 2.5.1, tauri-plugin-global-shortcut 2.3.2, tauri-plugin-opener 2.5.4, tauri-plugin-os 2.3.2, tauri-plugin-process 2.3.1, tauri-plugin-store 2.4.3, tauri-plugin-updater 2.10.1, tauri-plugin-window-state 2.4.1, tauri-runtime 2.11.1, tauri-runtime-wry 2.11.1, tauri-utils 2.9.1, tauri-winrt-notification 0.7.2
+### tauri 2.11.1, tauri-build 2.6.1, tauri-codegen 2.6.1, tauri-macros 2.6.1, tauri-plugin-autostart 2.5.1, tauri-plugin-deep-link 2.4.9, tauri-plugin-dialog 2.7.1, tauri-plugin-fs 2.5.1, tauri-plugin-global-shortcut 2.3.2, tauri-plugin-opener 2.5.4, tauri-plugin-os 2.3.2, tauri-plugin-process 2.3.1, tauri-plugin-store 2.4.3, tauri-plugin-updater 2.10.1, tauri-runtime 2.11.1, tauri-runtime-wry 2.11.1, tauri-utils 2.9.1, tauri-winrt-notification 0.7.2
 
 **Licence:** Apache-2.0 OR MIT / MIT OR Apache-2.0
 **Source:** https://github.com/tauri-apps/tauri
@@ -10970,7 +10970,7 @@ Distributed under the [Zlib licence](#licence-zlib), reproduced in full below.
 
 ## npm packages
 
-Bundled into the application frontend. 356 packages, 184 distinct notices.
+Bundled into the application frontend. 355 packages, 183 distinct notices.
 
 ### @alloc/quick-lru 5.2.0, ansi-regex 5.0.1, ansi-styles 4.3.0, camelcase 5.3.1, find-up 4.1.0, is-fullwidth-code-point 3.0.0, locate-path 5.0.0, p-limit 2.3.0, p-locate 4.1.0, p-retry 4.6.2, p-try 2.2.0, path-exists 4.0.0, string-width 4.2.3, strip-ansi 6.0.1, wrap-ansi 6.2.0
 
@@ -11988,16 +11988,6 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ```text
 Copyright (c) the @tauri-apps/plugin-updater authors — https://github.com/tauri-apps/plugins-workspace
-```
-Distributed under the [MIT licence](#licence-mit), reproduced in full below.
-
-### @tauri-apps/plugin-window-state 2.4.1
-
-**Licence:** MIT OR Apache-2.0
-**Source:** https://github.com/tauri-apps/plugins-workspace
-
-```text
-Copyright (c) the @tauri-apps/plugin-window-state authors — https://github.com/tauri-apps/plugins-workspace
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 

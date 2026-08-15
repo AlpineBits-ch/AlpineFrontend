@@ -26,6 +26,7 @@ import {StreamPreset} from '../models/stream-preset';
 import {VoiceEngineService} from './voice-engine.service';
 import {ToastService} from './toast.service';
 import {ConnectionState} from './realtime-connection.service';
+import {ScreenResumeTracker} from '../shared/call/screen-resume';
 import {
     describeTrack,
     VoiceEventDecision,
@@ -127,6 +128,31 @@ export class VoiceChannelService {
     private toast = inject(ToastService);
     private translate = inject(TranslateService);
     private channelParticipantsSignal = signal<Map<string, VoiceChannelParticipant[]>>(new Map());
+
+    /**
+     * Users whose screen track has closed and whose picture is still expected back.
+     *
+     * <p>Read by the stage projections to mark a tile `'resuming'` rather than removing it. A signal
+     * beside the tracker, not derived from it, because a `setTimeout` map cannot be read reactively
+     * and the grid has to repaint the moment either edge of the window is crossed.</p>
+     */
+    private readonly screenResuming = signal<ReadonlySet<string>>(new Set());
+
+    /**
+     * The grace window itself. Expiry is the only thing that finally clears `isScreenSharing`,
+     * which is what makes "the track closed" and "they stopped sharing" two different events.
+     */
+    private readonly screenResume = new ScreenResumeTracker(userId => {
+        this.screenResuming.update(ids => {
+            const next = new Set(ids);
+            next.delete(userId);
+            return next;
+        });
+        const channelId = this.joinedChannelId();
+        if (channelId) {
+            this.patchParticipant(channelId, userId, p => ({...p, isScreenSharing: false}));
+        }
+    });
     readonly channelParticipants = this.channelParticipantsSignal.asReadonly();
 
     // ── Sidebar voice state cache ──────────────────────────────────────────────
@@ -606,6 +632,10 @@ export class VoiceChannelService {
         this.joinedChannelName.set(null);
         this.joinedGuildName.set(null);
         this.localState.update(s => ({...s, isCameraOn: false, isScreenSharing: false}));
+        // Held tiles belong to the stage that is going away. An expiry firing afterwards would
+        // patch a roster for a channel this client has left.
+        this.screenResume.clear();
+        this.screenResuming.set(new Set());
         // Nothing a room said about its plan outlives the room. Carrying a ceiling into the next
         // channel would disable a camera button on a plan that never mentioned one.
         this.limits.clear();
@@ -734,23 +764,16 @@ export class VoiceChannelService {
     /**
      * Change stream quality mid-share.
      *
-     * A resolution change on the Rust publisher rebuilds the encoder, which means a new session and
-     * a new share id; viewers are told to drop the old track and pick up the new one. Every other
-     * change is applied in place and announces nothing.
+     * <p>Announces nothing, because nothing the room can see changes. Every part of a preset is now
+     * applied to the running publish in place - the encoder is retyped rather than rebuilt - so the
+     * share id viewers hold stays valid and their tiles never leave the grid.</p>
+     *
+     * <p>This used to relay a stopped-then-started pair for a resolution change, which is what made
+     * one person adjusting their quality blank out everybody else's stage.</p>
      */
     async setScreenPreset(preset: StreamPreset): Promise<void> {
-        const guildId = this.joinedGuildId();
-        const channelId = this.joinedChannelId();
-        if (!guildId || !channelId) return;
-
-        const restart = await this.rtc.setScreenPreset(preset, guildId, channelId);
-        if (!restart) return;
-
-        this.guildWsSvc.invokeVoiceScreenShareStopped(channelId, restart.oldShareId);
-        // Only if one exists. A rebuild that failed still ended the old share, and announcing a
-        // start for a publish that never happened would put the roster back into the state the
-        // stop above was clearing.
-        if (restart.newShareId) this.guildWsSvc.invokeVoiceScreenShareStarted(channelId, restart.newShareId);
+        if (!this.joinedChannelId()) return;
+        await this.rtc.setScreenPreset(preset);
     }
 
     setServerDeafened(userId: string, isDeafened: boolean): void {
@@ -938,8 +961,36 @@ export class VoiceChannelService {
             if (kind === 'video') {
                 this.patchParticipant(e.channelId, e.userId, p => ({...p, isCameraOn: false}));
             } else if (kind === 'screen') {
-                this.patchParticipant(e.channelId, e.userId, p => ({...p, isScreenSharing: false}));
+                // Deliberately not `isScreenSharing: false`. A closed screen track is usually the
+                // end of a share, but it is also what a source switch, a dead publication and a
+                // renegotiation look like - and clearing the flag here is what took the tile out of
+                // every viewer's grid, reflowed the layout under it, and emptied the stage outright
+                // for anyone watching that stream maximised. The seat is held instead; see
+                // ScreenResumeTracker. If nothing comes back, expiry clears the flag.
+                this.screenResume.hold(e.userId);
+                this.screenResuming.update(ids => new Set(ids).add(e.userId));
             }
+        });
+    }
+
+    /** Whether this user's picture is between tracks and expected back - see {@link screenResume}. */
+    isScreenResuming(userId: string): boolean {
+        return this.screenResuming().has(userId);
+    }
+
+    /**
+     * A held share came back, or really ended. Either way it is no longer resuming.
+     *
+     * <p>Separate from the tracker's own `cancel` because the signal is what the projections read,
+     * and leaving the two to be updated at each call site is how one of them drifts.</p>
+     */
+    private endScreenResume(userId: string): void {
+        this.screenResume.cancel(userId);
+        this.screenResuming.update(ids => {
+            if (!ids.has(userId)) return ids;
+            const next = new Set(ids);
+            next.delete(userId);
+            return next;
         });
     }
 
@@ -961,8 +1012,12 @@ export class VoiceChannelService {
     }
 
     private onScreenShareStarted(e: WsVoiceScreenShareStarted): void {
-        this.gate(e.channelId, e, () =>
-            this.patchParticipant(e.channelId, e.userId, p => ({...p, isScreenSharing: true})));
+        this.gate(e.channelId, e, () => {
+            // Before the patch, so the tile this replaces goes straight from held to live rather
+            // than flickering through a frame of neither.
+            this.endScreenResume(e.userId);
+            this.patchParticipant(e.channelId, e.userId, p => ({...p, isScreenSharing: true}));
+        });
     }
 
     private async onMovedToChannel(e: WsMovedToChannel): Promise<void> {

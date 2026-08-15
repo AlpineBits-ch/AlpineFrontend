@@ -151,16 +151,6 @@ export function clampPreset(preset: StreamPreset, ceiling: VideoCeiling | null |
         : {resolution, framerate};
 }
 
-/**
- * The height to declare on a publish, which is the source's own for `source`.
- *
- * <p>Zero when nothing can be stated - an unmeasured source - and the caller then sends no intent
- * rather than a made-up one.</p>
- */
-export function publishHeight(preset: StreamPreset, sourceHeight?: number | null): number {
-    return RESOLUTION_HEIGHTS[preset.resolution] ?? (sourceHeight && sourceHeight > 0 ? sourceHeight : 0);
-}
-
 function tallestAllowed(ceiling: VideoCeiling): StreamResolution | null {
     let best: StreamResolution | null = null;
     for (const resolution of MEASURED_RESOLUTIONS) {

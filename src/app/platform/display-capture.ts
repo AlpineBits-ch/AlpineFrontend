@@ -104,17 +104,12 @@ export async function captureDisplay(request: DisplayCaptureRequest): Promise<Di
     return {stream, video, audio, audioUnavailable: request.audio && audio === null};
 }
 
-/**
- * Change a running capture's rate.
- *
- * <p>The one part of a preset that changes without rebuilding anything - a resolution change restarts
- * the publish, because the encoder is fixed to one geometry for its lifetime.</p>
- */
+/** Change a running capture's rate. */
 export async function retargetDisplayFps(track: MediaStreamTrack, fps: number): Promise<void> {
     await track.applyConstraints({frameRate: {ideal: fps, max: fps}});
 }
 
-/** Change a running capture's output cap. Costs a renegotiation and a keyframe downstream. */
+/** Change a running capture's output cap. Costs a keyframe downstream, and nothing else. */
 export async function retargetDisplayGeometry(
     track: MediaStreamTrack,
     width: number,

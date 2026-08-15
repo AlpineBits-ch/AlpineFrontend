@@ -73,6 +73,7 @@ function render(options: Options = {}): ComponentFixture<VoiceChannelComponent> 
                     getVideoStream: () => null,
                     getScreenStream: () => null,
                     isScreenAudioMuted: () => false,
+                    isScreenResuming: () => false,
                     getUserVolume: () => 1,
                     rtc: {screenPreset: signal(null)},
                     // The room's entitlement state, stubbed as "nothing said" - which is what an

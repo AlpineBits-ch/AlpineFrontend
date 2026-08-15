@@ -127,15 +127,25 @@ export class GuildVoiceService {
         return this.client.post<VoiceNegotiateResponse>(`${this.base(guildId, channelId)}/tracks`, body);
     }
 
+    /**
+     * Re-offer on an open session, optionally re-declaring what the video now is.
+     *
+     * <p>`video` belongs here only when this renegotiation is what changes the picture. The server's
+     * fan-out cap is computed from the last declaration it saw, so an absent field leaves that cap
+     * exactly where it is - it neither applies one nor lifts one, and a renegotiation is never
+     * refused over it. An ICE restart, a reconnect and the immediate re-offer the SFU asks for after
+     * a publish all send the body they always sent.</p>
+     */
     renegotiate(
         guildId: string,
         channelId: string,
         mediaSessionId: string,
         sessionDescription: RTCSessionDescriptionInit,
+        video?: VideoPublishIntentDto,
     ): Observable<VoiceRenegotiateResponse> {
         return this.client.put<VoiceRenegotiateResponse>(
             `${this.base(guildId, channelId)}/negotiate`,
-            {mediaSessionId, sessionDescription},
+            {mediaSessionId, sessionDescription, ...(video ? {video} : {})},
         );
     }
 

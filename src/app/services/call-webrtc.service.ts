@@ -36,7 +36,8 @@ import {
     preferVideoCodecs,
     screenSendEncodings,
 } from './webrtc-encoding';
-import {SUBSCRIBE_RETRY_DELAYS_MS} from './voice-rtc.service';
+import {SUBSCRIBE_RETRY_DELAYS_MS, trackIntent} from './voice-rtc.service';
+import type {VideoPublishIntentDto} from '../dtos/response/entitlement.dto';
 import {inboundScreenFpsByShare} from '../shared/call/inbound-fps';
 
 export interface CallStats {
@@ -591,15 +592,21 @@ export class CallWebRtcService {
     // ── Local track publishing ────────────────────────────────────────────────
 
     // and subscribe calls never race on setLocalDescription/setRemoteDescription.
-    private offerAnswerCycle(buildTracks: () => CfTrackNew[]): Promise<CfTrackResult[]> {
+    private offerAnswerCycle(
+        buildTracks: () => CfTrackNew[],
+        video?: VideoPublishIntentDto,
+    ): Promise<CfTrackResult[]> {
         const next = this.negotiationChain
             .catch(() => void 0)
-            .then(() => this.doOfferAnswer(buildTracks));
+            .then(() => this.doOfferAnswer(buildTracks, video));
         this.negotiationChain = next.catch(() => void 0);
         return next;
     }
 
-    private async doOfferAnswer(buildTracks: () => CfTrackNew[]): Promise<CfTrackResult[]> {
+    private async doOfferAnswer(
+        buildTracks: () => CfTrackNew[],
+        video?: VideoPublishIntentDto,
+    ): Promise<CfTrackResult[]> {
         if (!this.pc || !this.mediaSessionId || !this.callId) return [];
 
         const offer = await this.pc.createOffer();
@@ -610,6 +617,7 @@ export class CallWebRtcService {
             this.voiceService.cfTracksNew(this.callId, this.mediaSessionId, {
                 sessionDescription: offer,
                 tracks: buildTracks(),
+                video,
             })
         );
         if (!this.callId) return [];
@@ -665,11 +673,14 @@ export class CallWebRtcService {
             direction: 'sendonly',
             sendEncodings: cameraSendEncodings(),
         });
+        // Read off the track the device actually opened rather than off the constraint: a camera
+        // negotiates its own size, so asking for 720 and being handed 1080 is ordinary, and stating
+        // the request would have the server clamp against a resolution nothing is sending.
         const results = await this.offerAnswerCycle(() => [{
             direction: 'publish',
             mid: transceiver.mid ?? '0',
             trackName: 'video',
-        }]);
+        }], trackIntent(track));
         this.videoSender = transceiver.sender;
         this.videoTrackName = results[0]?.trackName ?? 'video';
         await applySimpleBitrate(transceiver.sender, CAMERA_KBPS);
@@ -712,11 +723,14 @@ export class CallWebRtcService {
         preferVideoCodecs(transceiver, 'sender');
 
         const cfTrackName = `screen-${shareId}`;
+        // The capture's own settings, not the preset's nominal height: the geometry was already
+        // fitted to the source's aspect before this track was opened, so an ultrawide share is
+        // genuinely shorter than the preset names.
         const results = await this.offerAnswerCycle(() => [{
             direction: 'publish',
             mid: transceiver.mid ?? '0',
             trackName: cfTrackName,
-        }]);
+        }], trackIntent(track));
         this.screenSender = transceiver.sender;
         this.screenTrackName = results[0]?.trackName ?? cfTrackName;
         this.screenShareId = shareId;

@@ -246,7 +246,12 @@ impl MediaFoundationEncoder {
     /// A retype has to happen with the transform out of streaming mode, and the input type has to
     /// be cleared before the output type will move: an encoder MFT derives what input it accepts
     /// from the output it has been asked to produce.
-    pub fn reconfigure(&mut self, spec: EncoderSpec) -> Result<(), String> {
+    ///
+    /// <p>Named `retype` rather than `reconfigure` so it does not shadow
+    /// [`VideoEncoder::reconfigure`], which delegates here. Two methods of the same name on one
+    /// type - one inherent, one from a trait - resolve by a priority rule rather than by anything
+    /// visible at the call site, and this is called from both inside and outside the impl.</p>
+    pub fn retype(&mut self, spec: EncoderSpec) -> Result<(), String> {
         if spec == self.spec {
             return Ok(());
         }
@@ -506,6 +511,10 @@ impl VideoEncoder for MediaFoundationEncoder {
         }
     }
 
+    fn reconfigure(&mut self, spec: EncoderSpec) -> Result<(), String> {
+        self.retype(spec)
+    }
+
     fn name(&self) -> &'static str {
         "media-foundation"
     }
@@ -669,7 +678,7 @@ impl PooledEncoder {
     pub fn acquire(spec: EncoderSpec) -> Option<Self> {
         if let Ok(mut slot) = parked().lock() {
             if let Some(mut encoder) = slot.take() {
-                match encoder.reconfigure(spec) {
+                match encoder.retype(spec) {
                     Ok(()) => return Some(Self(Some(encoder))),
                     Err(e) => {
                         // Park it again rather than dropping it: a transform that refused a retype
@@ -696,6 +705,15 @@ impl VideoEncoder for PooledEncoder {
     fn request_keyframe(&mut self) {
         if let Some(encoder) = self.0.as_mut() {
             encoder.request_keyframe();
+        }
+    }
+
+    /// The same retype [`PooledEncoder::acquire`] performs between shares, now reachable while one
+    /// is running - which is what turns a resolution change into something the wire never notices.
+    fn reconfigure(&mut self, spec: EncoderSpec) -> Result<(), String> {
+        match self.0.as_mut() {
+            Some(encoder) => encoder.retype(spec),
+            None => Err("the pooled encoder is gone".into()),
         }
     }
 

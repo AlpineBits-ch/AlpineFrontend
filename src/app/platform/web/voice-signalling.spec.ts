@@ -18,6 +18,7 @@ import {
     dialectFor,
     negotiateUrl,
     publishBody,
+    renegotiateBody,
     sessionIdFrom,
     sessionUrl,
     subscribeBody,
@@ -127,6 +128,64 @@ describe('a publish', () => {
     it('publishes under the name every other client resolves audio by', () => {
         // Other clients ask for this by string. Changing it orphans everyone on any other build.
         expect(VOICE_TRACK_NAME).toBe('audio');
+    });
+
+    it('states the size it is about to encode', () => {
+        expect(publishBody('neutral', 'sess', offer, tracks, {height: 1080, framerate: 60})['video'])
+            .toEqual({height: 1080, framerate: 60});
+    });
+
+    /** An audio-only publish. Nothing about audio is laddered, so there is nothing to state. */
+    it('omits the field when there is no video', () => {
+        expect('video' in publishBody('neutral', 'sess', offer, tracks)).toBe(false);
+    });
+
+    /**
+     * Isle's route is Cloudflare's own passthrough with no entitlement layer in front of it, so a
+     * field it does not declare would be sent to an SFU rather than to Echo.
+     */
+    it('states nothing on the Cloudflare surface', () => {
+        expect('video' in publishBody('cloudflare', 'sess', offer, tracks, {height: 1080, framerate: 60}))
+            .toBe(false);
+    });
+});
+
+/**
+ * The re-declaration. `video` belongs on a renegotiation only when *that* renegotiation is what
+ * changes the picture: the server computes its fan-out cap from the last declaration it saw, so an
+ * absent field leaves the cap exactly where it is - in both directions.
+ */
+describe('a renegotiation', () => {
+    it('carries the session and the offer, and nothing else by default', () => {
+        expect(renegotiateBody('neutral', 'sess', offer))
+            .toEqual({mediaSessionId: 'sess', sessionDescription: offer});
+        expect(renegotiateBody('cloudflare', 'sess', offer))
+            .toEqual({cfSessionId: 'sess', sessionDescription: offer});
+    });
+
+    it('re-declares the size when the renegotiation is what changed it', () => {
+        expect(renegotiateBody('neutral', 'sess', offer, {height: 720, framerate: 30}))
+            .toEqual({
+                mediaSessionId: 'sess',
+                sessionDescription: offer,
+                video: {height: 720, framerate: 30},
+            });
+    });
+
+    /**
+     * Negative: a non-positive axis reads as unstated, and a made-up number is worse than none - the
+     * server would cap a session against a size nothing is sending.
+     */
+    it('states nothing when an axis is unmeasured', () => {
+        expect('video' in renegotiateBody('neutral', 'sess', offer, {height: 0, framerate: 30}))
+            .toBe(false);
+        expect('video' in renegotiateBody('neutral', 'sess', offer, {height: 720, framerate: 0}))
+            .toBe(false);
+    });
+
+    it('states nothing on the Cloudflare surface', () => {
+        expect('video' in renegotiateBody('cloudflare', 'sess', offer, {height: 720, framerate: 30}))
+            .toBe(false);
     });
 });
 

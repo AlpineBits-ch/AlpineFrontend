@@ -579,6 +579,10 @@ impl VideoEncoder for RecordingEncoder {
         self.pending_keyframe = true;
     }
 
+    fn reconfigure(&mut self, _spec: EncoderSpec) -> Result<(), String> {
+        Ok(())
+    }
+
     fn name(&self) -> &'static str {
         "recording"
     }
@@ -678,7 +682,7 @@ async fn publishing(
     keyframe_interval: Duration,
     encoder: Box<dyn VideoEncoder>,
 ) -> Publishing {
-    let publication = Publication::start(signalling_to(&backend.base_url), "abc", vec![], false)
+    let publication = Publication::start(signalling_to(&backend.base_url), "abc", vec![], false, None)
         .await
         .expect("the publication must start against the mock backend");
     let keyframe_wanted = publication.keyframe_requests();
@@ -839,7 +843,7 @@ async fn the_publish_opens_a_secondary_session_and_closes_its_track() {
     let (backend, _units) = MockBackend::start(false).await;
     provision_async().await;
 
-    let publication = Publication::start(signalling_to(&backend.base_url), "abc", vec![], false)
+    let publication = Publication::start(signalling_to(&backend.base_url), "abc", vec![], false, None)
         .await
         .expect("the publication must start");
     let track_name = publication.track_name.clone();
@@ -891,7 +895,7 @@ async fn a_share_with_audio_publishes_and_closes_both_tracks() {
     let (backend, _units) = MockBackend::start(false).await;
     provision_async().await;
 
-    let publication = Publication::start(signalling_to(&backend.base_url), "abc", vec![], true)
+    let publication = Publication::start(signalling_to(&backend.base_url), "abc", vec![], true, None)
         .await
         .expect("the publication must start");
 
@@ -937,7 +941,7 @@ async fn a_share_without_audio_announces_no_audio_track() {
     let (backend, _units) = MockBackend::start(false).await;
     provision_async().await;
 
-    let publication = Publication::start(signalling_to(&backend.base_url), "abc", vec![], false)
+    let publication = Publication::start(signalling_to(&backend.base_url), "abc", vec![], false, None)
         .await
         .expect("the publication must start");
 

@@ -141,6 +141,7 @@ function setup(): Harness {
                     getVideoStream: () => null,
                     getScreenStream: () => null,
                     isScreenAudioMuted: () => false,
+                    isScreenResuming: () => false,
                     toggleMute: fakes.guildToggleMute,
                     toggleDeafen: vi.fn(),
                     leaveChannel: fakes.leaveChannel,

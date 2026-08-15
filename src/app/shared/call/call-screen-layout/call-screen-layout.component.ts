@@ -82,6 +82,16 @@ export class CallScreenLayoutComponent implements OnDestroy {
     protected readonly maximizedId = signal<string | null>(null);
 
     /**
+     * Whose stream {@link maximizedId} names, tracked so the maximise survives that id changing.
+     *
+     * <p>A share id is per-publication, not per-person: a sharer switching source ends one and opens
+     * another seconds later. Without this, `displayedShares` filtered on an id nothing matched and
+     * returned nothing at all - a completely empty stage, which is the worst of the failures this
+     * work exists to remove.</p>
+     */
+    private readonly maximizedOwner = signal<string | null>(null);
+
+    /**
      * Shares a viewer has explicitly dropped, by id - see {@link displayedShares}.
      *
      * <p>Only ever populated for remote shares (the tile gates its hide control to `!isLocal` - see
@@ -108,12 +118,23 @@ export class CallScreenLayoutComponent implements OnDestroy {
      */
     protected displayedShares = computed(() => {
         const id = this.maximizedId();
-        if (id !== null) return this.screenShares().filter(s => s.shareId === id);
+        if (id !== null) {
+            const exact = this.screenShares().filter(s => s.shareId === id);
+            if (exact.length > 0) return exact;
+            // The maximised share's id changed under us. That is a replacement, not a departure -
+            // a publisher switching source opens a new track under a new id - and filtering on the
+            // dead id leaves `displayedTiles` empty, which is a blank stage rather than a stream.
+            // Following the same person is what the viewer meant by maximising them.
+            const replacement = this.replacementFor(id);
+            if (replacement) return [replacement];
+            return exact;
+        }
 
         const hidden = this.hiddenIds();
         const remote = this.remoteShares().filter(s => !hidden.has(s.shareId));
         return remote.length > 0 ? remote : this.screenShares().filter(s => !hidden.has(s.shareId));
     });
+
 
     /**
      * Everyone in the call, as a full seat on the stage.
@@ -324,6 +345,10 @@ export class CallScreenLayoutComponent implements OnDestroy {
         // A hidden id is only meaningful while the share it names still exists. Without this, a
         // share that stops and restarts under the same id - the same user re-sharing to the same
         // slot - would come back hidden for a reason nobody chose this time.
+        //
+        // Resuming shares are excluded from the pruning: they are still in `screenShares` by
+        // construction, so a hide the viewer chose survives the gap rather than being undone by a
+        // renegotiation they never saw.
         effect(() => {
             const liveIds = new Set(this.screenShares().map(s => s.shareId));
             this.hiddenIds.update(hidden => {
@@ -332,6 +357,31 @@ export class CallScreenLayoutComponent implements OnDestroy {
                 return next.size === hidden.size ? hidden : next;
             });
         });
+
+        // Remembers whose stream is maximised, so {@link replacementFor} can follow them when the
+        // share id changes underneath. Only ever written from a share that is actually present:
+        // reading it off a dead id would clear the very thing it exists to remember.
+        effect(() => {
+            const id = this.maximizedId();
+            if (id === null) {
+                this.maximizedOwner.set(null);
+                return;
+            }
+            const share = this.screenShares().find(s => s.shareId === id);
+            if (share) this.maximizedOwner.set(share.userId);
+        }, {allowSignalWrites: true});
+
+        // Re-points the maximise at the replacement. `displayedShares` already falls through to it
+        // so the picture never drops, but everything else keyed on the id - the tile's own
+        // `maximized` binding, the toolbar toggle, the watch claim - would otherwise stay pointed
+        // at a share that no longer exists.
+        effect(() => {
+            const id = this.maximizedId();
+            if (id === null) return;
+            if (this.screenShares().some(s => s.shareId === id)) return;
+            const replacement = this.replacementFor(id);
+            if (replacement) this.maximizedId.set(replacement.shareId);
+        }, {allowSignalWrites: true});
 
         // Claims "somebody is rendering the preview" for Task 10's idle pause. onCleanup releases
         // it the moment claimingPreview goes false - the self-card going null because somebody
@@ -365,6 +415,19 @@ export class CallScreenLayoutComponent implements OnDestroy {
         const scope = this.watchScope();
         if (!scope) return [];
         return this.shareWatch.viewersOf(scope, shareId).map(this.nameOf());
+    }
+
+    /**
+     * The share that took over from `deadId`, if the same person is still on the stage.
+     *
+     * <p>Keyed by owner rather than by anything on the id itself, because a replacement share has
+     * nothing in common with the one it replaces - new session, new track, new id. What the viewer
+     * chose when they maximised was a person's stream, and that is the thing worth following.</p>
+     */
+    private replacementFor(deadId: string): CallScreenShare | undefined {
+        const owner = this.maximizedOwner();
+        if (owner === null) return undefined;
+        return this.screenShares().find(s => s.userId === owner && s.shareId !== deadId);
     }
 
     protected getShareForUser(userId: string): CallScreenShare | undefined {
@@ -456,9 +519,10 @@ export class CallScreenLayoutComponent implements OnDestroy {
      * second one nested inside it.
      */
     protected onSelfCardClick(shareId: string, previewPaused: boolean): void {
-        // Same trap as the share tile's own press - see trackActivationClick. Focusing the app
-        // resumes the preview, so the press that focused it arrives with `previewPaused` already
-        // false and would promote the card into the grid instead of doing nothing.
+        // Same trap as the share tile's own press - see trackActivationClick. A pause now outlives
+        // the window coming back, so this card is exactly what is under the cursor when the user
+        // clicks the app to return to it, and that press means "the app", not "start decoding my
+        // screen again". The deliberate second press does resume.
         if (this.isActivationClick()) return;
         if (previewPaused) {
             this.rustMedia.resumePreview();

@@ -43,6 +43,21 @@ export interface CallScreenShare {
     isAudioMuted?: boolean;
     renderedFps?: number | null;
     inboundFps?: number | null;
+    /**
+     * Whether this share's picture is live, or between tracks and expected back.
+     *
+     * <p><b>`'resuming'` is a state, not an absence.</b> A share whose track closes is normally gone
+     * for good, and dropping the tile is right - but not always: a publisher switching source, a
+     * publication that died on a run of failed writes, a network blip, and a browser publish
+     * renegotiating all end one track and open another under a new id, seconds apart. Treating that
+     * gap as "stopped sharing" is what used to take the tile out of the grid, reflow the layout
+     * under it, and - for anyone who had that stream maximised - empty the stage completely.</p>
+     *
+     * <p>So the tile keeps its slot and holds its last picture for a grace window (see
+     * `SCREEN_RESUME_GRACE_MS`), and only really disappears if nothing comes back. Undefined reads
+     * as `'live'`; a projection that does not model this at all is simply never resuming.</p>
+     */
+    state?: 'live' | 'resuming';
 }
 
 /**

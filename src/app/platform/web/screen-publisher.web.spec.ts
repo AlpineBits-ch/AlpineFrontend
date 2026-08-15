@@ -299,6 +299,25 @@ describe('WebScreenPublisher: what it publishes', () => {
         expect(offer.sdp).toContain('x-google-start-bitrate=8000');
     });
 
+    /**
+     * The declaration the server computes its fan-out cap from. It is the solved capture height, not
+     * the preset's nominal one: `publishOptions` has already fitted the source into the preset's box,
+     * so an ultrawide at 1080p genuinely encodes 540 lines and claiming 1080 would have the server
+     * cap a share that is well inside its rung.
+     */
+    it('declares the size it is about to encode', async () => {
+        await new WebScreenPublisher().start(options({width: 1920, height: 540, fps: 30}));
+
+        expect(publishBody()['video']).toEqual({height: 540, framerate: 30});
+    });
+
+    /** Negative: an unmeasured source. The field is omitted rather than filled with a guess. */
+    it('declares nothing when the geometry is unstated', async () => {
+        await new WebScreenPublisher().start(options({height: 0}));
+
+        expect('video' in publishBody()).toBe(false);
+    });
+
     it('caps the sender at the preset it was given', async () => {
         const preset: StreamPreset = {resolution: '720p', framerate: 15};
 
@@ -456,6 +475,28 @@ describe('WebScreenPublisher: share ids', () => {
 
         expect(video.applyConstraints).toHaveBeenCalledWith({frameRate: {ideal: 15, max: 15}});
         expect(FakePeerConnection.instances[0].senders[0].params.encodings?.[0].maxFramerate).toBe(15);
+    });
+
+    /**
+     * A resolution change is an `applyConstraints` and a `setParameters`, and neither is an SDP
+     * event - so no request leaves this client and the server's recorded size goes stale. Pinned
+     * because the fix for that has to be a re-declare the server can hear, and a test asserting the
+     * silence is what says which fix is needed.
+     */
+    it('changes resolution without signalling anything', async () => {
+        const video = fakeTrack('video');
+        displayResult = async () => new FakeMediaStream([video]);
+        const adapter = new WebScreenPublisher();
+        await adapter.start(options({shareId: 'live', width: 1920, height: 1080}));
+        const before = posted.length;
+
+        await adapter.setGeometry('live', 1280, 720, 2500);
+
+        expect(video.applyConstraints)
+            .toHaveBeenCalledWith({width: {max: 1280}, height: {max: 720}});
+        expect(FakePeerConnection.instances[0].senders[0].params.encodings?.[0].maxBitrate)
+            .toBe(2_500_000);
+        expect(posted.length).toBe(before);
     });
 
     it('mutes the share audio without stopping the capture device', async () => {
