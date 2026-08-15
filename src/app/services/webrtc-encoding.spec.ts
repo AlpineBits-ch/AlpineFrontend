@@ -2,7 +2,10 @@ import {
     applyScreenEncoding,
     applySimpleBitrate,
     CAMERA_KBPS,
+    cameraSendEncodings,
+    screenSendEncodings,
     STREAM_AUDIO_KBPS,
+    VIDEO_LAYER_RIDS,
     VOICE_AUDIO_KBPS,
     withStartBitrate,
 } from './webrtc-encoding';
@@ -107,5 +110,79 @@ describe('fixed audio and camera bitrates', () => {
         expect(VOICE_AUDIO_KBPS).toBe(64);
         expect(STREAM_AUDIO_KBPS).toBe(128);
         expect(CAMERA_KBPS).toBe(2500);
+    });
+});
+
+/**
+ * The rid spelling is the one thing in this file that fails silently. Nothing errors when the layers
+ * are named wrong - the SFU simply degrades and falls back in the wrong direction, and the only
+ * symptom is that the egress bill does not go down. Pinned here rather than described.
+ */
+describe('the simulcast ladder', () => {
+    it('names the layers a, b, c - descending quality in ascending alphabetical order', () => {
+        expect([...VIDEO_LAYER_RIDS]).toEqual(['a', 'b', 'c']);
+
+        // The property the SFU actually relies on: `asciibetical` reads a-z as best-to-worst, so
+        // sorting the rids must sort the layers from most to least desirable. `q`/`h`/`f` fails this.
+        const byQuality = [...VIDEO_LAYER_RIDS];
+        expect([...VIDEO_LAYER_RIDS].sort()).toEqual(byQuality);
+    });
+
+    it('scales the camera by 1, 2 and 4 with a bitrate ladder that is not linear in pixels', () => {
+        const encodings = cameraSendEncodings(CAMERA_KBPS);
+        expect(encodings.map(e => e.rid)).toEqual(['a', 'b', 'c']);
+        expect(encodings.map(e => e.scaleResolutionDownBy)).toEqual([1, 2, 4]);
+        expect(encodings.map(e => e.maxBitrate)).toEqual([2_500_000, 800_000, 250_000]);
+    });
+
+    it('gives a screen share two layers and no quarter-scale one', () => {
+        const encodings = screenSendEncodings({resolution: '1080p', framerate: 30});
+        expect(encodings.map(e => e.rid)).toEqual(['a', 'b']);
+        // 1440p/4 is 640x360, which is not a cheaper share but an unreadable one - see
+        // screenSendEncodings. The saving that matters lands on `b`.
+        expect(encodings.some(e => e.rid === 'c')).toBe(false);
+        expect(encodings.map(e => e.maxBitrate)).toEqual([4_500_000, 1_440_000]);
+    });
+});
+
+describe('encoding parameters on a simulcast sender', () => {
+    function ladderSender(rids: string[]): FakeSender {
+        const params = {encodings: rids.map(rid => ({rid}))} as RTCRtpSendParameters;
+        return {
+            getParameters: () => params,
+            setParameters: vi.fn(async () => void 0),
+            track: {contentHint: ''} as MediaStreamTrack,
+        } as unknown as FakeSender;
+    }
+
+    it('applies the screen preset to every rung, not just the top one', async () => {
+        const sender = ladderSender(['a', 'b']);
+        await applyScreenEncoding(sender, {resolution: '1080p', framerate: 60});
+        const encodings = sender.setParameters.mock.calls[0][0].encodings;
+        expect(encodings.map((e: RTCRtpEncodingParameters) => e.maxBitrate)).toEqual([8_000_000, 2_560_000]);
+        expect(encodings.map((e: RTCRtpEncodingParameters) => e.scaleResolutionDownBy)).toEqual([1, 2]);
+        expect(encodings.every((e: RTCRtpEncodingParameters) => e.maxFramerate === 60)).toBe(true);
+    });
+
+    it('floors only the top rung, so the ladder does not raise the rate the encoder insists on', async () => {
+        const sender = ladderSender(['a', 'b']);
+        await applyScreenEncoding(sender, {resolution: '1080p', framerate: 60});
+        const encodings = sender.setParameters.mock.calls[0][0].encodings;
+        expect(encodings[0].minBitrate).toBe(4_800_000);
+        expect(encodings[1].minBitrate).toBeUndefined();
+    });
+
+    it('scales a camera cap down the ladder rather than capping only the top layer', async () => {
+        const sender = ladderSender(['a', 'b', 'c']);
+        await applySimpleBitrate(sender, CAMERA_KBPS);
+        const encodings = sender.setParameters.mock.calls[0][0].encodings;
+        expect(encodings.map((e: RTCRtpEncodingParameters) => e.maxBitrate))
+            .toEqual([2_500_000, 800_000, 250_000]);
+    });
+
+    it('treats an unnamed encoding as the top layer, so non-simulcast senders are unchanged', async () => {
+        const sender = fakeSender();
+        await applySimpleBitrate(sender, STREAM_AUDIO_KBPS);
+        expect(sender.setParameters.mock.calls[0][0].encodings[0].maxBitrate).toBe(128_000);
     });
 });

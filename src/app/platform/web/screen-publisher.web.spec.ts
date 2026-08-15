@@ -107,6 +107,22 @@ class FakePeerConnection {
         return sender;
     }
 
+    /**
+     * How the video half is published now, because `sendEncodings` is only honoured when the
+     * transceiver is created. The ladder is copied onto the sender's parameters so a test can read
+     * back the rids the way a real sender would report them.
+     */
+    addTransceiver(track: FakeTrack, init?: RTCRtpTransceiverInit) {
+        const sender = new FakeSender(track);
+        sender.params = {encodings: (init?.sendEncodings ?? [{}]).map(e => ({...e}))} as RTCRtpSendParameters;
+        this.senders.push(sender);
+        return {
+            sender,
+            mid: String(this.senders.length - 1),
+            setCodecPreferences: (codecs: unknown[]) => this.codecPreferences.push(codecs),
+        };
+    }
+
     getTransceivers(): {sender: FakeSender; mid: string; setCodecPreferences: (c: unknown[]) => void}[] {
         return this.senders.map((sender, index) => ({
             sender,

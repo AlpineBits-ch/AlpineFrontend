@@ -90,6 +90,37 @@ export interface VoiceHeartbeatState {
     audioTrackName: string | null;
 }
 
+// ── Subscriber state ─────────────────────────────────────────────────────────
+
+/**
+ * What one client asserts about its own rendering, sent to `POST .../voice/subscriptions`.
+ *
+ * <p>Every field is optional and an omitted one is left alone, so a tile resize is a body carrying
+ * `tileHeights` and nothing else. Mirrors `Echo.Voice.Rooms.VoiceSubscriberUpdate`.</p>
+ *
+ * <p>Everything here can only ever <b>reduce</b> what this client is served, which is why it needs
+ * no permission beyond being in the room: a client that lies costs itself media and costs nobody
+ * else anything. Only `tileHeights` is populated today - see {@link VoiceSubscriberReportService} -
+ * and the rest are declared because the wire contract carries them.</p>
+ */
+export interface VoiceSubscriberUpdate {
+    /** This client is backgrounded or hidden. Drops video, never audio. */
+    paused?: boolean;
+    /** Publishers to keep subscribed whatever the ranking says. Capped server-side. */
+    pinned?: string[];
+    /** Publishers whose tile has been collapsed. Video only, same as {@link paused}. */
+    pausedPublishers?: string[];
+    /**
+     * Publisher user id to the height, in **device pixels**, of the largest tile they are drawn in.
+     *
+     * <p>Replaced wholesale rather than merged, so a partial map silently un-reports whoever it
+     * leaves out. This is the measurement that drives simulcast layer selection.</p>
+     */
+    tileHeights?: Record<string, number>;
+    /** Share ids whose audio half is wanted. Screen-share audio is off by default. */
+    screenAudioShares?: string[];
+}
+
 // ── Stale subscriptions ──────────────────────────────────────────────────────
 
 /**

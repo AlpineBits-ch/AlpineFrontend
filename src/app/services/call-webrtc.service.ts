@@ -32,7 +32,9 @@ import {
     applyScreenEncoding,
     applySimpleBitrate,
     CAMERA_KBPS,
+    cameraSendEncodings,
     preferVideoCodecs,
+    screenSendEncodings,
 } from './webrtc-encoding';
 import {SUBSCRIBE_RETRY_DELAYS_MS} from './voice-rtc.service';
 import {inboundScreenFpsByShare} from '../shared/call/inbound-fps';
@@ -656,7 +658,13 @@ export class CallWebRtcService {
         if (!this.pc || !this.callId) return;
         const track = stream.getVideoTracks()[0];
         if (!track) return;
-        const transceiver = this.pc.addTransceiver(track, {direction: 'sendonly'});
+        // The ladder is declared here or nowhere: rids are negotiated in the SDP, so `setParameters`
+        // further down can edit these encodings but can never add them. Without it the server's
+        // chosen layer matches no rid we publish and every viewer is served full quality.
+        const transceiver = this.pc.addTransceiver(track, {
+            direction: 'sendonly',
+            sendEncodings: cameraSendEncodings(),
+        });
         const results = await this.offerAnswerCycle(() => [{
             direction: 'publish',
             mid: transceiver.mid ?? '0',
@@ -691,7 +699,13 @@ export class CallWebRtcService {
         if (!this.pc || !this.callId) return;
         const track = stream.getVideoTracks()[0];
         if (!track) return;
-        const transceiver = this.pc.addTransceiver(track, {direction: 'sendonly'});
+        const preset = this.callSession.screenPreset() ?? DEFAULT_STREAM_PRESET;
+        // Two rungs rather than three - see screenSendEncodings for why the bottom of the ladder is
+        // given up on screen content specifically.
+        const transceiver = this.pc.addTransceiver(track, {
+            direction: 'sendonly',
+            sendEncodings: screenSendEncodings(preset),
+        });
 
         // Prefer VP9 for screen sharing -better quality-per-bit means higher effective fps
         // at the same bitrate compared to VP8.
@@ -706,7 +720,7 @@ export class CallWebRtcService {
         this.screenSender = transceiver.sender;
         this.screenTrackName = results[0]?.trackName ?? cfTrackName;
         this.screenShareId = shareId;
-        await applyScreenEncoding(transceiver.sender, this.callSession.screenPreset() ?? DEFAULT_STREAM_PRESET);
+        await applyScreenEncoding(transceiver.sender, preset);
         if (this.callId) this.voiceWs.invokeScreenShareStarted(this.callId, shareId);
     }
 

@@ -19,7 +19,9 @@ import {
     applyScreenEncoding,
     applySimpleBitrate,
     CAMERA_KBPS,
+    cameraSendEncodings,
     preferVideoCodecs,
+    screenSendEncodings,
     STREAM_AUDIO_KBPS,
     withStartBitrate,
 } from './webrtc-encoding';
@@ -884,10 +886,19 @@ export class VoiceRTCService {
             let cfTrackName: string | null = null;
             await this.enqueueNegotiation(async () => {
                 if (!this.pc || !this.mediaSessionId) return;
-                const sender = this.pc.addTrack(this.localVideoTrack!, stream);
+                // addTransceiver rather than addTrack, and that is the whole simulcast change on
+                // this path: `sendEncodings` is only honoured when the transceiver is created, so
+                // addTrack can never produce a layered publish. The `streams` argument keeps the
+                // stream association addTrack was giving us.
+                const transceiver = this.pc.addTransceiver(this.localVideoTrack!, {
+                    direction: 'sendonly',
+                    streams: [stream],
+                    sendEncodings: cameraSendEncodings(),
+                });
+                const sender = transceiver.sender;
                 const offer = await this.pc.createOffer();
                 await this.pc.setLocalDescription(offer);
-                const mid = this.pc.getTransceivers().find(t => t.sender === sender)?.mid ?? '0';
+                const mid = transceiver.mid ?? '0';
                 const resp = await firstValueFrom(this.guildVoiceSvc.negotiateTracks(guildId, channelId, {
                     mediaSessionId: this.mediaSessionId!,
                     sessionDescription: this.pc.localDescription!,
@@ -964,14 +975,21 @@ export class VoiceRTCService {
             await this.enqueueNegotiation(async () => {
                 if (!this.pc || !this.mediaSessionId) return;
 
-                const videoSender = this.pc.addTrack(this.localScreenTrack!, stream);
+                // addTransceiver rather than addTrack for the video half: `sendEncodings` is only
+                // honoured at creation, so the two-rung screen ladder has to be declared here or not
+                // at all. The audio half has no layers and stays on addTrack.
+                const videoTransceiver = this.pc.addTransceiver(this.localScreenTrack!, {
+                    direction: 'sendonly',
+                    streams: [stream],
+                    sendEncodings: screenSendEncodings(preset),
+                });
+                const videoSender = videoTransceiver.sender;
                 const audioSender = this.localScreenAudioTrack
                     ? this.pc.addTrack(this.localScreenAudioTrack, stream)
                     : null;
 
                 // VP9 for screen sharing: better quality-per-bit at the same bitrate vs VP8.
-                const videoTransceiver = this.pc.getTransceivers().find(t => t.sender === videoSender);
-                if (videoTransceiver) preferVideoCodecs(videoTransceiver, 'sender');
+                preferVideoCodecs(videoTransceiver, 'sender');
 
                 const offer = await this.pc.createOffer();
                 // Open near the target rate instead of letting congestion control ramp from
@@ -981,7 +999,7 @@ export class VoiceRTCService {
                     sdp: withStartBitrate(offer.sdp ?? '', bitrateFor(preset)),
                 });
 
-                const videoMid = this.pc.getTransceivers().find(t => t.sender === videoSender)?.mid ?? '0';
+                const videoMid = videoTransceiver.mid ?? '0';
                 const tracks: { direction: 'publish'; mid: string; trackName: string }[] = [
                     {direction: 'publish', mid: videoMid, trackName: `screen-${shareId}`},
                 ];

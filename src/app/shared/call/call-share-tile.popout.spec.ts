@@ -354,6 +354,40 @@ describe('CallShareTileComponent PiP route selection', () => {
         expect(requestPictureInPicture).not.toHaveBeenCalled();
     });
 
+    it('does not maximise the tile behind it when the popped-out picture is clicked', async () => {
+        // The picture carries its click handler into the pop-out window with it (see
+        // call-share-tile.click.spec.ts). Left ungated, clicking the window you deliberately moved
+        // the stream out of would rearrange the stage behind it - and maximise a tile that is empty,
+        // because its picture is over here.
+        const pip = fakePipWindow();
+        installDocumentPip(pip);
+        const fixture = setup(share({stream: {} as MediaStream}));
+        const picture = surface(fixture);
+        const maximize = vi.fn();
+        fixture.componentInstance.maximizeToggle.subscribe(maximize);
+
+        await pressPip(fixture);
+        picture.dispatchEvent(new MouseEvent('click', {bubbles: true}));
+
+        expect(maximize).not.toHaveBeenCalled();
+    });
+
+    it('takes the click back once the picture is back in the tile', async () => {
+        const pip = fakePipWindow();
+        installDocumentPip(pip);
+        const fixture = setup(share({stream: {} as MediaStream}));
+        const picture = surface(fixture);
+        const maximize = vi.fn();
+        fixture.componentInstance.maximizeToggle.subscribe(maximize);
+
+        await pressPip(fixture);
+        pip.dismiss();
+        fixture.detectChanges();
+        picture.dispatchEvent(new MouseEvent('click', {bubbles: true}));
+
+        expect(maximize).toHaveBeenCalledTimes(1);
+    });
+
     it('does not treat a documentPictureInPicture without requestWindow as a capability', async () => {
         // A property that looks present and throws on the only call anybody makes of it is the dead
         // button one level down from the one the gate already prevents.

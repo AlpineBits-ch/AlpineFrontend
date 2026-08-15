@@ -1,11 +1,6 @@
 @let s = share();
 
-<!-- Double-click anywhere on the tile maximises it - the same toggle the hover-only button below
-     offers, reachable without hovering first. The buttons and the zoom controls stop this event
-     reaching here (see their own (dblclick) bindings below), so double-clicking "zoom in" cannot
-     also maximise the tile out from under the click.
-
-     aspect-video w-full is load-bearing, not decoration. This element is the grid item (the host is
+<!-- aspect-video w-full is load-bearing, not decoration. This element is the grid item (the host is
      `display: contents`) and the stage grid is auto-rows-min, so a row is only as tall as its
      tallest tile's own intrinsic height. Everything inside here - the pan/zoom surface and every
      overlay - is absolutely positioned, so without a declared box that height is zero and the tile
@@ -13,9 +8,9 @@
      the only tile on it was the sharer's own. app-call-participant-tile and app-call-invite-card
      both state the same box for the same reason. See call-share-tile.sizing.spec.ts. -->
 <div #root
-     (dblclick)="maximizeToggle.emit()"
-     class="group/tile relative flex aspect-video min-h-0 w-full items-center justify-center
-            overflow-hidden rounded-xl border border-border-subtle bg-black/70">
+     [class]="'group/tile relative flex aspect-video min-h-0 w-full items-center justify-center '
+              + 'overflow-hidden rounded-xl border bg-black/70 transition-colors '
+              + (maximized() ? 'border-brand/40' : 'border-border-subtle hover:border-white/20')">
 
     <!-- Zoomable, pannable content. The tile clips the overflow, so zooming past 100% would hide
          the edges with no way to reach them; this wrapper is the drag surface that pans them in.
@@ -23,13 +18,22 @@
          This is also the subtree the pop-out moves into its own OS window - see popOut(). It is
          `absolute inset-0` against the tile root here and against the pop-out viewport there, so it
          fills either without a second set of classes, and zoom and pan keep working in both because
-         the element carrying them is the one that travelled. -->
+         the element carrying them is the one that travelled.
+
+         It is the click target too, and deliberately not the tile root: every overlay on this tile
+         is a sibling of this element rather than a child of it, so a press on the mute button or the
+         zoom controls has no path to `openOrClose()` at all. That is structural, where a root-level
+         handler would need a stopPropagation on each control and a new one every time a control is
+         added. See call-share-tile.click.spec.ts. -->
     <div #surface
+         (click)="openOrClose()"
          (mousedown)="startPan($event)"
          (mouseleave)="endPan()"
          (mousemove)="movePan($event)"
          (mouseup)="endPan()"
+         [attr.title]="(maximized() ? 'CALL.SHOW_OTHER_STREAMS' : 'CALL.HIDE_OTHER_STREAMS') | translate"
          [class.cursor-grab]="zoom() > 1"
+         [class.cursor-pointer]="zoom() === 1"
          class="absolute inset-0 overflow-hidden">
         <div [style.transform]="transform()"
              class="flex h-full w-full items-center justify-center transition-transform duration-150"
@@ -41,7 +45,10 @@
                 <!-- Task 10: idle-paused. The stream itself is still going out - only this local
                      render stopped, see RustMediaService.previewPaused - so the copy here has to say
                      that plainly rather than reading like the share ended. -->
-                <div (click)="resumePreview()" (dblclick)="$event.stopPropagation()"
+                <!-- The one thing inside the picture that stops the press reaching the surface's
+                     own handler: resuming a frozen preview is what this press is asking for, not
+                     maximising the frozen frame. -->
+                <div (click)="resumePreview(); $event.stopPropagation()"
                      class="flex cursor-pointer select-none flex-col items-center gap-3 px-6 text-center">
                     <i class="pi pi-pause-circle text-4xl text-white/30"></i>
                     <div>
@@ -83,10 +90,8 @@
              is the more likely of the two. -->
         @if (viewers(); as count) {
             <!-- The names popover is an enhancement to a count that is already showing, never a
-                 reason to start showing one at zero - see the @if above. dblclick is stopped here for
-                 the same reason it is stopped on the action cluster below: this sits in the top-left
-                 guarded region, and hovering to read a name must not also toggle maximise. -->
-            <div (dblclick)="$event.stopPropagation()" class="group/viewers relative">
+                 reason to start showing one at zero - see the @if above. -->
+            <div class="group/viewers relative">
                 <span [attr.title]="viewerNames().length ? null : ('CALL.WATCHING' | translate: {count})"
                       class="flex select-none items-center gap-1 rounded bg-black/50 px-2 py-0.5 text-xs text-white/70
                              backdrop-blur-sm">
@@ -110,8 +115,7 @@
             </div>
         }
 
-        <div (dblclick)="$event.stopPropagation()"
-             class="flex items-center gap-1.5 opacity-0 transition-opacity
+        <div class="flex items-center gap-1.5 opacity-0 transition-opacity
                     group-hover/tile:opacity-100 focus-within:opacity-100">
             <!-- One control, two routes: an OS window of its own where document PiP exists, the
                  browser's video overlay where only that does. Rendered only when one of them can
@@ -147,7 +151,6 @@
     @if (!s.isLocal || s.hasAudio) {
         <app-call-tile-action
                 (action)="audioToggle.emit()"
-                (dblclick)="$event.stopPropagation()"
                 [icon]="s.isAudioMuted ? 'pi-volume-off' : 'pi-volume-up'"
                 [label]="(s.isAudioMuted ? 'CALL.UNMUTE_STREAM_AUDIO' : 'CALL.MUTE_STREAM_AUDIO') | translate"
                 [pressed]="!!s.isAudioMuted"
@@ -166,8 +169,7 @@
     </div>
 
     <!-- Bottom-right: throughput, then zoom. Hover-only - zoom is a tool, not a readout. -->
-    <div (dblclick)="$event.stopPropagation()"
-         class="absolute bottom-3 right-3 z-10 flex items-center gap-1.5 opacity-0 transition-opacity
+    <div class="absolute bottom-3 right-3 z-10 flex items-center gap-1.5 opacity-0 transition-opacity
                 group-hover/tile:opacity-100 focus-within:opacity-100">
         @if (s.isLocal && s.renderedFps != null) {
             <span class="select-none rounded bg-black/50 px-2 py-1 text-[0.6875rem] tabular-nums text-white/55

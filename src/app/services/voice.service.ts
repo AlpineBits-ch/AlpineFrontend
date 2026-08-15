@@ -7,7 +7,7 @@ import {OngoingCallDto} from '../dtos/response/ongoing-call.dto';
 import {ShareViewersDto} from '../dtos/response/share-viewers.dto';
 import {CreateCallDto} from '../dtos/request/create-call.dto';
 import {ApiConfigService} from "./api-config.service";
-import {VoiceRoomSnapshot} from '../models/voice-room';
+import {VoiceRoomSnapshot, VoiceSubscriberUpdate} from '../models/voice-room';
 
 // ── Voice media DTOs ─────────────────────────────────────────────────────────
 //
@@ -207,5 +207,19 @@ export class VoiceService {
             `${this.base}/calls/${callId}/tracks/close`,
             {mediaSessionId, trackNames}
         );
+    }
+
+    /**
+     * Tells the server what this client can actually see - see
+     * {@link VoiceSubscriberReportService}, which is the only caller.
+     *
+     * <p>On the media routes, so plural `calls/` - the same route shape and the same body as the
+     * guild side, because it is the same operation on the same room model.</p>
+     *
+     * <p>The reply is this client's own subscription set, typed as `unknown` because nothing here
+     * consumes it: Alpine does not implement selective subscription.</p>
+     */
+    updateSubscriber(callId: string, update: VoiceSubscriberUpdate): Observable<unknown> {
+        return this.client.post(`${this.base}/calls/${callId}/subscriptions`, update);
     }
 }

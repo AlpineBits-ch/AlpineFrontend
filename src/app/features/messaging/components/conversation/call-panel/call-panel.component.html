@@ -63,9 +63,9 @@
             <!-- Always the shared stage now, sharing or not - a DM call used to render its own
                  `.participants` grid here (see call-panel.component.css) when nobody was sharing,
                  which is how this surface and the guild voice channel drifted into two different
-                 no-share layouts. See CallScreenLayoutComponent.cameraTiles for the no-share
-                 widening that keeps a share-less stage looking the same as that old grid did: every
-                 participant as a full seat, not a strip of avatars. -->
+                 no-share layouts. See CallScreenLayoutComponent.participantTiles for the seating
+                 rule that keeps this stage and the guild's identical: every participant as a full
+                 seat whether or not anybody is sharing, never a strip of avatars. -->
             <app-call-screen-layout
                     (localAudioToggle)="toggleLocalScreenAudio()"
                     (participantContextMenu)="onParticipantContextMenu($event.event, $event.participant)"

@@ -1,4 +1,4 @@
-import {Component, computed, effect, inject, input, OnDestroy, output, signal} from '@angular/core';
+import {Component, computed, effect, HostListener, inject, input, OnDestroy, output, signal} from '@angular/core';
 import {TranslateModule} from '@ngx-translate/core';
 import {
     CallParticipant,
@@ -19,6 +19,7 @@ import {CallTileActionComponent} from '../call-tile-action/call-tile-action.comp
 import {ShareWatchService, WatchScope, scopeKey} from '../../../services/share-watch.service';
 import {CallFocusService} from '../../../services/call-focus.service';
 import {RustMediaService} from '../../../services/rust-media.service';
+import {VoiceSubscriberReportService} from '../../../services/voice-subscriber-report.service';
 
 @Component({
     selector: 'app-call-screen-layout',
@@ -59,6 +60,7 @@ export class CallScreenLayoutComponent implements OnDestroy {
 
     protected readonly audio = trackAudioWait(this.participants, this.participantsWithAudio);
     private readonly shareWatch = inject(ShareWatchService);
+    private readonly tileReport = inject(VoiceSubscriberReportService);
     private readonly callFocus = inject(CallFocusService);
     protected readonly rustMedia = inject(RustMediaService);
 
@@ -103,30 +105,26 @@ export class CallScreenLayoutComponent implements OnDestroy {
     });
 
     /**
-     * Everyone who earns a full tile on the stage as themselves, rather than a row entry below it.
+     * Everyone in the call, as a full seat on the stage.
      *
-     * <p>Two different rules, chosen by whether anything is being shared. <b>With a share on
-     * stage</b>, only a camera earns a tile - gated on `isCameraOn` alone rather than on a stream
-     * having arrived, because `app-call-participant-tile` draws the "camera on, track still
-     * negotiating" state itself, and waiting for the track would mean the seat appearing a beat late
-     * and the whole grid reflowing under the other tiles the moment it did.</p>
+     * <p><b>Everyone, unconditionally.</b> This pool used to narrow to camera-on participants the
+     * moment anything was being shared, so one person starting a stream rewrote the seating rules
+     * for the whole channel: every camera-off face fell out of the grid and into a 32px avatar in
+     * the strip below. In a two-person channel that reads as the call emptying out. A stream is one
+     * more tile on the stage - see {@link displayedTiles} - and adding a tile is not a reason to
+     * take anybody else's away.</p>
      *
-     * <p><b>With nothing being shared</b>, every participant gets a tile, camera on or off. Both
-     * call hosts used to bypass this component entirely for that case, rendering their own smaller
-     * grid of `app-call-participant-tile`s instead - which is how a plain voice channel with one
-     * person in it ended up with no invite card and two divergent layouts between the guild and DM
-     * surfaces. Now that both hosts always route through here, a share-less stage has to look the
-     * same as it did before: everybody as a full seat, not a strip of avatars under an empty grid.
-     * `app-call-participant-tile` already draws a complete seat for someone with no camera - a
-     * centred avatar with the name pill - so there is nothing extra to build for this case, only
-     * this pool to widen.</p>
+     * <p>Not gated on `isCameraOn` in either direction. `app-call-participant-tile` draws a complete
+     * seat for somebody with no camera - a centred avatar with the name pill - and draws the "camera
+     * on, track still negotiating" state itself, so gating on the stream having arrived would only
+     * mean the seat appearing a beat late and the whole grid reflowing under it the moment it did.
+     * One participant, one seat, from the moment they join to the moment they leave.</p>
+     *
+     * <p>The `'camera'` tile kind is a misnomer for a pool this wide - it can hold a participant
+     * with no camera at all - but it is the id space, not a claim about the tile's contents, and
+     * both surfaces' share ids genuinely collide with user ids (see {@link cameraTile}).</p>
      */
-    private readonly cameraTiles = computed(() => {
-        const pool = this.displayedShares().length > 0
-            ? this.participants().filter(p => p.isCameraOn)
-            : this.participants();
-        return pool.map(cameraTile);
-    });
+    private readonly participantTiles = computed(() => this.participants().map(cameraTile));
 
     /**
      * The one stage: screen shares and cameras as tiles in the same grid, at the same size.
@@ -152,32 +150,27 @@ export class CallScreenLayoutComponent implements OnDestroy {
     protected readonly displayedTiles = computed<CallStageTile[]>(() => {
         const shares = this.displayedShares().map(shareTile);
         if (this.maximizedId() !== null) return shares;
-        return [...shares, ...this.cameraTiles()];
+        return [...shares, ...this.participantTiles()];
     });
 
     /**
      * Who is left for the participants strip: everyone whose face is not already on the stage.
      *
-     * <p>A camera tile is a complete replacement for a strip entry - it carries the name, the muted
-     * glyph, the speaking ring, the audio-wait badge and the context menu (see
-     * call-participant-tile.component.html), so leaving the same person in the strip below would be
-     * showing them twice. The `'camera'` kind is a misnomer once {@link cameraTiles} widens to
-     * everybody on a share-less stage - it can hold a participant with no camera at all - but the
-     * tile still carries everything a strip entry does, so the replacement argument holds regardless.
-     * With no share on stage, every participant lands on the stage above instead, which is what
-     * empties THIS row down to nothing while a lone caller sees a full seat on the grid instead of a
-     * 32px avatar underneath it.</p>
+     * <p>A seat is a complete replacement for a strip entry - it carries the name, the muted glyph,
+     * the speaking ring, the audio-wait badge and the context menu (see
+     * call-participant-tile.component.html), so leaving the same person in the row below would be
+     * showing them twice. Since {@link participantTiles} now seats everybody unconditionally, this
+     * is empty in the ordinary case and the row disappears with it.</p>
      *
-     * <p>A share tile is <em>not</em>, and a sharer with their camera off therefore keeps their seat
-     * here. It shows a screen, not a person: neither the audio-wait badge nor the participant context
-     * menu exists on it, and dropping a sharer from the strip would take both away with nothing
-     * offering them instead. (Its stream mute is not one of those - `call-share-tile` renders that
-     * itself, un-gated by hover.)</p>
+     * <p><b>Maximised is what this row is for.</b> {@link displayedTiles} is shares only while
+     * something is maximised, so nobody is on stage as a person and everybody lands here - which is
+     * also why the strip carries its own inline camera circle: in that one state it is the only
+     * thing on screen showing a face, and rendering a static avatar instead would make turning your
+     * camera on invisible the moment anyone maximised a stream.</p>
      *
-     * <p><b>Maximised returns everybody.</b> {@link displayedTiles} is shares only while something is
-     * maximised, so no camera is on stage and nothing is filtered out - camera-on participants land
-     * back in this row. That is why the strip still carries its own inline camera circle: it is
-     * unreachable in the grid and the only thing showing a face in the maximised state.</p>
+     * <p>Nothing is lost on the way past this row now that it is usually empty. The per-person
+     * stream mute it offers is also on `call-share-tile` itself, un-gated by hover, and the
+     * audio-wait badge and context menu are both on the seat.</p>
      */
     protected readonly stripParticipants = computed(() => {
         const onStage = new Set(this.displayedTiles()
@@ -235,13 +228,11 @@ export class CallScreenLayoutComponent implements OnDestroy {
      * class doc for what it is and is not (layout only, no invite mechanic wired to it yet).
      *
      * <p>Gated on a SHARE-LESS stage holding exactly one tile, not on tile count alone. Tile count
-     * alone is wrong: a 1:1 DM call with one side sharing and no camera on is one tile, and so is a
-     * maximised share (see {@link displayedTiles} - maximised is shares-only, so one share maximised
-     * is a one-tile stage by construction). Both are "something worth looking at", the exact case
-     * the card exists to NOT compete with - a stream at half width with an invite card beside it, in
-     * a two-person call, is not the empty channel this task was written for. Requiring
-     * {@link displayedShares} to be empty is what rules both out while still catching the real
-     * target: a lone participant with nothing shared.</p>
+     * alone is wrong: a maximised share is one tile by construction (see {@link displayedTiles} -
+     * maximised is shares-only), and that is "something worth looking at", the exact case the card
+     * exists to NOT compete with - a stream at half width with an invite card beside it is not the
+     * empty channel this was written for. Requiring {@link displayedShares} to be empty is what
+     * rules it out while still catching the real target: a lone participant with nothing shared.</p>
      *
      * <p>Deliberately reading {@link displayedTiles} rather than being folded into it - the card is
      * not a share and not a participant, so it must never reach {@link displayedShares} or the
@@ -257,9 +248,12 @@ export class CallScreenLayoutComponent implements OnDestroy {
      * Whether to offer the persistent grid/focus control - see {@link toggleGridFocus}.
      *
      * <p>Needs something to focus <em>and</em> something to focus away from. A stage of nothing but
-     * cameras satisfies the second and not the first: there is no share for the press to maximise, so
-     * the button would render and do nothing. Once maximised it is always offered, since going back
-     * to the grid is the whole reason it exists for a caller that set `maximizedId` from outside.</p>
+     * seats satisfies the second and not the first: there is no share for the press to maximise, so
+     * the button would render and do nothing. The other direction is now only reachable with an
+     * empty roster - a sharer has a seat of their own beside their stream (see
+     * {@link participantTiles}), so a stream with anybody in the channel is already a two-tile
+     * stage. Once maximised it is always offered, since going back to the grid is the whole reason
+     * it exists for a caller that set `maximizedId` from outside.</p>
      */
     protected readonly canToggleFocus = computed(() =>
         this.maximizedId() !== null || (this.displayedTiles().length > 1 && this.displayedShares().length > 0));
@@ -325,7 +319,12 @@ export class CallScreenLayoutComponent implements OnDestroy {
 
     ngOnDestroy(): void {
         const scope = this.watchScope();
-        if (scope) this.shareWatch.clear(scope);
+        if (!scope) return;
+        this.shareWatch.clear(scope);
+        // The tiles retract their own measurements as they are destroyed, which would leave an empty
+        // room behind holding a pending debounce. Dropping it here is what stops leaving a channel
+        // from firing one last report against a room this client is no longer in.
+        this.tileReport.clear(scope);
     }
 
     /** How many people are watching this share, this client included. Zero renders nothing. */
@@ -352,6 +351,24 @@ export class CallScreenLayoutComponent implements OnDestroy {
 
     protected toggleMaximize(shareId: string): void {
         this.maximizedId.update(id => id === shareId ? null : shareId);
+    }
+
+    /**
+     * Escape gives the stage back, the same way it dismisses everything else on screen.
+     *
+     * <p>Bound on the document rather than on the stage, because maximising is reachable without
+     * ever focusing anything inside it - a click on the picture, a notification action through
+     * `CallFocusService`, the mini-player - so requiring focus here would leave the press dead in
+     * exactly the cases somebody would reach for it.</p>
+     *
+     * <p>Ignored while a real fullscreen is open: the browser takes that press to exit fullscreen,
+     * and acting on it too would undo two things from one keystroke and drop the viewer all the way
+     * back to the grid from what they were watching.</p>
+     */
+    @HostListener('document:keydown.escape')
+    protected onEscape(): void {
+        if (document.fullscreenElement) return;
+        this.maximizedId.set(null);
     }
 
     /**

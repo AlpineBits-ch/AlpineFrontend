@@ -3,6 +3,7 @@ import {
     applyScreenEncoding,
     applySimpleBitrate,
     preferVideoCodecs,
+    screenSendEncodings,
     STREAM_AUDIO_KBPS,
     withStartBitrate,
 } from '../../services/webrtc-encoding';
@@ -147,15 +148,23 @@ export class WebScreenPublisher extends ScreenPublisher implements ScreenPublish
             // Separate streams for the two halves, matching the Rust publisher. Sharing one would have
             // them arrive as a single MediaStream, which is what a *camera* looks like; a receiving
             // client groups a share by its track names.
-            const videoSender = pc.addTrack(capture.video, new MediaStream([capture.video]));
+            // addTransceiver for the video half, not addTrack: `sendEncodings` is only honoured when
+            // the transceiver is created, and it is what names the simulcast rids the server picks
+            // between on each viewer's behalf. `streams` keeps the association addTrack gave.
+            const preset = o.preset ?? DEFAULT_STREAM_PRESET;
+            const videoTransceiver = pc.addTransceiver(capture.video, {
+                direction: 'sendonly',
+                streams: [new MediaStream([capture.video])],
+                sendEncodings: screenSendEncodings(preset),
+            });
+            const videoSender = videoTransceiver.sender;
             const audioSender = capture.audio
                 ? pc.addTrack(capture.audio, new MediaStream([capture.audio]))
                 : null;
 
             // VP9 first: better quality-per-bit than VP8 on screen content, and the receive side
             // orders its codecs the same way.
-            const videoTransceiver = pc.getTransceivers().find(t => t.sender === videoSender);
-            if (videoTransceiver) preferVideoCodecs(videoTransceiver, 'sender');
+            preferVideoCodecs(videoTransceiver, 'sender');
 
             const offer = await pc.createOffer();
             // Open near the target rate instead of letting congestion control ramp from ~300 kbps
@@ -198,7 +207,7 @@ export class WebScreenPublisher extends ScreenPublisher implements ScreenPublish
                 console.warn('[screen] the SFU refused the audio track; sharing video only', audioResult);
             }
 
-            await applyScreenEncoding(videoSender, o.preset ?? DEFAULT_STREAM_PRESET);
+            await applyScreenEncoding(videoSender, preset);
             if (audioSender && publishedAudioName) await applySimpleBitrate(audioSender, STREAM_AUDIO_KBPS);
 
             this.live = {
@@ -247,7 +256,10 @@ export class WebScreenPublisher extends ScreenPublisher implements ScreenPublish
         try {
             const params = live.videoSender.getParameters();
             if (!params.encodings?.length) params.encodings = [{}];
-            params.encodings[0].maxFramerate = rounded;
+            // Every rung of the ladder, not just the top one: a viewer parked on the half-scale
+            // layer would otherwise keep the old cap and be the only person a framerate change did
+            // not reach.
+            for (const encoding of params.encodings) encoding.maxFramerate = rounded;
             await live.videoSender.setParameters(params);
         } catch { /* setParameters unsupported, or the share already ended */
         }

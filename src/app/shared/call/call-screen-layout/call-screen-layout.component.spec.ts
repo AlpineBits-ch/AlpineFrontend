@@ -1,5 +1,5 @@
 import {ComponentFixture, TestBed} from '@angular/core/testing';
-import {beforeEach, describe, expect, it, vi} from 'vitest';
+import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {TranslateModule} from '@ngx-translate/core';
 import {CallScreenLayoutComponent} from './call-screen-layout.component';
 import {CallParticipant, CallScreenShare, CallStageTile} from '../call.types';
@@ -314,12 +314,14 @@ describe('CallScreenLayoutComponent one stage for cameras and screens', () => {
 
     it('gives a camera and a screen share the same grid', () => {
         // The point of the whole task: a face-cam beside a game stream. Before this, any share at
-        // all sent every camera to a 32px circle in the strip below.
+        // all sent every camera to a 32px circle in the strip below. The sharer gets a seat of their
+        // own beside it too - see the "a share never costs anybody their seat" block.
         const {layout} = setup([share('theirs')], {
             participants: [participant('user-theirs'), participant('cam', {isCameraOn: true})],
         });
 
-        expect(layout.displayedTiles().map(t => t.id)).toEqual(['share:theirs', 'camera:cam']);
+        expect(layout.displayedTiles().map(t => t.id))
+            .toEqual(['share:theirs', 'camera:user-theirs', 'camera:cam']);
     });
 
     it('renders both kinds with their own component, rather than a second copy of either', () => {
@@ -340,12 +342,15 @@ describe('CallScreenLayoutComponent one stage for cameras and screens', () => {
         expect(layout.displayedShares()).toEqual([]);
     });
 
-    it('leaves the grid to the shares when no camera is on', () => {
+    it('orders every share ahead of every seat, cameras on or off', () => {
+        // A share is what somebody opened the channel to look at; a seat is who they are looking at
+        // it with. Within each kind the caller's order is kept.
         const {layout} = setup([share('a'), share('b')], {
             participants: [participant('user-a'), participant('user-b')],
         });
 
-        expect(layout.displayedTiles().map(t => t.id)).toEqual(['share:a', 'share:b']);
+        expect(layout.displayedTiles().map(t => t.id))
+            .toEqual(['share:a', 'share:b', 'camera:user-a', 'camera:user-b']);
     });
 
     it('promotes a camera that has no track yet, rather than waiting for it to land', () => {
@@ -419,8 +424,17 @@ describe('CallScreenLayoutComponent one stage for cameras and screens', () => {
         expect(layout.maximizedId()).toBe('a');
     });
 
-    it('still offers no toggle for a lone share with nothing beside it', () => {
+    it('offers the toggle for a share beside a lone seat - there is something to focus away from', () => {
+        // The sharer's own seat is a real tile now, so even a one-person channel with one stream is
+        // a two-tile stage: pressing focus has something to hide.
         const {layout} = setup([share('a')], {participants: [participant('user-a')]});
+
+        expect(layout.canToggleFocus()).toBe(true);
+    });
+
+    it('still offers no toggle for a share with an empty roster', () => {
+        // Nothing to focus away from - the one share is the whole stage already.
+        const {layout} = setup([share('a')], {participants: []});
 
         expect(layout.canToggleFocus()).toBe(false);
     });
@@ -433,23 +447,23 @@ describe('CallScreenLayoutComponent participants strip', () => {
         HTMLMediaElement.prototype.pause = vi.fn();
     });
 
-    it('drops somebody whose camera got a tile, rather than showing them twice', () => {
+    it('drops everybody who has a seat, rather than showing them twice', () => {
         const {layout} = setup([share('a')], {
             participants: [participant('cam', {isCameraOn: true}), participant('quiet')],
         });
 
-        expect(layout.stripParticipants().map(p => p.userId)).toEqual(['quiet']);
+        expect(layout.stripParticipants()).toEqual([]);
     });
 
-    it('keeps a sharer with their camera off, whose share tile carries none of what the strip does', () => {
-        // The strip entry is the only place with that person's audio-wait badge, their context menu
-        // and their per-person stream mute. A share tile shows a screen, not a person.
+    it('leaves a sharer with their camera off in the grid, not in the strip', () => {
+        // Their seat carries the audio-wait badge and the context menu, and call-share-tile renders
+        // the per-person stream mute itself - so nothing about them is only reachable down here.
         const {layout} = setup([share('a')], {participants: [participant('user-a')]});
 
-        expect(layout.stripParticipants().map(p => p.userId)).toEqual(['user-a']);
+        expect(layout.stripParticipants()).toEqual([]);
     });
 
-    it('renders no strip at all once every camera is on the stage', () => {
+    it('renders no strip at all while nothing is maximised', () => {
         const {fixture, layout} = setup([share('a')], {
             participants: [participant('cam', {isCameraOn: true})],
         });
@@ -479,7 +493,9 @@ describe('CallScreenLayoutComponent participants strip', () => {
         expect(fixture.nativeElement.querySelectorAll('app-avatar').length).toBe(0);
     });
 
-    it('takes a camera owner back once they turn it off', () => {
+    it('keeps a seat when the camera behind it goes off', () => {
+        // Turning a camera off used to move that person from the grid to the strip while somebody
+        // was sharing - a tile disappearing out from under them for switching a device off.
         const {fixture, layout} = setup([share('a')], {
             participants: [participant('cam', {isCameraOn: true})],
         });
@@ -488,7 +504,8 @@ describe('CallScreenLayoutComponent participants strip', () => {
         fixture.componentRef.setInput('participants', [participant('cam', {isCameraOn: false})]);
         fixture.detectChanges();
 
-        expect(layout.stripParticipants().map(p => p.userId)).toEqual(['cam']);
+        expect(layout.displayedTiles().map(t => t.id)).toEqual(['share:a', 'camera:cam']);
+        expect(layout.stripParticipants()).toEqual([]);
     });
 });
 
@@ -554,17 +571,6 @@ describe('CallScreenLayoutComponent share-less stage (Task 18)', () => {
         expect(layout.stripParticipants()).toEqual([]);
     });
 
-    it('keeps the old camera-only rule the moment anything is shared', () => {
-        // The widening is specifically for the share-less case - with a share on stage, a
-        // camera-off participant still belongs in the strip, unchanged from before this task.
-        const {layout} = setup([share('a')], {
-            participants: [participant('cam-on', {isCameraOn: true}), participant('cam-off')],
-        });
-
-        expect(layout.displayedTiles().map(t => t.id)).toEqual(['share:a', 'camera:cam-on']);
-        expect(layout.stripParticipants().map(p => p.userId)).toEqual(['cam-off']);
-    });
-
     it('keeps gridClass()\'s thresholds intact against the larger share-less pool', () => {
         // Not a new threshold - the same <=1/<=4/<=9 boundaries, now fed by a bigger count. Nine
         // share-less participants still fits three columns, exactly like nine cameras already did
@@ -585,6 +591,115 @@ describe('CallScreenLayoutComponent share-less stage (Task 18)', () => {
         });
 
         expect(lastWatched(setWatching)).toEqual([]);
+    });
+});
+
+describe('CallScreenLayoutComponent a share never costs anybody their seat', () => {
+    beforeEach(() => {
+        TestBed.resetTestingModule();
+        HTMLMediaElement.prototype.play = vi.fn(() => Promise.resolve());
+        HTMLMediaElement.prototype.pause = vi.fn();
+    });
+
+    it('seats a camera-off participant beside a share rather than dropping them to the strip', () => {
+        // Somebody starting a stream used to rewrite the seating rules for everyone else: the pool
+        // narrowed to camera-on participants and every other face fell out of the grid into a 32px
+        // avatar row. A stream is one more tile, not a takeover.
+        const {layout} = setup([share('a')], {
+            participants: [participant('cam-on', {isCameraOn: true}), participant('cam-off')],
+        });
+
+        expect(layout.displayedTiles().map(t => t.id)).toEqual(['share:a', 'camera:cam-on', 'camera:cam-off']);
+        expect(layout.stripParticipants()).toEqual([]);
+    });
+
+    it('seats the sharer as well, so their stream sits beside them rather than replacing them', () => {
+        const {layout} = setup([share('a')], {participants: [participant('user-a')]});
+
+        expect(layout.displayedTiles().map(t => t.id)).toEqual(['share:a', 'camera:user-a']);
+        expect(layout.stripParticipants()).toEqual([]);
+    });
+
+    it('leaves a lone sharer with a seat and a stream, and no strip under either', () => {
+        // The reported case: one person in a guild voice channel starts sharing. Two tiles, both
+        // full size, nothing collapsed.
+        const {fixture, layout} = setup([share('mine', true)], {
+            participants: [participant('me', {isLocal: true})],
+        });
+
+        expect(layout.displayedTiles().map(t => t.kind)).toEqual(['share', 'camera']);
+        expect(fixture.nativeElement.querySelectorAll('app-call-share-tile').length).toBe(1);
+        expect(fixture.nativeElement.querySelectorAll('app-call-participant-tile').length).toBe(1);
+        expect(layout.stripParticipants()).toEqual([]);
+    });
+
+    it('returns everybody to the strip while a share is maximised, camera or not', () => {
+        // Maximised is the one state that still empties the stage of people - that is what makes it
+        // the strip's reason to exist rather than a permanent second row under a full grid.
+        const {layout} = setup([share('a')], {
+            participants: [participant('cam-on', {isCameraOn: true}), participant('cam-off')],
+        });
+
+        layout.maximizedId.set('a');
+
+        expect(layout.displayedTiles().map(t => t.id)).toEqual(['share:a']);
+        expect(layout.stripParticipants().map(p => p.userId)).toEqual(['cam-on', 'cam-off']);
+    });
+});
+
+describe('CallScreenLayoutComponent escape leaves the maximised stream', () => {
+    beforeEach(() => {
+        TestBed.resetTestingModule();
+        HTMLMediaElement.prototype.play = vi.fn(() => Promise.resolve());
+        HTMLMediaElement.prototype.pause = vi.fn();
+    });
+
+    afterEach(() => {
+        delete (document as unknown as Record<string, unknown>)['fullscreenElement'];
+    });
+
+    function pressEscape(): void {
+        document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true}));
+    }
+
+    it('returns to the grid on escape', () => {
+        // The gesture everything else on screen already answers to. Without it the only ways back
+        // are a hover button and a second click on the picture, neither of which is what a hand
+        // reaches for after something has taken over the view.
+        const {fixture, layout} = setup([share('a')], {participants: [participant('cam')]});
+        layout.maximizedId.set('a');
+        fixture.detectChanges();
+
+        pressEscape();
+        fixture.detectChanges();
+
+        expect(layout.maximizedId()).toBeNull();
+        expect(layout.displayedTiles().map(t => t.id)).toEqual(['share:a', 'camera:cam']);
+    });
+
+    it('leaves escape alone while the browser is closing a real fullscreen', () => {
+        // One press, one meaning. The browser takes this press to exit fullscreen, and unmaximising
+        // underneath it would undo two things at once and drop the viewer straight back to the grid
+        // from what they were watching full-screen.
+        const {fixture, layout} = setup([share('a')], {participants: [participant('cam')]});
+        layout.maximizedId.set('a');
+        fixture.detectChanges();
+        Object.defineProperty(document, 'fullscreenElement', {configurable: true, value: {}});
+
+        pressEscape();
+        fixture.detectChanges();
+
+        expect(layout.maximizedId()).toBe('a');
+    });
+
+    it('does nothing on escape when nothing is maximised', () => {
+        const {fixture, layout} = setup([share('a')], {participants: [participant('cam')]});
+
+        pressEscape();
+        fixture.detectChanges();
+
+        expect(layout.maximizedId()).toBeNull();
+        expect(layout.displayedTiles().map(t => t.id)).toEqual(['share:a', 'camera:cam']);
     });
 });
 
@@ -642,17 +757,14 @@ describe('CallScreenLayoutComponent invite card (Task 18)', () => {
     // opposite of an empty channel - look like a candidate for the card too. Both specs below drive
     // states that were already a one-tile stage before this fix and assert the card stays off.
 
-    it('does not show the card beside a lone share with no cameras - a 1:1 call, not an empty one', () => {
-        // One share, nobody's camera on: displayedTiles() is exactly one tile, same shape as the
-        // share-less lone-participant case above, but this one is a stream somebody is watching -
-        // the card must not halve it and sit beside it.
+    it('does not show the card beside a lone share - a 1:1 call, not an empty one', () => {
+        // A stream somebody is watching is the opposite of an empty channel, and the card must not
+        // halve the stage to sit beside it. Requiring displayedShares() to be empty is what rules
+        // this out, which is why it survives the stage now seating the sharer as well.
         const {fixture, layout} = setup([share('a')], {participants: [participant('user-a')]});
 
-        expect(layout.displayedTiles().length).toBe(1);
         expect(layout.showInviteCard()).toBe(false);
         expect(fixture.nativeElement.querySelectorAll('app-call-invite-card').length).toBe(0);
-        const grid: HTMLElement = fixture.nativeElement.querySelector('.grid');
-        expect(grid.className).not.toContain('grid-cols-2');
     });
 
     it('does not show the card while a share is maximised', () => {

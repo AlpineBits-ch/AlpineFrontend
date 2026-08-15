@@ -1,4 +1,4 @@
-import {DestroyRef, inject, Injectable, signal} from '@angular/core';
+import {computed, DestroyRef, inject, Injectable, signal} from '@angular/core';
 import {Subject} from 'rxjs';
 import {CaptureGeometry} from '../models/capture-geometry';
 import {StreamPreset} from '../models/stream-preset';
@@ -162,7 +162,26 @@ export class RustMediaService {
     readonly publishPreview = this._publishPreview.asReadonly();
     private readonly _previewPaused = signal(false);
     /**
-     * True once idle pausing has kicked in - see {@link PREVIEW_IDLE_MS}.
+     * Whether this window is behind another one - see {@link previewPaused}, which folds it in.
+     *
+     * <p>Tracked separately from the idle pause because the two are undone by different things. Idle
+     * is cleared by a click on the paused card; this one is cleared by the window coming back to the
+     * front, and nothing else can clear it - a click on the card is only reachable with the window
+     * already focused, so the two can never disagree about what the user just did.</p>
+     */
+    private readonly _windowBackgrounded = signal(false);
+    /**
+     * True while frames are not being applied to {@link publishPreview}.
+     *
+     * <p>Two independent reasons, either of which is enough: nobody has been looking at the preview
+     * for {@link PREVIEW_IDLE_MS}, or this window is not the one in front of the user
+     * ({@link _windowBackgrounded}). The stream itself is unaffected by both - only the local render
+     * stops.</p>
+     *
+     * <p>Gated on a preview actually existing, so the flag never claims a pause for a share with
+     * nothing to freeze. Backgrounding while a share's first frame is still on its way must leave
+     * that frame free to land, or the share would be frozen over nothing for its whole lifetime with
+     * no card to click - the same rule {@link reconsiderPreviewIdle} follows for the idle half.</p>
      *
      * <p>{@link publishPreview} is left holding whatever frame it last had rather than being reset
      * to null, so a consumer can tell "paused" from "no share at all" and render the two
@@ -170,7 +189,8 @@ export class RustMediaService {
      * in a call nobody is sharing in. Frames keep crossing the IPC boundary from Rust exactly as
      * before; only whether the webview applies them changes - see {@link claimPreviewRender}.</p>
      */
-    readonly previewPaused = this._previewPaused.asReadonly();
+    readonly previewPaused = computed(() =>
+        this._publishPreview() !== null && (this._previewPaused() || this._windowBackgrounded()));
     /** Renderers currently claiming "I am showing the preview" - see {@link claimPreviewRender}. */
     private readonly previewClaimants = new Set<object>();
     private previewIdleTimer: ReturnType<typeof setTimeout> | null = null;
@@ -218,12 +238,29 @@ export class RustMediaService {
      *  `ngOnDestroy` cleanup this class does not have, but `DestroyRef.onDestroy` below does. */
     private readonly onVisibilityChange = (): void => this.reconsiderPreviewIdle();
 
+    /**
+     * The window went behind something else. Acted on at once rather than through the idle timer -
+     * "is this window in front of you" is answered the moment it changes, and waiting
+     * {@link PREVIEW_IDLE_MS} to act on it would decode thirty seconds of frames per alt-tab.
+     */
+    private readonly onWindowBlur = (): void => this._windowBackgrounded.set(true);
+
+    /**
+     * The window came back. Resumes on its own - the user asked for the app, not for a frozen
+     * picture of their own screen - and re-arms the idle clock, which was deliberately never
+     * running while backgrounded.
+     */
+    private readonly onWindowFocus = (): void => {
+        this._windowBackgrounded.set(false);
+        this.reconsiderPreviewIdle();
+    };
+
     constructor() {
         this.host?.onPreviewFrame(dataUrl => {
             // Paused means "stop applying" specifically. The frame still crossed the IPC boundary
             // from Rust - that side is untouched, see the class doc on previewPaused - only the
             // webview declines to do anything with it.
-            if (this._previewPaused()) return;
+            if (this.previewPaused()) return;
             this._publishPreview.set(dataUrl);
             // The first frame is what makes a share pausable at all - see reconsiderPreviewIdle's own
             // guard. Re-evaluating here, not just from startScreenPublish, is what starts the idle
@@ -243,7 +280,17 @@ export class RustMediaService {
         // so this never needed removing there - but ~110 TestBed instantiations across the suite each
         // leak one onto `document` without it, so it is torn down like any other listener would be.
         document.addEventListener('visibilitychange', this.onVisibilityChange);
-        inject(DestroyRef).onDestroy(() => document.removeEventListener('visibilitychange', this.onVisibilityChange));
+        // `visibilitychange` alone misses the ordinary case: on a desktop window it flips on
+        // minimise, not when another window simply comes to the front. Sharing your screen and then
+        // switching to the thing you are sharing is exactly that case, and it is the one moment
+        // nobody can possibly be looking at the preview.
+        window.addEventListener('blur', this.onWindowBlur);
+        window.addEventListener('focus', this.onWindowFocus);
+        inject(DestroyRef).onDestroy(() => {
+            document.removeEventListener('visibilitychange', this.onVisibilityChange);
+            window.removeEventListener('blur', this.onWindowBlur);
+            window.removeEventListener('focus', this.onWindowFocus);
+        });
     }
 
     /**
@@ -608,7 +655,7 @@ export class RustMediaService {
         // Already paused, or already counting down to it - either way there is nothing new to
         // schedule. Resuming while still inactive (resumePreview called from somewhere that is not
         // actually visible/claimed) falls through here too, and correctly starts the next countdown.
-        if (this._previewPaused() || this.previewIdleTimer !== null) return;
+        if (this.previewPaused() || this.previewIdleTimer !== null) return;
         this.previewIdleTimer = setTimeout(() => {
             this.previewIdleTimer = null;
             this._previewPaused.set(true);

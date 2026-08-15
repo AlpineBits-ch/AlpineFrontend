@@ -5,7 +5,7 @@ import {environment} from '../../environments/environment';
 import {ApiConfigService} from "./api-config.service";
 import {GuildVoiceActivityDto} from '../dtos/response/guild-voice-activity.dto';
 import {ShareViewersDto} from '../dtos/response/share-viewers.dto';
-import {VoiceRoomSnapshot} from '../models/voice-room';
+import {VoiceRoomSnapshot, VoiceSubscriberUpdate} from '../models/voice-room';
 
 /**
  * One track in a negotiate request.
@@ -173,6 +173,20 @@ export class GuildVoiceService {
         return this.client.get<Record<string, string[]>>(
             `${this.base(guildId, channelId)}/shares/viewers`
         );
+    }
+
+    // ── Subscriber state ─────────────────────────────────────────────────────
+
+    /**
+     * Tells the server what this client can actually see - see
+     * {@link VoiceSubscriberReportService}, which is the only caller.
+     *
+     * <p>The reply is this client's own subscription set. It is typed as `unknown` because nothing
+     * here consumes it: Alpine does not implement selective subscription, and declaring a shape it
+     * never reads would suggest otherwise.</p>
+     */
+    updateSubscriber(guildId: string, channelId: string, update: VoiceSubscriberUpdate): Observable<unknown> {
+        return this.client.post(`${this.base(guildId, channelId)}/subscriptions`, update);
     }
 
     private base(guildId: string, channelId: string): string {

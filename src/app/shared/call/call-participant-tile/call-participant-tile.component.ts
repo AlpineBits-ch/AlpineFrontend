@@ -1,6 +1,8 @@
 import {ChangeDetectionStrategy, Component, computed, ElementRef, input, output, viewChild} from '@angular/core';
 import {TranslateModule} from '@ngx-translate/core';
-import {CallParticipant} from '../call.types';
+import {CallParticipant, cameraTile} from '../call.types';
+import {WatchScope} from '../../../services/share-watch.service';
+import {trackTileHeight} from '../tile-height';
 import {AppAvatarComponent} from '../../../components/avatar/avatar.component';
 import {StreamSrcDirective} from '../../../directives/stream-src.directive';
 import {AudioState} from '../audio-wait';
@@ -26,11 +28,26 @@ export class CallParticipantTileComponent {
     participant = input.required<CallParticipant>();
     audioState = input.required<AudioState>();
     videoStream = input<MediaStream | null>(null);
+    /**
+     * Which room this seat belongs to, so its rendered size can be reported and the camera served
+     * at a matching simulcast layer - see {@link trackTileHeight}. Null (the default, and what a
+     * surface that has not been wired for it passes) reports nothing.
+     */
+    tileScope = input<WatchScope | null>(null);
 
     contextMenu = output<MouseEvent>();
 
     protected readonly root = viewChild.required<ElementRef<HTMLElement>>('root');
     protected readonly video = viewChild<ElementRef<HTMLVideoElement>>('video');
+
+    constructor() {
+        trackTileHeight(
+            this.root,
+            this.tileScope,
+            computed(() => cameraTile(this.participant()).id),
+            computed(() => this.participant().isLocal ? null : this.participant().userId),
+        );
+    }
 
     /**
      * The camera tile only renders its PiP button once a `MediaStream` already exists - see the

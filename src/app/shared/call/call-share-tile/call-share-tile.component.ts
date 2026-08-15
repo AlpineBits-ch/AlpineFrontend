@@ -12,7 +12,9 @@ import {
     viewChild,
 } from '@angular/core';
 import {TranslateModule} from '@ngx-translate/core';
-import {CallScreenShare} from '../call.types';
+import {CallScreenShare, shareTile} from '../call.types';
+import {WatchScope} from '../../../services/share-watch.service';
+import {trackTileHeight} from '../tile-height';
 import {StreamSrcDirective} from '../../../directives/stream-src.directive';
 import {CallLiveBadgeComponent} from '../call-live-badge/call-live-badge.component';
 import {CallTileActionComponent} from '../call-tile-action/call-tile-action.component';
@@ -59,6 +61,13 @@ export class CallShareTileComponent implements OnDestroy {
     viewerNames = input<string[]>([]);
     /** Whether this tile is currently the only one the layout is showing. */
     maximized = input(false);
+    /**
+     * Which room this share belongs to, so its rendered size can be reported and the stream served
+     * at a matching simulcast layer - see {@link trackTileHeight}. This is where the reporting earns
+     * the most: a 1080p share nobody has maximised is the single most expensive thing in a room.
+     * Null (the default) reports nothing.
+     */
+    tileScope = input<WatchScope | null>(null);
 
     maximizeToggle = output<void>();
     audioToggle = output<void>();
@@ -173,6 +182,16 @@ export class CallShareTileComponent implements OnDestroy {
 
     private dragging: {startX: number; startY: number; originX: number; originY: number} | null = null;
 
+    /**
+     * Whether the last press actually moved the picture, and so was a pan rather than a click.
+     *
+     * <p>A browser fires `click` on mouseup regardless, so without this every drag of a zoomed-in
+     * picture would end by maximising the tile - see {@link openOrClose}. Consumed by the click it
+     * suppresses rather than cleared on mouseup, because the click arrives after mouseup and
+     * clearing it there would leave nothing for the click to read.</p>
+     */
+    private panned = false;
+
     /** The window `popOut()` opened, while it is open. */
     private pipWindow: Window | null = null;
 
@@ -195,6 +214,15 @@ export class CallShareTileComponent implements OnDestroy {
             this.rustMedia.claimPreviewRender(this);
             onCleanup(() => this.rustMedia.releasePreviewRender(this));
         });
+
+        // `root` rather than the host element: the host is `display: contents` (see the component
+        // metadata), so it has no box of its own and would measure as zero forever.
+        trackTileHeight(
+            this.root,
+            this.tileScope,
+            computed(() => shareTile(this.share()).id),
+            computed(() => this.share().isLocal ? null : this.share().userId),
+        );
     }
 
     /** The resume button on the paused card, and any other interaction with it. */
@@ -215,9 +243,35 @@ export class CallShareTileComponent implements OnDestroy {
     }
 
     /** Panning only means anything once the content is larger than its tile. */
+    /**
+     * A press on the picture opens the stream, and a press on the open stream puts it back.
+     *
+     * <p>The whole gesture, deliberately: a stream is one tile among the seats (see
+     * `CallScreenLayoutComponent.participantTiles`), and the thing you want from a tile of somebody's
+     * screen at grid size is to make it bigger. The hover cluster's maximise button remains for
+     * people who look for a button, and fullscreen and pop-out stay their own controls - this only
+     * gives the obvious gesture the obvious meaning.</p>
+     *
+     * <p>Bound on the picture rather than the tile root, which is what keeps every overlay control
+     * off it - see the template.</p>
+     */
+    protected openOrClose(): void {
+        // The picture travels into the pop-out window with its handler attached, so this fires from
+        // over there too. Rearranging the stage behind a window somebody deliberately moved the
+        // stream out of is not what that click meant - and the tile it would maximise is the empty
+        // one this picture just left.
+        if (this.poppedOut()) return;
+        if (this.panned) {
+            this.panned = false;
+            return;
+        }
+        this.maximizeToggle.emit();
+    }
+
     protected startPan(event: MouseEvent): void {
         if (this.zoom() <= 1) return;
         event.preventDefault();
+        this.panned = false;
         const origin = this.pan();
         this.dragging = {
             startX: event.clientX,
@@ -230,6 +284,7 @@ export class CallShareTileComponent implements OnDestroy {
     protected movePan(event: MouseEvent): void {
         const drag = this.dragging;
         if (!drag) return;
+        this.panned = true;
         this.pan.set({
             x: drag.originX + (event.clientX - drag.startX),
             y: drag.originY + (event.clientY - drag.startY),

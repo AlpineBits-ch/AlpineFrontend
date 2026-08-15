@@ -44,6 +44,7 @@
                         (maximizeToggle)="toggleMaximize(share.shareId)"
                         [maximized]="maximizedId() === share.shareId"
                         [share]="share"
+                        [tileScope]="watchScope()"
                         [viewerNames]="viewerNames(share.shareId)"
                         [viewers]="viewerCount(share.shareId)"/>
             } @else {
@@ -54,6 +55,7 @@
                         (contextMenu)="participantContextMenu.emit({ event: $event, participant: tile.participant })"
                         [audioState]="audio.stateOf(tile.participant.userId)"
                         [participant]="tile.participant"
+                        [tileScope]="watchScope()"
                         [videoStream]="tile.participant.videoStream ?? null"
                         class="min-h-0"/>
             }

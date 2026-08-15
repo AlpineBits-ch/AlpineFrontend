@@ -598,3 +598,104 @@ describe('RustMediaService: idle preview pause', () => {
         expect(service.publishPreview()).toBe('data:image/jpeg;base64,BBBB');
     });
 });
+
+/**
+ * The background pause: the app is not the window you are looking at, so nothing here can see the
+ * preview and decoding frames into it is work nobody benefits from.
+ *
+ * <p>Separate from the idle pause above and deliberately not built on its timer. Idle asks "has
+ * anyone been looking at this for a while"; this asks "is this window in front of you", and the
+ * answer to the second is known the instant it changes. Waiting {@link PREVIEW_IDLE_MS} to act on
+ * something already certain would burn thirty seconds of decode per alt-tab, and alt-tabbing away
+ * is what someone sharing their screen does immediately after starting.</p>
+ *
+ * <p>`document.hidden` does not cover it. On a desktop window it flips on minimise, not when another
+ * window simply comes to the front, which is the ordinary case: you share, you switch to the game,
+ * the app is still "visible" behind it.</p>
+ */
+describe('RustMediaService: background preview pause', () => {
+    beforeEach(() => {
+        vi.useFakeTimers();
+        Object.defineProperty(document, 'hidden', {configurable: true, get: () => false});
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+        delete (document as unknown as Record<string, unknown>)['hidden'];
+        window.dispatchEvent(new Event('focus'));
+    });
+
+    it('pauses the instant the window loses focus, without waiting for the idle window', async () => {
+        const fake = new FakePublisher();
+        const {service} = setup(fake);
+        await service.startScreenPublish(options());
+        service.claimPreviewRender({});
+        fake.previewSink?.('data:image/jpeg;base64,AAAA');
+
+        window.dispatchEvent(new Event('blur'));
+
+        expect(service.previewPaused()).toBe(true);
+        // The assertion that outlives the flag: a frame arriving afterwards must not land.
+        fake.previewSink?.('data:image/jpeg;base64,BBBB');
+        expect(service.publishPreview()).toBe('data:image/jpeg;base64,AAAA');
+    });
+
+    it('resumes as soon as the window is focused again, with no click needed', async () => {
+        const fake = new FakePublisher();
+        const {service} = setup(fake);
+        await service.startScreenPublish(options());
+        service.claimPreviewRender({});
+        fake.previewSink?.('data:image/jpeg;base64,AAAA');
+        window.dispatchEvent(new Event('blur'));
+
+        window.dispatchEvent(new Event('focus'));
+
+        expect(service.previewPaused()).toBe(false);
+        fake.previewSink?.('data:image/jpeg;base64,BBBB');
+        expect(service.publishPreview()).toBe('data:image/jpeg;base64,BBBB');
+    });
+
+    it('never claims to be paused while nothing is being shared', async () => {
+        // Consumers gate the paused card on a preview existing, so a stray true renders nothing -
+        // but it would still be a lie, and the flag is read by more than the card.
+        const fake = new FakePublisher();
+        const {service} = setup(fake);
+
+        window.dispatchEvent(new Event('blur'));
+
+        expect(service.previewPaused()).toBe(false);
+    });
+
+    it('does not report a pause for a share whose first frame has not arrived yet', async () => {
+        // Same rule the idle pause follows: a share with no preview behind it has nothing to freeze,
+        // and pausing one would drop the very first frame it is waiting for.
+        const fake = new FakePublisher();
+        const {service} = setup(fake);
+        await service.startScreenPublish(options());
+
+        window.dispatchEvent(new Event('blur'));
+        expect(service.previewPaused()).toBe(false);
+
+        // And the first frame still lands while backgrounded, so there is something to freeze over.
+        fake.previewSink?.('data:image/jpeg;base64,FIRST');
+        expect(service.publishPreview()).toBe('data:image/jpeg;base64,FIRST');
+    });
+
+    it('holds the pause across the idle window rather than arming a second one behind it', async () => {
+        const fake = new FakePublisher();
+        const {service} = setup(fake);
+        await service.startScreenPublish(options());
+        service.claimPreviewRender({});
+        fake.previewSink?.('data:image/jpeg;base64,AAAA');
+        window.dispatchEvent(new Event('blur'));
+
+        vi.advanceTimersByTime(PREVIEW_IDLE_MS * 3);
+        window.dispatchEvent(new Event('focus'));
+
+        // Coming back must be enough on its own. An idle timer armed while backgrounded would have
+        // fired in the meantime and left the preview frozen with the window in front of you.
+        expect(service.previewPaused()).toBe(false);
+        fake.previewSink?.('data:image/jpeg;base64,BBBB');
+        expect(service.publishPreview()).toBe('data:image/jpeg;base64,BBBB');
+    });
+});

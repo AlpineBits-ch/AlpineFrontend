@@ -53,9 +53,10 @@
                 <!-- Always the shared stage now, sharing or not - a plain voice channel used to
                      render its own smaller grid here (see git history), which is how the invite card
                      and this component's unified tile rules never reached a channel with nobody
-                     sharing their screen. See CallScreenLayoutComponent.cameraTiles for the no-share
-                     widening that keeps a share-less stage looking the same as that old grid did:
-                     every participant as a full seat, not a strip of avatars. -->
+                     sharing their screen. See CallScreenLayoutComponent.participantTiles for the
+                     seating rule that keeps this stage and the DM panel's identical: every
+                     participant as a full seat whether or not anybody is sharing, never a strip of
+                     avatars. -->
                 <app-call-screen-layout
                         (localAudioToggle)="toggleLocalScreenAudio()"
                         (participantContextMenu)="onParticipantContextMenu($event.event, $event.participant)"
