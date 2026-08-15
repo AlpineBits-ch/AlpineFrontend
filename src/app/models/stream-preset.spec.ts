@@ -25,13 +25,37 @@ describe('stream-preset', () => {
         expect(bitrateFor({resolution: '1440p', framerate: 15})).toBe(4000);
         expect(bitrateFor({resolution: '1440p', framerate: 30})).toBe(8000);
         expect(bitrateFor({resolution: '1440p', framerate: 60})).toBe(12000);
+        expect(bitrateFor({resolution: '2160p', framerate: 15})).toBe(5000);
+        expect(bitrateFor({resolution: '2160p', framerate: 30})).toBe(10000);
+        expect(bitrateFor({resolution: '2160p', framerate: 60})).toBe(16000);
         expect(bitrateFor({resolution: 'source', framerate: 15})).toBe(6000);
         expect(bitrateFor({resolution: 'source', framerate: 30})).toBe(10000);
         expect(bitrateFor({resolution: 'source', framerate: 60})).toBe(18000);
     });
 
+    /**
+     * `source` is the top of the table and must stay there: it is the one option whose real size
+     * this client does not know, so it can be taller than 4K and its budget has to cover that.
+     */
+    it('keeps source above the tallest measured resolution', () => {
+        for (const framerate of FRAMERATE_OPTIONS) {
+            expect(bitrateFor({resolution: '2160p', framerate}))
+                .toBeLessThanOrEqual(bitrateFor({resolution: 'source', framerate}));
+        }
+    });
+
+    it('rises with resolution at a fixed framerate', () => {
+        const ladder: StreamResolution[] = ['720p', '1080p', '1440p', '2160p'];
+        for (const framerate of FRAMERATE_OPTIONS) {
+            for (let i = 1; i < ladder.length; i++) {
+                expect(bitrateFor({resolution: ladder[i - 1], framerate}))
+                    .toBeLessThan(bitrateFor({resolution: ladder[i], framerate}));
+            }
+        }
+    });
+
     it('resolves a bitrate for every declared resolution and framerate', () => {
-        const resolutions: StreamResolution[] = ['720p', '1080p', '1440p', 'source'];
+        const resolutions: StreamResolution[] = ['720p', '1080p', '1440p', '2160p', 'source'];
         for (const resolution of resolutions) {
             for (const framerate of FRAMERATE_OPTIONS) {
                 expect(bitrateFor({resolution, framerate})).toBeGreaterThan(0);
@@ -40,7 +64,7 @@ describe('stream-preset', () => {
     });
 
     it('rises with framerate at a fixed resolution', () => {
-        const resolutions: StreamResolution[] = ['720p', '1080p', '1440p', 'source'];
+        const resolutions: StreamResolution[] = ['720p', '1080p', '1440p', '2160p', 'source'];
         for (const resolution of resolutions) {
             expect(bitrateFor({resolution, framerate: 15}))
                 .toBeLessThan(bitrateFor({resolution, framerate: 30}));
@@ -53,11 +77,28 @@ describe('stream-preset', () => {
         expect(boxFor('720p')).toEqual([1280, 720]);
         expect(boxFor('1080p')).toEqual([1920, 1080]);
         expect(boxFor('1440p')).toEqual([2560, 1440]);
+        expect(boxFor('2160p')).toEqual([3840, 2160]);
         expect(boxFor('source')).toBeNull();
     });
 
+    /**
+     * Every box has to be even on both edges: H.264 4:2:0 cannot represent an odd one, and the
+     * publisher's encoder rejects the geometry outright rather than degrading - see
+     * `encoder_mf::MediaFoundationEncoder::new`. The halves and quarters the simulcast ladder
+     * derives from these have to survive it too, which is what the divisibility check is for.
+     */
+    it('offers only boxes the encoder can accept, down to the quarter layer', () => {
+        for (const resolution of Object.keys(RESOLUTION_LABELS) as StreamResolution[]) {
+            const box = boxFor(resolution);
+            if (!box) continue;
+            for (const edge of box) {
+                expect(edge % 4).toBe(0);
+            }
+        }
+    });
+
     it('labels every resolution and offers the three Discord framerates', () => {
-        expect(Object.keys(RESOLUTION_LABELS)).toEqual(['720p', '1080p', '1440p', 'source']);
+        expect(Object.keys(RESOLUTION_LABELS)).toEqual(['720p', '1080p', '1440p', '2160p', 'source']);
         expect(FRAMERATE_OPTIONS).toEqual<StreamFramerate[]>([15, 30, 60]);
     });
 
@@ -80,7 +121,7 @@ describe('a granted video rung', () => {
     it('offers everything when nothing has stated a ceiling', () => {
         // Normal case on every instance that sells nothing: a client-side clamp is a courtesy, so
         // "no information" has to mean "offer it and let the server answer".
-        for (const resolution of ['720p', '1080p', '1440p', 'source'] as StreamResolution[]) {
+        for (const resolution of ['720p', '1080p', '1440p', '2160p', 'source'] as StreamResolution[]) {
             expect(isResolutionAllowed(resolution, null)).toBe(true);
         }
         for (const fps of FRAMERATE_OPTIONS) expect(isFramerateAllowed(fps, null)).toBe(true);
@@ -92,6 +133,7 @@ describe('a granted video rung', () => {
         expect(isResolutionAllowed('720p', RUNG_720P30)).toBe(true);
         expect(isResolutionAllowed('1080p', RUNG_720P30)).toBe(false);
         expect(isResolutionAllowed('1440p', RUNG_720P30)).toBe(false);
+        expect(isResolutionAllowed('2160p', RUNG_720P30)).toBe(false);
         expect(isFramerateAllowed(30, RUNG_720P30)).toBe(true);
         expect(isFramerateAllowed(60, RUNG_720P30)).toBe(false);
     });
@@ -149,6 +191,58 @@ describe('a granted video rung', () => {
             .toEqual({resolution: '1080p', framerate: 30, content: 'text'});
     });
 
+});
+
+/**
+ * The top of the ladder, which is what a Pro guild resolves to.
+ *
+ * <p>Every rung below it still has to hide 4K, and that is the half worth pinning: the operator
+ * ceiling (`VOICE_VIDEO_CEILING`) clamps a Pro guild's room to whatever this box will carry, so the
+ * picker gaining a 2160p option changes nothing at all until that ceiling moves. "Where unlocked" is
+ * the rung, never the build.</p>
+ */
+describe('the 2160p60 rung', () => {
+    const RUNG_2160P60 = {maxHeight: 2160, maxFramerate: 60};
+    const RUNG_1440P60 = {maxHeight: 1440, maxFramerate: 60};
+    /** What the shipped operator ceiling produces today, whatever the guild's plan resolved to. */
+    const RUNG_1080P60 = {maxHeight: 1080, maxFramerate: 60};
+
+    it('offers every measured resolution at the top rung', () => {
+        for (const resolution of ['720p', '1080p', '1440p', '2160p', 'source'] as StreamResolution[]) {
+            expect(isResolutionAllowed(resolution, RUNG_2160P60)).toBe(true);
+        }
+        expect(isFramerateAllowed(60, RUNG_2160P60)).toBe(true);
+    });
+
+    it('measures 2160p rather than treating it as another source', () => {
+        // The whole point of the option: unlike `source` it has a height this client knows, so a
+        // rung below it hides it instead of letting the server clamp it after the fact.
+        expect(resolutionHeight('2160p')).toBe(2160);
+    });
+
+    it('hides 4K on every rung below it', () => {
+        expect(isResolutionAllowed('2160p', RUNG_1440P60)).toBe(false);
+        expect(isResolutionAllowed('1440p', RUNG_1440P60)).toBe(true);
+        // Today's live behaviour under the shipped operator ceiling.
+        expect(isResolutionAllowed('2160p', RUNG_1080P60)).toBe(false);
+        expect(isResolutionAllowed('1440p', RUNG_1080P60)).toBe(false);
+    });
+
+    it('clamps up to 4K only where the rung reaches it', () => {
+        expect(clampPreset({resolution: 'source', framerate: 60, content: 'games'}, RUNG_2160P60))
+            .toEqual({resolution: 'source', framerate: 60, content: 'games'});
+        // A preset taller than the rung falls to the tallest the rung does permit, which is now 4K
+        // rather than 1440p wherever the rung reaches that far.
+        expect(clampPreset({resolution: '2160p', framerate: 60, content: 'games'}, RUNG_1440P60))
+            .toEqual({resolution: '1440p', framerate: 60, content: 'games'});
+        expect(clampPreset({resolution: '2160p', framerate: 60, content: 'games'}, RUNG_1080P60))
+            .toEqual({resolution: '1080p', framerate: 60, content: 'games'});
+    });
+
+    /** A 4K share is still a choice, never a default: nobody is opted into the egress. */
+    it('does not move the default', () => {
+        expect(DEFAULT_STREAM_PRESET.resolution).toBe('1080p');
+    });
 });
 
 describe('the content axis', () => {

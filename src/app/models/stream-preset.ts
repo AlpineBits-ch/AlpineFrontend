@@ -1,5 +1,13 @@
-/** Output resolution for a screen share. 'source' keeps the source's own dimensions. */
-export type StreamResolution = '720p' | '1080p' | '1440p' | 'source';
+/**
+ * Output resolution for a screen share. 'source' keeps the source's own dimensions.
+ *
+ * <p>`2160p` is offered but is not reachable on most rooms: the guild's plan has to grant a rung
+ * that tall *and* the instance's `VOICE_VIDEO_CEILING` has to carry it, and the shipped ceiling is
+ * `1080p60`. Listing it here is what makes "where the rung reaches 4K" expressible at all - before
+ * it existed, a guild entitled to `2160p60` still topped out at 1440p because this client had no
+ * word for the rung it had been granted.</p>
+ */
+export type StreamResolution = '720p' | '1080p' | '1440p' | '2160p' | 'source';
 
 /** The three framerates Discord offers. */
 export type StreamFramerate = 15 | 30 | 60;
@@ -30,17 +38,41 @@ export interface StreamPreset {
     content: StreamContent;
 }
 
+/**
+ * Target bitrate per (resolution, framerate), in kbps.
+ *
+ * <p>Deliberately above the per-stream figures in
+ * `Echo/docs/specs/monetization-pricing-model.md` section 1, and that gap is not an error in either
+ * place: the cost model states what it expects a stream to <em>average</em> over an hour, this
+ * states what the encoder is <em>asked</em> for. At 60 fps every row here is exactly twice the
+ * model's number (1080p60 8000 against 4000, 1440p60 12000 against 6000), so `2160p60` is 16000
+ * against its 8000 rather than a third convention invented for one row. The slower framerates sit
+ * a little under that ratio, as they already did.</p>
+ *
+ * <p>`source` stays the top of the table on purpose: it is the one option whose real size is unknown
+ * here, so its budget has to cover a display taller than 4K.</p>
+ */
 const BITRATES: Record<StreamResolution, Record<StreamFramerate, number>> = {
     '720p': {15: 1500, 30: 2500, 60: 4000},
     '1080p': {15: 2500, 30: 4500, 60: 8000},
     '1440p': {15: 4000, 30: 8000, 60: 12000},
+    '2160p': {15: 5000, 30: 10000, 60: 16000},
     source: {15: 6000, 30: 10000, 60: 18000},
 };
 
+/**
+ * The pixel box each resolution fits into.
+ *
+ * <p>Every edge is divisible by four, and that is load-bearing rather than incidental: H.264 4:2:0
+ * cannot represent an odd edge, so the publisher's encoder refuses odd geometry outright, and the
+ * half and quarter sizes a simulcast ladder derives from these have to clear the same bar. See
+ * `stream-preset.spec.ts`, which pins it.</p>
+ */
 const BOXES: Record<StreamResolution, [number, number] | null> = {
     '720p': [1280, 720],
     '1080p': [1920, 1080],
     '1440p': [2560, 1440],
+    '2160p': [3840, 2160],
     source: null,
 };
 
@@ -48,6 +80,7 @@ export const RESOLUTION_LABELS: Record<StreamResolution, string> = {
     '720p': '720p',
     '1080p': '1080p',
     '1440p': '1440p',
+    '2160p': '2160p',
     source: 'Source',
 };
 
@@ -104,11 +137,12 @@ const RESOLUTION_HEIGHTS: Record<StreamResolution, number | null> = {
     '720p': 720,
     '1080p': 1080,
     '1440p': 1440,
+    '2160p': 2160,
     source: null,
 };
 
 /** Known heights, ascending, for picking the tallest option a ceiling still permits. */
-const MEASURED_RESOLUTIONS: StreamResolution[] = ['720p', '1080p', '1440p'];
+const MEASURED_RESOLUTIONS: StreamResolution[] = ['720p', '1080p', '1440p', '2160p'];
 
 export function resolutionHeight(resolution: StreamResolution): number | null {
     return RESOLUTION_HEIGHTS[resolution];

@@ -1140,8 +1140,11 @@ export class VoiceRTCService {
             }
             if (!await this.ensureReceiveSession(guildId, channelId)) return null;
 
-            // Solved once, before capture starts, and held for the session.
-            const geometry = solveGeometry(sourceWidth, sourceHeight, preset.resolution);
+            // Solved once, before capture starts, and held for the session. The rung goes in
+            // alongside the preset because it is the only thing that caps `source`, which survives
+            // `clampPreset` by design and would otherwise publish a 4K display at 4K on any rung.
+            const geometry = solveGeometry(
+                sourceWidth, sourceHeight, preset.resolution, this.voiceLimits.videoCeiling());
             const videoTrack = await this.rustMedia.startScreenCapture(sourceId, geometry, preset.framerate);
             this.localScreenTrack = videoTrack;
             this.localScreenStream.set(new MediaStream([videoTrack]));
@@ -1306,6 +1309,7 @@ export class VoiceRTCService {
                     this.oauth.getAccessToken(),
                     await this.deviceIdentity.deviceId(),
                     {guildId, channelId},
+                    this.voiceLimits.videoCeiling(),
                 ),
             );
             console.log(`[voice] Rust publisher live on ${published.encoder}`, published);
@@ -1368,7 +1372,8 @@ export class VoiceRTCService {
             const retype = preset.resolution !== previous.resolution || preset.content !== previous.content;
             if (retype && this.screenSourceSize) {
                 const {width, height} = this.screenSourceSize;
-                const box = solveGeometry(width, height, preset.resolution);
+                const box = solveGeometry(
+                    width, height, preset.resolution, this.voiceLimits.videoCeiling());
                 await this.rustMedia.setPublishSpec({
                     width: box.width,
                     height: box.height,
@@ -1390,7 +1395,8 @@ export class VoiceRTCService {
         }
         if (preset.resolution !== previous.resolution && this.screenSourceSize) {
             const {width, height} = this.screenSourceSize;
-            await this.rustMedia.setCaptureGeometry(solveGeometry(width, height, preset.resolution));
+            await this.rustMedia.setCaptureGeometry(solveGeometry(
+                width, height, preset.resolution, this.voiceLimits.videoCeiling()));
         }
         const sender = this.localSenders.get('screenVideo');
         if (sender) await applyScreenEncoding(sender, preset);

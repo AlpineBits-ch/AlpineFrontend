@@ -597,7 +597,7 @@ describe('geometry parity between the two adapters', () => {
 
     function solved(): ScreenPublishOptions {
         return publishOptions(choice, 'share-1', 'https://api.test', 'tok', 'dev-1',
-            {guildId: 'g', channelId: 'c'});
+            {guildId: 'g', channelId: 'c'}, null);
     }
 
     it('asks the browser for exactly the geometry the solver produced', async () => {

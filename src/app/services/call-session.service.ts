@@ -17,6 +17,21 @@ import {ScreenPickerChoice} from './screen-picker.service';
 import {ApiConfigService} from './api-config.service';
 import {DeviceIdentityService} from './device-identity.service';
 
+/**
+ * A direct call resolves no room ceiling, so geometry here is capped by the preset alone.
+ *
+ * <p>Not an oversight and not a shortcut: `VoiceLimitsService` is only ever entered for a guild
+ * channel (`voice-channel.service.ts`), so there is nothing filed for a call to read. Reading it
+ * anyway would apply whichever guild room happened to be open last to a call that has nothing to do
+ * with it, which is a worse answer than none. Null is the documented "nothing has said" and leaves
+ * the server as the enforcement, exactly as it was before ceilings were threaded through here.</p>
+ *
+ * <p><b>This is the one path where a 4K display shared as `source` still publishes 4K.</b> Wiring a
+ * call's own limits block through is what closes it; the exposure is far smaller than a guild room's
+ * because a call has a handful of viewers rather than a roomful.</p>
+ */
+const NO_ROOM_CEILING = null;
+
 @Injectable({providedIn: 'root'})
 export class CallSessionService {
     readonly session = signal<ActiveCallSession | null>(null);
@@ -238,7 +253,8 @@ export class CallSessionService {
             }
 
             // Solved once, before capture starts, and held for the session.
-            const geometry = solveGeometry(sourceWidth, sourceHeight, preset.resolution);
+            const geometry = solveGeometry(
+                sourceWidth, sourceHeight, preset.resolution, NO_ROOM_CEILING);
             let videoTrack: MediaStreamTrack;
             try {
                 videoTrack = await this.rustMedia.startScreenCapture(sourceId, geometry, preset.framerate);
@@ -305,6 +321,7 @@ export class CallSessionService {
                     this.oauth.getAccessToken(),
                     await this.deviceIdentity.deviceId(),
                     {callId},
+                    NO_ROOM_CEILING,
                 ),
             );
             console.log(`[call] Rust publisher live on ${published.encoder}`, published);
@@ -364,7 +381,7 @@ export class CallSessionService {
             const retype = preset.resolution !== previous.resolution || preset.content !== previous.content;
             if (retype && this.screenSourceSize) {
                 const {width, height} = this.screenSourceSize;
-                const box = solveGeometry(width, height, preset.resolution);
+                const box = solveGeometry(width, height, preset.resolution, NO_ROOM_CEILING);
                 await this.rustMedia.setPublishSpec({
                     width: box.width,
                     height: box.height,
@@ -383,7 +400,8 @@ export class CallSessionService {
         }
         if (preset.resolution !== previous.resolution && this.screenSourceSize) {
             const {width, height} = this.screenSourceSize;
-            await this.rustMedia.setCaptureGeometry(solveGeometry(width, height, preset.resolution));
+            await this.rustMedia.setCaptureGeometry(
+                solveGeometry(width, height, preset.resolution, NO_ROOM_CEILING));
         }
     }
 

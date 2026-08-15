@@ -113,14 +113,32 @@ describe('the quality picker', () => {
         const fixture = render({...SHARING, videoCeiling: {maxHeight: 720, maxFramerate: 30}});
 
         const resolutions = segments(fixture, 'CALL.RESOLUTION');
-        // 720p, 1080p, 1440p, Source - all four still drawn, which is what keeps the picker from
-        // silently having fewer buttons on one server than on another.
-        expect(resolutions).toHaveLength(4);
-        expect(resolutions.map(b => b.disabled)).toEqual([false, true, true, false]);
+        // 720p, 1080p, 1440p, 2160p, Source - all five still drawn, which is what keeps the picker
+        // from silently having fewer buttons on one server than on another.
+        expect(resolutions).toHaveLength(5);
+        // Source is the one that stays live above the rung: its height is unknowable here, so the
+        // server clamps it and says so rather than this client guessing what it is worth.
+        expect(resolutions.map(b => b.disabled)).toEqual([false, true, true, true, false]);
 
         const framerates = segments(fixture, 'CALL.FRAMERATE');
         // 15 and 30 legal, 60 not: a lower framerate is always allowed on any rung above `none`.
         expect(framerates.map(b => b.disabled)).toEqual([false, false, true]);
+    });
+
+    /**
+     * The top rung, which is what a Pro guild resolves to once the instance's own ceiling carries
+     * it. Until then every room caps lower and the 4K button is drawn disabled like any other option
+     * above the rung - the build is never what decides this.
+     */
+    it('lights up 4K only where the rung reaches it', () => {
+        const top = render({...SHARING, videoCeiling: {maxHeight: 2160, maxFramerate: 60}});
+        expect(segments(top, 'CALL.RESOLUTION').map(b => b.disabled))
+            .toEqual([false, false, false, false, false]);
+
+        // The rung the shipped operator ceiling produces today, whatever the plan granted.
+        const capped = render({...SHARING, videoCeiling: {maxHeight: 1080, maxFramerate: 60}});
+        expect(segments(capped, 'CALL.RESOLUTION').map(b => b.disabled))
+            .toEqual([false, false, true, true, false]);
     });
 
     /**

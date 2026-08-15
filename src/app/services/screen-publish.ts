@@ -1,5 +1,5 @@
 import {environment} from '../../environments/environment';
-import {bitrateFor, StreamPreset} from '../models/stream-preset';
+import {bitrateFor, StreamPreset, VideoCeiling} from '../models/stream-preset';
 import {solveGeometry} from '../models/capture-geometry';
 import {detectHost, PlatformHost} from '../platform/host';
 import {ScreenPickerChoice} from './screen-picker.service';
@@ -69,9 +69,11 @@ export function publishOptions(
     token: string,
     deviceId: string,
     target: {guildId: string; channelId: string} | {callId: string},
+    ceiling: VideoCeiling | null | undefined,
 ): ScreenPublishOptions {
     const preset: StreamPreset = choice.preset;
-    const {width, height} = solveGeometry(choice.sourceWidth, choice.sourceHeight, preset.resolution);
+    const {width, height} = solveGeometry(
+        choice.sourceWidth, choice.sourceHeight, preset.resolution, ceiling);
 
     return {
         sourceId: choice.sourceId,

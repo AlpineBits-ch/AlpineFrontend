@@ -1,5 +1,5 @@
 ﻿import {environment} from '../../environments/environment';
-import {StreamPreset} from '../models/stream-preset';
+import {StreamPreset, VideoCeiling} from '../models/stream-preset';
 import {iceServers, publishOptions, useRustPublisher} from './screen-publish';
 
 describe('iceServers', () => {
@@ -81,9 +81,9 @@ describe('publishOptions', () => {
         shareAudio: true,
     };
 
-    function built(over: Partial<typeof choice> = {}) {
+    function built(over: Partial<typeof choice> = {}, ceiling: VideoCeiling | null = null) {
         return publishOptions({...choice, ...over}, 'share-1', 'https://api.test', 'tok', 'dev-1',
-            {guildId: 'g', channelId: 'c'});
+            {guildId: 'g', channelId: 'c'}, ceiling);
     }
 
     it('solves the geometry from the source and the preset', () => {
@@ -93,6 +93,25 @@ describe('publishOptions', () => {
     /** Never upscale: a 720p source shared at 1080p stays 720p. */
     it('does not blow a small source up to the preset box', () => {
         expect(built({sourceWidth: 1280, sourceHeight: 720})).toMatchObject({width: 1280, height: 720});
+    });
+
+    /**
+     * The rung reaches the pixels, and `source` is why it has to.
+     *
+     * <p>`source` survives `clampPreset` by design - its height is unknowable at picker time - so
+     * this is the only point between a 4K display and the wire where a rung can still cap it. The
+     * server cannot: its own clamp selects a simulcast layer, and a publisher sending one encoding
+     * has no second layer to be dropped to.</p>
+     */
+    it('caps a source share at the granted rung', () => {
+        const sourceShare = {preset: {...preset, resolution: 'source'} as StreamPreset};
+
+        expect(built(sourceShare, {maxHeight: 1080, maxFramerate: 60}))
+            .toMatchObject({width: 1920, height: 1080});
+        expect(built(sourceShare, {maxHeight: 720, maxFramerate: 30}))
+            .toMatchObject({width: 1280, height: 720});
+        // Nothing resolved, so nothing capped - the server is the enforcement.
+        expect(built(sourceShare, null)).toMatchObject({width: 3840, height: 2160});
     });
 
     /**
