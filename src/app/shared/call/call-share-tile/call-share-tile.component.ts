@@ -18,6 +18,7 @@ import {trackTileHeight} from '../tile-height';
 import {StreamSrcDirective} from '../../../directives/stream-src.directive';
 import {CallLiveBadgeComponent} from '../call-live-badge/call-live-badge.component';
 import {CallTileActionComponent} from '../call-tile-action/call-tile-action.component';
+import {trackActivationClick} from '../activation-click';
 import {documentPipApi, videoPipSupported} from '../pip-support';
 import {RustMediaService} from '../../../services/rust-media.service';
 
@@ -255,7 +256,11 @@ export class CallShareTileComponent implements OnDestroy {
      * <p>Bound on the picture rather than the tile root, which is what keeps every overlay control
      * off it - see the template.</p>
      */
+    /** The press that brought the app back to the front is not also a command - see the helper. */
+    private readonly isActivationClick = trackActivationClick();
+
     protected openOrClose(): void {
+        if (this.isActivationClick()) return;
         // The picture travels into the pop-out window with its handler attached, so this fires from
         // over there too. Rearranging the stage behind a window somebody deliberately moved the
         // stream out of is not what that click meant - and the tile it would maximise is the empty

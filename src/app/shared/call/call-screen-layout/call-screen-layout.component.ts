@@ -10,6 +10,7 @@ import {
 } from '../call.types';
 import {AppAvatarComponent} from '../../../components/avatar/avatar.component';
 import {StreamSrcDirective} from '../../../directives/stream-src.directive';
+import {trackActivationClick} from '../activation-click';
 import {trackAudioWait} from '../audio-wait';
 import {CallAudioStatusComponent} from '../call-audio-status/call-audio-status.component';
 import {CallInviteCardComponent} from '../call-invite-card/call-invite-card.component';
@@ -59,6 +60,8 @@ export class CallScreenLayoutComponent implements OnDestroy {
     nameOf = input<(userId: string) => string>(id => id);
 
     protected readonly audio = trackAudioWait(this.participants, this.participantsWithAudio);
+    /** The press that brought the app back to the front is not also a command - see the helper. */
+    private readonly isActivationClick = trackActivationClick();
     private readonly shareWatch = inject(ShareWatchService);
     private readonly tileReport = inject(VoiceSubscriberReportService);
     private readonly callFocus = inject(CallFocusService);
@@ -429,6 +432,10 @@ export class CallScreenLayoutComponent implements OnDestroy {
      * second one nested inside it.
      */
     protected onSelfCardClick(shareId: string, previewPaused: boolean): void {
+        // Same trap as the share tile's own press - see trackActivationClick. Focusing the app
+        // resumes the preview, so the press that focused it arrives with `previewPaused` already
+        // false and would promote the card into the grid instead of doing nothing.
+        if (this.isActivationClick()) return;
         if (previewPaused) {
             this.rustMedia.resumePreview();
             return;

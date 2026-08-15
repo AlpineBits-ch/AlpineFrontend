@@ -4,6 +4,7 @@ import {TranslateModule} from '@ngx-translate/core';
 import {CallShareTileComponent} from './call-share-tile/call-share-tile.component';
 import {CallScreenShare} from './call.types';
 import {RustMediaService} from '../../services/rust-media.service';
+import {ACTIVATION_CLICK_MS} from './activation-click';
 
 function share(overrides: Partial<CallScreenShare> = {}): CallScreenShare {
     return {
@@ -184,6 +185,39 @@ describe('CallShareTileComponent click to maximise', () => {
         click(el);
 
         expect(maximize).toHaveBeenCalledTimes(1);
+    });
+
+    it('ignores the click that brought the window back to the front', () => {
+        // The bug this pins: focusing the app resumes the preview (see RustMediaService), so by the
+        // time the press that did the focusing lands, the tile is already unpaused and the paused
+        // card it was aimed at is gone - the click falls straight through to the picture and
+        // maximises. Pressing "resume preview" would open the stream full-stage every time.
+        vi.useFakeTimers();
+        try {
+            const {fixture, maximize} = setup();
+
+            window.dispatchEvent(new Event('focus'));
+            click(picture(fixture));
+
+            expect(maximize).not.toHaveBeenCalled();
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('takes clicks again once the window has been focused for a moment', () => {
+        vi.useFakeTimers();
+        try {
+            const {fixture, maximize} = setup();
+            window.dispatchEvent(new Event('focus'));
+
+            vi.advanceTimersByTime(ACTIVATION_CLICK_MS);
+            click(picture(fixture));
+
+            expect(maximize).toHaveBeenCalledTimes(1);
+        } finally {
+            vi.useRealTimers();
+        }
     });
 
     it('resumes the paused preview instead of maximising', () => {
