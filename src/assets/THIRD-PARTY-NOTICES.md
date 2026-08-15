@@ -10970,7 +10970,7 @@ Distributed under the [Zlib licence](#licence-zlib), reproduced in full below.
 
 ## npm packages
 
-Bundled into the application frontend. 355 packages, 183 distinct notices.
+Bundled into the application frontend. 356 packages, 184 distinct notices.
 
 ### @alloc/quick-lru 5.2.0, ansi-regex 5.0.1, ansi-styles 4.3.0, camelcase 5.3.1, find-up 4.1.0, is-fullwidth-code-point 3.0.0, locate-path 5.0.0, p-limit 2.3.0, p-locate 4.1.0, p-retry 4.6.2, p-try 2.2.0, path-exists 4.0.0, string-width 4.2.3, strip-ansi 6.0.1, wrap-ansi 6.2.0
 
@@ -11843,6 +11843,17 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 MIT License
 Copyright (c) 2024 Colin McDonnell
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
+### @stripe/stripe-js 9.13.0
+
+**Licence:** MIT
+**Source:** github:stripe/stripe-js
+
+```text
+MIT License
+Copyright (c) 2017 Stripe
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
