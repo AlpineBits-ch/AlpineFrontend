@@ -21,7 +21,7 @@ export const environment = {
      * `upgradesAvailable`, is read before any billing surface is drawn, and needs no new endpoint
      * for a third field. Read the server's value when there is one and fall back to this.</p>
      */
-    stripePublishableKey: 'pk_test_51TY1Am2c7cgnhryPhW1Ff1xuc9DQ5zmEUKtyhqCi3eKqGE0mEaPMAliiVnHFdtAU42c0D5pR0noi76ZQwDfYArGa007BZhMSoa',
+    stripePublishableKey: 'pk_live_51TY1AeK8q2dIPPgJeECY30hR7n6iuBTacdUVE7FNEQ5WSe38VUBbiUJehoqx9Xua0vnFAWUiFGKicu3KTNkvWpLC009vrw8XAE',
     iceServers: [
         {
             urls: [
