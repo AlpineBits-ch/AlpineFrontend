@@ -23,6 +23,26 @@ export type VoicePublishState = 'Joined' | 'Publishing';
 export interface VoiceShareSnapshot {
     shareId: string;
     trackNames: string[];
+    /**
+     * The session the share is published on, which is **not** the publisher's microphone session.
+     *
+     * <p>A desktop client publishes its screen from a second process, on its own Cloudflare session
+     * opened as <i>secondary</i> precisely so it is never recorded as that participant's audio - see
+     * `SessionRole` in `src-tauri/src/media/publisher/signalling.rs`. So one participant has two
+     * session ids, and a share's tracks exist on only one of them.</p>
+     *
+     * <p>This field was on the wire from the start and undeclared here, which is not a cosmetic
+     * omission: without it the only session id in reach is the microphone's, and pulling a share
+     * from it names a track that session does not publish. The server answers
+     * `409 staleSubscription, refetchSnapshot`, the refetch returns the same snapshot, and the pair
+     * chase each other for as long as the viewer stays in the channel. Worse, on the audio half the
+     * wrong id reads as a *corrected* announcement, so it unsubscribes a pull that was working.</p>
+     *
+     * <p>Null on a share the server stored before it recorded the session. That does not mean "use
+     * the participant's" - it means the handle only ever arrived in `TrackPublished`, so a snapshot
+     * cannot subscribe to that share and must leave whatever the live event set alone.</p>
+     */
+    mediaSessionId: string | null;
 }
 
 export interface VoiceParticipantSnapshot {

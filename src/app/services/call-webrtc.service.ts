@@ -1101,13 +1101,21 @@ export class CallWebRtcService {
             void this.subscribeToTrack(p.userId, mediaSessionId, p.audioTrackName, 'audio');
 
             for (const share of p.shares) {
+                // The share's own session, not the microphone one above - see
+                // `VoiceShareSnapshot.mediaSessionId`. Today's DM share publishes over this peer
+                // connection, so the two ids happen to agree; they stop agreeing the moment a call
+                // shares from the Rust publisher, which opens a session of its own. Null means the
+                // handle only ever arrived in `TrackPublished`, so there is nothing to pull with.
+                const shareSessionId = share.mediaSessionId;
+                if (!shareSessionId) continue;
+
                 for (const trackName of share.trackNames) {
                     const {kind} = describeTrack(trackName);
                     // Both halves, each on its own path: the video onto this peer connection, the
                     // audio onto the Rust mixer. Sending screen audio down the video branch would
                     // ask the SFU for an audio track on a video transceiver.
                     void this.subscribeToTrack(
-                        p.userId, mediaSessionId, trackName,
+                        p.userId, shareSessionId, trackName,
                         kind === 'screenAudio' ? 'screenAudio' : 'screen',
                         share.shareId);
                 }

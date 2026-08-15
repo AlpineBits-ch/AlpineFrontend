@@ -375,15 +375,23 @@ export class VoiceChannelService {
             }]);
 
             for (const share of p.shares) {
+                // The share's own session, never the microphone one above - see
+                // `VoiceShareSnapshot.mediaSessionId`. A null is not an invitation to fall back:
+                // the handle for such a share exists only in the `TrackPublished` we already
+                // received, so the live subscription is the best copy there is and re-announcing
+                // it from here could only replace it with one that cannot work.
+                const shareSessionId = share.mediaSessionId;
+                if (!shareSessionId) continue;
+
                 for (const trackName of share.trackNames) {
                     const {kind} = describeTrack(trackName);
                     if (kind === 'screenAudio') {
                         void this.rtc.subscribeAudio([{
-                            userId: p.userId, mediaSessionId, trackName, kind: 'screenAudio',
+                            userId: p.userId, mediaSessionId: shareSessionId, trackName, kind: 'screenAudio',
                         }]);
                     } else {
                         void this.rtc.subscribeVideo(
-                            guildId, channelId, p.userId, mediaSessionId, trackName, 'screen');
+                            guildId, channelId, p.userId, shareSessionId, trackName, 'screen');
                     }
                 }
             }

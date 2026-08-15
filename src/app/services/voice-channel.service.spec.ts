@@ -579,13 +579,15 @@ describe('screen share backfill from the snapshot', () => {
             ...emptySnapshot('chan-1'),
             participants: [publisher('them', {
                 isStreaming: true,
-                shares: [{shareId: 'abc', trackNames: ['screen-abc']}],
+                shares: [{shareId: 'abc', trackNames: ['screen-abc'], mediaSessionId: 'cf-screen-them'}],
             })],
         });
         await tick();
 
+        // The share's own session, not `cf-them` - a screen share is published from a second
+        // process on a session of its own. See voice-channel.share-session.spec.ts.
         expect(rtc.subscribeVideo).toHaveBeenCalledWith(
-            'guild-1', 'chan-1', 'them', 'cf-them', 'screen-abc', 'screen');
+            'guild-1', 'chan-1', 'them', 'cf-screen-them', 'screen-abc', 'screen');
     });
 
     /** A share can carry audio, and the two halves are one share tied by the same id. */
@@ -596,15 +598,19 @@ describe('screen share backfill from the snapshot', () => {
             ...emptySnapshot('chan-1'),
             participants: [publisher('them', {
                 isStreaming: true,
-                shares: [{shareId: 'abc', trackNames: ['screen-abc', 'screen-audio-abc']}],
+                shares: [{
+                    shareId: 'abc',
+                    trackNames: ['screen-abc', 'screen-audio-abc'],
+                    mediaSessionId: 'cf-screen-them',
+                }],
             })],
         });
         await tick();
 
         expect(rtc.subscribeVideo).toHaveBeenCalledWith(
-            'guild-1', 'chan-1', 'them', 'cf-them', 'screen-abc', 'screen');
+            'guild-1', 'chan-1', 'them', 'cf-screen-them', 'screen-abc', 'screen');
         expect(rtc.subscribeAudio).toHaveBeenCalledWith([
-            {userId: 'them', mediaSessionId: 'cf-them', trackName: 'screen-audio-abc', kind: 'screenAudio'},
+            {userId: 'them', mediaSessionId: 'cf-screen-them', trackName: 'screen-audio-abc', kind: 'screenAudio'},
         ]);
     });
 
@@ -654,7 +660,8 @@ describe('screen share backfill from the snapshot', () => {
         ws['voiceSnapshotObservable'].next({
             ...emptySnapshot('chan-1'),
             participants: [publisher('me', {
-                isStreaming: true, shares: [{shareId: 'mine', trackNames: ['screen-mine']}],
+                isStreaming: true,
+                shares: [{shareId: 'mine', trackNames: ['screen-mine'], mediaSessionId: 'cf-screen-mine'}],
             })],
         });
         await tick();
@@ -689,7 +696,7 @@ describe('screen share backfill from the snapshot', () => {
             ...emptySnapshot('chan-1'),
             participants: [publisher('them', {
                 isStreaming: true,
-                shares: [{shareId: 'abc', trackNames: ['screen-abc']}],
+                shares: [{shareId: 'abc', trackNames: ['screen-abc'], mediaSessionId: 'cf-screen-them'}],
             })],
         }));
 
@@ -699,7 +706,7 @@ describe('screen share backfill from the snapshot', () => {
         );
 
         expect(rtc.subscribeVideo).toHaveBeenCalledWith(
-            'guild-1', 'chan-1', 'them', 'cf-them', 'screen-abc', 'screen');
+            'guild-1', 'chan-1', 'them', 'cf-screen-them', 'screen-abc', 'screen');
     });
 
     /**
