@@ -3,11 +3,19 @@
 <!-- Double-click anywhere on the tile maximises it - the same toggle the hover-only button below
      offers, reachable without hovering first. The buttons and the zoom controls stop this event
      reaching here (see their own (dblclick) bindings below), so double-clicking "zoom in" cannot
-     also maximise the tile out from under the click. -->
+     also maximise the tile out from under the click.
+
+     aspect-video w-full is load-bearing, not decoration. This element is the grid item (the host is
+     `display: contents`) and the stage grid is auto-rows-min, so a row is only as tall as its
+     tallest tile's own intrinsic height. Everything inside here - the pan/zoom surface and every
+     overlay - is absolutely positioned, so without a declared box that height is zero and the tile
+     renders as nothing: starting a share in a guild voice channel emptied the whole stage, because
+     the only tile on it was the sharer's own. app-call-participant-tile and app-call-invite-card
+     both state the same box for the same reason. See call-share-tile.sizing.spec.ts. -->
 <div #root
      (dblclick)="maximizeToggle.emit()"
-     class="group/tile relative flex min-h-0 items-center justify-center overflow-hidden rounded-xl
-            border border-border-subtle bg-black/70">
+     class="group/tile relative flex aspect-video min-h-0 w-full items-center justify-center
+            overflow-hidden rounded-xl border border-border-subtle bg-black/70">
 
     <!-- Zoomable, pannable content. The tile clips the overflow, so zooming past 100% would hide
          the edges with no way to reach them; this wrapper is the drag surface that pans them in.
