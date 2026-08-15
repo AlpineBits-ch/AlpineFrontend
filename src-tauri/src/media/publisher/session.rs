@@ -1,6 +1,6 @@
 //! Owns a running publish: capture thread, encoder, and the peer connection feeding Cloudflare.
 
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -60,6 +60,12 @@ pub struct PublishHandle {
     pub encoder_name: &'static str,
     /// Stopped alongside the capture loop, so the loopback device is released with the share.
     screen_audio: Option<super::audio::ScreenAudioCapture>,
+    /// Whether a copy of the encoded stream is currently going to the sharer's own tile.
+    /// Always false on a host that never asked for one - see [`PublishHandle::set_local_stream_enabled`].
+    local_stream_on: Arc<AtomicBool>,
+    /// The same flag a viewer's RTCP PLI sets, held here so re-enabling the local stream can ask
+    /// for an IDR the way a new viewer does.
+    keyframe_wanted: Arc<AtomicBool>,
 }
 
 impl PublishHandle {
@@ -116,6 +122,28 @@ impl PublishHandle {
     /// Counters for the audio half. `None` when this share has no audio.
     pub fn screen_audio_stats(&self) -> Option<super::audio::ScreenAudioStats> {
         self.screen_audio.as_ref().map(|a| a.stats())
+    }
+
+    /// Start or stop the copy of the encoded stream that feeds the sharer's own tile.
+    ///
+    /// <p>The webview turns this off when nobody is looking at the local picture - the window went
+    /// behind something, or the preview has been idle. That matters far more here than it did for
+    /// the thumbnail it replaces: this carries the share's whole bitrate across the IPC boundary,
+    /// so an unwatched preview is the most expensive thing in the pipeline rather than a rounding
+    /// error, and it is stopped at the source instead of merely ignored on arrival.</p>
+    ///
+    /// <p>Turning it back on asks for a keyframe. A decoder that has missed everything since the
+    /// stream was cut has no reference frames for the deltas that follow, so without this the
+    /// picture stays frozen until the wall-clock keyframe interval comes round - up to
+    /// [`super::pump::KEYFRAME_INTERVAL`] of a resume that visibly did nothing.</p>
+    ///
+    /// <p>A no-op on a host that never asked for a local stream: the pump has no sink, so the flag
+    /// has nothing to gate and requesting a keyframe would spend an IDR on nobody.</p>
+    pub fn set_local_stream_enabled(&self, enabled: bool) {
+        let was_on = self.local_stream_on.swap(enabled, Ordering::Relaxed);
+        if enabled && !was_on {
+            self.keyframe_wanted.store(true, Ordering::Relaxed);
+        }
     }
 
     /// Mute the share's own sound. Silently ignored on a video-only share.
@@ -211,6 +239,9 @@ pub async fn start(
     ice_servers: Vec<crate::media::publisher::rtc::IceServerConfig>,
     signalling: Signalling,
     on_preview: tauri::ipc::Channel<PreviewFrame>,
+    // A copy of the encoded stream for the sharer's own tile, or `None` on a webview that cannot
+    // decode one and falls back to `on_preview`'s thumbnail.
+    on_local_stream: Option<tauri::ipc::Channel<tauri::ipc::InvokeResponseBody>>,
     share_audio: bool,
 ) -> Result<PublishHandle, String> {
     let spec = EncoderSpec {
@@ -279,15 +310,22 @@ pub async fn start(
         _ => None,
     };
 
+    // On from the first frame when the webview asked for one: the tile that requested it is on
+    // screen already, and starting gated-off would show nothing until the first pause/resume.
+    let local_stream_on = Arc::new(AtomicBool::new(on_local_stream.is_some()));
+
     let mut pump = FramePump::new(
         width,
         height,
         fps_arc,
         encoder,
-        keyframe_requests,
+        Arc::clone(&keyframe_requests),
         on_preview,
         frame_tx,
     );
+    if let Some(channel) = on_local_stream {
+        pump = pump.with_local_stream(Box::new(channel), Arc::clone(&local_stream_on));
+    }
 
     let (capture_gone_tx, capture_gone) = std::sync::mpsc::sync_channel::<()>(0);
 
@@ -321,6 +359,8 @@ pub async fn start(
         audio_track_name,
         encoder_name,
         screen_audio: audio_capture,
+        local_stream_on,
+        keyframe_wanted: keyframe_requests,
     })
 }
 
@@ -358,6 +398,8 @@ mod tests {
             audio_track_name: None,
             encoder_name: "test",
             screen_audio: None,
+            local_stream_on: Arc::new(AtomicBool::new(false)),
+            keyframe_wanted: Arc::new(AtomicBool::new(false)),
         };
         (handle, finished)
     }
@@ -392,6 +434,32 @@ mod tests {
             waited < CAPTURE_EXIT_TIMEOUT * 2,
             "waited {waited:?}, which is past the bound"
         );
+    }
+
+    #[test]
+    fn resuming_the_local_stream_asks_for_a_keyframe() {
+        // Without this the sharer presses resume and watches a frozen frame for up to
+        // KEYFRAME_INTERVAL, because every delta that arrives references frames their decoder was
+        // switched off for.
+        let (handle, _finished) = handle_with_a_busy_capture_thread(Duration::ZERO);
+
+        handle.set_local_stream_enabled(true);
+
+        assert!(handle.keyframe_wanted.load(Ordering::Relaxed));
+    }
+
+    #[test]
+    fn a_local_stream_that_was_already_on_does_not_burn_a_keyframe() {
+        // The webview re-asserts the state it wants rather than tracking transitions, so this is
+        // called with `true` far more often than the stream actually resumes. An IDR per call
+        // would be a bitrate spike every time nothing changed.
+        let (handle, _finished) = handle_with_a_busy_capture_thread(Duration::ZERO);
+        handle.set_local_stream_enabled(true);
+        handle.keyframe_wanted.store(false, Ordering::Relaxed);
+
+        handle.set_local_stream_enabled(true);
+
+        assert!(!handle.keyframe_wanted.load(Ordering::Relaxed));
     }
 
     #[test]

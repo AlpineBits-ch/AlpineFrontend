@@ -124,10 +124,10 @@ export class CallMiniPlayerComponent {
      * The one stream this shows.
      *
      * <p>Remote only, and the first of them. This client's own share is deliberately never picked:
-     * it is a low-rate thumbnail of something already on this screen, the sidebar voice bar already
-     * carries exactly that thumbnail as the persistent "you are live" indicator, and claiming a
-     * watch on your own stream would be a lie besides. With nothing remote to show, the tile falls
-     * back to the participant miniature.</p>
+     * it is a picture of something already on this screen, the sidebar voice bar already carries a
+     * thumbnail of it as the persistent "you are live" indicator, and claiming a watch on your own
+     * stream would be a lie besides. With nothing remote to show, the tile falls back to the
+     * participant miniature.</p>
      *
      * <p>"The first" rather than a user-chosen one: picking between streams is what the stage is
      * for, and the return-to-call button is one click away.</p>
@@ -147,7 +147,7 @@ export class CallMiniPlayerComponent {
      */
     private readonly showingLocalPreview = computed(() => {
         const share = this.focusedShare();
-        return this.visible() && !!share && share.isLocal && !share.stream && !!share.previewSrc;
+        return this.visible() && !!share && share.isLocal && !!share.localRender;
     });
 
     private readonly participants = computed((): CallParticipant[] => this.isGuildVoice()

@@ -79,8 +79,40 @@ describe('TauriScreenPublisher.start', () => {
 
         expect(Object.keys(payload(core)).sort()).toEqual([
             'apiBase', 'callId', 'channelId', 'deviceId', 'fps', 'guildId', 'height',
-            'iceServers', 'kbps', 'onPreview', 'shareAudio', 'shareId', 'sourceId', 'token', 'width',
+            'iceServers', 'kbps', 'localStream', 'onLocalStream', 'onPreview', 'shareAudio',
+            'shareId', 'sourceId', 'token', 'width',
         ]);
+    });
+
+    /**
+     * `onLocalStream` is the channel the encoded stream comes back on and `localStream` is whether
+     * it is wanted - two keys rather than an optional channel, because `Channel` is not
+     * `Deserialize` on the Rust side and so cannot be an `Option` argument. The channel therefore
+     * travels on every publish, wanted or not, and this pins that: an adapter that sent it only
+     * when asked would fail every thumbnail-only publish on a missing argument.
+     */
+    it('sends the local-stream channel whether or not one was asked for', async () => {
+        const core = fakeCore();
+        const adapter = publisher(core);
+
+        await adapter.start(options({localStream: true}));
+        expect(payload(core)['onLocalStream']).toBeDefined();
+        expect(payload(core)['localStream']).toBe(true);
+
+        await adapter.start(options({localStream: false}));
+        expect(payload(core)['onLocalStream']).toBeDefined();
+        expect(payload(core)['localStream']).toBe(false);
+    });
+
+    /** As with the audio choice: a caller predating the field gets the thumbnail, not a failure. */
+    it('defaults the local-stream request off rather than omitting the key', async () => {
+        const core = fakeCore();
+        const withoutLocalStream = options();
+        delete (withoutLocalStream as Partial<ScreenPublishOptions>).localStream;
+
+        await publisher(core).start(withoutLocalStream);
+
+        expect(payload(core)['localStream']).toBe(false);
     });
 
     /**

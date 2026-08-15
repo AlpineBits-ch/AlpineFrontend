@@ -84,6 +84,7 @@ function render(joinChannel: ReturnType<typeof vi.fn>): ComponentFixture<VoiceCh
                 useValue: {
                     screenAudioOutcome: signal('off'),
                     publishPreview: signal(null),
+                    localPublishStream: signal(null),
                     renderedFps: signal(0),
                     inboundFps: signal(0),
                     previewPaused: signal(false),

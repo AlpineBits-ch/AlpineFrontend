@@ -1,4 +1,4 @@
-import {computed, DestroyRef, inject, Injectable, signal} from '@angular/core';
+import {computed, DestroyRef, effect, inject, Injectable, signal} from '@angular/core';
 import {Subject} from 'rxjs';
 import {CaptureGeometry} from '../models/capture-geometry';
 import {StreamPreset} from '../models/stream-preset';
@@ -11,6 +11,7 @@ import {
     ScreenFrame,
     ScreenPublisherHost,
 } from '../platform/screen-publisher-host';
+import {LocalStreamRenderer, pickH264Codec} from './local-stream-render';
 
 export interface ScreenSource {
     id: string;
@@ -65,6 +66,16 @@ export interface ScreenPublishOptions {
      * {@link ScreenPublishResult.audioTrackName} says what actually happened.
      */
     shareAudio: boolean;
+    /**
+     * Send a copy of the encoded stream back for the sharer's own tile to decode.
+     *
+     * <p>A capability answer, not a preference: true only where this webview can actually decode
+     * H.264, which {@link RustMediaService.startScreenPublish} settles before the publish starts. A
+     * host that cannot keeps the low-rate thumbnail, which is what every host used to get.</p>
+     *
+     * <p>Ignored by the web publisher, whose local tile has the display track itself.</p>
+     */
+    localStream?: boolean;
     /**
      * The preset the geometry and bitrate above were solved from.
      *
@@ -160,6 +171,25 @@ export class RustMediaService {
      * local tile renders this instead: a low-rate thumbnail rather than the stream itself.
      */
     readonly publishPreview = this._publishPreview.asReadonly();
+    private readonly _localPublishStream = signal<MediaStream | null>(null);
+    /**
+     * The running publish's own stream, decoded from the encoded frames Rust hands back.
+     *
+     * <p>The picture in the sharer's tile, and the reason {@link publishPreview} is now a fallback
+     * rather than the only option: this is the H.264 the wire carries, at the share's real rate and
+     * resolution, where the preview is a 480px JPEG five times a second. See
+     * `local-stream-render.ts`.</p>
+     *
+     * <p>Null on a webview with no `VideoDecoder`, on the web publisher (whose local tile has the
+     * display track itself), and between publishes. Every consumer therefore has to keep handling
+     * the thumbnail - which is why the thumbnail keeps being sent.</p>
+     */
+    readonly localPublishStream = this._localPublishStream.asReadonly();
+    /** The decoder behind {@link localPublishStream}, while a share is running. */
+    private localRenderer: LocalStreamRenderer | null = null;
+    /** Probed once per app lifetime: the answer cannot change, and every publish would ask again. */
+    private h264Codec: Promise<string | null> | null = null;
+    private localFpsInterval: ReturnType<typeof setInterval> | undefined;
     private readonly _previewPaused = signal(false);
     /**
      * Whether this window is behind another one - see {@link previewPaused}, which folds it in.
@@ -267,12 +297,33 @@ export class RustMediaService {
             // clock for a share whose first frame arrives after publish already returned.
             this.reconsiderPreviewIdle();
         });
+        // Registered once, for the life of the service, exactly like the preview sink above: the
+        // adapter replaces its channel per publish, and a handler re-registered per share would be
+        // one more thing to get wrong on the resolution-change path that stops and restarts one.
+        this.host?.onPublishChunk(chunk => this.localRenderer?.push(chunk));
+
         this.host?.onPublishEnded(() => {
             this._publishPreview.set(null);
+            this.closeLocalRenderer();
             this.activeShareId = null;
             this._screenAudioOutcome.set('off');
             this.resetPreviewPause();
             this.publishEndedSignal.next();
+        });
+
+        // The pause, applied where it actually saves something. The thumbnail's pause only stops
+        // the webview *applying* frames that cross the boundary regardless - affordable at 5 fps of
+        // JPEG, and not at all affordable for a feed carrying the share's whole bitrate. So this
+        // one reaches back into Rust and stops the frames being sent.
+        //
+        // `interrupt()` before the round trip, not after: frames already queued on this side were
+        // encoded against references the decoder is about to stop following.
+        effect(() => {
+            const paused = this.previewPaused();
+            if (!this.localRenderer) return;
+            if (paused) this.localRenderer.interrupt();
+            void this.host?.setLocalStreamEnabled(!paused)
+                .catch(e => console.warn('[screen] toggling the local stream failed', e));
         });
 
         // The other half of what drives the idle pause, alongside the render claims - see
@@ -404,8 +455,16 @@ export class RustMediaService {
         // this, a second publish starting while an earlier paused share was still active would begin
         // already paused, frozen over the old share's last frame.
         this.resetPreviewPause();
-        const result = await this.publisher.start(options);
+        // Same reasoning, one layer down: a resolution change stops and restarts the publish, and a
+        // decoder still holding the old geometry would letterbox the new share into the old frame.
+        this.closeLocalRenderer();
+
+        // Settled before the publish, because the answer decides what Rust is asked to send. A host
+        // that cannot decode must not be sent a feed it can only throw away.
+        const codec = await (this.h264Codec ??= pickH264Codec());
+        const result = await this.publisher.start({...options, localStream: codec !== null});
         this.activeShareId = options.shareId;
+        if (codec !== null) this.openLocalRenderer(options, codec);
         // Derived from both halves, because that is the only place both facts are in hand: what the user
         // asked for, and what came back.
         this._screenAudioOutcome.set(
@@ -452,8 +511,55 @@ export class RustMediaService {
         this.reconsiderPreviewIdle();
     }
 
+    /**
+     * Stand up the decoder for this publish and publish its stream.
+     *
+     * <p>Failure is not fatal and deliberately not surfaced: `onFailure` drops the stream, and every
+     * consumer falls back to {@link publishPreview}, which is still arriving. A share whose local
+     * decoder died is a worse preview, not a broken share.</p>
+     */
+    private openLocalRenderer(options: ScreenPublishOptions, codec: string): void {
+        const renderer = new LocalStreamRenderer(
+            options.width,
+            options.height,
+            codec,
+            () => {
+                // Only if it is still the current one: a renderer that failed after being replaced
+                // must not take the replacement's stream down with it.
+                if (this.localRenderer !== renderer) return;
+                console.warn('[screen] the local stream decoder failed; falling back to the thumbnail');
+                this.closeLocalRenderer();
+            },
+            () => {
+                // Published only once there is a picture on the canvas. Consumers prefer the stream
+                // over the thumbnail (see `localSharePicture`), so announcing it at construction
+                // would swap a working thumbnail for an empty <video> for however long the first
+                // keyframe takes - a black tile exactly at the moment a share starts.
+                if (this.localRenderer !== renderer) return;
+                this._localPublishStream.set(renderer.stream);
+            },
+        );
+        this.localRenderer = renderer;
+
+        // The fps readout on the local tile. Measured at the draw, not at the encoder, because what
+        // it answers for the sharer is "is the picture I am looking at live" - and this is the one
+        // number on this path that was previously always zero.
+        this.localFpsInterval = setInterval(() => this._renderedFps.set(renderer.takeRenderedCount()), 1000);
+    }
+
+    private closeLocalRenderer(): void {
+        clearInterval(this.localFpsInterval);
+        this.localFpsInterval = undefined;
+        if (!this.localRenderer) return;
+        this.localRenderer.close();
+        this.localRenderer = null;
+        this._localPublishStream.set(null);
+        this._renderedFps.set(0);
+    }
+
     async stopScreenPublish(): Promise<void> {
         this._publishPreview.set(null);
+        this.closeLocalRenderer();
         this._screenAudioOutcome.set('off');
         this.resetPreviewPause();
         const shareId = this.activeShareId;

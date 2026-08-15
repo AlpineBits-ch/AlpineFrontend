@@ -564,8 +564,8 @@ Where a limit will bite, and what happens there today. All paths relative to
 | Media session create | `voice-rtc.service.ts:342`, `call-webrtc.service.ts:349` | Guild: `console.error`. DM: **unguarded `await`, unhandled rejection** |
 | Camera publish | `voice-rtc.service.ts:871`, `call-session.service.ts:148` | `catch { return null }` / `catch { return }`, button springs back silently |
 | Screenshare publish | `voice-rtc.service.ts:923,1075`, `call-session.service.ts:281` | `console.error`, silent no-op |
-| Quality picker (pre-share) | `src/app/features/screen-picker/screen-picker.component.ts:41-50` | Hardcoded from `RESOLUTION_LABELS` / `FRAMERATE_OPTIONS`. Nothing server-driven |
-| Quality picker (in call) | `src/app/shared/call/call-controls-bar/call-controls-bar.component.ts:45-47` | Same hardcoded lists |
+| Quality picker (pre-share) | `src/app/features/screen-picker/screen-picker.component.ts` | **Done.** Options still come from `RESOLUTION_LABELS` / `FRAMERATE_OPTIONS`, but each is disabled against `VoiceLimitsService.videoCeiling()`, and the restored preference is clamped as it is read |
+| Quality picker (in call) | `src/app/shared/call/call-controls-bar/call-controls-bar.component.ts` | **Done.** Same treatment, via the `videoCeiling` input |
 | Bitrate / resolution matrix | `src/app/models/stream-preset.ts:20,27,43` | `BITRATES`, `BOXES`, `DEFAULT_STREAM_PRESET = {1080p, 30}` |
 | Fixed encoder caps | `src/app/services/webrtc-encoding.ts:4,6,8,16` | `VOICE_AUDIO_KBPS 64`, `STREAM_AUDIO_KBPS 128`, `CAMERA_KBPS 2500`, `MIN_BITRATE_RATIO 0.6`. **No simulcast anywhere** |
 | Participant roster | `voice-channel-item.component.html:38`, `voice-channel.component.html:15`, `voice-channel-lobby.component.html:9` | Bare counts, no denominator |

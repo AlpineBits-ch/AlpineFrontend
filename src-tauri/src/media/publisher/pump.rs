@@ -2,8 +2,10 @@
 //!
 //! Lifted out of the capture closure in [`super::session`] so it can be driven without a screen.
 //! Every rule in here was written for a failure a viewer suffers and the sharer cannot see - the
-//! sharer's own preview is drawn from the capture source and looks perfect whether or not a single
-//! byte ever reaches the wire - so each one is worth being able to assert on directly.
+//! sharer's own tile is fed from this side of the socket and looks fine whether or not a single
+//! byte ever reaches the wire - so each one is worth being able to assert on directly. That is
+//! still true of the local stream added below: it is the encoder's output, not the network's, so it
+//! proves the picture was *produced*, never that it was delivered.
 
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::Arc;
@@ -53,6 +55,38 @@ impl PreviewSink for () {
     fn send(&self, _frame: PreviewFrame) {}
 }
 
+/// Bytes of header in front of every access unit handed to the webview's own decoder.
+///
+/// One flags byte then the presentation timestamp in microseconds, little-endian. `local-stream.ts`
+/// parses this exact layout, so the two move together or the webview decodes garbage.
+pub const LOCAL_STREAM_HEADER_LEN: usize = 9;
+
+/// Bit 0 of the header's flags byte: this access unit is an IDR.
+pub const LOCAL_STREAM_FLAG_KEYFRAME: u8 = 1;
+
+/// Where a copy of the *encoded* stream goes, for the sharer's own tile.
+///
+/// <p>The picture the sharer sees used to be [`emit_preview`]'s thumbnail and nothing else: 480px
+/// of JPEG five times a second, which is what "my stream looks terrible" was actually looking at.
+/// The wire already carries a full-rate, full-resolution H.264 stream, so the local tile decodes
+/// that instead - the same bytes every viewer gets, at a fraction of the IPC cost of a JPEG per
+/// frame.</p>
+///
+/// <p>A trait for the same reason [`PreviewSink`] is one: `tauri::ipc::Channel` cannot be built
+/// outside a running app.</p>
+pub trait LocalStreamSink: Send + 'static {
+    fn send(&self, access_unit: Vec<u8>);
+}
+
+impl LocalStreamSink for tauri::ipc::Channel<tauri::ipc::InvokeResponseBody> {
+    fn send(&self, access_unit: Vec<u8>) {
+        // Raw, not JSON: a `Raw` body over the threshold is fetched as binary by the webview, where
+        // a serialised one would be base64 (a third bigger) or - worse, for the small chunks - a
+        // JSON array of numbers, which is four bytes of IPC per byte of video.
+        let _ = tauri::ipc::Channel::send(self, tauri::ipc::InvokeResponseBody::Raw(access_unit));
+    }
+}
+
 /// Counters for one publish, for logging and for tests to assert on.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct PumpStats {
@@ -76,6 +110,15 @@ pub struct FramePump<P: PreviewSink> {
     /// read inline so tests can assert the rule in milliseconds instead of seconds.
     keyframe_interval: Duration,
     preview: P,
+    /// A copy of the encoded stream for the sharer's own tile, when the webview can decode one.
+    /// Absent on a host whose webview has no `VideoDecoder`, which falls back to the thumbnail.
+    local_stream: Option<Box<dyn LocalStreamSink>>,
+    /// Whether that copy is wanted *right now*. Flipped from the webview - see
+    /// `PublishHandle::set_local_stream_enabled` - so a preview nobody is looking at stops costing
+    /// the wire's whole bitrate over IPC. Unlike the thumbnail's pause, which only stops the
+    /// webview applying frames, this one stops them being sent at all: at full rate that is the
+    /// entire point of pausing.
+    local_stream_on: Arc<AtomicBool>,
     frame_tx: tokio::sync::mpsc::Sender<(Vec<u8>, Duration)>,
 
     /// When the first frame of this publish was pumped, so timestamps are an offset from it.
@@ -110,6 +153,8 @@ impl<P: PreviewSink> FramePump<P> {
             keyframe_wanted,
             keyframe_interval: KEYFRAME_INTERVAL,
             preview,
+            local_stream: None,
+            local_stream_on: Arc::new(AtomicBool::new(false)),
             frame_tx,
             started: None,
             last_frame_at: None,
@@ -120,6 +165,16 @@ impl<P: PreviewSink> FramePump<P> {
             last_keyframe: Instant::now() - KEYFRAME_INTERVAL,
             stats: PumpStats::default(),
         }
+    }
+
+    /// Also hand the encoded stream to the sharer's own tile.
+    ///
+    /// <p>A builder step rather than another constructor parameter, because it is genuinely
+    /// optional: a webview with no `VideoDecoder` never asks for one and keeps the thumbnail.</p>
+    pub fn with_local_stream(mut self, sink: Box<dyn LocalStreamSink>, on: Arc<AtomicBool>) -> Self {
+        self.local_stream = Some(sink);
+        self.local_stream_on = on;
+        self
     }
 
     /// Shorten the keyframe floor. Tests only: production wants [`KEYFRAME_INTERVAL`].
@@ -221,12 +276,43 @@ impl<P: PreviewSink> FramePump<P> {
             );
         }
 
+        // The sharer's own tile, before the data is handed to the writer. Deliberately *after* the
+        // stats above and before the `try_send` below, so the local picture is the same access unit
+        // the wire carries - including one the writer then drops, which is the right call: a frame
+        // the network could not take is still a frame this machine already encoded, and dropping it
+        // locally too would make the sharer's own tile stutter for a reason that is not theirs.
+        self.emit_local_stream(&chunk.data, chunk.is_keyframe, timestamp_us);
+
         // try_send, not send: dropping the newest frame when the writer is behind keeps latency
         // bounded. Full is routine backpressure; closed means the writer task already ended and the
         // capture loop will exit on its next stop check.
         if self.frame_tx.try_send((chunk.data, frame_duration)).is_err() {
             self.stats.dropped_frames += 1;
         }
+    }
+
+    /// Frame one access unit for the webview's decoder and send it, if one is listening.
+    ///
+    /// <p>The header is written here rather than by the sink so every implementation frames it
+    /// identically - a sink that forgot the timestamp would produce a stream that decodes but
+    /// plays at the wrong rate, which is far harder to spot than one that does not decode.</p>
+    fn emit_local_stream(&self, data: &[u8], is_keyframe: bool, timestamp_us: u64) {
+        let Some(sink) = &self.local_stream else {
+            return;
+        };
+        if !self.local_stream_on.load(Ordering::Relaxed) {
+            return;
+        }
+
+        let mut framed = Vec::with_capacity(LOCAL_STREAM_HEADER_LEN + data.len());
+        framed.push(if is_keyframe {
+            LOCAL_STREAM_FLAG_KEYFRAME
+        } else {
+            0
+        });
+        framed.extend_from_slice(&timestamp_us.to_le_bytes());
+        framed.extend_from_slice(data);
+        sink.send(framed);
     }
 }
 
@@ -399,5 +485,99 @@ mod tests {
             (70_000..170_000).contains(&span),
             "three 33 ms gaps should span about 100 ms, got {span} us"
         );
+    }
+
+    // ── The sharer's own tile ─────────────────────────────────────────────────
+
+    /// Collects the framed access units meant for the webview's decoder.
+    #[derive(Clone, Default)]
+    struct RecordingLocalStream(Arc<std::sync::Mutex<Vec<Vec<u8>>>>);
+
+    impl RecordingLocalStream {
+        fn taken(&self) -> Vec<Vec<u8>> {
+            self.0.lock().unwrap().clone()
+        }
+    }
+
+    impl LocalStreamSink for RecordingLocalStream {
+        fn send(&self, access_unit: Vec<u8>) {
+            self.0.lock().unwrap().push(access_unit);
+        }
+    }
+
+    /// The encoded payload the harness's encoder produces, which is what the local tile must get.
+    const ENCODED: &[u8] = &[0, 0, 0, 1, 0x65];
+
+    /// A pump wired to both the writer and a local-stream sink, with the sink's on/off gate.
+    fn local_stream_harness(on: bool) -> (Harness, RecordingLocalStream, Arc<AtomicBool>) {
+        let mut h = harness(DECLARED_FPS);
+        let sink = RecordingLocalStream::default();
+        let gate = Arc::new(AtomicBool::new(on));
+        h.pump = h
+            .pump
+            .with_local_stream(Box::new(sink.clone()), Arc::clone(&gate));
+        (h, sink, gate)
+    }
+
+    #[test]
+    fn the_local_tile_gets_the_same_bytes_the_wire_does() {
+        // The whole point of this path. The sharer used to watch a 480px JPEG thumbnail of their
+        // own screen and reasonably conclude the stream was broken; what they see now is the
+        // access unit itself, so "my stream looks bad" is finally a statement about the stream.
+        let (mut h, sink, _gate) = local_stream_harness(true);
+
+        h.pump.on_frame(&frame());
+
+        let sent = sink.taken();
+        assert_eq!(sent.len(), 1, "one frame in should be one access unit out");
+        assert_eq!(
+            &sent[0][LOCAL_STREAM_HEADER_LEN..],
+            ENCODED,
+            "the local tile was handed something other than the encoded frame"
+        );
+    }
+
+    #[test]
+    fn the_local_stream_header_carries_the_keyframe_flag_and_the_timestamp() {
+        // Both are required by `EncodedVideoChunk`, and both fail quietly if they are wrong: a
+        // delta announced as a keyframe decodes to garbage, and a bad timestamp plays at the wrong
+        // rate. The harness encoder never emits an IDR, so this pins the delta case and the
+        // timestamp together.
+        let (mut h, sink, _gate) = local_stream_harness(true);
+
+        h.pump.on_frame(&frame());
+
+        let sent = sink.taken();
+        let header = &sent[0][..LOCAL_STREAM_HEADER_LEN];
+        assert_eq!(
+            header[0] & LOCAL_STREAM_FLAG_KEYFRAME,
+            0,
+            "a delta frame was flagged as a keyframe"
+        );
+        let timestamp = u64::from_le_bytes(header[1..9].try_into().unwrap());
+        assert_eq!(timestamp, 0, "the first frame of a share starts at zero");
+    }
+
+    #[test]
+    fn turning_the_local_stream_off_stops_the_bytes_at_the_source() {
+        // Not merely ignored in the webview, which is what the thumbnail's pause does: this path
+        // carries the wire's entire bitrate over IPC, so a preview nobody is looking at has to
+        // stop being *sent*. That is the only reason the gate exists.
+        let (mut h, sink, gate) = local_stream_harness(false);
+
+        h.pump.on_frame(&frame());
+        assert!(sink.taken().is_empty(), "frames were sent while gated off");
+
+        gate.store(true, Ordering::Relaxed);
+        h.pump.on_frame(&frame());
+        assert_eq!(sink.taken().len(), 1, "turning it back on sent nothing");
+    }
+
+    #[test]
+    fn a_pump_with_no_local_stream_still_feeds_the_writer() {
+        // The fallback host - a webview with no `VideoDecoder` - must be exactly the old pipeline.
+        let mut h = harness(DECLARED_FPS);
+        h.pump.on_frame(&frame());
+        assert_eq!(durations(&mut h).len(), 1);
     }
 }

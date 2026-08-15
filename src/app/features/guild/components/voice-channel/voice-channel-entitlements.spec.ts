@@ -113,6 +113,7 @@ function render(room: RoomState = {}) {
                 useValue: {
                     screenAudioOutcome: signal('off'),
                     publishPreview: () => null,
+                    localPublishStream: () => null,
                     renderedFps: signal(0),
                     inboundFps: signal(0),
                     previewPaused: () => false,

@@ -20,7 +20,7 @@ import {
     ScreenSource,
     SourceThumbnail,
 } from '../platform/ports/screen-publisher.port';
-import {ScreenPublisherHost} from '../platform/screen-publisher-host';
+import {LocalStreamChunk, ScreenPublisherHost} from '../platform/screen-publisher-host';
 import {PREVIEW_IDLE_MS, RustMediaService} from './rust-media.service';
 
 /**
@@ -43,7 +43,11 @@ class FakePublisher extends ScreenPublisher implements ScreenPublisherHost {
     readonly muted: {shareId: string; muted: boolean}[] = [];
 
     previewSink: ((dataUrl: string) => void) | null = null;
+    chunkSink: ((chunk: LocalStreamChunk) => void) | null = null;
     endedSink: (() => void) | null = null;
+
+    /** Every `setLocalStreamEnabled`, in order, so the idle pause's reach into Rust is assertable. */
+    readonly localStreamToggles: boolean[] = [];
 
     async sources(): Promise<ScreenSource[]> {
         return this.sourceList;
@@ -101,6 +105,14 @@ class FakePublisher extends ScreenPublisher implements ScreenPublisherHost {
 
     onPreviewFrame(handler: (dataUrl: string) => void): void {
         this.previewSink = handler;
+    }
+
+    onPublishChunk(handler: (chunk: LocalStreamChunk) => void): void {
+        this.chunkSink = handler;
+    }
+
+    async setLocalStreamEnabled(enabled: boolean): Promise<void> {
+        this.localStreamToggles.push(enabled);
     }
 
     onPublishEnded(handler: () => void): void {
@@ -169,15 +181,36 @@ function options(over: Partial<ScreenPublishOptions> = {}): ScreenPublishOptions
 }
 
 describe('RustMediaService: forwarding', () => {
-    it('passes the publish options through untouched', async () => {
+    /**
+     * `localStream` is the one field this service decides rather than forwards: it is the answer to
+     * "can this webview decode H.264", which no caller is in a position to know. Everything else
+     * travels exactly as it was built.
+     */
+    it('passes the publish options through, deciding only the local-stream request', async () => {
         const fake = new FakePublisher();
         const {service} = setup(fake);
 
         const o = options();
         const result = await service.startScreenPublish(o);
 
-        expect(fake.started).toEqual([o]);
+        expect(fake.started).toEqual([{...o, localStream: expect.any(Boolean)}]);
         expect(result.trackName).toBe('screen-abc');
+    });
+
+    /**
+     * The suite runs on jsdom, which has no `VideoDecoder` - which is the same answer a Linux
+     * WebKitGTK webview gives, and the one that keeps the thumbnail path alive. Asserted rather
+     * than assumed, because "the decoder was never asked for" is what makes every other expectation
+     * in this file about the thumbnail meaningful.
+     */
+    it('does not ask for a local stream where nothing can decode one', async () => {
+        const fake = new FakePublisher();
+        const {service} = setup(fake);
+
+        await service.startScreenPublish(options());
+
+        expect(fake.started[0]?.localStream).toBe(false);
+        expect(service.localPublishStream()).toBeNull();
     });
 
     it('delegates source enumeration and thumbnails', async () => {

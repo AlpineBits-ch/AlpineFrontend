@@ -93,6 +93,7 @@ function render(options: Options = {}): ComponentFixture<VoiceChannelComponent> 
                 useValue: {
                     screenAudioOutcome: outcome,
                     publishPreview: signal(null),
+                    localPublishStream: signal(null),
                     renderedFps: signal(0),
                     inboundFps: signal(0),
                     previewPaused: signal(false),

@@ -64,8 +64,43 @@ export interface DmRtcSources {
 /** The slice of `RustMediaService` both surfaces read for the local share. */
 export interface LocalPublishSources {
     publishPreview(): string | null;
+    localPublishStream(): MediaStream | null;
     renderedFps(): number;
     inboundFps(): number;
+}
+
+/**
+ * What to show in the local share's tile, and whether it is this app's own render of the publish.
+ *
+ * <p>Three sources, in strict order, and the order is the whole point. A browser publish keeps its
+ * display track in the webview, so that <i>is</i> the picture and nothing else applies. A native
+ * publish has no such track: the tile decodes the encoded stream Rust hands back, and falls back to
+ * the low-rate thumbnail on a webview that cannot decode - or before the first keyframe has been.
+ * See `local-stream-render.ts` for why the second one exists at all.</p>
+ *
+ * <p>`localRender` is what the idle pause keys off, and it covers the second and third cases
+ * together on purpose - both are pictures this app is producing for a tile that may not be looked
+ * at, and a claim that named only one of them would let the pause fire over the other.</p>
+ *
+ * @param hostStream the local share's own track where the host has one, null on a native publish.
+ */
+function localSharePicture(publish: LocalPublishSources, hostStream: MediaStream | null): {
+    stream: MediaStream | undefined;
+    previewSrc: string | null;
+    localRender: boolean;
+} {
+    if (hostStream) return {stream: hostStream, previewSrc: null, localRender: false};
+
+    const decoded = publish.localPublishStream();
+    const thumbnail = publish.publishPreview();
+    return {
+        stream: decoded ?? undefined,
+        // Carried alongside the stream rather than dropped once it exists. `localPublishStream` is
+        // only published once the canvas holds a picture, so before that this is what the tile
+        // shows - and it is what remains if the decoder later gives up.
+        previewSrc: thumbnail,
+        localRender: decoded !== null || thumbnail !== null,
+    };
 }
 
 /** One row of `ActiveCallSession.screenShares`. */
@@ -118,23 +153,30 @@ export function guildScreenShares(
     publish: LocalPublishSources,
     roster: readonly GuildRosterEntry[],
 ): CallScreenShare[] {
-    return guildScreenSharers(media, roster).map(p => ({
-        shareId: p.mediaSessionId ?? p.userId,
-        userId: p.userId,
-        displayName: p.displayName,
-        avatarLabel: p.avatarLabel,
-        isLocal: p.isLocal,
-        stream: (p.isLocal ? media.localScreenStream() : media.getScreenStream(p.userId)) ?? undefined,
-        previewSrc: p.isLocal ? publish.publishPreview() : null,
-        hasAudio: p.isLocal ? media.localScreenHasAudio() : true,
-        isAudioMuted: p.isLocal ? media.localScreenAudioMuted() : media.isScreenAudioMuted(p.userId),
-        renderedFps: p.isLocal ? publish.renderedFps() : null,
-        // Local: the Rust capture pipeline's own count. Remote: read off the inbound-rtp video stat
-        // for that user's screen track - see VoiceRTCService.inboundVideoFps. Left at null rather
-        // than 0 when the stat has not arrived yet, so a stream that just started and one that has
-        // stalled do not look the same (CallScreenShare.inboundFps).
-        inboundFps: p.isLocal ? publish.inboundFps() : (media.inboundVideoFps()[p.userId] ?? null),
-    }));
+    return guildScreenSharers(media, roster).map(p => {
+        const own = p.isLocal ? localSharePicture(publish, media.localScreenStream()) : null;
+        return {
+            shareId: p.mediaSessionId ?? p.userId,
+            userId: p.userId,
+            displayName: p.displayName,
+            avatarLabel: p.avatarLabel,
+            isLocal: p.isLocal,
+            stream: own ? own.stream : (media.getScreenStream(p.userId) ?? undefined),
+            previewSrc: own?.previewSrc ?? null,
+            localRender: own?.localRender ?? false,
+            hasAudio: p.isLocal ? media.localScreenHasAudio() : true,
+            isAudioMuted: p.isLocal ? media.localScreenAudioMuted() : media.isScreenAudioMuted(p.userId),
+            // Local: frames drawn by the local decoder - zero on a host that falls back to the
+            // thumbnail, which is the honest answer there since nothing is being decoded. Remote:
+            // not applicable, see inboundFps below.
+            renderedFps: p.isLocal ? publish.renderedFps() : null,
+            // Local: the Rust capture pipeline's own count. Remote: read off the inbound-rtp video stat
+            // for that user's screen track - see VoiceRTCService.inboundVideoFps. Left at null rather
+            // than 0 when the stat has not arrived yet, so a stream that just started and one that has
+            // stalled do not look the same (CallScreenShare.inboundFps).
+            inboundFps: p.isLocal ? publish.inboundFps() : (media.inboundVideoFps()[p.userId] ?? null),
+        };
+    });
 }
 
 /**
@@ -150,25 +192,29 @@ export function dmScreenShares(
     publish: LocalPublishSources,
     shares: readonly DmShareEntry[],
 ): CallScreenShare[] {
-    return shares.map(sh => ({
-        shareId: sh.shareId,
-        userId: sh.userId,
-        displayName: sh.displayName,
-        avatarLabel: sh.displayName[0]?.toUpperCase() ?? '?',
-        isLocal: sh.isLocal,
-        stream: sh.stream,
-        previewSrc: sh.isLocal ? publish.publishPreview() : null,
-        // Own share: what the publisher actually opened, since a machine with no usable loopback
-        // device shares video only. Remote share: assumed present, exactly as the guild tiles do -
-        // the mute is a preference about that person's stream and is harmless to offer for one that
-        // turns out to be silent.
-        hasAudio: sh.isLocal ? session.localScreenHasAudio() : true,
-        isAudioMuted: sh.isLocal ? session.localScreenAudioMuted() : rtc.isScreenAudioMuted(sh.userId),
-        // Read off the inbound-rtp video stat for this share's own track - see
-        // CallWebRtcService.inboundVideoFpsByShare. Keyed by share id, not user id, for the reason
-        // in this module's doc. Left at null rather than 0 when the stat has not arrived yet, so a
-        // stream that just started and one that has stalled do not look the same
-        // (CallScreenShare.inboundFps).
-        inboundFps: sh.isLocal ? null : (rtc.inboundVideoFpsByShare()[sh.shareId] ?? null),
-    }));
+    return shares.map(sh => {
+        const own = sh.isLocal ? localSharePicture(publish, sh.stream ?? null) : null;
+        return {
+            shareId: sh.shareId,
+            userId: sh.userId,
+            displayName: sh.displayName,
+            avatarLabel: sh.displayName[0]?.toUpperCase() ?? '?',
+            isLocal: sh.isLocal,
+            stream: own ? own.stream : sh.stream,
+            previewSrc: own?.previewSrc ?? null,
+            localRender: own?.localRender ?? false,
+            // Own share: what the publisher actually opened, since a machine with no usable loopback
+            // device shares video only. Remote share: assumed present, exactly as the guild tiles do -
+            // the mute is a preference about that person's stream and is harmless to offer for one that
+            // turns out to be silent.
+            hasAudio: sh.isLocal ? session.localScreenHasAudio() : true,
+            isAudioMuted: sh.isLocal ? session.localScreenAudioMuted() : rtc.isScreenAudioMuted(sh.userId),
+            // Read off the inbound-rtp video stat for this share's own track - see
+            // CallWebRtcService.inboundVideoFpsByShare. Keyed by share id, not user id, for the reason
+            // in this module's doc. Left at null rather than 0 when the stat has not arrived yet, so a
+            // stream that just started and one that has stalled do not look the same
+            // (CallScreenShare.inboundFps).
+            inboundFps: sh.isLocal ? null : (rtc.inboundVideoFpsByShare()[sh.shareId] ?? null),
+        };
+    });
 }

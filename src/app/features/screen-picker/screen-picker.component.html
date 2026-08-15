@@ -137,14 +137,25 @@
                             <label class="text-xs font-medium text-text-muted uppercase tracking-wide">Resolution</label>
                             <span class="text-[0.625rem] text-text-muted tabular-nums">{{ outputLabel() }}</span>
                         </div>
-                        <div class="flex gap-2">
+                        <!-- Options the granted rung does not reach stay drawn and stop working.
+                             Removing them would leave a picker that silently has fewer buttons on
+                             one server than on another, with nothing on screen saying why. -->
+                        <div class="flex gap-2" data-testid="resolution-options">
                             @for (r of resolutions; track r.value) {
-                                <button (click)="resolution.set(r.value)"
+                                <button (click)="chooseResolution(r.value)"
+                                        [attr.title]="resolutionAllowed(r.value)
+                                            ? null
+                                            : ('CALL.ABOVE_PLAN' | translate)"
                                         [class.bg-brand]="resolution() === r.value"
-                                        [class.text-white]="resolution() === r.value"
+                                        [class.cursor-not-allowed]="!resolutionAllowed(r.value)"
+                                        [class.cursor-pointer]="resolutionAllowed(r.value)"
+                                        [class.line-through]="!resolutionAllowed(r.value)"
+                                        [class.opacity-40]="!resolutionAllowed(r.value)"
                                         [class.text-text-muted]="resolution() !== r.value"
+                                        [class.text-white]="resolution() === r.value"
+                                        [disabled]="!resolutionAllowed(r.value)"
                                         class="flex-1 px-3 py-2 rounded-lg text-xs font-medium border border-border-subtle
-                                               transition-colors cursor-pointer">
+                                               transition-colors">
                                     {{ r.label }}
                                 </button>
                             }
@@ -153,14 +164,24 @@
 
                     <div class="flex flex-col gap-2">
                         <label class="text-xs font-medium text-text-muted uppercase tracking-wide">Frame Rate</label>
-                        <div class="flex gap-2">
+                        <!-- A lower framerate is legal on every rung above `none`, so this only ever
+                             cuts the top off: 15 FPS is never disabled by a ceiling. -->
+                        <div class="flex gap-2" data-testid="framerate-options">
                             @for (f of framerates; track f) {
-                                <button (click)="framerate.set(f)"
+                                <button (click)="chooseFramerate(f)"
+                                        [attr.title]="framerateAllowed(f)
+                                            ? null
+                                            : ('CALL.ABOVE_PLAN' | translate)"
                                         [class.bg-brand]="framerate() === f"
-                                        [class.text-white]="framerate() === f"
+                                        [class.cursor-not-allowed]="!framerateAllowed(f)"
+                                        [class.cursor-pointer]="framerateAllowed(f)"
+                                        [class.line-through]="!framerateAllowed(f)"
+                                        [class.opacity-40]="!framerateAllowed(f)"
                                         [class.text-text-muted]="framerate() !== f"
+                                        [class.text-white]="framerate() === f"
+                                        [disabled]="!framerateAllowed(f)"
                                         class="flex-1 px-3 py-2 rounded-lg text-xs font-medium border border-border-subtle
-                                               transition-colors cursor-pointer">
+                                               transition-colors">
                                     {{ f }} FPS
                                 </button>
                             }

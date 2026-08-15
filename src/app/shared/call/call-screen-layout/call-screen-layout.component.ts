@@ -207,14 +207,16 @@ export class CallScreenLayoutComponent implements OnDestroy {
     });
 
     /**
-     * Whether the self-card is the thing putting the local preview image on screen right now - see
-     * RustMediaService.claimPreviewRender. Scoped to the `previewSrc` branch specifically: a
-     * browser session's self-card shows a real `MediaStream` instead (see the class doc on
-     * `CallScreenShare.previewSrc`), and Task 10's idle pause has nothing to apply to there.
+     * Whether the self-card is the thing putting the local publish render on screen right now - see
+     * RustMediaService.claimPreviewRender. Reads `localRender` rather than testing for a thumbnail,
+     * because that picture is a decoded `MediaStream` on any host that can decode one and an
+     * `<img>` only where that failed - see `CallScreenShare.localRender`. A browser session's
+     * self-card shows its own `getDisplayMedia` track, which the projection marks false: Task 10's
+     * idle pause has nothing to apply to there.
      */
     protected readonly claimingPreview = computed(() => {
         const self = this.selfCard();
-        return !!self && !self.stream && !!self.previewSrc;
+        return !!self && !!self.localRender;
     });
 
     /**

@@ -168,6 +168,7 @@ function setup(): Harness {
                 provide: RustMediaService,
                 useValue: {
                     publishPreview: signal(null),
+                    localPublishStream: signal(null),
                     renderedFps: signal(0),
                     inboundFps: signal(0),
                     previewPaused: signal(false),

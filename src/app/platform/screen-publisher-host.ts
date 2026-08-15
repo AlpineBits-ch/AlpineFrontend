@@ -15,6 +15,25 @@ export interface ScreenFrame {
     timestampMs: number;
 }
 
+/**
+ * One access unit of the running publish's own encoded video, for the sharer's tile to decode.
+ *
+ * <p>The same H.264 the wire carries, not a re-encode of it: the tile shows what viewers see rather
+ * than the 480px thumbnail {@link ScreenPublisherHost.onPreviewFrame} delivers, which is what made
+ * a sharer's own stream look broken while it was going out perfectly well.</p>
+ *
+ * <p>Annex-B framed, Constrained Baseline, with in-band parameter sets - so a decoder needs no
+ * `description` and can be configured before the first byte arrives.</p>
+ */
+export interface LocalStreamChunk {
+    /** An IDR, and therefore a point a decoder can start or recover at. */
+    keyframe: boolean;
+    /** Microseconds since the share's first frame. */
+    timestampUs: number;
+    /** A view over the received buffer, valid only for the duration of the handler. */
+    data: Uint8Array;
+}
+
 /** One block of loopback audio: base64 f32-LE PCM, as the native capture pipeline delivers it. */
 export interface AudioChunk {
     data: string;
@@ -97,6 +116,29 @@ export interface ScreenPublisherHost {
      * local tile has one thing to render on both hosts.</p>
      */
     onPreviewFrame(handler: (dataUrl: string) => void): void;
+
+    /**
+     * Register the sink for the running publish's own encoded video - see {@link LocalStreamChunk}.
+     *
+     * <p>Only ever fed when the publish was started with `localStream: true`, which the caller sets
+     * from whether this webview can actually decode H.264. A host with no such feed simply never
+     * calls the handler, and the {@link onPreviewFrame} thumbnail remains what the tile shows.</p>
+     */
+    onPublishChunk(handler: (chunk: LocalStreamChunk) => void): void;
+
+    /**
+     * Start or stop the {@link onPublishChunk} feed for the running publish.
+     *
+     * <p>The lever behind the idle preview pause. The thumbnail's pause only stops the webview
+     * *applying* frames - frames it costs almost nothing to keep receiving - but this feed carries
+     * the share's entire bitrate, so an unwatched preview has to be stopped at the source. Turning
+     * it back on asks the encoder for a keyframe, since a decoder that missed the gap cannot use
+     * the deltas that follow it.</p>
+     *
+     * <p>Safe to call when nothing is publishing, and safe to call with the state it already has -
+     * callers drive it from a signal and re-assert far more often than it changes.</p>
+     */
+    setLocalStreamEnabled(enabled: boolean): Promise<void>;
 
     /**
      * Register the sink for "the share stopped without being asked to".

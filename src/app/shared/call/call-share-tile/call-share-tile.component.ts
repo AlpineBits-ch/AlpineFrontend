@@ -89,16 +89,21 @@ export class CallShareTileComponent implements OnDestroy {
     private readonly rustMedia = inject(RustMediaService);
 
     /**
-     * Whether this tile is the thing putting the local preview image on screen right now.
+     * Whether this tile is the thing putting the local publish render on screen right now.
      *
-     * <p>Scoped to the `previewSrc` branch specifically - see the template - because a browser
-     * session's local tile shows a real `MediaStream` instead (the `s.stream` branch), and Task
-     * 10's idle pause has nothing to apply to there: `RustMediaService.publishPreview` never has
-     * anything in it on that path.</p>
+     * <p>Reads `localRender` rather than testing for a thumbnail, because since the local tile
+     * started decoding the publish itself that picture arrives as a `MediaStream` on most hosts and
+     * as an `<img>` only on the ones that cannot decode - see `CallScreenShare.localRender`. Gating
+     * on the thumbnail alone would have this tile stop claiming exactly where the picture became
+     * expensive, and the idle pause would then fire with the decoder running in plain sight.</p>
+     *
+     * <p>Still false for a browser session's local tile, whose `getDisplayMedia` track is not
+     * something this app is rendering on the service's behalf - the projection sets `localRender`
+     * false there, and Task 10's pause has nothing to apply to.</p>
      */
     protected readonly showingLocalPreview = computed(() => {
         const s = this.share();
-        return s.isLocal && !s.stream && !!s.previewSrc;
+        return s.isLocal && !!s.localRender;
     });
 
     /** Paused only means anything while this tile is the one actually showing the preview. */

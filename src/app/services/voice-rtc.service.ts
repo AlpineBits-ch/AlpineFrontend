@@ -1353,9 +1353,9 @@ export class VoiceRTCService {
         channelId?: string,
     ): Promise<ScreenPublishRestart | null> {
         const previous = this.screenPreset() ?? DEFAULT_STREAM_PRESET;
-        // The picker already hides what the rung does not permit, so this only catches a ceiling
-        // that moved between the render and the click - and a hotkey or a restored preference,
-        // neither of which passes through a picker at all.
+        // Both pickers - this bar and the pre-share dialog - already disable what the rung does not
+        // permit, so this only catches a ceiling that moved between the render and the click, and a
+        // hotkey, which passes through no picker at all.
         const preset = clampPreset(requested, this.voiceLimits.videoCeiling());
         this.screenPreset.set(preset);
 

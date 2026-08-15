@@ -15,11 +15,17 @@ import {RustMediaService} from '../../../services/rust-media.service';
  * with a resume affordance rather than silently freezing on the last frame.</p>
  */
 function share(shareId: string, overrides: Partial<CallScreenShare> = {}): CallScreenShare {
+    const isLocal = shareId === 'mine';
     return {
         shareId,
-        userId: shareId === 'mine' ? 'me' : `user-${shareId}`,
-        displayName: shareId === 'mine' ? 'You' : shareId,
-        isLocal: shareId === 'mine',
+        userId: isLocal ? 'me' : `user-${shareId}`,
+        displayName: isLocal ? 'You' : shareId,
+        isLocal,
+        // Any local fixture here that has a picture is `RustMediaService` rendering one, in either
+        // of its two representations - the decoded publish or the thumbnail it falls back to. See
+        // `CallScreenShare.localRender`. `...overrides` follows, so a test about the browser path
+        // (whose own display track is nobody's render but the host's) states false and wins.
+        localRender: isLocal && !!(overrides.previewSrc ?? overrides.stream),
         ...overrides,
     };
 }
@@ -90,9 +96,23 @@ describe('CallScreenLayoutComponent preview claim', () => {
     });
 
     it('claims nothing for a browser share - a real MediaStream, not RustMediaService\'s preview', () => {
-        const {fakes} = setup([share('mine', {stream: {} as MediaStream}), share('theirs')]);
+        // The browser path holds its own `getDisplayMedia` track: nothing is being rendered on the
+        // service's behalf, so `localRender` is false and there is nothing to pause. A real stream
+        // is no longer sufficient to rule the claim out on its own - see the test below.
+        const {fakes} = setup([share('mine', {stream: {} as MediaStream, localRender: false}), share('theirs')]);
 
         expect(fakes.claimPreviewRender).not.toHaveBeenCalled();
+    });
+
+    /**
+     * The self-card's half of the case the claim used to miss. The local picture is a decoded
+     * `MediaStream` on any host that can decode one, so a claim that keyed on the thumbnail would
+     * have let the idle pause fire over a card the user is looking at.
+     */
+    it('claims for a self-card showing the decoded publish, not just the thumbnail', () => {
+        const {fakes} = setup([share('mine', {stream: {} as MediaStream}), share('theirs')]);
+
+        expect(fakes.claimPreviewRender).toHaveBeenCalledTimes(1);
     });
 
     it('releases the claim once the self-card stops showing it', () => {

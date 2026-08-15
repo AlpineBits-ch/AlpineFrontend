@@ -15,7 +15,7 @@ import {
     ScreenSource,
     SourceThumbnail,
 } from '../ports/screen-publisher.port';
-import {ScreenPublisherHost} from '../screen-publisher-host';
+import {LocalStreamChunk, ScreenPublisherHost} from '../screen-publisher-host';
 
 /** One track in a publish request, in the neutral vocabulary the backend and Rust both speak. */
 interface PublishTrackRef {
@@ -310,6 +310,20 @@ export class WebScreenPublisher extends ScreenPublisher implements ScreenPublish
 
     onPublishEnded(handler: () => void): void {
         this.endedSink = handler;
+    }
+
+    /**
+     * Accepted and never called, and correctly so.
+     *
+     * <p>This feed exists because the native publisher puts no `MediaStream` in the webview. A
+     * browser publish is the opposite case - the display track is right here - so the local tile
+     * renders the real thing directly and there is nothing an encoded copy could add.</p>
+     */
+    onPublishChunk(_handler: (chunk: LocalStreamChunk) => void): void {
+    }
+
+    /** Nothing to gate: see {@link onPublishChunk}. */
+    async setLocalStreamEnabled(_enabled: boolean): Promise<void> {
     }
 
     // ── Internals ─────────────────────────────────────────────────────────────

@@ -84,6 +84,7 @@ function render(participants: {userId: string; displayName: string}[]): Componen
                 useValue: {
                     screenAudioOutcome: signal('off'),
                     publishPreview: () => null,
+                    localPublishStream: () => null,
                     renderedFps: signal(0),
                     inboundFps: signal(0),
                     previewPaused: () => false,

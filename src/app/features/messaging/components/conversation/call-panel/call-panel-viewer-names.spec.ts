@@ -44,6 +44,7 @@ function render(): ComponentFixture<CallPanelComponent> {
                 provide: RustMediaService,
                 useValue: {
                     publishPreview: () => null,
+                    localPublishStream: () => null,
                     previewPaused: () => false,
                     claimPreviewRender: () => void 0,
                     releasePreviewRender: () => void 0,

@@ -105,13 +105,16 @@
                        border-border bg-card px-3 py-2 text-left transition-colors hover:bg-hover"
                 type="button">
             <span class="relative aspect-video w-28 shrink-0 overflow-hidden rounded-lg bg-black">
-                @if (self.stream) {
-                    <video [streamSrc]="self.stream" autoplay class="h-full w-full object-contain" muted
-                           playsinline></video>
-                } @else if (paused) {
+                <!-- Paused before the stream, matching app-call-share-tile: the self-card's picture
+                     is a decoded `MediaStream` now, and a stream-first order would show a frozen
+                     canvas where the pause indicator belongs. -->
+                @if (paused) {
                     <span class="flex h-full w-full items-center justify-center">
                         <i class="pi pi-play-circle text-lg text-white/40"></i>
                     </span>
+                } @else if (self.stream) {
+                    <video [streamSrc]="self.stream" autoplay class="h-full w-full object-contain" muted
+                           playsinline></video>
                 } @else if (self.previewSrc) {
                     <img [alt]="'CALL.YOUR_SCREEN' | translate" [src]="self.previewSrc"
                          class="h-full w-full object-contain"/>

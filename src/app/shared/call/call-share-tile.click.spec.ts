@@ -224,7 +224,9 @@ describe('CallShareTileComponent click to maximise', () => {
         // "Any interaction with the paused preview resumes it" - maximising a frozen frame is not
         // what the press was asking for.
         const {fixture, maximize, resumePreview} = setup(
-            share({isLocal: true, previewSrc: 'data:image/png;base64,x'}),
+            // `localRender` is what the pause keys off now that the local picture can arrive as a
+            // decoded stream rather than a thumbnail - see `CallScreenShare.localRender`.
+            share({isLocal: true, previewSrc: 'data:image/png;base64,x', localRender: true}),
             {previewPaused: () => true},
         );
 

@@ -19,6 +19,10 @@ function share(overrides: Partial<CallScreenShare> = {}): CallScreenShare {
         displayName: 'A',
         isLocal: true,
         previewSrc: 'data:image/jpeg;base64,AAAA',
+        // The local publish render, in its fallback representation: a host that cannot decode the
+        // stream shows the thumbnail. `localRender` is what the pause keys off in either form -
+        // see `CallScreenShare.localRender` - so it travels with the fixture, not with previewSrc.
+        localRender: true,
         ...overrides,
     };
 }
@@ -56,20 +60,36 @@ describe('CallShareTileComponent preview claim', () => {
         HTMLMediaElement.prototype.pause = vi.fn();
     });
 
-    it('claims the preview render for a local share with only a previewSrc', () => {
+    it('claims the preview render for a local share showing the thumbnail fallback', () => {
         const {fakes} = setup(share());
 
         expect(fakes.claimPreviewRender).toHaveBeenCalledTimes(1);
     });
 
+    /**
+     * The case the claim used to miss. Once the local tile started decoding the publish, its
+     * picture arrives as a `MediaStream` - and a claim gated on `previewSrc` would have gone quiet
+     * exactly where the render became the most expensive thing on the stage, letting the idle pause
+     * fire on a decoder the user is watching.
+     */
+    it('claims the preview render for a local share showing the decoded publish', () => {
+        const {fakes} = setup(share({stream: {} as MediaStream, previewSrc: null}));
+
+        expect(fakes.claimPreviewRender).toHaveBeenCalledTimes(1);
+    });
+
     it('claims nothing for a remote share', () => {
-        const {fakes} = setup(share({isLocal: false, userId: 'user-b', previewSrc: null, stream: {} as MediaStream}));
+        const {fakes} = setup(share({isLocal: false, userId: 'user-b', previewSrc: null, localRender: false, stream: {} as MediaStream}));
 
         expect(fakes.claimPreviewRender).not.toHaveBeenCalled();
     });
 
     it('claims nothing for a local share with a real MediaStream - the browser path, not RustMediaService\'s preview', () => {
-        const {fakes} = setup(share({stream: {} as MediaStream}));
+        // A browser publish keeps its own `getDisplayMedia` track in the webview. Nothing there is
+        // rendered on the service's behalf, so the projection marks `localRender` false and there
+        // is nothing for the pause to apply to - which is what separates it from the decoded
+        // publish above, where the stream is equally real and the claim is equally required.
+        const {fakes} = setup(share({stream: {} as MediaStream, previewSrc: null, localRender: false}));
 
         expect(fakes.claimPreviewRender).not.toHaveBeenCalled();
     });
@@ -123,8 +143,23 @@ describe('CallShareTileComponent paused preview card', () => {
         expect(fakes.resumePreview).toHaveBeenCalledTimes(1);
     });
 
+    /**
+     * The ordering the template states explicitly. Once the local tile decodes the publish, its
+     * picture is a `MediaStream` - and a stream-first branch order would leave a frozen canvas on
+     * screen with nothing to say why, which is the state the paused card exists to explain.
+     */
+    it('shows the paused card in place of the decoded publish, not behind it', () => {
+        const {fixture, fakes} = setup(share({stream: {} as MediaStream, previewSrc: null}));
+
+        fakes.previewPaused.set(true);
+        fixture.detectChanges();
+
+        expect(fixture.nativeElement.textContent).toContain('CALL.PREVIEW_PAUSED');
+        expect(fixture.nativeElement.querySelector('video')).toBeNull();
+    });
+
     it('never shows the paused card for a remote share, even if the flag is somehow true', () => {
-        const {fixture, fakes} = setup(share({isLocal: false, userId: 'user-b', previewSrc: null, stream: {} as MediaStream}));
+        const {fixture, fakes} = setup(share({isLocal: false, userId: 'user-b', previewSrc: null, localRender: false, stream: {} as MediaStream}));
 
         fakes.previewPaused.set(true);
         fixture.detectChanges();
@@ -133,7 +168,7 @@ describe('CallShareTileComponent paused preview card', () => {
     });
 
     it('stays on the no-share placeholder rather than a paused card when there is no previewSrc at all', () => {
-        const {fixture, fakes} = setup(share({previewSrc: null}));
+        const {fixture, fakes} = setup(share({previewSrc: null, localRender: false}));
 
         fakes.previewPaused.set(true);
         fixture.detectChanges();

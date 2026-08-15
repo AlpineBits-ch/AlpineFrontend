@@ -6,7 +6,8 @@ import {
     ScreenSource,
     SourceThumbnail,
 } from '../ports/screen-publisher.port';
-import {AudioChunk, ScreenFrame, ScreenPublisherHost} from '../screen-publisher-host';
+import {AudioChunk, LocalStreamChunk, ScreenFrame, ScreenPublisherHost} from '../screen-publisher-host';
+import {parseLocalStreamChunk} from './local-stream-framing';
 
 /** The preview frames the Rust publisher pushes back while it owns the share. */
 interface PreviewFrame {
@@ -56,6 +57,8 @@ export class TauriScreenPublisher extends ScreenPublisher implements ScreenPubli
 
     private previewChannel: {onmessage: (frame: PreviewFrame) => void} | null = null;
     private previewSink: ((dataUrl: string) => void) | null = null;
+    private chunkChannel: {onmessage: (buffer: ArrayBuffer) => void} | null = null;
+    private chunkSink: ((chunk: LocalStreamChunk) => void) | null = null;
     private frameChannel: {onmessage: (frame: ScreenFrame) => void} | null = null;
     private loopbackChannel: {onmessage: (chunk: AudioChunk) => void} | null = null;
 
@@ -104,8 +107,25 @@ export class TauriScreenPublisher extends ScreenPublisher implements ScreenPubli
         preview.onmessage = frame => this.previewSink?.(`data:image/jpeg;base64,${frame.data}`);
         this.previewChannel = preview;
 
+        // Always constructed, used only when `localStream` is set - Rust cannot take an optional
+        // channel, so the boolean is the request and this is the pipe it would arrive on. Building
+        // it either way keeps `start`'s payload one shape, which is what the spec asserts on.
+        const chunks = new Channel<ArrayBuffer>();
+        chunks.onmessage = buffer => {
+            const chunk = parseLocalStreamChunk(buffer);
+            // A truncated message is one frame lost, not a reason to stop reading the feed. The
+            // decoder recovers on the next keyframe, which the encoder issues at least every two
+            // seconds - see KEYFRAME_INTERVAL.
+            if (chunk) this.chunkSink?.(chunk);
+        };
+        this.chunkChannel = chunks;
+
         const result = await invoke<ScreenPublishResult>('start_screen_publish', {
             onPreview: preview,
+            onLocalStream: chunks,
+            // Defaulted off rather than passed straight through, so a caller that builds options by
+            // hand gets the thumbnail rather than a decoder it never asked for.
+            localStream: o.localStream ?? false,
             sourceId: o.sourceId,
             shareId: o.shareId,
             width: o.width,
@@ -132,6 +152,7 @@ export class TauriScreenPublisher extends ScreenPublisher implements ScreenPubli
     async stop(shareId: string): Promise<void> {
         this.assertLive(shareId, 'stop');
         this.detachPreview();
+        this.detachChunks();
         this.liveShareId = null;
         const {invoke} = await this.tauri();
         await invoke('stop_screen_publish');
@@ -232,6 +253,26 @@ export class TauriScreenPublisher extends ScreenPublisher implements ScreenPubli
         this.previewSink = handler;
     }
 
+    onPublishChunk(handler: (chunk: LocalStreamChunk) => void): void {
+        this.chunkSink = handler;
+    }
+
+    /**
+     * Deliberately <b>not</b> validated against {@link liveShareId}, unlike the other three
+     * singleton commands.
+     *
+     * <p>Those three change a share; this one changes whether this window is being shown a copy of
+     * one. It is driven from window focus and an idle timer, so it fires on its own schedule - and
+     * refusing it during the gap where a resolution change has torn one publish down and not yet
+     * started the next would leave the new share's feed off with nothing to turn it back on. Rust
+     * ignores it when nothing is publishing, which is the right answer here and the wrong one for
+     * a stop.</p>
+     */
+    async setLocalStreamEnabled(enabled: boolean): Promise<void> {
+        const {invoke} = await this.tauri();
+        await invoke('set_local_stream_enabled', {enabled});
+    }
+
     /**
      * Accepted and never called.
      *
@@ -269,5 +310,12 @@ export class TauriScreenPublisher extends ScreenPublisher implements ScreenPubli
         this.previewChannel.onmessage = () => {
         };
         this.previewChannel = null;
+    }
+
+    private detachChunks(): void {
+        if (!this.chunkChannel) return;
+        this.chunkChannel.onmessage = () => {
+        };
+        this.chunkChannel = null;
     }
 }

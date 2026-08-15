@@ -96,6 +96,14 @@ pub async fn start_screen_publish(
     channel_id: Option<String>,
     call_id: Option<String>,
     on_preview: tauri::ipc::Channel<session::PreviewFrame>,
+    // A copy of the encoded stream, for the sharer's own tile to decode.
+    //
+    // Always supplied and only sometimes used: `Channel` is not `Deserialize`, so it cannot be an
+    // `Option` argument. `local_stream` is the actual request, and it is the webview's answer to
+    // "can this host decode H.264 with `VideoDecoder`" - false on a webview that cannot, which then
+    // keeps the `on_preview` thumbnail as before.
+    on_local_stream: tauri::ipc::Channel<tauri::ipc::InvokeResponseBody>,
+    local_stream: bool,
     // Whether to capture and publish the system's audio alongside the picture.
     share_audio: bool,
 ) -> Result<PublishResult, String> {
@@ -124,6 +132,7 @@ pub async fn start_screen_publish(
         ice_servers,
         signalling,
         on_preview,
+        local_stream.then_some(on_local_stream),
         share_audio,
     )
     .await?;
@@ -151,6 +160,21 @@ pub fn set_publish_fps(fps: u32) {
     if let Ok(guard) = active().lock() {
         if let Some(handle) = guard.as_ref() {
             handle.set_fps(fps);
+        }
+    }
+}
+
+/// Start or stop the copy of the encoded stream that feeds the sharer's own tile.
+///
+/// Called whenever the webview's answer to "is anyone looking at the local picture" changes - the
+/// window going behind another one, or the preview sitting idle. See
+/// [`session::PublishHandle::set_local_stream_enabled`] for why this is stopped at the source
+/// rather than ignored on arrival, and why turning it back on costs a keyframe.
+#[tauri::command]
+pub fn set_local_stream_enabled(enabled: bool) {
+    if let Ok(guard) = active().lock() {
+        if let Some(handle) = guard.as_ref() {
+            handle.set_local_stream_enabled(enabled);
         }
     }
 }

@@ -38,10 +38,11 @@
         <div [style.transform]="transform()"
              class="flex h-full w-full items-center justify-center transition-transform duration-150"
              style="transform-origin: center center">
-            @if (s.stream; as stream) {
-                <video #video [streamSrc]="stream" autoplay class="h-full w-full object-contain" muted
-                       playsinline></video>
-            } @else if (previewPaused()) {
+            <!-- Paused is tested before the stream, not after. The local tile now decodes the
+                 publish into a real `MediaStream`, so a stream-first order would render a frozen
+                 canvas with no explanation on it - and `previewPaused()` is only ever true for the
+                 local tile, so no remote stream can be shadowed by this. -->
+            @if (previewPaused()) {
                 <!-- Task 10: idle-paused. The stream itself is still going out - only this local
                      render stopped, see RustMediaService.previewPaused - so the copy here has to say
                      that plainly rather than reading like the share ended. -->
@@ -64,6 +65,9 @@
                         {{ 'CALL.RESUME_PREVIEW' | translate }}
                     </button>
                 </div>
+            } @else if (s.stream; as stream) {
+                <video #video [streamSrc]="stream" autoplay class="h-full w-full object-contain" muted
+                       playsinline></video>
             } @else if (s.previewSrc) {
                 <img [alt]="'CALL.YOUR_SCREEN' | translate" [src]="s.previewSrc"
                      class="h-full w-full object-contain"/>

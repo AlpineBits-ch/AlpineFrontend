@@ -20,12 +20,25 @@ export interface CallScreenShare {
     isLocal: boolean;
     stream?: MediaStream;
     /**
-     * Data URL for the sharer's own tile when the Rust publisher owns the share.
+     * Data URL fallback for the sharer's own tile when the Rust publisher owns the share.
      *
-     * That path puts no MediaStream in the webview, so there is nothing to bind a `<video>` to;
-     * this is a low-rate thumbnail standing in for it.
+     * A 480px JPEG at 5 fps, and no longer the usual picture: the local tile normally decodes the
+     * publish itself into {@link stream} (see `local-stream-render.ts`). This is what a webview with
+     * no `VideoDecoder` gets, and what fills the gap before the first keyframe is decoded.
      */
     previewSrc?: string | null;
+    /**
+     * Whether this tile's picture is the local publish render - in either representation.
+     *
+     * <p>The thing the idle preview pause applies to, and why it is a flag rather than a check on
+     * `previewSrc`: the same picture arrives as a decoded {@link stream} on a host that can decode
+     * and as a thumbnail on one that cannot, and a renderer that claims for only one of them lets
+     * the pause fire while the other is on screen at full cost.</p>
+     *
+     * <p>False for a browser publish, whose local tile holds the `getDisplayMedia` track itself -
+     * nothing there is being rendered on this service's behalf, so there is nothing to pause.</p>
+     */
+    localRender?: boolean;
     hasAudio?: boolean;
     isAudioMuted?: boolean;
     renderedFps?: number | null;
