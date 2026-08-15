@@ -96,6 +96,19 @@ pub struct PumpStats {
     pub dropped_frames: u64,
 }
 
+/// One encoding the pump drives: an encoder, the size it was built for, and where its output goes.
+///
+/// <p>The size lives here rather than being derived per frame because a layer's geometry and its
+/// encoder's geometry must move as one step - [`super::encoder_sw::SoftwareEncoder::encode`] rejects
+/// any frame whose dimensions differ from the spec it was built for, and that rejection is
+/// [`EncodeOutcome::Failed`], which ends the capture loop.</p>
+pub struct PumpLayer {
+    pub encoder: Box<dyn VideoEncoder>,
+    pub frame_tx: tokio::sync::mpsc::Sender<(Vec<u8>, Duration)>,
+    pub width: u32,
+    pub height: u32,
+}
+
 /// Turns captured frames into queued access units.
 pub struct FramePump<P: PreviewSink> {
     /// Output geometry. The source can change size at any moment and is fitted to this; this
@@ -111,7 +124,12 @@ pub struct FramePump<P: PreviewSink> {
     pending_spec: Arc<Mutex<Option<EncoderSpec>>>,
     /// Read every frame, so a framerate change lands within one frame.
     fps: Arc<AtomicU32>,
-    encoder: Box<dyn VideoEncoder>,
+    /// The simulcast ladder, highest layer first and never empty.
+    ///
+    /// <p>Index 0 is rid `a` and is the canonical stream: it owns the stats, the sharer's own tile
+    /// and the keyframe clock. One element is the pre-simulcast share, and every rule in this file
+    /// still reads exactly as it did then.</p>
+    layers: Vec<PumpLayer>,
     /// Set when a viewer asks for a keyframe over RTCP, cleared as it is served.
     keyframe_wanted: Arc<AtomicBool>,
     /// The floor on how long a viewer waits for a decodable picture. A field rather than a constant
@@ -127,7 +145,6 @@ pub struct FramePump<P: PreviewSink> {
     /// webview applying frames, this one stops them being sent at all: at full rate that is the
     /// entire point of pausing.
     local_stream_on: Arc<AtomicBool>,
-    frame_tx: tokio::sync::mpsc::Sender<(Vec<u8>, Duration)>,
 
     /// When the first frame of this publish was pumped, so timestamps are an offset from it.
     ///
@@ -144,27 +161,32 @@ pub struct FramePump<P: PreviewSink> {
 }
 
 impl<P: PreviewSink> FramePump<P> {
+    /// # Panics
+    ///
+    /// If `layers` is empty. A pump with nothing to encode into is not a degraded share, it is a
+    /// capture thread with no output at all - and the callers that build the ladder
+    /// ([`super::simulcast::layers_for`], `session::start`) both guarantee at least one.
     pub fn new(
-        width: u32,
-        height: u32,
+        layers: Vec<PumpLayer>,
         fps: Arc<AtomicU32>,
-        encoder: Box<dyn VideoEncoder>,
         keyframe_wanted: Arc<AtomicBool>,
         preview: P,
-        frame_tx: tokio::sync::mpsc::Sender<(Vec<u8>, Duration)>,
     ) -> Self {
+        assert!(!layers.is_empty(), "a pump needs at least one layer to encode into");
+        // The frame is fitted to the top layer and every lower one is scaled down from that, so
+        // these two track layer 0 and are not an independent setting.
+        let (width, height) = (layers[0].width, layers[0].height);
         Self {
             width,
             height,
             pending_spec: Arc::new(Mutex::new(None)),
             fps,
-            encoder,
+            layers,
             keyframe_wanted,
             keyframe_interval: KEYFRAME_INTERVAL,
             preview,
             local_stream: None,
             local_stream_on: Arc::new(AtomicBool::new(false)),
-            frame_tx,
             started: None,
             last_frame_at: None,
             jpeg_buf: Vec::with_capacity(64 * 1024),
@@ -220,25 +242,50 @@ impl<P: PreviewSink> FramePump<P> {
     /// tearing it down because a driver declined a retype would turn a cosmetic failure into the
     /// outage this whole change exists to remove.</p>
     fn apply_spec(&mut self, spec: EncoderSpec) {
-        if let Err(e) = self.encoder.reconfigure(spec) {
-            eprintln!(
-                "[publisher] the encoder refused {}x{} ({e}); staying at {}x{}",
-                spec.width, spec.height, self.width, self.height
-            );
-            return;
+        // Recomputed from the incoming top-layer spec rather than scaled from the sizes currently
+        // held, so repeated changes cannot ratchet the ladder down a step at a time.
+        let ladder = super::simulcast::layers_for(spec, self.layers.len());
+
+        for (layer, rung) in self.layers.iter_mut().zip(ladder.iter()) {
+            if let Err(e) = layer.encoder.reconfigure(rung.spec) {
+                // This layer carries on at the size it already had. A ladder whose rungs disagree
+                // costs the SFU a good choice between them, which is a quality fault; tearing the
+                // share down over it would turn that into the outage this path exists to avoid.
+                eprintln!(
+                    "[publisher] layer {} refused {}x{} ({e}); staying at {}x{}",
+                    rung.rid, rung.spec.width, rung.spec.height, layer.width, layer.height
+                );
+                continue;
+            }
+            layer.width = rung.spec.width;
+            layer.height = rung.spec.height;
         }
-        self.width = spec.width;
-        self.height = spec.height;
-        // The encoder was just built to expect this rate, and the capture loop paces off the same
+
+        // Taken from the layer rather than from `spec`, so a top layer that refused the retype
+        // leaves the pump fitting to the geometry its encoder still expects. Setting it from `spec`
+        // regardless is what would feed that encoder a frame it rejects, and a rejection there is
+        // fatal to the capture loop.
+        self.width = self.layers[0].width;
+        self.height = self.layers[0].height;
+        // The encoders were just built to expect this rate, and the capture loop paces off the same
         // atomic. Leaving them to disagree would have rate control dividing its budget by a number
         // nothing is producing at.
         self.fps.store(spec.fps.clamp(1, 60), Ordering::Relaxed);
-        // The replacement shares no prediction state with what it replaced - and on the software
-        // path it is a different object entirely - so the next frame has to be an IDR carrying the
+        // A replacement shares no prediction state with what it replaced - and on the software path
+        // it is a different object entirely - so the next frame has to be an IDR carrying the
         // SPS/PPS that describe the new size. Without it every viewer decodes garbage until the
-        // periodic keyframe comes round.
-        self.encoder.request_keyframe();
-        eprintln!("[publisher] now encoding at {}x{} ({} kbps)", spec.width, spec.height, spec.kbps);
+        // periodic keyframe comes round. Every layer, or a viewer on one that was not asked waits
+        // out the whole interval.
+        for layer in self.layers.iter_mut() {
+            layer.encoder.request_keyframe();
+        }
+        eprintln!(
+            "[publisher] now encoding at {}x{} ({} kbps) across {} layer(s)",
+            self.width,
+            self.height,
+            spec.kbps,
+            self.layers.len()
+        );
     }
 
     /// Fit, preview, encode and enqueue one captured frame.
@@ -302,51 +349,83 @@ impl<P: PreviewSink> FramePump<P> {
         if self.keyframe_wanted.swap(false, Ordering::Relaxed)
             || now.duration_since(self.last_keyframe) >= self.keyframe_interval
         {
-            self.encoder.request_keyframe();
-        }
-
-        let outcome = self.encoder.encode(&frame, timestamp_us);
-
-        let chunk = match outcome {
-            EncodeOutcome::Chunk(chunk) => chunk,
-            // Rate control, or a pipelined encoder still filling up. Normal.
-            EncodeOutcome::Skipped => return,
-            EncodeOutcome::Failed => {
-                // The resilient wrapper already tried to fall back, so reaching here means there is
-                // nothing left to encode with.
-                eprintln!("[publisher] encoding failed with no fallback left; ending capture");
-                return;
+            // Every layer at the same moment. A viewer the SFU moves between layers can only decode
+            // the new one from its next IDR, so layers that key independently would show a freeze
+            // on every switch - on a static screen, for the whole keyframe interval.
+            for layer in self.layers.iter_mut() {
+                layer.encoder.request_keyframe();
             }
-        };
-
-        // Whether this share is producing anything, and whether it contains the keyframes a viewer
-        // needs in order to start decoding. Nothing reported either before, which left the two
-        // failures a viewer can suffer - "no picture ever arrives" and "a picture arrives that I
-        // cannot decode" - indistinguishable from the sharing side.
-        self.stats.encoded_frames += 1;
-        if chunk.is_keyframe {
-            self.stats.keyframes += 1;
-            self.last_keyframe = now;
-        }
-        if self.stats.encoded_frames % STATS_EVERY_FRAMES == 0 {
-            eprintln!(
-                "[publisher] {} frames encoded, {} keyframes, {} dropped at the writer",
-                self.stats.encoded_frames, self.stats.keyframes, self.stats.dropped_frames
-            );
         }
 
-        // The sharer's own tile, before the data is handed to the writer. Deliberately *after* the
-        // stats above and before the `try_send` below, so the local picture is the same access unit
-        // the wire carries - including one the writer then drops, which is the right call: a frame
-        // the network could not take is still a frame this machine already encoded, and dropping it
-        // locally too would make the sharer's own tile stutter for a reason that is not theirs.
-        self.emit_local_stream(&chunk.data, chunk.is_keyframe, timestamp_us);
+        for index in 0..self.layers.len() {
+            let (width, height) = (self.layers[index].width, self.layers[index].height);
+            // Scaled from the already-fitted frame rather than from the raw capture: it is less
+            // work, and it guarantees every layer shows identical framing down to the letterbox
+            // bars. The top layer is the fitted frame itself, with no second copy.
+            let scaled;
+            let source = if width == self.width && height == self.height {
+                &frame
+            } else {
+                scaled = fit_into(&frame, width, height);
+                &scaled
+            };
 
-        // try_send, not send: dropping the newest frame when the writer is behind keeps latency
-        // bounded. Full is routine backpressure; closed means the writer task already ended and the
-        // capture loop will exit on its next stop check.
-        if self.frame_tx.try_send((chunk.data, frame_duration)).is_err() {
-            self.stats.dropped_frames += 1;
+            let chunk = match self.layers[index].encoder.encode(source, timestamp_us) {
+                EncodeOutcome::Chunk(chunk) => chunk,
+                // Rate control, or a pipelined encoder still filling up. Normal.
+                EncodeOutcome::Skipped => continue,
+                EncodeOutcome::Failed => {
+                    // The resilient wrapper already tried to fall back, so reaching here means this
+                    // layer has nothing left to encode with. Only the top layer failing is the
+                    // share failing; a lower one going quiet costs the SFU a choice, not a picture.
+                    eprintln!(
+                        "[publisher] layer {} failed with no fallback left",
+                        super::simulcast::LAYER_RIDS.get(index).copied().unwrap_or("?")
+                    );
+                    continue;
+                }
+            };
+
+            // The top layer alone owns the stats, the keyframe clock and the sharer's own tile.
+            // Counting every layer would report a share as producing three times the frames a
+            // viewer sees, and a lower layer's dropped frame is not the picture stuttering.
+            if index == 0 {
+                // Whether this share is producing anything, and whether it contains the keyframes a
+                // viewer needs in order to start decoding. Nothing reported either before, which
+                // left the two failures a viewer can suffer - "no picture ever arrives" and "a
+                // picture arrives that I cannot decode" - indistinguishable from the sharing side.
+                self.stats.encoded_frames += 1;
+                if chunk.is_keyframe {
+                    self.stats.keyframes += 1;
+                    self.last_keyframe = now;
+                }
+                if self.stats.encoded_frames % STATS_EVERY_FRAMES == 0 {
+                    eprintln!(
+                        "[publisher] {} frames encoded, {} keyframes, {} dropped at the writer",
+                        self.stats.encoded_frames, self.stats.keyframes, self.stats.dropped_frames
+                    );
+                }
+
+                // The sharer's own tile, before the data is handed to the writer. Deliberately
+                // *after* the stats above and before the `try_send` below, so the local picture is
+                // the same access unit the wire carries - including one the writer then drops,
+                // which is the right call: a frame the network could not take is still a frame this
+                // machine already encoded, and dropping it locally too would make the sharer's own
+                // tile stutter for a reason that is not theirs.
+                self.emit_local_stream(&chunk.data, chunk.is_keyframe, timestamp_us);
+            }
+
+            // try_send, not send: dropping the newest frame when the writer is behind keeps latency
+            // bounded. Full is routine backpressure; closed means the writer task already ended and
+            // the capture loop will exit on its next stop check.
+            if self.layers[index]
+                .frame_tx
+                .try_send((chunk.data, frame_duration))
+                .is_err()
+                && index == 0
+            {
+                self.stats.dropped_frames += 1;
+            }
         }
     }
 
@@ -483,17 +562,22 @@ mod tests {
         let log = Arc::new(Mutex::new(EncoderLog::default()));
         let fps = Arc::new(AtomicU32::new(fps));
         let (frame_tx, frames) = tokio::sync::mpsc::channel(64);
+        // One layer, which is the pre-simulcast share. Every test below this point was written
+        // before layers existed and must keep passing unchanged: that is what proves a one-layer
+        // pump still behaves exactly as it always did.
         let pump = FramePump::new(
-            64,
-            64,
+            vec![PumpLayer {
+                encoder: Box::new(RecordingEncoder {
+                    log: Arc::clone(&log),
+                    refuse_reconfigure,
+                }),
+                frame_tx,
+                width: 64,
+                height: 64,
+            }],
             Arc::clone(&fps),
-            Box::new(RecordingEncoder {
-                log: Arc::clone(&log),
-                refuse_reconfigure,
-            }),
             Arc::new(AtomicBool::new(false)),
             (),
-            frame_tx,
         );
         Harness {
             pump,
@@ -501,6 +585,169 @@ mod tests {
             fps,
             frames,
         }
+    }
+
+    /// A recording encoder plus the log it writes to.
+    fn recording_encoder() -> (Arc<Mutex<EncoderLog>>, Box<dyn VideoEncoder>) {
+        let log = Arc::new(Mutex::new(EncoderLog::default()));
+        let encoder = Box::new(RecordingEncoder {
+            log: Arc::clone(&log),
+            refuse_reconfigure: false,
+        });
+        (log, encoder)
+    }
+
+    /// A two-layer pump at 1920x1080 over 960x540, with both receivers handed back so nothing is
+    /// dropped for want of somewhere to go.
+    #[allow(clippy::type_complexity)]
+    fn ladder_pump() -> (
+        FramePump<()>,
+        Arc<Mutex<EncoderLog>>,
+        Arc<Mutex<EncoderLog>>,
+        Arc<AtomicBool>,
+        tokio::sync::mpsc::Receiver<(Vec<u8>, Duration)>,
+        tokio::sync::mpsc::Receiver<(Vec<u8>, Duration)>,
+    ) {
+        let (top_log, top) = recording_encoder();
+        let (mid_log, mid) = recording_encoder();
+        let (top_tx, top_rx) = tokio::sync::mpsc::channel(64);
+        let (mid_tx, mid_rx) = tokio::sync::mpsc::channel(64);
+        let keyframe_wanted = Arc::new(AtomicBool::new(false));
+        let pump = FramePump::new(
+            vec![
+                PumpLayer {
+                    encoder: top,
+                    frame_tx: top_tx,
+                    width: 1920,
+                    height: 1080,
+                },
+                PumpLayer {
+                    encoder: mid,
+                    frame_tx: mid_tx,
+                    width: 960,
+                    height: 540,
+                },
+            ],
+            Arc::new(AtomicU32::new(30)),
+            Arc::clone(&keyframe_wanted),
+            (),
+        );
+        (pump, top_log, mid_log, keyframe_wanted, top_rx, mid_rx)
+    }
+
+    /// Every layer sees every frame, and each at its own size.
+    #[test]
+    fn feeds_one_captured_frame_to_every_layer() {
+        let (mut pump, top_log, mid_log, _kf, mut top_rx, mut mid_rx) = ladder_pump();
+
+        pump.on_frame(&RgbaImage::new(1920, 1080));
+
+        assert_eq!(top_log.lock().unwrap().sizes, vec![(1920, 1080)]);
+        assert_eq!(mid_log.lock().unwrap().sizes, vec![(960, 540)]);
+        assert!(top_rx.try_recv().is_ok());
+        assert!(mid_rx.try_recv().is_ok());
+    }
+
+    /// Layers key together, or a viewer the SFU moves between them waits out the whole keyframe
+    /// interval with nothing decodable on the layer they just arrived at.
+    #[test]
+    fn asks_every_layer_for_a_keyframe_at_the_same_moment() {
+        let (mut pump, top_log, mid_log, keyframe_wanted, _t, _m) = ladder_pump();
+        keyframe_wanted.store(true, Ordering::Relaxed);
+
+        pump.on_frame(&RgbaImage::new(1920, 1080));
+
+        let top = top_log.lock().unwrap().keyframes_requested;
+        let mid = mid_log.lock().unwrap().keyframes_requested;
+        assert_eq!(top, mid, "layers asked for keyframes at different times");
+        assert!(top >= 1);
+    }
+
+    /// A lower layer whose writer is full must not cost the top layer its frame or its stats.
+    #[test]
+    fn a_backed_up_lower_layer_does_not_stall_the_top_one() {
+        let (top_log, top) = recording_encoder();
+        let (_mid_log, mid) = recording_encoder();
+        let (top_tx, mut top_rx) = tokio::sync::mpsc::channel(64);
+        // Capacity 1, filled before the pump runs, so every send to it fails.
+        let (mid_tx, _mid_rx_held) = tokio::sync::mpsc::channel(1);
+        mid_tx
+            .try_send((vec![0u8], Duration::from_millis(1)))
+            .unwrap();
+
+        let mut pump = FramePump::new(
+            vec![
+                PumpLayer {
+                    encoder: top,
+                    frame_tx: top_tx,
+                    width: 1920,
+                    height: 1080,
+                },
+                PumpLayer {
+                    encoder: mid,
+                    frame_tx: mid_tx,
+                    width: 960,
+                    height: 540,
+                },
+            ],
+            Arc::new(AtomicU32::new(30)),
+            Arc::new(AtomicBool::new(false)),
+            (),
+        );
+
+        pump.on_frame(&RgbaImage::new(1920, 1080));
+
+        assert_eq!(top_log.lock().unwrap().sizes.len(), 1);
+        assert!(
+            top_rx.try_recv().is_ok(),
+            "the top layer lost a frame to a full lower one"
+        );
+        assert_eq!(
+            pump.stats().dropped_frames,
+            0,
+            "a lower layer's drop was counted against the top layer's stats"
+        );
+    }
+
+    /// A resolution change moves every layer in one step, each to its own rung of the ladder.
+    #[test]
+    fn retypes_every_layer_together() {
+        let (mut pump, top_log, mid_log, _kf, _t, _m) = ladder_pump();
+
+        *pump.pending_spec().lock().unwrap() = Some(EncoderSpec {
+            width: 1280,
+            height: 720,
+            fps: 30,
+            kbps: 4000,
+            content: EncoderContent::Text,
+        });
+        pump.on_frame(&RgbaImage::new(1920, 1080));
+
+        assert_eq!(top_log.lock().unwrap().sizes, vec![(1280, 720)]);
+        assert_eq!(mid_log.lock().unwrap().sizes, vec![(640, 360)]);
+    }
+
+    /// The sharer's own tile is fed from the top layer only. One copy per layer would triple the
+    /// IPC cost of a preview nobody asked to see three times.
+    #[test]
+    fn copies_only_the_top_layer_to_the_local_tile() {
+        struct Counting(Arc<Mutex<usize>>);
+        impl LocalStreamSink for Counting {
+            fn send(&self, _access_unit: Vec<u8>) {
+                *self.0.lock().unwrap() += 1;
+            }
+        }
+
+        let sent = Arc::new(Mutex::new(0usize));
+        let (pump, _top_log, _mid_log, _kf, _t, _m) = ladder_pump();
+        let mut pump = pump.with_local_stream(
+            Box::new(Counting(Arc::clone(&sent))),
+            Arc::new(AtomicBool::new(true)),
+        );
+
+        pump.on_frame(&RgbaImage::new(1920, 1080));
+
+        assert_eq!(*sent.lock().unwrap(), 1);
     }
 
     fn frame() -> RgbaImage {

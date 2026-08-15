@@ -708,10 +708,17 @@ unsafe fn enumerate_hardware_encoders() -> Vec<IMFActivate> {
 /// Keeping it also sidesteps NVIDIA's session limit, which this machine reports at twelve: past it
 /// `SetOutputType` fails with 0xC00D6D76 and enumeration quietly falls through to another vendor's
 /// encoder, so an implementation that leaked sessions would silently stop using the GPU it chose.
-static PARKED: OnceLock<Mutex<Option<MediaFoundationEncoder>>> = OnceLock::new();
+/// How many encoders may sit parked between shares.
+///
+/// One per rid of a full simulcast ladder. Parking the whole ladder is what turns the second share
+/// of a session into three retypes rather than three fresh Media Foundation sessions, which matters
+/// because the driver's session count is the scarce resource here - this machine reports twelve.
+pub(crate) const PARK_CAPACITY: usize = super::simulcast::LAYER_RIDS.len();
 
-fn parked() -> &'static Mutex<Option<MediaFoundationEncoder>> {
-    PARKED.get_or_init(|| Mutex::new(None))
+static PARKED: OnceLock<Mutex<Vec<MediaFoundationEncoder>>> = OnceLock::new();
+
+pub(crate) fn parked() -> &'static Mutex<Vec<MediaFoundationEncoder>> {
+    PARKED.get_or_init(|| Mutex::new(Vec::new()))
 }
 
 /// A hardware encoder on loan from [`PARKED`], returned rather than destroyed when the share ends.
@@ -721,18 +728,20 @@ fn parked() -> &'static Mutex<Option<MediaFoundationEncoder>> {
 pub struct PooledEncoder(Option<MediaFoundationEncoder>);
 
 impl PooledEncoder {
-    /// The parked encoder retyped for `spec`, or a fresh one if none is parked.
+    /// A parked encoder retyped for `spec`, or a fresh one when none can be reused.
     pub fn acquire(spec: EncoderSpec) -> Option<Self> {
-        if let Ok(mut slot) = parked().lock() {
-            if let Some(mut encoder) = slot.take() {
+        if let Ok(mut slots) = parked().lock() {
+            while let Some(mut encoder) = slots.pop() {
                 match encoder.retype(spec) {
                     Ok(()) => return Some(Self(Some(encoder))),
                     Err(e) => {
-                        // Park it again rather than dropping it: a transform that refused a retype
-                        // is in an unknown state, but destroying it is the one outcome known to
-                        // crash. A fresh encoder below costs a session; that is the cheaper risk.
-                        eprintln!("[publisher] the parked encoder refused a retype ({e}); building a new one");
-                        *slot = Some(encoder);
+                        // A transform that refused a retype is in an unknown state, and destroying
+                        // it is the one outcome known to crash - so it leaves the pool without
+                        // being dropped in the Rust sense, and the next parked one is tried. It
+                        // used to be parked again, which left a permanently poisoned slot that
+                        // every later acquire tried first and failed on before building anyway.
+                        eprintln!("[publisher] a parked encoder refused a retype ({e}); retiring it");
+                        std::mem::forget(encoder);
                     }
                 }
             }
@@ -774,10 +783,10 @@ impl Drop for PooledEncoder {
         let Some(encoder) = self.0.take() else { return };
         match parked().lock() {
             // Parked, not destroyed. This is the whole point of the type.
-            Ok(mut slot) if slot.is_none() => *slot = Some(encoder),
-            // A second encoder exists because a retype was refused once. Only one can be parked,
-            // and letting this one drop would run exactly the teardown that crashes - so it is
-            // leaked deliberately. Bounded by how often a retype fails, which is ~never.
+            Ok(mut slots) if slots.len() < PARK_CAPACITY => slots.push(encoder),
+            // The pool is full, or its lock is poisoned. Letting this one drop would run exactly
+            // the teardown that crashes inside the driver - so it is leaked deliberately. Bounded
+            // by how often more than a ladder's worth exist at once, which is ~never.
             _ => {
                 eprintln!("[publisher] a spare hardware encoder is being retained rather than destroyed");
                 std::mem::forget(encoder);
@@ -823,6 +832,48 @@ mod tests {
         });
         assert_eq!(text.mean_bps, games.mean_bps);
         assert_eq!(text.mean_bps, spec(1280, 720).kbps * 1000);
+    }
+
+    /// Three encoders at once, which is what a full simulcast ladder holds.
+    ///
+    /// Hardware-dependent like every other test in this file: CI containers and VMs have no encoder
+    /// and skip. Where one exists, three must coexist - the single-slot pool this replaced would
+    /// have leaked two of them on drop, into a driver session limit of about twelve.
+    #[test]
+    fn holds_a_whole_ladder_at_once() {
+        let Some(top) = PooledEncoder::acquire(spec(1920, 1080)) else {
+            eprintln!("no hardware H.264 encoder on this machine; skipping");
+            return;
+        };
+        let middle = PooledEncoder::acquire(spec(960, 540));
+        let bottom = PooledEncoder::acquire(spec(480, 270));
+
+        assert!(middle.is_some(), "the pool refused a second encoder");
+        assert!(bottom.is_some(), "the pool refused a third encoder");
+
+        drop(top);
+        drop(middle);
+        drop(bottom);
+
+        // Parked rather than leaked, so the next share reuses them instead of opening three more
+        // sessions against the driver's limit.
+        assert!(parked().lock().map(|s| s.len()).unwrap_or(0) <= PARK_CAPACITY);
+    }
+
+    /// Parking is bounded. Encoders beyond a ladder's worth must not grow the pool without limit.
+    #[test]
+    fn parks_no_more_than_a_ladder_of_encoders() {
+        let Some(first) = PooledEncoder::acquire(spec(640, 360)) else {
+            eprintln!("no hardware H.264 encoder on this machine; skipping");
+            return;
+        };
+        let held: Vec<_> = (0..PARK_CAPACITY + 1)
+            .filter_map(|_| PooledEncoder::acquire(spec(640, 360)))
+            .collect();
+        drop(first);
+        drop(held);
+
+        assert!(parked().lock().map(|s| s.len()).unwrap_or(0) <= PARK_CAPACITY);
     }
 
     fn spec(width: u32, height: u32) -> EncoderSpec {

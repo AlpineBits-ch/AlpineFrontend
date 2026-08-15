@@ -42,7 +42,7 @@ use super::encoder::{
     new_software_encoder, provision_async, EncodeOutcome, EncodedChunk, EncoderContent, EncoderSpec,
     VideoEncoder,
 };
-use super::pump::{FramePump, PreviewSink};
+use super::pump::{FramePump, PreviewSink, PumpLayer};
 use super::rtc::{publisher_api, FrameSink, Publication};
 use super::session::{run_writer, WRITE_FAILURES_BEFORE_GIVING_UP};
 use super::signalling::{SessionRole, Signalling, VoiceTarget};
@@ -121,6 +121,12 @@ struct BackendState {
     published_tracks: Mutex<Vec<String>>,
     /// Every request path served, so tests can assert on what the publisher actually asked for.
     paths: Mutex<Vec<String>>,
+    /// The offer SDP as it arrived, so a test can assert on the bytes the SFU actually reads.
+    ///
+    /// Simulcast is invisible from this side otherwise: the publisher can hold three tracks and
+    /// still have offered one encoding, because webrtc-rs writes the rid and simulcast attributes
+    /// from what is attached to the *sender*, not from what the caller is holding.
+    offer_sdp: Mutex<Option<String>>,
 }
 
 /// A Cloudflare-shaped backend on loopback, with a real peer connection behind it.
@@ -167,6 +173,7 @@ impl MockBackend {
             closed_tracks: Mutex::new(Vec::new()),
             published_tracks: Mutex::new(Vec::new()),
             paths: Mutex::new(Vec::new()),
+            offer_sdp: Mutex::new(None),
         });
 
         let serving = Arc::clone(&state);
@@ -461,6 +468,8 @@ async fn answer_the_offer(state: &Arc<BackendState>, body: &serde_json::Value) -
         .as_str()
         .expect("an offer SDP")
         .to_owned();
+    // Kept before it is applied: this is the only place the exact bytes the SFU reads are visible.
+    *state.offer_sdp.lock().unwrap() = Some(offer.clone());
 
     state
         .sfu
@@ -673,6 +682,87 @@ async fn collect(rx: &mut mpsc::Receiver<AccessUnit>, want: usize, idle: Duratio
     units
 }
 
+/// Three encodings on one m-line, under the names the server selects by.
+///
+/// <p>Asserted on the offer SDP rather than on our own structs, because the SDP is the only thing
+/// the SFU actually reads. webrtc-rs writes `a=rid:<id> send` and `a=simulcast:send a;b;c` from what
+/// is attached to the *sender*, so a wiring mistake that created three tracks and attached one would
+/// leave `layer_tracks()` looking perfectly correct while the wire carried a single encoding - and
+/// the only visible symptom would be an egress bill that never fell.</p>
+#[tokio::test]
+async fn offers_three_rid_tagged_encodings_on_one_track() {
+    let (backend, _frames) = MockBackend::start(false).await;
+
+    let publication = Publication::start(
+        signalling_to(&backend.base_url),
+        "abc",
+        vec![],
+        false,
+        None,
+        3,
+    )
+    .await
+    .expect("the publication must start");
+
+    let sdp = backend
+        .state
+        .offer_sdp
+        .lock()
+        .unwrap()
+        .clone()
+        .expect("an offer must have reached the backend");
+
+    assert!(
+        sdp.contains("a=simulcast:send a;b;c"),
+        "no simulcast attribute in the offer:\n{sdp}"
+    );
+    for rid in ["a", "b", "c"] {
+        assert!(
+            sdp.contains(&format!("a=rid:{rid} send")),
+            "no rid {rid} in the offer:\n{sdp}"
+        );
+    }
+    // One video m-line, not three: simulcast is encodings within a track, not separate tracks. Three
+    // m-lines would mean three track names, which is a shape the room contract has no room for.
+    assert_eq!(sdp.matches("m=video").count(), 1);
+    assert_eq!(publication.layer_tracks().len(), 3);
+}
+
+/// The rollback path. One layer must offer exactly what shipped before simulcast existed.
+#[tokio::test]
+async fn a_single_layer_offers_no_simulcast_attributes_at_all() {
+    let (backend, _frames) = MockBackend::start(false).await;
+
+    let publication = Publication::start(
+        signalling_to(&backend.base_url),
+        "abc",
+        vec![],
+        false,
+        None,
+        1,
+    )
+    .await
+    .expect("the publication must start");
+
+    let sdp = backend
+        .state
+        .offer_sdp
+        .lock()
+        .unwrap()
+        .clone()
+        .expect("an offer must have reached the backend");
+
+    assert!(
+        !sdp.contains("a=simulcast:"),
+        "a one-layer share advertised simulcast:\n{sdp}"
+    );
+    assert!(
+        !sdp.contains("a=rid:"),
+        "a one-layer share advertised a rid:\n{sdp}"
+    );
+    assert_eq!(publication.layer_tracks().len(), 1);
+}
+
 /// The pump, the writer and a live publication, wired as `session::start` wires them.
 struct Publishing {
     pump: FramePump<()>,
@@ -684,7 +774,7 @@ async fn publishing(
     keyframe_interval: Duration,
     encoder: Box<dyn VideoEncoder>,
 ) -> Publishing {
-    let publication = Publication::start(signalling_to(&backend.base_url), "abc", vec![], false, None)
+    let publication = Publication::start(signalling_to(&backend.base_url), "abc", vec![], false, None, 1)
         .await
         .expect("the publication must start against the mock backend");
     let keyframe_wanted = publication.keyframe_requests();
@@ -700,13 +790,15 @@ async fn publishing(
     ));
 
     let pump = FramePump::new(
-        WIDTH,
-        HEIGHT,
+        vec![PumpLayer {
+            encoder,
+            frame_tx,
+            width: WIDTH,
+            height: HEIGHT,
+        }],
         Arc::new(AtomicU32::new(30)),
-        encoder,
         keyframe_wanted,
         (),
-        frame_tx,
     )
     .with_keyframe_interval(keyframe_interval);
 
@@ -845,7 +937,7 @@ async fn the_publish_opens_a_secondary_session_and_closes_its_track() {
     let (backend, _units) = MockBackend::start(false).await;
     provision_async().await;
 
-    let publication = Publication::start(signalling_to(&backend.base_url), "abc", vec![], false, None)
+    let publication = Publication::start(signalling_to(&backend.base_url), "abc", vec![], false, None, 1)
         .await
         .expect("the publication must start");
     let track_name = publication.track_name.clone();
@@ -897,7 +989,7 @@ async fn a_share_with_audio_publishes_and_closes_both_tracks() {
     let (backend, _units) = MockBackend::start(false).await;
     provision_async().await;
 
-    let publication = Publication::start(signalling_to(&backend.base_url), "abc", vec![], true, None)
+    let publication = Publication::start(signalling_to(&backend.base_url), "abc", vec![], true, None, 1)
         .await
         .expect("the publication must start");
 
@@ -943,7 +1035,7 @@ async fn a_share_without_audio_announces_no_audio_track() {
     let (backend, _units) = MockBackend::start(false).await;
     provision_async().await;
 
-    let publication = Publication::start(signalling_to(&backend.base_url), "abc", vec![], false, None)
+    let publication = Publication::start(signalling_to(&backend.base_url), "abc", vec![], false, None, 1)
         .await
         .expect("the publication must start");
 
@@ -969,13 +1061,15 @@ fn pump_with(
 ) {
     let (frame_tx, frame_rx) = mpsc::channel::<(Vec<u8>, Duration)>(queue);
     let pump = FramePump::new(
-        WIDTH,
-        HEIGHT,
+        vec![PumpLayer {
+            encoder,
+            frame_tx,
+            width: WIDTH,
+            height: HEIGHT,
+        }],
         Arc::new(AtomicU32::new(30)),
-        encoder,
         keyframe_wanted,
         (),
-        frame_tx,
     );
     (pump, frame_rx)
 }

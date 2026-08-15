@@ -6,10 +6,11 @@ use std::time::Duration;
 
 use image::RgbaImage;
 
-use super::encoder::{new_encoder, EncoderContent, EncoderSpec};
-use super::pump::FramePump;
+use super::encoder::{new_encoder, EncoderContent, EncoderSpec, VideoEncoder};
+use super::pump::{FramePump, PumpLayer};
 use super::rtc::{FrameSink, Publication};
 use super::signalling::{Signalling, VideoIntent};
+use super::simulcast;
 use crate::media::screen::{find_capture_source, run_capture_loop};
 
 /// How many encoded frames may queue between the capture thread and the async writer.
@@ -249,6 +250,39 @@ pub async fn run_writer<S: FrameSink>(
 /// Opus and the receiver's jitter buffer handle that, and there is no equivalent of the keyframe
 /// dependency that makes a lost *video* frame matter beyond itself. The publication's lifetime is
 /// decided by the video writer, so this task ends when its channel closes and never on its own.</p>
+/// How many simulcast layers to attempt for this share.
+///
+/// <p>The ladder decides the ceiling - a source too small to halve twice gets fewer rungs - and the
+/// environment variable can take it to one. Deliberately an environment variable rather than a
+/// setting, for the same reason `VENTA_FORCE_SOFTWARE_ENCODER` is one: it is a way out of a fault,
+/// not a choice a user should be asked to make. Simulcast triples the encode cost on the sharer's
+/// machine and cannot be proved without a second machine and a live SFU, so there has to be a way
+/// back that is not a release.</p>
+pub(crate) fn desired_layer_count(spec: EncoderSpec) -> usize {
+    if std::env::var_os("VENTA_DISABLE_SIMULCAST").is_some() {
+        return 1;
+    }
+    simulcast::layers_for(spec, simulcast::LAYER_RIDS.len()).len()
+}
+
+/// Feed one lower simulcast layer until its channel closes.
+///
+/// <p>No failure counting, unlike [`run_writer`], and deliberately so: this task must never end the
+/// publication. A run of failed writes on the top layer means the connection is gone and the share
+/// is over; the same run on a lower layer means one rid is not getting through, and taking the
+/// picture away from every viewer over a layer most of them are not watching would be a far worse
+/// answer than serving them the layer that works.</p>
+pub async fn run_layer_writer(
+    track: Arc<webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample>,
+    mut frame_rx: tokio::sync::mpsc::Receiver<(Vec<u8>, Duration)>,
+) {
+    while let Some((data, duration)) = frame_rx.recv().await {
+        if let Err(e) = Publication::write_layer(&track, data, duration).await {
+            eprintln!("[publisher] dropped a frame on a lower layer: {e}");
+        }
+    }
+}
+
 pub async fn run_audio_writer(
     track: Arc<webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample>,
     mut packets: tokio::sync::mpsc::Receiver<super::audio::OpusPacket>,
@@ -297,9 +331,33 @@ pub async fn start(
         kbps,
         content,
     };
-    let encoder = new_encoder(spec)
-        .ok_or_else(|| "no H.264 encoder available (OpenH264 not provisioned?)".to_string())?;
-    let encoder_name = encoder.name();
+    let ladder = simulcast::layers_for(spec, desired_layer_count(spec));
+
+    // Built before the publication, because how many actually materialise decides how many rids are
+    // offered - and a rid advertised with no encoder behind it is a layer the SFU will select and
+    // then find empty. A layer that cannot be built is dropped rather than fatal: one encoder is
+    // the pre-simulcast share, which is a working share.
+    let mut encoders: Vec<Box<dyn VideoEncoder>> = Vec::with_capacity(ladder.len());
+    for rung in &ladder {
+        match new_encoder(rung.spec) {
+            Some(encoder) => encoders.push(encoder),
+            None => {
+                eprintln!(
+                    "[publisher] no encoder for layer {} at {}x{}; publishing {} layer(s)",
+                    rung.rid,
+                    rung.spec.width,
+                    rung.spec.height,
+                    encoders.len()
+                );
+                break;
+            }
+        }
+    }
+    if encoders.is_empty() {
+        return Err("no H.264 encoder available (OpenH264 not provisioned?)".to_string());
+    }
+    let encoder_name = encoders[0].name();
+    let layer_count = encoders.len();
 
     // The audio capture is started *before* the publication, so a machine with no usable loopback
     // device publishes a video-only share rather than a share advertising a silent audio track.
@@ -326,8 +384,10 @@ pub async fn start(
         ice_servers,
         screen_audio.is_some(),
         VideoIntent::new(height, fps),
+        layer_count,
     )
     .await?;
+    let layer_tracks = publication.layer_tracks();
     let media_session_id = publication.media_session_id.clone();
     let track_name = publication.track_name.clone();
     // Taken before the publication is moved into the writer task below.
@@ -343,9 +403,48 @@ pub async fn start(
     let capture_fps = Arc::clone(&fps_arc);
     let handle_fps = Arc::clone(&fps_arc);
     let (stop_tx, stop_rx) = std::sync::mpsc::sync_channel::<()>(1);
-    let (frame_tx, frame_rx) = tokio::sync::mpsc::channel::<(Vec<u8>, Duration)>(FRAME_QUEUE);
 
-    tokio::spawn(run_writer(publication, frame_rx));
+    // One channel and one writer per layer. The pump owns the sending halves; the receiving halves
+    // are split so that only the top layer's writer holds the publication, and therefore only the
+    // top layer can end the share.
+    let mut pump_layers: Vec<PumpLayer> = Vec::with_capacity(layer_count);
+    let mut lower_writers = Vec::with_capacity(layer_count.saturating_sub(1));
+    let mut top_frame_rx = None;
+
+    for (index, (encoder, rung)) in encoders.into_iter().zip(ladder.iter()).enumerate() {
+        let (frame_tx, frame_rx) = tokio::sync::mpsc::channel::<(Vec<u8>, Duration)>(FRAME_QUEUE);
+        pump_layers.push(PumpLayer {
+            encoder,
+            frame_tx,
+            width: rung.spec.width,
+            height: rung.spec.height,
+        });
+        if index == 0 {
+            top_frame_rx = Some(frame_rx);
+        } else {
+            lower_writers.push((Arc::clone(&layer_tracks[index]), frame_rx));
+        }
+    }
+
+    eprintln!(
+        "[publisher] publishing {} layer(s): {}",
+        layer_count,
+        ladder
+            .iter()
+            .take(layer_count)
+            .map(|l| format!("{}={}x{}@{}k", l.rid, l.spec.width, l.spec.height, l.spec.kbps))
+            .collect::<Vec<_>>()
+            .join(" "),
+    );
+
+    // The top layer owns the publication and therefore the share's lifetime.
+    tokio::spawn(run_writer(
+        publication,
+        top_frame_rx.expect("a ladder always has a top layer"),
+    ));
+    for (track, frame_rx) in lower_writers {
+        tokio::spawn(run_layer_writer(track, frame_rx));
+    }
 
     // The audio writer is its own task and deliberately not part of `run_writer`. The two have
     // different failure meanings: a run of failed *video* writes means the connection is gone and
@@ -371,13 +470,10 @@ pub async fn start(
     let local_stream_on = Arc::new(AtomicBool::new(on_local_stream.is_some()));
 
     let mut pump = FramePump::new(
-        width,
-        height,
+        pump_layers,
         fps_arc,
-        encoder,
         Arc::clone(&keyframe_requests),
         on_preview,
-        frame_tx,
     );
     if let Some(channel) = on_local_stream {
         pump = pump.with_local_stream(Box::new(channel), Arc::clone(&local_stream_on));
@@ -429,6 +525,46 @@ mod tests {
     use super::*;
     use std::sync::atomic::AtomicBool;
     use std::time::Instant;
+
+    fn layer_spec(width: u32, height: u32) -> EncoderSpec {
+        EncoderSpec {
+            width,
+            height,
+            fps: 30,
+            kbps: 8000,
+            content: EncoderContent::Text,
+        }
+    }
+
+    #[test]
+    fn a_full_size_share_asks_for_a_whole_ladder() {
+        assert_eq!(desired_layer_count(layer_spec(1920, 1080)), 3);
+    }
+
+    #[test]
+    fn a_share_too_small_to_ladder_asks_for_fewer_layers() {
+        // 320x180 quarters to 80x45, under the floor, so there is no third rung to ask for.
+        assert_eq!(desired_layer_count(layer_spec(320, 180)), 2);
+        assert_eq!(desired_layer_count(layer_spec(160, 90)), 1);
+    }
+
+    /// The kill switch. Simulcast triples the encode cost on the sharer's machine and cannot be
+    /// proved without a second machine and a live SFU, so there has to be a way back that is not a
+    /// release.
+    ///
+    /// <p>Serialised against the other env-var readers by running in the same test, because Rust
+    /// runs tests in threads of one process and a var set here is visible to all of them.</p>
+    #[test]
+    fn the_env_var_forces_a_single_layer() {
+        assert_eq!(desired_layer_count(layer_spec(1920, 1080)), 3);
+
+        std::env::set_var("VENTA_DISABLE_SIMULCAST", "1");
+        let disabled = desired_layer_count(layer_spec(1920, 1080));
+        std::env::remove_var("VENTA_DISABLE_SIMULCAST");
+
+        assert_eq!(disabled, 1, "the kill switch did not take the ladder to one layer");
+        assert_eq!(desired_layer_count(layer_spec(1920, 1080)), 3, "the switch did not clear");
+    }
 
     /// A handle wired to a thread that behaves like the capture loop: it notices the stop, finishes
     /// the frame it is in the middle of, and only then returns.

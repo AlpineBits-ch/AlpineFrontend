@@ -25,6 +25,7 @@ use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSampl
 use webrtc::track::track_local::TrackLocal;
 
 use super::signalling::{LocalTrack, SessionDescription, Signalling, VideoIntent};
+use super::simulcast::LAYER_RIDS;
 use crate::media::voice::rtc::opus_capability;
 
 /// One ICE server, mirroring the browser's `RTCIceServer`.
@@ -107,7 +108,10 @@ pub trait FrameSink: Send + Sync + 'static {
 /// need in order to subscribe.
 pub struct Publication {
     peer_connection: Arc<RTCPeerConnection>,
-    track: Arc<TrackLocalStaticSample>,
+    /// The simulcast layers, highest first. Index 0 is rid `a` and is what every non-simulcast path
+    /// in this file means when it says "the track": it carries the `FrameSink` writes and its
+    /// failure is the share's failure. One element is the pre-simulcast publication.
+    tracks: Vec<Arc<TrackLocalStaticSample>>,
     signalling: Signalling,
     /// Set when a viewer asks for a keyframe over RTCP, cleared when the encoder produces one.
     ///
@@ -143,6 +147,36 @@ impl Publication {
         Arc::clone(&self.keyframe_wanted)
     }
 
+    /// The layer tracks, highest first. Index 0 is rid `a`.
+    ///
+    /// Handed out for the same reason [`Self::audio_track`] is: the publication is moved into the
+    /// top layer's writer task, and the lower layers' writers are separate tasks that never hold
+    /// it.
+    pub fn layer_tracks(&self) -> Vec<Arc<TrackLocalStaticSample>> {
+        self.tracks.clone()
+    }
+
+    /// Hand one encoded access unit to a specific layer's packetiser.
+    ///
+    /// Free-standing rather than part of [`FrameSink`] because the lower layers have no say in the
+    /// publication's lifetime - only the top layer's writer may end the share, and `FrameSink`
+    /// carries `stop`.
+    pub async fn write_layer(
+        track: &Arc<TrackLocalStaticSample>,
+        data: Vec<u8>,
+        duration: Duration,
+    ) -> Result<(), String> {
+        track
+            .write_sample(&Sample {
+                data: data.into(),
+                timestamp: SystemTime::now(),
+                duration,
+                ..Default::default()
+            })
+            .await
+            .map_err(|e| e.to_string())
+    }
+
     /// Open a Cloudflare session and publish an H.264 track named `screen-<share_id>`.
     ///
     /// Deliberately mirrors the webview's publish path so subscribers cannot tell the difference:
@@ -157,6 +191,7 @@ impl Publication {
         ice_servers: Vec<IceServerConfig>,
         with_audio: bool,
         video: Option<VideoIntent>,
+        layer_count: usize,
     ) -> Result<Self, String> {
         let api = publisher_api()?;
 
@@ -180,16 +215,47 @@ impl Publication {
         );
 
         let track_name = format!("screen-{share_id}");
-        let track = Arc::new(TrackLocalStaticSample::new(
-            h264_capability(),
-            "video".to_owned(),
-            track_name.clone(),
-        ));
+        let layer_count = layer_count.clamp(1, LAYER_RIDS.len());
+
+        // One layer keeps the pre-simulcast constructor. A rid on a lone encoding writes no rid or
+        // simulcast attribute into the SDP either way - webrtc-rs emits those only for a sender
+        // holding more than one - but going through the same call the previous release did is what
+        // makes "drop to one layer" a true rollback rather than a similar-looking path.
+        let mut layer_tracks: Vec<Arc<TrackLocalStaticSample>> = Vec::with_capacity(layer_count);
+        if layer_count == 1 {
+            layer_tracks.push(Arc::new(TrackLocalStaticSample::new(
+                h264_capability(),
+                "video".to_owned(),
+                track_name.clone(),
+            )));
+        } else {
+            // Every layer shares `id` and `stream_id` and differs only by rid: `add_encoding`
+            // rejects any other combination, and the base track must itself carry a rid or it
+            // refuses with ErrRTPSenderNoBaseEncoding.
+            for rid in LAYER_RIDS.iter().take(layer_count) {
+                layer_tracks.push(Arc::new(TrackLocalStaticSample::new_with_rid(
+                    h264_capability(),
+                    "video".to_owned(),
+                    (*rid).to_owned(),
+                    track_name.clone(),
+                )));
+            }
+        }
 
         let rtp_sender = peer_connection
-            .add_track(Arc::clone(&track) as Arc<dyn TrackLocal + Send + Sync>)
+            .add_track(Arc::clone(&layer_tracks[0]) as Arc<dyn TrackLocal + Send + Sync>)
             .await
             .map_err(|e| e.to_string())?;
+
+        // Every encoding has to be attached before the offer is created and before anything is
+        // written: the sender refuses one afterwards (ErrRTPSenderSendAlreadyCalled), and the SDP
+        // is generated from whatever is attached at that moment.
+        for track in layer_tracks.iter().skip(1) {
+            rtp_sender
+                .add_encoding(Arc::clone(track) as Arc<dyn TrackLocal + Send + Sync>)
+                .await
+                .map_err(|e| format!("could not attach a simulcast layer: {e}"))?;
+        }
 
         // The audio half. Added before the offer so both m-lines are in one negotiation.
         let audio_track_name = with_audio.then(|| format!("screen-audio-{share_id}"));
@@ -326,7 +392,7 @@ impl Publication {
 
         let publication = Self {
             peer_connection,
-            track,
+            tracks: layer_tracks,
             signalling,
             keyframe_wanted,
             media_session_id,
@@ -380,7 +446,7 @@ impl Publication {
 impl FrameSink for Publication {
     /// Hand one encoded access unit to the packetiser.
     async fn write_frame(&self, data: Vec<u8>, duration: Duration) -> Result<(), String> {
-        self.track
+        self.tracks[0]
             .write_sample(&Sample {
                 data: data.into(),
                 timestamp: SystemTime::now(),

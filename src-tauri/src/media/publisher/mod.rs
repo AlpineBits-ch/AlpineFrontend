@@ -28,6 +28,7 @@ pub mod openh264_blob;
 pub mod pump;
 pub mod rtc;
 pub mod session;
+pub mod simulcast;
 pub mod signalling;
 
 /// Frames in one end, RTP out the other, with the backend mocked over real HTTP.
