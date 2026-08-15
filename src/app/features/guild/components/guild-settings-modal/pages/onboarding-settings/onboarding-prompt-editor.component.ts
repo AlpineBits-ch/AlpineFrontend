@@ -65,8 +65,21 @@ export class OnboardingPromptEditorComponent {
 
     save = output<OnboardingPrompt>();
 
-    protected readonly OnboardingPromptType = OnboardingPromptType;
-    protected readonly limits = ONBOARDING_LIMITS;
+    /**
+     * Getters, not `readonly` fields. A field whose initialiser is a bare imported identifier is
+     * snapshotted by Vite's SSR transform: it hoists `const ONBOARDING_LIMITS = <import>` above the
+     * class instead of rewriting the reference in place. Once the test bundle is code-split, the DTO
+     * lands in its own lazily initialised chunk and that snapshot is taken before the chunk has run,
+     * so the field reads `undefined` and every template binding through it throws. Reading inside a
+     * function body defers it.
+     */
+    protected get OnboardingPromptType() {
+        return OnboardingPromptType;
+    }
+
+    protected get limits() {
+        return ONBOARDING_LIMITS;
+    }
 
     protected draft = signal<OnboardingPrompt>(this.emptyPrompt());
     protected showValidation = signal(false);

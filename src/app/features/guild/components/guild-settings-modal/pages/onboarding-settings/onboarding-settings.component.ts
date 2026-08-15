@@ -38,7 +38,10 @@ export class OnboardingSettingsComponent implements OnInit {
     /** Lets the settings shell warn before navigating away from unsaved edits. */
     dirtyChange = output<boolean>();
 
-    protected readonly limits = ONBOARDING_LIMITS;
+    /** A getter for the reason spelled out in onboarding-prompt-editor.component.ts. */
+    protected get limits() {
+        return ONBOARDING_LIMITS;
+    }
 
     protected loading = signal(true);
     protected saving = signal(false);

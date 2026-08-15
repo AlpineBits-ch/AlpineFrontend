@@ -80,7 +80,17 @@ export class InvitesSettingsComponent implements OnInit {
      * and is server-corrected, so a machine with a wrong local clock still greys out the right rows.
      */
     clock = inject(MinuteClockService);
-    protected InviteType = InviteType;
+    /**
+     * A getter, not `protected InviteType = InviteType`. A field whose initialiser is a bare
+     * imported identifier is snapshotted by Vite's SSR transform: it hoists
+     * `const InviteType = <import>` above the class instead of rewriting the reference in place.
+     * Once the test bundle is code-split, the DTO lands in its own lazily initialised chunk and
+     * that snapshot is taken before the chunk has run, so the field reads `undefined` and every
+     * template binding through it throws. Reading inside a function body defers it.
+     */
+    protected get InviteType() {
+        return InviteType;
+    }
     protected expiryPresetOptions = computed(() =>
         EXPIRY_PRESETS.map(p => ({value: p.id, label: this.translate.instant(p.labelKey)})));
     /**
