@@ -71,6 +71,17 @@ describe('ScreenPickerService', () => {
         expect(picker().lastPreset()).toEqual({resolution: '720p', framerate: 15});
     });
 
+    /**
+     * The in-call quality bar's path. It is the only place a preset is chosen now - the pre-share
+     * dialog stopped asking - so a change made there has to survive the share that was running when
+     * it was made, or every share opens at the default however often the bar is used.
+     */
+    it('remembers a preset set outside the dialog', () => {
+        picker().rememberPreset({resolution: '1440p', framerate: 60});
+
+        expect(picker().lastPreset()).toEqual({resolution: '1440p', framerate: 60});
+    });
+
     it('defaults to 1080p30 with no stored preset', () => {
         expect(picker().lastPreset()).toEqual({resolution: '1080p', framerate: 30});
     });

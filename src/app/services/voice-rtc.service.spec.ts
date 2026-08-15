@@ -90,7 +90,9 @@ beforeEach(() => {
             // `publishEnded$` is not optional garnish: the service subscribes it at construction,
             // so a bare `{}` here is a stub that could not stand the real service up.
             {provide: RustMediaService, useValue: {publishEnded$: publishEnded}},
-            {provide: ScreenPickerService, useValue: {}},
+            // `rememberPreset` is called by every quality change, so a bare `{}` would throw on the
+            // first one: the picker is where the chosen preset is persisted for the next share.
+            {provide: ScreenPickerService, useValue: {rememberPreset: () => undefined}},
             {
                 provide: DeviceIdentityService,
                 useValue: {

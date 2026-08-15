@@ -70,6 +70,25 @@ export class ScreenPickerService {
         this.pendingPreference = activityName;
     }
 
+    /**
+     * Record a preset as the one to open the next share at.
+     *
+     * <p>Called from the in-call quality bar as well as from {@link select}. The bar is now the only
+     * place a preset is <i>chosen</i> - the pre-share dialog stopped asking - so without this the
+     * quality control would be forgotten the moment the share ended and every share would open at
+     * whatever was last written, or the default.</p>
+     *
+     * <p>What is stored is what the user asked for, never a room-clamped version of it. The clamp is
+     * the room's business and it is applied on every publish anyway; persisting it would let one
+     * share in a 720p channel permanently downgrade a preference the next channel could honour.</p>
+     */
+    rememberPreset(preset: StreamPreset): void {
+        try {
+            localStorage.setItem(PRESET_KEY, JSON.stringify(preset));
+        } catch { /* storage unavailable */
+        }
+    }
+
     /** The preset used for the previous share, so the picker can preselect it. */
     lastPreset(): StreamPreset {
         try {
@@ -200,10 +219,7 @@ export class ScreenPickerService {
 
     select(choice: ScreenPickerChoice): void {
         this.visible.set(false);
-        try {
-            localStorage.setItem(PRESET_KEY, JSON.stringify(choice.preset));
-        } catch { /* storage unavailable */
-        }
+        this.rememberPreset(choice.preset);
         this.resolvePickerPromise?.(choice);
         this.resolvePickerPromise = null;
     }

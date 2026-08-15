@@ -349,6 +349,9 @@ export class CallSessionService {
         const previous = this.screenPreset();
         if (!previous) return;
         this.screenPreset.set(preset);
+        // The bar is where quality is chosen now - the pre-share dialog only picks a source - so the
+        // choice has to outlive the share. See `ScreenPickerService.rememberPreset`.
+        this.screenPicker.rememberPreset(preset);
 
         if (this.rustPublishing) {
             // Framerate is live - the capture loop re-reads it every frame.

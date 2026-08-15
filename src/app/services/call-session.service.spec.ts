@@ -40,7 +40,9 @@ function setup() {
             {provide: DeviceIdentityService, useValue: {deviceId: async () => 'device-abc'}},
             {provide: AudioSettingsService, useValue: {settings: () => ({})}},
             {provide: RustMediaService, useValue: {}},
-            {provide: ScreenPickerService, useValue: {}},
+            // `rememberPreset` is called by every quality change, so a bare `{}` would throw on the
+            // first one: the picker is where the chosen preset is persisted for the next share.
+            {provide: ScreenPickerService, useValue: {rememberPreset: () => undefined}},
         ],
     });
 

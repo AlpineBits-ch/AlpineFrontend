@@ -16,7 +16,7 @@
                 <div>
                     <h2 class="text-sm font-semibold text-text-primary">Share your screen</h2>
                     <p class="text-xs text-text-muted mt-0.5">
-                        {{ step() === 'quality' ? 'Choose the quality to stream at' : 'Pick a screen or application to share' }}
+                        Pick a screen or application to start sharing
                     </p>
                 </div>
                 <button (click)="cancel()"
@@ -26,9 +26,13 @@
                 </button>
             </div>
 
-            @if (step() === 'source') {
-                <!-- Tabs -->
-                <div class="flex gap-1 px-5 pt-3 shrink-0">
+            <!-- Tabs, and the one setting that has to be decided before the share starts.
+
+                 Quality used to live on a second step here. It is on the call bar instead, where it
+                 can be changed while watching the result. Audio cannot: asking for no audio means no
+                 track is published, and the in-call mute button needs a track to mute. -->
+            <div class="flex items-center justify-between gap-3 px-5 pt-3 shrink-0">
+                <div class="flex gap-1">
                     <button (click)="activeTab.set('monitors')"
                             [class.bg-brand]="activeTab() === 'monitors'"
                             [class.hover:text-text-secondary]="activeTab() !== 'monitors'"
@@ -47,184 +51,101 @@
                     </button>
                 </div>
 
-                <!-- Source grid -->
-                <div class="flex-1 overflow-y-auto px-5 py-3 min-h-0 thin-scrollbar">
-
-                    @if (picker.loading()) {
-                        <div class="flex flex-col items-center justify-center gap-3 py-12 text-text-muted">
-                            <i class="pi pi-spin pi-spinner text-2xl"></i>
-                            <!-- No longer "capturing previews": this step is metadata only, and
-                                 each tile fetches its own image once it is on screen. -->
-                            <span class="text-xs">Finding screens and windows…</span>
-                        </div>
-                    } @else {
-                        @let list = activeTab() === 'monitors' ? monitors : windows;
-
-                        @if (list.length === 0) {
-                            <div class="flex flex-col items-center justify-center gap-2 py-12 text-text-muted">
-                                <i class="pi pi-desktop text-2xl"></i>
-                                <span class="text-xs">No {{ activeTab() === 'monitors' ? 'screens' : 'applications' }}
-                                    found</span>
-                            </div>
-                        } @else {
-                            <!-- Two per row, every tile the same size. A grid that took each
-                                 source's own aspect ratio made every tile a different height, so
-                                 the rows never lined up and nothing could be compared at a glance. -->
-                            <div class="grid grid-cols-2 gap-3">
-                                @for (source of list; track source.id) {
-                                    <button (appInView)="picker.requestThumbnail(source.id)"
-                                            (click)="select(source)"
-                                            [class.border-border-subtle]="selectedSource()?.id !== source.id"
-                                            [class.border-brand]="selectedSource()?.id === source.id"
-                                            [class.ring-1]="selectedSource()?.id === source.id"
-                                            [class.ring-brand]="selectedSource()?.id === source.id"
-                                            class="relative flex flex-col rounded-xl border-2 overflow-hidden
-                         transition-all cursor-pointer group text-left">
-
-                                        <!-- A fixed 16:9 box for every source, whatever shape it
-                                             really is, and the image fills it. Letterboxing to the
-                                             source's own ratio left every preview a different size
-                                             inside its tile, which reads as a broken grid even when
-                                             the tiles themselves line up. An ultrawide loses a
-                                             sliver of its edges here; the tab is for recognising a
-                                             window, and the quality step states the real geometry. -->
-                                        <div class="relative w-full bg-black/40" style="aspect-ratio: 16/9">
-                                            @if (thumbSrc(source); as src) {
-                                                <img [src]="src"
-                                                     alt=""
-                                                     class="w-full h-full object-cover"/>
-                                            } @else if (isThumbnailPending(source)) {
-                                                <!-- Asked for and not back yet. A spinner rather
-                                                     than the icon below, which would otherwise
-                                                     flash on every tile that scrolls into view. -->
-                                                <div class="flex items-center justify-center w-full h-full text-text-muted">
-                                                    <i class="pi pi-spin pi-spinner text-lg opacity-40"></i>
-                                                </div>
-                                            } @else {
-                                                <div class="flex items-center justify-center w-full h-full text-text-muted">
-                                                    <i [ngClass]="source.isMonitor ? 'pi-desktop' : 'pi-window-maximize'"
-                                                       class="pi text-2xl"></i>
-                                                </div>
-                                            }
-                                            <!-- Selection tick -->
-                                            @if (selectedSource()?.id === source.id) {
-                                                <div class="absolute top-1.5 right-1.5 flex items-center justify-center
-                                  w-5 h-5 rounded-full bg-brand">
-                                                    <i class="pi pi-check text-[0.625rem] text-white"></i>
-                                                </div>
-                                            }
-                                        </div>
-
-                                        <!-- Label -->
-                                        <div class="px-2.5 py-2 bg-card">
-                                            <p class="text-xs font-medium text-text-primary truncate leading-snug">{{ source.name }}</p>
-                                            @if (source.isMonitor) {
-                                                <p class="text-[0.625rem] text-text-muted mt-0.5">{{ source.width }}
-                                                    ×{{ source.height }}</p>
-                                            }
-                                        </div>
-                                    </button>
-                                }
-                            </div>
-                        }
-                    }
-                </div>
-            } @else {
-                <!-- Quality step -->
-                <div class="flex-1 overflow-y-auto min-h-0 flex flex-col gap-5 px-5 py-4 thin-scrollbar">
-                    <div class="flex flex-col gap-2">
-                        <div class="flex items-center justify-between">
-                            <label class="text-xs font-medium text-text-muted uppercase tracking-wide">Resolution</label>
-                            <span class="text-[0.625rem] text-text-muted tabular-nums">{{ outputLabel() }}</span>
-                        </div>
-                        <!-- Options the granted rung does not reach stay drawn and stop working.
-                             Removing them would leave a picker that silently has fewer buttons on
-                             one server than on another, with nothing on screen saying why. -->
-                        <div class="flex gap-2" data-testid="resolution-options">
-                            @for (r of resolutions; track r.value) {
-                                <button (click)="chooseResolution(r.value)"
-                                        [attr.title]="resolutionAllowed(r.value)
-                                            ? null
-                                            : ('CALL.ABOVE_PLAN' | translate)"
-                                        [class.bg-brand]="resolution() === r.value"
-                                        [class.cursor-not-allowed]="!resolutionAllowed(r.value)"
-                                        [class.cursor-pointer]="resolutionAllowed(r.value)"
-                                        [class.line-through]="!resolutionAllowed(r.value)"
-                                        [class.opacity-40]="!resolutionAllowed(r.value)"
-                                        [class.text-text-muted]="resolution() !== r.value"
-                                        [class.text-white]="resolution() === r.value"
-                                        [disabled]="!resolutionAllowed(r.value)"
-                                        class="flex-1 px-3 py-2 rounded-lg text-xs font-medium border border-border-subtle
-                                               transition-colors">
-                                    {{ r.label }}
-                                </button>
-                            }
-                        </div>
-                    </div>
-
-                    <div class="flex flex-col gap-2">
-                        <label class="text-xs font-medium text-text-muted uppercase tracking-wide">Frame Rate</label>
-                        <!-- A lower framerate is legal on every rung above `none`, so this only ever
-                             cuts the top off: 15 FPS is never disabled by a ceiling. -->
-                        <div class="flex gap-2" data-testid="framerate-options">
-                            @for (f of framerates; track f) {
-                                <button (click)="chooseFramerate(f)"
-                                        [attr.title]="framerateAllowed(f)
-                                            ? null
-                                            : ('CALL.ABOVE_PLAN' | translate)"
-                                        [class.bg-brand]="framerate() === f"
-                                        [class.cursor-not-allowed]="!framerateAllowed(f)"
-                                        [class.cursor-pointer]="framerateAllowed(f)"
-                                        [class.line-through]="!framerateAllowed(f)"
-                                        [class.opacity-40]="!framerateAllowed(f)"
-                                        [class.text-text-muted]="framerate() !== f"
-                                        [class.text-white]="framerate() === f"
-                                        [disabled]="!framerateAllowed(f)"
-                                        class="flex-1 px-3 py-2 rounded-lg text-xs font-medium border border-border-subtle
-                                               transition-colors">
-                                    {{ f }} FPS
-                                </button>
-                            }
-                        </div>
-                    </div>
-
-                    <label class="flex items-center justify-between bg-white/[0.03] border border-border-subtle
-                                  rounded-xl px-4 py-3 cursor-pointer">
-                        <div>
-                            <p class="text-sm text-text-primary">Share system audio</p>
-                            <p class="text-xs text-text-muted mt-0.5">Include sound playing on this computer</p>
-                        </div>
-                        <p-toggleswitch (ngModelChange)="shareAudio.set($event)" [ngModel]="shareAudio()"/>
+                <div class="flex items-center gap-2">
+                    <p-checkbox (ngModelChange)="shareAudio.set($event)"
+                                [binary]="true"
+                                [ngModel]="shareAudio()"
+                                inputId="share-system-audio"
+                                size="small"/>
+                    <label class="text-xs text-text-secondary cursor-pointer" for="share-system-audio">
+                        Share system audio
                     </label>
                 </div>
-            }
+            </div>
 
-            <!-- Live preview -shown when a source is selected and 1 fps capture is running -->
-            @if (previewStream()) {
-                <div class="shrink-0 px-5 pb-3">
-                    <p class="text-[0.625rem] font-medium text-text-muted mb-1.5 uppercase tracking-wide">Preview</p>
-                    <div class="relative w-full bg-black rounded-xl overflow-hidden" style="aspect-ratio:16/9">
-                        <video #livePreview autoplay class="w-full h-full object-contain" muted
-                               playsinline></video>
+            <!-- Source grid. A tile is the whole interaction: clicking one goes live. -->
+            <div class="flex-1 overflow-y-auto px-5 py-3 min-h-0 thin-scrollbar">
+
+                @if (picker.loading()) {
+                    <div class="flex flex-col items-center justify-center gap-3 py-12 text-text-muted">
+                        <i class="pi pi-spin pi-spinner text-2xl"></i>
+                        <!-- No longer "capturing previews": this step is metadata only, and
+                             each tile fetches its own image once it is on screen. -->
+                        <span class="text-xs">Finding screens and windows…</span>
                     </div>
-                </div>
-            }
+                } @else {
+                    @let list = activeTab() === 'monitors' ? monitors : windows;
 
-            <!-- Footer -->
-            <div class="flex items-center justify-between px-5 py-3.5 border-t border-border-subtle shrink-0">
-                <button (click)="step() === 'quality' ? back() : cancel()"
-                        class="px-4 py-1.5 rounded-lg text-xs font-medium text-text-secondary
-                 border border-border-subtle hover:bg-white/[0.05] transition-colors cursor-pointer">
-                    {{ step() === 'quality' ? 'Back' : 'Cancel' }}
-                </button>
-                <button (click)="step() === 'quality' ? goLive() : toQuality()"
-                        [class.cursor-not-allowed]="!selectedSource()"
-                        [class.opacity-40]="!selectedSource()"
-                        [disabled]="!selectedSource()"
-                        class="px-4 py-1.5 rounded-lg text-xs font-semibold bg-brand text-white
-                               hover:bg-brand-hover transition-colors cursor-pointer">
-                    {{ step() === 'quality' ? 'Go Live' : 'Next' }}
-                </button>
+                    @if (list.length === 0) {
+                        <div class="flex flex-col items-center justify-center gap-2 py-12 text-text-muted">
+                            <i class="pi pi-desktop text-2xl"></i>
+                            <span class="text-xs">No {{ activeTab() === 'monitors' ? 'screens' : 'applications' }}
+                                found</span>
+                        </div>
+                    } @else {
+                        <!-- Two per row, every tile the same size. A grid that took each
+                             source's own aspect ratio made every tile a different height, so
+                             the rows never lined up and nothing could be compared at a glance. -->
+                        <div class="grid grid-cols-2 gap-3">
+                            @for (source of list; track source.id) {
+                                <button (appInView)="picker.requestThumbnail(source.id)"
+                                        (click)="select(source)"
+                                        [class.border-border-subtle]="suggestedSourceId() !== source.id"
+                                        [class.border-brand]="suggestedSourceId() === source.id"
+                                        class="relative flex flex-col rounded-xl border-2 overflow-hidden
+                     hover:border-brand transition-all cursor-pointer group text-left">
+
+                                    <!-- A fixed 16:9 box for every source, whatever shape it
+                                         really is, and the image fills it. Letterboxing to the
+                                         source's own ratio left every preview a different size
+                                         inside its tile, which reads as a broken grid even when
+                                         the tiles themselves line up. An ultrawide loses a
+                                         sliver of its edges here; the tab is for recognising a
+                                         window, not for judging its geometry. -->
+                                    <div class="relative w-full bg-black/40" style="aspect-ratio: 16/9">
+                                        @if (thumbSrc(source); as src) {
+                                            <img [src]="src"
+                                                 alt=""
+                                                 class="w-full h-full object-cover"/>
+                                        } @else if (isThumbnailPending(source)) {
+                                            <!-- Asked for and not back yet. A spinner rather
+                                                 than the icon below, which would otherwise
+                                                 flash on every tile that scrolls into view. -->
+                                            <div class="flex items-center justify-center w-full h-full text-text-muted">
+                                                <i class="pi pi-spin pi-spinner text-lg opacity-40"></i>
+                                            </div>
+                                        } @else {
+                                            <div class="flex items-center justify-center w-full h-full text-text-muted">
+                                                <i [ngClass]="source.isMonitor ? 'pi-desktop' : 'pi-window-maximize'"
+                                                   class="pi text-2xl"></i>
+                                            </div>
+                                        }
+
+                                        <!-- The activity hint's tile. A suggestion, not a
+                                             selection: it says "this is probably the one",
+                                             and the click that starts the share is still the
+                                             user's. -->
+                                        @if (suggestedSourceId() === source.id) {
+                                            <div class="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-full
+                                                        bg-brand text-[0.625rem] font-medium text-white">
+                                                Suggested
+                                            </div>
+                                        }
+                                    </div>
+
+                                    <!-- Label -->
+                                    <div class="px-2.5 py-2 bg-card">
+                                        <p class="text-xs font-medium text-text-primary truncate leading-snug">{{ source.name }}</p>
+                                        @if (source.isMonitor) {
+                                            <p class="text-[0.625rem] text-text-muted mt-0.5">{{ source.width }}
+                                                ×{{ source.height }}</p>
+                                        }
+                                    </div>
+                                </button>
+                            }
+                        </div>
+                    }
+                }
             </div>
         </div>
     </div>

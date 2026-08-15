@@ -1352,6 +1352,9 @@ export class VoiceRTCService {
         // hotkey, which passes through no picker at all.
         const preset = clampPreset(requested, this.voiceLimits.videoCeiling());
         this.screenPreset.set(preset);
+        // The bar is where quality is chosen now - the pre-share dialog only picks a source - so the
+        // choice has to outlive the share. `requested`, not `preset`: see `rememberPreset`.
+        this.screenPicker.rememberPreset(requested);
 
         if (this.rustPublishing) {
             // Framerate is live - the capture loop re-reads it every frame.
