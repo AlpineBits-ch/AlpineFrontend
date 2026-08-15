@@ -1,4 +1,6 @@
+import {StreamContent} from '../../models/stream-preset';
 import {
+    PublishSpec,
     ScreenPublishOptions,
     ScreenPublishResult,
     ScreenPublisher,
@@ -61,7 +63,7 @@ export class FakeScreenPublisher extends ScreenPublisher {
      * change that lands here and leaves {@link stopped} and {@link started} untouched is one no
      * viewer was ever told about.</p>
      */
-    readonly geometryChanges: [string, number, number, number][] = [];
+    readonly geometryChanges: [string, number, number, number, StreamContent][] = [];
 
     /** Every share-audio mute, as `[shareId, muted]`. */
     readonly audioMutes: [string, boolean][] = [];
@@ -106,8 +108,8 @@ export class FakeScreenPublisher extends ScreenPublisher {
         this.fpsChanges.push([shareId, fps]);
     }
 
-    async setGeometry(shareId: string, width: number, height: number, kbps: number): Promise<void> {
-        this.geometryChanges.push([shareId, width, height, kbps]);
+    async setSpec(shareId: string, spec: PublishSpec): Promise<void> {
+        this.geometryChanges.push([shareId, spec.width, spec.height, spec.kbps, spec.content]);
     }
 
     async setAudioMuted(shareId: string, muted: boolean): Promise<void> {

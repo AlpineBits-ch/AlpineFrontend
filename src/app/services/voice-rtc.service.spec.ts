@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Subscribing to a remote audio track races the publisher's handshake.
  *
  * The backend announces a participant as soon as Cloudflare accepts their `tracks/new` - one SDP
@@ -583,12 +583,12 @@ describe('a subscribe onto a session the server calls spent', () => {
  * the two calls that would change the share id, and a resolution change must touch neither.</p>
  */
 describe('changing resolution mid-share', () => {
-    const preset = {resolution: '1440p', framerate: 30} as const;
+    const preset = {resolution: '1440p', framerate: 30, content: 'text'} as const;
 
     interface Publisher {
         stopScreenPublish: ReturnType<typeof vi.fn>;
         startScreenPublish: ReturnType<typeof vi.fn>;
-        setPublishGeometry: ReturnType<typeof vi.fn>;
+        setPublishSpec: ReturnType<typeof vi.fn>;
         setPublishFps: ReturnType<typeof vi.fn>;
     }
 
@@ -596,7 +596,7 @@ describe('changing resolution mid-share', () => {
         const rustMedia = TestBed.inject(RustMediaService) as unknown as Record<string, unknown>;
         rustMedia['stopScreenPublish'] = vi.fn(async () => undefined);
         rustMedia['startScreenPublish'] = vi.fn();
-        rustMedia['setPublishGeometry'] = vi.fn(async () => undefined);
+        rustMedia['setPublishSpec'] = vi.fn(async () => undefined);
         rustMedia['setPublishFps'] = vi.fn(async () => undefined);
 
         // The state a running Rust publish leaves behind, reached into directly rather than stood
@@ -605,9 +605,9 @@ describe('changing resolution mid-share', () => {
             rustPublishing: true,
             screenShareId: 'live-share',
             screenSourceSize: {width: 1920, height: 1080},
-            rustChoice: {sourceId: 'monitor:0', sourceWidth: 1920, sourceHeight: 1080, preset: {resolution: '1080p', framerate: 30}, shareAudio: false},
+            rustChoice: {sourceId: 'monitor:0', sourceWidth: 1920, sourceHeight: 1080, preset: {resolution: '1080p', framerate: 30, content: 'text'}, shareAudio: false},
         });
-        service.screenPreset.set({resolution: '1080p', framerate: 30});
+        service.screenPreset.set({resolution: '1080p', framerate: 30, content: 'text'});
         return rustMedia as unknown as Publisher;
     }
 
@@ -616,7 +616,7 @@ describe('changing resolution mid-share', () => {
 
         await service.setScreenPreset(preset);
 
-        expect(rustMedia.setPublishGeometry).toHaveBeenCalled();
+        expect(rustMedia.setPublishSpec).toHaveBeenCalled();
         expect(rustMedia.stopScreenPublish).not.toHaveBeenCalled();
         expect(rustMedia.startScreenPublish).not.toHaveBeenCalled();
     });
@@ -638,19 +638,43 @@ describe('changing resolution mid-share', () => {
 
         await service.setScreenPreset(preset);
 
-        const [width, height, kbps] = rustMedia.setPublishGeometry.mock.calls[0]!;
+        const [{width, height, kbps}] = rustMedia.setPublishSpec.mock.calls[0]!;
         expect(width % 2).toBe(0);
         expect(height % 2).toBe(0);
         expect(kbps).toBe(bitrateFor(preset));
     });
 
+    /**
+     * The content mode changes no number the encoder is built from, so it reaches neither the
+     * framerate branch nor the resolution one. Without its own trigger the bar's mode row would look
+     * live and do nothing until the next share - the failure this test exists for.
+     */
+    it('retypes the encoder when only the content mode moves', async () => {
+        const rustMedia = sharing();
+
+        await service.setScreenPreset({resolution: '1080p', framerate: 30, content: 'games'});
+
+        expect(rustMedia.setPublishSpec).toHaveBeenCalledTimes(1);
+        expect(rustMedia.setPublishSpec.mock.calls[0]![0]).toMatchObject({content: 'games'});
+    });
+
+    /** The mode travels with the geometry, so a change to both is still one retype. */
+    it('sends the mode alongside the geometry when both move', async () => {
+        const rustMedia = sharing();
+
+        await service.setScreenPreset({resolution: '1440p', framerate: 30, content: 'games'});
+
+        expect(rustMedia.setPublishSpec).toHaveBeenCalledTimes(1);
+        expect(rustMedia.setPublishSpec.mock.calls[0]![0]).toMatchObject({content: 'games'});
+    });
+
     it('leaves the publish alone when only the framerate moves', async () => {
         const rustMedia = sharing();
 
-        await service.setScreenPreset({resolution: '1080p', framerate: 60});
+        await service.setScreenPreset({resolution: '1080p', framerate: 60, content: 'text'});
 
         expect(rustMedia.setPublishFps).toHaveBeenCalledWith(60);
-        expect(rustMedia.setPublishGeometry).not.toHaveBeenCalled();
+        expect(rustMedia.setPublishSpec).not.toHaveBeenCalled();
         expect(rustMedia.stopScreenPublish).not.toHaveBeenCalled();
     });
 
@@ -707,7 +731,7 @@ describe('a share the publisher ended by itself', () => {
 
 /**
  * The guild-side twin of `CallWebRtcService`'s inbound fps test: `pollStats` reads
- * `CallScreenShare.inboundFps` off `getStats()`, routed through the mid → {userId, kind} map
+ * `CallScreenShare.inboundFps` off `getStats()`, routed through the mid â†’ {userId, kind} map
  * `subscribeVideo` writes. Reached into as private state rather than driven through a full
  * subscribe, for the same reason as the DM side - the stub `RTCPeerConnection` above hands out a
  * fixed mid, which cannot stand up two shares side by side.
@@ -908,32 +932,32 @@ describe('a quality change against a granted rung', () => {
             participants: [],
             limits: {videoCeiling: {kind: 'ladder', rung, rank: 2, ladder: 'video_quality'}},
         });
-        service.screenPreset.set({resolution: '720p', framerate: 30});
+        service.screenPreset.set({resolution: '720p', framerate: 30, content: 'text'});
     }
 
     it('clamps a request above the rung down to what it permits', async () => {
         sharingAt('720p30');
 
-        await service.setScreenPreset({resolution: '1080p', framerate: 60});
+        await service.setScreenPreset({resolution: '1080p', framerate: 60, content: 'text'});
 
-        expect(service.screenPreset()).toEqual({resolution: '720p', framerate: 30});
+        expect(service.screenPreset()).toEqual({resolution: '720p', framerate: 30, content: 'text'});
     });
 
     it('applies a request the rung reaches unchanged', async () => {
         sharingAt('1080p60');
 
-        await service.setScreenPreset({resolution: '1080p', framerate: 60});
+        await service.setScreenPreset({resolution: '1080p', framerate: 60, content: 'text'});
 
-        expect(service.screenPreset()).toEqual({resolution: '1080p', framerate: 60});
+        expect(service.screenPreset()).toEqual({resolution: '1080p', framerate: 60, content: 'text'});
     });
 
     /** Negative: no room, no rung, nothing clamped. */
     it('clamps nothing when no room has named a rung', async () => {
         TestBed.inject(VoiceLimitsService).clear();
-        service.screenPreset.set({resolution: '720p', framerate: 30});
+        service.screenPreset.set({resolution: '720p', framerate: 30, content: 'text'});
 
-        await service.setScreenPreset({resolution: '1440p', framerate: 60});
+        await service.setScreenPreset({resolution: '1440p', framerate: 60, content: 'text'});
 
-        expect(service.screenPreset()).toEqual({resolution: '1440p', framerate: 60});
+        expect(service.screenPreset()).toEqual({resolution: '1440p', framerate: 60, content: 'text'});
     });
 });

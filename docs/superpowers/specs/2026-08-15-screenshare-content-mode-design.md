@@ -1,7 +1,7 @@
 # Screen Share Content Mode - Design
 
 **Date:** 2026-08-15
-**Status:** Approved
+**Status:** Implemented (P0). See "What changed during implementation" at the end.
 
 ## Problem
 
@@ -175,9 +175,8 @@ Framerate     [15][30][60]
 Optimize for  [Games][Text]
 ```
 
-No `disabled` state and no entitlement title text, unlike the two rows above it. The same control is
-added to the screen picker's quality step, and selections route through `rememberPreset` exactly as
-resolution and framerate do.
+No `disabled` state and no entitlement title text, unlike the two rows above it. Selections route
+through `rememberPreset` exactly as resolution and framerate do.
 
 New i18n keys for the row label and the two options. `src/assets/i18n/locales` is a submodule, so the
 strings land in their own commit there before the commit that uses them.
@@ -254,3 +253,56 @@ without the thing it guards is worse than no test.
 - 4:4:4 chroma. Not reachable in H.264 Constrained Baseline or High.
 - Camera video, which has no content axis and does not want one.
 - Per-viewer or receive-side quality selection.
+
+## What changed during implementation
+
+Five deviations from the design above, all found by reading or by a test rather than assumed.
+
+**The screen picker has no quality step to add the control to.** Quality moved to the controls bar in
+c160d1a and the pre-share dialog stopped asking, so the bar is the only place a preset is chosen. The
+UI section above has been corrected; the picker is untouched.
+
+**The capture-side `contentHint` needed no plumbing.** `display-capture.ts` and the canvas path in
+`rust-media.service.ts` both set `contentHint = 'detail'` on the captured track, which looked like a
+second place the mode had to reach. It is not: `applyScreenEncoding` sets the hint on `sender.track`,
+which is the same object, moments later. A games-mode publish through the web adapter comes out as
+`motion` with no change to either capture site. Both comments were rewritten to say they are an
+opening value rather than a policy, and `'detail'` was kept as the cautious half of the guess.
+
+**A content-only change reached neither branch of `setScreenPreset`.** On the Rust path that method
+only reacted to a framerate change or a resolution change, so toggling the mode mid-share would have
+looked live and done nothing until the next share. Both copies - `voice-rtc.service.ts` and
+`call-session.service.ts` - now retype when either the resolution or the content moves, riding the
+same call so a change to both is one frame boundary rather than two.
+
+**`setGeometry` became `setSpec` taking a `PublishSpec` object**, through the port, both adapters,
+the fake and `RustMediaService`, with `set_publish_geometry` renamed to `set_publish_spec` in Rust.
+`PublishSpec` is declared in `rust-media.service.ts` and re-exported by the port, because the port
+imports its types from the service and declaring it in the port would have been a cycle.
+`setPublishSpec` also learned to skip rebuilding the local decoder when no dimension moved: a mode
+change would otherwise blank the sharer's own tile until the next keyframe for nothing.
+
+**Both encoder mappings were extracted into pure functions** - `openh264_mode` and `RatePlan::for_spec`
+- because the first version of the Rust tests could not fail. Building an encoder in each mode and
+checking it produces output passes whether or not the branch exists, and Media Foundation swallows a
+rejected `SetValue` with no hardware encoder in CI at all. Deciding the values separately from
+applying them is what makes the decision assertable. Both were then verified by mutation: inverting
+each branch fails exactly the tests that name it.
+
+**No persistence migration was written**, as predicted: `lastPreset()` already spreads
+`DEFAULT_STREAM_PRESET` beneath the parsed value.
+
+### Verified
+
+- `ng test`: 368 files, 5261 passing.
+- `cargo test --lib`: 581 + 151 passing.
+- `cargo clippy --all-targets`: no new warnings in `media::publisher`. The `useless lint attribute`
+  error in `crypto/mod.rs` is pre-existing and untouched by this work.
+- Mutation-checked: the ladder-invariance test, the content-only retype trigger, and both encoder
+  mappings each fail when the behaviour they name is removed.
+
+### Still unverified
+
+Everything requiring a real stream, as flagged in Testing above: whether Media Foundation accepts a
+rate-control-mode change on a live MFT, the visual difference on either path, and degradation
+behaviour under induced congestion. P1 (the H.264 profile bump) is not started.

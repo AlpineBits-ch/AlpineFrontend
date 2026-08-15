@@ -1,4 +1,4 @@
-//! End-to-end proof that a screen share this client publishes reaches a viewer.
+﻿//! End-to-end proof that a screen share this client publishes reaches a viewer.
 //!
 //! Real frames, the real OpenH264 encoder, a real peer connection, real SRTP, and the shipping
 //! pump and writer. `a_published_screen_arrives_at_a_viewer_end_to_end` asserts on *the NAL units a
@@ -39,7 +39,8 @@ use webrtc::rtp::packetizer::Depacketizer;
 use webrtc::rtp_transceiver::rtp_codec::RTPCodecType;
 
 use super::encoder::{
-    new_software_encoder, provision_async, EncodeOutcome, EncodedChunk, EncoderSpec, VideoEncoder,
+    new_software_encoder, provision_async, EncodeOutcome, EncodedChunk, EncoderContent, EncoderSpec,
+    VideoEncoder,
 };
 use super::pump::{FramePump, PreviewSink};
 use super::rtc::{publisher_api, FrameSink, Publication};
@@ -58,7 +59,7 @@ const NAL_IDR: u8 = 5;
 /// Sequence and picture parameter sets. A viewer needs both before it can decode the IDR.
 const NAL_SPS: u8 = 7;
 const NAL_PPS: u8 = 8;
-/// Access unit delimiter and filler data. The payloader drops both by design (RFC 6184 §5.4) -
+/// Access unit delimiter and filler data. The payloader drops both by design (RFC 6184 Â§5.4) -
 /// they carry no picture information - so they must be excluded from what we expect to arrive.
 const NAL_AUD: u8 = 9;
 const NAL_FILLER: u8 = 12;
@@ -104,7 +105,7 @@ fn nal_bodies(annex_b: &[u8]) -> AccessUnit {
     nals
 }
 
-// ── The stand-in backend ──────────────────────────────────────────────────────────────────────
+// â”€â”€ The stand-in backend â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 struct BackendState {
     /// Cloudflare's side of the connection, and the viewer: the publisher's only peer.
@@ -484,7 +485,7 @@ async fn answer_the_offer(state: &Arc<BackendState>, body: &serde_json::Value) -
         .sdp
 }
 
-// ── Test doubles ──────────────────────────────────────────────────────────────────────────────
+// â”€â”€ Test doubles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /// Records every access unit on its way to the transport, so what arrives can be compared with what
 /// was sent rather than merely counted.
@@ -603,7 +604,7 @@ fn recording_encoder() -> (Box<dyn VideoEncoder>, Arc<Mutex<EncoderLog>>) {
     )
 }
 
-// ── Fixtures ──────────────────────────────────────────────────────────────────────────────────
+// â”€â”€ Fixtures â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /// Small on purpose. The whole path runs over loopback UDP, and a 1080p keyframe is hundreds of
 /// packets handed to the socket at once - which is the very burst that used to kill a publication.
@@ -617,6 +618,7 @@ fn spec() -> EncoderSpec {
         height: HEIGHT,
         fps: 30,
         kbps: 800,
+        content: EncoderContent::Text,
     }
 }
 
@@ -717,7 +719,7 @@ async fn real_encoder() -> Box<dyn VideoEncoder> {
     new_software_encoder(spec()).expect("the software encoder")
 }
 
-// ── End to end ────────────────────────────────────────────────────────────────────────────────
+// â”€â”€ End to end â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /// The one that matters: frames in one end, the same NAL units out the other.
 ///
@@ -883,7 +885,7 @@ async fn the_publish_opens_a_secondary_session_and_closes_its_track() {
 
 /// A share that carries its own sound publishes both halves in **one** negotiation, and closes both.
 ///
-/// <p>One call rather than two is the contract (§2 of the frontend guide) and it is also what stops
+/// <p>One call rather than two is the contract (Â§2 of the frontend guide) and it is also what stops
 /// a viewer laying out the tile from the video track and then having audio arrive against a share it
 /// has already finished building. Asserted over real HTTP because the failure mode is a second
 /// `tracks` request nobody notices.</p>
@@ -955,7 +957,7 @@ async fn a_share_without_audio_announces_no_audio_track() {
     assert_eq!(backend.closed_tracks(), vec![track_name]);
 }
 
-// ── Pump policy ───────────────────────────────────────────────────────────────────────────────
+// â”€â”€ Pump policy â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 fn pump_with(
     encoder: Box<dyn VideoEncoder>,
@@ -1077,7 +1079,7 @@ async fn a_backlog_drops_frames_rather_than_stalling_capture() {
     );
 }
 
-// ── Writer resilience ─────────────────────────────────────────────────────────────────────────
+// â”€â”€ Writer resilience â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 fn failing_writer(
     failures: u32,

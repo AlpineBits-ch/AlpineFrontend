@@ -1,4 +1,4 @@
-import {bitrateFor, StreamPreset} from '../models/stream-preset';
+import {bitrateFor, StreamContent, StreamPreset} from '../models/stream-preset';
 
 /** Voice audio is fixed, matching Discord - bitrate there is a per-channel server setting. */
 export const VOICE_AUDIO_KBPS = 64;
@@ -123,6 +123,12 @@ export function cameraSendEncodings(kbps: number = CAMERA_KBPS): RTCRtpEncodingP
  * exist. The cost of that is one thumbnail served at half resolution instead of a quarter, which is
  * today's behaviour rather than a regression - the failure mode of getting this wrong is a smaller
  * saving, never a black tile.</p>
+ *
+ * <p><b>The ladder is the same in both content modes, and must stay that way.</b> The legibility
+ * half of the argument above is about text, so it invites restoring `c` for `games` - but rids are
+ * negotiated in the SDP and fixed at `addTransceiver` time, so a mode-dependent ladder could not be
+ * toggled mid-stream without renegotiating, and the quality bar changes the mode live. The encode
+ * cost argument holds for games regardless. A spec pins this.</p>
  */
 export function screenSendEncodings(preset: StreamPreset): RTCRtpEncodingParameters[] {
     return simulcastEncodings(bitrateFor(preset), ['a', 'b']);
@@ -140,13 +146,30 @@ function layerOf(encoding: RTCRtpEncodingParameters): VideoLayerRid {
 }
 
 /**
+ * What each content mode asks the encoder to sacrifice when there is not enough bandwidth.
+ *
+ * <p>The two settings are one decision and are kept in one place because splitting them is how the
+ * broken configuration arises: `'motion'` with `maintain-resolution` asks the encoder to protect
+ * pixels while telling it the picture is video, which is neither mode and is worse than both.</p>
+ *
+ * <p><code>'detail'</code> rather than the spec's <code>'text'</code>: Chromium maps both onto the
+ * same screen-content path, and <code>'detail'</code> has the broader support history.</p>
+ */
+export const CONTENT_POLICY: Record<StreamContent, {hint: string; degradation: RTCDegradationPreference}> = {
+    // A game is video. Shed pixels and keep the motion smooth.
+    games: {hint: 'motion', degradation: 'maintain-framerate'},
+    // Text and UI. Shed frames and keep the pixels, because a downscaled document is unreadable at
+    // any framerate while a 10 fps one is merely slow.
+    text: {hint: 'detail', degradation: 'maintain-resolution'},
+};
+
+/**
  * Configure a screen-share sender from a preset.
  *
- * The two load-bearing settings are `contentHint = 'detail'` and
- * `degradationPreference = 'maintain-resolution'`: together they tell the encoder that this is text
- * and UI, and that under congestion it should drop frames rather than shed resolution. That is what
- * Discord does. The previous `'motion'` hint did the opposite - the encoder scaled the picture down
- * on any bandwidth dip and climbed back over tens of seconds, which is why streams looked soft.
+ * The two load-bearing settings are the `contentHint` / `degradationPreference` pair chosen by
+ * {@link CONTENT_POLICY} from `preset.content`. Together they tell the encoder what the picture is
+ * and what to give up under congestion. Before the content axis existed this was pinned to the
+ * `text` pair for every share, which is why game shares degraded into slideshows.
  *
  * <p>Applied across every encoding the sender has, so it is correct for a simulcast ladder
  * ({@link screenSendEncodings}) and for the single unnamed encoding a non-simulcast publish still
@@ -154,9 +177,10 @@ function layerOf(encoding: RTCRtpEncodingParameters): VideoLayerRid {
  * at `addTransceiver` time.</p>
  */
 export async function applyScreenEncoding(sender: RTCRtpSender, preset: StreamPreset): Promise<void> {
+    const policy = CONTENT_POLICY[preset.content];
     if (sender.track) {
         try {
-            sender.track.contentHint = 'detail';
+            sender.track.contentHint = policy.hint;
         } catch { /* contentHint unsupported */
         }
     }
@@ -164,7 +188,7 @@ export async function applyScreenEncoding(sender: RTCRtpSender, preset: StreamPr
     try {
         const params = sender.getParameters();
         if (!params.encodings?.length) params.encodings = [{}];
-        params.degradationPreference = 'maintain-resolution';
+        params.degradationPreference = policy.degradation;
         for (const raw of params.encodings) {
             const encoding = raw as EncodingWithMinBitrate;
             const layer = layerOf(encoding);

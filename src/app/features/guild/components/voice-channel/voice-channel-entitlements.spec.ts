@@ -1,4 +1,4 @@
-/**
+﻿/**
  * What the voice surface looks like in each of the states a plan can put it in.
  *
  * <p>Four of them, and none is an error: inside the plan (nothing at all), clamped (a card naming
@@ -98,7 +98,7 @@ function render(room: RoomState = {}) {
                     isScreenAudioMuted: () => false,
                     isScreenResuming: () => false,
                     getUserVolume: () => 1,
-                    rtc: {screenPreset: signal({resolution: '720p', framerate: 30})},
+                    rtc: {screenPreset: signal({resolution: '720p', framerate: 30, content: 'text'})},
                     videoBlock: () => room.videoBlock ?? null,
                     limits: {
                         notices: () => room.notices ?? [],

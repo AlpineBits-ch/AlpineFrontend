@@ -1,5 +1,6 @@
 import {CaptureGeometry} from '../../models/capture-geometry';
 import {
+    PublishSpec,
     ScreenPublisher,
     ScreenPublishOptions,
     ScreenPublishResult,
@@ -27,7 +28,7 @@ type TauriCore = typeof import('@tauri-apps/api/core');
  * host selected, and a constructor that touched the IPC module would pull it into the web bundle
  * through the very indirection meant to keep it out.</p>
  *
- * <p><b>The Rust commands behind `stop`, `setFps`, `setGeometry` and `setAudioMuted` are
+ * <p><b>The Rust commands behind `stop`, `setFps`, `setSpec` and `setAudioMuted` are
  * singletons</b> - they take no id and address "the share". {@link liveShareId} is what makes the
  * port's `shareId` mean something here: a caller holding a share that has already been replaced is
  * told so, rather than silently stopping the one that replaced it. That case is real - sharing a
@@ -132,6 +133,7 @@ export class TauriScreenPublisher extends ScreenPublisher implements ScreenPubli
             height: o.height,
             fps: o.fps,
             kbps: o.kbps,
+            content: o.content,
             iceServers: o.iceServers,
             apiBase: o.apiBase,
             token: o.token,
@@ -164,15 +166,16 @@ export class TauriScreenPublisher extends ScreenPublisher implements ScreenPubli
         await invoke('set_publish_fps', {fps: Math.round(fps)});
     }
 
-    async setGeometry(shareId: string, width: number, height: number, kbps: number): Promise<void> {
-        this.assertLive(shareId, 'setGeometry');
+    async setSpec(shareId: string, spec: PublishSpec): Promise<void> {
+        this.assertLive(shareId, 'setSpec');
         const {invoke} = await this.tauri();
         // Rust applies it at the next frame boundary and answers immediately; a retype the driver
-        // refuses is logged there and leaves the share at its current size. See the port.
-        await invoke('set_publish_geometry', {
-            width: Math.round(width),
-            height: Math.round(height),
-            kbps: Math.round(kbps),
+        // refuses is logged there and leaves the share as it was. See the port.
+        await invoke('set_publish_spec', {
+            width: Math.round(spec.width),
+            height: Math.round(spec.height),
+            kbps: Math.round(spec.kbps),
+            content: spec.content,
         });
     }
 

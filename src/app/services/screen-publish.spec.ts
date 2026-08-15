@@ -1,4 +1,4 @@
-import {environment} from '../../environments/environment';
+﻿import {environment} from '../../environments/environment';
 import {StreamPreset} from '../models/stream-preset';
 import {iceServers, publishOptions, useRustPublisher} from './screen-publish';
 
@@ -72,7 +72,7 @@ describe('useRustPublisher', () => {
  * browser and the native encoder rather than here.</p>
  */
 describe('publishOptions', () => {
-    const preset: StreamPreset = {resolution: '1080p', framerate: 30};
+    const preset: StreamPreset = {resolution: '1080p', framerate: 30, content: 'text'};
     const choice = {
         sourceId: 'monitor:0',
         sourceWidth: 3840,
@@ -102,6 +102,16 @@ describe('publishOptions', () => {
      */
     it('carries the preset it solved from', () => {
         expect(built().preset).toEqual(preset);
+    });
+
+    /**
+     * A key of its own rather than something read off `preset`, because the Tauri adapter
+     * deliberately does not forward `preset` - Rust would have to deserialise a shape it otherwise
+     * has no use for. This is the seam where a mode chosen in the bar becomes an encoder setting.
+     */
+    it('carries the content mode as its own key, which the preset alone would not reach Rust as', () => {
+        expect(built().content).toBe('text');
+        expect(built({preset: {resolution: '1080p', framerate: 30, content: 'games'}}).content).toBe('games');
     });
 
     it('carries the audio request and the target through unchanged', () => {

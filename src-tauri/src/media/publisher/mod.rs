@@ -84,6 +84,9 @@ pub async fn start_screen_publish(
     height: u32,
     fps: u32,
     kbps: u32,
+    // What is being shared. Decides what the encoder gives up under pressure, not how much it
+    // spends - see `EncoderContent`.
+    content: encoder::EncoderContent,
     ice_servers: Vec<rtc::IceServerConfig>,
     api_base: String,
     token: String,
@@ -129,6 +132,7 @@ pub async fn start_screen_publish(
         height,
         fps,
         kbps,
+        content,
         ice_servers,
         signalling,
         on_preview,
@@ -160,19 +164,23 @@ pub fn set_publish_fps(fps: u32) {
     }
 }
 
-/// Change the resolution and bitrate of the running publish, without ending it.
+/// Retype the running publish - resolution, bitrate and content mode - without ending it.
 ///
 /// <p>The encoder is retyped in place at the next frame boundary - see
-/// [`session::PublishHandle::set_geometry`]. The session, the track and the share id all survive,
-/// so this announces nothing and viewers see only a picture that changed size.</p>
+/// [`session::PublishHandle::set_spec`]. The session, the track and the share id all survive, so
+/// this announces nothing and viewers see only a picture that changed size.</p>
 ///
 /// <p>This used to be a stop followed by a start, which cost a new share id and left every viewer's
 /// tile out of the grid for as long as the new publish took to negotiate.</p>
+///
+/// <p>One command rather than one per field, because these are applied as a single spec at a single
+/// frame boundary. A mode moving in one call and a geometry in another would leave the share
+/// mismatched for however long the second took to arrive.</p>
 #[tauri::command]
-pub fn set_publish_geometry(width: u32, height: u32, kbps: u32) {
+pub fn set_publish_spec(width: u32, height: u32, kbps: u32, content: encoder::EncoderContent) {
     if let Ok(guard) = active().lock() {
         if let Some(handle) = guard.as_ref() {
-            handle.set_geometry(width, height, kbps);
+            handle.set_spec(width, height, kbps, content);
         }
     }
 }

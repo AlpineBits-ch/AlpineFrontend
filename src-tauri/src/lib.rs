@@ -584,7 +584,7 @@ fn build_and_run(builder: tauri::Builder<tauri::Wry>) {
             media::publisher::start_screen_publish,
             media::publisher::stop_screen_publish,
             media::publisher::set_publish_fps,
-            media::publisher::set_publish_geometry,
+            media::publisher::set_publish_spec,
             media::publisher::set_screen_audio_muted,
             media::publisher::set_local_stream_enabled,
             media::voice::voice_start,

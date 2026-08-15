@@ -1361,10 +1361,20 @@ export class VoiceRTCService {
             if (preset.framerate !== previous.framerate) {
                 await this.rustMedia.setPublishFps(preset.framerate);
             }
-            if (preset.resolution !== previous.resolution && this.screenSourceSize) {
+            // The mode moves no number the encoder is built from, so it needs its own trigger or the
+            // bar's row would look live and change nothing until the next share. It rides the same
+            // retype as the geometry rather than getting a call of its own, so a change to both is
+            // one frame boundary and not two.
+            const retype = preset.resolution !== previous.resolution || preset.content !== previous.content;
+            if (retype && this.screenSourceSize) {
                 const {width, height} = this.screenSourceSize;
                 const box = solveGeometry(width, height, preset.resolution);
-                await this.rustMedia.setPublishGeometry(box.width, box.height, bitrateFor(preset));
+                await this.rustMedia.setPublishSpec({
+                    width: box.width,
+                    height: box.height,
+                    kbps: bitrateFor(preset),
+                    content: preset.content,
+                });
             }
             // Kept in step with what the encoder is now producing, so a publish that genuinely does
             // restart later - sharing a different source - opens at the resolution the user is

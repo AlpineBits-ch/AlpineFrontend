@@ -1,4 +1,4 @@
-//! Hardware H.264 encoding through Media Foundation.
+﻿//! Hardware H.264 encoding through Media Foundation.
 //!
 //! Media Foundation fronts whatever the GPU vendor provides - NVENC, QuickSync, AMF - behind one
 //! `IMFTransform` interface, so a single implementation covers all three and the OS carries the
@@ -18,7 +18,7 @@ use windows::core::Interface;
 use windows::Win32::Media::MediaFoundation::*;
 use windows::Win32::System::Com::CoIncrementMTAUsage;
 
-use super::encoder::{EncodeOutcome, EncodedChunk, EncoderSpec, VideoEncoder};
+use super::encoder::{EncodeOutcome, EncodedChunk, EncoderContent, EncoderSpec, VideoEncoder};
 use super::nv12;
 
 /// How long a single frame may spend waiting on the encoder before we give up on it.
@@ -57,6 +57,51 @@ fn ensure_mf_started() -> bool {
 /// Pack two 32-bit values into the UINT64 layout MF uses for size and ratio attributes.
 fn pack(high: u32, low: u32) -> u64 {
     ((high as u64) << 32) | low as u64
+}
+
+/// How the encoder should spend the preset's budget, in the four codec-API values that say so.
+///
+/// <p>A struct rather than four `SetValue` calls inline because those calls cannot be observed: MF
+/// swallows a rejected `SetValue`, every one here is `let _ =`, and no hardware encoder exists in
+/// CI. Deciding the values separately from applying them is what lets the decision be tested at all
+/// - and this is the decision that was wrong before the content mode existed, so it is the one worth
+/// pinning.</p>
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct RatePlan {
+    mode: u32,
+    mean_bps: u32,
+    /// Set only where the mode is variable; `None` leaves MF's own ceiling alone.
+    peak_bps: Option<u32>,
+    /// 0-100, where 100 is all quality. `None` keeps the driver's default.
+    quality_vs_speed: Option<u32>,
+}
+
+impl RatePlan {
+    fn for_spec(spec: EncoderSpec) -> Self {
+        let mean_bps = spec.kbps.saturating_mul(1000);
+        match spec.content {
+            // Continuous motion: an even spend is what the picture needs, and CBR is the mode every
+            // vendor's encoder implements best.
+            EncoderContent::Games => Self {
+                mode: eAVEncCommonRateControlMode_CBR.0 as u32,
+                mean_bps,
+                peak_bps: None,
+                quality_vs_speed: None,
+            },
+            // A desktop holds still most of the time. CBR spends the budget on frames nobody needed
+            // and then clips the scroll that follows, which is the single biggest reason text looked
+            // soft on this path. Peak-constrained VBR lets the cost fall to almost nothing while the
+            // screen is static and burst to twice the target when it is not, with the mean still the
+            // preset's own number. The quality bias buys the edges that make small text readable,
+            // which a mostly-static screen leaves the encoder time to find.
+            EncoderContent::Text => Self {
+                mode: eAVEncCommonRateControlMode_PeakConstrainedVBR.0 as u32,
+                mean_bps,
+                peak_bps: Some(mean_bps.saturating_mul(2)),
+                quality_vs_speed: Some(70),
+            },
+        }
+    }
 }
 
 pub struct MediaFoundationEncoder {
@@ -149,14 +194,16 @@ impl MediaFoundationEncoder {
                 // Low latency matters more than compression efficiency for a live screen share: it
                 // caps how many frames the encoder may hold before emitting one.
                 let _ = api.SetValue(&CODECAPI_AVLowLatencyMode, &true.into());
-                let _ = api.SetValue(
-                    &CODECAPI_AVEncCommonRateControlMode,
-                    &(eAVEncCommonRateControlMode_CBR.0 as u32).into(),
-                );
-                let _ = api.SetValue(
-                    &CODECAPI_AVEncCommonMeanBitRate,
-                    &(spec.kbps.saturating_mul(1000)).into(),
-                );
+
+                let plan = RatePlan::for_spec(spec);
+                let _ = api.SetValue(&CODECAPI_AVEncCommonRateControlMode, &plan.mode.into());
+                let _ = api.SetValue(&CODECAPI_AVEncCommonMeanBitRate, &plan.mean_bps.into());
+                if let Some(peak) = plan.peak_bps {
+                    let _ = api.SetValue(&CODECAPI_AVEncCommonMaxBitRate, &peak.into());
+                }
+                if let Some(quality) = plan.quality_vs_speed {
+                    let _ = api.SetValue(&CODECAPI_AVEncCommonQualityVsSpeed, &quality.into());
+                }
             }
 
             // Output type must be set before input type on an encoder MFT.
@@ -743,12 +790,48 @@ impl Drop for PooledEncoder {
 mod tests {
     use super::*;
 
+    /// The defect the content mode was added to fix: every share was encoded CBR, which on a screen
+    /// that holds still spends the budget on frames nobody needed.
+    #[test]
+    fn text_is_not_encoded_at_a_constant_bitrate() {
+        let plan = RatePlan::for_spec(spec(1280, 720));
+        assert_eq!(plan.mode, eAVEncCommonRateControlMode_PeakConstrainedVBR.0 as u32);
+        assert_ne!(plan.mode, eAVEncCommonRateControlMode_CBR.0 as u32);
+        // A ceiling above the mean is the whole point: without it the mode is VBR in name only.
+        assert_eq!(plan.peak_bps, Some(plan.mean_bps * 2));
+        assert_eq!(plan.quality_vs_speed, Some(70));
+    }
+
+    #[test]
+    fn games_stays_on_constant_bitrate_with_no_ceiling_of_its_own() {
+        let plan = RatePlan::for_spec(EncoderSpec {
+            content: EncoderContent::Games,
+            ..spec(1280, 720)
+        });
+        assert_eq!(plan.mode, eAVEncCommonRateControlMode_CBR.0 as u32);
+        assert_eq!(plan.peak_bps, None);
+        assert_eq!(plan.quality_vs_speed, None);
+    }
+
+    /// Neither mode may change the budget - that is the preset's decision, not the encoder's.
+    #[test]
+    fn the_mean_bitrate_is_the_presets_own_in_both_modes() {
+        let text = RatePlan::for_spec(spec(1280, 720));
+        let games = RatePlan::for_spec(EncoderSpec {
+            content: EncoderContent::Games,
+            ..spec(1280, 720)
+        });
+        assert_eq!(text.mean_bps, games.mean_bps);
+        assert_eq!(text.mean_bps, spec(1280, 720).kbps * 1000);
+    }
+
     fn spec(width: u32, height: u32) -> EncoderSpec {
         EncoderSpec {
             width,
             height,
             fps: 30,
             kbps: 4000,
+            content: EncoderContent::Text,
         }
     }
 
@@ -832,6 +915,7 @@ mod probe {
             height: 360,
             fps: 30,
             kbps: 4000,
+            content: EncoderContent::Text,
         });
         eprintln!("[probe] encoder constructed: {}", built.is_some());
     }
@@ -850,6 +934,7 @@ mod probe {
             height: h,
             fps: 30,
             kbps: 4000,
+            content: EncoderContent::Text,
         }) else {
             eprintln!("[probe] no encoder");
             return;
@@ -879,6 +964,7 @@ mod probe {
                 height: h,
                 fps: 30,
                 kbps: 4000,
+                content: EncoderContent::Text,
             }) else {
                 eprintln!("[probe] round {round}: no encoder would configure");
                 break;
@@ -908,6 +994,7 @@ mod probe {
             height: 720,
             fps: 30,
             kbps: 4000,
+            content: EncoderContent::Text,
         }) else {
             eprintln!("[probe] no encoder");
             return;
@@ -920,6 +1007,7 @@ mod probe {
                 height: h,
                 fps: 30,
                 kbps: 4000,
+                content: EncoderContent::Text,
             }) {
                 eprintln!("[probe] round {round}: retype to {w}x{h} REFUSED: {e}");
                 return;
@@ -955,6 +1043,7 @@ mod probe {
                 height: h,
                 fps: 30,
                 kbps: 4000,
+                content: EncoderContent::Text,
             }) else {
                 eprintln!("[probe] round {round}: no encoder");
                 continue;
@@ -994,6 +1083,7 @@ mod probe {
                 height: h,
                 fps: 30,
                 kbps: 8000,
+                content: EncoderContent::Text,
             }) else {
                 eprintln!("[probe] {w}x{h}: no encoder would configure");
                 continue;

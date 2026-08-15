@@ -5,7 +5,7 @@ use openh264::encoder::{
 use openh264::formats::{RgbaSliceU8, YUVBuffer};
 use openh264::{OpenH264API, Timestamp};
 
-use super::encoder::{EncodeOutcome, EncodedChunk, EncoderSpec, VideoEncoder};
+use super::encoder::{EncodeOutcome, EncodedChunk, EncoderContent, EncoderSpec, VideoEncoder};
 use super::openh264_blob;
 
 /// openh264 software encoder.
@@ -20,6 +20,22 @@ pub struct SoftwareEncoder {
     height: u32,
 }
 
+/// The two openh264 settings the content mode decides.
+///
+/// <p>A function rather than four lines inline so the mapping can be asserted directly. Building an
+/// encoder and checking that it produces output cannot tell the modes apart - both encode fine - so
+/// without this the branch would be covered by nothing that fails when it is deleted.</p>
+fn openh264_mode(content: EncoderContent) -> (UsageType, RateControlMode) {
+    match content {
+        // A game is video, so the camera path and an even spend are both right.
+        EncoderContent::Games => (UsageType::CameraVideoRealTime, RateControlMode::Bitrate),
+        // Screen content, and a quantiser target rather than a bitrate target: a still desktop
+        // should cost almost nothing so that the frames which do change can be sharp. Bitrate mode
+        // keeps paying for the still screen and then clips the scroll that follows.
+        EncoderContent::Text => (UsageType::ScreenContentRealTime, RateControlMode::Quality),
+    }
+}
+
 impl SoftwareEncoder {
     pub fn new(spec: EncoderSpec) -> Option<Self> {
         let EncoderSpec {
@@ -27,6 +43,7 @@ impl SoftwareEncoder {
             height,
             fps,
             kbps,
+            content,
         } = spec;
         // H.264 4:2:0 needs even dimensions. The frontend's geometry solver already guarantees
         // this; rejecting rather than silently rounding keeps that contract honest.
@@ -34,21 +51,21 @@ impl SoftwareEncoder {
             return None;
         }
 
+        let (usage_type, rate_control_mode) = openh264_mode(content);
+        let camera = matches!(content, EncoderContent::Games);
+
         let config = EncoderConfig::new()
             .bitrate(BitRate::from_bps(kbps.saturating_mul(1000)))
             .max_frame_rate(FrameRate::from_hz(fps as f32))
-            // Screen content, not a camera: this is the closest usage type openh264 offers and it
-            // biases toward preserving detail in flat UI regions.
-            .usage_type(UsageType::ScreenContentRealTime)
-            // Bitrate mode, so the encoder tracks the preset's budget instead of drifting on
-            // quality. The transport handles congestion; the preset handles the target.
-            .rate_control_mode(RateControlMode::Bitrate)
+            .usage_type(usage_type)
+            .rate_control_mode(rate_control_mode)
             // A periodic IDR bounds how long a late joiner waits for a decodable picture.
             .intra_frame_period(IntraFramePeriod::from_num_frames(fps.max(1) * 2))
-            // openh264 does not support either of these for screen content and disables them with
-            // a warning on every encoder it creates; turning them off here keeps the logs readable.
-            .adaptive_quantization(false)
-            .background_detection(false);
+            // Both are camera-mode features: openh264 rejects them for screen content and logs a
+            // warning on every encoder it builds. So they were never off because they are unwanted,
+            // they were off because the text mode cannot have them - and the games mode can.
+            .adaptive_quantization(camera)
+            .background_detection(camera);
 
         // Cisco's precompiled binary, fetched at runtime -never a source build. See
         // openh264_blob for why. `from_blob_path` re-checks the SHA-256 against the crate's
@@ -130,5 +147,32 @@ impl VideoEncoder for SoftwareEncoder {
 
     fn name(&self) -> &'static str {
         "openh264"
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The mapping the content mode exists to make, asserted directly.
+    ///
+    /// <p>`matches!` rather than `assert_eq!` because openh264's enums derive neither `PartialEq`
+    /// nor `Eq`.</p>
+    #[test]
+    fn games_encodes_as_camera_video_at_an_even_bitrate() {
+        assert!(matches!(
+            openh264_mode(EncoderContent::Games),
+            (UsageType::CameraVideoRealTime, RateControlMode::Bitrate)
+        ));
+    }
+
+    /// The half that fixes soft text: screen content, and a quality target rather than a bitrate
+    /// one, so a still desktop stops consuming the budget the next scroll needs.
+    #[test]
+    fn text_encodes_as_screen_content_at_a_quality_target() {
+        assert!(matches!(
+            openh264_mode(EncoderContent::Text),
+            (UsageType::ScreenContentRealTime, RateControlMode::Quality)
+        ));
     }
 }

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * The browser publish path, driven end to end through the adapter.
  *
  * <p>Every assertion here is on something that <b>crossed a stage boundary</b> - the constraints the
@@ -15,7 +15,7 @@ import {ScreenPublishOptions} from '../ports/screen-publisher.port';
 import {TauriScreenPublisher} from '../tauri/screen-publisher.tauri';
 import {WebScreenPublisher} from './screen-publisher.web';
 
-// ── Fakes ─────────────────────────────────────────────────────────────────────
+// â”€â”€ Fakes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
  * A track the adapter can drive: `stop`, `applyConstraints`, `enabled`, `contentHint`, `onended`.
@@ -231,6 +231,7 @@ function options(over: Partial<ScreenPublishOptions> = {}): ScreenPublishOptions
         height: 1080,
         fps: 30,
         kbps: 4500,
+        content: 'text',
         iceServers: [{urls: ['stun:stun.test:3478']}],
         apiBase: 'https://api.test/',
         token: 'tok',
@@ -253,7 +254,7 @@ function publishedTracks(): {direction: string; mid: string; trackName: string}[
     return publishBody()['tracks'] as {direction: string; mid: string; trackName: string}[];
 }
 
-// ── Tests ─────────────────────────────────────────────────────────────────────
+// â”€â”€ Tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe('WebScreenPublisher: what it publishes', () => {
     it('publishes both halves in one negotiation and answers with what was published', async () => {
@@ -319,7 +320,7 @@ describe('WebScreenPublisher: what it publishes', () => {
     });
 
     it('caps the sender at the preset it was given', async () => {
-        const preset: StreamPreset = {resolution: '720p', framerate: 15};
+        const preset: StreamPreset = {resolution: '720p', framerate: 15, content: 'text'};
 
         await new WebScreenPublisher().start(options({fps: 15, kbps: 1500, preset}));
 
@@ -328,6 +329,21 @@ describe('WebScreenPublisher: what it publishes', () => {
         expect(video.params.encodings?.[0].maxFramerate).toBe(15);
         expect(video.params.degradationPreference).toBe('maintain-resolution');
         expect(video.track.contentHint).toBe('detail');
+    });
+
+    /**
+     * The same publish in the other mode, end to end through the adapter rather than against
+     * `applyScreenEncoding` directly: the capture hint and the sender policy are set in two
+     * different places, and this is what catches one of them being left pinned to text.
+     */
+    it('publishes a games share as motion, holding framerate instead of resolution', async () => {
+        const preset: StreamPreset = {resolution: '1080p', framerate: 60, content: 'games'};
+
+        await new WebScreenPublisher().start(options({fps: 60, kbps: 8000, preset, content: 'games'}));
+
+        const video = FakePeerConnection.instances[0].senders[0];
+        expect(video.params.degradationPreference).toBe('maintain-framerate');
+        expect(video.track.contentHint).toBe('motion');
     });
 });
 
@@ -490,7 +506,7 @@ describe('WebScreenPublisher: share ids', () => {
         await adapter.start(options({shareId: 'live', width: 1920, height: 1080}));
         const before = posted.length;
 
-        await adapter.setGeometry('live', 1280, 720, 2500);
+        await adapter.setSpec('live', {width: 1280, height: 720, kbps: 2500, content: 'text'});
 
         expect(video.applyConstraints)
             .toHaveBeenCalledWith({width: {max: 1280}, height: {max: 720}});
@@ -575,7 +591,7 @@ describe('geometry parity between the two adapters', () => {
         sourceId: 'monitor:0',
         sourceWidth: 3840,
         sourceHeight: 2160,
-        preset: {resolution: '1080p', framerate: 60} as StreamPreset,
+        preset: {resolution: '1080p', framerate: 60, content: 'text'} as StreamPreset,
         shareAudio: false,
     };
 

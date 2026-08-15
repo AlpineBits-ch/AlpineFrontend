@@ -2,10 +2,12 @@ import {Component, input, output} from '@angular/core';
 import {TranslateModule} from '@ngx-translate/core';
 import {SlotCount} from '../../../core/voice-limits';
 import {
+    CONTENT_OPTIONS,
     FRAMERATE_OPTIONS,
     isFramerateAllowed,
     isResolutionAllowed,
     RESOLUTION_LABELS,
+    StreamContent,
     StreamFramerate,
     StreamPreset,
     StreamResolution,
@@ -87,6 +89,9 @@ export class CallControlsBarComponent {
      * it drawn from a constant in the same module rendering fine.</p>
      */
     protected readonly framerates: readonly StreamFramerate[] = [...FRAMERATE_OPTIONS];
+    /** Copied for the same reason as {@link framerates}, and paired with its label key. */
+    protected readonly contents: readonly {value: StreamContent; key: string}[] =
+        CONTENT_OPTIONS.map(value => ({value, key: `CALL.CONTENT_${value.toUpperCase()}`}));
 
     /**
      * The look of one control-bar toggle.
@@ -152,5 +157,21 @@ export class CallControlsBarComponent {
         if (current && this.framerateAllowed(framerate)) {
             this.presetChange.emit({...current, framerate});
         }
+    }
+
+    protected isContent(content: StreamContent): boolean {
+        return this.preset()?.content === content;
+    }
+
+    /**
+     * No ceiling check, unlike the two rows above.
+     *
+     * <p>The mode changes what the encoder gives up under congestion, never how much it spends - the
+     * bitrate is the same in both - so it costs the room nothing and no rung has an opinion about
+     * it. Adding a clamp here would be putting legibility behind a plan.</p>
+     */
+    protected setContent(content: StreamContent): void {
+        const current = this.preset();
+        if (current) this.presetChange.emit({...current, content});
     }
 }

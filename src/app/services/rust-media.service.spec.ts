@@ -1,4 +1,4 @@
-/**
+﻿/**
  * `RustMediaService` as a delegate over the {@link ScreenPublisher} port.
  *
  * <p>The invoke-payload assertions that used to live here moved to
@@ -14,6 +14,7 @@
  */
 import {TestBed} from '@angular/core/testing';
 import {
+    PublishSpec,
     ScreenPublisher,
     ScreenPublishOptions,
     ScreenPublishResult,
@@ -76,8 +77,8 @@ class FakePublisher extends ScreenPublisher implements ScreenPublisherHost {
         this.fps.push({shareId, fps});
     }
 
-    async setGeometry(shareId: string, width: number, height: number, kbps: number): Promise<void> {
-        this.geometry.push({shareId, width, height, kbps});
+    async setSpec(shareId: string, spec: PublishSpec): Promise<void> {
+        this.geometry.push({shareId, ...spec});
     }
 
     async setAudioMuted(shareId: string, muted: boolean): Promise<void> {
@@ -153,7 +154,7 @@ class PortOnlyPublisher extends ScreenPublisher {
     async setFps(): Promise<void> {
     }
 
-    async setGeometry(): Promise<void> {
+    async setSpec(): Promise<void> {
     }
 
     async setAudioMuted(): Promise<void> {
@@ -177,6 +178,7 @@ function options(over: Partial<ScreenPublishOptions> = {}): ScreenPublishOptions
         height: 720,
         fps: 30,
         kbps: 2500,
+        content: 'text',
         iceServers: [],
         apiBase: 'https://api.test',
         token: 'tok',

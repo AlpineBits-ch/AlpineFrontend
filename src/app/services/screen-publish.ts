@@ -80,6 +80,7 @@ export function publishOptions(
         height,
         fps: preset.framerate,
         kbps: bitrateFor(preset),
+        content: preset.content,
         iceServers: iceServers(),
         apiBase,
         token,
@@ -87,7 +88,7 @@ export function publishOptions(
         shareAudio: choice.shareAudio,
         // Carried alongside the derived numbers, not instead of them: the web sender's encoding
         // parameters come from `applyScreenEncoding`, which takes the preset. Ignored by the Rust
-        // publisher, whose encoder is built from the width/height/fps/kbps above.
+        // publisher, whose encoder is built from the width/height/fps/kbps/content above.
         preset,
         ...target,
     };

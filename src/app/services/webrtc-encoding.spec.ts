@@ -21,16 +21,59 @@ function fakeSender(): FakeSender {
     } as unknown as FakeSender;
 }
 
+/**
+ * The content mode is the whole of what "Games" and "Text" mean on this path, so it is pinned as a
+ * pair rather than as two independent settings: a hint without the matching degradation preference
+ * is the configuration that produced the original "unsharp, slowly catches itself" complaint.
+ */
+describe('content mode', () => {
+    it('asks for motion and holds framerate on a games share', async () => {
+        const sender = fakeSender();
+        await applyScreenEncoding(sender, {resolution: '1080p', framerate: 60, content: 'games'});
+        expect(sender.track!.contentHint).toBe('motion');
+        expect(sender.setParameters.mock.calls[0][0].degradationPreference).toBe('maintain-framerate');
+    });
+
+    it('asks for detail and holds resolution on a text share', async () => {
+        const sender = fakeSender();
+        await applyScreenEncoding(sender, {resolution: '1080p', framerate: 60, content: 'text'});
+        expect(sender.track!.contentHint).toBe('detail');
+        expect(sender.setParameters.mock.calls[0][0].degradationPreference).toBe('maintain-resolution');
+    });
+
+    /**
+     * Rids are negotiated in the SDP and fixed at `addTransceiver` time, so a ladder that differed
+     * by mode could not be toggled mid-stream without renegotiating. This is what makes the quality
+     * bar's mode row free, and it fails the moment somebody restores rung `c` for games.
+     */
+    it('builds the same ladder in both modes, so the mode can change mid-stream', () => {
+        const games = screenSendEncodings({resolution: '1080p', framerate: 30, content: 'games'});
+        const text = screenSendEncodings({resolution: '1080p', framerate: 30, content: 'text'});
+        expect(games).toEqual(text);
+    });
+
+    it('derives the same bitrate in both modes - mode is a policy axis, not a budget one', async () => {
+        const games = fakeSender();
+        const text = fakeSender();
+        await applyScreenEncoding(games, {resolution: '1440p', framerate: 30, content: 'games'});
+        await applyScreenEncoding(text, {resolution: '1440p', framerate: 30, content: 'text'});
+        expect(games.setParameters.mock.calls[0][0].encodings[0].maxBitrate)
+            .toBe(text.setParameters.mock.calls[0][0].encodings[0].maxBitrate);
+        expect(games.setParameters.mock.calls[0][0].encodings[0].minBitrate)
+            .toBe(text.setParameters.mock.calls[0][0].encodings[0].minBitrate);
+    });
+});
+
 describe('applyScreenEncoding', () => {
     it('sets maintain-resolution degradation so the encoder drops frames, not pixels', async () => {
         const sender = fakeSender();
-        await applyScreenEncoding(sender, {resolution: '1080p', framerate: 30});
+        await applyScreenEncoding(sender, {resolution: '1080p', framerate: 30, content: 'text'});
         expect(sender.setParameters.mock.calls[0][0].degradationPreference).toBe('maintain-resolution');
     });
 
     it('derives max and min bitrate and framerate from the preset', async () => {
         const sender = fakeSender();
-        await applyScreenEncoding(sender, {resolution: '1080p', framerate: 60});
+        await applyScreenEncoding(sender, {resolution: '1080p', framerate: 60, content: 'text'});
         const encoding = sender.setParameters.mock.calls[0][0].encodings[0];
         expect(encoding.maxBitrate).toBe(8_000_000);
         expect(encoding.minBitrate).toBe(4_800_000);
@@ -40,7 +83,7 @@ describe('applyScreenEncoding', () => {
 
     it('hints the track as detail so the encoder treats it as text, not motion', async () => {
         const sender = fakeSender();
-        await applyScreenEncoding(sender, {resolution: '720p', framerate: 15});
+        await applyScreenEncoding(sender, {resolution: '720p', framerate: 15, content: 'text'});
         expect(sender.track!.contentHint).toBe('detail');
     });
 
@@ -52,7 +95,7 @@ describe('applyScreenEncoding', () => {
             },
             track: null,
         } as unknown as RTCRtpSender;
-        await expect(applyScreenEncoding(sender, {resolution: '720p', framerate: 30})).resolves.toBeUndefined();
+        await expect(applyScreenEncoding(sender, {resolution: '720p', framerate: 30, content: 'text'})).resolves.toBeUndefined();
     });
 
     it('creates an encoding entry when the sender has none', async () => {
@@ -62,7 +105,7 @@ describe('applyScreenEncoding', () => {
             setParameters: vi.fn(async () => void 0),
             track: null,
         } as unknown as FakeSender;
-        await applyScreenEncoding(sender, {resolution: '720p', framerate: 30});
+        await applyScreenEncoding(sender, {resolution: '720p', framerate: 30, content: 'text'});
         expect(sender.setParameters.mock.calls[0][0].encodings[0].maxBitrate).toBe(2_500_000);
     });
 });
@@ -136,7 +179,7 @@ describe('the simulcast ladder', () => {
     });
 
     it('gives a screen share two layers and no quarter-scale one', () => {
-        const encodings = screenSendEncodings({resolution: '1080p', framerate: 30});
+        const encodings = screenSendEncodings({resolution: '1080p', framerate: 30, content: 'text'});
         expect(encodings.map(e => e.rid)).toEqual(['a', 'b']);
         // 1440p/4 is 640x360, which is not a cheaper share but an unreadable one - see
         // screenSendEncodings. The saving that matters lands on `b`.
@@ -157,7 +200,7 @@ describe('encoding parameters on a simulcast sender', () => {
 
     it('applies the screen preset to every rung, not just the top one', async () => {
         const sender = ladderSender(['a', 'b']);
-        await applyScreenEncoding(sender, {resolution: '1080p', framerate: 60});
+        await applyScreenEncoding(sender, {resolution: '1080p', framerate: 60, content: 'text'});
         const encodings = sender.setParameters.mock.calls[0][0].encodings;
         expect(encodings.map((e: RTCRtpEncodingParameters) => e.maxBitrate)).toEqual([8_000_000, 2_560_000]);
         expect(encodings.map((e: RTCRtpEncodingParameters) => e.scaleResolutionDownBy)).toEqual([1, 2]);
@@ -166,7 +209,7 @@ describe('encoding parameters on a simulcast sender', () => {
 
     it('floors only the top rung, so the ladder does not raise the rate the encoder insists on', async () => {
         const sender = ladderSender(['a', 'b']);
-        await applyScreenEncoding(sender, {resolution: '1080p', framerate: 60});
+        await applyScreenEncoding(sender, {resolution: '1080p', framerate: 60, content: 'text'});
         const encodings = sender.setParameters.mock.calls[0][0].encodings;
         expect(encodings[0].minBitrate).toBe(4_800_000);
         expect(encodings[1].minBitrate).toBeUndefined();

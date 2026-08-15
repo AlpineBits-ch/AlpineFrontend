@@ -22,16 +22,37 @@ pub enum EncodeOutcome {
     Failed,
 }
 
-/// Geometry and rate an encoder is built for.
+/// What is being shared, and therefore what the encoder should protect.
+///
+/// <p>The frontend's `StreamContent`, deserialised by name. It is not a quality setting and it moves
+/// no number: geometry, framerate and bitrate are all chosen before this is read. What it changes is
+/// how the encoder spends the budget it was given - see [`super::encoder_sw::SoftwareEncoder::new`]
+/// and [`super::encoder_mf::MediaFoundationEncoder::apply_spec`].</p>
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum EncoderContent {
+    /// Video. Motion matters more than any single frame, and rate control may spend evenly.
+    Games,
+    /// Text and UI. A still screen should cost almost nothing so the frames that do change can be
+    /// sharp, which is the opposite of what constant-bitrate rate control does.
+    Text,
+}
+
+/// Geometry, rate and content an encoder is built for.
 ///
 /// Changeable mid-session through [`VideoEncoder::reconfigure`], but only at a frame boundary and
 /// only together with the geometry the pump fits frames to - see [`super::pump::FramePump`].
+///
+/// <p><b>`content` is part of the identity on purpose.</b> `reconfigure` is skipped when the spec
+/// has not moved, so a mode excluded from `PartialEq` would make a mode change silently do nothing
+/// on this host.</p>
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EncoderSpec {
     pub width: u32,
     pub height: u32,
     pub fps: u32,
     pub kbps: u32,
+    pub content: EncoderContent,
 }
 
 /// A video encoder fed raw captured frames.
@@ -260,10 +281,42 @@ impl VideoEncoder for ResilientEncoder {
 mod tests {
     use super::*;
 
+    /// Two specs that differ only in content must not compare equal.
+    ///
+    /// <p>`reconfigure` is skipped when the spec has not moved, so an `Eq` that ignored the mode
+    /// would make the quality bar's mode row a no-op on this host - silently, and only on desktop.
+    /// The derive gives this for free today; the test is here so removing the field from it does
+    /// not pass.</p>
+    #[test]
+    fn a_content_change_is_a_spec_change() {
+        let text = spec(320, 240);
+        let games = EncoderSpec {
+            content: EncoderContent::Games,
+            ..text
+        };
+        assert_eq!(text.content, EncoderContent::Text, "the fixture must be the text mode");
+        assert_ne!(text, games);
+    }
+
+    #[test]
+    fn encodes_in_either_content_mode() {
+        for content in [EncoderContent::Games, EncoderContent::Text] {
+            let mut enc = software(EncoderSpec {
+                content,
+                ..spec(320, 240)
+            });
+            assert!(
+                matches!(enc.encode(&frame(320, 240, 0), 0), EncodeOutcome::Chunk(_)),
+                "{content:?} should encode"
+            );
+        }
+    }
+
     fn spec(width: u32, height: u32) -> EncoderSpec {
         EncoderSpec {
             width,
             height,
+            content: EncoderContent::Text,
             fps: 30,
             kbps: 1000,
         }

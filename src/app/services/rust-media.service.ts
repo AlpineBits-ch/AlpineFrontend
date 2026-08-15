@@ -1,7 +1,7 @@
 import {computed, DestroyRef, effect, inject, Injectable, signal} from '@angular/core';
 import {Subject} from 'rxjs';
 import {CaptureGeometry} from '../models/capture-geometry';
-import {StreamPreset} from '../models/stream-preset';
+import {StreamContent, StreamPreset} from '../models/stream-preset';
 import {captureDisplay, retargetDisplayFps, retargetDisplayGeometry} from '../platform/display-capture';
 import {ScreenPublisher} from '../platform/ports/screen-publisher.port';
 import {
@@ -35,6 +35,22 @@ export interface IceServerConfig {
     credential?: string;
 }
 
+/**
+ * The retypeable half of a publish: everything {@link ScreenPublisher.setSpec} can change without
+ * ending it.
+ *
+ * <p>A subset of {@link ScreenPublishOptions} by construction, and named for the Rust `EncoderSpec`
+ * it becomes on the desktop host. What is <i>not</i> here is as deliberate as what is: the source,
+ * the share id and the audio choice cannot be retyped at all, and framerate has a call of its own
+ * because the capture loop re-reads it every frame rather than at a boundary.</p>
+ */
+export interface PublishSpec {
+    width: number;
+    height: number;
+    kbps: number;
+    content: StreamContent;
+}
+
 export interface ScreenPublishOptions {
     /**
      * Which source to capture.
@@ -48,6 +64,14 @@ export interface ScreenPublishOptions {
     height: number;
     fps: number;
     kbps: number;
+    /**
+     * What is being shared, which decides what the encoder gives up under pressure.
+     *
+     * <p>Carried as its own key rather than read off {@link preset}, because the Tauri adapter does
+     * not forward the preset - Rust builds its encoder from the derived numbers, and this is one of
+     * them even though it is a word rather than a count.</p>
+     */
+    content: StreamContent;
     iceServers: IceServerConfig[];
     apiBase: string;
     token: string;
@@ -468,12 +492,11 @@ export class RustMediaService {
 
         const track = stream.getVideoTracks()[0];
         if (!track) throw new Error('No video track from canvas');
-        // 'detail' - screen content is text and UI. Paired with maintain-resolution degradation on
-        // the sender (see applyScreenEncoding), the encoder drops frames under congestion instead
-        // of shedding resolution. The old 'motion' hint did the opposite, which is why streams
-        // looked soft and took tens of seconds to sharpen. That combination previously starved
-        // framerate only because bitrate was chosen independently of resolution and fps; the
-        // stream preset now couples all three.
+        // An opening value only: `applyScreenEncoding` sets the hint that governs, from the share's
+        // content mode, on this same track object once the sender exists. 'detail' is the cautious
+        // half of that choice - see the matching note in `display-capture.ts`. Before the content
+        // axis existed this was pinned to 'motion', which is why streams looked soft and took tens
+        // of seconds to sharpen.
         try {
             (track as {contentHint?: string}).contentHint = 'detail';
         } catch {
@@ -624,10 +647,10 @@ export class RustMediaService {
     }
 
     /**
-     * Change the publisher's output resolution and bitrate mid-stream.
+     * Retype the running publish: output resolution, bitrate and content mode.
      *
      * <p>The publish is not restarted, so the share id every viewer holds stays valid and nothing is
-     * announced. See {@link ScreenPublisher.setGeometry} for what this replaced and why.</p>
+     * announced. See {@link ScreenPublisher.setSpec} for what this replaced and why.</p>
      *
      * <p><b>The local decoder is rebuilt here.</b> The sharer's own tile decodes the same H.264 the
      * wire carries, through a `VideoDecoder` configured for one geometry, and a decoder still
@@ -635,12 +658,12 @@ export class RustMediaService {
      * incidentally by {@link startScreenPublish}, because a resolution change happened to pass
      * through it; now nothing else will do it.</p>
      */
-    async setPublishGeometry(width: number, height: number, kbps: number): Promise<void> {
+    async setPublishSpec(spec: PublishSpec): Promise<void> {
         const shareId = this.activeShareId;
         if (shareId === null) return;
 
-        await this.publisher.setGeometry(shareId, width, height, kbps)
-            .catch(e => console.warn('[screen] setting the publish geometry failed', e));
+        await this.publisher.setSpec(shareId, spec)
+            .catch(e => console.warn('[screen] retyping the publish failed', e));
 
         // Only where one was open. A host with no `VideoDecoder` has been on the thumbnail all
         // along, and the thumbnail carries its own dimensions per frame.
@@ -649,9 +672,14 @@ export class RustMediaService {
         const codec = await this.h264Codec;
         if (!codec) return;
 
-        this.lastPublishOptions = {...options, width, height, kbps};
+        const updated = {...options, ...spec};
+        this.lastPublishOptions = updated;
+        // A mode change moves no dimension, so the decoder the sharer is watching through is still
+        // correct for the picture arriving. Rebuilding it anyway would blank their own tile until
+        // the next keyframe, for a change that cannot affect it.
+        if (spec.width === options.width && spec.height === options.height) return;
         this.closeLocalRenderer();
-        this.openLocalRenderer(this.lastPublishOptions, codec);
+        this.openLocalRenderer(updated, codec);
     }
 
     /**

@@ -5,16 +5,29 @@ export type StreamResolution = '720p' | '1080p' | '1440p' | 'source';
 export type StreamFramerate = 15 | 30 | 60;
 
 /**
+ * What is being shared, which decides what gets sacrificed when there is not enough bandwidth.
+ *
+ * <p>`games` sheds pixels and holds the framerate; `text` sheds frames and holds the pixels. Named
+ * for what the user is sharing rather than for the encoder setting, because the encoder setting is
+ * not a thing anybody choosing it knows about.</p>
+ */
+export type StreamContent = 'games' | 'text';
+
+/**
  * Resolution and framerate are chosen together, and bitrate is derived from the pair.
  *
  * Coupling them is what makes `degradationPreference: 'maintain-resolution'` safe: the encoder is
  * never asked to hold a high resolution on a bitrate budget picked for a lower one. Exposing
  * bitrate as its own setting (as this app used to) let users starve the encoder into single-digit
  * fps, which is why the framerate used to be inferred from the bitrate instead of chosen.
+ *
+ * <p>{@link content} is a third, independent axis. It changes what degrades, never how much is
+ * spent - see {@link bitrateFor}, which deliberately cannot read it.</p>
  */
 export interface StreamPreset {
     resolution: StreamResolution;
     framerate: StreamFramerate;
+    content: StreamContent;
 }
 
 const BITRATES: Record<StreamResolution, Record<StreamFramerate, number>> = {
@@ -40,10 +53,23 @@ export const RESOLUTION_LABELS: Record<StreamResolution, string> = {
 
 export const FRAMERATE_OPTIONS: StreamFramerate[] = [15, 30, 60];
 
-export const DEFAULT_STREAM_PRESET: StreamPreset = {resolution: '1080p', framerate: 30};
+export const CONTENT_OPTIONS: StreamContent[] = ['games', 'text'];
 
-/** Target bitrate in kbps for a preset. */
-export function bitrateFor(preset: StreamPreset): number {
+/**
+ * `text` rather than `games` because it is what every share did before the axis existed, so nobody's
+ * stream changes underneath them. The other mode is one tap away in the quality bar.
+ */
+export const DEFAULT_STREAM_PRESET: StreamPreset = {resolution: '1080p', framerate: 30, content: 'text'};
+
+/**
+ * Target bitrate in kbps for a preset.
+ *
+ * <p><b>Takes only the two fields it reads.</b> The content mode has no bitrate axis and must not
+ * grow one: a text share does not need a bigger budget, it needs rate control that spends the budget
+ * on the frames that changed. Narrowing the parameter is what stops that being re-litigated by
+ * somebody adding a third dimension to the table.</p>
+ */
+export function bitrateFor(preset: Pick<StreamPreset, 'resolution' | 'framerate'>): number {
     return BITRATES[preset.resolution][preset.framerate];
 }
 
@@ -148,7 +174,7 @@ export function clampPreset(preset: StreamPreset, ceiling: VideoCeiling | null |
 
     return resolution === preset.resolution && framerate === preset.framerate
         ? preset
-        : {resolution, framerate};
+        : {...preset, resolution, framerate};
 }
 
 function tallestAllowed(ceiling: VideoCeiling): StreamResolution | null {

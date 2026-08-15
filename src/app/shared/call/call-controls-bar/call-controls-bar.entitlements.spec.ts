@@ -1,4 +1,4 @@
-/**
+﻿/**
  * The controls bar against a plan.
  *
  * <p>Guide section 8 asks for two of its three things here: a share button disabled before it can
@@ -100,7 +100,7 @@ describe('the camera and share buttons', () => {
 });
 
 describe('the quality picker', () => {
-    const SHARING = {isScreenSharing: true, preset: {resolution: '720p', framerate: 30} as StreamPreset};
+    const SHARING = {isScreenSharing: true, preset: {resolution: '720p', framerate: 30, content: 'text'} as StreamPreset};
 
     it('offers everything when no rung has been resolved', () => {
         const fixture = render(SHARING);
@@ -137,6 +137,48 @@ describe('the quality picker', () => {
         expect(emitted).toEqual([]);
 
         segments(fixture, 'CALL.RESOLUTION')[0].click();
-        expect(emitted).toEqual([{resolution: '720p', framerate: 30}]);
+        expect(emitted).toEqual([{resolution: '720p', framerate: 30, content: 'text'}]);
+    });
+});
+
+/**
+ * The content mode, which is the one row of the three that a plan never restricts.
+ *
+ * <p>It costs the room nothing - it changes what the encoder gives up under pressure, not how much
+ * it spends - so a rung that caps resolution and framerate must still leave both modes live. A
+ * ceiling leaking into this row would be a paywall on legibility.</p>
+ */
+describe('the content mode row', () => {
+    const SHARING_TEXT = {
+        isScreenSharing: true,
+        preset: {resolution: '1080p', framerate: 30, content: 'text'} as StreamPreset,
+    };
+
+    it('offers both modes and marks the current one', () => {
+        const fixture = render(SHARING_TEXT);
+        const modes = segments(fixture, 'CALL.OPTIMIZE_FOR');
+
+        expect(modes.length).toBe(2);
+        expect(modes.map(b => b.getAttribute('aria-pressed'))).toEqual(['false', 'true']);
+    });
+
+    it('stays live under a rung that caps both other rows', () => {
+        const fixture = render({...SHARING_TEXT, videoCeiling: {maxHeight: 720, maxFramerate: 30}});
+
+        expect(segments(fixture, 'CALL.OPTIMIZE_FOR').every(b => !b.disabled)).toBe(true);
+    });
+
+    it('emits the new mode leaving resolution and framerate alone', () => {
+        const fixture = render(SHARING_TEXT);
+        const emitted: StreamPreset[] = [];
+        fixture.componentInstance.presetChange.subscribe(p => emitted.push(p));
+
+        segments(fixture, 'CALL.OPTIMIZE_FOR')[0].click();
+
+        expect(emitted).toEqual([{resolution: '1080p', framerate: 30, content: 'games'}]);
+    });
+
+    it('is absent when nothing is being shared', () => {
+        expect(segments(render(), 'CALL.OPTIMIZE_FOR')).toEqual([]);
     });
 });

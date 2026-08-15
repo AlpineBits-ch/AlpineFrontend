@@ -1,4 +1,4 @@
-import {TestBed} from '@angular/core/testing';
+﻿import {TestBed} from '@angular/core/testing';
 import {ScreenPickerService} from './screen-picker.service';
 import {RustMediaService} from './rust-media.service';
 import {installMemoryStorage} from '../testing/memory-storage';
@@ -37,14 +37,14 @@ describe('ScreenPickerService', () => {
             sourceId: 'monitor:0',
             sourceWidth: 2560,
             sourceHeight: 1440,
-            preset: {resolution: '1440p', framerate: 60},
+            preset: {resolution: '1440p', framerate: 60, content: 'text'},
             shareAudio: true,
         });
         await expect(pending).resolves.toEqual({
             sourceId: 'monitor:0',
             sourceWidth: 2560,
             sourceHeight: 1440,
-            preset: {resolution: '1440p', framerate: 60},
+            preset: {resolution: '1440p', framerate: 60, content: 'text'},
             shareAudio: true,
         });
         expect(svc.visible()).toBe(false);
@@ -65,10 +65,10 @@ describe('ScreenPickerService', () => {
             sourceId: 'monitor:0',
             sourceWidth: 1920,
             sourceHeight: 1080,
-            preset: {resolution: '720p', framerate: 15},
+            preset: {resolution: '720p', framerate: 15, content: 'text'},
             shareAudio: false,
         });
-        expect(picker().lastPreset()).toEqual({resolution: '720p', framerate: 15});
+        expect(picker().lastPreset()).toEqual({resolution: '720p', framerate: 15, content: 'text'});
     });
 
     /**
@@ -77,23 +77,23 @@ describe('ScreenPickerService', () => {
      * it was made, or every share opens at the default however often the bar is used.
      */
     it('remembers a preset set outside the dialog', () => {
-        picker().rememberPreset({resolution: '1440p', framerate: 60});
+        picker().rememberPreset({resolution: '1440p', framerate: 60, content: 'text'});
 
-        expect(picker().lastPreset()).toEqual({resolution: '1440p', framerate: 60});
+        expect(picker().lastPreset()).toEqual({resolution: '1440p', framerate: 60, content: 'text'});
     });
 
     it('defaults to 1080p30 with no stored preset', () => {
-        expect(picker().lastPreset()).toEqual({resolution: '1080p', framerate: 30});
+        expect(picker().lastPreset()).toEqual({resolution: '1080p', framerate: 30, content: 'text'});
     });
 
     it('falls back to the default preset on unparseable storage', () => {
         localStorage.setItem(PRESET_KEY, 'not json');
-        expect(picker().lastPreset()).toEqual({resolution: '1080p', framerate: 30});
+        expect(picker().lastPreset()).toEqual({resolution: '1080p', framerate: 30, content: 'text'});
     });
 
     it('fills gaps in a partially stored preset', () => {
         localStorage.setItem(PRESET_KEY, JSON.stringify({resolution: '1440p'}));
-        expect(picker().lastPreset()).toEqual({resolution: '1440p', framerate: 30});
+        expect(picker().lastPreset()).toEqual({resolution: '1440p', framerate: 30, content: 'text'});
     });
 });
 
@@ -130,11 +130,11 @@ describe('ScreenPickerService without an in-app picker', () => {
      * across hosts.
      */
     it('uses the stored preset', async () => {
-        localStorage.setItem(PRESET_KEY, JSON.stringify({resolution: '720p', framerate: 15}));
+        localStorage.setItem(PRESET_KEY, JSON.stringify({resolution: '720p', framerate: 15, content: 'text'}));
 
         const choice = await picker(webCapabilities()).show();
 
-        expect(choice?.preset).toEqual({resolution: '720p', framerate: 15});
+        expect(choice?.preset).toEqual({resolution: '720p', framerate: 15, content: 'text'});
     });
 
     /** A box to solve against, taken from the display - and in device pixels, not CSS ones. */

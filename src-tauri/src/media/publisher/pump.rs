@@ -1,4 +1,4 @@
-//! What happens to one captured frame: fit, preview, keyframe policy, encode, enqueue.
+﻿//! What happens to one captured frame: fit, preview, keyframe policy, encode, enqueue.
 //!
 //! Lifted out of the capture closure in [`super::session`] so it can be driven without a screen.
 //! Every rule in here was written for a failure a viewer suffers and the sharer cannot see - the
@@ -409,7 +409,7 @@ fn emit_preview(frame: &RgbaImage, buf: &mut Vec<u8>, sink: &impl PreviewSink) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::media::publisher::encoder::EncodedChunk;
+    use crate::media::publisher::encoder::{EncodedChunk, EncoderContent};
 
     /// What a [`RecordingEncoder`] was asked to do, readable from outside the pump that owns it.
     #[derive(Default)]
@@ -592,7 +592,7 @@ mod tests {
         );
     }
 
-    // ── The sharer's own tile ─────────────────────────────────────────────────
+    // â”€â”€ The sharer's own tile â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// Collects the framed access units meant for the webview's decoder.
     #[derive(Clone, Default)]
@@ -686,7 +686,7 @@ mod tests {
         assert_eq!(durations(&mut h).len(), 1);
     }
 
-    // ── Resolution changes ────────────────────────────────────────────────────
+    // â”€â”€ Resolution changes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     fn spec_at(width: u32, height: u32) -> EncoderSpec {
         EncoderSpec {
@@ -694,6 +694,7 @@ mod tests {
             height,
             fps: DECLARED_FPS,
             kbps: 2500,
+            content: EncoderContent::Text,
         }
     }
 

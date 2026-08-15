@@ -1,4 +1,4 @@
-/**
+﻿/**
  * The shape of the `start_screen_publish` invocation, and what the port's `shareId` buys.
  *
  * <p>Bug the payload assertions cover: it is assembled key by key, and Tauri's `invoke` takes a loose
@@ -57,6 +57,7 @@ function options(over: Partial<ScreenPublishOptions> = {}): ScreenPublishOptions
         guildId: 'guild-1',
         channelId: 'chan-1',
         shareAudio: true,
+        content: 'text',
         ...over,
     };
 }
@@ -78,10 +79,23 @@ describe('TauriScreenPublisher.start', () => {
         await publisher(core).start(options());
 
         expect(Object.keys(payload(core)).sort()).toEqual([
-            'apiBase', 'callId', 'channelId', 'deviceId', 'fps', 'guildId', 'height',
+            'apiBase', 'callId', 'channelId', 'content', 'deviceId', 'fps', 'guildId', 'height',
             'iceServers', 'kbps', 'localStream', 'onLocalStream', 'onPreview', 'shareAudio',
             'shareId', 'sourceId', 'token', 'width',
         ]);
+    });
+
+    /**
+     * The mode reaches Rust as a bare string because `preset` is not forwarded. Pinned separately
+     * from the key set above: a payload carrying the key with `undefined` would satisfy that
+     * assertion and still fail the command's deserialisation.
+     */
+    it('sends the content mode as a value, not just as a key', async () => {
+        const core = fakeCore();
+
+        await publisher(core).start(options({content: 'games'}));
+
+        expect(payload(core)['content']).toBe('games');
     });
 
     /**
@@ -123,7 +137,7 @@ describe('TauriScreenPublisher.start', () => {
     it('does not forward the preset to Rust', async () => {
         const core = fakeCore();
 
-        await publisher(core).start(options({preset: {resolution: '720p', framerate: 30}}));
+        await publisher(core).start(options({preset: {resolution: '720p', framerate: 30, content: 'text'}}));
 
         expect(payload(core)).not.toHaveProperty('preset');
     });

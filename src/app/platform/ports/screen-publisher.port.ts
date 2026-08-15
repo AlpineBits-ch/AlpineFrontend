@@ -1,5 +1,6 @@
 import type {
     IceServerConfig,
+    PublishSpec,
     ScreenPublishOptions,
     ScreenPublishResult,
     ScreenSource,
@@ -14,7 +15,14 @@ import type {
  * keeps those out of the web bundle while still letting a migrated caller depend on this port
  * alone.</p>
  */
-export type {IceServerConfig, ScreenPublishOptions, ScreenPublishResult, ScreenSource, SourceThumbnail};
+export type {
+    IceServerConfig,
+    PublishSpec,
+    ScreenPublishOptions,
+    ScreenPublishResult,
+    ScreenSource,
+    SourceThumbnail,
+};
 
 /**
  * Publishing a screen or window.
@@ -64,7 +72,7 @@ export abstract class ScreenPublisher {
     abstract setFps(shareId: string, fps: number): Promise<void>;
 
     /**
-     * Change the output resolution and bitrate mid-stream, without ending the publish.
+     * Retype a running publish - output geometry, bitrate and content mode - without ending it.
      *
      * <p><b>Nothing a viewer can see changes identity.</b> The session, the track and therefore the
      * `shareId` all survive this, so a resolution change is not announced to anybody - viewers get a
@@ -75,11 +83,16 @@ export abstract class ScreenPublisher {
      * one to four seconds - long enough that a maximised stream emptied the stage completely. The
      * encoder is retyped in place instead; the web host has always done the equivalent.</p>
      *
+     * <p><b>One object rather than four arguments</b>, and one call rather than one per field:
+     * these move together by rule. The encoder is built from all of them at once and applies them
+     * at a single frame boundary, so splitting them would let a share run with the geometry from one
+     * preset and the mode from another for as long as the second call took.</p>
+     *
      * <p>Best-effort by contract. A host that declines - a driver refusing a retype - leaves the
-     * share running at the resolution it already had, which is a picture the viewer can still
-     * watch. Callers must not treat this as a gate on anything.</p>
+     * share running as it already was, which is a picture the viewer can still watch. Callers must
+     * not treat this as a gate on anything.</p>
      */
-    abstract setGeometry(shareId: string, width: number, height: number, kbps: number): Promise<void>;
+    abstract setSpec(shareId: string, spec: PublishSpec): Promise<void>;
 
     /** Mute the share's own sound. Stops packets, not the capture device, so unmuting is instant. */
     abstract setAudioMuted(shareId: string, muted: boolean): Promise<void>;

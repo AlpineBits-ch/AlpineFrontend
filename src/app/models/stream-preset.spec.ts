@@ -1,7 +1,8 @@
-import {
+﻿import {
     bitrateFor,
     boxFor,
     clampPreset,
+    CONTENT_OPTIONS,
     DEFAULT_STREAM_PRESET,
     FRAMERATE_OPTIONS,
     isAudioOnlyCeiling,
@@ -61,7 +62,7 @@ describe('stream-preset', () => {
     });
 
     it('defaults to 1080p30', () => {
-        expect(DEFAULT_STREAM_PRESET).toEqual({resolution: '1080p', framerate: 30});
+        expect(DEFAULT_STREAM_PRESET).toEqual({resolution: '1080p', framerate: 30, content: 'text'});
     });
 });
 
@@ -83,8 +84,8 @@ describe('a granted video rung', () => {
             expect(isResolutionAllowed(resolution, null)).toBe(true);
         }
         for (const fps of FRAMERATE_OPTIONS) expect(isFramerateAllowed(fps, null)).toBe(true);
-        expect(clampPreset({resolution: '1440p', framerate: 60}, null))
-            .toEqual({resolution: '1440p', framerate: 60});
+        expect(clampPreset({resolution: '1440p', framerate: 60, content: 'text'}, null))
+            .toEqual({resolution: '1440p', framerate: 60, content: 'text'});
     });
 
     it('stops the picker where the rung stops', () => {
@@ -108,21 +109,21 @@ describe('a granted video rung', () => {
     it('keeps offering source, whose height it cannot know', () => {
         expect(resolutionHeight('source')).toBeNull();
         expect(isResolutionAllowed('source', RUNG_720P30)).toBe(true);
-        expect(clampPreset({resolution: 'source', framerate: 30}, RUNG_720P30))
-            .toEqual({resolution: 'source', framerate: 30});
+        expect(clampPreset({resolution: 'source', framerate: 30, content: 'text'}, RUNG_720P30))
+            .toEqual({resolution: 'source', framerate: 30, content: 'text'});
     });
 
     it('clamps a saved preset down to the tallest and fastest the rung permits', () => {
-        expect(clampPreset({resolution: '1440p', framerate: 60}, RUNG_720P30))
-            .toEqual({resolution: '720p', framerate: 30});
-        expect(clampPreset({resolution: '1080p', framerate: 60}, {maxHeight: 1080, maxFramerate: 30}))
-            .toEqual({resolution: '1080p', framerate: 30});
+        expect(clampPreset({resolution: '1440p', framerate: 60, content: 'text'}, RUNG_720P30))
+            .toEqual({resolution: '720p', framerate: 30, content: 'text'});
+        expect(clampPreset({resolution: '1080p', framerate: 60, content: 'text'}, {maxHeight: 1080, maxFramerate: 30}))
+            .toEqual({resolution: '1080p', framerate: 30, content: 'text'});
     });
 
     it('returns the same object when nothing needed clamping', () => {
         // Identity, not just equality: this is read inside a publish path and a fresh object per
         // call would churn the signal that holds it.
-        const preset = {resolution: '720p', framerate: 30} as const;
+        const preset = {resolution: '720p', framerate: 30, content: 'text'} as const;
         expect(clampPreset(preset, RUNG_720P30)).toBe(preset);
     });
 
@@ -138,14 +139,40 @@ describe('a granted video rung', () => {
         expect(isAudioOnlyCeiling(null)).toBe(false);
         expect(isResolutionAllowed('720p', none)).toBe(false);
         expect(isFramerateAllowed(15, none)).toBe(false);
-        expect(clampPreset({resolution: '1080p', framerate: 60}, none))
-            .toEqual({resolution: '1080p', framerate: 60});
+        expect(clampPreset({resolution: '1080p', framerate: 60, content: 'text'}, none))
+            .toEqual({resolution: '1080p', framerate: 60, content: 'text'});
     });
 
     /** Negative case: a ceiling below every measured option leaves the choice alone to be clamped. */
     it('leaves a preset alone when no measured resolution fits under the ceiling', () => {
-        expect(clampPreset({resolution: '1080p', framerate: 30}, {maxHeight: 480, maxFramerate: 30}))
-            .toEqual({resolution: '1080p', framerate: 30});
+        expect(clampPreset({resolution: '1080p', framerate: 30, content: 'text'}, {maxHeight: 480, maxFramerate: 30}))
+            .toEqual({resolution: '1080p', framerate: 30, content: 'text'});
     });
 
+});
+
+describe('the content axis', () => {
+    /**
+     * The default is what every share did before the axis existed. Pinned because flipping it is a
+     * one-word change that would silently alter how every existing user's stream degrades.
+     */
+    it('defaults to text, so no existing share changes behaviour', () => {
+        expect(DEFAULT_STREAM_PRESET.content).toBe('text');
+    });
+
+    it('offers exactly the two modes', () => {
+        expect(CONTENT_OPTIONS).toEqual(['games', 'text']);
+    });
+
+    /**
+     * The content mode is not an entitlement axis, so a clamp must carry it through untouched. It
+     * would otherwise be silently reset to the default every time a room capped the resolution.
+     */
+    it('survives a clamp that moves resolution and framerate', () => {
+        const clamped = clampPreset(
+            {resolution: '1440p', framerate: 60, content: 'games'},
+            {maxHeight: 720, maxFramerate: 30},
+        );
+        expect(clamped).toEqual({resolution: '720p', framerate: 30, content: 'games'});
+    });
 });

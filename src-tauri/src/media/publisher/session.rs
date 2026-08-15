@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use image::RgbaImage;
 
-use super::encoder::{new_encoder, EncoderSpec};
+use super::encoder::{new_encoder, EncoderContent, EncoderSpec};
 use super::pump::FramePump;
 use super::rtc::{FrameSink, Publication};
 use super::signalling::{Signalling, VideoIntent};
@@ -98,12 +98,19 @@ impl PublishHandle {
     /// <p>The geometry recorded here is what was <em>asked for</em>. [`super::pump::FramePump`] is
     /// free to refuse it - a driver that declines a retype leaves the share running at the old size
     /// - so this is the request, not a reading of the encoder.</p>
-    pub fn set_geometry(&self, width: u32, height: u32, kbps: u32) {
+    ///
+    /// <p><b>Takes the whole spec, and is the only writer of `pending_spec`.</b> The content mode
+    /// arrives here too rather than through a call of its own: one writer is what makes the ordering
+    /// rule on [`super::encoder::VideoEncoder::reconfigure`] - geometry and encoder move in the same
+    /// step, never around each other - something the type can enforce rather than something every
+    /// future caller has to remember.</p>
+    pub fn set_spec(&self, width: u32, height: u32, kbps: u32, content: EncoderContent) {
         let spec = super::encoder::EncoderSpec {
             width,
             height,
             fps: self.fps.load(Ordering::Relaxed).clamp(1, 60),
             kbps,
+            content,
         };
         if let Ok(mut cell) = self.pending_spec.lock() {
             // Overwritten rather than queued. Two changes arriving between frames means the user
@@ -274,6 +281,7 @@ pub async fn start(
     height: u32,
     fps: u32,
     kbps: u32,
+    content: EncoderContent,
     ice_servers: Vec<crate::media::publisher::rtc::IceServerConfig>,
     signalling: Signalling,
     on_preview: tauri::ipc::Channel<PreviewFrame>,
@@ -287,6 +295,7 @@ pub async fn start(
         height,
         fps,
         kbps,
+        content,
     };
     let encoder = new_encoder(spec)
         .ok_or_else(|| "no H.264 encoder available (OpenH264 not provisioned?)".to_string())?;

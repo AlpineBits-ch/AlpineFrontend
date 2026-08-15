@@ -135,6 +135,21 @@
                 </button>
             }
         </div>
+        <!-- No disabled state and no ceiling: the mode decides what degrades, not what is spent,
+             so no rung has an opinion about it. See `setContent`. -->
+        <div [attr.aria-label]="'CALL.OPTIMIZE_FOR' | translate"
+             class="flex items-center gap-0.5 rounded-lg border border-border-subtle bg-white/[0.05] p-1"
+             role="group">
+            @for (mode of contents; track mode.value) {
+                <button
+                        (click)="setContent(mode.value)"
+                        [attr.aria-pressed]="isContent(mode.value)"
+                        [attr.title]="mode.key + '_HINT' | translate"
+                        [class]="segmentClass(isContent(mode.value))"
+                        type="button">{{ mode.key | translate }}
+                </button>
+            }
+        </div>
     }
 
     <div aria-hidden="true" class="mx-1 h-7 w-px bg-border"></div>

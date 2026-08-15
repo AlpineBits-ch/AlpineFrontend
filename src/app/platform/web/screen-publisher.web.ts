@@ -3,6 +3,7 @@ import {DEFAULT_STREAM_PRESET} from '../../models/stream-preset';
 import {
     applyScreenEncoding,
     applySimpleBitrate,
+    CONTENT_POLICY,
     preferVideoCodecs,
     screenSendEncodings,
     STREAM_AUDIO_KBPS,
@@ -15,6 +16,7 @@ import {
     retargetDisplayGeometry,
 } from '../display-capture';
 import {
+    PublishSpec,
     ScreenPublisher,
     ScreenPublishOptions,
     ScreenPublishResult,
@@ -276,16 +278,23 @@ export class WebScreenPublisher extends ScreenPublisher implements ScreenPublish
         }
     }
 
-    async setGeometry(shareId: string, width: number, height: number, kbps: number): Promise<void> {
-        const live = this.assertLive(shareId, 'setGeometry');
+    async setSpec(shareId: string, spec: PublishSpec): Promise<void> {
+        const live = this.assertLive(shareId, 'setSpec');
         // Both halves, exactly as setFps does. The capture constraint decides what size the browser
         // hands the encoder; the encoding's bitrate is what the preset budgeted for that size, and
         // leaving it behind would either starve the new resolution or overspend on it.
-        await retargetDisplayGeometry(live.capture.video, Math.round(width), Math.round(height));
+        await retargetDisplayGeometry(live.capture.video, Math.round(spec.width), Math.round(spec.height));
         try {
             const params = live.videoSender.getParameters();
             if (!params.encodings?.length) params.encodings = [{}];
-            for (const encoding of params.encodings) encoding.maxBitrate = Math.round(kbps) * 1000;
+            for (const encoding of params.encodings) encoding.maxBitrate = Math.round(spec.kbps) * 1000;
+            // The mode's own two settings. On this host `applyScreenEncoding` sets them too, from
+            // the preset, whenever the bar changes one - but a caller reaching the port directly
+            // must not be able to move the geometry while leaving the mode behind, which is the
+            // whole reason these travel as one spec.
+            const policy = CONTENT_POLICY[spec.content];
+            params.degradationPreference = policy.degradation;
+            if (live.videoSender.track) live.videoSender.track.contentHint = policy.hint;
             await live.videoSender.setParameters(params);
         } catch { /* setParameters unsupported, or the share already ended */
         }

@@ -966,7 +966,7 @@ describe('a hub reconnect', () => {
  * nothing to say - and saying it anyway would recreate the whole failure on its own.</p>
  */
 describe('changing stream quality mid-share', () => {
-    const preset = {resolution: '1440p', framerate: 30} as const;
+    const preset = {resolution: '1440p', framerate: 30, content: 'text'} as const;
 
     it('announces nothing to the room', async () => {
         const {service, rtc, wsCalls} = setup();

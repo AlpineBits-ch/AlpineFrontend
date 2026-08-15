@@ -1,4 +1,4 @@
-/**
+﻿/**
  * The pre-share dialog, after the quality step was taken out of it.
  *
  * <p>This file replaces `screen-picker.entitlements.spec.ts`, which tested a resolution and framerate
@@ -123,13 +123,13 @@ describe('the pre-share dialog', () => {
 
     /** The quality the bar was last left at, which is now the only place quality is chosen. */
     it('opens the share at the remembered preset', async () => {
-        save({resolution: '720p', framerate: 15});
+        save({resolution: '720p', framerate: 15, content: 'text'});
         const fixture = render();
         const pending = open(fixture);
 
         tiles(fixture)[0].click();
 
-        expect((await pending as ScreenPickerChoice).preset).toEqual({resolution: '720p', framerate: 15});
+        expect((await pending as ScreenPickerChoice).preset).toEqual({resolution: '720p', framerate: 15, content: 'text'});
     });
 
     /**
@@ -140,15 +140,15 @@ describe('the pre-share dialog', () => {
      * preference and every later share in a channel that could afford 1440p opened at 720p.</p>
      */
     it('does not clamp the stored preference against the room', async () => {
-        save({resolution: '1440p', framerate: 60});
+        save({resolution: '1440p', framerate: 60, content: 'text'});
         const fixture = render();
         const pending = open(fixture);
 
         tiles(fixture)[0].click();
 
-        expect((await pending as ScreenPickerChoice).preset).toEqual({resolution: '1440p', framerate: 60});
+        expect((await pending as ScreenPickerChoice).preset).toEqual({resolution: '1440p', framerate: 60, content: 'text'});
         expect(JSON.parse(localStorage.getItem(PRESET_KEY)!))
-            .toEqual({resolution: '1440p', framerate: 60});
+            .toEqual({resolution: '1440p', framerate: 60, content: 'text'});
     });
 
     /**

@@ -92,9 +92,11 @@ export async function captureDisplay(request: DisplayCaptureRequest): Promise<Di
         stream.getTracks().forEach(t => t.stop());
         throw new Error('Display capture produced no video track.');
     }
-    // 'detail' - screen content is text and UI. Paired with maintain-resolution degradation on the
-    // sender (see `applyScreenEncoding`), the encoder drops frames under congestion instead of
-    // shedding resolution.
+    // An opening value only, and deliberately the cautious one. `applyScreenEncoding` sets the hint
+    // that actually governs, from the share's content mode, on this same track object moments later
+    // - a capture has no preset to read and should not grow one just to guess. 'detail' is the safe
+    // guess of the two: a game hinted as text for a few milliseconds costs nothing, where a document
+    // hinted as motion can be resampled before the sender's policy lands.
     try {
         video.contentHint = 'detail';
     } catch { /* contentHint unsupported */
