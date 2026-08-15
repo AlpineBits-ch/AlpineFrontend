@@ -78,17 +78,30 @@ export const ConversationStore = signalStore(
             const profileService = inject(ProfileService);
             const conversationService = inject(ConversationService);
 
-            wsService.conversationCreatedObservable.subscribe(conversationId => {
-                if (store.entityMap()[conversationId]) return;
-                conversationService.getConversationById(conversationId).subscribe(conv => {
-                    patchState(store, addEntities([conv]));
+            /** Fetches a conversation we do not hold. Silent on failure - a retry costs nothing. */
+            const ensureLoaded = (conversationId: string): boolean => {
+                if (store.entityMap()[conversationId]) return true;
+                conversationService.getConversationById(conversationId).subscribe({
+                    next: conv => patchState(store, addEntities([conv])),
+                    error: () => undefined,
                 });
-            });
+                return false;
+            };
+
+            wsService.conversationCreatedObservable.subscribe(id => ensureLoaded(id));
 
             wsService.messageObservable.subscribe(msg => {
-                if (msg.conversationId) {
-                    patchState(store, updateEntity({id: msg.conversationId, changes: {updatedAt: new Date()}}));
-                }
+                if (!msg.conversationId) return;
+
+                // A message can be the first we hear of a conversation. The server opens one on our
+                // behalf when somebody rings us into a voice channel and we have never DM'd them, and
+                // the two announcements travel as separate bus messages with no ordering between
+                // them - so this arriving first is ordinary, not a bug. `updateEntity` on an id the
+                // store does not hold is a silent no-op, which is how the conversation used to stay
+                // invisible until the next full reload.
+                if (!ensureLoaded(msg.conversationId)) return;
+
+                patchState(store, updateEntity({id: msg.conversationId, changes: {updatedAt: new Date()}}));
             });
 
             wsService.conversationRemovedObservable.subscribe(event =>

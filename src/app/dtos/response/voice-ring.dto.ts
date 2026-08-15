@@ -28,6 +28,32 @@ export interface VoiceRingDto {
     resolvedByDeviceId: string | null;
 }
 
+/**
+ * How hard to knock, sent as `delivery` on the ring request.
+ *
+ * <p>The server defaults to {@link Both} for the sake of clients that predate the field. This client
+ * always says which it wants.</p>
+ */
+export enum VoiceRingDelivery {
+    /** The invitation goes in the DM and nowhere else. Nothing rings, nothing expires. */
+    Message = 'Message',
+    /** The ephemeral ring alone, leaving no record once it lapses. */
+    Ring = 'Ring',
+    /** The ring now, and the card that outlives it. */
+    Both = 'Both',
+}
+
+/**
+ * The answer to a {@link VoiceRingDelivery.Message} invitation.
+ *
+ * <p>Deliberately not a {@link VoiceRingDto}: there is no ring, so there is no id to accept and no
+ * instant to count down to. What comes back is where the card landed, which may be a conversation
+ * that did not exist a moment ago.</p>
+ */
+export interface VoiceInviteSentDto {
+    conversationId: string;
+}
+
 export enum VoiceRingStatus {
     Pending = 'Pending',
     Accepted = 'Accepted',

@@ -13,53 +13,98 @@
     </ng-template>
 
     <!--
-      One invitation at a time out of this channel. While one is pending the list is replaced by its
-      countdown and a cancel: sending a second is not what anybody means by pressing again, and the
-      server would answer the same ring back anyway.
+      A pending ring is a banner rather than a takeover. It used to replace the whole list, which was
+      right when ringing was the only thing this dialog did - but the row action is now the quiet
+      invitation, and having the primary action disappear because a secondary one is in flight is
+      not a trade worth making. One ring at a time out of this channel still holds; that is what
+      disables the bells below.
     -->
     @if (pending(); as out) {
-        <div class="flex flex-col items-center gap-3 py-4 text-center">
-            <i class="pi pi-send text-2xl text-brand-dim"></i>
-            <p class="text-sm text-white/70 m-0">{{ 'VOICE_RING.PENDING' | translate }}</p>
-            <p class="text-xs text-white/40 m-0">{{ 'VOICE_RING.EXPIRES_IN' | translate: {seconds: out.secondsLeft} }}</p>
+        <div class="mb-3 flex items-center gap-2 rounded-lg border border-border-subtle bg-white/[0.03] px-3 py-2">
+            <i class="pi pi-send text-brand-dim text-xs"></i>
+            <div class="flex-1 min-w-0">
+                <p class="text-xs text-white/70 m-0">{{ 'VOICE_RING.PENDING' | translate }}</p>
+                <p class="text-[11px] text-white/40 m-0">{{ 'VOICE_RING.EXPIRES_IN' | translate: {seconds: out.secondsLeft} }}</p>
+            </div>
             <p-button (onClick)="cancel()" [label]="'VOICE_RING.CANCEL' | translate" [text]="true"
                       severity="secondary" size="small"/>
         </div>
+    }
+
+    @if (refusal(); as refused) {
+        <div class="mb-3 rounded-lg border border-border-subtle bg-white/[0.03] px-3 py-2">
+            <p class="text-xs text-white/60 m-0">{{ refused.messageKey | translate }}</p>
+        </div>
+    }
+
+    <input [(ngModel)]="query"
+           [attr.aria-label]="'VOICE_RING.SEARCH' | translate"
+           [placeholder]="'VOICE_RING.SEARCH' | translate"
+           class="w-full mb-3"
+           pInputText
+           type="text"/>
+
+    @if (loading()) {
+        <div class="flex items-center justify-center py-8">
+            <i class="pi pi-spin pi-spinner text-white/40"></i>
+        </div>
     } @else {
-        @if (refusal(); as refused) {
-            <div class="mb-3 rounded-lg border border-border-subtle bg-white/[0.03] px-3 py-2">
-                <p class="text-xs text-white/60 m-0">{{ refused.messageKey | translate }}</p>
-            </div>
-        }
+        <div class="flex flex-col gap-1 max-h-72 overflow-y-auto thin-scrollbar">
+            @for (candidate of filtered(); track candidate.userId) {
+                <div class="flex flex-col">
+                    <div class="flex items-center gap-1">
+                        <!--
+                          The row itself sends the message invitation. It interrupts nobody, it does
+                          not expire, and it is what somebody means by "invite them" almost every
+                          time - so it is the whole width of the row rather than an icon.
+                        -->
+                        <button (click)="invite(candidate)"
+                                [disabled]="!!inviting() || invited().has(candidate.userId)"
+                                class="flex flex-1 min-w-0 items-center gap-2.5 rounded-lg px-2 py-1.5 text-left
+                                       hover:bg-hover disabled:opacity-50 cursor-pointer border-0 bg-transparent"
+                                type="button">
+                            <app-avatar [label]="candidate.name.charAt(0).toUpperCase()"
+                                        [userId]="candidate.userId"/>
+                            <span class="flex-1 text-sm text-white/80 truncate">{{ candidate.name }}</span>
 
-        <input [(ngModel)]="query"
-               [attr.aria-label]="'VOICE_RING.SEARCH' | translate"
-               [placeholder]="'VOICE_RING.SEARCH' | translate"
-               class="w-full mb-3"
-               pInputText
-               type="text"/>
+                            @if (inviting() === candidate.userId) {
+                                <i class="pi pi-spin pi-spinner text-[11px] text-white/40 shrink-0"></i>
+                            } @else if (invited().has(candidate.userId)) {
+                                <span class="shrink-0 flex items-center gap-1 text-[11px] text-online">
+                                    <i class="pi pi-check text-[9px]"></i>
+                                    {{ 'VOICE_RING.INVITE_SENT' | translate }}
+                                </span>
+                            }
+                        </button>
 
-        @if (loading()) {
-            <div class="flex items-center justify-center py-8">
-                <i class="pi pi-spin pi-spinner text-white/40"></i>
-            </div>
-        } @else {
-            <div class="flex flex-col gap-1 max-h-72 overflow-y-auto thin-scrollbar">
-                @for (candidate of filtered(); track candidate.userId) {
-                    <button (click)="send(candidate)"
-                            [disabled]="ringState.sending()"
-                            class="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-left
-                                   hover:bg-hover disabled:opacity-50 cursor-pointer border-0 bg-transparent"
-                            type="button">
-                        <app-avatar [label]="candidate.name.charAt(0).toUpperCase()"
-                                    [userId]="candidate.userId"/>
-                        <span class="text-sm text-white/80 truncate">{{ candidate.name }}</span>
-                    </button>
-                } @empty {
-                    <p class="text-xs text-white/40 text-center py-6 m-0">{{ 'VOICE_RING.NOBODY_TO_INVITE' | translate }}</p>
-                }
-            </div>
-        }
+                        <!--
+                          The escalation, deliberately small and deliberately separate. Ringing buzzes
+                          a phone and a decline locks you out for hours, so it should never be the
+                          thing somebody hits by aiming at a name.
+                        -->
+                        <button (click)="send(candidate)"
+                                [attr.aria-label]="'VOICE_RING.RING_THEM' | translate"
+                                [disabled]="ringState.sending() || !!pending()"
+                                [title]="'VOICE_RING.RING_THEM' | translate"
+                                class="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center
+                                       text-white/35 hover:text-brand-dim hover:bg-hover
+                                       disabled:opacity-30 disabled:cursor-default
+                                       cursor-pointer border-0 bg-transparent transition-colors"
+                                type="button">
+                            <i class="pi pi-bell text-xs"></i>
+                        </button>
+                    </div>
+
+                    @if (inviteRefusal(); as refused) {
+                        @if (refused.userId === candidate.userId) {
+                            <p class="text-[11px] text-rose-400/70 m-0 ml-2 mb-1">{{ refused.messageKey | translate }}</p>
+                        }
+                    }
+                </div>
+            } @empty {
+                <p class="text-xs text-white/40 text-center py-6 m-0">{{ 'VOICE_RING.NOBODY_TO_INVITE' | translate }}</p>
+            }
+        </div>
     }
 
     <ng-template pTemplate="footer">

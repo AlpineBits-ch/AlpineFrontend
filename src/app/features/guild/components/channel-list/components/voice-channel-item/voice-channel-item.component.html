@@ -8,42 +8,42 @@
             (click)="open.emit()"
             (contextmenu)="openMenu.emit($event)"
             [class.cursor-grab]="canReorder()"
-            [ngClass]="isJoined()
-                ? 'bg-online/10 text-online/80'
-                : isActive()
-                    ? 'bg-white/[0.08] text-white/90'
-                    : 'bg-transparent text-white/55 hover:bg-white/[0.06] hover:text-white/90'"
-            class="w-full flex items-center gap-2.5 px-2 py-[7px] rounded-lg text-left transition-all border-0 cursor-pointer">
-        <i [ngClass]="isJoined() ? 'text-online/60' : 'text-white/35'"
-           class="pi pi-volume-up text-[0.8125rem] shrink-0"></i>
-        <span class="text-[0.8rem] font-medium truncate">{{ channel().name }}</span>
+            [class.is-active]="!isJoined() && isActive()"
+            [class.is-joined]="isJoined()"
+            class="chan-row">
+        <span class="chan-icon"><i class="pi pi-volume-up"></i></span>
+        <span class="chan-label">{{ channel().name }}</span>
         <!-- Lock first: it is a permission fact and must not be displaced by a transient one. The
              LIVE pill then outranks the participant count, which is redundant anyway - every
              participant is already listed as a row directly beneath this one. -->
         @if (channel().isPrivate) {
-            <i class="pi pi-lock text-[0.6875rem] text-white/35 ml-auto shrink-0"></i>
+            <i class="pi pi-lock chan-lock"></i>
         } @else if (liveEvent(); as event) {
             <span [pTooltip]="event.title"
-                  class="ml-auto shrink-0 flex items-center gap-1 rounded-md bg-online/15 px-1.5 py-0.5"
+                  class="shrink-0 flex items-center gap-1.5"
                   tooltipPosition="right">
                 <span class="relative flex size-1.5">
                     <span class="absolute inline-flex size-full animate-ping rounded-full bg-online opacity-60 motion-reduce:hidden"></span>
                     <span class="relative inline-flex size-full rounded-full bg-online"></span>
                 </span>
-                <span class="text-[0.625rem] font-semibold uppercase tracking-widest text-online">
+                <span class="text-[0.625rem] font-bold uppercase tracking-[0.12em] text-online">
                     {{ 'EVENTS.LIVE' | translate }}
                 </span>
             </span>
         } @else if (participants().length > 0) {
-            <span class="ml-auto text-[0.6875rem] text-white/40 shrink-0">{{ participants().length }}</span>
+            <span class="chan-meta">{{ participants().length }}</span>
         }
     </button>
 
-    @for (p of participants(); track p.userId) {
-        <app-voice-participant-row
-                (open)="open.emit()"
-                (openMenu)="onParticipantMenu($event, p)"
-                (watch)="watch.emit({userId: p.userId})"
-                [participant]="p"/>
+    @if (participants().length > 0) {
+        <div class="chan-nest">
+            @for (p of participants(); track p.userId) {
+                <app-voice-participant-row
+                        (open)="open.emit()"
+                        (openMenu)="onParticipantMenu($event, p)"
+                        (watch)="watch.emit({userId: p.userId})"
+                        [participant]="p"/>
+            }
+        </div>
     }
 </div>

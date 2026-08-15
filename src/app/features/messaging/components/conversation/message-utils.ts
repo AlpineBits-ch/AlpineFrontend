@@ -27,6 +27,12 @@ const GROUPING_WINDOW_MS = 20_000;
  * <p>Also what stops the next real message being grouped under it: grouping keys on the author,
  * and a call entry is authored by whoever placed the call - so without this, the caller's next
  * message would silently fold into the call notice and lose its avatar and timestamp.</p>
+ *
+ * <p><b>{@link MessageType.VoiceChannelInvite} is deliberately absent.</b> It is a system message on
+ * the wire, but it is not one to read: the others are a record of something that already happened,
+ * whereas this is one person asking another something, with a card they can answer. It renders as
+ * an ordinary message from the inviter - which also means the reply they send a moment later groups
+ * under it, exactly as it should.</p>
  */
 export function isSystemMessageType(type: MessageType): boolean {
     return type === MessageType.GuildMemberJoin

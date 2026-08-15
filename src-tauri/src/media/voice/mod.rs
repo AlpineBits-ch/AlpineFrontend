@@ -21,6 +21,7 @@ pub mod denoise;
 mod e2e_tests;
 pub mod gate;
 pub mod jitter;
+pub mod liveness;
 pub mod mixer;
 pub mod playout;
 pub mod process;
@@ -47,6 +48,7 @@ use crate::media::publisher::rtc::IceServerConfig;
 use crate::media::publisher::signalling::{SessionRole, Signalling, VoiceTarget};
 use chain::ChainConfig;
 use gate::{GateConfig, InputMode};
+use liveness::Liveness;
 use process::{NoiseSuppression, ProcessConfig};
 use mixer::{Position, SpatialModel};
 use rtc::VoicePublication;
@@ -357,6 +359,20 @@ pub async fn voice_start(
     // dropped back out of the channel with no explanation on either side.
     eprintln!("[voice] joining {target:?} as slot {slot}");
 
+    // A second client, for the liveness ping alone. Built here because `target` is about to be
+    // moved into the publication's own signalling and `Signalling` deliberately does not hand it
+    // back out - and because the ping's lifetime is the publication's, not a request's, so sharing
+    // one client would tie two different lifetimes together for the sake of a pooled handle that is
+    // cheap to hold twice. Not started yet: see below.
+    let alive_signalling = Signalling::new(
+        api_base.clone(),
+        token.clone(),
+        device_id.clone(),
+        target.clone(),
+        SessionRole::Primary,
+    )
+    .inspect_err(|e| eprintln!("[voice] could not start liveness signalling: {e}"))?;
+
     // Primary: this is the session the backend records as the participant's audio.
     let signalling = Signalling::new(api_base, token, device_id, target, SessionRole::Primary)
         .inspect_err(|e| eprintln!("[voice] could not start signalling: {e}"))?;
@@ -400,7 +416,16 @@ pub async fn voice_start(
     let Some(active) = guard.as_mut() else {
         return Err("the voice engine stopped while this call was connecting".into());
     };
-    let publication = active.attach(slot.clone(), inner, on_event);
+    // Liveness starts here and not a line earlier: only now is there a publication for it to be
+    // asserting the existence of. A ping started before the connect succeeded would tell the server
+    // we are in a room we might yet fail to join, and one started before `attach` would have nothing
+    // owning it to switch it off again.
+    let publication = active.attach(
+        slot.clone(),
+        inner,
+        on_event,
+        Liveness::start(alive_signalling),
+    );
 
     // After the publication is attached, so the first report already has a call to describe.
     spawn_stats_logger();

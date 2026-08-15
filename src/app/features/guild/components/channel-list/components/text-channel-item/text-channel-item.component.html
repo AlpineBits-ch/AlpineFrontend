@@ -10,21 +10,26 @@
             (click)="open.emit()"
             (contextmenu)="openMenu.emit($event)"
             [class.cursor-grab]="canReorder()"
-            [ngClass]="isActive() ? 'bg-white/[0.08] text-white/95' : (showsReadState() && rs.isUnread) ? 'text-white/90 font-semibold hover:bg-white/[0.06] hover:text-white' : 'text-white/55 hover:bg-white/[0.06] hover:text-white/90'"
-            class="w-full flex items-center gap-2.5 px-2 py-[7px] rounded-lg text-left transition-all border-0 cursor-pointer">
-        @if (icon(); as iconClass) {
-            <i [class]="iconClass" class="text-white/35 text-[17px] shrink-0 pointer-events-none"></i>
-        } @else {
-            <span class="text-white/35 text-[25px] leading-none font-medium shrink-0 pointer-events-none">#</span>
-        }
-        <span class="text-[0.8rem] font-medium truncate flex-1 pointer-events-none">{{ channel().name }}</span>
+            [class.is-active]="isActive()"
+            [class.is-unread]="!isActive() && showsReadState() && rs.isUnread"
+            class="chan-row">
+        <!-- The `#` is a text glyph where the others are icon-font characters, so it carries its
+             own size to land at the same optical weight inside the shared slot. It used to be set
+             at 25px next to a 12.8px label, which is the mismatch that made the column look
+             unfinished more than anything else here. -->
+        <span class="chan-icon pointer-events-none" [class.chan-icon-hash]="!icon()">
+            @if (icon(); as iconClass) {
+                <i [class]="iconClass"></i>
+            } @else {
+                #
+            }
+        </span>
+        <span class="chan-label pointer-events-none">{{ channel().name }}</span>
         @if (showsReadState() && rs.mentionCount > 0) {
-            <span class="min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center shrink-0 pointer-events-none">
-                {{ rs.mentionCount }}
-            </span>
+            <span class="chan-badge chan-badge-mention pointer-events-none">{{ rs.mentionCount }}</span>
         }
         @if (channel().isPrivate) {
-            <i class="pi pi-lock text-[11px] text-white/35 shrink-0 pointer-events-none"></i>
+            <i class="pi pi-lock chan-lock pointer-events-none"></i>
         }
     </button>
 </div>

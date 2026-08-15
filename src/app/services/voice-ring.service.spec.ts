@@ -30,14 +30,28 @@ describe('VoiceRingService', () => {
         TestBed.resetTestingModule();
     });
 
-    it('rings into a channel', () => {
+    it('rings into a channel, and says which delivery rather than relying on the default', () => {
+        // The server defaults `delivery` to Both only for the sake of clients that predate the
+        // field. Saying it means this request keeps its meaning if that default ever moves.
         const {service, ctrl} = setup();
         service.ring('g1', 'chan_1', 'user_ada').subscribe();
 
         const req = ctrl.expectOne(`${BASE}/guilds/g1/channels/chan_1/voice/rings`);
         expect(req.request.method).toBe('POST');
-        expect(req.request.body).toEqual({targetUserId: 'user_ada'});
+        expect(req.request.body).toEqual({targetUserId: 'user_ada', delivery: 'Both'});
         req.flush({});
+    });
+
+    it('invites through the same route with the quiet delivery', () => {
+        // One endpoint, two acts. A message invitation rings nobody and creates no ring, and it
+        // answers the conversation it landed in rather than something to count down.
+        const {service, ctrl} = setup();
+        service.invite('g1', 'chan_1', 'user_ada').subscribe();
+
+        const req = ctrl.expectOne(`${BASE}/guilds/g1/channels/chan_1/voice/rings`);
+        expect(req.request.method).toBe('POST');
+        expect(req.request.body).toEqual({targetUserId: 'user_ada', delivery: 'Message'});
+        req.flush({conversationId: 'conv_1'});
     });
 
     it('reads the pending rings from a flat route, since a woken phone knows only a ring id', () => {

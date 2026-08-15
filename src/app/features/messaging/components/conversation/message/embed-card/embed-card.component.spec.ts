@@ -10,6 +10,9 @@ import {ApiConfigService} from '../../../../../../services/api-config.service';
 import {
     WikiDeepLinkService,
 } from '../../../../../guild/components/wiki/wiki-share/wiki-deep-link.service';
+import {ProfileService} from '../../../../../../services/profile.service';
+import {VoiceChannelService} from '../../../../../../services/voice-channel.service';
+import {VoiceRingStateService} from '../../../../../../services/voice-ring-state.service';
 
 /** The one bit that says the server wrote this, not the message's author. */
 const GENERATED = EmbedFlags.Generated;
@@ -32,6 +35,11 @@ function setup(embed: MessageEmbed) {
             // The wiki card's "can this click land anywhere" check, whose real graph reaches the
             // navigation stack and the account registry. Nothing here navigates.
             {provide: WikiDeepLinkService, useValue: {canOpen: () => false, open: vi.fn()}},
+            // The voice-invite card's three. The real ring state pulls in the realtime connection
+            // and the voice stack; this fixture is about which card gets picked, not what it does.
+            {provide: VoiceRingStateService, useValue: {accept: vi.fn(), joinVoiceChannel: vi.fn()}},
+            {provide: ProfileService, useValue: {ownProfile: () => ({userId: 'user_me'})}},
+            {provide: VoiceChannelService, useValue: {joinedChannelId: () => null}},
         ],
     });
 
@@ -138,6 +146,54 @@ describe('EmbedCardComponent wiki stub', () => {
         expect(card.mode()).toBe('venta-wiki');
         expect(fixture.nativeElement.querySelectorAll('app-wiki-card').length).toBe(1);
         expect(fixture.nativeElement.textContent).toContain('WIKI.CARD.PLACEHOLDER_TITLE');
+    });
+});
+
+describe('EmbedCardComponent voice invite', () => {
+    afterEach(() => TestBed.resetTestingModule());
+
+    function voiceInvite(overrides: Partial<MessageEmbed> = {}): MessageEmbed {
+        return {
+            type: 'venta.voice_invite',
+            title: 'General',
+            flags: GENERATED,
+            fields: [],
+            venta: {
+                kind: 'voice_invite',
+                resolved: true,
+                ring_id: 'vrng_1',
+                guild_id: 'gild_1',
+                channel_id: 'chan_1',
+                channel_name: 'General',
+                inviter_id: 'user_inviter',
+                expires_at: new Date(Date.now() + 60_000).toISOString(),
+            },
+            ...overrides,
+        };
+    }
+
+    it('routes a voice invite to its own card', () => {
+        const {fixture, card} = setup(voiceInvite());
+
+        expect(card.mode()).toBe('venta-voice-invite');
+        expect(fixture.nativeElement.querySelectorAll('app-voice-invite-card').length).toBe(1);
+    });
+
+    it('draws nothing without the generated flag, like every other venta card', () => {
+        // This card's identifiers are a channel to walk into. Taking them from an embed a bot
+        // authored is the one thing the flag exists to prevent.
+        const {fixture, card} = setup(voiceInvite({flags: 0}));
+
+        expect(card.mode()).toBe('none');
+        expect(fixture.nativeElement.querySelectorAll('app-voice-invite-card').length).toBe(0);
+    });
+
+    it('does not fall back to the link layout despite having no url', () => {
+        // It is the one venta card with no `url` - there is no link shape for a channel. A renderer
+        // that treated "no url" as a reason to draw the generic card would draw a bare title.
+        const {card} = setup(voiceInvite());
+
+        expect(card.mode()).not.toBe('card');
     });
 });
 

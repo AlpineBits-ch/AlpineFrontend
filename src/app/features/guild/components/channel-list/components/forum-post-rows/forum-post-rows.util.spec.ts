@@ -1,6 +1,6 @@
 import {ChannelDto, ChannelType} from '../../../../../../dtos/response/guild.dto';
 import {ChannelReadState} from '../../../../../../services/guild-read-state.service';
-import {forumTreePath, MAX_NESTED_POST_ROWS, NESTED_ROW_HEIGHT, selectNestedPosts} from './forum-post-rows.util';
+import {MAX_NESTED_POST_ROWS, selectNestedPosts} from './forum-post-rows.util';
 
 function post(over: Partial<ChannelDto> & {id: string}): ChannelDto {
     return {
@@ -112,41 +112,5 @@ describe('selectNestedPosts', () => {
         expect(rows.length).toBe(MAX_NESTED_POST_ROWS);
         // Oldest of the lot, but the only one that named the user - it must survive the cut.
         expect(rows[0].id).toBe('mentioned');
-    });
-});
-
-describe('forumTreePath', () => {
-    it('gives one branch per row, counting the trunk as the last row own branch', () => {
-        const {branches} = forumTreePath(3);
-
-        expect(branches.length).toBe(2);
-    });
-
-    it('sizes the box to the rows it draws', () => {
-        expect(forumTreePath(4).height).toBe(4 * NESTED_ROW_HEIGHT);
-    });
-
-    /** A single post is all trunk-and-turn, with nothing branching above it. */
-    it('draws a lone row as just the turn', () => {
-        const {branches, trunk, height} = forumTreePath(1);
-
-        expect(branches).toEqual([]);
-        expect(height).toBe(NESTED_ROW_HEIGHT);
-        expect(trunk.startsWith('M11 0')).toBe(true);
-    });
-
-    /** Each branch must land on its own row's centre line, or the tree misses the text. */
-    it('puts every branch on a row centre', () => {
-        const {branches} = forumTreePath(4);
-
-        const ys = branches.map(d => Number(d.match(/M11 ([\d.]+) H/)![1]));
-        expect(ys).toEqual([15, 45, 75]);
-    });
-
-    it('turns the trunk out at the last row centre', () => {
-        const {trunk} = forumTreePath(3);
-
-        // 3 rows => last centre at 75; the curve ends there and runs out to the branch tip.
-        expect(trunk).toContain('Q11 75 19 75 H20');
     });
 });

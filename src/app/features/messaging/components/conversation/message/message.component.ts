@@ -21,6 +21,7 @@ import {
     MessageFlags,
     PinMessageResponse
 } from "../../../../../dtos/response/message.dto";
+import {MessageType} from '../../../../../enums/message-type.enum';
 import {BotCommandDto} from '../../../../../dtos/response/bot-command.dto';
 import {AppAvatarComponent} from "../../../../../components/avatar/avatar.component";
 import {AsyncPipe, DatePipe, NgClass} from "@angular/common";
@@ -173,8 +174,16 @@ export class MessageComponent {
      * <p>This used to be "render the text only when there are no embeds", which was survivable
      * while every embed was a bot's whole message. A link preview is an attachment to something a
      * person actually wrote, so that rule swallowed the message the moment its card arrived.</p>
+     *
+     * <p>The one exception is a body that is not a body: on a `VoiceChannelInvite` the server writes
+     * a plain-English sentence into `content` purely so that bots, exports and search have something
+     * to read, and says as much. Rendering it here would print the card's own text above the card.
+     * Keyed on the message type rather than on "does an embed repeat this", because that comparison
+     * would be guesswork and this is documented.</p>
      */
-    public readonly hasRenderableContent = computed(() => this.displayContent().trim().length > 0);
+    public readonly hasRenderableContent = computed(() =>
+        this.message().type !== MessageType.VoiceChannelInvite
+        && this.displayContent().trim().length > 0);
 
     public contentSegments = computed(() => {
         const text = this.displayContent();

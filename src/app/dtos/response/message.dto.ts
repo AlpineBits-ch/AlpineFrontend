@@ -66,7 +66,8 @@ export interface MessageEmbedProvider {
  * release, and a half-rendered card is worse than no card.</p>
  */
 export type MessageEmbedType =
-    'rich' | 'link' | 'article' | 'image' | 'video' | 'gifv' | 'venta.invite' | 'venta.wiki_page';
+    'rich' | 'link' | 'article' | 'image' | 'video' | 'gifv'
+    | 'venta.invite' | 'venta.wiki_page' | 'venta.voice_invite';
 
 /**
  * The identity of whatever an instance-local link points at.
@@ -80,22 +81,54 @@ export type MessageEmbedType =
  */
 export interface MessageEmbedVenta {
     /** `type` without the `venta.` prefix, so one value can be switched on. */
-    kind: 'invite' | 'wiki_page' | (string & {});
+    kind: 'invite' | 'wiki_page' | 'voice_invite' | (string & {});
     /** Whether the server filled in title/description, or deliberately left them out. */
     resolved: boolean;
     guild_id?: string;
 
     /** Invite only. Always the canonical code, even when the pasted link was a vanity URL. */
     invite_code?: string;
-    /** Invite only: the channel a joiner lands on. An id, never a name. */
+    /**
+     * Invite: the channel a joiner lands on. Voice invite: the channel being asked into.
+     * An id, never a name - except on a voice invite, which also carries {@link channel_name}.
+     */
     channel_id?: string;
-    /** Invite only. ISO-8601, absent for an invite that never expires. */
+    /**
+     * ISO-8601. On an invite, absent means it never expires. On a voice invite it is always
+     * present, is about a minute after the message was sent, and is what decides whether
+     * {@link ring_id} still means anything.
+     */
     expires_at?: string;
     /** Invite only. Absent for unlimited. */
     max_uses?: number;
 
     /** Wiki only. */
     page_id?: string;
+
+    /**
+     * Voice invite only: the ring this card was written for.
+     *
+     * <p>Live only until {@link expires_at}, which is about a minute after the message. Past that,
+     * treat it as absent rather than as something to call - the ring no longer exists and accepting
+     * it answers `409`.</p>
+     */
+    ring_id?: string;
+    /**
+     * Voice invite only: who did the asking. The same person as the message's author today; carried
+     * so the card keeps meaning what it says if it is ever quoted.
+     */
+    inviter_id?: string;
+    /**
+     * Voice invite only: the channel's name when the invitation was sent.
+     *
+     * <p>The one place a `venta.*` card carries a name rather than only an id. The invite kind can
+     * leave it out because a client re-resolves it from the code, and the wiki kind must leave it
+     * out because the audience for a title is narrower than the audience for the message. Neither
+     * applies here: the recipient was checked for `ViewChannel` before the ring was allowed at all,
+     * and there is no later lookup that would let them fill it in. Render it; do not go and fetch a
+     * fresher one.</p>
+     */
+    channel_name?: string;
 }
 
 /**

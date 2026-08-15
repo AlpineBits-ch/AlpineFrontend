@@ -25,6 +25,7 @@ use super::capture;
 use super::chain::{CaptureChain, ChainConfig, ChainStatus};
 use super::gate::InputMode;
 use super::jitter::Packet;
+use super::liveness::Liveness;
 use super::mixer::{Mixer, Position, SpatialModel};
 use super::playout;
 use super::receive::RemoteSource;
@@ -449,6 +450,14 @@ fn routes_to(mids: &HashMap<String, String>, id: &str) -> bool {
 /// microphone, which is the reason Isle had a separate capture of its own before this.
 pub struct Publication {
     inner: Arc<VoicePublication>,
+    /// The room ping that says this participant is still here, running for exactly as long as this
+    /// publication does. `None` for Isle, which is not on the room contract - see
+    /// [`crate::media::voice::liveness`].
+    ///
+    /// Held as a field rather than started and forgotten because that is what ties its lifetime to
+    /// the publication's: `unpublish` drops the publication, dropping the publication drops this,
+    /// and dropping this aborts the task. Nothing has to remember to switch it off.
+    liveness: Option<Liveness>,
     mids: MidMap,
     /// Source ids pulled onto this publication, so stopping it removes exactly its own from the
     /// shared source map and leaves any other call's participants alone.
@@ -501,6 +510,17 @@ impl Publication {
 
     pub fn set_open(&self, open: bool) {
         self.open.store(open, Ordering::Relaxed);
+    }
+
+    /// Stop telling the server this participant is in the room.
+    ///
+    /// Idempotent, and a no-op for a publication that never had a ping (Isle). Dropping this
+    /// publication does the same thing; this is the version that does not have to wait for the last
+    /// `Arc` clone to go away.
+    pub fn stop_liveness(&self) {
+        if let Some(liveness) = &self.liveness {
+            liveness.stop();
+        }
     }
 
     /// Whether any negotiated mid currently routes to this source.
@@ -881,11 +901,16 @@ impl Engine {
     /// behind a `std::sync::Mutex`, and connecting takes a full offer/answer round trip. Doing that
     /// inside would mean holding the lock across an await - blocking mute, push-to-talk and every
     /// other command for its duration, if it compiled at all.
+    /// `liveness` is taken here rather than started by the caller afterwards so that a publication
+    /// can never exist without its room ping attached - the window between the two would be a
+    /// participant in the roster asserting nothing, which is the state this whole mechanism exists
+    /// to prevent.
     pub fn attach(
         &mut self,
         slot: String,
         inner: Arc<VoicePublication>,
         on_event: tauri::ipc::Channel<VoiceEvent>,
+        liveness: Option<Liveness>,
     ) -> Arc<Publication> {
         // The old publication for this slot goes only once the new one has connected, so a failed
         // rejoin leaves the existing call alone rather than dropping it on the way out.
@@ -960,6 +985,7 @@ impl Engine {
 
         let publication = Arc::new(Publication {
             inner,
+            liveness,
             mids,
             subscribed: Mutex::new(HashSet::new()),
             open,
@@ -978,6 +1004,11 @@ impl Engine {
         let Some(publication) = self.publications.remove(slot) else {
             return;
         };
+        // First, before anything that can block: the user has left this room, so nothing more may
+        // be said on their behalf about being in it. Dropping the publication would abort the same
+        // task, but a command elsewhere holding an `Arc` clone can delay that drop, and a ping sent
+        // in that window keeps a ghost participant in other people's rosters.
+        publication.stop_liveness();
         // Its participants leave the shared mix; everyone else's stay.
         publication.unsubscribe_all();
         // Dropping the sender ends the writer task, which stops the peer connection on its way out.

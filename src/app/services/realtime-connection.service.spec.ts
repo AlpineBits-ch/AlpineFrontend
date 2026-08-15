@@ -11,6 +11,8 @@ const {builtUrls, connection} = vi.hoisted(() => ({
     builtUrls: [] as string[],
     connection: {
         state: 'Disconnected',
+        serverTimeoutInMilliseconds: 30_000,
+        keepAliveIntervalInMilliseconds: 15_000,
         on: vi.fn(),
         off: vi.fn(),
         invoke: vi.fn(),
@@ -28,6 +30,17 @@ vi.mock('@microsoft/signalr', () => {
             return builder;
         }),
         withAutomaticReconnect: vi.fn(() => builder),
+        // The real builder hands both of these to `HubConnection.create` and they land on the
+        // connection as properties, so the stub does the same rather than merely recording the
+        // call - a test that asserts on the connection is asserting on what the hub actually uses.
+        withServerTimeout: vi.fn((ms: number) => {
+            connection.serverTimeoutInMilliseconds = ms;
+            return builder;
+        }),
+        withKeepAliveInterval: vi.fn((ms: number) => {
+            connection.keepAliveIntervalInMilliseconds = ms;
+            return builder;
+        }),
         build: vi.fn(() => connection),
     };
     return {

@@ -1,5 +1,4 @@
 import {Component, computed, inject, input, output} from '@angular/core';
-import {NgClass} from '@angular/common';
 import {TranslateModule} from '@ngx-translate/core';
 import {Tooltip} from 'primeng/tooltip';
 import {ChannelDto} from '../../../../../../dtos/response/guild.dto';
@@ -17,7 +16,7 @@ import {phaseOf} from '../../../events-panel/event-timing';
 @Component({
     selector: 'app-voice-channel-item',
     host: {class: 'contents'},
-    imports: [NgClass, VoiceParticipantRowComponent, TranslateModule, Tooltip],
+    imports: [VoiceParticipantRowComponent, TranslateModule, Tooltip],
     templateUrl: './voice-channel-item.component.html',
 })
 export class VoiceChannelItemComponent {

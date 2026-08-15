@@ -11,6 +11,7 @@ import {
     untracked,
 } from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
+import {HttpErrorResponse} from '@angular/common/http';
 import {FormsModule} from '@angular/forms';
 import {Dialog} from 'primeng/dialog';
 import {Button} from 'primeng/button';
@@ -23,7 +24,9 @@ import {AppAvatarComponent} from '../../../components/avatar/avatar.component';
 import {GuildMemberDto} from '../../../dtos/response/member.dto';
 import {GuildService} from '../../../services/guild.service';
 import {ProfileService} from '../../../services/profile.service';
+import {VoiceRingService} from '../../../services/voice-ring.service';
 import {VoiceRingStateService} from '../../../services/voice-ring-state.service';
+import {VoiceRingRefusalDto} from '../../../dtos/response/voice-ring.dto';
 
 /** One row in the picker. */
 interface Candidate {
@@ -62,6 +65,12 @@ export class VoiceRingPickerComponent {
     protected readonly query = signal('');
     protected readonly candidates = signal<Candidate[]>([]);
 
+    /** Who has been sent a message invitation this time the dialog was open. */
+    protected readonly invited = signal<ReadonlySet<string>>(new Set());
+    /** The one request in flight, so a double click does not send twice. */
+    protected readonly inviting = signal<string | null>(null);
+    protected readonly inviteRefusal = signal<{userId: string; messageKey: string} | null>(null);
+
     protected readonly ringState = inject(VoiceRingStateService);
 
     /** Ringing yourself is a `400`, and is nobody's intent anyway. */
@@ -84,6 +93,7 @@ export class VoiceRingPickerComponent {
 
     private readonly guildService = inject(GuildService);
     private readonly profileService = inject(ProfileService);
+    private readonly rings = inject(VoiceRingService);
     private readonly destroyRef = inject(DestroyRef);
 
     constructor() {
@@ -95,6 +105,46 @@ export class VoiceRingPickerComponent {
         });
     }
 
+    /**
+     * The quiet invitation, and the primary action.
+     *
+     * <p>Held locally rather than in {@link VoiceRingStateService} because there is nothing global
+     * to hold: a message invitation creates no ring, so nothing counts down, nothing can be taken
+     * back, and no other part of the interface has a state to reflect. It is one request and it is
+     * finished.</p>
+     *
+     * <p>Unlike a ring it can be refused for a reason that is about the two people rather than the
+     * channel - the recipient may not accept direct messages from this sender - so the refusal is
+     * reported per person rather than in the channel-wide banner the ring refusals use.</p>
+     */
+    protected invite(candidate: Candidate): void {
+        if (this.inviting() || this.invited().has(candidate.userId)) return;
+
+        this.inviting.set(candidate.userId);
+        this.inviteRefusal.set(null);
+
+        this.rings.invite(this.guildId(), this.channelId(), candidate.userId)
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe({
+                next: () => {
+                    this.inviting.set(null);
+                    this.invited.update(sent => new Set(sent).add(candidate.userId));
+                },
+                error: (err: HttpErrorResponse) => {
+                    this.inviting.set(null);
+                    // A 403 carrying RecipientPolicy is the recipient's own setting, which is worth
+                    // saying plainly. Anything else is ours to be vague about.
+                    this.inviteRefusal.set({
+                        userId: candidate.userId,
+                        messageKey: (err?.error as VoiceRingRefusalDto | null)?.reason === 'RecipientPolicy'
+                            ? 'VOICE_RING.INVITE_REFUSED'
+                            : 'VOICE_RING.INVITE_FAILED',
+                    });
+                },
+            });
+    }
+
+    /** The loud one. Still here, still the same call, just no longer what a row does. */
     protected send(candidate: Candidate): void {
         this.ringState.send(this.guildId(), this.channelId(), candidate.userId);
     }
@@ -110,6 +160,11 @@ export class VoiceRingPickerComponent {
     private load(): void {
         this.loading.set(true);
         this.query.set('');
+        // Reset per opening. "Invited" is a note about this sitting, not a durable fact - the
+        // durable one is the card in their conversation.
+        this.invited.set(new Set());
+        this.inviting.set(null);
+        this.inviteRefusal.set(null);
 
         forkJoin({
             // A failed viewer read is not a reason to offer everybody: it collapses to an empty

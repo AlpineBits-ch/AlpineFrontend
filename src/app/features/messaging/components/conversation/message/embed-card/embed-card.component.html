@@ -13,6 +13,14 @@
         <app-wiki-card [embed]="embed()" class="block"/>
     }
 
+    <!--
+      The one venta card that is not about a link: nobody pasted anything, the server wrote it when
+      somebody rang this person into a voice channel.
+    -->
+    @case ('venta-voice-invite') {
+        <app-voice-invite-card [embed]="embed()" class="block"/>
+    }
+
     @case ('none') {
     }
 

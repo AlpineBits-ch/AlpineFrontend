@@ -43,6 +43,16 @@ fn is_stale_subscription(status: reqwest::StatusCode, body: &str) -> bool {
     status == reqwest::StatusCode::CONFLICT && body.contains(STALE_SUBSCRIPTION)
 }
 
+/// Whether a failed `/alive` is the server saying we are not in this room on this device.
+///
+/// Status alone, with no body check - unlike [`is_stale_subscription`], which needs both because
+/// 409 is reused across the surface. `/alive` has exactly two failure meanings the contract
+/// defines: 404 for "not a participant of that room" and 409 for "a participant, but a different
+/// device". Anything else is a fault, not an answer.
+fn is_not_our_room(status: reqwest::StatusCode) -> bool {
+    status == reqwest::StatusCode::NOT_FOUND || status == reqwest::StatusCode::CONFLICT
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionDescription {
@@ -112,6 +122,33 @@ pub struct CreateSessionResponse {
 #[serde(rename_all = "camelCase")]
 pub struct RenegotiateResponse {
     pub session_description: SessionDescription,
+}
+
+/// Why a liveness assertion did not answer `204 No Content`.
+///
+/// Split rather than collapsed into one string because the caller treats the two differently. A
+/// transport fault is expected occasionally and means nothing on its own - the next tick covers it.
+/// A rejection means the *server* disagrees that we are in this room on this device, which is a
+/// state no amount of retrying repairs, and is the one thing worth putting in front of a human.
+/// Neither is fatal: see [`crate::media::voice::liveness`] for why a failed ping must never take
+/// the call down with it.
+#[derive(Debug)]
+pub enum AliveError {
+    /// 404 (not a participant of that room) or 409 (a participant, but on a different device).
+    NotOurRoom(reqwest::StatusCode),
+    /// Everything else: a refused connection, a timeout, a 5xx, an expired token.
+    Transport(String),
+}
+
+impl std::fmt::Display for AliveError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AliveError::NotOurRoom(status) => {
+                write!(f, "the server does not place us in this room (HTTP {status})")
+            }
+            AliveError::Transport(message) => write!(f, "{message}"),
+        }
+    }
 }
 
 /// Which vocabulary a surface speaks. See the module docs for why there are two.
@@ -295,6 +332,58 @@ impl Signalling {
     /// Which vocabulary this target speaks.
     pub fn dialect(&self) -> Dialect {
         self.target.dialect()
+    }
+
+    /// Where this client says "I am still here", or `None` for a surface with no room to be in.
+    ///
+    /// One segment on the end of [`Self::voice_base`] and nothing else, so both room kinds are
+    /// derived from the same route the rest of this file already gets right - the DM path's
+    /// `messaging/` gateway segment included, which is the one that 404s silently when it is
+    /// missing.
+    ///
+    /// `None` for Isle, deliberately and permanently. Proximity voice has no room model at all -
+    /// there is no participant list to be swept out of and no `/alive` endpoint behind
+    /// `/api/v1/isle/voice` to call. Returning an `Option` rather than a URL that happens to 404
+    /// keeps that a compile-time fact for the caller instead of a runtime error it has to learn to
+    /// ignore.
+    pub fn alive_url(&self) -> Option<String> {
+        match self.target {
+            VoiceTarget::Isle => None,
+            _ => Some(format!("{}/alive", self.voice_base())),
+        }
+    }
+
+    /// Tell the server this client is still a participant of this room, on this device.
+    ///
+    /// `POST <voiceBase>/alive` with no body, answering `204 No Content`. Both identifying facts
+    /// travel in headers the shared [`Self::send`] path would add anyway - the bearer token and
+    /// `X-Device-Id` - but this builds its own request rather than going through `send`, because
+    /// `send` parses a response body and there is none to parse. The headers are therefore repeated
+    /// here, exactly as [`Self::close_tracks`] has to repeat them for the same reason.
+    pub async fn assert_alive(&self) -> Result<(), AliveError> {
+        let Some(url) = self.alive_url() else {
+            return Err(AliveError::Transport(
+                "this target has no room to assert liveness on".into(),
+            ));
+        };
+
+        let response = self
+            .client
+            .post(&url)
+            .bearer_auth(&self.token)
+            .header("X-Device-Id", &self.device_id)
+            .send()
+            .await
+            .map_err(|e| AliveError::Transport(e.to_string()))?;
+
+        let status = response.status();
+        if status.is_success() {
+            return Ok(());
+        }
+        if is_not_our_room(status) {
+            return Err(AliveError::NotOurRoom(status));
+        }
+        Err(AliveError::Transport(format!("{url} returned HTTP {status}")))
     }
 
     /// Where tracks are published and subscribed.
@@ -851,6 +940,61 @@ mod tests {
             serde_json::from_str(r#"{"cfSessionId": "abc123"}"#).unwrap();
         assert_eq!(parsed.media_session_id, "abc123");
         assert!(parsed.backend.is_none());
+    }
+
+    /// The guild half of the liveness contract. Must stay `{apiBase}/api/v1/guild/guilds/{guildId}
+    /// /channels/{channelId}/voice/alive` - one singular service segment then the plural resource,
+    /// which is the shape the gateway rewrites; the two wrong shapes both 404 without a log line.
+    #[test]
+    fn the_alive_url_hangs_off_the_guild_voice_route() {
+        assert_eq!(
+            signalling().alive_url().unwrap(),
+            "https://api.example.test/api/v1/guild/guilds/g1/channels/c1/voice/alive"
+        );
+    }
+
+    /// The call half, carrying the `messaging/` gateway segment. Deriving this from the controller's
+    /// own `[Route]` instead is how the DM path came to be missing it once already - the request
+    /// 404s at the gateway and never reaches the service, so the failure looks like an auth problem.
+    #[test]
+    fn the_alive_url_hangs_off_the_call_voice_route() {
+        assert_eq!(
+            call_signalling().alive_url().unwrap(),
+            "https://api.example.test/api/v1/messaging/voice/calls/call-1/alive"
+        );
+    }
+
+    #[test]
+    fn a_trailing_slash_on_the_base_url_is_not_doubled_in_the_alive_url() {
+        // `signalling()` is built from a base URL that ends in a slash, on purpose.
+        assert!(!signalling().alive_url().unwrap().contains("//api/"));
+    }
+
+    /// Isle is not on the room contract and must never be pinged. There is no participant list for
+    /// it to be swept out of, and no `/alive` behind `/api/v1/isle/voice` to answer. Asserted here
+    /// rather than only in the liveness loop because this is where a future "make the URLs uniform"
+    /// tidy-up would break it.
+    #[test]
+    fn isle_has_no_liveness_url_to_assert_against() {
+        assert!(isle_signalling().alive_url().is_none());
+    }
+
+    /// The two statuses the contract gives a meaning to. They are the ones worth logging distinctly
+    /// - they say the server disagrees that we are here, which no retry repairs.
+    #[test]
+    fn the_two_documented_alive_rejections_are_recognised() {
+        assert!(is_not_our_room(reqwest::StatusCode::NOT_FOUND));
+        assert!(is_not_our_room(reqwest::StatusCode::CONFLICT));
+    }
+
+    /// Everything else is a fault to be retried on the next tick, not a statement about the room. A
+    /// 502 from a restarting gateway must not be reported as "you are not in this call".
+    #[test]
+    fn other_alive_failures_are_not_read_as_a_rejection() {
+        assert!(!is_not_our_room(reqwest::StatusCode::BAD_GATEWAY));
+        assert!(!is_not_our_room(reqwest::StatusCode::UNAUTHORIZED));
+        assert!(!is_not_our_room(reqwest::StatusCode::SERVICE_UNAVAILABLE));
+        assert!(!is_not_our_room(reqwest::StatusCode::NO_CONTENT));
     }
 
     #[test]

@@ -9,9 +9,6 @@ import {ChannelReadState} from '../../../../../../services/guild-read-state.serv
  */
 export const MAX_NESTED_POST_ROWS = 8;
 
-/** Row height in px. Shared with the SVG tree's coordinate space - see forumTreePath. */
-export const NESTED_ROW_HEIGHT = 30;
-
 /**
  * Why a post earned its place in the sidebar. Ordered by how much it wants attention,
  * and used directly as the sort key, so a mention never falls off the end of the list
@@ -70,36 +67,4 @@ function activityTime(post: ChannelDto): number {
     const raw = post.lastActivityAt ?? post.createdAt;
     const time = new Date(raw).getTime();
     return Number.isNaN(time) ? 0 : time;
-}
-
-/**
- * The connecting tree for `count` rows, as a single SVG path per branch.
- *
- * Drawn as stroked paths sharing one group opacity rather than as bordered elements: two
- * semi-transparent borders meeting at a corner composite over each other and render the
- * junction brighter than the rest of the line, and a border corner is a hard angle where
- * this needs a curve.
- *
- * The coordinate space is the row box - `count * NESTED_ROW_HEIGHT` tall - so the geometry
- * here and the CSS row height must agree, or the branches stop meeting their rows.
- */
-export function forumTreePath(count: number): {trunk: string; branches: string[]; height: number} {
-    const height = count * NESTED_ROW_HEIGHT;
-    const half = NESTED_ROW_HEIGHT / 2;
-    const x = 11;
-    const endX = 20;
-    const radius = 8;
-
-    // The trunk runs to the last row's centre and turns out to meet it, so the line
-    // terminates in a branch instead of stopping in mid-air.
-    const lastMid = height - half;
-    const trunk = `M${x} 0 V${lastMid - radius} Q${x} ${lastMid} ${x + radius} ${lastMid} H${endX}`;
-
-    // Every row above the last gets a plain branch off the trunk.
-    const branches: string[] = [];
-    for (let i = 0; i < count - 1; i++) {
-        branches.push(`M${x} ${i * NESTED_ROW_HEIGHT + half} H${endX}`);
-    }
-
-    return {trunk, branches, height};
 }

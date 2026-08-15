@@ -51,6 +51,370 @@ html, body {
   min-height: var(--spacing-header);
 }
 
+/* ── Channel sidebar rows ────────────────────────────────────────────────────
+   One primitive for every row in the guild channel column: the House/Wiki/Events
+   links, channels, voice channels, voice members and forum posts. They were six
+   different sizes before (15px nav labels above 12.8px channel names, a 25px `#`
+   beside them), which is the whole reason that column read as unfinished.
+
+   Three type sizes exist here and no more: .chan-section for the category label,
+   the row label at 0.8125rem, and 0.625rem for badges. All rem, so the column
+   still scales with --base-font-size. */
+.chan-row {
+  position: relative;
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.5rem;
+  height: var(--spacing-chan-row);
+  /* Left padding is the rail's gutter. Every row reserves it whether or not it
+     is showing a rail, so a channel does not shift sideways when it goes unread. */
+  padding-left: 0.75rem;
+  padding-right: 0.5rem;
+  border: 0;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: var(--color-text-secondary);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-brand),
+              color var(--duration-fast) var(--ease-brand);
+}
+
+.chan-row:hover {
+  background: rgb(255 255 255 / 0.045);
+  color: rgb(255 255 255 / 0.86);
+}
+
+.chan-row:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: -2px;
+}
+
+/* The rail. One device in one gutter carries every state this column can be in,
+   replacing the grey wash for active, the bold-only text for unread, and the
+   separate pill forum posts used to draw in a gutter of their own. Sized rather
+   than shown/hidden so the state change is a height, which animates. */
+.chan-row::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 3px;
+  height: 0;
+  transform: translateY(-50%);
+  border-radius: 0 3px 3px 0;
+  background: transparent;
+  transition: height var(--duration-base) var(--ease-brand),
+              background-color var(--duration-base) var(--ease-brand);
+}
+
+.chan-row.is-unread::before {
+  height: 0.5rem;
+  background: rgb(255 255 255 / 0.85);
+}
+
+/* Active outranks unread: the channel you are reading is by definition caught up,
+   and if both ever land at once "where I am" is the more useful of the two. */
+.chan-row.is-active::before,
+.chan-row.is-joined::before {
+  height: 1rem;
+}
+
+.chan-row.is-active::before {
+  background: var(--color-brand);
+}
+
+.chan-row.is-active {
+  background: color-mix(in srgb, var(--color-brand) 13%, transparent);
+  color: #fff;
+}
+
+.chan-row.is-active .chan-icon {
+  color: var(--color-brand-dim);
+}
+
+/* A voice channel you are connected to keeps its green identity, but as a rail
+   rather than a full-row tint - a tinted row read as a second kind of "active"
+   and competed with the channel actually open on the stage. */
+.chan-row.is-joined::before {
+  background: var(--color-online);
+}
+
+.chan-row.is-joined {
+  background: color-mix(in srgb, var(--color-online) 10%, transparent);
+  color: rgb(255 255 255 / 0.9);
+}
+
+.chan-row.is-joined .chan-icon {
+  color: var(--color-online);
+}
+
+.chan-row.is-unread {
+  color: #fff;
+}
+
+.chan-row.is-unread .chan-label {
+  font-weight: 600;
+}
+
+/* Fixed slot, so a `#`, a pi-comments and a pi-volume-up all put their labels on
+   the same x. The `#` is a text glyph rather than an icon font and needs its own
+   size to sit at the same optical weight as one. */
+.chan-icon {
+  display: flex;
+  width: 1.125rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8125rem;
+  color: rgb(255 255 255 / 0.32);
+  transition: color var(--duration-fast) var(--ease-brand);
+}
+
+.chan-icon-hash {
+  font-size: 1rem;
+  font-weight: 400;
+  line-height: 1;
+}
+
+/* House, Wiki, Events and Channels & Roles are places the app provides, not channels
+   anyone in the guild created, and the list has to say so. The chip behind the icon is
+   what says it: a channel's glyph sits bare on the surface, a module's sits on a tile.
+   Colour alone could not carry it - an active channel is already tinted, so a tinted
+   module would read as "open" rather than as a different kind of thing. */
+.chan-row-module .chan-icon {
+  height: 1.25rem;
+  width: 1.25rem;
+  border-radius: 0.375rem;
+  background: rgb(255 255 255 / 0.08);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.07);
+  color: rgb(255 255 255 / 0.55);
+  transition: background-color var(--duration-fast) var(--ease-brand),
+              box-shadow var(--duration-fast) var(--ease-brand),
+              color var(--duration-fast) var(--ease-brand);
+}
+
+/* The chip is 0.125rem wider than a channel's icon slot, so module labels start a
+   shade right of channel labels. That is deliberate: the two are different kinds of
+   destination and do not belong on one text column. */
+.chan-row-module .chan-label {
+  margin-left: -0.125rem;
+}
+
+.chan-row-module:hover .chan-icon {
+  background: rgb(255 255 255 / 0.13);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.1);
+  color: rgb(255 255 255 / 0.8);
+}
+
+.chan-row-module.is-active .chan-icon {
+  background: color-mix(in srgb, var(--color-brand) 32%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-brand) 45%, transparent);
+  color: var(--color-brand-dim);
+}
+
+/* The line under the module block: app above, the guild's own content below. The block
+   does not scroll, so the rule never floats away from what it splits.
+
+   Inset to the row grid rather than bled to the panel edges - it starts at the rail
+   gutter and ends where a category's rule ends, so the two rules in this column are
+   plainly the same device at two levels rather than one rule and one border. */
+.chan-modules {
+  position: relative;
+}
+
+.chan-modules::after {
+  content: "";
+  position: absolute;
+  left: 1.25rem;
+  right: 1rem;
+  bottom: 0;
+  height: 1px;
+  background: rgb(255 255 255 / 0.07);
+}
+
+.chan-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Category header. A real section label - uppercase, tracked, quiet - instead of
+   the 12px semibold it used to be, which read as just another row in the list.
+   The rule fills whatever the name leaves, so the eye gets a horizontal break
+   between groups without a full-width divider cutting the column in half.
+
+   The collapse control and the add-channel control are siblings inside it. They
+   used to be a <button> nested inside another <button>, which is invalid markup:
+   the inner one's click was not reliably dispatched and assistive tech was told
+   the whole header was one control. */
+.chan-section {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.375rem;
+  height: 1.75rem;
+  margin-top: 0.625rem;
+  padding-left: 0.75rem;
+  padding-right: 0.5rem;
+  color: rgb(255 255 255 / 0.34);
+  transition: color var(--duration-fast) var(--ease-brand);
+}
+
+.chan-section:hover {
+  color: rgb(255 255 255 / 0.62);
+}
+
+.chan-section-toggle {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.chan-section-toggle:focus-visible,
+.chan-section-add:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+  border-radius: 0.25rem;
+}
+
+.chan-section-add {
+  display: flex;
+  flex-shrink: 0;
+  width: 1.125rem;
+  height: 1.125rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 0.25rem;
+  background: transparent;
+  color: inherit;
+  font-size: 0.625rem;
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity var(--duration-fast) var(--ease-brand);
+}
+
+.chan-section:hover .chan-section-add,
+.chan-section-add:focus-visible {
+  opacity: 1;
+}
+
+.chan-section-label {
+  overflow: hidden;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chan-section-rule {
+  flex: 1;
+  height: 1px;
+  margin: 0 0.25rem;
+  background: rgb(255 255 255 / 0.07);
+}
+
+/* Nesting. One guide line for both voice members and forum posts - they used to
+   speak two different languages, pl-7 and a bespoke SVG tree, for the same
+   "belongs to the row above" relationship. It fades out downward so the group
+   ends softly instead of on a cut. */
+.chan-nest {
+  position: relative;
+  /* 1.875 + the row's own 0.5 puts a nested label at 2.375rem, exactly under its
+     parent's label - the guide line shows the relationship, so the text does not
+     also have to step right to prove it. */
+  padding-left: 1.875rem;
+}
+
+/* Drops from the centre of the parent row's icon slot (0.75 gutter + half of the
+   1.125 slot), so the line reads as coming out of the channel rather than out of
+   the margin. */
+.chan-nest::before {
+  content: "";
+  position: absolute;
+  left: 1.3125rem;
+  top: 0;
+  bottom: 0.375rem;
+  width: 1px;
+  background: linear-gradient(rgb(255 255 255 / 0.22), rgb(255 255 255 / 0.07));
+}
+
+.chan-nest .chan-row {
+  height: var(--spacing-chan-row-nested);
+  padding-left: 0.5rem;
+}
+
+/* The nested rail lands on the guide line rather than beside it, so an unread post
+   thickens the line it already hangs from instead of adding a second mark. */
+.chan-nest .chan-row::before {
+  left: -0.5625rem;
+}
+
+.chan-nest .chan-label {
+  font-size: 0.78125rem;
+  font-weight: 400;
+}
+
+/* One badge shape, three tones. Before this the column carried four: a rose
+   mention pill, a white/8 count pill, a green LIVE pill and a bare number. */
+.chan-badge {
+  display: flex;
+  flex-shrink: 0;
+  min-width: 1.125rem;
+  height: 1.125rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.3125rem;
+  border-radius: 9999px;
+  font-size: 0.625rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.chan-badge-mention {
+  background: var(--color-offline);
+  color: #fff;
+}
+
+.chan-badge-count {
+  background: rgb(255 255 255 / 0.07);
+  color: rgb(255 255 255 / 0.5);
+}
+
+/* Not a badge: a bare figure for a fact nobody needs to act on, like how many
+   people are in a voice channel you can already see listed underneath. */
+.chan-meta {
+  flex-shrink: 0;
+  font-size: 0.6875rem;
+  color: rgb(255 255 255 / 0.3);
+  font-variant-numeric: tabular-nums;
+}
+
+.chan-lock {
+  flex-shrink: 0;
+  font-size: 0.625rem;
+  color: rgb(255 255 255 / 0.28);
+}
+
 /* iOS keyboard fix: when a text input is focused, iOS scrolls the visual viewport
    (visualViewport.offsetTop > 0) which makes position:fixed elements appear to shift
    upward, pushing the header off-screen. The JS in AppComponent tracks offsetTop and
@@ -440,6 +804,14 @@ button, a, [role="button"], input, select, textarea, label {
      reserved nothing at all, which is why the bar sat on top of the
      participant strip there. */
   --spacing-call-controls: 7rem;
+
+  /* ── Channel sidebar - the two heights every row in it is drawn at ──
+     A top-level row (channel, voice channel, House/Wiki/Events) and a
+     row nested under one (voice member, forum post). Two heights, not
+     five: the sidebar used to set py-[7px] here, py-1 there and a fixed
+     26px on forum rows, which is why nothing in that column lined up. */
+  --spacing-chan-row: 1.875rem;
+  --spacing-chan-row-nested: 1.625rem;
 }
 
 /* ── Wiki markdown content ───────────────────────────────────────────────────

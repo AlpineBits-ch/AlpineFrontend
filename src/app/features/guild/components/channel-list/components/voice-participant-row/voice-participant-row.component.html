@@ -4,13 +4,13 @@
      (contextmenu)="openMenu.emit($event)"
      data-testid="voice-participant"
      [attr.data-user-id]="p.userId"
-     class="flex items-center gap-2 pl-7 pr-2 py-0.5 rounded-md hover:bg-white/[0.04] cursor-pointer transition-colors">
+     class="chan-row">
     <div class="flex shrink-0">
         <app-avatar [label]="p.avatarLabel" [userId]="p.userId"
-                    [styleClass]="p.isSpeaking ? '!w-5 !h-5 !text-[9px] speaking-ring' : '!w-5 !h-5 !text-[9px]'"/>
+                    [styleClass]="p.isSpeaking ? '!w-[1.125rem] !h-[1.125rem] !text-[0.5rem] speaking-ring' : '!w-[1.125rem] !h-[1.125rem] !text-[0.5rem]'"/>
     </div>
-    <span [ngClass]="p.isSpeaking ? 'text-online/85' : 'text-white/55'"
-          class="flex-1 truncate text-[0.8125rem]">
+    <span [ngClass]="p.isSpeaking ? 'text-online/85' : ''"
+          class="chan-label">
         {{ p.displayName }}
     </span>
     @if (p.isScreenSharing) {

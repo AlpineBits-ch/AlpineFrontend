@@ -7,6 +7,7 @@ import {EmbedMediaComponent} from './embed-media/embed-media.component';
 import {EmbedPlayerComponent, isFramablePlayerUrl} from './embed-player/embed-player.component';
 import {InviteCardComponent} from '../invite-card/invite-card.component';
 import {WikiCardComponent} from '../wiki-card/wiki-card.component';
+import {VoiceInviteCardComponent} from '../voice-invite-card/voice-invite-card.component';
 
 /**
  * How the card is laid out. Derived from `type`, then narrowed by what media actually arrived.
@@ -15,7 +16,9 @@ import {WikiCardComponent} from '../wiki-card/wiki-card.component';
  * all. Falling back to the link layout would draw half a card for a kind this build has never heard
  * of, and a future kind will arrive before the next release does.</p>
  */
-type EmbedMode = 'plain-image' | 'gifv' | 'player' | 'card' | 'venta-invite' | 'venta-wiki' | 'none';
+type EmbedMode =
+    'plain-image' | 'gifv' | 'player' | 'card'
+    | 'venta-invite' | 'venta-wiki' | 'venta-voice-invite' | 'none';
 
 /**
  * One embed under a message - a bot's `rich` card, or a preview the server generated from a link.
@@ -30,7 +33,7 @@ type EmbedMode = 'plain-image' | 'gifv' | 'player' | 'card' | 'venta-invite' | '
     selector: 'app-embed-card',
     imports: [
         MarkdownPipe, DatePipe, EmbedMediaComponent, EmbedPlayerComponent,
-        InviteCardComponent, WikiCardComponent,
+        InviteCardComponent, WikiCardComponent, VoiceInviteCardComponent,
     ],
     templateUrl: './embed-card.component.html',
     changeDetection: ChangeDetectionStrategy.OnPush,
@@ -112,6 +115,7 @@ export class EmbedCardComponent {
             if (!this.venta()) return 'none';
             if (type === 'venta.invite') return 'venta-invite';
             if (type === 'venta.wiki_page') return 'venta-wiki';
+            if (type === 'venta.voice_invite') return 'venta-voice-invite';
             return 'none';
         }
 

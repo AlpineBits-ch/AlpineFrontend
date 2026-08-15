@@ -1,5 +1,4 @@
 import {Component, computed, inject, input, output} from '@angular/core';
-import {NgClass} from '@angular/common';
 import {ChannelDto, isForumLike} from '../../../../../../dtos/response/guild.dto';
 import {GuildReadStateService} from '../../../../../../services/guild-read-state.service';
 import {NavigationService} from '../../../../../main-page/navigation.service';
@@ -10,7 +9,6 @@ import {channelIcon, isHouseholdChannel} from '../../../../channel-types';
 @Component({
     selector: 'app-text-channel-item',
     host: {class: 'contents'},
-    imports: [NgClass],
     templateUrl: './text-channel-item.component.html',
 })
 export class TextChannelItemComponent {

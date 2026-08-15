@@ -276,10 +276,25 @@ export class VoiceRingStateService implements OnDestroy {
     }
 
     private joinAfterAccept(ring: VoiceRingDto): void {
-        this.guildService.getGuild(ring.guildId).subscribe({
+        this.joinVoiceChannel(ring.guildId, ring.channelId);
+    }
+
+    /**
+     * Walks into a voice channel by id, with no invitation involved.
+     *
+     * <p>Public because the durable card in the DM needs it. A ring lapses after a minute but the
+     * message it left behind is read for as long as the conversation exists, and the honest thing to
+     * offer on an expired card is an ordinary join - which is subject to the same permission check
+     * as clicking the channel in the sidebar, and accepts nothing.</p>
+     *
+     * <p>Shared with the accept path rather than copied, so that "the channel was deleted in the
+     * meantime" is reported the same way from both.</p>
+     */
+    joinVoiceChannel(guildId: string, channelId: string): void {
+        this.guildService.getGuild(guildId).subscribe({
             next: guild => {
                 const channel = guild.channels.find(
-                    c => c.id === ring.channelId && c.type === ChannelType.Voice);
+                    c => c.id === channelId && c.type === ChannelType.Voice);
                 if (!channel) {
                     this.toast.info(this.translate.instant('VOICE_RING.CHANNEL_GONE'));
                     return;
