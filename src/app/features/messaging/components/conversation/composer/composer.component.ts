@@ -510,9 +510,9 @@ export class ComposerComponent {
     /**
      * Replaces `[[query` with a chip that reads as the page and sends as a link to it.
      *
-     * <p>The chip's `data-display` is what {@link getMessage} puts on the wire - the shareable URL,
-     * bracketed so the server does not also unfurl it - while its text stays the page title. That is
-     * the same split a member mention already uses, so nothing new had to learn about chips.</p>
+     * <p>The chip's `data-display` is what {@link getMessage} puts on the wire - the shareable URL -
+     * while its text stays the page title. That is the same split a member mention already uses, so
+     * nothing new had to learn about chips.</p>
      */
     onWikiPageSelected(page: WikiPageSummaryDto): void {
         if (!this.triggerRange) return;

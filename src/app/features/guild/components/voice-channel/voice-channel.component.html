@@ -12,9 +12,29 @@
         <div class="flex min-w-0 items-center gap-2 sm:gap-3">
             <i aria-hidden="true" class="pi pi-volume-up shrink-0 text-white/35"></i>
             <span class="truncate text-sm font-semibold text-white/85">{{ channel().name }}</span>
-            @if (participants().length > 0) {
+            <!-- The denominator, where the room has one. "3 of 10" is a sentence and "3" beside a
+                 room that will start refusing at 10 is half of one; the plain count stays where the
+                 server named no ceiling, because a denominator nobody stated is not one to invent. -->
+            @if (participantSlots(); as slots) {
+                <span class="shrink-0 text-xs text-white/40" data-testid="participant-slots">
+                    · {{ 'CALL.PARTICIPANT_COUNT_OF' | translate: {count: slots.used, max: slots.max} }}
+                </span>
+            } @else if (participants().length > 0) {
                 <span class="shrink-0 text-xs text-white/40">
                     · {{ 'CALL.PARTICIPANT_COUNT' | translate: {count: participants().length} }}
+                </span>
+            }
+
+            <!-- A state, never an error. `none` is a real rung meaning audio-only, and it is how
+                 "this server is over its video budget" is said without refusing the call - so the
+                 channel says what it is, rather than leaving two dead buttons to imply it. The
+                 reason and the upgrade, where there is one, are on the notice below; this is only
+                 the standing fact, which holds whether or not anybody has tried to publish. -->
+            @if (audioOnly()) {
+                <span class="shrink-0 rounded-full border border-white/10 bg-white/[0.06] px-2 py-0.5
+                             text-[0.625rem] font-semibold uppercase tracking-wide text-white/45"
+                      data-testid="audio-only-badge">
+                    {{ 'VOICE.DEGRADED.AUDIO_ONLY' | translate }}
                 </span>
             }
         </div>
@@ -47,6 +67,15 @@
                     [rtcState]="voiceSvc.rtcState()"
                     [stalledAudio]="audio.anyStalled()"/>
 
+            <!-- What this room's plan is doing to this call, for as long as it is doing it. Above
+                 the stage rather than over it: this is a standing condition, not something floating
+                 in front of the video, and it has to survive the controls auto-hiding. It used to
+                 be a toast, which meant "your camera is off because this server is on the free
+                 plan" had a four second window and left nothing behind. -->
+            <app-voice-limit-notice
+                    (upgrade)="onUpgrade($event)"
+                    [notices]="limitNotices()"/>
+
             <div appAutoHideCallControls
                  #autoHide="appAutoHideCallControls"
                  class="relative min-h-0 flex-1">
@@ -58,6 +87,7 @@
                      participant as a full seat whether or not anybody is sharing, never a strip of
                      avatars. -->
                 <app-call-screen-layout
+                        (inviteRequested)="openRingPicker()"
                         (localAudioToggle)="toggleLocalScreenAudio()"
                         (participantContextMenu)="onParticipantContextMenu($event.event, $event.participant)"
                         (remoteAudioToggle)="toggleRemoteScreenAudio($event)"
@@ -111,6 +141,10 @@
                             [isMuted]="voiceSvc.localState().isMuted"
                             [isScreenSharing]="voiceSvc.localState().isScreenSharing"
                             [preset]="voiceSvc.rtc.screenPreset()"
+                            [cameraBlockedKey]="cameraBlockedKey()"
+                            [shareBlockedKey]="shareBlockedKey()"
+                            [publisherSlots]="publisherSlots()"
+                            [videoCeiling]="videoCeiling()"
                             [screenAudioMuted]="voiceSvc.localScreenAudioMuted()"
                             [screenHasAudio]="voiceSvc.localScreenHasAudio()"
                             class="transition-opacity duration-150 motion-reduce:transition-none"
@@ -136,5 +170,15 @@
             [isSuperadmin]="isSuperadmin()"
             [menu]="menu"
             [moderationEnabled]="hasModeration()"
+    />
+}
+
+<!-- Who to ring into this channel. Mounted only while open - see showRingPicker. -->
+@if (showRingPicker()) {
+    <app-voice-ring-picker
+            [(visible)]="showRingPicker"
+            [alreadyIn]="participantUserIds()"
+            [channelId]="channel().id"
+            [guildId]="channel().guildId"
     />
 }

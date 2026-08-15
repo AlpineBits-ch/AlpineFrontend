@@ -31,17 +31,25 @@ export interface MessageEmbedField {
     inline: boolean;
 }
 
+/**
+ * <p><b>Multi-word fields inside an embed are snake_case, and the message fields around them are
+ * camelCase.</b> `embedsJson` is an opaque string produced by a different serializer - one whose
+ * members carry explicit `[JsonPropertyName]` attributes that beat the camelCase policy - so
+ * `message.editedAt` and `embed.author.icon_url` are both correct in the same payload. This client
+ * read them as `iconUrl`/`proxyUrl`/`placeholderVersion` and so never saw one of them, which is why
+ * every card was quietly hot-linking the origin instead of our proxy.</p>
+ */
 export interface MessageEmbedAuthor {
     name: string;
     url?: string;
-    iconUrl?: string;
-    proxyIconUrl?: string;
+    icon_url?: string;
+    proxy_icon_url?: string;
 }
 
 export interface MessageEmbedFooter {
     text: string;
-    iconUrl?: string;
-    proxyIconUrl?: string;
+    icon_url?: string;
+    proxy_icon_url?: string;
 }
 
 export interface MessageEmbedProvider {
@@ -51,15 +59,51 @@ export interface MessageEmbedProvider {
 
 /**
  * Picks the card layout. Absent on older bot embeds, which are all `rich`.
+ *
+ * <p>The `venta.*` types are links back to this instance, resolved in-process rather than fetched.
+ * They carry a {@link MessageEmbedVenta} block. An unrecognised `venta.*` type must be ignored
+ * outright rather than falling back to the link layout - a future kind will arrive before the next
+ * release, and a half-rendered card is worse than no card.</p>
  */
-export type MessageEmbedType = 'rich' | 'link' | 'article' | 'image' | 'video' | 'gifv';
+export type MessageEmbedType =
+    'rich' | 'link' | 'article' | 'image' | 'video' | 'gifv' | 'venta.invite' | 'venta.wiki_page';
+
+/**
+ * The identity of whatever an instance-local link points at.
+ *
+ * <p><b>Identifiers only - never a URL to call, and there will never be one.</b> A refresh endpoint
+ * supplied by the embed would be a URL a bot chose, hit with the user's credentials, which is a
+ * credential harvester. Compose refresh requests from this client's own route table.</p>
+ *
+ * <p><b>Trust it only when the embed carries {@link EmbedFlags.Generated}.</b> Without the flag the
+ * whole embed, this block included, was written by whoever posted the message.</p>
+ */
+export interface MessageEmbedVenta {
+    /** `type` without the `venta.` prefix, so one value can be switched on. */
+    kind: 'invite' | 'wiki_page' | (string & {});
+    /** Whether the server filled in title/description, or deliberately left them out. */
+    resolved: boolean;
+    guild_id?: string;
+
+    /** Invite only. Always the canonical code, even when the pasted link was a vanity URL. */
+    invite_code?: string;
+    /** Invite only: the channel a joiner lands on. An id, never a name. */
+    channel_id?: string;
+    /** Invite only. ISO-8601, absent for an invite that never expires. */
+    expires_at?: string;
+    /** Invite only. Absent for unlimited. */
+    max_uses?: number;
+
+    /** Wiki only. */
+    page_id?: string;
+}
 
 /**
  * An image, thumbnail or player frame on an embed.
  *
- * <p><b>Render `proxyUrl`, never `url`.</b> `url` is the third-party origin's own address, so
+ * <p><b>Render `proxy_url`, never `url`.</b> `url` is the third-party origin's own address, so
  * loading it hands that origin the IP address, rough location and read time of everyone who
- * scrolls past a link one other person posted. `proxyUrl` is our re-hosted copy: unauthenticated
+ * scrolls past a link one other person posted. `proxy_url` is our re-hosted copy: unauthenticated
  * (an `<img>` carries no token), immutable, and cached for a week - so no cache-busting and no
  * `Authorization` header. Keep `url` for an "open original" affordance only.</p>
  */
@@ -67,15 +111,15 @@ export interface MessageEmbedMedia {
     /** The origin's own URL. Do not put this in a `src`. */
     url: string;
     /** Our re-hosted copy - a fully-qualified absolute URL. Absent if the media was not fetched. */
-    proxyUrl?: string;
+    proxy_url?: string;
     /** True measured pixel dimensions. Used to reserve layout space before the image loads. */
     width?: number;
     height?: number;
-    contentType?: string;
+    content_type?: string;
     /** BlurHash string - decoded into a blurred placeholder while the real image loads. */
     placeholder?: string;
     /** Which encoding `placeholder` uses. 1 = BlurHash; anything else must be ignored. */
-    placeholderVersion?: number;
+    placeholder_version?: number;
 }
 
 /**
@@ -106,6 +150,8 @@ export interface MessageEmbed {
     footer?: MessageEmbedFooter;
     /** Bitfield - see {@link EmbedFlags}. */
     flags?: number;
+    /** Present only on `venta.*` embeds. Trust it only when {@link EmbedFlags.Generated} is set. */
+    venta?: MessageEmbedVenta;
 }
 
 export const EmbedFlags = {

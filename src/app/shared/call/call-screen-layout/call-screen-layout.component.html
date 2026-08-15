@@ -63,10 +63,10 @@
 
         <!-- Fills the empty half of a one-tile stage. Not a tile in displayedTiles() - it is not a
              share and not a participant, so it must never reach displayedShares() or the watch-claim
-             effect above, and it carries no (invite) handler because the invite mechanic itself does
-             not exist yet (see app-call-invite-card's class doc). -->
+             effect above. The press is re-emitted with the channel it belongs to; the host opens the
+             picker, because only it knows the roster. -->
         @if (showInviteCard()) {
-            <app-call-invite-card class="min-h-0"/>
+            <app-call-invite-card (invite)="emitInviteRequest()" class="min-h-0"/>
         }
     </div>
 

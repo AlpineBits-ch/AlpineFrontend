@@ -191,10 +191,6 @@
                             <app-twemoji [emoji]="seg.value" size="1.25em"/>
                         } @else if (seg.type === 'emoji') {
                             <app-twemoji [emoji]="seg.value" size="1.25em"/>
-                        } @else if (seg.type === 'invite') {
-                            <app-invite-card [inviteId]="seg.value" class="block"/>
-                        } @else if (seg.type === 'wiki') {
-                            <app-wiki-card [guildId]="seg.refId!" [pageId]="seg.value" class="block"/>
                         } @else {
                             <div [innerHTML]="seg.value | markdown" class="contents"></div>
                         }

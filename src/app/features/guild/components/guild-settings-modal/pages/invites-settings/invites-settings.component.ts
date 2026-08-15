@@ -2,18 +2,27 @@ import {Component, computed, inject, input, OnInit, signal} from '@angular/core'
 import {NgClass} from '@angular/common';
 import {FormsModule} from '@angular/forms';
 import {Button} from 'primeng/button';
+import {Checkbox} from 'primeng/checkbox';
 import {InputText} from 'primeng/inputtext';
 import {Select} from 'primeng/select';
 import {Tooltip} from 'primeng/tooltip';
 import {Dialog} from 'primeng/dialog';
 import {PrimeTemplate} from 'primeng/api';
-import {GuildDto} from '../../../../../../dtos/response/guild.dto';
+import {ChannelType, GuildDto} from '../../../../../../dtos/response/guild.dto';
 import {GuildService} from '../../../../../../services/guild.service';
+import {ProfileService} from '../../../../../../services/profile.service';
 import {ToastService} from '../../../../../../services/toast.service';
 import {ApiConfigService} from '../../../../../../services/api-config.service';
 import {MinuteClockService} from '../../../../../../services/minute-clock.service';
 import {RelativeTimePipe} from '../../../../../../pipes/relative-time.pipe';
-import {InviteDto, InviteState, InviteType} from "../../../../../../dtos/response/invite.dto";
+import {
+    InviteDto,
+    InviteTargetType,
+    InviteType,
+    isInviteExpired,
+    isInviteRevoked,
+    isInviteUsable,
+} from "../../../../../../dtos/response/invite.dto";
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 
 export type ExpiryPresetId = '30m' | '1h' | '6h' | '12h' | '1d' | '7d' | 'never' | 'custom';
@@ -32,6 +41,14 @@ const EXPIRY_PRESETS: {id: ExpiryPresetId; hours: number | null; labelKey: strin
     {id: 'never', hours: null, labelKey: 'GUILD_SETTINGS.INVITES.EXPIRY_PRESET_NEVER'},
     {id: 'custom', hours: null, labelKey: 'GUILD_SETTINGS.INVITES.EXPIRY_PRESET_CUSTOM'},
 ];
+
+/**
+ * The use limits worth one click, matching the set Discord offers. `null` is unlimited.
+ *
+ * <p><b>There is no zero.</b> The server refuses `maxUses: 0` with a `400`, because an invite that
+ * is exhausted the moment it exists is a link somebody is about to share - so it is not offered.</p>
+ */
+export const MAX_USES_PRESETS: readonly (number | null)[] = [null, 1, 5, 10, 25, 50, 100];
 
 /**
  * Where invite links point, derived from the API host the account is actually on.
@@ -54,9 +71,26 @@ export function inviteOrigin(apiUrl: string): string {
     return `${parsed.protocol}//${host}${parsed.port ? `:${parsed.port}` : ''}`;
 }
 
+/**
+ * The guild's join links.
+ *
+ * <p><b>This page is `ManageGuild` territory.</b> The list is the guild's entire set of live join
+ * credentials, which is why the server moved its gate off `ManageChannel`. Nothing extra is done
+ * here for it: `GuildSettingsModalComponent` refuses to render any page at all without
+ * `ManageGuild`, so anyone standing here already holds it - which also settles the revoke button,
+ * whose second, narrower route (`ManageChannel` on the invite's own channel) can only ever widen
+ * the set of people this screen has already admitted.</p>
+ *
+ * <p><b>`state` is the server's answer and is never re-derived here.</b> There used to be a local
+ * `expiresAt < now` check alongside it, from when nothing wrote `Expired` on the way past the
+ * clock. The server computes it on every read now, including the one-time-invite case that has no
+ * `maxUses` to compare against and that only it can see, so a second opinion here could only
+ * disagree with the truth. The `expiresAt` timestamp is still read - for the countdown, which is a
+ * different question from the badge.</p>
+ */
 @Component({
     selector: 'app-invites-settings',
-    imports: [NgClass, Button, InputText, Select, Tooltip, Dialog, PrimeTemplate, TranslateModule, RelativeTimePipe, FormsModule],
+    imports: [NgClass, Button, Checkbox, InputText, Select, Tooltip, Dialog, PrimeTemplate, TranslateModule, RelativeTimePipe, FormsModule],
     templateUrl: './invites-settings.component.html',
 })
 export class InvitesSettingsComponent implements OnInit {
@@ -72,12 +106,24 @@ export class InvitesSettingsComponent implements OnInit {
     /** Effective lifetime in hours. `null` is "never expires"; anything <= 0 is rejected. */
     createExpiryHours = signal<number | null>(null);
     expiryPreset = signal<ExpiryPresetId>('never');
+    /** `null` is unlimited. Never 0 - see {@link MAX_USES_PRESETS}. */
+    createMaxUses = signal<number | null>(null);
+    /** The channel a joiner lands on. Empty means "wherever the guild sends them". */
+    createChannelId = signal<string | null>(null);
+    createTemporary = signal(false);
+    /** `VoiceChannel` drops the joiner into `createChannelId`, which then has to be a voice channel. */
+    createTargetType = signal<InviteTargetType>(InviteTargetType.None);
     hideExpired = signal(false);
+    /**
+     * The audit view. Revoked invites are excluded by default, which is what keeps the ordinary
+     * list the same shape it was before revocation existed.
+     */
+    showRevoked = signal(false);
     confirmRevokeInvite = signal<InviteDto | null>(null);
     showRevokeDialog = signal(false);
     /**
-     * Ticks so "expires in 3 hours" doesn't sit frozen at whatever it read when the page opened,
-     * and is server-corrected, so a machine with a wrong local clock still greys out the right rows.
+     * Ticks so "expires in 3 hours" doesn't sit frozen at whatever it read when the page opened.
+     * The countdown only - the badge reads `state`.
      */
     clock = inject(MinuteClockService);
     /**
@@ -91,8 +137,27 @@ export class InvitesSettingsComponent implements OnInit {
     protected get InviteType() {
         return InviteType;
     }
+
+    protected get InviteTargetType() {
+        return InviteTargetType;
+    }
+
     protected expiryPresetOptions = computed(() =>
         EXPIRY_PRESETS.map(p => ({value: p.id, label: this.translate.instant(p.labelKey)})));
+    protected maxUsesOptions = computed(() => MAX_USES_PRESETS.map(value => ({
+        value,
+        label: value === null
+            ? this.translate.instant('GUILD_SETTINGS.INVITES.MAX_USES_UNLIMITED')
+            : this.translate.instant('GUILD_SETTINGS.INVITES.MAX_USES_N', {count: value}),
+    })));
+    /** Only channels a joiner can be landed on. A list or a chore board is not somewhere to arrive. */
+    protected channelOptions = computed(() => [
+        {value: null, label: this.translate.instant('GUILD_SETTINGS.INVITES.CHANNEL_NONE')},
+        ...this.guild().channels
+            .filter(c => c.type === ChannelType.Text || c.type === ChannelType.Voice
+                || c.type === ChannelType.Announcement)
+            .map(c => ({value: c.id, label: `#${c.name}`})),
+    ]);
     /**
      * `0` used to fall through to "never expires", quietly minting a permanent link for someone
      * who typed the smallest number they could. It is refused now, with the reason next to the
@@ -103,10 +168,23 @@ export class InvitesSettingsComponent implements OnInit {
         if (hours === null) return null;
         return Number.isFinite(hours) && hours > 0 ? null : 'GUILD_SETTINGS.INVITES.EXPIRY_INVALID';
     });
+    /**
+     * The one create-time rule the server also enforces, mirrored so the form says so before the
+     * round trip rather than after it.
+     */
+    targetError = computed<string | null>(() => {
+        if (this.createTargetType() !== InviteTargetType.VoiceChannel) return null;
+        const channelId = this.createChannelId();
+        const channel = this.guild().channels.find(c => c.id === channelId);
+        if (!channel) return 'GUILD_SETTINGS.INVITES.TARGET_NEEDS_CHANNEL';
+        return channel.type === ChannelType.Voice ? null : 'GUILD_SETTINGS.INVITES.TARGET_NEEDS_VOICE';
+    });
+    createError = computed<string | null>(() => this.expiryError() ?? this.targetError());
     expiredCount = computed(() => this.invites().filter(i => this.isExpired(i)).length);
     visibleInvites = computed(() =>
         this.hideExpired() ? this.invites().filter(i => !this.isExpired(i)) : this.invites());
     private guildService = inject(GuildService);
+    private profileService = inject(ProfileService);
     private toastService = inject(ToastService);
     private translate = inject(TranslateService);
     // Not `environment.apiUrl`: that constant is the venta.gg address baked in at build time, so
@@ -124,16 +202,26 @@ export class InvitesSettingsComponent implements OnInit {
 
     load(): void {
         this.loading.set(true);
-        this.guildService.getInvites(this.guild().id).subscribe({
+        this.guildService.getInvites(this.guild().id, this.showRevoked()).subscribe({
             next: list => {
                 this.invites.set(list);
                 this.loading.set(false);
+                // Guild does not own usernames, so the inviter arrives as a bare user id and is
+                // hydrated through the same cache message authors use.
+                for (const invite of list) {
+                    if (invite.inviterId) this.profileService.resolveByUserId(invite.inviterId);
+                }
             },
             error: err => {
                 this.loading.set(false);
                 this.toastService.httpError(this.translate.instant('GUILD_SETTINGS.INVITES.LOAD_ERROR'), err);
             },
         });
+    }
+
+    toggleRevokedView(): void {
+        this.showRevoked.update(v => !v);
+        this.load();
     }
 
     createPermanentInvite(): void {
@@ -160,12 +248,21 @@ export class InvitesSettingsComponent implements OnInit {
         this.showRevokeDialog.set(false);
     }
 
+    /**
+     * Revokes an invite.
+     *
+     * <p>The row survives - members who joined through it still point at it - so the response is
+     * the invite in its `Revoked` state rather than nothing. In the audit view it replaces the row
+     * in place; in the ordinary view it leaves, because a revoked invite is not part of that list.</p>
+     */
     revokeInvite(invite: InviteDto): void {
         if (this.deletingId()) return;
         this.deletingId.set(invite.id);
         this.guildService.deleteInvite(invite.id).subscribe({
-            next: () => {
-                this.invites.update(list => list.filter(i => i.id !== invite.id));
+            next: revoked => {
+                this.invites.update(list => this.showRevoked()
+                    ? list.map(i => i.id === invite.id ? (revoked ?? {...i, state: 'Revoked'}) : i)
+                    : list.filter(i => i.id !== invite.id));
                 this.deletingId.set(null);
                 this.closeRevokeDialog();
             },
@@ -177,7 +274,7 @@ export class InvitesSettingsComponent implements OnInit {
     }
 
     copyInvite(invite: InviteDto): void {
-        if (this.isExpired(invite)) return;
+        if (!isInviteUsable(invite)) return;
         this.writeLink(invite).then(
             () => this.markCopied(invite),
             // Clipboard writes are refused in insecure contexts and when permission is
@@ -190,17 +287,29 @@ export class InvitesSettingsComponent implements OnInit {
         return `${inviteOrigin(this.apiConfig.baseUrl())}/invite/${invite.code}`;
     }
 
-    /**
-     * The server's `state` is a snapshot from when the list was fetched, so a link can lapse while
-     * the modal sits open. The timestamp is checked too, otherwise a stale row keeps a working
-     * Copy button.
-     */
+    /** The server's answer, verbatim. Ran out on its own. */
     isExpired(invite: InviteDto): boolean {
-        if (invite.state === InviteState.Expired) return true;
-        return !!invite.expiresAt && new Date(invite.expiresAt).getTime() <= this.clock.now();
+        return isInviteExpired(invite);
+    }
+
+    /** Also the server's answer. Somebody took it away, which is a different thing from expiry. */
+    isRevoked(invite: InviteDto): boolean {
+        return isInviteRevoked(invite);
+    }
+
+    /** The inviter's display name, or empty while the profile is still resolving. */
+    inviterName(invite: InviteDto): string {
+        if (!invite.inviterId) return '';
+        return this.profileService.getCachedByUserId(invite.inviterId)?.userName ?? '';
+    }
+
+    channelName(channelId: string | null | undefined): string {
+        if (!channelId) return '';
+        return this.guild().channels.find(c => c.id === channelId)?.name ?? '';
     }
 
     copyTooltipKey(invite: InviteDto): string {
+        if (this.isRevoked(invite)) return 'GUILD_SETTINGS.INVITES.COPY_REVOKED';
         if (this.isExpired(invite)) return 'GUILD_SETTINGS.INVITES.COPY_EXPIRED';
         return this.copiedId() === invite.id ? 'GUILD.COPIED' : 'GUILD_SETTINGS.INVITES.COPY_LINK';
     }
@@ -218,13 +327,22 @@ export class InvitesSettingsComponent implements OnInit {
     }
 
     private createInvite(type: InviteType): void {
-        if (this.creatingType() || this.expiryError()) return;
+        if (this.creatingType() || this.createError()) return;
         this.creatingType.set(type);
         const hours = this.createExpiryHours();
         const expiresAt = hours !== null
             ? new Date(Date.now() + hours * 3600_000).toISOString()
             : undefined;
-        this.guildService.createInvite({type, expiresAt}, this.guild().id).subscribe({
+        const targetType = this.createTargetType();
+        this.guildService.createInvite({
+            type,
+            expiresAt,
+            // Omitted rather than sent as null: `{}` is exactly today's behaviour, and 0 is refused.
+            maxUses: this.createMaxUses() ?? undefined,
+            channelId: this.createChannelId() ?? undefined,
+            temporary: this.createTemporary() || undefined,
+            targetType: targetType === InviteTargetType.None ? undefined : targetType,
+        }, this.guild().id).subscribe({
             next: invite => {
                 this.invites.update(list => [invite, ...list]);
                 this.creatingType.set(null);

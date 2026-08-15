@@ -49,10 +49,7 @@ import {toBase64} from '../../../../../helpers/base64.helper';
 import {ProfileDialogService} from '../../../../../services/profile-dialog.service';
 import {ReportDialogService} from '../../../../../services/report-dialog.service';
 import {LinkOpener} from '../../../../../platform/ports/link-opener.port';
-import {InviteCardComponent} from './invite-card/invite-card.component';
-import {WikiCardComponent} from './wiki-card/wiki-card.component';
 import {EmbedCardComponent} from './embed-card/embed-card.component';
-import {parseWikiUrl, wikiUrlPattern} from '../../../wiki-link';
 import {MessageHoverToolbarComponent} from './hover-toolbar/message-hover-toolbar.component';
 import {MessageReactionBarComponent} from './reaction-bar/message-reaction-bar.component';
 import {TwemojiComponent} from '../../../../../components/twemoji/twemoji.component';
@@ -74,12 +71,16 @@ import {
  * One run of a message body, after the text has been pulled apart.
  *
  * <p>`refId` is whatever the segment's renderer needs to resolve `value`: a user, role or channel
- * id for the mention kinds, and the guild a wiki page lives in for `wiki` - a page id alone names
- * nothing, because the wiki endpoints are all guild-scoped.</p>
+ * id for the mention kinds.</p>
+ *
+ * <p><b>There are no `invite` or `wiki` segments.</b> This component used to hunt the body for
+ * `venta.gg/invite/...` and `venta.gg/wiki/...` and split cards out of it. The server now recognises
+ * its own links by host and attaches `venta.invite` / `venta.wiki_page` embeds, so the card belongs
+ * to the link rather than to a regex here - see the embed renderer. Finding the URLs ourselves also
+ * meant a hardcoded production host, so a self-hosted instance never got a card at all.</p>
  */
 type MessageSegment = {
-    type: 'text' | 'mention' | 'role' | 'everyone' | 'here' | 'channel' | 'gif' | 'emoji' | 'flag'
-        | 'invite' | 'wiki';
+    type: 'text' | 'mention' | 'role' | 'everyone' | 'here' | 'channel' | 'gif' | 'emoji' | 'flag';
     value: string;
     refId?: string;
 };
@@ -92,8 +93,6 @@ type MessageSegment = {
         AsyncPipe,
         NgClass,
         MarkdownPipe,
-        InviteCardComponent,
-        WikiCardComponent,
         EmbedCardComponent,
         MessageHoverToolbarComponent,
         MessageReactionBarComponent,
@@ -111,7 +110,6 @@ type MessageSegment = {
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class MessageComponent {
-    private static readonly INVITE_URL_RE = /https:\/\/venta\.gg\/invite\/([A-Za-z0-9_-]+)/g;
     public profileService = inject(ProfileService);
     protected navService = inject(NavigationService);
     /**
@@ -186,18 +184,6 @@ export class MessageComponent {
         // If the entire message is a GIF URL, render it as a single GIF segment
         if (isKlipyGifUrl(text)) {
             return [{type: 'gif' as const, value: text.trim()}];
-        }
-
-        // If the entire message is a single invite URL, render only the card
-        const singleInvite = /^https:\/\/venta\.gg\/invite\/([A-Za-z0-9_-]+)$/.exec(text.trim());
-        if (singleInvite) {
-            return [{type: 'invite' as const, value: singleInvite[1]}];
-        }
-
-        // Same rule for a shared wiki page: the card says everything the URL did, and better.
-        const singleWiki = parseWikiUrl(text);
-        if (singleWiki) {
-            return [{type: 'wiki' as const, value: singleWiki.pageId, refId: singleWiki.guildId}];
         }
 
         // Reads the profile cache reactively -this computed reruns once a mentioned
@@ -318,54 +304,7 @@ export class MessageComponent {
             }
         }
 
-        // 3. Split text segments by invite URLs
-        const invited: MessageSegment[] = [];
-        const inviteRe = MessageComponent.INVITE_URL_RE;
-        for (const segment of emojiSegments) {
-            if (segment.type !== 'text') {
-                invited.push(segment);
-                continue;
-            }
-            inviteRe.lastIndex = 0;
-            let lastIdx = 0;
-            let m: RegExpExecArray | null;
-            while ((m = inviteRe.exec(segment.value)) !== null) {
-                if (m.index > lastIdx) {
-                    invited.push({type: 'text', value: segment.value.slice(lastIdx, m.index)});
-                }
-                invited.push({type: 'invite', value: m[1]});
-                lastIdx = m.index + m[0].length;
-            }
-            if (lastIdx < segment.value.length) {
-                invited.push({type: 'text', value: segment.value.slice(lastIdx)});
-            }
-        }
-
-        // 4. And again by wiki page links. A separate pass rather than one combined pattern: the
-        // two URL shapes cannot overlap, and keeping them apart means neither one's capture groups
-        // have to be counted around the other's.
-        const finalSegments: MessageSegment[] = [];
-        for (const segment of invited) {
-            if (segment.type !== 'text') {
-                finalSegments.push(segment);
-                continue;
-            }
-            const wikiRe = wikiUrlPattern();
-            let lastIdx = 0;
-            let m: RegExpExecArray | null;
-            while ((m = wikiRe.exec(segment.value)) !== null) {
-                if (m.index > lastIdx) {
-                    finalSegments.push({type: 'text', value: segment.value.slice(lastIdx, m.index)});
-                }
-                finalSegments.push({type: 'wiki', value: m[2], refId: m[1]});
-                lastIdx = m.index + m[0].length;
-            }
-            if (lastIdx < segment.value.length) {
-                finalSegments.push({type: 'text', value: segment.value.slice(lastIdx)});
-            }
-        }
-
-        return finalSegments;
+        return emojiSegments;
     });
     readonly isOwn = computed(() =>
         this.message().authorId === this.profileService.ownProfile()?.userId
@@ -594,7 +533,7 @@ export class MessageComponent {
      * go, and it takes an explicit click.</p>
      */
     openEmbedMedia(media: MessageEmbedMedia): void {
-        const src = media.proxyUrl ?? media.url;
+        const src = media.proxy_url ?? media.url;
         if (!src) return;
         this.lightbox.set({
             url: src,

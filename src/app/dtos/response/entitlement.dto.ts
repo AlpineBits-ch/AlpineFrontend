@@ -90,6 +90,15 @@ export type EntitlementValueDto =
     | {kind: 'flag'; granted: boolean}
     | {kind: 'ladder'; rung: string; rank: number; ladder?: string};
 
+/**
+ * The rung that means audio-only.
+ *
+ * <p>A real rung, never an absence: it is how "this guild is over its video budget" is said without
+ * refusing the call, and the name is on the wire so a client can recognise it before it has read a
+ * ladder. See `Echo/docs/specs/entitlements-frontend-guide.md` section 9 rule 3.</p>
+ */
+export const AUDIO_ONLY_RUNG = 'none';
+
 /** One rung, with what it actually permits. The metrics are the (resolution, framerate) mapping. */
 export interface EntitlementRungDto {
     rung: string;
@@ -207,6 +216,47 @@ export interface EntitlementSnapshotDto {
      * The environment value is the development fallback.</p>
      */
     stripePublishableKey?: string;
+}
+
+/**
+ * What a voice room will carry, riding the room snapshot rather than an event.
+ *
+ * <p>A room's limits can change during a call - a boost lapses, a plan downgrades at period end -
+ * and the room is the one surface somebody is looking at while it happens. There is deliberately no
+ * entitlement event for this: the voice client already has snapshot versioning and gap detection,
+ * and a second unordered channel into the same room would race the snapshot stream with no way to
+ * order the two. So these ride the snapshot, version-gated like everything else on it, and a change
+ * advances the snapshot's `version`.</p>
+ *
+ * <p><b>Every field is optional and the whole block can be absent.</b> Absent means "no limit
+ * information", which is not the same as "no limits" - it is what a room whose limits have never
+ * been computed answers, and what every server built before this contract answers.</p>
+ */
+export interface VoiceRoomLimitsDto {
+    /** People in one room. */
+    maxParticipants?: EntitlementValueDto;
+    /** Publish quality, as a rung on `video_quality`. `none` means audio-only. */
+    videoCeiling?: EntitlementValueDto;
+    /** Concurrent video publishers. */
+    maxPublishers?: EntitlementValueDto;
+    /**
+     * How many of those slots are taken right now.
+     *
+     * <p>Room state rather than entitlement state, and here for the same reason a slot count is
+     * anywhere: "2 of 2 people are sharing" is a sentence and "you cannot share" is a mystery.</p>
+     */
+    publisherCount?: number;
+}
+
+/**
+ * What this client intends to send, stated on a publish so the server can clamp it.
+ *
+ * <p>Additive and optional: an older server ignores it, and an audio-only publish never carries it
+ * because nothing about audio is laddered.</p>
+ */
+export interface VideoPublishIntentDto {
+    height: number;
+    framerate: number;
 }
 
 /** The realtime envelope, and only an envelope - `entitlements.Changed`. */

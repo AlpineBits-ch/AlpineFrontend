@@ -6,7 +6,7 @@ import {GuildFeatureResolutionDto} from '../dtos/response/entitlement.dto';
 import {environment} from '../../environments/environment';
 import {catchError, finalize, map, Observable, of, shareReplay, Subject, tap, throwError} from 'rxjs';
 import {GuildMemberDto, MemberPermissionsDto, RoleMemberDto, SelfGuildMemberDto} from '../dtos/response/member.dto';
-import {InviteDto} from "../dtos/response/invite.dto";
+import {InviteDto, RedeemInviteResultDto} from "../dtos/response/invite.dto";
 import {CreateInviteDto} from "../dtos/request/create-invite.dto";
 import {ReorderChannesDto} from "../dtos/request/reorder-channel.dto";
 import {ApiConfigService} from "./api-config.service";
@@ -506,20 +506,39 @@ export class GuildService {
         return this.http.post<InviteDto>(`${this.base}/guilds/${guildId}/invite`, dto);
     }
 
-    getInvites(guildId: string): Observable<InviteDto[]> {
-        return this.http.get<InviteDto[]>(`${this.base}/guilds/${guildId}/invites`);
+    /**
+     * Every live join credential for the guild. Needs `ManageGuild` - not `ManageChannel`, which is
+     * both the wrong scope and the wrong level of trust for the whole set.
+     *
+     * <p>Revoked invites are excluded unless `includeRevoked` is set, which is the audit view.</p>
+     */
+    getInvites(guildId: string, includeRevoked = false): Observable<InviteDto[]> {
+        const query = includeRevoked ? '?includeRevoked=true' : '';
+        return this.http.get<InviteDto[]>(`${this.base}/guilds/${guildId}/invites${query}`);
     }
 
+    /**
+     * Unauthenticated preview of one invite. **Rate limited** - 30 a minute, burst 60, counting
+     * misses. Fetch once per link the user opens; never poll one and never prefetch a body's worth.
+     */
     getInvite(id: string): Observable<InviteDto> {
         return this.http.get<InviteDto>(`${this.base}/invites/${id}`);
     }
 
-    redeemInvite(id: string): Observable<unknown> {
-        return this.http.post(`${this.base}/invites/${id}/redeem`, {});
+    redeemInvite(id: string): Observable<RedeemInviteResultDto> {
+        return this.http.post<RedeemInviteResultDto>(`${this.base}/invites/${id}/redeem`, {});
     }
 
-    deleteInvite(id: string): Observable<void> {
-        return this.http.delete<void>(`${this.base}/invites/${id}`);
+    /**
+     * Revokes an invite. The row survives - `guildMember.inviteId` points at it - and comes back
+     * with `state: "Revoked"` and a `revokedAt`, so the response is worth reading rather than
+     * discarding. Idempotent: revoking a revoked invite answers the same body again.
+     *
+     * <p>Needs `ManageGuild`, or `ManageChannel` on the invite's own `channelId`. An invite with no
+     * channel can therefore only be revoked with `ManageGuild`.</p>
+     */
+    deleteInvite(id: string): Observable<InviteDto> {
+        return this.http.delete<InviteDto>(`${this.base}/invites/${id}`);
     }
 
     /**

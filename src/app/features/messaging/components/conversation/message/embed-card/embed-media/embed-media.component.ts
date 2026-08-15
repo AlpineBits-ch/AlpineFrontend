@@ -7,7 +7,7 @@ import {blurHashToDataUrl} from '../../../../../../../helpers/blurhash.helper';
  *
  * <p>Two things here are load-bearing rather than decorative:</p>
  *
- * <p><b>The source is always `proxyUrl` when there is one.</b> Pointing an `<img>` at the origin's
+ * <p><b>The source is always `proxy_url` when there is one.</b> Pointing an `<img>` at the origin's
  * own `url` hands that origin the IP address and read time of every person who scrolls past a link
  * somebody else posted - a tracking pixel nobody opted into. See {@link MessageEmbedMedia}.</p>
  *
@@ -39,7 +39,7 @@ export class EmbedMediaComponent {
 
     protected readonly src = computed(() => {
         const media = this.media();
-        return media.proxyUrl ?? media.url;
+        return media.proxy_url ?? media.url;
     });
 
     /**
@@ -55,7 +55,7 @@ export class EmbedMediaComponent {
     protected readonly placeholder = computed(() => {
         const media = this.media();
         const ratio = media.width && media.height ? media.width / media.height : 1;
-        return blurHashToDataUrl(media.placeholder, media.placeholderVersion, ratio);
+        return blurHashToDataUrl(media.placeholder, media.placeholder_version, ratio);
     });
 
     constructor() {

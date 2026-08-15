@@ -3,6 +3,7 @@ import {join, relative} from 'node:path';
 import {describe, expect, it} from 'vitest';
 import en from '../assets/i18n/locales/en.json';
 import {ENTITLEMENT_KEY_NAME_KEYS, ENTITLEMENT_TRANSLATION_KEYS} from './core/entitlement-message';
+import {VOICE_LIMIT_TRANSLATION_KEYS} from './core/voice-limits';
 
 /**
  * Every `'SOME.KEY' | translate` in the app resolves to a string in en.json.
@@ -91,6 +92,21 @@ describe('translation keys', () => {
         expect(ENTITLEMENT_TRANSLATION_KEYS.length).toBeGreaterThan(10);
         expect(missing, `keys held in a table but absent from en.json:\n${missing.join('\n')}`)
             .toEqual([]);
+    });
+
+    /**
+     * The same, for what a voice room says about its own limits.
+     *
+     * <p>Held in a table for the same reason and reachable by neither pattern above: the key is
+     * chosen by catalogue key at runtime and rendered through a binding, so `'VOICE.DEGRADED.' + x`
+     * would render raw to a user in a call with every test in this file green.</p>
+     */
+    it('resolves every voice limit key', () => {
+        const strings = en as Record<string, string>;
+        const missing = VOICE_LIMIT_TRANSLATION_KEYS.filter(key => !(key in strings));
+
+        expect(VOICE_LIMIT_TRANSLATION_KEYS.length).toBeGreaterThan(3);
+        expect(missing, `voice limit keys absent from en.json:\n${missing.join('\n')}`).toEqual([]);
     });
 
     /**

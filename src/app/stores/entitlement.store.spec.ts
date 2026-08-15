@@ -325,6 +325,51 @@ describe('the upload ceiling', () => {
 });
 
 /**
+ * The ladder, which is what turns a rung name on a voice snapshot into a clamp on a picker.
+ *
+ * <p>It is the instance's definition of what each rung permits rather than a per-subject grant -
+ * only the rung <i>on</i> it differs by subject - which is why either held snapshot answers it, and
+ * why nothing in the app is allowed to keep a copy of one.</p>
+ */
+describe('a published ladder', () => {
+    const VIDEO = [
+        {rung: 'none', rank: 0, maxHeight: 0, maxFramerate: 0},
+        {rung: '720p30', rank: 2, maxHeight: 720, maxFramerate: 30},
+    ];
+
+    it('comes from the caller own set when no guild is named', () => {
+        const {store, service} = setup();
+        service.getMine.mockReturnValue(of(snapshot({ladders: {video_quality: VIDEO}})));
+        store.ensureLoaded(MY_ENTITLEMENTS);
+
+        expect(store.ladder('video_quality')).toEqual(VIDEO);
+    });
+
+    it('prefers the guild copy on a guild screen, and falls back to the account one', () => {
+        const {store, service} = setup();
+        service.getMine.mockReturnValue(of(snapshot({ladders: {video_quality: VIDEO}})));
+        service.getForGuild.mockImplementation((id: string) =>
+            of(guildSnapshot(id, {ladders: {video_quality: [{rung: 'none', rank: 0}]}})));
+        store.ensureLoaded(MY_ENTITLEMENTS);
+        store.ensureLoaded({kind: 'guild', id: 'guild-1'});
+
+        expect(store.ladder('video_quality', 'guild-1')).toEqual([{rung: 'none', rank: 0}]);
+        // Nothing held for this guild, so the account's answers rather than nothing at all.
+        expect(store.ladder('video_quality', 'guild-9')).toEqual(VIDEO);
+    });
+
+    /** Negative: nothing held, and a ladder nobody published. Both clamp nothing. */
+    it('is undefined when nothing published one', () => {
+        const {store} = setup();
+        expect(store.ladder('video_quality')).toBeUndefined();
+
+        store.ensureLoaded(MY_ENTITLEMENTS);
+        expect(store.ladder('video_quality')).toBeUndefined();
+        expect(store.ladder('ladder_of_the_future')).toBeUndefined();
+    });
+});
+
+/**
  * An envelope, not the values. A guild plan change fans out to every online member and delivery is
  * unordered, so a pushed value can arrive stale and overwrite a newer one; a version plus a refetch
  * is monotonic.

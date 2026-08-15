@@ -65,6 +65,17 @@ function render(joinChannel: ReturnType<typeof vi.fn>): ComponentFixture<VoiceCh
                     isScreenAudioMuted: () => false,
                     getUserVolume: () => 1,
                     rtc: {screenPreset: signal(null)},
+                    // The room's entitlement state, stubbed as "nothing said" - which is what an
+                    // instance that sells nothing answers: no denominator, no ceiling, every
+                    // control live.
+                    videoBlock: () => null,
+                    limits: {
+                        notices: () => [],
+                        audioOnly: () => false,
+                        publisherSlots: () => null,
+                        videoCeiling: () => null,
+                        participantSlots: () => null,
+                    },
                     joinChannel,
                 },
             },

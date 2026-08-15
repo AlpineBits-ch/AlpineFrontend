@@ -70,6 +70,14 @@ export class CallScreenLayoutComponent implements OnDestroy {
     participantContextMenu = output<CallScreenLayoutContextMenuEvent>();
     localAudioToggle = output<void>();
     remoteAudioToggle = output<string>();
+    /**
+     * The invite tile was pressed, for this channel.
+     *
+     * <p>Re-emitted rather than handled here: opening the picker needs the channel's roster, and
+     * this component is shared with the DM call panel, which has neither a roster of guild members
+     * nor a ring endpoint to point one at.</p>
+     */
+    inviteRequested = output<{guildId: string; channelId: string}>();
 
     protected readonly maximizedId = signal<string | null>(null);
 
@@ -244,8 +252,22 @@ export class CallScreenLayoutComponent implements OnDestroy {
      * here, so {@link gridClass}'s own count and thresholds stay exactly what the existing specs pin
      * them to.</p>
      */
+    /**
+     * <p>Also requires a channel scope. The ring exists only inside a guild voice channel - a DM
+     * call has no counterpart and no endpoint - so offering the tile there would draw the button
+     * with nothing behind it, which is exactly the state this has just come out of.</p>
+     */
     protected readonly showInviteCard = computed(() =>
-        this.displayedShares().length === 0 && this.displayedTiles().length === 1);
+        this.displayedShares().length === 0
+        && this.displayedTiles().length === 1
+        && this.watchScope()?.kind === 'channel');
+
+    /** Re-emits the invite press with the channel it belongs to. Silent off a channel scope. */
+    protected emitInviteRequest(): void {
+        const scope = this.watchScope();
+        if (scope?.kind !== 'channel') return;
+        this.inviteRequested.emit({guildId: scope.guildId, channelId: scope.channelId});
+    }
 
     /**
      * Whether to offer the persistent grid/focus control - see {@link toggleGridFocus}.

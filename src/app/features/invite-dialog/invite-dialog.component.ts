@@ -7,11 +7,26 @@ import {PrimeTemplate} from 'primeng/api';
 import {TranslateModule} from '@ngx-translate/core';
 import {GuildService} from '../../services/guild.service';
 import {InviteDialogService} from './invite-dialog.service';
-import {InviteDto, InviteState} from '../../dtos/response/invite.dto';
+import {
+    InviteDto,
+    isInviteExpired,
+    isInviteRevoked,
+    RedeemInviteResultDto,
+} from '../../dtos/response/invite.dto';
+import {ChannelType} from '../../dtos/response/guild.dto';
 import {environment} from '../../../environments/environment';
 import {SocialKeyGateService} from '../../services/social-key-gate.service';
+import {VoiceChannelService} from '../../services/voice-channel.service';
 
-type DialogState = 'loading' | 'ready' | 'joining' | 'joined' | 'error' | 'blocked';
+/**
+ * `rate-limited` is deliberately not `error`.
+ *
+ * <p>The preview routes carry their own budget - 30 lookups a minute per caller, and a miss costs
+ * a token too, because a miss is the request worth pricing. A `429` says nothing about the invite,
+ * so rendering it as "invalid invite" would tell somebody their perfectly good link is broken.</p>
+ */
+type DialogState =
+    'loading' | 'ready' | 'joining' | 'joined' | 'error' | 'blocked' | 'rate-limited';
 
 @Component({
     selector: 'app-invite-dialog',
@@ -25,11 +40,14 @@ export class InviteDialogComponent {
     private readonly guildService = inject(GuildService);
     private readonly destroyRef = inject(DestroyRef);
     private readonly socialGate = inject(SocialKeyGateService);
+    private readonly voiceChannels = inject(VoiceChannelService);
 
     protected readonly invite = signal<InviteDto | null>(null);
     protected readonly dialogState = signal<DialogState>('loading');
     protected readonly iconFailed = signal(false);
     protected readonly requiredLevel = signal<string | null>(null);
+    /** What the redeem answered, so the confirmation can say what actually happened. */
+    protected readonly redeemResult = signal<RedeemInviteResultDto | null>(null);
 
     protected readonly visible = computed(() => this.inviteDialogService.inviteId() !== null);
 
@@ -37,8 +55,26 @@ export class InviteDialogComponent {
      * Derived here rather than exposing the InviteState enum to the template. Re-exporting
      * an enum as a field couples the view to module-evaluation order, which is fragile
      * under the test runner's module graph, and a boolean is what the template actually wants.
+     *
+     * <p>Read straight off the server's `state`. There is no local `expiresAt < now` fallback: the
+     * server derives this on every read, including the consumed-one-time case nothing here can
+     * see.</p>
      */
-    protected readonly isExpired = computed(() => this.invite()?.state === InviteState.Expired);
+    protected readonly isExpired = computed(() => isInviteExpired(this.invite()));
+
+    /**
+     * Taken away, rather than run out. In practice a revoked invite answers `404` on the preview
+     * routes - indistinguishable from a code that was never real, on purpose - so this is only
+     * reachable when a preview was fetched before the revocation. It is still rendered separately,
+     * because "somebody withdrew this" and "this lapsed" are different things to tell a person.
+     */
+    protected readonly isRevoked = computed(() => isInviteRevoked(this.invite()));
+
+    /** The membership ends when they go offline. A member who is not told simply vanishes. */
+    protected readonly joinedTemporarily = computed(() => !!this.redeemResult()?.temporaryMembership);
+
+    /** The rules gate is still pending, so the guild is not open to them yet. */
+    protected readonly onboardingRequired = computed(() => !!this.redeemResult()?.onboardingRequired);
 
     protected readonly guildIconUrl = computed(() => {
         const id = this.invite()?.guild?.id;
@@ -77,18 +113,31 @@ export class InviteDialogComponent {
             this.invite.set(null);
             this.iconFailed.set(false);
             this.requiredLevel.set(null);
-            this.dialogState.set('loading');
-
-            this.guildService.getInvite(inviteId)
-                .pipe(takeUntilDestroyed(this.destroyRef))
-                .subscribe({
-                    next: invite => {
-                        this.invite.set(invite);
-                        this.dialogState.set('ready');
-                    },
-                    error: () => this.dialogState.set('error'),
-                });
+            this.redeemResult.set(null);
+            this.load(inviteId);
         });
+    }
+
+    /**
+     * Fetches the preview. One request per link the user opens - never a poll, and never a
+     * prefetch: this route is the only unauthenticated surface that says whether a code exists, so
+     * it is budgeted, and a retry loop would spend the whole budget proving that.
+     */
+    protected load(inviteId?: string | null): void {
+        const id = inviteId ?? this.inviteDialogService.inviteId();
+        if (!id) return;
+
+        this.dialogState.set('loading');
+        this.guildService.getInvite(id)
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe({
+                next: invite => {
+                    this.invite.set(invite);
+                    this.dialogState.set('ready');
+                },
+                error: (err: HttpErrorResponse) => this.dialogState.set(
+                    err?.status === 429 ? 'rate-limited' : 'error'),
+            });
     }
 
     protected join(): void {
@@ -108,9 +157,11 @@ export class InviteDialogComponent {
         this.guildService.redeemInvite(inviteId)
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe({
-                next: () => {
+                next: result => {
+                    this.redeemResult.set(result ?? null);
                     this.dialogState.set('joined');
                     this.guildService.guildJoined$.next();
+                    this.landInVoice(result);
                 },
                 error: (err: HttpErrorResponse) => {
                     // A 403 from redeem is either the verification gate or an ordinary
@@ -129,5 +180,31 @@ export class InviteDialogComponent {
 
     protected dismiss(): void {
         this.inviteDialogService.close();
+    }
+
+    /**
+     * Connects to the voice channel a voice-target invite landed on.
+     *
+     * <p>Driven by `joinVoice`, never by `targetType`. The server sets it false when the target
+     * channel has since been deleted or stopped being a voice channel - the guild join still
+     * succeeds in that case and only the landing is dropped, so deriving the answer from
+     * `targetType` here would mean trying to connect to a room that is not there.</p>
+     *
+     * <p>Best effort and deliberately silent on failure: the guild has been joined either way, and
+     * a toast about a room nobody asked to enter would be noise on a successful join.</p>
+     */
+    private landInVoice(result: RedeemInviteResultDto | null | undefined): void {
+        if (!result?.joinVoice || !result.channelId) return;
+
+        this.guildService.getGuild(result.guildId)
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe({
+                next: guild => {
+                    const channel = guild.channels.find(
+                        c => c.id === result.channelId && c.type === ChannelType.Voice);
+                    if (channel) void this.voiceChannels.joinChannel(channel, guild.name);
+                },
+                error: () => undefined,
+            });
     }
 }

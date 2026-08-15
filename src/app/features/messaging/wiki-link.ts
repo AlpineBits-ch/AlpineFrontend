@@ -4,9 +4,12 @@
  * <p>The wiki's own internal links are `wiki:<pageId>` (see `wiki-links.ts`). That form resolves
  * only inside the editor: it carries no guild, and no scheme a pasted string survives. A link in a
  * message has to survive copy, paste, and a click from somebody standing in a different guild, so
- * chat uses an absolute URL shaped exactly like the invite links that already travel this way -
- * `https://venta.gg/invite/<code>`. Same host, same "the client recognises it and handles it
- * itself" contract, one card renderer pattern rather than two.</p>
+ * chat uses an absolute URL shaped `/wiki/<guildId>/<pageId>`.</p>
+ *
+ * <p><b>Nothing here scans a message any more.</b> The server recognises this shape by host and
+ * attaches a `venta.wiki_page` embed, so the card comes from the embed rather than from a regex
+ * over the body. What is left is minting the URL, reading one back when it is pasted into the wiki
+ * editor, and the snippet helper the card still uses.</p>
  *
  * <p>Deliberately not an app route. `app.routes.ts` has two routes - `/authentication` and
  * `/overview` - and the wiki is a `mainView` inside the latter, not a route of its own. A route
@@ -19,16 +22,11 @@ const WIKI_URL_SOURCE =
     'https:\\/\\/venta\\.gg\\/wiki\\/([A-Za-z0-9_-]+)\\/([A-Za-z0-9_-]+)(?:\\/[^\\s<>]*)?';
 
 /**
- * A fresh regex per call rather than one shared instance.
+ * The whole string is one wiki link and nothing else.
  *
- * <p>A `g` regex carries `lastIndex` between calls, and this one is used from a `computed` that
- * reruns on every profile that resolves - a shared instance drops matches at random.</p>
+ * <p>Only the wiki editor's paste handler reads this now - a pasted `venta.gg/wiki/...` becomes an
+ * internal `wiki:` link rather than sitting there as a bare URL. Chat no longer parses anything.</p>
  */
-export function wikiUrlPattern(): RegExp {
-    return new RegExp(WIKI_URL_SOURCE, 'g');
-}
-
-/** The whole string is one wiki link and nothing else. */
 export function parseWikiUrl(text: string): { guildId: string; pageId: string } | null {
     const match = new RegExp(`^${WIKI_URL_SOURCE}$`).exec(text.trim());
     return match ? {guildId: match[1], pageId: match[2]} : null;
@@ -37,17 +35,16 @@ export function parseWikiUrl(text: string): { guildId: string; pageId: string } 
 /**
  * The link to put in a message.
  *
- * <p>Wrapped in angle brackets, which is how a sender opts out of a server-side preview and is what
- * the server reads. The client renders its own card from the same URL, so an unfurl would either
- * duplicate that card or - since `venta.gg/wiki/...` is not a page a crawler can read - attach a
- * broken one. `MessageComponent.displayContent` strips the brackets before anything is rendered,
- * so a person never sees them.</p>
+ * <p><b>Bare, not bracketed.</b> It used to be wrapped in angle brackets - the sender's opt-out
+ * from a server-side preview - because there was no server branch for an instance link and an
+ * unfurl attempt would have scraped the web client's shell into a broken card. The server resolves
+ * this shape in-process now, so bracketing it would suppress the very card it is meant to get.</p>
  */
 export function wikiShareLink(guildId: string, pageId: string): string {
-    return `<${wikiUrl(guildId, pageId)}>`;
+    return wikiUrl(guildId, pageId);
 }
 
-/** The bare URL, for "copy link" and for anything that does its own bracketing. */
+/** The bare URL, for "copy link". */
 export function wikiUrl(guildId: string, pageId: string): string {
     return `https://venta.gg/wiki/${guildId}/${pageId}`;
 }

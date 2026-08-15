@@ -9,10 +9,18 @@ import {environment} from '../../environments/environment';
 import {ApiConfigService} from "./api-config.service";
 import {DeviceIdentityService} from "./device-identity.service";
 import {OAuthService} from 'angular-oauth2-oidc';
-import {bitrateFor, DEFAULT_STREAM_PRESET, StreamPreset} from '../models/stream-preset';
+import {
+    bitrateFor,
+    clampPreset,
+    DEFAULT_STREAM_PRESET,
+    publishHeight,
+    StreamPreset,
+} from '../models/stream-preset';
+import {VoiceLimitsService} from './voice-limits.service';
 import {solveGeometry} from '../models/capture-geometry';
 import {publishOptions, useRustPublisher} from './screen-publish';
 import {isDeadMediaSession, isStaleSubscription} from '../models/voice-room';
+import {VideoPublishIntentDto} from '../dtos/response/entitlement.dto';
 import {VoiceEngineService, VoiceSession} from './voice-engine.service';
 import {ScreenPickerChoice} from './screen-picker.service';
 import {
@@ -67,6 +75,25 @@ export const MAX_PUBLICATION_REBUILDS = 3;
  * A subject rather than a direct call into the room service, because the two subscribe paths that
  * can raise it (this one, and the Rust engine's) both live below anything that owns a snapshot.
  */
+/**
+ * What a camera publish is about to send, read off the track the device actually opened.
+ *
+ * <p>The settings rather than the constraint, because a camera negotiates its own: asking for 720p
+ * and being handed 1080p is ordinary, and stating the request would have the server clamp against a
+ * resolution nothing is sending.</p>
+ *
+ * <p>Undefined when either half is unknown, which omits the field entirely. The server then behaves
+ * as it did before the field existed - a clamp it cannot compute is better than one computed from a
+ * number this client made up.</p>
+ */
+export function cameraIntent(track: MediaStreamTrack): VideoPublishIntentDto | undefined {
+    const settings = typeof track.getSettings === 'function' ? track.getSettings() : null;
+    const height = settings?.height;
+    const framerate = settings?.frameRate;
+    if (!height || height <= 0 || !framerate || framerate <= 0) return undefined;
+    return {height, framerate: Math.round(framerate)};
+}
+
 export interface StaleSubscription {
     /** Whose track we asked for, when it is known. */
     userId?: string;
@@ -284,6 +311,14 @@ export class VoiceRTCService {
      */
     private rustAudioTrackName: string | null = null;
     private readonly oauth = inject(OAuthService);
+    /**
+     * The room's ceilings, and where a clamp or a refusal on a publish is filed.
+     *
+     * <p>Read here rather than passed in because this is the layer that builds the publish: what
+     * height and framerate are actually going out is known nowhere else, and the reply that says
+     * what the server did with them arrives nowhere else either.</p>
+     */
+    private readonly voiceLimits = inject(VoiceLimitsService);
 
     constructor() {
         // A share can end without anything in the app asking it to. In a browser that is the
@@ -1047,17 +1082,36 @@ export class VoiceRTCService {
                     mediaSessionId: this.mediaSessionId!,
                     sessionDescription: this.pc.localDescription!,
                     tracks: [{direction: 'publish', mid, trackName: 'video'}],
+                    // What the camera actually opened at, not what was asked for: the device
+                    // negotiates its own settings against the constraint, and stating the request
+                    // would have the server clamp against a resolution nothing is sending.
+                    video: cameraIntent(this.localVideoTrack!),
                 }));
                 cfTrackName = this.cfVideoTrackName = resp.tracks[0]?.trackName ?? 'video';
                 await this.pc.setRemoteDescription(resp.sessionDescription);
                 if (resp.requiresImmediateRenegotiation) await this.renegotiate(guildId, channelId);
                 await applySimpleBitrate(sender, CAMERA_KBPS);
                 this.localSenders.set('video', sender);
+                // A clamped publish is a success carrying a note. Nothing above this line rolls
+                // back on account of it - the camera is live, at the rung the server granted.
+                this.voiceLimits.noteDegradations(resp);
             });
             return cfTrackName;
-        } catch {
+        } catch (err) {
+            // A refusal is not a broken camera, and must never reach the generic failure path.
+            // The device is released either way: leaving the capture running behind a publish that
+            // did not happen leaves the machine's camera light on with nothing on screen.
+            this.voiceLimits.noteDenial(err);
+            this.releaseCameraTrack();
             return null;
         }
+    }
+
+    /** Drop a camera capture that never became a publication. */
+    private releaseCameraTrack(): void {
+        this.localVideoTrack?.stop();
+        this.localVideoTrack = null;
+        this.localVideoStream.set(null);
     }
 
     async closeCamera(guildId: string, channelId: string): Promise<void> {
@@ -1080,7 +1134,12 @@ export class VoiceRTCService {
             const choice = await this.screenPicker.show();
             if (!choice) return null;
 
-            const {sourceId, preset, shareAudio, sourceWidth, sourceHeight} = choice;
+            const {sourceId, shareAudio, sourceWidth, sourceHeight} = choice;
+            // Clamped before capture, not after. The picker's own preset outlives the room it was
+            // chosen in - it is a saved preference - so a user who last shared at 1080p60 on one
+            // server arrives at a 720p30 one still asking for it. Encoding at 1080p and being
+            // clamped is a minute of a viewer's bandwidth spent on pixels nobody receives.
+            const preset = clampPreset(choice.preset, this.voiceLimits.videoCeiling());
             this.screenPreset.set(preset);
             this.screenSourceSize = {width: sourceWidth, height: sourceHeight};
 
@@ -1088,7 +1147,7 @@ export class VoiceRTCService {
             // and needs nothing from this connection, so requiring one here would have made screen
             // sharing depend on a receive session that may not exist yet.
             if (useRustPublisher()) {
-                return await this.publishScreenFromRust(guildId, channelId, choice);
+                return await this.publishScreenFromRust(guildId, channelId, {...choice, preset});
             }
             if (!await this.ensureReceiveSession(guildId, channelId)) return null;
 
@@ -1152,10 +1211,15 @@ export class VoiceRTCService {
                     tracks.push({direction: 'publish', mid: audioMid, trackName: `screen-audio-${shareId}`});
                 }
 
+                const height = publishHeight(preset, sourceHeight);
                 const resp = await firstValueFrom(this.guildVoiceSvc.negotiateTracks(guildId, channelId, {
                     mediaSessionId: this.mediaSessionId!,
                     sessionDescription: this.pc.localDescription!,
                     tracks,
+                    // `source` has no height of its own, so the source's is what goes out. Nothing
+                    // here maps a picker option onto a rung: the server owns that decision, and
+                    // this only states what is genuinely being sent.
+                    video: height > 0 ? {height, framerate: preset.framerate} : undefined,
                 }));
                 await this.pc.setRemoteDescription(resp.sessionDescription);
                 if (resp.requiresImmediateRenegotiation) await this.renegotiate(guildId, channelId);
@@ -1165,10 +1229,12 @@ export class VoiceRTCService {
                     await applySimpleBitrate(audioSender, STREAM_AUDIO_KBPS);
                     this.localSenders.set('screenAudio', audioSender);
                 }
+                this.voiceLimits.noteDegradations(resp);
             });
 
             return {shareId};
-        } catch {
+        } catch (err) {
+            this.voiceLimits.noteDenial(err);
             return null;
         }
     }
@@ -1264,6 +1330,11 @@ export class VoiceRTCService {
             return {shareId};
         } catch (e) {
             console.error('[voice] Rust publish failed', e);
+            // Best effort. The Rust publisher talks to the server itself and hands failures back
+            // across the Tauri boundary as plain strings, so a `403` body does not survive the trip
+            // and this files nothing for one. What covers that path is the pre-flight: the share
+            // button is already disabled in every room whose plan would refuse it.
+            this.voiceLimits.noteDenial(e);
             this.screenPreset.set(null);
             this.screenSourceSize = null;
             return null;
@@ -1277,11 +1348,15 @@ export class VoiceRTCService {
      * costs one renegotiation and keyframe, which is acceptable because the user asked for it.
      */
     async setScreenPreset(
-        preset: StreamPreset,
+        requested: StreamPreset,
         guildId?: string,
         channelId?: string,
     ): Promise<ScreenPublishRestart | null> {
         const previous = this.screenPreset() ?? DEFAULT_STREAM_PRESET;
+        // The picker already hides what the rung does not permit, so this only catches a ceiling
+        // that moved between the render and the click - and a hotkey or a restored preference,
+        // neither of which passes through a picker at all.
+        const preset = clampPreset(requested, this.voiceLimits.videoCeiling());
         this.screenPreset.set(preset);
 
         if (this.rustPublishing) {

@@ -7,6 +7,14 @@
     <app-titlebar/>
     <app-status-banner/>
     <app-call-overlay/>
+    <!--
+      Voice-channel rings. Global, because a ring can arrive from any guild while the user is
+      anywhere - but inline and in a corner rather than fullscreen: nobody is on the line waiting,
+      so it is a notification, not a call. See VoiceRingCardComponent.
+    -->
+    <div class="pointer-events-none fixed bottom-4 right-4 z-[1200]">
+        <app-voice-ring-card/>
+    </div>
     <!-- Both call stages are part of the view they live in, so navigating away unmounts them while
          the session keeps running. This is the tile that keeps the picture. It lives here, above
          the router outlet, because that is the only place either stage cannot reach. -->

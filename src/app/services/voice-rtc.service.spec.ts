@@ -17,7 +17,12 @@ import {provideHttpClientTesting} from '@angular/common/http/testing';
 import {OAuthService} from 'angular-oauth2-oidc';
 import {of, Subject, throwError} from 'rxjs';
 import {GuildVoiceService} from './guild-voice.service';
-import {MAX_PUBLICATION_REBUILDS, SUBSCRIBE_RETRY_DELAYS_MS, VoiceRTCService} from './voice-rtc.service';
+import {
+    cameraIntent,
+    MAX_PUBLICATION_REBUILDS,
+    SUBSCRIBE_RETRY_DELAYS_MS,
+    VoiceRTCService,
+} from './voice-rtc.service';
 import {SESSION_GONE, STALE_SUBSCRIPTION} from '../models/voice-room';
 import {VoiceEngineService} from './voice-engine.service';
 import {RustMediaService} from './rust-media.service';
@@ -25,6 +30,16 @@ import {ScreenPickerService} from './screen-picker.service';
 import {DeviceIdentityService} from './device-identity.service';
 import {ApiConfigService} from './api-config.service';
 import {AudioSettingsService} from './audio-settings.service';
+import {EntitlementStore} from '../stores/entitlement.store';
+import {EntitlementRungDto} from '../dtos/response/entitlement.dto';
+import {VoiceLimitsService} from './voice-limits.service';
+
+/** The `video_quality` ladder, exactly as the server publishes it. Never hardcoded in app code. */
+const LADDER: EntitlementRungDto[] = [
+    {rung: 'none', rank: 0, maxHeight: 0, maxFramerate: 0},
+    {rung: '720p30', rank: 2, maxHeight: 720, maxFramerate: 30},
+    {rung: '1080p60', rank: 4, maxHeight: 1080, maxFramerate: 60},
+];
 
 /** Stands in for the Rust engine. Only the calls these tests exercise are implemented. */
 class FakeEngine {
@@ -85,6 +100,11 @@ beforeEach(() => {
                 },
             },
             {provide: OAuthService, useValue: {getAccessToken: () => 'token'}},
+            // Reached through VoiceLimitsService, which this service asks for the room's video
+            // ceiling before it encodes anything. The ladder is the instance's definition of what
+            // each rung permits; nothing clamps until a room snapshot names a rung on it, which is
+            // the state every test here is in but the clamping ones.
+            {provide: EntitlementStore, useValue: {ladder: () => LADDER, ensureLoaded: () => void 0}},
         ],
     });
     service = TestBed.inject(VoiceRTCService);
@@ -789,5 +809,84 @@ describe('stream volume', () => {
         service.toggleScreenAudioMute('user_a');
 
         expect(engine.setUserVolume).not.toHaveBeenCalledWith('user_a', expect.anything());
+    });
+});
+
+/**
+ * What a publish tells the server it is about to send.
+ *
+ * <p>Optional and additive on the wire, and the clients state it so the server can clamp rather than
+ * guess. Nothing here maps a picker option onto a rung - that is a pricing decision the server owns
+ * and publishes a ladder for.</p>
+ */
+describe('the stated video intent', () => {
+    function track(settings: MediaTrackSettings | null): MediaStreamTrack {
+        return {getSettings: settings ? () => settings : undefined} as unknown as MediaStreamTrack;
+    }
+
+    it('states what the camera actually opened at, not what was asked for', () => {
+        expect(cameraIntent(track({height: 720, frameRate: 30}))).toEqual({height: 720, framerate: 30});
+    });
+
+    /** Cameras report fractional rates; the wire carries whole frames. */
+    it('rounds a fractional framerate', () => {
+        expect(cameraIntent(track({height: 1080, frameRate: 29.97})))
+            .toEqual({height: 1080, framerate: 30});
+    });
+
+    /**
+     * Negative: a device that reports neither half. The field is omitted entirely and the server
+     * behaves as it did before it existed - a clamp it cannot compute beats one computed from a
+     * number this client invented.
+     */
+    it('states nothing when the device reports nothing', () => {
+        expect(cameraIntent(track({height: 720}))).toBeUndefined();
+        expect(cameraIntent(track({frameRate: 30}))).toBeUndefined();
+        expect(cameraIntent(track({height: 0, frameRate: 30}))).toBeUndefined();
+        expect(cameraIntent(track(null))).toBeUndefined();
+    });
+});
+
+/**
+ * A saved preset outlives the room it was chosen in, so a user who last shared at 1080p60 arrives
+ * at a 720p30 server still asking for it. Clamping before the encoder is built is the difference
+ * between that and a minute of a viewer's bandwidth spent on pixels the SFU drops.
+ */
+describe('a quality change against a granted rung', () => {
+    function sharingAt(rung: string): void {
+        const limits = TestBed.inject(VoiceLimitsService);
+        limits.enterRoom('g1');
+        limits.applySnapshot({
+            roomId: 'c1', kind: 'channel', guildId: 'g1', instanceId: 'i1', version: 1,
+            participants: [],
+            limits: {videoCeiling: {kind: 'ladder', rung, rank: 2, ladder: 'video_quality'}},
+        });
+        service.screenPreset.set({resolution: '720p', framerate: 30});
+    }
+
+    it('clamps a request above the rung down to what it permits', async () => {
+        sharingAt('720p30');
+
+        await service.setScreenPreset({resolution: '1080p', framerate: 60});
+
+        expect(service.screenPreset()).toEqual({resolution: '720p', framerate: 30});
+    });
+
+    it('applies a request the rung reaches unchanged', async () => {
+        sharingAt('1080p60');
+
+        await service.setScreenPreset({resolution: '1080p', framerate: 60});
+
+        expect(service.screenPreset()).toEqual({resolution: '1080p', framerate: 60});
+    });
+
+    /** Negative: no room, no rung, nothing clamped. */
+    it('clamps nothing when no room has named a rung', async () => {
+        TestBed.inject(VoiceLimitsService).clear();
+        service.screenPreset.set({resolution: '720p', framerate: 30});
+
+        await service.setScreenPreset({resolution: '1440p', framerate: 60});
+
+        expect(service.screenPreset()).toEqual({resolution: '1440p', framerate: 60});
     });
 });

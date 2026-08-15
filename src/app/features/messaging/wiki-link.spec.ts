@@ -1,4 +1,4 @@
-import {parseWikiUrl, wikiShareLink, wikiSnippet, wikiUrl, wikiUrlPattern} from './wiki-link';
+import {parseWikiUrl, wikiShareLink, wikiSnippet, wikiUrl} from './wiki-link';
 
 describe('wiki-link', () => {
     const guildId = 'guild-1';
@@ -8,8 +8,12 @@ describe('wiki-link', () => {
         expect(parseWikiUrl(wikiUrl(guildId, pageId))).toEqual({guildId, pageId});
     });
 
-    it('shares the link bracketed, so the server does not unfurl it', () => {
-        expect(wikiShareLink(guildId, pageId)).toBe(`<${wikiUrl(guildId, pageId)}>`);
+    // The brackets were the sender's opt-out from a server-side preview, added when the server had
+    // no branch for an instance link and an unfurl would have scraped the web client's shell. It
+    // resolves this shape in-process now, so bracketing would suppress the card it exists to get.
+    it('shares the link bare, so the server attaches its card', () => {
+        expect(wikiShareLink(guildId, pageId)).toBe(wikiUrl(guildId, pageId));
+        expect(wikiShareLink(guildId, pageId)).not.toContain('<');
     });
 
     it('tolerates a trailing readable slug', () => {
@@ -21,16 +25,10 @@ describe('wiki-link', () => {
         expect(parseWikiUrl(`${wikiUrl(guildId, pageId)} have a look`)).toBeNull();
     });
 
-    it('finds every link in a body', () => {
-        const text = `see ${wikiUrl('a', 'b')} and ${wikiUrl('c', 'd')}`;
-        const found = [...text.matchAll(wikiUrlPattern())].map(m => [m[1], m[2]]);
-        expect(found).toEqual([['a', 'b'], ['c', 'd']]);
-    });
-
-    it('returns an independent regex each call, so lastIndex cannot leak', () => {
-        const one = wikiUrlPattern();
-        one.exec(`${wikiUrl('a', 'b')}`);
-        expect(wikiUrlPattern().lastIndex).toBe(0);
+    it('keeps the path shape the server recognises', () => {
+        // `/wiki/{guildId}/{pageId}`. Live message history is full of this shape, and the server's
+        // route table was written to match it - so it is pinned here rather than left to drift.
+        expect(new URL(wikiUrl(guildId, pageId)).pathname).toBe(`/wiki/${guildId}/${pageId}`);
     });
 
     describe('wikiSnippet', () => {

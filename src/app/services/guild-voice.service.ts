@@ -3,6 +3,7 @@ import {HttpClient} from '@angular/common/http';
 import {Observable} from 'rxjs';
 import {environment} from '../../environments/environment';
 import {ApiConfigService} from "./api-config.service";
+import {EntitlementDegradationDto, VideoPublishIntentDto} from '../dtos/response/entitlement.dto';
 import {GuildVoiceActivityDto} from '../dtos/response/guild-voice-activity.dto';
 import {ShareViewersDto} from '../dtos/response/share-viewers.dto';
 import {VoiceRoomSnapshot, VoiceSubscriberUpdate} from '../models/voice-room';
@@ -26,6 +27,14 @@ export interface VoiceNegotiateRequest {
     mediaSessionId: string;
     sessionDescription: RTCSessionDescriptionInit;
     tracks: VoiceTrackRef[];
+    /**
+     * What this client intends to send, so the server can clamp it rather than guess.
+     *
+     * <p>Additive and optional in both directions: a server built before the entitlement contract
+     * ignores it, and an audio-only publish omits it because nothing about audio is laddered. Sent
+     * on the publish that carries the video track, never on a subscribe.</p>
+     */
+    video?: VideoPublishIntentDto;
 }
 
 export interface VoiceTrackResult {
@@ -42,6 +51,16 @@ export interface VoiceNegotiateResponse {
     sessionDescription: RTCSessionDescriptionInit;
     tracks: VoiceTrackResult[];
     requiresImmediateRenegotiation: boolean;
+    /**
+     * What the server gave less of than was asked for, on an otherwise ordinary `200`.
+     *
+     * <p>The publish <b>succeeded</b>; this says it succeeded smaller, and the client re-encodes to
+     * the granted rung rather than arguing. Absent and empty mean the same thing and are the normal
+     * case - a publish nothing reduced is byte-identical to what a client before this contract
+     * received. A publish that could not degrade at all is a `403` instead, and never reaches
+     * here.</p>
+     */
+    degradations?: EntitlementDegradationDto[];
 }
 
 export interface VoiceRenegotiateResponse {

@@ -7,6 +7,8 @@
  * the two clients cannot drift apart the way the two backends did.</p>
  */
 
+import {VoiceRoomLimitsDto} from '../dtos/response/entitlement.dto';
+
 export type VoiceRoomKind = 'channel' | 'call';
 
 /**
@@ -54,6 +56,16 @@ export interface VoiceRoomSnapshot {
     instanceId: string;
     version: number;
     participants: VoiceParticipantSnapshot[];
+    /**
+     * What this room is allowed, and how much of it is in use.
+     *
+     * <p>Absent on a server that predates the contract and on a room whose limits have never been
+     * computed, and both mean "no limit information" rather than "no limits" - see
+     * {@link VoiceRoomLimitsDto}. What actually *bit* arrives separately, as `degradations[]` on the
+     * join reply; this is what pre-empts, draws denominators and disables a control that would only
+     * be refused.</p>
+     */
+    limits?: VoiceRoomLimitsDto;
 }
 
 /**

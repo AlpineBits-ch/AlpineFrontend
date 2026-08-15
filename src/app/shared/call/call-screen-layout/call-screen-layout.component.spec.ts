@@ -66,6 +66,7 @@ interface ProtectedSurface {
     selfCard: () => CallScreenShare | null;
     gridClass: () => string;
     showInviteCard: () => boolean;
+    emitInviteRequest: () => void;
     maximizedId: {(): string | null; set: (id: string | null) => void};
     toggleGridFocus: () => void;
     viewerNames: (shareId: string) => string[];
@@ -704,6 +705,13 @@ describe('CallScreenLayoutComponent escape leaves the maximised stream', () => {
 });
 
 describe('CallScreenLayoutComponent invite card (Task 18)', () => {
+    /**
+     * The card now also needs a channel scope. What is behind it is the guild voice **ring**, and a
+     * DM call has no ring endpoint - so offering it there would put the button back in the state it
+     * has just come out of, which is having nothing behind it.
+     */
+    const CHANNEL: WatchScope = {kind: 'channel', guildId: 'g1', channelId: 'chan-1'};
+
     beforeEach(() => {
         TestBed.resetTestingModule();
         HTMLMediaElement.prototype.play = vi.fn(() => Promise.resolve());
@@ -711,7 +719,7 @@ describe('CallScreenLayoutComponent invite card (Task 18)', () => {
     });
 
     it('shows the invite card beside a lone tile', () => {
-        const {fixture, layout} = setup([], {participants: [participant('solo')]});
+        const {fixture, layout} = setup([], {watchScope: CHANNEL, participants: [participant('solo')]});
 
         expect(layout.showInviteCard()).toBe(true);
         expect(fixture.nativeElement.querySelectorAll('app-call-invite-card').length).toBe(1);
@@ -719,6 +727,7 @@ describe('CallScreenLayoutComponent invite card (Task 18)', () => {
 
     it('does not show the card once a second tile exists', () => {
         const {fixture, layout} = setup([], {
+            watchScope: CHANNEL,
             participants: [participant('a'), participant('b')],
         });
 
@@ -727,16 +736,55 @@ describe('CallScreenLayoutComponent invite card (Task 18)', () => {
     });
 
     it('does not show the card on an empty stage', () => {
-        const {layout} = setup([], {participants: []});
+        const {layout} = setup([], {watchScope: CHANNEL, participants: []});
 
         expect(layout.showInviteCard()).toBe(false);
+    });
+
+    it('does not show the card in a DM call, which has no ring', () => {
+        const {fixture, layout} = setup([], {
+            watchScope: {kind: 'call', callId: 'call-1'},
+            participants: [participant('solo')],
+        });
+
+        expect(layout.showInviteCard()).toBe(false);
+        expect(fixture.nativeElement.querySelectorAll('app-call-invite-card').length).toBe(0);
+    });
+
+    it('does not show the card with no scope at all', () => {
+        const {layout} = setup([], {participants: [participant('solo')]});
+
+        expect(layout.showInviteCard()).toBe(false);
+    });
+
+    it('re-emits the press with the channel it belongs to', () => {
+        const {fixture, layout} = setup([], {watchScope: CHANNEL, participants: [participant('solo')]});
+        const seen: {guildId: string; channelId: string}[] = [];
+        fixture.componentInstance.inviteRequested.subscribe(e => seen.push(e));
+
+        layout.emitInviteRequest();
+
+        expect(seen).toEqual([{guildId: 'g1', channelId: 'chan-1'}]);
+    });
+
+    it('emits nothing off a channel scope', () => {
+        const {fixture, layout} = setup([], {
+            watchScope: {kind: 'call', callId: 'call-1'},
+            participants: [participant('solo')],
+        });
+        const seen: unknown[] = [];
+        fixture.componentInstance.inviteRequested.subscribe(e => seen.push(e));
+
+        layout.emitInviteRequest();
+
+        expect(seen).toEqual([]);
     });
 
     it('forces two grid columns for the card without changing what gridClass() itself reports', () => {
         // gridClass() stays pinned at 'grid-cols-1' for a one-tile count - existing specs assert
         // that directly. The template compensates at the render layer instead (see
         // call-screen-layout.component.html), which is what this asserts against the actual DOM.
-        const {fixture, layout} = setup([], {participants: [participant('solo')]});
+        const {fixture, layout} = setup([], {watchScope: CHANNEL, participants: [participant('solo')]});
 
         expect(layout.gridClass()).toBe('grid-cols-1');
         const grid: HTMLElement = fixture.nativeElement.querySelector('.grid');
@@ -745,8 +793,7 @@ describe('CallScreenLayoutComponent invite card (Task 18)', () => {
     });
 
     it('never lets the card reach displayedShares() or the watch claim', () => {
-        const scope: WatchScope = {kind: 'call', callId: 'call-1'};
-        const {layout, setWatching} = setup([], {watchScope: scope, participants: [participant('solo')]});
+        const {layout, setWatching} = setup([], {watchScope: CHANNEL, participants: [participant('solo')]});
 
         expect(layout.showInviteCard()).toBe(true);
         expect(layout.displayedShares()).toEqual([]);

@@ -31,6 +31,7 @@ import {CallParticipantMenuData} from '../../../../shared/call/call.types';
 import {ProfileService} from '../../../../services/profile.service';
 import {GuildReadStateService} from '../../../../services/guild-read-state.service';
 import {GuildSettingsModalComponent} from '../guild-settings-modal/guild-settings-modal.component';
+import {SettingsUiService} from '../../../../services/settings-ui.service';
 import {ChannelSettingsModalComponent} from '../channel-settings-modal/channel-settings-modal.component';
 import {CategorySettingsModalComponent} from '../category-settings-modal/category-settings-modal.component';
 import {InviteType} from '../../../../dtos/response/invite.dto';
@@ -94,6 +95,7 @@ export class ChannelListComponent {
     @ViewChild('channelMenu') channelMenu!: Menu;
     @ViewChild('categoryMenu') categoryMenu!: Menu;
     @ViewChild('listMenu') listMenu!: ContextMenu;
+    @ViewChild(GuildSettingsModalComponent) guildSettingsModal?: GuildSettingsModalComponent;
     @ViewChild(ChannelSettingsModalComponent) channelSettingsModal?: ChannelSettingsModalComponent;
     @ViewChild(CategorySettingsModalComponent) categorySettingsModal?: CategorySettingsModalComponent;
     @ViewChild(CreateChannelModalComponent) createChannelModal?: CreateChannelModalComponent;
@@ -219,6 +221,7 @@ export class ChannelListComponent {
     private guildVoiceSvc = inject(GuildVoiceService);
     private guildUiActions = inject(GuildUiActionsService);
     private guildWsService = inject(GuildWebsocketService);
+    private settingsUi = inject(SettingsUiService);
     private destroyRef = inject(DestroyRef);
     // ── Permission checking ───────────────────────────────────────────────────
     private ownMember = signal<SelfGuildMemberDto | null>(null);
@@ -273,6 +276,21 @@ export class ChannelListComponent {
         });
 
         this.minuteClock.retain();
+
+        // The guild settings dialog is a child of this component, so a request raised anywhere else
+        // - the upgrade button on a voice channel's limit notice - can only be honoured from here.
+        // Ignored, and deliberately not consumed, when it names a guild this list is not drawing:
+        // the same component is instantiated per guild, and clearing another guild's request would
+        // swallow it before its own list saw it.
+        effect(() => {
+            const request = this.settingsUi.requestedGuildPage();
+            if (!request || request.guildId !== this.guild().id) return;
+            this.settingsUi.consumeGuild();
+            untracked(() => {
+                this.guildSettingsModal?.activePage.set(request.page);
+                this.showGuildSettings.set(true);
+            });
+        });
 
         // The Events row's count and live badge have to be truthful before the panel has ever been
         // opened, so the list is fetched here rather than only by the panel. `loadFor` is idempotent

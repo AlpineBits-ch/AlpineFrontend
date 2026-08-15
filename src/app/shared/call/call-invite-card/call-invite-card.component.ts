@@ -8,9 +8,14 @@ import {Button} from 'primeng/button';
  * one-person channel does not look like half an empty room, and so inviting somebody is one click
  * from the stage the caller is already looking at, rather than a menu two levels away.
  *
- * <p>Layout only. There is no invite mechanic behind {@link invite} yet - see
- * `CallScreenLayoutComponent`, which renders this tile without listening to it. A wired handler
- * belongs to whichever task actually builds the invite flow.</p>
+ * <p>Still layout only, but {@link invite} is wired now. `CallScreenLayoutComponent` re-emits it as
+ * `inviteRequested`, carrying the channel it belongs to, and the guild voice channel opens the
+ * target picker on it.</p>
+ *
+ * <p>What it starts is the ephemeral <b>ring</b>: a 60-second invitation to one named member who is
+ * already in the guild, which grants nothing and expires whether or not anybody looks at it. It is
+ * not the join link, which is a credential anybody can paste anywhere and lives in guild settings.
+ * That is also why the tile appears only inside a guild voice channel - a DM call has no ring.</p>
  */
 @Component({
     selector: 'app-call-invite-card',
@@ -45,6 +50,6 @@ import {Button} from 'primeng/button';
     `,
 })
 export class CallInviteCardComponent {
-    /** Not consumed anywhere yet - see the class doc. */
+    /** Opens the ring target picker. See the class doc for what a ring is and is not. */
     invite = output<void>();
 }

@@ -4,11 +4,16 @@ import {HttpTestingController, provideHttpClientTesting} from '@angular/common/h
 import {provideTranslateService} from '@ngx-translate/core';
 import {MessageService} from 'primeng/api';
 import {vi} from 'vitest';
-import {inviteOrigin, InvitesSettingsComponent} from './invites-settings.component';
+import {inviteOrigin, InvitesSettingsComponent, MAX_USES_PRESETS} from './invites-settings.component';
 import {ApiConfigService} from '../../../../../../services/api-config.service';
 import {ChannelType, GuildDto} from '../../../../../../dtos/response/guild.dto';
 import {GuildVerificationLevel} from '../../../../../../dtos/response/guild-safety.dto';
-import {InviteDto, InviteState, InviteType} from '../../../../../../dtos/response/invite.dto';
+import {
+    InviteDto,
+    InviteState,
+    InviteTargetType,
+    InviteType,
+} from '../../../../../../dtos/response/invite.dto';
 
 const BASE = 'https://api.test.example/api/v1/guild';
 
@@ -26,6 +31,12 @@ function guildFixture(): GuildDto {
                 id: 'chan_1', createdAt: new Date(), updatedAt: new Date(), name: 'general',
                 description: '', type: ChannelType.Text, guildId: 'g1', isAgeRestricted: false,
                 isPrivate: false, categoryId: undefined, permissions: [], position: 0,
+                slowModeSeconds: 0, parentChannelId: undefined,
+            },
+            {
+                id: 'chan_2', createdAt: new Date(), updatedAt: new Date(), name: 'Lounge',
+                description: '', type: ChannelType.Voice, guildId: 'g1', isAgeRestricted: false,
+                isPrivate: false, categoryId: undefined, permissions: [], position: 1,
                 slowModeSeconds: 0, parentChannelId: undefined,
             },
         ],
@@ -200,26 +211,59 @@ describe('InvitesSettingsComponent copying', () => {
     });
 });
 
-describe('InvitesSettingsComponent expired invites', () => {
+describe('InvitesSettingsComponent invite state', () => {
     afterEach(() => TestBed.inject(HttpTestingController).verify());
 
-    it('counts a lapsed timestamp as expired even while the server still says active', () => {
+    it('renders the server state and does not re-derive expiry from the timestamp', () => {
         const {component} = setup();
-        const lapsed = inviteFixture({id: 'i2', expiresAt: new Date(Date.now() - 60_000).toISOString()});
-        component.invites.set([inviteFixture(), lapsed]);
+        // The server derives `state` on every read, including the consumed-one-time case nothing
+        // here can see. A local `expiresAt < now` check would be a second source of truth that
+        // disagrees with it, so a lapsed timestamp on an Active row is *not* treated as expired.
+        const lapsed = inviteFixture({
+            id: 'i2', expiresAt: new Date(Date.now() - 60_000).toISOString(),
+        });
+        const expired = inviteFixture({id: 'i3', state: InviteState.Expired});
+        component.invites.set([inviteFixture(), lapsed, expired]);
 
-        expect(component.isExpired(lapsed)).toBe(true);
+        expect(component.isExpired(lapsed)).toBe(false);
+        expect(component.isExpired(expired)).toBe(true);
         expect(component.expiredCount()).toBe(1);
 
         component.hideExpired.set(true);
-        expect(component.visibleInvites().map(i => i.id)).toEqual(['i1']);
+        expect(component.visibleInvites().map(i => i.id)).toEqual(['i1', 'i2']);
+    });
+
+    it('keeps revoked and expired apart', () => {
+        const {component} = setup();
+        const revoked = inviteFixture({id: 'i4', state: InviteState.Revoked, revokedAt: new Date().toISOString()});
+        const expired = inviteFixture({id: 'i5', state: InviteState.Expired});
+        component.invites.set([revoked, expired]);
+
+        expect(component.isRevoked(revoked)).toBe(true);
+        expect(component.isExpired(revoked)).toBe(false);
+        expect(component.isRevoked(expired)).toBe(false);
+        expect(component.copyTooltipKey(revoked)).toBe('GUILD_SETTINGS.INVITES.COPY_REVOKED');
+        expect(component.copyTooltipKey(expired)).toBe('GUILD_SETTINGS.INVITES.COPY_EXPIRED');
+    });
+
+    it('treats a state it has never heard of as still usable rather than dead', () => {
+        const {component} = setup();
+        // `Revoked` arrived as a new value on an existing field and the next one will too. A build
+        // that refuses to copy a link it cannot classify breaks a link that works.
+        const future = inviteFixture({id: 'i6', state: 'Suspended' as InviteState});
+        component.invites.set([future]);
+
+        expect(component.isExpired(future)).toBe(false);
+        expect(component.isRevoked(future)).toBe(false);
+        expect(component.expiredCount()).toBe(0);
+        expect(component.copyTooltipKey(future)).toBe('GUILD_SETTINGS.INVITES.COPY_LINK');
     });
 });
 
 describe('InvitesSettingsComponent revoke confirmation', () => {
     afterEach(() => TestBed.inject(HttpTestingController).verify());
 
-    it('only deletes after the confirm dialog is acted on', () => {
+    it('only revokes after the confirm dialog is acted on', () => {
         const {component, ctrl} = setup();
         const invite = inviteFixture();
         component.invites.set([invite]);
@@ -229,10 +273,115 @@ describe('InvitesSettingsComponent revoke confirmation', () => {
         ctrl.expectNone(`${BASE}/invites/i1`);
 
         component.revokeInvite(invite);
-        ctrl.expectOne(`${BASE}/invites/i1`).flush(null);
+        const req = ctrl.expectOne(`${BASE}/invites/i1`);
+        expect(req.request.method).toBe('DELETE');
+        req.flush(inviteFixture({state: InviteState.Revoked}));
 
         expect(component.showRevokeDialog()).toBe(false);
         expect(component.invites().length).toBe(0);
+    });
+
+    it('keeps the revoked row, in its revoked state, in the audit view', () => {
+        const {component, ctrl} = setup();
+        component.showRevoked.set(true);
+        component.invites.set([inviteFixture()]);
+
+        component.revokeInvite(inviteFixture());
+        ctrl.expectOne(`${BASE}/invites/i1`)
+            .flush(inviteFixture({state: InviteState.Revoked, revokedAt: '2026-08-15T00:00:00Z'}));
+
+        // The row survives server-side - members who joined through it still point at it - so the
+        // audit view shows what happened to it rather than losing it.
+        expect(component.invites().length).toBe(1);
+        expect(component.isRevoked(component.invites()[0])).toBe(true);
+    });
+
+    it('asks for the revoked ones only when the audit view is on', () => {
+        const {component, ctrl} = setup();
+
+        component.toggleRevokedView();
+        ctrl.expectOne(`${BASE}/guilds/g1/invites?includeRevoked=true`).flush([]);
+
+        component.toggleRevokedView();
+        ctrl.expectOne(`${BASE}/guilds/g1/invites`).flush([]);
+    });
+});
+
+describe('InvitesSettingsComponent create options', () => {
+    afterEach(() => TestBed.inject(HttpTestingController).verify());
+
+    it('sends maxUses and channelId, which the server has always accepted', () => {
+        const {component, ctrl} = setup();
+        component.createMaxUses.set(25);
+        component.createChannelId.set('chan_1');
+
+        component.createPermanentInvite();
+
+        const req = ctrl.expectOne(`${BASE}/guilds/g1/invite`);
+        expect(req.request.body.maxUses).toBe(25);
+        expect(req.request.body.channelId).toBe('chan_1');
+        req.flush(inviteFixture());
+    });
+
+    it('omits the optional fields entirely when nothing was chosen', () => {
+        const {component, ctrl} = setup();
+
+        component.createPermanentInvite();
+
+        // `{}` is exactly the old behaviour, and 0 is refused with a 400 - so "unlimited" is an
+        // absent field, never a zero.
+        const req = ctrl.expectOne(`${BASE}/guilds/g1/invite`);
+        expect(req.request.body.maxUses).toBeUndefined();
+        expect(req.request.body.channelId).toBeUndefined();
+        expect(req.request.body.temporary).toBeUndefined();
+        expect(req.request.body.targetType).toBeUndefined();
+        req.flush(inviteFixture());
+    });
+
+    it('refuses a voice target with no channel, before the round trip', () => {
+        const {component, ctrl} = setup();
+        component.createTargetType.set(InviteTargetType.VoiceChannel);
+
+        component.createPermanentInvite();
+
+        expect(component.targetError()).toBe('GUILD_SETTINGS.INVITES.TARGET_NEEDS_CHANNEL');
+        ctrl.expectNone(`${BASE}/guilds/g1/invite`);
+    });
+
+    it('refuses a voice target pointed at a text channel', () => {
+        const {component, ctrl} = setup();
+        component.createTargetType.set(InviteTargetType.VoiceChannel);
+        component.createChannelId.set('chan_1');
+
+        component.createOneTimeInvite();
+
+        expect(component.targetError()).toBe('GUILD_SETTINGS.INVITES.TARGET_NEEDS_VOICE');
+        ctrl.expectNone(`${BASE}/guilds/g1/invite`);
+    });
+
+    it('sends a voice target once it names a voice channel', () => {
+        const {component, ctrl} = setup();
+        component.createTargetType.set(InviteTargetType.VoiceChannel);
+        component.createChannelId.set('chan_2');
+        component.createTemporary.set(true);
+
+        component.createPermanentInvite();
+
+        expect(component.targetError()).toBeNull();
+        const req = ctrl.expectOne(`${BASE}/guilds/g1/invite`);
+        expect(req.request.body.targetType).toBe(InviteTargetType.VoiceChannel);
+        expect(req.request.body.channelId).toBe('chan_2');
+        expect(req.request.body.temporary).toBe(true);
+        req.flush(inviteFixture());
+    });
+});
+
+describe('MAX_USES_PRESETS', () => {
+    it('never offers 0, which the server refuses with a 400', () => {
+        // An invite exhausted the moment it exists is a link somebody is about to share.
+        expect(MAX_USES_PRESETS).not.toContain(0);
+        expect(MAX_USES_PRESETS[0]).toBeNull();
+        expect(MAX_USES_PRESETS.every(v => v === null || v >= 1)).toBe(true);
     });
 });
 

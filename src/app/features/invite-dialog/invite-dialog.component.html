@@ -28,14 +28,30 @@
                 <div class="w-36 h-4 rounded bg-white/[0.06] animate-pulse"></div>
                 <div class="w-24 h-3 rounded bg-white/[0.04] animate-pulse"></div>
             </div>
+        } @else if (dialogState() === 'rate-limited') {
+            <!--
+              Not the invalid-invite state. A 429 says the lookup was refused, not that the link is
+              bad, and telling somebody their working invite is broken is the worse of the two
+              mistakes. One retry on a button press; never a loop.
+            -->
+            <div class="w-16 h-16 rounded-2xl flex items-center justify-center"
+                 style="background: color-mix(in srgb, var(--color-brand) 12%, transparent)">
+                <i class="pi pi-clock text-2xl" style="color: var(--color-brand-dim)"></i>
+            </div>
+            <div class="flex flex-col items-center gap-1 text-center">
+                <p class="text-sm font-semibold m-0" style="color: var(--color-text-primary)">
+                    {{ 'INVITE.RATE_LIMITED_TITLE' | translate }}
+                </p>
+                <p class="text-xs m-0" style="color: var(--color-text-muted)">{{ 'INVITE.RATE_LIMITED_BODY' | translate }}</p>
+            </div>
         } @else if (dialogState() === 'error') {
             <div class="w-16 h-16 rounded-2xl flex items-center justify-center"
                  style="background: color-mix(in srgb, var(--color-offline) 12%, transparent)">
                 <i class="pi pi-exclamation-circle text-2xl" style="color: var(--color-offline)"></i>
             </div>
             <div class="flex flex-col items-center gap-1 text-center">
-                <p class="text-sm font-semibold m-0" style="color: var(--color-text-primary)">Invalid Invite</p>
-                <p class="text-xs m-0" style="color: var(--color-text-muted)">This invite link is invalid or has expired.</p>
+                <p class="text-sm font-semibold m-0" style="color: var(--color-text-primary)">{{ 'INVITE.INVALID_TITLE' | translate }}</p>
+                <p class="text-xs m-0" style="color: var(--color-text-muted)">{{ 'INVITE.INVALID' | translate }}</p>
             </div>
         } @else if (invite(); as inv) {
             <!-- Guild icon -->
@@ -52,7 +68,7 @@
             <!-- Guild info -->
             <div class="flex flex-col items-center gap-1 text-center">
                 <p class="text-base font-semibold m-0" style="color: var(--color-text-primary)">
-                    {{ inv.guild?.name ?? 'Unknown Server' }}
+                    {{ inv.guild?.name ?? ('INVITE.UNKNOWN_SERVER' | translate) }}
                 </p>
                 @if (dialogState() === 'blocked') {
                     <div class="flex flex-col items-center gap-2 mt-2">
@@ -66,11 +82,28 @@
                     @if (inv.guild?.description) {
                         <p class="text-xs m-0" style="color: var(--color-text-secondary)">{{ inv.guild!.description }}</p>
                     }
-                    @if (isExpired()) {
-                        <span class="text-[11px] mt-1" style="color: var(--color-offline)">Invite expired</span>
+                    <!-- Two different facts about a link, never collapsed into one line. -->
+                    @if (isRevoked()) {
+                        <span class="text-[11px] mt-1" style="color: var(--color-offline)">{{ 'INVITE.REVOKED' | translate }}</span>
+                    } @else if (isExpired()) {
+                        <span class="text-[11px] mt-1" style="color: var(--color-offline)">{{ 'INVITE.EXPIRED' | translate }}</span>
+                    }
+                    @if (inv.temporary && !isExpired() && !isRevoked()) {
+                        <span class="text-[11px] mt-1" style="color: var(--color-text-muted)">{{ 'INVITE.TEMPORARY_WARNING' | translate }}</span>
                     }
                 }
             </div>
+
+            @if (dialogState() === 'joined') {
+                <div class="w-full flex flex-col items-center gap-1 text-center">
+                    @if (joinedTemporarily()) {
+                        <p class="text-xs m-0" style="color: var(--color-text-secondary)">{{ 'INVITE.TEMPORARY_WARNING' | translate }}</p>
+                    }
+                    @if (onboardingRequired()) {
+                        <p class="text-xs m-0" style="color: var(--color-text-secondary)">{{ 'INVITE.ONBOARDING_REQUIRED' | translate }}</p>
+                    }
+                </div>
+            }
 
             <!-- Welcome screen. Only ever arrives on the invite preview - a non-member
                  can't call the welcome-screen endpoint directly. -->
@@ -109,15 +142,24 @@
                     (onClick)="dismiss()"
                     [disabled]="dialogState() === 'joining'"
                     [text]="true"
-                    label="Dismiss"
+                    [label]="'GUILD_SETTINGS.INVITES.CANCEL' | translate"
                     severity="secondary"
                     size="small"/>
-            @if (dialogState() !== 'error' && dialogState() !== 'blocked' && !isExpired()) {
+            @if (dialogState() === 'rate-limited') {
+                <p-button
+                        (onClick)="load()"
+                        [label]="'INVITE.RETRY' | translate"
+                        icon="pi pi-refresh"
+                        severity="primary"
+                        size="small"/>
+            }
+            @if (dialogState() !== 'error' && dialogState() !== 'blocked'
+                && dialogState() !== 'rate-limited' && !isExpired() && !isRevoked()) {
                 @if (dialogState() === 'joined') {
                     <p-button
                             [disabled]="true"
+                            [label]="'INVITE.JOINED' | translate"
                             icon="pi pi-check"
-                            label="Joined"
                             severity="success"
                             size="small"/>
                 } @else {

@@ -37,10 +37,12 @@ import {TelemetryConsentService} from './services/telemetry-consent.service';
 import {LegalConsentDialogComponent} from './components/legal-consent-dialog/legal-consent-dialog.component';
 import {StatusBannerComponent} from './components/status-banner/status-banner.component';
 import {PlatformStatusService} from './services/platform-status.service';
+import {VoiceRingCardComponent} from './shared/call/voice-ring-card/voice-ring-card.component';
+import {VoiceRingStateService} from './services/voice-ring-state.service';
 
 @Component({
     selector: "app-root",
-    imports: [RouterOutlet, CallOverlayComponent, CallMiniPlayerComponent, TitlebarComponent, ResizeHandlesComponent, UpdateDialogComponent, Toast, ScreenPickerComponent, EmailVerificationDialogComponent, MfaChallengeDialogComponent, PasswordResetDialogComponent, InviteDialogComponent, IsleProximityBarComponent, BotInstallDialogComponent, BotCommandDialogComponent, BotModalDialogComponent, DiscordImportProgressDialogComponent, LegalConsentDialogComponent, StatusBannerComponent],
+    imports: [RouterOutlet, CallOverlayComponent, CallMiniPlayerComponent, TitlebarComponent, ResizeHandlesComponent, UpdateDialogComponent, Toast, ScreenPickerComponent, EmailVerificationDialogComponent, MfaChallengeDialogComponent, PasswordResetDialogComponent, InviteDialogComponent, IsleProximityBarComponent, BotInstallDialogComponent, BotCommandDialogComponent, BotModalDialogComponent, DiscordImportProgressDialogComponent, LegalConsentDialogComponent, StatusBannerComponent, VoiceRingCardComponent],
     templateUrl: "./app.component.html",
     styleUrl: "./app.component.css",
 })
@@ -64,6 +66,10 @@ export class AppComponent implements OnInit, OnDestroy {
     // in step with the account's data-collection consent. Nothing reads it back.
     private telemetryConsent = inject(TelemetryConsentService);
     private platformStatus = inject(PlatformStatusService);
+    // Also injected for its side effect: it subscribes to the ring events and does the
+    // reconnect catch-up read. Constructing it here rather than leaving it to the card means a ring
+    // that arrives before anything has rendered one is still caught.
+    private voiceRings = inject(VoiceRingStateService);
     private updateInterval: ReturnType<typeof setInterval> | null = null;
 
     @HostListener('document:contextmenu', ['$event'])

@@ -1,23 +1,31 @@
-import {ChangeDetectionStrategy, Component, computed, DestroyRef, inject, input, OnInit, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, DestroyRef, inject, input, signal} from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {DatePipe, NgClass} from '@angular/common';
 import {TranslateModule} from '@ngx-translate/core';
 import {forkJoin} from 'rxjs';
 import {ProfileService} from '../../../../../../services/profile.service';
 import {WikiCategoryDto} from '../../../../../../dtos/response/wiki.dto';
+import {MessageEmbed} from '../../../../../../dtos/response/message.dto';
 import {WikiDeepLinkService} from '../../../../../guild/components/wiki/wiki-share/wiki-deep-link.service';
 import {categoryPath, WikiPagePreview, WikiPagePreviewService} from './wiki-page-preview.service';
 import {wikiSnippet} from '../../../../wiki-link';
 
-type CardState = 'loading' | 'ready' | 'error';
-
 /**
- * A wiki page linked from a message, rendered as the page rather than as its URL.
+ * A wiki page linked from a message, rendered from the server's `venta.wiki_page` embed.
  *
- * <p>Modelled on the invite card: the message carries an id, the card resolves it, and a failure
- * degrades to one muted line instead of an empty box. The body is stripped to plain text on the way
- * in - see `wikiSnippet` - so a wiki page can never render markup inside a conversation it was only
- * mentioned in.</p>
+ * <p><b>The embed deliberately carries no title, and never will.</b> That is not a gap to work
+ * around. A generated embed is stored once and shown to everyone who can read the channel, while
+ * reading a wiki is gated per user and per role in the owning guild - so a server-resolved title
+ * would leak a private page's name to whoever the link was forwarded to, permanently, in a row
+ * nobody can revoke. The server says only *that* the link is a wiki page and *which* one; the name
+ * is filled in here, per viewer, from the permission-checked endpoint.</p>
+ *
+ * <p>Which is why the placeholder is not an error state. A `403` and a `404` both keep it, and
+ * neither may be turned into "this page is private" or "this page was deleted" copy - the stub is
+ * deliberately silent about which, and so is this card.</p>
+ *
+ * <p>The body is stripped to plain text on the way in - see `wikiSnippet` - so a wiki page can never
+ * render markup inside a conversation it was only mentioned in.</p>
  */
 @Component({
     selector: 'app-wiki-card',
@@ -25,18 +33,19 @@ type CardState = 'loading' | 'ready' | 'error';
     templateUrl: './wiki-card.component.html',
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class WikiCardComponent implements OnInit {
-    guildId = input.required<string>();
-    pageId = input.required<string>();
+export class WikiCardComponent {
+    embed = input.required<MessageEmbed>();
 
-    protected readonly cardState = signal<CardState>('loading');
     protected readonly preview = signal<WikiPagePreview | null>(null);
     protected readonly categories = signal<WikiCategoryDto[]>([]);
+    /** Guards the lazy read so a card scrolled past twice does not ask twice. */
+    private readonly requested = signal(false);
 
-    protected readonly snippet = computed(() => {
-        const content = this.preview()?.page.content ?? '';
-        return wikiSnippet(content);
-    });
+    protected readonly guildId = computed(() => this.embed().venta?.guild_id ?? '');
+    protected readonly pageId = computed(() => this.embed().venta?.page_id ?? '');
+    protected readonly url = computed(() => this.embed().url ?? '');
+
+    protected readonly snippet = computed(() => wikiSnippet(this.preview()?.page.content ?? ''));
 
     protected readonly trail = computed(() =>
         categoryPath(this.categories(), this.preview()?.page.categoryId));
@@ -53,37 +62,46 @@ export class WikiCardComponent implements OnInit {
     });
 
     /** Whether clicking could land anywhere: we are in that guild and its Wiki module is on. */
-    protected readonly reachable = computed(() => this.deepLink.canOpen(this.guildId()));
+    protected readonly reachable = computed(() =>
+        !!this.guildId() && this.deepLink.canOpen(this.guildId()));
 
     private readonly previews = inject(WikiPagePreviewService);
     private readonly profileService = inject(ProfileService);
     private readonly deepLink = inject(WikiDeepLinkService);
     private readonly destroyRef = inject(DestroyRef);
 
-    ngOnInit(): void {
+    /**
+     * Fills in the page's own name for this viewer.
+     *
+     * <p>Deliberately not on mount. The per-message-on-render fetch this card used to do is exactly
+     * what moving to server embeds removed, and reimplementing it against the new ids would be a net
+     * loss - so it runs once, when the card is actually looked at.</p>
+     */
+    protected resolveTitle(): void {
+        if (this.requested() || !this.guildId() || !this.pageId()) return;
+        this.requested.set(true);
+
         forkJoin({
             preview: this.previews.preview(this.guildId(), this.pageId()),
             categories: this.previews.categoriesFor(this.guildId()),
         }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+            // A refusal keeps the placeholder. `preview` is already null for any failure, which is
+            // the same outcome a 403 and a 404 must both have here.
             next: ({preview, categories}) => {
-                if (!preview) {
-                    this.cardState.set('error');
-                    return;
-                }
+                if (!preview) return;
                 this.preview.set(preview);
                 this.categories.set(categories);
-                this.cardState.set('ready');
                 // Fills `editorName` on the next tick. Nothing waits on it: a card with no name yet
                 // simply omits the byline rather than holding the title back for it.
                 this.profileService.resolveByUserId(preview.page.lastEditorId ?? preview.page.authorId);
             },
-            error: () => this.cardState.set('error'),
+            error: () => undefined,
         });
     }
 
     protected open(): void {
         const page = this.preview()?.page;
-        if (!page) return;
-        this.deepLink.open(this.guildId(), page.id);
+        if (!this.reachable()) return;
+        this.deepLink.open(this.guildId(), page?.id ?? this.pageId());
     }
 }

@@ -12,7 +12,7 @@
 
 const DIGITS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz#$%*+,-.:;=?@[]^_{|}~';
 
-/** The only `placeholderVersion` this decoder understands. */
+/** The only `placeholder_version` this decoder understands. */
 export const BLURHASH_PLACEHOLDER_VERSION = 1;
 
 function decode83(str: string): number | null {

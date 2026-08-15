@@ -1,0 +1,69 @@
+<p-dialog
+        (visibleChange)="visible.set($event)"
+        [breakpoints]="{'640px': '95vw'}"
+        [draggable]="false"
+        [modal]="true"
+        [resizable]="false"
+        [style]="{width: '420px'}"
+        [visible]="visible()"
+        appendTo="body">
+
+    <ng-template pTemplate="header">
+        <span class="text-sm font-semibold text-white/85">{{ 'VOICE_RING.PICKER_TITLE' | translate }}</span>
+    </ng-template>
+
+    <!--
+      One invitation at a time out of this channel. While one is pending the list is replaced by its
+      countdown and a cancel: sending a second is not what anybody means by pressing again, and the
+      server would answer the same ring back anyway.
+    -->
+    @if (pending(); as out) {
+        <div class="flex flex-col items-center gap-3 py-4 text-center">
+            <i class="pi pi-send text-2xl text-brand-dim"></i>
+            <p class="text-sm text-white/70 m-0">{{ 'VOICE_RING.PENDING' | translate }}</p>
+            <p class="text-xs text-white/40 m-0">{{ 'VOICE_RING.EXPIRES_IN' | translate: {seconds: out.secondsLeft} }}</p>
+            <p-button (onClick)="cancel()" [label]="'VOICE_RING.CANCEL' | translate" [text]="true"
+                      severity="secondary" size="small"/>
+        </div>
+    } @else {
+        @if (refusal(); as refused) {
+            <div class="mb-3 rounded-lg border border-border-subtle bg-white/[0.03] px-3 py-2">
+                <p class="text-xs text-white/60 m-0">{{ refused.messageKey | translate }}</p>
+            </div>
+        }
+
+        <input [(ngModel)]="query"
+               [attr.aria-label]="'VOICE_RING.SEARCH' | translate"
+               [placeholder]="'VOICE_RING.SEARCH' | translate"
+               class="w-full mb-3"
+               pInputText
+               type="text"/>
+
+        @if (loading()) {
+            <div class="flex items-center justify-center py-8">
+                <i class="pi pi-spin pi-spinner text-white/40"></i>
+            </div>
+        } @else {
+            <div class="flex flex-col gap-1 max-h-72 overflow-y-auto thin-scrollbar">
+                @for (candidate of filtered(); track candidate.userId) {
+                    <button (click)="send(candidate)"
+                            [disabled]="ringState.sending()"
+                            class="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-left
+                                   hover:bg-hover disabled:opacity-50 cursor-pointer border-0 bg-transparent"
+                            type="button">
+                        <app-avatar [label]="candidate.name.charAt(0).toUpperCase()"
+                                    [userId]="candidate.userId"/>
+                        <span class="text-sm text-white/80 truncate">{{ candidate.name }}</span>
+                    </button>
+                } @empty {
+                    <p class="text-xs text-white/40 text-center py-6 m-0">{{ 'VOICE_RING.NOBODY_TO_INVITE' | translate }}</p>
+                }
+            </div>
+        }
+    }
+
+    <ng-template pTemplate="footer">
+        <p-button (onClick)="close()" [label]="'GUILD_SETTINGS.INVITES.CANCEL' | translate" [text]="true"
+                  severity="secondary" size="small"/>
+    </ng-template>
+</p-dialog>

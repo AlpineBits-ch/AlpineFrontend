@@ -18,6 +18,7 @@ import {SoundSettingsService} from './sound-settings.service';
 import {VoiceEngineService} from './voice-engine.service';
 import {ToastService} from './toast.service';
 import {ChannelDto, ChannelType} from '../dtos/response/guild.dto';
+import {EntitlementStore} from '../stores/entitlement.store';
 import {installMemoryStorage} from '../testing/memory-storage';
 import {VoiceParticipantSnapshot, VoiceRoomSnapshot} from '../models/voice-room';
 
@@ -104,6 +105,10 @@ function setup(options: {inChannel?: boolean} = {}) {
         screenStreams: () => new Map(),
         screenAudioMuted: () => new Map(),
         setScreenPreset: vi.fn(async () => null as {oldShareId: string; newShareId: string | null} | null),
+        publishCamera: vi.fn(async () => 'video' as string | null),
+        closeCamera: vi.fn(async () => undefined),
+        publishScreen: vi.fn(async () => ({shareId: 'share-1'}) as {shareId: string} | null),
+        closeScreen: vi.fn(async () => ({shareId: 'share-1'}) as {shareId: string} | null),
     };
     const toast = {info: vi.fn(), success: vi.fn(), error: vi.fn(), httpError: vi.fn()};
     const engineSetMute = vi.fn(async () => undefined);
@@ -131,6 +136,10 @@ function setup(options: {inChannel?: boolean} = {}) {
             // Echoes the key rather than loading real translations, so an assertion names the key
             // the service chose instead of a sentence that could be reworded.
             {provide: TranslateService, useValue: {instant: (key: string) => key}},
+            // The real VoiceLimitsService over a stubbed ceiling cache. It is what the degradation
+            // tests below are actually about, and its one dependency reaches HTTP and the hub for
+            // ladders that a room whose limits ride its own snapshot does not need.
+            {provide: EntitlementStore, useValue: {ladder: () => undefined, ensureLoaded: () => void 0}},
         ],
     });
 
@@ -470,7 +479,7 @@ describe('a join the server refuses', () => {
      * that as a failure would be a denial with extra steps - which is exactly what "degrade, do not
      * deny" exists to avoid.
      */
-    it('stays in a room that admitted it on reduced terms, and says what was reduced', async () => {
+    it('stays in a room that admitted it on reduced terms, and holds what was reduced', async () => {
         const {service, guildVoice, toast} = setup({inChannel: false});
         guildVoice.join.mockReturnValue(of({
             ...emptySnapshot(CHANNEL.id),
@@ -491,7 +500,20 @@ describe('a join the server refuses', () => {
         expect(joined).toBe(true);
         expect(service.joinedChannelId()).toBe(CHANNEL.id);
         expect(toast.error).not.toHaveBeenCalled();
-        expect(toast.info).toHaveBeenCalledWith('ENTITLEMENT.REASON.GUILD_PLAN_LIMIT');
+        // Not a toast. A ceiling is the state of the room for as long as the call lasts, and four
+        // seconds of it was the whole of the explanation a user got for a camera button that no
+        // longer worked.
+        expect(toast.info).not.toHaveBeenCalled();
+        expect(service.limits.notices()).toEqual([expect.objectContaining({
+            key: 'voice.video_ceiling',
+            messageKey: 'ENTITLEMENT.REASON.GUILD_PLAN_LIMIT',
+            surfaceKey: 'VOICE.DEGRADED.QUALITY_CAPPED',
+            rung: '720p30',
+            // The server said this caller cannot act, so there is a sentence naming who can and
+            // no button. Nothing here recomputed that.
+            ctaKey: null,
+            hintKey: 'ENTITLEMENT.CTA.ASK_OWNER',
+        })]);
     });
 
     /** Absent and empty mean the same thing, and both are the normal case. */
@@ -501,6 +523,32 @@ describe('a join the server refuses', () => {
         await service.joinChannel(CHANNEL, 'Guild');
 
         expect(toast.info).not.toHaveBeenCalled();
+        expect(service.limits.notices()).toEqual([]);
+    });
+
+    /** Nothing one room said about its plan may follow the user into the next one. */
+    it('drops the last room\'s limits on leaving', async () => {
+        const {service, guildVoice} = setup({inChannel: false});
+        guildVoice.join.mockReturnValue(of({
+            ...emptySnapshot(CHANNEL.id),
+            degradations: [{
+                key: 'voice.video_ceiling',
+                requested: {kind: 'ladder', rung: '1080p60', rank: 4},
+                granted: {kind: 'ladder', rung: 'none', rank: 0},
+                reason: 'guild_plan_limit',
+                remedy: 'upgrade_guild',
+                actorCanRemedy: true,
+                subject: {kind: 'guild', id: 'guild-1'},
+            }],
+        }));
+
+        await service.joinChannel(CHANNEL, 'Guild');
+        expect(service.limits.notices()).toHaveLength(1);
+
+        await service.leaveChannel();
+
+        expect(service.limits.notices()).toEqual([]);
+        expect(service.videoBlock(false)).toBeNull();
     });
 
     /** Already being there is a success. Callers gate their follow-up action on this. */
@@ -948,5 +996,112 @@ describe('a screen share rebuilt at a new resolution', () => {
 
         expect(wsCalls['invokeVoiceScreenShareStopped']).not.toHaveBeenCalled();
         expect(wsCalls['invokeVoiceScreenShareStarted']).not.toHaveBeenCalled();
+    });
+});
+
+/**
+ * The pre-flight, which is the point of the room carrying its limits at all.
+ *
+ * <p>The controls disable themselves from the same answer, so this is the second of two checks
+ * rather than the only one - and it is the one that covers a hotkey, a stale render and the moment
+ * between a ceiling arriving and the next paint. What it must never do is spend a `getUserMedia`
+ * prompt or open a source picker for a publish the server has already said no to.</p>
+ */
+describe('starting video in a room that will not carry it', () => {
+    const CHANNEL = {
+        id: 'chan-3',
+        guildId: 'guild-1',
+        name: 'General',
+        type: ChannelType.Voice,
+    } as ChannelDto;
+
+    /** Joins with a limits block, through the real path rather than by reaching into the service. */
+    async function joinWith(limits: Record<string, unknown>) {
+        const harness = setup({inChannel: false});
+        harness.guildVoice.join.mockReturnValue(of({...emptySnapshot(CHANNEL.id), limits}));
+        await harness.service.joinChannel(CHANNEL, 'Guild');
+        return harness;
+    }
+
+    const AUDIO_ONLY = {videoCeiling: {kind: 'ladder', rung: 'none', rank: 0}};
+    const PUBLISHERS_FULL = {
+        maxPublishers: {kind: 'numeric', value: 2, unlimited: false},
+        publisherCount: 2,
+    };
+
+    it('names audio-only and starts nothing', async () => {
+        const {service, rtc} = await joinWith(AUDIO_ONLY);
+
+        expect(service.videoBlock(false)).toBe('audio_only');
+
+        await service.toggleCamera();
+        await service.toggleScreenShare();
+
+        expect(rtc.publishCamera).not.toHaveBeenCalled();
+        // The picker never opens either. A source dialog for a publish that cannot happen is worse
+        // than no button: the user chooses a window and then nothing appears.
+        expect(rtc.publishScreen).not.toHaveBeenCalled();
+        expect(service.localState().isCameraOn).toBe(false);
+    });
+
+    it('names a full publisher list, which is a queue rather than a refusal', async () => {
+        const {service, rtc} = await joinWith(PUBLISHERS_FULL);
+
+        expect(service.videoBlock(false)).toBe('publishers_full');
+        expect(service.limits.publisherSlots()).toEqual({used: 2, max: 2});
+
+        await service.toggleScreenShare();
+
+        expect(rtc.publishScreen).not.toHaveBeenCalled();
+    });
+
+    /** Stopping is never blocked: a ceiling that lands mid-share must not strand a live publish. */
+    it('still stops a share that was already running when the ceiling arrived', async () => {
+        const {service, rtc} = await joinWith(AUDIO_ONLY);
+        service.localState.update(s => ({...s, isScreenSharing: true}));
+
+        await service.toggleScreenShare();
+
+        expect(rtc.closeScreen).toHaveBeenCalled();
+        expect(service.localState().isScreenSharing).toBe(false);
+    });
+
+    /** Negative: a room that stated no limits blocks nothing, which is every instance today. */
+    it('starts video normally in a room that stated no limits', async () => {
+        const {service, rtc} = setup({inChannel: false});
+        await service.joinChannel(CHANNEL, 'Guild');
+
+        expect(service.videoBlock(false)).toBeNull();
+
+        await service.toggleCamera();
+
+        expect(rtc.publishCamera).toHaveBeenCalled();
+        expect(service.localState().isCameraOn).toBe(true);
+    });
+
+    /**
+     * The one acknowledgement that is genuinely transient. The card explaining it is filed too, so
+     * this is "that button did nothing" rather than the whole explanation - and it is never the
+     * generic failure sentence, which cannot tell a refused publish from a dead camera.
+     */
+    it('acknowledges a refusal that beat the pre-flight, by name', async () => {
+        const {service, toast} = setup();
+
+        service.limits.noteDenial(new HttpErrorResponse({
+            status: 403,
+            error: {
+                code: 'guild_plan_limit',
+                key: 'voice.video_ceiling',
+                reason: 'guild_plan_limit',
+                boundBy: 'guild',
+                remedy: 'upgrade_guild',
+                actorCanRemedy: true,
+                subject: {kind: 'guild', id: 'guild-1'},
+                retryable: false,
+            },
+        }));
+
+        expect(toast.error).toHaveBeenCalledWith('ENTITLEMENT.REASON.GUILD_PLAN_LIMIT');
+        expect(service.limits.notices()).toHaveLength(1);
     });
 });

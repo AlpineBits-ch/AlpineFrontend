@@ -1,6 +1,6 @@
 <div class="space-y-5">
 
-    <!-- Actions: expiry is set first, since it applies to whichever button is pressed -->
+    <!-- Options are set first, since they apply to whichever button is pressed -->
     <div class="flex flex-wrap items-end gap-3">
         <div>
             <label class="block text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2"
@@ -25,24 +25,71 @@
                 }
             </div>
         </div>
+
+        <div>
+            <label class="block text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2"
+                   for="invite-max-uses">
+                {{ 'GUILD_SETTINGS.INVITES.MAX_USES_LABEL' | translate }}
+            </label>
+            <p-select [(ngModel)]="createMaxUses" [options]="maxUsesOptions()" inputId="invite-max-uses"
+                      optionLabel="label" optionValue="value" size="small" styleClass="w-40"/>
+        </div>
+
+        <div>
+            <label class="block text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2"
+                   for="invite-channel">
+                {{ 'GUILD_SETTINGS.INVITES.CHANNEL_LABEL' | translate }}
+            </label>
+            <p-select [(ngModel)]="createChannelId" [options]="channelOptions()" inputId="invite-channel"
+                      optionLabel="label" optionValue="value" size="small" styleClass="w-48"/>
+        </div>
+
         <div class="flex items-center gap-2">
-            <p-button (onClick)="createPermanentInvite()" [disabled]="creatingType() !== null || expiryError() !== null"
+            <p-button (onClick)="createPermanentInvite()" [disabled]="creatingType() !== null || createError() !== null"
                       [label]="'GUILD_SETTINGS.INVITES.PERMANENT' | translate"
                       [loading]="creatingType() === InviteType.Permanent"
                       icon="pi pi-plus" severity="secondary" size="small"/>
-            <p-button (onClick)="createOneTimeInvite()" [disabled]="creatingType() !== null || expiryError() !== null"
+            <p-button (onClick)="createOneTimeInvite()" [disabled]="creatingType() !== null || createError() !== null"
                       [label]="'GUILD_SETTINGS.INVITES.ONE_TIME' | translate"
                       [loading]="creatingType() === InviteType.OneTime"
                       icon="pi pi-plus" severity="secondary" size="small"/>
         </div>
     </div>
 
+    <div class="flex flex-wrap items-center gap-x-6 gap-y-2">
+        <div class="flex items-center gap-2">
+            <p-checkbox [(ngModel)]="createTemporary" [binary]="true" inputId="invite-temporary" size="small"/>
+            <label class="text-xs text-text-secondary cursor-pointer" for="invite-temporary">
+                {{ 'GUILD_SETTINGS.INVITES.TEMPORARY_LABEL' | translate }}
+            </label>
+        </div>
+        <div class="flex items-center gap-2">
+            <p-checkbox (ngModelChange)="createTargetType.set($event ? InviteTargetType.VoiceChannel : InviteTargetType.None)"
+                        [binary]="true"
+                        [ngModel]="createTargetType() === InviteTargetType.VoiceChannel"
+                        inputId="invite-voice-target" size="small"/>
+            <label class="text-xs text-text-secondary cursor-pointer" for="invite-voice-target">
+                {{ 'GUILD_SETTINGS.INVITES.TARGET_VOICE_LABEL' | translate }}
+            </label>
+        </div>
+    </div>
+
     <div class="space-y-1">
-        @if (expiryError(); as error) {
+        @if (createError(); as error) {
             <p class="text-xs text-offline m-0">{{ error | translate }}</p>
         }
         <p class="text-xs text-text-secondary m-0">{{ 'GUILD_SETTINGS.INVITES.HINT' | translate }}</p>
         <p class="text-xs text-text-secondary m-0">{{ 'GUILD_SETTINGS.INVITES.EXPIRY_PRESET_HINT' | translate }}</p>
+        @if (createTemporary()) {
+            <p class="text-xs text-text-secondary m-0">{{ 'GUILD_SETTINGS.INVITES.TEMPORARY_HINT' | translate }}</p>
+        }
+    </div>
+
+    <div class="flex justify-end">
+        <p-button (onClick)="toggleRevokedView()"
+                  [icon]="showRevoked() ? 'pi pi-eye-slash' : 'pi pi-history'"
+                  [label]="(showRevoked() ? 'GUILD_SETTINGS.INVITES.HIDE_REVOKED' : 'GUILD_SETTINGS.INVITES.SHOW_REVOKED') | translate"
+                  [text]="true" severity="secondary" size="small"/>
     </div>
 
     @if (loading()) {
@@ -67,14 +114,16 @@
 
         <div class="space-y-2">
             @for (invite of visibleInvites(); track invite.id) {
-                <div [ngClass]="highlightId() === invite.id
-                        ? 'border-[var(--color-brand)] bg-[color-mix(in_srgb,var(--color-brand)_12%,transparent)]'
-                        : 'border-white/[0.05] bg-white/[0.03]'"
+                <div [ngClass]="isRevoked(invite)
+                        ? 'border-white/[0.05] bg-white/[0.02] opacity-60'
+                        : highlightId() === invite.id
+                            ? 'border-[var(--color-brand)] bg-[color-mix(in_srgb,var(--color-brand)_12%,transparent)]'
+                            : 'border-white/[0.05] bg-white/[0.03]'"
                      class="flex items-start gap-3 px-4 py-3 rounded-xl border transition-colors">
 
                     <!-- Icon + info -->
                     <div class="flex-1 min-w-0">
-                        <div class="flex items-center gap-2 mb-1">
+                        <div class="flex flex-wrap items-center gap-2 mb-1">
               <span [ngClass]="invite.type === InviteType.Permanent ? 'bg-[color-mix(in_srgb,var(--color-brand)_15%,transparent)] text-[var(--color-brand-dim)]' : 'bg-amber-500/15 text-amber-400'"
                     class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[0.625rem] font-semibold uppercase tracking-wide">
                 @if (invite.type === InviteType.Permanent) {
@@ -83,9 +132,30 @@
                     <i class="pi pi-ticket text-[0.5625rem]"></i> {{ 'GUILD_SETTINGS.INVITES.TYPE_ONE_TIME' | translate }}
                 }
               </span>
-                            @if (isExpired(invite)) {
+                            <!--
+                              Revoked and expired are different facts about a link and a moderator
+                              reads them differently: one was taken away, the other ran out. Never
+                              collapse them into one badge.
+                            -->
+                            @if (isRevoked(invite)) {
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[0.625rem] font-semibold uppercase tracking-wide bg-slate-500/20 text-slate-300">
+                  <i class="pi pi-ban text-[0.5625rem]"></i> {{ 'GUILD_SETTINGS.INVITES.REVOKED' | translate }}
+                </span>
+                            } @else if (isExpired(invite)) {
                                 <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[0.625rem] font-semibold uppercase tracking-wide bg-rose-500/15 text-rose-400">
                   {{ 'GUILD_SETTINGS.INVITES.EXPIRED' | translate }}
+                </span>
+                            }
+                            @if (invite.temporary) {
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[0.625rem] font-semibold uppercase tracking-wide bg-sky-500/15 text-sky-300"
+                                      [pTooltip]="'GUILD_SETTINGS.INVITES.TEMPORARY_HINT' | translate"
+                                      tooltipPosition="top">
+                  <i class="pi pi-clock text-[0.5625rem]"></i> {{ 'GUILD_SETTINGS.INVITES.TEMPORARY_BADGE' | translate }}
+                </span>
+                            }
+                            @if (invite.targetType === InviteTargetType.VoiceChannel) {
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[0.625rem] font-semibold uppercase tracking-wide bg-emerald-500/15 text-emerald-300">
+                  <i class="pi pi-volume-up text-[0.5625rem]"></i> {{ 'GUILD_SETTINGS.INVITES.TARGET_VOICE_BADGE' | translate }}
                 </span>
                             }
                         </div>
@@ -97,6 +167,14 @@
                                   [title]="formatDateTime(invite.createdAt)">{{
                                     'GUILD_SETTINGS.INVITES.CREATED' | translate: {date: formatDate(invite.createdAt)}
                                 }}</span>
+                            @if (inviterName(invite); as name) {
+                                <span class="text-[0.6875rem] text-text-muted">{{
+                                        'GUILD_SETTINGS.INVITES.CREATED_BY' | translate: {name: name}
+                                    }}</span>
+                            }
+                            @if (channelName(invite.channelId); as channel) {
+                                <span class="text-[0.6875rem] text-text-muted">#{{ channel }}</span>
+                            }
                             <span class="text-[0.6875rem] text-text-secondary">
                                 @if (invite.maxUses) {
                                     {{ 'GUILD_SETTINGS.INVITES.USES_OF_MAX' | translate: {count: invite.useCount, max: invite.maxUses} }}
@@ -104,9 +182,14 @@
                                     {{ (invite.useCount === 1 ? 'GUILD_SETTINGS.INVITES.USES_SINGLE' : 'GUILD_SETTINGS.INVITES.USES_PLURAL') | translate: {count: invite.useCount} }}
                                 }
                             </span>
-                            @if (invite.expiresAt; as expiresAt) {
+                            @if (invite.revokedAt; as revokedAt) {
+                                <span class="text-[0.6875rem] text-slate-300"
+                                      [title]="formatDateTime(revokedAt)">{{
+                                        'GUILD_SETTINGS.INVITES.REVOKED_AT' | translate: {date: (revokedAt | relativeTime: clock.now())}
+                                    }}</span>
+                            } @else if (invite.expiresAt; as expiresAt) {
                                 <!-- Remaining time is what anyone handing out a link actually needs; the exact
-                                     moment stays one hover away. -->
+                                     moment stays one hover away. The countdown is local; the badge above is not. -->
                                 <span [ngClass]="isExpired(invite) ? 'text-rose-400' : 'text-text-secondary'"
                                       [title]="formatDateTime(expiresAt)"
                                       class="text-[0.6875rem]">{{
@@ -121,16 +204,18 @@
                     <div class="flex items-center gap-1 shrink-0">
                         <p-button
                                 (onClick)="copyInvite(invite)"
-                                [disabled]="isExpired(invite)"
+                                [disabled]="isExpired(invite) || isRevoked(invite)"
                                 [icon]="copiedId() === invite.id ? 'pi pi-check' : 'pi pi-copy'"
                                 [pTooltip]="copyTooltipKey(invite) | translate" [text]="true"
                                 severity="secondary"
                                 size="small"
                                 tooltipPosition="top"/>
-                        <p-button (onClick)="openRevokeDialog(invite)" [loading]="deletingId() === invite.id" [pTooltip]="'GUILD_SETTINGS.INVITES.REVOKE' | translate" [text]="true"
-                                  icon="pi pi-trash" severity="danger"
-                                  size="small"
-                                  tooltipPosition="top"/>
+                        @if (!isRevoked(invite)) {
+                            <p-button (onClick)="openRevokeDialog(invite)" [loading]="deletingId() === invite.id" [pTooltip]="'GUILD_SETTINGS.INVITES.REVOKE' | translate" [text]="true"
+                                      icon="pi pi-trash" severity="danger"
+                                      size="small"
+                                      tooltipPosition="top"/>
+                        }
                     </div>
                 </div>
             } @empty {

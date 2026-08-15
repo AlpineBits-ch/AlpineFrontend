@@ -33,6 +33,7 @@ import {
     VoiceResyncEvent,
     VoiceRoomSnapshot,
 } from '../models/voice-room';
+import {WsVoiceRing, WsVoiceRingDismissed, WsVoiceRingResolved} from '../dtos/response/voice-ring.dto';
 
 export interface ChannelTypingEvent {
     channelId: string;
@@ -699,6 +700,18 @@ export class GuildWebsocketService {
     public voiceScreenShareStoppedObservable = new Subject<WsVoiceScreenShareStopped>();
     public movedToChannelObservable = new Subject<WsMovedToChannel>();
     public kickedByOtherDeviceObservable = new Subject<WsKickedByOtherDevice>();
+    // ── Voice rings ─────────────────────────────────────────────────────────────
+    // Plain `guild.` rather than `guild.voice.`: that prefix is reserved for voice *room state*,
+    // which every client must be able to reconstruct from a version number after missing an event.
+    // A ring is not room state - its audience is somebody who is not in the room and may never be.
+    /** Somebody is asking us into a voice channel. Every device of the target gets it. */
+    public voiceRingIncomingObservable = new Subject<WsVoiceRing>();
+    /** Our own ring went out. For our *other* windows, so they stop offering to send it again. */
+    public voiceRingSentObservable = new Subject<WsVoiceRing>();
+    /** One event for every way a ring ends. Sent to both sides, on every device. */
+    public voiceRingResolvedObservable = new Subject<WsVoiceRingResolved>();
+    /** Addressed to one device that answered a ring somebody else had already answered. */
+    public voiceRingDismissedObservable = new Subject<WsVoiceRingDismissed>();
     /** Authoritative room state. Replace everything held for this channel; never merge. */
     public voiceSnapshotObservable = new Subject<VoiceRoomSnapshot>();
     /** "You are behind, refetch." Carries a reason, never a delta. */
@@ -879,6 +892,12 @@ export class GuildWebsocketService {
         this.realtime.on('guild.voice.ShareViewersChanged', (d: ShareViewersDto) => this.shareViewersChangedObservable.next(d));
         this.realtime.on('guild.voice.MovedToChannel', (d: WsMovedToChannel) => this.movedToChannelObservable.next(d));
         this.realtime.on('guild.voice.KickedByOtherDevice', (d: WsKickedByOtherDevice) => this.kickedByOtherDeviceObservable.next(d));
+
+        // ── Voice rings ─────────────────────────────────────────────────────────
+        this.realtime.on('guild.VoiceRingIncoming', (d: WsVoiceRing) => this.voiceRingIncomingObservable.next(d));
+        this.realtime.on('guild.VoiceRingSent', (d: WsVoiceRing) => this.voiceRingSentObservable.next(d));
+        this.realtime.on('guild.VoiceRingResolved', (d: WsVoiceRingResolved) => this.voiceRingResolvedObservable.next(d));
+        this.realtime.on('guild.VoiceRingDismissed', (d: WsVoiceRingDismissed) => this.voiceRingDismissedObservable.next(d));
 
         // ── Recovery ────────────────────────────────────────────────────────────
         // Pushed on join, on publish, and whenever the server decides we are out of date. The

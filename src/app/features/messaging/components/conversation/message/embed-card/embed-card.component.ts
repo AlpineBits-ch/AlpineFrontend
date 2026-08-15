@@ -5,9 +5,17 @@ import {EmbedFlags, MessageEmbed, MessageEmbedMedia} from '../../../../../../dto
 import {MarkdownPipe} from '../../../../../../pipes/markdown.pipe';
 import {EmbedMediaComponent} from './embed-media/embed-media.component';
 import {EmbedPlayerComponent, isFramablePlayerUrl} from './embed-player/embed-player.component';
+import {InviteCardComponent} from '../invite-card/invite-card.component';
+import {WikiCardComponent} from '../wiki-card/wiki-card.component';
 
-/** How the card is laid out. Derived from `type`, then narrowed by what media actually arrived. */
-type EmbedMode = 'plain-image' | 'gifv' | 'player' | 'card';
+/**
+ * How the card is laid out. Derived from `type`, then narrowed by what media actually arrived.
+ *
+ * <p>`none` is a real outcome, not a failure: an unrecognised `venta.*` type renders nothing at
+ * all. Falling back to the link layout would draw half a card for a kind this build has never heard
+ * of, and a future kind will arrive before the next release does.</p>
+ */
+type EmbedMode = 'plain-image' | 'gifv' | 'player' | 'card' | 'venta-invite' | 'venta-wiki' | 'none';
 
 /**
  * One embed under a message - a bot's `rich` card, or a preview the server generated from a link.
@@ -20,7 +28,10 @@ type EmbedMode = 'plain-image' | 'gifv' | 'player' | 'card';
  */
 @Component({
     selector: 'app-embed-card',
-    imports: [MarkdownPipe, DatePipe, EmbedMediaComponent, EmbedPlayerComponent],
+    imports: [
+        MarkdownPipe, DatePipe, EmbedMediaComponent, EmbedPlayerComponent,
+        InviteCardComponent, WikiCardComponent,
+    ],
     templateUrl: './embed-card.component.html',
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -79,9 +90,32 @@ export class EmbedCardComponent {
         return media && !isFramablePlayerUrl(media.url) ? media : null;
     });
 
+    /**
+     * Whether this is one of the instance's own links, vouched for by the server.
+     *
+     * <p><b>The flag is the whole check.</b> Without it the embed was written by whoever posted the
+     * message, and a bot can author a `venta` block saying anything it likes. It buys an attacker
+     * nothing on its own - every action a card offers runs through an authenticated,
+     * permission-checked endpoint - but a card that looks server-vouched when it is not is a
+     * phishing surface, and this is a one-line check.</p>
+     */
+    protected readonly venta = computed(() => {
+        const embed = this.embed();
+        return this.isGenerated() ? embed.venta : undefined;
+    });
+
     protected readonly mode = computed<EmbedMode>(() => {
         const embed = this.embed();
-        if (this.type() === 'image' && (embed.image ?? embed.thumbnail)) return 'plain-image';
+        const type = this.type();
+
+        if (type.startsWith('venta.')) {
+            if (!this.venta()) return 'none';
+            if (type === 'venta.invite') return 'venta-invite';
+            if (type === 'venta.wiki_page') return 'venta-wiki';
+            return 'none';
+        }
+
+        if (type === 'image' && (embed.image ?? embed.thumbnail)) return 'plain-image';
         if (this.gifv()) return 'gifv';
         if (this.player()) return 'player';
         return 'card';
@@ -104,7 +138,7 @@ export class EmbedCardComponent {
 
     protected readonly gifSrc = computed(() => {
         const media = this.gifv();
-        return media ? (media.proxyUrl ?? media.url) : null;
+        return media ? (media.proxy_url ?? media.url) : null;
     });
 
     protected readonly gifBox = computed(() => {
@@ -123,11 +157,11 @@ export class EmbedCardComponent {
 
     protected readonly authorIcon = computed(() => {
         const author = this.embed().author;
-        return author?.proxyIconUrl ?? author?.iconUrl;
+        return author?.proxy_icon_url ?? author?.icon_url;
     });
 
     protected readonly footerIcon = computed(() => {
         const footer = this.embed().footer;
-        return footer?.proxyIconUrl ?? footer?.iconUrl;
+        return footer?.proxy_icon_url ?? footer?.icon_url;
     });
 }

@@ -1,5 +1,21 @@
 @switch (mode()) {
 
+    <!--
+      Links back to this instance. They route through here rather than growing a parallel path, so
+      there is one place that decides what an embed looks like. `mode()` has already checked the
+      server-generated flag; an unrecognised venta kind lands on 'none' and draws nothing.
+    -->
+    @case ('venta-invite') {
+        <app-invite-card [embed]="embed()" class="block"/>
+    }
+
+    @case ('venta-wiki') {
+        <app-wiki-card [embed]="embed()" class="block"/>
+    }
+
+    @case ('none') {
+    }
+
     <!-- A link straight to an image file: just the image, no chrome at all. -->
     @case ('plain-image') {
         <div class="mt-1 w-fit max-w-full">

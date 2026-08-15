@@ -1,9 +1,9 @@
 import {computed, effect, inject, Injectable, signal, untracked} from '@angular/core';
 import {TranslateService} from '@ngx-translate/core';
 import {firstValueFrom} from 'rxjs';
-import {describeEntitlementDenial, describeEntitlementLimit} from '../core/entitlement-message';
-import {degradationsOf} from '../dtos/response/entitlement.dto';
+import {describeEntitlementDenial} from '../core/entitlement-message';
 import {ChannelDto, ChannelType} from '../dtos/response/guild.dto';
+import {VoiceLimitsService} from './voice-limits.service';
 import {ProfileService} from './profile.service';
 import {GuildVoiceService} from './guild-voice.service';
 import {
@@ -119,6 +119,11 @@ export class VoiceChannelService {
     private guildWsSvc = inject(GuildWebsocketService);
     private soundSettings = inject(SoundSettingsService);
     private voiceEngine = inject(VoiceEngineService);
+    /**
+     * What this room's plan allows, and what it has already reduced. Held for the life of the call
+     * rather than announced once: a ceiling is a condition, not an event.
+     */
+    readonly limits = inject(VoiceLimitsService);
     private toast = inject(ToastService);
     private translate = inject(TranslateService);
     private channelParticipantsSignal = signal<Map<string, VoiceChannelParticipant[]>>(new Map());
@@ -214,6 +219,13 @@ export class VoiceChannelService {
         this.guildWsSvc.voiceSnapshotObservable.subscribe(s => void this.applySnapshot(s));
         this.guildWsSvc.voiceResyncObservable.subscribe(e => void this.onResync(e));
 
+        // A publish the server refused outright. The card explaining it is already filed by the time
+        // this fires; this is the acknowledgement that the button did nothing, which is the one
+        // thing a persistent surface cannot say. It never reaches the generic error path - "video
+        // failed" is a different sentence from "this server's plan does not include it".
+        this.limits.refused$.subscribe(notice =>
+            this.toast.error(this.translate.instant(notice.messageKey)));
+
         // A subscribe the server refused as stale means the roster we acted on is out of date. The
         // refetch is guarded against bursts, so several refusals in a row cost one read.
         this.rtc.staleSubscription$.subscribe(() => void this.refetchSnapshot());
@@ -300,6 +312,10 @@ export class VoiceChannelService {
         if (!channelId || snapshot.roomId !== channelId) return;
 
         this.tracker.applySnapshot(snapshot);
+        // Every snapshot, not only the join reply. A room's limits can move during a call - a boost
+        // lapses, a plan downgrades at period end - and the snapshot is the only ordered channel
+        // that carries the change.
+        this.limits.applySnapshot(snapshot);
 
         const ownId = this.profileService.ownProfile()?.userId ?? '';
         const list = snapshot.participants.map(p => this.snapshotToParticipant(p, ownId));
@@ -478,6 +494,8 @@ export class VoiceChannelService {
                 this.joinedGuildId.set(channel.guildId);
                 this.joinedChannelName.set(channel.name);
                 this.joinedGuildName.set(guildName);
+                // Before the snapshot is applied, because that is what files the room's limits.
+                this.limits.enterRoom(channel.guildId);
                 // Mute and deafen survive the join - see loadStickyVoiceState. Only the two flags
                 // that hold a live publication are cleared.
                 this.localState.update(s => ({...s, isCameraOn: false, isScreenSharing: false}));
@@ -526,7 +544,7 @@ export class VoiceChannelService {
                 // Whatever the room gave less of than was asked for. This is a success carrying a
                 // note, not a failure: the 11th member of a full room is in the room, on an
                 // audio-only seat, and nothing above this line rolls back on account of it.
-                this.reportDegradations(snapshot);
+                this.limits.noteDegradations(snapshot);
                 return true;
             } catch (err) {
                 console.error('VoiceChannelService: join failed', err);
@@ -559,21 +577,6 @@ export class VoiceChannelService {
         return denial?.messageKey ?? 'VOICE.JOIN_FAILED';
     }
 
-    /**
-     * Say what the room gave less of, if it said so.
-     *
-     * <p>Rendered here because this is the call site that caused it: a degradation rides the
-     * response the caller already holds precisely so there is somewhere with the context to say
-     * "you are in, at a lower quality, because this server is on the free plan". An absent array is
-     * the normal case and means nothing was reduced - see
-     * `Echo/docs/specs/entitlements-frontend-guide.md` section 1.</p>
-     */
-    private reportDegradations(response: unknown): void {
-        for (const degradation of degradationsOf(response)) {
-            this.toast.info(this.translate.instant(describeEntitlementLimit(degradation).messageKey));
-        }
-    }
-
     async leaveChannel(): Promise<void> {
         const channelId = this.joinedChannelId();
         const guildId = this.joinedGuildId();
@@ -595,6 +598,9 @@ export class VoiceChannelService {
         this.joinedChannelName.set(null);
         this.joinedGuildName.set(null);
         this.localState.update(s => ({...s, isCameraOn: false, isScreenSharing: false}));
+        // Nothing a room said about its plan outlives the room. Carrying a ceiling into the next
+        // channel would disable a camera button on a plan that never mentioned one.
+        this.limits.clear();
     }
 
     toggleMute(): void {
@@ -663,10 +669,25 @@ export class VoiceChannelService {
         this.rtc.setPttOpen(this.pttGateOpen());
     }
 
+    /**
+     * Whether starting video would only be turned down, and why.
+     *
+     * <p>Read by the controls before they draw the button, and again here before the request goes
+     * out. The two are not the same check: the first is what stops a camera button being offered
+     * into an audio-only room, and the second is what stops a keyboard shortcut or a stale render
+     * spending a `getUserMedia` prompt on a publish the server has already said no to.</p>
+     *
+     * <p>Null while publishing. Stopping is never blocked - see {@link videoPublishBlock}.</p>
+     */
+    videoBlock(alreadyPublishing: boolean): 'audio_only' | 'publishers_full' | null {
+        return this.limits.videoBlock(alreadyPublishing);
+    }
+
     async toggleCamera(): Promise<void> {
         const guildId = this.joinedGuildId();
         const channelId = this.joinedChannelId();
         if (!guildId || !channelId) return;
+        if (this.videoBlock(this.localState().isCameraOn)) return;
 
         if (this.localState().isCameraOn) {
             await this.rtc.closeCamera(guildId, channelId);
@@ -685,6 +706,9 @@ export class VoiceChannelService {
         const guildId = this.joinedGuildId();
         const channelId = this.joinedChannelId();
         if (!guildId || !channelId) return;
+        // Checked before the picker opens. A source dialog for a publish that cannot happen is
+        // worse than no button at all: the user chooses a window and then nothing appears.
+        if (this.videoBlock(this.localState().isScreenSharing)) return;
 
         if (this.localState().isScreenSharing) {
             const result = await this.rtc.closeScreen(guildId, channelId);

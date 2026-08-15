@@ -10,6 +10,10 @@ import {GuildMemberDto} from '../../../../dtos/response/member.dto';
 import {hasPermission, parsePermissions, Permissions} from '../../../../enums/permissions.enum';
 import {RustMediaService} from '../../../../services/rust-media.service';
 import {StreamPreset} from '../../../../models/stream-preset';
+import {VIDEO_BLOCK_KEYS} from '../../../../core/voice-limits';
+import {EntitlementSubjectDto} from '../../../../dtos/response/entitlement.dto';
+import {VoiceLimitNoticeComponent} from '../../../../shared/call/voice-limit-notice/voice-limit-notice.component';
+import {SettingsUiService} from '../../../../services/settings-ui.service';
 import {VoiceChannelLobbyComponent} from './voice-channel-lobby.component';
 import {CallContextMenuComponent} from '../../../../shared/call/call-context-menu/call-context-menu.component';
 import {CallControlsBarComponent} from '../../../../shared/call/call-controls-bar/call-controls-bar.component';
@@ -17,6 +21,7 @@ import {AutoHideCallControlsDirective} from '../../../../shared/call/auto-hide-c
 import {GuildFeature, guildHasFeature} from '../../guild-features';
 import {CallScreenLayoutComponent} from '../../../../shared/call/call-screen-layout/call-screen-layout.component';
 import {CallStatusBarComponent} from '../../../../shared/call/call-status-bar/call-status-bar.component';
+import {VoiceRingPickerComponent} from '../../../../shared/call/voice-ring-picker/voice-ring-picker.component';
 import {CallParticipant, CallParticipantMenuData, CallScreenShare} from '../../../../shared/call/call.types';
 import {WatchScope, scopeKey} from '../../../../services/share-watch.service';
 import {CallFocusService} from '../../../../services/call-focus.service';
@@ -34,6 +39,8 @@ import {TranslateModule, TranslateService} from '@ngx-translate/core';
         CallScreenLayoutComponent,
         CallStatusBarComponent,
         AutoHideCallControlsDirective,
+        VoiceLimitNoticeComponent,
+        VoiceRingPickerComponent,
         TranslateModule,
     ],
     templateUrl: './voice-channel.component.html',
@@ -79,10 +86,83 @@ export class VoiceChannelComponent {
     protected isJoined = computed(() =>
         this.voiceSvc.joinedChannelId() === this.channel().id,
     );
+
+    // ── Entitlements ───────────────────────────────────────────────────────────
+
+    /**
+     * What this room's plan is doing to this call, as cards that stay.
+     *
+     * <p>Empty on every instance that sells nothing, which is also the shape a self-hosted instance
+     * takes: limits still apply there and degradations still arrive, they simply carry
+     * `remedy: "none"` and therefore no button.</p>
+     */
+    protected limitNotices = computed(() =>
+        this.isJoined() ? this.voiceSvc.limits.notices() : []);
+
+    /**
+     * Why the camera button would only be refused, or null when it would not be.
+     *
+     * <p>Null while the camera is on, whatever the room says. A ceiling that arrived mid-call must
+     * not strand a live publication behind a stop button that no longer works.</p>
+     */
+    protected cameraBlockedKey = computed(() =>
+        this.blockKey(this.voiceSvc.localState().isCameraOn));
+
+    protected shareBlockedKey = computed(() =>
+        this.blockKey(this.voiceSvc.localState().isScreenSharing));
+
+    /**
+     * Whether this channel carries no video at all, as a state rather than as a failure.
+     *
+     * <p>Stated whether or not anybody has tried to publish. A degradation only arrives when
+     * something was actually asked for, so a room nobody has asked anything of would otherwise have
+     * two disabled buttons and nothing at all saying why.</p>
+     */
+    protected audioOnly = computed(() => this.isJoined() && this.voiceSvc.limits.audioOnly());
+
+    /** "2 of 2 sharing", or null when nothing counts publishers on this instance. */
+    protected publisherSlots = computed(() => this.voiceSvc.limits.publisherSlots());
+
+    /** What the granted rung permits, so the quality picker stops where the plan does. */
+    protected videoCeiling = computed(() => this.voiceSvc.limits.videoCeiling());
+
+    /**
+     * "7 of 10", against the roster this component already draws.
+     *
+     * <p>Null when the room has no participant ceiling, and the header then shows the bare count it
+     * always showed - a denominator nobody stated is not one to invent.</p>
+     */
+    protected participantSlots = computed(() =>
+        this.voiceSvc.limits.participantSlots(this.participants().length));
+
+    private blockKey(alreadyPublishing: boolean): string | null {
+        const block = this.voiceSvc.videoBlock(alreadyPublishing);
+        return block ? VIDEO_BLOCK_KEYS[block] : null;
+    }
     /** Null until joined: watching is a claim only a participant of the channel may make. */
     protected watchScope = computed((): WatchScope | null => this.isJoined()
         ? {kind: 'channel', guildId: this.channel().guildId, channelId: this.channel().id}
         : null);
+
+    // ── Ring ────────────────────────────────────────────────────────────────
+    /**
+     * The ring target picker, opened from the empty-stage invite tile.
+     *
+     * <p>The invitation itself lives entirely in {@link VoiceRingStateService}. This component owns
+     * the dialog's visibility and the two ids it needs, because who may be rung is a question about
+     * this channel and this is the only place that knows it.</p>
+     *
+     * <p>The template renders the picker only while this is true rather than mounting it hidden:
+     * everything behind it - the ring state, the hub, the roster reads - is then constructed by
+     * opening it, and a voice channel nobody invites anyone into pays for none of it.</p>
+     */
+    protected showRingPicker = signal(false);
+    /** Anybody already in the room. A ring at them is a correct no-op, so it is not offered. */
+    protected participantUserIds = computed(() => this.participants().map(p => p.userId));
+
+    protected openRingPicker(): void {
+        this.showRingPicker.set(true);
+    }
 
     /**
      * Resolves a viewer count popover's user ids against this channel's own roster - see
@@ -105,6 +185,7 @@ export class VoiceChannelComponent {
     private guildVoice = inject(GuildVoiceService);
     private callFocus = inject(CallFocusService);
     private presence = inject(CallStagePresenceService);
+    private settingsUi = inject(SettingsUiService);
     private ownMember = signal<GuildMemberDto | null>(null);
 
     // ── Permission checks ──────────────────────────────────────────────────────
@@ -265,5 +346,25 @@ export class VoiceChannelComponent {
 
     protected setScreenPreset(preset: StreamPreset): void {
         void this.voiceSvc.setScreenPreset(preset);
+    }
+
+    /**
+     * Take the reader to the thing the server said would fix it.
+     *
+     * <p>Aimed by `subject`, which is the party the remedy applies to - a guild-bound ceiling opens
+     * that guild's plan page, a user-bound one opens the account's. Not by whichever guild happens
+     * to be on screen: for a paired ceiling those are routinely different, and sending an admin to
+     * their server's plan page over a limit their own account set is a purchase that changes
+     * nothing.</p>
+     *
+     * <p>This button is only ever drawn when the server said this caller can act on it, so there is
+     * no permission decision here to get wrong.</p>
+     */
+    protected onUpgrade(subject: EntitlementSubjectDto | null): void {
+        if (subject?.kind === 'user') {
+            this.settingsUi.open('billing');
+            return;
+        }
+        this.settingsUi.openGuild(subject?.id ?? this.channel().guildId, 'plan');
     }
 }

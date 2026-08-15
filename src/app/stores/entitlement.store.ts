@@ -9,6 +9,7 @@ import {GuildService} from '../services/guild.service';
 import {
     ENTITLEMENT_KEYS,
     EntitlementPlanDto,
+    EntitlementRungDto,
     EntitlementSnapshotDto,
     EntitlementsChangedDto,
     EntitlementSubjectKind,
@@ -136,6 +137,25 @@ export const EntitlementStore = signalStore(
              */
             plan: (subject: EntitlementSubjectRef): EntitlementPlanDto | null =>
                 snapshotOf(subject)?.plan ?? null,
+
+            /**
+             * One published ladder, lowest rung first, or undefined when none is held.
+             *
+             * <p>The guild's copy first and the caller's own as the fallback, because the two are
+             * the same ladder: a ladder is the instance's definition of what each rung permits, not
+             * a per-subject grant, and only the rung *on* it differs by subject. Reading either is
+             * therefore correct, and reading the guild's first is only about which request is
+             * likelier to have landed on a guild screen.</p>
+             *
+             * <p><b>Never hardcode a copy of one.</b> It is on the wire so that the day a rung is
+             * added, a picker gains it without a release.</p>
+             */
+            ladder(name: string, guildId?: string | null): EntitlementRungDto[] | undefined {
+                const guild = guildId
+                    ? snapshotOf({kind: 'guild', id: guildId})?.ladders?.[name]
+                    : undefined;
+                return guild ?? snapshotOf(MY_ENTITLEMENTS)?.ladders?.[name];
+            },
 
             ensureLoaded(subject: EntitlementSubjectRef): void {
                 const key = keyFor(subject);
