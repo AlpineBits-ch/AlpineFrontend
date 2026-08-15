@@ -185,6 +185,16 @@ export interface SubscriptionDto {
     priceMinorUnits: number;
     currency: string;
     /**
+     * How often that price is charged, so the card can say "$29.00 per month" rather than an amount
+     * and a date the reader has to infer the cadence from.
+     *
+     * <p><b>Nullable and optional, and the two mean different things.</b> Null is the server saying
+     * the plan version could not be resolved - the same condition that empties the price. Absent is
+     * a server that predates the field, which is every instance mid-rolling-deploy. Both render as
+     * the amount alone; see `intervalLabelKey`.</p>
+     */
+    interval?: BillingInterval | null;
+    /**
      * False means the caller manages the guild but somebody else's card is behind it. They may
      * look; they may not cancel, resume or change the plan.
      */

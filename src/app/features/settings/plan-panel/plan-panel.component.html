@@ -67,6 +67,12 @@
         <app-invoice-list/>
     }
 
+    <!-- The promotional balance, on both subjects. The wallet is always the reader's own - guilds
+         never hold one - so what changes here is the catalogue underneath and where a purchase is
+         pointed. Removes itself entirely on a 404, which is how an instance with no credit surface
+         answers; a zero balance would be a different and wrong statement. -->
+    <app-credit-panel [subject]="subject()"/>
+
     <!-- Guild only, and only when the plan is actually withholding something. -->
     @if (withheldModules().length > 0) {
         <section class="flex flex-col gap-3">

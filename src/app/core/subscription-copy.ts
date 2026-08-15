@@ -1,4 +1,5 @@
 import {
+    BillingInterval,
     ChangePreviewDto,
     SubscriptionStanding,
     SubscriptionStatus,
@@ -37,6 +38,18 @@ const INVOICE_STATUS_KEYS: Record<string, string> = {
     void: 'BILLING.INVOICE.STATUS.VOID',
 };
 
+/**
+ * How often a price is charged, in the form that follows an amount: "$29.00 <b>per month</b>".
+ *
+ * <p>A table rather than a ternary, because the set is open. A plan sold weekly or per quarter is a
+ * pricing decision somebody can make on the server, and `interval === 'year' ? YEAR : MONTH` would
+ * quietly bill it monthly on screen.</p>
+ */
+const INTERVAL_KEYS: Record<string, string> = {
+    month: 'BILLING.INTERVAL.MONTH',
+    year: 'BILLING.INTERVAL.YEAR',
+};
+
 /** What an immediate proration amount is, said in words rather than left to a minus sign. */
 const IMMEDIATE_KEYS = {
     charge: 'BILLING.CHANGE.CHARGE_NOW',
@@ -48,6 +61,7 @@ const IMMEDIATE_KEYS = {
 export const BILLING_SUBSCRIPTION_TRANSLATION_KEYS: readonly string[] = [
     ...Object.values(STANDING_KEYS),
     ...Object.values(INVOICE_STATUS_KEYS),
+    ...Object.values(INTERVAL_KEYS),
     ...Object.values(IMMEDIATE_KEYS),
     'BILLING.INVOICE.STATUS.OTHER',
 ];
@@ -64,6 +78,58 @@ export function standingLabelKey(status: SubscriptionStatus): string {
 
 export function invoiceStatusKey(status: string): string {
     return INVOICE_STATUS_KEYS[(status ?? '').trim().toLowerCase()] ?? 'BILLING.INVOICE.STATUS.OTHER';
+}
+
+/**
+ * The "per month" that follows a price, or <b>null</b> when there is nothing honest to put there.
+ *
+ * <p>Null in three cases, and all three are real:</p>
+ *
+ * <ul>
+ *   <li><b>The server sent null.</b> `interval` is null exactly when the plan version could not be
+ *       resolved, which is the same condition that empties the price - a version nobody can find has
+ *       no period to state.</li>
+ *   <li><b>The server sent nothing at all.</b> The field is new, and during a rolling deploy this
+ *       client talks to builds that predate it.</li>
+ *   <li><b>The interval is one this build has no word for.</b> Guessing "month" for a quarterly
+ *       price is worse than saying only the amount: it is a wrong statement about what somebody is
+ *       being charged, rather than an incomplete one.</li>
+ * </ul>
+ *
+ * <p>Every one of them degrades to the amount on its own, which is what this screen said before the
+ * field existed. Nothing renders "per null" and nothing renders a trailing blank.</p>
+ */
+export function intervalLabelKey(interval: BillingInterval | null | undefined): string | null {
+    return INTERVAL_KEYS[(interval ?? '').trim().toLowerCase()] ?? null;
+}
+
+/** A price and the cadence it is charged at, ready for a template to put side by side. */
+export interface SubscriptionPriceCopy {
+    /** Formatted in the payload's own currency. Null where the server named no price. */
+    amount: string | null;
+    /** A key reading "per month". Null where the cadence is unknown; see {@link intervalLabelKey}. */
+    intervalKey: string | null;
+}
+
+/**
+ * What a subscription costs, said as a rate rather than as a bare number.
+ *
+ * <p>"$29.00" and a renewal date leaves the reader to infer the cadence from the gap between two
+ * dates they cannot both see, and gets it wrong on an annual plan bought last week. "$29.00 per
+ * month" states it. Where the cadence is not known the amount stands alone rather than being
+ * decorated with a guess.</p>
+ */
+export function subscriptionPriceCopy(
+    priceMinorUnits: number | null | undefined,
+    currency: string | null | undefined,
+    interval: BillingInterval | null | undefined,
+    locale?: string,
+): SubscriptionPriceCopy {
+    const amount = typeof priceMinorUnits === 'number' && Number.isFinite(priceMinorUnits)
+        ? formatMinor(priceMinorUnits, currency ?? '', locale)
+        : null;
+
+    return {amount, intervalKey: intervalLabelKey(interval)};
 }
 
 /**

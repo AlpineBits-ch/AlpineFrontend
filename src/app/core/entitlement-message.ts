@@ -114,8 +114,18 @@ export const MODULE_NOT_IN_PLAN_FALLBACK: EntitlementModuleCopy = {
     bodyKey: 'GUILD_SETTINGS.MODULES.NOT_IN_PLAN_BODY',
 };
 
-/** One display name per catalogue key, so a limit can be named without switching on eleven strings. */
-const KEY_NAME_KEYS: Record<string, string> = {
+/**
+ * One display name per catalogue key, so a limit can be named without switching on eleven strings.
+ *
+ * <p><b>No two of these may resolve to the same words.</b> The comparison table draws one row per
+ * key, so a shared label is two rows a reader cannot tell apart - and they do not stay equal:
+ * `storage.upload_max_bytes` is a paired ceiling on uploads into a guild while
+ * `user.upload_max_bytes` is the user-scoped one for direct messages and avatars, and they showed
+ * the same figure only because the plan seed happened to set both to the same bytes. Exported so
+ * `i18n-keys.spec.ts` can assert the labels are distinct, because the day the two values diverge is
+ * the day the duplicate becomes actively misleading rather than merely redundant.</p>
+ */
+export const ENTITLEMENT_KEY_NAME_KEYS: Record<string, string> = {
     [ENTITLEMENT_KEYS.voiceMaxParticipants]: 'ENTITLEMENT.KEY.VOICE_MAX_PARTICIPANTS',
     [ENTITLEMENT_KEYS.voiceVideoCeiling]: 'ENTITLEMENT.KEY.VOICE_VIDEO_CEILING',
     [ENTITLEMENT_KEYS.voiceMaxPublishers]: 'ENTITLEMENT.KEY.VOICE_MAX_PUBLISHERS',
@@ -134,7 +144,7 @@ export const ENTITLEMENT_TRANSLATION_KEYS: readonly string[] = [
     ...Object.values(REASON_KEYS),
     ...Object.values(PAIRED_CEILING_KEYS),
     ...Object.values(REMEDY_CTA_KEYS),
-    ...Object.values(KEY_NAME_KEYS),
+    ...Object.values(ENTITLEMENT_KEY_NAME_KEYS),
     ...Object.values(MODULE_NOT_IN_PLAN_KEYS).flatMap(copy => [copy.titleKey, copy.bodyKey]),
     MODULE_NOT_IN_PLAN_FALLBACK.titleKey,
     MODULE_NOT_IN_PLAN_FALLBACK.bodyKey,
@@ -160,7 +170,7 @@ export function entitlementReasonKey(reason: EntitlementReason, boundBy?: Entitl
 
 /** The display name for a catalogue key, or null for a key this build does not know. */
 export function entitlementKeyNameKey(key: string): string | null {
-    return KEY_NAME_KEYS[key] ?? null;
+    return ENTITLEMENT_KEY_NAME_KEYS[key] ?? null;
 }
 
 /** The "not in this plan" copy for a module, falling back to the module-agnostic pair. */

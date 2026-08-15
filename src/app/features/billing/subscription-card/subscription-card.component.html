@@ -64,7 +64,17 @@
                     }
                 </div>
 
-                <p class="text-lg font-semibold text-text-primary m-0">{{ price() }}</p>
+                <!-- The rate, not a bare figure: an amount next to a renewal date leaves somebody on
+                     an annual plan to work the cadence out from a gap they cannot see. The cadence
+                     is absent rather than assumed where the server did not state one. -->
+                @if (price(); as rate) {
+                    <p class="text-lg font-semibold text-text-primary m-0">
+                        {{ rate.amount }}
+                        @if (rate.intervalKey; as key) {
+                            <span class="text-sm font-normal text-text-muted">{{ key | translate }}</span>
+                        }
+                    </p>
+                }
 
                 <!-- The dates. Both of these are things a person came here to find out, so neither
                      is behind a hover. -->

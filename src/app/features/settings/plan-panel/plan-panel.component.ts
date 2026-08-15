@@ -7,6 +7,7 @@ import {PlanPickerComponent} from '../../billing/plan-picker/plan-picker.compone
 import {PaymentMethodsComponent} from '../../billing/payment-methods/payment-methods.component';
 import {SubscriptionCardComponent} from '../../billing/subscription-card/subscription-card.component';
 import {InvoiceListComponent} from '../../billing/invoice-list/invoice-list.component';
+import {CreditPanelComponent} from '../../billing/credit-panel/credit-panel.component';
 
 /**
  * What plan a subject is on, for the one screen where they would change it.
@@ -32,6 +33,7 @@ import {InvoiceListComponent} from '../../billing/invoice-list/invoice-list.comp
         PaymentMethodsComponent,
         SubscriptionCardComponent,
         InvoiceListComponent,
+        CreditPanelComponent,
     ],
     templateUrl: './plan-panel.component.html',
 })

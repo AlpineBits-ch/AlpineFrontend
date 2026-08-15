@@ -1,0 +1,123 @@
+<p-dialog
+        (visibleChange)="onVisibleChange($event)"
+        [breakpoints]="{ '640px': '100vw' }"
+        [closable]="!busy()"
+        [closeOnEscape]="!busy()"
+        [draggable]="false"
+        [modal]="true"
+        [resizable]="false"
+        [style]="{ width: '460px' }"
+        [visible]="visible()"
+        appendTo="body">
+
+    <ng-template pTemplate="header">
+        <span class="text-sm font-semibold text-text-primary">
+            {{ 'BILLING.CREDIT.PURCHASE.TITLE' | translate }}
+        </span>
+    </ng-template>
+
+    <div class="flex flex-col gap-5 pb-1">
+
+        @if (outcome(); as done) {
+
+            <!-- When it starts, before anything else. A queued grant that read as immediate is the
+                 "I spent my credit and got nothing" ticket by another route, so the queued wording
+                 stands even when the date itself could not be read. -->
+            <div class="flex flex-col gap-1.5">
+                <p class="text-sm font-semibold text-text-primary m-0">
+                    {{ done.titleKey | translate:{title: sku().title, date: done.startsOn} }}
+                </p>
+                <p class="text-xs text-text-muted m-0 leading-relaxed">
+                    {{ done.bodyKey | translate:{date: done.startsOn, until: done.endsOn} }}
+                </p>
+            </div>
+
+            @if (result(); as purchase) {
+                <p class="text-xs text-text-muted m-0 leading-relaxed border-t border-white/[0.06] pt-3">
+                    {{ 'BILLING.CREDIT.PURCHASE.SPENT' | translate:{points: purchase.spent, balance: purchase.balanceAfter} }}
+                </p>
+            }
+
+            <p-button (onClick)="close()" [label]="'BILLING.CHECKOUT.CLOSE' | translate"
+                      severity="primary" styleClass="justify-center"/>
+
+        } @else {
+
+            <div class="flex flex-col gap-1.5 rounded-xl border border-white/[0.10] bg-white/[0.03] px-4 py-3.5">
+                <p class="text-sm font-semibold text-text-primary m-0">{{ sku().title }}</p>
+                @if (sku().description; as description) {
+                    <p class="text-xs text-text-muted m-0 leading-relaxed">{{ description }}</p>
+                }
+
+                <!-- Points and cash together. Section 8.2: nobody should have to guess what a
+                     credit is worth, and the cash price is the only thing that answers it. -->
+                <div class="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 border-t border-white/[0.06] pt-2.5">
+                    <span class="text-base font-semibold text-text-primary tabular-nums">
+                        {{ 'BILLING.CREDIT.POINTS' | translate:{points: sku().pricePoints} }}
+                    </span>
+                    @if (cash(); as price) {
+                        <span class="text-xs text-text-muted">
+                            {{ 'BILLING.CREDIT.CASH_EQUIVALENT' | translate:{price: price} }}
+                        </span>
+                    }
+                </div>
+            </div>
+
+            <!-- What is left afterwards, before the press rather than after it. -->
+            @if (affordable()) {
+                <p class="text-xs text-text-secondary m-0 leading-relaxed">
+                    {{ 'BILLING.CREDIT.PURCHASE.LEAVES' | translate:{balance: balanceAfter()} }}
+                </p>
+            } @else {
+                <p class="text-xs text-[var(--color-offline)] m-0 leading-relaxed" role="alert">
+                    {{ 'BILLING.CREDIT.NOT_ENOUGH' | translate }}
+                </p>
+            }
+
+            <!-- The refusal in the server's own words. Those sentences name the plan already held
+                 and say that nothing was charged, which is the part somebody needs first. -->
+            @if (errorText(); as text) {
+                <p class="text-xs text-[var(--color-offline)] m-0 leading-relaxed" role="alert">{{ text }}</p>
+            } @else if (errorKey(); as key) {
+                <p class="text-xs text-[var(--color-offline)] m-0 leading-relaxed"
+                   role="alert">{{ key | translate }}</p>
+            }
+
+            @if (disclaimer(); as notice) {
+                <p class="text-[0.6875rem] text-text-muted m-0 leading-relaxed">
+                    @if (notice.key; as key) {
+                        {{ key | translate }}
+                    } @else {
+                        {{ notice.text }}
+                    }
+                </p>
+            }
+
+            <div class="flex flex-wrap items-center gap-2">
+                <p-button (onClick)="close()" [disabled]="busy()"
+                          [label]="'BILLING.CHECKOUT.CANCEL' | translate" [text]="true"
+                          severity="secondary" styleClass="flex-1 justify-center"/>
+                <!-- The retry after a refusal reuses this dialog's key, so a spend the server
+                     already recorded replays rather than being made a second time.
+
+                     Two buttons rather than a ternary label: a computed key is invisible to
+                     `i18n-keys.spec.ts`, which matches a literal next to a `translate`. -->
+                @if (step() === 'refused') {
+                    <p-button (onClick)="confirm()"
+                              [disabled]="busy() || !affordable()"
+                              [label]="'BILLING.CREDIT.PURCHASE.RETRY' | translate"
+                              [loading]="busy()"
+                              severity="primary" styleClass="flex-1 justify-center"/>
+                } @else {
+                    <p-button (onClick)="confirm()"
+                              [disabled]="busy() || !affordable()"
+                              [label]="'BILLING.CREDIT.PURCHASE.CONFIRM' | translate"
+                              [loading]="busy()"
+                              severity="primary" styleClass="flex-1 justify-center"/>
+                }
+            </div>
+        }
+
+    </div>
+
+</p-dialog>

@@ -5,9 +5,11 @@ import {
     BILLING_SUBSCRIPTION_TRANSLATION_KEYS,
     formatBillingDate,
     immediateAmountCopy,
+    intervalLabelKey,
     invoiceStatusKey,
     previewLineCopy,
     standingLabelKey,
+    subscriptionPriceCopy,
 } from './subscription-copy';
 
 function preview(over: Partial<ChangePreviewDto> = {}): ChangePreviewDto {
@@ -90,6 +92,60 @@ describe('the date in a sentence about money', () => {
         expect(formatBillingDate(undefined)).toBeNull();
         expect(formatBillingDate('')).toBeNull();
         expect(formatBillingDate('not a timestamp')).toBeNull();
+    });
+});
+
+describe('what a subscription costs, said as a rate', () => {
+    it('puts the cadence beside the amount', () => {
+        const copy = subscriptionPriceCopy(2900, 'usd', 'month', 'en-US');
+
+        expect(copy.amount).toBe('$29.00');
+        expect(copy.intervalKey).toBe('BILLING.INTERVAL.MONTH');
+    });
+
+    it('says per year for an annual plan', () => {
+        expect(subscriptionPriceCopy(29000, 'usd', 'year').intervalKey)
+            .toBe('BILLING.INTERVAL.YEAR');
+    });
+
+    /**
+     * Null is the server saying the plan version could not be resolved. The amount still stands on
+     * its own; what must not happen is "per null" or a trailing blank where a word belongs.
+     */
+    it('falls back to the amount alone when the interval is null', () => {
+        const copy = subscriptionPriceCopy(2900, 'usd', null, 'en-US');
+
+        expect(copy.amount).toBe('$29.00');
+        expect(copy.intervalKey).toBeNull();
+    });
+
+    /** The rolling-deploy case: this build talks to servers that predate the field entirely. */
+    it('falls back the same way when the field is absent', () => {
+        const copy = subscriptionPriceCopy(2900, 'usd', undefined, 'en-US');
+
+        expect(copy.amount).toBe('$29.00');
+        expect(copy.intervalKey).toBeNull();
+    });
+
+    /**
+     * A quarterly price billed as "per month" on screen is a wrong statement about what somebody is
+     * being charged, which is worse than an incomplete one.
+     */
+    it('guesses nothing for a cadence this build has no word for', () => {
+        expect(intervalLabelKey('quarter')).toBeNull();
+        expect(intervalLabelKey('')).toBeNull();
+        expect(intervalLabelKey(null)).toBeNull();
+        expect(intervalLabelKey(undefined)).toBeNull();
+    });
+
+    it('is not thrown by casing or padding on the wire', () => {
+        expect(intervalLabelKey(' Month ')).toBe('BILLING.INTERVAL.MONTH');
+    });
+
+    /** A price the server did not name is not a zero, and "$0.00 per month" reads as free. */
+    it('names no amount where the server named no price', () => {
+        expect(subscriptionPriceCopy(null, 'usd', 'month').amount).toBeNull();
+        expect(subscriptionPriceCopy(undefined, null, 'month').amount).toBeNull();
     });
 });
 

@@ -12,8 +12,7 @@ import {BillingService, BILLING_ERROR_CODES, describeBillingError} from '../../.
 import {ProfileService} from '../../../services/profile.service';
 import {EntitlementSubjectRef} from '../../../stores/entitlement.store';
 import {billingErrorCopy} from '../../../core/billing-copy';
-import {formatBillingDate, standingLabelKey} from '../../../core/subscription-copy';
-import {formatMinor} from '../../../core/money';
+import {formatBillingDate, standingLabelKey, subscriptionPriceCopy} from '../../../core/subscription-copy';
 import {ChangePlanDialogComponent} from '../change-plan-dialog/change-plan-dialog.component';
 
 /** Which network call is in flight, so the control that was pressed is the one that shows it. */
@@ -102,10 +101,18 @@ export class SubscriptionCardComponent {
         }
     });
 
-    /** Never a hardcoded symbol and never a division by 100 - JPY has no minor unit at all. */
+    /**
+     * The price as a rate - "$29.00 per month" - never a bare amount beside a date.
+     *
+     * <p>Never a hardcoded symbol and never a division by 100; JPY has no minor unit at all. The
+     * cadence half is absent rather than guessed at where the server did not state it, which
+     * includes every response from a build that predates the field.</p>
+     */
     protected price = computed(() => {
         const current = this.subscription();
-        return current ? formatMinor(current.priceMinorUnits, current.currency) : null;
+        return current
+            ? subscriptionPriceCopy(current.priceMinorUnits, current.currency, current.interval)
+            : null;
     });
 
     protected periodEnd = computed(() => formatBillingDate(this.subscription()?.currentPeriodEnd));

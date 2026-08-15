@@ -52,6 +52,16 @@ export interface VoiceSpeakingChange {
 export const SUBSCRIBE_RETRY_DELAYS_MS = [1000, 2000, 4000] as const;
 
 /**
+ * How many times one channel join may rebuild its publication after `sessionGone`.
+ *
+ * <p>Small on purpose. One rebuild answers the case this exists for - a session that died once,
+ * which recreating fixes. Reaching three means recreating is not what is wrong, and the honest
+ * answer is to stop and leave a line in the log rather than republish the microphone every time the
+ * room is refetched. Reset by each {@link VoiceRtcService.connect}.</p>
+ */
+export const MAX_PUBLICATION_REBUILDS = 3;
+
+/**
  * Emitted when the server says our view of the room is out of date.
  *
  * A subject rather than a direct call into the room service, because the two subscribe paths that
@@ -129,6 +139,28 @@ export class VoiceRTCService {
      * command has to say which one it means. Isle proximity voice holds its own alongside this.
      */
     private voiceSession: VoiceSession | null = null;
+    /**
+     * What {@link connect} was called with, so {@link rebuildPublication} can start the same
+     * publication again without the caller handing it the channel a second time.
+     *
+     * Cleared by {@link teardown}: a rebuild that fired after we left would republish a microphone
+     * into a channel this client is no longer in.
+     */
+    private voiceTarget: { guildId: string; channelId: string } | null = null;
+    /**
+     * The rebuild in flight, or null. See {@link rebuildPublication} - every subscribe queued
+     * against a dead session fails at once, so this is what makes the burst cost one restart.
+     */
+    private rebuildingPublication: Promise<boolean> | null = null;
+    /**
+     * Rebuilds spent on this channel, against {@link MAX_PUBLICATION_REBUILDS}.
+     *
+     * A successful rebuild is followed by a refetch that re-subscribes the room, and if the new
+     * session is dead too - a network where this client's ICE never completes, say - each of those
+     * subscribes comes back here. That is a slow loop rather than a hot one, but it is still a loop,
+     * and it republishes the microphone on every turn of it. The cap makes it stop and say so.
+     */
+    private publicationRebuilds = 0;
     private setupDone = false;
 
     private localVideoTrack: MediaStreamTrack | null = null;
@@ -294,6 +326,8 @@ export class VoiceRTCService {
         // the receive side. It could: the engine start waits on ICE gathering in Rust, and when that
         // stalled, every subscribe queued behind it forever and the only symptom was one-way silence
         // with an empty console.
+        this.voiceTarget = {guildId, channelId};
+        this.publicationRebuilds = 0;
         try {
             this.voiceSession = await this.voiceEngine.start(
                 {kind: 'guild', guildId, channelId},
@@ -424,6 +458,94 @@ export class VoiceRTCService {
     }
 
     /**
+     * Start this channel's publication again, because the server says the one we hold is spent.
+     *
+     * <p>The audio twin of {@link dropReceiveSession}, and it exists for the same reason: a media
+     * session id is meaningless without the peer connection that produced it, so once the server has
+     * answered <c>sessionGone</c> every call on that id fails identically. Retrying the same
+     * subscribe - which is all this path used to do - is four attempts and then permanent silence for
+     * whoever we were pulling. The contract's remedy is `recreateSession`, and for the microphone
+     * that means a new engine publication: it owns the session, mints it and publishes onto it.</p>
+     *
+     * <p>Started rather than stopped-then-started, deliberately. `attach` in the engine's `session.rs`
+     * replaces a slot's publication only once the new one has connected, so a rebuild that fails
+     * leaves the existing one alone instead of tearing down a call on the way out.</p>
+     *
+     * <p>Single-flight, because a dead session fails every subscribe queued behind it at once and
+     * each of them lands here. The first caller restarts; the rest await the same promise and then
+     * return, so a room of ten publishers costs one restart rather than ten.</p>
+     */
+    private rebuildPublication(): Promise<boolean> {
+        if (this.rebuildingPublication) return this.rebuildingPublication;
+
+        const target = this.voiceTarget;
+        // Left the channel while the failure was in flight. Republishing here would put a microphone
+        // into a room this client is no longer in.
+        if (!target) return Promise.resolve(false);
+
+        if (this.publicationRebuilds >= MAX_PUBLICATION_REBUILDS) {
+            // Not a spent session any more - something about this client's media is broken in a way
+            // rebuilding does not fix. Rejoining the channel is what resets this.
+            console.error(
+                `[voice] publication died ${MAX_PUBLICATION_REBUILDS} times - not rebuilding again`,
+            );
+            return Promise.resolve(false);
+        }
+        this.publicationRebuilds++;
+
+        const attempt = (async () => {
+            try {
+                const session = await this.voiceEngine.start(
+                    {kind: 'guild', guildId: target.guildId, channelId: target.channelId},
+                    this.apiConfig.baseUrl(),
+                    this.oauth.getAccessToken(),
+                    await this.deviceIdentity.deviceId(),
+                );
+                // Checked after the round trip: `teardown` may have run while it was in flight, and
+                // the new publication belongs to a channel we have since left.
+                if (!this.voiceTarget) {
+                    await this.voiceEngine.stop(session);
+                    return false;
+                }
+                this.voiceSession = session;
+                this.engineUp.set(true);
+
+                // Nothing is subscribed on a session that did not exist a moment ago. These records
+                // are what both dedupe guards read, so leaving them would make the refetch that
+                // follows skip every participant as "already held" - the new session would be
+                // published onto and pull nothing, which is the failure this exists to end.
+                this.subscribedAudioSessions.clear();
+                this.stalePublications.clear();
+                this.participantsWithAudio.set(new Set());
+                this.remoteScreenAudioIds.clear();
+                // Bumped rather than cleared, exactly as in `teardown`: a cleared map reads as token 0
+                // to a retry still sleeping between attempts, which is the value it would match.
+                this.subscribeTokens.forEach((token, id) => this.subscribeTokens.set(id, token + 1));
+
+                console.warn('[voice] publication rebuilt after sessionGone', {
+                    mediaSessionId: session.mediaSessionId,
+                });
+                return true;
+            } catch (e) {
+                // Loud and left dead. `publishedMedia` now reports the session that failed, which the
+                // next heartbeat asserts and the server disagrees with - it tells peers to drop us,
+                // which is the honest state. Recovering from here is a rejoin, not a resubscribe.
+                console.error('[voice] could not rebuild the publication after sessionGone', e);
+                return false;
+            }
+        })();
+
+        this.rebuildingPublication = attempt;
+        // Compared rather than cleared outright: a second rebuild can legitimately be in flight by
+        // the time this settles - the new session can die too - and clearing unconditionally would
+        // drop the guard that one is relying on.
+        void attempt.finally(() => {
+            if (this.rebuildingPublication === attempt) this.rebuildingPublication = null;
+        });
+        return attempt;
+    }
+
+    /**
      * What this client is actually publishing, for the heartbeat's state assertion.
      *
      * <p>Deliberately the *Rust* session and not `this.mediaSessionId`. The webview's session is
@@ -475,6 +597,10 @@ export class VoiceRTCService {
         // guild channel.
         if (this.voiceSession) void this.voiceEngine.stop(this.voiceSession);
         this.voiceSession = null;
+        // Before the engine state, so a rebuild whose start is still in flight sees the channel is
+        // gone and stops the publication it is about to hand back rather than publishing into it.
+        this.voiceTarget = null;
+        this.publicationRebuilds = 0;
         this.engineUp.set(false);
         this.localVideoTrack?.stop();
         this.localScreenTrack?.stop();
@@ -753,6 +879,24 @@ export class VoiceRTCService {
                         userId: target.userId,
                     });
                     this.staleSubscriptionSignal.next({userId: target.userId});
+                    return;
+                }
+                if (isDeadMediaSession(e)) {
+                    // Our own publication, not their track - so no snapshot can repair it and no
+                    // number of retries can either. Every call on a spent session id fails
+                    // identically, which is what turned one dead session into the retry-and-refetch
+                    // loop this branch ends: `sessionGone` used to fall through to the transport
+                    // retry below, spend its four attempts, and leave that participant silent for the
+                    // rest of the session.
+                    //
+                    // The refetch is signalled only on success, and that is what keeps this from
+                    // spinning: it is the refetch that re-subscribes the room, so signalling it after
+                    // a failed rebuild would send every subscribe back through here to fail and
+                    // refetch again, as fast as the network allows.
+                    console.warn('[voice] our publication is dead, rebuilding', {id});
+                    if (await this.rebuildPublication()) {
+                        this.staleSubscriptionSignal.next({userId: target.userId});
+                    }
                     return;
                 }
                 if (attempt < SUBSCRIBE_RETRY_DELAYS_MS.length) {

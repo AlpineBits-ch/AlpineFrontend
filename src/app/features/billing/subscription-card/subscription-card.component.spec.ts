@@ -125,6 +125,42 @@ describe('what the card says about a live subscription', () => {
         expect(body).toContain('BILLING.SUBSCRIPTION.RENEWS_ON');
     });
 
+    /**
+     * "$29.00" beside a renewal date leaves the reader to infer the cadence from a gap they cannot
+     * both see, and get it wrong on an annual plan bought last week.
+     */
+    it('says the price as a rate rather than as a bare amount', () => {
+        const {fixture} = setup({subscriptions: [subscription({interval: 'month'})]});
+        const body = text(fixture);
+
+        expect(body).toContain(formatMinor(2900, 'usd'));
+        expect(body).toContain('BILLING.INTERVAL.MONTH');
+    });
+
+    it('says per year for an annual subscription', () => {
+        const {fixture} = setup({subscriptions: [subscription({interval: 'year'})]});
+
+        expect(text(fixture)).toContain('BILLING.INTERVAL.YEAR');
+    });
+
+    /** Null is the server saying it could not resolve the plan version. The amount still stands. */
+    it('shows the amount alone when the server sent a null interval', () => {
+        const {fixture} = setup({subscriptions: [subscription({interval: null})]});
+        const body = text(fixture);
+
+        expect(body).toContain(formatMinor(2900, 'usd'));
+        expect(body).not.toContain('BILLING.INTERVAL.');
+    });
+
+    /** The rolling-deploy case: this build talks to services that predate the field entirely. */
+    it('shows the amount alone when the field is absent from the payload', () => {
+        const {fixture} = setup({subscriptions: [subscription()]});
+        const body = text(fixture);
+
+        expect(body).toContain(formatMinor(2900, 'usd'));
+        expect(body).not.toContain('BILLING.INTERVAL.');
+    });
+
     it('renders the standing rather than the raw provider status', () => {
         const {fixture} = setup({subscriptions: [subscription({status: 'active'})]});
 

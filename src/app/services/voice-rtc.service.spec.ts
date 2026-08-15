@@ -17,8 +17,8 @@ import {provideHttpClientTesting} from '@angular/common/http/testing';
 import {OAuthService} from 'angular-oauth2-oidc';
 import {of, Subject, throwError} from 'rxjs';
 import {GuildVoiceService} from './guild-voice.service';
-import {SUBSCRIBE_RETRY_DELAYS_MS, VoiceRTCService} from './voice-rtc.service';
-import {STALE_SUBSCRIPTION} from '../models/voice-room';
+import {MAX_PUBLICATION_REBUILDS, SUBSCRIBE_RETRY_DELAYS_MS, VoiceRTCService} from './voice-rtc.service';
+import {SESSION_GONE, STALE_SUBSCRIPTION} from '../models/voice-room';
 import {VoiceEngineService} from './voice-engine.service';
 import {RustMediaService} from './rust-media.service';
 import {ScreenPickerService} from './screen-picker.service';
@@ -32,6 +32,8 @@ class FakeEngine {
     unsubscribe = vi.fn().mockResolvedValue(undefined);
     setUserVolume = vi.fn().mockResolvedValue(undefined);
     stop = vi.fn().mockResolvedValue(undefined);
+    /** Answers with a *different* session id, because that is what makes a rebuild observable. */
+    start = vi.fn().mockResolvedValue({slot: 'primary', mediaSessionId: 'rust_sess_2', trackName: 'audio'});
     available = () => false;
 }
 
@@ -73,7 +75,15 @@ beforeEach(() => {
             // so a bare `{}` here is a stub that could not stand the real service up.
             {provide: RustMediaService, useValue: {publishEnded$: publishEnded}},
             {provide: ScreenPickerService, useValue: {}},
-            {provide: DeviceIdentityService, useValue: {get: vi.fn().mockResolvedValue('device')}},
+            {
+                provide: DeviceIdentityService,
+                useValue: {
+                    get: vi.fn().mockResolvedValue('device'),
+                    // Named as the service names it: a rebuilt publication starts the engine again,
+                    // and `start` takes the device id.
+                    deviceId: vi.fn().mockResolvedValue('device'),
+                },
+            },
             {provide: OAuthService, useValue: {getAccessToken: () => 'token'}},
         ],
     });
@@ -446,6 +456,94 @@ describe('a publication refused as stale', () => {
         await service.subscribeAudio([target('user_a'), target('user_b')]);
 
         expect(service.participantsWithAudio()).toContain('user_b');
+    });
+});
+
+/**
+ * `sessionGone` is the other half of the pair, and the opposite direction: not the track we asked
+ * for, but the session doing the asking. No snapshot repairs that and no retry outlives it - every
+ * call on a spent session id fails identically - so the only recovery is a new publication.
+ *
+ * This used to fall through to the transport retry below it, spend its three backoffs, and give up,
+ * which left whoever we were pulling silent for the rest of the channel. The video path had the
+ * recovery (`dropReceiveSession`); the audio path, which is where the microphone actually lives, did
+ * not.
+ */
+describe('a subscribe onto a session the server calls spent', () => {
+    /** The backend's answer: `409 {"error":"sessionGone","action":"recreateSession"}`. */
+    const spent = () => ({status: 409, error: {error: SESSION_GONE}});
+
+    let refetches: number;
+
+    beforeEach(() => {
+        refetches = 0;
+        service.staleSubscription$.subscribe(() => refetches++);
+        // The channel `connect` was called with. Reached into for the same reason `voiceSession` is:
+        // standing the real thing up would need the peer connection and the signalling round trips
+        // these tests exist to avoid.
+        (service as unknown as {voiceTarget: unknown}).voiceTarget = {
+            guildId: 'gild_1', channelId: 'chan_1',
+        };
+    });
+
+    it('starts a new publication rather than retrying the dead one', async () => {
+        engine.subscribe.mockRejectedValue(spent());
+
+        await service.subscribeAudio([target()]);
+
+        expect(engine.start).toHaveBeenCalledTimes(1);
+        // One attempt. The three backoffs below this branch are for a publisher who has not finished
+        // connecting - they can only spend time on a session that is already spent.
+        expect(engine.subscribe).toHaveBeenCalledTimes(1);
+    });
+
+    it('refetches, because the new session is subscribed to nothing at all', async () => {
+        engine.subscribe.mockRejectedValue(spent());
+
+        await service.subscribeAudio([target()]);
+
+        expect(refetches).toBe(1);
+    });
+
+    it('costs one rebuild however many subscribes the dead session failed', async () => {
+        engine.subscribe.mockRejectedValue(spent());
+
+        // What a room of three publishers does: every one of them fails at once.
+        await service.subscribeAudio([target('user_a'), target('user_b'), target('user_c')]);
+
+        expect(engine.start).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not refetch when the rebuild itself failed', async () => {
+        engine.subscribe.mockRejectedValue(spent());
+        engine.start.mockRejectedValue(new Error('engine down'));
+
+        await service.subscribeAudio([target()]);
+
+        // The refetch is what re-subscribes the room, so signalling it here would send every
+        // subscribe straight back through this branch as fast as the network allows.
+        expect(refetches).toBe(0);
+    });
+
+    it('stops rebuilding once the new sessions keep dying too', async () => {
+        engine.subscribe.mockRejectedValue(spent());
+
+        // Each round is a refetch's worth of reconcile, on a fresh session id so nothing dedupes it.
+        for (let i = 0; i <= MAX_PUBLICATION_REBUILDS; i++) {
+            await service.subscribeAudio([target('user_a', `sess_${i}`)]);
+        }
+
+        // Capped rather than republishing the microphone on every refetch for the rest of the call.
+        expect(engine.start).toHaveBeenCalledTimes(MAX_PUBLICATION_REBUILDS);
+    });
+
+    it('does not republish into a channel this client has already left', async () => {
+        engine.subscribe.mockRejectedValue(spent());
+        (service as unknown as {voiceTarget: unknown}).voiceTarget = null;
+
+        await service.subscribeAudio([target()]);
+
+        expect(engine.start).not.toHaveBeenCalled();
     });
 });
 

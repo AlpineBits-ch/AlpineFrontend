@@ -2,7 +2,7 @@ import {readdirSync, readFileSync} from 'node:fs';
 import {join, relative} from 'node:path';
 import {describe, expect, it} from 'vitest';
 import en from '../assets/i18n/locales/en.json';
-import {ENTITLEMENT_TRANSLATION_KEYS} from './core/entitlement-message';
+import {ENTITLEMENT_KEY_NAME_KEYS, ENTITLEMENT_TRANSLATION_KEYS} from './core/entitlement-message';
 
 /**
  * Every `'SOME.KEY' | translate` in the app resolves to a string in en.json.
@@ -90,6 +90,39 @@ describe('translation keys', () => {
 
         expect(ENTITLEMENT_TRANSLATION_KEYS.length).toBeGreaterThan(10);
         expect(missing, `keys held in a table but absent from en.json:\n${missing.join('\n')}`)
+            .toEqual([]);
+    });
+
+    /**
+     * No two catalogue keys wear the same label.
+     *
+     * <p>The plan comparison table draws one row per key, so two keys sharing a label are two rows
+     * a reader cannot tell apart. That shipped: `storage.upload_max_bytes` and
+     * `user.upload_max_bytes` were both "Upload size", and the table showed the row twice with the
+     * same figure because the plan seed happened to set both to the same bytes. They are not
+     * duplicates - one is the paired ceiling on uploads into a guild, the other is the user-scoped
+     * one for direct messages - so the day the two values diverge the duplicate stops being merely
+     * redundant and starts being wrong.</p>
+     *
+     * <p>Asserted on the rendered <b>strings</b> rather than on the key names, because the mistake
+     * is made in the locale file and not in the table.</p>
+     */
+    it('gives no two entitlement keys the same label', () => {
+        const strings = en as Record<string, string>;
+        const byLabel = new Map<string, string[]>();
+
+        for (const [catalogueKey, translationKey] of Object.entries(ENTITLEMENT_KEY_NAME_KEYS)) {
+            const label = strings[translationKey];
+            if (label === undefined) continue;
+            byLabel.set(label, [...(byLabel.get(label) ?? []), catalogueKey]);
+        }
+
+        const collisions = [...byLabel.entries()]
+            .filter(([, keys]) => keys.length > 1)
+            .map(([label, keys]) => `"${label}" is the label for ${keys.join(' and ')}`);
+
+        expect(Object.keys(ENTITLEMENT_KEY_NAME_KEYS).length).toBeGreaterThan(5);
+        expect(collisions, `entitlement keys sharing one label:\n${collisions.join('\n')}`)
             .toEqual([]);
     });
 });
