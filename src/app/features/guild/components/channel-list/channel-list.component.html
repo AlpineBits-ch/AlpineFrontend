@@ -185,7 +185,8 @@
 <p-contextMenu #listMenu [model]="guildMenuItems()" appendTo="body"/>
 
 <!-- ── Per-person invite panel ─────────────────────────────────────────────── -->
-<p-popover #invitePopover (onHide)="onInvitePanelHide()" [style]="{padding: '0'}" appendTo="body">
+<p-popover #invitePopover (onHide)="onInvitePanelHide()" appendTo="body"
+           styleClass="channel-invite-popover">
     @if (invitePanelChannel(); as channel) {
         <app-channel-invite-panel
                 (more)="openRingPicker()"

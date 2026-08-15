@@ -401,6 +401,62 @@ html, body {
   overflow: hidden;
 }
 
+/* ── The invite panel's surface ──────────────────────────────────────────────
+   A drawer out of the sidebar, not a speech bubble. PrimeNG draws every popover
+   with `:before`/`:after` arrow triangles and a gutter to sit them in, which is
+   what made this read as a tooltip; both go, and the panel keeps the channel
+   list's own surface instead of the overlay token's.
+
+   Stated unconditionally rather than under `.dark`. This app has no light mode -
+   `dark` is set statically on <body> in index.html and nothing toggles it - and
+   an overlay whose colour depends on a class it has to inherit through
+   `appendTo="body"` is exactly the fragility worth removing here. */
+.channel-invite-popover.p-popover {
+  margin-block-start: 0.375rem;
+  /* The panel inside owns every pixel of the surface. Leaving it here as well would
+     put a second border a hair outside the one you can see, and would tie the panel's
+     colour to an overlay token it has to inherit through `appendTo="body"`. */
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.channel-invite-popover.p-popover-flipped {
+  margin-block-start: 0;
+  margin-block-end: 0.375rem;
+}
+
+/* Both pseudo-elements, both orientations: the flipped rules re-colour the same
+   two triangles rather than drawing new ones. */
+.channel-invite-popover.p-popover:after,
+.channel-invite-popover.p-popover:before {
+  display: none;
+}
+
+.channel-invite-popover .p-popover-content {
+  padding: 0;
+}
+
+/* Out of the column it belongs to, rather than in from nowhere: half a centimetre
+   of travel is enough to say which side it came from. On the panel's own surface,
+   never on `.p-popover` - that element is driven by PrimeNG's motion directive,
+   which needs its animation events to finish the open and, more importantly, the
+   close. */
+.channel-invite-panel {
+  animation: channel-invite-in var(--duration-base) var(--ease-brand);
+}
+
+@keyframes channel-invite-in {
+  from {
+    opacity: 0;
+    transform: translateX(-0.5rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
 /* The empty seat: an avatar-sized hole where a person would be, in the slot the
    participant rows put their faces in. Dashed rather than filled - it is the one
    row in this column that is not somebody. */
@@ -411,7 +467,9 @@ html, body {
   height: 1.125rem;
   align-items: center;
   justify-content: center;
-  border: 1px dashed rgb(255 255 255 / 0.25);
+  /* Tracks the row's own colour rather than stating an alpha of its own, so the
+     seat brightens with the label beside it on hover instead of drifting apart. */
+  border: 1px dashed currentColor;
   border-radius: 9999px;
   transition: border-color var(--duration-fast) var(--ease-brand),
               color var(--duration-fast) var(--ease-brand);
@@ -577,8 +635,9 @@ button, a, [role="button"], input, select, textarea, label {
 @media (prefers-reduced-motion: reduce) {
   .status-pulse,
   .speaking-ring,
-  /* The row still appears - it just arrives at full height instead of growing into it. */
-  .invite-nudge {
+  /* Both still appear - they just arrive where they are going instead of travelling to it. */
+  .invite-nudge,
+  .channel-invite-panel {
     animation: none;
   }
 
