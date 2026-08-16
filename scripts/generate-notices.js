@@ -89,9 +89,26 @@ function splitTopLevel(expr, op) {
     return parts.map(p => p.trim()).filter(Boolean);
 }
 
+/**
+ * True when the leading `(` is closed by the trailing `)`, rather than by something in between.
+ *
+ * `(MIT OR Apache-2.0) AND (BSD-3-Clause OR ISC)` begins and ends with a paren without being
+ * wrapped in one, and peeling those off would splice two alternatives into a single malformed one.
+ */
+function wrappedInOneGroup(s) {
+    let depth = 0;
+    for (let i = 0; i < s.length; i++) {
+        if (s[i] === '(') depth++;
+        else if (s[i] === ')' && --depth === 0) return i === s.length - 1;
+    }
+    return false;
+}
+
 function stripOuterParens(s) {
     let out = s.trim();
-    while (out.startsWith('(') && out.endsWith(')')) out = out.slice(1, -1).trim();
+    while (out.startsWith('(') && out.endsWith(')') && wrappedInOneGroup(out)) {
+        out = out.slice(1, -1).trim();
+    }
     return out;
 }
 
@@ -101,9 +118,13 @@ function stripOuterParens(s) {
  * `AND` is a conjunction of obligations - every side must be satisfied, so every side is emitted.
  * `jpeg-encoder` is the case that makes this matter: `(MIT OR Apache-2.0) AND IJG` means the IJG
  * credit is owed no matter which permissive licence is chosen for the other half.
+ *
+ * The outer parens come off before the split, not after. `@bufbuild/protobuf` declares its terms as
+ * `(Apache-2.0 AND BSD-3-Clause)`, and splitting first left that `AND` at depth one, so the whole
+ * string was carried forward as a single licence id - one that has no text and never will.
  */
 function parseExpression(expr) {
-    return splitTopLevel(normalizeExpression(expr), 'AND')
+    return splitTopLevel(stripOuterParens(normalizeExpression(expr)), 'AND')
         .map(conj => splitTopLevel(stripOuterParens(conj), 'OR').map(stripOuterParens));
 }
 

@@ -42,6 +42,26 @@ test('AND keeps every conjunct, because both obligations are owed', () => {
     assert.deepStrictEqual(resolveExpression('(MIT OR Apache-2.0) AND IJG'), ['MIT', 'IJG']);
 });
 
+test('a wholly parenthesised expression still splits on AND', () => {
+    // @bufbuild/protobuf declares `(Apache-2.0 AND BSD-3-Clause)`. Splitting before stripping the
+    // outer parens left the AND at depth 1, so the whole string was taken for one licence id.
+    assert.deepStrictEqual(
+        parseExpression('(Apache-2.0 AND BSD-3-Clause)'), [['Apache-2.0'], ['BSD-3-Clause']]);
+    assert.deepStrictEqual(
+        resolveExpression('(Apache-2.0 AND BSD-3-Clause)'), ['Apache-2.0', 'BSD-3-Clause']);
+});
+
+test('adjacent paren groups are not mistaken for one enclosing pair', () => {
+    // `(...)` at both ends without being a single pair: stripping them blindly would splice the
+    // two groups into one malformed alternative.
+    assert.deepStrictEqual(
+        parseExpression('(MIT OR Apache-2.0) AND (BSD-3-Clause OR ISC)'),
+        [['MIT', 'Apache-2.0'], ['BSD-3-Clause', 'ISC']]);
+    assert.deepStrictEqual(
+        resolveExpression('(MIT OR Apache-2.0) AND (BSD-3-Clause OR ISC)'), ['MIT', 'ISC']);
+    assert.deepStrictEqual(resolveExpression('(Zlib) OR (MIT)'), ['MIT']);
+});
+
 test('OR picks the cheapest obligation to satisfy', () => {
     assert.deepStrictEqual(resolveExpression('Apache-2.0 OR MIT'), ['MIT']);
     assert.deepStrictEqual(resolveExpression('Zlib OR Apache-2.0 OR MIT'), ['MIT']);

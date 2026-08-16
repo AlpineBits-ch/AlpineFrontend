@@ -143,7 +143,7 @@ Arun Raghavan <arun.raghavan@collabora.co.uk>
 
 ## Rust crates
 
-Compiled into the application binary. 909 packages, 449 distinct notices.
+Compiled into the application binary. 941 packages, 468 distinct notices.
 
 ### adler2 2.0.1
 
@@ -515,7 +515,7 @@ Copyright (c) 2014 Benjamin Sago
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
-### anyhow 1.0.102, async-channel 2.5.0, async-executor 1.14.0, async-io 2.6.0, async-lock 3.4.2, async-process 2.5.0, async-recursion 1.1.1, async-signal 0.2.14, async-task 4.7.1, async-trait 0.1.89, blocking 1.6.2, camino 1.2.2, concurrent-queue 2.5.0, ctor 0.8.0, ctor-proc-macro 0.0.7, curve25519-dalek-derive 0.1.1, displaydoc 0.2.5, dtoa 1.0.11, dtor 0.3.0, dtor-proc-macro 0.0.6, dyn-clone 1.0.20, erased-serde 0.4.10, event-listener 5.4.1, event-listener-strategy 0.5.4, fastrand 2.4.1, flume 0.11.1, group 0.13.0, hermit-abi 0.1.19, hermit-abi 0.5.2, itoa 1.0.18, khronos-egl 6.0.0, leb128fmt 0.1.0, ntapi 0.4.3, once_cell 1.21.4, ordered-stream 0.2.0, paste 1.0.15, pastey 0.2.2, pathdiff 0.2.3, pin-project-lite 0.2.17, piper 0.2.5, polling 3.11.0, portable-atomic 1.14.0, portable-atomic-util 0.2.7, prettyplease 0.2.37, proc-macro2 1.0.106, quote 1.0.45, ref-cast 1.0.25, ref-cast-impl 1.0.25, rsa 0.9.10, rustc-hash 1.1.0, rustc-hash 2.1.2, rustversion 1.0.22, semver 1.0.28, serde 1.0.228, serde_bytes 0.11.19, serde_core 1.0.228, serde_derive 1.0.228, serde_derive_internals 0.29.1, serde_json 1.0.149, serde_repr 0.1.20, serde-untagged 0.1.9, servo_arc 0.4.3, simd_cesu8 1.1.1, smol_str 0.2.2, swift-bridge 0.1.59, syn 1.0.109, syn 2.0.117, system-deps 6.2.2, system-deps 7.0.8, thiserror 1.0.69, thiserror 2.0.18, thiserror-impl 1.0.69, thiserror-impl 2.0.18, typeid 1.0.3, utf-8 0.7.6, wasm-streams 0.5.0
+### anyhow 1.0.102, async-channel 1.9.0, async-channel 2.5.0, async-executor 1.14.0, async-global-executor 2.4.1, async-io 2.6.0, async-lock 3.4.2, async-native-tls 0.5.0, async-process 2.5.0, async-recursion 1.1.1, async-signal 0.2.14, async-std 1.13.2, async-task 4.7.1, async-trait 0.1.89, blocking 1.6.2, camino 1.2.2, concurrent-queue 2.5.0, ctor 0.8.0, ctor-proc-macro 0.0.7, curve25519-dalek-derive 0.1.1, displaydoc 0.2.5, dtoa 1.0.11, dtor 0.3.0, dtor-proc-macro 0.0.6, dyn-clone 1.0.20, erased-serde 0.4.10, event-listener 2.5.3, event-listener 5.4.1, event-listener-strategy 0.5.4, fastrand 2.4.1, flume 0.11.1, group 0.13.0, hermit-abi 0.1.19, hermit-abi 0.5.2, itoa 1.0.18, khronos-egl 6.0.0, leb128fmt 0.1.0, ntapi 0.4.3, once_cell 1.21.4, ordered-stream 0.2.0, paste 1.0.15, pastey 0.2.2, pathdiff 0.2.3, pin-project-lite 0.2.17, piper 0.2.5, polling 3.11.0, portable-atomic 1.14.0, portable-atomic-util 0.2.7, prettyplease 0.2.37, proc-macro2 1.0.106, quote 1.0.45, ref-cast 1.0.25, ref-cast-impl 1.0.25, rsa 0.9.10, rustc-hash 1.1.0, rustc-hash 2.1.2, rustversion 1.0.22, semver 1.0.28, serde 1.0.228, serde_bytes 0.11.19, serde_core 1.0.228, serde_derive 1.0.228, serde_derive_internals 0.29.1, serde_json 1.0.149, serde_repr 0.1.20, serde-untagged 0.1.9, servo_arc 0.4.3, simd_cesu8 1.1.1, smol_str 0.2.2, swift-bridge 0.1.59, syn 1.0.109, syn 2.0.117, system-deps 6.2.2, system-deps 7.0.8, thiserror 1.0.69, thiserror 2.0.18, thiserror-impl 1.0.69, thiserror-impl 2.0.18, typeid 1.0.3, utf-8 0.7.6, wasm-streams 0.5.0
 
 **Licence:** MIT OR Apache-2.0 / Apache-2.0 OR MIT / MIT/Apache-2.0 / Apache-2.0/MIT
 **Source:** https://github.com/dtolnay/anyhow
@@ -605,6 +605,18 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 The MIT License (MIT)
 Copyright (c) 2020 Yoshua Wuyts
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
+### async-tungstenite 0.29.1
+
+**Licence:** MIT
+**Source:** https://github.com/sdroege/async-tungstenite
+
+```text
+Copyright (c) 2017 Daniel Abramov
+Copyright (c) 2017 Alexey Galakhov
+Copyright (c) 2019 Sebastian Dröge
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
@@ -1773,7 +1785,7 @@ Copyright (c) 2016-2020 RustCrypto Developers
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
-### clang-sys 1.8.1, cpal 0.15.3, gethostname 1.1.0, hound 3.5.1, nokhwa 0.10.11, sync_wrapper 1.0.2, tao 0.35.2, waitgroup 0.1.2, xcap 0.9.4
+### clang-sys 1.8.1, cpal 0.15.3, gethostname 1.1.0, hound 3.5.1, nokhwa 0.10.11, prost-build 0.12.6, prost-derive 0.12.6, prost-types 0.12.6, sync_wrapper 1.0.2, tao 0.35.2, waitgroup 0.1.2, xcap 0.9.4
 
 **Licence:** Apache-2.0
 **Source:** https://github.com/KyleMayes/clang-sys
@@ -1893,7 +1905,7 @@ Copyright (c) the core-models authors — Cryspen
 ```
 Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
 
-### coreaudio-rs 0.11.3, either 1.15.0, itertools 0.13.0, serde_with 3.19.0, serde_with_macros 3.19.0
+### coreaudio-rs 0.11.3, either 1.15.0, itertools 0.11.0, itertools 0.12.1, itertools 0.13.0, petgraph 0.6.5, serde_with 3.19.0, serde_with_macros 3.19.0
 
 **Licence:** MIT/Apache-2.0 / MIT OR Apache-2.0
 **Source:** https://github.com/RustAudio/coreaudio-rs.git
@@ -3199,6 +3211,16 @@ Copyright (c) 2016 Jelte Fennema
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
+### device-info 0.1.1
+
+**Licence:** Apache-2.0
+**Source:** https://github.com/livekit/rust-sdks
+
+```text
+Copyright (c) the device-info authors — https://github.com/livekit/rust-sdks
+```
+Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
+
 ### digest 0.10.7, hmac 0.12.1
 
 **Licence:** MIT OR Apache-2.0
@@ -4305,6 +4327,18 @@ Copyright (c) 2016-2021 Diggory Blake, and other contributors.
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
+### fixedbitset 0.4.2
+
+**Licence:** MIT/Apache-2.0
+**Source:** https://github.com/petgraph/fixedbitset
+
+Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
+
+```text
+Copyright (c) 2015-2017
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
 ### flate2 1.1.9
 
 **Licence:** MIT OR Apache-2.0
@@ -5123,6 +5157,16 @@ Copyright (c) 2022-2022 Tauri Programme within The Commons Conservancy
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
+### gloo-timers 0.3.0
+
+**Licence:** MIT OR Apache-2.0
+**Source:** https://github.com/rustwasm/gloo/tree/master/crates/timers
+
+```text
+Copyright (c) the gloo-timers authors — Rust and WebAssembly Working Group
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
 ### hax-lib 0.3.6
 
 **Licence:** Apache-2.0
@@ -5671,6 +5715,17 @@ Copyright (c) 2022 Chance Dinkins
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
+### jsonwebtoken 10.4.0
+
+**Licence:** MIT
+**Source:** https://github.com/Keats/jsonwebtoken
+
+```text
+The MIT License (MIT)
+Copyright (c) 2015 Vincent Prouillet
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
 ### k256 0.13.4
 
 **Licence:** Apache-2.0 OR MIT
@@ -5716,6 +5771,31 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 Copyright (c) the khronos_api authors — Brendan Zabarauskas <bjzaba@yahoo.com.au>, Corey Richardson, Arseny Kapoulkine, Pierre Krieger <pierre.krieger1708@gmail.com>
 ```
 Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
+
+### kv-log-macro 1.0.7
+
+**Licence:** MIT OR Apache-2.0
+**Source:** https://github.com/yoshuawuyts/kv-log-macro
+
+```text
+Copyright 2019 Yoshua Wuyts
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+```
+Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
+
+```text
+The MIT License (MIT)
+Copyright (c) 2019 Yoshua Wuyts
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### lazy_static 1.5.0, metal 0.18.0, rayon 1.12.0, rayon-core 1.13.0
 
@@ -6524,6 +6604,56 @@ the License, but only in their entirety and only with respect to the Combined
 Software.
 ```
 
+### livekit-api 0.6.3
+
+**Licence:** Apache-2.0
+**Source:** https://github.com/livekit/rust-sdks
+
+```text
+Copyright (c) the livekit-api authors — https://github.com/livekit/rust-sdks
+```
+Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
+
+### livekit-common 0.1.1
+
+**Licence:** Apache-2.0
+**Source:** https://github.com/livekit/rust-sdks
+
+```text
+Copyright (c) the livekit-common authors — https://github.com/livekit/rust-sdks
+```
+Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
+
+### livekit-net 0.1.2
+
+**Licence:** Apache-2.0
+**Source:** https://github.com/livekit/rust-sdks
+
+```text
+Copyright (c) the livekit-net authors — https://github.com/livekit/rust-sdks
+```
+Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
+
+### livekit-protocol 0.7.12
+
+**Licence:** Apache-2.0
+**Source:** https://github.com/livekit/rust-sdks
+
+```text
+Copyright (c) the livekit-protocol authors — https://github.com/livekit/rust-sdks
+```
+Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
+
+### livekit-runtime 0.4.0
+
+**Licence:** Apache-2.0
+**Source:** https://github.com/livekit/rust-sdks
+
+```text
+Copyright (c) the livekit-runtime authors — https://github.com/livekit/rust-sdks
+```
+Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
+
 ### lock_api 0.4.14, parking_lot 0.11.2, parking_lot 0.12.5, parking_lot_core 0.8.6, parking_lot_core 0.9.12, rustc_version 0.4.1
 
 **Licence:** MIT OR Apache-2.0 / Apache-2.0/MIT
@@ -6795,6 +6925,18 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 Copyright (c) Radzivon Bartoshyk. All rights reserved.
 ```
 Distributed under the [BSD-3-Clause licence](#licence-bsd-3-clause), reproduced in full below.
+
+### multimap 0.10.1
+
+**Licence:** MIT OR Apache-2.0
+**Source:** https://github.com/havarnov/multimap
+
+Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
+
+```text
+Copyright (c) 2016 multimap developers
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### nanorand 0.7.0
 
@@ -7586,6 +7728,36 @@ option. All files in the project carrying such notice may not be
 copied, modified, or distributed except according to those terms.
 ```
 
+### pbjson 0.6.0
+
+**Licence:** MIT
+**Source:** https://github.com/influxdata/pbjson
+
+```text
+Copyright (c) the pbjson authors — Raphael Taylor-Davies <r.taylordavies@googlemail.com>
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
+### pbjson-build 0.6.2
+
+**Licence:** MIT
+**Source:** https://github.com/influxdata/pbjson
+
+```text
+Copyright (c) the pbjson-build authors — Raphael Taylor-Davies <r.taylordavies@googlemail.com>
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
+### pbjson-types 0.6.0
+
+**Licence:** MIT
+**Source:** https://github.com/influxdata/pbjson
+
+```text
+Copyright (c) the pbjson-types authors — Raphael Taylor-Davies <r.taylordavies@googlemail.com>
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
 ### pem 3.0.6
 
 **Licence:** MIT
@@ -7749,6 +7921,16 @@ MIT License
 Copyright (c) 2019-2020 CreepySkeleton
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
+### prost 0.12.6
+
+**Licence:** Apache-2.0
+**Source:** https://github.com/tokio-rs/prost
+
+```text
+Copyright (c) the prost authors — Dan Burkert <dan@danburkert.com>, Lucio Franco <luciofranco14@gmail.com>, Casper Meijn <casper@meijn.net>, Tokio Contributors <team@tokio.rs>
+```
+Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
 
 ### quick-xml 0.30.0, quick-xml 0.37.5, quick-xml 0.39.3
 
@@ -10123,7 +10305,7 @@ Copyright (c) 2019 Daniel "Lokathor" Gee.
 ```
 Distributed under the [Zlib licence](#licence-zlib), reproduced in full below.
 
-### tokio 1.52.2, tokio-util 0.7.18
+### tokio 1.52.2, tokio-stream 0.1.19, tokio-util 0.7.18
 
 **Licence:** MIT
 **Source:** https://github.com/tokio-rs/tokio
@@ -10168,6 +10350,17 @@ Copyright (c) 2017 quininer kel
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
+### tokio-tungstenite 0.29.0
+
+**Licence:** MIT
+**Source:** https://github.com/snapview/tokio-tungstenite
+
+```text
+Copyright (c) 2017 Daniel Abramov
+Copyright (c) 2017 Alexey Galakhov
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
 ### tower 0.5.3, tower-layer 0.3.3, tower-service 0.3.3
 
 **Licence:** MIT
@@ -10208,6 +10401,19 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) 2018-2023 Sean McArthur
 Copyright (c) 2016 Alex Crichton
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
+### tungstenite 0.26.2, tungstenite 0.29.0
+
+**Licence:** MIT OR Apache-2.0
+**Source:** https://github.com/snapview/tungstenite-rs
+
+Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
+
+```text
+Copyright (c) 2017 Alexey Galakhov
+Copyright (c) 2016 Jason Housley
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
@@ -10400,6 +10606,19 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ```text
 Copyright (c) the v4l2-sys-mit authors — Christopher N. Hesse <raymanfx@gmail.com>
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
+### value-bag 1.13.2
+
+**Licence:** Apache-2.0 OR MIT
+**Source:** https://github.com/sval-rs/value-bag
+
+Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
+
+```text
+MIT License
+Copyright (c) 2020 sval-rs
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
@@ -10970,7 +11189,7 @@ Distributed under the [Zlib licence](#licence-zlib), reproduced in full below.
 
 ## npm packages
 
-Bundled into the application frontend. 355 packages, 183 distinct notices.
+Bundled into the application frontend. 366 packages, 192 distinct notices.
 
 ### @alloc/quick-lru 5.2.0, ansi-regex 5.0.1, ansi-styles 4.3.0, camelcase 5.3.1, find-up 4.1.0, is-fullwidth-code-point 3.0.0, locate-path 5.0.0, p-limit 2.3.0, p-locate 4.1.0, p-retry 4.6.2, p-try 2.2.0, path-exists 4.0.0, string-width 4.2.3, strip-ansi 6.0.1, wrap-ansi 6.2.0
 
@@ -11037,7 +11256,22 @@ Copyright (c) 2017 Braintree
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
-### @chevrotain/types 11.1.2, @google/genai 2.15.0, detect-libc 2.1.2, ecdsa-sig-formatter 1.0.11, gaxios 7.3.0, gcp-metadata 8.1.2, google-auth-library 10.9.1, google-logging-utils 1.1.3, long 5.3.2, openai 7.4.0, rxjs 7.8.2
+### @bufbuild/protobuf 1.10.1
+
+**Licence:** (Apache-2.0 AND BSD-3-Clause)
+**Source:** https://github.com/bufbuild/protobuf-es.git
+
+```text
+Copyright (c) the @bufbuild/protobuf authors — https://github.com/bufbuild/protobuf-es.git
+```
+Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
+
+```text
+Copyright (c) the @bufbuild/protobuf authors — https://github.com/bufbuild/protobuf-es.git
+```
+Distributed under the [BSD-3-Clause licence](#licence-bsd-3-clause), reproduced in full below.
+
+### @chevrotain/types 11.1.2, @google/genai 2.15.0, @livekit/protocol 1.50.4, detect-libc 2.1.2, ecdsa-sig-formatter 1.0.11, gaxios 7.3.0, gcp-metadata 8.1.2, google-auth-library 10.9.1, google-logging-utils 1.1.3, long 5.3.2, openai 7.4.0, rxjs 7.8.2
 
 **Licence:** Apache-2.0
 **Source:** git://github.com/Chevrotain/chevrotain.git
@@ -11624,6 +11858,189 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 Copyright 2019 Justin Ridgewell <jridgewell@google.com>
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
+### @livekit/mutex 1.1.1, livekit-client 2.21.0
+
+**Licence:** Apache-2.0
+**Source:** git@github.com:livekit/ts-mutex.git
+
+<!-- LICENSE -->
+```text
+Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+      "Source" form shall mean the preferred form for making modifications,
+      including but not limited to software source code, documentation
+      source, and configuration files.
+
+      "Object" form shall mean any form resulting from mechanical
+      transformation or translation of a Source form, including but
+      not limited to compiled object code, generated documentation,
+      and conversions to other media types.
+
+      "Work" shall mean the work of authorship, whether in Source or
+      Object form, made available under the License, as indicated by a
+      copyright notice that is included in or attached to the work
+      (an example is provided in the Appendix below).
+
+      "Derivative Works" shall mean any work, whether in Source or Object
+      form, that is based on (or derived from) the Work and for which the
+      editorial revisions, annotations, elaborations, or other modifications
+      represent, as a whole, an original work of authorship. For the purposes
+      of this License, Derivative Works shall not include works that remain
+      separable from, or merely link (or bind by name) to the interfaces of,
+      the Work and Derivative Works thereof.
+
+      "Contribution" shall mean any work of authorship, including
+      the original version of the Work and any modifications or additions
+      to that Work or Derivative Works thereof, that is intentionally
+      submitted to Licensor for inclusion in the Work by the copyright owner
+      or by an individual or Legal Entity authorized to submit on behalf of
+      the copyright owner. For the purposes of this definition, "submitted"
+      means any form of electronic, verbal, or written communication sent
+      to the Licensor or its representatives, including but not limited to
+      communication on electronic mailing lists, source code control systems,
+      and issue tracking systems that are managed by, or on behalf of, the
+      Licensor for the purpose of discussing and improving the Work, but
+      excluding communication that is conspicuously marked or otherwise
+      designated in writing by the copyright owner as "Not a Contribution."
+
+      "Contributor" shall mean Licensor and any individual or Legal Entity
+      on behalf of whom a Contribution has been received by Licensor and
+      subsequently incorporated within the Work.
+
+   2. Grant of Copyright License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      copyright license to reproduce, prepare Derivative Works of,
+      publicly display, publicly perform, sublicense, and distribute the
+      Work and such Derivative Works in Source or Object form.
+
+   3. Grant of Patent License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      (except as stated in this section) patent license to make, have made,
+      use, offer to sell, sell, import, and otherwise transfer the Work,
+      where such license applies only to those patent claims licensable
+      by such Contributor that are necessarily infringed by their
+      Contribution(s) alone or by combination of their Contribution(s)
+      with the Work to which such Contribution(s) was submitted. If You
+      institute patent litigation against any entity (including a
+      cross-claim or counterclaim in a lawsuit) alleging that the Work
+      or a Contribution incorporated within the Work constitutes direct
+      or contributory patent infringement, then any patent licenses
+      granted to You under this License for that Work shall terminate
+      as of the date such litigation is filed.
+
+   4. Redistribution. You may reproduce and distribute copies of the
+      Work or Derivative Works thereof in any medium, with or without
+      modifications, and in Source or Object form, provided that You
+      meet the following conditions:
+
+      (a) You must give any other recipients of the Work or
+          Derivative Works a copy of this License; and
+
+      (b) You must cause any modified files to carry prominent notices
+          stating that You changed the files; and
+
+      (c) You must retain, in the Source form of any Derivative Works
+          that You distribute, all copyright, patent, trademark, and
+          attribution notices from the Source form of the Work,
+          excluding those notices that do not pertain to any part of
+          the Derivative Works; and
+
+      (d) If the Work includes a "NOTICE" text file as part of its
+          distribution, then any Derivative Works that You distribute must
+          include a readable copy of the attribution notices contained
+          within such NOTICE file, excluding those notices that do not
+          pertain to any part of the Derivative Works, in at least one
+          of the following places: within a NOTICE text file distributed
+          as part of the Derivative Works; within the Source form or
+          documentation, if provided along with the Derivative Works; or,
+          within a display generated by the Derivative Works, if and
+          wherever such third-party notices normally appear. The contents
+          of the NOTICE file are for informational purposes only and
+          do not modify the License. You may add Your own attribution
+          notices within Derivative Works that You distribute, alongside
+          or as an addendum to the NOTICE text from the Work, provided
+          that such additional attribution notices cannot be construed
+          as modifying the License.
+
+      You may add Your own copyright statement to Your modifications and
+      may provide additional or different license terms and conditions
+      for use, reproduction, or distribution of Your modifications, or
+      for any such Derivative Works as a whole, provided Your use,
+      reproduction, and distribution of the Work otherwise complies with
+      the conditions stated in this License.
+
+   5. Submission of Contributions. Unless You explicitly state otherwise,
+      any Contribution intentionally submitted for inclusion in the Work
+      by You to the Licensor shall be under the terms and conditions of
+      this License, without any additional terms or conditions.
+      Notwithstanding the above, nothing herein shall supersede or modify
+      the terms of any separate license agreement you may have executed
+      with Licensor regarding such Contributions.
+
+   6. Trademarks. This License does not grant permission to use the trade
+      names, trademarks, service marks, or product names of the Licensor,
+      except as required for reasonable and customary use in describing the
+      origin of the Work and reproducing the content of the NOTICE file.
+
+   7. Disclaimer of Warranty. Unless required by applicable law or
+      agreed to in writing, Licensor provides the Work (and each
+      Contributor provides its Contributions) on an "AS IS" BASIS,
+      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+      implied, including, without limitation, any warranties or conditions
+      of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
+      PARTICULAR PURPOSE. You are solely responsible for determining the
+      appropriateness of using or redistributing the Work and assume any
+      risks associated with Your exercise of permissions under this License.
+
+   8. Limitation of Liability. In no event and under no legal theory,
+      whether in tort (including negligence), contract, or otherwise,
+      unless required by applicable law (such as deliberate and grossly
+      negligent acts) or agreed to in writing, shall any Contributor be
+      liable to You for damages, including any direct, indirect, special,
+      incidental, or consequential damages of any character arising as a
+      result of this License or out of the use or inability to use the
+      Work (including but not limited to damages for loss of goodwill,
+      work stoppage, computer failure or malfunction, or any and all
+      other commercial damages or losses), even if such Contributor
+      has been advised of the possibility of such damages.
+
+   9. Accepting Warranty or Additional Liability. While redistributing
+      the Work or Derivative Works thereof, You may choose to offer,
+      and charge a fee for, acceptance of support, warranty, indemnity,
+      or other liability obligations and/or rights consistent with this
+      License. However, in accepting such obligations, You may act only
+      on Your own behalf and on Your sole responsibility, not on behalf
+      of any other Contributor, and only if You agree to indemnify,
+      defend, and hold each Contributor harmless for any liability
+      incurred by, or claims asserted against, such Contributor by reason
+      of your accepting any such warranty or additional liability.
+```
 
 ### @mermaid-js/parser 1.2.0
 
@@ -13288,6 +13705,17 @@ Copyright (c) 2015 Toru Nagashima
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
+### events 3.3.0
+
+**Licence:** MIT
+**Source:** git://github.com/Gozala/events.git
+
+```text
+MIT
+Copyright Joyent, Inc. and other Node contributors.
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
 ### eventsource 2.0.2
 
 **Licence:** MIT
@@ -13556,6 +13984,17 @@ Copyright (c) Pooya Parsa <pooya@pi0.io>
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
+### jose 6.2.2
+
+**Licence:** MIT
+**Source:** panva/jose
+
+```text
+The MIT License (MIT)
+Copyright (c) 2018 Filip Skokan
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
 ### json-bigint 1.0.0
 
 **Licence:** MIT
@@ -13703,6 +14142,16 @@ maintained libraries used by this software which have their own
 licenses; we recommend you read them, as their terms may differ from the
 terms above.
 ```
+
+### loglevel 1.9.2
+
+**Licence:** MIT
+**Source:** git://github.com/pimterry/loglevel.git
+
+```text
+Copyright (c) 2013 Tim Perry
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### magic-string 0.30.21
 
@@ -14250,6 +14699,27 @@ Copyright (c) 2018 Nikita Skovoroda <chalkerx@gmail.com>
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
+### sdp 3.2.2
+
+**Licence:** MIT
+**Source:** git+https://github.com/fippo/sdp.git
+
+```text
+Copyright (c) 2017 Philipp Hancke
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
+### sdp-transform 2.15.0
+
+**Licence:** MIT
+**Source:** clux/sdp-transform
+
+```text
+(The MIT License)
+Copyright (c) 2013 Eirik Albrigtsen
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
 ### set-cookie-parser 2.7.2
 
 **Licence:** MIT
@@ -14443,6 +14913,17 @@ Copyright (c) 2018 Twitter, Inc.
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
+### typed-emitter 2.1.0
+
+**Licence:** MIT
+**Source:** github:andywer/typed-emitter
+
+```text
+The MIT License (MIT)
+Copyright (c) 2018 Andy Wermke
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
 ### undici-types 8.3.0
 
 **Licence:** MIT
@@ -14499,6 +14980,45 @@ Copyright (c) 2014, Domenic Denicola
 All rights reserved.
 ```
 Distributed under the [BSD-2-Clause licence](#licence-bsd-2-clause), reproduced in full below.
+
+### webrtc-adapter 9.0.6
+
+**Licence:** BSD-3-Clause
+**Source:** https://github.com/webrtchacks/adapter.git
+
+<!-- LICENSE.md -->
+```text
+Copyright (c) 2014, The WebRTC project authors. All rights reserved.
+Copyright (c) 2018, The adapter.js project authors. All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+  * Redistributions of source code must retain the above copyright
+    notice, this list of conditions and the following disclaimer.
+
+  * Redistributions in binary form must reproduce the above copyright
+    notice, this list of conditions and the following disclaimer in
+    the documentation and/or other materials provided with the
+    distribution.
+
+  * Neither the name of Google nor the names of its contributors may
+    be used to endorse or promote products derived from this software
+    without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```
 
 ### whatwg-url 5.0.0
 
