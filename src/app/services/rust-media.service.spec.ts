@@ -24,6 +24,7 @@ import {
 } from '../platform/ports/screen-publisher.port';
 import {LocalStreamChunk, ScreenPublisherHost} from '../platform/screen-publisher-host';
 import {BACKGROUND_IDLE_MS, PREVIEW_IDLE_MS, RustMediaService} from './rust-media.service';
+import {StreamLayerStats} from '../shared/call/stream-stats';
 
 /**
  * A publisher that records what it was asked to do.
@@ -51,6 +52,15 @@ class FakePublisher extends ScreenPublisher implements ScreenPublisherHost {
 
     /** Every `setLocalStreamEnabled`, in order, so the idle pause's reach into Rust is assertable. */
     readonly localStreamToggles: boolean[] = [];
+
+    /**
+     * Answers to successive `stats()` calls, consumed in order. Empty (the default) answers null on
+     * every call, matching a share whose stats have not landed - see the base `stats()` below, which
+     * every test not about the outbound poll relies on.
+     */
+    statsResponses: (StreamStatsSnapshot | null)[] = [];
+    /** Every `shareId` a `stats()` call was made with, in order. */
+    readonly statsCalls: string[] = [];
 
     async sources(): Promise<ScreenSource[]> {
         return this.sourceList;
@@ -86,8 +96,9 @@ class FakePublisher extends ScreenPublisher implements ScreenPublisherHost {
         this.muted.push({shareId, muted});
     }
 
-    async stats(_shareId: string): Promise<StreamStatsSnapshot | null> {
-        return null;
+    async stats(shareId: string): Promise<StreamStatsSnapshot | null> {
+        this.statsCalls.push(shareId);
+        return this.statsResponses.shift() ?? null;
     }
 
     async startNativeScreenCapture(): Promise<void> {
@@ -860,5 +871,130 @@ describe('RustMediaService: background preview pause', () => {
         vi.advanceTimersByTime(PREVIEW_IDLE_MS);
 
         expect(service.previewPaused()).toBe(true);
+    });
+});
+
+/**
+ * Task 12: the local tile's own poll of the publisher's stats.
+ *
+ * <p>The number this whole block exists to protect is `kbps` - the headline figure the panel shows,
+ * differentiated from two cumulative `bytesSent` samples rather than measured directly. `fakeAsync`
+ * does not work in this repo (no ProxyZone - see the idle-pause block above), and `pollOutbound` is
+ * async, so every test here drives the interval with `vi.advanceTimersByTimeAsync` rather than the
+ * synchronous `advanceTimersByTime` the other blocks use - the synchronous form advances the timer
+ * but does not wait for the `stats()` promise it kicked off to settle before the assertion runs.</p>
+ */
+describe('RustMediaService: outbound stats poll', () => {
+    beforeEach(() => {
+        vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
+    function snapshot(layers: (StreamLayerStats & {bytesSent: number})[]): StreamStatsSnapshot {
+        return {direction: 'outbound', source: 'native', capturedAt: 0, layers};
+    }
+
+    /** Starts a publish and turns the poll on, so each test only supplies its `stats()` answers. */
+    async function inspecting(fake: FakePublisher): Promise<RustMediaService> {
+        const {service} = setup(fake);
+        await service.startScreenPublish(options({shareId: 'live'}));
+        service.inspectOutbound(true);
+        return service;
+    }
+
+    it('reports no kbps on the first sample, not a zero', async () => {
+        const fake = new FakePublisher();
+        fake.statsResponses = [snapshot([{rid: 'a', bytesSent: 10_000}])];
+        const service = await inspecting(fake);
+
+        await vi.advanceTimersByTimeAsync(1000);
+
+        // Nothing to differentiate against yet - undefined, not 0, which would claim the stream is
+        // sending nothing rather than "not measured".
+        expect(service.outboundStats()?.layers[0].kbps).toBeUndefined();
+        const layer = service.outboundStats()?.layers[0] as (StreamLayerStats & {bytesSent?: number}) | undefined;
+        expect(layer?.bytesSent).toBe(10_000);
+    });
+
+    it('computes the correct kbps from two samples a known interval apart', async () => {
+        const fake = new FakePublisher();
+        fake.statsResponses = [
+            snapshot([{rid: 'a', bytesSent: 0}]),
+            snapshot([{rid: 'a', bytesSent: 125_000}]),
+        ];
+        const service = await inspecting(fake);
+
+        await vi.advanceTimersByTimeAsync(1000);
+        await vi.advanceTimersByTimeAsync(1000);
+
+        // 125,000 bytes over 1s = 1,000,000 bits/s = 1000 kbps.
+        expect(service.outboundStats()?.layers[0].kbps).toBe(1000);
+    });
+
+    /**
+     * A single shared "previous bytes" value would pass the two-sample test above by accident - it
+     * only has one rung to get right. This is the one that catches a `prevOutboundBytes` keyed by
+     * something other than rid.
+     */
+    it('differentiates each simulcast rung against its own previous sample', async () => {
+        const fake = new FakePublisher();
+        fake.statsResponses = [
+            snapshot([{rid: 'a', bytesSent: 0}, {rid: 'b', bytesSent: 0}]),
+            snapshot([{rid: 'a', bytesSent: 125_000}, {rid: 'b', bytesSent: 250_000}]),
+        ];
+        const service = await inspecting(fake);
+
+        await vi.advanceTimersByTimeAsync(1000);
+        await vi.advanceTimersByTimeAsync(1000);
+
+        const layers = service.outboundStats()?.layers ?? [];
+        expect(layers.find(l => l.rid === 'a')?.kbps).toBe(1000);
+        expect(layers.find(l => l.rid === 'b')?.kbps).toBe(2000);
+    });
+
+    /**
+     * The reason `inspectOutbound(false)` clears the previous sample rather than leaving it for the
+     * next `true` to overwrite: without the reset, a panel closed and reopened later would
+     * differentiate its first new sample against a counter that is minutes stale, producing a huge
+     * fabricated rate instead of the honest "no data yet".
+     */
+    it('starts from a fresh baseline after the panel closes and reopens, rather than a stale one', async () => {
+        const fake = new FakePublisher();
+        fake.statsResponses = [
+            snapshot([{rid: 'a', bytesSent: 0}]),
+            snapshot([{rid: 'a', bytesSent: 125_000}]),
+        ];
+        const service = await inspecting(fake);
+        await vi.advanceTimersByTimeAsync(1000);
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(service.outboundStats()?.layers[0].kbps).toBe(1000);
+
+        service.inspectOutbound(false);
+        expect(service.outboundStats()).toBeNull();
+
+        // A huge jump from the last sample before closing - if the baseline survived, this would
+        // land as a giant kbps instead of "no rate yet".
+        fake.statsResponses = [snapshot([{rid: 'a', bytesSent: 50_000_000}])];
+        service.inspectOutbound(true);
+        await vi.advanceTimersByTimeAsync(1000);
+
+        expect(service.outboundStats()?.layers[0].kbps).toBeUndefined();
+    });
+
+    it('stops polling once the panel closes', async () => {
+        const fake = new FakePublisher();
+        fake.statsResponses = [snapshot([{rid: 'a', bytesSent: 0}])];
+        const service = await inspecting(fake);
+        await vi.advanceTimersByTimeAsync(1000);
+
+        service.inspectOutbound(false);
+        fake.statsResponses = [snapshot([{rid: 'a', bytesSent: 999_999}])];
+        await vi.advanceTimersByTimeAsync(5000);
+
+        expect(fake.statsCalls.length).toBe(1);
+        expect(service.outboundStats()).toBeNull();
     });
 });
