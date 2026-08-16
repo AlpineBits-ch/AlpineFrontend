@@ -351,14 +351,113 @@ pub struct PublishAudioStats {
     pub packets_dropped: u64,
 }
 
+/// One ICE candidate pair as the transport reports it, and the two candidates it names.
+///
+/// <p>Structs of their own rather than the webrtc-rs types, for the same reason as
+/// {@link WireLayer}: `pick_transport` below must be testable without standing up a peer
+/// connection, and `ICECandidatePairStats` carries four `Instant` fields a unit test has no honest
+/// value for.</p>
+#[derive(Debug, Clone)]
+pub struct WirePair {
+    pub local_candidate_id: String,
+    pub remote_candidate_id: String,
+    pub succeeded: bool,
+    pub nominated: bool,
+    /// Seconds. Zero means "not measured yet" in webrtc-rs, which reports an `f64` and not an
+    /// `Option`, so it is treated as absent rather than as a 0 ms round trip.
+    pub current_round_trip_time: f64,
+    /// Bits per second. Zero is "not estimated", read the same way and for the same reason.
+    pub available_outgoing_bitrate: f64,
+}
+
+#[derive(Debug, Clone)]
+pub struct WireCandidate {
+    pub id: String,
+    pub candidate_type: String,
+    pub protocol: String,
+}
+
+/// The ICE path this publication is taking, as the panel's header block renders it.
+///
+/// <p>Shaped field for field like the webview's `StreamTransportStats`, because the panel draws
+/// both from one template. Before this existed the native payload carried a bare round-trip time
+/// and nothing else, so a desktop sharer relayed through TURN saw no Path row while a viewer of
+/// that very stream saw one - the two directions disagreeing about what is knowable over a
+/// difference that was only ever in the plumbing. Telling a relayed connection from a direct one is
+/// one of the four failures this whole readout exists to distinguish.</p>
+#[derive(Debug, Clone, Default, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PublishTransportStats {
+    pub rtt_ms: Option<u32>,
+    pub local_candidate_type: Option<String>,
+    pub remote_candidate_type: Option<String>,
+    pub protocol: Option<String>,
+    pub available_outgoing_kbps: Option<u32>,
+}
+
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PublishStats {
     pub codec: Option<String>,
     pub profile_level_id: Option<String>,
-    pub rtt_ms: Option<u32>,
+    pub transport: Option<PublishTransportStats>,
     pub layers: Vec<PublishLayerStats>,
     pub audio: Option<PublishAudioStats>,
+}
+
+/// The one candidate pair actually carrying media, resolved to the path it describes.
+///
+/// <p><b>Not any pair.</b> A connection keeps every failed and in-progress pair in its report for
+/// its whole life, and the first one in an unordered map is as likely to be a dead host-to-host
+/// candidate as the relay actually in use - which would report the exact opposite of the finding.
+/// The nominated succeeded pair wins, then any succeeded pair; that is the same rule `transportOf`
+/// applies on the webview side, tightened by the nomination check because webrtc-rs exposes it and
+/// the browser stats do not.</p>
+///
+/// <p>With no succeeded pair at all - ICE still gathering, or already gone - the RTCP round trip is
+/// still worth reporting on its own, so it survives as a transport block with only that field set.
+/// Zeroes are read as "not measured" rather than as measurements, because webrtc-rs types these as
+/// plain `f64` with no way to say "absent", and a 0 ms round trip rendered as fact would be a
+/// stronger and quite different claim from saying nothing.</p>
+pub fn pick_transport(
+    pairs: &[WirePair],
+    candidates: &std::collections::HashMap<String, WireCandidate>,
+    rtcp_rtt_ms: Option<u32>,
+) -> Option<PublishTransportStats> {
+    let chosen = pairs
+        .iter()
+        .find(|p| p.succeeded && p.nominated)
+        .or_else(|| pairs.iter().find(|p| p.succeeded));
+
+    let Some(pair) = chosen else {
+        return rtcp_rtt_ms.map(|rtt| PublishTransportStats {
+            rtt_ms: Some(rtt),
+            ..PublishTransportStats::default()
+        });
+    };
+
+    let local = candidates.get(&pair.local_candidate_id);
+    let remote = candidates.get(&pair.remote_candidate_id);
+
+    // The pair's own measurement beats the one the receiver reports back over RTCP: it is this
+    // connection's, measured on the path in use, rather than an end-to-end figure for a stream.
+    let rtt_ms = if pair.current_round_trip_time > 0.0 {
+        Some((pair.current_round_trip_time * 1000.0).round() as u32)
+    } else {
+        rtcp_rtt_ms
+    };
+
+    Some(PublishTransportStats {
+        rtt_ms,
+        local_candidate_type: local.map(|c| c.candidate_type.clone()),
+        remote_candidate_type: remote.map(|c| c.candidate_type.clone()),
+        protocol: local.map(|c| c.protocol.clone()),
+        available_outgoing_kbps: if pair.available_outgoing_bitrate > 0.0 {
+            Some((pair.available_outgoing_bitrate / 1000.0).round() as u32)
+        } else {
+            None
+        },
+    })
 }
 
 /// Pair the ladder against what the wire and the pump each report.
@@ -444,6 +543,9 @@ pub async fn publish_stats() -> Option<PublishStats> {
     let mut wire: Vec<WireLayer> = Vec::new();
     let mut lost_by_ssrc: std::collections::HashMap<u32, i64> = std::collections::HashMap::new();
     let mut rtt_ms: Option<u32> = None;
+    let mut pairs: Vec<WirePair> = Vec::new();
+    let mut candidates: std::collections::HashMap<String, WireCandidate> =
+        std::collections::HashMap::new();
 
     for value in report.reports.values() {
         match value {
@@ -466,6 +568,32 @@ pub async fn publish_stats() -> Option<PublishStats> {
                     rtt_ms = s.round_trip_time.map(|t| (t * 1000.0).round() as u32);
                 }
             }
+            // The ICE half. Both candidate variants are collected into one map keyed by id,
+            // because a pair names its two ends by id and does not care which side they came from.
+            webrtc::stats::StatsReportType::CandidatePair(s) => {
+                pairs.push(WirePair {
+                    local_candidate_id: s.local_candidate_id.clone(),
+                    remote_candidate_id: s.remote_candidate_id.clone(),
+                    succeeded: s.state == webrtc::ice::candidate::CandidatePairState::Succeeded,
+                    nominated: s.nominated,
+                    current_round_trip_time: s.current_round_trip_time,
+                    available_outgoing_bitrate: s.available_outgoing_bitrate,
+                });
+            }
+            webrtc::stats::StatsReportType::LocalCandidate(s)
+            | webrtc::stats::StatsReportType::RemoteCandidate(s) => {
+                candidates.insert(
+                    s.id.clone(),
+                    WireCandidate {
+                        id: s.id.clone(),
+                        candidate_type: s.candidate_type.to_string(),
+                        // webrtc-rs has no `protocol` on a candidate; the network type is where udp
+                        // and tcp are distinguished, and `network_short` is exactly the "udp"/"tcp"
+                        // vocabulary the browser's `protocol` field uses.
+                        protocol: s.network_type.network_short(),
+                    },
+                );
+            }
             _ => {}
         }
     }
@@ -480,7 +608,7 @@ pub async fn publish_stats() -> Option<PublishStats> {
         // The codec is fixed for this pipeline: `h264_capability()` is the only one registered.
         codec: Some("video/H264".to_string()),
         profile_level_id: profile,
-        rtt_ms,
+        transport: pick_transport(&pairs, &candidates, rtt_ms),
         layers: merge_layers(&ladder, &wire, &counters, encoder),
         audio: audio.map(|a| PublishAudioStats {
             packets_encoded: a.packets_encoded,
@@ -561,5 +689,101 @@ mod stats_tests {
         assert_eq!(layers.len(), 1);
         assert_eq!(layers[0].bytes_sent, 5_000);
         assert_eq!(layers[0].frames_encoded, 900);
+    }
+
+    // ── The ICE path ──────────────────────────────────────────────────────
+
+    fn candidate(id: &str, kind: &str, protocol: &str) -> WireCandidate {
+        WireCandidate {
+            id: id.to_string(),
+            candidate_type: kind.to_string(),
+            protocol: protocol.to_string(),
+        }
+    }
+
+    fn candidates(list: &[WireCandidate]) -> std::collections::HashMap<String, WireCandidate> {
+        list.iter().map(|c| (c.id.clone(), c.clone())).collect()
+    }
+
+    fn pair(local: &str, remote: &str, succeeded: bool, nominated: bool, rtt: f64) -> WirePair {
+        WirePair {
+            local_candidate_id: local.to_string(),
+            remote_candidate_id: remote.to_string(),
+            succeeded,
+            nominated,
+            current_round_trip_time: rtt,
+            available_outgoing_bitrate: 0.0,
+        }
+    }
+
+    #[test]
+    fn reports_the_path_of_the_succeeded_pair() {
+        let map = candidates(&[candidate("L", "relay", "udp"), candidate("R", "srflx", "udp")]);
+        let mut chosen = pair("L", "R", true, true, 0.084);
+        chosen.available_outgoing_bitrate = 2_400_000.0;
+
+        let t = pick_transport(&[chosen], &map, None).expect("a succeeded pair yields a path");
+
+        assert_eq!(t.local_candidate_type.as_deref(), Some("relay"));
+        assert_eq!(t.remote_candidate_type.as_deref(), Some("srflx"));
+        assert_eq!(t.protocol.as_deref(), Some("udp"));
+        assert_eq!(t.rtt_ms, Some(84));
+        assert_eq!(t.available_outgoing_kbps, Some(2_400));
+    }
+
+    /// The finding this exists for: a sharer relaying through TURN. Picking any pair rather than
+    /// the succeeded one would report the dead direct candidate that is still in the report, which
+    /// is the exact opposite of the truth the reader needs.
+    #[test]
+    fn ignores_failed_and_in_progress_pairs_and_prefers_the_nominated_one() {
+        let map = candidates(&[
+            candidate("HOST", "host", "udp"),
+            candidate("RELAY", "relay", "tcp"),
+            candidate("PEER", "prflx", "udp"),
+        ]);
+        let pairs = vec![
+            // A dead direct pair, still in the report for the connection's whole life.
+            pair("HOST", "PEER", false, false, 0.005),
+            // A succeeded but un-nominated pair, which is not the one carrying media.
+            pair("HOST", "PEER", true, false, 0.006),
+            pair("RELAY", "PEER", true, true, 0.19),
+        ];
+
+        let t = pick_transport(&pairs, &map, None).expect("a succeeded pair yields a path");
+
+        assert_eq!(t.local_candidate_type.as_deref(), Some("relay"));
+        assert_eq!(t.protocol.as_deref(), Some("tcp"));
+        assert_eq!(t.rtt_ms, Some(190));
+    }
+
+    /// webrtc-rs types these counters as plain `f64` with no way to say "absent", so an unmeasured
+    /// round trip arrives as `0.0`. Rendering that as a 0 ms path would be a measurement claim, and
+    /// the whole model's rule is that a number nobody produced must read as absent instead.
+    #[test]
+    fn treats_an_unmeasured_zero_as_absent_and_falls_back_to_the_rtcp_round_trip() {
+        let map = candidates(&[candidate("L", "host", "udp"), candidate("R", "host", "udp")]);
+
+        let t = pick_transport(&[pair("L", "R", true, true, 0.0)], &map, Some(31))
+            .expect("a succeeded pair yields a path");
+
+        assert_eq!(t.rtt_ms, Some(31));
+        assert_eq!(t.available_outgoing_kbps, None);
+    }
+
+    /// ICE still gathering, or already gone. The RTCP round trip is real and still worth showing;
+    /// the path fields are the ones that must stay absent.
+    #[test]
+    fn keeps_the_rtcp_round_trip_when_no_pair_has_succeeded() {
+        let t = pick_transport(&[pair("L", "R", false, false, 0.0)], &candidates(&[]), Some(42))
+            .expect("an rtcp round trip is still a transport block");
+
+        assert_eq!(t.rtt_ms, Some(42));
+        assert_eq!(t.local_candidate_type, None);
+        assert_eq!(t.protocol, None);
+    }
+
+    #[test]
+    fn reports_nothing_at_all_when_there_is_nothing_to_report() {
+        assert!(pick_transport(&[], &candidates(&[]), None).is_none());
     }
 }

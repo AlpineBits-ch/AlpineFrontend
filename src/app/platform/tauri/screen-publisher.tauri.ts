@@ -10,7 +10,7 @@ import {
 } from '../ports/screen-publisher.port';
 import {AudioChunk, LocalStreamChunk, ScreenFrame, ScreenPublisherHost} from '../screen-publisher-host';
 import {parseLocalStreamChunk} from './local-stream-framing';
-import {StreamLayerStats} from '../../shared/call/stream-stats';
+import {StreamLayerSample, StreamStatsSample, StreamTransportStats} from '../../shared/call/stream-stats';
 
 /** The preview frames the Rust publisher pushes back while it owns the share. */
 interface PreviewFrame {
@@ -26,9 +26,25 @@ type TauriCore = typeof import('@tauri-apps/api/core');
 export interface PublishStatsPayload {
     codec: string | null;
     profileLevelId: string | null;
-    rttMs: number | null;
+    transport: PublishTransportPayload | null;
     layers: PublishLayerPayload[];
     audio: {packetsEncoded: number; packetsDropped: number} | null;
+}
+
+/**
+ * The ICE path this publication is actually taking, from the succeeded candidate pair.
+ *
+ * <p>Deliberately shaped like `StreamTransportStats` field for field. Before this existed the
+ * native payload carried a bare `rttMs` and nothing else, so a desktop sharer relaying through
+ * TURN saw no Path row at all while a viewer of that same stream saw one - the two directions
+ * disagreeing about what is knowable, over a difference that was only ever in the plumbing.</p>
+ */
+export interface PublishTransportPayload {
+    rttMs: number | null;
+    localCandidateType: string | null;
+    remoteCandidateType: string | null;
+    protocol: string | null;
+    availableOutgoingKbps: number | null;
 }
 
 export interface PublishLayerPayload {
@@ -62,15 +78,13 @@ export interface PublishLayerPayload {
  * <p>`bytesSent` is carried through un-differentiated: this has one sample and no interval. The
  * service turns two of these into `kbps`.</p>
  */
-export function publishStatsToSnapshot(payload: PublishStatsPayload): StreamStatsSnapshot & {
-    layers: (StreamLayerStats & {bytesSent: number})[];
-} {
+export function publishStatsToSnapshot(payload: PublishStatsPayload): StreamStatsSample {
     const snapshot = {
         direction: 'outbound' as const,
         source: 'native' as const,
         capturedAt: Date.now(),
         layers: payload.layers.map(l => {
-            const layer: StreamLayerStats & {bytesSent: number} = {
+            const layer: StreamLayerSample = {
                 width: l.width,
                 height: l.height,
                 fps: l.fps,
@@ -91,11 +105,26 @@ export function publishStatsToSnapshot(payload: PublishStatsPayload): StreamStat
             if (l.firCount !== null) layer.firCount = l.firCount;
             return layer;
         }),
-    } as StreamStatsSnapshot & {layers: (StreamLayerStats & {bytesSent: number})[]};
+    } as StreamStatsSample;
 
     if (payload.codec !== null) snapshot.codec = payload.codec;
     if (payload.profileLevelId !== null) snapshot.profileLevelId = payload.profileLevelId;
-    if (payload.rttMs !== null) snapshot.transport = {rttMs: payload.rttMs};
+
+    // Field by field rather than a spread, so a null the Rust side could not measure stays absent
+    // instead of arriving as an explicit `undefined` key - and so a genuine zero (an ICE path with
+    // no measured RTT yet is not the same as one at 0 ms) survives the trip. An all-null transport
+    // block yields no transport at all, which is what the panel reads as "nothing to say here".
+    const t = payload.transport;
+    if (t) {
+        const transport: StreamTransportStats = {};
+        if (t.rttMs !== null) transport.rttMs = t.rttMs;
+        if (t.localCandidateType !== null) transport.localCandidateType = t.localCandidateType;
+        if (t.remoteCandidateType !== null) transport.remoteCandidateType = t.remoteCandidateType;
+        if (t.protocol !== null) transport.protocol = t.protocol;
+        if (t.availableOutgoingKbps !== null) transport.availableOutgoingKbps = t.availableOutgoingKbps;
+        if (Object.keys(transport).length) snapshot.transport = transport;
+    }
+
     if (payload.audio) {
         snapshot.audio = {
             packets: payload.audio.packetsEncoded,
