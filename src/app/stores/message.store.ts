@@ -209,7 +209,13 @@ export const MessageStore = signalStore(
                                 },
                             },
                         );
-                        void messageCache.remember(messageContextKey({conversationId}), messages);
+                        // Caught, not discarded: `CacheStore.set` rejects on a full or unavailable
+                        // store, and a discarded rejection reaches `GlobalErrorHandler`, which
+                        // reloads the window after three in five seconds. A cache write that does
+                        // not happen is a no-op by design.
+                        void messageCache.remember(messageContextKey({conversationId}), messages)
+                            .catch((err: unknown) =>
+                                console.debug('Conversation page not cached', err));
                     },
                     error: (err: HttpErrorResponse) => {
                         conversationCachePaint.delete(conversationId);
@@ -631,7 +637,10 @@ export const MessageStore = signalStore(
                                 },
                             },
                         );
-                        void messageCache.remember(messageContextKey({channelId}), messages);
+                        // Swallowed for the reason the conversation path above gives: an
+                        // unavailable or full cache must never reach the global error handler.
+                        void messageCache.remember(messageContextKey({channelId}), messages)
+                            .catch((err: unknown) => console.debug('Channel page not cached', err));
                     },
                     error: (err: HttpErrorResponse) => {
                         channelCachePaint.delete(channelId);

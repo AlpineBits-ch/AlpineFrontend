@@ -15,6 +15,7 @@ import {SessionTeardownService} from './session-teardown.service';
 import {MlsService} from './mls.service';
 import {DeviceService} from './device.service';
 import {MlsCoverageService} from './mls-coverage.service';
+import {ProfileService} from './profile.service';
 import {provideFakePlatform} from '../platform/testing/provide-fake-platform';
 
 const DEVICE_ID = 'device-a';
@@ -23,6 +24,7 @@ let calls: string[];
 let keyHandle: ReturnType<typeof signal<string | undefined>>;
 let resetFails: boolean;
 let unloadFails: boolean;
+let profiles: {cachePersist: ((profile: unknown) => void) | null};
 
 function mlsStub() {
     return {
@@ -67,6 +69,9 @@ function build(): SessionTeardownService {
             // all: the real one reaches MlsTransportService -> ApiConfigService -> OAuthService,
             // and a wipe has no business dragging an auth provider into a pure Tauri harness.
             {provide: MlsCoverageService, useValue: {clear: () => calls.push('forgetCoverage')}},
+            // Stubbed for the same reason: the real one injects HttpClient. Only its write-behind
+            // hook matters here, and the teardown's job is to take that hook down.
+            {provide: ProfileService, useValue: profiles},
         ],
     });
     return TestBed.inject(SessionTeardownService);
@@ -77,6 +82,7 @@ beforeEach(() => {
     keyHandle = signal<string | undefined>('handle-1');
     resetFails = false;
     unloadFails = false;
+    profiles = {cachePersist: () => calls.push('persist')};
     vi.spyOn(console, 'error').mockImplementation(() => { });
 });
 
@@ -205,5 +211,19 @@ describe('wipeEngineState', () => {
 
         await expect(service.wipeEngineState(DEVICE_ID))
             .resolves.toEqual({keyPackagesReset: false});
+    });
+
+    /**
+     * `ProfileCacheService.hydrate` installs a write-behind hook on `ProfileService` and nothing
+     * ever took it down. A sign-out is an in-document `router.navigate(['/authentication'])`, so
+     * the outgoing account's hook stays live: every profile the *next* account resolves would be
+     * written through it, from the moment it signs in until its own hydration replaces it.
+     */
+    it('uninstalls the write-behind hook, so it cannot write the next account\'s profiles', async () => {
+        const service = build();
+
+        await service.wipeEngineState(DEVICE_ID);
+
+        expect(profiles.cachePersist).toBeNull();
     });
 });

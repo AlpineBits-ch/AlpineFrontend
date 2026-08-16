@@ -4,6 +4,7 @@ import {MlsService} from './mls.service';
 import {DeviceService} from './device.service';
 import {PaymentHandleService} from '../features/payments';
 import {MlsCoverageService} from './mls-coverage.service';
+import {ProfileService} from './profile.service';
 import {CacheStoreFactory} from '../platform/cache-store';
 
 /** What a teardown managed to do, so the caller can report the parts that matter to it. */
@@ -77,6 +78,14 @@ export class SessionTeardownService {
         } catch (err) {
             console.error('Could not clear the local profile/message cache during a wipe', err);
         }
+
+        // Uninstalled after the clear, not instead of it. `ProfileCacheService.hydrate` installs
+        // this hook and nothing ever took it down, and a sign-out is an in-document
+        // `router.navigate` - so the hook the outgoing account installed stays live and keeps
+        // writing every profile the *next* account resolves, from the moment it signs in until its
+        // own hydration replaces the hook. Resolved through the injector for the same reason
+        // `paymentHandles` is: this service's spec is a bare Tauri harness.
+        this.injector.get(ProfileService).cachePersist = null;
 
         // Decrypted payment handles are in-memory only and never reach disk, so this is not a wipe
         // of anything persistent - it is making sure the next account signed in on this machine

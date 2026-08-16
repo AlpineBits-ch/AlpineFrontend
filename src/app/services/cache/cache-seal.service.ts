@@ -25,8 +25,10 @@ export class CacheSealService {
     private readonly secureStore = inject(SecureStore);
     private readonly deviceIdentity = inject(DeviceIdentityService);
 
-    /** Resolved once on success. A failure is never memoised - one bad read is not the session. */
-    private key: Promise<CryptoKey | null> | null = null;
+    /**
+     * One resolved key per device id. See {@link cryptoKey} for both halves of that sentence.
+     */
+    private readonly keys = new Map<string, Promise<CryptoKey | null>>();
 
     async available(): Promise<boolean> {
         return await this.cryptoKey() !== null;
@@ -60,16 +62,39 @@ export class CacheSealService {
         }
     }
 
-    private cryptoKey(): Promise<CryptoKey | null> {
-        this.key ??= this.readKey().catch(() => {
-            this.key = null;
-            return null;
-        });
-        return this.key;
+    /**
+     * The imported AES key for whichever account is signed in <i>now</i>.
+     *
+     * <p><b>Keyed by device id, not held in one field.</b> Signing out is an in-document
+     * `router.navigate` - no injector is destroyed - so this service outlives the account it first
+     * read a key for. A single memoised key would seal the next account's cache entries under the
+     * previous account's key, which is the same defect as writing them under its device id.</p>
+     *
+     * <p><b>Neither a rejection nor an absent key is memoised.</b> A rejection is a keychain that
+     * was locked or still starting, and lifts by itself. A `null` is subtler and was the live bug:
+     * `alpine_mls_{deviceId}_statekey` is minted by `MlsService.initStorage`, and hydration now runs
+     * before it, so the first read of a first-ever launch legitimately answers "absent". Caching
+     * that would mean the whole session persists nothing. Only a key that was actually there is
+     * kept - the same rule as `MlsService.cacheKey`.</p>
+     */
+    private async cryptoKey(): Promise<CryptoKey | null> {
+        const deviceId = await this.deviceIdentity.deviceId();
+
+        let pending = this.keys.get(deviceId);
+        if (pending === undefined) {
+            // Shared while in flight, so two concurrent seals do not both read the keychain.
+            pending = this.readKey(deviceId).catch(() => null);
+            this.keys.set(deviceId, pending);
+        }
+
+        const key = await pending;
+        // Dropped rather than kept, so the next call re-reads. Guarded on identity so a concurrent
+        // call that already installed a *newer* attempt is not evicted by this one's answer.
+        if (key === null && this.keys.get(deviceId) === pending) this.keys.delete(deviceId);
+        return key;
     }
 
-    private async readKey(): Promise<CryptoKey | null> {
-        const deviceId = await this.deviceIdentity.deviceId();
+    private async readKey(deviceId: string): Promise<CryptoKey | null> {
         // getItem, deliberately. See the class comment: update() would mint.
         const raw = await this.secureStore.getItem(`alpine_mls_${deviceId}_statekey`);
         if (!raw) return null;

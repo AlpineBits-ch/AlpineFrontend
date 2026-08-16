@@ -32,13 +32,22 @@ class FakeCacheStore {
 let cache: FakeCacheStore;
 let profiles: ProfileService;
 let subject: ProfileCacheService;
+/** The device id the fake identity service answers with. Mutable, to model a sign-out. */
+let deviceId: string;
+/** Every device id the factory was asked for, in order. */
+let opened: string[];
 
 function configure(fetchByUserId = vi.fn(() => of(profile('u1', 'ada')))) {
     cache = new FakeCacheStore();
+    deviceId = 'device-a';
+    opened = [];
     TestBed.configureTestingModule({
         providers: [
-            {provide: CacheStoreFactory, useValue: {open: () => cache}},
-            {provide: DeviceIdentityService, useValue: {deviceId: async () => 'device-a'}},
+            {provide: CacheStoreFactory, useValue: {open: (id: string) => {
+                opened.push(id);
+                return cache;
+            }}},
+            {provide: DeviceIdentityService, useValue: {deviceId: async () => deviceId}},
             {provide: ProfileService, useValue: Object.assign(
                 Object.create(ProfileService.prototype) as ProfileService,
                 {
@@ -105,6 +114,43 @@ describe('ProfileCacheService', () => {
         await subject.queue.drain();
 
         expect(fetchByUserId).toHaveBeenCalledTimes(2);
+    });
+
+    /**
+     * The account-crossing defect. Signing out is `router.navigate(['/authentication'])` and
+     * signing back in is `router.navigate(['/overview'])` - one document, one injector, one live
+     * `ProfileCacheService`. A store memoised on first use would put account B's profiles under
+     * account A's device id, where A's next launch hydrates them as its own contact graph.
+     */
+    it('writes under the device id of the account signed in now, not the one it started with', async () => {
+        configure();
+        await subject.remember(profile('u1', 'ada'));
+        expect(opened).toEqual(['device-a']);
+
+        deviceId = 'device-b';
+        await subject.remember(profile('u2', 'grace'));
+
+        expect(opened).toEqual(['device-a', 'device-b']);
+    });
+
+    /**
+     * `CacheStore.set` rejects on `quota`, `unavailable`, `blocked` and `version`. Discarded, that
+     * rejection reaches `GlobalErrorHandler`, which reloads the window after three in five seconds
+     * - and `revalidateAll` on an exhausted quota produces three in well under a second.
+     */
+    it('a rejecting cache write never escapes the write-behind hook', async () => {
+        const debug = vi.spyOn(console, 'debug').mockImplementation(() => { });
+        configure();
+        cache.set = () => Promise.reject(new Error('quota exceeded'));
+        await subject.hydrate();
+
+        expect(profiles.cachePersist).not.toBeNull();
+        // Would be an unhandled rejection without the catch, which fails this file outright.
+        expect(() => profiles.cachePersist!(profile('u1', 'ada'))).not.toThrow();
+        await new Promise(resolve => setTimeout(resolve, 0));
+
+        expect(debug).toHaveBeenCalled();
+        debug.mockRestore();
     });
 
     it('a failed revalidation leaves the cached copy in place', async () => {

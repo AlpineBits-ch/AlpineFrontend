@@ -27,7 +27,6 @@ export class ProfileCacheService {
     private readonly stores = inject(CacheStoreFactory);
     private readonly deviceIdentity = inject(DeviceIdentityService);
 
-    private store: CacheStore | undefined;
     private hydrated: string[] = [];
 
     async remember(profile: ProfileDto): Promise<void> {
@@ -49,9 +48,25 @@ export class ProfileCacheService {
 
         // Installed after hydration, so replaying the disk copy back onto disk is not the first
         // thing this does.
-        this.profiles.cachePersist = profile => void this.remember(profile);
+        this.profiles.cachePersist = profile => this.persist(profile);
 
         return profiles.length;
+    }
+
+    /**
+     * The write-behind hook's body, which is why the rejection is swallowed here.
+     *
+     * <p>`CacheStore.set` rejects on `quota`, `unavailable`, `blocked` and `version`. Discarding
+     * that promise sends the rejection to `provideBrowserGlobalErrorListeners()` and on to
+     * `GlobalErrorHandler`, which counts three unhandled errors in five seconds as a crash and
+     * reloads the window - and with the quota exhausted, {@link revalidateAll} produces three in
+     * well under a second. A cache that is full or unavailable is an expected state, not a fault:
+     * a failed cache write is a no-op, never something the user is shown.</p>
+     */
+    private persist(profile: ProfileDto): void {
+        void this.remember(profile).catch((err: unknown) => {
+            console.debug('Profile not cached; the cache is full or unavailable', err);
+        });
     }
 
     /**
@@ -69,9 +84,18 @@ export class ProfileCacheService {
         }
     }
 
+    /**
+     * The store for whichever account is signed in <i>now</i>.
+     *
+     * <p><b>Resolved on every operation, never memoised.</b> Signing out is an in-document
+     * `router.navigate(['/authentication'])` and signing in is a `router.navigate(['/overview'])`;
+     * no injector is destroyed in between, so this service outlives the account it first ran for. A
+     * memoised store would put the next account's profiles under the previous account's device id -
+     * where its next launch would hydrate them as its own contact graph.
+     * {@link CacheStoreFactory.open} memoises per device id, so this costs one map lookup.</p>
+     */
     private async cache(): Promise<CacheStore> {
-        this.store ??= this.stores.open(await this.deviceIdentity.deviceId());
-        return this.store;
+        return this.stores.open(await this.deviceIdentity.deviceId());
     }
 }
 

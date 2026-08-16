@@ -32,7 +32,6 @@ export function messageContextKey(opts: {conversationId?: string; channelId?: st
 export class MessageCacheService {
     private readonly stores = inject(CacheStoreFactory);
     private readonly deviceIdentity = inject(DeviceIdentityService);
-    private store: CacheStore | undefined;
 
     async remember(contextKey: string, messages: MessageDto[]): Promise<void> {
         const keep = messages
@@ -58,9 +57,16 @@ export class MessageCacheService {
         await (await this.cache()).delete('message', contextKey);
     }
 
+    /**
+     * The store for whichever account is signed in <i>now</i>.
+     *
+     * <p><b>Resolved on every operation, never memoised.</b> A sign-out is an in-document
+     * `router.navigate`, so this service outlives the account it first ran for and a memoised store
+     * would write the next account's message metadata - including the bodies of its unencrypted
+     * messages - under the previous account's device id. See `ProfileCacheService.cache`.</p>
+     */
     private async cache(): Promise<CacheStore> {
-        this.store ??= this.stores.open(await this.deviceIdentity.deviceId());
-        return this.store;
+        return this.stores.open(await this.deviceIdentity.deviceId());
     }
 }
 

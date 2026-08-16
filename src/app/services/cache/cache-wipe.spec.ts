@@ -7,6 +7,7 @@ import {SessionTeardownService} from '../session-teardown.service';
 import {MlsService} from '../mls.service';
 import {DeviceService} from '../device.service';
 import {MlsCoverageService} from '../mls-coverage.service';
+import {ProfileService} from '../profile.service';
 import {CacheStoreFactory} from '../../platform/cache-store';
 import {provideFakePlatform} from '../../platform/testing/provide-fake-platform';
 
@@ -25,6 +26,7 @@ const DEVICE_ID = 'device-a';
 let clearCalls: string[];
 let clearThrows: boolean;
 let coverageCleared: boolean;
+let profiles: {cachePersist: ((profile: unknown) => void) | null};
 
 function mlsStub() {
     return {
@@ -63,6 +65,9 @@ function build(): SessionTeardownService {
             {provide: DeviceService, useValue: deviceStub()},
             {provide: MlsCoverageService, useValue: {clear: () => { coverageCleared = true; }}},
             {provide: CacheStoreFactory, useFactory: fakeCacheStores},
+            // Stubbed because the real one reaches ApiConfigService -> OAuthService, which this
+            // pure Tauri harness has no business providing. Only the write-behind hook is used.
+            {provide: ProfileService, useFactory: () => profiles},
         ],
     });
     return TestBed.inject(SessionTeardownService);
@@ -72,6 +77,7 @@ beforeEach(() => {
     clearCalls = [];
     clearThrows = false;
     coverageCleared = false;
+    profiles = {cachePersist: () => { /* the outgoing account's hook */ }};
     vi.spyOn(console, 'error').mockImplementation(() => { });
 });
 
@@ -120,6 +126,20 @@ describe('cache wipe', () => {
 
         expect(console.error).toHaveBeenCalledWith(
             expect.stringContaining('cache'), expect.any(Error));
+    });
+
+    /**
+     * The clear only reaches what is already on disk. The hook `ProfileCacheService.hydrate`
+     * installed is still live, and a sign-out never destroys an injector - so left in place it
+     * would write the *next* account's profiles into the namespace this wipe just emptied.
+     */
+    it('takes the write-behind hook down even when the cache clear fails', async () => {
+        clearThrows = true;
+        const service = build();
+
+        await service.wipeEngineState(DEVICE_ID);
+
+        expect(profiles.cachePersist).toBeNull();
     });
 
     it('completes a full account wipe even when the cache clear fails', async () => {

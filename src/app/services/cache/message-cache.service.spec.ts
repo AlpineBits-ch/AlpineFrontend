@@ -28,15 +28,24 @@ class FakeCacheStore {
 
 let cache: FakeCacheStore;
 let subject: MessageCacheService;
+/** The device id the fake identity service answers with. Mutable, to model a sign-out. */
+let deviceId: string;
+/** Every device id the factory was asked for, in order. */
+let opened: string[];
 
 describe('MessageCacheService', () => {
     beforeEach(() => {
         TestBed.resetTestingModule();
         cache = new FakeCacheStore();
+        deviceId = 'device-a';
+        opened = [];
         TestBed.configureTestingModule({
             providers: [
-                {provide: CacheStoreFactory, useValue: {open: () => cache}},
-                {provide: DeviceIdentityService, useValue: {deviceId: async () => 'device-a'}},
+                {provide: CacheStoreFactory, useValue: {open: (id: string) => {
+                    opened.push(id);
+                    return cache;
+                }}},
+                {provide: DeviceIdentityService, useValue: {deviceId: async () => deviceId}},
             ],
         });
         subject = TestBed.inject(MessageCacheService);
@@ -88,6 +97,21 @@ describe('MessageCacheService', () => {
         await subject.remember('conv:c1', [pending as MessageDto]);
 
         expect(await subject.recall('conv:c1')).toEqual([]);
+    });
+
+    /**
+     * A sign-out is an in-document `router.navigate`, so this service outlives the account it first
+     * ran for. A memoised store would write account B's message metadata - including the bodies of
+     * its unencrypted messages - into account A's namespace.
+     */
+    it('writes under the device id of the account signed in now, not the one it started with', async () => {
+        await subject.remember('conv:c1', [message('m1', MessageEncryptionState.Plain, 'hello')]);
+        expect(opened).toEqual(['device-a']);
+
+        deviceId = 'device-b';
+        await subject.remember('conv:c2', [message('m2', MessageEncryptionState.Plain, 'hi')]);
+
+        expect(opened).toEqual(['device-a', 'device-b']);
     });
 
     it('forget drops the context', async () => {

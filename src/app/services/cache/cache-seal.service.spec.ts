@@ -12,18 +12,28 @@ class FakeSecureStore extends SecureStore {
     readonly hardwareBacked = false;
     getItemCalls = 0;
     updateCalls = 0;
-    constructor(private value: string | null) { super(); }
-    async getItem(): Promise<string | null> { this.getItemCalls++; return this.value; }
+    /** Every name read, so a spec can prove the key was looked up under the right device id. */
+    readonly names: string[] = [];
+    constructor(public value: string | null) { super(); }
+    async getItem(name: string): Promise<string | null> {
+        this.getItemCalls++;
+        this.names.push(name);
+        return this.value;
+    }
     async setItem(): Promise<void> { /* unused */ }
     async removeItem(): Promise<void> { /* unused */ }
     override async update(): Promise<string | null> { this.updateCalls++; return this.value; }
 }
 
+/** The device id the fake identity service answers with. Mutable, to model a sign-out. */
+let deviceId = 'device-a';
+
 function configure(store: SecureStore): CacheSealService {
+    deviceId = 'device-a';
     TestBed.configureTestingModule({
         providers: [
             {provide: SecureStore, useValue: store},
-            {provide: DeviceIdentityService, useValue: {deviceId: async () => 'device-a'}},
+            {provide: DeviceIdentityService, useValue: {deviceId: async () => deviceId}},
         ],
     });
     return TestBed.inject(CacheSealService);
@@ -60,6 +70,43 @@ describe('CacheSealService', () => {
     it('returns null for a malformed entry with no separator', async () => {
         const seal = configure(new FakeSecureStore(KEY));
         expect(await seal.unseal('no-separator-here')).toBeNull();
+    });
+
+    /**
+     * The launch-order bug. `alpine_mls_{deviceId}_statekey` is minted by `MlsService.initStorage`,
+     * and hydration now runs before it, so the first read of a first-ever launch - and of the
+     * email-verification path - legitimately answers "absent". Memoising that `null` made the whole
+     * session persist nothing, silently, until the next document load.
+     */
+    it('re-reads a key that was absent the first time, rather than memoising the null', async () => {
+        const store = new FakeSecureStore(null);
+        const seal = configure(store);
+
+        expect(await seal.available()).toBe(false);
+
+        store.value = KEY;
+
+        expect(await seal.available()).toBe(true);
+        expect(await seal.seal({userName: 'ada'})).not.toBeNull();
+    });
+
+    /**
+     * A sign-out is an in-document `router.navigate`, so this service outlives the account whose
+     * key it first read. One memoised key would seal account B's cache entries under account A's -
+     * the same defect as writing them under A's device id.
+     */
+    it('reads the key of the account signed in now, not the one it started with', async () => {
+        const store = new FakeSecureStore(KEY);
+        const seal = configure(store);
+        await seal.available();
+        expect(store.names).toEqual(['alpine_mls_device-a_statekey']);
+
+        deviceId = 'device-b';
+        await seal.available();
+
+        expect(store.names).toEqual([
+            'alpine_mls_device-a_statekey', 'alpine_mls_device-b_statekey',
+        ]);
     });
 
     it('returns null for a value sealed under a different key', async () => {
