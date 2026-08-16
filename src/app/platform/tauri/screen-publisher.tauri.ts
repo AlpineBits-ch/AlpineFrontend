@@ -6,6 +6,7 @@ import {
     ScreenPublishResult,
     ScreenSource,
     SourceThumbnail,
+    StreamStatsSnapshot,
 } from '../ports/screen-publisher.port';
 import {AudioChunk, LocalStreamChunk, ScreenFrame, ScreenPublisherHost} from '../screen-publisher-host';
 import {parseLocalStreamChunk} from './local-stream-framing';
@@ -183,6 +184,17 @@ export class TauriScreenPublisher extends ScreenPublisher implements ScreenPubli
         this.assertLive(shareId, 'setAudioMuted');
         const {invoke} = await this.tauri();
         await invoke('set_screen_audio_muted', {muted});
+    }
+
+    /**
+     * Filled in by the desktop stats task; until then the desktop panel reports no data.
+     *
+     * <p>Not `assertLive` and not a Rust round trip: there is no command yet on this side, so
+     * answering null here is the honest "not implemented" rather than the "stale id" the port
+     * documents. Task 12 replaces this with the real `publish_stats` invocation.</p>
+     */
+    async stats(_shareId: string): Promise<StreamStatsSnapshot | null> {
+        return null;
     }
 
     // ── The canvas pipeline (ScreenPublisherHost) ─────────────────────────────

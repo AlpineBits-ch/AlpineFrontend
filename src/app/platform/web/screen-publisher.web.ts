@@ -24,6 +24,7 @@ import {
     SourceThumbnail,
 } from '../ports/screen-publisher.port';
 import {LocalStreamChunk, ScreenPublisherHost} from '../screen-publisher-host';
+import {outboundStatsFromReport, StreamStatsSnapshot} from '../../shared/call/stream-stats';
 
 /** One track in a publish request, in the neutral vocabulary the backend and Rust both speak. */
 interface PublishTrackRef {
@@ -307,6 +308,32 @@ export class WebScreenPublisher extends ScreenPublisher implements ScreenPublish
         if (live.capture.audio) live.capture.audio.enabled = !muted;
     }
 
+    /**
+     * Live outbound stats for the running publication, or null when `shareId` is stale.
+     *
+     * <p>Deliberately not routed through {@link assertLive}: that helper throws, which is right for
+     * a command that changes the share and wrong here - a stats poll racing a share that just ended
+     * is routine, not a bug, and the port's contract is to answer null rather than surface it as an
+     * error.</p>
+     *
+     * <p>The video transceiver's `mid` is looked up fresh rather than reusing the one recorded at
+     * publish time in {@link start}: `getTransceivers` is cheap and this stays correct across a
+     * renegotiation that could in principle move it. `getTransceivers` is optional here only because
+     * a test double's fake `RTCPeerConnection` has no reason to implement the full interface; the
+     * real browser type always has it.</p>
+     */
+    async stats(shareId: string): Promise<StreamStatsSnapshot | null> {
+        const live = this.live;
+        if (!live || live.shareId !== shareId) return null;
+
+        const report = await live.pc.getStats();
+        const mid = live.pc.getTransceivers?.().find(t => t.sender.track?.kind === 'video')?.mid
+            ?? firstOutboundVideoMid(report);
+        if (!mid) return null;
+
+        return outboundStatsFromReport(report, mid);
+    }
+
     // ── ScreenPublisherHost ───────────────────────────────────────────────────
 
     async startNativeScreenCapture(): Promise<void> {
@@ -491,6 +518,24 @@ function midOf(pc: RTCPeerConnection, sender: RTCRtpSender, fallback: string): s
 
 function resultFor(response: NegotiateResponse, trackName: string): TrackResult | null {
     return response.tracks?.find(t => t.trackName === trackName) ?? null;
+}
+
+/**
+ * The mid of the first outgoing video stream in a report.
+ *
+ * <p>The fallback for when no transceiver lookup is available - a test double's fake peer
+ * connection, in practice - which is also what keeps {@link WebScreenPublisher.stats} testable
+ * without a real `RTCPeerConnection`.</p>
+ */
+function firstOutboundVideoMid(report: RTCStatsReport): string | undefined {
+    let mid: string | undefined;
+    report.forEach(stat => {
+        const s = stat as unknown as Record<string, unknown>;
+        if (mid === undefined && s['type'] === 'outbound-rtp' && s['kind'] === 'video') {
+            mid = s['mid'] as string | undefined;
+        }
+    });
+    return mid;
 }
 
 /**

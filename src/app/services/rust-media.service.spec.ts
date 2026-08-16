@@ -20,6 +20,7 @@ import {
     ScreenPublishResult,
     ScreenSource,
     SourceThumbnail,
+    StreamStatsSnapshot,
 } from '../platform/ports/screen-publisher.port';
 import {LocalStreamChunk, ScreenPublisherHost} from '../platform/screen-publisher-host';
 import {BACKGROUND_IDLE_MS, PREVIEW_IDLE_MS, RustMediaService} from './rust-media.service';
@@ -83,6 +84,10 @@ class FakePublisher extends ScreenPublisher implements ScreenPublisherHost {
 
     async setAudioMuted(shareId: string, muted: boolean): Promise<void> {
         this.muted.push({shareId, muted});
+    }
+
+    async stats(_shareId: string): Promise<StreamStatsSnapshot | null> {
+        return null;
     }
 
     async startNativeScreenCapture(): Promise<void> {
@@ -158,6 +163,10 @@ class PortOnlyPublisher extends ScreenPublisher {
     }
 
     async setAudioMuted(): Promise<void> {
+    }
+
+    async stats(): Promise<StreamStatsSnapshot | null> {
+        return null;
     }
 }
 

@@ -6,6 +6,7 @@ import type {
     ScreenSource,
     SourceThumbnail,
 } from '../../services/rust-media.service';
+import type {StreamStatsSnapshot} from '../../shared/call/stream-stats';
 
 /**
  * The existing screen-share types, unchanged and re-exported.
@@ -23,6 +24,7 @@ export type {
     ScreenSource,
     SourceThumbnail,
 };
+export type {StreamStatsSnapshot};
 
 /**
  * Publishing a screen or window.
@@ -96,6 +98,19 @@ export abstract class ScreenPublisher {
 
     /** Mute the share's own sound. Stops packets, not the capture device, so unmuting is instant. */
     abstract setAudioMuted(shareId: string, muted: boolean): Promise<void>;
+
+    /**
+     * Live statistics for the running publication, or null when `shareId` is not the running share.
+     *
+     * <p>Null rather than a throw for a stale id, unlike {@link stop}: a stats poll racing a share
+     * that just ended is routine, and the caller's answer to "no data" is already to say so.</p>
+     *
+     * <p><b>Counters are cumulative.</b> Byte and packet totals come back as the transport reports
+     * them and the caller differentiates successive samples into rates - see `kbpsBetween`. That
+     * keeps the desktop command stateless and puts the rate arithmetic in the one place that is
+     * unit-tested.</p>
+     */
+    abstract stats(shareId: string): Promise<StreamStatsSnapshot | null>;
 
     /** Web: the OS picker chooses the source, so the in-app picker is skipped. */
     abstract readonly hasSourcePicker: boolean;

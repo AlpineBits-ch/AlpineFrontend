@@ -6,6 +6,7 @@ import {
     ScreenPublisher,
     ScreenSource,
     SourceThumbnail,
+    StreamStatsSnapshot,
 } from '../ports/screen-publisher.port';
 
 /** A monitor, with the geometry fields filled in so a spec names only what it cares about. */
@@ -80,6 +81,12 @@ export class FakeScreenPublisher extends ScreenPublisher {
     /** Set to make {@link stop} reject, the way a stale `shareId` does on the desktop adapter. */
     stopError: Error | null = null;
 
+    /** What {@link stats} answers. Null by default, the port's own answer for "nothing is live". */
+    statsSnapshot: StreamStatsSnapshot | null = null;
+
+    /** Every `shareId` a stats readout was asked for, in order. */
+    readonly statsRequests: string[] = [];
+
     async sources(): Promise<ScreenSource[]> {
         this.sourceCalls++;
         return [...this.sourceList];
@@ -114,6 +121,11 @@ export class FakeScreenPublisher extends ScreenPublisher {
 
     async setAudioMuted(shareId: string, muted: boolean): Promise<void> {
         this.audioMutes.push([shareId, muted]);
+    }
+
+    async stats(shareId: string): Promise<StreamStatsSnapshot | null> {
+        this.statsRequests.push(shareId);
+        return this.statsSnapshot;
     }
 
     /** The single recorded publish, for the common case. Throws if there was not exactly one. */
