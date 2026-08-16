@@ -1377,6 +1377,73 @@ mod ladder_concurrency {
     /// encoders that had been built for 1080p. Every other probe here retypes downward and back,
     /// never past the geometry the encoder was first allocated for - and a hardware encoder sizes
     /// its surfaces at construction, so growing one is the case none of them cover.
+    /// 2K at **60**, which every other diagnostic here misses by running at 30.
+    ///
+    /// Level 5.2 permits it on paper - 1440p is 14400 macroblocks, so 60 fps is 864000 against a
+    /// MaxMBPS of 2073600 - but what the hardware will actually sustain at that rate is a separate
+    /// question from what the standard allows, and only one of the two is measurable here.
+    #[test]
+    #[ignore = "diagnostic: runs the real Media Foundation encoder"]
+    fn report_whether_1440p60_survives() {
+        let ladder = [
+            (2560u32, 1440u32, 12_000u32),
+            (1280, 720, 3_840),
+            (640, 360, 1_200),
+        ]
+        .into_iter()
+        .map(|(width, height, kbps)| EncoderSpec {
+            width,
+            height,
+            fps: 60,
+            kbps,
+            content: EncoderContent::Text,
+        })
+        .collect::<Vec<_>>();
+
+        let mut encoders = Vec::new();
+        for spec in &ladder {
+            match PooledEncoder::acquire(*spec) {
+                Some(encoder) => encoders.push((*spec, encoder)),
+                None => println!("1440p60 {}x{}: no hardware encoder", spec.width, spec.height),
+            }
+        }
+        println!("1440p60 acquired {} of {} rungs", encoders.len(), ladder.len());
+
+        let mut chunks = vec![0u32; encoders.len()];
+        let mut first_failure: Vec<Option<u32>> = vec![None; encoders.len()];
+        let started = std::time::Instant::now();
+
+        // 180 frames is three seconds of 60 fps, long enough for rate control to settle.
+        for i in 0..180u64 {
+            for (index, (spec, encoder)) in encoders.iter_mut().enumerate() {
+                match encoder.encode(&frame(spec.width, spec.height, i as u32), i * 16_667) {
+                    EncodeOutcome::Chunk(_) => chunks[index] += 1,
+                    EncodeOutcome::Skipped => {}
+                    EncodeOutcome::Failed => {
+                        first_failure[index].get_or_insert(i as u32);
+                    }
+                }
+            }
+        }
+        let elapsed = started.elapsed();
+
+        for (index, (spec, _)) in encoders.iter().enumerate() {
+            match first_failure[index] {
+                None => println!(
+                    "1440p60 {}x{}@{}k: OK, {} chunks",
+                    spec.width, spec.height, spec.kbps, chunks[index]
+                ),
+                Some(at) => println!(
+                    "1440p60 {}x{}@{}k: FAILED first at frame {at}, {} chunks",
+                    spec.width, spec.height, spec.kbps, chunks[index]
+                ),
+            }
+        }
+        // The whole ladder, 180 frames. Under 3s means it sustains 60 fps with headroom; over means
+        // the encoder is the thing that caps the framerate, whatever the level permits.
+        println!("1440p60 whole ladder: 180 frames in {elapsed:?}");
+    }
+
     #[test]
     #[ignore = "diagnostic: runs the real Media Foundation encoder"]
     fn report_whether_retyping_upward_survives() {

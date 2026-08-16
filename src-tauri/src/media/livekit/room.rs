@@ -567,7 +567,7 @@ impl Room {
             .send(proto::signal_request::Message::Offer(
                 proto::SessionDescription {
                     r#type: "offer".to_string(),
-                    sdp: local.sdp,
+                    sdp: dedupe_simulcast(&local.sdp),
                     ..Default::default()
                 },
             ))
@@ -834,4 +834,126 @@ async fn answer_subscriber(
         ))
         .await;
     Ok(())
+}
+
+/// Strip the duplicate rid and simulcast attributes `webrtc-rs` writes on a *re-offer*.
+///
+/// # The bug this exists for
+///
+/// `webrtc-rs` 0.14 builds the attributes of an existing video m-line from two sources at once: the
+/// rid map it parsed out of the previous answer, and the sender's own encodings. On the first offer
+/// there is no previous answer, so each appears once. On every offer after that they appear twice -
+/// `a=rid:f send` three times over becomes six, and `a=simulcast:send f;h;q` becomes two lines.
+///
+/// LiveKit answers that with `a=simulcast:recv f;h;q;f;h;q`, and then **the video track is gone from
+/// the participant**: accepted, given a track SID, and in nobody's roster. So a viewer is never told
+/// the share exists. It reproduces the moment anything renegotiates over a live ladder - a second
+/// share after the first is stopped, or the microphone arriving late - which is exactly the shape of
+/// "the first share worked and the next one was black".
+///
+/// # Why here rather than in the publisher
+///
+/// `Room` owns every offer this connection makes, so it is the only place that sees all of them.
+/// `media::publisher::rtc` can order its own two publishes so the ladder lands in the last
+/// negotiation, and does, but it cannot do anything about the *next* negotiation, which belongs to
+/// somebody else entirely.
+///
+/// Per m-section, because two video m-lines legitimately carry the same rid names.
+fn dedupe_simulcast(sdp: &str) -> String {
+    let mut out = String::with_capacity(sdp.len());
+    let mut seen_rids: Vec<String> = Vec::new();
+    let mut seen_simulcast = false;
+
+    for line in sdp.split_inclusive('\n') {
+        let trimmed = line.trim_end_matches(['\r', '\n']);
+
+        // A new media section starts a new namespace: the same rid names on the next m-line are a
+        // different sender's, not a repeat of this one's.
+        if trimmed.starts_with("m=") {
+            seen_rids.clear();
+            seen_simulcast = false;
+        } else if let Some(rest) = trimmed.strip_prefix("a=rid:") {
+            // `a=rid:f send` - the id is up to the first space.
+            let id = rest.split_whitespace().next().unwrap_or(rest).to_string();
+            if seen_rids.contains(&id) {
+                continue;
+            }
+            seen_rids.push(id);
+        } else if trimmed.starts_with("a=simulcast:") {
+            if seen_simulcast {
+                continue;
+            }
+            seen_simulcast = true;
+        }
+
+        out.push_str(line);
+    }
+    out
+}
+
+#[cfg(test)]
+mod sdp_tests {
+    use super::dedupe_simulcast;
+
+    /// The exact shape a re-offer produces: every rid twice, the simulcast line twice.
+    const RE_OFFER: &str = "v=0\r\n\
+m=video 9 UDP/TLS/RTP/SAVPF 125\r\n\
+a=mid:3\r\n\
+a=rid:f send\r\n\
+a=rid:h send\r\n\
+a=rid:q send\r\n\
+a=simulcast:send f;h;q\r\n\
+a=rid:f send\r\n\
+a=rid:h send\r\n\
+a=rid:q send\r\n\
+a=simulcast:send f;h;q\r\n";
+
+    #[test]
+    fn a_re_offer_keeps_one_of_each_rid_and_one_simulcast_line() {
+        let cleaned = dedupe_simulcast(RE_OFFER);
+
+        assert_eq!(cleaned.matches("a=rid:").count(), 3, "\n{cleaned}");
+        assert_eq!(cleaned.matches("a=simulcast:").count(), 1, "\n{cleaned}");
+        // Order is the ladder, highest first, and the SFU reads it as a ranking.
+        let rids: Vec<&str> = cleaned
+            .lines()
+            .filter_map(|l| l.strip_prefix("a=rid:"))
+            .filter_map(|l| l.split_whitespace().next())
+            .collect();
+        assert_eq!(rids, ["f", "h", "q"]);
+    }
+
+    #[test]
+    fn a_first_offer_is_returned_untouched() {
+        // The common case, and the one that must not be disturbed: nothing is duplicated yet.
+        let first = "v=0\r\n\
+m=video 9 UDP/TLS/RTP/SAVPF 125\r\n\
+a=rid:f send\r\n\
+a=rid:h send\r\n\
+a=rid:q send\r\n\
+a=simulcast:send f;h;q\r\n";
+
+        assert_eq!(dedupe_simulcast(first), first);
+    }
+
+    #[test]
+    fn two_video_sections_each_keep_their_own_rids() {
+        // Rid names are scoped to their m-line. Deduping across sections would strip the second
+        // sender's ladder entirely and leave that share with one layer.
+        let two = "v=0\r\n\
+m=video 9 UDP/TLS/RTP/SAVPF 125\r\n\
+a=rid:f send\r\n\
+a=simulcast:send f\r\n\
+m=video 9 UDP/TLS/RTP/SAVPF 125\r\n\
+a=rid:f send\r\n\
+a=simulcast:send f\r\n";
+
+        assert_eq!(dedupe_simulcast(two), two);
+    }
+
+    #[test]
+    fn an_sdp_with_no_simulcast_at_all_is_unchanged() {
+        let plain = "v=0\r\nm=audio 9 UDP/TLS/RTP/SAVPF 111\r\na=mid:0\r\n";
+        assert_eq!(dedupe_simulcast(plain), plain);
+    }
 }
