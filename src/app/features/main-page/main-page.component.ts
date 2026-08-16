@@ -72,7 +72,7 @@ import {runMlsLaunch} from './mls-launch';
 import {runMlsStorageInit} from './mls-storage-init';
 import {relaunchOnSessionTakeover} from './mls-takeover';
 import {runSignOut} from './sign-out';
-import {hydrateThenReveal} from './profile-cache-hydration';
+import {AccountGateBlock, hydrateThenReveal, revealAfterAccountGateBlock} from './profile-cache-hydration';
 import {MlsJoinRequestService} from '../../services/mls-join-request.service';
 import {ConversationEncryption} from '../../enums/conversation-encryption.enum';
 import {AccountOnboardingComponent} from '../onboarding/account-onboarding.component';
@@ -477,9 +477,19 @@ export class MainPageComponent implements OnDestroy {
      * restarts it at the second half.</p>
      */
     private async initLaunchSequence(): Promise<void> {
-        if (!await this.resolveAccountGates()) {
-            // A blocking dialog owns the screen. Still mark ready, or it sits behind the splash.
-            this.appReady.markReady();
+        const gate = await this.resolveAccountGates();
+        if (gate !== 'continue') {
+            // A blocking dialog owns the screen. Still mark ready, or it sits behind the splash -
+            // but which dialog decides whether that reveal needs to hydrate first. See
+            // {@link revealAfterAccountGateBlock}: the onboarding picker is opaque and hides
+            // everything behind it, but the email-verification dialog is a translucent PrimeNG mask
+            // over the still-rendered main-page shell, so it is exposed to the same empty-profile-map
+            // hazard runDeviceLaunch guards against.
+            await revealAfterAccountGateBlock(gate, {
+                hydrate: () => this.profileCache.hydrate(),
+                revalidateAll: () => this.profileCache.revalidateAll(),
+                markReady: () => this.appReady.markReady(),
+            });
             return;
         }
         await this.runDeviceLaunch();
@@ -488,23 +498,24 @@ export class MainPageComponent implements OnDestroy {
     /**
      * Answers the account-level questions, and reports whether the launch may continue.
      *
-     * <p>False means a blocking dialog now owns the screen. Email verification ends this launch
-     * outright; the onboarding picker resumes it through `pickerCompleted`.</p>
+     * <p>Anything other than `'continue'` means a blocking dialog now owns the screen. Email
+     * verification ends this launch outright; the onboarding picker resumes it through
+     * `pickerCompleted`.</p>
      */
-    private async resolveAccountGates(): Promise<boolean> {
+    private async resolveAccountGates(): Promise<'continue' | AccountGateBlock> {
         let user: UserDto;
         try {
             user = await firstValueFrom(this.userService.getSelf());
         } catch (err) {
             if ((err as {status?: number} | null)?.status === 403) {
                 this.emailVerification.show(this.resolveEmail(), {action: 'navigate-login'});
-                return false;
+                return 'email-verification';
             }
             // Not being able to read the account means none of these questions can be answered -
             // but the device half below does not depend on any of them, and refusing to launch over
             // a failed profile fetch would strand the user on a splash screen.
             console.error('Failed to fetch user:', err);
-            return true;
+            return 'continue';
         }
 
         // Before anything reads a device id or opens a store. Every local MLS name is derived from
@@ -515,13 +526,13 @@ export class MainPageComponent implements OnDestroy {
         if (user.email) this.emailVerification.storeKnownEmail(user.email);
         if (!user.emailVerifiedAt) {
             this.emailVerification.show(user.email || this.resolveEmail());
-            return false;
+            return 'email-verification';
         }
         if (this.onboarding.needsOnboarding()) {
             this.onboarding.show();
-            return false;
+            return 'onboarding';
         }
-        return true;
+        return 'continue';
     }
 
     /**

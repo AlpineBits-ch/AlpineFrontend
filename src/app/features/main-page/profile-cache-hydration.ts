@@ -35,3 +35,38 @@ export async function hydrateThenReveal(steps: ProfileCacheHydrationSteps): Prom
     if (cached > 0) steps.revalidateAll();
     steps.markReady();
 }
+
+/**
+ * Which blocking dialog `resolveAccountGates()` handed the screen to, when it did.
+ *
+ * <p>The two are not interchangeable for this decision. `AccountOnboardingComponent` is a genuine
+ * opaque full-screen takeover (`fixed inset-0 ... bg-app-bg`, deliberately not a dialog - see its
+ * own class comment) - nothing behind it is visible, so there is nothing to hydrate before
+ * revealing it. `EmailVerificationDialogComponent` is a `p-dialog` with the default PrimeNG mask
+ * (`rgba(0,0,0,0.4)`, translucent), rendered over `main-page.component.html`, which is not gated on
+ * readiness at all - the server rail, sidebar and whatever `NavigationService.mainView()` restored
+ * from `localStorage` all render behind it, dimmed but visible. For a returning user that can
+ * include `GuildMemberListComponent`, whose raw-`userId` fallback is exactly the bug this whole
+ * cache exists to remove.</p>
+ */
+export type AccountGateBlock = 'onboarding' | 'email-verification';
+
+/**
+ * Reveals whatever `resolveAccountGates()` decided to show, hydrating first only when that surface
+ * can actually expose an unresolved profile.
+ */
+export async function revealAfterAccountGateBlock(
+    block: AccountGateBlock,
+    steps: ProfileCacheHydrationSteps,
+): Promise<void> {
+    if (block === 'onboarding') {
+        // Opaque takeover: nothing behind it renders yet, so there is nothing hydration could fix
+        // that the user could see anyway. Marking ready directly matches runDeviceLaunch's own
+        // behaviour before this file existed.
+        steps.markReady();
+        return;
+    }
+    // Translucent mask over the still-rendered main-page shell - the exact same hazard
+    // runDeviceLaunch guards against, so it gets the exact same treatment.
+    await hydrateThenReveal(steps);
+}
