@@ -72,6 +72,7 @@ import {runMlsLaunch} from './mls-launch';
 import {runMlsStorageInit} from './mls-storage-init';
 import {relaunchOnSessionTakeover} from './mls-takeover';
 import {runSignOut} from './sign-out';
+import {hydrateThenReveal} from './profile-cache-hydration';
 import {MlsJoinRequestService} from '../../services/mls-join-request.service';
 import {ConversationEncryption} from '../../enums/conversation-encryption.enum';
 import {AccountOnboardingComponent} from '../onboarding/account-onboarding.component';
@@ -83,6 +84,7 @@ import {AccountSwitchService} from '../../services/account-switch.service';
 import {SessionTeardownService} from '../../services/session-teardown.service';
 import {ApiConfigService} from '../../services/api-config.service';
 import {ProfileService} from '../../services/profile.service';
+import {ProfileCacheService} from '../../services/cache/profile-cache.service';
 import {ReportDialogComponent} from '../../components/report-dialog/report-dialog.component';
 import {GoLiveNotificationService, STREAM_LIVE_ACTION_TYPE} from '../../services/go-live-notification.service';
 import {CallFocusService} from '../../services/call-focus.service';
@@ -245,6 +247,7 @@ export class MainPageComponent implements OnDestroy {
     private teardown = inject(SessionTeardownService);
     private apiConfig = inject(ApiConfigService);
     private profileService = inject(ProfileService);
+    private profileCache = inject(ProfileCacheService);
     /** Conversations read for the launch-time Â§B sweep. Filtering them costs no requests. */
     private static readonly SWEEP_PAGE_SIZE = 100;
     private actionSub = new Subscription();
@@ -611,7 +614,15 @@ export class MainPageComponent implements OnDestroy {
         }
         this.keyPackagesFailed.set(outcome.keyPackagesFailed);
 
-        this.appReady.markReady();
+        // Before the splash comes down: the splash is what hides an empty first paint, and an
+        // empty profile map is what puts raw user ids on screen. See {@link hydrateThenReveal} -
+        // a cache fault can never fail or hang the launch, it degrades to the cold start that
+        // shipped before the cache existed.
+        await hydrateThenReveal({
+            hydrate: () => this.profileCache.hydrate(),
+            revalidateAll: () => this.profileCache.revalidateAll(),
+            markReady: () => this.appReady.markReady(),
+        });
     }
 
     /**
