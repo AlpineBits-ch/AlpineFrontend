@@ -118,13 +118,15 @@ export class CallShareTileComponent implements OnDestroy {
     /**
      * Local publish statistics, for the sharer's own tile.
      *
-     * <p>The local branch is deliberately empty until the publisher stats path lands: the sharer's
-     * own numbers come from RustMediaService, not from a receive connection, and that signal does
-     * not exist yet - it is added in Task 12. Until then the sharer's own tile shows the panel's
-     * no-data state.</p>
+     * <p>The local branch reads {@link RustMediaService.outboundStats} rather than the resolver: the
+     * sharer's own numbers come from the publisher, not from a receive connection, so the host's
+     * `inboundStatsOf` has nothing to look up for a share that is this client's own. The signal it
+     * reads is only kept warm while a panel is open on this tile - see {@link openStats} and
+     * {@link RustMediaService.inspectOutbound} - so it answers null the rest of the time exactly
+     * like the remote branch does before its panel is opened.</p>
      */
     protected readonly panelStats = computed<StreamStatsSnapshot | null>(() =>
-        this.share().isLocal ? null : this.inboundStatsOf()(this.share()));
+        this.share().isLocal ? this.rustMedia.outboundStats() : this.inboundStatsOf()(this.share()));
 
     protected openMenu(event: MouseEvent): void {
         // The tile root, not the pan surface: a right-click anywhere on the tile including its
@@ -139,12 +141,16 @@ export class CallShareTileComponent implements OnDestroy {
     protected openStats(): void {
         this.menuAt.set(null);
         this.statsOpen.set(true);
-        this.statsInspect.emit(this.share());
+        // The local tile's numbers come from the publisher, not from a receive connection, so the
+        // poll it needs is a different one from the host's - see `panelStats`.
+        if (this.share().isLocal) this.rustMedia.inspectOutbound(true);
+        else this.statsInspect.emit(this.share());
     }
 
     protected closeStats(): void {
         this.statsOpen.set(false);
-        this.statsInspect.emit(null);
+        if (this.share().isLocal) this.rustMedia.inspectOutbound(false);
+        else this.statsInspect.emit(null);
     }
 
     /** Filled in by the clipboard task; the menu item exists from here on so the wiring is one edit. */

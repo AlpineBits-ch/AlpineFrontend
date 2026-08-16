@@ -10,6 +10,7 @@ import {
 } from '../ports/screen-publisher.port';
 import {AudioChunk, LocalStreamChunk, ScreenFrame, ScreenPublisherHost} from '../screen-publisher-host';
 import {parseLocalStreamChunk} from './local-stream-framing';
+import {StreamLayerStats} from '../../shared/call/stream-stats';
 
 /** The preview frames the Rust publisher pushes back while it owns the share. */
 interface PreviewFrame {
@@ -20,6 +21,90 @@ interface PreviewFrame {
 }
 
 type TauriCore = typeof import('@tauri-apps/api/core');
+
+/** The `publish_stats` payload. Mirrors `PublishStats` in `src-tauri/src/media/publisher/mod.rs`. */
+export interface PublishStatsPayload {
+    codec: string | null;
+    profileLevelId: string | null;
+    rttMs: number | null;
+    layers: PublishLayerPayload[];
+    audio: {packetsEncoded: number; packetsDropped: number} | null;
+}
+
+export interface PublishLayerPayload {
+    rid: string | null;
+    ssrc: number | null;
+    mid: string | null;
+    width: number;
+    height: number;
+    fps: number;
+    targetKbps: number;
+    bytesSent: number;
+    packetsSent: number;
+    packetsLost: number | null;
+    nackCount: number;
+    pliCount: number | null;
+    firCount: number | null;
+    framesEncoded: number;
+    keyframes: number;
+    framesDropped: number;
+    encoder: string;
+}
+
+/**
+ * The native payload as a snapshot.
+ *
+ * <p>`source: 'native'` is what the panel branches on to omit the rows this pipeline structurally
+ * cannot fill. `qp` is the one that matters: webrtc-rs cannot report it and it lives inside Media
+ * Foundation and openh264, so it is never set here. It must stay unset rather than become a zero,
+ * which would read as perfect quality.</p>
+ *
+ * <p>`bytesSent` is carried through un-differentiated: this has one sample and no interval. The
+ * service turns two of these into `kbps`.</p>
+ */
+export function publishStatsToSnapshot(payload: PublishStatsPayload): StreamStatsSnapshot & {
+    layers: (StreamLayerStats & {bytesSent: number})[];
+} {
+    const snapshot = {
+        direction: 'outbound' as const,
+        source: 'native' as const,
+        capturedAt: Date.now(),
+        layers: payload.layers.map(l => {
+            const layer: StreamLayerStats & {bytesSent: number} = {
+                width: l.width,
+                height: l.height,
+                fps: l.fps,
+                targetKbps: l.targetKbps,
+                framesEncoded: l.framesEncoded,
+                keyFrames: l.keyframes,
+                framesDropped: l.framesDropped,
+                packets: l.packetsSent,
+                nackCount: l.nackCount,
+                encoder: l.encoder,
+                bytesSent: l.bytesSent,
+            };
+            if (l.rid !== null) layer.rid = l.rid;
+            if (l.ssrc !== null) layer.ssrc = l.ssrc;
+            if (l.mid !== null) layer.mid = l.mid;
+            if (l.packetsLost !== null) layer.packetsLost = l.packetsLost;
+            if (l.pliCount !== null) layer.pliCount = l.pliCount;
+            if (l.firCount !== null) layer.firCount = l.firCount;
+            return layer;
+        }),
+    } as StreamStatsSnapshot & {layers: (StreamLayerStats & {bytesSent: number})[]};
+
+    if (payload.codec !== null) snapshot.codec = payload.codec;
+    if (payload.profileLevelId !== null) snapshot.profileLevelId = payload.profileLevelId;
+    if (payload.rttMs !== null) snapshot.transport = {rttMs: payload.rttMs};
+    if (payload.audio) {
+        snapshot.audio = {
+            packets: payload.audio.packetsEncoded,
+            packetsDropped: payload.audio.packetsDropped,
+        };
+    }
+
+    return snapshot;
+}
 
 /**
  * Screen capture and publishing on the desktop host: Rust does all of it.
@@ -186,15 +271,14 @@ export class TauriScreenPublisher extends ScreenPublisher implements ScreenPubli
         await invoke('set_screen_audio_muted', {muted});
     }
 
-    /**
-     * Filled in by the desktop stats task; until then the desktop panel reports no data.
-     *
-     * <p>Not `assertLive` and not a Rust round trip: there is no command yet on this side, so
-     * answering null here is the honest "not implemented" rather than the "stale id" the port
-     * documents. Task 12 replaces this with the real `publish_stats` invocation.</p>
-     */
-    async stats(_shareId: string): Promise<StreamStatsSnapshot | null> {
-        return null;
+    async stats(shareId: string): Promise<StreamStatsSnapshot | null> {
+        // Deliberately NOT `assertLive`, which every other command here uses and which throws. The
+        // port's contract for this one is null on a stale id: a stats poll racing a share that just
+        // ended is routine, where a stale `setFps` is a bug worth surfacing loudly.
+        if (this.liveShareId !== shareId) return null;
+        const {invoke} = await this.tauri();
+        const payload = await invoke<PublishStatsPayload | null>('publish_stats');
+        return payload ? publishStatsToSnapshot(payload) : null;
     }
 
     // ── The canvas pipeline (ScreenPublisherHost) ─────────────────────────────

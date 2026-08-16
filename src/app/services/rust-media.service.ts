@@ -12,6 +12,7 @@ import {
     ScreenPublisherHost,
 } from '../platform/screen-publisher-host';
 import {LocalStreamRenderer, pickH264Codec} from './local-stream-render';
+import {kbpsBetween, StreamLayerStats, StreamStatsSnapshot} from '../shared/call/stream-stats';
 
 export interface ScreenSource {
     id: string;
@@ -291,6 +292,19 @@ export class RustMediaService {
     /** The share {@link startScreenPublish} last opened, or null when nothing is publishing. */
     private activeShareId: string | null = null;
 
+    private readonly _outboundStats = signal<StreamStatsSnapshot | null>(null);
+    /**
+     * Live statistics for this client's own publish, or null when nothing is being inspected.
+     *
+     * <p>Polled only while a stats panel is open on the local tile - see {@link inspectOutbound}.
+     * A share nobody is inspecting costs nothing.</p>
+     */
+    readonly outboundStats = this._outboundStats.asReadonly();
+    private outboundInterval?: ReturnType<typeof setInterval>;
+    /** The previous sample's cumulative bytes, by rid, so a rate can be differentiated out. */
+    private prevOutboundBytes = new Map<string, number>();
+    private prevOutboundAt = 0;
+
     /**
      * What the running publish was opened with, kept so the local decoder can be rebuilt against
      * it - see {@link setPublishGeometry}, which is the only thing that reads it and the only
@@ -372,6 +386,7 @@ export class RustMediaService {
             this.lastPublishOptions = null;
             this._screenAudioOutcome.set('off');
             this.resetPreviewPause();
+            this.inspectOutbound(false);
             this.publishEndedSignal.next();
         });
 
@@ -692,6 +707,48 @@ export class RustMediaService {
         if (this.activeShareId === null) return;
         await this.publisher.setAudioMuted(this.activeShareId, muted)
             .catch(e => console.warn('[screen] muting the share audio failed', e));
+    }
+
+    /**
+     * Start or stop polling the running publish's statistics.
+     *
+     * <p>Called by the local share tile when its stats panel opens and closes. Stopping clears the
+     * snapshot and the previous sample, so a panel reopened later differentiates against a fresh
+     * baseline rather than against a counter from minutes ago.</p>
+     */
+    inspectOutbound(on: boolean): void {
+        clearInterval(this.outboundInterval);
+        this.outboundInterval = undefined;
+        this.prevOutboundBytes.clear();
+        this.prevOutboundAt = 0;
+        this._outboundStats.set(null);
+        if (on) this.outboundInterval = setInterval(() => void this.pollOutbound(), 1000);
+    }
+
+    private async pollOutbound(): Promise<void> {
+        const shareId = this.activeShareId;
+        if (!shareId || !this.host) return;
+
+        const snapshot = await this.publisher.stats(shareId);
+        if (!snapshot) {
+            this._outboundStats.set(null);
+            return;
+        }
+
+        const now = Date.now();
+        const dt = this.prevOutboundAt ? (now - this.prevOutboundAt) / 1000 : 0;
+
+        for (const layer of snapshot.layers) {
+            const key = layer.rid ?? '';
+            const bytes = (layer as StreamLayerStats & {bytesSent?: number}).bytesSent;
+            if (bytes === undefined) continue;
+            const rate = kbpsBetween(bytes, this.prevOutboundBytes.get(key), dt);
+            if (rate !== undefined) layer.kbps = rate;
+            this.prevOutboundBytes.set(key, bytes);
+        }
+        this.prevOutboundAt = now;
+
+        this._outboundStats.set(snapshot);
     }
 
     /** Change capture FPS mid-stream without stopping/restarting. Takes effect within one frame. */

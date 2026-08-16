@@ -40,6 +40,8 @@ function setup(resolver: (s: CallScreenShare) => StreamStatsSnapshot | null = ()
                     claimPreviewRender: () => void 0,
                     releasePreviewRender: () => void 0,
                     resumePreview: () => void 0,
+                    outboundStats: () => null,
+                    inspectOutbound: () => void 0,
                 },
             },
         ],
@@ -142,5 +144,48 @@ describe('CallShareTileComponent stats menu', () => {
         fixture.detectChanges();
 
         expect(resolver).toHaveBeenCalledWith(share());
+    });
+
+    it('drives the publisher poll rather than the host for a local share', () => {
+        // The local tile reads its own publish, so nothing should be asked of the inbound resolver.
+        const resolver = vi.fn(() => SNAPSHOT);
+        const inspectOutbound = vi.fn();
+        TestBed.configureTestingModule({
+            imports: [CallShareTileComponent, TranslateModule.forRoot()],
+            providers: [
+                {
+                    provide: RustMediaService,
+                    useValue: {
+                        previewPaused: () => false,
+                        claimPreviewRender: () => void 0,
+                        releasePreviewRender: () => void 0,
+                        resumePreview: () => void 0,
+                        // A local share's panel reads this, not the resolver - see the assertion
+                        // below on `stats-layer` actually rendering from it.
+                        outboundStats: () => SNAPSHOT,
+                        inspectOutbound,
+                    },
+                },
+            ],
+        });
+        const fixture = TestBed.createComponent(CallShareTileComponent);
+        fixture.componentRef.setInput('share', share({isLocal: true}));
+        fixture.componentRef.setInput('inboundStatsOf', resolver);
+        fixture.detectChanges();
+        const inspected: (CallScreenShare | null)[] = [];
+        fixture.componentInstance.statsInspect.subscribe(s => inspected.push(s));
+
+        rightClick(fixture);
+        fixture.nativeElement.querySelector('[data-testid="menu-stats"]').click();
+        fixture.detectChanges();
+
+        expect(inspected).toEqual([]);
+        expect(resolver).not.toHaveBeenCalled();
+        // The poll this tile actually needs: RustMediaService.inspectOutbound, not the host emit.
+        expect(inspectOutbound).toHaveBeenCalledWith(true);
+        // And the panel itself renders what that poll produced, not a no-data state - proof
+        // `panelStats` is actually wired to `outboundStats()` rather than merely not calling the
+        // resolver for some unrelated reason.
+        expect(fixture.nativeElement.querySelector('[data-testid="stats-layer"]')).toBeTruthy();
     });
 });
