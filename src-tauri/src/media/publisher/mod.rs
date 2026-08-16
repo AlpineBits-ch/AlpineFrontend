@@ -8,10 +8,12 @@
 //! Discord does the equivalent natively - OS capture into a hardware encoder, with frames never
 //! leaving the process - which is why their streams stay sharp on text.
 
-//! The publish opens its own Cloudflare session, separate from the webview's, and asks the backend
-//! for it with `primary=false` so it is not recorded as the participant's audio session. Other
-//! clients subscribe through the TrackPublished event, which carries the publishing session's id,
-//! so they cannot tell which process produced the track.
+//! The publish rides on the **shared** LiveKit room - the same connection, and therefore the same
+//! participant, the microphone is on. It used to open a session of its own with `primary=false`,
+//! because Cloudflare keyed participants by session and a second one was the only way to publish
+//! twice; LiveKit puts many tracks on one participant, so the second identity is gone and with it
+//! the case `VoiceShareSnapshot.mediaSessionId` exists to disambiguate. See the migration spec
+//! §2.1 and [`crate::media::livekit::registry`].
 
 // A handful of accessors exist for diagnostics and for the paths not yet exercised (geometry
 // readback, encoder naming). Suppressed module-wide rather than annotated item by item.
@@ -31,7 +33,7 @@ pub mod session;
 pub mod simulcast;
 pub mod signalling;
 
-/// Frames in one end, RTP out the other, with the backend mocked over real HTTP.
+/// Frames in one end, RTP out the other, against a real LiveKit server.
 ///
 /// Screen sharing has broken twice with the whole suite green - a keyframe interval counted in
 /// frames on a screen that produces almost none, and one full UDP send queue ending a publication
@@ -46,8 +48,9 @@ use std::sync::{Mutex, OnceLock};
 
 use tauri::Manager;
 
+use crate::media::livekit;
 use session::PublishHandle;
-use signalling::{SessionRole, Signalling, VoiceTarget};
+use signalling::VoiceTarget;
 
 /// The one running publish, if any. Screen sharing is single-session by design: the UI offers no
 /// way to share two sources at once, and a second capture would contend for the same encoder.
@@ -61,6 +64,13 @@ fn active() -> &'static Mutex<Option<PublishHandle>> {
 #[derive(serde::Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct PublishResult {
+    /// **Always empty on desktop now**, and kept only because the webview still reads the key.
+    ///
+    /// A media session was Cloudflare's answer to "which of this participant's connections is the
+    /// track on". The share is on the participant's one connection, so there is no second session
+    /// to name - migration spec §2.1. Empty rather than removed so that a webview built against the
+    /// old shape fails to *find* anything rather than failing to parse; it goes when the webview
+    /// stops asking for it.
     pub media_session_id: String,
     pub track_name: String,
     /// The share's audio track, or `None` when it has none.
@@ -74,8 +84,10 @@ pub struct PublishResult {
 
 /// Capture, encode and publish a screen source straight from Rust.
 ///
-/// The auth token and API base are passed in rather than read here: the webview owns session
-/// lifetime and token refresh, and duplicating that in Rust would mean two things to keep correct.
+/// The connection is passed in rather than fetched here. Under §2.2 of the migration the webview
+/// owns every control-plane call, because it has the interceptor chain that refreshes an expired
+/// bearer and replays - a token string this process captured at publish time cannot. So this takes
+/// `{url, token}` and makes no HTTP request at all.
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]
 pub async fn start_screen_publish(
@@ -88,13 +100,11 @@ pub async fn start_screen_publish(
     // What is being shared. Decides what the encoder gives up under pressure, not how much it
     // spends - see `EncoderContent`.
     content: encoder::EncoderContent,
-    ice_servers: Vec<rtc::IceServerConfig>,
-    api_base: String,
-    token: String,
-    // The same `X-Device-Id` the webview sends. Lower stakes than the voice engine's primary
-    // session, but this path hits CreateSession too, so leaving it unstamped would move the
-    // split rather than close it.
-    device_id: String,
+    // Where the room lives, and what lets us in. Consulted only when this is the first holder of
+    // the room - see `livekit::registry::acquire`. There is no ICE server list any more: the node
+    // states what it is reachable on in its `JoinResponse`, and a room lives on exactly one node.
+    livekit_url: String,
+    livekit_token: String,
     // Guild voice supplies guild_id + channel_id; a DM call supplies call_id instead.
     guild_id: Option<String>,
     channel_id: Option<String>,
@@ -124,9 +134,17 @@ pub async fn start_screen_publish(
         _ => return Err("publish needs either guildId+channelId or callId".into()),
     };
 
-    // Secondary: the screen share must never be recorded as the participant's audio session.
-    let signalling = Signalling::new(api_base, token, device_id, target, SessionRole::Secondary)?;
-    let handle = session::start(
+    // The §2.1 merge. The microphone almost always already holds this room, so `acquire` hands back
+    // the live connection and the share is published on the *same participant* rather than opening a
+    // second one. That is what stops desktop producing a second identity - and therefore what stops
+    // it producing `VoiceShareSnapshot.mediaSessionId` - and it is the whole point of the change.
+    //
+    // `key_for` answers `None` only for Isle, which never screen shares and has no room model; the
+    // match above has already refused everything else.
+    let key = livekit::registry::key_for(&target).ok_or("screen share needs a room target")?;
+    let room = livekit::registry::acquire(&key, &livekit_url, &livekit_token).await?;
+
+    let handle = match session::start(
         source_id,
         share_id,
         width,
@@ -134,16 +152,27 @@ pub async fn start_screen_publish(
         fps,
         kbps,
         content,
-        ice_servers,
-        signalling,
+        room,
+        key.clone(),
         on_preview,
         local_stream.then_some(on_local_stream),
         share_audio,
     )
-    .await?;
+    .await
+    {
+        Ok(handle) => handle,
+        Err(e) => {
+            // Acquired above and never handed to a `Publication` that could release it. Leaving the
+            // holder behind would keep the room open past the last real user of it, and the next
+            // failed publish would add another - a call that can never be left.
+            rtc::release_room(&key).await;
+            return Err(e);
+        }
+    };
 
     let result = PublishResult {
-        media_session_id: handle.media_session_id.clone(),
+        // See the field: desktop no longer has a media session to name.
+        media_session_id: String::new(),
         track_name: handle.track_name.clone(),
         audio_track_name: handle.audio_track_name.clone(),
         encoder: handle.encoder_name.to_string(),

@@ -1,4 +1,4 @@
-//! Owns a running publish: capture thread, encoder, and the peer connection feeding Cloudflare.
+//! Owns a running publish: capture thread, encoder, and the tracks feeding the shared LiveKit room.
 
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
@@ -9,8 +9,8 @@ use image::RgbaImage;
 use super::encoder::{new_encoder, EncoderContent, EncoderSpec, VideoEncoder};
 use super::pump::{FramePump, PumpLayer};
 use super::rtc::{FrameSink, Publication};
-use super::signalling::{Signalling, VideoIntent};
 use super::simulcast;
+use crate::media::livekit::room::Room;
 use crate::media::screen::{find_capture_source, run_capture_loop};
 
 /// How many encoded frames may queue between the capture thread and the async writer.
@@ -55,7 +55,6 @@ pub struct PublishHandle {
     height: AtomicU32,
     /// Where [`PublishHandle::set_geometry`] posts a resolution change for the pump to pick up.
     pending_spec: Arc<Mutex<Option<super::encoder::EncoderSpec>>>,
-    pub media_session_id: String,
     pub track_name: String,
     /// Present only when this share carries its own sound. Viewers read it out of the snapshot's
     /// `shares[].trackNames`, so it has to reflect what was actually published rather than what was
@@ -70,8 +69,12 @@ pub struct PublishHandle {
     /// The same flag a viewer's RTCP PLI sets, held here so re-enabling the local stream can ask
     /// for an IDR the way a new viewer does.
     keyframe_wanted: Arc<AtomicBool>,
-    /// The publication's connection, for `publish_stats`. Taken before the publication is moved
+    /// The room's publishing connection, for `publish_stats`. Taken before the publication is moved
     /// into the writer task.
+    ///
+    /// <p>Shared with the microphone now, so it outlives this handle. That is safe for statistics
+    /// only because the share is the sole *video* publication on it - see
+    /// `Publication::peer_connection`.</p>
     peer_connection: Arc<webrtc::peer_connection::RTCPeerConnection>,
     /// The pump's per-layer counters. Taken before the pump moves onto the capture thread.
     pump_counters: Arc<super::pump::PumpCounters>,
@@ -100,11 +103,15 @@ impl PublishHandle {
     /// Move the running publish to a new resolution and bitrate, without ending it.
     ///
     /// <p>This is what a resolution change is now. Everything the wire and the room can see - the
-    /// Cloudflare session, the peer connection, the RTP stream, the track name, and therefore the
-    /// share id - is untouched; only the encoder behind them is retyped, at a frame boundary, by
-    /// the capture thread that owns it. Viewers receive a new SPS/PPS and an IDR at the new size,
-    /// which is indistinguishable from any encoder adapting on its own, and nothing is announced
-    /// to anybody.</p>
+    /// publication, the connection, the RTP stream, the track name, and therefore the share id - is
+    /// untouched; only the encoder behind them is retyped, at a frame boundary, by the capture
+    /// thread that owns it. Viewers receive a new SPS/PPS and an IDR at the new size, which is
+    /// indistinguishable from any encoder adapting on its own, and nothing is announced to
+    /// anybody.</p>
+    ///
+    /// <p>The declared geometry the SFU records is not moved with it. Under §2.2 of the migration
+    /// the webview owns that declaration (`PUT .../voice/video`), because it is the side that can
+    /// refresh a bearer and replay - a token this process captured at publish time cannot.</p>
     ///
     /// <p>Previously this was a stop and a start: a new session, a new share id, and a hole of one
     /// to four seconds during which every viewer's tile left the grid entirely.</p>
@@ -339,7 +346,11 @@ const OPUS_PACKET_DURATION: Duration = Duration::from_millis(20);
 
 /// Start capturing, encoding and publishing a source.
 ///
-/// Returns once the track is live on Cloudflare, so the caller can tell other clients to subscribe.
+/// Returns once the track is live on the SFU, so the caller can tell other clients to subscribe.
+///
+/// `room` is the shared connection and `room_key` the registry key it was acquired under. Both are
+/// passed in rather than taken here: the caller acquired, so the caller is what has to release if
+/// this fails, and one acquire must never be balanced by two releases.
 #[allow(clippy::too_many_arguments)]
 pub async fn start(
     source_id: String,
@@ -349,8 +360,8 @@ pub async fn start(
     fps: u32,
     kbps: u32,
     content: EncoderContent,
-    ice_servers: Vec<crate::media::publisher::rtc::IceServerConfig>,
-    signalling: Signalling,
+    room: Arc<Room>,
+    room_key: String,
     on_preview: tauri::ipc::Channel<PreviewFrame>,
     // A copy of the encoded stream for the sharer's own tile, or `None` on a webview that cannot
     // decode one and falls back to `on_preview`'s thumbnail.
@@ -408,20 +419,22 @@ pub async fn start(
         None
     };
 
-    // The solved output geometry, which is what the encoder above was just built for - not the
-    // preset's nominal height. An ultrawide fitted into a 1080p box encodes 540 lines, and declaring
-    // 1080 would have the server cap a share that is well inside its rung.
+    // Only the layers an encoder was actually built for - `ladder` can be longer when a lower rung
+    // failed to build (see the `encoders.is_empty()` guard above). Truncated *before* the publish,
+    // not after: a rid advertised with no encoder behind it is a layer the SFU will select and then
+    // find empty, which is a tile that loads forever rather than one that fails.
+    let published_ladder: Vec<super::simulcast::Layer> =
+        ladder.into_iter().take(layer_count).collect();
+
     let publication = Publication::start(
-        signalling,
+        room,
+        room_key,
         &share_id,
-        ice_servers,
+        &published_ladder,
         screen_audio.is_some(),
-        VideoIntent::new(height, fps),
-        layer_count,
     )
     .await?;
     let layer_tracks = publication.layer_tracks();
-    let media_session_id = publication.media_session_id.clone();
     let track_name = publication.track_name.clone();
     // Taken before the publication is moved into the writer task below.
     let keyframe_requests = publication.keyframe_requests();
@@ -446,7 +459,7 @@ pub async fn start(
     let mut lower_writers = Vec::with_capacity(layer_count.saturating_sub(1));
     let mut top_frame_rx = None;
 
-    for (index, (encoder, rung)) in encoders.into_iter().zip(ladder.iter()).enumerate() {
+    for (index, (encoder, rung)) in encoders.into_iter().zip(published_ladder.iter()).enumerate() {
         let (frame_tx, frame_rx) = tokio::sync::mpsc::channel::<(Vec<u8>, Duration)>(FRAME_QUEUE);
         pump_layers.push(PumpLayer {
             encoder,
@@ -464,9 +477,8 @@ pub async fn start(
     eprintln!(
         "[publisher] publishing {} layer(s): {}",
         layer_count,
-        ladder
+        published_ladder
             .iter()
-            .take(layer_count)
             .map(|l| format!("{}={}x{}@{}k", l.rid, l.spec.width, l.spec.height, l.spec.kbps))
             .collect::<Vec<_>>()
             .join(" "),
@@ -539,12 +551,6 @@ pub async fn start(
         })
         .map_err(|e| e.to_string())?;
 
-    // Only the layers an encoder was actually built for - `ladder` can be longer when a lower rung
-    // failed to build (see the `encoders.is_empty()` guard above), and a row for a layer that was
-    // never even attempted would not be "not publishing", it would be a lie about what was tried.
-    let published_ladder: Vec<super::simulcast::Layer> =
-        ladder.into_iter().take(layer_count).collect();
-
     Ok(PublishHandle {
         stop_tx: Mutex::new(Some(stop_tx)),
         capture_gone: Mutex::new(capture_gone),
@@ -552,7 +558,6 @@ pub async fn start(
         width: AtomicU32::new(width),
         height: AtomicU32::new(height),
         pending_spec,
-        media_session_id,
         track_name,
         audio_track_name,
         encoder_name,
@@ -652,7 +657,6 @@ mod tests {
             width: AtomicU32::new(1920),
             height: AtomicU32::new(1080),
             pending_spec: Arc::new(Mutex::new(None)),
-            media_session_id: "sess".into(),
             track_name: "screen-1".into(),
             audio_track_name: None,
             encoder_name: "test",

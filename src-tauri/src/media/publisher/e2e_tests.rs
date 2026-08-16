@@ -1,51 +1,46 @@
-﻿//! End-to-end proof that a screen share this client publishes reaches a viewer.
+//! End-to-end proof that a screen share this client publishes reaches a viewer.
 //!
-//! Real frames, the real OpenH264 encoder, a real peer connection, real SRTP, and the shipping
-//! pump and writer. `a_published_screen_arrives_at_a_viewer_end_to_end` asserts on *the NAL units a
-//! viewer reassembles*, not on a counter.
+//! Real frames, the real OpenH264 encoder, the real `webrtc-rs` transport, real SRTP, the shipping
+//! pump and writer - and, for everything that touches the wire, **a real LiveKit server** on
+//! `ws://127.0.0.1:7880`. Those tests are `#[ignore]`d with the same reason string as
+//! `media::livekit::room_tests`; see `docker/livekit-dev/compose.yaml`.
 //!
-//! The backend is mocked at the socket: a small HTTP server on 127.0.0.1 speaking the four
-//! Cloudflare endpoints, with a stand-in SFU peer connection behind it. The real `Signalling` and
-//! real `reqwest` run against it, so the URL routing and the camelCase JSON contract are covered on
-//! the way past rather than only in isolation.
+//! # Why the mock backend is gone
 //!
-//! This exists because screen sharing broke twice with the whole suite green, and both faults were
-//! invisible from the sharing side. A keyframe interval counted in *frames* on a screen that
-//! produces almost none meant a viewer waited forty-five seconds for a decodable picture. One full
-//! UDP send queue - which is exactly what a single keyframe's worth of packets does on Windows -
-//! ended the publication outright, while capture and encoding carried on happily. In both cases the
-//! share reported "running" everywhere except on the wire, and the sharer's own preview is drawn
-//! from the capture source and looked perfect throughout.
+//! This file used to stand up an HTTP server on loopback speaking `/voice/session` and
+//! `/voice/tracks` with a stand-in SFU peer connection behind it. Neither route exists any more, and
+//! more to the point a mock cannot answer the questions that are now interesting: whether the SFU
+//! accepts our rid ladder, whether it keeps High 5.2 in the answer, and whether one participant may
+//! carry the microphone and the share at once. Those are properties of *the server*, and asserting
+//! them against something we wrote ourselves is the trap `project_media_e2e_test_traps` names -
+//! several of the old assertions were satisfied by the mock's own recorded requests.
 //!
-//! CI runs this on every push. If it fails, do not merge; there is no version of this failing that
-//! is not "screen sharing is broken".
+//! # What is still covered without a server
+//!
+//! The pump's keyframe policy and the writer's failure handling need no transport at all, and both
+//! exist because screen sharing broke twice with the whole suite green: a keyframe interval counted
+//! in *frames* on a screen that produces almost none, and one full UDP send queue ending a
+//! publication outright. In both cases the share reported "running" everywhere except on the wire,
+//! and the sharer's own preview is drawn from the capture source and looked perfect throughout.
 
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use image::RgbaImage;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::{TcpListener, TcpStream};
+use livekit_api::access_token::{AccessToken, VideoGrants};
 use tokio::sync::mpsc;
-
-use webrtc::rtcp::payload_feedbacks::picture_loss_indication::PictureLossIndication;
-use webrtc::peer_connection::configuration::RTCConfiguration;
-use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
-use webrtc::peer_connection::peer_connection_state::RTCPeerConnectionState;
-use webrtc::peer_connection::RTCPeerConnection;
-use webrtc::rtp::codecs::h264::H264Packet;
-use webrtc::rtp::packetizer::Depacketizer;
-use webrtc::rtp_transceiver::rtp_codec::RTPCodecType;
 
 use super::encoder::{
     new_software_encoder, provision_async, EncodeOutcome, EncodedChunk, EncoderContent, EncoderSpec,
     VideoEncoder,
 };
 use super::pump::{FramePump, PreviewSink, PumpLayer};
-use super::rtc::{publisher_api, FrameSink, Publication};
+use super::rtc::{release_room, FrameSink, Publication};
 use super::session::{run_writer, WRITE_FAILURES_BEFORE_GIVING_UP};
-use super::signalling::{SessionRole, Signalling, VoiceTarget};
+use super::simulcast::{self, Layer};
+use crate::media::livekit::registry;
+use crate::media::livekit::room::Room;
 
 /// One access unit as a viewer reassembles it: the NAL units it contains, without start codes.
 ///
@@ -59,7 +54,7 @@ const NAL_IDR: u8 = 5;
 /// Sequence and picture parameter sets. A viewer needs both before it can decode the IDR.
 const NAL_SPS: u8 = 7;
 const NAL_PPS: u8 = 8;
-/// Access unit delimiter and filler data. The payloader drops both by design (RFC 6184 Â§5.4) -
+/// Access unit delimiter and filler data. The payloader drops both by design (RFC 6184 §5.4) -
 /// they carry no picture information - so they must be excluded from what we expect to arrive.
 const NAL_AUD: u8 = 9;
 const NAL_FILLER: u8 = 12;
@@ -105,399 +100,80 @@ fn nal_bodies(annex_b: &[u8]) -> AccessUnit {
     nals
 }
 
-// â”€â”€ The stand-in backend â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── The live server ───────────────────────────────────────────────────────────────────────────
 
-struct BackendState {
-    /// Cloudflare's side of the connection, and the viewer: the publisher's only peer.
-    sfu: Arc<RTCPeerConnection>,
-    media_session_id: String,
-    /// What `tracks/new` reports, so the renegotiation path can be driven.
-    require_renegotiation: bool,
-    renegotiations: AtomicU32,
-    /// The SSRC of the inbound video, learned from `on_track`. Needed to address a PLI at it.
-    media_ssrc: Arc<Mutex<Option<u32>>>,
-    closed_tracks: Mutex<Vec<String>>,
-    /// Every track name the publisher asked to publish, in order.
-    published_tracks: Mutex<Vec<String>>,
-    /// Every request path served, so tests can assert on what the publisher actually asked for.
-    paths: Mutex<Vec<String>>,
-    /// The offer SDP as it arrived, so a test can assert on the bytes the SFU actually reads.
-    ///
-    /// Simulcast is invisible from this side otherwise: the publisher can hold three tracks and
-    /// still have offered one encoding, because webrtc-rs writes the rid and simulcast attributes
-    /// from what is attached to the *sender*, not from what the caller is holding.
-    offer_sdp: Mutex<Option<String>>,
-}
+const DEV_URL: &str = "ws://127.0.0.1:7880";
 
-/// A Cloudflare-shaped backend on loopback, with a real peer connection behind it.
-struct MockBackend {
-    base_url: String,
-    state: Arc<BackendState>,
-    server: tokio::task::JoinHandle<()>,
-}
+/// Dev mode ships this fixed pair. It is not a secret, and it must never reach a config file a
+/// release build reads - a client never signs its own join token.
+const DEV_KEY: &str = "devkey";
+const DEV_SECRET: &str = "secret";
 
-impl Drop for MockBackend {
-    fn drop(&mut self) {
-        self.server.abort();
-    }
-}
-
-impl MockBackend {
-    /// Bind, start serving, and return the access units the viewer reassembles.
-    async fn start(require_renegotiation: bool) -> (Self, mpsc::Receiver<AccessUnit>) {
-        // The production builder, not a copy of it. Which codecs and interceptors are registered is
-        // what decides whether the inbound stream can be matched to a transceiver at all, so a
-        // test that builds its own media engine tests its own media engine.
-        let sfu = Arc::new(
-            publisher_api()
-                .expect("the publisher API")
-                .new_peer_connection(RTCConfiguration::default())
-                .await
-                .expect("a peer connection"),
-        );
-
-        let (tx, rx) = mpsc::channel::<AccessUnit>(256);
-        let media_ssrc = Arc::new(Mutex::new(None));
-        route_inbound_video(&sfu, tx, Arc::clone(&media_ssrc));
-
-        let listener = TcpListener::bind("127.0.0.1:0").await.expect("a port");
-        let port = listener.local_addr().unwrap().port();
-
-        let state = Arc::new(BackendState {
-            sfu,
-            media_session_id: "cf-session-under-test".to_owned(),
-            require_renegotiation,
-            renegotiations: AtomicU32::new(0),
-            // The same handle the `on_track` reader writes to.
-            media_ssrc,
-            closed_tracks: Mutex::new(Vec::new()),
-            published_tracks: Mutex::new(Vec::new()),
-            paths: Mutex::new(Vec::new()),
-            offer_sdp: Mutex::new(None),
-        });
-
-        let serving = Arc::clone(&state);
-        let server = tokio::spawn(async move {
-            while let Ok((stream, _)) = listener.accept().await {
-                let state = Arc::clone(&serving);
-                tokio::spawn(async move {
-                    if let Err(e) = handle_request(stream, state).await {
-                        eprintln!("[mock-backend] {e}");
-                    }
-                });
-            }
-        });
-
-        (
-            Self {
-                base_url: format!("http://127.0.0.1:{port}"),
-                state,
-                server,
-            },
-            rx,
-        )
-    }
-
-    /// Block until the transport can actually carry media.
-    ///
-    /// `Publication::start` returns as soon as the answer is applied, which is *before* ICE and DTLS
-    /// finish - in production that is right, because capture should not wait on a handshake and a
-    /// viewer's PLI recovers whatever the opening window loses. In a test it is the difference
-    /// between asserting on the stream and asserting on a race: without this the first frames are
-    /// written into a transport that is not up yet and simply vanish.
-    async fn wait_until_connected(&self) {
-        let (tx, mut rx) = mpsc::channel::<()>(1);
-        self.state
-            .sfu
-            .on_peer_connection_state_change(Box::new(move |state| {
-                let tx = tx.clone();
-                Box::pin(async move {
-                    if state == RTCPeerConnectionState::Connected {
-                        let _ = tx.try_send(());
-                    }
-                })
-            }));
-
-        if self.state.sfu.connection_state() == RTCPeerConnectionState::Connected {
-            return;
-        }
-        tokio::time::timeout(Duration::from_secs(20), rx.recv())
-            .await
-            .expect("the peer connection must connect")
-            .expect("the state-change channel must stay open");
-    }
-
-    /// A viewer asking for a decodable picture, the way a browser does: an RTCP PLI.
-    async fn request_keyframe(&self) {
-        let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
-        let ssrc = loop {
-            let seen = *self.state.media_ssrc.lock().unwrap();
-            if let Some(ssrc) = seen {
-                break ssrc;
-            }
-            assert!(
-                tokio::time::Instant::now() < deadline,
-                "no inbound track to ask for a keyframe on"
-            );
-            tokio::time::sleep(Duration::from_millis(20)).await;
-        };
-
-        self.state
-            .sfu
-            .write_rtcp(&[Box::new(PictureLossIndication {
-                sender_ssrc: 0,
-                media_ssrc: ssrc,
-            })])
-            .await
-            .expect("the PLI must reach the publisher");
-    }
-
-    fn renegotiations(&self) -> u32 {
-        self.state.renegotiations.load(Ordering::Relaxed)
-    }
-
-    fn closed_tracks(&self) -> Vec<String> {
-        self.state.closed_tracks.lock().unwrap().clone()
-    }
-
-    fn published_tracks(&self) -> Vec<String> {
-        self.state.published_tracks.lock().unwrap().clone()
-    }
-
-    fn paths(&self) -> Vec<String> {
-        self.state.paths.lock().unwrap().clone()
-    }
-}
-
-/// Reassemble inbound RTP into access units.
-///
-/// The reader is **spawned** and the handler returns immediately: `webrtc-rs` holds one mutex around
-/// the `on_track` closure for as long as the future it returns is alive, so reading inside it would
-/// starve every track after the first.
-fn route_inbound_video(
-    sfu: &RTCPeerConnection,
-    tx: mpsc::Sender<AccessUnit>,
-    media_ssrc: Arc<Mutex<Option<u32>>>,
-) {
-    sfu.on_track(Box::new(move |track, _receiver, _transceiver| {
-        let tx = tx.clone();
-        let media_ssrc = Arc::clone(&media_ssrc);
-        Box::pin(async move {
-            if track.kind() != RTPCodecType::Video {
-                return;
-            }
-            *media_ssrc.lock().unwrap() = Some(track.ssrc());
-
-            tokio::spawn(async move {
-                let mut depacketizer = H264Packet::default();
-                let mut unit: Vec<u8> = Vec::new();
-                while let Ok((packet, _)) = track.read_rtp().await {
-                    if packet.payload.is_empty() {
-                        continue;
-                    }
-                    if let Ok(bytes) = depacketizer.depacketize(&packet.payload) {
-                        unit.extend_from_slice(&bytes);
-                    }
-                    // The marker bit ends the access unit: one sample in, one sample out.
-                    if packet.header.marker && !unit.is_empty() {
-                        if tx.send(nal_bodies(&unit)).await.is_err() {
-                            return;
-                        }
-                        unit.clear();
-                    }
-                }
-            });
+/// Duplicated from `media::livekit::room_tests` rather than shared, because that module is a private
+/// `#[cfg(test)] mod` and making it reachable would mean editing `livekit/`, which this change does
+/// not own. Both copies must keep signing with the same dev pair or the server refuses the join.
+fn dev_token(room: &str, identity: &str) -> String {
+    AccessToken::with_api_key(DEV_KEY, DEV_SECRET)
+        .with_identity(identity)
+        .with_grants(VideoGrants {
+            room_join: true,
+            room: room.to_string(),
+            can_publish: true,
+            can_subscribe: true,
+            ..Default::default()
         })
-    }));
+        .to_jwt()
+        .expect("dev token")
 }
 
-/// Read one HTTP/1.1 request, answer it, close.
-async fn handle_request(mut stream: TcpStream, state: Arc<BackendState>) -> std::io::Result<()> {
-    let mut buf = Vec::new();
-    let mut chunk = [0u8; 4096];
-
-    let (body_start, content_length) = loop {
-        let n = stream.read(&mut chunk).await?;
-        if n == 0 {
-            return Ok(());
-        }
-        buf.extend_from_slice(&chunk[..n]);
-        if let Some(end) = buf.windows(4).position(|w| w == b"\r\n\r\n") {
-            let head = String::from_utf8_lossy(&buf[..end]).to_string();
-            let length = head
-                .lines()
-                .find_map(|line| {
-                    let (name, value) = line.split_once(':')?;
-                    name.trim()
-                        .eq_ignore_ascii_case("content-length")
-                        .then(|| value.trim().parse::<usize>().ok())?
-                })
-                .unwrap_or(0);
-            break (end + 4, length);
-        }
-    };
-
-    while buf.len() < body_start + content_length {
-        let n = stream.read(&mut chunk).await?;
-        if n == 0 {
-            break;
-        }
-        buf.extend_from_slice(&chunk[..n]);
-    }
-
-    let head = String::from_utf8_lossy(&buf[..body_start]).to_string();
-    let request_line = head.lines().next().unwrap_or_default().to_owned();
-    let mut parts = request_line.split_whitespace();
-    let method = parts.next().unwrap_or("GET").to_owned();
-    let path = parts.next().unwrap_or("/").to_owned();
-    let body: serde_json::Value =
-        serde_json::from_slice(&buf[body_start..]).unwrap_or(serde_json::Value::Null);
-
-    // Method and path together, because the neutral rename changed one without the other: the close
-    // route became a POST while Isle's stayed a PUT, and a client that keeps the old verb gets a 405
-    // from a path that exists - which reads like a routing problem rather than a contract one.
-    state
-        .paths
-        .lock()
-        .unwrap()
-        .push(format!("{method} {path}"));
-    let response = route(&path, &body, &state).await;
-    let payload = response.to_string();
-
-    stream
-        .write_all(
-            format!(
-                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\
-                 Connection: close\r\n\r\n{payload}",
-                payload.len()
-            )
-            .as_bytes(),
-        )
-        .await?;
-    stream.flush().await
+/// Take the room for `key` exactly as `start_screen_publish` does - through the registry, never by
+/// connecting directly. Connecting directly is what the merge these tests guard exists to prevent.
+async fn share_room(key: &str, room: &str, identity: &str) -> Arc<Room> {
+    registry::acquire(key, DEV_URL, &dev_token(room, identity))
+        .await
+        .expect("the LiveKit server must accept the join")
 }
 
-async fn route(
-    path: &str,
-    body: &serde_json::Value,
-    state: &Arc<BackendState>,
-) -> serde_json::Value {
-    let route = path.split('?').next().unwrap_or(path);
-
-    if route.ends_with("/voice/session") || route.ends_with("/cf/session") {
-        // The neutral shape. `backend` is what tells a client which media implementation to pick,
-        // and answering without it is how a client would silently assume Cloudflare forever.
-        return serde_json::json!({
-            "mediaSessionId": state.media_session_id,
-            "backend": "cloudflare",
-        });
-    }
-
-    // The neutral surface collapsed publish and subscribe onto one route; Isle's `cf/tracks/new` is
-    // accepted too so the same mock can stand in for either dialect.
-    if route.ends_with("/voice/tracks") || route.ends_with("/cf/tracks/new") {
-        // Asserted rather than assumed: a publisher that sent Cloudflare's `location` to this route
-        // would still get a plausible answer here and fail only against the real backend, which is
-        // exactly the class of bug the neutral rename introduces.
-        let direction = &body["tracks"][0]["direction"];
-        assert_eq!(
-            direction, "publish",
-            "the neutral surface expects `direction`, got tracks: {}",
-            body["tracks"]
-        );
-        assert!(
-            body["mediaSessionId"].is_string(),
-            "the neutral surface expects `mediaSessionId`, got body: {body}"
-        );
-
-        let answer = answer_the_offer(state, body).await;
-        // Every track echoed, not just the first. A share with audio publishes two in one call, and
-        // answering for one of them makes the second look like it was silently dropped.
-        let echoed: Vec<serde_json::Value> = body["tracks"]
-            .as_array()
-            .map(|tracks| {
-                tracks
-                    .iter()
-                    .map(|t| serde_json::json!({ "mid": t["mid"], "trackName": t["trackName"] }))
-                    .collect()
-            })
-            .unwrap_or_default();
-        state
-            .published_tracks
-            .lock()
-            .unwrap()
-            .extend(echoed.iter().filter_map(|t| {
-                t["trackName"].as_str().map(str::to_owned)
-            }));
-        return serde_json::json!({
-            "sessionDescription": { "type": "answer", "sdp": answer },
-            "tracks": echoed,
-            "requiresImmediateRenegotiation": state.require_renegotiation,
-        });
-    }
-
-    if route.ends_with("/voice/negotiate") || route.ends_with("/cf/renegotiate") {
-        state.renegotiations.fetch_add(1, Ordering::Relaxed);
-        let answer = answer_the_offer(state, body).await;
-        return serde_json::json!({
-            "sessionDescription": { "type": "answer", "sdp": answer },
-        });
-    }
-
-    if route.ends_with("/voice/tracks/close") || route.ends_with("/cf/tracks/close") {
-        if let Some(names) = body["trackNames"].as_array() {
-            let mut closed = state.closed_tracks.lock().unwrap();
-            closed.extend(names.iter().filter_map(|n| n.as_str().map(str::to_owned)));
-        }
-        return serde_json::json!({});
-    }
-
-    // Answered rather than panicked, because this runs in a spawned task where a panic would only
-    // hang the request until reqwest's timeout. An empty body fails to deserialise into whatever
-    // the caller expected, which surfaces as a real error at the call site.
-    eprintln!("[mock-backend] no route for {path}");
-    serde_json::json!({})
-}
-
-/// Apply the publisher's offer to the stand-in SFU and answer it, candidates included.
+/// Poll a room's RTP counter until something arrives or `patience` runs out.
 ///
-/// Gathering is awaited before answering because there is no trickle path here, exactly as there is
-/// none between the publisher and Cloudflare.
-async fn answer_the_offer(state: &Arc<BackendState>, body: &serde_json::Value) -> String {
-    let offer = body["sessionDescription"]["sdp"]
-        .as_str()
-        .expect("an offer SDP")
-        .to_owned();
-    // Kept before it is applied: this is the only place the exact bytes the SFU reads are visible.
-    *state.offer_sdp.lock().unwrap() = Some(offer.clone());
-
-    state
-        .sfu
-        .set_remote_description(RTCSessionDescription::offer(offer).expect("a parseable offer"))
-        .await
-        .expect("the offer must apply");
-
-    let answer = state.sfu.create_answer(None).await.expect("an answer");
-    let mut gathering = state.sfu.gathering_complete_promise().await;
-    state
-        .sfu
-        .set_local_description(answer)
-        .await
-        .expect("the answer must apply");
-    let _ = tokio::time::timeout(Duration::from_secs(10), gathering.recv()).await;
-
-    state
-        .sfu
-        .local_description()
-        .await
-        .expect("a local description after gathering")
-        .sdp
+/// Packets, not a connection state: a subscriber that reaches `connected` and receives nothing is a
+/// different failure from one that never connected, and only a counter tells them apart.
+async fn rtp_within(room: &Room, patience: Duration) -> u64 {
+    let deadline = tokio::time::Instant::now() + patience;
+    loop {
+        let seen = room.stats.rtp_received.load(Ordering::Relaxed);
+        if seen > 0 || tokio::time::Instant::now() >= deadline {
+            return seen;
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
 }
 
-// â”€â”€ Test doubles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+/// What a third party can see other people publishing, once at least `want` tracks have shown up.
+///
+/// Polled rather than read once: the roster arrives on `JoinResponse` for anything published before
+/// the join and on `ParticipantUpdate` for anything after, and which of those a freshly published
+/// track lands in is the server's timing, not ours. Reading once turns that into a flaky test that
+/// would fail as "the share opened a second identity" - the opposite of the finding.
+async fn tracks_within(
+    room: &Room,
+    want: usize,
+    patience: Duration,
+) -> Vec<crate::media::livekit::room::RemoteTrack> {
+    let deadline = tokio::time::Instant::now() + patience;
+    loop {
+        let seen = room.remote_tracks().await;
+        if seen.len() >= want || tokio::time::Instant::now() >= deadline {
+            return seen;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+}
 
-/// Records every access unit on its way to the transport, so what arrives can be compared with what
-/// was sent rather than merely counted.
+// ── Test doubles ──────────────────────────────────────────────────────────────────────────────
+
+/// Records every access unit on its way to the transport, so what is written can be inspected
+/// rather than merely counted.
 struct TeeSink<S: FrameSink> {
     inner: S,
     sent: Arc<Mutex<Vec<AccessUnit>>>,
@@ -613,7 +289,7 @@ fn recording_encoder() -> (Box<dyn VideoEncoder>, Arc<Mutex<EncoderLog>>) {
     )
 }
 
-// â”€â”€ Fixtures â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Fixtures ──────────────────────────────────────────────────────────────────────────────────
 
 /// Small on purpose. The whole path runs over loopback UDP, and a 1080p keyframe is hundreds of
 /// packets handed to the socket at once - which is the very burst that used to kill a publication.
@@ -631,6 +307,26 @@ fn spec() -> EncoderSpec {
     }
 }
 
+/// A source big enough to ladder three ways, for the tests that are about the SDP rather than the
+/// bitstream. 320x240 quarters below the layer floor and would silently publish fewer rungs.
+fn laddered_spec() -> EncoderSpec {
+    EncoderSpec {
+        width: 1920,
+        height: 1080,
+        fps: 30,
+        kbps: 2600,
+        content: EncoderContent::Text,
+    }
+}
+
+/// The ladder as `session::start` builds it - the shipping function, not a hand-written list, so a
+/// change to the rid vocabulary or the rung geometry lands here too.
+fn ladder(base: EncoderSpec, rungs: usize) -> Vec<Layer> {
+    let built = simulcast::layers_for(base, rungs);
+    assert_eq!(built.len(), rungs, "the fixture asked for a ladder it cannot have");
+    built
+}
+
 /// A frame with structure that moves, so the encoder has something to code and successive frames
 /// are genuinely different.
 fn frame(shift: u32) -> RgbaImage {
@@ -638,20 +334,6 @@ fn frame(shift: u32) -> RgbaImage {
         let v = (((x + shift) / 8 + y / 8) % 2) as u8;
         image::Rgba([v * 255, (x % 256) as u8, ((y + shift) % 256) as u8, 255])
     })
-}
-
-fn signalling_to(base_url: &str) -> Signalling {
-    Signalling::new(
-        base_url.to_owned(),
-        "test-token".to_owned(),
-        "test-device".to_owned(),
-        VoiceTarget::GuildChannel {
-            guild_id: "g1".to_owned(),
-            channel_id: "c1".to_owned(),
-        },
-        SessionRole::Secondary,
-    )
-    .expect("a signalling client")
 }
 
 /// Feed `count` frames through the pump at `interval`, as a capture thread would.
@@ -667,116 +349,59 @@ async fn pump_frames<P: PreviewSink>(
     }
 }
 
-/// Collect access units until `want` have arrived or the stream goes quiet for `idle`.
-///
-/// Idle-based rather than a single deadline: a stream that has stopped is the interesting outcome
-/// and should be reported immediately, not waited out.
-async fn collect(rx: &mut mpsc::Receiver<AccessUnit>, want: usize, idle: Duration) -> Vec<AccessUnit> {
-    let mut units = Vec::new();
-    while units.len() < want {
-        match tokio::time::timeout(idle, rx.recv()).await {
-            Ok(Some(unit)) => units.push(unit),
-            _ => break,
-        }
-    }
-    units
-}
+// ── What the SFU is told ──────────────────────────────────────────────────────────────────────
 
-/// Three encodings on one m-line, under the rid names the ladder declares.
+/// Three encodings on one m-line, under the rid names the ladder declares, **and accepted**.
 ///
-/// <p>Asserted on the offer SDP rather than on our own structs, because the SDP is the only thing
-/// the SFU actually reads. webrtc-rs writes `a=rid:<id> send` and `a=simulcast:send f;h;q` from what
-/// is attached to the *sender*, so a wiring mistake that created three tracks and attached one would
+/// <p>Asserted on the SDP rather than on our own structs, because the SDP is the only thing the SFU
+/// actually reads. `webrtc-rs` writes `a=rid:<id> send` and `a=simulcast:send f;h;q` from what is
+/// attached to the *sender*, so a wiring mistake that created three tracks and attached one would
 /// leave `layer_tracks()` looking perfectly correct while the wire carried a single encoding - and
 /// the only visible symptom would be an egress bill that never fell.</p>
+///
+/// <p>The answer half is what a mock could never establish. LiveKit maps rid to quality through the
+/// `layers` list in `AddTrackRequest`, not through the strings, so "the server accepted three rids
+/// in our order" is a statement about the server.</p>
 #[tokio::test]
+#[ignore = "needs a LiveKit server on 127.0.0.1:7880"]
 async fn offers_three_rid_tagged_encodings_on_one_track() {
-    let (backend, _frames) = MockBackend::start(false).await;
+    let key = "guild:e2e:simulcast";
+    let room = share_room(key, "pub-simulcast", "user-1").await;
 
     let publication = Publication::start(
-        signalling_to(&backend.base_url),
+        Arc::clone(&room),
+        key.to_owned(),
         "abc",
-        vec![],
+        &ladder(laddered_spec(), 3),
         false,
-        None,
-        3,
     )
     .await
     .expect("the publication must start");
 
-    let sdp = backend
-        .state
-        .offer_sdp
-        .lock()
-        .unwrap()
-        .clone()
-        .expect("an offer must have reached the backend");
-
+    let offer = room.local_sdp().await.expect("an offer must have been made");
     assert!(
-        sdp.contains("a=simulcast:send f;h;q"),
-        "no simulcast attribute in the offer:\n{sdp}"
+        offer.contains("a=simulcast:send f;h;q"),
+        "no simulcast attribute in the offer:\n{offer}"
     );
     for rid in ["f", "h", "q"] {
         assert!(
-            sdp.contains(&format!("a=rid:{rid} send")),
-            "no rid {rid} in the offer:\n{sdp}"
+            offer.contains(&format!("a=rid:{rid} send")),
+            "no rid {rid} in the offer:\n{offer}"
         );
     }
-    // One video m-line, not three: simulcast is encodings within a track, not separate tracks. Three
-    // m-lines would mean three track names, which is a shape the room contract has no room for.
-    assert_eq!(sdp.matches("m=video").count(), 1);
+    // One video m-line, not three: simulcast is encodings within a track, not separate tracks.
+    // Three m-lines would mean three track names, which is a shape the room contract has no room
+    // for.
+    assert_eq!(offer.matches("m=video").count(), 1);
     assert_eq!(publication.layer_tracks().len(), 3);
-}
 
-/// The merge against a real connection, not a synthetic report. A publication that negotiated
-/// three rungs must produce at least one outbound video row for `publish_stats` to pair the ladder
-/// against, whatever the wire says about the other two.
-///
-/// <p>Asserted on `pc.get_stats()` directly rather than through `publish_stats` itself: the command
-/// reads its sources from this module's global `active()` handle, and no test may set that handle
-/// without racing every other test in the binary that touches the same publish state. Reading the
-/// report is the same data `publish_stats` would merge, so this still proves the transport half is
-/// really there to be paired with the ladder - only the pairing itself is covered by `stats_tests`
-/// in `mod.rs`.</p>
-#[tokio::test]
-async fn a_started_publication_reports_at_least_one_outbound_video_stream() {
-    let (backend, _frames) = MockBackend::start(false).await;
+    let answer = room.remote_sdp().await.expect("an answer must have been applied");
+    assert!(
+        answer.contains("a=simulcast:recv f;h;q"),
+        "the server did not accept all three rids in our order:\n{answer}"
+    );
 
-    let publication = Publication::start(
-        signalling_to(&backend.base_url),
-        "abc",
-        vec![],
-        false,
-        None,
-        3,
-    )
-    .await
-    .expect("the publication must start");
-
-    // `get_stats()` only reports an outbound stream once the sender's RTP transport is actually
-    // up - `Publication::start` returns as soon as the answer is applied, which in production is
-    // deliberately before ICE and DTLS finish, so a report taken immediately after would race the
-    // handshake rather than prove anything about it. See `MockBackend::wait_until_connected`.
-    backend.wait_until_connected().await;
-
-    // And even connected, webrtc-rs's stats interceptor only starts tracking an SSRC once it has
-    // actually carried a packet - a track that has never been written to has nothing to report,
-    // same as a rung the pump never got a frame to encode.
-    publication
-        .write_frame(vec![0, 0, 0, 1, 0x65], Duration::from_millis(33))
-        .await
-        .expect("a frame should reach the transport");
-
-    let pc = publication.peer_connection();
-    let report = pc.get_stats().await;
-
-    let outbound = report
-        .reports
-        .values()
-        .filter(|v| matches!(v, webrtc::stats::StatsReportType::OutboundRTP(s) if s.kind == "video"))
-        .count();
-
-    assert!(outbound > 0, "a started publication reports at least one outbound video stream");
+    publication.stop().await;
 }
 
 /// The offer must negotiate the RID header extension, or the ladder is decorative.
@@ -786,7 +411,8 @@ async fn a_started_publication_reports_at_least_one_outbound_video_stream() {
 /// the publisher *intends* to send. What tells the SFU which layer a given packet belongs to is the
 /// `sdes:rtp-stream-id` RTP header extension, and `TrackLocalStaticRTP::bind` only stamps it onto
 /// outgoing packets when that URI is among the negotiated extensions - see
-/// `track_local_static_rtp.rs`, which looks the id up and silently writes no rid when it is absent.</p>
+/// `track_local_static_rtp.rs`, which looks the id up and silently writes no rid when it is
+/// absent.</p>
 ///
 /// <p>`MediaEngine::register_default_codecs` does not register it. So without an explicit
 /// `register_header_extension`, an offer advertises three encodings, an SFU accepts all three, and
@@ -794,28 +420,22 @@ async fn a_started_publication_reports_at_least_one_outbound_video_stream() {
 /// the publish succeeds, the answer echoes the rids back, and viewers simply never receive a
 /// decodable layer - a tile that loads forever rather than a tile that fails.</p>
 #[tokio::test]
+#[ignore = "needs a LiveKit server on 127.0.0.1:7880"]
 async fn offers_the_rid_header_extension_that_makes_layers_identifiable() {
-    let (backend, _frames) = MockBackend::start(false).await;
+    let key = "guild:e2e:ridext";
+    let room = share_room(key, "pub-ridext", "user-1").await;
 
-    let _publication = Publication::start(
-        signalling_to(&backend.base_url),
+    let publication = Publication::start(
+        Arc::clone(&room),
+        key.to_owned(),
         "abc",
-        vec![],
+        &ladder(laddered_spec(), 3),
         false,
-        None,
-        3,
     )
     .await
     .expect("the publication must start");
 
-    let sdp = backend
-        .state
-        .offer_sdp
-        .lock()
-        .unwrap()
-        .clone()
-        .expect("an offer must have reached the backend");
-
+    let offer = room.local_sdp().await.expect("an offer");
     // The mid extension is required alongside it: a stream id is scoped to an m-line, so an SFU
     // needs both to place a packet. webrtc-rs refuses inbound simulcast without either, and the
     // same pairing is what makes outbound identifiable.
@@ -824,63 +444,340 @@ async fn offers_the_rid_header_extension_that_makes_layers_identifiable() {
         "urn:ietf:params:rtp-hdrext:sdes:mid",
     ] {
         assert!(
-            sdp.contains(uri),
+            offer.contains(uri),
             "the offer advertises three encodings but never negotiates {uri}, \
-             so every packet leaves without a layer tag:\n{sdp}"
+             so every packet leaves without a layer tag:\n{offer}"
         );
     }
+
+    publication.stop().await;
 }
 
 /// The rollback path. One layer must offer exactly what shipped before simulcast existed.
+///
+/// <p>`Room::publish_video` builds every rung with `new_with_rid`, including a lone one - unlike the
+/// Cloudflare path, which had a separate ridless constructor for it. That is only safe because
+/// `webrtc-rs` writes rid and simulcast attributes from a sender holding *more than one* encoding,
+/// so a single rung produces neither. This is the test that says so.</p>
 #[tokio::test]
+#[ignore = "needs a LiveKit server on 127.0.0.1:7880"]
 async fn a_single_layer_offers_no_simulcast_attributes_at_all() {
-    let (backend, _frames) = MockBackend::start(false).await;
+    let key = "guild:e2e:onelayer";
+    let room = share_room(key, "pub-onelayer", "user-1").await;
 
     let publication = Publication::start(
-        signalling_to(&backend.base_url),
+        Arc::clone(&room),
+        key.to_owned(),
         "abc",
-        vec![],
+        &ladder(laddered_spec(), 1),
         false,
-        None,
-        1,
     )
     .await
     .expect("the publication must start");
 
-    let sdp = backend
-        .state
-        .offer_sdp
-        .lock()
-        .unwrap()
-        .clone()
-        .expect("an offer must have reached the backend");
-
+    let offer = room.local_sdp().await.expect("an offer");
     assert!(
-        !sdp.contains("a=simulcast:"),
-        "a one-layer share advertised simulcast:\n{sdp}"
+        !offer.contains("a=simulcast:"),
+        "a one-layer share advertised simulcast:\n{offer}"
     );
     assert!(
-        !sdp.contains("a=rid:"),
-        "a one-layer share advertised a rid:\n{sdp}"
+        !offer.contains("a=rid:"),
+        "a one-layer share advertised a rid:\n{offer}"
     );
     assert_eq!(publication.layer_tracks().len(), 1);
+
+    publication.stop().await;
 }
+
+/// The negotiated profile and level, read off the answer and kept.
+///
+/// A bitstream above the level the answer kept is a black tile rather than a soft one, and it is
+/// invisible from the sending side without this. LiveKit forwards opaquely and keeps the High 5.2
+/// entry our media engine offers; if this ever fails, `encoder_mf`'s profile has to move with it.
+#[tokio::test]
+#[ignore = "needs a LiveKit server on 127.0.0.1:7880"]
+async fn keeps_the_profile_level_the_answer_agreed_to() {
+    let key = "guild:e2e:profile";
+    let room = share_room(key, "pub-profile", "user-1").await;
+
+    let publication = Publication::start(
+        Arc::clone(&room),
+        key.to_owned(),
+        "abc",
+        &ladder(laddered_spec(), 3),
+        false,
+    )
+    .await
+    .expect("the publication must start");
+
+    let profile = publication
+        .profile_level_id()
+        .expect("the answer named a profile and the publication must have kept it");
+    assert!(
+        profile.len() == 6 && u32::from_str_radix(&profile, 16).is_ok(),
+        "profile-level-id must be the six hex digits the answer carried, got {profile}"
+    );
+
+    publication.stop().await;
+}
+
+// ── One participant, two publications ─────────────────────────────────────────────────────────
+
+/// **The §2.1 merge.** The share must publish on the participant the microphone is already on.
+///
+/// <p>This is the whole point of routing the publisher through the registry. Under Cloudflare the
+/// share opened a session of its own, which is a second *identity*, and
+/// `VoiceShareSnapshot.mediaSessionId` exists only to tell other clients which of a user's sessions
+/// a share is on. A share that opens its own LiveKit connection would restore that - and worse,
+/// since a second connection under the same identity evicts the first, it would take the microphone
+/// down with it.</p>
+///
+/// <p>Asserted from a third party's point of view, because that is the only place the failure is
+/// visible: from this side two connections look exactly like one.</p>
+#[tokio::test]
+#[ignore = "needs a LiveKit server on 127.0.0.1:7880"]
+async fn the_share_publishes_on_the_participant_the_microphone_is_on() {
+    let key = "guild:e2e:merge";
+    let name = "pub-merge";
+
+    // The microphone gets there first, as it almost always does.
+    let mic = share_room(key, name, "user-1").await;
+    mic.publish_audio("audio")
+        .await
+        .expect("the microphone must publish");
+
+    // The share asks for the same target and must be handed the live connection.
+    let share = share_room(key, name, "user-1").await;
+    assert!(
+        Arc::ptr_eq(&mic, &share),
+        "the registry opened a second connection for a room it already held"
+    );
+
+    let publication = Publication::start(
+        Arc::clone(&share),
+        key.to_owned(),
+        "abc",
+        &ladder(laddered_spec(), 3),
+        true,
+    )
+    .await
+    .expect("the publication must start");
+
+    // A few frames down the top rung before anybody looks. A LiveKit video track is announced to the
+    // room when its primary layer starts carrying RTP, not when `AddTrackRequest` is accepted, so a
+    // share that has published and never encoded is genuinely not in the roster yet - and asserting
+    // before that point fails as "the share opened a second identity", which is the opposite of the
+    // finding.
+    share
+        .wait_until_connected(Duration::from_secs(15))
+        .await
+        .expect("the publisher must reach connected");
+    let top = publication.layer_tracks().remove(0);
+    for _ in 0..10 {
+        Publication::write_layer(&top, vec![0, 0, 0, 1, 0x65], Duration::from_millis(33))
+            .await
+            .expect("a frame must reach the top rung");
+        tokio::time::sleep(Duration::from_millis(33)).await;
+    }
+
+    let viewer = Room::connect(DEV_URL, &dev_token(name, "user-2"))
+        .await
+        .expect("a viewer must be able to join");
+    let remote = tracks_within(&viewer, 3, Duration::from_secs(10)).await;
+
+    let identities: std::collections::BTreeSet<&str> =
+        remote.iter().map(|t| t.identity.as_str()).collect();
+    assert_eq!(
+        identities.len(),
+        1,
+        "the share opened a second identity; the room sees {identities:?}"
+    );
+    assert_eq!(identities.iter().next().copied(), Some("user-1"));
+
+    let names: std::collections::BTreeSet<&str> =
+        remote.iter().map(|t| t.track_name.as_str()).collect();
+    for expected in ["audio", "screen-abc", "screen-audio-abc"] {
+        assert!(
+            names.contains(expected),
+            "one participant must carry all three tracks; got {names:?}"
+        );
+    }
+
+    viewer.close().await;
+    publication.stop().await;
+    // The microphone's hold, which the share's teardown must not have taken with it.
+    assert!(registry::is_held(key).await, "the share's teardown closed the microphone's room");
+    release_room(key).await;
+}
+
+/// A share that carries its own sound publishes both halves and forgets both.
+///
+/// <p>Closing only the video would leave viewers holding a live audio track from a share that no
+/// longer exists - silent, but still subscribed, still mixed, and still counted against the sharer's
+/// egress. Asserted through `Room::local_track`, because a forgotten name is what stops a later
+/// write going to a sender nobody reads.</p>
+#[tokio::test]
+#[ignore = "needs a LiveKit server on 127.0.0.1:7880"]
+async fn a_share_with_audio_publishes_and_unpublishes_both_tracks() {
+    let key = "guild:e2e:audioshare";
+    let room = share_room(key, "pub-audioshare", "user-1").await;
+
+    let publication = Publication::start(
+        Arc::clone(&room),
+        key.to_owned(),
+        "abc",
+        &ladder(laddered_spec(), 1),
+        true,
+    )
+    .await
+    .expect("the publication must start");
+
+    assert_eq!(
+        publication.audio_track_name.as_deref(),
+        Some("screen-audio-abc"),
+        "the audio half must be named for the share it belongs to"
+    );
+    assert!(
+        publication.audio_track().is_some(),
+        "an audio share must expose a track for the writer to feed"
+    );
+    assert!(room.local_track("screen-audio-abc").await.is_some());
+    assert!(!room.local_ladder("screen-abc").await.is_empty());
+
+    // Held past the teardown on purpose, so the room survives to be inspected. `stop` releases the
+    // publication's hold; this one is what keeps the connection open.
+    let held = share_room(key, "pub-audioshare", "user-1").await;
+    publication.stop().await;
+
+    assert!(
+        held.local_ladder("screen-abc").await.is_empty(),
+        "the video half is still writable after the share ended"
+    );
+    assert!(
+        held.local_track("screen-audio-abc").await.is_none(),
+        "the audio half is still writable after the share ended"
+    );
+
+    drop(held);
+    release_room(key).await;
+}
+
+/// The other half of the same rule: no audio asked for, no audio track announced.
+///
+/// A track that exists and never carries anything is worse than one that was never announced -
+/// viewers read `shares[].trackNames` and would open a decoder and a mixer slot for silence.
+#[tokio::test]
+#[ignore = "needs a LiveKit server on 127.0.0.1:7880"]
+async fn a_share_without_audio_announces_no_audio_track() {
+    let key = "guild:e2e:noaudio";
+    let name = "pub-noaudio";
+    let room = share_room(key, name, "user-1").await;
+
+    let publication = Publication::start(
+        Arc::clone(&room),
+        key.to_owned(),
+        "abc",
+        &ladder(laddered_spec(), 1),
+        false,
+    )
+    .await
+    .expect("the publication must start");
+
+    assert!(publication.audio_track_name.is_none());
+    assert!(publication.audio_track().is_none());
+
+    let viewer = Room::connect(DEV_URL, &dev_token(name, "user-2"))
+        .await
+        .expect("a viewer must be able to join");
+    let names: Vec<String> = tracks_within(&viewer, 1, Duration::from_secs(10))
+        .await
+        .into_iter()
+        .map(|t| t.track_name)
+        .collect();
+    assert_eq!(names, vec!["screen-abc".to_string()]);
+
+    viewer.close().await;
+    publication.stop().await;
+}
+
+/// The merge against a real connection, not a synthetic report. A publication that negotiated three
+/// rungs must produce at least one outbound video row for `publish_stats` to pair the ladder
+/// against, whatever the wire says about the other two.
+///
+/// <p>Asserted on `pc.get_stats()` directly rather than through `publish_stats` itself: the command
+/// reads its sources from `mod.rs`'s global `active()` handle, and no test may set that handle
+/// without racing every other test in the binary that touches the same publish state. Reading the
+/// report is the same data `publish_stats` would merge, so this still proves the transport half is
+/// really there to be paired with the ladder - only the pairing itself is covered by `stats_tests`
+/// in `mod.rs`.</p>
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ignore = "needs a LiveKit server on 127.0.0.1:7880"]
+async fn a_started_publication_reports_at_least_one_outbound_video_stream() {
+    let key = "guild:e2e:stats";
+    let room = share_room(key, "pub-stats", "user-1").await;
+
+    let publication = Publication::start(
+        Arc::clone(&room),
+        key.to_owned(),
+        "abc",
+        &ladder(laddered_spec(), 3),
+        false,
+    )
+    .await
+    .expect("the publication must start");
+
+    // `get_stats()` only reports an outbound stream once the sender's RTP transport is actually up.
+    // Publishing having returned is not that: the SID arrives on `TrackPublishedResponse`, which the
+    // server can send before its answer, let alone before ICE and DTLS finish.
+    room.wait_until_connected(Duration::from_secs(15))
+        .await
+        .expect("the publisher must reach connected");
+
+    // And even connected, webrtc-rs's stats interceptor only starts tracking an SSRC once it has
+    // actually carried a packet - a track that has never been written to has nothing to report,
+    // same as a rung the pump never got a frame to encode.
+    publication
+        .write_frame(vec![0, 0, 0, 1, 0x65], Duration::from_millis(33))
+        .await
+        .expect("a frame should reach the transport");
+
+    let report = publication.peer_connection().get_stats().await;
+    let outbound = report
+        .reports
+        .values()
+        .filter(|v| matches!(v, webrtc::stats::StatsReportType::OutboundRTP(s) if s.kind == "video"))
+        .count();
+
+    assert!(
+        outbound > 0,
+        "a started publication reports at least one outbound video stream"
+    );
+
+    publication.stop().await;
+}
+
+// ── End to end ────────────────────────────────────────────────────────────────────────────────
 
 /// The pump, the writer and a live publication, wired as `session::start` wires them.
 struct Publishing {
     pump: FramePump<()>,
     sent: Arc<Mutex<Vec<AccessUnit>>>,
+    /// The server's id for the video track, which is what a viewer subscribes by.
+    video_sid: String,
+    keyframe_wanted: Arc<AtomicBool>,
 }
 
 async fn publishing(
-    backend: &MockBackend,
+    room: Arc<Room>,
+    key: &str,
     keyframe_interval: Duration,
     encoder: Box<dyn VideoEncoder>,
 ) -> Publishing {
-    let publication = Publication::start(signalling_to(&backend.base_url), "abc", vec![], false, None, 1)
+    let publication = Publication::start(room, key.to_owned(), "abc", &ladder(spec(), 1), false)
         .await
-        .expect("the publication must start against the mock backend");
+        .expect("the publication must start against the LiveKit server");
     let keyframe_wanted = publication.keyframe_requests();
+    let video_sid = publication.video_sid.clone();
 
     let sent = Arc::new(Mutex::new(Vec::new()));
     let (frame_tx, frame_rx) = mpsc::channel::<(Vec<u8>, Duration)>(2);
@@ -900,12 +797,17 @@ async fn publishing(
             height: HEIGHT,
         }],
         Arc::new(AtomicU32::new(30)),
-        keyframe_wanted,
+        Arc::clone(&keyframe_wanted),
         (),
     )
     .with_keyframe_interval(keyframe_interval);
 
-    Publishing { pump, sent }
+    Publishing {
+        pump,
+        sent,
+        video_sid,
+        keyframe_wanted,
+    }
 }
 
 /// The real codec, for the assertions that are about the bitstream.
@@ -914,34 +816,139 @@ async fn real_encoder() -> Box<dyn VideoEncoder> {
     new_software_encoder(spec()).expect("the software encoder")
 }
 
-// â”€â”€ End to end â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-/// The one that matters: frames in one end, the same NAL units out the other.
+/// The far end's own report of what it received, or `None` until one arrives.
 ///
-/// Every stage of the publish path is real except the backend - the OpenH264 encoder, the pump, the
-/// bounded queue, the writer, the peer connection, SRTP, and the RTP packetiser - and the assertion
-/// is on what a viewer reassembles rather than on any counter this side keeps. Both failures screen
-/// sharing has actually suffered were invisible to a counter.
+/// An RTCP receiver report is the SFU telling us, unprompted, how our stream is arriving. It is the
+/// only evidence available from this process that packets were *received* rather than merely handed
+/// to a socket - see the note on `a_published_screen_reaches_the_sfu_end_to_end` for why a viewer in
+/// this process cannot supply it.
+async fn far_end_report(
+    connection: &Arc<webrtc::peer_connection::RTCPeerConnection>,
+    patience: Duration,
+) -> Option<(u64, bool)> {
+    let deadline = tokio::time::Instant::now() + patience;
+    loop {
+        let report = connection.get_stats().await;
+        let sent: u64 = report
+            .reports
+            .values()
+            .filter_map(|v| match v {
+                webrtc::stats::StatsReportType::OutboundRTP(s) if s.kind == "video" => {
+                    Some(s.packets_sent)
+                }
+                _ => None,
+            })
+            .sum();
+        let acknowledged = report
+            .reports
+            .values()
+            .any(|v| matches!(v, webrtc::stats::StatsReportType::RemoteInboundRTP(_)));
+
+        if (sent > 0 && acknowledged) || tokio::time::Instant::now() >= deadline {
+            return (sent > 0).then_some((sent, acknowledged));
+        }
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    }
+}
+
+/// The one that matters: real frames in one end, RTP off the machine and acknowledged out the other.
+///
+/// Every stage of the publish path is real - the OpenH264 encoder, the pump, the bounded queue, the
+/// writer, the peer connection, SRTP, the RTP packetiser and a real SFU - and the assertion is on
+/// what left rather than on any counter this side keeps about what it produced. Both failures screen
+/// sharing has actually suffered were invisible to a producing counter: `write_sample` returns `Ok`
+/// into a transport that never came up.
+///
+/// <p><b>Why the viewer is not in this process.</b> The old Cloudflare version compared a viewer's
+/// reassembled access units byte for byte against what was written, because the stand-in SFU was a
+/// plain peer connection this file owned. A `Room` cannot stand in for it, for two independent
+/// reasons, and both are by design: its subscriber connection is built from `voice_api`, whose media
+/// engine has no Constrained High entry and so answers our own video m-line away; and §2.1 of the
+/// migration says the Rust room subscribes to **audio only** because video receive belongs to the
+/// webview. A Rust viewer of a Rust screen share is a thing that must never work.</p>
+///
+/// <p>So the receiving evidence is the SFU's own RTCP receiver report, which is unprompted and
+/// cannot be produced by a transport that is not carrying the stream. What is genuinely lost is the
+/// NAL-for-NAL comparison; the parameter-set check below is on what was written, and a real viewer
+/// is a job for the webview's own tests.</p>
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn a_published_screen_arrives_at_a_viewer_end_to_end() {
-    let (backend, mut units) = MockBackend::start(false).await;
-    let mut publishing = publishing(&backend, Duration::from_secs(60), real_encoder().await).await;
-    backend.wait_until_connected().await;
+#[ignore = "needs a LiveKit server on 127.0.0.1:7880"]
+async fn a_published_screen_reaches_the_sfu_end_to_end() {
+    let key = "guild:e2e:endtoend";
+    let name = "pub-endtoend";
+    let room = share_room(key, name, "user-1").await;
+    let publication = Publication::start(
+        Arc::clone(&room),
+        key.to_owned(),
+        "abc",
+        &ladder(spec(), 1),
+        false,
+    )
+    .await
+    .expect("the publication must start");
 
-    pump_frames(&mut publishing.pump, 32, Duration::from_millis(20), 0).await;
-    let received = collect(&mut units, 16, Duration::from_secs(3)).await;
+    room.wait_until_connected(Duration::from_secs(15))
+        .await
+        .expect("the publisher must reach connected");
 
+    // A viewer, so the SFU is actually forwarding rather than merely accepting. It cannot decode the
+    // stream from this process - see the note above - but a subscribed track is what makes the SFU
+    // do the work a real one would.
+    let viewer = Room::connect(DEV_URL, &dev_token(name, "user-2"))
+        .await
+        .expect("a viewer must be able to join");
+    viewer.subscribe(&publication.video_sid).await;
+
+    let sent = Arc::new(Mutex::new(Vec::new()));
+    let (frame_tx, frame_rx) = mpsc::channel::<(Vec<u8>, Duration)>(2);
+    let keyframe_wanted = publication.keyframe_requests();
+    let connection = publication.peer_connection();
+
+    let mut pump = FramePump::new(
+        vec![PumpLayer {
+            encoder: real_encoder().await,
+            frame_tx,
+            width: WIDTH,
+            height: HEIGHT,
+        }],
+        Arc::new(AtomicU32::new(30)),
+        keyframe_wanted,
+        (),
+    )
+    .with_keyframe_interval(Duration::from_secs(60));
+
+    // The shipping writer, holding the real publication, exactly as `session::start` wires it.
+    let tee = TeeSink {
+        inner: publication,
+        sent: Arc::clone(&sent),
+    };
+    let writing = tokio::spawn(run_writer(tee, frame_rx));
+
+    // Pumped *while* the far end is waited on. A receiver report takes a second or two to come back,
+    // and a share that had already stopped sending by then would be scored as "nothing arrived" -
+    // which is this test's failure message and would be a lie.
+    let pumping = tokio::spawn(async move {
+        pump_frames(&mut pump, 400, Duration::from_millis(20), 0).await;
+    });
+
+    let seen = far_end_report(&connection, Duration::from_secs(15)).await;
+    pumping.abort();
+
+    let (packets, acknowledged) = seen.expect(
+        "the share signalled correctly and transported nothing; from this side that looks \
+         exactly like a working share",
+    );
     assert!(
-        received.len() >= 8,
-        "only {} access units reached the viewer; a share that signals correctly and transports \
-         nothing looks exactly like a working one from this side",
-        received.len()
+        acknowledged,
+        "{packets} packets were sent and the SFU never reported receiving any of them"
     );
 
     // A viewer cannot decode anything until it has the parameter sets and an IDR, and the first
     // thing it ever sees is the first thing sent. This is the difference between a share that
     // appears at once and one that sits on a placeholder.
-    let first: Vec<u8> = received[0].iter().map(|nal| nal_type(nal)).collect();
+    let written = sent.lock().unwrap().clone();
+    assert!(!written.is_empty(), "nothing was ever written to the transport");
+    let first: Vec<u8> = written[0].iter().map(|nal| nal_type(nal)).collect();
     for required in [NAL_SPS, NAL_PPS, NAL_IDR] {
         assert!(
             first.contains(&required),
@@ -949,219 +956,71 @@ async fn a_published_screen_arrives_at_a_viewer_end_to_end() {
         );
     }
 
-    // Byte for byte, NAL for NAL, in order.
-    let sent = publishing.sent.lock().unwrap().clone();
-    assert!(
-        sent.len() >= received.len(),
-        "the viewer received {} access units but only {} were ever written",
-        received.len(),
-        sent.len()
-    );
-    for (index, unit) in received.iter().enumerate() {
-        assert_eq!(
-            unit, &sent[index],
-            "access unit {index} arrived different from how it was sent"
-        );
-    }
+    viewer.close().await;
+    writing.abort();
 }
 
-/// A viewer that joins mid-share, or loses a burst of packets, asks for a keyframe over RTCP.
+/// A viewer that joins mid-share asks for a keyframe over RTCP, and the request must reach us.
 ///
-/// Discarding those requests means waiting out whatever periodic IDR the encoder happens to emit,
-/// which on a static screen is the forty-five-second wait this whole area exists to close.
+/// <p>Discarding those requests means waiting out whatever periodic IDR the encoder happens to
+/// emit, which on a static screen is the forty-five-second wait this whole area exists to close.
+/// The request now arrives on a connection this module does not own, read off
+/// `Room::publisher_connection` - so this is also the test that says that connection really is
+/// readable from here.</p>
+///
+/// <p>The recording encoder, not the real one, and the wall-clock floor pushed out of reach: after
+/// the opening frame the *only* thing in the system that can produce a keyframe is the viewer's
+/// request. With openh264 here the assertion would pass whether or not the RTCP path works at all -
+/// a moving screen makes it emit intra frames of its own accord, which is exactly how a test like
+/// this ends up proving nothing.</p>
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ignore = "needs a LiveKit server on 127.0.0.1:7880"]
 async fn a_viewer_that_joins_late_gets_a_keyframe_on_request() {
-    let (backend, mut units) = MockBackend::start(false).await;
+    let key = "guild:e2e:keyframe";
+    let name = "pub-keyframe";
+    let room = share_room(key, name, "user-1").await;
 
-    // The recording encoder, not the real one, and the wall-clock floor pushed out of reach: after
-    // the opening frame the *only* thing in the system that can produce a keyframe is the viewer's
-    // request. With openh264 here this assertion passes whether or not the RTCP path works at all -
-    // a moving screen makes it emit intra frames of its own accord, which is exactly how a test
-    // like this ends up proving nothing.
     let (encoder, log) = recording_encoder();
-    let mut publishing = publishing(&backend, Duration::from_secs(600), encoder).await;
-    backend.wait_until_connected().await;
+    let mut publishing = publishing(Arc::clone(&room), key, Duration::from_secs(600), encoder).await;
+
+    room.wait_until_connected(Duration::from_secs(15))
+        .await
+        .expect("the publisher must reach connected");
 
     // Get the stream into delta frames, and let the opening keyframe through.
     pump_frames(&mut publishing.pump, 10, Duration::from_millis(20), 0).await;
-    let opening = collect(&mut units, 10, Duration::from_secs(3)).await;
-    assert!(!opening.is_empty(), "nothing arrived before the PLI");
     assert_eq!(
         log.lock().unwrap().keyframes_at,
         vec![1],
         "only the opening frame should be a keyframe so far"
     );
+    publishing.keyframe_wanted.store(false, Ordering::Relaxed);
 
-    backend.request_keyframe().await;
+    let viewer = Room::connect(DEV_URL, &dev_token(name, "user-2"))
+        .await
+        .expect("a viewer must be able to join");
+    viewer.subscribe(&publishing.video_sid).await;
 
-    pump_frames(&mut publishing.pump, 20, Duration::from_millis(20), 10).await;
-    let after = collect(&mut units, 20, Duration::from_secs(3)).await;
+    // Long enough for the subscriber's transport to come up and for the SFU to notice it has no
+    // decodable picture to hand it.
+    pump_frames(&mut publishing.pump, 150, Duration::from_millis(20), 10).await;
 
     assert!(
         log.lock().unwrap().keyframes_at.len() >= 2,
         "the viewer's PLI never reached the encoder; a late joiner would sit on a placeholder \
          until the periodic keyframe, which on a static screen can be a minute away"
     );
-    assert!(
-        after
-            .iter()
-            .any(|unit| unit.iter().any(|nal| nal_type(nal) == NAL_IDR)),
-        "the encoder produced a keyframe on request but it never reached the viewer"
-    );
+
+    viewer.close().await;
 }
 
-/// Cloudflare sometimes answers a publish by demanding a renegotiation before media flows.
-#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn renegotiation_is_honoured_when_the_backend_asks_for_it() {
-    let (backend, mut units) = MockBackend::start(true).await;
-    let mut publishing = publishing(&backend, Duration::from_secs(60), real_encoder().await).await;
-
-    assert_eq!(
-        backend.renegotiations(),
-        1,
-        "the backend asked for an immediate renegotiation and did not get one"
-    );
-
-    backend.wait_until_connected().await;
-    pump_frames(&mut publishing.pump, 16, Duration::from_millis(33), 0).await;
-    assert!(
-        !collect(&mut units, 4, Duration::from_secs(3)).await.is_empty(),
-        "media must still flow after a renegotiation"
-    );
-}
-
-/// The screen publish must never be recorded as the participant's audio session.
-///
-/// Asserted here over real HTTP rather than only on the URL builder: marking it primary leaves
-/// later joiners subscribing to a session with no audio, and in a DM call triggers device takeover
-/// and hangs up the very call being shared into.
-#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn the_publish_opens_a_secondary_session_and_closes_its_track() {
-    let (backend, _units) = MockBackend::start(false).await;
-    provision_async().await;
-
-    let publication = Publication::start(signalling_to(&backend.base_url), "abc", vec![], false, None, 1)
-        .await
-        .expect("the publication must start");
-    let track_name = publication.track_name.clone();
-    publication.stop().await;
-
-    let paths = backend.paths();
-    assert!(
-        paths
-            .iter()
-            .any(|p| p.contains("/voice/session?primary=false")),
-        "the session must be opened as secondary; got {paths:?}"
-    );
-    assert_eq!(
-        backend.closed_tracks(),
-        vec![track_name],
-        "stopping a publication must close its track server-side"
-    );
-
-    // The neutral routes, with their verbs. Both halves matter: the paths lost their `cf/` segment
-    // and the close changed from PUT to POST, and either alone still reaches a real route on the
-    // server and fails for a reason that does not name the contract.
-    assert!(
-        paths.iter().any(|p| p == "POST /api/v1/guild/guilds/g1/channels/c1/voice/tracks"),
-        "publishing must POST the neutral tracks route; got {paths:?}"
-    );
-    assert!(
-        paths
-            .iter()
-            .any(|p| p == "POST /api/v1/guild/guilds/g1/channels/c1/voice/tracks/close"),
-        "closing must POST, not PUT as the Cloudflare surface did; got {paths:?}"
-    );
-    assert!(
-        !paths.iter().any(|p| p.contains("/cf/")),
-        "nothing on a guild channel may still speak the Cloudflare surface; got {paths:?}"
-    );
-}
-
-/// A share that carries its own sound publishes both halves in **one** negotiation, and closes both.
-///
-/// <p>One call rather than two is the contract (Â§2 of the frontend guide) and it is also what stops
-/// a viewer laying out the tile from the video track and then having audio arrive against a share it
-/// has already finished building. Asserted over real HTTP because the failure mode is a second
-/// `tracks` request nobody notices.</p>
-///
-/// <p>The capture device is not exercised here - CI has no audio hardware and this is about the
-/// negotiation, not the encoder. `publisher::audio` covers the encode path directly.</p>
-#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn a_share_with_audio_publishes_and_closes_both_tracks() {
-    let (backend, _units) = MockBackend::start(false).await;
-    provision_async().await;
-
-    let publication = Publication::start(signalling_to(&backend.base_url), "abc", vec![], true, None, 1)
-        .await
-        .expect("the publication must start");
-
-    assert_eq!(
-        publication.audio_track_name.as_deref(),
-        Some("screen-audio-abc"),
-        "the audio half must be named for the share it belongs to"
-    );
-    assert!(
-        publication.audio_track().is_some(),
-        "an audio share must expose a track for the writer to feed"
-    );
-
-    let track_name = publication.track_name.clone();
-    let audio_track_name = publication.audio_track_name.clone().unwrap();
-    publication.stop().await;
-
-    assert_eq!(
-        backend.published_tracks(),
-        vec![track_name.clone(), audio_track_name.clone()],
-        "both halves must go out together, video first"
-    );
-    assert_eq!(
-        backend
-            .paths()
-            .iter()
-            .filter(|p| p.ends_with("/voice/tracks"))
-            .count(),
-        1,
-        "one negotiation, not one per track"
-    );
-    // Closing only the video would leave viewers subscribed to a live audio track from a share that
-    // no longer exists - silent, still mixed, and still costing the sharer egress.
-    assert_eq!(backend.closed_tracks(), vec![track_name, audio_track_name]);
-}
-
-/// The other half of the same rule: no audio asked for, no audio track announced.
-///
-/// A track that exists and never carries anything is worse than one that was never announced -
-/// viewers read `shares[].trackNames` and would open a decoder and a mixer slot for silence.
-#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn a_share_without_audio_announces_no_audio_track() {
-    let (backend, _units) = MockBackend::start(false).await;
-    provision_async().await;
-
-    let publication = Publication::start(signalling_to(&backend.base_url), "abc", vec![], false, None, 1)
-        .await
-        .expect("the publication must start");
-
-    assert!(publication.audio_track_name.is_none());
-    assert!(publication.audio_track().is_none());
-
-    let track_name = publication.track_name.clone();
-    publication.stop().await;
-
-    assert_eq!(backend.published_tracks(), vec![track_name.clone()]);
-    assert_eq!(backend.closed_tracks(), vec![track_name]);
-}
-
-// â”€â”€ Pump policy â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Pump policy ───────────────────────────────────────────────────────────────────────────────
 
 fn pump_with(
     encoder: Box<dyn VideoEncoder>,
     keyframe_wanted: Arc<AtomicBool>,
     queue: usize,
-) -> (
-    FramePump<()>,
-    mpsc::Receiver<(Vec<u8>, Duration)>,
-) {
+) -> (FramePump<()>, mpsc::Receiver<(Vec<u8>, Duration)>) {
     let (frame_tx, frame_rx) = mpsc::channel::<(Vec<u8>, Duration)>(queue);
     let pump = FramePump::new(
         vec![PumpLayer {
@@ -1276,7 +1135,7 @@ async fn a_backlog_drops_frames_rather_than_stalling_capture() {
     );
 }
 
-// â”€â”€ Writer resilience â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Writer resilience ─────────────────────────────────────────────────────────────────────────
 
 fn failing_writer(
     failures: u32,

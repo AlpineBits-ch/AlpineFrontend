@@ -1,35 +1,68 @@
-//! A `webrtc-rs` peer connection that publishes one H.264 screen track to Cloudflare Realtime.
+//! The transport half of the Rust screen publisher: one H.264 simulcast ladder and, when the user
+//! shares their sound, one Opus track - published into the LiveKit room the microphone is already on.
 //!
-//! This is the transport half of the Rust publisher. Frames arrive already encoded from
-//! [`super::encoder`]; this module owns the peer connection, the signalling handshake and the RTP
-//! packetisation, and knows nothing about capture.
+//! Frames arrive already encoded from [`super::encoder`]; this module owns the publication and the
+//! RTP packetisation and knows nothing about capture.
+//!
+//! # There is no Cloudflare path here any more
+//!
+//! `start_screen_publish` has only ever accepted a guild channel or a DM call, and Isle never screen
+//! shares - so unlike `media::voice` this side has no second dialect to branch on. The Cloudflare
+//! half is deleted rather than kept behind a transport switch: a branch nothing can reach is a
+//! branch nothing tests.
+//!
+//! # The room is shared, and that is the whole point
+//!
+//! [`crate::media::livekit::registry`] hands back the connection the microphone almost always
+//! already holds, so the share publishes on the *same participant*. A second connection would be a
+//! second identity, which is exactly the case `VoiceShareSnapshot.mediaSessionId` exists to
+//! disambiguate - and desktop now stops producing it. See the migration spec §2.1.
+//!
+//! # Nothing in here negotiates
+//!
+//! [`crate::media::livekit::room::Room`] owns every offer. This module reads RTCP off the publishing
+//! connection and writes samples to tracks; a second negotiator would interleave with the room's own
+//! offer, and the first answer would then apply to an SDP that no longer matches. The only thing it
+//! does about negotiation is *wait* for it - see [`await_stable`].
+//!
+//! # A renegotiation over a live ladder corrupts it
+//!
+//! `webrtc-rs` 0.14 writes the rid and simulcast attributes of an *existing* video m-line twice on
+//! every subsequent offer - once from the rid map it parsed out of the last answer and once from the
+//! sender's own encodings (`peer_connection/sdp/mod.rs`). The offer then carries
+//! `a=simulcast:send f;h;q` twice and LiveKit answers `a=simulcast:recv f;h;q;f;h;q`, after which the
+//! video track is gone from the participant: accepted, given a SID, and in nobody's roster.
+//!
+//! [`Publication::start`] avoids it for its own two halves by publishing the ladder **last**. It
+//! cannot avoid it for the room at large: anything that publishes or unpublishes on this connection
+//! afterwards - the microphone arriving late, or leaving - re-offers over the ladder and breaks a
+//! share that is already running. Closing that needs `Room` to stop re-deriving the rid map from the
+//! answer, and is not this module's to fix.
 
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
+use livekit_protocol as proto;
 use webrtc::rtcp::payload_feedbacks::full_intra_request::FullIntraRequest;
 use webrtc::rtcp::payload_feedbacks::picture_loss_indication::PictureLossIndication;
 
 use webrtc::api::interceptor_registry::register_default_interceptors;
 use webrtc::api::media_engine::{MediaEngine, MIME_TYPE_H264};
 use webrtc::api::APIBuilder;
-use webrtc::ice_transport::ice_server::RTCIceServer;
 use webrtc::interceptor::registry::Registry;
 use webrtc::media::Sample;
-use webrtc::peer_connection::configuration::RTCConfiguration;
-use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
-use webrtc::peer_connection::RTCPeerConnection;
+use webrtc::peer_connection::signaling_state::RTCSignalingState;
 use webrtc::rtp_transceiver::rtp_codec::{
     RTCRtpCodecCapability, RTCRtpCodecParameters, RTCRtpHeaderExtensionCapability, RTPCodecType,
 };
+use webrtc::rtp_transceiver::rtp_sender::RTCRtpSender;
 use webrtc::rtp_transceiver::RTCPFeedback;
 use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample;
-use webrtc::track::track_local::TrackLocal;
 
-use super::signalling::{LocalTrack, SessionDescription, Signalling, VideoIntent};
-use super::simulcast::LAYER_RIDS;
-use crate::media::voice::rtc::opus_capability;
+use super::simulcast::Layer;
+use crate::media::livekit::registry;
+use crate::media::livekit::room::Room;
 
 /// One ICE server, mirroring the browser's `RTCIceServer`.
 ///
@@ -75,15 +108,39 @@ pub fn h264_capability() -> RTCRtpCodecCapability {
     }
 }
 
-/// The fmtp line for H.264 High profile at Level 5.2, packetisation mode 1.
+/// The fmtp line for H.264 **Constrained** High at Level 5.2, packetisation mode 1.
+///
+/// `640c34`, not `640034`, and the two middle digits are the whole point. `profile-level-id` is
+/// three bytes - `profile_idc`, `profile_iop`, `level_idc` - and `0c` sets `constraint_set4` and
+/// `constraint_set5`, which is what makes it *Constrained* High rather than plain High.
+///
+/// **libwebrtc matches H.264 by profile equality, not by capability.** Plain High and Constrained
+/// High are different profiles to that comparison, and essentially nothing advertises plain High:
+/// Chrome offers `640c1f`, and Android and iOS hardware advertise Constrained High or Constrained
+/// Baseline and nothing else. So `640034` matched no viewer - the m-line answers with no codec,
+/// which is an absent tile rather than a soft one.
+///
+/// It cost nothing while Cloudflare was in front, because Cloudflare dropped every High entry
+/// anyway. It starts costing the moment an opaque SFU keeps what we offer, which is exactly what
+/// LiveKit does. Found by the mobile client's own audit of what its decoders advertise.
+///
+/// Constrained High keeps everything High was wanted for - CABAC and the 8x8 transform - and gives
+/// up only interlaced and field coding, which a screen capture never emits.
 const H264_HIGH_5_2_FMTP: &str =
-    "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=640034";
+    "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=640c34";
 
 /// A payload type outside everything `register_default_codecs` claims.
 ///
 /// The defaults take 96, 98, 100, 102, 108, 116, 123, 125, 126 and 127 across video and their RTX
 /// pairs; 118 is free in that range and stays clear of the RTX numbering.
 const H264_HIGH_5_2_PAYLOAD_TYPE: u8 = 118;
+
+/// How long to wait for the room to finish a negotiation before giving up on the publish.
+///
+/// One round trip to the SFU plus ICE gathering, which is what `Room::negotiate` blocks on. The same
+/// five seconds `Room::PUBLISH_TIMEOUT` allows, for the same reason: past it the answer is not late,
+/// it is not coming.
+const NEGOTIATION_SETTLE_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// The API every publishing peer connection is built from.
 ///
@@ -263,21 +320,29 @@ pub trait FrameSink: Send + Sync + 'static {
     fn stop(self) -> impl std::future::Future<Output = ()> + Send;
 }
 
-/// A live publication: the peer connection, the track being fed, and the identifiers other clients
-/// need in order to subscribe.
+/// A live publication: the room it sits on, the tracks being fed, and the names other clients need
+/// in order to subscribe.
 pub struct Publication {
-    peer_connection: Arc<RTCPeerConnection>,
-    /// The simulcast layers, highest first. Index 0 is rid `a` and is what every non-simulcast path
+    /// The shared room. Held rather than borrowed because this struct is moved into the writer task
+    /// and outlives every other reference to it in `session::start`.
+    room: Arc<Room>,
+    /// The registry key the room was acquired under, so teardown can let go of exactly what it took.
+    room_key: String,
+    /// The simulcast layers, highest first. Index 0 is rid `f` and is what every non-simulcast path
     /// in this file means when it says "the track": it carries the `FrameSink` writes and its
     /// failure is the share's failure. One element is the pre-simulcast publication.
     tracks: Vec<Arc<TrackLocalStaticSample>>,
-    signalling: Signalling,
     /// Set when a viewer asks for a keyframe over RTCP, cleared when the encoder produces one.
     ///
     /// A flag rather than a channel because the request is idempotent: ten viewers asking at once,
     /// or one viewer asking ten times while a frame is in flight, all want the same single IDR.
     keyframe_wanted: Arc<AtomicBool>,
-    pub media_session_id: String,
+    /// The server's id for the video track, issued on `TrackPublishedResponse`.
+    ///
+    /// Diagnostics only: the roster is what tells a viewer which SID to subscribe to, and this side
+    /// never sends it anywhere. It is logged because a publish that returned without one is a
+    /// publish the SFU never confirmed, and that is otherwise indistinguishable from a slow one.
+    pub video_sid: String,
     pub track_name: String,
     /// The Opus track carrying the share's own sound, when the user chose to share it.
     ///
@@ -312,13 +377,19 @@ impl Publication {
         Arc::clone(&self.keyframe_wanted)
     }
 
-    /// The connection, for whoever needs to read its statistics.
+    /// The publishing connection, for whoever needs to read its statistics.
     ///
     /// <p>Handed out exactly like [`Self::keyframe_requests`] and [`Self::audio_track`], and taken
     /// at the same point in `session::start`: this struct is moved into the writer task, so after
     /// that moment nothing else can reach it.</p>
-    pub fn peer_connection(&self) -> Arc<RTCPeerConnection> {
-        Arc::clone(&self.peer_connection)
+    ///
+    /// <p><b>Shared with the microphone now.</b> `get_stats()` on it reports every outbound stream
+    /// the participant has, not just this share's - which is harmless for `publish_stats` only
+    /// because the ladder is the sole *video* publication on it, and the mic and the share's audio
+    /// are filtered out by kind. A camera published from Rust would break that assumption; it is
+    /// published from the webview's own room, and that is one of the reasons why.</p>
+    pub fn peer_connection(&self) -> Arc<webrtc::peer_connection::RTCPeerConnection> {
+        self.room.publisher_connection()
     }
 
     /// The `profile-level-id` the answer kept, if the answer named one.
@@ -360,158 +431,152 @@ impl Publication {
             .map_err(|e| e.to_string())
     }
 
-    /// Open a Cloudflare session and publish an H.264 track named `screen-<share_id>`.
+    /// Publish `screen-<share_id>` as a simulcast ladder on the shared room.
     ///
-    /// Deliberately mirrors the webview's publish path so subscribers cannot tell the difference:
-    /// they resolve a stream from `{cfSessionId, trackName}` and neither field says who produced it.
-    /// `with_audio` adds a second Opus track, `screen-audio-<share_id>`, published in the *same*
-    /// negotiation as the video. One call rather than two because the contract asks for it, and
-    /// because two negotiations would announce the halves of one share separately - a viewer would
-    /// build the tile, then have audio arrive against a share it had already finished laying out.
+    /// `layers` is the ladder an encoder was actually built for, highest rung first - not the one
+    /// the geometry could support. A rid advertised with no encoder behind it is a layer the SFU
+    /// will select and then find empty, which is a tile that loads forever rather than a tile that
+    /// fails, so `session::start` truncates the ladder to the encoders it got and this publishes
+    /// exactly that.
+    ///
+    /// `with_audio` adds `screen-audio-<share_id>` under `TrackSource::ScreenShareAudio`, so a
+    /// client that groups by source does not read the share's own sound as a second person talking.
+    ///
+    /// # Two round trips, not one, and audio before video
+    ///
+    /// The Cloudflare path published both halves in a single offer, deliberately: a viewer that
+    /// learns of the video first builds the tile, and audio then arrives against a share it has
+    /// already finished laying out. `Room::publish_video` and `Room::publish_audio_as` each
+    /// negotiate on their own, so **a share with audio now costs two offers** and its halves are
+    /// announced separately. Batching them needs a publish-many entry point on `Room`, which is not
+    /// this module's to add.
+    ///
+    /// Two things follow, and both are load-bearing rather than tidy-up:
+    ///
+    /// 1. Each offer must wait for the previous answer, or the answer applies to an SDP that no
+    ///    longer matches. See [`await_stable`], which also carries the mid-collision this prevents.
+    /// 2. The ladder goes in the **last** negotiation, because `webrtc-rs` corrupts a simulcast
+    ///    m-line it re-offers. See the comment at the call site.
     pub async fn start(
-        signalling: Signalling,
+        room: Arc<Room>,
+        room_key: String,
         share_id: &str,
-        ice_servers: Vec<IceServerConfig>,
+        layers: &[Layer],
         with_audio: bool,
-        video: Option<VideoIntent>,
-        layer_count: usize,
     ) -> Result<Self, String> {
         // Which publication a line belongs to. Every `[publisher]` line looked alike, so two
         // overlapping shares - or one that was torn down while its replacement was starting - read
-        // as a single connection doing something impossible: gathering, then closing, then
-        // connecting. That is two connections interleaved, and nothing in the log said so.
+        // as a single publication doing something impossible: publishing, then closing, then
+        // connecting. That is two publications interleaved, and nothing in the log said so.
         //
-        // It matters beyond legibility. The `media_session_id` a viewer is told to pull from is
-        // minted per publication, so if the session the server announces and the connection the
-        // media flows on are not the same one, every viewer subscribes to a dead session and waits
-        // forever. This number is what makes that visible.
+        // It matters more now, not less. The share rides on a connection it neither owns nor opened
+        // and shares with the microphone, so this number is the only thing in the log separating a
+        // share that is starting from one that is going away on the very same room.
         static NEXT_PUBLICATION: AtomicU64 = AtomicU64::new(1);
         let id = NEXT_PUBLICATION.fetch_add(1, Ordering::Relaxed);
-        eprintln!("[publisher] publication {id}: starting for share {share_id}");
-
-        let api = publisher_api()?;
-
-        let config = RTCConfiguration {
-            ice_servers: ice_servers
-                .into_iter()
-                .map(|server| RTCIceServer {
-                    urls: server.urls,
-                    username: server.username.unwrap_or_default(),
-                    credential: server.credential.unwrap_or_default(),
-                    ..Default::default()
-                })
-                .collect(),
-            ..Default::default()
-        };
-
-        let peer_connection = Arc::new(
-            api.new_peer_connection(config)
-                .await
-                .map_err(|e| e.to_string())?,
-        );
-
-        // The same blind spot `media::voice::rtc` closed, for the same reason. Publishing reports
-        // how many layers it built and how many frames it encoded, and both keep reporting happily
-        // while the transport underneath them is dead - so a share whose handshake failed looks
-        // identical in the log to one nobody happened to be watching. The viewer-side symptom is a
-        // tile that loads forever, which is indistinguishable from a slow join until this says
-        // which of the two it was.
-        //
-        // Publishing is one-way, so there is no inbound packet counter to infer liveness from the
-        // way the voice session can. These states are the only evidence the sending half ever had.
-        peer_connection.on_peer_connection_state_change(Box::new(move |state| {
-            eprintln!("[publisher] publication {id}: peer connection state: {state}");
-            Box::pin(async {})
-        }));
-
-        peer_connection.on_ice_connection_state_change(Box::new(move |state| {
-            eprintln!("[publisher] publication {id}: ICE connection state: {state}");
-            Box::pin(async {})
-        }));
+        eprintln!("[publisher] publication {id}: starting for share {share_id} on room {room_key}");
 
         let track_name = format!("screen-{share_id}");
-        let layer_count = layer_count.clamp(1, LAYER_RIDS.len());
 
-        // One layer keeps the pre-simulcast constructor. A rid on a lone encoding writes no rid or
-        // simulcast attribute into the SDP either way - webrtc-rs emits those only for a sender
-        // holding more than one - but going through the same call the previous release did is what
-        // makes "drop to one layer" a true rollback rather than a similar-looking path.
-        let mut layer_tracks: Vec<Arc<TrackLocalStaticSample>> = Vec::with_capacity(layer_count);
-        if layer_count == 1 {
-            layer_tracks.push(Arc::new(TrackLocalStaticSample::new(
-                h264_capability(),
-                "video".to_owned(),
-                track_name.clone(),
-            )));
-        } else {
-            // Every layer shares `id` and `stream_id` and differs only by rid: `add_encoding`
-            // rejects any other combination, and the base track must itself carry a rid or it
-            // refuses with ErrRTPSenderNoBaseEncoding.
-            for rid in LAYER_RIDS.iter().take(layer_count) {
-                layer_tracks.push(Arc::new(TrackLocalStaticSample::new_with_rid(
-                    h264_capability(),
-                    "video".to_owned(),
-                    (*rid).to_owned(),
-                    track_name.clone(),
-                )));
-            }
-        }
+        // `(rid, width, height)`, highest rung first, which is the order `Room::publish_video` maps
+        // onto `VideoQuality::High`/`Medium`/`Low`. The server never reads the rid strings as an
+        // ordering - it reads the `layers` list - but the list's order *is* the ranking, so a ladder
+        // handed over out of order would declare the quarter rung as the high one.
+        let wire_layers: Vec<(&str, u32, u32)> = layers
+            .iter()
+            .map(|layer| (layer.rid, layer.spec.width, layer.spec.height))
+            .collect();
 
-        let rtp_sender = peer_connection
-            .add_track(Arc::clone(&layer_tracks[0]) as Arc<dyn TrackLocal + Send + Sync>)
-            .await
-            .map_err(|e| e.to_string())?;
+        // **Before the first publish, not only between the two halves.** The microphone publishes on
+        // this same connection and does not wait for its own answer, so a share starting moments
+        // after a join arrives with an offer still outstanding. That is not just a lost
+        // renegotiation: `webrtc-rs` numbers a new transceiver from the greatest mid it has seen in
+        // the *current remote description*, and the m-line for the mandatory data channels is not
+        // counted there - so with the answer still in flight the video is handed the data channel's
+        // mid. Two m-lines under one mid, the SFU keeps whichever it resolves last, and the share
+        // simply never appears in anybody's roster. Measured, not theorised.
+        await_stable(&room, id, "an earlier publication on this room").await?;
 
-        // Every encoding has to be attached before the offer is created and before anything is
-        // written: the sender refuses one afterwards (ErrRTPSenderSendAlreadyCalled), and the SDP
-        // is generated from whatever is attached at that moment.
-        for track in layer_tracks.iter().skip(1) {
-            rtp_sender
-                .add_encoding(Arc::clone(track) as Arc<dyn TrackLocal + Send + Sync>)
-                .await
-                .map_err(|e| format!("could not attach a simulcast layer: {e}"))?;
-        }
-
-        // The audio half. Added before the offer so both m-lines are in one negotiation.
+        // **Audio first, video last.** The Cloudflare publish put the video first in its `tracks`
+        // array; this is the opposite order and it is not a preference.
+        //
+        // `webrtc-rs` 0.14 writes the rid and simulcast attributes of an *existing* video m-line
+        // twice on every subsequent offer: once from the rid map it parsed out of the last answer,
+        // and once from the sender's own encodings (`sdp/mod.rs`, the `rid_map` block and the
+        // `encodings.len() > 1` block). The result is `a=simulcast:recv f;h;q;f;h;q`, and LiveKit
+        // answers it by dropping the video track from the participant entirely - the share is
+        // accepted, gets a SID, and then appears in nobody's roster. Measured against
+        // `livekit-server` 1.13.5; the test that caught it is
+        // `the_share_publishes_on_the_participant_the_microphone_is_on`.
+        //
+        // Publishing the ladder in the *last* negotiation of the share means nothing renegotiates
+        // over it. That closes this publication's own two-step; it does not close the general case -
+        // anything that offers again later on this connection corrupts a live ladder the same way.
+        // See the module docs and the report that accompanied this change.
         let audio_track_name = with_audio.then(|| format!("screen-audio-{share_id}"));
+        if let Some(name) = &audio_track_name {
+            // `ScreenShareAudio`, never `Microphone`. The track *name* carries the pairing, but the
+            // source is what tells a client the kind before it has parsed a name - and a share's own
+            // sound announced as a microphone is a second person talking in every roster that
+            // groups by source.
+            let audio = room
+                .publish_audio_as(name, proto::TrackSource::ScreenShareAudio)
+                .await?;
+            eprintln!("[publisher] publication {id}: {name} accepted as {}", audio.sid);
+            // Waiting for the answer is not politeness: `create_offer` on a connection still in
+            // `have-local-offer` builds an SDP the outstanding answer no longer matches, and the
+            // publish that was already accepted then dies on a description nothing can apply.
+            await_stable(&room, id, "the audio half").await?;
+        }
+
+        let video = room.publish_video(&track_name, &wire_layers).await?;
+        eprintln!(
+            "[publisher] publication {id}: {track_name} accepted as {} ({} layer(s))",
+            video.sid,
+            wire_layers.len()
+        );
+        await_stable(&room, id, "the publish").await?;
+
+        // Ordered, highest first. A short ladder is a failed publish and not a share with fewer
+        // rungs: everything downstream indexes rung 0 as "the track" and pairs the rest against the
+        // encoders that were already built, so a mismatch here would silently write one layer's
+        // frames into another layer's packetiser.
+        let tracks = room.local_ladder(&track_name).await;
+        if tracks.len() != wire_layers.len() {
+            return Err(format!(
+                "published {} of {} layer(s) for {track_name}",
+                tracks.len(),
+                wire_layers.len()
+            ));
+        }
+
         let audio_track = match &audio_track_name {
-            Some(name) => {
-                let audio = Arc::new(TrackLocalStaticSample::new(
-                    opus_capability(),
-                    // A distinct stream id from the video's "video". Sharing one would have the two
-                    // halves arrive as one MediaStream, which is what a *camera* looks like - the
-                    // receiving client groups a share by its track names, not by its stream.
-                    "screen-audio".to_owned(),
-                    name.clone(),
-                ));
-                let audio_sender = peer_connection
-                    .add_track(Arc::clone(&audio) as Arc<dyn TrackLocal + Send + Sync>)
+            Some(name) => Some(
+                room.local_track(name)
                     .await
-                    .map_err(|e| e.to_string())?;
-                // Drained and discarded. Unlike the video sender there is nothing to act on - audio
-                // has no keyframes - but an undrained sender fills its buffers and stalls the track.
-                tokio::spawn(async move {
-                    let mut buf = vec![0u8; 1500];
-                    while audio_sender.read(&mut buf).await.is_ok() {}
-                });
-                Some(audio)
-            }
+                    .ok_or_else(|| format!("{name} was published but has no writable track"))?,
+            ),
             None => None,
         };
 
         // RTCP has to be drained or the sender's buffers fill and stall the track - but *what* is in
-        // it matters, and until now none of it was read.
+        // it matters, and until this existed none of it was read.
         //
         // A WebRTC receiver cannot decode anything until it has a keyframe, and the way it asks for
         // one is an RTCP Picture Loss Indication. Discarding those means a viewer who joins after a
         // share began waits for whatever periodic IDR the encoder happens to emit - and a viewer who
         // loses a packet stays frozen or smeared until then, rather than recovering on request.
         //
-        // `read_rtcp` rather than `read`: the same drain, already parsed.
+        // `read_rtcp` rather than `read`: the same drain, already parsed. Read off the room's
+        // publishing connection and nothing else - see `Room::publisher_connection`, which is handed
+        // out for exactly this and must never be negotiated on.
         let keyframe_wanted = Arc::new(AtomicBool::new(false));
+        let video_sender = sender_for(&room, &track_name)
+            .await
+            .ok_or_else(|| format!("no sender for {track_name} on the publishing connection"))?;
         let rtcp_keyframe_wanted = Arc::clone(&keyframe_wanted);
         tokio::spawn(async move {
-            while let Ok((packets, _)) = rtp_sender.read_rtcp().await {
+            while let Ok((packets, _)) = video_sender.read_rtcp().await {
                 for packet in packets {
                     // Both mean "send me a keyframe". PLI is what browsers send; FIR is the older
                     // request and some SFUs still relay it, so honour either.
@@ -519,10 +584,7 @@ impl Publication {
                         .as_any()
                         .downcast_ref::<PictureLossIndication>()
                         .is_some()
-                        || packet
-                            .as_any()
-                            .downcast_ref::<FullIntraRequest>()
-                            .is_some();
+                        || packet.as_any().downcast_ref::<FullIntraRequest>().is_some();
                     if wants_keyframe {
                         rtcp_keyframe_wanted.store(true, Ordering::Relaxed);
                     }
@@ -530,178 +592,61 @@ impl Publication {
             }
         });
 
-        let offer = peer_connection
-            .create_offer(None)
-            .await
-            .map_err(|e| e.to_string())?;
-
-        // Cloudflare needs a complete SDP, and webrtc-rs has no trickle path to the backend here,
-        // so wait for ICE gathering before offering.
-        let mut gathering = peer_connection.gathering_complete_promise().await;
-        peer_connection
-            .set_local_description(offer)
-            .await
-            .map_err(|e| e.to_string())?;
-        let _ = gathering.recv().await;
-
-        let local = peer_connection
-            .local_description()
-            .await
-            .ok_or_else(|| "no local description after gathering".to_string())?;
-
-        // Recorded before the offer goes out, for the reason the voice session records the same
-        // thing: a connection that later fails has to be tellable apart from one that never had
-        // anywhere to connect from.
-        //
-        // The publishing connection is configured with real STUN servers where the voice one is
-        // deliberately empty, so this is also the only place that says whether STUN answered. Host
-        // candidates alone here means it did not, and that is worth knowing before blaming the far
-        // end: it puts the share on the same host-only footing the voice session relies on
-        // `ice-lite` to survive, without the same guarantee behind it.
-        let candidates: Vec<String> = local
-            .sdp
-            .lines()
-            .filter(|line| line.starts_with("a=candidate:"))
-            .map(|line| line.trim_start_matches("a=").to_owned())
-            .collect();
-        eprintln!(
-            "[publisher] publication {id}: offering {} local candidate(s)",
-            candidates.len()
-        );
-        for candidate in &candidates {
-            eprintln!("[publisher]   {candidate}");
-        }
-
-        let media_session_id = signalling.create_session().await?;
-
-        // The identifier every viewer is handed to pull this share from, tied to the connection it
-        // was minted on. A viewer can only ever be as correct as this pairing.
-        eprintln!("[publisher] publication {id}: media session {media_session_id}");
-
-        // Mids are assigned during offer creation, so they can only be read now. Taken in
-        // transceiver order, which is add_track order: video first, then audio if it exists.
-        let transceivers = peer_connection.get_transceivers().await;
-        let mid_at = |index: usize| -> Result<String, String> {
-            transceivers
-                .get(index)
-                .ok_or_else(|| format!("no transceiver {index} on the publishing connection"))
-                .map(|t| {
-                    t.mid()
-                        .map(|m| m.to_string())
-                        .unwrap_or_else(|| index.to_string())
-                })
-        };
-
-        let mut tracks = vec![LocalTrack {
-            mid: mid_at(0)?,
-            track_name: track_name.clone(),
-        }];
+        // Drained and discarded. Unlike the video sender there is nothing to act on - audio has no
+        // keyframes - but an undrained sender fills its buffers and stalls the track.
         if let Some(name) = &audio_track_name {
-            tracks.push(LocalTrack {
-                mid: mid_at(1)?,
-                track_name: name.clone(),
-            });
+            match sender_for(&room, name).await {
+                Some(sender) => {
+                    tokio::spawn(async move {
+                        let mut buf = vec![0u8; 1500];
+                        while sender.read(&mut buf).await.is_ok() {}
+                    });
+                }
+                // Not fatal, and worth saying out loud: the share sound stalls rather than fails,
+                // which is the shape of bug that gets reported as "audio cut out after a minute".
+                None => eprintln!("[publisher] publication {id}: no sender to drain for {name}"),
+            }
         }
 
         // What the ladder looks like on the wire, offered and answered.
         //
         // Accepting the publish and honouring the ladder are different things, and only the first
-        // was ever observable: `tracks_new` reporting no error says the SFU took the track, not that
-        // it understood three encodings. If the answer carries no rid or simulcast attribute back,
-        // the layers exist on this side only - every viewer is then pulling a track the SFU thinks
-        // has one encoding, which loads forever rather than failing.
+        // was ever observable: a `TrackPublishedResponse` says the SFU took the track, not that it
+        // understood three encodings. If the answer carries no rid or simulcast attribute back, the
+        // layers exist on this side only - every viewer is then pulling a track the SFU thinks has
+        // one encoding, which loads forever rather than failing.
         //
-        // Filtered rather than dumped whole: the full SDP is hundreds of lines of ICE and fingerprint
-        // noise, and these are the handful that decide whether simulcast is real.
-        log_simulcast_sdp(id, "offer", &local.sdp);
-
-        let response = signalling
-            .tracks_new(
-                &media_session_id,
-                &SessionDescription {
-                    sdp_type: "offer".to_owned(),
-                    sdp: local.sdp,
-                },
-                &tracks,
-                video,
-            )
-            .await?;
-
-        if let Some(error) = response.tracks.iter().find_map(|t| t.error.as_ref()) {
-            return Err(format!("the SFU rejected the track: {error}"));
+        // Both descriptions now cover the whole participant, microphone included, so the m-line
+        // count is no longer the ladder's. The rid and simulcast counts still are.
+        match room.local_sdp().await {
+            Some(sdp) => log_simulcast_sdp(id, "offer", &sdp),
+            None => eprintln!("[publisher] publication {id}: no local description to read"),
         }
-
-        log_simulcast_sdp(id, "answer", &response.session_description.sdp);
+        let answer = room.remote_sdp().await;
+        match &answer {
+            Some(sdp) => log_simulcast_sdp(id, "answer", sdp),
+            // Accepted, with no answer applied. `TrackPublishedResponse` can arrive before the
+            // `Answer` (migration spec §7), and `await_stable` above is what closes that window -
+            // so reaching here means it did not, and the profile below is read off nothing.
+            None => eprintln!("[publisher] publication {id}: accepted with no answer applied"),
+        }
         // Captured here rather than only logged: the negotiated profile and level decide what the
         // encoder may legally emit, and a black tile from a level mismatch is otherwise invisible
         // from this side.
-        let profile_level_id = profile_level_id_in(&response.session_description.sdp);
+        let profile_level_id = answer.as_deref().and_then(profile_level_id_in);
 
-        let answer = RTCSessionDescription::answer(response.session_description.sdp)
-            .map_err(|e| e.to_string())?;
-        peer_connection
-            .set_remote_description(answer)
-            .await
-            .map_err(|e| e.to_string())?;
-
-        let resolved_track_name = response
-            .tracks
-            .first()
-            .and_then(|t| t.track_name.clone())
-            .unwrap_or_else(|| track_name.clone());
-
-        let publication = Self {
-            peer_connection,
-            tracks: layer_tracks,
-            signalling,
+        Ok(Self {
+            room,
+            room_key,
+            tracks,
             keyframe_wanted,
-            media_session_id,
-            track_name: resolved_track_name,
+            video_sid: video.sid,
+            track_name,
             audio_track,
             audio_track_name,
             profile_level_id,
-        };
-
-        if response.requires_immediate_renegotiation {
-            publication.renegotiate().await?;
-        }
-
-        Ok(publication)
+        })
     }
-
-    async fn renegotiate(&self) -> Result<(), String> {
-        let offer = self
-            .peer_connection
-            .create_offer(None)
-            .await
-            .map_err(|e| e.to_string())?;
-        self.peer_connection
-            .set_local_description(offer.clone())
-            .await
-            .map_err(|e| e.to_string())?;
-
-        let response = self
-            .signalling
-            .renegotiate(
-                &self.media_session_id,
-                &SessionDescription {
-                    sdp_type: "offer".to_owned(),
-                    sdp: offer.sdp,
-                },
-                // The publish this follows already declared the size, and it has not changed. An
-                // absent declaration leaves the server's recorded one exactly where it is.
-                None,
-            )
-            .await?;
-
-        let answer = RTCSessionDescription::answer(response.session_description.sdp)
-            .map_err(|e| e.to_string())?;
-        self.peer_connection
-            .set_remote_description(answer)
-            .await
-            .map_err(|e| e.to_string())
-    }
-
 }
 
 impl FrameSink for Publication {
@@ -718,31 +663,110 @@ impl FrameSink for Publication {
             .map_err(|e| e.to_string())
     }
 
-    /// Close every track server-side and tear down the connection.
+    /// Unpublish both halves and let go of the room.
     ///
-    /// Both halves of a share go in one close call. Closing only the video would leave viewers
-    /// holding a live audio track from a share that no longer exists - silent, but still subscribed,
-    /// still mixed, and still counted against the sharer's egress.
+    /// Both halves go in one `unpublish` call. Closing only the video would leave viewers holding a
+    /// live audio track from a share that no longer exists - silent, but still subscribed, still
+    /// mixed, and still counted against the sharer's egress. Unlike publishing, `Room::unpublish`
+    /// takes the whole list and offers once, so this really is one round trip.
+    ///
+    /// **The connection is not closed here unless we are the last one out.** The microphone is
+    /// almost always the other holder and its lifetime is the room membership; closing the room
+    /// because a share ended would drop the call.
     async fn stop(self) {
         let mut names = vec![self.track_name.clone()];
         if let Some(audio) = &self.audio_track_name {
             names.push(audio.clone());
         }
-        // Named by session rather than by publication number, which this does not carry - it is
-        // enough to pair with the "media session" line from `start` and say which one went away.
-        // A teardown landing *after* its replacement has started is the interleaving that made the
-        // states look impossible, and it can only be read off the log if the close says so too.
+        // Named by track rather than by publication number, which this does not carry - it is enough
+        // to pair with the "accepted as" line from `start` and say which one went away. A teardown
+        // landing *after* its replacement has started is the interleaving that made the states look
+        // impossible, and it can only be read off the log if the close says so too.
         eprintln!(
-            "[publisher] closing media session {}: {}",
-            self.media_session_id,
+            "[publisher] unpublishing from room {}: {}",
+            self.room_key,
             names.join(", ")
         );
-        let _ = self
-            .signalling
-            .close_tracks(&self.media_session_id, &names)
-            .await;
-        let _ = self.peer_connection.close().await;
+
+        let Publication { room, room_key, .. } = self;
+        if let Err(e) = room.unpublish(&names).await {
+            eprintln!("[publisher] could not unpublish {}: {e}", names.join(", "));
+        }
+        // Ours before the registry is asked, or `release` can never be the last holder and the room
+        // is kept alive by the very publication that is going away.
+        drop(room);
+        release_room(&room_key).await;
     }
+}
+
+/// Let go of a room acquired from the registry, closing it if this was the last holder.
+///
+/// A room handed back is one nobody else is using, and a caller that merely drops it leaks the
+/// signal connection and both peer connections until the process ends - which is why `release` is
+/// `#[must_use]`. Kept here rather than inlined because two paths need it: an ordinary teardown,
+/// and `start_screen_publish` failing after it has already acquired.
+pub async fn release_room(key: &str) {
+    let Some(room) = registry::release(key).await else {
+        return;
+    };
+    match Arc::try_unwrap(room) {
+        Ok(room) => {
+            eprintln!("[publisher] closing room {key}: last holder out");
+            room.close().await;
+        }
+        // The registry says nobody holds it and an `Arc` says somebody does, which is a bookkeeping
+        // disagreement rather than a media fault - so it is logged rather than fatal. What it costs
+        // is the connection staying open for the rest of the session.
+        Err(room) => eprintln!(
+            "[publisher] room {key} was released but {} reference(s) outlive the registry; \
+             its connection stays open",
+            Arc::strong_count(&room)
+        ),
+    }
+}
+
+/// Wait for the publishing connection to finish the negotiation it is in the middle of.
+///
+/// `Room` sends an offer per publication and applies the answer on its event pump, so there is a
+/// window after any publish where the connection is in `have-local-offer` with an answer still in
+/// flight. Anything that offers again inside that window overwrites the local description the
+/// outstanding answer was generated against, and both negotiations then fail - the same interleaving
+/// `Room::publisher_connection` warns about, reached from the other direction.
+///
+/// Polled rather than signalled because `Room` exposes the state and not an event, and 20 ms is well
+/// under the round trip this is waiting on.
+async fn await_stable(room: &Room, id: u64, what: &str) -> Result<(), String> {
+    let publisher = room.publisher_connection();
+    let deadline = tokio::time::Instant::now() + NEGOTIATION_SETTLE_TIMEOUT;
+    while tokio::time::Instant::now() < deadline {
+        if publisher.signaling_state() == RTCSignalingState::Stable {
+            return Ok(());
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    // Distinctly worded from a publish timeout: this is an answer that never arrived, not a request
+    // that was refused, and the two want different things looked at.
+    Err(format!(
+        "[publisher] publication {id}: {what} was never answered - the connection is still {}",
+        publisher.signaling_state()
+    ))
+}
+
+/// The sender carrying a named local track on the room's publishing connection.
+///
+/// Looked up rather than kept from the publish, because `Room` owns `add_track` and hands back a
+/// `Publication` rather than an `RTCRtpSender`. The lookup is by track id, which is the track *name*
+/// for everything this module publishes - including every rung of a ladder, since simulcast layers
+/// share one id and differ only by rid.
+async fn sender_for(room: &Room, track_id: &str) -> Option<Arc<RTCRtpSender>> {
+    for sender in room.publisher_connection().get_senders().await {
+        if let Some(track) = sender.track().await {
+            if track.id() == track_id {
+                return Some(sender);
+            }
+        }
+    }
+    None
 }
 
 #[cfg(test)]
