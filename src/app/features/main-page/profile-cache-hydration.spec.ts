@@ -159,4 +159,36 @@ describe('revealAfterAccountGateBlock', () => {
 
         expect(calls).toEqual(['hydrate', 'markReady']);
     });
+
+    /**
+     * The 403 branch of `resolveAccountGates` returns `'email-verification'` <i>before</i>
+     * `establishAccountSlot(user)` has run, so `DeviceIdentityService.deviceId()` still answers
+     * `BOOTSTRAP_SLOT_ID`. Hydrating there reads a namespace that cannot hold this account's data -
+     * and installs the write-behind hook, so everything the session goes on to resolve is written
+     * under an id `SessionTeardownService.wipeEngineState(deviceId)` is never given.
+     */
+    it('does not hydrate the email-verification path when no account slot is live', async () => {
+        const {calls, steps: s} = steps();
+
+        await revealAfterAccountGateBlock('email-verification', s, async () => false);
+
+        expect(calls).toEqual(['markReady']);
+    });
+
+    it('still hydrates the email-verification path when a slot is live', async () => {
+        const {calls, steps: s} = steps();
+
+        await revealAfterAccountGateBlock('email-verification', s, async () => true);
+
+        expect(calls).toEqual(['hydrate', 'revalidateAll', 'markReady']);
+    });
+
+    it('treats an unanswerable slot lookup as no slot, and still reveals', async () => {
+        const {calls, steps: s} = steps();
+
+        await revealAfterAccountGateBlock(
+            'email-verification', s, () => Promise.reject(new Error('registry unreadable')));
+
+        expect(calls).toEqual(['markReady']);
+    });
 });

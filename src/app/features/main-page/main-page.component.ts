@@ -484,12 +484,15 @@ export class MainPageComponent implements OnDestroy {
             // {@link revealAfterAccountGateBlock}: the onboarding picker is opaque and hides
             // everything behind it, but the email-verification dialog is a translucent PrimeNG mask
             // over the still-rendered main-page shell, so it is exposed to the same empty-profile-map
-            // hazard runDeviceLaunch guards against.
+            // hazard runDeviceLaunch guards against - but only once this account has a slot. The
+            // 403 branch of resolveAccountGates returns before establishAccountSlot has run, and
+            // hydrating there would read and then write under BOOTSTRAP_SLOT_ID, which no wipe is
+            // ever handed the id of.
             await revealAfterAccountGateBlock(gate, {
                 hydrate: () => this.profileCache.hydrate(),
                 revalidateAll: () => this.profileCache.revalidateAll(),
                 markReady: () => this.appReady.markReady(),
-            });
+            }, async () => await this.accounts.activeSlot() !== null);
             return;
         }
         await this.runDeviceLaunch();
@@ -565,6 +568,25 @@ export class MainPageComponent implements OnDestroy {
     private async runDeviceLaunch(): Promise<void> {
         const deviceId = await this.mlsService.getOrCreateDeviceIdentifier();
 
+        // As early as its own dependencies allow, and that placement is the fix for the reported
+        // bug rather than a tidy-up. Hydration needs the device id above and the secure store, and
+        // nothing else - not `initStorage`, not `autoUnlock`, and certainly not
+        // `processPendingWelcomes` or the admission sweep, which are network work measured in
+        // seconds. Run after all of that, hydration lost a race it cannot win:
+        // `AppReadyService`'s 8s safety net lifts the splash whether or not this sequence has
+        // finished, and a splash lifted over an empty profile map is the raw-`user_...` bug the
+        // cache exists to remove - with the profiles sitting on disk, simply unread.
+        //
+        // On a first-ever launch the sealing key has not been minted yet, because `initStorage`
+        // now runs after this. That is correct and costs nothing: nothing is cached yet either.
+        // `CacheSealService` deliberately does not memoise the absent key, so the writes that
+        // follow this launch still seal.
+        await hydrateThenReveal({
+            hydrate: () => this.profileCache.hydrate(),
+            revalidateAll: () => this.profileCache.revalidateAll(),
+            markReady: () => this.appReady.markReady(),
+        });
+
         // Only a state file that is present and unreadable may cost this device its groups. Every
         // other reason `initStorage` rejects - a locked keychain, a credential service that has not
         // started, an IndexedDB fault, an engine that failed to load - leaves the state intact and
@@ -624,16 +646,6 @@ export class MainPageComponent implements OnDestroy {
             );
         }
         this.keyPackagesFailed.set(outcome.keyPackagesFailed);
-
-        // Before the splash comes down: the splash is what hides an empty first paint, and an
-        // empty profile map is what puts raw user ids on screen. See {@link hydrateThenReveal} -
-        // a cache fault can never fail or hang the launch, it degrades to the cold start that
-        // shipped before the cache existed.
-        await hydrateThenReveal({
-            hydrate: () => this.profileCache.hydrate(),
-            revalidateAll: () => this.profileCache.revalidateAll(),
-            markReady: () => this.appReady.markReady(),
-        });
     }
 
     /**

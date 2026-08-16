@@ -54,15 +54,33 @@ export type AccountGateBlock = 'onboarding' | 'email-verification';
 /**
  * Reveals whatever `resolveAccountGates()` decided to show, hydrating first only when that surface
  * can actually expose an unresolved profile.
+ *
+ * @param hasAccountSlot whether a real account slot is live. Only consulted on the
+ *     email-verification path, and it is not a refinement - it is the difference between hydrating
+ *     the signed-in account and hydrating nothing under a name no wipe will ever reach. That path
+ *     has two callers and they are not alike: `getSelf()` answering 403 returns before
+ *     `establishAccountSlot(user)` has run, so `DeviceIdentityService.deviceId()` answers
+ *     `BOOTSTRAP_SLOT_ID` and every read - and every write the session goes on to make - lands in a
+ *     namespace `SessionTeardownService.wipeEngineState(deviceId)` is never given the id of. There
+ *     is no cached data for an account with no established slot, so hydrating there can only do
+ *     harm. The unverified-email branch <i>does</i> have a slot by then, and still hydrates.
  */
 export async function revealAfterAccountGateBlock(
     block: AccountGateBlock,
     steps: ProfileCacheHydrationSteps,
+    hasAccountSlot: () => Promise<boolean> = async () => true,
 ): Promise<void> {
     if (block === 'onboarding') {
         // Opaque takeover: nothing behind it renders yet, so there is nothing hydration could fix
         // that the user could see anyway. Marking ready directly matches runDeviceLaunch's own
         // behaviour before this file existed.
+        steps.markReady();
+        return;
+    }
+    // Failing to answer is treated as "no slot", for the same reason the answer matters at all: the
+    // cost of skipping hydration is a cold start, and the cost of hydrating without a slot is
+    // durable residue under the bootstrap id.
+    if (!await hasAccountSlot().catch(() => false)) {
         steps.markReady();
         return;
     }
