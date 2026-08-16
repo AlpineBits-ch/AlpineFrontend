@@ -42,6 +42,7 @@ use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSampl
 use webrtc::track::track_local::TrackLocal;
 
 use super::identity::user_of;
+use crate::media::voice::jitter::Packet;
 use super::resume::{resume_action, Resume};
 use crate::media::publisher::rtc::{h264_capability, publisher_api};
 use crate::media::voice::rtc::voice_api;
@@ -105,6 +106,8 @@ pub struct Room {
     /// What the server has told us other people are publishing.
     remote: Arc<Mutex<HashMap<String, RemoteTrack>>>,
     pub stats: Arc<RoomStats>,
+    /// Where inbound audio is forwarded. See [`AudioSink`].
+    audio_sink: AudioSink,
 }
 
 impl Room {
@@ -164,7 +167,8 @@ impl Room {
         let remote = Arc::new(Mutex::new(HashMap::new()));
         let published = Arc::new(Mutex::new(HashMap::new()));
 
-        install_receive_counter(&subscriber, stats.clone());
+        let audio_sink: AudioSink = Arc::new(Mutex::new(None));
+        install_receive_reader(&subscriber, stats.clone(), audio_sink.clone());
 
         let signal = Arc::new(signal);
         tokio::spawn(pump(
@@ -191,6 +195,7 @@ impl Room {
             local: Arc::new(Mutex::new(HashMap::new())),
             remote,
             stats,
+            audio_sink,
         })
     }
 
@@ -416,6 +421,16 @@ impl Room {
             .await;
     }
 
+    /// Send inbound audio here, keyed by the SID it was subscribed under.
+    ///
+    /// One sink per room, not per subscription, because `webrtc-rs` allows one `on_track` handler
+    /// per connection and the room owns it. A second caller replaces the first rather than being
+    /// added alongside - there is exactly one mixer in this process, and two sinks would mean two
+    /// halves of the room's audio arriving in different places.
+    pub async fn on_audio(&self, sink: tokio::sync::mpsc::Sender<(String, Packet)>) {
+        *self.audio_sink.lock().await = Some(sink);
+    }
+
     /// Everything the server has told us other people are publishing.
     pub async fn remote_tracks(&self) -> Vec<RemoteTrack> {
         self.remote.lock().await.values().cloned().collect()
@@ -556,18 +571,64 @@ impl Room {
     }
 }
 
-/// Count every RTP packet arriving on any subscribed track.
+/// Where inbound audio goes, keyed by the routing key its subscriber registered.
+///
+/// Behind a mutex and an `Option` because the handler is installed before the consumer exists: the
+/// room is built, then the voice publication attaches its jitter buffers to it. Exactly the shape
+/// `media::voice::rtc::PacketSink` already uses, for the same reason.
+pub type AudioSink = Arc<Mutex<Option<tokio::sync::mpsc::Sender<(String, Packet)>>>>;
+
+/// Read every subscribed track, count it, and forward audio to whoever is listening.
+///
+/// **There is one of these per connection, not per track.** `webrtc-rs` allows a single `on_track`
+/// handler, so this is the only place inbound RTP can be reached - which is why the room owns
+/// forwarding rather than letting each subscriber install its own reader.
 ///
 /// The reader is **spawned** and the handler returns immediately, matching `media::voice::rtc`:
 /// `webrtc-rs` serialises `on_track`, so reading inline blocks every later track from ever opening.
-fn install_receive_counter(subscriber: &Arc<RTCPeerConnection>, stats: Arc<RoomStats>) {
+fn install_receive_reader(
+    subscriber: &Arc<RTCPeerConnection>,
+    stats: Arc<RoomStats>,
+    audio: AudioSink,
+) {
     subscriber.on_track(Box::new(move |track, _receiver, _transceiver| {
         let stats = stats.clone();
+        let audio = audio.clone();
         Box::pin(async move {
             stats.tracks_opened.fetch_add(1, Ordering::Relaxed);
+
+            // The routing key. LiveKit names the media stream after the track it issued, so this is
+            // the same SID `subscribe` was called with - which is what lets a subscriber register a
+            // destination before the track exists. Asserted live in `room_tests`, because the whole
+            // inbound path silently routes nowhere if it ever stops being true.
+            let key = track.id();
+            let is_audio = track.kind() == webrtc::rtp_transceiver::rtp_codec::RTPCodecType::Audio;
+
             tokio::spawn(async move {
-                while track.read_rtp().await.is_ok() {
+                while let Ok((rtp, _)) = track.read_rtp().await {
                     stats.rtp_received.fetch_add(1, Ordering::Relaxed);
+
+                    // Video is read to keep the transport draining and counted, but never
+                    // forwarded: on desktop the webview receives video and this connection carries
+                    // audio for the mixer. Forwarding it would hand the jitter buffer packets it
+                    // cannot decode.
+                    if !is_audio {
+                        continue;
+                    }
+
+                    let sink = { audio.lock().await.clone() };
+                    let Some(sink) = sink else { continue };
+
+                    // `try_send`, not `send`: the consumer is the playout thread and this network
+                    // task must never wait on it. A full queue means playout has stalled, and
+                    // dropping is what keeps latency bounded rather than unbounded.
+                    let _ = sink.try_send((
+                        key.clone(),
+                        Packet {
+                            seq: rtp.header.sequence_number,
+                            payload: rtp.payload.to_vec(),
+                        },
+                    ));
                 }
             });
         })

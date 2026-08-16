@@ -318,3 +318,50 @@ async fn unpublishing_removes_the_track_and_keeps_the_connection() {
 
     room.close().await;
 }
+
+#[tokio::test]
+#[ignore = "needs a LiveKit server on 127.0.0.1:7880"]
+async fn inbound_audio_reaches_the_sink_keyed_by_its_sid() {
+    // This test exists for one assumption the whole inbound path rests on: that the id on the
+    // arriving track is the SID the subscribe was made with. A subscriber registers its destination
+    // by SID *before* the track exists, so if the key ever stopped matching, every packet would be
+    // routed nowhere - `rtp_received` climbing while the mixer stays silent, with nothing erroring.
+    let name = "lk-inbound";
+
+    let publisher = Room::connect(DEV_URL, &dev_token(name, "user-1"))
+        .await
+        .expect("connect");
+    let publication = publisher.publish_audio("audio").await.expect("publish");
+    publisher
+        .wait_until_connected(Duration::from_secs(10))
+        .await
+        .expect("connected");
+
+    let listener = Room::connect(DEV_URL, &dev_token(name, "user-2"))
+        .await
+        .expect("connect");
+
+    let (tx, mut rx) = tokio::sync::mpsc::channel(256);
+    listener.on_audio(tx).await;
+    listener.subscribe(&publication.sid).await;
+
+    let tone = tokio::spawn(async move {
+        pump_tone(&publisher, "audio", Duration::from_secs(8)).await;
+        publisher
+    });
+
+    let first = tokio::time::timeout(Duration::from_secs(8), rx.recv())
+        .await
+        .expect("audio must reach the sink within 8s")
+        .expect("the sink must not close while the room is up");
+
+    let (key, packet) = first;
+    assert_eq!(
+        key, publication.sid,
+        "the routing key must be the SID the subscribe used, or every packet routes nowhere"
+    );
+    assert!(!packet.payload.is_empty(), "an empty payload decodes to nothing");
+
+    listener.close().await;
+    tone.await.expect("tone task").close().await;
+}
