@@ -4,6 +4,7 @@ import {MlsService} from './mls.service';
 import {DeviceService} from './device.service';
 import {PaymentHandleService} from '../features/payments';
 import {MlsCoverageService} from './mls-coverage.service';
+import {CacheStoreFactory} from '../platform/cache-store';
 
 /** What a teardown managed to do, so the caller can report the parts that matter to it. */
 export interface TeardownOutcome {
@@ -37,6 +38,7 @@ export class SessionTeardownService {
     private readonly mls = inject(MlsService);
     private readonly devices = inject(DeviceService);
     private readonly injector = inject(Injector);
+    private readonly cacheStores = inject(CacheStoreFactory);
 
     /**
      * Resolved on demand, not as a field.
@@ -64,6 +66,17 @@ export class SessionTeardownService {
         await firstValueFrom(this.mls.clearStorage());
         await this.mls.clearGroupRegistry();
         await this.mls.clearMessageCache();
+
+        // Cached profiles and message metadata are refetchable; the signing key, group state and
+        // key packages this method already dropped are not. A wipe that stopped here to guard a
+        // cache would leave the far more sensitive material gone while failing partway through -
+        // worse than a cache that outlives the wipe by one launch. `CacheStore.clear()` drops only
+        // this device's entries, so a failure here never reaches another account's data either way.
+        try {
+            await this.cacheStores.open(deviceId).clear();
+        } catch (err) {
+            console.error('Could not clear the local profile/message cache during a wipe', err);
+        }
 
         // Decrypted payment handles are in-memory only and never reach disk, so this is not a wipe
         // of anything persistent - it is making sure the next account signed in on this machine
