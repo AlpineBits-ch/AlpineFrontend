@@ -4,6 +4,7 @@ import {CallWebRtcService} from '../../../../../services/call-webrtc.service';
 import {RustMediaService} from '../../../../../services/rust-media.service';
 import {StreamPreset} from '../../../../../models/stream-preset';
 import {CallParticipant, CallParticipantMenuData, CallScreenShare} from '../../../../../shared/call/call.types';
+import type {StreamStatsSnapshot} from '../../../../../shared/call/stream-stats';
 import {trackAudioWait} from '../../../../../shared/call/audio-wait';
 import {CallControlsBarComponent} from '../../../../../shared/call/call-controls-bar/call-controls-bar.component';
 import {AutoHideCallControlsDirective} from '../../../../../shared/call/auto-hide-call-controls.directive';
@@ -86,6 +87,15 @@ export class CallPanelComponent implements OnInit, OnDestroy {
     protected readonly resolveParticipantName = (userId: string): string =>
         this.callParticipants().find(p => p.userId === userId)?.displayName
         ?? this.translate.instant('CALL.UNKNOWN_VIEWER');
+
+    /** Inbound statistics for a share on this surface, keyed by share id - see the service doc. */
+    protected readonly inboundStatsOf = (share: CallScreenShare): StreamStatsSnapshot | null =>
+        this.callWebRtc.inspected()?.shareId === share.shareId ? this.callWebRtc.inspectedStats() : null;
+
+    protected onStatsInspect(share: CallScreenShare | null): void {
+        this.callWebRtc.inspected.set(share ? {shareId: share.shareId, userId: share.userId} : null);
+    }
+
     protected screenPreset = this.callSession.screenPreset;
     /** Set only while the local user is the last one in the call. */
     protected aloneUntil = computed(() => formatAloneDeadline(this.callSession.aloneDeadline()));

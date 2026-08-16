@@ -38,7 +38,9 @@ import {
 } from './webrtc-encoding';
 import {SUBSCRIBE_RETRY_DELAYS_MS, trackIntent} from './voice-rtc.service';
 import type {VideoPublishIntentDto} from '../dtos/response/entitlement.dto';
-import {inboundScreenFpsByShare} from '../shared/call/inbound-fps';
+import {inboundScreenFpsByShare, InboundTrackOwner} from '../shared/call/inbound-fps';
+import {inboundStatsFor} from '../shared/call/stream-stats';
+import type {StreamStatsSnapshot} from '../shared/call/stream-stats';
 
 export interface CallStats {
     inboundKbps: number;
@@ -48,6 +50,28 @@ export interface CallStats {
     outboundAudioKbps: number;
     outboundVideoKbps: number;
     packetsLost: number;
+}
+
+/**
+ * The detailed inbound snapshot for one inspected share.
+ *
+ * <p>Keyed by share, not user, because `onScreenShareStarted` dedupes by `shareId` alone and a
+ * stale share can briefly sit in the model beside its replacement under the same user - the
+ * identical reasoning as `inboundScreenFpsByShare`, see `inbound-fps.ts`.</p>
+ *
+ * <p>Exported and free-standing so it can be tested without a peer connection: the service's own
+ * poll is a two-line wrapper around it.</p>
+ */
+export function detailedStatsForShare(
+    report: {forEach(callback: (stat: RTCStats) => void): void},
+    tracks: ReadonlyMap<string, InboundTrackOwner>,
+    shareId: string | null,
+): StreamStatsSnapshot | null {
+    if (!shareId) return null;
+    for (const [mid, owner] of tracks) {
+        if (owner.kind === 'screen' && owner.shareId === shareId) return inboundStatsFor(report, mid);
+    }
+    return null;
 }
 
 /**
@@ -81,6 +105,9 @@ export class CallWebRtcService {
      */
     private readonly inboundVideoFpsByShareSignal = signal<Record<string, number>>({});
     readonly inboundVideoFpsByShare = this.inboundVideoFpsByShareSignal.asReadonly();
+    /** See the twin on `VoiceRTCService`. This service uses `shareId` and ignores `userId`. */
+    readonly inspected = signal<{shareId: string; userId: string} | null>(null);
+    readonly inspectedStats = signal<StreamStatsSnapshot | null>(null);
     // ── Connection state ──────────────────────────────────────────────────────
     private readonly pcState = signal<RTCPeerConnectionState>('new');
     private readonly engineUp = signal(false);
@@ -300,6 +327,13 @@ export class CallWebRtcService {
             } else {
                 void this.unpublishScreenTrack();
             }
+        });
+
+        // Re-arms the poll when a stats panel opens or closes. Runs only when the connection is
+        // already polling; there is nothing to re-arm otherwise.
+        effect(() => {
+            this.inspected();
+            if (this.statsInterval !== undefined) this.armStatsInterval();
         });
     }
 
@@ -912,7 +946,14 @@ export class CallWebRtcService {
     private startStatsPolling(): void {
         this.prevBytes = {inAudio: 0, inVideo: 0, outAudio: 0, outVideo: 0};
         this.prevStatsTs = 0;
-        this.statsInterval = setInterval(() => void this.pollStats(), 2000);
+        this.armStatsInterval();
+    }
+
+    /** 1s while a stats panel is open, 2s otherwise - see the twin on `VoiceRTCService`. */
+    private armStatsInterval(): void {
+        clearInterval(this.statsInterval);
+        const period = this.inspected() ? 1000 : 2000;
+        this.statsInterval = setInterval(() => void this.pollStats(), period);
     }
 
     private stopStatsPolling(): void {
@@ -920,6 +961,7 @@ export class CallWebRtcService {
         this.statsInterval = undefined;
         this.stats.set(null);
         this.inboundVideoFpsByShareSignal.set({});
+        this.inspectedStats.set(null);
         this.prevStatsTs = 0;
     }
 
@@ -932,6 +974,8 @@ export class CallWebRtcService {
         // framesPerSecond arrives from the browser pre-computed, so there is no reason to wait for a
         // second poll before showing it.
         this.inboundVideoFpsByShareSignal.set(inboundScreenFpsByShare(report, this.midMap));
+        // One extra pass over a report that was fetched anyway, and only while a panel is open.
+        this.inspectedStats.set(detailedStatsForShare(report, this.midMap, this.inspected()?.shareId ?? null));
 
         let inAudio = 0, inVideo = 0, outAudio = 0, outVideo = 0, packetsLost = 0;
         report.forEach((stat: RTCStats) => {
