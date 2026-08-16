@@ -7,7 +7,7 @@
 //! still true of the local stream added below: it is the encoder's output, not the network's, so it
 //! proves the picture was *produced*, never that it was delivered.
 
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -87,13 +87,59 @@ impl LocalStreamSink for tauri::ipc::Channel<tauri::ipc::InvokeResponseBody> {
     }
 }
 
-/// Counters for one publish, for logging and for tests to assert on.
+/// Counters for one layer, for logging and for tests to assert on. A plain read-out: see
+/// [`PumpCounters`] for the atomics this is snapshotted from.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct PumpStats {
     pub encoded_frames: u64,
     pub keyframes: u64,
     /// Frames the writer was too far behind to accept. Routine backpressure, not an error.
     pub dropped_frames: u64,
+}
+
+/// One layer's counters, written by the capture thread and read by whoever holds the handle.
+///
+/// <p>Relaxed ordering throughout. These are diagnostics: a reader that sees a count one frame
+/// stale is showing a number that was true a sixtieth of a second ago, and paying for stronger
+/// ordering on the encode path to avoid that would be the wrong trade.</p>
+#[derive(Default)]
+pub struct LayerCounters {
+    pub encoded_frames: AtomicU64,
+    pub keyframes: AtomicU64,
+    /// Frames the writer was too far behind to accept. Routine backpressure, not an error.
+    pub dropped_frames: AtomicU64,
+}
+
+/// Every layer's counters, shared between the pump and the publish handle.
+///
+/// <p><b>Per layer, where the old counting only tracked index 0.</b> That was right while nothing
+/// could see the numbers - a lower layer's dropped frame is not the picture stuttering, so folding
+/// it into the top layer's count would have been a lie about what the layer that actually failed
+/// was doing. Now that each rung has its own row in the stats panel, the honest answer is one
+/// counter set each, and a middle rung failing silently becomes readable rather than invisible.</p>
+pub struct PumpCounters {
+    pub layers: Vec<LayerCounters>,
+}
+
+impl PumpCounters {
+    pub fn new(layers: usize) -> Self {
+        Self {
+            layers: (0..layers).map(|_| LayerCounters::default()).collect(),
+        }
+    }
+
+    /// A consistent-enough read of every layer. Not atomic across layers, which does not matter:
+    /// no consumer compares two layers' counts within one frame.
+    pub fn snapshot(&self) -> Vec<PumpStats> {
+        self.layers
+            .iter()
+            .map(|l| PumpStats {
+                encoded_frames: l.encoded_frames.load(Ordering::Relaxed),
+                keyframes: l.keyframes.load(Ordering::Relaxed),
+                dropped_frames: l.dropped_frames.load(Ordering::Relaxed),
+            })
+            .collect()
+    }
 }
 
 /// One encoding the pump drives: an encoder, the size it was built for, and where its output goes.
@@ -157,7 +203,7 @@ pub struct FramePump<P: PreviewSink> {
     jpeg_buf: Vec<u8>,
     next_preview: Instant,
     last_keyframe: Instant,
-    stats: PumpStats,
+    counters: Arc<PumpCounters>,
 }
 
 impl<P: PreviewSink> FramePump<P> {
@@ -176,6 +222,9 @@ impl<P: PreviewSink> FramePump<P> {
         // The frame is fitted to the top layer and every lower one is scaled down from that, so
         // these two track layer 0 and are not an independent setting.
         let (width, height) = (layers[0].width, layers[0].height);
+        // Computed before `layers` is moved into the struct below, since its length is all this
+        // needs from it.
+        let counters = Arc::new(PumpCounters::new(layers.len()));
         Self {
             width,
             height,
@@ -194,7 +243,7 @@ impl<P: PreviewSink> FramePump<P> {
             // In the past, so the very first frame of a share is a keyframe rather than waiting out
             // an interval before the first viewer can decode anything.
             last_keyframe: Instant::now() - KEYFRAME_INTERVAL,
-            stats: PumpStats::default(),
+            counters,
         }
     }
 
@@ -216,8 +265,13 @@ impl<P: PreviewSink> FramePump<P> {
         self
     }
 
-    pub fn stats(&self) -> PumpStats {
-        self.stats
+    /// The counters, for whoever outlives this pump.
+    ///
+    /// <p>Handed out exactly like [`Self::pending_spec`] and for the same reason: `session::start`
+    /// takes it before the pump moves onto the capture thread, which is the last moment the pump
+    /// and the handle are reachable from the same place.</p>
+    pub fn counters(&self) -> Arc<PumpCounters> {
+        Arc::clone(&self.counters)
     }
 
     /// The cell a resolution change is posted into, for whoever outlives this pump.
@@ -386,29 +440,39 @@ impl<P: PreviewSink> FramePump<P> {
                 }
             };
 
-            // The top layer alone owns the stats, the keyframe clock and the sharer's own tile.
-            // Counting every layer would report a share as producing three times the frames a
-            // viewer sees, and a lower layer's dropped frame is not the picture stuttering.
+            // Whether this share is producing anything, and whether it contains the keyframes a
+            // viewer needs in order to start decoding. Nothing reported either before per-layer
+            // counters existed, which left the two failures a viewer can suffer - "no picture ever
+            // arrives" and "a picture arrives that I cannot decode" - indistinguishable from the
+            // sharing side. Per layer, not just the top one: a lower layer going quiet used to be
+            // invisible, and it is exactly the failure a "stats for nerds" panel exists to surface.
+            let layer_counters = &self.counters.layers[index];
+            layer_counters.encoded_frames.fetch_add(1, Ordering::Relaxed);
+            if chunk.is_keyframe {
+                layer_counters.keyframes.fetch_add(1, Ordering::Relaxed);
+            }
+
+            // The top layer alone still owns the keyframe clock, the periodic log and the sharer's
+            // own tile. Counting every layer's log would spam three lines a frame; owning the
+            // keyframe clock or the local tile from more than one layer would make either
+            // meaningless. Only the counting above is per layer now - see PumpCounters.
             if index == 0 {
-                // Whether this share is producing anything, and whether it contains the keyframes a
-                // viewer needs in order to start decoding. Nothing reported either before, which
-                // left the two failures a viewer can suffer - "no picture ever arrives" and "a
-                // picture arrives that I cannot decode" - indistinguishable from the sharing side.
-                self.stats.encoded_frames += 1;
                 if chunk.is_keyframe {
-                    self.stats.keyframes += 1;
                     self.last_keyframe = now;
                 }
-                if self.stats.encoded_frames % STATS_EVERY_FRAMES == 0 {
+                let encoded = layer_counters.encoded_frames.load(Ordering::Relaxed);
+                if encoded % STATS_EVERY_FRAMES == 0 {
                     eprintln!(
                         "[publisher] {} frames encoded, {} keyframes, {} dropped at the writer",
-                        self.stats.encoded_frames, self.stats.keyframes, self.stats.dropped_frames
+                        encoded,
+                        layer_counters.keyframes.load(Ordering::Relaxed),
+                        layer_counters.dropped_frames.load(Ordering::Relaxed)
                     );
                 }
 
                 // The sharer's own tile, before the data is handed to the writer. Deliberately
-                // *after* the stats above and before the `try_send` below, so the local picture is
-                // the same access unit the wire carries - including one the writer then drops,
+                // *after* the counting above and before the `try_send` below, so the local picture
+                // is the same access unit the wire carries - including one the writer then drops,
                 // which is the right call: a frame the network could not take is still a frame this
                 // machine already encoded, and dropping it locally too would make the sharer's own
                 // tile stutter for a reason that is not theirs.
@@ -418,13 +482,16 @@ impl<P: PreviewSink> FramePump<P> {
             // try_send, not send: dropping the newest frame when the writer is behind keeps latency
             // bounded. Full is routine backpressure; closed means the writer task already ended and
             // the capture loop will exit on its next stop check.
+            //
+            // Counted against the layer that actually dropped it. This used to be gated on
+            // `index == 0`, so a lower layer's backpressure vanished entirely - the layer that was
+            // struggling was never the one the number was about.
             if self.layers[index]
                 .frame_tx
                 .try_send((chunk.data, frame_duration))
                 .is_err()
-                && index == 0
             {
-                self.stats.dropped_frames += 1;
+                layer_counters.dropped_frames.fetch_add(1, Ordering::Relaxed);
             }
         }
     }
@@ -702,10 +769,14 @@ mod tests {
             top_rx.try_recv().is_ok(),
             "the top layer lost a frame to a full lower one"
         );
+        let snapshot = pump.counters().snapshot();
         assert_eq!(
-            pump.stats().dropped_frames,
-            0,
+            snapshot[0].dropped_frames, 0,
             "a lower layer's drop was counted against the top layer's stats"
+        );
+        assert_eq!(
+            snapshot[1].dropped_frames, 1,
+            "the lower layer's own drop must still be counted, just against its own layer"
         );
     }
 
@@ -1040,5 +1111,61 @@ mod tests {
         h.pump.on_frame(&frame());
 
         assert_eq!(h.fps.load(Ordering::Relaxed), 15);
+    }
+
+    // ── Per-layer counters ─────────────────────────────────────────────────────────────────
+
+    /// A pump with `layers` layers, wired the same way [`harness`] wires one. For tests that only
+    /// care about [`FramePump::counters`] and never inspect what each layer actually encoded.
+    fn test_pump(layers: usize) -> FramePump<()> {
+        let layers = (0..layers)
+            .map(|_| {
+                let (_log, encoder) = recording_encoder();
+                let (frame_tx, _rx) = tokio::sync::mpsc::channel(64);
+                PumpLayer {
+                    encoder,
+                    frame_tx,
+                    width: 64,
+                    height: 64,
+                }
+            })
+            .collect();
+        FramePump::new(
+            layers,
+            Arc::new(AtomicU32::new(30)),
+            Arc::new(AtomicBool::new(false)),
+            (),
+        )
+    }
+
+    /// A lower layer's drops used to be invisible: only index 0 counted anything. The counters are
+    /// per layer now, so a ladder whose middle rung is silently failing is readable from the UI.
+    #[test]
+    fn counters_are_kept_per_layer_not_only_for_the_top() {
+        let counters = PumpCounters::new(3);
+
+        counters.layers[0].encoded_frames.fetch_add(10, Ordering::Relaxed);
+        counters.layers[1].dropped_frames.fetch_add(4, Ordering::Relaxed);
+        counters.layers[2].keyframes.fetch_add(1, Ordering::Relaxed);
+
+        let snapshot = counters.snapshot();
+        assert_eq!(snapshot.len(), 3);
+        assert_eq!(snapshot[0].encoded_frames, 10);
+        assert_eq!(snapshot[1].dropped_frames, 4);
+        assert_eq!(snapshot[2].keyframes, 1);
+        // The top layer's own drop count must not absorb a lower layer's.
+        assert_eq!(snapshot[0].dropped_frames, 0);
+    }
+
+    /// The handle reads these after the pump has moved onto the capture thread, so the Arc handed
+    /// out by `counters()` and the one the pump writes through must be the same allocation.
+    #[test]
+    fn the_handed_out_counters_are_the_ones_the_pump_writes() {
+        let pump = test_pump(1);
+        let counters = pump.counters();
+
+        pump.counters().layers[0].encoded_frames.fetch_add(7, Ordering::Relaxed);
+
+        assert_eq!(counters.snapshot()[0].encoded_frames, 7);
     }
 }

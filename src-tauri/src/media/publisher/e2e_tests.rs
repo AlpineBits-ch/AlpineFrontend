@@ -1213,7 +1213,7 @@ async fn a_backlog_drops_frames_rather_than_stalling_capture() {
     }
     let elapsed = started.elapsed();
 
-    let stats = pump.stats();
+    let stats = pump.counters().snapshot()[0];
     assert_eq!(stats.encoded_frames, 40, "every frame should still be encoded");
     assert_eq!(
         stats.dropped_frames, 38,
