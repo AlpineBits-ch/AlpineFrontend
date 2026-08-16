@@ -4,7 +4,7 @@
 //! [`super::encoder`]; this module owns the peer connection, the signalling handshake and the RTP
 //! packetisation, and knows nothing about capture.
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
@@ -20,7 +20,9 @@ use webrtc::media::Sample;
 use webrtc::peer_connection::configuration::RTCConfiguration;
 use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
 use webrtc::peer_connection::RTCPeerConnection;
-use webrtc::rtp_transceiver::rtp_codec::RTCRtpCodecCapability;
+use webrtc::rtp_transceiver::rtp_codec::{
+    RTCRtpCodecCapability, RTCRtpHeaderExtensionCapability, RTPCodecType,
+};
 use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample;
 use webrtc::track::track_local::TrackLocal;
 
@@ -73,6 +75,40 @@ pub fn publisher_api() -> Result<webrtc::api::API, String> {
         .register_default_codecs()
         .map_err(|e| e.to_string())?;
 
+    // What makes a simulcast layer identifiable on the wire, and the one piece `a=rid:` does not
+    // imply.
+    //
+    // The rid and simulcast attributes describe what the sender *intends* to publish. What tells the
+    // SFU which layer a packet belongs to is `sdes:rtp-stream-id` in the RTP header, and
+    // `TrackLocalStaticRTP::bind` stamps it only when the URI is among the negotiated extensions -
+    // when it is absent it writes no rid and reports no error. `register_default_codecs` does not
+    // register these, so without this every layer left on one untagged SSRC: the offer advertised
+    // three encodings, the SFU accepted and echoed all three, and no viewer ever received a
+    // decodable layer. The tile loads forever rather than failing, which is why nothing upstream
+    // catches it.
+    //
+    // `mid` is registered alongside deliberately: a stream id is only meaningful within an m-line,
+    // so both are needed to place a packet. webrtc-rs refuses *inbound* simulcast when either is
+    // missing (`ErrPeerConnSimulcastStreamIDRTPExtensionRequired`) - outbound has no such guard,
+    // which is exactly why this was silent.
+    //
+    // Video only: no audio path here carries layers, and an extension registered for audio would
+    // spend one of the limited extension ids for nothing.
+    for uri in [
+        webrtc::sdp::extmap::SDES_MID_URI,
+        webrtc::sdp::extmap::SDES_RTP_STREAM_ID_URI,
+    ] {
+        media_engine
+            .register_header_extension(
+                RTCRtpHeaderExtensionCapability {
+                    uri: uri.to_owned(),
+                },
+                RTPCodecType::Video,
+                None,
+            )
+            .map_err(|e| format!("could not register the {uri} header extension: {e}"))?;
+    }
+
     let mut registry = Registry::new();
     registry =
         register_default_interceptors(registry, &mut media_engine).map_err(|e| e.to_string())?;
@@ -81,6 +117,40 @@ pub fn publisher_api() -> Result<webrtc::api::API, String> {
         .with_media_engine(media_engine)
         .with_interceptor_registry(registry)
         .build())
+}
+
+/// Log the lines of `sdp` that decide whether simulcast is real, tagged with the publication.
+///
+/// `a=rid:` and `a=simulcast:` are the ladder itself. `m=` is carried because a rid list means
+/// nothing without knowing which m-line it landed on, and because an answer that renegotiated the
+/// video section down to one encoding shows up here and nowhere else. `a=mid:` pairs the two, since
+/// the mid is what the SFU is told to publish under.
+///
+/// A count rather than silence when there is nothing to print: "no rid lines in the answer" is
+/// itself the finding, and an absent log reads as an absent code path.
+fn log_simulcast_sdp(id: u64, which: &str, sdp: &str) {
+    let lines: Vec<&str> = sdp
+        .lines()
+        .map(str::trim)
+        .filter(|line| {
+            line.starts_with("m=")
+                || line.starts_with("a=mid:")
+                || line.starts_with("a=rid:")
+                || line.starts_with("a=simulcast:")
+        })
+        .collect();
+
+    eprintln!(
+        "[publisher] publication {id}: {which} has {} rid line(s), {} simulcast line(s)",
+        lines.iter().filter(|l| l.starts_with("a=rid:")).count(),
+        lines
+            .iter()
+            .filter(|l| l.starts_with("a=simulcast:"))
+            .count(),
+    );
+    for line in lines {
+        eprintln!("[publisher]   {which}: {line}");
+    }
 }
 
 /// Where encoded frames go once they leave the pump.
@@ -193,6 +263,19 @@ impl Publication {
         video: Option<VideoIntent>,
         layer_count: usize,
     ) -> Result<Self, String> {
+        // Which publication a line belongs to. Every `[publisher]` line looked alike, so two
+        // overlapping shares - or one that was torn down while its replacement was starting - read
+        // as a single connection doing something impossible: gathering, then closing, then
+        // connecting. That is two connections interleaved, and nothing in the log said so.
+        //
+        // It matters beyond legibility. The `media_session_id` a viewer is told to pull from is
+        // minted per publication, so if the session the server announces and the connection the
+        // media flows on are not the same one, every viewer subscribes to a dead session and waits
+        // forever. This number is what makes that visible.
+        static NEXT_PUBLICATION: AtomicU64 = AtomicU64::new(1);
+        let id = NEXT_PUBLICATION.fetch_add(1, Ordering::Relaxed);
+        eprintln!("[publisher] publication {id}: starting for share {share_id}");
+
         let api = publisher_api()?;
 
         let config = RTCConfiguration {
@@ -213,6 +296,25 @@ impl Publication {
                 .await
                 .map_err(|e| e.to_string())?,
         );
+
+        // The same blind spot `media::voice::rtc` closed, for the same reason. Publishing reports
+        // how many layers it built and how many frames it encoded, and both keep reporting happily
+        // while the transport underneath them is dead - so a share whose handshake failed looks
+        // identical in the log to one nobody happened to be watching. The viewer-side symptom is a
+        // tile that loads forever, which is indistinguishable from a slow join until this says
+        // which of the two it was.
+        //
+        // Publishing is one-way, so there is no inbound packet counter to infer liveness from the
+        // way the voice session can. These states are the only evidence the sending half ever had.
+        peer_connection.on_peer_connection_state_change(Box::new(move |state| {
+            eprintln!("[publisher] publication {id}: peer connection state: {state}");
+            Box::pin(async {})
+        }));
+
+        peer_connection.on_ice_connection_state_change(Box::new(move |state| {
+            eprintln!("[publisher] publication {id}: ICE connection state: {state}");
+            Box::pin(async {})
+        }));
 
         let track_name = format!("screen-{share_id}");
         let layer_count = layer_count.clamp(1, LAYER_RIDS.len());
@@ -334,7 +436,34 @@ impl Publication {
             .await
             .ok_or_else(|| "no local description after gathering".to_string())?;
 
+        // Recorded before the offer goes out, for the reason the voice session records the same
+        // thing: a connection that later fails has to be tellable apart from one that never had
+        // anywhere to connect from.
+        //
+        // The publishing connection is configured with real STUN servers where the voice one is
+        // deliberately empty, so this is also the only place that says whether STUN answered. Host
+        // candidates alone here means it did not, and that is worth knowing before blaming the far
+        // end: it puts the share on the same host-only footing the voice session relies on
+        // `ice-lite` to survive, without the same guarantee behind it.
+        let candidates: Vec<String> = local
+            .sdp
+            .lines()
+            .filter(|line| line.starts_with("a=candidate:"))
+            .map(|line| line.trim_start_matches("a=").to_owned())
+            .collect();
+        eprintln!(
+            "[publisher] publication {id}: offering {} local candidate(s)",
+            candidates.len()
+        );
+        for candidate in &candidates {
+            eprintln!("[publisher]   {candidate}");
+        }
+
         let media_session_id = signalling.create_session().await?;
+
+        // The identifier every viewer is handed to pull this share from, tied to the connection it
+        // was minted on. A viewer can only ever be as correct as this pairing.
+        eprintln!("[publisher] publication {id}: media session {media_session_id}");
 
         // Mids are assigned during offer creation, so they can only be read now. Taken in
         // transceiver order, which is add_track order: video first, then audio if it exists.
@@ -361,6 +490,18 @@ impl Publication {
             });
         }
 
+        // What the ladder looks like on the wire, offered and answered.
+        //
+        // Accepting the publish and honouring the ladder are different things, and only the first
+        // was ever observable: `tracks_new` reporting no error says the SFU took the track, not that
+        // it understood three encodings. If the answer carries no rid or simulcast attribute back,
+        // the layers exist on this side only - every viewer is then pulling a track the SFU thinks
+        // has one encoding, which loads forever rather than failing.
+        //
+        // Filtered rather than dumped whole: the full SDP is hundreds of lines of ICE and fingerprint
+        // noise, and these are the handful that decide whether simulcast is real.
+        log_simulcast_sdp(id, "offer", &local.sdp);
+
         let response = signalling
             .tracks_new(
                 &media_session_id,
@@ -376,6 +517,8 @@ impl Publication {
         if let Some(error) = response.tracks.iter().find_map(|t| t.error.as_ref()) {
             return Err(format!("the SFU rejected the track: {error}"));
         }
+
+        log_simulcast_sdp(id, "answer", &response.session_description.sdp);
 
         let answer = RTCSessionDescription::answer(response.session_description.sdp)
             .map_err(|e| e.to_string())?;
@@ -467,6 +610,15 @@ impl FrameSink for Publication {
         if let Some(audio) = &self.audio_track_name {
             names.push(audio.clone());
         }
+        // Named by session rather than by publication number, which this does not carry - it is
+        // enough to pair with the "media session" line from `start` and say which one went away.
+        // A teardown landing *after* its replacement has started is the interleaving that made the
+        // states look impossible, and it can only be read off the log if the close says so too.
+        eprintln!(
+            "[publisher] closing media session {}: {}",
+            self.media_session_id,
+            names.join(", ")
+        );
         let _ = self
             .signalling
             .close_tracks(&self.media_session_id, &names)

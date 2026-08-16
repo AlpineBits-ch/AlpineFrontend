@@ -728,6 +728,58 @@ async fn offers_three_rid_tagged_encodings_on_one_track() {
     assert_eq!(publication.layer_tracks().len(), 3);
 }
 
+/// The offer must negotiate the RID header extension, or the ladder is decorative.
+///
+/// <p><b>This is the half `offers_three_rid_tagged_encodings_on_one_track` cannot see.</b> The
+/// `a=rid:`/`a=simulcast:` attributes are written from what is attached to the sender and say what
+/// the publisher *intends* to send. What tells the SFU which layer a given packet belongs to is the
+/// `sdes:rtp-stream-id` RTP header extension, and `TrackLocalStaticRTP::bind` only stamps it onto
+/// outgoing packets when that URI is among the negotiated extensions - see
+/// `track_local_static_rtp.rs`, which looks the id up and silently writes no rid when it is absent.</p>
+///
+/// <p>`MediaEngine::register_default_codecs` does not register it. So without an explicit
+/// `register_header_extension`, an offer advertises three encodings, an SFU accepts all three, and
+/// then every packet arrives untagged on one SSRC set that cannot be demultiplexed. Nothing errors:
+/// the publish succeeds, the answer echoes the rids back, and viewers simply never receive a
+/// decodable layer - a tile that loads forever rather than a tile that fails.</p>
+#[tokio::test]
+async fn offers_the_rid_header_extension_that_makes_layers_identifiable() {
+    let (backend, _frames) = MockBackend::start(false).await;
+
+    let _publication = Publication::start(
+        signalling_to(&backend.base_url),
+        "abc",
+        vec![],
+        false,
+        None,
+        3,
+    )
+    .await
+    .expect("the publication must start");
+
+    let sdp = backend
+        .state
+        .offer_sdp
+        .lock()
+        .unwrap()
+        .clone()
+        .expect("an offer must have reached the backend");
+
+    // The mid extension is required alongside it: a stream id is scoped to an m-line, so an SFU
+    // needs both to place a packet. webrtc-rs refuses inbound simulcast without either, and the
+    // same pairing is what makes outbound identifiable.
+    for uri in [
+        "urn:ietf:params:rtp-hdrext:sdes:rtp-stream-id",
+        "urn:ietf:params:rtp-hdrext:sdes:mid",
+    ] {
+        assert!(
+            sdp.contains(uri),
+            "the offer advertises three encodings but never negotiates {uri}, \
+             so every packet leaves without a layer tag:\n{sdp}"
+        );
+    }
+}
+
 /// The rollback path. One layer must offer exactly what shipped before simulcast existed.
 #[tokio::test]
 async fn a_single_layer_offers_no_simulcast_attributes_at_all() {
