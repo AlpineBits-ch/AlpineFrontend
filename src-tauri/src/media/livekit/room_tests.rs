@@ -218,15 +218,19 @@ async fn publishes_three_h264_layers_named_for_livekit() {
 
 #[tokio::test]
 #[ignore = "needs a LiveKit server on 127.0.0.1:7880"]
-async fn keeps_h264_high_5_2_in_the_answer() {
-    // `encoder_mf` emits Constrained High because of this. Cloudflare answered `42e01f` to every
-    // offer, which is why it was pinned to Constrained Baseline for so long; LiveKit forwards
-    // opaquely and keeps what we offered. If this ever fails, the encoder profile has to go back
-    // with it.
+async fn keeps_constrained_baseline_5_2_in_the_answer() {
+    // Cloudflare answered `42e01f` to every offer, whatever we asked for; LiveKit forwards opaquely
+    // and keeps what we offered, which is what makes this assertable at all. If it ever fails, the
+    // encoder's profile has to move with it - what we transmit and what we negotiated are the same
+    // decision, made in `media::publisher::rtc`.
     //
-    // `640c34`, not `640034`. Plain High is a profile essentially nothing advertises - libwebrtc
-    // matches by profile equality, and Chrome and mobile hardware both offer Constrained High - so
-    // the old string negotiated to no codec at all. See `H264_HIGH_5_2_FMTP`.
+    // `42e034`, not `42e01f`: identical profile, Level 5.2 rather than 3.1. The level is what makes
+    // 1440p60 conformant; the profile is what makes it decodable on Codec2 Android. Both halves have
+    // to survive, so this asserts the whole string rather than the profile bytes.
+    //
+    // It also stands as the negotiated half of the payload-type pairing: this answer is where a
+    // second H.264 entry would show up, and a second entry is a black tile for every viewer. See
+    // `offer_shape::the_video_m_line_offers_only_the_codec_we_transmit` for the offer half.
     let room = Room::connect(DEV_URL, &dev_token("lk-profile", "user-1"))
         .await
         .expect("connect");
@@ -240,8 +244,14 @@ async fn keeps_h264_high_5_2_in_the_answer() {
 
     let answer = room.remote_sdp().await.expect("answer");
     assert!(
-        answer.contains("640034"),
-        "Constrained High 5.2 must survive negotiation - it is what makes 1440p60 conformant:\n{answer}"
+        answer.contains("profile-level-id=42e034"),
+        "Constrained Baseline 5.2 must survive negotiation - the level is what makes 1440p60 \
+         conformant, the profile is what makes it decodable:\n{answer}"
+    );
+    assert_eq!(
+        answer.matches("profile-level-id=").count(),
+        1,
+        "one H.264 entry, or the SFU may bind one we do not transmit on:\n{answer}"
     );
 
     room.close().await;

@@ -8,61 +8,92 @@ Phase 1 plan: `docs/superpowers/plans/2026-08-16-livekit-phase-1-rust-room.md`.
 
 ---
 
-## 1. The one open bug
+## 1. The black tile - found and fixed
 
-**A screen share is a black tile for every viewer.** Reproduced locally with two Rust clients and no
-phone involved, so it is not a mobile fault.
+**We offered four H.264 payload types and transmitted on the fourth.** LiveKit binds an incoming
+track to the *first* codec on its m-line and silently discards every packet carrying any other
+payload type, so the entire share was dropped at the SFU's forwarder.
+
+The offer read `m=video ... 102 127 108 125`. The SFU bound **102**. `TrackLocalStaticSample` binds
+by exact fmtp match, so it transmitted on **125**. Measured against `livekit-server` 1.13.5:
 
 ```
-livekit-server --dev                       # or docker/livekit-dev/compose.yaml
+dropping packet - payload mismatch   packetPayloadType: 125, payloadType: 102
+```
+
+`sfu/receiver_base.go`:
+
+```go
+if extPkt.Packet.PayloadType != uint8(r.params.Codec.PayloadType) {
+    // drop packets as we don't support codec fallback directly
+    continue
+}
+```
+
+That `continue` sits above both the downtrack broadcast and the stream tracker, which is the whole
+reason this looked like anything but what it was:
+
+- The SFU's **upstream** counters climbed normally - the buffer is upstream of the drop.
+- It even **detected our keyframes** (`stopping key frame seeder: received key frame`), which is why
+  the keyframe theory this document used to recommend was wrong.
+- Downstream it reported `PauseReason: FEED_DRY`, every layer bitrate `0`, `TargetLayer {-1,-1}` -
+  the reading of a publisher sending nothing, produced by a publisher sending everything.
+
+**The fix** (`media::publisher::rtc::publisher_api`): register exactly one video codec, the one we
+transmit. Ordering ours first would have fixed the instance and left the trap armed - it would rest
+on the SFU's choice rule staying "the first one". There is now nothing else to choose.
+
+Guarded by `offer_shape::the_video_m_line_offers_only_the_codec_we_transmit` (no server needed) and
+by `room_tests::the_sfu_forwards_a_published_screen_to_a_subscriber`, which now reports
+`wrote 149 samples, subscriber received 440 RTP packets` where it read `0` before.
+
+### How to see it again
+
+The server's own debug log is the only place this is visible. Nothing on the client says a word.
+
+```
+livekit-server --config <a config with logging.level: debug>
 cargo test --manifest-path src-tauri/Cargo.toml \
   --lib media::livekit::room_tests::the_sfu_forwards -- --ignored --nocapture
 ```
 
-Currently prints `wrote 149 samples, subscriber received 0 RTP packets` and
-`subscriber tracks_opened: 0`.
-
-### What it is
-
-The SFU receives our video, accepts the subscription, creates a downtrack, and **never sends a byte
-on it**. Its own teardown log says so:
+Then grep the server log for `payload mismatch` and for `FEED_DRY`. A known-good pair to compare
+against costs nothing and settles "is it us or the server" in one step:
 
 ```
-rtp stats ... "direction": "downstream", "mime": "video/H264",
-             "stats": {}, "statsError": "not initialized"
+lk room join --url ws://127.0.0.1:7880 --api-key devkey --api-secret secret \
+   --identity cli-pub --publish-demo probe
+lk room join --url ... --identity cli-sub --auto-subscribe probe
 ```
 
-`on_track` therefore never fires on the subscriber, which is why `tracks_opened` is 0 and every
-viewer - phone, desktop, anything - sees a tile with no bytes.
+A working forward logs `switching feed` and `forwarded key frame`. Ours logged neither.
 
-### What is ruled out, each by measurement
+---
 
-| Suspect | Evidence against |
-|---|---|
-| The mobile client | Reproduces with two Rust clients |
-| Publishing | Server log: `mime: video/H264, direction: up, packets: 374, bytes: 401231` |
-| Room codec allow-list | `JoinResponse.enabled_publish_codecs` contains `video/H264` |
-| H.264 profile or level | Identical failure with `42e034` and with stock `42e01f` |
-| Simulcast / rid tagging | Identical failure with a plain single track, no rid, no simulcast |
-| Publish ordering | Identical with audio published first, as production does |
-| Subscribe never issued | Server creates a downtrack (`close downtrack ... kind: VIDEO`) |
-| Offer never arriving | Our pump logs three subscriber offers received **and answered** |
-| mid/rid mismatch | SDP is internally consistent: `mid:0`, `rid:f`, extmaps present both sides |
+## 1a. Still open: the phone's camera
 
-### The next thing to try
+A camera published from the handset does not appear on desktop. **Not diagnosed** - the fix above is
+a different fault, and nothing here has been measured yet.
 
-**Keyframe gating.** An SFU will not start a subscriber mid-stream without an IDR; it sends a PLI
-upstream and waits. The test writes encoder output straight to the track and **ignores RTCP**, so no
-PLI is ever answered. Production does have that path (`keyframe_wanted`, driven off RTCP in
-`media::publisher::rtc`), which makes the test *harsher* than production rather than equivalent -
-worth confirming before concluding anything from it.
+The concrete suspicion, from `venta-mobile`'s own `lib/core/voice/video_layers.dart`: that client
+publishes **VP8** deliberately, because Android's Codec2 H.264 encoder can only declare Level 3.1
+and would send 1080p60 under it. That file also records the way it loses:
 
-Concretely: read RTCP on the publisher's sender in the test, call `request_keyframe()` on the
-encoder when a PLI or FIR arrives, and see whether the downtrack starts. If it does, the bug is that
-`Room` has no keyframe path of its own and every publisher must supply one.
+> The server can still override it - a codec absent from `enabled_publish_codecs` is replaced by the
+> first that is present.
 
-Second candidate if that fails: whether our **answer** to the subscriber offer is being accepted.
-The pump logs that it answered, but nothing verifies the server was happy with it.
+So if the room's `enabled_codecs` omits VP8, the handset is pushed onto H.264 and publishes a stream
+that exceeds its own declaration - which the same file says "fails as a black tile rather than a
+soft one".
+
+Two greps settle it, in this order:
+
+1. `enabled_publish_codecs` on the phone's `JoinResponse` - does it list `video/VP8`?
+2. The server log while the phone publishes - `payload mismatch` and `FEED_DRY` again, or neither.
+
+Ruled out already, by reading: track naming (`camera` classifies as video on both sides), and the
+desktop's subscribe path (`voice-rtc.service.subscribeVideo` handles `kind: 'video'`, driven off the
+roster announcement, which the handset does send via `_declarePublish`).
 
 ---
 

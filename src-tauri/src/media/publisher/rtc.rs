@@ -155,11 +155,10 @@ pub fn publisher_api() -> Result<webrtc::api::API, String> {
     // payload type already taken, so the offer comes back with 5.0 and our entry simply absent.
     // Also measured.
     //
-    // So the list is built here. Only what this connection actually publishes is registered -
-    // Opus for the microphone and a share's own sound, H.264 for the picture - and High 5.2 is the
-    // *only* High entry, on the payload type the defaults used for High 5.0. Nothing collides,
-    // nothing is silently dropped, and the Constrained Baseline entries stay so a receiver that
-    // takes no High still negotiates.
+    // So the list is built here, and it is built down to **one video entry**: the codec this
+    // connection transmits, and nothing else. An entry we do not send is not harmless padding - an
+    // SFU picks one of them to bind the track to, and if it does not pick ours it discards the whole
+    // stream. See the note on the H.264 registration below, which is the bug that established it.
     //
     // VP8, VP9, AV1 and HEVC are deliberately absent: this peer connection only ever sends, and it
     // only ever sends H.264. The *subscriber* connection is built from `voice_api`, which keeps the
@@ -203,36 +202,38 @@ pub fn publisher_api() -> Result<webrtc::api::API, String> {
         )
         .map_err(|e| format!("could not register Opus: {e}"))?;
 
-    // The remaining Baseline rungs, verbatim from the defaults including their payload types.
+    // **Exactly one H.264 entry, and it is the one we transmit.** This is not tidiness; a second
+    // entry is a black tile for every viewer.
     //
-    // Note what is *not* here: `42e01f` packetisation-mode 1, which the defaults put on 125. Our
-    // Constrained Baseline 5.2 entry takes that payload type instead, because two entries of one
-    // profile are what the SFU collapses onto a single payload type. These three differ from it by
-    // profile (`42001f` is Baseline, not Constrained Baseline) or by packetisation mode, so they
-    // cannot collide with it.
-    for (payload_type, fmtp) in [
-        (102u8, "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42001f"),
-        (127, "level-asymmetry-allowed=1;packetization-mode=0;profile-level-id=42001f"),
-        (108, "level-asymmetry-allowed=1;packetization-mode=0;profile-level-id=42e01f"),
-    ] {
-        media_engine
-            .register_codec(
-                RTCRtpCodecParameters {
-                    capability: RTCRtpCodecCapability {
-                        mime_type: MIME_TYPE_H264.to_owned(),
-                        clock_rate: 90_000,
-                        channels: 0,
-                        sdp_fmtp_line: fmtp.to_owned(),
-                        rtcp_feedback: video_feedback.clone(),
-                    },
-                    payload_type,
-                    ..Default::default()
-                },
-                RTPCodecType::Video,
-            )
-            .map_err(|e| format!("could not register H.264 {payload_type}: {e}"))?;
-    }
-
+    // LiveKit binds an incoming track to *the first* codec on its m-line and then drops every packet
+    // whose payload type is not that one, in `sfu/receiver_base.go`:
+    //
+    // ```
+    // if extPkt.Packet.PayloadType != uint8(r.params.Codec.PayloadType) {
+    //     // drop packets as we don't support codec fallback directly
+    //     continue
+    // }
+    // ```
+    //
+    // The `continue` is above both the downtrack broadcast and the stream tracker, so the failure is
+    // invisible from every direction: the SFU's *upstream* counters climb (the buffer is upstream of
+    // this drop), it even detects our keyframes, and downstream it reports `FEED_DRY` with every
+    // layer bitrate at zero and a target layer of -1 - the reading of a publisher that is sending
+    // nothing, from a publisher that is sending everything.
+    //
+    // This list used to register the three leftover Baseline rungs (102, 127, 108) *before* our own
+    // entry, so the offer read `m=video ... 102 127 108 125`, the SFU bound 102, we transmitted 125,
+    // and it discarded all of it. Measured against `livekit-server` 1.13.5:
+    // `dropping packet - payload mismatch  packetPayloadType: 125, payloadType: 102`.
+    //
+    // Ordering ours first would fix that instance and leave the trap armed - it would rest on the
+    // SFU's choice rule staying "the first one". Offering only what we send removes the ambiguity
+    // instead of betting on how it is resolved.
+    //
+    // Nothing is lost by dropping the others. This connection only ever sends, and only ever sends
+    // Constrained Baseline 5.2, so an entry we never transmit buys a viewer nothing: an SFU does not
+    // transcode, and a subscriber negotiates its own codec with the SFU rather than with us. What
+    // makes us decodable everywhere is the *profile* - see `H264_CONSTRAINED_BASELINE_5_2_FMTP`.
     media_engine
         .register_codec(
             RTCRtpCodecParameters {
@@ -248,7 +249,7 @@ pub fn publisher_api() -> Result<webrtc::api::API, String> {
             },
             RTPCodecType::Video,
         )
-        .map_err(|e| format!("could not register H.264 High 5.2: {e}"))?;
+        .map_err(|e| format!("could not register H.264 Constrained Baseline 5.2: {e}"))?;
 
     // What makes a simulcast layer identifiable on the wire, and the one piece `a=rid:` does not
     // imply.
@@ -875,5 +876,64 @@ mod offer_shape {
             }
         }
         let _ = pc.close().await;
+    }
+
+    /// The video m-line must offer exactly one payload type: the one we transmit on.
+    ///
+    /// **This is the black tile, as an assertion.** LiveKit binds an incoming track to the first
+    /// codec on the m-line and drops every packet carrying any other payload type
+    /// (`sfu/receiver_base.go`, "dropping packet - payload mismatch"). With the three leftover
+    /// Baseline rungs registered ahead of ours the offer read `m=video ... 102 127 108 125`: the SFU
+    /// bound 102, `TrackLocalStaticSample` bound 125 by exact fmtp match, and every frame of every
+    /// share was discarded at the forwarder - upstream counters climbing, keyframes detected,
+    /// downstream `FEED_DRY` and not one byte sent to any viewer.
+    ///
+    /// So the invariant is not "ours is first", which would only make the current choice rule come
+    /// out our way. It is that there is nothing else to choose.
+    #[tokio::test]
+    async fn the_video_m_line_offers_only_the_codec_we_transmit() {
+        let api = publisher_api().expect("publisher api");
+        let pc = api
+            .new_peer_connection(RTCConfiguration::default())
+            .await
+            .expect("peer connection");
+
+        let track = Arc::new(TrackLocalStaticSample::new(
+            h264_capability(),
+            "video".to_owned(),
+            "screen-test".to_owned(),
+        ));
+        pc.add_track(track as Arc<dyn TrackLocal + Send + Sync>)
+            .await
+            .expect("add track");
+
+        let offer = pc.create_offer(None).await.expect("offer");
+        let m_line = offer
+            .sdp
+            .lines()
+            .find(|line| line.starts_with("m=video"))
+            .expect("the offer must carry a video m-line")
+            .to_owned();
+        let _ = pc.close().await;
+
+        // `m=video <port> <proto> <pt>...` - everything from the fourth field on is a payload type.
+        let payload_types: Vec<&str> = m_line.split_whitespace().skip(3).collect();
+        assert_eq!(
+            payload_types,
+            [H264_CONSTRAINED_BASELINE_5_2_PAYLOAD_TYPE.to_string()],
+            "a second payload type is a stream the SFU may bind and then discard:\n{m_line}"
+        );
+
+        // The other half of the pairing: the fmtp on that payload type has to be the capability the
+        // track binds by, or the two agree on a number and disagree on what it means.
+        assert!(
+            offer
+                .sdp
+                .contains(&format!(
+                    "a=fmtp:{H264_CONSTRAINED_BASELINE_5_2_PAYLOAD_TYPE} {H264_CONSTRAINED_BASELINE_5_2_FMTP}"
+                )),
+            "the offered fmtp must be the one `h264_capability` binds by:\n{}",
+            offer.sdp
+        );
     }
 }
