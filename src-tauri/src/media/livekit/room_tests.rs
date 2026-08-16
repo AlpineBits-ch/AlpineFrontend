@@ -370,3 +370,97 @@ async fn inbound_audio_reaches_the_sink_keyed_by_its_sid() {
     listener.close().await;
     tone.await.expect("tone task").close().await;
 }
+
+/// Publish a real H.264 ladder and prove the SFU forwards it to another client.
+///
+/// **This is the test that was missing.** Everything else here proves the SFU *accepts* a
+/// publication - it issues a track SID, the answer looks right, the connection reaches `connected`.
+/// None of that says a single byte reaches a viewer, and "accepted but never forwarded" is exactly
+/// what a black tile looks like from the publishing side.
+///
+/// It became possible only once the share moved to Constrained Baseline: the subscriber connection
+/// is built from `voice_api`, whose default codec set shares that profile (`42e01f`), so it can
+/// finally decode what we publish. Under High it could not, and this could only ever have been
+/// checked with a browser.
+#[tokio::test]
+#[ignore = "needs a LiveKit server on 127.0.0.1:7880"]
+async fn the_sfu_forwards_a_published_screen_to_a_subscriber() {
+    use crate::media::publisher::encoder::{EncodeOutcome, EncoderContent, EncoderSpec, VideoEncoder};
+    use crate::media::publisher::encoder_mf::PooledEncoder;
+    use crate::media::publisher::simulcast::LAYER_RIDS;
+
+    let name = "lk-forward";
+    let spec = EncoderSpec {
+        width: 640,
+        height: 360,
+        fps: 30,
+        kbps: 1_200,
+        content: EncoderContent::Text,
+    };
+
+    let publisher = Room::connect(DEV_URL, &dev_token(name, "user-1"))
+        .await
+        .expect("connect");
+    let publication = publisher
+        .publish_video(name, &[(LAYER_RIDS[0], spec.width, spec.height)])
+        .await
+        .expect("publish");
+    publisher
+        .wait_until_connected(Duration::from_secs(10))
+        .await
+        .expect("publisher connected");
+
+    let listener = Room::connect(DEV_URL, &dev_token(name, "user-2"))
+        .await
+        .expect("connect");
+    listener.subscribe(&publication.sid).await;
+
+    // Real encoder output, not synthetic bytes: the H.264 packetiser splits on Annex-B start codes,
+    // so anything else produces no RTP at all and the test would fail for its own reasons.
+    let Some(mut encoder) = PooledEncoder::acquire(spec) else {
+        println!("FORWARD: no hardware encoder on this machine; skipping");
+        return;
+    };
+    let track = publisher
+        .local_ladder(name)
+        .await
+        .into_iter()
+        .next()
+        .expect("the top layer must exist once published");
+
+    let mut written = 0u32;
+    for i in 0..150u64 {
+        let frame = image::RgbaImage::from_fn(spec.width, spec.height, |x, y| {
+            let v = (((x + i as u32) / 8 + y / 8) % 2) as u8;
+            image::Rgba([v * 255, (x % 256) as u8, (y % 256) as u8, 255])
+        });
+        if let EncodeOutcome::Chunk(chunk) = encoder.encode(&frame, i * 33_333) {
+            if track
+                .write_sample(&webrtc::media::Sample {
+                    data: bytes::Bytes::from(chunk.data),
+                    duration: Duration::from_millis(33),
+                    ..Default::default()
+                })
+                .await
+                .is_ok()
+            {
+                written += 1;
+            }
+        }
+        tokio::time::sleep(Duration::from_millis(33)).await;
+    }
+
+    let received = listener.stats.rtp_received.load(Ordering::Relaxed);
+    println!("FORWARD wrote {written} samples, subscriber received {received} RTP packets");
+    println!("FORWARD subscriber state: {}", listener.subscriber_state());
+
+    assert!(written > 50, "the encoder produced almost nothing: {written}");
+    // The whole point. Bytes, at a viewer, from a real publish.
+    assert!(
+        received > 0,
+        "the SFU accepted the publication and forwarded nothing - {written} samples written"
+    );
+
+    listener.close().await;
+    publisher.close().await;
+}
