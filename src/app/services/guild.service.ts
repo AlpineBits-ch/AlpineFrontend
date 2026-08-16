@@ -10,6 +10,8 @@ import {InviteDto, RedeemInviteResultDto} from "../dtos/response/invite.dto";
 import {CreateInviteDto} from "../dtos/request/create-invite.dto";
 import {ReorderChannesDto} from "../dtos/request/reorder-channel.dto";
 import {ApiConfigService} from "./api-config.service";
+import {ProfileService} from "./profile.service";
+import {ProfileDto} from "../dtos/response/profile.dto";
 import {BanDto} from "../dtos/response/ban.dto";
 import {AuditLogEntryDto} from "../dtos/response/audit-log-entry.dto";
 import {ReorderRolesDto} from "../dtos/request/reorder-roles.dto";
@@ -161,6 +163,8 @@ export class GuildService {
 
     private apiConfig = inject(ApiConfigService);
     private http = inject(HttpClient);
+    /** Only ever written to - see {@link seedProfiles}. Nothing here reads a profile back. */
+    private profiles = inject(ProfileService);
     private base = this.apiConfig.baseUrl() + '/api/v1/guild';
 
     /** The last own-member row read for each guild, until it is invalidated or ages out. */
@@ -557,15 +561,37 @@ export class GuildService {
     }
 
     getMembers(guildId: string, skip: number, take: number): Observable<GuildMemberDto[]> {
-        return this.http.get<GuildMemberDto[]>(`${this.base}/guilds/${guildId}/members?skip=${skip}&take=${take}`);
+        return this.http.get<GuildMemberDto[]>(`${this.base}/guilds/${guildId}/members?skip=${skip}&take=${take}`)
+            .pipe(tap(members => this.seedProfiles(members)));
     }
 
     searchMembers(guildId: string, search: string): Observable<GuildMemberDto[]> {
         return this.http.get<GuildMemberDto[]>(
             `${this.base}/guilds/${guildId}/members/search?search=${encodeURIComponent(search)}`
         ).pipe(
+            tap(members => this.seedProfiles(members)),
             catchError(err => err.status === 404 ? of([]) : throwError(() => err))
         );
+    }
+
+    /**
+     * Hands the embedded profiles on a member list to {@link ProfileService}.
+     *
+     * <p>Every member row carries a full `ProfileDto` - the server resolves them in one batched call
+     * before it answers - and until this existed the client read the name straight off the row and
+     * told nobody. So the sidebar's voice roster, a message header and an avatar for those same
+     * people each went and fetched a profile the app had already downloaded, one request per user,
+     * against a rate limit shared with everything else a launch is doing. There is no bulk profile
+     * route to fall back on; this response <i>is</i> the bulk route.</p>
+     *
+     * <p>Through `hydrateFrom`, so it is one patch rather than one per member - `store` replaces the
+     * whole index each time, and a hundred-member list through it would run every avatar and message
+     * effect on screen a hundred times. It also leaves a row already fetched this session alone,
+     * which is the right way round: that copy is newer than a list assembled server-side.</p>
+     */
+    private seedProfiles(members: GuildMemberDto[]): void {
+        const profiles = members.map(m => m.profile).filter((p): p is ProfileDto => !!p);
+        this.profiles.hydrateFrom(profiles);
     }
 
     /**
