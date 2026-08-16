@@ -23,6 +23,7 @@ import {RustMediaService} from './rust-media.service';
 import type {CallDto} from '../dtos/response/call.dto';
 import {
     describeTrack,
+    MICROPHONE_TRACK,
     screenTrackName,
     VoiceEventDecision,
     VoiceEventEnvelope,
@@ -569,6 +570,23 @@ export class CallWebRtcService {
             return;
         }
         this.engineUp.set(true);
+
+        // **Declare the microphone.** Rust published it to the SFU, which is what makes it audible -
+        // and is *all* it makes. Until this lands the server has no record of this participant
+        // publishing anything, so the snapshot carries `publishState: "Joined"` with a null
+        // `mediaSessionId` and a null `audioTrackName`.
+        //
+        // Every other client gates on that. The mobile client treats a publisher who is not
+        // `Publishing` as having nothing to pull and skips their screen shares outright, which shows
+        // up as a share tile drawn from the roster that stays black forever with no error anywhere.
+        // Guide §9 rule 1, and we were the case it is written about.
+        //
+        // Not fatal if it fails: the audio is already flowing, and the heartbeat asserts the same
+        // state every 30 seconds and repairs it. Tearing down a working call over a bookkeeping
+        // request would be the worse outcome.
+        await firstValueFrom(
+            this.voiceService.publish(callId, {trackNames: [MICROPHONE_TRACK]}),
+        ).catch(e => console.error('[call] could not declare the microphone', e));
 
         // Apply current mute state immediately - the user may have muted before connecting, and the
         // engine starts with its talk key up, which in push-to-talk mode means the gate is shut.

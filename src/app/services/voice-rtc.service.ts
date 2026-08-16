@@ -18,7 +18,7 @@ import {
 import {VoiceLimitsService} from './voice-limits.service';
 import {solveGeometry} from '../models/capture-geometry';
 import {publishOptions} from './screen-publish';
-import {describeTrack, screenAudioTrackName, screenTrackName} from '../models/voice-room';
+import {describeTrack, MICROPHONE_TRACK, screenAudioTrackName, screenTrackName} from '../models/voice-room';
 import {VideoPublishIntentDto} from '../dtos/response/entitlement.dto';
 import {VoiceEngineService, VoiceSession, VoiceTarget} from './voice-engine.service';
 import {ScreenPickerChoice} from './screen-picker.service';
@@ -466,6 +466,24 @@ export class VoiceRTCService {
                 this.primaryConnection,
             );
             this.engineUp.set(true);
+
+            // **Declare the microphone.** Rust published it to the SFU, which is what makes it
+            // audible - and is *all* it makes. Until this call lands the server has no record of
+            // this participant publishing anything, so the snapshot carries
+            // `publishState: "Joined"` with a null `mediaSessionId` and a null `audioTrackName`.
+            //
+            // That is not cosmetic. Every other client gates on it: the mobile client treats a
+            // publisher who is not `Publishing` as having nothing to pull and skips their screen
+            // shares entirely, which presents as a share tile that is drawn from the roster and
+            // stays black forever, with no error anywhere. Guide §9 rule 1, and we were the case it
+            // is written about.
+            //
+            // Not fatal if it fails: the audio is already flowing, and tearing the call down over a
+            // bookkeeping call would be a worse outcome than a roster that is briefly wrong. The
+            // heartbeat asserts the same state every 30 seconds and repairs it.
+            await firstValueFrom(
+                this.guildVoiceSvc.publish(guildId, channelId, {trackNames: [MICROPHONE_TRACK]}),
+            ).catch(e => console.error('[voice] could not declare the microphone', e));
         } catch (e) {
             console.error('[voice] Rust voice engine failed to start', e);
             this.setupDone = true;
