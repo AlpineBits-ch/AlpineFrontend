@@ -21,6 +21,9 @@ import {CallTileActionComponent} from '../call-tile-action/call-tile-action.comp
 import {trackActivationClick} from '../activation-click';
 import {documentPipApi, videoPipSupported} from '../pip-support';
 import {RustMediaService} from '../../../services/rust-media.service';
+import {CallStreamMenuComponent} from '../call-stream-menu/call-stream-menu.component';
+import {CallStreamStatsComponent} from '../call-stream-stats/call-stream-stats.component';
+import {StreamStatsSnapshot} from '../stream-stats';
 
 const MAX_ZOOM = 3;
 const ZOOM_STEP = 0.25;
@@ -46,7 +49,14 @@ type PipRoute = 'document' | 'video';
 @Component({
     selector: 'app-call-share-tile',
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [TranslateModule, StreamSrcDirective, CallLiveBadgeComponent, CallTileActionComponent],
+    imports: [
+        TranslateModule,
+        StreamSrcDirective,
+        CallLiveBadgeComponent,
+        CallTileActionComponent,
+        CallStreamMenuComponent,
+        CallStreamStatsComponent,
+    ],
     templateUrl: './call-share-tile.component.html',
     host: {class: 'contents'},
 })
@@ -77,6 +87,70 @@ export class CallShareTileComponent implements OnDestroy {
      *  the first place, so "stop watching" would be asking to hide your own output, not to drop
      *  someone else's stream. */
     hide = output<void>();
+
+    /**
+     * Resolves this tile's inbound statistics, if the host has any.
+     *
+     * <p>Taken as a function input rather than injected, for the identical reason as
+     * `CallScreenLayoutComponent.nameOf`: the guild surface reads them from `VoiceRTCService` and
+     * the DM surface from `CallWebRtcService`, and injecting either into a shared component would
+     * break the other. It is handed the whole `CallScreenShare` rather than an id because the two
+     * services key by different ones - guild by user, DM by share - and the guild projection sets
+     * `shareId: mediaSessionId ?? userId`, so a bare share id cannot be turned back into a user.</p>
+     *
+     * <p>Defaults to answering null, so a host that never wires this gets a panel saying it has no
+     * data rather than a crash.</p>
+     */
+    inboundStatsOf = input<(share: CallScreenShare) => StreamStatsSnapshot | null>(() => null);
+
+    /**
+     * The share whose panel is now open, or null when it closed.
+     *
+     * <p>The host turns this into "poll this stream in detail". Nothing is polled while it is null,
+     * which is what keeps a closed panel free.</p>
+     */
+    statsInspect = output<CallScreenShare | null>();
+
+    /** Where the right-click landed, in viewport coordinates. Null when no menu is open. */
+    protected readonly menuAt = signal<{x: number; y: number} | null>(null);
+    protected readonly statsOpen = signal(false);
+
+    /**
+     * Local publish statistics, for the sharer's own tile.
+     *
+     * <p>The local branch is deliberately empty until the publisher stats path lands: the sharer's
+     * own numbers come from RustMediaService, not from a receive connection, and that signal does
+     * not exist yet - it is added in Task 12. Until then the sharer's own tile shows the panel's
+     * no-data state.</p>
+     */
+    protected readonly panelStats = computed<StreamStatsSnapshot | null>(() =>
+        this.share().isLocal ? null : this.inboundStatsOf()(this.share()));
+
+    protected openMenu(event: MouseEvent): void {
+        // The tile root, not the pan surface: a right-click anywhere on the tile including its
+        // chrome should reach this, which deliberately inverts the left-click rule documented on
+        // the surface element. preventDefault here rather than relying on app.component.ts, which
+        // only suppresses the OS menu in production builds.
+        event.preventDefault();
+        event.stopPropagation();
+        this.menuAt.set({x: event.clientX, y: event.clientY});
+    }
+
+    protected openStats(): void {
+        this.menuAt.set(null);
+        this.statsOpen.set(true);
+        this.statsInspect.emit(this.share());
+    }
+
+    protected closeStats(): void {
+        this.statsOpen.set(false);
+        this.statsInspect.emit(null);
+    }
+
+    /** Filled in by the clipboard task; the menu item exists from here on so the wiring is one edit. */
+    protected copyStats(): void {
+        this.menuAt.set(null);
+    }
 
     protected readonly root = viewChild.required<ElementRef<HTMLElement>>('root');
     protected readonly video = viewChild<ElementRef<HTMLVideoElement>>('video');

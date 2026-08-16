@@ -8,6 +8,8 @@
      the only tile on it was the sharer's own. app-call-participant-tile and app-call-invite-card
      both state the same box for the same reason. See call-share-tile.sizing.spec.ts. -->
 <div #root
+     (contextmenu)="openMenu($event)"
+     data-testid="share-tile-root"
      [class]="'group/tile relative flex aspect-video min-h-0 w-full items-center justify-center '
               + 'overflow-hidden rounded-xl border bg-black/70 transition-colors '
               + (maximized() ? 'border-brand/40' : 'border-border-subtle hover:border-white/20')">
@@ -238,5 +240,24 @@
             </button>
         </div>
     </div>
+
+    <!-- Right-click surface. The menu is `fixed` and positioned in viewport coordinates, so it is
+         not clipped by the tile's own overflow-hidden the way an absolutely positioned child
+         would be. -->
+    @if (menuAt(); as at) {
+        <app-call-stream-menu
+                (close)="menuAt.set(null)"
+                (copyStats)="copyStats()"
+                (showStats)="openStats()"
+                [x]="at.x"
+                [y]="at.y"/>
+    }
+
+    <!-- Inside the tile deliberately: it is a sibling of the pan/zoom surface, so it travels into
+         the pop-out window and fullscreen with the rest of the tile and is never panned or zoomed
+         with the picture. -->
+    @if (statsOpen()) {
+        <app-call-stream-stats (close)="closeStats()" [stats]="panelStats()"/>
+    }
 
 </div>

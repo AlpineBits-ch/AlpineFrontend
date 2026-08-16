@@ -42,6 +42,8 @@
                         (audioToggle)="onShareAudioToggle(share)"
                         (hide)="hideShare(share.shareId)"
                         (maximizeToggle)="toggleMaximize(share.shareId)"
+                        (statsInspect)="statsInspect.emit($event)"
+                        [inboundStatsOf]="inboundStatsOf()"
                         [maximized]="maximizedId() === share.shareId"
                         [share]="share"
                         [tileScope]="watchScope()"

@@ -21,6 +21,7 @@ import {ShareWatchService, WatchScope, scopeKey} from '../../../services/share-w
 import {CallFocusService} from '../../../services/call-focus.service';
 import {RustMediaService} from '../../../services/rust-media.service';
 import {VoiceSubscriberReportService} from '../../../services/voice-subscriber-report.service';
+import {StreamStatsSnapshot} from '../stream-stats';
 
 @Component({
     selector: 'app-call-screen-layout',
@@ -59,6 +60,12 @@ export class CallScreenLayoutComponent implements OnDestroy {
      */
     nameOf = input<(userId: string) => string>(id => id);
 
+    /**
+     * Resolves a share's inbound statistics for the stats panel. Same reasoning as {@link nameOf}:
+     * the two surfaces read them from two different services. Defaults to none.
+     */
+    inboundStatsOf = input<(share: CallScreenShare) => StreamStatsSnapshot | null>(() => null);
+
     protected readonly audio = trackAudioWait(this.participants, this.participantsWithAudio);
     /** The press that brought the app back to the front is not also a command - see the helper. */
     private readonly isActivationClick = trackActivationClick();
@@ -78,6 +85,8 @@ export class CallScreenLayoutComponent implements OnDestroy {
      * nor a ring endpoint to point one at.</p>
      */
     inviteRequested = output<{guildId: string; channelId: string}>();
+    /** Re-emitted from whichever tile opened or closed its stats panel. */
+    statsInspect = output<CallScreenShare | null>();
 
     protected readonly maximizedId = signal<string | null>(null);
 
