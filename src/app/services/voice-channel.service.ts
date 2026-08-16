@@ -160,7 +160,26 @@ export class VoiceChannelService {
 
     // ── Join guard ─────────────────────────────────────────────────────────────
 
-    private pendingJoinId: string | null = null;
+    /**
+     * The channel a join is currently in flight for, or null.
+     *
+     * <p>Public and a signal because the lobby has to be able to draw it. A join is a request plus a
+     * media handshake and routinely takes a second or two, and while it was a private field that was
+     * a lobby which looked idle for the whole of it: a live-looking Join button, no spinner, and
+     * nothing on screen saying anything was happening. The obvious conclusion is that the click
+     * missed, so the user clicks again.</p>
+     */
+    readonly pendingJoinId = signal<string | null>(null);
+    /**
+     * A teardown still running for a channel this client has already left, or null.
+     *
+     * <p>The price of {@link leaveChannel} not waiting: the next join can now start while the last
+     * room is still closing, and `doLeave` ends in `rtc.teardown()`, which closes whatever peer
+     * connection it finds - including one a fresh join has just opened. A join waits on this before
+     * it touches the transport, so hanging up and immediately clicking another channel can no longer
+     * connect the new room and tear it straight back down.</p>
+     */
+    private leaveInFlight: Promise<void> | null = null;
     private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
     /**
@@ -504,14 +523,20 @@ export class VoiceChannelService {
      * that is not there.</p>
      */
     async joinChannel(channel: ChannelDto, guildName: string): Promise<boolean> {
-        if (this.pendingJoinId === channel.id) return false;
+        // Any join in flight, not just one for this channel. A second join started while the first
+        // was still running raced it over one set of joined-state signals, and clicking a different
+        // room in the sidebar was all it took.
+        if (this.pendingJoinId()) return false;
         if (this.joinedChannelId() === channel.id) return true;
 
         const prevId = this.joinedChannelId();
         const prevGuild = this.joinedGuildId();
-        this.pendingJoinId = channel.id;
+        this.pendingJoinId.set(channel.id);
 
         try {
+            // A leave the user did not wait for. It has to finish before anything here opens a
+            // transport, or its teardown closes the one this join is about to create.
+            await this.leaveInFlight;
             if (prevId && prevGuild) {
                 await this.doLeave(prevGuild, prevId, true);
             }
@@ -594,7 +619,7 @@ export class VoiceChannelService {
                 return false;
             }
         } finally {
-            this.pendingJoinId = null;
+            this.pendingJoinId.set(null);
         }
     }
 
@@ -611,12 +636,45 @@ export class VoiceChannelService {
         return denial?.messageKey ?? 'VOICE.JOIN_FAILED';
     }
 
+    /**
+     * Leaves the channel this client is in, and does not wait for permission to say so.
+     *
+     * <p><b>The joined-state signals are cleared first, before the teardown and the leave request.</b>
+     * That is the opposite of {@link joinChannel} and deliberately so: a join can be refused and has
+     * to leave the UI where it was, while a leave cannot - this client is out of the call the moment
+     * the user says so, and the request that follows is an announcement, not a question.</p>
+     *
+     * <p>Waiting was also actively wrong. `doLeave` tears the transport down first, which resets
+     * `rtcState` to `'new'`, and `resolveCallStatus` reads `'new'` as `connecting` - so for as long
+     * as the round trip took, the status row above the stage sat there in amber announcing
+     * CONNECTING about a call the user had just hung up.</p>
+     */
     async leaveChannel(): Promise<void> {
         const channelId = this.joinedChannelId();
         const guildId = this.joinedGuildId();
         if (!channelId || !guildId) return;
-        await this.doLeave(guildId, channelId, false);
+        // Ahead of the awaits, and safe there: `doLeave` is told which room to close over its
+        // parameters and reads none of the signals being cleared here.
         this.clearJoinedState();
+        await this.runLeave(guildId, channelId, false);
+    }
+
+    /**
+     * {@link doLeave}, published as {@link leaveInFlight} for the length of it.
+     *
+     * <p>For the two exits that hand the UI back before the teardown is done. The join path's own
+     * leave is not one of them - it is awaited inline and there is nothing to race it with.</p>
+     */
+    private async runLeave(guildId: string, channelId: string, silent: boolean): Promise<void> {
+        const leaving = this.doLeave(guildId, channelId, silent);
+        this.leaveInFlight = leaving;
+        try {
+            await leaving;
+        } finally {
+            // Guarded on identity so a later leave's teardown is not un-published by this one
+            // finishing late.
+            if (this.leaveInFlight === leaving) this.leaveInFlight = null;
+        }
     }
 
     /**
@@ -859,9 +917,12 @@ export class VoiceChannelService {
         const guildId = this.joinedGuildId();
         if (!guildId) return;
 
-        await this.doLeave(guildId, e.channelId, true);
+        // Cleared before the teardown for the same reason as {@link leaveChannel}: this device is
+        // already out of the room as far as the server is concerned, and holding the joined state
+        // through the teardown only buys a CONNECTING row for a call that is over.
         this.clearJoinedState();
         this.toast.info('You joined this channel from another device');
+        await this.runLeave(guildId, e.channelId, true);
     }
 
     // ── SignalR event handlers ─────────────────────────────────────────────────

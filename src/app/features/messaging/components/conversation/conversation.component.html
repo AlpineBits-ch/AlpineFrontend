@@ -99,9 +99,29 @@
                 <div class="ringing-status">{{ 'CALL.ONGOING' | translate }}</div>
                 <p class="ringing-name">{{ ongoingParticipantNames() }}</p>
             </div>
-            <button (click)="joinOngoingCall(ongoing.callId)" class="ongoing-join">
-                {{ 'CALL.JOIN' | translate }}
+            <!-- Disabled for the length of the accept round trip. The banner stays on screen through
+                 all of it, so this is the one call control in here that can be pressed twice. -->
+            <button (click)="joinOngoingCall(ongoing.callId)" [disabled]="joiningCall()"
+                    class="ongoing-join">
+                @if (joiningCall()) {
+                    <i aria-hidden="true" class="pi pi-spinner pi-spin text-[0.6875rem]"></i>
+                    {{ 'CALL.JOINING' | translate }}
+                } @else {
+                    {{ 'CALL.JOIN' | translate }}
+                }
             </button>
+        </div>
+    } @else if (joiningCall()) {
+        <!-- Answering a ring, with no ongoing-call record to hang the banner above off yet. Same
+             slot the call panel is about to appear in, so the answer has somewhere to land instead
+             of leaving the conversation looking like nothing happened. -->
+        <div class="ongoing-banner shrink-0">
+            <div class="ongoing-icon">
+                <i class="pi pi-spinner pi-spin text-sm"></i>
+            </div>
+            <div class="ringing-info">
+                <div class="ringing-status">{{ 'CALL.JOINING' | translate }}</div>
+            </div>
         </div>
     }
 

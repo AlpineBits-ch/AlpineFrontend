@@ -13,6 +13,14 @@ import {TranslateModule} from '@ngx-translate/core';
 export class VoiceChannelLobbyComponent {
     channel = input.required<ChannelDto>();
     participants = input.required<VoiceChannelParticipant[]>();
+    /**
+     * A join for this channel is already under way, so both actions stand down.
+     *
+     * <p>An input rather than a read of `VoiceChannelService`: this component is given everything it
+     * draws, and the service's `pendingJoinId` names a channel, which only the parent knows how to
+     * compare against the one being shown.</p>
+     */
+    joining = input(false);
 
     joinVoice = output<void>();
     /** Join, then focus this user's stream - the lobby's answer to "I can see someone is live". */

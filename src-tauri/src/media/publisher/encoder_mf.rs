@@ -196,10 +196,30 @@ impl MediaFoundationEncoder {
                 let _ = api.SetValue(&CODECAPI_AVLowLatencyMode, &true.into());
 
                 let plan = RatePlan::for_spec(spec);
-                let _ = api.SetValue(&CODECAPI_AVEncCommonRateControlMode, &plan.mode.into());
+                // The mode is reported on failure rather than swallowed, because this is also the
+                // path a *live* Games/Text switch takes: `retype` re-applies the whole plan to a
+                // transform that is already streaming, and rate control mode is one of the settings
+                // a hardware MFT is entitled to refuse once it has started. Discarding that error
+                // leaves the bar showing a mode the encoder is not in, with nothing anywhere saying
+                // so - the same failure the keyframe interval below already learned to make loud.
+                if let Err(e) = api.SetValue(&CODECAPI_AVEncCommonRateControlMode, &plan.mode.into())
+                {
+                    eprintln!(
+                        "[publisher] this encoder refused rate control mode {} ({e}); the share is \
+                         still encoding in its previous mode",
+                        plan.mode
+                    );
+                }
                 let _ = api.SetValue(&CODECAPI_AVEncCommonMeanBitRate, &plan.mean_bps.into());
+                // The peak is what makes VBR VBR - without it the mode is nominal - so a refusal
+                // here is the same class of silent downgrade as the mode itself.
                 if let Some(peak) = plan.peak_bps {
-                    let _ = api.SetValue(&CODECAPI_AVEncCommonMaxBitRate, &peak.into());
+                    if let Err(e) = api.SetValue(&CODECAPI_AVEncCommonMaxBitRate, &peak.into()) {
+                        eprintln!(
+                            "[publisher] this encoder refused a {peak} bps ceiling ({e}); text mode \
+                             will not burst above its mean"
+                        );
+                    }
                 }
                 if let Some(quality) = plan.quality_vs_speed {
                     let _ = api.SetValue(&CODECAPI_AVEncCommonQualityVsSpeed, &quality.into());
@@ -218,8 +238,30 @@ impl MediaFoundationEncoder {
                 .and_then(|_| {
                     output.SetUINT32(&MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive.0 as u32)
                 })
-                // Constrained Baseline: no B-frames, no CABAC, decodable by every browser. Higher
-                // profiles would compress better but B-frames add reordering latency we do not want.
+                // Constrained Baseline, because it is the only profile the SFU will negotiate.
+                //
+                // **Measured, not assumed, and one line from being changed back.** Swapping this
+                // for `eAVEncH264VProfile_High` is the whole of the High-profile bump: CABAC and
+                // the 8x8 transform, worth roughly 10-20% BD-rate on screen content, and worth the
+                // most on exactly the small text this encodes. It was tried on 2026-08-16 and a
+                // real mobile viewer decoded it fine. The reason it is not on is the far end:
+                //
+                //  * The offer already advertises High 5.0 (`640032`) and High 5.2 (`640034`, which
+                //    `rtc.rs` registers for this purpose and which is kept precisely so that this
+                //    stays a one-line change).
+                //  * Cloudflare drops both and answers `42e01f` - Constrained Baseline 3.1 - every
+                //    time. That is not a quirk of how we ask: their WebRTC docs state Constrained
+                //    Baseline 3.1 as the whole of their H.264 support, naming that exact string.
+                //
+                // So High only ever worked by exceeding its own declaration, decoded on the
+                // strength of the SPS rather than the negotiated fmtp. That survives on receiver
+                // leniency, and a decoder entitled to believe the answer may show a black tile
+                // rather than a soft one. Not a trade worth making for a share, when the bitrate
+                // ladder buys more (see `LAYER_BITRATE_PERCENT_OF_TOP`) at no conformance cost.
+                //
+                // **Turn this back on when the SFU changes, not before.** An SFU that forwards
+                // opaquely - anything self-hosted - will negotiate the High the offer already
+                // carries, and then this line and nothing else needs to move.
                 .and_then(|_| {
                     output.SetUINT32(&MF_MT_MPEG2_PROFILE, eAVEncH264VProfile_ConstrainedBase.0 as u32)
                 })
@@ -248,6 +290,19 @@ impl MediaFoundationEncoder {
             // `let _ =`, that read exactly like a working fix and cost a whole build-and-test round to
             // disprove. If a driver refuses it here, that has to be visible.
             if let Some(api) = &codec_api {
+                // Zero B-frames. A no-op under Constrained Baseline, which has none, and set anyway
+                // because it is the other half of making a higher profile safe: B-frames are the
+                // part that would add reordering latency to a live share, and they are separable
+                // from the CABAC and 8x8 transform that are worth having. Kept so that turning the
+                // profile above back on stays one line rather than two, and so the reasoning does
+                // not have to be rediscovered. A refusal is logged for the same reason.
+                if let Err(e) = api.SetValue(&CODECAPI_AVEncMPVDefaultBPictureCount, &0i32.into()) {
+                    eprintln!(
+                        "[publisher] this encoder refused a zero B-frame count ({e}); High profile \
+                         may add reordering latency to the share"
+                    );
+                }
+
                 let gop = spec.fps.max(1).saturating_mul(2);
                 match api.SetValue(&CODECAPI_AVEncMPVGOPSize, &gop.into()) {
                     Ok(()) => eprintln!("[publisher] keyframe interval set to {gop} frames"),

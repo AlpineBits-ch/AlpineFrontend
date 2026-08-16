@@ -26,18 +26,27 @@ const MIN_LAYER_HEIGHT: u32 = 90;
 /// the quarter layer 0 kbps, which some encoders accept and then produce nothing for.
 pub const MIN_LAYER_KBPS: u32 = 100;
 
-/// Share of the session's budget per layer, in percent, highest layer first.
+/// Each layer's bitrate as a percentage of **the top layer's**, highest layer first.
 ///
 /// <p>H.264's rate need scales far more slowly than the pixel count, so a half-height layer is worth
 /// much more than a quarter of the top layer's bitrate and a quarter-height layer much more than a
-/// sixteenth. 68/24/8 is that curve rounded to something a human can check adds up.</p>
+/// sixteenth. 100/32/10 is roughly the 1 : 1/3 : 1/10 that simulcast ladders in the wild converge
+/// on, and it is deliberately the same curve the browser publisher uses - `LAYER_BITRATE_RATIO` in
+/// `webrtc-encoding.ts`. The two publishers disagreeing meant the same share was measurably softer
+/// from the desktop than from a browser, for no reason anybody chose.</p>
 ///
-/// <p><b>The session budget is the total, not the top layer's allowance.</b> The alternative - full
-/// rate on `a` and extra for the rest - raises every sharer's upload by about a third, which is a
-/// regression on the exact connection simulcast is meant to be considerate of. The cost is that a
-/// fullscreen viewer sees the top layer at 68% of the old rate; the benefit is that the other
-/// thirteen stop pulling it at all.</p>
-const LAYER_BUDGET_PERCENT: [u32; 3] = [68, 24, 8];
+/// <p><b>The preset's number is the top layer's rate, not a total to divide up.</b> It used to be
+/// the total, split 68/24/8, which kept every sharer's upload exactly where it had been before
+/// simulcast existed. That reasoning had the ladder upside down. Measured in bits per pixel per
+/// second the split made `a` the *thinnest* rung - 0.066 against `b`'s 0.093 and `c`'s 0.124 - and
+/// `a` is the rung every viewer who is actually looking at the share is served. The layer that
+/// mattered most was being starved to subsidise the two that mattered least, which is why a 1080p
+/// share looked soft even full screen.</p>
+///
+/// <p>The cost is about 42% more uplink for the sharer. That is the trade simulcast was always
+/// making on the room's behalf - one publisher's upload against the top layer times every viewer -
+/// and the pricing model already assumed it was spent when the operator ceiling was raised.</p>
+const LAYER_BITRATE_PERCENT_OF_TOP: [u32; 3] = [100, 32, 10];
 
 /// One encoding: what to call it on the wire, and what to build an encoder for.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -86,15 +95,17 @@ pub fn layers_for(base: EncoderSpec, max_layers: usize) -> Vec<Layer> {
         });
     }
 
-    // The budget is only split once there is something to split it with. One layer is the rollback
-    // path and must keep the whole allowance.
+    // One layer is the rollback path. It reads the same either way now that the top layer takes the
+    // preset's rate whole, but it stays explicit: this is the branch that has to be byte-identical
+    // to the pre-simulcast share, and it should not depend on the arithmetic below happening to
+    // start at 100.
     if layers.len() == 1 {
         layers[0].spec.kbps = base.kbps;
         return layers;
     }
 
     for (index, layer) in layers.iter_mut().enumerate() {
-        let share = base.kbps.saturating_mul(LAYER_BUDGET_PERCENT[index]) / 100;
+        let share = base.kbps.saturating_mul(LAYER_BITRATE_PERCENT_OF_TOP[index]) / 100;
         layer.spec.kbps = share.max(MIN_LAYER_KBPS);
     }
     layers
@@ -137,13 +148,28 @@ mod tests {
     }
 
     #[test]
-    fn never_spends_more_than_the_session_budget() {
-        // The preset's kbps is the sharer's uplink budget, not the top layer's allowance. Sending
-        // the full rate on `a` plus extra for `b` and `c` would raise every sharer's upload by
-        // about a third for a feature meant to cut cost.
+    fn the_top_layer_gets_the_preset_rate_whole() {
+        // The rung every viewer looking at the share is served, and it must not be shaved to pay
+        // for the two below it. This asserts the inversion that made a 1080p share look soft even
+        // full screen: `a` used to take 68% of the preset while `c` - a quarter-height thumbnail -
+        // was the densest rung on the ladder per pixel.
+        let layers = layers_for(spec(3840, 2160, 16000), 3);
+        assert_eq!(layers[0].spec.kbps, 16000);
+    }
+
+    #[test]
+    fn the_lower_layers_cost_a_bounded_extra_on_top() {
+        // The ladder is additive now, so the guard is on the *overhead*, not on a total. Roughly
+        // 1.4x the top layer is what the ratios are chosen to cost; anything approaching double
+        // means a lower rung has been inflated into a second full-rate stream, which is the shape
+        // of regression this bound exists to catch.
         let layers = layers_for(spec(3840, 2160, 16000), 3);
         let total: u32 = layers.iter().map(|l| l.spec.kbps).sum();
-        assert!(total <= 16000, "ladder spent {total} of a 16000 budget");
+        assert!(
+            total <= 16000 * 3 / 2,
+            "the ladder cost {total} against a 16000 top layer, more than the 1.5x ceiling"
+        );
+        assert!(total > 16000, "the ladder is meant to be additive, not a split");
     }
 
     #[test]

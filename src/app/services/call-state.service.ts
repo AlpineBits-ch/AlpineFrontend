@@ -32,6 +32,20 @@ export interface OutgoingCallState {
 export class CallStateService implements OnDestroy {
     readonly incomingCall = signal<IncomingCallState | null>(null);
     readonly outgoingCall = signal<OutgoingCallState | null>(null);
+    /**
+     * The conversation an answer is in flight for, or null.
+     *
+     * <p>Both ways into a call - answering a ring and joining one already running - navigate to the
+     * conversation first and only then wait on `POST accept`, so for the length of that round trip
+     * there is no session and therefore no call panel. The conversation showed the user nothing at
+     * all in the meantime, which reads as a click that missed. This is what it renders instead, and
+     * what stops the ongoing-call banner's Join button firing a second accept.</p>
+     *
+     * <p>An id rather than a flag. This service is a singleton and every open conversation reads it,
+     * so a bare boolean would put "joining" in whichever conversation the user happened to navigate
+     * to while the request was out.</p>
+     */
+    readonly joiningConversationId = signal<string | null>(null);
     private ws = inject(VoiceWebsocketService);
     private voiceService = inject(VoiceService);
     private profileService = inject(ProfileService);
@@ -202,12 +216,19 @@ export class CallStateService implements OnDestroy {
         this.incomingCall.set(null);
         const conv = this.conversationStore.entities().find(c => c.id === incoming.call.conversationId);
         if (conv) this.navService.openConversation(conv);
+        this.joiningConversationId.set(incoming.call.conversationId);
         this.voiceService.acceptCall(incoming.call.id).subscribe({
-            next: (callDto) => this.callSession.join(callDto, callDto.conversationId),
+            next: (callDto) => {
+                this.joiningConversationId.set(null);
+                this.callSession.join(callDto, callDto.conversationId);
+            },
             // Most commonly the caller already cancelled - without this, accepting a
             // call that just ended silently dropped you into the conversation with
             // no call session and no explanation.
-            error: (err) => this.toast.httpError('Could not join call - it may have ended', err),
+            error: (err) => {
+                this.joiningConversationId.set(null);
+                this.toast.httpError('Could not join call - it may have ended', err);
+            },
         });
     }
 
@@ -220,11 +241,23 @@ export class CallStateService implements OnDestroy {
      * who was never invited to this call has no row to resolve, and the server will not conjure one
      * - the error path below is what they see.</p>
      */
-    joinOngoing(callId: string): void {
+    joinOngoing(callId: string, conversationId: string): void {
+        // The banner stays on screen for the whole round trip, so its button is the one control in
+        // this service that can be pressed twice against the same call.
+        if (this.joiningConversationId()) return;
         this.dismissIncomingIfMatches(callId);
+        // Taken from the caller rather than waited for in the response: the banner it belongs to is
+        // on screen now, and the response is the thing being waited on.
+        this.joiningConversationId.set(conversationId);
         this.voiceService.acceptCall(callId).subscribe({
-            next: (callDto) => this.callSession.join(callDto, callDto.conversationId),
-            error: (err) => this.toast.httpError('Could not join call - it may have ended', err),
+            next: (callDto) => {
+                this.joiningConversationId.set(null);
+                this.callSession.join(callDto, callDto.conversationId);
+            },
+            error: (err) => {
+                this.joiningConversationId.set(null);
+                this.toast.httpError('Could not join call - it may have ended', err);
+            },
         });
     }
 

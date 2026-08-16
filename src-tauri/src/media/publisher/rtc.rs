@@ -21,8 +21,9 @@ use webrtc::peer_connection::configuration::RTCConfiguration;
 use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
 use webrtc::peer_connection::RTCPeerConnection;
 use webrtc::rtp_transceiver::rtp_codec::{
-    RTCRtpCodecCapability, RTCRtpHeaderExtensionCapability, RTPCodecType,
+    RTCRtpCodecCapability, RTCRtpCodecParameters, RTCRtpHeaderExtensionCapability, RTPCodecType,
 };
+use webrtc::rtp_transceiver::RTCPFeedback;
 use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample;
 use webrtc::track::track_local::TrackLocal;
 
@@ -45,11 +46,23 @@ pub struct IceServerConfig {
     pub credential: Option<String>,
 }
 
-/// The codec capability every screen track is published with.
+/// High profile, Level 5.2, non-interleaved: what a screen share is published as.
 ///
-/// Constrained Baseline 3.1 with non-interleaved packetisation: the profile every browser decoder
-/// accepts, which matters because Cloudflare forwards whatever we send and a viewer that cannot
-/// decode it simply sees nothing.
+/// **The level is the half that was a bug.** This used to declare `42001f` - Baseline *Level 3.1*,
+/// whose formal ceiling is 1280x720 (3600 macroblocks a frame). Every resolution above 720p that
+/// this app offers exceeded it: 1080p by 2.3x, 1440p by 4x, 2160p by 9x. It worked only because
+/// decoders in practice size themselves from the SPS in the bitstream rather than from the
+/// negotiated level, so a receiver that honoured the declaration was entitled to allocate a
+/// 720p decoder or refuse the stream outright. `0x34` = 52 = Level 5.2, which is the first level
+/// that actually covers 2160p60 - 5.0 stops short of 1440p60 and 5.1 of 4K60.
+///
+/// **The profile is the half that buys quality.** High (`0x64`) brings CABAC and the 8x8 transform,
+/// which are precisely what sharp text edges cost the most bits without. Worth roughly 10-20%
+/// BD-rate on screen content.
+///
+/// Declaring *more* than we send is the safe direction - a receiver allocates for the ceiling and
+/// is never surprised - which is why the level is pinned at the top of the range rather than
+/// computed per share.
 ///
 /// Public, and used by `super::e2e_tests` rather than copied there - see [`publisher_api`] for why
 /// a copy is the wrong shape.
@@ -57,11 +70,20 @@ pub fn h264_capability() -> RTCRtpCodecCapability {
     RTCRtpCodecCapability {
         mime_type: MIME_TYPE_H264.to_owned(),
         clock_rate: 90_000,
-        sdp_fmtp_line: "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42001f"
-            .to_owned(),
+        sdp_fmtp_line: H264_HIGH_5_2_FMTP.to_owned(),
         ..Default::default()
     }
 }
+
+/// The fmtp line for H.264 High profile at Level 5.2, packetisation mode 1.
+const H264_HIGH_5_2_FMTP: &str =
+    "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=640034";
+
+/// A payload type outside everything `register_default_codecs` claims.
+///
+/// The defaults take 96, 98, 100, 102, 108, 116, 123, 125, 126 and 127 across video and their RTX
+/// pairs; 118 is free in that range and stays clear of the RTX numbering.
+const H264_HIGH_5_2_PAYLOAD_TYPE: u8 = 118;
 
 /// The API every publishing peer connection is built from.
 ///
@@ -74,6 +96,52 @@ pub fn publisher_api() -> Result<webrtc::api::API, String> {
     media_engine
         .register_default_codecs()
         .map_err(|e| e.to_string())?;
+
+    // High 5.2 has to be *registered* to be offered at all, because the offer's codec list comes
+    // from the media engine and not from the track. `register_default_codecs` tops out at High 5.0
+    // (`640032`), which covers 1440p30 and neither 1440p60 nor 2160p at any rate.
+    //
+    // This is additive: the Baseline entries stay registered and stay in the offer, so an SFU or a
+    // receiver that will not take High still has everything it had before and negotiation falls
+    // back to it. `codec_parameters_fuzzy_search` matches the track's fmtp exactly when it can and
+    // otherwise settles for any H.264, so the track binds either way - which is also why declaring
+    // this on the track alone would have changed nothing on the wire.
+    media_engine
+        .register_codec(
+            RTCRtpCodecParameters {
+                capability: RTCRtpCodecCapability {
+                    mime_type: MIME_TYPE_H264.to_owned(),
+                    clock_rate: 90_000,
+                    channels: 0,
+                    sdp_fmtp_line: H264_HIGH_5_2_FMTP.to_owned(),
+                    // Matches what the defaults attach to every video codec. Dropping any of these
+                    // would quietly cost the thing it names - `nack pli` in particular is how a
+                    // viewer asks for the keyframe it needs to start decoding.
+                    rtcp_feedback: vec![
+                        RTCPFeedback {
+                            typ: "goog-remb".to_owned(),
+                            parameter: String::new(),
+                        },
+                        RTCPFeedback {
+                            typ: "ccm".to_owned(),
+                            parameter: "fir".to_owned(),
+                        },
+                        RTCPFeedback {
+                            typ: "nack".to_owned(),
+                            parameter: String::new(),
+                        },
+                        RTCPFeedback {
+                            typ: "nack".to_owned(),
+                            parameter: "pli".to_owned(),
+                        },
+                    ],
+                },
+                payload_type: H264_HIGH_5_2_PAYLOAD_TYPE,
+                ..Default::default()
+            },
+            RTPCodecType::Video,
+        )
+        .map_err(|e| format!("could not register H.264 High 5.2: {e}"))?;
 
     // What makes a simulcast layer identifiable on the wire, and the one piece `a=rid:` does not
     // imply.
@@ -137,6 +205,10 @@ fn log_simulcast_sdp(id: u64, which: &str, sdp: &str) {
                 || line.starts_with("a=mid:")
                 || line.starts_with("a=rid:")
                 || line.starts_with("a=simulcast:")
+                // H.264 only. Which profile and level survived negotiation decides what the
+                // encoder may emit: a bitstream above the level the answer kept is the black-tile
+                // failure, and it is invisible from this side without this line.
+                || (line.starts_with("a=fmtp:") && line.contains("profile-level-id"))
         })
         .collect();
 

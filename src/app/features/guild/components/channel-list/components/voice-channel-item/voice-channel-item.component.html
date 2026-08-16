@@ -11,7 +11,12 @@
             [class.is-active]="!isJoined() && isActive()"
             [class.is-joined]="isJoined()"
             class="chan-row">
-        <span class="chan-icon"><i class="pi pi-volume-up"></i></span>
+        <!-- The speaker gives way to a spinner while this row's join is in flight. In the icon slot
+             rather than beside it: the row has no spare width, and swapping the glyph is the same
+             trick the lobby button plays one level down. -->
+        <span class="chan-icon">
+            <i [class]="isJoining() ? 'pi pi-spinner pi-spin' : 'pi pi-volume-up'"></i>
+        </span>
         <span class="chan-label">{{ channel().name }}</span>
         <!-- Lock first: it is a permission fact and must not be displaced by a transient one. The
              LIVE pill then outranks the participant count, which is redundant anyway - every

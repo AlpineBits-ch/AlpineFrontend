@@ -87,6 +87,17 @@ export class VoiceChannelComponent {
         this.voiceSvc.joinedChannelId() === this.channel().id,
     );
 
+    /**
+     * A join for *this* channel is in flight, which is the lobby's loading state.
+     *
+     * <p>Scoped to this channel rather than to any join at all: a join running for a different room
+     * does refuse this one (see `VoiceChannelService.joinChannel`), but a spinner on a button the
+     * user never pressed would be reporting somebody else's work.</p>
+     */
+    protected isJoining = computed(() =>
+        this.voiceSvc.pendingJoinId() === this.channel().id,
+    );
+
     // ── Entitlements ───────────────────────────────────────────────────────────
 
     /**

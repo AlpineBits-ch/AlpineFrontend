@@ -30,7 +30,10 @@ function participant(overrides: Partial<VoiceChannelParticipant> = {}): VoiceCha
     };
 }
 
-function render(participants: VoiceChannelParticipant[]): ComponentFixture<VoiceChannelItemComponent> {
+function render(
+    participants: VoiceChannelParticipant[],
+    options: {pendingJoinId?: string | null} = {},
+): ComponentFixture<VoiceChannelItemComponent> {
     TestBed.configureTestingModule({
         imports: [VoiceChannelItemComponent, TranslateModule.forRoot()],
         providers: [
@@ -40,6 +43,7 @@ function render(participants: VoiceChannelParticipant[]): ComponentFixture<Voice
                 useValue: {
                     channelParticipants: signal(new Map([[CHANNEL.id, participants]])),
                     joinedChannelId: signal(null),
+                    pendingJoinId: signal(options.pendingJoinId ?? null),
                 },
             },
             {provide: NavigationService, useValue: {isChannelActive: () => false}},
@@ -83,5 +87,29 @@ describe('VoiceChannelItemComponent watch forwarding', () => {
         badge.click();
 
         expect(opened).toBe(false);
+    });
+});
+
+/**
+ * Clicking a voice row starts a join that takes a second or two, and the row is the one part of the
+ * sidebar that stays on screen for all of it. Without a mark here, a user who clicks and then goes
+ * to read something else has nothing anywhere telling them a join is still running.
+ */
+describe('VoiceChannelItemComponent while its join is in flight', () => {
+    const icon = (fixture: ComponentFixture<VoiceChannelItemComponent>) =>
+        fixture.nativeElement.querySelector('.chan-icon i') as HTMLElement;
+
+    it('spins its icon for a join of this channel', () => {
+        const fixture = render([], {pendingJoinId: CHANNEL.id});
+
+        expect(icon(fixture).className).toContain('pi-spin');
+    });
+
+    /** Somebody else's join is not this row's business - see the guard in joinChannel. */
+    it('leaves the icon alone for a join of a different channel', () => {
+        const fixture = render([], {pendingJoinId: 'chan-other'});
+
+        expect(icon(fixture).className).not.toContain('pi-spin');
+        expect(icon(fixture).className).toContain('pi-volume-up');
     });
 });

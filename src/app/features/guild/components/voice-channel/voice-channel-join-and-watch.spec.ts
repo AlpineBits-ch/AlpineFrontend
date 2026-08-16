@@ -50,6 +50,8 @@ function render(joinChannel: ReturnType<typeof vi.fn>): ComponentFixture<VoiceCh
                 provide: VoiceChannelService,
                 useValue: {
                     joinedChannelId: signal(null),
+                    // Nothing in flight: these tests are about what an already-settled join arms.
+                    pendingJoinId: signal(null),
                     // The roster already carries a streamer, so the lobby offers join-and-watch
                     // without this test having to touch a signal after the fixture is built.
                     channelParticipants: signal(new Map([[CHANNEL.id, [STREAMER]]])),

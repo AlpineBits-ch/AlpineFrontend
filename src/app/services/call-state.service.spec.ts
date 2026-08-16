@@ -92,7 +92,9 @@ function setup(options: SetupOptions = {}) {
     const service = TestBed.inject(CallStateService);
     if (options.ringing ?? true) {
         service.incomingCall.set({
-            call: {id: 'call-1'} as never,
+            // The conversation id is part of the ring the accept path reads back off it - see the
+            // answering tests at the bottom of this file.
+            call: {id: 'call-1', conversationId: 'conv-1'} as never,
             displayName: 'Alice',
             avatarLabel: 'A',
         });
@@ -388,4 +390,50 @@ it('names the ring from creatorId rather than guessing at the roster', () => {
     });
 
     expect(service.incomingCall()?.call.creatorId).toBe('user-caller');
+});
+
+// ── Answering, as something the conversation can see ─────────────────────────
+//
+// Accepting navigates to the conversation immediately and then waits on the accept request before
+// there is a session to render. For the length of that round trip the conversation showed a call that was
+// not there yet: no panel, no status, nothing at all between the click and the media coming up. The
+// "join an ongoing call" banner had the same gap and a button that stayed clickable through it.
+
+it('names the conversation being answered until the server confirms it', () => {
+    const {service, voiceService, callSession} = setup();
+    const answer = new Subject<CallDto>();
+    voiceService.acceptCall.mockReturnValue(answer);
+
+    service.accept();
+
+    // The id, not a bare flag: the banner belongs in the conversation the call is in, and this
+    // service is a singleton whose state every open conversation reads.
+    expect(service.joiningConversationId()).toBe('conv-1');
+
+    answer.next({...OUTGOING_CALL, id: 'call-1'});
+
+    expect(service.joiningConversationId()).toBeNull();
+    expect(callSession.join).toHaveBeenCalled();
+});
+
+it('stops reporting a join in flight when the answer fails', () => {
+    const {service, voiceService, toast} = setup();
+    voiceService.acceptCall.mockReturnValue(throwError(() => new Error('gone')));
+
+    service.accept();
+
+    expect(service.joiningConversationId()).toBeNull();
+    expect(toast.httpError).toHaveBeenCalled();
+});
+
+/** The banner's Join button is on screen for the whole round trip, so it has to be spam-proof. */
+it('ignores a second join of an ongoing call while the first is in flight', () => {
+    const {service, voiceService} = setup({ringing: false});
+    voiceService.acceptCall.mockReturnValue(new Subject<CallDto>());
+
+    service.joinOngoing('call-9', 'conv-9');
+    service.joinOngoing('call-9', 'conv-9');
+
+    expect(voiceService.acceptCall).toHaveBeenCalledTimes(1);
+    expect(service.joiningConversationId()).toBe('conv-9');
 });

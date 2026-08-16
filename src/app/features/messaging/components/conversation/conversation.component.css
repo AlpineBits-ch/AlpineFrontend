@@ -186,6 +186,9 @@
 }
 
 .ongoing-join {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     flex-shrink: 0;
     padding: 5px 14px;
     border-radius: 6px;
@@ -198,7 +201,14 @@
     transition: background 0.12s, border-color 0.12s;
 }
 
-.ongoing-join:hover {
+.ongoing-join:hover:not(:disabled) {
     background: color-mix(in srgb, var(--color-online) 24%, transparent);
     border-color: color-mix(in srgb, var(--color-online) 60%, transparent);
+}
+
+/* While the accept is in flight. The button keeps its size so the banner does not shift under the
+   pointer as the label changes. */
+.ongoing-join:disabled {
+    cursor: default;
+    opacity: 0.6;
 }

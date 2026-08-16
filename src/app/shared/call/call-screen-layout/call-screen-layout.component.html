@@ -156,13 +156,22 @@
          Empty is not the same as "nobody here" - it means every camera got a tile - so the row is
          dropped entirely rather than left as a stray gap. See stripParticipants. -->
     @if (stripParticipants().length > 0) {
-        <div class="thin-scrollbar flex shrink-0 items-center gap-2 overflow-x-auto pb-1">
+        <!-- items-stretch, not items-center. A strip entry's height is a function of who the person
+             is: the stream-audio mute below only renders for a remote sharer, and app-call-audio-status
+             only draws while their audio is unsettled, so three people in this row can have three
+             different intrinsic heights. Centring them lined the tiles up on nothing - a short tile
+             floated mid-row with both its edges out of step with its neighbours. Stretch hands every
+             tile the row's height and `justify-center` re-centres the contents inside it, so the
+             boxes agree on their top and bottom edges however many optional rows any one of them
+             happens to carry. -->
+        <div class="thin-scrollbar flex shrink-0 items-stretch gap-2 overflow-x-auto pb-1">
             @for (p of stripParticipants(); track p.userId) {
                 @let share = getShareForUser(p.userId);
                 <div
                         (contextmenu)="participantContextMenu.emit({ event: $event, participant: p })"
-                        [class]="'flex min-w-[5.25rem] shrink-0 flex-col items-center gap-1.5 rounded-xl border bg-card '
-                                 + 'px-3 py-2.5 ' + (p.isSpeaking ? 'border-online/60' : 'border-border-subtle')">
+                        [class]="'flex min-w-[5.25rem] shrink-0 flex-col items-center justify-center gap-1.5 rounded-xl '
+                                 + 'border bg-card px-3 py-2.5 '
+                                 + (p.isSpeaking ? 'border-online/60' : 'border-border-subtle')">
                     <span class="relative">
                         <!-- A camera, when there is one. In the grid this branch is unreachable -
                              a camera earns a full tile up there and stripParticipants drops its

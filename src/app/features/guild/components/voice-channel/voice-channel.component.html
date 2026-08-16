@@ -48,6 +48,7 @@
                 (joinAndWatch)="joinAndWatch($event)"
                 (joinVoice)="joinChannel()"
                 [channel]="channel()"
+                [joining]="isJoining()"
                 [participants]="participants()"
                 class="min-h-0 flex-1"
         />

@@ -1205,3 +1205,123 @@ describe('a screen track closing', () => {
         expect(service.isScreenResuming('them')).toBe(false);
     });
 });
+
+/**
+ * Leaving is not a request that can be refused.
+ *
+ * <p>Joining writes its signals only once the server has admitted us, and that is right: a refusal
+ * has to leave the UI where it was. Leaving has no such failure - this client is out of the call the
+ * moment the user says so, whatever the network then does about it - and waiting for the round trip
+ * was actively wrong. `doLeave` tears the transport down first, which resets `rtcState` to `'new'`,
+ * and `resolveCallStatus` reads `'new'` as `connecting` (see call-status.ts). So every frame between
+ * the click and the response had the in-channel status row announcing CONNECTING, in amber, about a
+ * call the user had just hung up.</p>
+ */
+describe('leaving a channel', () => {
+    it('is out of the channel before the network answers', () => {
+        const {service, rtc} = setup();
+        // Never settles: stands in for the teardown and the leave request still being in flight.
+        rtc.closeAllTracks.mockReturnValue(new Promise<undefined>(() => {
+        }));
+
+        void service.leaveChannel();
+
+        expect(service.joinedChannelId()).toBeNull();
+        expect(service.joinedGuildId()).toBeNull();
+        expect(service.isInVoice()).toBe(false);
+    });
+
+    /** The half that must survive the reordering: the server still has to be told. */
+    it('still tears the transport down and tells the server', async () => {
+        const {service, guildVoice, rtc} = setup();
+
+        await service.leaveChannel();
+
+        expect(rtc.teardown).toHaveBeenCalled();
+        expect(guildVoice.leave).toHaveBeenCalledWith('guild-1', 'chan-1');
+    });
+
+    /**
+     * The cost of not waiting, and the one thing that has to be paid for it.
+     *
+     * <p>Leaving no longer holds the UI, so the next join can start while the last room is still
+     * being torn down - and `doLeave` ends in `rtc.teardown()`, which closes whatever peer connection
+     * it finds. Left unserialised, hanging up and immediately clicking another channel connects the
+     * new room and then tears it straight back down, for a call that looks joined and carries no
+     * media at all.</p>
+     */
+    it('does not connect the next channel over a teardown that is still running', async () => {
+        const {service, rtc} = setup();
+        let finishTeardown: () => void = () => void 0;
+        rtc.closeAllTracks.mockReturnValue(new Promise<undefined>(resolve => {
+            finishTeardown = () => resolve(undefined);
+        }));
+
+        void service.leaveChannel();
+        const joining = service.joinChannel(
+            {id: 'chan-2', guildId: 'guild-1', name: 'General', type: ChannelType.Voice} as ChannelDto,
+            'Guild',
+        );
+        await tick();
+
+        expect(rtc.connect).not.toHaveBeenCalled();
+
+        finishTeardown();
+        await joining;
+
+        expect(rtc.connect).toHaveBeenCalledWith('guild-1', 'chan-2');
+    });
+});
+
+/**
+ * The join in flight, as something the UI can see.
+ *
+ * <p>The guard was a private field, so the 1-2s between the click and the server admitting us was a
+ * lobby that looked idle: no spinner, a live-looking Join button, and nothing anywhere saying a join
+ * was happening. It also only refused a second join *of the same channel* - clicking a different one
+ * while the first was in flight started a second join concurrently, and the two then raced over one
+ * set of joined-state signals.</p>
+ */
+describe('a join in flight', () => {
+    const CHANNEL = {
+        id: 'chan-2', guildId: 'guild-1', name: 'General', type: ChannelType.Voice,
+    } as ChannelDto;
+    const OTHER = {
+        id: 'chan-3', guildId: 'guild-1', name: 'Gaming', type: ChannelType.Voice,
+    } as ChannelDto;
+
+    it('names the channel it is joining until the join settles', async () => {
+        const {service, guildVoice} = setup({inChannel: false});
+        const answer = new Subject<VoiceRoomSnapshot>();
+        guildVoice.join.mockReturnValue(answer);
+
+        const joining = service.joinChannel(CHANNEL, 'Guild');
+        expect(service.pendingJoinId()).toBe(CHANNEL.id);
+
+        answer.next(emptySnapshot(CHANNEL.id));
+        answer.complete();
+        await joining;
+
+        expect(service.pendingJoinId()).toBeNull();
+    });
+
+    it('clears the pending id when the join is refused', async () => {
+        const {service, guildVoice} = setup({inChannel: false});
+        guildVoice.join.mockReturnValue(throwError(() => new HttpErrorResponse({status: 500})));
+
+        await service.joinChannel(CHANNEL, 'Guild');
+
+        expect(service.pendingJoinId()).toBeNull();
+    });
+
+    it('refuses a second join whatever channel it is for', async () => {
+        const {service, guildVoice} = setup({inChannel: false});
+        guildVoice.join.mockReturnValue(new Subject<VoiceRoomSnapshot>());
+
+        void service.joinChannel(CHANNEL, 'Guild');
+        const second = await service.joinChannel(OTHER, 'Guild');
+
+        expect(second).toBe(false);
+        expect(guildVoice.join).toHaveBeenCalledTimes(1);
+    });
+});

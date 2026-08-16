@@ -153,6 +153,15 @@ export class ConversationComponent implements AfterViewInit {
             .map((m): MentionCandidate => ({kind: 'user', userId: m.userId, userName: m.cachedUserName}));
     });
     private callStateService = inject(CallStateService);
+    /**
+     * An answer sent and not confirmed yet, from either way into a call.
+     *
+     * <p>Both of them navigate here first and only then wait on the accept round trip, so without
+     * this the conversation had a second or two with no panel, no status and nothing at all between
+     * the click and the media coming up - which reads as a click that did not land.</p>
+     */
+    protected joiningCall = computed(() =>
+        this.callStateService.joiningConversationId() === this.conversation().id);
     protected isRinging = computed(() => {
         const out = this.callStateService.outgoingCall();
         return out?.conversationId === this.conversation().id ? out : null;
@@ -345,7 +354,7 @@ export class ConversationComponent implements AfterViewInit {
     }
 
     protected joinOngoingCall(callId: string): void {
-        this.callStateService.joinOngoing(callId);
+        this.callStateService.joinOngoing(callId, this.conversation().id);
     }
 
     /**

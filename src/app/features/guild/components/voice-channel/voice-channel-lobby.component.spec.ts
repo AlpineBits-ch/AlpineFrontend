@@ -29,7 +29,10 @@ function participant(overrides: Partial<VoiceChannelParticipant> = {}): VoiceCha
     };
 }
 
-function render(participants: VoiceChannelParticipant[]): ComponentFixture<VoiceChannelLobbyComponent> {
+function render(
+    participants: VoiceChannelParticipant[],
+    options: {joining?: boolean} = {},
+): ComponentFixture<VoiceChannelLobbyComponent> {
     TestBed.configureTestingModule({
         imports: [VoiceChannelLobbyComponent, TranslateModule.forRoot()],
         providers: [
@@ -40,6 +43,7 @@ function render(participants: VoiceChannelParticipant[]): ComponentFixture<Voice
     const fixture = TestBed.createComponent(VoiceChannelLobbyComponent);
     fixture.componentRef.setInput('channel', CHANNEL);
     fixture.componentRef.setInput('participants', participants);
+    fixture.componentRef.setInput('joining', options.joining ?? false);
     fixture.detectChanges();
     return fixture;
 }
@@ -47,6 +51,11 @@ function render(participants: VoiceChannelParticipant[]): ComponentFixture<Voice
 function joinAndWatchButton(fixture: ComponentFixture<VoiceChannelLobbyComponent>): HTMLButtonElement | null {
     return Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
         .find(b => b.textContent?.includes('CALL.JOIN_AND_WATCH')) ?? null;
+}
+
+function joinButton(fixture: ComponentFixture<VoiceChannelLobbyComponent>): HTMLButtonElement {
+    return Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
+        .find(b => b.textContent?.includes('CALL.JOIN_VOICE') || b.textContent?.includes('CALL.JOINING'))!;
 }
 
 describe('VoiceChannelLobbyComponent live state', () => {
@@ -98,5 +107,42 @@ describe('VoiceChannelLobbyComponent live state', () => {
         plainButton!.click();
 
         expect(plainJoined).toBe(true);
+    });
+});
+
+/**
+ * A join is a request plus a media handshake and routinely takes a second or two. The lobby used to
+ * look completely idle for the whole of it - a live Join button, no spinner, nothing saying anything
+ * was under way - which reads as a click that missed, so it gets clicked again.
+ */
+describe('VoiceChannelLobbyComponent while a join is in flight', () => {
+    it('says it is joining instead of offering to join', () => {
+        const fixture = render([participant()], {joining: true});
+
+        expect(fixture.nativeElement.textContent).toContain('CALL.JOINING');
+        expect(fixture.nativeElement.textContent).not.toContain('CALL.JOIN_VOICE');
+    });
+
+    it('stops the join button firing a second join', () => {
+        const fixture = render([participant()], {joining: true});
+        let joins = 0;
+        fixture.componentInstance.joinVoice.subscribe(() => joins++);
+
+        joinButton(fixture).click();
+
+        expect(joinButton(fixture).disabled).toBe(true);
+        expect(joins).toBe(0);
+    });
+
+    /** The second action goes down with the first: both end in the same single join. */
+    it('stops join-and-watch too', () => {
+        const fixture = render([participant({userId: 'user-2', isScreenSharing: true})], {joining: true});
+        let watched = 0;
+        fixture.componentInstance.joinAndWatch.subscribe(() => watched++);
+
+        joinAndWatchButton(fixture)!.click();
+
+        expect(joinAndWatchButton(fixture)!.disabled).toBe(true);
+        expect(watched).toBe(0);
     });
 });

@@ -13,6 +13,12 @@ import {AudioState} from '../audio-wait';
     selector: 'app-call-audio-status',
     changeDetection: ChangeDetectionStrategy.OnPush,
     imports: [TranslateModule],
+    // `ok` draws nothing, and an empty host is not nothing: it is still a flex item, so a parent
+    // laying its children out with `gap` pays the gap for a zero-height box. In the call layout's
+    // participants strip that was invisible padding on every remote entry and none of the local
+    // one, which is a height difference between two tiles that look identical. The class is what
+    // the `:host(.is-ok)` rule below collapses - see the styles.
+    host: {'[class.is-ok]': "state() === 'ok'"},
     template: `
         @switch (state()) {
             @case ('connecting') {
@@ -34,6 +40,12 @@ import {AudioState} from '../audio-wait';
     styles: `
         :host {
             display: inline-flex;
+        }
+
+        /* Nothing to show. Collapsed rather than left as an empty inline-flex box, so the host stops
+           counting as a laid-out child of whatever is placing it - see the is-ok host binding. */
+        :host(.is-ok) {
+            display: none;
         }
 
         .connecting-dots {

@@ -45,6 +45,15 @@ export class VoiceChannelItemComponent {
     protected isJoined = computed(() => this.voiceChannelSvc.joinedChannelId() === this.channel().id);
 
     /**
+     * A join for this channel is still in flight.
+     *
+     * <p>The row is the only part of the sidebar that is on screen for the whole of a join, so it
+     * carries the one mark that survives the user navigating somewhere else while it runs. Scoped to
+     * this channel: a join running for a different room is not something this row should claim.</p>
+     */
+    protected isJoining = computed(() => this.voiceChannelSvc.pendingJoinId() === this.channel().id);
+
+    /**
      * Whether the empty seat is showing under this channel's roster.
      *
      * <p>Read rather than decided: every rule about when it appears and when it goes lives in

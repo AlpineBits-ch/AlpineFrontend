@@ -45,12 +45,22 @@
     }
 
     <div class="flex items-center gap-3">
+        <!-- Both actions stand down together while a join is in flight: they end in the same single
+             join, and a room takes a second or two to admit you. Left looking idle, the button reads
+             as a click that missed and gets pressed again. -->
         <button
                 (click)="joinVoice.emit()"
-                class="call-focusable cursor-pointer rounded-xl border-0 bg-brand px-10 py-3 font-semibold text-white
-                       transition-colors hover:bg-brand-hover"
+                [disabled]="joining()"
+                class="call-focusable inline-flex cursor-pointer items-center gap-2 rounded-xl border-0 bg-brand
+                       px-10 py-3 font-semibold text-white transition-colors hover:bg-brand-hover
+                       disabled:cursor-default disabled:opacity-60 disabled:hover:bg-brand"
                 type="button">
-            {{ 'CALL.JOIN_VOICE' | translate }}
+            @if (joining()) {
+                <i aria-hidden="true" class="pi pi-spinner pi-spin text-sm"></i>
+                {{ 'CALL.JOINING' | translate }}
+            } @else {
+                {{ 'CALL.JOIN_VOICE' | translate }}
+            }
         </button>
 
         <!-- Only offered when someone is actually live - otherwise it is a second button that does
@@ -58,8 +68,10 @@
         @if (liveStreamer(); as streamer) {
             <button
                     (click)="joinAndWatch.emit(streamer.userId)"
+                    [disabled]="joining()"
                     class="call-focusable cursor-pointer rounded-xl border border-live/30 bg-live/10 px-10 py-3
-                           font-semibold text-live transition-colors hover:bg-live/15"
+                           font-semibold text-live transition-colors hover:bg-live/15
+                           disabled:cursor-default disabled:opacity-60 disabled:hover:bg-live/10"
                     type="button">
                 {{ 'CALL.JOIN_AND_WATCH' | translate }}
             </button>
