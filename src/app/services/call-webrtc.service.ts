@@ -980,6 +980,30 @@ export class CallWebRtcService {
      * camera on.</p>
      */
     private reconcileVideo(tracks: ReadonlyMap<string, RemoteMediaTrack>): void {
+        // **Only when this service is the one in the room.**
+        //
+        // `LiveKitRoomService` is a root singleton and so is this service, which is built at app
+        // bootstrap and lives for the whole session. Guild voice reconciles the same room through
+        // `VoiceRTCService`. So without this guard the effect above fires on *its* subscriptions
+        // too, finds a track whose name is in nobody's roster here - `wantedVideo` is empty, there
+        // is no call - and unsubscribes it.
+        //
+        // Measured: a guild camera arrived, the tile painted, and it was gone in the same tick.
+        //
+        //     [livekit] track arrived: camera ... mediaStreamTrack=true
+        //     [voice] streams rebuilt: video [user_3Gc...]
+        //     [livekit] track gone: camera (TR_VCMfdo4VQCU4Si)
+        //     [voice] streams rebuilt: video []
+        //
+        // From the guild side that is a black flash and then the camera-icon placeholder, with no
+        // error and nothing in its own logs, because the teardown is issued by a different service
+        // entirely. Every remote camera and screen share in a guild channel died this way.
+        //
+        // The guard is ownership, not emptiness: an empty `wantedVideo` during a live call still has
+        // to close what the roster dropped. `callId` is set the moment `connect` starts and cleared
+        // by `disconnect`, so it is exactly "this room is mine".
+        if (!this.callId) return;
+
         const held = new Map<string, RemoteMediaTrack>();
         for (const track of tracks.values()) held.set(track.publication.trackName, track);
 

@@ -217,10 +217,23 @@ export class LiveKitRoomService {
             publication,
         });
         this.remoteTracks.set(next);
+
+        // The moment a subscription becomes media, which is the one event that separates "the SFU
+        // took our subscribe" from "the SFU is sending". Asking for a track and receiving one are
+        // different things, and only this says the second happened.
+        console.info(
+            `[livekit] track arrived: ${publication.trackName} (${publication.kind}/${publication.source})`
+            + ` from ${participant.identity}, mediaStreamTrack=${!!publication.track?.mediaStreamTrack}`,
+        );
     }
 
     private forget(trackSid: string): void {
         if (!this.remoteTracks().has(trackSid)) return;
+        // The other end of `track arrived`. A picture that appears and then goes is either this or a
+        // rebuild that found nothing, and the two have completely different causes.
+        console.info(
+            `[livekit] track gone: ${this.remoteTracks().get(trackSid)?.publication.trackName} (${trackSid})`,
+        );
         const next = new Map(this.remoteTracks());
         next.delete(trackSid);
         this.remoteTracks.set(next);

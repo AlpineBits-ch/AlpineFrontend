@@ -510,6 +510,36 @@ describe('reconciling remote video', () => {
     });
 
     /**
+     * **Not this service's room, not this service's subscriptions.**
+     *
+     * <p>`LiveKitRoomService` is a root singleton and so is this service, which is constructed at app
+     * bootstrap and lives for the whole session. Guild voice reconciles that same room through
+     * `VoiceRTCService`. Without an ownership guard the effect that drives {@link reconcileVideo}
+     * fires on *its* subscriptions too, finds a track no roster here names - there is no call, so
+     * `wantedVideo` is empty - and unsubscribes it.</p>
+     *
+     * <p>That is what killed every remote camera and screen share in a guild channel. The track
+     * arrived, the tile painted, and it was gone in the same tick, with no error and nothing in the
+     * guild path's own logs because the teardown came from here.</p>
+     */
+    it('leaves the room alone when there is no call of its own', async () => {
+        const {livekit, remoteTracks, session} = setup();
+        await tick();
+        // No call: exactly the state this service sits in for most of an app's life.
+        session.set(null);
+        await tick();
+        livekit.setSubscribed.mockClear();
+
+        // Guild voice pulls a camera onto the shared room.
+        remoteTracks.set(new Map([
+            ['t9', remoteTrack({sid: 't9', name: 'camera', userId: 'them'})],
+        ]));
+        TestBed.tick();
+
+        expect(livekit.setSubscribed).not.toHaveBeenCalledWith('t9', false);
+    });
+
+    /**
      * On desktop the Rust room owns every audio track in the call, `screen-audio-*` included -
      * it is what feeds the mixer, and the per-stream mute and volume live there. A second transport
      * playing the same participant is double playout, and it is not muteable from any control the

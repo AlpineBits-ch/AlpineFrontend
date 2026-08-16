@@ -1082,6 +1082,14 @@ export class VoiceRTCService {
         // returns `false` and is dropped, and an intent nobody ever announced simply is not here. All
         // three look identical from the outside - a tile that stays empty - and none of them is an
         // error. This says which one happened.
+        // The mirror of the guard in `CallWebRtcService.reconcileVideo`, and it exists for the same
+        // reason: `LiveKitRoomService` is a root singleton shared with the DM call path, and the
+        // unsubscribe loop below closes any held track this roster does not name. Run while a call
+        // owns the room and it would tear that call's tiles down exactly as this service's own were
+        // being torn down. `voiceTarget` is set by `connect` and cleared by `teardown`, so it is
+        // precisely "this room is mine".
+        if (!this.voiceTarget) return;
+
         const resolved: string[] = [];
         const unresolved: string[] = [];
         const refused: string[] = [];
@@ -1095,20 +1103,32 @@ export class VoiceRTCService {
             if (this.livekit.setSubscribed(trackSid, true)) resolved.push(`${want.userId}/${trackName}`);
             else refused.push(`${want.userId}/${trackName}@${trackSid}`);
         }
+        const dropped: string[] = [];
         for (const track of this.livekit.remoteTracks().values()) {
             if (!this.wantedVideo.has(track.publication.trackName)) {
                 this.livekit.setSubscribed(track.trackSid, false);
+                dropped.push(`${track.userId}/${track.publication.trackName}`);
             }
         }
 
         // `wanted 0` is the roster never asking - look at the announcement, not at this room.
         // `unresolved` is the room not knowing the publication yet, which the reconcile on
         // `livekit.publications` is there to retry. `refused` is this room saying no.
+        // `held` is the discriminator once `pulling` is non-zero: subscribing is a request, and only
+        // a track arriving (`TrackSubscribed`) says the SFU answered it. Pulling with nothing held
+        // is the SFU accepting a subscribe and forwarding nothing - the same shape as the H.264
+        // payload-type fault, which looked healthy from every counter on this side.
+        const held = [...this.livekit.remoteTracks().values()]
+            .map(t => `${t.userId}/${t.publication.trackName}`);
         console.info(
             `[voice] video reconcile: wanted ${this.wantedVideo.size}`
             + `, pulling ${resolved.length}${resolved.length ? ` [${resolved.join(', ')}]` : ''}`
             + (unresolved.length ? `, no sid yet [${unresolved.join(', ')}]` : '')
-            + (refused.length ? `, refused [${refused.join(', ')}]` : ''),
+            + (refused.length ? `, refused [${refused.join(', ')}]` : '')
+            + `, held ${held.length}${held.length ? ` [${held.join(', ')}]` : ''}`
+            // A drop is this pass deciding a held track is no longer wanted. It is the one action
+            // here that takes a working picture away, so it is named rather than counted.
+            + (dropped.length ? `, DROPPED [${dropped.join(', ')}]` : ''),
         );
     }
 
@@ -1152,6 +1172,15 @@ export class VoiceRTCService {
 
         this.videoStreamsSignal.set(video);
         this.screenStreamsSignal.set(screen);
+
+        // What the tiles will actually render, after every rebuild. `isCameraOn` with no entry here
+        // is the camera-icon placeholder - the shape of "we were told they are on camera and we have
+        // no picture" - and this says whether the picture was never built or was built and taken
+        // away again.
+        console.info(
+            `[voice] streams rebuilt: video [${[...video.keys()].join(', ')}]`
+            + `, screen [${[...screen.keys()].join(', ')}]`,
+        );
     }
 
     // ── Local media controls ───────────────────────────────────────────────────
