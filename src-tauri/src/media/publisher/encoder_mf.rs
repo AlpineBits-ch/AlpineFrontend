@@ -1240,3 +1240,78 @@ mod probe {
     }
 
 }
+
+#[cfg(test)]
+mod ladder_diagnosis {
+    use super::*;
+    use crate::media::publisher::encoder::{EncodeOutcome, EncoderContent, EncoderSpec, VideoEncoder};
+    use image::RgbaImage;
+
+    /// The production ladder, verbatim from a real share:
+    /// `f=1920x1080@16000k h=960x540@5120k q=480x270@1600k`.
+    fn ladder() -> Vec<EncoderSpec> {
+        [(1920u32, 1080u32, 16_000u32), (960, 540, 5_120), (480, 270, 1_600)]
+            .into_iter()
+            .map(|(width, height, kbps)| EncoderSpec {
+                width,
+                height,
+                fps: 30,
+                kbps,
+                content: EncoderContent::Text,
+            })
+            .collect()
+    }
+
+    fn frame(width: u32, height: u32, shift: u32) -> RgbaImage {
+        RgbaImage::from_fn(width, height, |x, y| {
+            let v = (((x + shift) / 8 + y / 8) % 2) as u8;
+            image::Rgba([v * 255, (x % 256) as u8, (y % 256) as u8, 255])
+        })
+    }
+
+    /// Reports, per rung, whether the hardware encoder survives a run of frames.
+    ///
+    /// A *diagnosis*, not a guard: it prints and does not assert, because what it is here to answer
+    /// is which rung fails and after how many frames. `ResilientEncoder` swaps to software after
+    /// three consecutive failures, so in production the only symptom is one line per layer with no
+    /// indication of which frame, which geometry, or which error.
+    #[test]
+    #[ignore = "diagnostic: runs the real Media Foundation encoder"]
+    fn report_whether_the_production_ladder_survives() {
+        for spec in ladder() {
+            let Some(mut encoder) = PooledEncoder::acquire(spec) else {
+                println!(
+                    "LADDER {}x{}@{}k: no hardware encoder acquired at all",
+                    spec.width, spec.height, spec.kbps
+                );
+                continue;
+            };
+
+            let mut chunks = 0u32;
+            let mut first_failure: Option<u32> = None;
+            for i in 0..90u64 {
+                match encoder.encode(&frame(spec.width, spec.height, i as u32), i * 33_333) {
+                    EncodeOutcome::Chunk(_) => chunks += 1,
+                    // By design, not a fault - a pipelined encoder emits nothing for its first
+                    // frames, so counting these as failures is how a healthy stream gets swapped
+                    // out from under itself.
+                    EncodeOutcome::Skipped => {}
+                    EncodeOutcome::Failed => {
+                        first_failure.get_or_insert(i as u32);
+                    }
+                }
+            }
+
+            match first_failure {
+                None => println!(
+                    "LADDER {}x{}@{}k: OK, {chunks} chunks over 90 frames",
+                    spec.width, spec.height, spec.kbps
+                ),
+                Some(at) => println!(
+                    "LADDER {}x{}@{}k: FAILED first at frame {at}, {chunks} chunks produced",
+                    spec.width, spec.height, spec.kbps
+                ),
+            }
+        }
+    }
+}
