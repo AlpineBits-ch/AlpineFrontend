@@ -240,6 +240,7 @@ async function drainRetries(): Promise<void> {
  */
 describe('joining the room', () => {
     let connection: MockInstance;
+    let publish: MockInstance;
 
     /** Answers a different url and token per connection, so mixing the two is visible. */
     function twoConnections(): void {
@@ -252,6 +253,10 @@ describe('joining the room', () => {
     beforeEach(() => {
         const guildVoice = TestBed.inject(GuildVoiceService);
         connection = vi.spyOn(guildVoice, 'connection').mockReturnValue(of(connectionReply()));
+        // `connect` declares the microphone before it opens the view room, and an unmocked spy here
+        // is not a wrong assertion but a hang: the call reaches the real `HttpClient`, the testing
+        // backend holds the request unanswered, and the `await` inside `connect` never returns.
+        publish = vi.spyOn(guildVoice, 'publish').mockReturnValue(of(publishReply()));
         Object.assign(service as unknown as Record<string, unknown>, {
             voiceTarget: null, primaryConnection: null,
         });
@@ -267,6 +272,19 @@ describe('joining the room', () => {
         expect(connection).toHaveBeenNthCalledWith(1, 'g1', 'c1', true);
         expect(connection).toHaveBeenNthCalledWith(2, 'g1', 'c1', false, 'view');
         expect(connection).toHaveBeenCalledTimes(2);
+    });
+
+    /**
+     * Rust publishing the microphone to the SFU is what makes it audible, and is *all* it makes:
+     * until this call lands the server has no record of this participant publishing anything, and
+     * every other client gates on that. A publisher stuck at `Joined` has their screen shares
+     * skipped outright by the mobile client, which presents as a tile that stays black with no
+     * error anywhere. Untested is how it went missing in the first place.
+     */
+    it('declares the microphone once the engine is up', async () => {
+        await service.connect('g1', 'c1');
+
+        expect(publish).toHaveBeenCalledWith('g1', 'c1', {trackNames: ['audio']});
     });
 
     /** And they must not be crossed: the microphone gets the primary, the room gets the secondary. */
