@@ -86,6 +86,15 @@ export interface VoiceRoomSnapshot {
      * be refused.</p>
      */
     limits?: VoiceRoomLimitsDto;
+    /**
+     * What this client should be pulling, **nested**, and absent whenever no set is in force.
+     *
+     * <p>The optionality is the contract rather than tolerance for an old server: the snapshot omits
+     * the block entirely unless the plan is selective, and an absent block means "pull everyone
+     * `Publishing`" while a present one with no tracks means "pull nobody". Read it through
+     * {@link subscriptionSetOfSnapshot} - design §8.1, §8.3.</p>
+     */
+    subscriptions?: VoiceSubscriptionSet;
 }
 
 /**
@@ -97,7 +106,13 @@ export interface VoiceEventEnvelope {
     version?: number;
 }
 
-export type VoiceResyncReason = 'roomGone' | 'participantLeft' | 'peerPublishChanged';
+/**
+ * `participantsEvicted` is the SFU having dropped participants out from under the room - their
+ * publish state is wrong wholesale, so like the other three this is an instruction to refetch rather
+ * than something that can be applied as a delta.
+ */
+export type VoiceResyncReason =
+    'roomGone' | 'participantLeft' | 'peerPublishChanged' | 'participantsEvicted';
 
 /** "Refetch, you are behind." Never carries a delta. */
 export interface VoiceResyncEvent extends VoiceEventEnvelope {
@@ -283,6 +298,217 @@ export function describeTrack(trackName: string): VoiceTrackDescriptor {
     return {trackName, kind: 'video', shareId: null};
 }
 
+// ── Subscription sets ────────────────────────────────────────────────────────
+
+/**
+ * How the server chose what to serve this subscriber: `all` is every publisher in the room,
+ * `activeSpeaker` a ranked subset that moves as people talk.
+ *
+ * <p>Informational. What is actually pulled is {@link VoiceSubscriptionSet.tracks} and nothing else,
+ * which is why an unrecognised spelling here can safely fall back to `all` while an unrecognised
+ * `tracks` can fall back to nothing at all.</p>
+ */
+export type VoiceSubscriptionMode = 'all' | 'activeSpeaker';
+
+/**
+ * The server's **ranking** vocabulary - `a` top, `b` middle, `c` bottom - and not a rid.
+ *
+ * <p>We publish rids named `f`/`h`/`q`; the server never sees one and never matches one, mapping rid
+ * to quality through the `layers` list on the publish request. These letters are a separate
+ * vocabulary that happens to be spelled the same way the old Cloudflare rids were, for an unrelated
+ * reason. Map them onto `VideoQuality.HIGH`/`MEDIUM`/`LOW` - design §2.5, §6.1.</p>
+ */
+export type VoiceSubscriptionLayer = 'a' | 'b' | 'c';
+
+/** One track this client is told to hold open. */
+export interface VoiceSubscriptionTrack {
+    /**
+     * Who is publishing it. Sets are keyed by **user id**, never by LiveKit identity: there is no
+     * way to address one connection of a user and no need for one, so the client splits the list by
+     * {@link kind} and routes audio to the Rust room and video to the webview - design §6.2.
+     */
+    userId: string;
+    mediaSessionId: string | null;
+    trackName: string;
+    kind: VoiceTrackKind;
+    shareId: string | null;
+    /**
+     * Null on every audio entry unconditionally, and on video the server expresses no preference
+     * about. That unconditional null is what makes reporting tile state from the webview safe even
+     * though the same report governs audio: a collapsed tile stops paying for pixels, not sound.
+     */
+    layer: VoiceSubscriptionLayer | null;
+}
+
+/**
+ * What one subscriber should be pulling right now.
+ *
+ * <p>Reached only through {@link subscriptionSetOf} and its two entry points, and that is the point:
+ * the object exists <b>only</b> when a set is in force, so "no set" is the absence of the whole
+ * object rather than an empty {@link tracks}. Declaring `tracks: VoiceSubscriptionTrack[]` on a type
+ * that is always present would collapse the two and silently mute the room - design §8.3.</p>
+ */
+export interface VoiceSubscriptionSet {
+    mode: VoiceSubscriptionMode;
+    /**
+     * Monotonic per subscriber, and **unrelated to the room `version`**. Two server instances can
+     * announce out of order, so a set below one already applied is discarded - see
+     * {@link subscriptionSetSupersedes}.
+     */
+    revision: number;
+    activeSpeakers: string[];
+    /**
+     * Exactly what to pull - no more, and no less. An empty array here is a real instruction:
+     * <i>pull nobody</i>, which is what every tile being collapsed looks like.
+     */
+    tracks: VoiceSubscriptionTrack[];
+}
+
+/**
+ * `guild.voice.SubscriptionsChanged` / `call.SubscriptionsChanged`, which is **flat**.
+ *
+ * <p>The announcer puts the four inner fields straight onto the room-id/`instanceId`/`version`
+ * envelope; there is no `subscriptions` key on the event, and the guide's event table saying
+ * otherwise was wrong (design §8.1). Read it through {@link subscriptionSetOfEvent}, never through
+ * {@link subscriptionSetOfSnapshot} - the wrong reach finds no `tracks` and means the opposite of
+ * what arrived.</p>
+ */
+export interface VoiceSubscriptionsChangedEvent extends VoiceEventEnvelope {
+    /** Set on a guild channel event. */
+    channelId?: string;
+    /** Set on a direct call event. */
+    callId?: string;
+    mode?: VoiceSubscriptionMode;
+    revision?: number;
+    activeSpeakers?: string[];
+    /** Absent or null means no set is in force. `[]` means a real set that pulls nobody. */
+    tracks?: VoiceSubscriptionTrack[] | null;
+}
+
+const SUBSCRIPTION_LAYERS: readonly string[] = ['a', 'b', 'c'];
+const TRACK_KINDS: readonly string[] = ['audio', 'video', 'screen', 'screenAudio'];
+
+/**
+ * Read a subscription set out of the inner fields, wherever they were found.
+ *
+ * <p>Three surfaces carry the same four fields: the snapshot nests them under `subscriptions`, the
+ * `SubscriptionsChanged` event flattens them onto the envelope, and `POST .../voice/subscriptions`
+ * answers them as a bare `200` body. This is the one parser under all three; the two nesting shapes
+ * are {@link subscriptionSetOfSnapshot} and {@link subscriptionSetOfEvent}.</p>
+ *
+ * <p><b>Null means "no set is in force", and is not the same answer as an empty set.</b> Design §8.3:
+ * `tracks` absent or null means pull everyone `Publishing`, `tracks: []` means pull nobody. The
+ * server shipped the second where it meant the first - a well-formed object with an empty array, in
+ * every unplanned room, on every call - so a guard of "absent or non-object means leave the held set
+ * alone" would not have saved anyone. Returning `null` rather than a set with no tracks is what keeps
+ * the two readings apart past the parser, in the type and not only here.</p>
+ */
+export function subscriptionSetOf(raw: unknown): VoiceSubscriptionSet | null {
+    if (raw === null || typeof raw !== 'object') return null;
+
+    const block = raw as {
+        mode?: unknown; revision?: unknown; activeSpeakers?: unknown; tracks?: unknown;
+    };
+
+    // The whole distinction, in one branch. Absent or null is "no set"; `[]` falls through as a set.
+    if (!Array.isArray(block.tracks)) return null;
+
+    return {
+        mode: block.mode === 'activeSpeaker' ? 'activeSpeaker' : 'all',
+        revision: typeof block.revision === 'number' ? block.revision : 0,
+        activeSpeakers: Array.isArray(block.activeSpeakers)
+            ? block.activeSpeakers.filter((id): id is string => typeof id === 'string')
+            : [],
+        tracks: block.tracks
+            .map(subscriptionTrackOf)
+            .filter((track): track is VoiceSubscriptionTrack => track !== null),
+    };
+}
+
+/**
+ * Whether an arriving set replaces the one already applied.
+ *
+ * <p>`revision` is the set's own counter and is **unrelated to the room `version`** - it does not
+ * move when someone joins, and the room version does not move when a tile collapses. Two server
+ * instances can announce a plan change at once, so a set below one already applied is a late
+ * message and is dropped: applying it would resubscribe exactly what the newer one closed, and
+ * nothing would correct it until the next change.</p>
+ *
+ * <p>Equality applies, for the same reason it does in {@link VoiceRoomTracker}: one plan change
+ * reaches this client on more than one surface - the reply to `POST .../voice/subscriptions` and the
+ * `SubscriptionsChanged` event - carrying one revision. A set is absolute rather than a delta, so
+ * applying it twice is a no-op, while discarding the second costs a real change whenever the two
+ * disagree.</p>
+ */
+export function subscriptionSetSupersedes(
+    arriving: VoiceSubscriptionSet,
+    held: {revision: number} | null,
+): boolean {
+    if (held === null) return true;
+    return arriving.revision >= held.revision;
+}
+
+/**
+ * The set a snapshot carries, which is **nested** under `subscriptions`.
+ *
+ * <p>Null when no set is in force, which on this surface is the whole key being absent. Takes
+ * `unknown` rather than {@link VoiceRoomSnapshot} on purpose: it is reading the wire, and the thing
+ * it most has to survive is being handed the wrong shape.</p>
+ */
+export function subscriptionSetOfSnapshot(snapshot: unknown): VoiceSubscriptionSet | null {
+    if (snapshot === null || typeof snapshot !== 'object') return null;
+    return subscriptionSetOf((snapshot as {subscriptions?: unknown}).subscriptions);
+}
+
+/**
+ * The set a `SubscriptionsChanged` event carries, which is **flattened onto the envelope**.
+ *
+ * <p>The envelope's own `channelId`/`callId`/`instanceId`/`version` sit alongside the four inner
+ * fields and are simply ignored here; the event's version is handled by
+ * {@link VoiceRoomTracker.receiveRelay}, not by the set.</p>
+ */
+export function subscriptionSetOfEvent(event: unknown): VoiceSubscriptionSet | null {
+    return subscriptionSetOf(event);
+}
+
+/**
+ * One entry of `tracks[]`, or null for one that cannot be acted on.
+ *
+ * <p>`kind` and `shareId` are taken from the wire when they are spelled in a way this client knows,
+ * and derived from the name with {@link describeTrack} otherwise - the name is the only thing the
+ * SFU stores, and `describeTrack` mirrors the server's own `TrackNaming.Describe`, so the two agree
+ * by construction. An entry naming no track or no publisher is dropped rather than kept, because it
+ * can never be pulled and would otherwise sit in the diff being re-attempted forever.</p>
+ */
+function subscriptionTrackOf(raw: unknown): VoiceSubscriptionTrack | null {
+    if (raw === null || typeof raw !== 'object') return null;
+
+    const entry = raw as {
+        userId?: unknown; mediaSessionId?: unknown; trackName?: unknown;
+        kind?: unknown; shareId?: unknown; layer?: unknown;
+    };
+    const {userId, trackName} = entry;
+    if (typeof userId !== 'string' || userId === '') return null;
+    if (typeof trackName !== 'string' || trackName === '') return null;
+
+    const described = describeTrack(trackName);
+    const kind = typeof entry.kind === 'string' && TRACK_KINDS.includes(entry.kind)
+        ? entry.kind as VoiceTrackKind
+        : described.kind;
+    const layer = typeof entry.layer === 'string' && SUBSCRIPTION_LAYERS.includes(entry.layer)
+        ? entry.layer as VoiceSubscriptionLayer
+        : null;
+
+    return {
+        userId,
+        mediaSessionId: typeof entry.mediaSessionId === 'string' ? entry.mediaSessionId : null,
+        trackName,
+        kind,
+        shareId: typeof entry.shareId === 'string' ? entry.shareId : described.shareId,
+        layer,
+    };
+}
+
 // ── Version tracking ─────────────────────────────────────────────────────────
 
 /**
@@ -344,9 +570,10 @@ export class VoiceRoomTracker {
     /**
      * Classify a *relay* event - one the server does not store and does not bump the version for.
      *
-     * <p>`SpeakingChanged` and `CameraChanged` are pure relays: the server loads the room rather
-     * than mutating it, so they arrive carrying whatever version is current. That makes them
-     * useless as evidence of sequence, and actively dangerous as evidence of *progress*.</p>
+     * <p>`SpeakingChanged`, `CameraChanged` and `SubscriptionsChanged` are pure relays: the server
+     * loads the room rather than mutating it, so they arrive carrying whatever version is current.
+     * That makes them useless as evidence of sequence, and actively dangerous as evidence of
+     * *progress*.</p>
      *
      * <p>The failure it prevents: we hold v5, someone publishes (v6) and we miss it, then a
      * speaking relay arrives carrying v6. Advanced through {@link receive}, that reads as the next
@@ -358,6 +585,12 @@ export class VoiceRoomTracker {
      * deliberate rather than a gap in coverage: speaking is written ten times a second, and putting
      * the recovery path behind it means a room we cannot resynchronise refetches at that rate.
      * Every other event detects the same gap at a sane one.</p>
+     *
+     * <p>`SubscriptionsChanged` is on this list for both halves of that reasoning. The subscription
+     * set is recomputed from the room rather than stored on it, and it turns over as fast as people
+     * take turns talking - so versioning it would make every sentence look like a missed roster
+     * change, and advancing on it would let a plan recomputation stand in for a publish we never
+     * saw. What ordering the set does need is its own: {@link subscriptionSetSupersedes}.</p>
      */
     receiveRelay(event: VoiceEventEnvelope): VoiceEventDecision {
         const {instanceId} = event;
