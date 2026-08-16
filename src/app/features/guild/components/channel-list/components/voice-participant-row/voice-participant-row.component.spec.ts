@@ -46,6 +46,43 @@ function watchButton(fixture: ComponentFixture<VoiceParticipantRowComponent>): H
     return fixture.nativeElement.querySelector('button');
 }
 
+function cameraIcon(fixture: ComponentFixture<VoiceParticipantRowComponent>): HTMLElement | null {
+    return fixture.nativeElement.querySelector('[data-testid="voice-participant-camera"]');
+}
+
+/**
+ * A camera is the one thing a row could not say. Screen share has the LIVE badge and the mic has
+ * its slash, so "on camera" was the only broadcast state you had to open the channel to discover.
+ */
+describe('VoiceParticipantRowComponent camera indicator', () => {
+    it('shows nothing for a participant whose camera is off', () => {
+        const fixture = render(participant({isCameraOn: false}));
+
+        expect(cameraIcon(fixture)).toBeNull();
+    });
+
+    it('marks a participant who is on camera, with an accessible name', () => {
+        const fixture = render(participant({isCameraOn: true}));
+
+        expect(cameraIcon(fixture)?.getAttribute('aria-label')).toBe('CALL.CAMERA_ON');
+    });
+
+    /** Camera and screen share are independent - somebody doing both gets both marks. */
+    it('sits alongside the watch badge when they are also sharing a screen', () => {
+        const fixture = render(participant({isCameraOn: true, isScreenSharing: true}));
+
+        expect(cameraIcon(fixture)).not.toBeNull();
+        expect(watchButton(fixture)).not.toBeNull();
+    });
+
+    /** Status, not a control: clicking it must not join the channel behind the row. */
+    it('is not a button', () => {
+        const fixture = render(participant({isCameraOn: true}));
+
+        expect(cameraIcon(fixture)?.tagName).not.toBe('BUTTON');
+    });
+});
+
 describe('VoiceParticipantRowComponent watch badge', () => {
     it('renders no watch button for a participant who is not sharing', () => {
         const fixture = render(participant({isScreenSharing: false}));

@@ -15,6 +15,19 @@
           class="chan-label">
         {{ p.displayName }}
     </span>
+    @if (p.isCameraOn) {
+        <!-- Status, not a control, which is the difference between a face and a desktop: a screen
+             share can be watched without joining, so its badge is a button, while a camera is
+             something you see by opening the channel this row already opens. Its own mark rather
+             than a branch of the chain below - camera, screen share and mute are three independent
+             facts and somebody doing all three is ordinary. -->
+        <span [attr.aria-label]="'CALL.CAMERA_ON' | translate"
+              [title]="'CALL.CAMERA_ON' | translate"
+              data-testid="voice-participant-camera"
+              class="flex shrink-0 items-center text-[0.625rem] text-live">
+            <i class="pi pi-video"></i>
+        </span>
+    }
     @if (p.isScreenSharing) {
         <!-- A real button, not a clickable span: it needs its own accessible name and to stop the
              click before it reaches the row, so watching a stream never also opens/joins it. -->

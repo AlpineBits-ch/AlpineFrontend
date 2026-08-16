@@ -121,7 +121,12 @@ function setup(options: {inChannel?: boolean} = {}) {
             {provide: VoiceRTCService, useValue: rtc},
             {
                 provide: ProfileService,
-                useValue: {ownProfile: () => ({userId: 'me'}), getCachedByUserId: () => null},
+                useValue: {
+                    ownProfile: () => ({userId: 'me'}),
+                    getCachedByUserId: () => null,
+                    // The roster asks for every id it cannot name - see `channelParticipants`.
+                    resolveByUserId: vi.fn(),
+                },
             },
             {
                 provide: SoundSettingsService,
@@ -696,6 +701,53 @@ describe('screen share backfill from the snapshot', () => {
 
         expect(rtc.subscribeVideo).toHaveBeenCalledWith(
             'guild-1', 'chan-1', 'them', 'cf-camera-them', 'camera', 'video');
+    });
+
+    /**
+     * The roster half of the same fix. `isCameraOn` was seeded false out of every snapshot because
+     * camera state genuinely was not in one - it is now, and the sidebar draws a camera mark from
+     * it, so a snapshot that leaves the flag false hides a camera that has been on all along.
+     */
+    it('marks a camera the snapshot reports as on', async () => {
+        const {service, ws} = setup();
+
+        ws['voiceSnapshotObservable'].next({
+            ...emptySnapshot('chan-1'),
+            participants: [publisher('them', {
+                videoTracks: [{trackName: 'camera', mediaSessionId: 'cf-camera-them'}],
+            })],
+        });
+        await tick();
+
+        expect(service.channelParticipants().get('chan-1')
+            ?.find(p => p.userId === 'them')?.isCameraOn).toBe(true);
+    });
+
+    /** They are on camera whether or not we can pull it - the mark is about them, not about us. */
+    it('marks a camera whose publishing session was never recorded', async () => {
+        const {service, ws} = setup();
+
+        ws['voiceSnapshotObservable'].next({
+            ...emptySnapshot('chan-1'),
+            participants: [publisher('them', {videoTracks: [{trackName: 'camera', mediaSessionId: null}]})],
+        });
+        await tick();
+
+        expect(service.channelParticipants().get('chan-1')
+            ?.find(p => p.userId === 'them')?.isCameraOn).toBe(true);
+    });
+
+    it('leaves the camera mark off when the snapshot reports no video', async () => {
+        const {service, ws} = setup();
+
+        ws['voiceSnapshotObservable'].next({
+            ...emptySnapshot('chan-1'),
+            participants: [publisher('them')],
+        });
+        await tick();
+
+        expect(service.channelParticipants().get('chan-1')
+            ?.find(p => p.userId === 'them')?.isCameraOn).toBe(false);
     });
 
     /**

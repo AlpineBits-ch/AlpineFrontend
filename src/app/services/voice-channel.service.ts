@@ -5,6 +5,7 @@ import {describeEntitlementDenial} from '../core/entitlement-message';
 import {ChannelDto, ChannelType} from '../dtos/response/guild.dto';
 import {VoiceLimitsService} from './voice-limits.service';
 import {ProfileService} from './profile.service';
+import {ProfileDto} from '../dtos/response/profile.dto';
 import {GuildVoiceService} from './guild-voice.service';
 import {
     GuildWebsocketService,
@@ -128,6 +129,9 @@ export class VoiceChannelService {
     private toast = inject(ToastService);
     private translate = inject(TranslateService);
     private channelParticipantsSignal = signal<Map<string, VoiceChannelParticipant[]>>(new Map());
+    /** See {@link nameFromCache}. Weak, so a roster entry that drops out is not held alive by it. */
+    private readonly namedParticipants =
+        new WeakMap<VoiceChannelParticipant, {profile: ProfileDto; named: VoiceChannelParticipant}>();
 
     /**
      * Users whose screen track has closed and whose picture is still expected back.
@@ -153,7 +157,68 @@ export class VoiceChannelService {
             this.patchParticipant(channelId, userId, p => ({...p, isScreenSharing: false}));
         }
     });
-    readonly channelParticipants = this.channelParticipantsSignal.asReadonly();
+    /**
+     * The roster, named from the profile cache as it stands right now.
+     *
+     * <p><b>A roster entry carries no name of its own, and that is the point.</b> Each entry used to
+     * be stamped with `profile?.userName ?? userId` at the moment it was built - from a snapshot at
+     * launch, from a join event, from our own seat - and a stamp taken before any profile has been
+     * fetched is the user id. Nothing rewrote it afterwards, so a client started while people were
+     * already sitting in a voice channel listed raw ids until something happened to rebuild the
+     * roster from scratch. The same held for our own seat surviving a force quit, which is in the
+     * roster before `/profiles/me` has answered.</p>
+     *
+     * <p>So the cache is consulted at read time instead, which is the pattern the avatar and the
+     * message header already use (see {@link ProfileService.resolveById}): the entry holds the
+     * fallback, this holds the answer, and a profile landing - or a rename - repaints on its own.
+     * The fetch is asked for where an id first enters the roster, not from here: a computed must not
+     * have side effects.</p>
+     *
+     * <p>Unchanged entries are handed back by identity, and an unchanged map by identity too. The
+     * sidebar, the status bar and the call stage all hold computeds over this, and rebuilding every
+     * row whenever any one profile arrives is exactly the storm {@link ProfileService} documents.</p>
+     */
+    readonly channelParticipants = computed(() => {
+        const roster = this.channelParticipantsSignal();
+        let mapChanged = false;
+        const next = new Map<string, VoiceChannelParticipant[]>();
+
+        for (const [channelId, list] of roster) {
+            const named = list.map(p => this.nameFromCache(p));
+            const listChanged = named.some((n, i) => n !== list[i]);
+            if (listChanged) mapChanged = true;
+            next.set(channelId, listChanged ? named : list);
+        }
+
+        return mapChanged ? next : roster;
+    });
+
+    /**
+     * The named form of one roster entry, memoised against the entry and the profile it was built
+     * from.
+     *
+     * <p>Pure memoisation, not state: the answer for a given (entry, profile) pair is always the
+     * same object, which is what stops a profile landing for one user from handing every other row
+     * in the room a new identity. Both keys are replaced rather than mutated - a roster entry by
+     * `patchParticipant`, a profile by `ProfileService.store` - so identity is a sound staleness
+     * test for either.</p>
+     */
+    private nameFromCache(p: VoiceChannelParticipant): VoiceChannelParticipant {
+        const profile = this.profileService.getCachedByUserId(p.userId);
+        if (!profile?.userName) return p;
+
+        const memo = this.namedParticipants.get(p);
+        if (memo?.profile === profile) return memo.named;
+
+        const named: VoiceChannelParticipant = {
+            ...p,
+            displayName: profile.userName,
+            avatarLabel: profile.userName[0].toUpperCase(),
+            avatarUrl: profile.avatarUrl,
+        };
+        this.namedParticipants.set(p, {profile, named});
+        return named;
+    }
 
     // ── Sidebar voice state cache ──────────────────────────────────────────────
     private lastLoadedGuildId: string | null = null;
@@ -953,12 +1018,12 @@ export class VoiceChannelService {
 
         if (e.channelId === this.joinedChannelId()) this.soundSettings.playVoiceJoin();
 
-        const profile = this.profileService.getCachedByUserId(e.userId);
+        // Named by {@link channelParticipants} once the profile lands, not here.
+        this.profileService.resolveByUserId(e.userId);
         const participant: VoiceChannelParticipant = {
             userId: e.userId,
-            displayName: profile?.userName ?? e.userId,
-            avatarLabel: (profile?.userName?.[0] ?? '?').toUpperCase(),
-            avatarUrl: profile?.avatarUrl,
+            displayName: e.userId,
+            avatarLabel: '?',
             isMuted: false,
             isSpeaking: false,
             isCameraOn: false,
@@ -1173,20 +1238,24 @@ export class VoiceChannelService {
      * The snapshot's participant shape, which carries strictly more than {@link VoiceParticipantDto}
      * - the media handles, the publish state, and the live shares.
      *
-     * <p>`isCameraOn` is still seeded false, and that is not an oversight: camera state is relayed
-     * rather than stored server-side, so it is genuinely absent from the snapshot. It arrives on the
-     * next `CameraChanged`, or when the camera track is subscribed to.</p>
+     * <p>`isCameraOn` is seeded from `videoTracks`, which is the same recovery the subscribe loop
+     * makes below. It used to be seeded false with a note that camera state was genuinely absent
+     * from a snapshot - true when that note was written, and no longer: a roster built at launch
+     * left every camera unmarked until its owner happened to toggle it, which is a `CameraChanged`
+     * that may never come. A track with no session still counts. They are on camera whether or not
+     * this client can pull it.</p>
      */
     private snapshotToParticipant(p: VoiceParticipantSnapshot, ownId: string): VoiceChannelParticipant {
-        const profile = this.profileService.getCachedByUserId(p.userId);
+        this.profileService.resolveByUserId(p.userId);
         return {
             userId: p.userId,
-            displayName: profile?.userName ?? p.userId,
-            avatarLabel: (profile?.userName?.[0] ?? '?').toUpperCase(),
-            avatarUrl: profile?.avatarUrl,
+            // The id, deliberately: naming belongs to {@link channelParticipants}, which reads the
+            // profile cache live. See that computed for why an entry must never hold a name.
+            displayName: p.userId,
+            avatarLabel: '?',
             isMuted: p.isSelfMuted || p.isServerMuted,
             isSpeaking: false,
-            isCameraOn: false,
+            isCameraOn: (p.videoTracks?.length ?? 0) > 0,
             isScreenSharing: p.isStreaming,
             isServerDeafened: p.isServerDeafened,
             isLocal: p.userId === ownId,
@@ -1207,13 +1276,14 @@ export class VoiceChannelService {
             const list = map.get(channelId) ?? [];
             if (list.some(p => p.isLocal)) return map;
 
-            const profile = this.profileService.ownProfile();
             const n = new Map(map);
             n.set(channelId, [{
                 userId: ownId,
-                displayName: profile?.userName ?? 'You',
-                avatarLabel: (profile?.userName?.[0] ?? 'Y').toUpperCase(),
-                avatarUrl: profile?.avatarUrl,
+                // Replaced with our own name by {@link channelParticipants} - every write of
+                // `ownProfile` also stores it in the by-user cache, so this stands only in the
+                // window before `/profiles/me` has answered at all.
+                displayName: 'You',
+                avatarLabel: 'Y',
                 // Seeded, not assumed false: arriving muted and rendering yourself live is the one
                 // state where the room and the roster disagree about the same fact.
                 isMuted: this.localState().isMuted,

@@ -158,7 +158,12 @@ function setup() {
             {provide: VoiceRTCService, useValue: rtc},
             {
                 provide: ProfileService,
-                useValue: {ownProfile: () => ({userId: 'me'}), getCachedByUserId: () => null},
+                useValue: {
+                    ownProfile: () => ({userId: 'me'}),
+                    getCachedByUserId: () => null,
+                    // The roster asks for every id it cannot name - see `channelParticipants`.
+                    resolveByUserId: vi.fn(),
+                },
             },
             {
                 provide: SoundSettingsService,
