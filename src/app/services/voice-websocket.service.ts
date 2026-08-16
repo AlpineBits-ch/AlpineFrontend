@@ -106,10 +106,28 @@ export interface WsCallEnded {
 // The server now tells this client which *device* an action came from, so a second device of the
 // same user can stop ringing without the call ending for anyone.
 
-/** Some device of ours accepted the call - every other ringing device should stop. */
+/**
+ * Somebody answered.
+ *
+ * <p>Broadcast to every participant's every session, so it is two things at once: "another of your
+ * devices took this, stop ringing" for the callee's other devices, and "they picked up, stop the
+ * ringback" for the caller. The caller must not wait for `call.ParticipantJoined` instead - that is
+ * a media-plane event, sent once, only to people already in the voice room, and only when the
+ * answering client publishes a microphone.</p>
+ *
+ * <p>Unlike the voice-room events this carries no `instanceId`/`version` - it is call lifecycle,
+ * not a room delta, so it must not be version-gated.</p>
+ */
 export interface WsCallAccepted {
     callId: string;
-    deviceId: string;
+    /** Who answered. */
+    userId?: string;
+    /** Which of their devices, when the server could place it - absent for a client that sent no
+     *  `X-Device-Id`, because the placeholder id is a bucket shared by all of them. */
+    deviceId?: string;
+    /** The whole call, so a client can see who is connected without a round trip. Its own id field
+     *  is `id`; read the top-level {@link callId}. */
+    call?: CallDto;
 }
 
 /** This device's ring was dismissed because another of ours dealt with the call. */

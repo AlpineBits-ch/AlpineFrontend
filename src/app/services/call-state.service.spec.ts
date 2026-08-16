@@ -103,10 +103,19 @@ function setup(options: SetupOptions = {}) {
     return {service, ws, callSession, toast, voiceService, connectionState};
 }
 
+// The payload here is the real one. It used to be `{callId, deviceId}` - a shape the server has
+// never sent - which is why these passed while the ring carried on in production: the server sends
+// `{callId, userId, deviceId, call}`, and before that it sent the bare `Call`, whose id field is
+// `id`, so `callId` read as undefined and matched no call at all.
 it('stops ringing when another of my devices accepts', () => {
     const {service, ws} = setup();
 
-    ws.callAcceptedObservable.next({callId: 'call-1', deviceId: 'other'});
+    ws.callAcceptedObservable.next({
+        callId: 'call-1',
+        userId: 'me',
+        deviceId: 'other',
+        call: {id: 'call-1', conversationId: 'conv-1'},
+    });
 
     expect(service.incomingCall()).toBeNull();
 });
@@ -122,7 +131,12 @@ it('stops ringing when the server dismisses this device', () => {
 it('ignores events for a different call', () => {
     const {service, ws} = setup();
 
-    ws.callAcceptedObservable.next({callId: 'some-other-call', deviceId: 'other'});
+    ws.callAcceptedObservable.next({
+        callId: 'some-other-call',
+        userId: 'me',
+        deviceId: 'other',
+        call: {id: 'some-other-call', conversationId: 'conv-1'},
+    });
 
     expect(service.incomingCall()).not.toBeNull();
 });
@@ -303,6 +317,58 @@ it('ignores a decline for someone else\'s call', () => {
     service.startCall('conv-1', ['callee'], 'Alice', 'A');
 
     ws.callDeclinedObservable.next({...OUTGOING_CALL, id: 'a-different-call', status: 'Rejected'});
+
+    expect(service.outgoingCall()).not.toBeNull();
+
+    service.cancelOutgoing();
+});
+
+// ── The callee saying yes ────────────────────────────────────────────────────
+//
+// The outgoing ring used to end only on `call.ParticipantJoined`, which is a media-plane event: it
+// fires when the answering client publishes a microphone, is addressed only to people already in
+// the voice room, and is never repeated. The caller is not in that room until their own Rust
+// publisher opens a primary session seconds after the call is placed, so a callee who answers
+// quickly - a phone off a VoIP push - publishes into a room the caller is not in yet, and the
+// caller is never told. Audio still recovers, because the snapshot backfill repairs it; the
+// ringback cannot, because that backfill writes into CallSessionService and never reaches the
+// observable this race listens to. `call.CallAccepted` is the answer itself and needs none of that.
+
+/** `call.CallAccepted` as the server actually sends it - see CallAcceptedHandler. */
+const ACCEPTED = {
+    callId: 'call-out',
+    userId: 'callee',
+    deviceId: 'phone-1',
+    call: {...OUTGOING_CALL, status: 'Connected'},
+};
+
+it('stops the outgoing ring when the callee answers, without waiting for their audio', () => {
+    const {service, ws} = setup({ringing: false});
+    service.startCall('conv-1', ['callee'], 'Alice', 'A');
+    expect(service.outgoingCall()).not.toBeNull();
+
+    ws.callAcceptedObservable.next(ACCEPTED);
+
+    expect(service.outgoingCall()).toBeNull();
+});
+
+it('leaves the call running when the callee answers', () => {
+    // Answering is the opposite of declining: nothing is torn down and nothing is announced.
+    const {service, ws, callSession, toast} = setup({ringing: false});
+    service.startCall('conv-1', ['callee'], 'Alice', 'A');
+
+    ws.callAcceptedObservable.next(ACCEPTED);
+
+    expect(callSession.end).not.toHaveBeenCalled();
+    expect(toast.info).not.toHaveBeenCalled();
+    expect(service.outgoingCall()).toBeNull();
+});
+
+it('ignores an accept for someone else\'s call', () => {
+    const {service, ws} = setup({ringing: false});
+    service.startCall('conv-1', ['callee'], 'Alice', 'A');
+
+    ws.callAcceptedObservable.next({...ACCEPTED, callId: 'a-different-call'});
 
     expect(service.outgoingCall()).not.toBeNull();
 

@@ -141,6 +141,24 @@ export class CallStateService implements OnDestroy {
                 // The outgoing overlay stays visible on top until the callee accepts/declines.
                 this.callSession.join(callDto, conversationId);
                 this.pendingCallSub = race(
+                    // The answer itself, and the only arm that does not depend on the media plane.
+                    //
+                    // `ParticipantJoined` below is what this used to rely on alone, and it is a
+                    // poor proxy for "they picked up": the server raises it once, when the
+                    // answering client publishes a microphone, addressed only to people already in
+                    // the voice room. This client is not in that room until its own Rust publisher
+                    // opens a primary session, seconds after the call is placed - `POST /call` does
+                    // not admit anyone, and the webview's own session is secondary. A callee who
+                    // answers inside that window publishes into a room we are not in, and nothing
+                    // repeats the announcement. Audio still recovers, because the snapshot backfill
+                    // repairs it; the ringback could not, because that backfill writes straight
+                    // into CallSessionService and never reaches this observable. That is the
+                    // "answered on the phone, desktop rings forever" bug.
+                    this.ws.callAcceptedObservable.pipe(
+                        filter(e => e.callId === callDto.id),
+                        first(),
+                        map(() => 'accepted' as const),
+                    ),
                     this.ws.participantJoinedObservable.pipe(first(), map(() => 'joined' as const)),
                     this.ws.callEndedObservable.pipe(first(), map(() => 'ended' as const)),
                     // The other side saying no. Filtered rather than taken outright: a decline in a
