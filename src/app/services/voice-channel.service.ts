@@ -440,6 +440,22 @@ export class VoiceChannelService {
                     }
                 }
             }
+
+            // Cameras, which until this existed were the one track kind with no recovery path at
+            // all: announced once on `TrackPublished` and absent from every snapshot, so a viewer
+            // who missed that single event - by arriving late, resyncing, or reconnecting - had a
+            // black tile for the rest of the session. See `VoiceParticipantSnapshot.videoTracks`.
+            //
+            // `'video'`, never `'screen'`. The kind decides the layout and what the room is asked
+            // for, so routing a camera through the loop above would pull the track and then render
+            // it as somebody's desktop.
+            for (const video of p.videoTracks ?? []) {
+                // Its own session, and a null is not an invitation to fall back on the microphone's
+                // - the same rule, for the same reason, as the share above.
+                if (!video.mediaSessionId) continue;
+                void this.rtc.subscribeVideo(
+                    guildId, channelId, p.userId, video.mediaSessionId, video.trackName, 'video');
+            }
         }
     }
 

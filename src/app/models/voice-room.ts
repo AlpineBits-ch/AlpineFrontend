@@ -58,7 +58,36 @@ export interface VoiceParticipantSnapshot {
     isServerDeafened: boolean;
     isStreaming: boolean;
     shares: VoiceShareSnapshot[];
+    /**
+     * Published video that is not part of a screen share - in practice a camera.
+     *
+     * <p><b>The recovery path for the one track kind that never had one.</b> A camera used to live
+     * in the `TrackPublished` event and nowhere else: the server recorded it and fed it to the
+     * subscription planner and the usage meter, but the snapshot projected only the microphone and
+     * {@link shares}. So every other missed announcement was repairable and a missed camera was not,
+     * and a viewer who joined after a camera was already on - or resynced, or reconnected - had a
+     * black tile for as long as they stayed, with nothing anywhere reporting a failure.</p>
+     *
+     * <p>Optional because a server that predates the field omits it, which means "this server cannot
+     * tell me about cameras" rather than "nobody has one". Treating the two the same is harmless
+     * here - both end in nothing being pulled - but only one of them is worth fixing.</p>
+     */
+    videoTracks?: VoiceVideoTrackSnapshot[];
     joinedAt: string;
+}
+
+/**
+ * One camera track on the roster.
+ *
+ * <p>`mediaSessionId` is nullable and carries the same meaning it does on
+ * {@link VoiceShareSnapshot}: null on rows written before the server recorded it, where the handle
+ * is genuinely unknown. **Not an invitation to fall back to the microphone's session** - a client
+ * that guesses names a track that session does not have, and the pull fails identically on every
+ * retry.</p>
+ */
+export interface VoiceVideoTrackSnapshot {
+    trackName: string;
+    mediaSessionId: string | null;
 }
 
 /**

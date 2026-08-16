@@ -671,6 +671,113 @@ describe('screen share backfill from the snapshot', () => {
         expect(rtc.subscribeVideo).not.toHaveBeenCalled();
     });
 
+    /**
+     * The same hole as the share backfill above, for the one track kind that never had a fix.
+     *
+     * <p>A camera lived in the `TrackPublished` event and nowhere else: the server recorded it
+     * (`ActiveVideoTracks`) and fed it to the subscription planner and the usage meter, but the
+     * snapshot projected only the microphone and `shares[]`. So every other missed announcement was
+     * repairable and a missed camera was not - a viewer who arrived after a camera was on, resynced,
+     * or reconnected saw a black tile permanently, and nothing anywhere said why.</p>
+     *
+     * <p>`videoTracks[]` is that missing piece, and it carries a session of its own for the same
+     * reason a share does: what published it need not be the microphone's session.</p>
+     */
+    it('subscribes to a camera that was already on when we arrived', async () => {
+        const {ws, rtc} = setup();
+
+        ws['voiceSnapshotObservable'].next({
+            ...emptySnapshot('chan-1'),
+            participants: [publisher('them', {
+                videoTracks: [{trackName: 'camera', mediaSessionId: 'cf-camera-them'}],
+            })],
+        });
+        await tick();
+
+        expect(rtc.subscribeVideo).toHaveBeenCalledWith(
+            'guild-1', 'chan-1', 'them', 'cf-camera-them', 'camera', 'video');
+    });
+
+    /**
+     * `video`, not `screen`. The kind decides how the tile is laid out and what the room is asked
+     * for, and the share loop hardcodes `'screen'` - so routing a camera through it would pull the
+     * track and then render it as somebody's desktop.
+     */
+    it('subscribes a camera alongside a share without confusing the two', async () => {
+        const {ws, rtc} = setup();
+
+        ws['voiceSnapshotObservable'].next({
+            ...emptySnapshot('chan-1'),
+            participants: [publisher('them', {
+                isStreaming: true,
+                shares: [{shareId: 'abc', trackNames: ['screen-abc'], mediaSessionId: 'cf-screen-them'}],
+                videoTracks: [{trackName: 'camera', mediaSessionId: 'cf-them'}],
+            })],
+        });
+        await tick();
+
+        expect(rtc.subscribeVideo).toHaveBeenCalledWith(
+            'guild-1', 'chan-1', 'them', 'cf-screen-them', 'screen-abc', 'screen');
+        expect(rtc.subscribeVideo).toHaveBeenCalledWith(
+            'guild-1', 'chan-1', 'them', 'cf-them', 'camera', 'video');
+    });
+
+    /** Our own camera, for the same reason as our own share: a session cannot pull its own track. */
+    it('does not subscribe to our own camera', async () => {
+        const {ws, rtc} = setup();
+
+        ws['voiceSnapshotObservable'].next({
+            ...emptySnapshot('chan-1'),
+            participants: [publisher('me', {
+                videoTracks: [{trackName: 'camera', mediaSessionId: 'cf-me'}],
+            })],
+        });
+        await tick();
+
+        expect(rtc.subscribeVideo).not.toHaveBeenCalled();
+    });
+
+    /**
+     * A server that predates the field sends no `videoTracks` at all, which has to read as "this
+     * server cannot tell me about cameras" rather than throw and take the rest of the snapshot -
+     * every microphone and every share - down with it.
+     */
+    it('applies a snapshot from a server that does not send videoTracks', async () => {
+        const {ws, rtc} = setup();
+
+        ws['voiceSnapshotObservable'].next({
+            ...emptySnapshot('chan-1'),
+            participants: [publisher('them', {
+                isStreaming: true,
+                shares: [{shareId: 'abc', trackNames: ['screen-abc'], mediaSessionId: 'cf-screen-them'}],
+            })],
+        });
+        await tick();
+
+        expect(rtc.subscribeVideo).toHaveBeenCalledWith(
+            'guild-1', 'chan-1', 'them', 'cf-screen-them', 'screen-abc', 'screen');
+        expect(rtc.subscribeVideo).toHaveBeenCalledTimes(1);
+    });
+
+    /**
+     * A null session is not an invitation to fall back to the microphone's, exactly as on a share:
+     * the row deserialised from a blob written before the field existed, so the handle is genuinely
+     * unknown and guessing it names a track that session does not have.
+     */
+    it('skips a camera whose publishing session was never recorded', async () => {
+        const {ws, rtc} = setup();
+
+        ws['voiceSnapshotObservable'].next({
+            ...emptySnapshot('chan-1'),
+            participants: [publisher('them', {
+                videoTracks: [{trackName: 'camera', mediaSessionId: null}],
+            })],
+        });
+        await tick();
+
+        expect(rtc.subscribeVideo).not.toHaveBeenCalled();
+    });
+
     it('drops anyone the snapshot says is no longer here', async () => {
         const {ws, rtc} = setup();
         rtc.subscribedUserIds.mockReturnValue(['gone', 'them']);
