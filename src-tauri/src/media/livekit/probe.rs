@@ -25,7 +25,7 @@ use webrtc::rtp_transceiver::rtp_codec::RTCRtpCodecCapability;
 use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample;
 use webrtc::track::track_local::TrackLocal;
 
-use crate::media::publisher::rtc::h264_capability;
+use crate::media::publisher::rtc::{h264_capability, publisher_api};
 use crate::media::voice::rtc::voice_api;
 
 /// How long to wait for the server to confirm a publication before giving up.
@@ -94,7 +94,12 @@ impl Probe {
         // ICE configuration, and `RTCConfiguration` is consumed by `new_peer_connection`.
         let config_for_subscriber = config.clone();
 
-        let api = voice_api()?;
+        // `publisher_api`, not `voice_api`. The offer's codec list comes from the media engine, and
+        // only the publisher's engine registers H.264 High 5.2 (`640034`, payload type 118). A probe
+        // built on the voice engine can only ever discover what the *default* codec table
+        // negotiates, which answers a question nobody asked - the whole point is what the real
+        // publisher's offer gets back. It registers the defaults too, so Opus is unaffected.
+        let api = publisher_api()?;
         let publisher = Arc::new(
             api.new_peer_connection(config)
                 .await

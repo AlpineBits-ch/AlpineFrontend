@@ -239,3 +239,49 @@ async fn receives_rtp_from_a_subscribed_track() {
     listener.close().await;
     publisher.close().await;
 }
+
+#[tokio::test]
+#[ignore = "needs a LiveKit server on 127.0.0.1:7880"]
+async fn reports_the_best_h264_profile_and_level_the_server_will_take() {
+    // The question this answers: `encoder_mf` is pinned to Constrained Baseline because Cloudflare
+    // answered `42e01f` to every offer, and its comment says to turn High back on "when the SFU
+    // changes, not before". This is that check. Our offer already carries High 5.2 (`640034`) and
+    // High 5.0 (`640032`); what matters is which of them comes back.
+    let probe = Probe::connect(DEV_URL, &dev_token("probe-profile", "user-1"))
+        .await
+        .expect("connect");
+
+    probe
+        .publish_video("screen-profile", &[("f", 2560, 1440)])
+        .await
+        .expect("publish");
+    probe
+        .wait_until_connected(std::time::Duration::from_secs(10))
+        .await
+        .expect("connected");
+
+    let offer = probe.local_sdp().await.expect("offer");
+    let answer = probe.remote_sdp().await.expect("answer");
+
+    for (label, sdp) in [("offer", &offer), ("answer", &answer)] {
+        let mut levels: Vec<&str> = sdp
+            .lines()
+            .filter(|l| l.contains("profile-level-id="))
+            .filter_map(|l| l.split("profile-level-id=").nth(1))
+            .map(|l| l.split(';').next().unwrap_or(l).trim())
+            .collect();
+        levels.sort_unstable();
+        levels.dedup();
+        println!("PROBE {label} profile-level-ids: {levels:?}");
+    }
+    println!(
+        "PROBE answer keeps High 5.2 (640034): {}",
+        answer.contains("640034")
+    );
+    println!(
+        "PROBE answer keeps High 5.0 (640032): {}",
+        answer.contains("640032")
+    );
+
+    probe.close().await;
+}
