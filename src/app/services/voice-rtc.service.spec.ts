@@ -74,6 +74,8 @@ class FakeRoom {
     readonly remoteTracks = signal<ReadonlyMap<string, RemoteMediaTrack>>(new Map());
     readonly refusedAudioSubscriptions = signal(0);
     readonly unrecognisedLayers = signal(0);
+    /** Bumped whenever the room learns a publication exists - see {@link announce}. */
+    readonly publications = signal(0);
 
     connect = vi.fn(async () => {
         this.state.set(ConnectionState.Connected);
@@ -99,6 +101,10 @@ class FakeRoom {
     /** The SFU telling us a publication exists, which is what makes its sid knowable. */
     announce(userId: string, trackName: string, trackSid = `TR_${trackName}`): void {
         this.published.set(userId, [...(this.published.get(userId) ?? []), {trackSid, trackName}]);
+        // The real room bumps this from `TrackPublished`/`ParticipantConnected`. Bumped here too, or
+        // the fake would let a reconcile-on-publication test pass against a service that never
+        // reconciles - the exact bug the counter exists to close.
+        this.publications.update(n => n + 1);
     }
 
     /** A track this room has actually pulled, as `TrackSubscribed` would leave it. */
@@ -398,6 +404,28 @@ describe('pulling remote video', () => {
         service.handleRemoteTrackClosed(CAMERA_TRACK, 'user_b');
 
         expect(room.setSubscribed).toHaveBeenCalledWith('TR_screen-abc', true);
+    });
+
+    /**
+     * **The publication landing is itself a reconcile**, with nothing else happening in the room.
+     *
+     * <p>The test above proves the intent survives; it does not prove anything ever applies it,
+     * because it hands the service an unrelated event to reconcile on. Nothing schedules that in a
+     * real session. A camera announced by the roster before its own publication reached the SFU
+     * client was therefore never pulled, and the tile stayed black for the rest of the call with no
+     * error on any layer - the roster arrives over SignalR from the API and the publication over the
+     * SFU's own signalling, so either can be second.</p>
+     *
+     * <p>So: announce, and nothing else. If this needs a second event to pass, the bug is back.</p>
+     */
+    it('pulls a track the moment the room learns its publication, with nothing else happening', async () => {
+        await service.subscribeVideo('g1', 'c1', 'user_a', 'sess_1', CAMERA_TRACK, 'video');
+        expect(room.setSubscribed).not.toHaveBeenCalled();
+
+        room.announce('user_a', CAMERA_TRACK);
+        TestBed.tick();
+
+        expect(room.setSubscribed).toHaveBeenCalledWith(`TR_${CAMERA_TRACK}`, true);
     });
 
     /**

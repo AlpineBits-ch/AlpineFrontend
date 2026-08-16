@@ -1,4 +1,4 @@
-import {computed, effect, inject, Injectable, signal} from '@angular/core';
+import {computed, effect, inject, Injectable, signal, untracked} from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {ConnectionState} from 'livekit-client';
 import {firstValueFrom, Subject} from 'rxjs';
@@ -431,6 +431,25 @@ export class VoiceRTCService {
         // change rather than patched, because a track that goes has to leave both maps and the room's
         // own map is already the authority on which are still held.
         effect(() => this.projectRemoteStreams());
+
+        // **The other half of every subscription.** A viewer needs two things to pull a track: the
+        // roster's word that it wants it, and the room's word on the sid to ask for it by. They
+        // arrive over different transports - the roster over SignalR from the API, the publication
+        // over the SFU's own signalling - so either can be second, and whichever is second has to
+        // re-run the diff.
+        //
+        // Only the roster side ever did. `subscribeVideo` reconciled on announcement, and if the sid
+        // did not resolve yet the track was skipped as "left for the next pass" - a next pass nothing
+        // scheduled. The room learning about the publication a moment later was silent, so a camera
+        // announced ahead of its own publication was never pulled and the tile stayed black for the
+        // rest of the session, with no error on any layer.
+        //
+        // `untracked`, because reconciling reads `remoteTracks` and subscribing writes it: tracked,
+        // this effect would re-run itself on its own subscription for as long as anything changed.
+        effect(() => {
+            this.livekit.publications();
+            untracked(() => this.applySubscriptions());
+        });
     }
 
     // ── Connection setup / teardown ────────────────────────────────────────────

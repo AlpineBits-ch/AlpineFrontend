@@ -77,6 +77,19 @@ export class LiveKitRoomService {
     private room: Room | null = null;
 
     /**
+     * Bumped whenever the set of publications this room knows about changes.
+     *
+     * <p>Distinct from {@link remoteTracks}, which is what the room *holds* - this is what it has
+     * been *told about*, subscribed or not. Subscribing needs both halves: the roster names the
+     * track a viewer wants, and only the room knows the sid to ask for it by. Whichever half lands
+     * second has to re-run the reconcile, and this is the signal that says the room's half did.</p>
+     *
+     * <p>A counter rather than the set: the only question a reader has is "has anything changed
+     * since I last reconciled", and it re-derives what it needs from {@link publicationsOf}.</p>
+     */
+    readonly publications = signal(0);
+
+    /**
      * How many audio subscriptions this room turned down.
      *
      * <p>Non-zero is not a fault on desktop - it is the guard doing its job against a plan that does
@@ -112,7 +125,28 @@ export class LiveKitRoomService {
      * the webview off the audio the Rust room is already playing.</p>
      */
     async connect(connection: LiveKitConnection): Promise<void> {
-        const room = this.newRoom({adaptiveStream: true, dynacast: true});
+        // **`adaptiveStream` must stay off while this app renders with `srcObject`**, and having it
+        // on was every remote video in the app arriving and never being shown.
+        //
+        // Adaptive stream ties a subscription to whether its tile is on screen, and the SDK decides
+        // that from elements registered through `RemoteTrack.attach(el)` - nothing else populates
+        // `elementInfos`. This client never calls it: tiles bind a `MediaStream` straight to
+        // `video.srcObject` (see `StreamSrcDirective`). So `elementInfos` is always empty, and in
+        // `livekit-client`:
+        //
+        //     const isVisible = this.elementInfos.some(info => info.visible) && ... ;
+        //
+        // is `false` for every track, forever. The SDK then sends `UpdateTrackSettings{disabled:
+        // true}` and the server stops sending - a subscription that is live on every counter, with
+        // no bytes behind it and nothing anywhere reporting a fault.
+        //
+        // Turning it on again means moving the render path to `track.attach()` first. The economy is
+        // real, but it is not free the way the flag makes it look: it is a contract with the
+        // rendering layer, and this client does not hold up its end.
+        //
+        // `dynacast` stays: it is publisher-side and driven by what the server sees subscribers ask
+        // for, so it needs nothing from our DOM.
+        const room = this.newRoom({adaptiveStream: false, dynacast: true});
         this.room = room;
         this.listen(room);
         await room.connect(connection.url, connection.token, {autoSubscribe: false});
@@ -141,6 +175,20 @@ export class LiveKitRoomService {
         );
         this.on(room, RoomEvent.TrackUnsubscribed, (_track, publication) => this.forget(publication.trackSid));
         this.on(room, RoomEvent.ConnectionStateChanged, state => this.state.set(state));
+
+        // **What the room has learned about, as opposed to what it holds.** Subscribing is a
+        // two-source job: the roster says which track a viewer wants, and only the room knows the
+        // sid to ask for it by. Whichever arrives second has to re-run the diff, and until this
+        // existed only one of the two ever did - so a roster announcement that beat the SFU's
+        // signalling resolved to no sid, was skipped as "ordinary, try next pass", and no next pass
+        // was ever scheduled. The tile stayed black for the rest of the session.
+        //
+        // `TrackPublished` alone is not enough: publications a participant already held when they
+        // joined arrive with the participant, never as an event of their own.
+        const changed = () => this.publications.update(n => n + 1);
+        this.on(room, RoomEvent.TrackPublished, changed);
+        this.on(room, RoomEvent.TrackUnpublished, changed);
+        this.on(room, RoomEvent.ParticipantConnected, changed);
     }
 
     /** Registers a handler and records how to take it off again. */

@@ -144,14 +144,25 @@ describe('connecting', () => {
     });
 
     /**
-     * Both are receive-side economies and both are the SDK's, not ours: adaptive stream ties the
-     * layer to the tile, dynacast stops paying for layers nobody pulls. Off by default in the SDK,
-     * so their absence is silent.
+     * **Adaptive stream off is a correctness requirement here, not a tuning choice.**
+     *
+     * <p>It gates a subscription on whether its tile is on screen, and the SDK reads that from
+     * elements registered through `RemoteTrack.attach()` - the only thing that fills `elementInfos`.
+     * This client never calls it; tiles bind a `MediaStream` to `video.srcObject` instead. So every
+     * track reads as invisible, the SDK sends `UpdateTrackSettings{disabled: true}`, and the server
+     * stops sending: a healthy-looking subscription with no bytes behind it, on camera and screen
+     * share alike.</p>
+     *
+     * <p>So this asserts `false` deliberately. If the render path ever moves to `track.attach()`,
+     * turn it back on and change this line - and not before.</p>
+     *
+     * <p>`dynacast` stays on: publisher-side, driven by what the server sees subscribers ask for,
+     * and needs nothing from our DOM.</p>
      */
-    it('builds the room with adaptive stream and dynacast on', async () => {
+    it('builds the room with adaptive stream off, because nothing here attaches tracks', async () => {
         await connect();
 
-        expect(room().options?.adaptiveStream).toBe(true);
+        expect(room().options?.adaptiveStream).toBe(false);
         expect(room().options?.dynacast).toBe(true);
     });
 });
