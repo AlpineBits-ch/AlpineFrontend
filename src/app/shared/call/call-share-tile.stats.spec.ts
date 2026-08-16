@@ -189,3 +189,52 @@ describe('CallShareTileComponent stats menu', () => {
         expect(fixture.nativeElement.querySelector('[data-testid="stats-layer"]')).toBeTruthy();
     });
 });
+
+describe('CallShareTileComponent copy raw stats', () => {
+    beforeEach(() => TestBed.resetTestingModule());
+
+    it('writes the snapshot to the clipboard as JSON', async () => {
+        const written: string[] = [];
+        Object.defineProperty(navigator, 'clipboard', {
+            configurable: true,
+            value: {writeText: (text: string) => (written.push(text), Promise.resolve())},
+        });
+        const fixture = setup();
+
+        rightClick(fixture);
+        fixture.nativeElement.querySelector('[data-testid="menu-copy"]').click();
+        await fixture.whenStable();
+
+        expect(JSON.parse(written[0])).toMatchObject({direction: 'inbound', source: 'webview'});
+    });
+
+    it('closes the menu after copying', async () => {
+        Object.defineProperty(navigator, 'clipboard', {
+            configurable: true,
+            value: {writeText: () => Promise.resolve()},
+        });
+        const fixture = setup();
+
+        rightClick(fixture);
+        fixture.nativeElement.querySelector('[data-testid="menu-copy"]').click();
+        await fixture.whenStable();
+        fixture.detectChanges();
+
+        expect(fixture.nativeElement.querySelector('[data-testid="stream-menu"]')).toBeNull();
+    });
+
+    it('copies nothing rather than the word null when there is no snapshot', async () => {
+        const written: string[] = [];
+        Object.defineProperty(navigator, 'clipboard', {
+            configurable: true,
+            value: {writeText: (text: string) => (written.push(text), Promise.resolve())},
+        });
+        const fixture = setup(() => null);
+
+        rightClick(fixture);
+        fixture.nativeElement.querySelector('[data-testid="menu-copy"]').click();
+        await fixture.whenStable();
+
+        expect(written).toEqual([]);
+    });
+});

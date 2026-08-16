@@ -153,9 +153,22 @@ export class CallShareTileComponent implements OnDestroy {
         else this.statsInspect.emit(null);
     }
 
-    /** Filled in by the clipboard task; the menu item exists from here on so the wiring is one edit. */
+    /**
+     * Put the current snapshot on the clipboard as JSON.
+     *
+     * <p>The reason the menu has two items rather than one: a screenshot of the panel is not a bug
+     * report. This is the same object the panel renders, so a sharer can hand over per-rung bytes
+     * against each rung's target - the pair that distinguishes "the SFU accepted the publish" from
+     * "this layer is actually going out".</p>
+     *
+     * <p>A missing snapshot copies nothing at all rather than the string "null", which would look
+     * like data and waste a round trip in whatever report it lands in.</p>
+     */
     protected copyStats(): void {
         this.menuAt.set(null);
+        const stats = this.panelStats();
+        if (!stats) return;
+        void navigator.clipboard?.writeText(JSON.stringify(stats, null, 2));
     }
 
     protected readonly root = viewChild.required<ElementRef<HTMLElement>>('root');
