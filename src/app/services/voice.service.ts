@@ -229,6 +229,23 @@ export class VoiceService {
     }
 
     /**
+     * Asserts over HTTP that this device is still in the call - the liveness signal that survives
+     * SignalR being down.
+     *
+     * <p>The call-side twin of `GuildVoiceService.alive`, and on the media routes, so plural
+     * `calls/`. `voice.Heartbeat` rides the very connection whose loss it would have to report, so
+     * a hub outage that outlasts the 90s eviction sweep hangs the call up while the media is still
+     * flowing. This route is the independent channel that stops that happening.</p>
+     *
+     * <p>`404`/`409` means the server does not place this device in this call and the room should
+     * be torn down locally; anything else is transient. {@link VoiceLivenessService} owns that
+     * distinction and the cadence.</p>
+     */
+    alive(callId: string): Observable<void> {
+        return this.client.post<void>(`${this.base}/calls/${callId}/alive`, {});
+    }
+
+    /**
      * Tells the server what this client can actually see - see
      * {@link VoiceSubscriberReportService}, which is the only caller.
      *

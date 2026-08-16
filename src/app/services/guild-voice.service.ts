@@ -87,6 +87,25 @@ export class GuildVoiceService {
     }
 
     /**
+     * Asserts over HTTP that this device is still in the room - the liveness signal that survives
+     * SignalR being down.
+     *
+     * <p>Deliberately not the hub. `voice.Heartbeat` is our only other liveness channel, and it
+     * rides the same connection whose loss it would have to report: a hub outage that outlasts the
+     * 90s eviction sweep takes voice down with it while the media is still flowing perfectly. This
+     * route exists precisely so the two failure modes are independent, and it is why the sweep can
+     * be trusted to mean "gone" rather than "the socket blinked".</p>
+     *
+     * <p>A `404` or a `409` is the answer that matters: the server does not place this device in
+     * this room, and the caller should tear the room down locally. Every other failure is transient
+     * and must be ignored - see {@link VoiceLivenessService}, which owns that distinction and the
+     * cadence.</p>
+     */
+    alive(guildId: string, channelId: string): Observable<void> {
+        return this.client.post<void>(`${this.base(guildId, channelId)}/alive`, {});
+    }
+
+    /**
      * The authoritative state of the room: who is pullable, on which session, and which
      * screen-share tracks are live right now.
      *
