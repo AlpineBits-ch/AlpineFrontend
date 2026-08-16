@@ -32,7 +32,7 @@
 
 **Interfaces:**
 - Consumes: nothing.
-- Produces: `StreamStatsSnapshot`, `StreamLayerStats`, `StreamAudioStats`, `InboundTrackOwner` (re-exported from `inbound-fps.ts`), `inboundStatsFor(report, mid): StreamStatsSnapshot | null`, `kbpsBetween(curBytes, prevBytes, dtSeconds): number | undefined`.
+- Produces: `StreamStatsSnapshot`, `StreamTransportStats`, `StreamLayerStats`, `StreamAudioStats`, `StatsLike`, `inboundStatsFor(report, mid): StreamStatsSnapshot | null`, `kbpsBetween(curBytes, prevBytes, dtSeconds): number | undefined`. Tasks 7 and 8 import `InboundTrackOwner` from `inbound-fps.ts` directly; this module does not re-export it.
 
 - [ ] **Step 1: Write the failing test**
 
