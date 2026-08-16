@@ -510,3 +510,40 @@ same rule. **All three surfaces are now consistent:**
 **Keep absent and empty strictly distinct**, in the types and not only in the parsing. A
 `tracks: X[]` field that defaults to `[]` on a missing key collapses the first row into the second
 and silently mutes the room. This is the single most dangerous shape in the whole contract.
+
+### 8.2a The browser build's liveness is still unsolved
+
+`VoiceLivenessService` exists and is tested, and **is wired to nothing**. Wiring it is a real task and
+is listed in Phase 3 - but it must not be mistaken for a fix to the eviction problem, because it is
+not one.
+
+`media/voice/liveness.rs` moved the desktop assertion into Rust for a specific reason: Chromium's
+intensive throttling aligns a hidden page's timers to one-minute boundaries however short the
+requested delay, and page freezing can withhold them entirely. That is what defeated the SignalR
+heartbeat and evicted a client whose screen share was still being encoded and sent. Its header states
+outright that a TypeScript fallback ping would "put the assertion back on the throttled timer, which
+is the defect".
+
+**A `setInterval` in a browser tab is that same timer.** So on web the service only covers "SignalR
+is down while the page is visible", which is a narrower case than the one that bit us.
+
+The failure shape survives the move to the browser, and this is the part to hold on to:
+**WebRTC media does not run on the page's timers.** A hidden tab keeps capturing and sending on its
+own threads while its JS clock is withheld - media flowing while the assertion is silent, with no
+Rust process to compensate.
+
+Three candidates, and only one is ours to build:
+
+1. **Server-side, and the likeliest right answer.** The server already shortens liveness to 75s on a
+   hub disconnect, so it observes socket state. If an open WebSocket counted as liveness rather than
+   requiring an affirmative ping, a frozen page could not be swept while its connection is up - for
+   every client, rather than per platform. **Raise with the backend.**
+2. **A mechanism off the page's clock** - a worker, or the service worker. Measure whether worker
+   timers actually escape intensive throttling in current Chrome before building on the assumption;
+   guessing here ships a fix that is not one.
+3. **Accept it on web** - only defensible if a hidden tab stops publishing, which it does not.
+
+**Measure first:** Chrome exempts some pages from intensive throttling, and a page playing audio may
+be among them. A tab in a voice call is playing audio. If that exemption holds, the browser build is
+materially less exposed than WebView2 was - which changes the priority, not the diagnosis. That is a
+measurement, not a reading of the spec.
