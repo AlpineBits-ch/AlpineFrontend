@@ -452,14 +452,35 @@ would go quiet the first time an active speaker changed, with nothing erroring.
 It is the HTTP-side liveness assertion, and it is deliberately separate from the hub so it **survives
 SignalR being down**.
 
-**Alpine calls neither the guild nor the call variant today** - `voice.Heartbeat` over SignalR is our
-only liveness channel. That is a real gap rather than a migration detail: a hub outage that outlasts
-the eviction window takes voice down with it, which is the failure class in
-`project_voice_liveness_backgrounded`. The Flutter client already does this: 30 second cadence, first
-tick fired immediately on join.
+**Correction.** An earlier draft of this section claimed Alpine never calls either variant. That was
+wrong, and wrong because it was concluded from grepping `src/app/services` alone.
+**`src-tauri/src/media/voice/liveness.rs` already POSTs to both `/alive` routes** - 30 second
+cadence, first tick immediate, owned by the voice publication because its lifetime *is* the
+membership being asserted. It landed as the fix for `project_voice_liveness_backgrounded`.
 
-Treat `404`/`409` from it as "the server does not place this device in this room" and tear down
-locally.
+So the gap is narrower and differently shaped than stated: **the desktop build is covered, the
+browser build is not**, because on web there is no Rust process to hold the timer.
+
+That file's header is emphatic that a TypeScript ping must not be added *on desktop*: doing so "would
+put the assertion back on the throttled timer, which is the defect". Chromium's intensive throttling
+aligns a hidden page's timers to one-minute boundaries and page freezing can withhold them entirely,
+which is the whole reason the assertion was moved out of the webview. A TS ticker running beside the
+Rust one would double the rate and reintroduce the clock that failed.
+
+So `VoiceLivenessService` is for **the browser build and any webview-publishing target only**, and
+must not start on desktop.
+
+**On `404`/`409`, the two sides deliberately differ.** Rust classifies it as `AliveError::NotOurRoom`,
+logs it distinctly, and **keeps media flowing** - it is a disagreement, not a fault, and the log line
+is what explains a room that has stopped showing us to other people. A webview consumer should treat
+the same status as tearing down *its own view* of the room, never as a reason to stop a publication
+Rust is still making.
+
+**Phase 1 must preserve this.** `alive_url()` and `assert_alive()` live in
+`publisher/signalling.rs` (lines ~371 and ~385), the file whose neutral dialect Task 7 deletes.
+`alive_url()` answers `None` for Isle, so it is not part of the Cloudflare half that survives.
+Deleting the neutral dialect wholesale would take the desktop liveness ping with it and silently
+restore the alt-tab eviction bug.
 
 ### 8.3 `tracks` absent is not `tracks: []`, and this was a live bug
 

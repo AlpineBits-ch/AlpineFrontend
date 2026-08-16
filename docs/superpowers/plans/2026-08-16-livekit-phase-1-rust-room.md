@@ -107,7 +107,15 @@ already holds. This is where the three-connections-to-two reduction actually lan
 ### Task 7: delete the neutral dialect
 
 `publisher/signalling.rs` loses `Dialect::Neutral` and everything reachable only from it. Isle's
-Cloudflare half stays. `media/voice/e2e_tests.rs` and `media/publisher/e2e_tests.rs` are rewritten
+Cloudflare half stays.
+
+**`alive_url()` and `assert_alive()` must survive** (lines ~371 and ~385 of that file). They are the
+desktop liveness ping that `media/voice/liveness.rs` drives every 30 seconds, and `alive_url()`
+answers `None` for Isle - so they are reachable only from the neutral half and a wholesale deletion
+takes them with it. That would silently restore the alt-tab eviction bug in
+`project_voice_liveness_backgrounded`, with no test failing, because the symptom is only visible to
+*other* participants. Keep the route, move it onto whatever replaces `Signalling`, and keep
+`liveness.rs` pointed at it. `media/voice/e2e_tests.rs` and `media/publisher/e2e_tests.rs` are rewritten
 against a fake signal server speaking protobuf over a WebSocket instead of mocked HTTP routes.
 
 **Per `project_media_e2e_test_traps`: mutate what each rewritten test guards and watch it fail before
