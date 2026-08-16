@@ -127,7 +127,7 @@ pub fn h264_capability() -> RTCRtpCodecCapability {
 /// Constrained High keeps everything High was wanted for - CABAC and the 8x8 transform - and gives
 /// up only interlaced and field coding, which a screen capture never emits.
 const H264_HIGH_5_2_FMTP: &str =
-    "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=640c34";
+    "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=640034";
 
 /// A payload type outside everything `register_default_codecs` claims.
 ///

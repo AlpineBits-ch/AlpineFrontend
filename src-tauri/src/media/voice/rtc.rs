@@ -142,8 +142,10 @@ pub struct PublicationStats {
     /// Packets whose routing key matched a subscribed source and reached its jitter buffer.
     ///
     /// Zero against a climbing `rtp_received` is the reading that says media is arriving and being
-    /// binned, which is a different fault from either counter alone. On the LiveKit arm that is
-    /// currently its steady state - see [`VoicePublication::on_audio`].
+    /// binned, which is a different fault from either counter alone. It is exactly what the LiveKit
+    /// arm read before [`VoicePublication::on_audio`] handed its sink to the room as well as to
+    /// `packet_sink` - the room owns the only `on_track` handler, so a sink set only here is a sink
+    /// nothing ever writes to.
     pub rtp_routed: AtomicU64,
     /// Packets discarded because their routing key was in no source map. The inbound task drops
     /// these with a bare `continue`, so without this counter a routing bug is invisible.
@@ -775,15 +777,24 @@ impl VoicePublication {
     /// Route every RTP packet on every subscribed track into `sink`, keyed by the routing key that
     /// [`Self::subscribe`] handed back - a mid on Cloudflare, a track SID on LiveKit.
     ///
-    /// **Nothing feeds this on the LiveKit arm yet.** The subscriber peer connection lives inside
-    /// [`Room`], `webrtc-rs` allows exactly one `on_track` handler per connection, and the room
-    /// already installs its own to count arrivals - so inbound RTP cannot be reached from out here
-    /// without a hook on the room itself. Recorded rather than papered over: on that arm the mixer
-    /// receives nothing today, `rtp_routed` stays at zero while `rtp_received` climbs, and those two
-    /// counters disagreeing is exactly the reading that says so.
+    /// **On the LiveKit arm the room does the reading, so the sink is handed to it as well.**
+    /// `webrtc-rs` allows exactly one `on_track` handler per connection and the subscriber
+    /// connection belongs to [`Room`], so this cannot install its own - it registers a destination
+    /// on the room instead, and the room forwards each packet keyed by the track's id.
+    ///
+    /// Setting only `packet_sink` is what "signalled but silent" looks like from the outside:
+    /// `rtp_received` climbs on the room's own counter while `rtp_routed` stays at zero and the
+    /// mixer never sees a frame. Those two counters disagreeing is the reading that says the hand-off
+    /// below is missing, and it is why both are reported.
     pub fn on_audio(&self, sink: tokio::sync::mpsc::Sender<(String, Packet)>) {
         if let Ok(mut guard) = self.packet_sink.lock() {
-            *guard = Some(sink);
+            *guard = Some(sink.clone());
+        }
+
+        // The room routes by track SID, which is the same key `subscribe_livekit` registered its
+        // sources under - so the sink can be shared verbatim rather than translated.
+        if let Some(room) = self.transport.room() {
+            room.on_audio(sink);
         }
     }
 

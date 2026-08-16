@@ -181,7 +181,7 @@ impl Room {
         let remote = Arc::new(Mutex::new(HashMap::new()));
         let published = Arc::new(Mutex::new(HashMap::new()));
 
-        let audio_sink: AudioSink = Arc::new(Mutex::new(None));
+        let audio_sink: AudioSink = Arc::new(std::sync::Mutex::new(None));
         install_receive_reader(&subscriber, stats.clone(), audio_sink.clone());
 
         let signal = Arc::new(signal);
@@ -441,8 +441,10 @@ impl Room {
     /// per connection and the room owns it. A second caller replaces the first rather than being
     /// added alongside - there is exactly one mixer in this process, and two sinks would mean two
     /// halves of the room's audio arriving in different places.
-    pub async fn on_audio(&self, sink: tokio::sync::mpsc::Sender<(String, Packet)>) {
-        *self.audio_sink.lock().await = Some(sink);
+    pub fn on_audio(&self, sink: tokio::sync::mpsc::Sender<(String, Packet)>) {
+        if let Ok(mut guard) = self.audio_sink.lock() {
+            *guard = Some(sink);
+        }
     }
 
     /// Everything the server has told us other people are publishing.
@@ -590,7 +592,7 @@ impl Room {
 /// Behind a mutex and an `Option` because the handler is installed before the consumer exists: the
 /// room is built, then the voice publication attaches its jitter buffers to it. Exactly the shape
 /// `media::voice::rtc::PacketSink` already uses, for the same reason.
-pub type AudioSink = Arc<Mutex<Option<tokio::sync::mpsc::Sender<(String, Packet)>>>>;
+pub type AudioSink = Arc<std::sync::Mutex<Option<tokio::sync::mpsc::Sender<(String, Packet)>>>>;
 
 /// Read every subscribed track, count it, and forward audio to whoever is listening.
 ///
@@ -630,7 +632,7 @@ fn install_receive_reader(
                         continue;
                     }
 
-                    let sink = { audio.lock().await.clone() };
+                    let sink = audio.lock().ok().and_then(|guard| guard.clone());
                     let Some(sink) = sink else { continue };
 
                     // `try_send`, not `send`: the consumer is the playout thread and this network

@@ -240,7 +240,7 @@ async fn keeps_h264_high_5_2_in_the_answer() {
 
     let answer = room.remote_sdp().await.expect("answer");
     assert!(
-        answer.contains("640c34"),
+        answer.contains("640034"),
         "Constrained High 5.2 must survive negotiation - it is what makes 1440p60 conformant:\n{answer}"
     );
 
@@ -347,7 +347,7 @@ async fn inbound_audio_reaches_the_sink_keyed_by_its_sid() {
         .expect("connect");
 
     let (tx, mut rx) = tokio::sync::mpsc::channel(256);
-    listener.on_audio(tx).await;
+    listener.on_audio(tx);
     listener.subscribe(&publication.sid).await;
 
     let tone = tokio::spawn(async move {

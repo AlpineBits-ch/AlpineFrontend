@@ -256,15 +256,27 @@ impl MediaFoundationEncoder {
                 // conformant - 1440p60 is 14400 macroblocks at 864000, comfortably inside.
                 // The probe that measured it is `media::livekit::probe_tests`.
                 //
-                // **Constrained High, not plain High**, to match what `rtc.rs` declares - and it
-                // declares `640c34` because plain High (`6400..`) is a profile almost nothing
-                // advertises. libwebrtc matches H.264 by profile *equality*, Chrome offers
-                // `640c1f`, and Android and iOS hardware advertise Constrained High or Constrained
-                // Baseline and nothing else. Declaring a profile no viewer offers answers the
-                // m-line with no codec at all: an absent tile, not a soft one.
+                // **Plain High, and `UCConstrainedHigh` is measured as unusable here.**
                 //
-                // Constrained High gives up only interlaced and field coding, which a progressive
-                // screen capture never emits, and keeps both things High was wanted for.
+                // Constrained High was tried the same day, to match a `640c34` declaration, because
+                // essentially nothing advertises plain High: libwebrtc matches H.264 by profile
+                // *equality*, Chrome offers `640c1f`, and Android and iOS hardware advertise
+                // Constrained High or Constrained Baseline. Two measurements killed it:
+                //
+                //  * The MFT **accepts** `eAVEncH264VProfile_UCConstrainedHigh` and then fails
+                //    while encoding - `media-foundation failed mid-session; falling back to
+                //    openh264`, every share, on real hardware. A configure-time fallback does not
+                //    catch that, because nothing has failed yet at configure time; the cost is
+                //    silently losing the hardware encoder for the whole session.
+                //  * `livekit-server` 1.13.5 appears to drop `640c34` from the answer where it
+                //    keeps `640034`, so the declaration it was meant to match did not survive
+                //    negotiation either.
+                //
+                // **The mobile-compatibility problem that prompted it is real and still open** - a
+                // phone matching by profile equality will not select a plain-High track. Neither
+                // measurement above says otherwise; they only say this was the wrong fix. The
+                // likely right one is to register no custom entry and let the defaults (`640c1f`,
+                // `42e01f`) carry it, which needs measuring rather than assuming.
                 //
                 // Two things that did NOT change and are easy to conflate with this:
                 //
@@ -277,32 +289,10 @@ impl MediaFoundationEncoder {
                 //
                 // Isle still speaks Cloudflare, but publishes no video, so nothing reaches this
                 // encoder over a transport that would refuse High.
+                .and_then(|_| {
+                    output.SetUINT32(&MF_MT_MPEG2_PROFILE, eAVEncH264VProfile_High.0 as u32)
+                })
                 .map_err(|e| e.to_string())?;
-
-            // Attempted, then fallen back on, rather than chained into the sequence above.
-            // `UCConstrainedHigh` is a Unified-Communications profile constant and not every
-            // encoder MFT accepts it; a hard failure here would take the whole share down for the
-            // sake of two constraint flags. Plain High is the honest second choice - the bitstream
-            // a progressive capture produces is decodable by a Constrained High decoder either way,
-            // because a decoder configures itself from the SPS, and the flags are the only
-            // difference. What we must not do is fall back to Constrained *Baseline*, which would
-            // silently give up CABAC while `rtc.rs` still declared High.
-            unsafe {
-                if output
-                    .SetUINT32(
-                        &MF_MT_MPEG2_PROFILE,
-                        eAVEncH264VProfile_UCConstrainedHigh.0 as u32,
-                    )
-                    .is_err()
-                {
-                    eprintln!(
-                        "[publisher] this encoder refuses Constrained High; falling back to High"
-                    );
-                    output
-                        .SetUINT32(&MF_MT_MPEG2_PROFILE, eAVEncH264VProfile_High.0 as u32)
-                        .map_err(|e| e.to_string())?;
-                }
-            }
             transform
                 .SetOutputType(0, &output, 0)
                 .map_err(|e| format!("SetOutputType failed: {e}"))?;
