@@ -14,6 +14,7 @@
 
 pub mod identity;
 pub mod probe;
+pub mod resume;
 pub mod signal;
 
 #[cfg(test)]
