@@ -6,7 +6,17 @@
 
 **Architecture:** Two independently executable parts. **Part A** (backend, `C:\Users\Domin\RiderProjects\Echo`) makes the avatar redirect and the profile JSON routes cacheable, which is a prerequisite for measuring how much client-side image caching is still needed. **Part B** (client, this repo) adds a sealed, byte-budgeted IndexedDB cache that hydrates `ProfileService`'s maps before first paint and gap-fills message metadata.
 
-**Tech Stack:** ASP.NET Core / AWS SDK for .NET / xUnit (Part A). Angular 21 signals, NgRx signal-store, IndexedDB, WebCrypto AES-GCM, Vitest via `@angular/build:unit-test` (Part B).
+**Tech Stack:** ASP.NET Core / AWS SDK for .NET / **NUnit 4.6.1** (Part A). Angular 21 signals, NgRx signal-store, IndexedDB, WebCrypto AES-GCM, Vitest via `@angular/build:unit-test` (Part B).
+
+> **Correction, found during execution.** The Part A test code blocks below are written in
+> xUnit (`[Fact]`, `Assert.Equal`). `Social.Tests` uses **NUnit** exclusively — there is no
+> xUnit package, and `<Using Include="NUnit.Framework"/>` is a global using. Translate
+> mechanically, preserving test names, logic and coverage: `[Fact]`→`[Test]`,
+> `Assert.Equal(e, a)`→`Assert.That(a, Is.EqualTo(e))`,
+> `Assert.NotEqual(a, b)`→`Assert.That(b, Is.Not.EqualTo(a))`,
+> `Assert.True(x)`→`Assert.That(x, Is.True)`, `Assert.False(x)`→`Assert.That(x, Is.False)`,
+> `Assert.StartsWith(s, v)`→`Assert.That(v, Does.StartWith(s))` (`EndsWith`→`Does.EndWith`),
+> `Assert.InRange(v, lo, hi)`→`Assert.That(v, Is.InRange(lo, hi))`.
 
 **Spec:** `docs/superpowers/specs/2026-08-16-profile-and-message-cache-design.md`
 
