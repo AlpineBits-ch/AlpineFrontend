@@ -1,21 +1,30 @@
 import {ComponentFixture, TestBed} from '@angular/core/testing';
-import {beforeEach, describe, expect, it} from 'vitest';
+import {beforeEach, describe, expect, it, afterEach} from 'vitest';
 import {TranslateModule} from '@ngx-translate/core';
 import {CallStreamMenuComponent} from './call-stream-menu.component';
+
+let fixture: ComponentFixture<CallStreamMenuComponent>;
 
 function setup(): ComponentFixture<CallStreamMenuComponent> {
     TestBed.configureTestingModule({
         imports: [CallStreamMenuComponent, TranslateModule.forRoot()],
     });
-    const fixture = TestBed.createComponent(CallStreamMenuComponent);
+    fixture = TestBed.createComponent(CallStreamMenuComponent);
     fixture.componentRef.setInput('x', 120);
     fixture.componentRef.setInput('y', 240);
+    // Attach to document so document:click listeners are genuinely reachable, not stopped by a
+    // disconnected DOM tree. Tests for document:* listeners must append their fixture.
+    document.body.appendChild(fixture.nativeElement);
     fixture.detectChanges();
     return fixture;
 }
 
 describe('CallStreamMenuComponent', () => {
     beforeEach(() => TestBed.resetTestingModule());
+
+    afterEach(() => {
+        fixture.nativeElement.remove();
+    });
 
     it('positions itself at the click point', () => {
         const fixture = setup();
