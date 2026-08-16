@@ -444,6 +444,21 @@ impl Room {
         ladder
     }
 
+    /// The publishing peer connection itself.
+    ///
+    /// Handed out for one reason: RTCP. A viewer asks for a keyframe with PLI or FIR, and the only
+    /// place that arrives is the sender on this connection - the screen publisher reads it to drive
+    /// `keyframe_wanted`, and without it a viewer who joins mid-share waits for the next periodic
+    /// IDR before seeing anything.
+    ///
+    /// Not for negotiating on. Every offer this connection makes is made by [`Self::negotiate`],
+    /// and a second negotiator would interleave with it - both create an offer, the second
+    /// overwrites the first's local description, and the first's answer then applies to an SDP that
+    /// no longer matches.
+    pub fn publisher_connection(&self) -> Arc<RTCPeerConnection> {
+        self.publisher.clone()
+    }
+
     pub fn publisher_state(&self) -> RTCPeerConnectionState {
         self.publisher.connection_state()
     }
