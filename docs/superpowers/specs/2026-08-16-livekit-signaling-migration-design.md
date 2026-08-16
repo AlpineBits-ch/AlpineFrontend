@@ -368,7 +368,36 @@ connections. Reproduce with `cargo test --manifest-path src-tauri/Cargo.toml --l
 | Three simulcast layers? | **Yes** | 3 `a=rid:` in the offer, 3 in the answer, and `a=simulcast:recv f;h;q` |
 | Congestion control? | **Yes** | 10 `transport-cc` and 20 `nack` lines in the answer |
 
-Two things worth carrying forward:
+### The H.264 level ceiling is lifted
+
+**LiveKit answers `640034` - High profile, Level 5.2 - and keeps every other entry too.** The answer
+carries `42001f`, `42e01f`, `640032` and `640034`; nothing was dropped.
+
+This is the exact condition `encoder_mf.rs` was told to wait for. Its comment reads *"Turn this back
+on when the SFU changes, not before. An SFU that forwards opaquely - anything self-hosted - will
+negotiate the High the offer already carries, and then this line and nothing else needs to move."*
+LiveKit is that SFU, and `rtc.rs` has been offering High 5.2 on payload type 118 the whole time
+precisely so this would stay a one-line change.
+
+So `project_h264_level_ceiling` - "Cloudflare WebRTC is Constrained Baseline 3.1 only, so only
+720p30 of the advertised ladder is conformant" - **is a statement about Cloudflare and stops
+applying the moment we are on LiveKit.**
+
+What Level 5.2 buys: `MaxFS` 36864 macroblocks and `MaxMBPS` 2073600. 2560x1440 is 14400
+macroblocks, so 1440p60 costs 864000 - comfortably inside. (For comparison, Level 5.0 at 589824
+covers 1440p30 and *not* 1440p60, so 5.2 rather than 5.0 is what makes 2K at 60 conformant.)
+
+**Three gates remain between this and shipping 2K, and none of them are the codec:**
+
+1. `encoder_mf.rs` still sets `eAVEncH264VProfile_ConstrainedBase`. One line, now unblocked, but not
+   done - and worth confirming the SPS it emits actually carries the level we declare rather than
+   relying on "declaring more than we send is the safe direction".
+2. `VOICE_VIDEO_CEILING` ships at 1080p60 (`project_operator_video_ceiling`), so the entitlement
+   layer clamps 1440p regardless of what negotiates. That is a plan decision, not a technical one.
+3. This probe proved **negotiation**, not a 1440p60 High-profile stream decoded end to end. The
+   encoder swap needs its own verification with a real viewer.
+
+Two more things worth carrying forward:
 
 - **`single_peer_connection` is available**: `is_single_pc_mode_active()` returns **true** when
   asked for, on 1.13.5. The reading of `false` in the join test only means `connect_options()` does
