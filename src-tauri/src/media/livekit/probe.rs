@@ -38,12 +38,33 @@ const PUBLISH_TIMEOUT: Duration = Duration::from_secs(5);
 pub struct Probe {
     signal: Arc<SignalClient>,
     publisher: Arc<RTCPeerConnection>,
+    /// The connection the server offers on. We never add anything to it locally.
+    subscriber: Arc<RTCPeerConnection>,
     /// Track SIDs the server has confirmed, as `(cid, sid)`.
     published: Arc<Mutex<Vec<(String, String)>>>,
     /// Published audio tracks, retained so something can be written to them.
     audio: Arc<Mutex<Vec<Arc<TrackLocalStaticSample>>>>,
     /// Opus packets successfully handed to a track.
     packets_sent: Arc<AtomicU64>,
+    /// RTP packets read off subscribed tracks.
+    rtp_received: Arc<AtomicU64>,
+}
+
+/// Count every RTP packet arriving on any subscribed track.
+///
+/// The reader is **spawned** and the handler returns immediately, matching `media::voice::rtc`:
+/// `webrtc-rs` serialises `on_track`, so reading inline blocks every later track from ever opening.
+fn install_receive_counter(subscriber: &Arc<RTCPeerConnection>, counter: Arc<AtomicU64>) {
+    subscriber.on_track(Box::new(move |track, _receiver, _transceiver| {
+        let counter = counter.clone();
+        Box::pin(async move {
+            tokio::spawn(async move {
+                while track.read_rtp().await.is_ok() {
+                    counter.fetch_add(1, Ordering::Relaxed);
+                }
+            });
+        })
+    }));
 }
 
 impl Probe {
@@ -69,6 +90,10 @@ impl Probe {
             ..Default::default()
         };
 
+        // Cloned rather than rebuilt: both connections talk to the same node, so they take the same
+        // ICE configuration, and `RTCConfiguration` is consumed by `new_peer_connection`.
+        let config_for_subscriber = config.clone();
+
         let api = voice_api()?;
         let publisher = Arc::new(
             api.new_peer_connection(config)
@@ -87,18 +112,60 @@ impl Probe {
             .await
             .map_err(|e| e.to_string())?;
 
+        // The subscriber connection. LiveKit is subscriber-primary: the server offers on this one
+        // whenever it has something for us, and we only ever answer. Nothing is added to it locally.
+        let api = voice_api()?;
+        let subscriber = Arc::new(
+            api.new_peer_connection(config_for_subscriber)
+                .await
+                .map_err(|e| e.to_string())?,
+        );
+
+        let rtp_received = Arc::new(AtomicU64::new(0));
+        install_receive_counter(&subscriber, rtp_received.clone());
+
         let signal = Arc::new(signal);
         let published = Arc::new(Mutex::new(Vec::new()));
 
-        tokio::spawn(pump(events, publisher.clone(), published.clone()));
+        tokio::spawn(pump(
+            events,
+            signal.clone(),
+            publisher.clone(),
+            subscriber.clone(),
+            published.clone(),
+        ));
 
         Ok(Self {
             signal,
             publisher,
+            subscriber,
             published,
             audio: Arc::new(Mutex::new(Vec::new())),
             packets_sent: Arc::new(AtomicU64::new(0)),
+            rtp_received,
         })
+    }
+
+    /// Ask the server for one published track. It answers by offering on the subscriber connection.
+    pub async fn subscribe(&self, track_sid: &str) -> Result<(), String> {
+        self.signal
+            .send(proto::signal_request::Message::Subscription(
+                proto::UpdateSubscription {
+                    track_sids: vec![track_sid.to_string()],
+                    subscribe: true,
+                    ..Default::default()
+                },
+            ))
+            .await;
+        Ok(())
+    }
+
+    /// RTP packets read off subscribed tracks.
+    ///
+    /// Packets, not a connection state. A subscriber that reaches `connected` and receives nothing
+    /// is a distinct failure from one that never connected, and only a counter tells them apart.
+    pub fn rtp_received(&self) -> u64 {
+        self.rtp_received.load(Ordering::Relaxed)
     }
 
     /// Publish one Opus track under `name`, and return the SID the server assigned it.
@@ -369,7 +436,9 @@ impl Probe {
 /// Apply what the server says. Only the messages the probe needs are handled.
 async fn pump(
     mut events: SignalEvents,
+    signal: Arc<SignalClient>,
     publisher: Arc<RTCPeerConnection>,
+    subscriber: Arc<RTCPeerConnection>,
     published: Arc<Mutex<Vec<(String, String)>>>,
 ) {
     while let Some(event) = events.recv().await {
@@ -377,6 +446,13 @@ async fn pump(
             break;
         };
         match *message {
+            // The server offers on the subscriber connection whenever it has something for us -
+            // this is the whole of subscriber-primary. We only ever answer.
+            proto::signal_response::Message::Offer(offer) => {
+                if let Err(e) = answer_subscriber(&signal, &subscriber, offer.sdp).await {
+                    eprintln!("[probe] could not answer the subscriber offer: {e}");
+                }
+            }
             proto::signal_response::Message::Answer(answer) => {
                 match RTCSessionDescription::answer(answer.sdp) {
                     Ok(description) => {
@@ -398,4 +474,46 @@ async fn pump(
             _ => {}
         }
     }
+}
+
+/// Answer an offer the server made on the subscriber connection.
+///
+/// Candidates ride in the answer for the same reason they ride in the offer - see the module note.
+async fn answer_subscriber(
+    signal: &Arc<SignalClient>,
+    subscriber: &Arc<RTCPeerConnection>,
+    sdp: String,
+) -> Result<(), String> {
+    let offer = RTCSessionDescription::offer(sdp).map_err(|e| e.to_string())?;
+    subscriber
+        .set_remote_description(offer)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let answer = subscriber
+        .create_answer(None)
+        .await
+        .map_err(|e| e.to_string())?;
+    let mut gathering = subscriber.gathering_complete_promise().await;
+    subscriber
+        .set_local_description(answer)
+        .await
+        .map_err(|e| e.to_string())?;
+    let _ = gathering.recv().await;
+
+    let local = subscriber
+        .local_description()
+        .await
+        .ok_or("no local description after gathering")?;
+
+    signal
+        .send(proto::signal_request::Message::Answer(
+            proto::SessionDescription {
+                r#type: "answer".to_string(),
+                sdp: local.sdp,
+                ..Default::default()
+            },
+        ))
+        .await;
+    Ok(())
 }

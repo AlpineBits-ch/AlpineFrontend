@@ -184,6 +184,17 @@ async fn publishes_three_h264_layers_named_for_livekit() {
     for line in answer.lines().filter(|l| l.starts_with("a=simulcast:")) {
         println!("PROBE answer simulcast: {line}");
     }
+    // Congestion control. Without transport-cc negotiated, receive-side bandwidth estimation never
+    // reaches our sender and it will not adapt to a congested viewer - the failure is a stream that
+    // stays too big rather than an error anyone sees.
+    println!(
+        "PROBE answer transport-cc: {}",
+        answer.lines().filter(|l| l.contains("transport-cc")).count()
+    );
+    println!(
+        "PROBE answer nack: {}",
+        answer.lines().filter(|l| l.contains("nack")).count()
+    );
     println!(
         "PROBE answer has H264: {}",
         answer.to_uppercase().contains("H264")
@@ -194,4 +205,37 @@ async fn publishes_three_h264_layers_named_for_livekit() {
     assert_eq!(probe.publisher_state(), RTCPeerConnectionState::Connected);
 
     probe.close().await;
+}
+
+#[tokio::test]
+#[ignore = "needs a LiveKit server on 127.0.0.1:7880"]
+async fn receives_rtp_from_a_subscribed_track() {
+    let room = "probe-subscribe";
+
+    let publisher = Probe::connect(DEV_URL, &dev_token(room, "user-1"))
+        .await
+        .expect("connect");
+    let sid = publisher.publish_audio("audio").await.expect("publish");
+    publisher
+        .wait_until_connected(std::time::Duration::from_secs(10))
+        .await
+        .expect("publisher connected");
+    publisher.pump_tone_for(std::time::Duration::from_secs(10));
+
+    let listener = Probe::connect(DEV_URL, &dev_token(room, "user-2"))
+        .await
+        .expect("connect");
+    listener.subscribe(&sid).await.expect("subscribe");
+
+    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+
+    // Packets, not a state. A subscriber that reaches `connected` and receives nothing is the exact
+    // failure the counters in `PublicationStats` exist to tell apart, and the one a state-only
+    // assertion would pass straight through. See `project_media_e2e_test_traps`.
+    let received = listener.rtp_received();
+    println!("PROBE rtp packets received: {received}");
+    assert!(received > 0, "subscribed and connected, but no RTP arrived");
+
+    listener.close().await;
+    publisher.close().await;
 }
