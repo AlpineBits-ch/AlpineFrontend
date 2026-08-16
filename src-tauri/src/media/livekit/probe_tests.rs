@@ -234,7 +234,17 @@ async fn receives_rtp_from_a_subscribed_track() {
     // assertion would pass straight through. See `project_media_e2e_test_traps`.
     let received = listener.rtp_received();
     println!("PROBE rtp packets received: {received}");
+    println!("PROBE subscriber state: {}", listener.subscriber_state());
     assert!(received > 0, "subscribed and connected, but no RTP arrived");
+
+    // Asserted after the packet count so a failure reads in the right order: no packets AND not
+    // connected is a transport problem, no packets WHILE connected is a subscription problem, and
+    // the two want completely different investigations.
+    use webrtc::peer_connection::peer_connection_state::RTCPeerConnectionState;
+    assert_eq!(
+        listener.subscriber_state(),
+        RTCPeerConnectionState::Connected
+    );
 
     listener.close().await;
     publisher.close().await;

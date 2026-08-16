@@ -173,6 +173,13 @@ impl Probe {
         self.rtp_received.load(Ordering::Relaxed)
     }
 
+    /// The subscriber connection's own state, which is the other half of the pair above.
+    pub fn subscriber_state(
+        &self,
+    ) -> webrtc::peer_connection::peer_connection_state::RTCPeerConnectionState {
+        self.subscriber.connection_state()
+    }
+
     /// Publish one Opus track under `name`, and return the SID the server assigned it.
     pub async fn publish_audio(&self, name: &str) -> Result<String, String> {
         let track = Arc::new(TrackLocalStaticSample::new(

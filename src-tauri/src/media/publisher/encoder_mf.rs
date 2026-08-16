@@ -238,32 +238,37 @@ impl MediaFoundationEncoder {
                 .and_then(|_| {
                     output.SetUINT32(&MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive.0 as u32)
                 })
-                // Constrained Baseline, because it is the only profile the SFU will negotiate.
+                // High profile. CABAC and the 8x8 transform, worth roughly 10-20% BD-rate on screen
+                // content and worth the most on exactly the small text this encodes.
                 //
-                // **Measured, not assumed, and one line from being changed back.** Swapping this
-                // for `eAVEncH264VProfile_High` is the whole of the High-profile bump: CABAC and
-                // the 8x8 transform, worth roughly 10-20% BD-rate on screen content, and worth the
-                // most on exactly the small text this encodes. It was tried on 2026-08-16 and a
-                // real mobile viewer decoded it fine. The reason it is not on is the far end:
+                // **The SFU changed, which is the condition the previous comment set for this.**
+                // This was pinned to `eAVEncH264VProfile_ConstrainedBase` because Cloudflare
+                // answered `42e01f` - Constrained Baseline 3.1 - to every offer, whatever we asked
+                // for, so High only ever worked by exceeding its own declaration and survived on
+                // receiver leniency. A decoder entitled to believe the answer could show a black
+                // tile rather than a soft one, which is not a trade worth making for a share.
                 //
-                //  * The offer already advertises High 5.0 (`640032`) and High 5.2 (`640034`, which
-                //    `rtc.rs` registers for this purpose and which is kept precisely so that this
-                //    stays a one-line change).
-                //  * Cloudflare drops both and answers `42e01f` - Constrained Baseline 3.1 - every
-                //    time. That is not a quirk of how we ask: their WebRTC docs state Constrained
-                //    Baseline 3.1 as the whole of their H.264 support, naming that exact string.
+                // Measured against `livekit-server 1.13.5` on 2026-08-16: the answer keeps **all
+                // four** entries our offer carries - `42001f`, `42e01f`, `640032` and `640034`
+                // (High, Level 5.2). Nothing is dropped, because LiveKit forwards opaquely instead
+                // of imposing a codec table. So High is now negotiated rather than smuggled, and
+                // Level 5.2's `MaxFS` 36864 / `MaxMBPS` 2073600 makes the whole advertised ladder
+                // conformant - 1440p60 is 14400 macroblocks at 864000, comfortably inside.
+                // The probe that measured it is `media::livekit::probe_tests`.
                 //
-                // So High only ever worked by exceeding its own declaration, decoded on the
-                // strength of the SPS rather than the negotiated fmtp. That survives on receiver
-                // leniency, and a decoder entitled to believe the answer may show a black tile
-                // rather than a soft one. Not a trade worth making for a share, when the bitrate
-                // ladder buys more (see `LAYER_BITRATE_PERCENT_OF_TOP`) at no conformance cost.
+                // Two things that did NOT change and are easy to conflate with this:
                 //
-                // **Turn this back on when the SFU changes, not before.** An SFU that forwards
-                // opaquely - anything self-hosted - will negotiate the High the offer already
-                // carries, and then this line and nothing else needs to move.
+                //  * **Level is not set here at all.** Only the profile is. Media Foundation
+                //    derives the level from geometry, framerate and bitrate, and `rtc.rs` declares
+                //    5.2 in the fmtp. Declaring more than we send is the safe direction - a
+                //    receiver allocates for the ceiling and is never surprised.
+                //  * **`encoder_sw` stays Baseline.** OpenH264 is the fallback path and sets no
+                //    profile; a share that lands on it is unaffected by this line.
+                //
+                // Isle still speaks Cloudflare, but publishes no video, so nothing reaches this
+                // encoder over a transport that would refuse High.
                 .and_then(|_| {
-                    output.SetUINT32(&MF_MT_MPEG2_PROFILE, eAVEncH264VProfile_ConstrainedBase.0 as u32)
+                    output.SetUINT32(&MF_MT_MPEG2_PROFILE, eAVEncH264VProfile_High.0 as u32)
                 })
                 .map_err(|e| e.to_string())?;
             transform
