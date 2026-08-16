@@ -401,8 +401,19 @@ async fn the_sfu_forwards_a_published_screen_to_a_subscriber() {
     let publisher = Room::connect(DEV_URL, &dev_token(name, "user-1"))
         .await
         .expect("connect");
+    // Three rungs, as production publishes - only the top one is fed below. A single-layer publish
+    // is a different shape in `Room`, which always uses the rid constructor where the Cloudflare
+    // path deliberately used a plain track for a lone layer, so testing one layer would be testing
+    // something production never does.
     let publication = publisher
-        .publish_video(name, &[(LAYER_RIDS[0], spec.width, spec.height)])
+        .publish_video(
+            name,
+            &[
+                (LAYER_RIDS[0], spec.width, spec.height),
+                (LAYER_RIDS[1], spec.width / 2, spec.height / 2),
+                (LAYER_RIDS[2], spec.width / 4, spec.height / 4),
+            ],
+        )
         .await
         .expect("publish");
     publisher
@@ -450,9 +461,31 @@ async fn the_sfu_forwards_a_published_screen_to_a_subscriber() {
         tokio::time::sleep(Duration::from_millis(33)).await;
     }
 
+    // Are *we* sending? `write_sample` returning Ok only means the packetiser accepted the frame;
+    // it says nothing about whether the sender is transmitting. If this is zero the SFU has nothing
+    // to forward and its silence is a consequence rather than the fault.
+    for (id, stat) in publisher.publisher_connection().get_stats().await.reports {
+        let rendered = format!("{stat:?}");
+        if rendered.contains("OutboundRTP") && rendered.contains("video") {
+            println!("FORWARD outbound {id}: {rendered}");
+        }
+    }
+
     let received = listener.stats.rtp_received.load(Ordering::Relaxed);
     println!("FORWARD wrote {written} samples, subscriber received {received} RTP packets");
     println!("FORWARD subscriber state: {}", listener.subscriber_state());
+    // The discriminator. Zero means the server never offered the track on the subscriber
+    // connection at all - the subscribe did not take. Non-zero means the track opened and carried
+    // nothing, which is a sending problem rather than a subscribing one.
+    println!(
+        "FORWARD subscriber tracks_opened: {}",
+        listener.stats.tracks_opened.load(Ordering::Relaxed)
+    );
+    println!(
+        "FORWARD publisher state: {}, remote tracks seen by listener: {}",
+        publisher.publisher_state(),
+        listener.remote_tracks().await.len()
+    );
 
     assert!(written > 50, "the encoder produced almost nothing: {written}");
     // The whole point. Bytes, at a viewer, from a real publish.
