@@ -79,13 +79,11 @@ export class SessionTeardownService {
             console.error('Could not clear the local profile/message cache during a wipe', err);
         }
 
-        // Uninstalled after the clear, not instead of it. `ProfileCacheService.hydrate` installs
-        // this hook and nothing ever took it down, and a sign-out is an in-document
-        // `router.navigate` - so the hook the outgoing account installed stays live and keeps
-        // writing every profile the *next* account resolves, from the moment it signs in until its
-        // own hydration replaces the hook. Resolved through the injector for the same reason
-        // `paymentHandles` is: this service's spec is a bare Tauri harness.
-        this.injector.get(ProfileService).cachePersist = null;
+        // The write-behind hook is deliberately *not* uninstalled here - see {@link wipeAccount}.
+        // This method is also the launch sequence's corruption recovery, which keeps the account
+        // signed in and carries on rendering; taking the hook down on that path meant no profile
+        // was cached again for the rest of the session, and the next launch was the cold start
+        // showing raw `user_...` ids that this cache exists to remove.
 
         // Decrypted payment handles are in-memory only and never reach disk, so this is not a wipe
         // of anything persistent - it is making sure the next account signed in on this machine
@@ -124,7 +122,31 @@ export class SessionTeardownService {
         this.mls.keyHandle.set(undefined);
 
         await firstValueFrom(this.mls.clearStoredSigningKey(deviceId));
-        return this.wipeEngineState(deviceId);
+
+        try {
+            return await this.wipeEngineState(deviceId);
+        } finally {
+            // Uninstalled after the clear, not instead of it, and on this path only.
+            // `ProfileCacheService.hydrate` installs a write-behind hook on `ProfileService` and
+            // nothing ever took it down; a sign-out is an in-document `router.navigate`, so the
+            // hook the outgoing account installed would stay live and keep writing every profile
+            // the *next* account resolves, from the moment it signs in until its own hydration
+            // replaces it.
+            //
+            // Here rather than in `wipeEngineState` because only this method ends a session. Its
+            // three callers - `runSignOut` via `MainPageComponent.goToLogin`,
+            // `AccountSwitchService.signOutOf` and `EmailVerificationDialog.signOutToLogin` - all
+            // drop the tokens and navigate to `/authentication` immediately afterwards.
+            // `wipeEngineState`'s other caller, `MainPageComponent.wipeLocalMlsState`, is
+            // corruption recovery: the account stays signed in and the launch continues, so the
+            // hook has to survive it.
+            //
+            // In a `finally` because `runSignOut` deliberately carries on to the login screen when
+            // the wipe throws - a failed wipe must not be what leaves the previous account's hook
+            // writing into the next one's session. Resolved through the injector for the same
+            // reason `paymentHandles` is: this service's spec is a bare Tauri harness.
+            this.injector.get(ProfileService).cachePersist = null;
+        }
     }
 
     /**

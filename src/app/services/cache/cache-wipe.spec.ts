@@ -137,9 +137,25 @@ describe('cache wipe', () => {
         clearThrows = true;
         const service = build();
 
-        await service.wipeEngineState(DEVICE_ID);
+        await service.wipeAccount(DEVICE_ID);
 
         expect(profiles.cachePersist).toBeNull();
+    });
+
+    /**
+     * The other direction, and the defect this pair exists to pin. A corruption-recovery wipe
+     * empties the cache and the launch carries on with the same account signed in; a hook taken
+     * down there is never reinstalled, so nothing is cached again for the rest of the session and
+     * the next launch renders raw `user_...` ids.
+     */
+    it('empties the cache on a corruption wipe but keeps the hook that refills it', async () => {
+        const service = build();
+        const installed = profiles.cachePersist;
+
+        await service.wipeEngineState(DEVICE_ID);
+
+        expect(clearCalls).toEqual([DEVICE_ID]);
+        expect(profiles.cachePersist).toBe(installed);
     });
 
     it('completes a full account wipe even when the cache clear fails', async () => {

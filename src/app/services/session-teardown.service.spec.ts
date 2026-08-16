@@ -175,6 +175,33 @@ describe('wipeAccount', () => {
 
         await expect(service.wipeAccount(DEVICE_ID)).resolves.toEqual({keyPackagesReset: true});
     });
+
+    /**
+     * `ProfileCacheService.hydrate` installs a write-behind hook on `ProfileService` and nothing
+     * ever took it down. A sign-out is an in-document `router.navigate(['/authentication'])`, so
+     * the outgoing account's hook stays live: every profile the *next* account resolves would be
+     * written through it, from the moment it signs in until its own hydration replaces it.
+     */
+    it('uninstalls the write-behind hook, so it cannot write the next account\'s profiles', async () => {
+        const service = build();
+
+        await service.wipeAccount(DEVICE_ID);
+
+        expect(profiles.cachePersist).toBeNull();
+    });
+
+    /**
+     * `runSignOut` catches a failed wipe and carries on to the login screen regardless - leaving
+     * someone trapped in a session they asked to leave is the worse answer. So a wipe that throws
+     * must not be what leaves the previous account's hook writing into the next one's session.
+     */
+    it('uninstalls the hook even when the wipe itself fails', async () => {
+        const service = build();
+        vi.spyOn(service, 'wipeEngineState').mockRejectedValue(new Error('storage gone'));
+
+        await expect(service.wipeAccount(DEVICE_ID)).rejects.toThrow('storage gone');
+        expect(profiles.cachePersist).toBeNull();
+    });
 });
 
 describe('wipeEngineState', () => {
@@ -214,16 +241,19 @@ describe('wipeEngineState', () => {
     });
 
     /**
-     * `ProfileCacheService.hydrate` installs a write-behind hook on `ProfileService` and nothing
-     * ever took it down. A sign-out is an in-document `router.navigate(['/authentication'])`, so
-     * the outgoing account's hook stays live: every profile the *next* account resolves would be
-     * written through it, from the moment it signs in until its own hydration replaces it.
+     * The counterpart to the `wipeAccount` test above, and the reason the hook moved off this
+     * method. `wipeEngineState` is also the launch sequence's corruption-recovery wipe: the account
+     * stays signed in and the launch carries straight on. Uninstalling the hook there meant no
+     * profile was written to the cache for the rest of that session, so the next launch was a full
+     * cold start showing raw `user_...` ids - the exact bug the cache exists to fix, reintroduced
+     * on a recovery path.
      */
-    it('uninstalls the write-behind hook, so it cannot write the next account\'s profiles', async () => {
+    it('leaves the write-behind hook installed - the account is still signed in', async () => {
         const service = build();
+        const installed = profiles.cachePersist;
 
         await service.wipeEngineState(DEVICE_ID);
 
-        expect(profiles.cachePersist).toBeNull();
+        expect(profiles.cachePersist).toBe(installed);
     });
 });
