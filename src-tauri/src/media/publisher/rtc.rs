@@ -225,6 +225,23 @@ fn log_simulcast_sdp(id: u64, which: &str, sdp: &str) {
     }
 }
 
+/// Pull the `profile-level-id` out of an `a=fmtp:` line, if one is there.
+///
+/// The same filter `log_simulcast_sdp` applies before printing this value, reused rather than
+/// duplicated: an `a=fmtp:` line naming `profile-level-id` is the only place this ever lives, and a
+/// second parser drifting from the first would read a different line than the log did.
+fn profile_level_id_in(sdp: &str) -> Option<String> {
+    sdp.lines()
+        .map(str::trim)
+        .find(|line| line.starts_with("a=fmtp:") && line.contains("profile-level-id"))
+        .and_then(|line| {
+            line.split(';')
+                .find(|p| p.trim_start().starts_with("profile-level-id="))
+                .and_then(|p| p.split('=').nth(1))
+                .map(|v| v.trim().to_string())
+        })
+}
+
 /// Where encoded frames go once they leave the pump.
 ///
 /// A trait rather than a bare [`Publication`] so the writer loop's failure handling can be driven
@@ -268,6 +285,12 @@ pub struct Publication {
     /// or every viewer opens a decoder and a mixer slot for silence that will never arrive.
     audio_track: Option<Arc<TrackLocalStaticSample>>,
     pub audio_track_name: Option<String>,
+    /// The `profile-level-id` the answer kept, if the answer named one.
+    ///
+    /// <p>Already parsed for the log and then discarded. Which profile and level survived
+    /// negotiation decides what the encoder may legally emit, and a bitstream above the level the
+    /// answer kept is the black-tile failure - invisible from this side without this.</p>
+    pub profile_level_id: Option<String>,
 }
 
 impl Publication {
@@ -287,6 +310,24 @@ impl Publication {
     /// halves that need this never hold the same object.
     pub fn keyframe_requests(&self) -> Arc<AtomicBool> {
         Arc::clone(&self.keyframe_wanted)
+    }
+
+    /// The connection, for whoever needs to read its statistics.
+    ///
+    /// <p>Handed out exactly like [`Self::keyframe_requests`] and [`Self::audio_track`], and taken
+    /// at the same point in `session::start`: this struct is moved into the writer task, so after
+    /// that moment nothing else can reach it.</p>
+    pub fn peer_connection(&self) -> Arc<RTCPeerConnection> {
+        Arc::clone(&self.peer_connection)
+    }
+
+    /// The `profile-level-id` the answer kept, if the answer named one.
+    ///
+    /// <p>Which profile and level survived negotiation decides what the encoder may legally emit,
+    /// and a bitstream above the level the answer kept is the black-tile failure - invisible from
+    /// this side without this.</p>
+    pub fn profile_level_id(&self) -> Option<String> {
+        self.profile_level_id.clone()
     }
 
     /// The layer tracks, highest first. Index 0 is rid `a`.
@@ -591,6 +632,10 @@ impl Publication {
         }
 
         log_simulcast_sdp(id, "answer", &response.session_description.sdp);
+        // Captured here rather than only logged: the negotiated profile and level decide what the
+        // encoder may legally emit, and a black tile from a level mismatch is otherwise invisible
+        // from this side.
+        let profile_level_id = profile_level_id_in(&response.session_description.sdp);
 
         let answer = RTCSessionDescription::answer(response.session_description.sdp)
             .map_err(|e| e.to_string())?;
@@ -614,6 +659,7 @@ impl Publication {
             track_name: resolved_track_name,
             audio_track,
             audio_track_name,
+            profile_level_id,
         };
 
         if response.requires_immediate_renegotiation {
@@ -696,5 +742,23 @@ impl FrameSink for Publication {
             .close_tracks(&self.media_session_id, &names)
             .await;
         let _ = self.peer_connection.close().await;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reads_the_profile_level_id_the_answer_kept() {
+        let sdp = "m=video 9 UDP/TLS/RTP/SAVPF 102\r\n\
+                   a=fmtp:102 level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01f\r\n";
+
+        assert_eq!(profile_level_id_in(sdp).as_deref(), Some("42e01f"));
+    }
+
+    #[test]
+    fn answers_none_when_the_answer_names_no_profile() {
+        assert_eq!(profile_level_id_in("m=video 9 UDP/TLS/RTP/SAVPF 102\r\n"), None);
     }
 }

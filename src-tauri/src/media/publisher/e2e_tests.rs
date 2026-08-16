@@ -728,6 +728,57 @@ async fn offers_three_rid_tagged_encodings_on_one_track() {
     assert_eq!(publication.layer_tracks().len(), 3);
 }
 
+/// The merge against a real connection, not a synthetic report. A publication that negotiated
+/// three rungs must produce at least one outbound video row for `publish_stats` to pair the ladder
+/// against, whatever the wire says about the other two.
+///
+/// <p>Asserted on `pc.get_stats()` directly rather than through `publish_stats` itself: the command
+/// reads its sources from this module's global `active()` handle, and no test may set that handle
+/// without racing every other test in the binary that touches the same publish state. Reading the
+/// report is the same data `publish_stats` would merge, so this still proves the transport half is
+/// really there to be paired with the ladder - only the pairing itself is covered by `stats_tests`
+/// in `mod.rs`.</p>
+#[tokio::test]
+async fn a_started_publication_reports_at_least_one_outbound_video_stream() {
+    let (backend, _frames) = MockBackend::start(false).await;
+
+    let publication = Publication::start(
+        signalling_to(&backend.base_url),
+        "abc",
+        vec![],
+        false,
+        None,
+        3,
+    )
+    .await
+    .expect("the publication must start");
+
+    // `get_stats()` only reports an outbound stream once the sender's RTP transport is actually
+    // up - `Publication::start` returns as soon as the answer is applied, which in production is
+    // deliberately before ICE and DTLS finish, so a report taken immediately after would race the
+    // handshake rather than prove anything about it. See `MockBackend::wait_until_connected`.
+    backend.wait_until_connected().await;
+
+    // And even connected, webrtc-rs's stats interceptor only starts tracking an SSRC once it has
+    // actually carried a packet - a track that has never been written to has nothing to report,
+    // same as a rung the pump never got a frame to encode.
+    publication
+        .write_frame(vec![0, 0, 0, 1, 0x65], Duration::from_millis(33))
+        .await
+        .expect("a frame should reach the transport");
+
+    let pc = publication.peer_connection();
+    let report = pc.get_stats().await;
+
+    let outbound = report
+        .reports
+        .values()
+        .filter(|v| matches!(v, webrtc::stats::StatsReportType::OutboundRTP(s) if s.kind == "video"))
+        .count();
+
+    assert!(outbound > 0, "a started publication reports at least one outbound video stream");
+}
+
 /// The offer must negotiate the RID header extension, or the ladder is decorative.
 ///
 /// <p><b>This is the half `offers_three_rid_tagged_encodings_on_one_track` cannot see.</b> The

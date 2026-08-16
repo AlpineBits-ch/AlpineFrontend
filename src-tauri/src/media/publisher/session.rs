@@ -70,6 +70,19 @@ pub struct PublishHandle {
     /// The same flag a viewer's RTCP PLI sets, held here so re-enabling the local stream can ask
     /// for an IDR the way a new viewer does.
     keyframe_wanted: Arc<AtomicBool>,
+    /// The publication's connection, for `publish_stats`. Taken before the publication is moved
+    /// into the writer task.
+    peer_connection: Arc<webrtc::peer_connection::RTCPeerConnection>,
+    /// The pump's per-layer counters. Taken before the pump moves onto the capture thread.
+    pump_counters: Arc<super::pump::PumpCounters>,
+    /// The ladder this share was actually built for, rid by rid.
+    ///
+    /// <p>Kept because it is not derivable from anything else the handle holds: `layers_for` splits
+    /// the session budget 68/24/8 and floors each rung, so a rung's real target is neither the
+    /// preset's number nor a fixed fraction of it. It was computed in `start` and only logged.</p>
+    ladder: Vec<super::simulcast::Layer>,
+    /// The `profile-level-id` the answer kept, if it named one. See `Publication::profile_level_id`.
+    profile_level_id: Option<String>,
 }
 
 impl PublishHandle {
@@ -168,6 +181,26 @@ impl PublishHandle {
     /// Counters for the audio half. `None` when this share has no audio.
     pub fn screen_audio_stats(&self) -> Option<super::audio::ScreenAudioStats> {
         self.screen_audio.as_ref().map(|a| a.stats())
+    }
+
+    /// Everything `publish_stats` needs from this side: the connection to poll, the counters, the
+    /// ladder to pair them against, the encoder that produced them, and the negotiated profile.
+    pub fn stats_sources(
+        &self,
+    ) -> (
+        Arc<webrtc::peer_connection::RTCPeerConnection>,
+        Vec<super::pump::PumpStats>,
+        Vec<super::simulcast::Layer>,
+        &'static str,
+        Option<String>,
+    ) {
+        (
+            Arc::clone(&self.peer_connection),
+            self.pump_counters.snapshot(),
+            self.ladder.clone(),
+            self.encoder_name,
+            self.profile_level_id.clone(),
+        )
     }
 
     /// Start or stop the copy of the encoded stream that feeds the sharer's own tile.
@@ -394,6 +427,8 @@ pub async fn start(
     let keyframe_requests = publication.keyframe_requests();
     let audio_track = publication.audio_track();
     let audio_track_name = publication.audio_track_name.clone();
+    let peer_connection = publication.peer_connection();
+    let profile_level_id = publication.profile_level_id();
 
     // One AtomicU32, three holders: the capture loop's pacing, the pump's frame-interval maths, and
     // the handle `set_publish_fps` writes through. It used to be two plus a *fourth* freshly
@@ -481,6 +516,7 @@ pub async fn start(
     // Taken before the pump moves onto the capture thread below - the last point at which the pump
     // and the handle are reachable from the same place.
     let pending_spec = pump.pending_spec();
+    let pump_counters = pump.counters();
 
     let (capture_gone_tx, capture_gone) = std::sync::mpsc::sync_channel::<()>(0);
 
@@ -503,6 +539,12 @@ pub async fn start(
         })
         .map_err(|e| e.to_string())?;
 
+    // Only the layers an encoder was actually built for - `ladder` can be longer when a lower rung
+    // failed to build (see the `encoders.is_empty()` guard above), and a row for a layer that was
+    // never even attempted would not be "not publishing", it would be a lie about what was tried.
+    let published_ladder: Vec<super::simulcast::Layer> =
+        ladder.into_iter().take(layer_count).collect();
+
     Ok(PublishHandle {
         stop_tx: Mutex::new(Some(stop_tx)),
         capture_gone: Mutex::new(capture_gone),
@@ -517,6 +559,10 @@ pub async fn start(
         screen_audio: audio_capture,
         local_stream_on,
         keyframe_wanted: keyframe_requests,
+        peer_connection,
+        pump_counters,
+        ladder: published_ladder,
+        profile_level_id,
     })
 }
 
@@ -566,6 +612,22 @@ mod tests {
         assert_eq!(desired_layer_count(layer_spec(1920, 1080)), 3, "the switch did not clear");
     }
 
+    /// A throwaway connection for tests that need a `PublishHandle` but never poll its stats.
+    ///
+    /// `RTCPeerConnection::new` is async, and these tests are plain `#[test]`s driving a blocking
+    /// `PublishHandle::stop` - so a small one-off runtime builds it rather than converting every
+    /// caller to `#[tokio::test]` for a field none of them read.
+    fn dummy_peer_connection() -> Arc<webrtc::peer_connection::RTCPeerConnection> {
+        let rt = tokio::runtime::Runtime::new().expect("a runtime to build a throwaway connection");
+        Arc::new(rt.block_on(async {
+            crate::media::publisher::rtc::publisher_api()
+                .expect("the publisher API")
+                .new_peer_connection(webrtc::peer_connection::configuration::RTCConfiguration::default())
+                .await
+                .expect("a peer connection")
+        }))
+    }
+
     /// A handle wired to a thread that behaves like the capture loop: it notices the stop, finishes
     /// the frame it is in the middle of, and only then returns.
     fn handle_with_a_busy_capture_thread(frame_cost: Duration) -> (PublishHandle, Arc<AtomicBool>) {
@@ -597,6 +659,10 @@ mod tests {
             screen_audio: None,
             local_stream_on: Arc::new(AtomicBool::new(false)),
             keyframe_wanted: Arc::new(AtomicBool::new(false)),
+            peer_connection: dummy_peer_connection(),
+            pump_counters: Arc::new(crate::media::publisher::pump::PumpCounters::new(1)),
+            ladder: Vec::new(),
+            profile_level_id: None,
         };
         (handle, finished)
     }

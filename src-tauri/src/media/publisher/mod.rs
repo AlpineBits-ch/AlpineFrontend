@@ -299,3 +299,267 @@ pub async fn openh264_status(app: tauri::AppHandle) -> Openh264Status {
         },
     }
 }
+
+// ── Stats for nerds ────────────────────────────────────────────────────────────────────────
+
+/// One outgoing stream as the transport reports it, before the encoder half is merged in.
+///
+/// <p>A struct of its own rather than the webrtc-rs type, so the merge below is testable without
+/// standing up a peer connection - `merge_layers` never has to construct an `OutboundRTPStats`,
+/// which carries a private-ish shape and an `Instant` field that a unit test has no honest value
+/// for.</p>
+#[derive(Debug, Clone)]
+pub struct WireLayer {
+    pub rid: Option<String>,
+    pub ssrc: Option<u32>,
+    pub mid: Option<String>,
+    pub bytes_sent: u64,
+    pub packets_sent: u64,
+    pub nack_count: u64,
+    pub pli_count: Option<u64>,
+    pub fir_count: Option<u64>,
+    pub packets_lost: Option<i64>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PublishLayerStats {
+    pub rid: Option<String>,
+    pub ssrc: Option<u32>,
+    pub mid: Option<String>,
+    pub width: u32,
+    pub height: u32,
+    pub fps: u32,
+    pub target_kbps: u32,
+    /// Cumulative. The webview differentiates successive samples into a rate.
+    pub bytes_sent: u64,
+    pub packets_sent: u64,
+    pub packets_lost: Option<i64>,
+    pub nack_count: u64,
+    pub pli_count: Option<u64>,
+    pub fir_count: Option<u64>,
+    pub frames_encoded: u64,
+    pub keyframes: u64,
+    pub frames_dropped: u64,
+    pub encoder: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PublishAudioStats {
+    pub packets_encoded: u64,
+    pub packets_dropped: u64,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PublishStats {
+    pub codec: Option<String>,
+    pub profile_level_id: Option<String>,
+    pub rtt_ms: Option<u32>,
+    pub layers: Vec<PublishLayerStats>,
+    pub audio: Option<PublishAudioStats>,
+}
+
+/// Pair the ladder against what the wire and the pump each report.
+///
+/// <p><b>The ladder drives the result, not the wire.</b> A rung the ladder built and the wire never
+/// carried still produces a row, showing its target against zero bytes: that combination is exactly
+/// what a simulcast ladder failing to publish looks like, and dropping the row would render it as
+/// "not configured" instead - the opposite of the finding.</p>
+///
+/// <p>A wire row with no rid pairs with the only rung, which is the pre-simulcast case: a
+/// single-encoding publication has a track with no rid at all (see `Publication::start`).</p>
+pub fn merge_layers(
+    ladder: &[simulcast::Layer],
+    wire: &[WireLayer],
+    pump: &[pump::PumpStats],
+    encoder: &str,
+) -> Vec<PublishLayerStats> {
+    ladder
+        .iter()
+        .enumerate()
+        .map(|(index, rung)| {
+            let found = wire.iter().find(|w| match (&w.rid, ladder.len()) {
+                (Some(rid), _) => rid == rung.rid,
+                // No rid on the wire: only meaningful when there is one rung to pair it with.
+                (None, 1) => true,
+                (None, _) => false,
+            });
+            let counts = pump.get(index);
+
+            PublishLayerStats {
+                rid: Some(rung.rid.to_string()),
+                ssrc: found.and_then(|w| w.ssrc),
+                mid: found.and_then(|w| w.mid.clone()),
+                width: rung.spec.width,
+                height: rung.spec.height,
+                fps: rung.spec.fps,
+                target_kbps: rung.spec.kbps,
+                bytes_sent: found.map_or(0, |w| w.bytes_sent),
+                packets_sent: found.map_or(0, |w| w.packets_sent),
+                packets_lost: found.and_then(|w| w.packets_lost),
+                nack_count: found.map_or(0, |w| w.nack_count),
+                pli_count: found.and_then(|w| w.pli_count),
+                fir_count: found.and_then(|w| w.fir_count),
+                frames_encoded: counts.map_or(0, |c| c.encoded_frames),
+                keyframes: counts.map_or(0, |c| c.keyframes),
+                frames_dropped: counts.map_or(0, |c| c.dropped_frames),
+                encoder: encoder.to_string(),
+            }
+        })
+        .collect()
+}
+
+/// Live statistics for the running publish, merged from the transport and the encoder.
+///
+/// <p><b>Two sources, because one is not enough.</b> webrtc-rs deliberately omits every encoder
+/// field from `OutboundRTPStats` - geometry, frame rate, frames encoded, keyframes, target bitrate,
+/// quantiser, encoder name - on the grounds that it is not the encoder. Its own source comments say
+/// so: `frameWidth`, `frameHeight`, `framesPerSecond`, `framesEncoded`, `keyFramesEncoded`, `qpSum`,
+/// `targetBitrate`, `qualityLimitationReason` and `encoderImplementation` are all listed as "encoder
+/// specific and can't be produced since we aren't encoding". Our frame pump is the encoder, so the
+/// transport half of this command comes from `get_stats()` and the encoder half from the pump's
+/// counters and the simulcast ladder. Neither source alone can answer "is this rung actually
+/// publishing" - the wire can say bytes moved without saying what they were, and the pump can say
+/// frames were encoded without saying whether any of them left the machine.</p>
+///
+/// <p><b>Counters come back cumulative.</b> The webview differentiates successive samples into
+/// rates, which keeps this command stateless and pollable at whatever interval the panel wants.</p>
+#[tauri::command]
+pub async fn publish_stats() -> Option<PublishStats> {
+    // Cloned out from under the lock before anything is awaited. Holding it across `get_stats()`
+    // would make a stats poll block the framerate and share-audio controls, which is the same
+    // discipline `stop_active_publish` follows for a different reason.
+    let sources = {
+        let guard = active().lock().ok()?;
+        let handle = guard.as_ref()?;
+        let (pc, counters, ladder, encoder, profile) = handle.stats_sources();
+        (pc, counters, ladder, encoder, profile, handle.screen_audio_stats())
+    };
+    let (pc, counters, ladder, encoder, profile, audio) = sources;
+
+    let report = pc.get_stats().await;
+
+    let mut wire: Vec<WireLayer> = Vec::new();
+    let mut lost_by_ssrc: std::collections::HashMap<u32, i64> = std::collections::HashMap::new();
+    let mut rtt_ms: Option<u32> = None;
+
+    for value in report.reports.values() {
+        match value {
+            webrtc::stats::StatsReportType::OutboundRTP(s) if s.kind == "video" => {
+                wire.push(WireLayer {
+                    rid: s.rid.as_ref().map(|r| r.to_string()),
+                    ssrc: Some(s.ssrc),
+                    mid: Some(s.mid.to_string()),
+                    bytes_sent: s.bytes_sent,
+                    packets_sent: s.packets_sent,
+                    nack_count: s.nack_count,
+                    pli_count: s.pli_count,
+                    fir_count: s.fir_count,
+                    packets_lost: None,
+                });
+            }
+            webrtc::stats::StatsReportType::RemoteInboundRTP(s) => {
+                lost_by_ssrc.insert(s.ssrc, s.packets_lost);
+                if rtt_ms.is_none() {
+                    rtt_ms = s.round_trip_time.map(|t| (t * 1000.0).round() as u32);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    for layer in &mut wire {
+        if let Some(ssrc) = layer.ssrc {
+            layer.packets_lost = lost_by_ssrc.get(&ssrc).copied();
+        }
+    }
+
+    Some(PublishStats {
+        // The codec is fixed for this pipeline: `h264_capability()` is the only one registered.
+        codec: Some("video/H264".to_string()),
+        profile_level_id: profile,
+        rtt_ms,
+        layers: merge_layers(&ladder, &wire, &counters, encoder),
+        audio: audio.map(|a| PublishAudioStats {
+            packets_encoded: a.packets_encoded,
+            packets_dropped: a.packets_dropped,
+        }),
+    })
+}
+
+#[cfg(test)]
+mod stats_tests {
+    use super::*;
+    use crate::media::publisher::encoder::{EncoderContent, EncoderSpec};
+    use crate::media::publisher::pump::PumpStats;
+    use crate::media::publisher::simulcast::Layer;
+
+    fn ladder() -> Vec<Layer> {
+        vec![
+            Layer {rid: "a", spec: EncoderSpec {width: 1920, height: 1080, fps: 30, kbps: 2600, content: EncoderContent::Text}},
+            Layer {rid: "b", spec: EncoderSpec {width: 960, height: 540, fps: 30, kbps: 900, content: EncoderContent::Text}},
+        ]
+    }
+
+    fn pump(encoded: u64, keyframes: u64, dropped: u64) -> PumpStats {
+        PumpStats {encoded_frames: encoded, keyframes, dropped_frames: dropped}
+    }
+
+    #[test]
+    fn merges_the_transport_and_encoder_halves_per_rid() {
+        let wire = vec![
+            WireLayer {rid: Some("a".into()), ssrc: Some(1), mid: Some("0".into()),
+                       bytes_sent: 1_000, packets_sent: 10, nack_count: 2,
+                       pli_count: Some(1), fir_count: None, packets_lost: Some(3)},
+        ];
+
+        let layers = merge_layers(&ladder(), &wire, &[pump(900, 4, 2), pump(880, 4, 1)], "openh264");
+
+        assert_eq!(layers.len(), 2);
+        assert_eq!(layers[0].rid.as_deref(), Some("a"));
+        assert_eq!(layers[0].width, 1920);
+        assert_eq!(layers[0].target_kbps, 2600);
+        assert_eq!(layers[0].bytes_sent, 1_000);
+        assert_eq!(layers[0].frames_encoded, 900);
+        assert_eq!(layers[0].encoder, "openh264");
+    }
+
+    /// The simulcast failure signature: a rung the ladder built and the wire never carried. It
+    /// must still produce a row, showing its target against zero bytes, rather than vanishing -
+    /// a missing row reads as "not configured", which is the opposite of the finding.
+    #[test]
+    fn a_rung_absent_from_the_wire_still_produces_a_row_with_its_target() {
+        let wire = vec![
+            WireLayer {rid: Some("a".into()), ssrc: Some(1), mid: Some("0".into()),
+                       bytes_sent: 1_000, packets_sent: 10, nack_count: 0,
+                       pli_count: None, fir_count: None, packets_lost: None},
+        ];
+
+        let layers = merge_layers(&ladder(), &wire, &[pump(900, 4, 0), pump(880, 4, 0)], "openh264");
+
+        assert_eq!(layers[1].rid.as_deref(), Some("b"));
+        assert_eq!(layers[1].target_kbps, 900);
+        assert_eq!(layers[1].bytes_sent, 0);
+        assert_eq!(layers[1].ssrc, None);
+    }
+
+    /// A single-encoding publication is the pre-simulcast case: one rung, and the wire carries no
+    /// rid at all, so the two must still pair up.
+    #[test]
+    fn a_single_encoding_publication_pairs_a_ridless_wire_row_with_the_only_rung() {
+        let one = vec![ladder()[0].clone()];
+        let wire = vec![
+            WireLayer {rid: None, ssrc: Some(1), mid: Some("0".into()),
+                       bytes_sent: 5_000, packets_sent: 50, nack_count: 0,
+                       pli_count: None, fir_count: None, packets_lost: None},
+        ];
+
+        let layers = merge_layers(&one, &wire, &[pump(900, 4, 0)], "MediaFoundation");
+
+        assert_eq!(layers.len(), 1);
+        assert_eq!(layers[0].bytes_sent, 5_000);
+        assert_eq!(layers[0].frames_encoded, 900);
+    }
+}
