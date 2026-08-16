@@ -12,17 +12,29 @@ const SEPARATOR = '::';
 export type CacheDomain = 'profile' | 'message';
 
 /**
- * The floor each domain is guaranteed, in bytes.
+ * The ceiling each domain is held to, in bytes.
  *
- * <p>A floor, not an allocation: a domain may grow into headroom another is not using, and gives it
- * back when the owner needs it. What the floor forbids is one domain evicting another <i>below</i>
- * its own. Profiles are tiny and are the thing whose absence is visible on screen, so a chatty
- * channel must never be able to push them out.</p>
+ * <p><b>A hard per-domain ceiling, not a floor with borrowing.</b> {@link CacheStore.evict} compares
+ * one domain's own total against its own number and drops that domain's least recently used entries
+ * until it fits; it never looks at the other domain, in either direction. So a domain cannot grow
+ * into headroom the other is not using, and equally cannot be pushed below its number by one that
+ * is - which is the property that matters. Profiles are tiny and are the thing whose absence is
+ * visible on screen, so a chatty channel must never be able to evict them, and a hard ceiling is
+ * the simplest arrangement in which it cannot.</p>
  */
 export const DOMAIN_RESERVES: Record<CacheDomain, number> = {
     profile: 5 * 1024 * 1024,
     message: 15 * 1024 * 1024,
 };
+
+/**
+ * How long index writes are batched for, in milliseconds.
+ *
+ * <p>See the class comment's section on batching. Short enough that an abrupt close loses at most
+ * this much of one generation of `lastAccess` bumps, long enough that a hydration-driven burst of
+ * writes costs a handful of index writes rather than one per entry.</p>
+ */
+const INDEX_WRITE_WINDOW_MS = 200;
 
 interface IndexEntry {
     bytes: number;
@@ -43,15 +55,26 @@ interface IndexEntry {
  * <p>So sizes and access times live in one index entry, and eviction reads only that. A payload is
  * touched when it is asked for and at no other time.</p>
  *
- * <h3>`get()` does not persist the index</h3>
+ * <h3>`get()` does not persist the index, and `set()` batches it</h3>
  *
  * <p>The obvious design bumps `lastAccess` and writes the whole index back on every read. Profile
  * hydration reads every cached entry on startup, so that turns a cold start into N serialised
  * IndexedDB writes of the entire index - exactly the cost the separate-index design exists to avoid.
- * Instead `get()` only updates the in-memory index entry; the index is persisted on the write paths
- * that already persist it (`set`, `delete`, `clear`). If the app is killed between a read and the
- * next write, that read's `lastAccess` bump is lost and eviction may pick a slightly staler victim -
- * eviction accuracy degrades, nothing corrupts and nothing becomes unreadable.</p>
+ * Instead `get()` only updates the in-memory index entry.</p>
+ *
+ * <p><b>The same argument applies to `set()`, and that was missed.</b> An index entry is around 110
+ * bytes, so two thousand cached profiles is a ~220 KB index - and `ProfileCacheService.revalidateAll`
+ * calls `set()` once per hydrated profile, on the main thread, just after launch. Re-sealing and
+ * rewriting the whole index per call is two thousand AES encryptions and two thousand 220 KB writes
+ * for one round of revalidation. So an index write is now <b>batched</b>: the first change after a
+ * quiet period is written through immediately, and anything within {@link INDEX_WRITE_WINDOW_MS} of
+ * that write joins one flush at the end of the window.</p>
+ *
+ * <p>What a batch can lose to an abrupt close is one window of `lastAccess` bumps and one index
+ * generation. The payload rows are already written and the index self-heals on the next write, so
+ * the cost is a slightly staler eviction victim and, at worst, an entry that reads as absent and is
+ * refetched. <b>`delete()` and `clear()` are deliberately never batched</b>: an entry the user asked
+ * to be gone that came back after a reload is not a degraded cache, it is a privacy defect.</p>
  *
  * <h3>One implementation for both hosts</h3>
  *
@@ -66,10 +89,24 @@ export class CacheStore {
     private index: Map<string, IndexEntry> | undefined;
     private readonly sizes: Record<CacheDomain, number> = {profile: 0, message: 0};
 
+    /** Whether the in-memory index holds changes the stored copy does not. */
+    private indexDirty = false;
+
+    /** The pending batched flush, if one is scheduled. */
+    private flushTimer: ReturnType<typeof setTimeout> | undefined;
+
+    /** When the index was last written, so the first change after a quiet period goes straight out. */
+    private lastIndexWrite = 0;
+
+    /**
+     * @param indexWriteWindowMs how long index writes are batched for. Injectable so a spec can
+     *     prove the batching without waiting on a clock, and prove the unbatched paths at zero.
+     */
     constructor(
         private readonly deviceId: string,
         private readonly seal: CacheSealService,
         private readonly openDb: () => Promise<IdbStore> = () => openStore(DB_NAME, STORE_NAME),
+        private readonly indexWriteWindowMs: number = INDEX_WRITE_WINDOW_MS,
     ) {}
 
     /** Bytes currently held for one domain. Read from the index; touches no payload. */
@@ -84,12 +121,18 @@ export class CacheStore {
         if (!entry) return undefined;
 
         const raw = await this.withStore(s => s.get(scoped));
-        if (typeof raw !== 'string') return undefined;
+        const value = typeof raw === 'string' ? await this.seal.unseal<T>(raw) : null;
+        if (value === null) {
+            // The payload is missing, or is sealed under something this key will not open. Either
+            // way the entry can never be served again - and left in the index it would keep
+            // charging its bytes against the domain's ceiling for the life of the cache, evicting
+            // entries that are actually readable to make room for one that is not.
+            await this.discard(index, scoped);
+            await this.touchIndex(index);
+            return undefined;
+        }
 
-        const value = await this.seal.unseal<T>(raw);
-        if (value === null) return undefined;
-
-        // In-memory only - see the class comment on why this does not call writeIndex().
+        // In-memory only - see the class comment on why this does not flush the index.
         entry.lastAccess = Date.now();
         return value;
     }
@@ -107,23 +150,25 @@ export class CacheStore {
 
         const bytes = sealed.length + scoped.length;
         index.set(scoped, {bytes, lastAccess: Date.now(), domain});
+        this.indexDirty = true;
         this.sizes[domain] += bytes;
 
         await this.withStore(s => s.set(scoped, sealed));
         await this.evict(domain, index);
-        await this.writeIndex(index);
+        // Batched. The payload row above is written through either way, so what a lost batch costs
+        // is an entry that reads as absent next launch and is refetched.
+        await this.touchIndex(index);
     }
 
     async delete(domain: CacheDomain, key: string): Promise<void> {
         const index = await this.loadIndex();
         const scoped = this.scoped(domain, key);
-        const entry = index.get(scoped);
-        if (!entry) return;
+        if (!index.has(scoped)) return;
 
-        this.sizes[domain] -= entry.bytes;
-        index.delete(scoped);
-        await this.withStore(s => s.delete(scoped));
-        await this.writeIndex(index);
+        await this.discard(index, scoped);
+        // Never batched: an entry that came back after a reload because its removal was still
+        // sitting in a timer is not a degraded cache.
+        await this.flushIndex(index);
     }
 
     /** Every entry in one domain. Used by profile hydration, which genuinely wants all of them. */
@@ -131,27 +176,35 @@ export class CacheStore {
         const index = await this.loadIndex();
         const prefix = this.prefix(domain);
         const out: [string, T][] = [];
+        let reclaimed = false;
 
-        for (const scoped of index.keys()) {
+        // Snapshotted, because an unreadable entry is dropped from the index as it is found.
+        for (const scoped of [...index.keys()]) {
             if (!scoped.startsWith(prefix)) continue;
             const raw = await this.withStore(s => s.get(scoped));
-            if (typeof raw !== 'string') continue;
-            const value = await this.seal.unseal<T>(raw);
-            if (value !== null) out.push([scoped.slice(prefix.length), value]);
+            const value = typeof raw === 'string' ? await this.seal.unseal<T>(raw) : null;
+            if (value === null) {
+                // Same reclamation as get(), for the same reason.
+                await this.discard(index, scoped);
+                reclaimed = true;
+                continue;
+            }
+            out.push([scoped.slice(prefix.length), value]);
         }
+        if (reclaimed) await this.touchIndex(index);
         return out;
     }
 
     /** Drops this device's entries. Another account's entries are a different prefix. */
     async clear(): Promise<void> {
         const index = await this.loadIndex();
-        for (const scoped of [...index.keys()]) {
-            await this.withStore(s => s.delete(scoped));
-            index.delete(scoped);
-        }
+        for (const scoped of [...index.keys()]) await this.discard(index, scoped);
         this.sizes.profile = 0;
         this.sizes.message = 0;
-        await this.writeIndex(index);
+        // Never batched, and this one is the reason the rule exists: a clear() that did not persist
+        // would leave a signed-out account's index - the set of user ids and conversation ids this
+        // device cached - readable after the wipe that was supposed to remove it.
+        await this.flushIndex(index);
     }
 
     /**
@@ -167,12 +220,19 @@ export class CacheStore {
             .filter(([, e]) => e.domain === domain)
             .sort((a, b) => a[1].lastAccess - b[1].lastAccess);
 
-        for (const [scoped, entry] of victims) {
+        for (const [scoped] of victims) {
             if (this.sizes[domain] <= DOMAIN_RESERVES[domain]) return;
-            this.sizes[domain] -= entry.bytes;
-            index.delete(scoped);
-            await this.withStore(s => s.delete(scoped));
+            await this.discard(index, scoped);
         }
+    }
+
+    /** Drops one entry from the index, from the size accounting and from the store. */
+    private async discard(index: Map<string, IndexEntry>, scoped: string): Promise<void> {
+        const entry = index.get(scoped);
+        if (entry) this.sizes[entry.domain] -= entry.bytes;
+        index.delete(scoped);
+        this.indexDirty = true;
+        await this.withStore(s => s.delete(scoped));
     }
 
     private prefix(domain: CacheDomain): string {
@@ -211,10 +271,59 @@ export class CacheStore {
         return index;
     }
 
-    private async writeIndex(index: Map<string, IndexEntry>): Promise<void> {
+    /**
+     * Persists the index now, or joins it to the current write window.
+     *
+     * <p>The first change after a quiet period is written through immediately - so a single `set()`
+     * is durable the moment it resolves, which is what makes the cache survive a launch at all -
+     * and everything within one window of that write shares a single flush at the end of it. The
+     * window is measured from the last <i>write</i>, not from the last change, so a continuous
+     * stream of writes cannot postpone the flush indefinitely.</p>
+     */
+    private async touchIndex(index: Map<string, IndexEntry>): Promise<void> {
+        const since = Date.now() - this.lastIndexWrite;
+        if (this.flushTimer === undefined && since >= this.indexWriteWindowMs) {
+            await this.flushIndex(index);
+            return;
+        }
+        this.scheduleFlush(Math.max(0, this.indexWriteWindowMs - since));
+    }
+
+    private scheduleFlush(delay: number): void {
+        if (this.flushTimer !== undefined) return;
+        this.flushTimer = setTimeout(() => {
+            this.flushTimer = undefined;
+            void this.flushPending();
+        }, delay);
+    }
+
+    /** The batched flush's own entry point, so a failure there cannot reach an error handler. */
+    private async flushPending(): Promise<void> {
+        try {
+            await this.flushIndex(await this.loadIndex());
+        } catch {
+            // An index that could not be written is a cache miss next launch and nothing more.
+            // Raised here it would be an unhandled rejection out of a timer, which is a reload.
+        }
+    }
+
+    private async flushIndex(index: Map<string, IndexEntry>): Promise<void> {
+        this.cancelFlush();
+        this.lastIndexWrite = Date.now();
+        if (!this.indexDirty) return;
+
         const sealed = await this.seal.seal(Object.fromEntries(index));
+        // No key: nothing can be written, and the changes stay dirty for a later attempt.
         if (sealed === null) return;
+
         await this.withStore(s => s.set(this.indexKey(), sealed));
+        this.indexDirty = false;
+    }
+
+    private cancelFlush(): void {
+        if (this.flushTimer === undefined) return;
+        clearTimeout(this.flushTimer);
+        this.flushTimer = undefined;
     }
 
     /** One reopen for a connection another tab's upgrade closed, as the MLS store does. */
