@@ -63,10 +63,17 @@ const LEVEL_REPORT_FRAMES: u32 = 10;
 /// contention is with a task that appends a participant a handful of times per call.
 type Sources = Arc<Mutex<HashMap<String, RemoteSource>>>;
 
-/// mid -> source id, for one publication.
+/// routing key -> source id, for one publication.
+///
+/// The key is whatever the transport hands back from a subscribe: the mid Cloudflare assigned, or
+/// the track SID LiveKit issued. Nothing here has to know which - both are opaque strings that
+/// inbound RTP arrives under - which is what let the transport split land without touching the
+/// mixer, the jitter buffer or the inbound task.
 ///
 /// Per publication, not shared. Mids are numbered within a peer connection, so two publications
 /// both have a mid `"0"`; a single map would route one call's audio into the other's participant.
+/// SIDs are globally unique and would survive sharing, but the two kinds of key live in the same
+/// map, so the narrower rule is the one that has to hold.
 type MidMap = Arc<Mutex<HashMap<String, String>>>;
 
 /// Engine-wide counters, for `voice_stats`.
@@ -443,11 +450,15 @@ fn routes_to(mids: &HashMap<String, String>, id: &str) -> bool {
     mids.values().any(|source_id| source_id == id)
 }
 
-/// One peer connection to one SFU session, and the participants pulled onto it.
+/// One transport to one SFU, and the participants being received over it.
 ///
 /// Publications share the engine's devices, capture chain and mixer; what they own is transport and
 /// routing. `open` is per publication so proximity push-to-talk cannot open the guild channel's
 /// microphone, which is the reason Isle had a separate capture of its own before this.
+///
+/// Which SFU is [`VoicePublication`]'s business and not this struct's: a guild channel or a call
+/// publishes into a shared LiveKit room, Isle keeps its own Cloudflare session, and nothing below
+/// this line distinguishes them.
 pub struct Publication {
     inner: Arc<VoicePublication>,
     /// The room ping that says this participant is still here, running for exactly as long as this
@@ -475,7 +486,13 @@ impl Publication {
     }
 
     /// This publication's transport counters.
+    ///
+    /// Refreshed on the way out, because a LiveKit publication's receive counters live on the room
+    /// it shares with the screen publisher rather than on itself. Doing it here rather than on a
+    /// timer keeps the cost on whoever asks - `voice_stats` and the five-second log line - instead
+    /// of on a task running for the length of every call.
     pub fn stats(&self) -> Arc<PublicationStats> {
+        self.inner.refresh_stats();
         self.inner.stats()
     }
 
@@ -491,11 +508,12 @@ impl Publication {
         }
     }
 
-    /// The mid-to-source routing table, as `mid -> id`.
+    /// The routing table, as `routing key -> id` - a mid on Cloudflare, a track SID on LiveKit.
     ///
     /// Reported because it is the join between two halves that are each individually healthy: RTP
-    /// arrives keyed by mid, sources are keyed by id, and if this table disagrees with either the
-    /// audio is dropped with nothing to show for it.
+    /// arrives keyed by one of those, sources are keyed by id, and if this table disagrees with
+    /// either the audio is dropped with nothing to show for it. Still called `mid_routes` on the
+    /// wire because the stats panel reads that key; the value is what changed, not the meaning.
     pub fn mid_routes(&self) -> Vec<(String, String)> {
         match self.mids.lock() {
             Ok(map) => {
@@ -534,10 +552,13 @@ impl Publication {
         }
     }
 
-    /// Pull one participant's track onto this publication and start mixing them in.
+    /// Start receiving one participant's track on this publication and mixing them in.
     ///
-    /// The source is created *before* the subscribe, so the mid-to-source mapping written inside
-    /// `subscribe` always finds somewhere to put the opening packets.
+    /// The source is created *before* the subscribe, so the routing entry written inside
+    /// `subscribe` always finds somewhere to put the opening packets. `media_session_id` and
+    /// `track_name` are what the roster carries and stay the caller's vocabulary on both
+    /// transports; turning that pair into a LiveKit track SID is the transport's job, not this
+    /// one's.
     pub async fn subscribe(
         &self,
         id: String,
@@ -592,6 +613,19 @@ impl Publication {
         if let Ok(mut sources) = self.sources.lock() {
             sources.remove(id);
         }
+        // The keys go to the transport before they are dropped, or there is nothing left to name
+        // the subscription with. On LiveKit that is a real `UpdateSubscription{subscribe: false}`:
+        // without it the SFU keeps forwarding a track nothing decodes any more, which costs the
+        // user bandwidth for the rest of the call and is invisible from this side.
+        let keys: Vec<String> = match self.mids.lock() {
+            Ok(map) => map
+                .iter()
+                .filter(|(_, source_id)| source_id.as_str() == id)
+                .map(|(key, _)| key.clone())
+                .collect(),
+            Err(_) => Vec::new(),
+        };
+        self.inner.unsubscribe_routes(&keys);
         if let Ok(mut map) = self.mids.lock() {
             map.retain(|_, source_id| source_id != id);
         }

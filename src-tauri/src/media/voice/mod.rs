@@ -44,6 +44,7 @@ pub const FRAME_MS: u32 = 10;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex, OnceLock};
 
+use crate::media::livekit::registry;
 use crate::media::publisher::rtc::IceServerConfig;
 use crate::media::publisher::signalling::{SessionRole, Signalling, VoiceTarget};
 use chain::ChainConfig;
@@ -312,11 +313,63 @@ pub struct VoiceStartResult {
     pub slot: String,
 }
 
+/// Which SFU a `voice_start` call is asking for.
+#[derive(Debug, PartialEq, Eq)]
+enum TransportChoice {
+    /// A guild channel or a call, into the room the webview minted a connection for.
+    LiveKit {
+        registry_key: String,
+        url: String,
+        token: String,
+    },
+    /// Isle, and any caller that predates the migration.
+    Cloudflare,
+}
+
+/// Read the two optional LiveKit arguments and decide what to connect.
+///
+/// Pure, and separated from [`voice_start`] because every branch here is a way a call can go wrong
+/// that no test with a network in it would catch cheaply.
+///
+/// Three rules, and the third is the one worth writing down:
+///
+/// * **Isle never takes the LiveKit arm**, whatever arrives. Proximity voice has no room model on
+///   either side, and [`registry::key_for`] answers `None` for it - so this cannot be turned on for
+///   Isle by sending it a URL, deliberately.
+/// * **Neither argument** is the pre-migration caller, which still works exactly as it did.
+/// * **Exactly one argument is an error**, not a fallback. Falling back would mean a guild join
+///   quietly attempting a Cloudflare handshake against a backend that no longer answers one, and
+///   the user would see a join that failed for a reason nothing named. Half a connection is a
+///   mistake in the caller and should read as one.
+fn transport_choice(
+    target: &VoiceTarget,
+    livekit_url: Option<String>,
+    livekit_token: Option<String>,
+) -> Result<TransportChoice, String> {
+    match (livekit_url, livekit_token) {
+        (None, None) => Ok(TransportChoice::Cloudflare),
+        (Some(url), Some(token)) => match registry::key_for(target) {
+            Some(registry_key) => Ok(TransportChoice::LiveKit {
+                registry_key,
+                url,
+                token,
+            }),
+            // Isle. Not an error: the fields are simply not for it.
+            None => Ok(TransportChoice::Cloudflare),
+        },
+        (Some(_), None) => Err("livekitUrl was sent without livekitToken".into()),
+        (None, Some(_)) => Err("livekitToken was sent without livekitUrl".into()),
+    }
+}
+
 /// Start capturing and publishing the microphone.
 ///
 /// `api_base` and `token` come from the webview for the same reason the screen publisher takes
 /// them: the webview owns session lifetime and token refresh, and duplicating that here would mean
-/// two things to keep correct.
+/// two things to keep correct. Under the LiveKit migration that ownership grew rather than moved:
+/// the webview also fetches `POST .../voice/connection` and passes the result down as
+/// `livekit_url` + `livekit_token`, because it has the interceptor chain that can refresh an
+/// expired bearer and a token captured here at join time cannot (spec §2.2).
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]
 pub async fn voice_start(
@@ -337,6 +390,11 @@ pub async fn voice_start(
     // argument on its own, so an absent one is an error unless the type admits it - and the guild
     // and call callers do not send this.
     isle: Option<bool>,
+    // The LiveKit connection, already fetched by the webview. Optional for the same reason `isle`
+    // is: Isle sends neither, and Tauri would reject the whole command for a missing argument
+    // rather than defaulting it. Their absence is what selects the Cloudflare path.
+    livekit_url: Option<String>,
+    livekit_token: Option<String>,
     on_event: tauri::ipc::Channel<VoiceEvent>,
 ) -> Result<VoiceStartResult, String> {
     let target = match (guild_id, channel_id, call_id) {
@@ -359,11 +417,22 @@ pub async fn voice_start(
     // dropped back out of the channel with no explanation on either side.
     eprintln!("[voice] joining {target:?} as slot {slot}");
 
+    // After the line above, so a rejected argument pair is still reported against a join anyone can
+    // find in the log rather than appearing on its own with no target attached.
+    let transport = transport_choice(&target, livekit_url, livekit_token)
+        .inspect_err(|e| eprintln!("[voice] cannot choose a transport: {e}"))?;
+
     // A second client, for the liveness ping alone. Built here because `target` is about to be
     // moved into the publication's own signalling and `Signalling` deliberately does not hand it
     // back out - and because the ping's lifetime is the publication's, not a request's, so sharing
     // one client would tie two different lifetimes together for the sake of a pooled handle that is
     // cheap to hold twice. Not started yet: see below.
+    //
+    // Built on **both** transports, and that is load-bearing. `POST .../voice/alive` is the HTTP
+    // liveness assertion and it is deliberately independent of the hub and of whichever SFU carries
+    // the media - it is the half of the alt-tab eviction fix that does not run on a timer the
+    // browser may withhold. Moving to LiveKit changes the negotiation and nothing about room
+    // membership, so dropping this on the LiveKit arm would silently restore that bug.
     let alive_signalling = Signalling::new(
         api_base.clone(),
         token.clone(),
@@ -372,10 +441,6 @@ pub async fn voice_start(
         SessionRole::Primary,
     )
     .inspect_err(|e| eprintln!("[voice] could not start liveness signalling: {e}"))?;
-
-    // Primary: this is the session the backend records as the participant's audio.
-    let signalling = Signalling::new(api_base, token, device_id, target, SessionRole::Primary)
-        .inspect_err(|e| eprintln!("[voice] could not start signalling: {e}"))?;
 
     // Start the engine if this is the first call. `started_here` is kept so a connect that fails
     // below can close the devices again rather than leaving the microphone open for a call that
@@ -401,7 +466,25 @@ pub async fn voice_start(
 
     // Connected outside the lock: this is a full offer/answer round trip, and holding the engine
     // mutex across it would block mute, push-to-talk and every other command for its duration.
-    let inner = match VoicePublication::start(signalling, ice_servers).await {
+    let connected = match transport {
+        TransportChoice::LiveKit {
+            registry_key,
+            url,
+            token,
+        } => VoicePublication::start_livekit(registry_key, &url, &token).await,
+        TransportChoice::Cloudflare => {
+            // Primary: this is the session the backend records as the participant's audio. Built
+            // only on this arm - a LiveKit publication makes no control-plane call of its own, so a
+            // client here would be a token this process holds and never uses.
+            match Signalling::new(api_base, token, device_id, target, SessionRole::Primary)
+                .inspect_err(|e| eprintln!("[voice] could not start signalling: {e}"))
+            {
+                Ok(signalling) => VoicePublication::start_cloudflare(signalling, ice_servers).await,
+                Err(e) => Err(e),
+            }
+        }
+    };
+    let inner = match connected {
         Ok(inner) => Arc::new(inner),
         Err(e) => {
             eprintln!("[voice] could not connect the publication: {e}");
@@ -817,6 +900,88 @@ mod tests {
     fn a_missing_volume_reads_as_full_rather_than_silent() {
         // Muting on a bad value would be indistinguishable from the other side going quiet.
         assert_eq!(clamp_volume(f32::NAN), 1.0);
+    }
+
+    /// Which SFU a join goes to, decided from two optional arguments.
+    ///
+    /// Every case here is silent when it is wrong: the Cloudflare arm against a migrated backend
+    /// fails at a handshake nobody reads, and the LiveKit arm for Isle would try to put proximity
+    /// voice in a room that does not exist for it.
+    mod transport {
+        use super::*;
+
+        fn guild() -> VoiceTarget {
+            VoiceTarget::GuildChannel {
+                guild_id: "g1".into(),
+                channel_id: "c1".into(),
+            }
+        }
+
+        #[test]
+        fn a_guild_channel_with_a_connection_takes_livekit() {
+            let choice = transport_choice(
+                &guild(),
+                Some("ws://sfu.test".into()),
+                Some("tok".into()),
+            )
+            .expect("both fields present");
+            assert_eq!(
+                choice,
+                TransportChoice::LiveKit {
+                    registry_key: "guild:g1:c1".into(),
+                    url: "ws://sfu.test".into(),
+                    token: "tok".into(),
+                }
+            );
+        }
+
+        #[test]
+        fn a_call_gets_its_own_room_key() {
+            // A guild channel and a call sharing an id are different rooms. One key for both would
+            // hand a call the channel's live connection.
+            let choice = transport_choice(
+                &VoiceTarget::Call { call_id: "c1".into() },
+                Some("ws://sfu.test".into()),
+                Some("tok".into()),
+            )
+            .unwrap();
+            assert!(matches!(
+                choice,
+                TransportChoice::LiveKit { ref registry_key, .. } if registry_key == "call:c1"
+            ));
+        }
+
+        #[test]
+        fn a_caller_that_sends_neither_field_keeps_the_old_path() {
+            // The frontend that shipped before the migration. It must go on working unchanged.
+            assert_eq!(
+                transport_choice(&guild(), None, None).unwrap(),
+                TransportChoice::Cloudflare
+            );
+        }
+
+        #[test]
+        fn isle_stays_on_cloudflare_even_if_a_connection_arrives() {
+            // Proximity voice has no room model on either side. This is the arm that must not be
+            // switchable from the caller - a stray argument cannot move Isle onto LiveKit.
+            assert_eq!(
+                transport_choice(
+                    &VoiceTarget::Isle,
+                    Some("ws://sfu.test".into()),
+                    Some("tok".into())
+                )
+                .unwrap(),
+                TransportChoice::Cloudflare
+            );
+        }
+
+        #[test]
+        fn half_a_connection_is_an_error_rather_than_a_fallback() {
+            // Falling back would attempt a Cloudflare handshake against a backend that no longer
+            // answers one, and the join would fail for a reason nothing named.
+            assert!(transport_choice(&guild(), Some("ws://sfu.test".into()), None).is_err());
+            assert!(transport_choice(&guild(), None, Some("tok".into())).is_err());
+        }
     }
 
     #[test]
