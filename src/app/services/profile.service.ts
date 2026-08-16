@@ -428,6 +428,38 @@ export class ProfileService {
         this.negativeByUserId.delete(profile.userId);
         this.byProfileId.update(c => ({...c, [profile.id]: profile}));
         this.byUserId.update(c => ({...c, [profile.userId]: profile}));
+        this.cachePersist?.(profile);
+    }
+
+    /**
+     * Write-behind hook, installed by `ProfileCacheService`.
+     *
+     * <p>A hook rather than an injected dependency, and deliberately: this service is on the boot
+     * path of nearly every component spec in the tree, and giving it a hard edge to the cache would
+     * drag IndexedDB and a sealing key into all of them. Null here means "no cache installed",
+     * which is exactly what a spec wants and what a browser with no key gets.</p>
+     */
+    public cachePersist: ((profile: ProfileDto) => void) | null = null;
+
+    /**
+     * Populates both indexes in one patch.
+     *
+     * <p>One patch, not one per profile: `store` replaces the whole `Record` each time, so
+     * hydrating a few thousand profiles through it would run every avatar and message effect on
+     * screen a few thousand times.</p>
+     */
+    public hydrateFrom(profiles: ProfileDto[]): void {
+        if (profiles.length === 0) return;
+
+        const byProfileId = {...this.byProfileId()};
+        const byUserId = {...this.byUserId()};
+        for (const profile of profiles) {
+            // A live row already fetched this session is newer than anything on disk.
+            byProfileId[profile.id] ??= profile;
+            byUserId[profile.userId] ??= profile;
+        }
+        this.byProfileId.set(byProfileId);
+        this.byUserId.set(byUserId);
     }
 
 }
