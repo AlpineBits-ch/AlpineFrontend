@@ -14,10 +14,10 @@ const SEPARATOR = '::';
  * Prefix of the per-device revision marker, kept in the same object store as the index it describes.
  *
  * <p>Outside every scope that is ever enumerated: {@link CacheStore.all} filters on
- * `${deviceId}::${domain}::` and {@link CacheStore.clear} walks the index's own keys, so the marker
- * is neither listed as an entry nor deleted by a wipe. Nothing can collide with it from the other
- * side either - an entry key could only begin `__rev::` if a device id did, and those are slot ids.
- * </p>
+ * `${deviceId}::${domain}::` and {@link CacheStore.clear} on `${deviceId}::`, so the marker is
+ * neither listed as an entry nor deleted by a wipe - its device id comes after this prefix, not
+ * before. Nothing can collide with it from the other side either - an entry key could only begin
+ * `__rev::` if a device id did, and those are slot ids.</p>
  */
 const REVISION_PREFIX = `__rev${SEPARATOR}`;
 
@@ -275,18 +275,53 @@ export class CacheStore {
         });
     }
 
-    /** Drops this device's entries. Another account's entries are a different prefix. */
+    /**
+     * Drops this device's entries. Another account's entries are a different prefix.
+     *
+     * <p><b>The object store is the authority here, not the index.</b> Deriving the key set from
+     * the index misses every row the index does not list, and rows the index does not list are
+     * routine rather than exotic: {@link set} writes the payload through immediately and defers the
+     * index write by up to {@link INDEX_WRITE_WINDOW_MS}, so a tab killed inside that window leaves
+     * one behind, and so does the cross-tab overwrite the class comment describes. Such a row is
+     * invisible to {@link all}, {@link sizeOf} and {@link evict} - which costs quota - but the part
+     * that matters is that it was invisible to <i>this</i>, so a signed-out account's cached
+     * profiles and unencrypted message bodies survived the wipe that was meant to remove them.</p>
+     */
     async clear(): Promise<void> {
         await this.locked(async () => {
             const index = await this.sync();
             for (const scoped of [...index.keys()]) await this.discard(index, scoped);
             this.sizes.profile = 0;
             this.sizes.message = 0;
+            await this.purgeStoredRows();
             // Never batched, and this one is the reason the rule exists: a clear() that did not
             // persist would leave a signed-out account's index - the set of user ids and
             // conversation ids this device cached - readable after the wipe meant to remove it.
             await this.flushIndex(index);
         });
+    }
+
+    /**
+     * Deletes every row in the object store under this device's entry prefix, listed or not.
+     *
+     * <p>Private, and therefore takes no lock - {@link clear} is already inside the exclusive one,
+     * and a second request on that name would queue behind its own holder forever.</p>
+     *
+     * <p>The prefix is `${deviceId}::`, which is exactly {@link scoped}'s first segment, so the
+     * filter cannot reach another account: `device-b::profile::u1` does not start with it, and
+     * neither does a device id that merely begins with this one, because the separator has to match
+     * too. It also cannot reach either of the two bookkeeping keys of any device, this one included
+     * - {@link indexKey} and {@link revisionKey} put the device id <i>after</i> a `__index::` /
+     * `__rev::` prefix, so they sort outside every entry namespace. That is deliberate: this
+     * device's index row is rewritten by the {@link flushIndex} that follows, and another device's
+     * revision marker being deleted would silently unsync that account's other tabs.</p>
+     */
+    private async purgeStoredRows(): Promise<void> {
+        const prefix = `${this.deviceId}${SEPARATOR}`;
+        const keys = await this.withStore(s => s.keys());
+        for (const key of keys) {
+            if (key.startsWith(prefix)) await this.withStore(s => s.delete(key));
+        }
     }
 
     /**

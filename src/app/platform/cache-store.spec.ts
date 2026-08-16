@@ -188,6 +188,72 @@ describe('CacheStore', () => {
         expect(await store.all('profile')).toEqual([]);
     });
 
+    /**
+     * `set()` writes the payload row through immediately and defers the index write by up to the
+     * write window, so a tab killed inside that window leaves a row nothing lists. Simulated here
+     * by removing the index entry after the fact, which is the same state from `clear()`'s side.
+     *
+     * <p>A `clear()` that derived its key set from the index could not see that row, so a
+     * signed-out account's cached profile - and, for the message domain, the plaintext of an
+     * unencrypted message - stayed on disk past the wipe that was meant to remove it.</p>
+     */
+    it('clear reaches a payload row the index never came to list', async () => {
+        const raw = await openStore('alpine-cache-test', 'entries', {factory});
+        await store.set('profile', 'u1', {userName: 'ada'});
+        await store.set('message', 'c1', [{body: 'in the clear'}]);
+
+        // The index write that would have listed them never landed.
+        await raw.delete('__index::device-a');
+        await raw.delete('__rev::device-a');
+        expect((await raw.keys()).filter(k => k.startsWith('device-a::'))).toHaveLength(2);
+
+        // A store with no memory of either write, exactly as the next launch would have.
+        await makeStore().clear();
+
+        expect((await raw.keys()).filter(k => k.startsWith('device-a::'))).toEqual([]);
+    });
+
+    it('clear deletes an orphan written straight to the object store', async () => {
+        const raw = await openStore('alpine-cache-test', 'entries', {factory});
+        await store.set('profile', 'u1', {userName: 'ada'});
+        // Never went through set(), so no index entry ever existed for it.
+        await raw.set('device-a::profile::u2', JSON.stringify({userName: 'grace'}));
+
+        await store.clear();
+
+        expect((await raw.keys()).filter(k => k.startsWith('device-a::'))).toEqual([]);
+    });
+
+    /**
+     * The prefix sweep is the one place `clear()` addresses rows it did not write, so it is also
+     * the one place it could reach across accounts. `device-b::...` does not start with
+     * `device-a::`, and neither bookkeeping key of either device does - both put the device id
+     * after a `__index::` / `__rev::` prefix rather than in front of it.
+     */
+    it('the prefix sweep touches neither another device\'s rows nor anyone\'s bookkeeping keys', async () => {
+        const other = new CacheStore(
+            'device-b', PLAIN as never,
+            () => openStore('alpine-cache-test', 'entries', {factory}));
+        const raw = await openStore('alpine-cache-test', 'entries', {factory});
+
+        await store.set('profile', 'u1', {userName: 'ada'});
+        await other.set('profile', 'u2', {userName: 'grace'});
+        await other.set('message', 'c9', [{body: 'kept'}]);
+        // An orphan of device-b's, so the sweep has something unlisted to be tempted by.
+        await raw.set('device-b::profile::u3', JSON.stringify({userName: 'hopper'}));
+
+        await store.clear();
+
+        expect((await raw.keys()).filter(k => k.startsWith('device-a::'))).toEqual([]);
+        expect((await raw.keys()).filter(k => k.startsWith('device-b::')).sort()).toEqual([
+            'device-b::message::c9', 'device-b::profile::u2', 'device-b::profile::u3',
+        ]);
+        // Deleting device-b's marker would silently unsync that account's other tabs.
+        expect(await raw.get('__rev::device-b')).toBeDefined();
+        expect(await raw.get('__index::device-b')).toBeDefined();
+        expect(await other.get('profile', 'u2')).toEqual({userName: 'grace'});
+    });
+
     it('clear empties this device and leaves another device alone', async () => {
         const other = new CacheStore(
             'device-b', PLAIN as never,
