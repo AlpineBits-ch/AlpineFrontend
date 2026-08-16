@@ -125,6 +125,26 @@ describe('inboundStatsFor', () => {
         });
     });
 
+    /**
+     * The bitrate row is the number this whole readout exists to show, and a mapper that sees one
+     * report cannot produce a rate. So it carries the cumulative counter and the service that owns
+     * the poll differentiates it. Without this the panel on every remote share renders no bitrate
+     * row at all, which is what shipped and what this guards.
+     */
+    it('carries the cumulative bytesReceived so the polling service can differentiate it', () => {
+        const snapshot = inboundStatsFor(report([inboundRtp('3', {bytesReceived: 250_000})]), '3');
+
+        expect(snapshot?.layers[0].bytesReceived).toBe(250_000);
+        // Not a rate yet: one sample and no interval. The service adds `kbps`.
+        expect(snapshot?.layers[0].kbps).toBeUndefined();
+    });
+
+    it('leaves bytesReceived absent when the report does not carry it', () => {
+        const snapshot = inboundStatsFor(report([inboundRtp('3')]), '3');
+
+        expect(snapshot?.layers[0].bytesReceived).toBeUndefined();
+    });
+
     it('ignores a candidate pair that is not the succeeded one', () => {
         // A connection keeps failed and in-progress pairs in the report for its whole life.
         const failed = {
@@ -208,5 +228,31 @@ describe('outboundStatsFromReport', () => {
 
     it('answers null when no outbound stat carries that mid', () => {
         expect(outboundStatsFromReport(report([outboundRtp('1')]), '9')).toBeNull();
+    });
+
+    /**
+     * The web host's own share had no bitrate row at all, because this mapper dropped `bytesSent`
+     * on the floor while `RustMediaService.pollOutbound` was looking for exactly that field. The
+     * two mappers now agree on the layer shape, which is what lets one differentiation loop serve
+     * both hosts rather than the service growing a branch per publisher.
+     */
+    it('carries the cumulative bytesSent per layer, the same field the native mapper carries', () => {
+        const snapshot = outboundStatsFromReport(
+            report([
+                outboundRtp('1', {rid: 'b', ssrc: 2, bytesSent: 60_000}),
+                outboundRtp('1', {rid: 'a', ssrc: 1, bytesSent: 400_000}),
+            ]),
+            '1',
+        );
+
+        expect(snapshot?.layers.map(l => l.bytesSent)).toEqual([400_000, 60_000]);
+        // Not a rate yet: one sample and no interval. `pollOutbound` adds `kbps`.
+        expect(snapshot?.layers[0].kbps).toBeUndefined();
+    });
+
+    it('leaves bytesSent absent when the report does not carry it', () => {
+        const snapshot = outboundStatsFromReport(report([outboundRtp('1', {ssrc: 1})]), '1');
+
+        expect(snapshot?.layers[0].bytesSent).toBeUndefined();
     });
 });

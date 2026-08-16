@@ -6,6 +6,7 @@
  * still pending - so the participant stayed inaudible for the whole call, with nothing to retry it.
  * The guild path has waited for its session since the Rust engine landed; this is the port.
  */
+import type {MockInstance} from 'vitest';
 import {TestBed} from '@angular/core/testing';
 import {Observable, of, Subject, throwError} from 'rxjs';
 import {HttpErrorResponse} from '@angular/common/http';
@@ -578,5 +579,111 @@ describe('a call session the server will not open', () => {
 
         expect(TestBed.inject(ToastService).error)
             .toHaveBeenCalledWith('ENTITLEMENT.REASON.GUILD_PLAN_LIMIT');
+    });
+});
+
+/**
+ * Per-stream bitrate on a remote share, and the deliberate twin of the block on
+ * `voice-rtc.service.spec.ts`.
+ *
+ * <p>`inboundStatsFor` sees one report and a rate needs two samples, so it carries the cumulative
+ * `bytesReceived` and this service differentiates successive polls into `kbps`. Without that second
+ * half the panel renders no bitrate row at all on any remote share of a DM call.</p>
+ */
+describe('the inspected inbound bitrate', () => {
+    function internals(s: CallWebRtcService) {
+        return s as unknown as {
+            pc: {getStats(): Promise<Map<string, unknown>>} | null;
+            midMap: Map<string, {userId: string; kind: string; shareId?: string}>;
+            pollStats(): Promise<void>;
+            stopStatsPolling(): void;
+        };
+    }
+
+    /** An inbound stat carrying a cumulative byte counter, as a real report does. */
+    function inboundRtpBytes(mid: string, bytesReceived: number) {
+        return {type: 'inbound-rtp', kind: 'video', mid, id: `in-${mid}`, bytesReceived};
+    }
+
+    function inspect(s: CallWebRtcService, bytes: number[]): {poll: () => Promise<void>} {
+        const internal = internals(s);
+        internal.midMap.set('m1', {userId: 'user_a', kind: 'screen', shareId: 'share_a'});
+        let index = 0;
+        internal.pc = {
+            getStats: async () =>
+                new Map([['s1', inboundRtpBytes('m1', bytes[Math.min(index++, bytes.length - 1)])]]),
+        };
+        s.inspected.set({shareId: 'share_a', userId: 'user_a'});
+        return {poll: () => internal.pollStats()};
+    }
+
+    /**
+     * The wall clock is stubbed directly rather than driven through fake timers.
+     *
+     * <p>Advancing a faked clock also fires every other timer this service has outstanding - the
+     * connect chain's retries and the stats interval itself - so the poll under test would be
+     * racing reruns of itself and the interval that resets the very state being measured. Stubbing
+     * `Date.now` moves only the thing the rate arithmetic reads.</p>
+     */
+    const START = 1_700_000_000_000;
+    let clock: MockInstance<() => number>;
+
+    beforeEach(() => {
+        clock = vi.spyOn(Date, 'now').mockReturnValue(START);
+    });
+
+    afterEach(() => clock.mockRestore());
+
+    it('reports no rate on the first poll rather than claiming the stream is silent', async () => {
+        const {service} = setup();
+        const {poll} = inspect(service, [125_000]);
+
+        await poll();
+
+        expect(service.inspectedStats()?.layers[0].kbps).toBeUndefined();
+    });
+
+    it('differentiates two successive polls into kbps', async () => {
+        const {service} = setup();
+        const {poll} = inspect(service, [0, 125_000]);
+
+        await poll();
+        clock.mockReturnValue(START + 1000);
+        await poll();
+
+        // 125000 bytes in one second is 1000 kbps.
+        expect(service.inspectedStats()?.layers[0].kbps).toBe(1000);
+    });
+
+    /**
+     * A panel reopened minutes later must differentiate against a fresh baseline. Against a counter
+     * from the previous call the first reading would be one absurd spike - and against a counter
+     * that has since been reset it would floor at zero, which reads as a dead stream.
+     */
+    it('forgets its previous sample when polling stops', async () => {
+        const {service} = setup();
+        const {poll} = inspect(service, [0, 125_000]);
+
+        await poll();
+        internals(service).stopStatsPolling();
+        service.inspected.set({shareId: 'share_a', userId: 'user_a'});
+        clock.mockReturnValue(START + 1000);
+        await poll();
+
+        expect(service.inspectedStats()?.layers[0].kbps).toBeUndefined();
+    });
+
+    /**
+     * `stopStatsPolling` clears the inspection itself. This service is `providedIn: 'root'`, so an
+     * inspection left set by a tile destroyed with its panel open would pin `armStatsInterval` at
+     * its 1s diagnostics cadence for every later call of the session, not just this one.
+     */
+    it('clears the inspection when polling stops', () => {
+        const {service} = setup();
+        service.inspected.set({shareId: 'share_a', userId: 'user_a'});
+
+        internals(service).stopStatsPolling();
+
+        expect(service.inspected()).toBeNull();
     });
 });

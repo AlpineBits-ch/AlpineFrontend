@@ -12,7 +12,7 @@ import {
     ScreenPublisherHost,
 } from '../platform/screen-publisher-host';
 import {LocalStreamRenderer, pickH264Codec} from './local-stream-render';
-import {kbpsBetween, StreamLayerStats, StreamStatsSnapshot} from '../shared/call/stream-stats';
+import {kbpsBetween, StreamLayerSample, StreamStatsSnapshot} from '../shared/call/stream-stats';
 
 export interface ScreenSource {
     id: string;
@@ -738,9 +738,13 @@ export class RustMediaService {
         const now = Date.now();
         const dt = this.prevOutboundAt ? (now - this.prevOutboundAt) / 1000 : 0;
 
-        for (const layer of snapshot.layers) {
+        // Host-agnostic on purpose. Both publishers hand back the same layer shape - the desktop
+        // one through `publishStatsToSnapshot`, the browser one through `outboundStatsFromReport` -
+        // so this differentiates a web host's publication with no branch of its own. Making the two
+        // mappers agree was the fix; special-casing the browser here would have been the bug.
+        for (const layer of snapshot.layers as StreamLayerSample[]) {
             const key = layer.rid ?? '';
-            const bytes = (layer as StreamLayerStats & {bytesSent?: number}).bytesSent;
+            const bytes = layer.bytesSent;
             if (bytes === undefined) continue;
             const rate = kbpsBetween(bytes, this.prevOutboundBytes.get(key), dt);
             if (rate !== undefined) layer.kbps = rate;

@@ -33,8 +33,8 @@ import {
     withStartBitrate,
 } from './webrtc-encoding';
 import {inboundScreenFpsByUser, InboundTrackOwner} from '../shared/call/inbound-fps';
-import {inboundStatsFor} from '../shared/call/stream-stats';
-import type {StreamStatsSnapshot} from '../shared/call/stream-stats';
+import {inboundStatsFor, kbpsBetween} from '../shared/call/stream-stats';
+import type {StreamStatsSample, StreamStatsSnapshot} from '../shared/call/stream-stats';
 
 export interface VoiceSpeakingChange {
     userId: string;
@@ -109,7 +109,7 @@ export function detailedStatsFor(
     report: {forEach(callback: (stat: RTCStats) => void): void},
     tracks: ReadonlyMap<string, InboundTrackOwner>,
     userId: string | null,
-): StreamStatsSnapshot | null {
+): StreamStatsSample | null {
     for (const [mid, owner] of tracks) {
         if (owner.kind === 'screen' && owner.userId === userId) return inboundStatsFor(report, mid);
     }
@@ -239,6 +239,19 @@ export class VoiceRTCService {
      */
     readonly inspected = signal<{shareId: string; userId: string} | null>(null);
     readonly inspectedStats = signal<StreamStatsSnapshot | null>(null);
+
+    /**
+     * The previous poll's cumulative `bytesReceived`, per layer, and when it was taken.
+     *
+     * <p>A rate needs two samples and `inboundStatsFor` sees one report, so the differentiation
+     * happens here - the same division `RustMediaService.pollOutbound` draws for the publishing
+     * side, and the reason `kbpsBetween` exists at all. Cleared in {@link stopStatsPolling}
+     * alongside every other reset, so a panel reopened minutes later differentiates against a fresh
+     * baseline instead of against a counter from the previous connection, which would report one
+     * absurd spike as its first reading.</p>
+     */
+    private prevInboundBytes = new Map<string, number>();
+    private prevInboundAt = 0;
 
     // Track local senders so bitrate can be changed on the fly
     private readonly localSenders = new Map<string, RTCRtpSender>();
@@ -475,11 +488,26 @@ export class VoiceRTCService {
         this.statsInterval = setInterval(() => void this.pollStats(), period);
     }
 
+    /**
+     * Stop polling and forget everything the poll produced.
+     *
+     * <p><b>`inspected` is cleared here too, and that is not tidiness.</b> This service is
+     * `providedIn: 'root'`, so it outlives any one call: a tile destroyed with its panel still open
+     * - the sharer stops, or the user navigates away - leaves `inspected` set with nobody left to
+     * clear it, and {@link armStatsInterval} then goes on choosing the 1s diagnostics cadence for
+     * the rest of the session, in the next call as well as this one. Clearing the inspection when
+     * the connection it belonged to goes away is what bounds that to the panel's actual lifetime.
+     * The tile clears it too, on its own teardown; both halves are needed, because either one alone
+     * leaves a path where nothing does.</p>
+     */
     private stopStatsPolling(): void {
         clearInterval(this.statsInterval);
         this.statsInterval = undefined;
         this.inboundVideoFpsSignal.set({});
+        this.inspected.set(null);
         this.inspectedStats.set(null);
+        this.prevInboundBytes.clear();
+        this.prevInboundAt = 0;
     }
 
     private async pollStats(): Promise<void> {
@@ -487,7 +515,36 @@ export class VoiceRTCService {
         const report = await this.pc.getStats();
         this.inboundVideoFpsSignal.set(inboundScreenFpsByUser(report, this.midMeta));
         // One extra pass over a report that was fetched anyway, and only while a panel is open.
-        this.inspectedStats.set(detailedStatsFor(report, this.midMeta, this.inspected()?.userId ?? null));
+        const snapshot = detailedStatsFor(report, this.midMeta, this.inspected()?.userId ?? null);
+        this.inspectedStats.set(this.withMeasuredBitrate(snapshot));
+    }
+
+    /**
+     * Turn this poll's cumulative `bytesReceived` into a per-layer `kbps`, against the last one.
+     *
+     * <p>The first poll of a freshly opened panel has no predecessor and so produces no rate at
+     * all, which is the honest answer: `kbpsBetween` returns undefined rather than zero, and the
+     * bitrate row is simply absent for one tick instead of claiming the stream is silent. Kept
+     * structurally identical to `CallWebRtcService.withMeasuredBitrate` on purpose - the two
+     * services are deliberate near-twins and drift between them is the thing that hides bugs.</p>
+     */
+    private withMeasuredBitrate(snapshot: StreamStatsSample | null): StreamStatsSnapshot | null {
+        if (!snapshot) return null;
+
+        const now = Date.now();
+        const dt = this.prevInboundAt ? (now - this.prevInboundAt) / 1000 : 0;
+
+        for (const layer of snapshot.layers) {
+            const key = layer.rid ?? layer.mid ?? '';
+            const bytes = layer.bytesReceived;
+            if (bytes === undefined) continue;
+            const rate = kbpsBetween(bytes, this.prevInboundBytes.get(key), dt);
+            if (rate !== undefined) layer.kbps = rate;
+            this.prevInboundBytes.set(key, bytes);
+        }
+        this.prevInboundAt = now;
+
+        return snapshot;
     }
 
     /**

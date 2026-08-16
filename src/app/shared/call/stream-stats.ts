@@ -68,6 +68,39 @@ export interface StreamLayerStats {
     encoder?: string;
 }
 
+/**
+ * A layer plus the cumulative counter its rate is derived from.
+ *
+ * <p><b>Why the counter travels on the layer rather than being turned into a rate in the mapper.</b>
+ * A rate needs two samples and an interval, and a mapper sees exactly one report. Every one of the
+ * four pipelines therefore hands its caller the raw cumulative byte counter and lets the caller -
+ * which owns a poll and therefore owns a previous sample - run {@link kbpsBetween} over successive
+ * ones. That is the same division the desktop path already draws between `publish_stats` in Rust
+ * and `RustMediaService.pollOutbound`, and it is what keeps every mapper pure and stateless.</p>
+ *
+ * <p>Neither counter is a rendered row. `CallStreamStatsComponent` reads named fields only, so
+ * these are transport for the differentiation and invisible in the panel; what the reader sees is
+ * the `kbps` the caller writes back onto the same layer.</p>
+ */
+export interface StreamLayerSample extends StreamLayerStats {
+    /** Cumulative bytes this layer has sent. Outbound only. */
+    bytesSent?: number;
+    /** Cumulative bytes this layer has received. Inbound only. */
+    bytesReceived?: number;
+}
+
+/**
+ * A snapshot whose layers still carry their cumulative counters, before a caller differentiates.
+ *
+ * <p>Declared by narrowing `layers` rather than intersecting with `StreamStatsSnapshot`, because an
+ * intersection leaves the property typed as the intersection of two array types and a `map` over it
+ * resolves to the base element. It is still assignable to `StreamStatsSnapshot` everywhere one is
+ * wanted, which is the whole point: the extra counters are additive and invisible downstream.</p>
+ */
+export interface StreamStatsSample extends Omit<StreamStatsSnapshot, 'layers'> {
+    layers: StreamLayerSample[];
+}
+
 export interface StreamAudioStats {
     kbps?: number;
     packets?: number;
@@ -147,8 +180,14 @@ function indexOf(report: StatsLike): Map<string, RTCStats> {
  * <p>Null when no `inbound-rtp` stat carries that mid, which is the honest answer for a share whose
  * transceiver has gone or has not arrived yet - the panel says "no data" rather than drawing a row
  * of zeroes.</p>
+ *
+ * <p>The layer carries `bytesReceived` un-differentiated, for the reason on
+ * {@link StreamLayerSample}: this sees one report and a rate needs two. Each RTC service runs its
+ * own poll and so owns the previous sample; it writes `kbps` back onto the layer before publishing
+ * the snapshot. Without that second half the bitrate row - the one number this whole readout exists
+ * to show - simply never renders on a remote share.</p>
  */
-export function inboundStatsFor(report: StatsLike, mid: string): StreamStatsSnapshot | null {
+export function inboundStatsFor(report: StatsLike, mid: string): StreamStatsSample | null {
     const byId = indexOf(report);
 
     let rtp: Record<string, unknown> | undefined;
@@ -161,8 +200,9 @@ export function inboundStatsFor(report: StatsLike, mid: string): StreamStatsSnap
     }
     if (!rtp) return null;
 
-    const layer: StreamLayerStats = {mid};
+    const layer: StreamLayerSample = {mid};
     put(layer, 'ssrc', rtp['ssrc']);
+    put(layer, 'bytesReceived', rtp['bytesReceived']);
     put(layer, 'width', rtp['frameWidth']);
     put(layer, 'height', rtp['frameHeight']);
     put(layer, 'fps', rtp['framesPerSecond']);
@@ -176,7 +216,7 @@ export function inboundStatsFor(report: StatsLike, mid: string): StreamStatsSnap
     put(layer, 'firCount', rtp['firCount']);
     if (typeof rtp['jitter'] === 'number') layer.jitterMs = Math.round((rtp['jitter'] as number) * 1000);
 
-    const snapshot: StreamStatsSnapshot = {
+    const snapshot: StreamStatsSample = {
         direction: 'inbound',
         source: 'webview',
         capturedAt: Date.now(),
@@ -204,8 +244,14 @@ export function inboundStatsFor(report: StatsLike, mid: string): StreamStatsSnap
  * <p>Layers come back ordered by rid, so `a` (the top rung) is always first and the panel's
  * sections read top-down like the ladder does. A publication with no rid at all is the
  * pre-simulcast case and yields exactly one unnamed layer.</p>
+ *
+ * <p><b>`bytesSent` is carried through un-differentiated, exactly as `publishStatsToSnapshot` does
+ * for the native payload.</b> That agreement is deliberate rather than incidental: it is what lets
+ * `RustMediaService.pollOutbound` differentiate a web host's publication with the identical loop it
+ * already runs for a desktop one, keyed on the same `rid ?? ''`, with no branch on which host
+ * produced the sample. See {@link StreamLayerSample}.</p>
  */
-export function outboundStatsFromReport(report: StatsLike, mid: string): StreamStatsSnapshot | null {
+export function outboundStatsFromReport(report: StatsLike, mid: string): StreamStatsSample | null {
     const byId = indexOf(report);
 
     const rtps: Record<string, unknown>[] = [];
@@ -223,9 +269,10 @@ export function outboundStatsFromReport(report: StatsLike, mid: string): StreamS
 
     let rttMs: number | undefined;
     const layers = rtps.map(rtp => {
-        const layer: StreamLayerStats = {mid};
+        const layer: StreamLayerSample = {mid};
         if (typeof rtp['rid'] === 'string') layer.rid = rtp['rid'] as string;
         put(layer, 'ssrc', rtp['ssrc']);
+        put(layer, 'bytesSent', rtp['bytesSent']);
         put(layer, 'width', rtp['frameWidth']);
         put(layer, 'height', rtp['frameHeight']);
         put(layer, 'fps', rtp['framesPerSecond']);
@@ -261,7 +308,7 @@ export function outboundStatsFromReport(report: StatsLike, mid: string): StreamS
         return layer;
     });
 
-    const snapshot: StreamStatsSnapshot = {
+    const snapshot: StreamStatsSample = {
         direction: 'outbound',
         source: 'webview',
         capturedAt: Date.now(),
