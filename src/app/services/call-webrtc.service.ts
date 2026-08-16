@@ -644,13 +644,17 @@ export class CallWebRtcService {
         deviceId: string,
         livekit: {url: string; token: string},
     ): Promise<VoiceSession> {
-        const start = this.voiceEngine.start as unknown as (
-            target: VoiceTarget, apiBase: string, token: string, deviceId: string,
-            livekit: {url: string; token: string},
-        ) => Promise<VoiceSession>;
-        return start.call(
-            this.voiceEngine, target, this.apiConfig.baseUrl(), this.oauth.getAccessToken(),
-            deviceId, livekit,
+        // Called directly, deliberately. This was briefly a cast, because the engine's signature had
+        // not yet grown the parameter - and that cast is what turns "forgot the connection" from a
+        // compile error into a 404 three layers down inside Rust. The connection is a typed argument
+        // rather than ambient state precisely so the omission is unbuildable; a cast here gives away
+        // the only guard there is.
+        return this.voiceEngine.start(
+            target,
+            this.apiConfig.baseUrl(),
+            this.oauth.getAccessToken(),
+            deviceId,
+            livekit,
         );
     }
 

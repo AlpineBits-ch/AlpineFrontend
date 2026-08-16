@@ -281,6 +281,15 @@ export class VoiceEngineService {
         apiBase: string,
         token: string,
         deviceId: string,
+        /**
+         * The SFU connection this publication publishes on - see {@link VoiceStartOptions.livekit}.
+         *
+         * <p><b>Absent means Isle</b>, which keeps the Cloudflare surface. It cannot mean "guild or
+         * call without a connection": the route that path would use no longer exists, so omitting
+         * it there is a 404 three layers down rather than an error here. Typed optional only
+         * because proximity voice is a real caller with nothing to pass.</p>
+         */
+        livekit?: {url: string; token: string},
     ): Promise<VoiceSession> {
         // Before the start, not inside it. The port's `start` carries no settings, and both adapters
         // need them by then: `voice_start` opens the devices with them and chooses the gate mode that
@@ -293,6 +302,7 @@ export class VoiceEngineService {
             apiBase,
             token,
             deviceId,
+            livekit,
             onEvent: event => {
                 if (event.kind === 'error') {
                     console.error('[voice] engine error:', event.message);

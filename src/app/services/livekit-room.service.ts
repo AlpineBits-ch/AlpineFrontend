@@ -244,6 +244,78 @@ export class LiveKitRoomService {
     }
 
     /** The publication behind a sid, over every remote participant. */
+    /**
+     * Every track this user publishes, **subscribed or not**.
+     *
+     * <p>This is the lookup that turns a roster row into a track sid, and it has to read the room
+     * rather than {@link remoteTracks}: that signal is written from `TrackSubscribed`, so with
+     * `autoSubscribe: false` it is empty until something has already been pulled. Resolving a sid
+     * from it would be circular - nothing could ever be subscribed to in the first place.</p>
+     *
+     * <p>`room.remoteParticipants` carries the publications the server announced whether or not we
+     * took them, which is exactly the set a roster needs to choose from.</p>
+     */
+    publicationsOf(userId: string): readonly {trackSid: string; trackName: string}[] {
+        const found: {trackSid: string; trackName: string}[] = [];
+        for (const participant of this.room?.remoteParticipants.values() ?? []) {
+            if (this.userOf(participant.identity) !== userId) continue;
+            for (const publication of participant.trackPublications.values()) {
+                found.push({
+                    trackSid: publication.trackSid,
+                    trackName: publication.trackName,
+                });
+            }
+        }
+        return found;
+    }
+
+    /**
+     * Publish a local track under the name the roster and every peer resolve it by.
+     *
+     * <p>The name is the contract - `audio`, `camera`, `screen-{shareId}`,
+     * `screen-audio-{shareId}` - so it is passed explicitly rather than left to the SDK, which would
+     * name it after the device. The `source` is derived from that same name: it is what a client
+     * grouping by source reads before it has parsed anything, and a share announced as a microphone
+     * reads as a second person talking.</p>
+     *
+     * <p>Note the prefix test order. `screen-audio-` also satisfies `startsWith('screen-')`, so it
+     * must be tested first - backwards, a share's audio is published as the *video* of a share whose
+     * id begins with `audio-`, which no viewer will ever ask for.</p>
+     */
+    async publishTrack(track: MediaStreamTrack, trackName: string): Promise<void> {
+        const room = this.room;
+        if (!room) throw new Error('cannot publish before the room is connected');
+
+        const source = trackName.startsWith('screen-audio-')
+            ? Track.Source.ScreenShareAudio
+            : trackName.startsWith('screen-')
+                ? Track.Source.ScreenShare
+                : track.kind === 'audio'
+                    ? Track.Source.Microphone
+                    : Track.Source.Camera;
+
+        await room.localParticipant.publishTrack(track, {name: trackName, source});
+    }
+
+    /**
+     * Stop publishing the named track.
+     *
+     * <p>Silent when nothing of that name is published. Teardown runs on failure paths as well as
+     * success, so it is routinely asked to remove things that were never added, and making that an
+     * error turns one failed publish into two failures.</p>
+     */
+    async unpublishTrack(trackName: string): Promise<void> {
+        const room = this.room;
+        if (!room) return;
+
+        for (const publication of room.localParticipant.trackPublications.values()) {
+            if (publication.trackName !== trackName) continue;
+            const track = publication.track;
+            if (track) await room.localParticipant.unpublishTrack(track.mediaStreamTrack);
+            return;
+        }
+    }
+
     private publicationOf(trackSid: string): RemoteTrackPublication | undefined {
         for (const participant of this.room?.remoteParticipants.values() ?? []) {
             const publication = participant.trackPublications.get(trackSid);

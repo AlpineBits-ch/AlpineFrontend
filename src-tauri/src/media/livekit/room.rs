@@ -17,11 +17,24 @@
 //! and glare handling is a poor trade for one saved connection in a client that drives `webrtc-rs`
 //! directly rather than through LiveKit's own SDK.
 //!
-//! # Candidates ride in the SDP
+//! # Candidates: ours ride in the SDP, theirs trickle
 //!
-//! `gathering_complete_promise()` rather than trickle, matching `media::voice::rtc` and
-//! `media::publisher::rtc`. An offer that carries its own candidates needs no `TrickleRequest` at
-//! all, and the probe confirmed the server is happy with it.
+//! **The two directions are not symmetric, and conflating them cost a working connection.**
+//!
+//! *Outbound*, `gathering_complete_promise()` rather than trickle, matching `media::voice::rtc` and
+//! `media::publisher::rtc`: an offer that carries its own candidates needs no `TrickleRequest`, and
+//! the server is happy with it.
+//!
+//! *Inbound* is the opposite. LiveKit **trickles its own candidates** rather than putting them all
+//! in the answer, so a client that ignores `Trickle` has no remote candidates at all: the SDP
+//! exchange completes, the peer connection sits at `connecting` until the server gives up with
+//! `LeaveRequest { reason: ConnectionTimeout }`, and nothing anywhere says the word "candidate".
+//! A local dev server hides this, because gathering finishes before it sends the answer and the
+//! candidates end up inline.
+//!
+//! They also arrive **before** the description they belong to, so they are buffered until the
+//! remote description exists and flushed immediately after - `add_ice_candidate` on a connection
+//! with no remote description is an error, and dropping them is the same failure again.
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -32,6 +45,7 @@ use livekit_api::signal_client::{SignalClient, SignalEvent, SignalEvents};
 use livekit_protocol as proto;
 use tokio::sync::Mutex;
 use webrtc::api::media_engine::MIME_TYPE_OPUS;
+use webrtc::ice_transport::ice_candidate::RTCIceCandidateInit;
 use webrtc::ice_transport::ice_server::RTCIceServer;
 use webrtc::peer_connection::configuration::RTCConfiguration;
 use webrtc::peer_connection::peer_connection_state::RTCPeerConnectionState;
@@ -671,6 +685,11 @@ async fn pump(
     remote: Arc<Mutex<HashMap<String, RemoteTrack>>>,
     stats: Arc<RoomStats>,
 ) {
+    // One buffer per connection. See the module docs: the server trickles before we have a
+    // description to attach the candidates to.
+    let held_publisher: Pending = Arc::new(Mutex::new(Vec::new()));
+    let held_subscriber: Pending = Arc::new(Mutex::new(Vec::new()));
+
     while let Some(event) = events.recv().await {
         let message = match event {
             SignalEvent::Message(message) => message,
@@ -691,6 +710,8 @@ async fn pump(
                     Ok(description) => {
                         if let Err(e) = publisher.set_remote_description(description).await {
                             eprintln!("[livekit] publisher answer rejected: {e}");
+                        } else {
+                            flush_held(&publisher, &held_publisher).await;
                         }
                     }
                     Err(e) => eprintln!("[livekit] unparseable answer: {e}"),
@@ -698,8 +719,26 @@ async fn pump(
             }
             // Theirs, answered by us. The subscriber connection only ever answers.
             proto::signal_response::Message::Offer(offer) => {
-                if let Err(e) = answer_subscriber(&signal, &subscriber, offer.sdp).await {
-                    eprintln!("[livekit] could not answer the subscriber offer: {e}");
+                match answer_subscriber(&signal, &subscriber, offer.sdp).await {
+                    Ok(()) => flush_held(&subscriber, &held_subscriber).await,
+                    Err(e) => eprintln!("[livekit] could not answer the subscriber offer: {e}"),
+                }
+            }
+            // The server's own candidates. Without this the SDP exchange completes and ICE never
+            // does - see the module docs.
+            proto::signal_response::Message::Trickle(trickle) => {
+                match serde_json::from_str::<RTCIceCandidateInit>(&trickle.candidate_init) {
+                    Ok(init) => {
+                        // `SignalTarget::Publisher` is 0 and `Subscriber` is 1. Routed rather than
+                        // broadcast: a candidate added to the wrong connection is rejected, and two
+                        // rejections per candidate would bury the real ones in the log.
+                        if trickle.target == proto::SignalTarget::Subscriber as i32 {
+                            add_or_hold(&subscriber, &held_subscriber, init).await;
+                        } else {
+                            add_or_hold(&publisher, &held_publisher, init).await;
+                        }
+                    }
+                    Err(e) => eprintln!("[livekit] unparseable trickle candidate: {e}"),
                 }
             }
             proto::signal_response::Message::TrackPublished(response) => {
@@ -721,6 +760,37 @@ async fn pump(
                 break;
             }
             _ => {}
+        }
+    }
+}
+
+/// Candidates the server sent before we had a description to attach them to.
+type Pending = Arc<Mutex<Vec<RTCIceCandidateInit>>>;
+
+/// Add a remote candidate, or hold it until there is a description to add it against.
+///
+/// `add_ice_candidate` fails on a connection with no remote description, and these routinely arrive
+/// first - the server starts trickling as soon as it has an answer to send, not after we have
+/// applied one.
+async fn add_or_hold(pc: &Arc<RTCPeerConnection>, pending: &Pending, init: RTCIceCandidateInit) {
+    if pc.remote_description().await.is_none() {
+        pending.lock().await.push(init);
+        return;
+    }
+    if let Err(e) = pc.add_ice_candidate(init).await {
+        eprintln!("[livekit] rejected a remote candidate: {e}");
+    }
+}
+
+/// Apply everything held for this connection. Called the moment its remote description lands.
+async fn flush_held(pc: &Arc<RTCPeerConnection>, pending: &Pending) {
+    let held: Vec<RTCIceCandidateInit> = pending.lock().await.drain(..).collect();
+    if held.is_empty() {
+        return;
+    }
+    for init in held {
+        if let Err(e) = pc.add_ice_candidate(init).await {
+            eprintln!("[livekit] rejected a held candidate: {e}");
         }
     }
 }
