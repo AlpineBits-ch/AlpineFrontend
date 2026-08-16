@@ -285,3 +285,36 @@ async fn receives_rtp_from_a_subscribed_track() {
     listener.close().await;
     tone.await.expect("tone task").close().await;
 }
+
+#[tokio::test]
+#[ignore = "needs a LiveKit server on 127.0.0.1:7880"]
+async fn unpublishing_removes_the_track_and_keeps_the_connection() {
+    let room = Room::connect(DEV_URL, &dev_token("lk-unpublish", "user-1"))
+        .await
+        .expect("connect");
+
+    room.publish_audio("audio").await.expect("publish");
+    room.wait_until_connected(Duration::from_secs(10))
+        .await
+        .expect("connected");
+    assert!(room.local_track("audio").await.is_some());
+
+    room.unpublish(&["audio".to_string()])
+        .await
+        .expect("unpublish");
+
+    assert!(
+        room.local_track("audio").await.is_none(),
+        "the track must be forgotten, or a later write goes to a sender nobody is reading"
+    );
+    // Removing a track renegotiates. The connection has to survive that - a teardown that drops the
+    // whole room would take the microphone with the share.
+    assert_eq!(room.publisher_state(), RTCPeerConnectionState::Connected);
+
+    // Idempotent: teardown runs on failure paths too, and asking twice must not error.
+    room.unpublish(&["audio".to_string()])
+        .await
+        .expect("second unpublish is harmless");
+
+    room.close().await;
+}

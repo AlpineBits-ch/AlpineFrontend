@@ -343,6 +343,54 @@ impl Room {
         self.await_publication(name).await
     }
 
+    /// Stop publishing the named tracks.
+    ///
+    /// There is no "unpublish" message in the protocol: the server learns a track is gone from the
+    /// renegotiation that follows removing its sender. So this removes every matching sender first
+    /// and offers once, rather than offering per track - one offer is one round trip, and a share
+    /// with audio would otherwise announce its two halves leaving separately.
+    ///
+    /// Unknown names are ignored rather than reported. Teardown runs on failure paths as well as on
+    /// success, so it is routinely asked to remove things that were never added, and making that an
+    /// error would turn every failed publish into two failures.
+    pub async fn unpublish(&self, track_names: &[String]) -> Result<(), String> {
+        let mut removed = false;
+
+        for sender in self.publisher.get_senders().await {
+            let Some(track) = sender.track().await else {
+                continue;
+            };
+            if !track_names.iter().any(|name| name == track.id()) {
+                continue;
+            }
+            if let Err(e) = self.publisher.remove_track(&sender).await {
+                eprintln!("[livekit] could not remove {}: {e}", track.id());
+                continue;
+            }
+            removed = true;
+        }
+
+        {
+            let mut local = self.local.lock().await;
+            local.retain(|key, _| {
+                // Ladder entries are keyed `{name}#{index}`; the microphone is keyed by its name.
+                let base = key.split('#').next().unwrap_or(key);
+                !track_names.iter().any(|name| name == base)
+            });
+        }
+        self.published
+            .lock()
+            .await
+            .retain(|_, publication| !track_names.contains(&publication.track_name));
+
+        // Only when something actually left. An offer that changes nothing still costs a round trip
+        // and, on a busy connection, a renegotiation other work has to wait behind.
+        if removed {
+            self.negotiate().await?;
+        }
+        Ok(())
+    }
+
     /// Ask the server for a track. It answers by offering on the subscriber connection.
     pub async fn subscribe(&self, track_sid: &str) {
         self.signal
