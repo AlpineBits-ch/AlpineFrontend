@@ -539,7 +539,8 @@ impl MediaFoundationEncoder {
 
     /// Synchronous transforms: feed a frame, then drain whatever comes back.
     unsafe fn encode_sync(&mut self, sample: &IMFSample, timestamp_us: u64) -> EncodeOutcome {
-        if self.transform.ProcessInput(0, sample, 0).is_err() {
+        if let Err(e) = self.transform.ProcessInput(0, sample, 0) {
+            eprintln!("[publisher] {}x{}: sync ProcessInput failed: {e}", self.spec.width, self.spec.height);
             return EncodeOutcome::Failed;
         }
         self.inflight.push_back(timestamp_us);
@@ -556,6 +557,7 @@ impl MediaFoundationEncoder {
     /// Asynchronous transforms: input and output are both driven by events.
     unsafe fn encode_async(&mut self, sample: &IMFSample, timestamp_us: u64) -> EncodeOutcome {
         let Some(events) = self.events.clone() else {
+            eprintln!("[publisher] {}x{}: an async transform with no event generator", self.spec.width, self.spec.height);
             return EncodeOutcome::Failed;
         };
 
@@ -578,14 +580,16 @@ impl MediaFoundationEncoder {
                         // The encoder wants another frame; the next call will supply it.
                         break;
                     }
-                    if self.transform.ProcessInput(0, sample, 0).is_err() {
+                    if let Err(e) = self.transform.ProcessInput(0, sample, 0) {
+                        eprintln!("[publisher] {}x{}: async ProcessInput failed: {e}", self.spec.width, self.spec.height);
                         return EncodeOutcome::Failed;
                     }
                     self.inflight.push_back(timestamp_us);
                     delivered = true;
                 }
                 x if x == METransformHaveOutput.0 as u32 => {
-                    if self.collect_output().is_err() {
+                    if let Err(e) = self.collect_output() {
+                        eprintln!("[publisher] {}x{}: collect_output failed: {e}", self.spec.width, self.spec.height);
                         return EncodeOutcome::Failed;
                     }
                 }
@@ -612,6 +616,14 @@ impl MediaFoundationEncoder {
 impl VideoEncoder for MediaFoundationEncoder {
     fn encode(&mut self, frame: &RgbaImage, timestamp_us: u64) -> EncodeOutcome {
         if frame.width() != self.spec.width || frame.height() != self.spec.height {
+            // Named rather than silent. This is the one failure here that is a *caller* fault
+            // rather than a driver one - the pump fitted the frame to a geometry the encoder was
+            // not built for - and telling those apart from a log is the difference between fixing
+            // the pump and blaming the GPU.
+            eprintln!(
+                "[publisher] frame {}x{} does not match the encoder built for {}x{}",
+                frame.width(), frame.height(), self.spec.width, self.spec.height
+            );
             return EncodeOutcome::Failed;
         }
 
@@ -1310,6 +1322,85 @@ mod ladder_diagnosis {
                 Some(at) => println!(
                     "LADDER {}x{}@{}k: FAILED first at frame {at}, {chunks} chunks produced",
                     spec.width, spec.height, spec.kbps
+                ),
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod ladder_concurrency {
+    use super::ladder_diagnosis::*;
+    use super::*;
+    use crate::media::publisher::encoder::{EncodeOutcome, EncoderContent, EncoderSpec, VideoEncoder};
+    use image::RgbaImage;
+
+    fn rungs() -> Vec<EncoderSpec> {
+        [(1920u32, 1080u32, 16_000u32), (960, 540, 5_120), (480, 270, 1_600)]
+            .into_iter()
+            .map(|(width, height, kbps)| EncoderSpec {
+                width,
+                height,
+                fps: 30,
+                kbps,
+                content: EncoderContent::Text,
+            })
+            .collect()
+    }
+
+    fn frame(width: u32, height: u32, shift: u32) -> RgbaImage {
+        RgbaImage::from_fn(width, height, |x, y| {
+            let v = (((x + shift) / 8 + y / 8) % 2) as u8;
+            image::Rgba([v * 255, (x % 256) as u8, (y % 256) as u8, 255])
+        })
+    }
+
+    /// The ladder as `FramePump` actually drives it: three encoders alive at once, each fed one
+    /// frame per capture tick.
+    ///
+    /// This is the shape the sequential diagnosis does not reproduce. There, each encoder is built,
+    /// drained and parked before the next exists, so at most one hardware session is live; in
+    /// production all three hold a session simultaneously and are interleaved frame by frame.
+    #[test]
+    #[ignore = "diagnostic: runs the real Media Foundation encoder"]
+    fn report_whether_a_concurrent_interleaved_ladder_survives() {
+        let specs = rungs();
+        let mut encoders = Vec::new();
+        for spec in &specs {
+            match PooledEncoder::acquire(*spec) {
+                Some(encoder) => encoders.push((*spec, encoder)),
+                None => println!(
+                    "CONCURRENT {}x{}: could not acquire a hardware encoder at all",
+                    spec.width, spec.height
+                ),
+            }
+        }
+        println!("CONCURRENT acquired {} of {} rungs", encoders.len(), specs.len());
+
+        let mut chunks = vec![0u32; encoders.len()];
+        let mut first_failure: Vec<Option<u32>> = vec![None; encoders.len()];
+
+        for i in 0..90u64 {
+            for (index, (spec, encoder)) in encoders.iter_mut().enumerate() {
+                match encoder.encode(&frame(spec.width, spec.height, i as u32), i * 33_333) {
+                    EncodeOutcome::Chunk(_) => chunks[index] += 1,
+                    EncodeOutcome::Skipped => {}
+                    EncodeOutcome::Failed => {
+                        first_failure[index].get_or_insert(i as u32);
+                    }
+                }
+            }
+        }
+
+        for (index, (spec, _)) in encoders.iter().enumerate() {
+            match first_failure[index] {
+                None => println!(
+                    "CONCURRENT {}x{}@{}k: OK, {} chunks",
+                    spec.width, spec.height, spec.kbps, chunks[index]
+                ),
+                Some(at) => println!(
+                    "CONCURRENT {}x{}@{}k: FAILED first at frame {at}, {} chunks produced",
+                    spec.width, spec.height, spec.kbps, chunks[index]
                 ),
             }
         }
