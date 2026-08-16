@@ -1,6 +1,6 @@
 # LiveKit signalling migration
 
-**Status:** design, approved 2026-08-16. Contract questions resolved with the backend the same day
+**Status:** Phase 0 complete and green (§7). Contract questions resolved with the backend
 (§6). Not implemented.
 
 Echo replaced the SDP relay behind guild voice and DM calls with LiveKit. The room model did not
@@ -350,3 +350,40 @@ the guide has since been corrected.
    confirmed only for `deploy/compose.yaml`, not the k8s manifests. Until that is checked, a missing
    var would have the endpoint report "not configured" while voice works, which is worse than
    probing. Probe-and-cache now; adopt the endpoint if it lands.
+
+---
+
+## 7. Phase 0 findings, 2026-08-16
+
+**Every exit criterion is green. The design stands and Phase 1 proceeds as written.**
+
+Measured against `livekit-server 1.13.5 --dev` on Windows, with `webrtc-rs` 0.14 driving both peer
+connections. Reproduce with `cargo test --manifest-path src-tauri/Cargo.toml --lib media::livekit
+-- --ignored --nocapture`, having started the server per `docker/livekit-dev/compose.yaml`.
+
+| Question | Answer | Evidence |
+|---|---|---|
+| Opus negotiated? | **Yes** | Publish accepted (`TR_AM…`), 65 packets written in 2 s, publisher `connected`, and a second client pulled 156 RTP packets off it |
+| H.264 negotiated? | **Yes** | Answer carries `packetization-mode=1;profile-level-id=42e01f` - Constrained Baseline 3.1, exactly what `encoder_mf` emits. `42001f` and `640032` also offered |
+| Three simulcast layers? | **Yes** | 3 `a=rid:` in the offer, 3 in the answer, and `a=simulcast:recv f;h;q` |
+| Congestion control? | **Yes** | 10 `transport-cc` and 20 `nack` lines in the answer |
+
+Two things worth carrying forward:
+
+- **`single_peer_connection` is available**: `is_single_pc_mode_active()` returns **true** when
+  asked for, on 1.13.5. The reading of `false` in the join test only means `connect_options()` does
+  not ask. This would collapse §2.3's publisher/subscriber split to one connection, but **Phase 1
+  should not assume it** until the production SFU's version is known - the two-connection path works
+  on every version. Confirm against `sfu-fsn1.venta.gg` before taking it.
+- **`TrackPublishedResponse` can arrive before the `Answer`.** A caller that reads the remote
+  description straight after publishing finds nothing there. `Probe::wait_until_connected` exists
+  for this, and Phase 1's engine needs the same explicit wait - it is not a probe artefact.
+
+`subscriber_primary` is **true** and `JoinResponse.ice_servers` carries **1** entry, so the ICE
+configuration genuinely comes from the join rather than from us.
+
+Not covered, deliberately: reconnect and resume (§2.4), and whether a served layer follows a
+viewer's reported tile size. The first is Phase 1 work; the second needs a real viewer and is a
+server behaviour rather than a compatibility question.
+
+---
