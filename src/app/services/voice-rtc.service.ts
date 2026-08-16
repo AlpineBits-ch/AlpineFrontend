@@ -1,11 +1,11 @@
 import {computed, effect, inject, Injectable, signal} from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
+import {ConnectionState} from 'livekit-client';
 import {firstValueFrom, Subject} from 'rxjs';
 import {GuildVoiceService} from './guild-voice.service';
 import {AudioSettingsService} from './audio-settings.service';
 import {RustMediaService} from './rust-media.service';
 import {ScreenPickerService} from './screen-picker.service';
-import {environment} from '../../environments/environment';
 import {ApiConfigService} from "./api-config.service";
 import {DeviceIdentityService} from "./device-identity.service";
 import {OAuthService} from 'angular-oauth2-oidc';
@@ -17,21 +17,12 @@ import {
 } from '../models/stream-preset';
 import {VoiceLimitsService} from './voice-limits.service';
 import {solveGeometry} from '../models/capture-geometry';
-import {publishOptions, useRustPublisher} from './screen-publish';
-import {isDeadMediaSession, isStaleSubscription} from '../models/voice-room';
+import {publishOptions} from './screen-publish';
+import {describeTrack, screenAudioTrackName, screenTrackName} from '../models/voice-room';
 import {VideoPublishIntentDto} from '../dtos/response/entitlement.dto';
-import {VoiceEngineService, VoiceSession} from './voice-engine.service';
+import {VoiceEngineService, VoiceSession, VoiceTarget} from './voice-engine.service';
 import {ScreenPickerChoice} from './screen-picker.service';
-import {
-    applyScreenEncoding,
-    applySimpleBitrate,
-    CAMERA_KBPS,
-    cameraSendEncodings,
-    preferVideoCodecs,
-    screenSendEncodings,
-    STREAM_AUDIO_KBPS,
-    withStartBitrate,
-} from './webrtc-encoding';
+import {LiveKitRoomService} from './livekit-room.service';
 import {inboundScreenFpsByUser, InboundTrackOwner} from '../shared/call/inbound-fps';
 import {inboundStatsFor, kbpsBetween} from '../shared/call/stream-stats';
 import type {StreamStatsSample, StreamStatsSnapshot} from '../shared/call/stream-stats';
@@ -42,40 +33,83 @@ export interface VoiceSpeakingChange {
 }
 
 /**
- * Backoff between attempts to pull a remote audio track, in milliseconds.
+ * The tag this connection takes, so its identity is `{userId}#view`.
  *
- * Sized against the window this exists to cover. The backend announces a publisher as soon as the
- * SFU accepts their `tracks/new`, which is one SDP answer before they have applied it, finished ICE
- * and DTLS, and sent a packet; until then a pull answers `not_found_track_error`. The backend
- * absorbs about six seconds of that itself, so anything reaching us has already been given a fair
- * chance, and these attempts only need to cover a cold connect on a slow link.
+ * <p>One tag per connection per user: two connections sharing a tag share an identity and the second
+ * evicts the first, so this string must never be reused for a second webview room. The Rust room -
+ * the microphone, the mixer and every `screen-audio-*` track - connects as the bare user id beside
+ * it, which is what keeps the two from colliding.</p>
+ */
+const VIEW_TAG = 'view';
+
+/**
+ * The name a camera is published under.
  *
- * Exponential and starting at a second, per the guidance from incident VNT-GE21R3P7: the log there
- * showed the same subscribe reattempted every 5-6 seconds with no backoff at all, which turned one
- * publisher's stale share into a burst of failures. The *stale* case does not retry at all - see
- * `isStaleSubscription` - so what remains here is genuine transport failure, where spacing attempts
- * out costs a little latency in a rare case and removes a stampede in a bad one.
+ * <p>Not `audio` and not prefixed `screen-`, which is the whole of what the name has to satisfy:
+ * {@link describeTrack} mirrors the server's own `TrackNaming.Describe` and reads anything else as a
+ * camera. Declared once so the publish, the unpublish and the close all name the same track - they
+ * used to read a name back off the negotiate reply, and there is no negotiate reply any more.</p>
+ */
+export const CAMERA_TRACK = 'camera';
+
+/**
+ * Backoff between attempts to pull a remote audio track into the Rust mixer, in milliseconds.
  *
- * Exported so the schedule is asserted rather than described.
+ * <p>The Cloudflare race this was sized against is gone - there is no `tracks/new` to be early for -
+ * but the shape of the failure survived the move: the roster announces a publisher as soon as the
+ * room records the publication, which can reach us before the SFU's own `TrackPublished` reaches the
+ * Rust room, and a subscribe for a track that room has not seen yet is refused. An announcement is
+ * never repeated, so a single failed attempt is a participant who stays silent for the rest of the
+ * session.</p>
+ *
+ * <p>Exponential and starting at a second, per the guidance from incident VNT-GE21R3P7: the log
+ * there showed the same subscribe reattempted every 5-6 seconds with no backoff at all. What that
+ * incident's *stale* and *spent session* branches used to add here is gone with the SDP relay - see
+ * design §8, there is no subscribe request for the backend to refuse and no minted session id to go
+ * stale - so what remains is genuine transport failure and nothing else.</p>
+ *
+ * <p>Exported so the schedule is asserted rather than described.</p>
  */
 export const SUBSCRIBE_RETRY_DELAYS_MS = [1000, 2000, 4000] as const;
 
 /**
- * How many times one channel join may rebuild its publication after `sessionGone`.
+ * How this client's `RTCPeerConnectionState` reads off the room's connection state.
  *
- * <p>Small on purpose. One rebuild answers the case this exists for - a session that died once,
- * which recreating fixes. Reaching three means recreating is not what is wrong, and the honest
- * answer is to stop and leave a line in the log rather than republish the microphone every time the
- * room is refetched. Reset by each {@link VoiceRtcService.connect}.</p>
+ * <p>`Disconnected` is `'new'` rather than `'failed'`: it is what a room reads before a connect has
+ * landed as well as after one has ended, and the status bar's "connecting" is the honest answer for
+ * the first. Every flavour of reconnect is `'connecting'`, because the difference between resuming
+ * the signal socket and rebuilding the whole room is not one a status bar can act on.</p>
  */
-export const MAX_PUBLICATION_REBUILDS = 3;
+const PC_STATE_BY_CONNECTION: Readonly<Record<ConnectionState, RTCPeerConnectionState>> = {
+    [ConnectionState.Disconnected]: 'new',
+    [ConnectionState.Connecting]: 'connecting',
+    [ConnectionState.Connected]: 'connected',
+    [ConnectionState.Reconnecting]: 'connecting',
+    [ConnectionState.SignalReconnecting]: 'connecting',
+};
 
 /**
- * Emitted when the server says our view of the room is out of date.
+ * The half of a room wrapper this service needs and {@link LiveKitRoomService} does not carry yet.
  *
- * A subject rather than a direct call into the room service, because the two subscribe paths that
- * can raise it (this one, and the Rust engine's) both live below anything that owns a snapshot.
+ * <p>That service wraps connect, subscribe-by-sid and layer selection. Two things are missing from
+ * it here: <b>the publications it has not subscribed to</b> - `remoteTracks()` is written from
+ * `TrackSubscribed`, so with `autoSubscribe: false` it is empty until we have already pulled
+ * something, and a roster row naming `(userId, trackName)` has no way to find the sid it must ask
+ * for - and <b>publishing a local track</b>, which the camera needs.</p>
+ *
+ * <p>Declared as the seam rather than reached around the wrapper's `private room`. Everything below
+ * is written against it, so the day those two methods land on `LiveKitRoomService` this file needs no
+ * edit; until then {@link VoiceRTCService.roomMedia} finds them absent and says so once, loudly,
+ * rather than leaving a camera capturing behind a publication that never happened.</p>
  */
+export interface RoomPublishing {
+    /** Every publication this user holds, subscribed or not, so a roster row can find its sid. */
+    publicationsOf(userId: string): readonly {trackSid: string; trackName: string}[];
+    /** Publishes a local track under the name the roster and the peers agree on. */
+    publishTrack(track: MediaStreamTrack, trackName: string): Promise<void>;
+    unpublishTrack(trackName: string): Promise<void>;
+}
+
 /**
  * What a video publish is about to send, read off the track the device actually opened.
  *
@@ -98,12 +132,12 @@ export function trackIntent(track: MediaStreamTrack): VideoPublishIntentDto | un
 /**
  * The detailed inbound snapshot for one inspected user's screen stream.
  *
- * <p>Keyed by user, not share, because `midMeta` carries no per-share id and the guild
+ * <p>Keyed by user, not share, because the owner map carries no per-share id and the guild
  * `CallScreenShare[]` is built one row per participant - the identical reasoning as
  * `inboundScreenFpsByUser`, see `inbound-fps.ts`.</p>
  *
- * <p>Exported and free-standing so it can be tested without a peer connection: the service's own
- * poll is a two-line wrapper around it.</p>
+ * <p>Exported and free-standing so it can be tested without a room: the service's own poll is a
+ * two-line wrapper around it.</p>
  */
 export function detailedStatsFor(
     report: {forEach(callback: (stat: RTCStats) => void): void},
@@ -116,6 +150,26 @@ export function detailedStatsFor(
     return null;
 }
 
+/**
+ * The mid a per-track statistics report files its inbound stream under.
+ *
+ * <p>The SDK answers `getRTCStatsReport()` per track rather than per connection, so the mid is no
+ * longer known before the report is read - it used to come back on the negotiate reply. Read out of
+ * the report instead, once, so `inbound-fps.ts` and `stream-stats.ts` keep keying on a mid exactly
+ * as they do on the DM surface rather than growing a second lookup for this host.</p>
+ */
+export function midOfReport(report: {forEach(callback: (stat: RTCStats) => void): void}): string | null {
+    let mid: string | null = null;
+    report.forEach(stat => {
+        if (mid !== null) return;
+        const s = stat as unknown as Record<string, unknown>;
+        if (s['type'] === 'inbound-rtp' && s['kind'] === 'video' && typeof s['mid'] === 'string') {
+            mid = s['mid'] as string;
+        }
+    });
+    return mid;
+}
+
 export interface StaleSubscription {
     /** Whose track we asked for, when it is known. */
     userId?: string;
@@ -125,34 +179,55 @@ export interface StaleSubscription {
 export class VoiceRTCService {
     private apiConfig = inject(ApiConfigService);
     private deviceIdentity = inject(DeviceIdentityService);
+    private readonly livekit = inject(LiveKitRoomService);
 
-    private readonly pcState = signal<RTCPeerConnectionState>('new');
     /** True once the Rust engine is capturing and publishing. See {@link rtcState}. */
     private readonly engineUp = signal(false);
 
     /**
      * What the voice UI shows as the connection state.
      *
-     * This peer connection no longer publishes anything, so while you are alone in a channel there
-     * is nothing to negotiate and it sits in `'new'` indefinitely - which the status bar reads as
-     * "connecting" and would never leave. What the user actually means by "am I connected" is
-     * whether their voice is going out, and that is the Rust engine. Once the connection has
-     * something to do, its own state takes over again, including its failures.
+     * The room this service holds subscribes video and publishes a camera, so while you are alone in
+     * a channel with no cameras on there is nothing on it - which the status bar would read as
+     * "connecting" and never leave. What the user actually means by "am I connected" is whether their
+     * voice is going out, and that is the Rust engine. Once the room reports for itself, its own
+     * state takes over again, including its failures.
      */
     readonly rtcState = computed<RTCPeerConnectionState>(() => {
-        const pc = this.pcState();
-        return pc === 'new' && this.engineUp() ? 'connected' : pc;
+        const state = PC_STATE_BY_CONNECTION[this.livekit.state()] ?? 'new';
+        return state === 'new' && this.engineUp() ? 'connected' : state;
     });
     readonly participantsWithAudio = signal<Set<string>>(new Set());
     readonly localVideoStream = signal<MediaStream | null>(null);
     readonly localScreenStream = signal<MediaStream | null>(null);
+
+    /**
+     * What the token this client connected with actually grants.
+     *
+     * <p>The microphone and camera buttons render from these rather than from locally computed
+     * permission. The rights are decided when the token is minted and enforced by the node, so a
+     * member whose plan has no video left connects, hears everyone, and cannot turn a camera on
+     * however the client is patched - a button drawn from our own arithmetic would be a button that
+     * does nothing. Both default to true so a room whose connection has not landed yet does not read
+     * as a room that forbids everything.</p>
+     */
+    readonly canPublishAudio = signal(true);
+    readonly canPublishVideo = signal(true);
 
     // ── Signals ────────────────────────────────────────────────────────────────
     readonly localScreenHasAudio = signal<boolean>(false);
     readonly localScreenAudioMuted = signal<boolean>(false);
     readonly screenEnded$ = new Subject<void>();
     private readonly staleSubscriptionSignal = new Subject<StaleSubscription>();
-    /** "Your roster is out of date" - the room service refetches the snapshot and reconciles. */
+    /**
+     * "Your roster is out of date" - the room service refetches the snapshot and reconciles.
+     *
+     * <p>Nothing raises it on this path any more, and that is the contract rather than an oversight:
+     * the two conditions that used to - a subscribe the backend refused as stale, and a media session
+     * it declared spent - are both gone with the SDP relay (design §8). Kept because it is a public
+     * surface `VoiceChannelService` subscribes, and because a future condition that genuinely means
+     * "refetch" belongs here rather than in a second channel.</p>
+     */
     readonly staleSubscription$ = this.staleSubscriptionSignal.asObservable();
     private guildVoiceSvc = inject(GuildVoiceService);
     private audioSettings = inject(AudioSettingsService);
@@ -168,9 +243,7 @@ export class VoiceRTCService {
     private screenAudioMutedSignal = signal<Set<string>>(new Set());
     readonly screenAudioMuted = this.screenAudioMutedSignal.asReadonly();
 
-    // ── WebRTC internals ───────────────────────────────────────────────────────
-    private pc: RTCPeerConnection | null = null;
-    private mediaSessionId: string | null = null;
+    // ── Room state ─────────────────────────────────────────────────────────────
     /**
      * The Rust publication carrying this channel's audio.
      *
@@ -179,52 +252,39 @@ export class VoiceRTCService {
      */
     private voiceSession: VoiceSession | null = null;
     /**
-     * What {@link connect} was called with, so {@link rebuildPublication} can start the same
-     * publication again without the caller handing it the channel a second time.
+     * What {@link connect} was called with, so the paths that declare a publication can name the
+     * channel without the caller handing it over a second time.
      *
-     * Cleared by {@link teardown}: a rebuild that fired after we left would republish a microphone
+     * Cleared by {@link teardown}: a declaration that fired after we left would announce a track
      * into a channel this client is no longer in.
      */
     private voiceTarget: { guildId: string; channelId: string } | null = null;
-    /**
-     * The rebuild in flight, or null. See {@link rebuildPublication} - every subscribe queued
-     * against a dead session fails at once, so this is what makes the burst cost one restart.
-     */
-    private rebuildingPublication: Promise<boolean> | null = null;
-    /**
-     * Rebuilds spent on this channel, against {@link MAX_PUBLICATION_REBUILDS}.
-     *
-     * A successful rebuild is followed by a refetch that re-subscribes the room, and if the new
-     * session is dead too - a network where this client's ICE never completes, say - each of those
-     * subscribes comes back here. That is a slow loop rather than a hot one, but it is still a loop,
-     * and it republishes the microphone on every turn of it. The cap makes it stop and say so.
-     */
-    private publicationRebuilds = 0;
     private setupDone = false;
+    /** Said once per session rather than per call - see {@link RoomPublishing}. */
+    private warnedMissingRoomSurface = false;
+    /**
+     * The connection the microphone publishes on, and the one the roster records as this
+     * participant.
+     *
+     * <p>Held for the life of the join, unlike the view room's, because the screen share has to land
+     * on the <b>same participant</b> as the microphone rather than opening a third identity - the
+     * publisher is handed these credentials and the Rust registry answers with the connection it
+     * already holds. Cleared by {@link teardown}: a room lives on one node, so carrying it into the
+     * next join would be a connection to the wrong machine.</p>
+     */
+    private primaryConnection: { url: string; token: string } | null = null;
 
     private localVideoTrack: MediaStreamTrack | null = null;
-    private localScreenTrack: MediaStreamTrack | null = null;
-    private localScreenAudioTrack: MediaStreamTrack | null = null;
     private screenShareId: string | null = null;
-
-    private cfVideoTrackName: string | null = null;
-
-    // Serialises all SDP offer/answer cycles to prevent races on concurrent track operations.
-    private negotiationChain: Promise<void> = Promise.resolve();
-
-    // Maps a remote transceiver MID → { userId, kind }. Video only: audio no longer arrives here.
-    private midMeta = new Map<string, { userId: string; kind: 'video' | 'screen' }>();
 
     /**
      * Remote screen shares' arriving frame rate, by user id - the guild-side twin of
-     * `CallWebRtcService.inboundVideoFpsByShare`. Polled the same way, off the same `getStats()`
-     * mechanism this connection never used to run at all: nothing here read stats before this
-     * existed, since nothing downstream needed a number until `CallScreenShare.inboundFps` did.
+     * `CallWebRtcService.inboundVideoFpsByShare`.
      *
-     * <p>Keyed by user, not share, unlike the DM side: `midMeta` carries no per-share id at all, and
-     * `call-projection.ts`'s `guildScreenShares` builds the guild `CallScreenShare[]` one row per
-     * participant (`guildScreenSharers`), so a userId can never collide here the way it can on the
-     * DM surface - see `inbound-fps.ts`'s module doc for the full reasoning.</p>
+     * <p>Keyed by user, not share, unlike the DM side: the guild side has always identified a screen
+     * stream by its owner, and `call-projection.ts`'s `guildScreenShares` builds the guild
+     * `CallScreenShare[]` one row per participant (`guildScreenSharers`), so a userId can never
+     * collide here the way it can on the DM surface - see `inbound-fps.ts`'s module doc.</p>
      */
     private readonly inboundVideoFpsSignal = signal<Record<string, number>>({});
     readonly inboundVideoFps = this.inboundVideoFpsSignal.asReadonly();
@@ -253,9 +313,6 @@ export class VoiceRTCService {
     private prevInboundBytes = new Map<string, number>();
     private prevInboundAt = 0;
 
-    // Track local senders so bitrate can be changed on the fly
-    private readonly localSenders = new Map<string, RTCRtpSender>();
-
     // Per-user volume, 0-1. The slider position lives here; the gain it produces lives in Rust.
     private readonly userVolumes = new Map<string, number>();
 
@@ -267,7 +324,7 @@ export class VoiceRTCService {
     // userId → the mixer source id of their stream's audio, so the per-stream mute can find it.
     private readonly remoteScreenAudioIds = new Map<string, string>();
 
-    // Mixer source id → the Cloudflare session we are currently pulling it from. Distinguishes a
+    // Mixer source id → the publishing identity we are currently pulling it from. Distinguishes a
     // repeated announcement (skip) from a corrected one (resubscribe), which a bare "have we seen
     // this user" set cannot do.
     private readonly subscribedAudioSessions = new Map<string, string>();
@@ -296,31 +353,16 @@ export class VoiceRTCService {
     // audible for a second and then permanently silent, on a connection that looks healthy.
     private readonly audioOps = new Map<string, Promise<unknown>>();
 
-    // Remote video/screen track name → the Cloudflare session it is being pulled from.
-    //
-    // Video has no equivalent of the audio path's mixer-source identity, so nothing used to stop a
-    // second subscribe for the same track: every call added another recvonly transceiver and asked
-    // Cloudflare for a track already being pulled. That was harmless while the only route here was
-    // the live TrackPublished event, which fires once. It stops being harmless now that the
-    // snapshot backfill covers the same tracks - a viewer who is present when a share starts would
-    // subscribe twice and leak an m-line per snapshot.
-    private readonly subscribedVideoTracks = new Map<string, { mediaSessionId: string; userId: string }>();
-
-    // Subscription key → the publication that was refused as stale, and who it belonged to.
-    //
-    // `staleSubscription` means that exact track on that exact session has stopped, so the identical
-    // request cannot start working: the remedy is to refetch the snapshot and pull whatever replaced
-    // it. But the refetch re-announces every track the server still lists, and while the server's
-    // record and Cloudflare's disagree that includes the dead one - which we then subscribe to
-    // again, are refused again, and refetch again. Nothing sleeps anywhere on that path, so it runs
-    // as fast as the network allows: a screenful of `subscribe refused as stale` alternating with
-    // 409s, one HTTP request per turn, for as long as the viewer stays in the channel.
-    //
-    // Recording the refusal is what breaks it. The refetch still happens - it is the only thing that
-    // can discover a replacement - but a re-announcement of the same (track, session) pair is now
-    // dropped before it reaches the wire. A republish always brings a new session id, so anything
-    // genuinely new is unaffected.
-    private readonly stalePublications = new Map<string, { mediaSessionId: string; userId: string }>();
+    /**
+     * Track name → whose video the roster says it is, for every video track this room wants open.
+     *
+     * <p>An <b>intent</b>, not a record of what is subscribed. A roster announcement names a user and
+     * a track name; the SDK subscribes by sid, and the sid for a publication whose `TrackPublished`
+     * has not arrived is simply not knowable yet. Holding the intent is what lets
+     * {@link applySubscriptions} act on it the moment it becomes knowable, instead of dropping an
+     * announcement that is never repeated.</p>
+     */
+    private readonly wantedVideo = new Map<string, { userId: string; kind: 'video' | 'screen' }>();
 
     /**
      * Quality of the running screen share, or null when not sharing. Set by the picker and changed
@@ -333,7 +375,7 @@ export class VoiceRTCService {
      * every change.
      */
     private screenSourceSize: { width: number; height: number } | null = null;
-    /** True while the running share is owned by the Rust publisher rather than this connection. */
+    /** True while the running share is owned by the screen publisher rather than by this service. */
     private rustPublishing = false;
     /** The picker choice behind the running publish, so a resolution change can rebuild it. */
     private rustChoice: ScreenPickerChoice | null = null;
@@ -359,14 +401,13 @@ export class VoiceRTCService {
         // A share can end without anything in the app asking it to. In a browser that is the
         // *ordinary* way it ends: the publish runs on `getDisplayMedia`, and Chrome's own "Stop
         // sharing" bar tears the track down and tells us afterwards. Nothing else on this side
-        // hears it - `localScreenTrack.onended` only covers a share published on this peer
-        // connection, and a publisher-owned share has no track here to hang that on. Until this
+        // hears it - a publisher-owned share has no track here to hang an `onended` on. Until this
         // was forwarded, the button stayed lit over a publish that was genuinely gone, and the
         // room was never told the track had stopped.
         //
-        // Forwarded into the same subject the desktop `onended` path uses, so the one consumer -
-        // `VoiceChannelService`, which calls `toggleScreenShare()` - unwinds it exactly as it would
-        // a user-pressed stop: the server is told, and the local state clears.
+        // Forwarded into the same subject a user-pressed stop unwinds through, so the one consumer -
+        // `VoiceChannelService`, which calls `toggleScreenShare()` - handles it identically: the
+        // server is told, and the local state clears.
         //
         // Guarded on `rustPublishing`, and that guard is load-bearing. `RustMediaService` is a
         // singleton shared with the 1:1 call path, so its `publishEnded$` fires for whichever
@@ -384,6 +425,12 @@ export class VoiceRTCService {
             this.inspected();
             if (this.statsInterval !== undefined) this.armStatsInterval();
         });
+
+        // The tiles render off these two maps, and the room is now the only thing that knows what is
+        // arriving - there is no `ontrack` to route by mid any more. Rebuilt wholesale on every
+        // change rather than patched, because a track that goes has to leave both maps and the room's
+        // own map is already the authority on which are still held.
+        effect(() => this.projectRemoteStreams());
     }
 
     // ── Connection setup / teardown ────────────────────────────────────────────
@@ -391,26 +438,32 @@ export class VoiceRTCService {
     async connect(guildId: string, channelId: string): Promise<boolean> {
         this.setupDone = false;
 
-        // Start the microphone first - if it is unavailable there is no point creating a PC.
+        // Start the microphone first - if it is unavailable there is nothing worth joining for.
         //
-        // Capture, processing and publishing all happen in Rust, on its own Cloudflare session.
-        // Nothing is added to this peer connection: other clients learn the track from the
-        // ParticipantJoined event the backend emits when that session publishes "audio", and it
-        // carries the Rust session id.
+        // Capture, processing and publishing all happen in Rust, on its own primary connection to the
+        // room. Nothing is published from here: other clients learn the track from the roster event
+        // the backend emits when that connection publishes "audio".
         //
-        // Sending and receiving are independent here - the engine has its own session and its own
-        // peer connection - so a slow or wedged engine must not be able to hold up subscriptions on
-        // the receive side. It could: the engine start waits on ICE gathering in Rust, and when that
-        // stalled, every subscribe queued behind it forever and the only symptom was one-way silence
-        // with an empty console.
+        // Sending and receiving are independent - the engine has its own connection - so a slow or
+        // wedged engine must not be able to hold up subscriptions on the receive side. It could: the
+        // engine start waits on ICE in Rust, and when that stalled, every subscribe queued behind it
+        // forever and the only symptom was one-way silence with an empty console.
         this.voiceTarget = {guildId, channelId};
-        this.publicationRebuilds = 0;
         try {
-            this.voiceSession = await this.voiceEngine.start(
+            // Primary, and with no tag: this connection is what the roster records as the
+            // participant, so it takes the bare user id. Fetched here rather than in Rust because
+            // only this side has the interceptor chain, which refreshes an expired bearer and
+            // replays - a token string captured at join time cannot.
+            const primary = await firstValueFrom(this.guildVoiceSvc.connection(guildId, channelId, true));
+            this.primaryConnection = {url: primary.url, token: primary.token};
+            // From the connection that would enforce it. The microphone publishes on this one, so
+            // this is the reply that decides whether the button can do anything.
+            this.canPublishAudio.set(primary.canPublishAudio);
+
+            this.voiceSession = await this.startEngine(
                 {kind: 'guild', guildId, channelId},
-                this.apiConfig.baseUrl(),
-                this.oauth.getAccessToken(),
                 await this.deviceIdentity.deviceId(),
+                this.primaryConnection,
             );
             this.engineUp.set(true);
         } catch (e) {
@@ -419,53 +472,92 @@ export class VoiceRTCService {
             return false;
         }
 
-        // The receive session is *not* opened here - see ensureReceiveSession. Joining a channel is
-        // complete once the engine is publishing and mixing; video is opened by whoever first needs
-        // it.
+        await this.openViewRoom(guildId, channelId);
         this.setupDone = true;
         return true;
     }
 
     /**
-     * The peer connection this client receives camera and screen video on, opened on first use.
+     * Join the room as this webview's own secondary connection.
      *
-     * <p>Lazily, and that is the whole point. It used to be opened during {@link connect}, but
-     * nothing negotiates it until a camera or a screen share actually appears: audio moved to the
-     * Rust engine, so a client that is only listening never sends an offer at all and the connection
-     * sits in `'new'` indefinitely. Cloudflare creates the session the moment we ask for one and
-     * drops any session whose peer connection never connects - so a session opened at join and first
-     * used when somebody starts sharing minutes later was routinely already gone. `tracks/new` then
-     * answered 502 `session_error` ("Session appears to be disconnected"), permanently, because
-     * nothing rebuilt it: the viewer saw the "sharing" placeholder and never got a picture.</p>
+     * <p>Opened at join rather than lazily on the first camera or share, and the reason it used to be
+     * lazy is gone with Cloudflare: that SFU created a session the moment one was asked for and
+     * dropped any whose peer connection never connected, so a session opened at join and first used
+     * minutes later was routinely already spent. The room is subscriber-primary - the connection is
+     * what "joined" means, it is negotiated immediately, and it stays up on its own - so opening it
+     * late buys nothing and costs the first arriving share a round trip.</p>
      *
-     * <p>Opened where it is first needed, the session is negotiated in the same second it is
-     * created, and from then on it is a live connection that stays up on its own.</p>
+     * <p><b>Its own fetch, and never the microphone's.</b> `POST .../voice/connection` is asked twice
+     * per join, and that is not a round trip worth saving: minting a token writes no roster row and
+     * re-announces nobody. Handing one connection to both would put two clients on one identity, and
+     * the SFU disconnects the earlier session under a duplicate identity - the client would kick its
+     * own call off the air. Secondary and tagged is what keeps them apart (§2.1).</p>
+     *
+     * <p>The URL is passed straight through and never cached against a room id. A room lives on
+     * exactly one node and this field is the routing answer, so a URL kept from an earlier room is a
+     * connection to the wrong machine.</p>
+     *
+     * <p>A failure here is not a failure to join: the microphone is already publishing and the mixer
+     * is already playing the room. What is lost is video, which is what the log line says.</p>
      */
-    private async ensureReceiveSession(guildId: string, channelId: string): Promise<boolean> {
-        if (this.pc && this.mediaSessionId) return true;
-
-        const pc = new RTCPeerConnection({iceServers: environment.iceServers, bundlePolicy: 'max-bundle'});
-        pc.ontrack = e => this.handleRemoteTrack(e);
-        // Guarded on identity: a connection that has been replaced must not keep writing the state
-        // its successor is reporting.
-        pc.onconnectionstatechange = () => {
-            if (this.pc === pc) this.pcState.set(pc.connectionState);
-        };
-
+    private async openViewRoom(guildId: string, channelId: string): Promise<void> {
         try {
-            // Secondary: the Rust session carries this participant's audio, and only one session per
-            // participant may claim that.
-            const {mediaSessionId} = await firstValueFrom(
-                this.guildVoiceSvc.createSession(guildId, channelId, false));
-            this.pc = pc;
-            this.mediaSessionId = mediaSessionId;
+            const connection = await firstValueFrom(
+                this.guildVoiceSvc.connection(guildId, channelId, false, VIEW_TAG));
+            // The camera publishes on *this* connection, so this is the reply that decides whether
+            // its button can do anything. Its audio grant is the Rust connection's business.
+            this.canPublishVideo.set(connection.canPublishVideo);
+            await this.livekit.connect({url: connection.url, token: connection.token});
             this.startStatsPolling();
-            return true;
+            // Anything announced while the connection was in flight is waiting in `wantedVideo`.
+            this.applySubscriptions();
         } catch (e) {
-            pc.close();
-            console.error('[voice] could not open the receive session', e);
-            return false;
+            console.error('[voice] could not join the room for video', e);
         }
+    }
+
+    /**
+     * Start the microphone on the connection this client just fetched.
+     *
+     * <p><b>The cast is a seam, not a shortcut.</b> `VoiceStartOptions.livekit` exists and the Tauri
+     * adapter forwards it to Rust, but `VoiceEngineService.start` still takes four arguments and
+     * drops the fifth - and that file is not this one's to change. Passed anyway and pinned by a
+     * test, so the day the engine grows the parameter this works with the `as` removed and nothing
+     * else moved. Until then the microphone falls back to the route Rust takes when no connection is
+     * given, which is the Cloudflare one, and it 404s.</p>
+     */
+    private startEngine(
+        target: VoiceTarget,
+        deviceId: string,
+        livekit: { url: string; token: string },
+    ): Promise<VoiceSession> {
+        const start = this.voiceEngine.start as unknown as (
+            target: VoiceTarget, apiBase: string, token: string, deviceId: string,
+            livekit: { url: string; token: string },
+        ) => Promise<VoiceSession>;
+        return start.call(
+            this.voiceEngine, target, this.apiConfig.baseUrl(), this.oauth.getAccessToken(),
+            deviceId, livekit,
+        );
+    }
+
+    /**
+     * The publish half of the room, or an empty object when the wrapper does not carry it.
+     *
+     * <p>See {@link RoomPublishing}. Said once and loudly rather than per call: a missing method here
+     * is a build that cannot publish a camera or resolve a roster row to a sid at all, which is a
+     * wiring fault and not a condition to degrade quietly around.</p>
+     */
+    private get roomMedia(): Partial<RoomPublishing> {
+        const room = this.livekit as unknown as Partial<RoomPublishing>;
+        if (!this.warnedMissingRoomSurface && typeof room.publishTrack !== 'function') {
+            this.warnedMissingRoomSurface = true;
+            console.error(
+                '[voice] the room wrapper carries no publish/publications surface - ' +
+                'cameras cannot be published and roster rows cannot be resolved to track sids',
+            );
+        }
+        return room;
     }
 
     // ── Stats polling ────────────────────────────────────────────────────────
@@ -510,13 +602,33 @@ export class VoiceRTCService {
         this.prevInboundAt = 0;
     }
 
+    /**
+     * Read every held screen share's counters, one report per track.
+     *
+     * <p>Per track rather than per connection, because that is what the SDK answers - and it is why
+     * {@link midOfReport} exists: the mid used to arrive on the negotiate reply and now has to be
+     * read back out of the report it keys.</p>
+     */
     private async pollStats(): Promise<void> {
-        if (!this.pc) return;
-        const report = await this.pc.getStats();
-        this.inboundVideoFpsSignal.set(inboundScreenFpsByUser(report, this.midMeta));
-        // One extra pass over a report that was fetched anyway, and only while a panel is open.
-        const snapshot = detailedStatsFor(report, this.midMeta, this.inspected()?.userId ?? null);
-        this.inspectedStats.set(this.withMeasuredBitrate(snapshot));
+        const fps: Record<string, number> = {};
+        let sample: StreamStatsSample | null = null;
+        const inspectedUser = this.inspected()?.userId ?? null;
+
+        for (const track of this.livekit.remoteTracks().values()) {
+            if (describeTrack(track.publication.trackName).kind !== 'screen') continue;
+            const report = await track.publication.videoTrack?.getRTCStatsReport();
+            if (!report) continue;
+            const mid = midOfReport(report);
+            if (!mid) continue;
+
+            const owners: ReadonlyMap<string, InboundTrackOwner> =
+                new Map([[mid, {userId: track.userId, kind: 'screen' as const}]]);
+            Object.assign(fps, inboundScreenFpsByUser(report, owners));
+            sample ??= detailedStatsFor(report, owners, inspectedUser);
+        }
+
+        this.inboundVideoFpsSignal.set(fps);
+        this.inspectedStats.set(this.withMeasuredBitrate(sample));
     }
 
     /**
@@ -548,150 +660,18 @@ export class VoiceRTCService {
     }
 
     /**
-     * Throw away a receive session the server has declared gone, so the next subscribe opens a
-     * fresh one.
-     *
-     * <p>Unconditional, including when a camera or screen share is publishing on it. That is not a
-     * choice this makes lightly: the session is <em>already</em> spent, so those tracks are dead at
-     * the SFU whatever the local UI says, and every call on that id fails identically from now on.
-     * Keeping the connection to preserve them would preserve nothing but the appearance of them, and
-     * cost the subscription that could have been recovered.</p>
-     *
-     * <p>So the local capture is stopped and its state cleared, which makes the UI say what is
-     * actually true - the camera is off - instead of showing it live to a room that cannot see it.
-     * Turning it back on republishes onto the new session. Doing that automatically would be
-     * friendlier and is worth doing; it is a larger change than this recovery path.</p>
-     */
-    private dropReceiveSession(): boolean {
-        this.localVideoTrack?.stop();
-        this.localVideoTrack = null;
-        this.localVideoStream.set(null);
-        this.cfVideoTrackName = null;
-        // The Rust publisher owns its own session and is untouched by this; only a share published
-        // on *this* connection dies with it.
-        if (!this.rustPublishing) {
-            this.localScreenTrack?.stop();
-            this.localScreenAudioTrack?.stop();
-            this.localScreenTrack = null;
-            this.localScreenAudioTrack = null;
-            this.localScreenStream.set(null);
-            this.localScreenHasAudio.set(false);
-            this.screenShareId = null;
-            this.screenPreset.set(null);
-        }
-        this.localSenders.clear();
-        this.stopStatsPolling();
-        this.pc?.close();
-        this.pc = null;
-        this.mediaSessionId = null;
-        this.pcState.set('new');
-        this.midMeta.clear();
-        // Cleared with the session that held them: a claim recorded against a connection that no
-        // longer exists would make every resubscribe look like a duplicate and skip it.
-        this.subscribedVideoTracks.clear();
-        this.videoStreamsSignal.set(new Map());
-        this.screenStreamsSignal.set(new Map());
-        return true;
-    }
-
-    /**
-     * Start this channel's publication again, because the server says the one we hold is spent.
-     *
-     * <p>The audio twin of {@link dropReceiveSession}, and it exists for the same reason: a media
-     * session id is meaningless without the peer connection that produced it, so once the server has
-     * answered <c>sessionGone</c> every call on that id fails identically. Retrying the same
-     * subscribe - which is all this path used to do - is four attempts and then permanent silence for
-     * whoever we were pulling. The contract's remedy is `recreateSession`, and for the microphone
-     * that means a new engine publication: it owns the session, mints it and publishes onto it.</p>
-     *
-     * <p>Started rather than stopped-then-started, deliberately. `attach` in the engine's `session.rs`
-     * replaces a slot's publication only once the new one has connected, so a rebuild that fails
-     * leaves the existing one alone instead of tearing down a call on the way out.</p>
-     *
-     * <p>Single-flight, because a dead session fails every subscribe queued behind it at once and
-     * each of them lands here. The first caller restarts; the rest await the same promise and then
-     * return, so a room of ten publishers costs one restart rather than ten.</p>
-     */
-    private rebuildPublication(): Promise<boolean> {
-        if (this.rebuildingPublication) return this.rebuildingPublication;
-
-        const target = this.voiceTarget;
-        // Left the channel while the failure was in flight. Republishing here would put a microphone
-        // into a room this client is no longer in.
-        if (!target) return Promise.resolve(false);
-
-        if (this.publicationRebuilds >= MAX_PUBLICATION_REBUILDS) {
-            // Not a spent session any more - something about this client's media is broken in a way
-            // rebuilding does not fix. Rejoining the channel is what resets this.
-            console.error(
-                `[voice] publication died ${MAX_PUBLICATION_REBUILDS} times - not rebuilding again`,
-            );
-            return Promise.resolve(false);
-        }
-        this.publicationRebuilds++;
-
-        const attempt = (async () => {
-            try {
-                const session = await this.voiceEngine.start(
-                    {kind: 'guild', guildId: target.guildId, channelId: target.channelId},
-                    this.apiConfig.baseUrl(),
-                    this.oauth.getAccessToken(),
-                    await this.deviceIdentity.deviceId(),
-                );
-                // Checked after the round trip: `teardown` may have run while it was in flight, and
-                // the new publication belongs to a channel we have since left.
-                if (!this.voiceTarget) {
-                    await this.voiceEngine.stop(session);
-                    return false;
-                }
-                this.voiceSession = session;
-                this.engineUp.set(true);
-
-                // Nothing is subscribed on a session that did not exist a moment ago. These records
-                // are what both dedupe guards read, so leaving them would make the refetch that
-                // follows skip every participant as "already held" - the new session would be
-                // published onto and pull nothing, which is the failure this exists to end.
-                this.subscribedAudioSessions.clear();
-                this.stalePublications.clear();
-                this.participantsWithAudio.set(new Set());
-                this.remoteScreenAudioIds.clear();
-                // Bumped rather than cleared, exactly as in `teardown`: a cleared map reads as token 0
-                // to a retry still sleeping between attempts, which is the value it would match.
-                this.subscribeTokens.forEach((token, id) => this.subscribeTokens.set(id, token + 1));
-
-                console.warn('[voice] publication rebuilt after sessionGone', {
-                    mediaSessionId: session.mediaSessionId,
-                });
-                return true;
-            } catch (e) {
-                // Loud and left dead. `publishedMedia` now reports the session that failed, which the
-                // next heartbeat asserts and the server disagrees with - it tells peers to drop us,
-                // which is the honest state. Recovering from here is a rejoin, not a resubscribe.
-                console.error('[voice] could not rebuild the publication after sessionGone', e);
-                return false;
-            }
-        })();
-
-        this.rebuildingPublication = attempt;
-        // Compared rather than cleared outright: a second rebuild can legitimately be in flight by
-        // the time this settles - the new session can die too - and clearing unconditionally would
-        // drop the guard that one is relying on.
-        void attempt.finally(() => {
-            if (this.rebuildingPublication === attempt) this.rebuildingPublication = null;
-        });
-        return attempt;
-    }
-
-    /**
      * What this client is actually publishing, for the heartbeat's state assertion.
      *
-     * <p>Deliberately the *Rust* session and not `this.mediaSessionId`. The webview's session is
-     * secondary and receive-only; the microphone lives on the Rust publication, and that is the
-     * session peers are told to pull from. Asserting the webview's would have the server hand peers
-     * a session with no audio track on it.</p>
+     * <p>Deliberately the *Rust* session and not this room's identity. The webview's connection is
+     * secondary; the microphone lives on the Rust one, and that is the participant peers are told to
+     * pull from. Asserting this room's identity would have the server hand peers a participant with
+     * no audio track on it.</p>
      *
      * <p>Null while not publishing, which is the honest thing to send - the server corrects its
-     * record from it and tells peers to drop us.</p>
+     * record from it and tells peers to drop us. <b>An empty `mediaSessionId` is not that.</b> The
+     * engine answers `""` on the LiveKit arm rather than fabricating an id, because identity is the
+     * room's to assign; publishing state is driven from `publishState` and never from whether this
+     * string is blank.</p>
      */
     get publishedMedia(): { mediaSessionId: string; audioTrackName: string } | null {
         if (!this.voiceSession) return null;
@@ -702,26 +682,23 @@ export class VoiceRTCService {
     }
 
     /**
-     * Names of all local tracks published on *this* connection's session, for the close-tracks call.
+     * Names of all local tracks published from *this* client's webview, for the unpublish call.
      *
-     * The microphone is not among them: it lives on the Rust session, which closes its own track,
-     * exactly as the screen publisher does.
+     * The microphone is not among them: it lives on the Rust connection, which closes its own track.
      */
     getActiveTrackNames(): string[] {
         const names: string[] = [];
-        if (this.cfVideoTrackName) names.push(this.cfVideoTrackName);
-        if (this.localScreenTrack && this.screenShareId) {
-            names.push(`screen-${this.screenShareId}`);
-            if (this.localScreenAudioTrack) names.push(`screen-audio-${this.screenShareId}`);
+        if (this.localVideoTrack) names.push(CAMERA_TRACK);
+        if (this.screenShareId) {
+            names.push(screenTrackName(this.screenShareId));
+            if (this.rustAudioTrackName) names.push(screenAudioTrackName(this.screenShareId));
         }
         return names;
     }
 
     teardown(): void {
-        this.localSenders.clear();
         this.subscribedAudioSessions.clear();
-        this.subscribedVideoTracks.clear();
-        this.stalePublications.clear();
+        this.wantedVideo.clear();
         // Dropped rather than awaited: the publication below is about to be stopped, which removes
         // every source on it, and anything still queued is for a channel that no longer exists.
         this.audioOps.clear();
@@ -734,33 +711,30 @@ export class VoiceRTCService {
         // guild channel.
         if (this.voiceSession) void this.voiceEngine.stop(this.voiceSession);
         this.voiceSession = null;
-        // Before the engine state, so a rebuild whose start is still in flight sees the channel is
-        // gone and stops the publication it is about to hand back rather than publishing into it.
         this.voiceTarget = null;
-        this.publicationRebuilds = 0;
+        this.primaryConnection = null;
         this.engineUp.set(false);
         this.localVideoTrack?.stop();
-        this.localScreenTrack?.stop();
-        void this.rustMedia.stopScreenCapture();
-        this.localScreenAudioTrack?.stop();
+        // The publisher only, and only when one is running. The canvas capture this used to stop
+        // alongside it is gone with the webview publish path - every share is the publisher's now,
+        // on both hosts - and calling into a capture nothing started would be reaching for a
+        // pipeline that no longer exists.
+        if (this.rustPublishing) void this.rustMedia.stopScreenPublish();
 
         this.localVideoTrack = null;
-        this.localScreenTrack = null;
-        this.localScreenAudioTrack = null;
+        this.rustPublishing = false;
+        this.rustChoice = null;
+        this.rustAudioTrackName = null;
         this.screenShareId = null;
         this.screenSourceSize = null;
         this.screenPreset.set(null);
 
         this.stopStatsPolling();
-        this.pc?.close();
-        this.pcState.set('new');
+        void this.livekit.disconnect();
         this.participantsWithAudio.set(new Set());
-        this.pc = null;
-        this.mediaSessionId = null;
-        this.cfVideoTrackName = null;
+        this.canPublishAudio.set(true);
+        this.canPublishVideo.set(true);
         this.setupDone = false;
-        this.midMeta.clear();
-        this.negotiationChain = Promise.resolve();
 
         this.videoStreamsSignal.set(new Map());
         this.screenStreamsSignal.set(new Map());
@@ -781,7 +755,6 @@ export class VoiceRTCService {
         if (this.voiceSession) void this.voiceEngine.setPttOpen(this.voiceSession, open);
     }
 
-    /** Cleans up all per-participant resources when a remote user leaves. */
     /**
      * Everyone we currently hold a subscription for, so a snapshot can tell who has left.
      *
@@ -793,33 +766,30 @@ export class VoiceRTCService {
         for (const [id] of this.subscribedAudioSessions) {
             if (!id.startsWith('screen-')) ids.add(id);
         }
-        for (const [, held] of this.subscribedVideoTracks) ids.add(held.userId);
+        for (const [, want] of this.wantedVideo) ids.add(want.userId);
         return [...ids];
     }
 
+    /** Cleans up all per-participant resources when a remote user leaves. */
     cleanupParticipant(userId: string): void {
-        // Drops their source from the mixer, their entry from the mid map, and their volume.
+        // Drops their source from the mixer, their entry from the roster maps, and their volume.
         //
         // Queued behind any subscribe still running for them, or the drop lands first and the
         // subscribe it was meant to undo finishes afterwards - putting a participant who has left
         // back in the mix. The token bumped below is what stops that subscribe recording itself.
         void this.queueAudioOp(userId, () => this.dropSource(userId));
-        // Forget the session they were on, so rejoining resubscribes rather than being skipped as
-        // a duplicate - a leave/rejoin almost always comes back on a new Cloudflare session.
+        // Forget the identity they were on, so rejoining resubscribes rather than being skipped as
+        // a duplicate.
         this.subscribedAudioSessions.delete(userId);
         // Invalidate any retry still sleeping for them. Without this, someone who leaves during
         // the backoff is resubscribed seconds later and stays in the mix until the next teardown.
         this.subscribeTokens.set(userId, (this.subscribeTokens.get(userId) ?? 0) + 1);
-        // Same reasoning for their video: a rejoin comes back on a new session, and a stale claim
-        // here would make the resubscribe look like a duplicate and skip it.
-        for (const [name, held] of this.subscribedVideoTracks) {
-            if (held.userId === userId) this.subscribedVideoTracks.delete(name);
+        // Same for their video: the intent has to go before the diff runs, or the reconcile below
+        // re-subscribes whatever of theirs the room still lists.
+        for (const [name, want] of this.wantedVideo) {
+            if (want.userId === userId) this.wantedVideo.delete(name);
         }
-        // And the record of what of theirs was refused. Keyed by session id, so it would not block
-        // a rejoin on its own - but it would otherwise sit in the map for the rest of the call.
-        for (const [key, held] of this.stalePublications) {
-            if (held.userId === userId) this.stalePublications.delete(key);
-        }
+        this.applySubscriptions();
 
         this.videoStreamsSignal.update(m => {
             const n = new Map(m);
@@ -848,9 +818,10 @@ export class VoiceRTCService {
     /**
      * Pull remote audio into the Rust mixer.
      *
-     * Nothing is added to this peer connection any more: audio arrives on the Rust session, is
-     * decoded, jitter-buffered and mixed there, and leaves through the output device Rust opened.
-     * This connection now carries video and screen video only.
+     * Nothing arrives on this room: audio - microphones and every `screen-audio-*` track alike - is
+     * pulled on the Rust connection, decoded, jitter-buffered and mixed there, and leaves through the
+     * output device Rust opened. Two transports playing the same participant is double playout, and
+     * the second copy is not muteable from any control the user can see.
      *
      * `guildId`/`channelId` are gone from the signature - the Rust session already knows its target.
      */
@@ -943,19 +914,15 @@ export class VoiceRTCService {
     ): Promise<void> {
         // A participant is announced twice: once live when they publish, and once more out of
         // the stored record when *we* join and the backend backfills everyone already present.
-        // The two do not always agree - the live announcement carries the session id that was
-        // just passed in, the backfill reads whatever is on the participant row, which is stale
-        // if they rejoined. Acting on that difference is the only recovery path there is.
+        // The two do not always agree - the live announcement carries the identity that was just
+        // passed in, the backfill reads whatever is on the participant row, which is stale if they
+        // rejoined. Acting on that difference is the only recovery path there is.
         const previous = this.subscribedAudioSessions.get(id);
         if (previous === target.mediaSessionId) return;
-        // Already refused as stale. The refetch that followed has re-announced it unchanged, so
-        // asking again would only earn the same 409 and another refetch.
-        if (this.stalePublications.get(id)?.mediaSessionId === target.mediaSessionId) return;
         if (previous !== undefined) {
-            // The old subscription points at a session that is no longer publishing. Drop it,
-            // or the mixer keeps a dead source and Rust keeps a recvonly transceiver per
-            // announcement - one leaked m-line every time somebody rejoins.
-            console.warn('[voice] session id changed, resubscribing', {
+            // The old subscription points at a participant that is no longer publishing. Drop it,
+            // or the mixer keeps a dead source - one leaked route every time somebody rejoins.
+            console.warn('[voice] publishing identity changed, resubscribing', {
                 id, from: previous, to: target.mediaSessionId,
             });
             await this.voiceEngine.unsubscribe(session, id);
@@ -979,9 +946,8 @@ export class VoiceRTCService {
                     return;
                 }
                 // Only after it succeeds. Recording a failed subscribe would make the retry above
-                // skip the very announcement that could have carried a working session id.
+                // skip the very announcement that could have carried a working identity.
                 this.subscribedAudioSessions.set(id, target.mediaSessionId);
-                this.stalePublications.delete(id);
                 if (target.kind === 'screenAudio') {
                     this.remoteScreenAudioIds.set(target.userId, id);
                     // A stream that starts while its author is already muted must stay muted.
@@ -1004,44 +970,11 @@ export class VoiceRTCService {
                 }
                 return;
             } catch (e) {
-                if (isStaleSubscription(e)) {
-                    // Not late - gone. The identical body fails again for as long as we keep
-                    // trying, which is the loop behind VNT-GE21R3P7. Nothing is recorded as
-                    // subscribed above, so the refetch below is free to try again properly - and
-                    // the pair is recorded as dead so that a refetch which re-announces it
-                    // unchanged stops here instead of coming straight back round.
-                    console.warn('[voice] subscribe refused as stale, refetching', {id});
-                    this.stalePublications.set(id, {
-                        mediaSessionId: target.mediaSessionId,
-                        userId: target.userId,
-                    });
-                    this.staleSubscriptionSignal.next({userId: target.userId});
-                    return;
-                }
-                if (isDeadMediaSession(e)) {
-                    // Our own publication, not their track - so no snapshot can repair it and no
-                    // number of retries can either. Every call on a spent session id fails
-                    // identically, which is what turned one dead session into the retry-and-refetch
-                    // loop this branch ends: `sessionGone` used to fall through to the transport
-                    // retry below, spend its four attempts, and leave that participant silent for the
-                    // rest of the session.
-                    //
-                    // The refetch is signalled only on success, and that is what keeps this from
-                    // spinning: it is the refetch that re-subscribes the room, so signalling it after
-                    // a failed rebuild would send every subscribe back through here to fail and
-                    // refetch again, as fast as the network allows.
-                    console.warn('[voice] our publication is dead, rebuilding', {id});
-                    if (await this.rebuildPublication()) {
-                        this.staleSubscriptionSignal.next({userId: target.userId});
-                    }
-                    return;
-                }
                 if (attempt < SUBSCRIBE_RETRY_DELAYS_MS.length) {
-                    // Expected, not exceptional. The backend announces a publisher the moment
-                    // Cloudflare accepts their tracks/new, which is one SDP answer *before* they
-                    // have finished ICE and DTLS and sent a packet - so an early subscribe gets
-                    // not_found_track_error for a track that is about to exist. The backend absorbs
-                    // 1.5s of that; a cold handshake on a slow link outlasts it.
+                    // Expected, not exceptional. The roster announces a publisher as soon as the room
+                    // records the publication, which can reach us before the SFU's own
+                    // `TrackPublished` reaches the Rust room - so an early subscribe names a track
+                    // that room has not been told about yet.
                     console.warn('[voice] subscribe failed, retrying', {
                         id, attempt: attempt + 1, retryInMs: SUBSCRIBE_RETRY_DELAYS_MS[attempt],
                     }, e);
@@ -1060,83 +993,98 @@ export class VoiceRTCService {
     }
 
     /**
-     * Pull a remote camera or screen track onto this connection.
+     * Want a remote camera or screen track open on this room.
      *
-     * <p>Idempotent per (track name, publishing session): calling it again for a track already
-     * being pulled from the same session returns without touching the peer connection, so the live
-     * announcement and the snapshot backfill can both cover a track without subscribing twice. A
-     * *different* session id for the same name means the publisher restarted and is a real
-     * resubscribe.</p>
+     * <p>Records the intent and reconciles. It cannot fail and it cannot be too early: a roster
+     * announcement can arrive before the connection is up or before the SFU has told this room the
+     * publication exists, and either way the intent is held and applied by the next reconcile rather
+     * than dropped. Announcements are never repeated, which is what makes dropping one permanent.</p>
+     *
+     * <p><b>Video only.</b> A `screen-audio-*` track named here would be refused by the room anyway -
+     * the Rust connection already plays it into the mixer - so it is filtered out here where the
+     * reason can be stated rather than counted.</p>
      */
     subscribeVideo(
-        guildId: string,
-        channelId: string,
+        _guildId: string,
+        _channelId: string,
         userId: string,
-        mediaSessionId: string,
+        _mediaSessionId: string,
         trackName: string,
         kind: 'video' | 'screen',
     ): Promise<void> {
-        if (this.subscribedVideoTracks.get(trackName)?.mediaSessionId === mediaSessionId) return Promise.resolve();
-        if (this.stalePublications.get(trackName)?.mediaSessionId === mediaSessionId) return Promise.resolve();
+        const described = describeTrack(trackName);
+        if (described.kind !== 'video' && described.kind !== 'screen') {
+            console.warn('[voice] not pulling an audio track onto the view room', {trackName});
+            return Promise.resolve();
+        }
 
-        return this.enqueueNegotiation(async () => {
-            // Inside the queue, so the session is opened once however many tracks are announced at
-            // the same moment - a snapshot backfill covering a share announces two.
-            if (!await this.ensureReceiveSession(guildId, channelId)) return;
-            if (!this.pc || !this.mediaSessionId) return;
-            // Re-checked inside the queue: two callers can pass the guard above before either has
-            // run, and the queue is what serialises them.
-            if (this.subscribedVideoTracks.get(trackName)?.mediaSessionId === mediaSessionId) return;
-            if (this.stalePublications.get(trackName)?.mediaSessionId === mediaSessionId) return;
+        this.wantedVideo.set(trackName, {userId, kind});
+        this.applySubscriptions();
+        return Promise.resolve();
+    }
 
-            const transceiver = this.pc.addTransceiver('video', {direction: 'recvonly'});
-            preferVideoCodecs(transceiver, 'receiver');
-
-            const offer = await this.pc.createOffer();
-            await this.pc.setLocalDescription(offer);
-
-            try {
-                const resp = await firstValueFrom(this.guildVoiceSvc.negotiateTracks(guildId, channelId, {
-                    mediaSessionId: this.mediaSessionId,
-                    sessionDescription: this.pc.localDescription!,
-                    tracks: [{direction: 'subscribe', trackName, mediaSessionId}],
-                }));
-
-                if (resp.tracks[0]?.mid) {
-                    this.midMeta.set(resp.tracks[0].mid, {userId, kind});
-                }
-
-                await this.pc.setRemoteDescription(resp.sessionDescription);
-                // Recorded only once it worked. Claiming the track before the round trip would make
-                // every later attempt - the next snapshot, a republish - skip the one thing that
-                // could have recovered it, which is how a transient 502 becomes a permanently black
-                // tile.
-                this.subscribedVideoTracks.set(trackName, {mediaSessionId, userId});
-                this.stalePublications.delete(trackName);
-                if (resp.requiresImmediateRenegotiation) await this.renegotiate(guildId, channelId);
-            } catch (e) {
-                if (isStaleSubscription(e)) {
-                    // The share stopped between the announcement and this request. Nothing is
-                    // recorded in subscribedVideoTracks - that happens only on success - so the
-                    // reconcile that follows the refetch can subscribe cleanly if it comes back.
-                    // The dead pair is recorded so the refetch cannot hand the same one back.
-                    console.warn('[voice] video subscribe refused as stale, refetching', {trackName});
-                    this.stalePublications.set(trackName, {mediaSessionId, userId});
-                    this.staleSubscriptionSignal.next({userId});
-                    return;
-                }
-                if (isDeadMediaSession(e) && this.dropReceiveSession()) {
-                    // Our own receive session, not the track. Rebuilding it is the only thing that
-                    // can help, and the refetch that follows re-announces every track worth pulling
-                    // - which opens a fresh session on the way through.
-                    console.warn('[voice] receive session is dead, rebuilding', {trackName});
-                    this.staleSubscriptionSignal.next({userId});
-                    return;
-                }
-                console.error('[voice] video subscribe failed', {userId, trackName, kind}, e);
-                throw e;
+    /**
+     * Bring what the room is pulling into line with what the roster asked for.
+     *
+     * <p>By diffing, never by rebuilding: subscribe what is newly wanted, close what is no longer.
+     * A rebuild would drop and re-pull every tile on any change, which is a black frame on every
+     * screen for every viewer each time one person turns a camera on.</p>
+     *
+     * <p>A track whose sid cannot be resolved is left for the next pass rather than logged as a
+     * failure - it is the ordinary state of a publication whose announcement beat the SFU's.</p>
+     */
+    private applySubscriptions(): void {
+        for (const [trackName, want] of this.wantedVideo) {
+            const trackSid = this.sidOf(want.userId, trackName);
+            if (trackSid) this.livekit.setSubscribed(trackSid, true);
+        }
+        for (const track of this.livekit.remoteTracks().values()) {
+            if (!this.wantedVideo.has(track.publication.trackName)) {
+                this.livekit.setSubscribed(track.trackSid, false);
             }
-        });
+        }
+    }
+
+    /**
+     * The sid behind a roster row, or null while the room has not been told the publication exists.
+     *
+     * <p>Two places to look, and both are needed. A track already held is in the room's own map,
+     * which is the only one populated without {@link RoomPublishing}; everything not yet pulled is
+     * reachable only through it.</p>
+     */
+    private sidOf(userId: string, trackName: string): string | null {
+        for (const track of this.livekit.remoteTracks().values()) {
+            if (track.userId === userId && track.publication.trackName === trackName) return track.trackSid;
+        }
+        for (const publication of this.roomMedia.publicationsOf?.(userId) ?? []) {
+            if (publication.trackName === trackName) return publication.trackSid;
+        }
+        return null;
+    }
+
+    /**
+     * Rebuild the two stream maps the tiles render from, off what the room currently holds.
+     *
+     * <p>{@link describeTrack} is the only thing that decides what a name means, here as everywhere:
+     * it tests `screen-audio-` before `screen-`, so a share's audio can never be filed as the video
+     * of a share whose id happens to start with `audio-`. An audio track cannot reach these maps at
+     * all - it is never subscribed on this room - but the branch is written on the description rather
+     * than on that assumption.</p>
+     */
+    private projectRemoteStreams(): void {
+        const video = new Map<string, MediaStream>();
+        const screen = new Map<string, MediaStream>();
+
+        for (const track of this.livekit.remoteTracks().values()) {
+            const described = describeTrack(track.publication.trackName);
+            if (described.kind !== 'video' && described.kind !== 'screen') continue;
+            const media = track.publication.track?.mediaStreamTrack;
+            if (!media) continue;
+            (described.kind === 'screen' ? screen : video).set(track.userId, new MediaStream([media]));
+        }
+
+        this.videoStreamsSignal.set(video);
+        this.screenStreamsSignal.set(screen);
     }
 
     // ── Local media controls ───────────────────────────────────────────────────
@@ -1151,8 +1099,26 @@ export class VoiceRTCService {
         void this.voiceEngine.setDeafened(isDeafened);
     }
 
+    /**
+     * Open the camera, publish it, and declare it.
+     *
+     * <p>Two steps and they answer different questions. The SDK publish is what puts pixels on the
+     * wire; `POST .../voice/publish` is what puts this client on the roster as publishing, and is
+     * where the entitlement answer arrives. A `200` carrying `degradations` is a publish that
+     * <b>worked, smaller</b> - the camera is live at the rung the server granted, nothing rolls back,
+     * and the capture is re-encoded to match rather than going on sending pixels the room will drop.
+     * A `403` is a refusal that could not degrade: the token this client connected with does not
+     * permit it either, so nobody would receive it whatever is retried, and the local track is
+     * stopped.</p>
+     */
     async publishCamera(guildId: string, channelId: string): Promise<string | null> {
-        if (!await this.ensureReceiveSession(guildId, channelId)) return null;
+        if (!this.canPublishVideo()) {
+            console.warn('[voice] the token for this room does not permit video');
+            return null;
+        }
+
+        const publishTrack = this.roomMedia.publishTrack;
+        if (typeof publishTrack !== 'function') return null;
 
         try {
             // Honour the camera picked in settings; this used to hardcode `video: true` and always
@@ -1164,49 +1130,49 @@ export class VoiceRTCService {
             this.localVideoTrack = stream.getVideoTracks()[0];
             this.localVideoStream.set(new MediaStream([this.localVideoTrack]));
 
-            let cfTrackName: string | null = null;
-            await this.enqueueNegotiation(async () => {
-                if (!this.pc || !this.mediaSessionId) return;
-                // addTransceiver rather than addTrack, and that is the whole simulcast change on
-                // this path: `sendEncodings` is only honoured when the transceiver is created, so
-                // addTrack can never produce a layered publish. The `streams` argument keeps the
-                // stream association addTrack was giving us.
-                const transceiver = this.pc.addTransceiver(this.localVideoTrack!, {
-                    direction: 'sendonly',
-                    streams: [stream],
-                    sendEncodings: cameraSendEncodings(),
-                });
-                const sender = transceiver.sender;
-                const offer = await this.pc.createOffer();
-                await this.pc.setLocalDescription(offer);
-                const mid = transceiver.mid ?? '0';
-                const resp = await firstValueFrom(this.guildVoiceSvc.negotiateTracks(guildId, channelId, {
-                    mediaSessionId: this.mediaSessionId!,
-                    sessionDescription: this.pc.localDescription!,
-                    tracks: [{direction: 'publish', mid, trackName: 'video'}],
-                    // What the camera actually opened at, not what was asked for: the device
-                    // negotiates its own settings against the constraint, and stating the request
-                    // would have the server clamp against a resolution nothing is sending.
-                    video: trackIntent(this.localVideoTrack!),
-                }));
-                cfTrackName = this.cfVideoTrackName = resp.tracks[0]?.trackName ?? 'video';
-                await this.pc.setRemoteDescription(resp.sessionDescription);
-                if (resp.requiresImmediateRenegotiation) await this.renegotiate(guildId, channelId);
-                await applySimpleBitrate(sender, CAMERA_KBPS);
-                this.localSenders.set('video', sender);
-                // A clamped publish is a success carrying a note. Nothing above this line rolls
-                // back on account of it - the camera is live, at the rung the server granted.
-                this.voiceLimits.noteDegradations(resp);
-            });
-            return cfTrackName;
+            // The SDK owns the send-side encodings now - the ladder, the codec preference and the
+            // start bitrate that `webrtc-encoding.ts` used to hand the transceiver.
+            await publishTrack(this.localVideoTrack, CAMERA_TRACK);
+
+            const granted = await firstValueFrom(this.guildVoiceSvc.publish(guildId, channelId, {
+                trackNames: [CAMERA_TRACK],
+                // What the camera actually opened at, not what was asked for: the device negotiates
+                // its own settings against the constraint, and stating the request would have the
+                // server clamp against a resolution nothing is sending.
+                video: trackIntent(this.localVideoTrack),
+            }));
+
+            // A clamped publish is a success carrying a note. Nothing above this line rolls back on
+            // account of it - the camera is live, at the rung the server granted.
+            this.voiceLimits.noteDegradations(granted);
+            await this.reencodeTo(granted.height, granted.framerate);
+            return CAMERA_TRACK;
         } catch (err) {
             // A refusal is not a broken camera, and must never reach the generic failure path.
             // The device is released either way: leaving the capture running behind a publish that
             // did not happen leaves the machine's camera light on with nothing on screen.
             this.voiceLimits.noteDenial(err);
+            await this.roomMedia.unpublishTrack?.(CAMERA_TRACK).catch(() => {
+            });
             this.releaseCameraTrack();
             return null;
         }
+    }
+
+    /**
+     * Re-encode the running camera to the rung the server granted.
+     *
+     * <p>`applyConstraints` rather than a republish: the track, its sid and every viewer's
+     * subscription survive it, so a clamp costs one resolution change rather than a tile that leaves
+     * the grid and comes back. Null on either half means the server expressed no preference, which
+     * is the ordinary case and leaves the capture exactly where the device put it.</p>
+     */
+    private async reencodeTo(height: number | null, framerate: number | null): Promise<void> {
+        const track = this.localVideoTrack;
+        if (!track || height === null || framerate === null) return;
+        if (typeof track.applyConstraints !== 'function') return;
+        await track.applyConstraints({height, frameRate: framerate}).catch(e =>
+            console.warn('[voice] could not re-encode the camera to the granted rung', e));
     }
 
     /** Drop a camera capture that never became a publication. */
@@ -1217,18 +1183,16 @@ export class VoiceRTCService {
     }
 
     async closeCamera(guildId: string, channelId: string): Promise<void> {
-        if (!this.pc || !this.mediaSessionId || !this.localVideoTrack) return;
-        this.localVideoTrack.stop();
-        const sender = this.pc.getSenders().find(s => s.track === this.localVideoTrack);
-        if (sender) this.pc.removeTrack(sender);
-        await firstValueFrom(
-            this.guildVoiceSvc.closeTracks(guildId, channelId, this.mediaSessionId, [this.cfVideoTrackName ?? 'video'])
-        ).catch(() => {
+        if (!this.localVideoTrack) return;
+        await this.roomMedia.unpublishTrack?.(CAMERA_TRACK).catch(() => {
         });
-        this.localVideoTrack = null;
-        this.localVideoStream.set(null);
-        this.localSenders.delete('video');
-        this.cfVideoTrackName = null;
+        this.releaseCameraTrack();
+        // Best effort, and after the media has already stopped: the declaration is what makes peers
+        // drop the tile rather than waiting on a track that has ended, and a failure here costs a
+        // stale roster row that the next snapshot corrects.
+        await firstValueFrom(this.guildVoiceSvc.unpublish(guildId, channelId, [CAMERA_TRACK]))
+            .catch(() => {
+            });
     }
 
     async publishScreen(guildId: string, channelId: string): Promise<{ shareId: string } | null> {
@@ -1236,7 +1200,7 @@ export class VoiceRTCService {
             const choice = await this.screenPicker.show();
             if (!choice) return null;
 
-            const {sourceId, shareAudio, sourceWidth, sourceHeight} = choice;
+            const {sourceWidth, sourceHeight} = choice;
             // Clamped before capture, not after. The picker's own preset outlives the room it was
             // chosen in - it is a saved preference - so a user who last shared at 1080p60 on one
             // server arrives at a 720p30 one still asking for it. Encoding at 1080p and being
@@ -1245,101 +1209,7 @@ export class VoiceRTCService {
             this.screenPreset.set(preset);
             this.screenSourceSize = {width: sourceWidth, height: sourceHeight};
 
-            // Checked after the Rust branch, not before it. The Rust publisher owns its own session
-            // and needs nothing from this connection, so requiring one here would have made screen
-            // sharing depend on a receive session that may not exist yet.
-            if (useRustPublisher()) {
-                return await this.publishScreenFromRust(guildId, channelId, {...choice, preset});
-            }
-            if (!await this.ensureReceiveSession(guildId, channelId)) return null;
-
-            // Solved once, before capture starts, and held for the session. The rung goes in
-            // alongside the preset because it is the only thing that caps `source`, which survives
-            // `clampPreset` by design and would otherwise publish a 4K display at 4K on any rung.
-            const geometry = solveGeometry(
-                sourceWidth, sourceHeight, preset.resolution, this.voiceLimits.videoCeiling());
-            const videoTrack = await this.rustMedia.startScreenCapture(sourceId, geometry, preset.framerate);
-            this.localScreenTrack = videoTrack;
-            this.localScreenStream.set(new MediaStream([videoTrack]));
-
-            let audioTrack: MediaStreamTrack | null = null;
-            if (shareAudio) {
-                try {
-                    audioTrack = await this.rustMedia.startLoopbackCapture();
-                } catch {
-                    console.warn('[ScreenShare] Loopback audio unavailable');
-                }
-            }
-            this.localScreenAudioTrack = audioTrack;
-            this.localScreenHasAudio.set(audioTrack !== null);
-            this.localScreenAudioMuted.set(false);
-
-            const stream = new MediaStream(audioTrack ? [videoTrack, audioTrack] : [videoTrack]);
-            const shareId = crypto.randomUUID();
-            this.screenShareId = shareId;
-
-            this.localScreenTrack.onended = () => this.screenEnded$.next();
-
-            await this.enqueueNegotiation(async () => {
-                if (!this.pc || !this.mediaSessionId) return;
-
-                // addTransceiver rather than addTrack for the video half: `sendEncodings` is only
-                // honoured at creation, so the two-rung screen ladder has to be declared here or not
-                // at all. The audio half has no layers and stays on addTrack.
-                const videoTransceiver = this.pc.addTransceiver(this.localScreenTrack!, {
-                    direction: 'sendonly',
-                    streams: [stream],
-                    sendEncodings: screenSendEncodings(preset),
-                });
-                const videoSender = videoTransceiver.sender;
-                const audioSender = this.localScreenAudioTrack
-                    ? this.pc.addTrack(this.localScreenAudioTrack, stream)
-                    : null;
-
-                // VP9 for screen sharing: better quality-per-bit at the same bitrate vs VP8.
-                preferVideoCodecs(videoTransceiver, 'sender');
-
-                const offer = await this.pc.createOffer();
-                // Open near the target rate instead of letting congestion control ramp from
-                // ~300 kbps over the first half-minute.
-                await this.pc.setLocalDescription({
-                    type: offer.type,
-                    sdp: withStartBitrate(offer.sdp ?? '', bitrateFor(preset)),
-                });
-
-                const videoMid = videoTransceiver.mid ?? '0';
-                const tracks: { direction: 'publish'; mid: string; trackName: string }[] = [
-                    {direction: 'publish', mid: videoMid, trackName: `screen-${shareId}`},
-                ];
-                if (audioSender) {
-                    const audioMid = this.pc.getTransceivers().find(t => t.sender === audioSender)?.mid ?? '1';
-                    tracks.push({direction: 'publish', mid: audioMid, trackName: `screen-audio-${shareId}`});
-                }
-
-                const resp = await firstValueFrom(this.guildVoiceSvc.negotiateTracks(guildId, channelId, {
-                    mediaSessionId: this.mediaSessionId!,
-                    sessionDescription: this.pc.localDescription!,
-                    tracks,
-                    // The solved capture height, which is what the encoder is handed - not the
-                    // preset's nominal one. An ultrawide fitted into a 1080p box encodes 540 lines,
-                    // and declaring 1080 there has the server cap a share already inside its rung.
-                    // Nothing here maps a picker option onto a rung; the server owns that.
-                    video: geometry.height > 0
-                        ? {height: geometry.height, framerate: preset.framerate}
-                        : undefined,
-                }));
-                await this.pc.setRemoteDescription(resp.sessionDescription);
-                if (resp.requiresImmediateRenegotiation) await this.renegotiate(guildId, channelId);
-                await applyScreenEncoding(videoSender, preset);
-                this.localSenders.set('screenVideo', videoSender);
-                if (audioSender) {
-                    await applySimpleBitrate(audioSender, STREAM_AUDIO_KBPS);
-                    this.localSenders.set('screenAudio', audioSender);
-                }
-                this.voiceLimits.noteDegradations(resp);
-            });
-
-            return {shareId};
+            return await this.publishScreenFromRust(guildId, channelId, {...choice, preset});
         } catch (err) {
             this.voiceLimits.noteDenial(err);
             return null;
@@ -1347,71 +1217,56 @@ export class VoiceRTCService {
     }
 
     async closeScreen(guildId: string, channelId: string): Promise<{ shareId: string } | null> {
-        if (this.rustPublishing) {
-            // The publisher owns its own session and closes its own tracks; nothing on this peer
-            // connection needs unwinding.
-            const shareId = this.screenShareId ?? 'share';
-            await this.rustMedia.stopScreenPublish();
-            this.rustPublishing = false;
-            this.rustChoice = null;
-            this.rustAudioTrackName = null;
-            this.localScreenHasAudio.set(false);
-            this.localScreenAudioMuted.set(false);
-            this.screenShareId = null;
-            this.screenSourceSize = null;
-            this.screenPreset.set(null);
-            return {shareId};
-        }
-        if (!this.pc || !this.mediaSessionId || !this.localScreenTrack) return null;
+        if (!this.rustPublishing) return null;
 
+        // The publisher owns its own connection and stops its own tracks; what is left here is the
+        // declaration, which is what makes peers drop the tile rather than waiting on media that has
+        // ended.
         const shareId = this.screenShareId ?? 'share';
-        const trackNames = [`screen-${shareId}`];
-        if (this.localScreenAudioTrack) trackNames.push(`screen-audio-${shareId}`);
+        const trackNames = [screenTrackName(shareId)];
+        if (this.rustAudioTrackName) trackNames.push(screenAudioTrackName(shareId));
 
-        this.localScreenTrack.stop();
-        void this.rustMedia.stopScreenCapture();
-        void this.rustMedia.stopLoopbackCapture();
-
-        const videoSender = this.pc.getSenders().find(s => s.track === this.localScreenTrack);
-        if (videoSender) this.pc.removeTrack(videoSender);
-
-        if (this.localScreenAudioTrack) {
-            this.localScreenAudioTrack.stop();
-            const audioSender = this.pc.getSenders().find(s => s.track === this.localScreenAudioTrack);
-            if (audioSender) this.pc.removeTrack(audioSender);
-            this.localScreenAudioTrack = null;
-        }
-
-        await firstValueFrom(
-            this.guildVoiceSvc.closeTracks(guildId, channelId, this.mediaSessionId, trackNames)
-        ).catch(() => {
-        });
-
-        this.localScreenTrack = null;
+        await this.rustMedia.stopScreenPublish();
+        this.rustPublishing = false;
+        this.rustChoice = null;
+        this.rustAudioTrackName = null;
+        this.localScreenHasAudio.set(false);
+        this.localScreenAudioMuted.set(false);
         this.screenShareId = null;
         this.screenSourceSize = null;
         this.screenPreset.set(null);
-        this.localSenders.delete('screenVideo');
-        this.localSenders.delete('screenAudio');
-        this.localScreenStream.set(null);
-        this.localScreenHasAudio.set(false);
-        this.localScreenAudioMuted.set(false);
 
+        await firstValueFrom(this.guildVoiceSvc.unpublish(guildId, channelId, trackNames))
+            .catch(() => {
+            });
         return {shareId};
     }
 
     /**
-     * Publish the screen entirely from Rust, on its own Cloudflare session.
+     * Publish the screen from the {@link ScreenPublisher} port, and declare what it published.
      *
-     * Nothing is added to this peer connection: the track lives on the publisher's session, and
-     * subscribers reach it through the TrackPublished event, which carries that session id. The
-     * local tile has no stream to show, so it falls back to its placeholder.
+     * <p>The port owns the capture, the encoder and the connection; nothing is published from this
+     * webview. The local tile therefore has no stream to show and falls back to its placeholder - the
+     * sharer's own preview comes off the encoder tap instead, which is why it survived the move.</p>
+     *
+     * <p>The declaration is made here rather than in Rust because this is the side with the
+     * interceptor chain: a token captured at publish time cannot refresh itself, and the entitlement
+     * answer then has one place to be handled rather than two.</p>
      */
     private async publishScreenFromRust(
         guildId: string,
         channelId: string,
         choice: ScreenPickerChoice,
     ): Promise<{ shareId: string } | null> {
+        // The microphone's connection, so the share lands on the same participant rather than
+        // opening a third identity. Without one there is nothing to publish onto: the route the
+        // publisher would otherwise take no longer exists.
+        const livekit = this.primaryConnection;
+        if (!livekit) {
+            console.error('[voice] cannot share a screen before the room connection exists');
+            return null;
+        }
+
         const shareId = crypto.randomUUID();
         try {
             const published = await this.rustMedia.startScreenPublish(
@@ -1423,26 +1278,44 @@ export class VoiceRTCService {
                     await this.deviceIdentity.deviceId(),
                     {guildId, channelId},
                     this.voiceLimits.videoCeiling(),
+                    livekit,
                 ),
             );
-            console.log(`[voice] Rust publisher live on ${published.encoder}`, published);
+            console.log(`[voice] screen publisher live on ${published.encoder}`, published);
             this.screenShareId = shareId;
             this.rustPublishing = true;
             this.rustChoice = choice;
-            // What Rust actually published, not what was asked for: the loopback device can be
+            // What was actually published, not what was asked for: the loopback device can be
             // unavailable, and the share is then video-only. Driving the UI from `choice.shareAudio`
             // would show a speaker icon on a share that carries no sound.
             this.rustAudioTrackName = published.audioTrackName;
             this.localScreenHasAudio.set(published.audioTrackName !== null);
             this.localScreenAudioMuted.set(false);
+
+            const trackNames = [screenTrackName(shareId)];
+            if (published.audioTrackName) trackNames.push(screenAudioTrackName(shareId));
+
+            const granted = await firstValueFrom(this.guildVoiceSvc.publish(guildId, channelId, {
+                trackNames,
+                video: this.screenIntent(choice),
+            }));
+            this.voiceLimits.noteDegradations(granted);
             return {shareId};
         } catch (e) {
-            console.error('[voice] Rust publish failed', e);
-            // Best effort. The Rust publisher talks to the server itself and hands failures back
-            // across the Tauri boundary as plain strings, so a `403` body does not survive the trip
-            // and this files nothing for one. What covers that path is the pre-flight: the share
-            // button is already disabled in every room whose plan would refuse it.
+            console.error('[voice] screen publish failed', e);
+            // A `403` on the declaration is a refusal the room could not degrade, so the media has to
+            // stop: nobody receives it whatever the client does. The Rust publisher hands its own
+            // failures back across the Tauri boundary as plain strings, so a body does not survive
+            // that trip and files nothing here - what covers that path is the pre-flight, where the
+            // share button is already disabled in a room whose plan would refuse it.
             this.voiceLimits.noteDenial(e);
+            if (this.rustPublishing) await this.rustMedia.stopScreenPublish().catch(() => {
+            });
+            this.rustPublishing = false;
+            this.rustChoice = null;
+            this.rustAudioTrackName = null;
+            this.screenShareId = null;
+            this.localScreenHasAudio.set(false);
             this.screenPreset.set(null);
             this.screenSourceSize = null;
             return null;
@@ -1450,17 +1323,38 @@ export class VoiceRTCService {
     }
 
     /**
+     * What a share is about to send: the *solved* capture height, not the preset's nominal one.
+     *
+     * <p>An ultrawide fitted into a 1080p box encodes 540 lines, and declaring 1080 there has the
+     * server cap a share already inside its rung. Solved from the same inputs `publishOptions` uses,
+     * so the number declared and the number encoded cannot drift. Nothing here maps a picker option
+     * onto a rung; the server owns that.</p>
+     */
+    private screenIntent(choice: ScreenPickerChoice): VideoPublishIntentDto | undefined {
+        const geometry = solveGeometry(
+            choice.sourceWidth, choice.sourceHeight, choice.preset.resolution,
+            this.voiceLimits.videoCeiling());
+        if (geometry.height <= 0) return undefined;
+        return {height: geometry.height, framerate: choice.preset.framerate};
+    }
+
+    /**
      * Change stream quality mid-share, the way Discord's stream-settings cog does.
      *
-     * <p>Nothing here restarts anything, and nothing here is announced. A framerate change is read
-     * by the capture loop on its next frame; a resolution change retypes the encoder in place at a
-     * frame boundary. The session, the track and therefore the share id all survive both, so a
-     * viewer sees one keyframe at a new size and is told nothing.</p>
+     * <p>Nothing here restarts anything. A framerate change is read by the capture loop on its next
+     * frame; a resolution change retypes the encoder in place at a frame boundary. The connection,
+     * the track and therefore the share id all survive both, so a viewer sees one keyframe at a new
+     * size and is told nothing.</p>
      *
      * <p>A resolution change used to tear the publish down and start a fresh one. That meant a new
      * share id, a stopped-then-started pair on the wire, and every viewer's tile leaving the grid
      * for one to four seconds - long enough that anyone watching it maximised was left on an empty
      * stage. See `ScreenPublisher.setGeometry`.</p>
+     *
+     * <p>The one thing that <b>is</b> announced is the new size, through `PUT .../voice/video`. A
+     * ceiling computed once at publish time is one a later resolution change walks straight past, and
+     * this is the only thing that tells the server about it. It refuses nothing - the cap applies to
+     * what leaves the room - so there is no error path and nothing rolls back.</p>
      */
     async setScreenPreset(requested: StreamPreset): Promise<void> {
         const previous = this.screenPreset() ?? DEFAULT_STREAM_PRESET;
@@ -1473,46 +1367,65 @@ export class VoiceRTCService {
         // choice has to outlive the share. `requested`, not `preset`: see `rememberPreset`.
         this.screenPicker.rememberPreset(requested);
 
-        if (this.rustPublishing) {
-            // Framerate is live - the capture loop re-reads it every frame.
-            if (preset.framerate !== previous.framerate) {
-                await this.rustMedia.setPublishFps(preset.framerate);
-            }
-            // The mode moves no number the encoder is built from, so it needs its own trigger or the
-            // bar's row would look live and change nothing until the next share. It rides the same
-            // retype as the geometry rather than getting a call of its own, so a change to both is
-            // one frame boundary and not two.
-            const retype = preset.resolution !== previous.resolution || preset.content !== previous.content;
-            if (retype && this.screenSourceSize) {
-                const {width, height} = this.screenSourceSize;
-                const box = solveGeometry(
-                    width, height, preset.resolution, this.voiceLimits.videoCeiling());
-                await this.rustMedia.setPublishSpec({
-                    width: box.width,
-                    height: box.height,
-                    kbps: bitrateFor(preset),
-                    content: preset.content,
-                });
-            }
-            // Kept in step with what the encoder is now producing, so a publish that genuinely does
-            // restart later - sharing a different source - opens at the resolution the user is
-            // watching rather than the one they first picked.
-            if (this.rustChoice) this.rustChoice = {...this.rustChoice, preset};
-            return;
-        }
+        if (!this.rustPublishing) return;
 
-        if (!this.localScreenTrack) return;
-
+        // Framerate is live - the capture loop re-reads it every frame.
         if (preset.framerate !== previous.framerate) {
-            await this.rustMedia.setCaptureFps(preset.framerate);
+            await this.rustMedia.setPublishFps(preset.framerate);
         }
-        if (preset.resolution !== previous.resolution && this.screenSourceSize) {
+        // The mode moves no number the encoder is built from, so it needs its own trigger or the
+        // bar's row would look live and change nothing until the next share. It rides the same
+        // retype as the geometry rather than getting a call of its own, so a change to both is
+        // one frame boundary and not two.
+        const retype = preset.resolution !== previous.resolution || preset.content !== previous.content;
+        if (retype && this.screenSourceSize) {
             const {width, height} = this.screenSourceSize;
-            await this.rustMedia.setCaptureGeometry(solveGeometry(
-                width, height, preset.resolution, this.voiceLimits.videoCeiling()));
+            const box = solveGeometry(
+                width, height, preset.resolution, this.voiceLimits.videoCeiling());
+            await this.rustMedia.setPublishSpec({
+                width: box.width,
+                height: box.height,
+                kbps: bitrateFor(preset),
+                content: preset.content,
+            });
         }
-        const sender = this.localSenders.get('screenVideo');
-        if (sender) await applyScreenEncoding(sender, preset);
+        // Kept in step with what the encoder is now producing, so a publish that genuinely does
+        // restart later - sharing a different source - opens at the resolution the user is
+        // watching rather than the one they first picked.
+        if (this.rustChoice) this.rustChoice = {...this.rustChoice, preset};
+
+        await this.declareScreenSize(preset, previous);
+    }
+
+    /**
+     * Re-declare a running share's size, for the change that did not republish.
+     *
+     * <p>Compared on what is <b>solved</b> rather than on what was asked for, in both directions. A
+     * content-mode change retypes the encoder without moving a pixel, and a resolution change that
+     * the source or the ceiling already bounded moves none either - declaring either would spend a
+     * round trip restating the ceiling exactly where the last publish put it. Silence is not a claim
+     * in either direction, so saying nothing is the correct answer for both.</p>
+     */
+    private async declareScreenSize(preset: StreamPreset, previous: StreamPreset): Promise<void> {
+        const target = this.voiceTarget;
+        if (!target) return;
+
+        const height = this.solvedScreenHeight(preset);
+        if (height === null) return;
+        if (height === this.solvedScreenHeight(previous) && preset.framerate === previous.framerate) return;
+
+        await firstValueFrom(this.guildVoiceSvc.declareVideo(target.guildId, target.channelId, {
+            height,
+            framerate: preset.framerate,
+        })).catch(e => console.warn('[voice] could not declare the new share size', e));
+    }
+
+    /** What the running capture is solved to, or null when the source size is unknown. */
+    private solvedScreenHeight(preset: StreamPreset): number | null {
+        if (!this.screenSourceSize) return null;
+        const {width, height} = this.screenSourceSize;
+        const box = solveGeometry(width, height, preset.resolution, this.voiceLimits.videoCeiling());
+        return box.height > 0 ? box.height : null;
     }
 
     // ── Volume / per-user audio controls ──────────────────────────────────────
@@ -1578,19 +1491,10 @@ export class VoiceRTCService {
 
     toggleLocalScreenAudio(): void {
         const muted = !this.localScreenAudioMuted();
-
-        if (this.rustPublishing) {
-            // Nothing to disable on this side - the track lives in Rust. Without this branch the
-            // control was dead for every Rust-published share: the button moved, the signal moved,
-            // and the audio kept going out.
-            if (!this.rustAudioTrackName) return;
-            void this.rustMedia.setScreenAudioMuted(muted);
-            this.localScreenAudioMuted.set(muted);
-            return;
-        }
-
-        if (!this.localScreenAudioTrack) return;
-        this.localScreenAudioTrack.enabled = !muted;
+        // Nothing to disable on this side - the track lives in the publisher. There is no other
+        // branch any more: every share is published there, on both hosts.
+        if (!this.rustAudioTrackName) return;
+        void this.rustMedia.setScreenAudioMuted(muted);
         this.localScreenAudioMuted.set(muted);
     }
 
@@ -1602,34 +1506,37 @@ export class VoiceRTCService {
         return this.screenStreamsSignal().get(userId) ?? null;
     }
 
-    /** Closes all currently published local tracks via the Cloudflare Calls API. */
+    /** Declares every track published from this client closed, so peers drop them. */
     async closeAllTracks(guildId: string, channelId: string): Promise<void> {
-        if (!this.mediaSessionId) return;
         const trackNames = this.getActiveTrackNames();
-        if (trackNames.length > 0) {
-            await firstValueFrom(
-                this.guildVoiceSvc.closeTracks(guildId, channelId, this.mediaSessionId, trackNames)
-            ).catch(() => {
+        if (trackNames.length === 0) return;
+        await firstValueFrom(this.guildVoiceSvc.unpublish(guildId, channelId, trackNames))
+            .catch(() => {
             });
-        }
     }
 
     /** Updates stream/audio state when a remote participant's track is closed by the server. */
     handleRemoteTrackClosed(trackName: string, userId: string): void {
         // Released here so a republish of the same name resubscribes instead of being skipped.
-        this.subscribedVideoTracks.delete(trackName);
-        if (trackName === 'video') {
-            this.videoStreamsSignal.update(m => {
-                const n = new Map(m);
-                n.delete(userId);
-                return n;
-            });
-        } else if (trackName.startsWith('screen-audio-')) {
+        this.wantedVideo.delete(trackName);
+        const described = describeTrack(trackName);
+
+        if (described.kind === 'screenAudio') {
             // Drop the source, or a stopped stream keeps its slot in the mixer forever - silent,
             // but still popped and mixed on every frame.
             void this.dropSource(trackName);
             this.remoteScreenAudioIds.delete(userId);
-        } else if (trackName.startsWith('screen-')) {
+            return;
+        }
+
+        this.applySubscriptions();
+        if (described.kind === 'video') {
+            this.videoStreamsSignal.update(m => {
+                const n = new Map(m);
+                n.delete(userId);
+                return n;
+            });
+        } else if (described.kind === 'screen') {
             this.screenStreamsSignal.update(m => {
                 const n = new Map(m);
                 n.delete(userId);
@@ -1637,48 +1544,4 @@ export class VoiceRTCService {
             });
         }
     }
-
-    // ── Private helpers ────────────────────────────────────────────────────────
-
-    private handleRemoteTrack(event: RTCTrackEvent): void {
-        const mid = event.transceiver.mid;
-        if (!mid) return;
-        const meta = this.midMeta.get(mid);
-        if (!meta) return;
-
-        const stream = event.streams[0] ?? new MediaStream([event.track]);
-
-        // No audio branch: audio never reaches this connection now. It is pulled, decoded and mixed
-        // on the Rust session and played through the output device Rust owns.
-        if (meta.kind === 'video') {
-            this.videoStreamsSignal.update(m => {
-                const n = new Map(m);
-                n.set(meta.userId, stream);
-                return n;
-            });
-        } else {
-            this.screenStreamsSignal.update(m => {
-                const n = new Map(m);
-                n.set(meta.userId, stream);
-                return n;
-            });
-        }
-    }
-
-    private enqueueNegotiation(fn: () => Promise<void>): Promise<void> {
-        const next = this.negotiationChain.catch(() => {
-        }).then(fn);
-        this.negotiationChain = next.catch(() => {
-        });
-        return next;
-    }
-
-    private async renegotiate(guildId: string, channelId: string): Promise<void> {
-        if (!this.pc || !this.mediaSessionId) return;
-        const offer = await this.pc.createOffer();
-        await this.pc.setLocalDescription(offer);
-        const resp = await firstValueFrom(this.guildVoiceSvc.renegotiate(guildId, channelId, this.mediaSessionId, offer));
-        await this.pc.setRemoteDescription(resp.sessionDescription);
-    }
-
 }

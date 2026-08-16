@@ -1,30 +1,38 @@
-﻿/**
- * Subscribing to a remote audio track races the publisher's handshake.
+/**
+ * What survived the move off the SDP relay, and what replaced it.
  *
- * The backend announces a participant as soon as Cloudflare accepts their `tracks/new` - one SDP
- * answer before they have applied it, finished ICE and DTLS, and sent a packet. Pull the track in
- * that window and Cloudflare answers `not_found_track_error` for a track that is about to exist.
- * These tests pin the recovery: retry across that window, do not retry into a participant who has
- * left, and never subscribe twice for a session already being pulled.
+ * <p>The negotiation half of this service is gone: there is no peer connection here, no offer/answer,
+ * and no `createSession`/`negotiateTracks`/`renegotiate`/`closeTracks`. What is left is the room -
+ * the roster, the gating, the backfill, the volumes and the stats - driven against
+ * `LiveKitRoomService` on the receive side and against `POST .../voice/connection`, `publish`,
+ * `unpublish` and `PUT .../voice/video` on the control plane.</p>
+ *
+ * <p>Two rules the tests below exist to hold: <b>this room never subscribes audio</b>, because the
+ * Rust room already plays every microphone and every `screen-audio-*` track into the mixer and two
+ * transports playing one participant is double playout; and <b>an announcement is never dropped</b>,
+ * because it is never repeated - which is what the retry schedule and the held subscription intent
+ * are both for.</p>
  */
 // No `vi.mock('@tauri-apps/api/core')`. Nothing this file's injector graph reaches imports it any
 // more - the host branches it used to stand in for went to `ScreenPublisher` and the other ports -
 // and the mock was doing real harm while it stayed: several spec files register one and only one
 // wins per run, so what any of them saw depended on file ordering.
 import type {MockInstance} from 'vitest';
+import {signal} from '@angular/core';
 import {TestBed} from '@angular/core/testing';
 import {provideHttpClient} from '@angular/common/http';
 import {provideHttpClientTesting} from '@angular/common/http/testing';
 import {OAuthService} from 'angular-oauth2-oidc';
+import {ConnectionState} from 'livekit-client';
 import {of, Subject, throwError} from 'rxjs';
-import {GuildVoiceService} from './guild-voice.service';
+import {GuildVoiceService, VoiceConnectionDto, VoicePublishResponse} from './guild-voice.service';
+import {LiveKitRoomService, RemoteMediaTrack} from './livekit-room.service';
 import {
-    trackIntent,
-    MAX_PUBLICATION_REBUILDS,
+    CAMERA_TRACK,
     SUBSCRIBE_RETRY_DELAYS_MS,
+    trackIntent,
     VoiceRTCService,
 } from './voice-rtc.service';
-import {SESSION_GONE, STALE_SUBSCRIPTION} from '../models/voice-room';
 import {VoiceEngineService} from './voice-engine.service';
 import {RustMediaService} from './rust-media.service';
 import {ScreenPickerService} from './screen-picker.service';
@@ -49,34 +57,118 @@ class FakeEngine {
     unsubscribe = vi.fn().mockResolvedValue(undefined);
     setUserVolume = vi.fn().mockResolvedValue(undefined);
     stop = vi.fn().mockResolvedValue(undefined);
-    /** Answers with a *different* session id, because that is what makes a rebuild observable. */
-    start = vi.fn().mockResolvedValue({slot: 'primary', mediaSessionId: 'rust_sess_2', trackName: 'audio'});
+    start = vi.fn().mockResolvedValue({slot: 'primary', mediaSessionId: '', trackName: 'audio'});
     available = () => false;
 }
 
 /**
- * The publication this channel's audio runs on.
+ * Stands in for `LiveKitRoomService`, plus the publish half of {@link RoomPublishing} the real one
+ * does not carry yet.
  *
- * Every engine call now names one, because Isle proximity voice can be running on the same
- * microphone. `slot` is Rust's, and opaque to the frontend.
+ * <p>`publications` is what the room knows exists; `remoteTracks` is what it has actually pulled.
+ * Keeping them separate is the point - with `autoSubscribe: false` the second is empty until this
+ * service asks for something, which is exactly the window a roster announcement lands in.</p>
  */
-const SESSION = {slot: 'primary', mediaSessionId: 'rust_sess', trackName: 'audio'};
+class FakeRoom {
+    readonly state = signal(ConnectionState.Disconnected);
+    readonly remoteTracks = signal<ReadonlyMap<string, RemoteMediaTrack>>(new Map());
+    readonly refusedAudioSubscriptions = signal(0);
+    readonly unrecognisedLayers = signal(0);
+
+    connect = vi.fn(async () => {
+        this.state.set(ConnectionState.Connected);
+    });
+    disconnect = vi.fn(async () => {
+        this.state.set(ConnectionState.Disconnected);
+    });
+    setSubscribed = vi.fn(() => true);
+    setLayer = vi.fn(() => true);
+    publishTrack = vi.fn(async () => undefined);
+    unpublishTrack = vi.fn(async () => undefined);
+
+    /** userId → what the room has been told this user publishes, subscribed or not. */
+    private readonly published = new Map<string, {trackSid: string; trackName: string}[]>();
+
+    publicationsOf = vi.fn((userId: string) => this.published.get(userId) ?? []);
+
+    userOf(identity: string): string {
+        const at = identity.indexOf('#');
+        return at === -1 ? identity : identity.slice(0, at);
+    }
+
+    /** The SFU telling us a publication exists, which is what makes its sid knowable. */
+    announce(userId: string, trackName: string, trackSid = `TR_${trackName}`): void {
+        this.published.set(userId, [...(this.published.get(userId) ?? []), {trackSid, trackName}]);
+    }
+
+    /** A track this room has actually pulled, as `TrackSubscribed` would leave it. */
+    hold(track: RemoteMediaTrack): void {
+        this.remoteTracks.set(new Map(this.remoteTracks()).set(track.trackSid, track));
+    }
+}
+
+/** A remote track as the room reports it. `track` is left off unless a test renders it. */
+function remoteTrack(
+    userId: string,
+    trackName: string,
+    publication: Record<string, unknown> = {},
+): RemoteMediaTrack {
+    return {
+        trackSid: `TR_${trackName}`,
+        identity: `${userId}#view`,
+        userId,
+        publication: {trackName, ...publication},
+    } as unknown as RemoteMediaTrack;
+}
+
+/** Everything `POST .../voice/connection` answers, so a test can vary one field. */
+function connectionReply(overrides: Partial<VoiceConnectionDto> = {}): VoiceConnectionDto {
+    return {
+        backend: 'livekit',
+        url: 'wss://sfu-fsn1.venta.gg',
+        token: 'jwt',
+        room: 'guild:c1',
+        identity: 'user_me#view',
+        mediaSessionId: 'user_me#view',
+        expiresAt: '2026-01-01T00:00:00Z',
+        canPublishAudio: true,
+        canPublishVideo: true,
+        ...overrides,
+    };
+}
+
+/** An ordinary publish reply: nothing capped, nothing reduced. */
+function publishReply(overrides: Partial<VoicePublishResponse> = {}): VoicePublishResponse {
+    return {identity: 'user_me#view', rung: null, height: null, framerate: null, maxLayer: null, ...overrides};
+}
 
 let engine: FakeEngine;
+let room: FakeRoom;
 let service: VoiceRTCService;
 /** Stands in for `RustMediaService.publishEnded$` - the publisher saying its share stopped. */
 let publishEnded: Subject<void>;
 
-/** The failure Cloudflare returns while the publisher is still connecting. */
+/** The failure the room returns while the publisher's track has not reached it yet. */
 const notFound = () => new Error('not_found_track_error');
 
 const target = (userId = 'user_a', mediaSessionId = 'sess_1') => ({
     userId, mediaSessionId, trackName: 'audio',
 });
 
+/**
+ * The publication this channel's audio runs on.
+ *
+ * Every engine call names one, because Isle proximity voice can be running on the same microphone.
+ * `slot` is Rust's, and opaque to the frontend. `mediaSessionId` is empty on purpose: identity is
+ * the room's to assign and the engine answers `""` rather than fabricating one, so anything here
+ * that treated blank as "not publishing" would be reading a real state as a fault.
+ */
+const SESSION = {slot: 'primary', mediaSessionId: '', trackName: 'audio'};
+
 beforeEach(() => {
     vi.useFakeTimers();
     engine = new FakeEngine();
+    room = new FakeRoom();
     publishEnded = new Subject<void>();
 
     TestBed.configureTestingModule({
@@ -84,10 +176,14 @@ beforeEach(() => {
             provideHttpClient(),
             provideHttpClientTesting(),
             {provide: VoiceEngineService, useValue: engine},
+            {provide: LiveKitRoomService, useValue: room},
             // Stubbed rather than real: its constructor reads localStorage, which these tests have
             // no use for and jsdom does not provide here.
             {provide: ApiConfigService, useValue: {baseUrl: () => 'https://example.test'}},
-            {provide: AudioSettingsService, useValue: {settings: () => ({})}},
+            {
+                provide: AudioSettingsService,
+                useValue: {settings: () => ({}), buildVideoConstraint: async () => true},
+            },
             // `publishEnded$` is not optional garnish: the service subscribes it at construction,
             // so a bare `{}` here is a stub that could not stand the real service up.
             {provide: RustMediaService, useValue: {publishEnded$: publishEnded}},
@@ -98,8 +194,6 @@ beforeEach(() => {
                 provide: DeviceIdentityService,
                 useValue: {
                     get: vi.fn().mockResolvedValue('device'),
-                    // Named as the service names it: a rebuilt publication starts the engine again,
-                    // and `start` takes the device id.
                     deviceId: vi.fn().mockResolvedValue('device'),
                 },
             },
@@ -112,10 +206,14 @@ beforeEach(() => {
         ],
     });
     service = TestBed.inject(VoiceRTCService);
-    // Stand the service up as though `setup` had connected, without the RTCPeerConnection and the
-    // signalling round trips it also does - none of which these tests are about. Reached into
-    // directly rather than through a setter that would exist only for this.
-    (service as unknown as {voiceSession: typeof SESSION}).voiceSession = SESSION;
+    // Stand the service up as though `connect` had run, without the engine start and the connection
+    // round trip - none of which most tests here are about. Reached into directly rather than
+    // through a setter that would exist only for this.
+    Object.assign(service as unknown as Record<string, unknown>, {
+        voiceSession: SESSION,
+        voiceTarget: {guildId: 'g1', channelId: 'c1'},
+        primaryConnection: {url: 'wss://sfu-fsn1.venta.gg', token: 'mic-jwt'},
+    });
 });
 
 afterEach(() => {
@@ -129,19 +227,293 @@ async function drainRetries(): Promise<void> {
     }
 }
 
+// ── The control plane ────────────────────────────────────────────────────────
+
 /**
- * The backend backfills the room from inside its `cf/tracks/new` handler, awaiting the SignalR
- * sends *before* returning the HTTP 200 that the Rust `voice_start` is still waiting on. So an
- * announcement for someone already in the channel always arrives before `voiceSession` is set - and
- * `VoiceStateResponse` deliberately carries no `mediaSessionId`, so that announcement is the only one
- * there will ever be. Dropping it made everyone already present permanently inaudible.
+ * Two connections, which is the whole of what replaced `createSession`.
+ *
+ * <p>The microphone's is <b>primary and untagged</b> - it is what the roster records as this
+ * participant, so it takes the bare user id. The webview's receive room is <b>secondary and
+ * tagged</b>. Handing one connection to both would put two clients on one identity, and the SFU
+ * disconnects the earlier session under a duplicate identity: the client kicks its own call off the
+ * air. Minting two tokens costs nothing - the route writes no roster row and re-announces nobody.</p>
+ */
+describe('joining the room', () => {
+    let connection: MockInstance;
+
+    /** Answers a different url and token per connection, so mixing the two is visible. */
+    function twoConnections(): void {
+        connection.mockImplementation((_g: string, _c: string, primary = true, tag?: string) =>
+            of(connectionReply(primary
+                ? {url: 'wss://primary', token: 'mic-jwt', identity: 'user_me'}
+                : {url: 'wss://view', token: 'view-jwt', identity: `user_me#${tag}`})));
+    }
+
+    beforeEach(() => {
+        const guildVoice = TestBed.inject(GuildVoiceService);
+        connection = vi.spyOn(guildVoice, 'connection').mockReturnValue(of(connectionReply()));
+        Object.assign(service as unknown as Record<string, unknown>, {
+            voiceTarget: null, primaryConnection: null,
+        });
+    });
+
+    /**
+     * The single most dangerous mistake available here, so it is asserted on the call shapes rather
+     * than on "a connection was fetched", which the broken version satisfies too.
+     */
+    it('fetches one connection per identity', async () => {
+        await service.connect('g1', 'c1');
+
+        expect(connection).toHaveBeenNthCalledWith(1, 'g1', 'c1', true);
+        expect(connection).toHaveBeenNthCalledWith(2, 'g1', 'c1', false, 'view');
+        expect(connection).toHaveBeenCalledTimes(2);
+    });
+
+    /** And they must not be crossed: the microphone gets the primary, the room gets the secondary. */
+    it('starts the microphone on the primary and the room on the secondary', async () => {
+        twoConnections();
+
+        await service.connect('g1', 'c1');
+
+        expect(engine.start).toHaveBeenCalledWith(
+            {kind: 'guild', guildId: 'g1', channelId: 'c1'},
+            'https://example.test', 'token', 'device',
+            {url: 'wss://primary', token: 'mic-jwt'},
+        );
+        expect(room.connect).toHaveBeenCalledWith({url: 'wss://view', token: 'view-jwt'});
+    });
+
+    it('hands the url and token straight to the room', async () => {
+        await service.connect('g1', 'c1');
+
+        expect(room.connect).toHaveBeenCalledWith({url: 'wss://sfu-fsn1.venta.gg', token: 'jwt'});
+    });
+
+    /**
+     * A room lives on exactly one node and the url is the routing answer, so a url kept from an
+     * earlier room is a connection to the wrong machine. Re-fetching is cheap and disturbs nothing.
+     */
+    it('asks again rather than reusing the url it was given last time', async () => {
+        await service.connect('g1', 'c1');
+        service.teardown();
+        connection.mockReturnValue(of(connectionReply({url: 'wss://sfu-ash1.venta.gg'})));
+
+        await service.connect('g1', 'c2');
+
+        expect(room.connect).toHaveBeenLastCalledWith({
+            url: 'wss://sfu-ash1.venta.gg', token: 'jwt',
+        });
+    });
+
+    /**
+     * The rights are decided when the token is minted and enforced by the node, so a button drawn
+     * from our own arithmetic would be a button that does nothing.
+     *
+     * <p>Each flag comes from the connection that would enforce it - the microphone publishes on the
+     * primary, the camera on the secondary - so this crosses the two replies over to catch a build
+     * that reads both off whichever arrived last.</p>
+     */
+    it('renders each button from the connection that would enforce it', async () => {
+        connection.mockImplementation((_g: string, _c: string, primary = true) =>
+            of(connectionReply({canPublishAudio: !primary, canPublishVideo: primary})));
+
+        await service.connect('g1', 'c1');
+
+        expect(service.canPublishAudio()).toBe(false);
+        expect(service.canPublishVideo()).toBe(false);
+    });
+
+    /**
+     * Joining is complete once the microphone is publishing and the mixer is playing the room. This
+     * connection carries video, and losing it must not read as having failed to join a channel the
+     * user can already hear and be heard in.
+     */
+    it('stays joined when the view room cannot be reached', async () => {
+        connection.mockImplementation((_g: string, _c: string, primary = true) =>
+            primary ? of(connectionReply()) : throwError(() => new Error('no route')));
+
+        const joined = await service.connect('g1', 'c1');
+
+        expect(joined).toBe(true);
+        expect(service.rtcState()).toBe('connected');
+    });
+
+    /** The other direction: without the microphone's connection there is nothing to join for. */
+    it('does not join when the microphone\'s connection cannot be minted', async () => {
+        connection.mockImplementation((_g: string, _c: string, primary = true) =>
+            primary ? throwError(() => new Error('no route')) : of(connectionReply()));
+
+        const joined = await service.connect('g1', 'c1');
+
+        expect(joined).toBe(false);
+        expect(engine.start).not.toHaveBeenCalled();
+    });
+});
+
+// ── Subscriptions ────────────────────────────────────────────────────────────
+
+/**
+ * What replaced `negotiateTracks`: an intent held against the roster, reconciled against the room by
+ * diffing.
+ *
+ * <p>A roster announcement names a user and a track name; the SDK subscribes by sid, and the sid of a
+ * publication whose `TrackPublished` has not arrived is simply not knowable yet. Announcements are
+ * never repeated, so dropping one is permanent - which is what holding the intent prevents.</p>
+ */
+describe('pulling remote video', () => {
+    it('subscribes by the sid behind the roster row', async () => {
+        room.announce('user_a', 'screen-abc');
+
+        await service.subscribeVideo('g1', 'c1', 'user_a', 'sess_1', 'screen-abc', 'screen');
+
+        expect(room.setSubscribed).toHaveBeenCalledWith('TR_screen-abc', true);
+    });
+
+    it('holds an announcement that beat the publication and applies it once it lands', async () => {
+        await service.subscribeVideo('g1', 'c1', 'user_a', 'sess_1', 'screen-abc', 'screen');
+        expect(room.setSubscribed).not.toHaveBeenCalled();
+
+        // The SFU tells the room the publication exists. Nothing re-announces it - a roster event
+        // arrives once - so the only thing that can still pull it is the intent held above, applied
+        // by whatever reconciles next. Here that is somebody else's track ending.
+        room.announce('user_a', 'screen-abc');
+        service.handleRemoteTrackClosed(CAMERA_TRACK, 'user_b');
+
+        expect(room.setSubscribed).toHaveBeenCalledWith('TR_screen-abc', true);
+    });
+
+    /**
+     * The Rust room holds every microphone and every `screen-audio-*` track and feeds them to the
+     * mixer, where AEC and per-source volume live. A second transport playing the same participant is
+     * an echo nobody can mute from any control they can see.
+     */
+    it('never pulls an audio track onto this room', async () => {
+        room.announce('user_a', 'screen-audio-abc');
+        room.announce('user_a', 'audio');
+
+        await service.subscribeVideo('g1', 'c1', 'user_a', 'sess_1', 'screen-audio-abc', 'screen');
+        await service.subscribeVideo('g1', 'c1', 'user_a', 'sess_1', 'audio', 'video');
+
+        expect(room.setSubscribed).not.toHaveBeenCalled();
+    });
+
+    /**
+     * `screen-audio-{id}` also satisfies `startsWith('screen-')`, so the ordering in `describeTrack`
+     * is what keeps a share's audio from being read as the video of a share called `audio-{id}` -
+     * which is a track that does not exist.
+     */
+    it('reads a share and its audio apart by the prefix, not by the argument', async () => {
+        room.announce('user_a', 'screen-audio-abc');
+        room.announce('user_a', 'screen-abc');
+
+        // The caller passes `screen` for both halves; only the name decides.
+        await service.subscribeVideo('g1', 'c1', 'user_a', 'sess_1', 'screen-audio-abc', 'screen');
+        await service.subscribeVideo('g1', 'c1', 'user_a', 'sess_1', 'screen-abc', 'screen');
+
+        expect(room.setSubscribed).toHaveBeenCalledTimes(1);
+        expect(room.setSubscribed).toHaveBeenCalledWith('TR_screen-abc', true);
+    });
+
+    it('closes a track the roster no longer names', async () => {
+        room.announce('user_a', 'screen-abc');
+        await service.subscribeVideo('g1', 'c1', 'user_a', 'sess_1', 'screen-abc', 'screen');
+        room.hold(remoteTrack('user_a', 'screen-abc'));
+        room.setSubscribed.mockClear();
+
+        service.handleRemoteTrackClosed('screen-abc', 'user_a');
+
+        expect(room.setSubscribed).toHaveBeenCalledWith('TR_screen-abc', false);
+    });
+
+    /**
+     * By diffing, never by rebuilding. A rebuild would drop and re-pull every tile on any change,
+     * which is a black frame on every screen in the room each time one person turns a camera on.
+     */
+    it('leaves a track that is still wanted alone when another one goes', async () => {
+        room.announce('user_a', 'screen-abc');
+        room.announce('user_b', CAMERA_TRACK);
+        await service.subscribeVideo('g1', 'c1', 'user_a', 'sess_1', 'screen-abc', 'screen');
+        await service.subscribeVideo('g1', 'c1', 'user_b', 'sess_2', CAMERA_TRACK, 'video');
+        room.hold(remoteTrack('user_a', 'screen-abc'));
+        room.hold(remoteTrack('user_b', CAMERA_TRACK));
+        room.setSubscribed.mockClear();
+
+        service.handleRemoteTrackClosed('screen-abc', 'user_a');
+
+        expect(room.setSubscribed).not.toHaveBeenCalledWith(`TR_${CAMERA_TRACK}`, false);
+    });
+
+    it('stops wanting a departed participant\'s video', async () => {
+        room.announce('user_a', 'screen-abc');
+        await service.subscribeVideo('g1', 'c1', 'user_a', 'sess_1', 'screen-abc', 'screen');
+        room.hold(remoteTrack('user_a', 'screen-abc'));
+        room.setSubscribed.mockClear();
+
+        service.cleanupParticipant('user_a');
+
+        expect(room.setSubscribed).toHaveBeenCalledWith('TR_screen-abc', false);
+        expect(service.subscribedUserIds()).not.toContain('user_a');
+    });
+});
+
+/**
+ * The tiles render off `videoStreams`/`screenStreams`, and the room is now the only thing that knows
+ * what is arriving - there is no `ontrack` to route by mid. `describeTrack` is the only thing that
+ * decides which map a track lands in.
+ */
+describe('projecting what the room holds', () => {
+    class FakeMediaStream {
+        constructor(readonly tracks: unknown[]) {
+        }
+    }
+
+    beforeEach(() => {
+        (globalThis as unknown as Record<string, unknown>)['MediaStream'] = FakeMediaStream;
+    });
+
+    function held(userId: string, trackName: string): RemoteMediaTrack {
+        return remoteTrack(userId, trackName, {track: {mediaStreamTrack: {id: trackName}}});
+    }
+
+    it('files a share under its owner on the screen map', () => {
+        room.hold(held('user_a', 'screen-abc'));
+        TestBed.tick();
+
+        expect(service.getScreenStream('user_a')).not.toBeNull();
+        expect(service.getVideoStream('user_a')).toBeNull();
+    });
+
+    it('files a camera on the video map', () => {
+        room.hold(held('user_a', CAMERA_TRACK));
+        TestBed.tick();
+
+        expect(service.getVideoStream('user_a')).not.toBeNull();
+        expect(service.getScreenStream('user_a')).toBeNull();
+    });
+
+    /** A track that stops has to leave the map on its own, not linger at its last frame. */
+    it('drops a stream the room no longer holds', () => {
+        room.hold(held('user_a', 'screen-abc'));
+        TestBed.tick();
+
+        room.remoteTracks.set(new Map());
+        TestBed.tick();
+
+        expect(service.getScreenStream('user_a')).toBeNull();
+    });
+});
+
+// ── Audio, which is still the Rust room's ────────────────────────────────────
+
+/**
+ * The backend backfills the room the moment `join` returns, and `join` is awaited *before* `connect`,
+ * so an announcement for someone already in the channel always arrives before `voiceSession` is set.
+ * Announcements are never repeated, so dropping one made that participant permanently inaudible.
  */
 it('waits for the session rather than dropping an announcement that beat it', async () => {
     (service as unknown as {voiceSession: unknown}).voiceSession = null;
 
     const done = service.subscribeAudio([target()]);
-    // The session lands while the first backoff is still sleeping, exactly as it does when the
-    // `voice_start` invoke finally resolves.
     await vi.advanceTimersByTimeAsync(SUBSCRIBE_RETRY_DELAYS_MS[0]);
     (service as unknown as {voiceSession: typeof SESSION}).voiceSession = SESSION;
     await drainRetries();
@@ -160,9 +532,12 @@ it('gives up on an announcement when no session ever arrives', async () => {
     expect(engine.subscribe).not.toHaveBeenCalled();
 });
 
-it('retries a subscribe that fails while the publisher is still connecting', async () => {
-    // Fails twice, as it does when the peer's DTLS handshake outlasts the backend's own retries,
-    // then succeeds once they are sending.
+/**
+ * The roster announces a publisher as soon as the room records the publication, which can reach us
+ * before the SFU's own `TrackPublished` reaches the Rust room - so an early subscribe names a track
+ * that room has not been told about yet.
+ */
+it('retries a subscribe that beat the publication into the Rust room', async () => {
     engine.subscribe
         .mockRejectedValueOnce(notFound())
         .mockRejectedValueOnce(notFound())
@@ -193,7 +568,6 @@ it('stops retrying when the participant leaves mid-backoff', async () => {
     engine.subscribe.mockRejectedValue(notFound());
 
     const done = service.subscribeAudio([target()]);
-    // Let the first attempt fail and the first backoff start.
     await vi.advanceTimersByTimeAsync(0);
     expect(engine.subscribe).toHaveBeenCalledTimes(1);
 
@@ -225,12 +599,12 @@ it('drops a subscription that completed after the participant left', async () =>
     expect(service.participantsWithAudio()).not.toContain('user_a');
 });
 
-it('ignores a repeated announcement for a session it is already pulling', async () => {
+it('ignores a repeated announcement for an identity it is already pulling', async () => {
     await service.subscribeAudio([target()]);
     await service.subscribeAudio([target()]);
 
     // The backfill announces everyone already present, so this repeat is routine. Acting on it
-    // would add a second recvonly transceiver in Rust for a track already being pulled.
+    // would add a second subscription in Rust for a track already being pulled.
     expect(engine.subscribe).toHaveBeenCalledTimes(1);
 });
 
@@ -243,10 +617,7 @@ it('ignores a repeated announcement for a session it is already pulling', async 
  * succeeds, so a duplicate arriving while the first is in flight saw no record, claimed a newer
  * token, and called the engine again - which returns Ok for a source it already holds without
  * pulling anything. The first attempt then found its token superseded and unsubscribed, taking the
- * engine's mid route with it, while the duplicate recorded a subscription that did not exist.
- *
- * The SFU carried on sending: `tracks 1`, `routed +0`, `unmapped +N`, `subscribed []`. And because
- * the phantom record made every later announcement a duplicate, it never repaired.
+ * engine's route with it, while the duplicate recorded a subscription that did not exist.
  */
 it('does not tear down a subscription when one participant is announced twice at once', async () => {
     let settle: () => void = () => {
@@ -257,7 +628,6 @@ it('does not tear down a subscription when one participant is announced twice at
 
     const first = service.subscribeAudio([target()]);
     await vi.advanceTimersByTimeAsync(0);
-    // Identical announcement, arriving while the first is still in flight.
     const second = service.subscribeAudio([target()]);
     settle();
     await Promise.all([first, second]);
@@ -269,7 +639,7 @@ it('does not tear down a subscription when one participant is announced twice at
 
 /**
  * The same overlap, but where the second announcement is a genuine correction. Both must still
- * happen, and in an order that leaves the engine holding the *new* session - the unsubscribe of the
+ * happen, and in an order that leaves the engine holding the *new* identity - the unsubscribe of the
  * old one must land before the new one is pulled, never after it.
  */
 it('orders a corrected announcement behind the one it supersedes', async () => {
@@ -286,109 +656,16 @@ it('orders a corrected announcement behind the one it supersedes', async () => {
     await Promise.all([first, second]);
 
     expect(engine.subscribe).toHaveBeenNthCalledWith(2, SESSION, 'user_a', 'sess_2', 'audio');
-    // An unsubscribe that ran after the replacement was pulled would drop the replacement's route
-    // and leave the source unreachable - which is the failure, not the recovery.
     expect(engine.unsubscribe.mock.invocationCallOrder[0])
         .toBeLessThan(engine.subscribe.mock.invocationCallOrder[1]);
 });
 
-it('resubscribes when the same participant is announced on a new session', async () => {
+it('resubscribes when the same participant is announced on a new identity', async () => {
     await service.subscribeAudio([target('user_a', 'sess_1')]);
     await service.subscribeAudio([target('user_a', 'sess_2')]);
 
-    // The old session is no longer publishing - dropping it is what stops a dead source being
-    // mixed in and a dead m-line being carried by every later renegotiation.
     expect(engine.unsubscribe).toHaveBeenCalledWith(SESSION, 'user_a');
     expect(engine.subscribe).toHaveBeenNthCalledWith(2, SESSION, 'user_a', 'sess_2', 'audio');
-});
-
-/**
- * When the connection that receives video is opened.
- *
- * It used to be opened during `connect`, and that is why a screen share never rendered for a viewer
- * who had been sitting in the channel. Nothing negotiates that connection until a camera or a share
- * actually appears - audio is the Rust engine's now, so a listener never sends an offer at all - and
- * the SFU drops any session whose peer connection never connects. By the time somebody shared, the
- * session created at join was already gone, `tracks/new` answered 502 `session_error` forever, and
- * the viewer sat on the "sharing" placeholder.
- */
-describe('the receive session', () => {
-    /** jsdom has no WebRTC; only construction and the ontrack hook are reached here. */
-    class StubPeerConnection {
-        ontrack: unknown = null;
-        onconnectionstatechange: unknown = null;
-        connectionState = 'new';
-        localDescription = {type: 'offer', sdp: ''};
-
-        addTransceiver = vi.fn(() => ({setCodecPreferences: vi.fn()}));
-        createOffer = vi.fn(async () => ({type: 'offer', sdp: ''}));
-        setLocalDescription = vi.fn(async () => {
-        });
-        setRemoteDescription = vi.fn(async () => {
-        });
-        close = vi.fn();
-    }
-
-    let createSession: ReturnType<typeof vi.spyOn>;
-
-    beforeEach(() => {
-        const globals = globalThis as unknown as Record<string, unknown>;
-        globals['RTCPeerConnection'] = StubPeerConnection;
-        // Codec preference ordering reads these; jsdom has neither.
-        globals['RTCRtpReceiver'] = {getCapabilities: () => ({codecs: []})};
-        globals['RTCRtpSender'] = {getCapabilities: () => ({codecs: []})};
-        const guildVoice = TestBed.inject(GuildVoiceService);
-        createSession = vi.spyOn(guildVoice, 'createSession')
-            .mockReturnValue(of({mediaSessionId: 'recv_sess', backend: 'cloudflare'}));
-        vi.spyOn(guildVoice, 'negotiateTracks').mockReturnValue(of({
-            sessionDescription: {type: 'answer', sdp: ''},
-            tracks: [{mid: '0', trackName: 'screen-abc'}],
-            requiresImmediateRenegotiation: false,
-        }));
-    });
-
-    it('is not opened until something needs it', async () => {
-        // Joining a channel and listening is the common case, and it must cost no session at all.
-        await service.subscribeAudio([target()]);
-
-        expect(createSession).not.toHaveBeenCalled();
-    });
-
-    it('is opened by the subscribe that first needs it', async () => {
-        await service.subscribeVideo('g1', 'c1', 'user_a', 'sess_1', 'screen-abc', 'screen');
-
-        // Created and negotiated inside the same operation, which is the point: an SFU session with
-        // no peer connection behind it does not survive being left for later.
-        expect(createSession).toHaveBeenCalledWith('g1', 'c1', false);
-    });
-
-    it('stops re-pulling a share the SFU has already refused as stale', async () => {
-        // The other half of the console the field report came with: `screen-<id>` and
-        // `screen-audio-<id>` looping side by side, so both paths need the guard.
-        const guildVoice = TestBed.inject(GuildVoiceService);
-        let calls = 0;
-        vi.spyOn(guildVoice, 'negotiateTracks').mockImplementation(() => {
-            calls++;
-            return throwError(() => ({status: 409, error: {error: STALE_SUBSCRIPTION}}));
-        });
-
-        await service.subscribeVideo('g1', 'c1', 'user_a', 'sess_1', 'screen-abc', 'screen');
-        await service.subscribeVideo('g1', 'c1', 'user_a', 'sess_1', 'screen-abc', 'screen');
-        await service.subscribeVideo('g1', 'c1', 'user_a', 'sess_1', 'screen-abc', 'screen');
-
-        expect(calls).toBe(1);
-    });
-
-    it('is opened once however many tracks are announced together', async () => {
-        // A share with audio, or a snapshot backfill covering several publishers, announces more
-        // than one track at the same moment.
-        await Promise.all([
-            service.subscribeVideo('g1', 'c1', 'user_a', 'sess_1', 'screen-abc', 'screen'),
-            service.subscribeVideo('g1', 'c1', 'user_b', 'sess_2', 'video', 'video'),
-        ]);
-
-        expect(createSession).toHaveBeenCalledTimes(1);
-    });
 });
 
 it('does not let one slow participant hold up the others announced with them', async () => {
@@ -407,181 +684,134 @@ it('does not let one slow participant hold up the others announced with them', a
     await done;
 });
 
-/**
- * `staleSubscription` says that track on that session has stopped, so the identical request can
- * never succeed. The answer is to refetch the snapshot and pull whatever replaced it - but the
- * refetch re-announces whatever the server still lists, and while the server's record and
- * Cloudflare's disagree that is the dead track again.
- *
- * Nothing on that path sleeps, so it spins as fast as the network allows. The field report is a
- * viewer's console filling with `subscribe refused as stale` alternating with 409s, for both halves
- * of a screen share at once, for as long as they stayed in the channel.
- */
-describe('a publication refused as stale', () => {
-    /** What the backend answers once Cloudflare no longer has the track. */
-    const stale = () => ({status: 409, error: {error: STALE_SUBSCRIPTION}});
-
-    let refetches: number;
-
-    beforeEach(() => {
-        refetches = 0;
-        service.staleSubscription$.subscribe(() => refetches++);
-    });
-
-    it('asks for a refetch, because only a snapshot can find the replacement', async () => {
-        engine.subscribe.mockRejectedValue(stale());
-
-        await service.subscribeAudio([target()]);
-
-        expect(refetches).toBe(1);
-    });
-
-    it('is not retried when the refetch announces the same publication again', async () => {
-        engine.subscribe.mockRejectedValue(stale());
-
-        // Three rounds of exactly what the reconcile after a refetch does.
-        await service.subscribeAudio([target()]);
-        await service.subscribeAudio([target()]);
-        await service.subscribeAudio([target()]);
-
-        // One attempt, not three. Without this the request and the refetch it triggers feed each
-        // other for the rest of the call.
-        expect(engine.subscribe).toHaveBeenCalledTimes(1);
-        expect(refetches).toBe(1);
-    });
-
-    it('is retried once the publisher comes back on a new session', async () => {
-        engine.subscribe.mockRejectedValueOnce(stale()).mockResolvedValue(undefined);
-
-        await service.subscribeAudio([target('user_a', 'sess_dead')]);
-        await service.subscribeAudio([target('user_a', 'sess_new')]);
-
-        // Keyed on the session, so a republish is unaffected - which is the whole point of
-        // refetching in the first place.
-        expect(engine.subscribe).toHaveBeenCalledTimes(2);
-        expect(service.participantsWithAudio()).toContain('user_a');
-    });
-
-    it('is forgotten when the participant leaves', async () => {
-        engine.subscribe.mockRejectedValueOnce(stale()).mockResolvedValue(undefined);
-
-        await service.subscribeAudio([target('user_a', 'sess_1')]);
-        service.cleanupParticipant('user_a');
-        await service.subscribeAudio([target('user_a', 'sess_1')]);
-
-        expect(engine.subscribe).toHaveBeenCalledTimes(2);
-    });
-
-    it('does not block a different participant on the same session id', async () => {
-        engine.subscribe.mockImplementation(async (_s: unknown, id: string) => {
-            if (id === 'user_a') throw stale();
-        });
-
-        await service.subscribeAudio([target('user_a'), target('user_b')]);
-
-        expect(service.participantsWithAudio()).toContain('user_b');
-    });
-});
+// ── The camera ───────────────────────────────────────────────────────────────
 
 /**
- * `sessionGone` is the other half of the pair, and the opposite direction: not the track we asked
- * for, but the session doing the asking. No snapshot repairs that and no retry outlives it - every
- * call on a spent session id fails identically - so the only recovery is a new publication.
- *
- * This used to fall through to the transport retry below it, spend its three backoffs, and give up,
- * which left whoever we were pulling silent for the rest of the channel. The video path had the
- * recovery (`dropReceiveSession`); the audio path, which is where the microphone actually lives, did
- * not.
+ * Two steps, answering different questions. The SDK publish puts pixels on the wire; the `publish`
+ * declaration puts this client on the roster and is where the entitlement answer arrives.
  */
-describe('a subscribe onto a session the server calls spent', () => {
-    /** The backend's answer: `409 {"error":"sessionGone","action":"recreateSession"}`. */
-    const spent = () => ({status: 409, error: {error: SESSION_GONE}});
-
-    let refetches: number;
+describe('publishing the camera', () => {
+    let publish: MockInstance;
+    let unpublish: MockInstance;
+    let cameraTrack: {stop: ReturnType<typeof vi.fn>; applyConstraints: ReturnType<typeof vi.fn>};
 
     beforeEach(() => {
-        refetches = 0;
-        service.staleSubscription$.subscribe(() => refetches++);
-        // The channel `connect` was called with. Reached into for the same reason `voiceSession` is:
-        // standing the real thing up would need the peer connection and the signalling round trips
-        // these tests exist to avoid.
-        (service as unknown as {voiceTarget: unknown}).voiceTarget = {
-            guildId: 'gild_1', channelId: 'chan_1',
+        const guildVoice = TestBed.inject(GuildVoiceService);
+        publish = vi.spyOn(guildVoice, 'publish').mockReturnValue(of(publishReply()));
+        unpublish = vi.spyOn(guildVoice, 'unpublish').mockReturnValue(of(undefined));
+
+        cameraTrack = {
+            stop: vi.fn(),
+            applyConstraints: vi.fn(async () => undefined),
         };
+        (globalThis as unknown as Record<string, unknown>)['MediaStream'] = class {
+            constructor(readonly tracks: unknown[]) {
+            }
+        };
+        Object.defineProperty(globalThis.navigator, 'mediaDevices', {
+            configurable: true,
+            value: {getUserMedia: vi.fn(async () => ({getVideoTracks: () => [cameraTrack]}))},
+        });
     });
 
-    it('starts a new publication rather than retrying the dead one', async () => {
-        engine.subscribe.mockRejectedValue(spent());
+    it('declares the camera only after the room has published it', async () => {
+        const name = await service.publishCamera('g1', 'c1');
 
-        await service.subscribeAudio([target()]);
-
-        expect(engine.start).toHaveBeenCalledTimes(1);
-        // One attempt. The three backoffs below this branch are for a publisher who has not finished
-        // connecting - they can only spend time on a session that is already spent.
-        expect(engine.subscribe).toHaveBeenCalledTimes(1);
+        expect(name).toBe(CAMERA_TRACK);
+        expect(room.publishTrack).toHaveBeenCalledWith(cameraTrack, CAMERA_TRACK);
+        expect(publish).toHaveBeenCalledWith('g1', 'c1', {trackNames: [CAMERA_TRACK], video: undefined});
+        expect(room.publishTrack.mock.invocationCallOrder[0])
+            .toBeLessThan(publish.mock.invocationCallOrder[0]);
     });
 
-    it('refetches, because the new session is subscribed to nothing at all', async () => {
-        engine.subscribe.mockRejectedValue(spent());
+    /**
+     * A `200` with `degradations` is a publish that worked, smaller. Nothing rolls back - the camera
+     * is live at the rung the server granted - and the capture is re-encoded to match rather than
+     * going on sending pixels the room will drop on the way out.
+     */
+    it('re-encodes to the granted rung on a clamped publish', async () => {
+        publish.mockReturnValue(of(publishReply({
+            rung: '720p30', height: 720, framerate: 30,
+            degradations: [{
+                key: 'voice.video_ceiling',
+                requested: {kind: 'ladder', rung: '1080p60', rank: 4, ladder: 'video_quality'},
+                granted: {kind: 'ladder', rung: '720p30', rank: 2, ladder: 'video_quality'},
+                reason: 'guild_plan',
+                remedy: 'upgrade_guild',
+                actorCanRemedy: true,
+                subject: {kind: 'guild', id: 'g1'},
+            }],
+        })));
 
-        await service.subscribeAudio([target()]);
+        const name = await service.publishCamera('g1', 'c1');
 
-        expect(refetches).toBe(1);
+        expect(name).toBe(CAMERA_TRACK);
+        expect(cameraTrack.applyConstraints).toHaveBeenCalledWith({height: 720, frameRate: 30});
+        expect(cameraTrack.stop).not.toHaveBeenCalled();
+        expect(TestBed.inject(VoiceLimitsService).notices()).toHaveLength(1);
     });
 
-    it('costs one rebuild however many subscribes the dead session failed', async () => {
-        engine.subscribe.mockRejectedValue(spent());
+    /** Nothing was capped, so nothing is re-encoded - the device keeps whatever it opened at. */
+    it('leaves an uncapped publish exactly where the device put it', async () => {
+        await service.publishCamera('g1', 'c1');
 
-        // What a room of three publishers does: every one of them fails at once.
-        await service.subscribeAudio([target('user_a'), target('user_b'), target('user_c')]);
-
-        expect(engine.start).toHaveBeenCalledTimes(1);
+        expect(cameraTrack.applyConstraints).not.toHaveBeenCalled();
     });
 
-    it('does not refetch when the rebuild itself failed', async () => {
-        engine.subscribe.mockRejectedValue(spent());
-        engine.start.mockRejectedValue(new Error('engine down'));
+    /**
+     * A `403` is a refusal the room could not degrade: the token this client connected with does not
+     * permit it either, so nobody receives it whatever is retried. Leaving the capture running would
+     * leave the machine's camera light on with nothing on screen.
+     */
+    it('stops the local track when the publish is refused', async () => {
+        publish.mockReturnValue(throwError(() => ({
+            status: 403,
+            error: {key: 'voice.video_ceiling', granted: {kind: 'ladder', rung: 'none', rank: 0, ladder: 'video_quality'}},
+        })));
 
-        await service.subscribeAudio([target()]);
+        const name = await service.publishCamera('g1', 'c1');
 
-        // The refetch is what re-subscribes the room, so signalling it here would send every
-        // subscribe straight back through this branch as fast as the network allows.
-        expect(refetches).toBe(0);
+        expect(name).toBeNull();
+        expect(cameraTrack.stop).toHaveBeenCalled();
+        expect(service.localVideoStream()).toBeNull();
+        expect(room.unpublishTrack).toHaveBeenCalledWith(CAMERA_TRACK);
     });
 
-    it('stops rebuilding once the new sessions keep dying too', async () => {
-        engine.subscribe.mockRejectedValue(spent());
+    /** The node enforces this, so opening the device at all would only light it for nobody. */
+    it('does not open the camera when the token forbids video', async () => {
+        service.canPublishVideo.set(false);
 
-        // Each round is a refetch's worth of reconcile, on a fresh session id so nothing dedupes it.
-        for (let i = 0; i <= MAX_PUBLICATION_REBUILDS; i++) {
-            await service.subscribeAudio([target('user_a', `sess_${i}`)]);
-        }
+        const name = await service.publishCamera('g1', 'c1');
 
-        // Capped rather than republishing the microphone on every refetch for the rest of the call.
-        expect(engine.start).toHaveBeenCalledTimes(MAX_PUBLICATION_REBUILDS);
+        expect(name).toBeNull();
+        expect(room.publishTrack).not.toHaveBeenCalled();
     });
 
-    it('does not republish into a channel this client has already left', async () => {
-        engine.subscribe.mockRejectedValue(spent());
-        (service as unknown as {voiceTarget: unknown}).voiceTarget = null;
+    it('unpublishes and declares the camera closed', async () => {
+        await service.publishCamera('g1', 'c1');
 
-        await service.subscribeAudio([target()]);
+        await service.closeCamera('g1', 'c1');
 
-        expect(engine.start).not.toHaveBeenCalled();
+        expect(room.unpublishTrack).toHaveBeenCalledWith(CAMERA_TRACK);
+        expect(unpublish).toHaveBeenCalledWith('g1', 'c1', [CAMERA_TRACK]);
+        expect(cameraTrack.stop).toHaveBeenCalled();
     });
 });
+
+// ── The screen share ─────────────────────────────────────────────────────────
 
 /**
  * A resolution change must not restart anything.
  *
  * <p>It used to. The encoder was built for one geometry, so changing resolution stopped the publish
- * and started a fresh one - which meant a new Cloudflare session, a new share id, and a
- * stopped-then-started pair announced to the room. On every viewer that read as the stream ending:
- * the tile left the grid, the layout reflowed under it, and anyone watching it maximised was left
- * on a completely empty stage for one to four seconds. The encoder is retyped in place instead.</p>
+ * and started a fresh one - which meant a new share id and a stopped-then-started pair announced to
+ * the room. On every viewer that read as the stream ending: the tile left the grid, the layout
+ * reflowed under it, and anyone watching it maximised was left on a completely empty stage for one to
+ * four seconds. The encoder is retyped in place instead.</p>
  *
  * <p>So these assert on what did <b>not</b> happen. `stopScreenPublish` and `startScreenPublish` are
- * the two calls that would change the share id, and a resolution change must touch neither.</p>
+ * the two calls that would change the share id, and a resolution change must touch neither. What it
+ * does announce is the new size, and only that.</p>
  */
 describe('changing resolution mid-share', () => {
     const preset = {resolution: '1440p', framerate: 30, content: 'text'} as const;
@@ -593,6 +823,8 @@ describe('changing resolution mid-share', () => {
         setPublishFps: ReturnType<typeof vi.fn>;
     }
 
+    let declareVideo: MockInstance;
+
     function sharing(): Publisher {
         const rustMedia = TestBed.inject(RustMediaService) as unknown as Record<string, unknown>;
         rustMedia['stopScreenPublish'] = vi.fn(async () => undefined);
@@ -600,8 +832,8 @@ describe('changing resolution mid-share', () => {
         rustMedia['setPublishSpec'] = vi.fn(async () => undefined);
         rustMedia['setPublishFps'] = vi.fn(async () => undefined);
 
-        // The state a running Rust publish leaves behind, reached into directly rather than stood
-        // up through a real publish and its signalling.
+        // The state a running publish leaves behind, reached into directly rather than stood up
+        // through a real publish and its declaration.
         Object.assign(service as unknown as Record<string, unknown>, {
             rustPublishing: true,
             screenShareId: 'live-share',
@@ -611,6 +843,11 @@ describe('changing resolution mid-share', () => {
         service.screenPreset.set({resolution: '1080p', framerate: 30, content: 'text'});
         return rustMedia as unknown as Publisher;
     }
+
+    beforeEach(() => {
+        declareVideo = vi.spyOn(TestBed.inject(GuildVoiceService), 'declareVideo')
+            .mockReturnValue(of({changed: true, maxLayer: null}));
+    });
 
     it('retypes the running encoder instead of restarting the publish', async () => {
         const rustMedia = sharing();
@@ -690,13 +927,159 @@ describe('changing resolution mid-share', () => {
         expect(choice.preset).toEqual(preset);
         expect(rustMedia.startScreenPublish).not.toHaveBeenCalled();
     });
+
+    /**
+     * A ceiling computed once at publish time is one a later resolution change walks straight past,
+     * and this declaration is the only thing that tells the server about it. The *solved* height, not
+     * the preset's nominal one: an ultrawide fitted into a 1080p box encodes 540 lines, and declaring
+     * 1080 there has the server cap a share already inside its rung.
+     */
+    it('declares the size it actually solved to, not the preset\'s nominal one', async () => {
+        sharing();
+        // An ultrawide fitted into a 1080p box encodes 810 lines. Declaring 1080 there has the
+        // server cap a share that is already inside its rung.
+        Object.assign(service as unknown as Record<string, unknown>, {
+            screenSourceSize: {width: 2560, height: 1080},
+        });
+        service.screenPreset.set({resolution: '720p', framerate: 30, content: 'text'});
+
+        await service.setScreenPreset({resolution: '1080p', framerate: 30, content: 'text'});
+
+        expect(declareVideo).toHaveBeenCalledWith('g1', 'c1', {height: 810, framerate: 30});
+    });
+
+    it('declares a framerate change on its own', async () => {
+        sharing();
+
+        await service.setScreenPreset({resolution: '1080p', framerate: 60, content: 'text'});
+
+        expect(declareVideo).toHaveBeenCalledWith('g1', 'c1', {height: 1080, framerate: 60});
+    });
+
+    /**
+     * Silence is not a claim in either direction, so a change that moves no pixel and no frame says
+     * nothing and leaves the ceiling where the last publish put it.
+     */
+    it('declares nothing when neither the solved size nor the framerate moved', async () => {
+        sharing();
+
+        await service.setScreenPreset({resolution: '1080p', framerate: 30, content: 'games'});
+
+        expect(declareVideo).not.toHaveBeenCalled();
+    });
+});
+
+/**
+ * The publisher owns the capture, the encoder and the connection; what is left on this side is the
+ * declaration, which is what puts the share on the roster and takes it off again.
+ */
+describe('declaring a share', () => {
+    let publish: MockInstance;
+    let unpublish: MockInstance;
+
+    function publisher(audioTrackName: string | null): Record<string, unknown> {
+        const rustMedia = TestBed.inject(RustMediaService) as unknown as Record<string, unknown>;
+        rustMedia['startScreenPublish'] = vi.fn(async () => ({encoder: 'mf', audioTrackName}));
+        rustMedia['stopScreenPublish'] = vi.fn(async () => undefined);
+        return rustMedia;
+    }
+
+    beforeEach(() => {
+        const guildVoice = TestBed.inject(GuildVoiceService);
+        publish = vi.spyOn(guildVoice, 'publish').mockReturnValue(of(publishReply()));
+        unpublish = vi.spyOn(guildVoice, 'unpublish').mockReturnValue(of(undefined));
+        const picker = TestBed.inject(ScreenPickerService) as unknown as Record<string, unknown>;
+        // An ultrawide, so the solved height and the preset's nominal one are different numbers.
+        picker['show'] = vi.fn(async () => ({
+            sourceId: 'monitor:0',
+            sourceWidth: 2560,
+            sourceHeight: 1080,
+            shareAudio: true,
+            preset: {resolution: '1080p', framerate: 30, content: 'text'},
+        }));
+    });
+
+    it('names both halves of a share that carries audio', async () => {
+        publisher('screen-audio');
+
+        const result = await service.publishScreen('g1', 'c1');
+
+        const [, , body] = publish.mock.calls[0]!;
+        expect(body.trackNames).toEqual([`screen-${result!.shareId}`, `screen-audio-${result!.shareId}`]);
+    });
+
+    /**
+     * What was published, not what was asked for: the loopback device can be unavailable and the
+     * share is then video-only. An announced track that carries nothing is worse than none.
+     */
+    it('names only the video half when no loopback device was opened', async () => {
+        publisher(null);
+
+        const result = await service.publishScreen('g1', 'c1');
+
+        const [, , body] = publish.mock.calls[0]!;
+        expect(body.trackNames).toEqual([`screen-${result!.shareId}`]);
+    });
+
+    /**
+     * On the microphone's connection, so the share lands on the same participant. A share that
+     * opened an identity of its own would be a second client the SFU has to place, and the roster
+     * would carry a participant with no voice on it.
+     */
+    it('publishes the share on the connection the microphone already holds', async () => {
+        const rustMedia = publisher(null);
+
+        await service.publishScreen('g1', 'c1');
+
+        const start = rustMedia['startScreenPublish'] as ReturnType<typeof vi.fn>;
+        expect(start.mock.calls[0]![0]).toMatchObject({
+            livekit: {url: 'wss://sfu-fsn1.venta.gg', token: 'mic-jwt'},
+        });
+    });
+
+    it('declares the solved capture height rather than the preset\'s nominal one', async () => {
+        publisher(null);
+
+        await service.publishScreen('g1', 'c1');
+
+        // 2560x1080 fitted into the 1080p box is 1920x810, and 810 is what the encoder is handed.
+        // Declaring 1080 there has the server cap a share already inside its rung.
+        const [, , body] = publish.mock.calls[0]!;
+        expect(body.video).toEqual({height: 810, framerate: 30});
+    });
+
+    /** A refusal the room could not degrade has to stop the media: nobody would receive it. */
+    it('stops the publish when the declaration is refused', async () => {
+        const rustMedia = publisher(null);
+        publish.mockReturnValue(throwError(() => ({
+            status: 403,
+            error: {key: 'voice.video_ceiling', granted: {kind: 'ladder', rung: 'none', rank: 0, ladder: 'video_quality'}},
+        })));
+
+        const result = await service.publishScreen('g1', 'c1');
+
+        expect(result).toBeNull();
+        expect(rustMedia['stopScreenPublish']).toHaveBeenCalled();
+        expect(service.screenPreset()).toBeNull();
+    });
+
+    it('declares both halves closed when the share stops', async () => {
+        publisher('screen-audio');
+        const started = await service.publishScreen('g1', 'c1');
+
+        const stopped = await service.closeScreen('g1', 'c1');
+
+        expect(stopped?.shareId).toBe(started!.shareId);
+        expect(unpublish).toHaveBeenCalledWith('g1', 'c1',
+            [`screen-${started!.shareId}`, `screen-audio-${started!.shareId}`]);
+    });
 });
 
 /**
  * In a browser the share does not end because the app asked. It ends because the user pressed the
  * browser's own "Stop sharing" bar, and the first this side hears of it is the publisher saying so
- * afterwards. Nothing on this peer connection can see it - a publisher-owned share puts no track in
- * the webview, so there is no `onended` to hang it on - which is why it has to be forwarded.
+ * afterwards. Nothing in this webview can see it - a publisher-owned share puts no track here - which
+ * is why it has to be forwarded.
  */
 describe('a share the publisher ended by itself', () => {
     /** The single consumer of `screenEnded$` is `VoiceChannelService`, which stops the share. */
@@ -730,68 +1113,64 @@ describe('a share the publisher ended by itself', () => {
     });
 });
 
+// ── Statistics ───────────────────────────────────────────────────────────────
+
 /**
- * The guild-side twin of `CallWebRtcService`'s inbound fps test: `pollStats` reads
- * `CallScreenShare.inboundFps` off `getStats()`, routed through the mid â†’ {userId, kind} map
- * `subscribeVideo` writes. Reached into as private state rather than driven through a full
- * subscribe, for the same reason as the DM side - the stub `RTCPeerConnection` above hands out a
- * fixed mid, which cannot stand up two shares side by side.
+ * The guild-side twin of `CallWebRtcService`'s inbound fps test. The report is now answered per
+ * track rather than per connection, so the mid that keys `inbound-fps.ts` is read back out of the
+ * report instead of arriving on a negotiate reply.
  */
 describe('inbound screen-share fps', () => {
-    function internals(s: VoiceRTCService) {
-        return s as unknown as {
-            pc: {getStats(): Promise<Map<string, unknown>>} | null;
-            midMeta: Map<string, {userId: string; kind: 'video' | 'screen'}>;
-            pollStats(): Promise<void>;
-        };
+    function inboundRtpVideo(mid: string, framesPerSecond?: number) {
+        return {type: 'inbound-rtp', kind: 'video', mid, id: `in-${mid}`, framesPerSecond};
     }
 
-    function inboundRtpVideo(mid: string, framesPerSecond?: number) {
-        return {type: 'inbound-rtp', kind: 'video', mid, framesPerSecond};
+    function sharing(userId: string, shareId: string, stats: Record<string, unknown>[]): void {
+        room.hold(remoteTrack(userId, `screen-${shareId}`, {
+            videoTrack: {
+                getRTCStatsReport: async () => new Map(stats.map((s, i) => [`s${i}`, s])),
+            },
+        }));
+    }
+
+    function poll(): Promise<void> {
+        return (service as unknown as {pollStats(): Promise<void>}).pollStats();
     }
 
     it('reports a remote share fps keyed by user id once a stat carries one', async () => {
-        const internal = internals(service);
-        internal.midMeta.set('m1', {userId: 'user_a', kind: 'screen'});
-        internal.pc = {getStats: async () => new Map([['s1', inboundRtpVideo('m1', 24)]])};
+        sharing('user_a', 'abc', [inboundRtpVideo('m1', 24)]);
 
-        await internal.pollStats();
+        await poll();
 
         expect(service.inboundVideoFps()).toEqual({user_a: 24});
     });
 
     it('gives two concurrent remote shares two independent fps numbers', async () => {
-        const internal = internals(service);
-        internal.midMeta.set('m1', {userId: 'user_a', kind: 'screen'});
-        internal.midMeta.set('m2', {userId: 'user_b', kind: 'screen'});
-        internal.pc = {
-            getStats: async () => new Map([
-                ['s1', inboundRtpVideo('m1', 30)],
-                ['s2', inboundRtpVideo('m2', 12)],
-            ]),
-        };
+        sharing('user_a', 'abc', [inboundRtpVideo('m1', 30)]);
+        sharing('user_b', 'def', [inboundRtpVideo('m2', 12)]);
 
-        await internal.pollStats();
+        await poll();
 
         expect(service.inboundVideoFps()).toEqual({user_a: 30, user_b: 12});
     });
 
     it('leaves a share out rather than reporting 0 while its stat has not arrived yet', async () => {
-        const internal = internals(service);
-        internal.midMeta.set('m1', {userId: 'user_a', kind: 'screen'});
-        internal.pc = {getStats: async () => new Map([['s1', inboundRtpVideo('m1', undefined)]])};
+        sharing('user_a', 'abc', [inboundRtpVideo('m1', undefined)]);
 
-        await internal.pollStats();
+        await poll();
 
         expect(service.inboundVideoFps()).toEqual({});
     });
 
-    it('ignores a camera track riding the same connection - this is a screen-share readout only', async () => {
-        const internal = internals(service);
-        internal.midMeta.set('m1', {userId: 'user_a', kind: 'video'});
-        internal.pc = {getStats: async () => new Map([['s1', inboundRtpVideo('m1', 30)]])};
+    /** This is a screen-share readout only; a camera riding the same room is not one. */
+    it('ignores a camera track riding the same room', async () => {
+        room.hold(remoteTrack('user_a', CAMERA_TRACK, {
+            videoTrack: {
+                getRTCStatsReport: async () => new Map([['s0', inboundRtpVideo('m1', 30)]]),
+            },
+        }));
 
-        await internal.pollStats();
+        await poll();
 
         expect(service.inboundVideoFps()).toEqual({});
     });
@@ -805,29 +1184,22 @@ describe('inbound screen-share fps', () => {
  * half the panel renders no bitrate row at all on any remote share, on either surface.</p>
  */
 describe('the inspected inbound bitrate', () => {
-    function internals(s: VoiceRTCService) {
-        return s as unknown as {
-            pc: {getStats(): Promise<Map<string, unknown>>} | null;
-            midMeta: Map<string, {userId: string; kind: 'video' | 'screen'}>;
-            pollStats(): Promise<void>;
-            stopStatsPolling(): void;
-        };
-    }
-
     /** An inbound stat carrying a cumulative byte counter, as a real report does. */
     function inboundRtpBytes(mid: string, bytesReceived: number) {
         return {type: 'inbound-rtp', kind: 'video', mid, id: `in-${mid}`, bytesReceived};
     }
 
-    function inspect(s: VoiceRTCService, bytes: number[]): {poll: () => Promise<void>} {
-        const internal = internals(s);
-        internal.midMeta.set('m1', {userId: 'user_a', kind: 'screen'});
+    function inspect(bytes: number[]): {poll: () => Promise<void>} {
         let index = 0;
-        internal.pc = {
-            getStats: async () => new Map([['s1', inboundRtpBytes('m1', bytes[Math.min(index++, bytes.length - 1)])]]),
-        };
-        s.inspected.set({shareId: 'share_a', userId: 'user_a'});
-        return {poll: () => internal.pollStats()};
+        room.hold(remoteTrack('user_a', 'screen-abc', {
+            videoTrack: {
+                getRTCStatsReport: async () => new Map([
+                    ['s0', inboundRtpBytes('m1', bytes[Math.min(index++, bytes.length - 1)])],
+                ]),
+            },
+        }));
+        service.inspected.set({shareId: 'share_a', userId: 'user_a'});
+        return {poll: () => (service as unknown as {pollStats(): Promise<void>}).pollStats()};
     }
 
     /**
@@ -849,7 +1221,7 @@ describe('the inspected inbound bitrate', () => {
     afterEach(() => clock.mockRestore());
 
     it('reports no rate on the first poll rather than claiming the stream is silent', async () => {
-        const {poll} = inspect(service, [125_000]);
+        const {poll} = inspect([125_000]);
 
         await poll();
 
@@ -857,7 +1229,7 @@ describe('the inspected inbound bitrate', () => {
     });
 
     it('differentiates two successive polls into kbps', async () => {
-        const {poll} = inspect(service, [0, 125_000]);
+        const {poll} = inspect([0, 125_000]);
 
         await poll();
         clock.mockReturnValue(START + 1000);
@@ -873,10 +1245,10 @@ describe('the inspected inbound bitrate', () => {
      * counter that has since been reset it would be a floor of zero, which reads as a dead stream.
      */
     it('forgets its previous sample when polling stops', async () => {
-        const {poll} = inspect(service, [0, 125_000]);
+        const {poll} = inspect([0, 125_000]);
 
         await poll();
-        internals(service).stopStatsPolling();
+        (service as unknown as {stopStatsPolling(): void}).stopStatsPolling();
         service.inspected.set({shareId: 'share_a', userId: 'user_a'});
         clock.mockReturnValue(START + 1000);
         await poll();
@@ -892,12 +1264,11 @@ describe('the inspected inbound bitrate', () => {
     it('clears the inspection when polling stops', () => {
         service.inspected.set({shareId: 'share_a', userId: 'user_a'});
 
-        internals(service).stopStatsPolling();
+        (service as unknown as {stopStatsPolling(): void}).stopStatsPolling();
 
         expect(service.inspected()).toBeNull();
     });
 });
-
 
 /**
  * A stream's volume is its own gain, independent of its owner's voice - the gap task 6 closes.
