@@ -13,9 +13,9 @@
 //! See `docs/superpowers/specs/2026-08-16-livekit-signaling-migration-design.md`.
 
 pub mod identity;
-pub mod probe;
 pub mod resume;
+pub mod room;
 pub mod signal;
 
 #[cfg(test)]
-mod probe_tests;
+mod room_tests;
