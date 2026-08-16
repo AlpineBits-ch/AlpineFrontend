@@ -1,7 +1,7 @@
 # LiveKit signalling migration
 
 **Status:** Phase 0 complete and green (§7). Contract questions resolved with the backend
-(§6). Not implemented.
+(§6). Phases 1 to 4 not yet implemented.
 
 Echo replaced the SDP relay behind guild voice and DM calls with LiveKit. The room model did not
 change: join/leave/snapshot, `instanceId` + `version`, the heartbeat, share viewer counts,
