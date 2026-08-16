@@ -31,6 +31,21 @@ const ZOOM_STEP = 0.25;
 /** Fallback pop-out size, used when the tile has no measurable box yet. 16:9, the shape of a share. */
 const POP_OUT_FALLBACK = {width: 960, height: 540};
 
+/**
+ * How long "Copy raw stats" waits for a first snapshot when the panel was never opened.
+ *
+ * <p>Both polls that can answer run at 1s while a panel is inspecting, so this is two ticks plus
+ * slack. Long enough that a copy on a healthy stream always succeeds, short enough that a stream
+ * with nothing to report says so instead of appearing to hang.</p>
+ */
+const COPY_WAIT_MS = 2000;
+
+/** How often that wait re-reads the snapshot signal. Well under a poll's own 1s cadence. */
+const COPY_POLL_MS = 100;
+
+/** How long the copy result stays on the tile before fading out of the way of the picture. */
+const COPY_NOTICE_MS = 2500;
+
 /** Which kind of picture-in-picture this tile can actually perform, if any. */
 type PipRoute = 'document' | 'video';
 
@@ -138,19 +153,49 @@ export class CallShareTileComponent implements OnDestroy {
         this.menuAt.set({x: event.clientX, y: event.clientY});
     }
 
-    protected openStats(): void {
-        this.menuAt.set(null);
-        this.statsOpen.set(true);
-        // The local tile's numbers come from the publisher, not from a receive connection, so the
-        // poll it needs is a different one from the host's - see `panelStats`.
+    /**
+     * Whether an inspection is running on this tile's behalf, whoever asked for it.
+     *
+     * <p>Not the same question as {@link statsOpen}: "Copy raw stats" starts one with no panel, so
+     * the panel's visibility can no longer be the record of what has been started. Keeping this
+     * separate is what stops a copy that finishes while the panel is open from tearing down the
+     * poll the panel is still reading.</p>
+     */
+    private inspecting = false;
+
+    /**
+     * Start the poll that feeds this tile's readout, if one is not already running.
+     *
+     * <p>The local tile's numbers come from the publisher, not from a receive connection, so the
+     * poll it needs is a different one from the host's - see {@link panelStats}.</p>
+     */
+    private beginInspect(): void {
+        if (this.inspecting) return;
+        this.inspecting = true;
         if (this.share().isLocal) this.rustMedia.inspectOutbound(true);
         else this.statsInspect.emit(this.share());
     }
 
-    protected closeStats(): void {
-        this.statsOpen.set(false);
+    /**
+     * Stop that poll. Idempotent, because three different things can be the last one to want it
+     * closed: the panel's close button, a copy that started it, and this tile being destroyed.
+     */
+    private endInspect(): void {
+        if (!this.inspecting) return;
+        this.inspecting = false;
         if (this.share().isLocal) this.rustMedia.inspectOutbound(false);
         else this.statsInspect.emit(null);
+    }
+
+    protected openStats(): void {
+        this.menuAt.set(null);
+        this.statsOpen.set(true);
+        this.beginInspect();
+    }
+
+    protected closeStats(): void {
+        this.statsOpen.set(false);
+        this.endInspect();
     }
 
     /**
@@ -161,14 +206,83 @@ export class CallShareTileComponent implements OnDestroy {
      * against each rung's target - the pair that distinguishes "the SFU accepted the publish" from
      * "this layer is actually going out".</p>
      *
+     * <p><b>It starts its own inspection when there is none.</b> The primary path for this menu
+     * item is a user who never opened the panel at all - right-click, copy, paste into a bug report
+     * - and nothing polls a stream that nobody is inspecting, so reading the snapshot signal
+     * straight out would have found null on exactly the path the feature exists for. So: start the
+     * poll, wait one or two ticks for the first snapshot, copy, and put the poll back the way it
+     * was found. A copy that happened while the panel was open leaves the panel's own inspection
+     * running, which is what {@link statsOpen} is consulted for below.</p>
+     *
      * <p>A missing snapshot copies nothing at all rather than the string "null", which would look
-     * like data and waste a round trip in whatever report it lands in.</p>
+     * like data and waste a round trip in whatever report it lands in. It says so on the tile
+     * instead, because a menu item that silently does nothing reads as a broken build.</p>
      */
-    protected copyStats(): void {
+    protected async copyStats(): Promise<void> {
         this.menuAt.set(null);
-        const stats = this.panelStats();
-        if (!stats) return;
-        void navigator.clipboard?.writeText(JSON.stringify(stats, null, 2));
+
+        const stats = await this.snapshotToCopy();
+        if (this.destroyed) return;
+        if (!stats) {
+            this.showCopyNotice('failed');
+            return;
+        }
+
+        try {
+            await navigator.clipboard?.writeText(JSON.stringify(stats, null, 2));
+            this.showCopyNotice('copied');
+        } catch {
+            // A denied or absent clipboard. The snapshot was real, so this is worth reporting as a
+            // failure rather than claiming a copy that did not happen.
+            this.showCopyNotice('failed');
+        }
+    }
+
+    /**
+     * The snapshot to copy, waiting for one if the poll has to be started first.
+     *
+     * <p>Null when none arrives inside {@link COPY_WAIT_MS}, which covers both a stream that has
+     * genuinely nothing to report and a host that never wired the resolver, and null immediately if
+     * this tile is torn down while waiting.</p>
+     *
+     * <p>The wait re-reads {@link panelStats} on a short interval rather than subscribing to it.
+     * That is deliberate and not laziness: `toObservable` builds a view effect, which only runs
+     * when the component's view is refreshed, so a wait expressed that way sits there until
+     * something unrelated triggers change detection - a race in the app and a hang under test. A
+     * computed read on demand always recomputes against its current dependencies, which is exactly
+     * what "has a snapshot arrived yet" wants and is what the two polls feeding it are already
+     * doing anyway.</p>
+     */
+    private snapshotToCopy(): Promise<StreamStatsSnapshot | null> {
+        const existing = this.panelStats();
+        if (existing) return Promise.resolve(existing);
+
+        this.beginInspect();
+        return new Promise<StreamStatsSnapshot | null>(resolve => {
+            const deadline = Date.now() + COPY_WAIT_MS;
+            const timer = setInterval(() => {
+                const snapshot = this.panelStats();
+                if (!snapshot && !this.destroyed && Date.now() < deadline) return;
+                clearInterval(timer);
+                // The panel, if it is open, is still reading this poll and must keep it.
+                if (!this.statsOpen()) this.endInspect();
+                resolve(snapshot ?? null);
+            }, COPY_POLL_MS);
+        });
+    }
+
+    /** What the last copy did, shown briefly on the tile. Null while there is nothing to say. */
+    protected readonly copyNotice = signal<'copied' | 'failed' | null>(null);
+
+    protected readonly copyNoticeKey = computed(() =>
+        this.copyNotice() === 'copied' ? 'CALL.STATS_NERD.COPIED' : 'CALL.STATS_NERD.COPY_FAILED');
+
+    private copyNoticeTimer?: ReturnType<typeof setTimeout>;
+
+    private showCopyNotice(result: 'copied' | 'failed'): void {
+        clearTimeout(this.copyNoticeTimer);
+        this.copyNotice.set(result);
+        this.copyNoticeTimer = setTimeout(() => this.copyNotice.set(null), COPY_NOTICE_MS);
     }
 
     protected readonly root = viewChild.required<ElementRef<HTMLElement>>('root');
@@ -180,6 +294,12 @@ export class CallShareTileComponent implements OnDestroy {
     protected readonly surface = viewChild.required<ElementRef<HTMLElement>>('surface');
 
     private readonly rustMedia = inject(RustMediaService);
+
+    /**
+     * Set the instant teardown begins, so nothing that was awaiting mid-teardown writes to a
+     * component that no longer exists - see {@link copyStats}, which can still be in flight.
+     */
+    private destroyed = false;
 
     /**
      * Whether this tile is the thing putting the local publish render on screen right now.
@@ -585,8 +705,22 @@ export class CallShareTileComponent implements OnDestroy {
      * means the surface is back inside the view being torn down, so the renderer and the
      * `streamSrc` directive clean it up the way they would have anyway, and the pagehide handler
      * that the `close()` then fires finds the state already cleared and does nothing.
+     *
+     * <p><b>The inspection is closed here too, and that is not housekeeping.</b> A tile can be
+     * destroyed with its panel still open - the sharer stops, the layout drops the tile, the user
+     * navigates away - and nothing else will ever ask for it to be closed. Both services holding
+     * the other end are `providedIn: 'root'`, so an inspection left set outlives the call: the
+     * stats poll stays at its 1s diagnostics cadence, and `getStats()` goes on running at double
+     * rate into every later call of the session. The same applies to the publisher poll on a local
+     * tile. Closing it here mirrors {@link closeStats} through the same idempotent
+     * {@link endInspect}, so a tile destroyed with the panel already closed does nothing twice.</p>
      */
     ngOnDestroy(): void {
+        this.destroyed = true;
+        clearTimeout(this.copyNoticeTimer);
+        this.statsOpen.set(false);
+        this.endInspect();
+
         const pip = this.pipWindow;
         this.restoreFromPopOut();
         pip?.close();

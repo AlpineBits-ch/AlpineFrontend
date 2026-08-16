@@ -1,4 +1,4 @@
-import {ChangeDetectionStrategy, Component, computed, input, output} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, HostListener, input, output} from '@angular/core';
 import {TranslateModule} from '@ngx-translate/core';
 import {StreamLayerStats, StreamStatsSnapshot} from '../stream-stats';
 
@@ -30,17 +30,39 @@ interface LayerSection {
  * know or care which pipeline filled the snapshot in, only which fields it finds set. `source` is
  * carried on the snapshot as metadata for the raw-copy clipboard payload, not consulted here. See
  * the doc on `StreamStatsSnapshot`.</p>
+ *
+ * <p><b>Dismissal is copied from `CallStreamMenuComponent`, and the three parts are one
+ * mechanism.</b> A document click closes the panel, Escape closes it, and the host's own click
+ * handler stops propagation so that a press <em>inside</em> the panel - the close button, or a
+ * drag-select over a number somebody is about to read out - never reaches the document listener and
+ * dismisses the thing being read. Losing any one of the three either strands the panel open or
+ * makes it impossible to touch.</p>
+ *
+ * <p>The menu item that opens this panel cannot close it with the same click: the menu stops that
+ * click at its own host for exactly this reason, so it never reaches the document, and this
+ * component is not in the DOM while that click is being dispatched in any case.</p>
  */
 @Component({
     selector: 'app-call-stream-stats',
     changeDetection: ChangeDetectionStrategy.OnPush,
     imports: [TranslateModule],
     templateUrl: './call-stream-stats.component.html',
+    host: {'(click)': '$event.stopPropagation()'},
 })
 export class CallStreamStatsComponent {
     stats = input.required<StreamStatsSnapshot | null>();
 
     close = output<void>();
+
+    @HostListener('document:click')
+    onDocumentClick(): void {
+        this.close.emit();
+    }
+
+    @HostListener('document:keydown.escape')
+    onEscape(): void {
+        this.close.emit();
+    }
 
     protected readonly title = computed(() =>
         this.stats()?.direction === 'outbound' ? 'CALL.STATS_NERD.TITLE_OUT' : 'CALL.STATS_NERD.TITLE_IN');

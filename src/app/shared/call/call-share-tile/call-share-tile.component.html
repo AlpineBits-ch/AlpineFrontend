@@ -260,4 +260,21 @@
         <app-call-stream-stats (close)="closeStats()" [stats]="panelStats()"/>
     }
 
+    <!-- What "Copy raw stats" did. On the tile rather than in a toast because this component is
+         shared by both call surfaces and travels into the pop-out window, where an app-level toast
+         is in the wrong document entirely. Silence is the one thing it must not be: the copy can be
+         asked for with no panel open, and a menu item that appears to do nothing reads as a broken
+         build rather than as a stream with nothing to report. -->
+    @if (copyNotice(); as notice) {
+        <div [class]="'pointer-events-none absolute bottom-3 left-1/2 z-40 -translate-x-1/2 rounded-full '
+                      + 'border px-3 py-1 text-[0.6875rem] font-medium backdrop-blur-sm '
+                      + (notice === 'copied'
+                         ? 'border-border bg-card/95 text-white/85'
+                         : 'border-connecting/40 bg-card/95 text-connecting')"
+             data-testid="stats-copy-notice"
+             role="status">
+            {{ copyNoticeKey() | translate }}
+        </div>
+    }
+
 </div>

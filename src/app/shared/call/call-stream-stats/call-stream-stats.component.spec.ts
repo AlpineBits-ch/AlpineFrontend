@@ -1,5 +1,5 @@
 import {ComponentFixture, TestBed} from '@angular/core/testing';
-import {beforeEach, describe, expect, it} from 'vitest';
+import {afterEach, beforeEach, describe, expect, it} from 'vitest';
 import {TranslateModule} from '@ngx-translate/core';
 import {CallStreamStatsComponent} from './call-stream-stats.component';
 import {StreamStatsSnapshot} from '../stream-stats';
@@ -78,5 +78,60 @@ describe('CallStreamStatsComponent', () => {
         fixture.nativeElement.querySelector('[data-testid="stats-close"]').click();
 
         expect(closed).toBe(true);
+    });
+});
+
+/**
+ * Escape and click-away, the two dismissals the design calls for and the panel shipped without.
+ *
+ * <p>Every fixture here is appended to `document.body` and removed afterwards, following
+ * `auto-hide-call-controls.directive.spec.ts`. That is not ceremony: a `document:click` host
+ * listener on a <em>detached</em> fixture still fires, because the listener is on the document and
+ * the assertion never touches the DOM - so the "clicks inside do not dismiss" test in particular
+ * would pass on a component with no `stopPropagation` at all, since a click dispatched at a
+ * detached node never reaches the document to be stopped. Attaching is what makes these tests
+ * capable of failing.</p>
+ */
+describe('CallStreamStatsComponent dismissal', () => {
+    let fixture: ComponentFixture<CallStreamStatsComponent>;
+    let closes: number;
+
+    beforeEach(() => {
+        TestBed.resetTestingModule();
+        fixture = setup(snapshot());
+        document.body.appendChild(fixture.nativeElement);
+        closes = 0;
+        fixture.componentInstance.close.subscribe(() => closes++);
+    });
+
+    afterEach(() => fixture.nativeElement.remove());
+
+    it('closes on a click anywhere outside it', () => {
+        const elsewhere = document.createElement('div');
+        document.body.appendChild(elsewhere);
+
+        elsewhere.dispatchEvent(new MouseEvent('click', {bubbles: true}));
+
+        expect(closes).toBe(1);
+        elsewhere.remove();
+    });
+
+    it('closes on Escape', () => {
+        document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true}));
+
+        expect(closes).toBe(1);
+    });
+
+    /**
+     * A panel that dismissed itself when you touched it would be unreadable: the numbers are there
+     * to be selected, copied and read aloud. The host's own stopPropagation is what stops the
+     * document listener ever seeing a press that landed inside.
+     */
+    it('does not close on a click inside it', () => {
+        const inside = fixture.nativeElement.querySelector('[data-testid="stats-layer"]') as HTMLElement;
+
+        inside.dispatchEvent(new MouseEvent('click', {bubbles: true}));
+
+        expect(closes).toBe(0);
     });
 });
