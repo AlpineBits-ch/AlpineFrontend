@@ -13,6 +13,7 @@
 //! See `docs/superpowers/specs/2026-08-16-livekit-signaling-migration-design.md`.
 
 pub mod identity;
+pub mod registry;
 pub mod resume;
 pub mod room;
 pub mod signal;
