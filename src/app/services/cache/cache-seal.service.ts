@@ -1,0 +1,94 @@
+import {inject, Injectable} from '@angular/core';
+
+import {SecureStore} from '../../platform/ports/secure-store.port';
+import {DeviceIdentityService} from '../device-identity.service';
+
+/** Separates the IV from the ciphertext. Neither half contains it: both are base64. */
+const SEPARATOR = '.';
+
+/**
+ * Seals cache entries under the key the MLS engine state already uses.
+ *
+ * <p><b>This service reads the key and never writes it.</b> `MlsService.localStateKey` mints one
+ * when there is none, through `SecureStore.update`, and that is correct there: without a key the
+ * engine cannot run at all. Here it would be a defect. `SecureStore` collapses every read failure
+ * to `null`, so a keychain that is merely locked is indistinguishable from a device that has none,
+ * and minting on that answer would seal every later cache entry under a key the real one will
+ * never match - silently orphaning the cache, permanently, from one transient fault.</p>
+ *
+ * <p>So an absent key means the cache is unavailable, which degrades to exactly the behaviour that
+ * shipped before it existed: an empty cache and a cold start. Nothing worse, and nothing to
+ * recover from.</p>
+ */
+@Injectable({providedIn: 'root'})
+export class CacheSealService {
+    private readonly secureStore = inject(SecureStore);
+    private readonly deviceIdentity = inject(DeviceIdentityService);
+
+    /** Resolved once on success. A failure is never memoised - one bad read is not the session. */
+    private key: Promise<CryptoKey | null> | null = null;
+
+    async available(): Promise<boolean> {
+        return await this.cryptoKey() !== null;
+    }
+
+    async seal(value: unknown): Promise<string | null> {
+        const key = await this.cryptoKey();
+        if (!key) return null;
+
+        const iv = crypto.getRandomValues(new Uint8Array(12));
+        const plaintext = new TextEncoder().encode(JSON.stringify(value));
+        const ct = await crypto.subtle.encrypt({name: 'AES-GCM', iv}, key, plaintext);
+
+        return `${toB64(iv)}${SEPARATOR}${toB64(new Uint8Array(ct))}`;
+    }
+
+    async unseal<T>(sealed: string): Promise<T | null> {
+        const key = await this.cryptoKey();
+        if (!key) return null;
+
+        const [ivB64, ctB64] = sealed.split(SEPARATOR);
+        if (!ivB64 || !ctB64) return null;
+
+        try {
+            const plaintext = await crypto.subtle.decrypt(
+                {name: 'AES-GCM', iv: fromB64(ivB64)}, key, fromB64(ctB64));
+            return JSON.parse(new TextDecoder().decode(plaintext)) as T;
+        } catch {
+            // A cache entry that will not open is a miss, not an error. It can be re-fetched.
+            return null;
+        }
+    }
+
+    private cryptoKey(): Promise<CryptoKey | null> {
+        this.key ??= this.readKey().catch(() => {
+            this.key = null;
+            return null;
+        });
+        return this.key;
+    }
+
+    private async readKey(): Promise<CryptoKey | null> {
+        const deviceId = await this.deviceIdentity.deviceId();
+        // getItem, deliberately. See the class comment: update() would mint.
+        const raw = await this.secureStore.getItem(`alpine_mls_${deviceId}_statekey`);
+        if (!raw) return null;
+
+        return crypto.subtle.importKey(
+            'raw', fromB64(raw), 'AES-GCM', false, ['encrypt', 'decrypt']);
+    }
+}
+
+function toB64(bytes: Uint8Array): string {
+    return btoa(String.fromCharCode(...bytes));
+}
+
+// Built through `new ArrayBuffer` rather than `Uint8Array.from`, deliberately: the latter types as
+// `Uint8Array<ArrayBufferLike>`, which the DOM crypto types (`BufferSource`) reject because
+// `ArrayBufferLike` admits `SharedArrayBuffer`. Same construction `MlsService`'s `fromB64` uses.
+function fromB64(value: string): ArrayBuffer {
+    const binary = atob(value);
+    const out = new Uint8Array(new ArrayBuffer(binary.length));
+    for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i);
+    return out.buffer;
+}
