@@ -51,6 +51,7 @@ function options(over: Partial<ScreenPublishOptions> = {}): ScreenPublishOptions
         fps: 30,
         kbps: 2500,
         iceServers: [],
+        livekit: {url: 'wss://sfu.test', token: 'lk-tok'},
         apiBase: 'https://api.test',
         token: 'tok',
         deviceId: 'dev-1',
@@ -80,8 +81,8 @@ describe('TauriScreenPublisher.start', () => {
 
         expect(Object.keys(payload(core)).sort()).toEqual([
             'apiBase', 'callId', 'channelId', 'content', 'deviceId', 'fps', 'guildId', 'height',
-            'iceServers', 'kbps', 'localStream', 'onLocalStream', 'onPreview', 'shareAudio',
-            'shareId', 'sourceId', 'token', 'width',
+            'iceServers', 'kbps', 'livekitToken', 'livekitUrl', 'localStream', 'onLocalStream',
+            'onPreview', 'shareAudio', 'shareId', 'sourceId', 'token', 'width',
         ]);
     });
 

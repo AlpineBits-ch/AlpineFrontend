@@ -156,14 +156,41 @@ describe('CallScreenLayoutComponent across a share being replaced', () => {
 
     it('does not follow a different person', () => {
         // Maximise means "show me this person's stream". Adopting somebody else's would put a
-        // viewer in front of a stream they never chose, which is worse than an empty stage.
+        // viewer in front of a stream they never chose. Anna's stream ending drops back to the
+        // grid instead, where bruno's is one tile among the rest rather than the whole stage.
         const {layout, setShares, maximize} = setup([share('old', 'anna')]);
         maximize('old');
 
         setShares([share('other', 'bruno')]);
 
-        expect(layout.displayedShares()).toEqual([]);
-        expect(layout.maximizedId()).toBe('old');
+        expect(layout.maximizedId()).toBeNull();
+        expect(layout.displayedShares().map(s => s.shareId)).toEqual(['other']);
+    });
+
+    it('returns to the grid when the maximised share ends with nothing to follow', () => {
+        // The reported bug, and the one that hurts most on your own stream: stopping it left
+        // `maximizedId` on a share that no longer exists, and maximised mode draws shares only -
+        // so the picture went and took every other tile with it. Escape was the only way back.
+        const {layout, setShares, maximize} = setup([share('mine', 'anna')], [participant('bruno')]);
+        maximize('mine');
+
+        setShares([]);
+
+        expect(layout.maximizedId()).toBeNull();
+        // Not merely "unmaximised" - the people still in the channel are on screen again.
+        expect(layout.displayedTiles().length).toBeGreaterThan(0);
+    });
+
+    it('holds the maximise while that share is only resuming', () => {
+        // The release above must not undo the grace window: a share between tracks is still in
+        // `screenShares`, so the viewer keeps watching rather than being dropped to the grid and
+        // pulled back a second later.
+        const {layout, setShares, maximize} = setup([share('a', 'anna')]);
+        maximize('a');
+
+        setShares([share('a', 'anna', 'resuming')]);
+
+        expect(layout.maximizedId()).toBe('a');
     });
 
     it('holds the grid still while a share is resuming', () => {

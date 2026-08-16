@@ -233,6 +233,7 @@ function options(over: Partial<ScreenPublishOptions> = {}): ScreenPublishOptions
         kbps: 4500,
         content: 'text',
         iceServers: [{urls: ['stun:stun.test:3478']}],
+        livekit: {url: 'wss://sfu.test', token: 'lk-tok'},
         apiBase: 'https://api.test/',
         token: 'tok',
         deviceId: 'dev-1',
@@ -597,7 +598,7 @@ describe('geometry parity between the two adapters', () => {
 
     function solved(): ScreenPublishOptions {
         return publishOptions(choice, 'share-1', 'https://api.test', 'tok', 'dev-1',
-            {guildId: 'g', channelId: 'c'}, null);
+            {guildId: 'g', channelId: 'c'}, null, {url: 'wss://sfu.test', token: 'lk-tok'});
     }
 
     it('asks the browser for exactly the geometry the solver produced', async () => {

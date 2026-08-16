@@ -200,6 +200,7 @@ function options(over: Partial<ScreenPublishOptions> = {}): ScreenPublishOptions
         kbps: 2500,
         content: 'text',
         iceServers: [],
+        livekit: {url: 'wss://sfu.test', token: 'lk-tok'},
         apiBase: 'https://api.test',
         token: 'tok',
         deviceId: 'dev-1',

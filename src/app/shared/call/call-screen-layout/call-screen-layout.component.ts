@@ -384,12 +384,19 @@ export class CallScreenLayoutComponent implements OnDestroy {
         // so the picture never drops, but everything else keyed on the id - the tile's own
         // `maximized` binding, the toolbar toggle, the watch claim - would otherwise stay pointed
         // at a share that no longer exists.
+        //
+        // <p>And when nothing replaces it, the maximise is released rather than left pointing at a
+        // share that ended. Maximised mode renders shares only (see {@link displayedTiles}), so a
+        // dead id there is a stage with nothing on it at all - not even the people still in the
+        // channel - which is what stopping your own share used to leave behind, with Escape as the
+        // only way out. A share that is merely between tracks stays in `screenShares` as `'resuming'`
+        // (see `screen-resume.ts`), so this only fires once the share is really gone.</p>
         effect(() => {
             const id = this.maximizedId();
             if (id === null) return;
             if (this.screenShares().some(s => s.shareId === id)) return;
             const replacement = this.replacementFor(id);
-            if (replacement) this.maximizedId.set(replacement.shareId);
+            this.maximizedId.set(replacement ? replacement.shareId : null);
         }, {allowSignalWrites: true});
 
         // Claims "somebody is rendering the preview" for Task 10's idle pause. onCleanup releases

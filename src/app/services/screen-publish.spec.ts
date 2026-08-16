@@ -83,7 +83,7 @@ describe('publishOptions', () => {
 
     function built(over: Partial<typeof choice> = {}, ceiling: VideoCeiling | null = null) {
         return publishOptions({...choice, ...over}, 'share-1', 'https://api.test', 'tok', 'dev-1',
-            {guildId: 'g', channelId: 'c'}, ceiling);
+            {guildId: 'g', channelId: 'c'}, ceiling, {url: 'wss://sfu.test', token: 'lk-tok'});
     }
 
     it('solves the geometry from the source and the preset', () => {
