@@ -8,6 +8,7 @@ import {MlsHealthService} from '../services/mls-health.service';
 import {MessageUpdatedEvent, MessagingWebsocketService} from '../services/messaging-websocket.service';
 import {GuildWebsocketService} from '../services/guild-websocket.service';
 import {ProfileService} from '../services/profile.service';
+import {MessageCacheService} from '../services/cache/message-cache.service';
 import {MessageEncryptionState} from '../enums/message-encryption-state.enum';
 import {MessageType} from '../enums/message-type.enum';
 import {MessageDto} from '../dtos/response/message.dto';
@@ -65,6 +66,14 @@ function setup() {
             Observable<MessageDto[]>>(() => of([])),
     };
 
+    // This suite doesn't exercise the cache paint at all - it just needs the store to construct
+    // without dragging in the real IndexedDB/secure-storage chain behind `MessageCacheService`.
+    const messageCache = {
+        recall: vi.fn(async () => []),
+        remember: vi.fn(async () => undefined),
+        forget: vi.fn(async () => undefined),
+    };
+
     // Handed back so a test can push a channel edit or a bulk delete through the same wiring the
     // guild socket uses, rather than calling the store's methods and proving only that they exist.
     const guildMessageUpdated = new Subject<MessageUpdatedEvent>();
@@ -77,6 +86,7 @@ function setup() {
             {provide: MessagingService, useValue: messaging},
             {provide: MlsService, useValue: mls},
             {provide: MlsSyncService, useValue: sync},
+            {provide: MessageCacheService, useValue: messageCache},
             MlsHealthService,
             {
                 provide: MessagingWebsocketService, useValue: {

@@ -5,6 +5,7 @@ import {
     removeEntities,
     removeEntity,
     updateEntity,
+    upsertEntities,
     upsertEntity,
     withEntities
 } from '@ngrx/signals/entities';
@@ -28,6 +29,7 @@ import {HttpErrorResponse} from '@angular/common/http';
 import {catchError, firstValueFrom, from, Observable, of, switchMap, tap} from 'rxjs';
 import {fromBase64} from "../helpers/base64.helper";
 import {decryptMessages} from '../helpers/message-decrypt';
+import {MessageCacheService, messageContextKey} from '../services/cache/message-cache.service';
 
 const PAGE_SIZE = 30;
 
@@ -80,12 +82,44 @@ function reactionMatches(r: MessageReaction, event: ReactionEvent): boolean {
         : r.emoji === event.emoji && !r.emojiId && r.userId === event.userId;
 }
 
+/**
+ * The cache/network reconciliation rule, on its own.
+ *
+ * <p>The arriving server page is authoritative for everything it covers. A message that was
+ * painted from the cache and that this page does not confirm is gone - deleted, moderated, or
+ * purged elsewhere - not merely "outside this particular window", so it must not survive into the
+ * settled result and must never be unioned back in. A naive "union, server wins on conflict"
+ * implementation looks plausible but is wrong: it keeps every cached id the server didn't
+ * mention, which silently resurrects a moderated message on every reload until the cache entry
+ * itself happens to expire. Do not "simplify" this back into a union.</p>
+ *
+ * <p><b>`cached` must be exactly the ids a single load painted from the cache - never "every
+ * entity currently in the store for this conversation/channel".</b> The entity map also holds
+ * messages that arrived over the websocket while the fetch was in flight, and optimistic pending
+ * sends. Both are legitimately absent from this server page, and neither was put there by the
+ * cache paint, so neither is an eviction candidate. Reconciling against the full entity set
+ * deletes a live message from an open conversation on every load - see the caller for how the
+ * painted set is tracked and passed in.</p>
+ */
+export function reconcile(cached: MessageDto[], fromServer: MessageDto[]): MessageDto[] {
+    return fromServer;
+}
+
 export const MessageStore = signalStore(
     {providedIn: 'root'},
     withEntities<MessageDto>(),
     withState<MessageState>({conversationMeta: {}, searchEntries: {}, channelMeta: {}, channelSearchEntries: {}}),
 
-    withMethods((store, messagingService = inject(MessagingService), mlsService = inject(MlsService), mlsSync = inject(MlsSyncService), mlsHealth = inject(MlsHealthService)) => ({
+    withMethods((store, messagingService = inject(MessagingService), mlsService = inject(MlsService), mlsSync = inject(MlsSyncService), mlsHealth = inject(MlsHealthService), messageCache = inject(MessageCacheService)) => {
+        // Ids a `loadFor*` call painted from the cache, keyed by conversation/channel id, live
+        // only between "the cache paint landed" and "the server page landed for the same load".
+        // Deliberately *not* store state: it is reconciliation bookkeeping for one in-flight load,
+        // never a thing a component should read, and it must never be confused with - or widened
+        // to - the full entity map. See `reconcile`.
+        const conversationCachePaint = new Map<string, MessageDto[]>();
+        const channelCachePaint = new Map<string, MessageDto[]>();
+
+        return {
         loadForConversation(conversationId: string): void {
             // Already fetched -no-op
             if (store.conversationMeta()[conversationId]) return;
@@ -98,12 +132,50 @@ export const MessageStore = signalStore(
                 },
             });
 
+            // Painted first, replaced on arrival. Deliberately does NOT touch `offset`: that is a
+            // cursor into server-side history, and advancing it by a count taken from disk would
+            // make the next page skip real messages.
+            void messageCache.recall(messageContextKey({conversationId}))
+                .then(cached => {
+                    if (cached.length === 0) return;
+                    if (!store.conversationMeta()[conversationId]?.loadingMore) return;
+                    return decryptMessages(cached, mlsService, mlsSync, mlsHealth)
+                        .then(decrypted => {
+                            // Re-checked right before the commit: the guard above can pass and the
+                            // network page can still land while this decrypt was in flight. A slow
+                            // cache read must never overwrite fresher server data.
+                            if (!store.conversationMeta()[conversationId]?.loadingMore) return;
+
+                            // Only ids this paint is actually about to add. A websocket message
+                            // that raced in with the same id ahead of us is fresher than the cache
+                            // and must not be tracked as an eviction candidate.
+                            const existingIds = new Set(store.entities().map(m => m.id));
+                            const painted = decrypted.filter(m => !existingIds.has(m.id));
+                            if (painted.length === 0) return;
+
+                            conversationCachePaint.set(conversationId, painted);
+                            patchState(store, addEntities(painted));
+                        });
+                });
+
             messagingService
                 .getMessagesForConversation(conversationId, 0, PAGE_SIZE)
                 .pipe(switchMap(messages => from(decryptMessages(messages, mlsService, mlsSync, mlsHealth))))
                 .subscribe({
                     next: messages => {
-                        patchState(store, addEntities(messages), {
+                        // The reconciliation candidates are exactly the ids *this load* painted
+                        // from the cache - never every entity the store holds for this
+                        // conversation, which would also catch live websocket arrivals and
+                        // optimistic sends that this server page never claimed to cover.
+                        const painted = conversationCachePaint.get(conversationId) ?? [];
+                        conversationCachePaint.delete(conversationId);
+
+                        const settled = reconcile(painted, messages);
+                        const dropped = painted
+                            .filter(c => !settled.some(s => s.id === c.id))
+                            .map(c => c.id);
+
+                        patchState(store, removeEntities(dropped), upsertEntities(messages), {
                             conversationMeta: {
                                 ...store.conversationMeta(),
                                 [conversationId]: {
@@ -113,8 +185,10 @@ export const MessageStore = signalStore(
                                 },
                             },
                         });
+                        void messageCache.remember(messageContextKey({conversationId}), messages);
                     },
                     error: (err: HttpErrorResponse) => {
+                        conversationCachePaint.delete(conversationId);
                         patchState(store, {
                             conversationMeta: {
                                 ...store.conversationMeta(),
@@ -473,12 +547,41 @@ export const MessageStore = signalStore(
                     [channelId]: {offset: 0, hasMore: true, loadingMore: true},
                 },
             });
+
+            // Same treatment as `loadForConversation` - see the comments there for why `offset`
+            // is never touched and why the eviction candidates must be exactly the ids this paint
+            // added, not the channel's full entity set.
+            void messageCache.recall(messageContextKey({channelId}))
+                .then(cached => {
+                    if (cached.length === 0) return;
+                    if (!store.channelMeta()[channelId]?.loadingMore) return;
+                    return decryptMessages(cached, mlsService, mlsSync, mlsHealth)
+                        .then(decrypted => {
+                            if (!store.channelMeta()[channelId]?.loadingMore) return;
+
+                            const existingIds = new Set(store.entities().map(m => m.id));
+                            const painted = decrypted.filter(m => !existingIds.has(m.id));
+                            if (painted.length === 0) return;
+
+                            channelCachePaint.set(channelId, painted);
+                            patchState(store, addEntities(painted));
+                        });
+                });
+
             messagingService
                 .getMessagesForChannel(channelId, 0, PAGE_SIZE)
                 .pipe(switchMap(messages => from(decryptMessages(messages, mlsService, mlsSync, mlsHealth))))
                 .subscribe({
                     next: messages => {
-                        patchState(store, addEntities(messages), {
+                        const painted = channelCachePaint.get(channelId) ?? [];
+                        channelCachePaint.delete(channelId);
+
+                        const settled = reconcile(painted, messages);
+                        const dropped = painted
+                            .filter(c => !settled.some(s => s.id === c.id))
+                            .map(c => c.id);
+
+                        patchState(store, removeEntities(dropped), upsertEntities(messages), {
                             channelMeta: {
                                 ...store.channelMeta(),
                                 [channelId]: {
@@ -488,8 +591,10 @@ export const MessageStore = signalStore(
                                 },
                             },
                         });
+                        void messageCache.remember(messageContextKey({channelId}), messages);
                     },
                     error: (err: HttpErrorResponse) => {
+                        channelCachePaint.delete(channelId);
                         patchState(store, {
                             channelMeta: {
                                 ...store.channelMeta(),
@@ -614,7 +719,8 @@ export const MessageStore = signalStore(
                 catchError(() => of(null)),
             );
         },
-    })),
+        };
+    }),
 
     withHooks({
         onInit(store) {
