@@ -981,7 +981,20 @@ export class VoiceChannelService {
 
     private applyUserLeftVoice(e: WsUserLeftVoice): void {
         const ownId = this.profileService.ownProfile()?.userId ?? '';
-        if (e.userId === ownId) return;
+
+        // Our own departure from the channel we are *in* is not ours to apply. That row is rebuilt
+        // from localState() on every snapshot precisely because mute, camera and screen share are
+        // decided here and the server's copy lags a round trip, and `roomGone` owns the teardown
+        // when the server really has removed us - so honouring this event would strip the local row
+        // out from under live media on any sweep race.
+        //
+        // For a channel we are *not* in, the same event is the only thing that will ever correct
+        // the sidebar. It arrives when the sweep evicts the seat a force quit left behind
+        // (VoiceHeartbeatCleanupService announces UserLeftVoice to every member of the guild,
+        // including its subject), and the reopened app was throwing it away - so the user went on
+        // watching themselves sit in a channel they had left until they reloaded or switched
+        // guilds, which is the one other thing that repopulates that roster.
+        if (e.userId === ownId && e.channelId === this.joinedChannelId()) return;
 
         if (e.channelId === this.joinedChannelId()) this.soundSettings.playVoiceLeave();
 
@@ -991,7 +1004,10 @@ export class VoiceChannelService {
             return n;
         });
 
-        this.rtc.cleanupParticipant(e.userId);
+        // Never for ourselves. Reaching here with our own id means the eviction was for a channel we
+        // are not in, and cleanupParticipant is keyed on user rather than on room - so it would tear
+        // down our own subscriptions in whatever room we are actually sitting in.
+        if (e.userId !== ownId) this.rtc.cleanupParticipant(e.userId);
     }
 
     private onParticipantJoined(e: WsGuildParticipantJoined): void {

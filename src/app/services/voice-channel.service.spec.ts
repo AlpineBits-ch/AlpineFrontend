@@ -1432,3 +1432,52 @@ describe('a join in flight', () => {
         expect(guildVoice.join).toHaveBeenCalledTimes(1);
     });
 });
+
+/**
+ * The sweep evicts a seat a force quit left behind and announces `UserLeftVoice` to every member of
+ * the guild - the evicted user included. The client used to drop every self-addressed leave, so the
+ * reopened app went on drawing itself in a channel it had been removed from until the user reloaded
+ * or switched guilds, which is the one other thing that repopulates that roster.
+ *
+ * <p>The guard is still right for the channel we are actually in: that row is rebuilt from local
+ * state on every snapshot, and `roomGone` owns the teardown when the server really has removed us.
+ * So the two cases have to be told apart rather than the guard simply dropped.</p>
+ */
+describe('a self-addressed UserLeftVoice', () => {
+    it('clears the ghost row for a channel we are not in', async () => {
+        const {service, ws} = setup({inChannel: false});
+
+        // The sidebar was painted from a snapshot taken before the sweep ran, which is exactly what
+        // loadVoiceStatesForGuild does once per guild on launch.
+        ws['userJoinedVoiceObservable'].next({userId: 'them', channelId: 'ghost-chan', guildId: 'guild-1'});
+        ws['userLeftVoiceObservable'].next({userId: 'me', channelId: 'ghost-chan', guildId: 'guild-1'});
+        await tick();
+
+        expect(service.channelParticipants().get('ghost-chan')?.map(p => p.userId))
+            .not.toContain('me');
+    });
+
+    it('is ignored for the channel we are in', async () => {
+        const {service, ws, rtc} = setup();
+        await tick();
+
+        const before = service.channelParticipants().get('chan-1');
+        ws['userLeftVoiceObservable'].next({userId: 'me', channelId: 'chan-1', guildId: 'guild-1'});
+        await tick();
+
+        expect(service.channelParticipants().get('chan-1')).toBe(before);
+        expect(service.joinedChannelId()).toBe('chan-1');
+        expect(rtc.cleanupParticipant).not.toHaveBeenCalled();
+    });
+
+    it('never tears down our own subscriptions, which are keyed on user and not on room', async () => {
+        const {ws, rtc} = setup();
+
+        // We are in chan-1; the eviction is for the seat we abandoned in another channel. A
+        // cleanupParticipant('me') here would reach into the room we are actually sitting in.
+        ws['userLeftVoiceObservable'].next({userId: 'me', channelId: 'ghost-chan', guildId: 'guild-1'});
+        await tick();
+
+        expect(rtc.cleanupParticipant).not.toHaveBeenCalled();
+    });
+});

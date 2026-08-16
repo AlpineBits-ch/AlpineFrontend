@@ -104,6 +104,24 @@ export class VoiceService {
     }
 
     /**
+     * A call this client was dropped out of that is still running without it, or `null` (204).
+     *
+     * <p>The launch read behind the reconnect banner, and the call-shaped half of
+     * {@link GuildVoiceService.getVoiceState}. The two answer the same question about rooms that
+     * fail in opposite ways: a channel seat outlives the client that abandoned it, so that one
+     * reports a seat still held; a call is hung up the moment the socket drops, so this one reports
+     * a room that carried on without us.</p>
+     *
+     * <p>Nothing here is state to paint. It is an offer to put to the user, and it answers 204 far
+     * more often than not - a call that has since ended, one they have already answered on another
+     * device, and one nobody else is left in all read as "you are in nothing". Rejoining goes
+     * through {@link acceptCall}, which is entitled to refuse.</p>
+     */
+    getActiveCall(): Observable<OngoingCallDto | null> {
+        return this.client.get<OngoingCallDto | null>(`${this.base}/call/active`);
+    }
+
+    /**
      * The call going on in this conversation right now, or `null` (the server answers 204).
      *
      * Distinct from {@link getPendingCall}, which answers only for someone this call is *ringing*.

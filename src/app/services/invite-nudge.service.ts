@@ -11,6 +11,21 @@ import {VoiceChannelService} from './voice-channel.service';
 export const INVITE_NUDGE_MS = 15_000;
 
 /**
+ * How long joining takes to settle before the row appears at all.
+ *
+ * <p>Joining a channel already redraws half the window at once: the roster opens under the channel,
+ * your own name lands in it, the stage and the control bar come up. A row arriving inside that same
+ * frame is just one more thing in a burst, and it read as part of the furniture rather than as an
+ * offer. Letting the room settle first and then opening it is what makes it read as a nudge.</p>
+ *
+ * <p>It also buys the roster a beat to fill in. A channel with people already in it often reports
+ * them a moment after the join itself, and this wait is long enough that the row is never raised for
+ * a room that turns out not to be empty - see {@link InviteNudgeService.arm}, which re-checks when
+ * the wait is up rather than trusting the count it saw on the way in.</p>
+ */
+export const INVITE_NUDGE_DELAY_MS = 1_000;
+
+/**
  * Whether the "Invite friends" row is showing, and under which voice channel.
  *
  * <p><b>Why this is a service and not state inside the row.</b> Three unrelated things end the
@@ -37,8 +52,9 @@ export class InviteNudgeService implements OnDestroy {
             untracked(() => joined ? this.arm(joined) : this.dismiss());
         });
 
-        // Somebody arrived, so the question the row was asking has been answered. This also covers
-        // joining a room that already has people in it: the count is above one on the first pass.
+        // Somebody arrived, so the question the row was asking has been answered. This covers the
+        // row that is already up; a room that fills during the opening wait is caught by arm()'s
+        // own re-check, which is what keeps the row from appearing for a beat and then vanishing.
         effect(() => {
             const nudging = this.channelId();
             if (!nudging) return;
@@ -68,13 +84,32 @@ export class InviteNudgeService implements OnDestroy {
         this.channelId.set(null);
     }
 
+    /**
+     * Two waits, back to back: {@link INVITE_NUDGE_DELAY_MS} before the row appears, then
+     * {@link INVITE_NUDGE_MS} before it goes again. One field holds both, so re-arming or leaving
+     * cancels whichever of the two is running without either having to know about the other.
+     */
     private arm(channelId: string): void {
         this.clearTimer();
-        this.channelId.set(channelId);
+        // Cleared, not left alone: joining a second channel while the first one's row is up must
+        // take that row down now rather than leave it hanging under the room you walked out of.
+        this.channelId.set(null);
+
         this.timer = setTimeout(() => {
             this.timer = null;
-            this.channelId.set(null);
-        }, INVITE_NUDGE_MS);
+
+            // Re-checked here rather than on the way in. The count is what the roster reports now,
+            // a second after the join, which is the first moment it can be trusted - and if
+            // somebody was already here, or walked in during the wait, the question the row asks
+            // has been answered and it never appears at all.
+            if ((this.voice.channelParticipants().get(channelId)?.length ?? 0) > 1) return;
+
+            this.channelId.set(channelId);
+            this.timer = setTimeout(() => {
+                this.timer = null;
+                this.channelId.set(null);
+            }, INVITE_NUDGE_MS);
+        }, INVITE_NUDGE_DELAY_MS);
     }
 
     private clearTimer(): void {

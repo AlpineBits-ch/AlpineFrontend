@@ -29,6 +29,7 @@ import {ProfileDialogComponent} from '../../components/profile-dialog/profile-di
 import {ProfileDialogService} from '../../services/profile-dialog.service';
 import {QuickSettingsComponent} from './components/quick-settings/quick-settings.component';
 import {AccountDeletionBannerComponent} from './components/account-deletion-banner/account-deletion-banner.component';
+import {VoiceResumeBannerComponent} from './components/voice-resume-banner/voice-resume-banner.component';
 import {VoiceStatusBarComponent} from './components/voice-status-bar/voice-status-bar.component';
 import {channelViewFor} from '../guild/channel-types';
 import {UnsupportedChannelComponent} from '../guild/components/unsupported-channel/unsupported-channel.component';
@@ -89,6 +90,7 @@ import {ReportDialogComponent} from '../../components/report-dialog/report-dialo
 import {GoLiveNotificationService, STREAM_LIVE_ACTION_TYPE} from '../../services/go-live-notification.service';
 import {CallFocusService} from '../../services/call-focus.service';
 import {VoiceChannelService} from '../../services/voice-channel.service';
+import {VoiceResumeService} from '../../services/voice-resume.service';
 import {scopeKey} from '../../services/share-watch.service';
 
 @Component({
@@ -116,6 +118,7 @@ import {scopeKey} from '../../services/share-watch.service';
         ProfileDialogComponent,
         QuickSettingsComponent,
         AccountDeletionBannerComponent,
+        VoiceResumeBannerComponent,
         VoiceStatusBarComponent,
         GuildMemberListComponent,
         DeviceRegistrationModalComponent,
@@ -226,6 +229,7 @@ export class MainPageComponent implements OnDestroy {
     private goLiveNotifications = inject(GoLiveNotificationService);
     private callFocus = inject(CallFocusService);
     private voiceChannelSvc = inject(VoiceChannelService);
+    private voiceResume = inject(VoiceResumeService);
     private conversationStore = inject(ConversationStore);
     private userTokenService = inject(UserTokenService);
     private userService = inject(UserService);
@@ -646,6 +650,12 @@ export class MainPageComponent implements OnDestroy {
             );
         }
         this.keyPackagesFailed.set(outcome.keyPackagesFailed);
+
+        // Last, and deliberately so. It is two cheap reads that nothing else waits on, and asking
+        // ahead of the crypto work above would put a banner over a shell that is still deciding
+        // whether it can decrypt anything. It answers a question about what happened while the app
+        // was not running, so a launch is the only time it is worth asking.
+        this.voiceResume.check();
     }
 
     /**

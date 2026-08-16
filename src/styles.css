@@ -374,6 +374,31 @@ html, body {
   font-weight: 400;
 }
 
+/* A member's face, in the slot `.chan-icon` and `.invite-nudge-slot` use one level
+   up. Those two are flex boxes and land exactly on the row's centre line; an avatar
+   did not, and sat visibly low beside its own name.
+
+   The cause is that `p-avatar` draws an inline-flex circle, so every ancestor that
+   is not itself a flex container builds a LINE box around it - and an inline-level
+   box sits on that line's baseline, not in the middle of it. With an image avatar
+   there is no text in the circle at all, so its baseline is its bottom edge and the
+   whole circle hangs off the row's baseline. Declaring the whole chain flex is what
+   removes the line box; the fixed square then puts the circle on the same x as
+   every other glyph in the column. */
+.chan-avatar,
+.chan-avatar app-avatar,
+.chan-avatar p-avatar {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+}
+
+.chan-avatar {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
 /* ── The invite nudge, under your own name ───────────────────────────────────
    Opens on its own height rather than on a max-height guess: a grid track from
    0fr to 1fr is the row's real height at both ends, so the rows below it are
@@ -383,10 +408,15 @@ html, body {
   from {
     grid-template-rows: 0fr;
     opacity: 0;
+    /* Out of the guide line the nest hangs from, the same half-centimetre the
+       invite panel travels out of the column. The row belongs to the channel
+       above it, and coming from that edge is what says so. */
+    transform: translateX(-0.375rem);
   }
   to {
     grid-template-rows: 1fr;
     opacity: 1;
+    transform: translateX(0);
   }
 }
 
@@ -457,9 +487,15 @@ html, body {
   }
 }
 
-/* The empty seat: an avatar-sized hole where a person would be, in the slot the
-   participant rows put their faces in. Dashed rather than filled - it is the one
-   row in this column that is not somebody. */
+/* The empty seat: an avatar-sized place where a person would be, on the same
+   1.125rem the participant rows put their faces on. An outlined avatar rather
+   than a filled one - the ring is the seat, and what is inside it is a generic
+   silhouette because nobody is in it yet.
+
+   The ring is an inset shadow, not a border. At this size it wants to be 2px to
+   read as a ring at all rather than as a hairline, and 2px of border would come
+   out of the 1.125rem box - which is the one measurement holding this glyph on
+   the same x as `.chan-icon` one level up and the avatars either side of it. */
 .invite-nudge-slot {
   display: flex;
   flex-shrink: 0;
@@ -467,17 +503,53 @@ html, body {
   height: 1.125rem;
   align-items: center;
   justify-content: center;
-  /* Tracks the row's own colour rather than stating an alpha of its own, so the
-     seat brightens with the label beside it on hover instead of drifting apart. */
-  border: 1px dashed currentColor;
   border-radius: 9999px;
-  transition: border-color var(--duration-fast) var(--ease-brand),
+  /* The silhouette runs off the bottom edge and the ring cuts it - see below. */
+  overflow: hidden;
+  background: transparent;
+  color: var(--color-text-muted);
+  box-shadow: inset 0 0 0 2px rgb(255 255 255 / 0.3);
+  transition: box-shadow var(--duration-fast) var(--ease-brand),
+              background-color var(--duration-fast) var(--ease-brand),
               color var(--duration-fast) var(--ease-brand);
 }
 
-.chan-row:hover .invite-nudge-slot {
-  border-color: var(--color-brand-dim);
-  color: var(--color-brand-dim);
+/* The silhouette fills the ring and is clipped by it, head and shoulders, the way
+   every default avatar is drawn. Sized to the ring's interior and pushed down so
+   the shoulders leave through the bottom rather than stopping in mid-air.
+
+   This is why it is drawn rather than set as `pi-user`. An icon font gives you a
+   whole person centred in the em box with air all round it, so at any size that
+   fits inside a 1.125rem circle it reads as a tiny pictogram floating in a ring -
+   a glyph in a circle, not a face in an avatar. Shrinking it only made it smaller,
+   never righter, which is what sent this to a drawn shape. */
+.invite-nudge-slot svg {
+  display: block;
+  width: 0.875rem;
+  height: 0.875rem;
+  margin-bottom: -0.1875rem;
+}
+
+/* The seat fills in. That gesture is the row's whole meaning - the empty place
+   gets taken - so it is the only thing here that changes on hover: the label
+   just brightens the way every other row's does, and nothing moves or grows. */
+.chan-row:hover .invite-nudge-slot,
+.chan-row:focus-visible .invite-nudge-slot {
+  box-shadow: inset 0 0 0 2px var(--color-brand-dim);
+  background: color-mix(in srgb, var(--color-brand) 45%, transparent);
+  color: #fff;
+}
+
+/* Quieter than the names above it, at rest and on hover both. The row stands
+   where a person is not, and reading at a real member's weight is what made it
+   look like a member whose avatar had failed to load. */
+.invite-nudge .chan-label {
+  color: var(--color-text-muted);
+}
+
+.invite-nudge .chan-row:hover .chan-label,
+.invite-nudge .chan-row:focus-visible .chan-label {
+  color: var(--color-text-secondary);
 }
 
 /* One badge shape, three tones. Before this the column carried four: a rose

@@ -125,10 +125,45 @@ export function connectionQuery(primary: boolean, tag?: string): string {
     return `?primary=${primary}${tagged}`;
 }
 
+/**
+ * A guild voice seat the server still places this user in.
+ *
+ * <p>Not a claim that anything is connected: it is a roster entry, which is exactly what survives a
+ * client that never ran the leave path.</p>
+ */
+export interface VoiceStateDto {
+    guildId: string;
+    channelId: string;
+    /** Null when the channel was deleted under a roster that has not been swept yet. */
+    channelName: string | null;
+    /** The device that took the seat. Ours after a relaunch; somebody else's phone otherwise. */
+    deviceId: string | null;
+    joinedAt: string;
+}
+
 @Injectable({providedIn: 'root'})
 export class GuildVoiceService {
     private client = inject(HttpClient);
     private apiConfig = inject(ApiConfigService);
+
+    /**
+     * Where the server currently places this user in guild voice, or `null` (the server answers
+     * 204, which Angular hands back as a null body).
+     *
+     * <p>The launch read behind the reconnect banner. A client that was force-quit or crashed never
+     * ran {@link leave}, and nothing but the eviction sweep removes a participant - so its seat
+     * outlives it, and until this existed the reopened app had no way to learn that about itself:
+     * the roster arrives per channel, addressed to whoever is looking at that channel.</p>
+     *
+     * <p>Answered from the roster rather than from the server's own pointer at it, so a seat that
+     * was already swept reads as `null` rather than as an offer that {@link join} would then
+     * refuse. Asking costs nothing and disturbs nothing: it claims no liveness and does not extend
+     * the seat it reports.</p>
+     */
+    getVoiceState(): Observable<VoiceStateDto | null> {
+        return this.client.get<VoiceStateDto | null>(
+            `${this.apiConfig.baseUrl()}/api/v1/guild/voice/state`);
+    }
     /**
      * Join the room, and get its authoritative state back in the same round trip.
      *
