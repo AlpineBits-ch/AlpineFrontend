@@ -1,0 +1,16 @@
+# A LiveKit server for the Phase 0 transport probe. Dev mode ships a fixed key pair
+# (devkey / secret) and accepts any room name.
+#
+# WINDOWS AND MACOS: prefer the native binary over this file. In dev mode the server advertises the
+# candidates it can see, which inside a container are the container's own addresses - unreachable
+# from the host where there is no host networking. The handshake then fails at ICE with everything
+# else looking healthy, which is an expensive thing to debug. Download the release binary and run:
+#
+#     livekit-server --dev
+#
+# On Linux, `network_mode: host` avoids the problem, which is what this file is for.
+services:
+  livekit:
+    image: livekit/livekit-server:latest
+    command: --dev --bind 0.0.0.0
+    network_mode: host
