@@ -24,13 +24,27 @@ Windows.
 
 What we use instead:
 
-- **`livekit-protocol`** (crates.io, Apache-2.0, 0.7.12): every signalling message as a generated
-  Rust type - `SignalRequest`, `SignalResponse`, `JoinResponse`, `AddTrackRequest`,
-  `TrickleRequest`, `UpdateSubscription`, `SessionDescription`. No libwebrtc dependency.
-- **`rtc_engine::signal_client` from livekit/rust-sdks**, vendored under attribution: the WebSocket
-  loop, the request queue, ping/pong, and the resume-versus-reconnect state machine. It depends on
-  the protocol types and tokio-tungstenite, not on libwebrtc.
+- **`livekit-api` 0.6.3** with `default-features = false, features = ["signal-client-tokio",
+  "native-tls"]`. Its `signal_client` module is public and the feature is documented upstream as
+  *"Signalling client, blind to the transport backend"* - it pulls `livekit-net`,
+  `livekit-protocol`, `livekit-runtime` and tokio, and **no libwebrtc**. `default-features = false`
+  drops `services-tokio`/`access-token`/`webhooks` (reqwest, jsonwebtoken) which we do not want;
+  `native-tls` matches the TLS backend `reqwest` already links in `src-tauri`, so we do not end up
+  with two.
+- **`livekit-protocol`**, pinned to whatever `livekit-api` 0.6.3 resolves (read it out of
+  `cargo tree`, do not guess). Two incompatible copies of the generated types would not be a
+  compile error at the boundary we care about.
 - **`webrtc-rs` 0.14, unchanged**, as the media transport it already is.
+
+**Nothing is vendored.** An earlier draft of this document proposed copying
+`rtc_engine::signal_client` out of the LiveKit repo under attribution, on the belief that it lived
+in the `livekit` crate and came with libwebrtc attached. It does not - it lives in `livekit-api`,
+behind a feature that exists precisely so the signalling half can be used without the media half.
+Taking the crate means upstream maintains the protocol version, the reconnect ladder and the request
+queue for us.
+
+What we still own is the RTC engine: two peer connections on `webrtc-rs`, track publication
+bookkeeping, subscription handling, and the reconnect *policy* on top of `SignalClient::restart()`.
 
 So this is LiveKit's protocol, not LiveKit's SDK. Everything in `media/voice/` and
 `media/publisher/` above the transport survives untouched: capture, AEC, denoise, gate, Opus, jitter,
@@ -124,8 +138,10 @@ The token is the only expiring part - 10 minutes by default
 attempt: that mints tokens at the SFU's retry rate. Re-fetching is otherwise free - no roster write,
 no re-announce - so an unsure client should re-fetch once rather than loop.
 
-This is a rule the vendored signal client has to be taught; its own resume path will otherwise reuse
-a token indefinitely.
+`SignalClient` holds its token behind a mutex and documents it as refreshable, and `restart()`
+returns a `ReconnectResponse`, so the resume path exists upstream. What is ours is the *policy*
+above it: when to call `restart()`, when to re-fetch a connection instead, and the rule against
+doing the latter per attempt.
 
 ### 2.5 Simulcast layer vocabulary
 
@@ -168,6 +184,11 @@ A throwaway example binary, not shipped code. It must, against a real LiveKit se
 | Does it accept our H.264? | Our encoders emit Constrained Baseline 3.1 (see `project_h264_level_ceiling`). Needs `packetization-mode=1` to match. |
 | Does congestion control close the loop? | TWCC/`transport-cc` and NACK/RTX interceptors must be registered on both PCs, or the sender never adapts. |
 
+**Also worth answering while the probe is up:** `SignalOptions.single_peer_connection` exists, and
+`SignalClient::is_single_pc_mode_active()` reports whether the server accepted it. If our server
+does, the whole publisher/subscriber split in §2.3 collapses to one peer connection and Phase 1 gets
+materially smaller. Try it; do not depend on it.
+
 **Exit:** all three green, or the design falls back to the LiveKit Rust SDK and this document is
 rewritten.
 
@@ -177,7 +198,7 @@ New `src-tauri/src/media/livekit/`:
 
 | File | Holds |
 |---|---|
-| `signal.rs` | the vendored signal client, with its Apache-2.0 attribution header, plus the §2.4 resume rule |
+| `signal.rs` | a thin adapter over `livekit_api::signal_client`: our connect options, and the §2.4 resume policy |
 | `room.rs` | one room: two PCs, participant/track registry, reconnect, ping |
 | `publish.rs` | `AddTrackRequest` through to a live sender |
 | `subscribe.rs` | `UpdateSubscription`, and incoming track to `RemoteSource` |
