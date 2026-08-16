@@ -70,6 +70,13 @@ export function publishOptions(
     deviceId: string,
     target: {guildId: string; channelId: string} | {callId: string},
     ceiling: VideoCeiling | null | undefined,
+    /**
+     * The SFU connection to publish on, fetched by the caller from `POST .../voice/connection`.
+     *
+     * <p>Last rather than beside `token`, so every existing call site keeps its argument order and
+     * only has to grow. Not optional: a share has no Cloudflare path left to fall back to.</p>
+     */
+    livekit: {url: string; token: string},
 ): ScreenPublishOptions {
     const preset: StreamPreset = choice.preset;
     const {width, height} = solveGeometry(
@@ -84,6 +91,7 @@ export function publishOptions(
         kbps: bitrateFor(preset),
         content: preset.content,
         iceServers: iceServers(),
+        livekit,
         apiBase,
         token,
         deviceId,

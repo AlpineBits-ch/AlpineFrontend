@@ -77,6 +77,11 @@ export class TauriVoicePublisher extends VoicePublisher {
             apiBase: o.apiBase,
             token: o.token,
             deviceId: o.deviceId,
+            // Null rather than omitted: Tauri deserialises each argument independently, so an
+            // absent one is an error unless the Rust side admits it. Both are `Option` there, and
+            // absent is how Isle asks for the Cloudflare path.
+            livekitUrl: o.livekit?.url ?? null,
+            livekitToken: o.livekit?.token ?? null,
             guildId: o.target.kind === 'guild' ? o.target.guildId : null,
             channelId: o.target.kind === 'guild' ? o.target.channelId : null,
             callId: o.target.kind === 'call' ? o.target.callId : null,

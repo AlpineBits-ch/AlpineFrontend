@@ -87,6 +87,25 @@ export interface VoiceStartOptions {
     apiBase: string;
     token: string;
     deviceId: string;
+    /**
+     * The SFU connection this publication should use, fetched by the caller.
+     *
+     * <p><b>Absent means Isle.</b> Proximity voice has no room model and stays on the Cloudflare
+     * surface, so it has no connection to hand down; guild channels and DM calls always carry one,
+     * and the Rust engine refuses to start without it because the route it would otherwise use no
+     * longer exists.</p>
+     *
+     * <p>Fetched here rather than in Rust because only this side has the interceptor chain, which
+     * refreshes an expired bearer and replays - a token string captured at join time cannot. See
+     * the migration spec §2.2.</p>
+     *
+     * <p><b>This is the <i>primary</i> connection</b> (`?primary=true`, no tag), and it is not the
+     * one the webview opens for itself. The microphone is what the roster records as the
+     * participant, so it takes the bare identity; the webview's receive connection is secondary and
+     * carries `#view`. Handing the same connection to both would put two clients on one identity,
+     * and the SFU disconnects the earlier one - the client would kick its own call off the air.</p>
+     */
+    livekit?: {url: string; token: string};
     /** How the engine reports speaking, levels and errors for the life of this session. */
     onEvent?(event: VoicePublisherEvent): void;
 }

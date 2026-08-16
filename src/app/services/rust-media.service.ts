@@ -74,6 +74,18 @@ export interface ScreenPublishOptions {
      */
     content: StreamContent;
     iceServers: IceServerConfig[];
+    /**
+     * The SFU connection the share publishes on.
+     *
+     * <p>Required, unlike the microphone's, because a screen share only ever happens in a guild
+     * channel or a DM call - Isle has no share - so there is no Cloudflare path left on this side
+     * to fall back to.</p>
+     *
+     * <p>In practice the registry hands back the connection the microphone already holds, so the
+     * share lands on the <b>same participant</b> rather than opening a second identity. These
+     * credentials only open one in the case where a share somehow starts first.</p>
+     */
+    livekit: {url: string; token: string};
     apiBase: string;
     token: string;
     /** Same `X-Device-Id` the webview sends; Rust must not appear as a second device. */

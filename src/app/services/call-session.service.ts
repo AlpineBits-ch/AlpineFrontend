@@ -1,4 +1,5 @@
 import {inject, Injectable, signal} from '@angular/core';
+import {firstValueFrom} from 'rxjs';
 import {ProfileService} from './profile.service';
 import {ConversationStore} from '../stores/conversation.store';
 import {VoiceService} from './voice.service';
@@ -313,6 +314,18 @@ export class CallSessionService {
         if (!callId) return;
 
         try {
+            // A **primary** connection, the same kind the microphone takes, because the share is
+            // meant to land on the same participant. The registry almost always hands back the
+            // room the microphone already holds and these credentials go unused; they matter only
+            // if a share somehow opens the room first, and a secondary token there would create a
+            // second identity - which is exactly what publishing on one participant avoids.
+            //
+            // Minting a second token is cheap and touches nothing: `POST .../voice/connection`
+            // makes no roster write and re-announces nobody.
+            const connection = await firstValueFrom(
+                this.voiceService.connection(callId, true),
+            );
+
             const published = await this.rustMedia.startScreenPublish(
                 publishOptions(
                     choice,
@@ -322,6 +335,7 @@ export class CallSessionService {
                     await this.deviceIdentity.deviceId(),
                     {callId},
                     NO_ROOM_CEILING,
+                    {url: connection.url, token: connection.token},
                 ),
             );
             console.log(`[call] Rust publisher live on ${published.encoder}`, published);

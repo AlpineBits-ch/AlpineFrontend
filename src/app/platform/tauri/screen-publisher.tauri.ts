@@ -250,6 +250,8 @@ export class TauriScreenPublisher extends ScreenPublisher implements ScreenPubli
             kbps: o.kbps,
             content: o.content,
             iceServers: o.iceServers,
+            livekitUrl: o.livekit.url,
+            livekitToken: o.livekit.token,
             apiBase: o.apiBase,
             token: o.token,
             deviceId: o.deviceId,
