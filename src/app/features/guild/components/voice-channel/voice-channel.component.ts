@@ -23,6 +23,7 @@ import {CallScreenLayoutComponent} from '../../../../shared/call/call-screen-lay
 import {CallStatusBarComponent} from '../../../../shared/call/call-status-bar/call-status-bar.component';
 import {VoiceRingPickerComponent} from '../../../../shared/call/voice-ring-picker/voice-ring-picker.component';
 import {CallParticipant, CallParticipantMenuData, CallScreenShare} from '../../../../shared/call/call.types';
+import type {StreamStatsSnapshot} from '../../../../shared/call/stream-stats';
 import {WatchScope, scopeKey} from '../../../../services/share-watch.service';
 import {CallFocusService} from '../../../../services/call-focus.service';
 import {CallStagePresenceService} from '../../../../services/call-stage-presence.service';
@@ -188,6 +189,17 @@ export class VoiceChannelComponent {
     protected readonly resolveMemberName = (userId: string): string =>
         this.participants().find(p => p.userId === userId)?.displayName
         ?? this.translate.instant('CALL.UNKNOWN_VIEWER');
+
+    /**
+     * Inbound statistics for a share on this surface, keyed by user - the guild
+     * `CallScreenShare[]` is one row per participant, so the user is what identifies a stream here.
+     */
+    protected readonly inboundStatsOf = (share: CallScreenShare): StreamStatsSnapshot | null =>
+        this.voiceSvc.rtc.inspected()?.userId === share.userId ? this.voiceSvc.rtc.inspectedStats() : null;
+
+    protected onStatsInspect(share: CallScreenShare | null): void {
+        this.voiceSvc.rtc.inspected.set(share ? {shareId: share.shareId, userId: share.userId} : null);
+    }
 
     // ── Computed helpers ───────────────────────────────────────────────────────
     protected participantMenu = signal<CallParticipantMenuData | null>(null);

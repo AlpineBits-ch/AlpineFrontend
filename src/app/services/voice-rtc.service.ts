@@ -1,4 +1,4 @@
-import {computed, inject, Injectable, signal} from '@angular/core';
+import {computed, effect, inject, Injectable, signal} from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {firstValueFrom, Subject} from 'rxjs';
 import {GuildVoiceService} from './guild-voice.service';
@@ -32,7 +32,9 @@ import {
     STREAM_AUDIO_KBPS,
     withStartBitrate,
 } from './webrtc-encoding';
-import {inboundScreenFpsByUser} from '../shared/call/inbound-fps';
+import {inboundScreenFpsByUser, InboundTrackOwner} from '../shared/call/inbound-fps';
+import {inboundStatsFor} from '../shared/call/stream-stats';
+import type {StreamStatsSnapshot} from '../shared/call/stream-stats';
 
 export interface VoiceSpeakingChange {
     userId: string;
@@ -91,6 +93,27 @@ export function trackIntent(track: MediaStreamTrack): VideoPublishIntentDto | un
     const framerate = settings?.frameRate;
     if (!height || height <= 0 || !framerate || framerate <= 0) return undefined;
     return {height, framerate: Math.round(framerate)};
+}
+
+/**
+ * The detailed inbound snapshot for one inspected user's screen stream.
+ *
+ * <p>Keyed by user, not share, because `midMeta` carries no per-share id and the guild
+ * `CallScreenShare[]` is built one row per participant - the identical reasoning as
+ * `inboundScreenFpsByUser`, see `inbound-fps.ts`.</p>
+ *
+ * <p>Exported and free-standing so it can be tested without a peer connection: the service's own
+ * poll is a two-line wrapper around it.</p>
+ */
+export function detailedStatsFor(
+    report: {forEach(callback: (stat: RTCStats) => void): void},
+    tracks: ReadonlyMap<string, InboundTrackOwner>,
+    userId: string | null,
+): StreamStatsSnapshot | null {
+    for (const [mid, owner] of tracks) {
+        if (owner.kind === 'screen' && owner.userId === userId) return inboundStatsFor(report, mid);
+    }
+    return null;
 }
 
 export interface StaleSubscription {
@@ -206,6 +229,16 @@ export class VoiceRTCService {
     private readonly inboundVideoFpsSignal = signal<Record<string, number>>({});
     readonly inboundVideoFps = this.inboundVideoFpsSignal.asReadonly();
     private statsInterval?: ReturnType<typeof setInterval>;
+
+    /**
+     * Which stream the open stats panel is reading, carrying both ids.
+     *
+     * <p>Both, because the DM service keys by share and this one keys by user, and one host wires
+     * either - see the keying note on `CallShareTileComponent.inboundStatsOf`. This service uses
+     * `userId` and ignores `shareId`.</p>
+     */
+    readonly inspected = signal<{shareId: string; userId: string} | null>(null);
+    readonly inspectedStats = signal<StreamStatsSnapshot | null>(null);
 
     // Track local senders so bitrate can be changed on the fly
     private readonly localSenders = new Map<string, RTCRtpSender>();
@@ -331,6 +364,13 @@ export class VoiceRTCService {
             .subscribe(() => {
                 if (this.rustPublishing) this.screenEnded$.next();
             });
+
+        // Re-arms the poll when a stats panel opens or closes. Runs only when the connection is
+        // already polling; there is nothing to re-arm otherwise.
+        effect(() => {
+            this.inspected();
+            if (this.statsInterval !== undefined) this.armStatsInterval();
+        });
     }
 
     // ── Connection setup / teardown ────────────────────────────────────────────
@@ -419,19 +459,35 @@ export class VoiceRTCService {
 
     private startStatsPolling(): void {
         this.stopStatsPolling();
-        this.statsInterval = setInterval(() => void this.pollStats(), 2000);
+        this.armStatsInterval();
+    }
+
+    /**
+     * (Re)arm the poll at the cadence the current inspection state wants.
+     *
+     * <p>1s while a stats panel is open, 2s otherwise. A diagnostics readout refreshing every two
+     * seconds is hard to read against a stream that is visibly stuttering, and the faster rate is
+     * only paid for while somebody is looking.</p>
+     */
+    private armStatsInterval(): void {
+        clearInterval(this.statsInterval);
+        const period = this.inspected() ? 1000 : 2000;
+        this.statsInterval = setInterval(() => void this.pollStats(), period);
     }
 
     private stopStatsPolling(): void {
         clearInterval(this.statsInterval);
         this.statsInterval = undefined;
         this.inboundVideoFpsSignal.set({});
+        this.inspectedStats.set(null);
     }
 
     private async pollStats(): Promise<void> {
         if (!this.pc) return;
         const report = await this.pc.getStats();
         this.inboundVideoFpsSignal.set(inboundScreenFpsByUser(report, this.midMeta));
+        // One extra pass over a report that was fetched anyway, and only while a panel is open.
+        this.inspectedStats.set(detailedStatsFor(report, this.midMeta, this.inspected()?.userId ?? null));
     }
 
     /**

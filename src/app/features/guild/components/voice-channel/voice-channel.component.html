@@ -92,6 +92,8 @@
                         (localAudioToggle)="toggleLocalScreenAudio()"
                         (participantContextMenu)="onParticipantContextMenu($event.event, $event.participant)"
                         (remoteAudioToggle)="toggleRemoteScreenAudio($event)"
+                        (statsInspect)="onStatsInspect($event)"
+                        [inboundStatsOf]="inboundStatsOf"
                         [nameOf]="resolveMemberName"
                         [participants]="callParticipants()"
                         [participantsWithAudio]="voiceSvc.participantsWithAudio()"
