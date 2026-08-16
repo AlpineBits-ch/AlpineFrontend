@@ -156,6 +156,13 @@ export const MessageStore = signalStore(
                             conversationCachePaint.set(conversationId, painted);
                             patchState(store, addEntities(painted));
                         });
+                })
+                // A cold cache, a closed IndexedDB connection, a corrupt entry - none of it may
+                // surface as an error on the conversation-open path. The network fetch below is
+                // the source of truth regardless; painting from cache is purely an optimistic
+                // head start, and losing it just means the network page arrives a little sooner
+                // than something did.
+                .catch(() => {
                 });
 
             messagingService
@@ -175,16 +182,33 @@ export const MessageStore = signalStore(
                             .filter(c => !settled.some(s => s.id === c.id))
                             .map(c => c.id);
 
-                        patchState(store, removeEntities(dropped), upsertEntities(messages), {
-                            conversationMeta: {
-                                ...store.conversationMeta(),
-                                [conversationId]: {
-                                    offset: messages.length,
-                                    hasMore: messages.length === PAGE_SIZE,
-                                    loadingMore: false,
+                        // `upsertEntities` is scoped to the painted ids alone, not the whole
+                        // page. A painted id needs the merge - the server's copy must replace the
+                        // stale cached one. An id that arrived by any other route (a websocket
+                        // mutation - a reaction, a pin - landing between this request going out
+                        // and its response coming back) must keep `addEntities`'s no-op-on-
+                        // existing behaviour, or this server page (a read from before that
+                        // mutation) clobbers it back to the pre-mutation state.
+                        const paintedIds = new Set(painted.map(m => m.id));
+                        const confirmedFromCache = messages.filter(m => paintedIds.has(m.id));
+                        const fromNetworkOnly = messages.filter(m => !paintedIds.has(m.id));
+
+                        patchState(
+                            store,
+                            removeEntities(dropped),
+                            addEntities(fromNetworkOnly),
+                            upsertEntities(confirmedFromCache),
+                            {
+                                conversationMeta: {
+                                    ...store.conversationMeta(),
+                                    [conversationId]: {
+                                        offset: messages.length,
+                                        hasMore: messages.length === PAGE_SIZE,
+                                        loadingMore: false,
+                                    },
                                 },
                             },
-                        });
+                        );
                         void messageCache.remember(messageContextKey({conversationId}), messages);
                     },
                     error: (err: HttpErrorResponse) => {
@@ -566,6 +590,10 @@ export const MessageStore = signalStore(
                             channelCachePaint.set(channelId, painted);
                             patchState(store, addEntities(painted));
                         });
+                })
+                // See the matching `.catch()` in `loadForConversation`: a cache failure here must
+                // stay silent. The network fetch below is unaffected by it.
+                .catch(() => {
                 });
 
             messagingService
@@ -581,16 +609,28 @@ export const MessageStore = signalStore(
                             .filter(c => !settled.some(s => s.id === c.id))
                             .map(c => c.id);
 
-                        patchState(store, removeEntities(dropped), upsertEntities(messages), {
-                            channelMeta: {
-                                ...store.channelMeta(),
-                                [channelId]: {
-                                    offset: messages.length,
-                                    hasMore: messages.length === PAGE_SIZE,
-                                    loadingMore: false,
+                        // Scoped to the painted ids alone - see the matching comment in
+                        // `loadForConversation`.
+                        const paintedIds = new Set(painted.map(m => m.id));
+                        const confirmedFromCache = messages.filter(m => paintedIds.has(m.id));
+                        const fromNetworkOnly = messages.filter(m => !paintedIds.has(m.id));
+
+                        patchState(
+                            store,
+                            removeEntities(dropped),
+                            addEntities(fromNetworkOnly),
+                            upsertEntities(confirmedFromCache),
+                            {
+                                channelMeta: {
+                                    ...store.channelMeta(),
+                                    [channelId]: {
+                                        offset: messages.length,
+                                        hasMore: messages.length === PAGE_SIZE,
+                                        loadingMore: false,
+                                    },
                                 },
                             },
-                        });
+                        );
                         void messageCache.remember(messageContextKey({channelId}), messages);
                     },
                     error: (err: HttpErrorResponse) => {

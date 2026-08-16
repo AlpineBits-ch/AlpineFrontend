@@ -223,6 +223,41 @@ describe('MessageStore cache gap-fill - conversation', () => {
         expect(store.entityMap()['should-not-appear']).toBeUndefined();
     });
 
+    /**
+     * `upsertEntities` shallow-merges over an existing entity, unlike `addEntities`, which
+     * no-ops on an id already present. That merge is required for a message this load *did*
+     * paint from the cache - the server's fresher copy has to replace the stale cached one - but
+     * it must never fire for a message that arrived by some other route, or the server's page
+     * (a read from before a concurrent mutation) clobbers a live update. If it is applied to
+     * the whole server page instead of only the painted ids, this reaction/pin - which arrived
+     * over the socket in the gap between the request going out and the response landing - would
+     * be overwritten back to its pre-mutation state.
+     */
+    it('keeps a live pin that lands mid-fetch instead of letting the server\'s pre-mutation ' +
+        'copy clobber it', async () => {
+        const {store, conversationMessages$} = setup(); // Nothing cached: 'shared' is never painted.
+
+        // Already in the store before the load starts - never painted from the cache.
+        store.addMessage(convMsg('shared', {isPinned: false}));
+
+        store.loadForConversation(CONVERSATION);
+        await settle();
+
+        // A pin lands over the socket while the HTTP request is still in flight.
+        store.applyPinned({
+            messageId: 'shared', authorId: 'user-2', pinnedById: 'user-9',
+            pinnedAt: '2026-08-16T00:00:00Z', conversationId: CONVERSATION,
+        });
+        expect(store.entityMap()['shared'].isPinned).toBe(true);
+
+        // The server's page reflects a read from before that pin.
+        conversationMessages$.next([convMsg('shared', {isPinned: false})]);
+        conversationMessages$.complete();
+        await settle();
+
+        expect(store.entityMap()['shared'].isPinned).toBe(true);
+    });
+
     it('persists the arrived page to the cache', async () => {
         const {store, conversationMessages$, messageCache} = setup();
 
@@ -275,6 +310,30 @@ describe('MessageStore cache gap-fill - channel', () => {
         expect(store.entityMap()['shared'].content).toBe('fresh');
         expect(store.entityMap()['stale']).toBeUndefined();
         expect(store.entityMap()['live-ws']).toBeTruthy();
+    });
+
+    /** Same race as the conversation path's equivalent test - see the comment there. */
+    it('keeps a live reaction that lands mid-fetch instead of letting the server\'s ' +
+        'pre-mutation copy clobber it', async () => {
+        const {store, channelMessages$} = setup(); // Nothing cached: 'shared' is never painted.
+
+        store.addMessage(chanMsg('shared', {reactions: []}));
+
+        store.loadForChannel(CHANNEL);
+        await settle();
+
+        // A reaction lands over the socket while the HTTP request is still in flight.
+        store.applyReactionAdded({
+            messageId: 'shared', userId: 'user-9', emoji: '👍', channelId: CHANNEL,
+        });
+        expect(store.entityMap()['shared'].reactions).toHaveLength(1);
+
+        // The server's page reflects a read from before that reaction.
+        channelMessages$.next([chanMsg('shared', {reactions: []})]);
+        channelMessages$.complete();
+        await settle();
+
+        expect(store.entityMap()['shared'].reactions).toHaveLength(1);
     });
 
     it('persists the arrived page to the cache', async () => {
