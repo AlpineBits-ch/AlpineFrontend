@@ -1172,15 +1172,6 @@ export class VoiceRTCService {
 
         this.videoStreamsSignal.set(video);
         this.screenStreamsSignal.set(screen);
-
-        // What the tiles will actually render, after every rebuild. `isCameraOn` with no entry here
-        // is the camera-icon placeholder - the shape of "we were told they are on camera and we have
-        // no picture" - and this says whether the picture was never built or was built and taken
-        // away again.
-        console.info(
-            `[voice] streams rebuilt: video [${[...video.keys()].join(', ')}]`
-            + `, screen [${[...screen.keys()].join(', ')}]`,
-        );
     }
 
     // ── Local media controls ───────────────────────────────────────────────────
