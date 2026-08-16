@@ -216,6 +216,22 @@ impl Room {
 
     /// Publish the microphone. Exactly one per participant, always named `audio`.
     pub async fn publish_audio(&self, name: &str) -> Result<Publication, String> {
+        self.publish_audio_as(name, proto::TrackSource::Microphone)
+            .await
+    }
+
+    /// Publish an Opus track under a stated source.
+    ///
+    /// The source is not decoration: a screen share's own sound is
+    /// `TrackSource::ScreenShareAudio`, and announcing it as a microphone would have every client
+    /// that groups by source treat the share's audio as a second person talking. The track *name*
+    /// still carries the pairing (`screen-audio-{shareId}`); this is what tells a client the kind
+    /// before it has parsed the name.
+    pub async fn publish_audio_as(
+        &self,
+        name: &str,
+        source: proto::TrackSource,
+    ) -> Result<Publication, String> {
         let track = Arc::new(TrackLocalStaticSample::new(
             RTCRtpCodecCapability {
                 mime_type: MIME_TYPE_OPUS.to_owned(),
@@ -235,7 +251,7 @@ impl Room {
             cid: cid.clone(),
             name: name.to_string(),
             r#type: proto::TrackType::Audio as i32,
-            source: proto::TrackSource::Microphone as i32,
+            source: source as i32,
             ..Default::default()
         })
         .await;
@@ -360,6 +376,24 @@ impl Room {
     /// A local track by the name it was published under, for writing samples to.
     pub async fn local_track(&self, name: &str) -> Option<Arc<TrackLocalStaticSample>> {
         self.local.lock().await.get(name).cloned()
+    }
+
+    /// The simulcast ladder for a published video track, highest layer first.
+    ///
+    /// Ordered, and that ordering is the contract: index 0 is the top layer, which is what every
+    /// non-simulcast path means when it says "the track" and what carries the frame writes. Empty
+    /// when nothing of that name is published, which a caller must treat as a failed publish rather
+    /// than as a share with no layers.
+    pub async fn local_ladder(&self, name: &str) -> Vec<Arc<TrackLocalStaticSample>> {
+        let local = self.local.lock().await;
+        let mut ladder = Vec::new();
+        for index in 0.. {
+            match local.get(&format!("{name}#{index}")) {
+                Some(track) => ladder.push(track.clone()),
+                None => break,
+            }
+        }
+        ladder
     }
 
     pub fn publisher_state(&self) -> RTCPeerConnectionState {
