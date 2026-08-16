@@ -8,11 +8,12 @@ use super::encoder::EncoderSpec;
 
 /// The rid names, highest layer first.
 ///
-/// **Fixed by the server, not chosen here.** `Echo.Voice/Rooms/VoiceSubscriptionPlan.cs` declares
-/// `VoiceVideoLayers` as `High = "a"`, `Medium = "b"`, `Low = "c"`, and the subscribe carries one of
-/// those names as `preferredRid`. A layer published under any other name is one the SFU can never be
-/// asked for, so it costs uplink and serves nobody.
-pub const LAYER_RIDS: [&str; 3] = ["a", "b", "c"];
+/// LiveKit's convention. The server maps rid to quality through the `layers` list in
+/// `AddTrackRequest` and never sorts or matches these strings, so they are a label rather than an
+/// ordering. That is the opposite of what they were: under Cloudflare the same string went on the
+/// wire as `preferredRid` and asciibetical was its only ordering vocabulary, so the alphabet had to
+/// run best-to-worst. Do not restore that reasoning; it is what would make `a`/`b`/`c` look correct.
+pub const LAYER_RIDS: [&str; 3] = ["f", "h", "q"];
 
 /// The shortest layer worth an encoder, in lines.
 ///
@@ -38,8 +39,8 @@ pub const MIN_LAYER_KBPS: u32 = 100;
 /// <p><b>The preset's number is the top layer's rate, not a total to divide up.</b> It used to be
 /// the total, split 68/24/8, which kept every sharer's upload exactly where it had been before
 /// simulcast existed. That reasoning had the ladder upside down. Measured in bits per pixel per
-/// second the split made `a` the *thinnest* rung - 0.066 against `b`'s 0.093 and `c`'s 0.124 - and
-/// `a` is the rung every viewer who is actually looking at the share is served. The layer that
+/// second the split made `f` the *thinnest* rung - 0.066 against `h`'s 0.093 and `q`'s 0.124 - and
+/// `f` is the rung every viewer who is actually looking at the share is served. The layer that
 /// mattered most was being starved to subsidise the two that mattered least, which is why a 1080p
 /// share looked soft even full screen.</p>
 ///
@@ -80,7 +81,7 @@ pub fn layers_for(base: EncoderSpec, max_layers: usize) -> Vec<Layer> {
         let width = even(base.width >> index);
         let height = even(base.height >> index);
         // Stop at the first layer too small to be worth encoding rather than skipping it: the rids
-        // are ordered, and a ladder of `a` and `c` with no `b` would have the SFU's middle choice
+        // are ordered, and a ladder of `f` and `q` with no `h` would have the SFU's middle choice
         // fall back to the top layer, which is the cost this whole feature exists to avoid.
         if index > 0 && (height < MIN_LAYER_HEIGHT || width < MIN_LAYER_HEIGHT) {
             break;
@@ -137,13 +138,26 @@ mod tests {
     }
 
     #[test]
-    fn names_the_layers_as_the_server_does() {
-        // Not cosmetic: the server selects by these exact names, so a rename here is a layer
-        // nothing can ever ask for. Echo.Voice VoiceVideoLayers: High="a", Medium="b", Low="c".
-        let layers = layers_for(spec(1280, 720, 4000), 3);
+    fn rids_are_livekits_vocabulary_highest_first() {
+        // LiveKit maps rid to quality through the `layers` list in AddTrackRequest and never sorts or
+        // matches the names. `f`/`h`/`q` is its convention; the previous `a`/`b`/`c` existed only
+        // because Cloudflare's sole ordering vocabulary was asciibetical and the alphabet therefore had
+        // to run best-to-worst.
+        assert_eq!(LAYER_RIDS, ["f", "h", "q"]);
+
+        let layers = layers_for(
+            EncoderSpec {
+                width: 1920,
+                height: 1080,
+                fps: 60,
+                kbps: 6000,
+                content: EncoderContent::Games,
+            },
+            3,
+        );
         assert_eq!(
             layers.iter().map(|l| l.rid).collect::<Vec<_>>(),
-            vec!["a", "b", "c"]
+            ["f", "h", "q"]
         );
     }
 
@@ -151,7 +165,7 @@ mod tests {
     fn the_top_layer_gets_the_preset_rate_whole() {
         // The rung every viewer looking at the share is served, and it must not be shaved to pay
         // for the two below it. This asserts the inversion that made a 1080p share look soft even
-        // full screen: `a` used to take 68% of the preset while `c` - a quarter-height thumbnail -
+        // full screen: `f` used to take 68% of the preset while `q` - a quarter-height thumbnail -
         // was the densest rung on the ladder per pixel.
         let layers = layers_for(spec(3840, 2160, 16000), 3);
         assert_eq!(layers[0].spec.kbps, 16000);

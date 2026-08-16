@@ -682,10 +682,10 @@ async fn collect(rx: &mut mpsc::Receiver<AccessUnit>, want: usize, idle: Duratio
     units
 }
 
-/// Three encodings on one m-line, under the names the server selects by.
+/// Three encodings on one m-line, under the rid names the ladder declares.
 ///
 /// <p>Asserted on the offer SDP rather than on our own structs, because the SDP is the only thing
-/// the SFU actually reads. webrtc-rs writes `a=rid:<id> send` and `a=simulcast:send a;b;c` from what
+/// the SFU actually reads. webrtc-rs writes `a=rid:<id> send` and `a=simulcast:send f;h;q` from what
 /// is attached to the *sender*, so a wiring mistake that created three tracks and attached one would
 /// leave `layer_tracks()` looking perfectly correct while the wire carried a single encoding - and
 /// the only visible symptom would be an egress bill that never fell.</p>
@@ -713,10 +713,10 @@ async fn offers_three_rid_tagged_encodings_on_one_track() {
         .expect("an offer must have reached the backend");
 
     assert!(
-        sdp.contains("a=simulcast:send a;b;c"),
+        sdp.contains("a=simulcast:send f;h;q"),
         "no simulcast attribute in the offer:\n{sdp}"
     );
-    for rid in ["a", "b", "c"] {
+    for rid in ["f", "h", "q"] {
         assert!(
             sdp.contains(&format!("a=rid:{rid} send")),
             "no rid {rid} in the offer:\n{sdp}"
