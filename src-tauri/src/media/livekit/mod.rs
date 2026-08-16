@@ -12,6 +12,7 @@
 //!
 //! See `docs/superpowers/specs/2026-08-16-livekit-signaling-migration-design.md`.
 
+pub mod probe;
 pub mod signal;
 
 #[cfg(test)]

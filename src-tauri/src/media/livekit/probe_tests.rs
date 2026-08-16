@@ -6,6 +6,7 @@
 use livekit_api::access_token::{AccessToken, TokenVerifier, VideoGrants};
 use livekit_api::signal_client::SignalClient;
 
+use super::probe::Probe;
 use super::signal::connect_options;
 
 /// Dev mode ships this fixed pair. It is not a secret, and it must never reach a config file that a
@@ -97,4 +98,36 @@ async fn reports_whether_the_server_accepts_single_peer_connection_mode() {
     println!("PROBE single-pc when asked for: {}", client.is_single_pc_mode_active());
 
     client.close().await;
+}
+
+#[tokio::test]
+#[ignore = "needs a LiveKit server on 127.0.0.1:7880"]
+async fn publishes_an_opus_track_under_our_own_name() {
+    let probe = Probe::connect(DEV_URL, &dev_token("probe-audio", "user-1"))
+        .await
+        .expect("connect");
+
+    let sid = probe.publish_audio("audio").await.expect("publish");
+
+    // The SID is the server's, and its existence is the whole assertion: it is only issued after
+    // `AddTrackRequest` was accepted, which is where a codec or naming disagreement would surface.
+    assert!(!sid.is_empty());
+    println!("PROBE audio track sid: {sid}");
+
+    // Media, not just signalling. A publication nothing is written to proves only that the
+    // handshake worked.
+    probe.pump_tone_for(std::time::Duration::from_secs(2));
+    tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+    let sent = probe.packets_sent();
+    println!("PROBE opus packets written: {sent}");
+    assert!(sent > 50, "expected ~100 packets in two seconds, wrote {sent}");
+
+    // Without this the test passes against a connection that never completed ICE: `write_sample`
+    // hands the sample to a packetiser and nothing downstream reports back. See
+    // `project_media_e2e_test_traps`.
+    use webrtc::peer_connection::peer_connection_state::RTCPeerConnectionState;
+    println!("PROBE publisher state: {}", probe.publisher_state());
+    assert_eq!(probe.publisher_state(), RTCPeerConnectionState::Connected);
+
+    probe.close().await;
 }
