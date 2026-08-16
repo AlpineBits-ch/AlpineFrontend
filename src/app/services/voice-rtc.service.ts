@@ -1075,15 +1075,41 @@ export class VoiceRTCService {
      * failure - it is the ordinary state of a publication whose announcement beat the SFU's.</p>
      */
     private applySubscriptions(): void {
+        // What this pass decided, as one line rather than none.
+        //
+        // **Every way this path fails is silent**, which is why a camera that never appears has
+        // repeatedly cost days: an unresolved sid is skipped as ordinary, a refused `setSubscribed`
+        // returns `false` and is dropped, and an intent nobody ever announced simply is not here. All
+        // three look identical from the outside - a tile that stays empty - and none of them is an
+        // error. This says which one happened.
+        const resolved: string[] = [];
+        const unresolved: string[] = [];
+        const refused: string[] = [];
+
         for (const [trackName, want] of this.wantedVideo) {
             const trackSid = this.sidOf(want.userId, trackName);
-            if (trackSid) this.livekit.setSubscribed(trackSid, true);
+            if (!trackSid) {
+                unresolved.push(`${want.userId}/${trackName}`);
+                continue;
+            }
+            if (this.livekit.setSubscribed(trackSid, true)) resolved.push(`${want.userId}/${trackName}`);
+            else refused.push(`${want.userId}/${trackName}@${trackSid}`);
         }
         for (const track of this.livekit.remoteTracks().values()) {
             if (!this.wantedVideo.has(track.publication.trackName)) {
                 this.livekit.setSubscribed(track.trackSid, false);
             }
         }
+
+        // `wanted 0` is the roster never asking - look at the announcement, not at this room.
+        // `unresolved` is the room not knowing the publication yet, which the reconcile on
+        // `livekit.publications` is there to retry. `refused` is this room saying no.
+        console.info(
+            `[voice] video reconcile: wanted ${this.wantedVideo.size}`
+            + `, pulling ${resolved.length}${resolved.length ? ` [${resolved.join(', ')}]` : ''}`
+            + (unresolved.length ? `, no sid yet [${unresolved.join(', ')}]` : '')
+            + (refused.length ? `, refused [${refused.join(', ')}]` : ''),
+        );
     }
 
     /**

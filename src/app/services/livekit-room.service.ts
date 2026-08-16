@@ -125,27 +125,31 @@ export class LiveKitRoomService {
      * the webview off the audio the Rust room is already playing.</p>
      */
     async connect(connection: LiveKitConnection): Promise<void> {
-        // **`adaptiveStream` must stay off while this app renders with `srcObject`**, and having it
-        // on was every remote video in the app arriving and never being shown.
+        // **`adaptiveStream` must stay off while this app renders with `srcObject`**, because with
+        // it on every remote tile is pinned to the *lowest* simulcast rung for the whole call.
         //
-        // Adaptive stream ties a subscription to whether its tile is on screen, and the SDK decides
-        // that from elements registered through `RemoteTrack.attach(el)` - nothing else populates
+        // It ties the layer served to how large the tile is on screen, and the SDK measures that
+        // from elements registered through `RemoteTrack.attach(el)` - the only thing that populates
         // `elementInfos`. This client never calls it: tiles bind a `MediaStream` straight to
-        // `video.srcObject` (see `StreamSrcDirective`). So `elementInfos` is always empty, and in
-        // `livekit-client`:
+        // `video.srcObject` (see `StreamSrcDirective`). So the element list is permanently empty and
+        // the SDK asks for the smallest layer there is.
         //
-        //     const isVisible = this.elementInfos.some(info => info.visible) && ... ;
+        // Measured against `livekit-server` 1.13.5 with `livekit-client` 2.21.0, same publisher,
+        // same room, one flag changed - `setSubscribed` and `srcObject` exactly as below:
         //
-        // is `false` for every track, forever. The SDK then sends `UpdateTrackSettings{disabled:
-        // true}` and the server stops sending - a subscription that is live on every counter, with
-        // no bytes behind it and nothing anywhere reporting a fault.
+        //     adaptiveStream: true    ~24 kB / 2 s   videoWidth 320
+        //     adaptiveStream: false  ~400 kB / 2 s   videoWidth 1280
         //
-        // Turning it on again means moving the render path to `track.attach()` first. The economy is
-        // real, but it is not free the way the flag makes it look: it is a contract with the
-        // rendering layer, and this client does not hold up its end.
+        // Note what it is *not*: the track keeps flowing either way. An unattached track is not
+        // disabled, it is starved, so this shows up as a soft, smeared tile rather than a black one
+        // and no counter anywhere reads as broken.
         //
-        // `dynacast` stays: it is publisher-side and driven by what the server sees subscribers ask
-        // for, so it needs nothing from our DOM.
+        // Turning it back on means moving the render path to `track.attach()` first. The economy is
+        // real, but it is a contract with the rendering layer and this client does not hold up its
+        // end.
+        //
+        // `dynacast` stays: publisher-side, driven by what the server sees subscribers ask for, so
+        // it needs nothing from our DOM.
         const room = this.newRoom({adaptiveStream: false, dynacast: true});
         this.room = room;
         this.listen(room);

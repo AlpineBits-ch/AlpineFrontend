@@ -146,12 +146,15 @@ describe('connecting', () => {
     /**
      * **Adaptive stream off is a correctness requirement here, not a tuning choice.**
      *
-     * <p>It gates a subscription on whether its tile is on screen, and the SDK reads that from
+     * <p>It ties the layer served to the tile's size on screen, and the SDK measures that from
      * elements registered through `RemoteTrack.attach()` - the only thing that fills `elementInfos`.
-     * This client never calls it; tiles bind a `MediaStream` to `video.srcObject` instead. So every
-     * track reads as invisible, the SDK sends `UpdateTrackSettings{disabled: true}`, and the server
-     * stops sending: a healthy-looking subscription with no bytes behind it, on camera and screen
-     * share alike.</p>
+     * This client never calls it; tiles bind a `MediaStream` to `video.srcObject` instead. So the
+     * list is permanently empty and every remote tile is pinned to the smallest rung there is.
+     * Measured, one flag changed, same publisher and room: 24 kB/2s at 320px with it on, 400 kB/2s
+     * at 1280px with it off.</p>
+     *
+     * <p>The track keeps flowing either way - an unattached track is starved, not disabled - so the
+     * symptom is a soft, smeared tile rather than a black one, and no counter reads as broken.</p>
      *
      * <p>So this asserts `false` deliberately. If the render path ever moves to `track.attach()`,
      * turn it back on and change this line - and not before.</p>
