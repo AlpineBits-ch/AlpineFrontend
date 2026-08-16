@@ -1,6 +1,7 @@
 # LiveKit signalling migration
 
-**Status:** design, approved 2026-08-16. Not implemented.
+**Status:** design, approved 2026-08-16. Contract questions resolved with the backend the same day
+(§6). Not implemented.
 
 Echo replaced the SDP relay behind guild voice and DM calls with LiveKit. The room model did not
 change: join/leave/snapshot, `instanceId` + `version`, the heartbeat, share viewer counts,
@@ -47,23 +48,31 @@ in the binary and nothing is removed from `Cargo.toml`.
 
 ## 2. Architecture after the change
 
-### 2.1 Connections
+### 2.1 Connections and identities
 
-Desktop goes from three SFU connections to two.
+Identity is the **bare user id** on a primary connection, and `{userId}#{tag}` on a secondary. The
+`#` is guaranteed safe to split on: user ids are Sqids and never contain one, and the tag is
+stripped before it is appended. So a remote LiveKit participant maps to a user without consulting
+the snapshot - split on the first `#`.
 
-| | Today | After |
-|---|---|---|
-| Rust voice | primary session: publishes mic, receives + mixes all audio | one LiveKit participant, `primary=true` |
-| Rust screen | secondary session: screen video + loopback audio | **same participant as above** |
-| Webview | secondary session: receives video, publishes camera | one LiveKit participant, `primary=false&tag=view` |
+Desktop goes from three SFU connections to two. The browser build has one.
+
+| Host | Connection | Identity | Does |
+|---|---|---|---|
+| Desktop | Rust room, `primary=true` | `{userId}` | publishes mic + screen video + screen audio; subscribes audio only |
+| Desktop | Webview room, `primary=false&tag=view` | `{userId}#view` | publishes camera; subscribes video only |
+| Browser | one room, `primary=true` | `{userId}` | everything |
 
 Merging the two Rust connections is possible because LiveKit publishes many tracks on one
 participant, and the two live in the same process. It removes the case
 `VoiceShareSnapshot.mediaSessionId` exists for: a share published on a session that is not the
 participant's microphone session. That field stays on the wire and stays handled - other clients may
-still split - but desktop stops producing it.
+still split - but desktop stops producing it, because its shares now sit on the primary identity.
 
-Audio and video are split across the two transports, as they are today:
+One tag per connection per user. Two connections sharing a tag share an identity, and the second
+evicts the first, so `view` must never be reused for a second webview room.
+
+Audio and video split across the two desktop transports, as they do today:
 
 - **Rust subscribes to audio only** - microphones and `screen-audio-{shareId}`, both of which feed
   the mixer. This is what AEC and per-source volume need.
@@ -103,6 +112,38 @@ Subscribing becomes `UpdateSubscription{track_sids, subscribe}`; the server adds
 PC and offers. Incoming tracks are mapped to participants through `ParticipantInfo` / `TrackInfo`
 from `JoinResponse` and `ParticipantUpdate`, not by SDP mid.
 
+### 2.4 Reconnect
+
+**Cache the URL and the token, and resume with both.** A room is placed on a node once and never
+moved while it exists; the registry row is dropped only for a room the SFU no longer has, and that
+is a room there is nothing to resume into. So a resume to the same URL cannot be wrong.
+
+The token is the only expiring part - 10 minutes by default
+(`LIVEKIT_JOIN_TOKEN_TTL_SECONDS`), well past any reconnect ladder. Re-fetch
+`POST .../voice/connection` **only** on an auth refusal or after a gap longer than the TTL. Not per
+attempt: that mints tokens at the SFU's retry rate. Re-fetching is otherwise free - no roster write,
+no re-announce - so an unsure client should re-fetch once rather than loop.
+
+This is a rule the vendored signal client has to be taught; its own resume path will otherwise reuse
+a token indefinitely.
+
+### 2.5 Simulcast layer vocabulary
+
+Two vocabularies, and they are not the same one.
+
+- **What we publish**: rid names `f` (full), `h` (half), `q` (quarter). LiveKit's convention. The
+  server never sees a rid and never matches one - it maps rid to quality through the `layers` list
+  in `AddTrackRequest`.
+- **What the server sends us**: `layer` in the subscription set, and `maxLayer` on the publish
+  reply, both spelled `a` (top), `b` (middle), `c` (bottom). This is a **ranking vocabulary**, not a
+  rid. Map it onto `VideoQuality.HIGH` / `MEDIUM` / `LOW` for `setVideoQuality`, and onto
+  `UpdateTrackSettings` on the Rust side.
+
+`LAYER_RIDS` in `publisher/simulcast.rs` and `VIDEO_LAYER_RIDS` in `webrtc-encoding.ts` are both
+`a`/`b`/`c` today, and both carry a long comment explaining Cloudflare's `ridNotAvailable:
+asciibetical` ordering. That rationale is dead: rename the rids, delete the reasoning, and do not
+carry it into the new layer mapping, which keeps the letters for an unrelated reason.
+
 ---
 
 ## 3. Phases
@@ -115,30 +156,19 @@ A throwaway example binary, not shipped code. It must, against a real LiveKit se
 
 - connect, join, and stay joined through one ping cycle
 - publish Opus from `voice::codec` and have it audible in a `livekit-client` browser tab
-- publish H.264 from `encoder_mf` with three simulcast layers and have it render
+- publish H.264 from `encoder_mf` with three simulcast layers named `f`/`h`/`q`, and have a viewer
+  served the layer their tile size asks for
 - subscribe to one remote audio track and pull PCM through `jitter` into the mixer
 
-**Four compatibility questions this answers**, all of which are cheaper to fail now than in Phase 2:
+**Three compatibility questions this answers**, all cheaper to fail now than in Phase 2:
 
 | Question | Why it is in doubt |
 |---|---|
 | Does LiveKit accept our Opus offer? | `opus_capability()` is mono with `minptime=10;useinbandfec=1`. Expected fine. |
 | Does it accept our H.264? | Our encoders emit Constrained Baseline 3.1 (see `project_h264_level_ceiling`). Needs `packetization-mode=1` to match. |
-| **Do the rid names work?** | They do not, as written. See below. |
 | Does congestion control close the loop? | TWCC/`transport-cc` and NACK/RTX interceptors must be registered on both PCs, or the sender never adapts. |
 
-The rid question is a real finding, not a risk. `LAYER_RIDS` in `publisher/simulcast.rs` and
-`VIDEO_LAYER_RIDS` in `webrtc-encoding.ts` are both `a`/`b`/`c`, chosen because Cloudflare's only
-rid-ordering vocabulary is `ridNotAvailable: asciibetical`. **LiveKit does not sort rids** - it maps
-each rid to a `VideoQuality` through the `layers` list in `AddTrackRequest`, and its own convention
-is `f`/`h`/`q`. So the naming loses its reason and needs to follow LiveKit's.
-
-This contradicts guide §6.7, which still tells clients to publish `a`/`b`/`c` and explains the
-asciibetical sort. That paragraph describes the old SFU. **Raise it with the backend author before
-Phase 1** - if the server is genuinely reading rid names rather than the layer list, the answer
-changes.
-
-**Exit:** all four green, or the design falls back to the LiveKit Rust SDK and this document is
+**Exit:** all three green, or the design falls back to the LiveKit Rust SDK and this document is
 rewritten.
 
 ### Phase 1 - the Rust room
@@ -147,7 +177,7 @@ New `src-tauri/src/media/livekit/`:
 
 | File | Holds |
 |---|---|
-| `signal.rs` | the vendored signal client, with its Apache-2.0 attribution header |
+| `signal.rs` | the vendored signal client, with its Apache-2.0 attribution header, plus the §2.4 resume rule |
 | `room.rs` | one room: two PCs, participant/track registry, reconnect, ping |
 | `publish.rs` | `AddTrackRequest` through to a live sender |
 | `subscribe.rs` | `UpdateSubscription`, and incoming track to `RemoteSource` |
@@ -159,6 +189,7 @@ Then:
   gather timeout.
 - `voice/session.rs` holds one room per `VoiceTarget` for guild and call, shared by voice and
   screen. Isle keeps its own `webrtc-rs` publication exactly as it is.
+- `publisher/simulcast.rs`: `LAYER_RIDS` becomes `f`/`h`/`q`, and the asciibetical rationale goes.
 - `publisher/signalling.rs` loses the neutral dialect. `Dialect` collapses, since Isle is the only
   caller left.
 - `media/voice/e2e_tests.rs` and `media/publisher/e2e_tests.rs` currently mock HTTP routes
@@ -169,11 +200,14 @@ Then:
 ### Phase 2 - the webview and the browser build
 
 - Add `livekit-client`.
-- New room wrapper service, one per target, owning connect / reconnect / track events.
+- New room wrapper service, one per target, owning connect / reconnect / track events, and mapping
+  a remote participant to a user by splitting identity on the first `#`.
 - `voice-rtc.service.ts` (1627 lines) and `call-webrtc.service.ts` (1322) keep roster state, gating,
-  backfill and heartbeat; their negotiation halves go, along with `webrtc-encoding.ts`.
+  backfill and heartbeat; their negotiation halves go, along with `webrtc-encoding.ts` - though its
+  rid ladder moves rather than dies, renamed to `f`/`h`/`q`.
 - `voice-publisher.web.ts` (1014) and `screen-publisher.web.ts` (595) are reimplemented on the SDK
-  behind the same ports. The web build gets the SDK for publish and receive both.
+  behind the same ports. The browser build becomes a single room publishing and receiving
+  everything.
 - `environment.iceServers` and `iceServers()` in `screen-publish.ts` are deleted - the SDK
   negotiates TURN with the node.
 
@@ -205,10 +239,17 @@ Elsewhere:
 - `voice-limits.service.ts:189` reads `degradations` from the publish reply rather than the
   negotiate reply. A `403` on publish stops the local track: the token does not permit it either, so
   nobody receives it whatever the client does.
+- **`maxLayer`** on the publish and `PUT .../video` replies: the best layer of our video the room
+  will distribute to anyone. `null` is the ordinary case and means uncapped; non-null means we
+  declared above our rung and no viewer is served above it whatever their tile size. Same `a`/`b`/`c`
+  spelling as `layer` - it used to emit the enum name (`"Medium"`) against `layer`'s `"b"`, which is
+  fixed server-side, but the client should still compare on the wire spelling only.
 - `canPublishAudio` / `canPublishVideo` from the connection reply drive the microphone and camera
   buttons, replacing locally computed permission.
 - `503 voiceNotConfigured` hides voice rather than erroring. A self-hosted install with no SFU is a
-  supported state, not a fault.
+  supported state, not a fault. **There is no capability read today** - probe once on first join
+  attempt and cache the answer for the session. A gateway-level capability endpoint is possible and
+  is the better answer; see §6.7 for why it is not a dependency of this work.
 - Guide §4.3: a SignalR blip must not tear down media, and a heartbeat goes out on reconnect rather
   than at the next 30s tick. Audit this against `project_voice_liveness_backgrounded`, where the hub
   ping was the first domino.
@@ -218,11 +259,11 @@ Elsewhere:
 - `autoSubscribe: false` on both transports.
 - Consume the reply from `POST .../voice/subscriptions`, currently typed `unknown` and discarded in
   both HTTP services.
-- Apply a set by diffing, never by rebuilding: subscribe what is new, close what is gone. Route
-  entries by kind - `audio` and `screenAudio` to the Rust room, `video` and `screen` to the webview.
-- Map `layer` to quality: `a`/`b`/`c` in the payload are the server's ranking, so
-  `a -> HIGH, b -> MEDIUM, c -> LOW` via `setVideoQuality` on the JS side and `UpdateTrackSettings`
-  on the Rust side.
+- **Split `tracks[]` by kind ourselves.** Sets are keyed by user id, not by identity - there is no
+  way to address one connection and no need for one. `audio` and `screenAudio` go to the Rust room,
+  `video` and `screen` to the webview.
+- Apply a set by diffing, never by rebuilding: subscribe what is new, close what is gone.
+- Map `layer` to quality per §2.5.
 - Ignore any payload whose `revision` is below one already applied.
 - Report the rest of §6.4, which is declared but unwired today: `paused` on `visibilitychange`,
   `pausedPublishers` for collapsed tiles, `screenAudioShares` when a user unmutes a share, `pinned`.
@@ -231,10 +272,11 @@ Elsewhere:
   input to ranking, and an undebounced cough costs every subscriber a resubscription. Check
   `voice/gate.rs` and `voice-activity.service.ts`.
 
-**Open question for the backend author:** the set is computed per recipient, but this client
-receives over two connections with two identities. Does the server's plan account for both, or does
-it assume one? If it assumes one, we either merge the receive transports or tell it which identity
-is which.
+**Reporting tile state from the webview is safe even though it also governs audio**, and structurally
+so rather than by convention: audio entries are constructed with `layer: null` unconditionally, and
+every tile-derived input (`tileHeights`, `pausedPublishers`, `paused`) is read only on the video
+path. A collapsed tile stops paying for pixels, not sound; a backgrounded client keeps hearing the
+room. Guide §6.2a.
 
 ---
 
@@ -258,8 +300,32 @@ Listed because the temptation during a migration is to touch it.
 | Risk | Handling |
 |---|---|
 | webrtc-rs and LiveKit disagree on SDP | Phase 0 exists for this and gates everything after it |
-| rid naming contradicts guide §6.7 | Resolve with the backend author before Phase 1 |
-| Two receive transports against one subscription plan | Open question above; worst case, one transport |
-| Signal protocol version drift | We pin `protocol=N` and own the tail. Vendored client makes the surface visible rather than hidden |
+| Signal protocol version drift | We pin `protocol=N` and own the tail. Vendoring makes the surface visible rather than hidden |
 | Rewritten e2e tests pass without proving anything | `project_media_e2e_test_traps`: mutate the guard first |
 | Both stacks in one binary | Deliberate. Isle keeps webrtc-rs; nothing is removed from Cargo.toml |
+| No pre-join signal for `voiceNotConfigured` | Probe once and cache. A capability read may land later and is additive |
+
+---
+
+## 6. Resolved with the backend, 2026-08-16
+
+Recorded because several of these contradict what the guide said when this design was written, and
+the guide has since been corrected.
+
+1. **Rid vocabulary.** §6.7's `a`/`b`/`c` instruction was pure Cloudflare - the same string went on
+   the wire as `preferredRid` and asciibetical was their only ordering vocabulary, so the alphabet
+   had to run best-to-worst. Publish `f`/`h`/`q`. `layer` is a ranking vocabulary of the server's,
+   not a rid; the letters were kept rather than renamed to high/medium/low because renaming costs
+   every client at once and an unrecognised spelling already falls back to the server's choice.
+2. **Subscription sets are keyed by user id**, not identity. `SetSubscriberAsync` takes the
+   authenticated user. Split by kind client-side. Tile inputs cannot reach audio (§6.2a).
+3. **Resume with the cached URL and token.** Rooms never move nodes. Token TTL is 10 minutes; refetch
+   only on auth refusal or a gap past it.
+4. **Identity is the bare user id**, `{userId}#{tag}` for secondary. Split on the first `#`.
+5. **`tag` is free-form**, stripped to letters and digits, truncated to 32, falling back to `alt`.
+6. **`maxLayer`** was emitting the enum name against `layer`'s wire spelling; fixed server-side.
+7. **No capability read for `voiceNotConfigured`.** The natural home is the gateway, which already
+   carries `LiveKitOptions` - but whether the gateway pod receives the `LIVEKIT_*` env vars is
+   confirmed only for `deploy/compose.yaml`, not the k8s manifests. Until that is checked, a missing
+   var would have the endpoint report "not configured" while voice works, which is worse than
+   probing. Probe-and-cache now; adopt the endpoint if it lands.
