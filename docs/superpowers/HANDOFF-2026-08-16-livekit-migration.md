@@ -135,7 +135,11 @@ The encoder itself is healthy at 2560x1440, three concurrent layers, and retype 
   `alpine_lib-*.exe` and every `cargo test` fails `LNK1104`. A hung test process did this once and
   cost half an hour - check `Get-Process | ? ProcessName -like "*alpine*"`.
 - Live tests need `livekit-server --dev` on `ws://127.0.0.1:7880`. **Prefer the native binary on
-  Windows**; the container advertises candidates the host cannot reach.
+  Windows**; the container advertises candidates the host cannot reach. Get it from
+  `https://github.com/livekit/livekit/releases` - match the version pinned in
+  `infrastructure/modules/sfu/variables.tf` (`livekit_version`, 1.13.5) so a local result means
+  something about production. Dev mode uses the fixed pair `devkey` / `secret`, which is what
+  `room_tests::dev_token` mints against.
 - **The server's own log is the best evidence in this whole area** and was ignored for far too long.
   It is what proved the SFU receives our video and creates a downtrack.
 - Most source files are **CRLF**. Scripted edits with `\n` match nothing and report success. This
