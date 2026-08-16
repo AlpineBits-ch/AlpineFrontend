@@ -1335,6 +1335,25 @@ mod ladder_concurrency {
     use crate::media::publisher::encoder::{EncodeOutcome, EncoderContent, EncoderSpec, VideoEncoder};
     use image::RgbaImage;
 
+    /// The rungs a 1440p source solves to, which is what the failing session was running.
+    ///
+    /// The 1080p ladder passes; this is the geometry the log showed when the encoder fell back
+    /// (`now encoding at 2560x1440 (12000 kbps) across 3 layer(s)`). Three NVENC sessions at this
+    /// size is materially more than three at 1080p, and High profile turns on B-frames here where
+    /// Constrained Baseline had none - so both the session budget and the reordering are new.
+    fn rungs_1440() -> Vec<EncoderSpec> {
+        [(2560u32, 1440u32, 12_000u32), (1280, 720, 3_840), (640, 360, 1_200)]
+            .into_iter()
+            .map(|(width, height, kbps)| EncoderSpec {
+                width,
+                height,
+                fps: 30,
+                kbps,
+                content: EncoderContent::Text,
+            })
+            .collect()
+    }
+
     fn rungs() -> Vec<EncoderSpec> {
         [(1920u32, 1080u32, 16_000u32), (960, 540, 5_120), (480, 270, 1_600)]
             .into_iter()
@@ -1361,6 +1380,51 @@ mod ladder_concurrency {
     /// This is the shape the sequential diagnosis does not reproduce. There, each encoder is built,
     /// drained and parked before the next exists, so at most one hardware session is live; in
     /// production all three hold a session simultaneously and are interleaved frame by frame.
+    #[test]
+    #[ignore = "diagnostic: runs the real Media Foundation encoder"]
+    fn report_whether_a_1440p_ladder_survives() {
+        let specs = rungs_1440();
+        let mut encoders = Vec::new();
+        for spec in &specs {
+            match PooledEncoder::acquire(*spec) {
+                Some(encoder) => encoders.push((*spec, encoder)),
+                None => println!(
+                    "1440 {}x{}: could not acquire a hardware encoder at all",
+                    spec.width, spec.height
+                ),
+            }
+        }
+        println!("1440 acquired {} of {} rungs", encoders.len(), specs.len());
+
+        let mut chunks = vec![0u32; encoders.len()];
+        let mut first_failure: Vec<Option<u32>> = vec![None; encoders.len()];
+
+        for i in 0..90u64 {
+            for (index, (spec, encoder)) in encoders.iter_mut().enumerate() {
+                match encoder.encode(&frame(spec.width, spec.height, i as u32), i * 33_333) {
+                    EncodeOutcome::Chunk(_) => chunks[index] += 1,
+                    EncodeOutcome::Skipped => {}
+                    EncodeOutcome::Failed => {
+                        first_failure[index].get_or_insert(i as u32);
+                    }
+                }
+            }
+        }
+
+        for (index, (spec, _)) in encoders.iter().enumerate() {
+            match first_failure[index] {
+                None => println!(
+                    "1440 {}x{}@{}k: OK, {} chunks",
+                    spec.width, spec.height, spec.kbps, chunks[index]
+                ),
+                Some(at) => println!(
+                    "1440 {}x{}@{}k: FAILED first at frame {at}, {} chunks produced",
+                    spec.width, spec.height, spec.kbps, chunks[index]
+                ),
+            }
+        }
+    }
+
     #[test]
     #[ignore = "diagnostic: runs the real Media Foundation encoder"]
     fn report_whether_a_concurrent_interleaved_ladder_survives() {
