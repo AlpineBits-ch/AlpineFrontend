@@ -147,9 +147,24 @@ aec = ["dep:webrtc-audio-processing"]
 # atomic replace, a truncated state file, a group listed but missing - is not observable
 # without one, which is why none of it was tested before.
 tempfile = "3"
+# Minting a probe token needs the JWT half of livekit-api, which shipping code must not carry -
+# a client never signs its own join token. Cargo unifies this with the runtime dependency above
+# for test builds only.
+livekit-api = { version = "0.6.3", default-features = false, features = ["access-token"] }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 reqwest = { version = "0.12", default-features = false, features = ["native-tls", "json"] }
+# LiveKit signalling only. The `signal-client` feature is documented upstream as "blind to the
+# transport backend" and pulls no libwebrtc - the media stays `webrtc-rs`. `default-features = false`
+# drops services/access-token/webhooks (reqwest, jsonwebtoken); `native-tls` matches the TLS backend
+# `reqwest` already links above, so we do not end up carrying two.
+#
+# The `livekit` crate is deliberately NOT used: its `SignalClient` is private and it links libwebrtc
+# unconditionally. See docs/superpowers/specs/2026-08-16-livekit-signaling-migration-design.md §1.
+livekit-api = { version = "0.6.3", default-features = false, features = ["signal-client-tokio", "native-tls"] }
+# Pinned to what livekit-api 0.6.3 resolves. Two copies of the generated types would compile and
+# then fail to unify at the `SignalClient` boundary, which is a confusing error to meet later.
+livekit-protocol = "0.7.12"
 tauri-plugin-autostart = "2"
 tauri-plugin-single-instance = "2"
 tauri-plugin-global-shortcut = "2"
