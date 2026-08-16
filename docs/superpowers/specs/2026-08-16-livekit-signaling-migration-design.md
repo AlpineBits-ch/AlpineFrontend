@@ -416,3 +416,76 @@ viewer's reported tile size. The first is Phase 1 work; the second needs a real 
 server behaviour rather than a compatibility question.
 
 ---
+
+---
+
+## 8. Contract corrections from the Flutter client, 2026-08-16
+
+Three corrections came back from the backend after the mobile client implemented against the same
+guide. Two are documentation fixes; one was a live server bug. All three change what this client
+must do.
+
+### 8.1 `SubscriptionsChanged` is flattened, the snapshot is nested
+
+The guide contradicted itself: §5's event table listed the payload as carrying `subscriptions`,
+while §6.2 said one parser handles both surfaces. **The event flattens**; `Envelope()` puts `mode`,
+`revision`, `activeSpeakers` and `tracks` directly onto the room-id/`instanceId`/`version` envelope.
+There is no `subscriptions` key on the event.
+
+```jsonc
+// SubscriptionsChanged - flat
+{ "channelId": "...", "instanceId": "...", "version": 42,
+  "mode": "activeSpeaker", "revision": 12, "activeSpeakers": [...], "tracks": [...] }
+
+// Snapshot - nested, and the whole key is absent when no set is in force
+{ "roomId": "...", "subscriptions": { "mode": "...", "revision": 12, "tracks": [...] } }
+```
+
+So "one parser handles both" is half true: **same inner fields, different reach.** The client needs
+one inner parser and two entry points. Reading the event as nested is a silent failure of the worst
+kind - no `tracks` key found, an empty list assumed, and by §8.3 that means *pull nobody*. The room
+would go quiet the first time an active speaker changed, with nothing erroring.
+
+### 8.2 `POST .../voice/alive` exists for guild channels, and we never call it
+
+`GuildVoiceController.cs:220`, untouched by the migration and simply missing from §10's guild list.
+It is the HTTP-side liveness assertion, and it is deliberately separate from the hub so it **survives
+SignalR being down**.
+
+**Alpine calls neither the guild nor the call variant today** - `voice.Heartbeat` over SignalR is our
+only liveness channel. That is a real gap rather than a migration detail: a hub outage that outlasts
+the eviction window takes voice down with it, which is the failure class in
+`project_voice_liveness_backgrounded`. The Flutter client already does this: 30 second cadence, first
+tick fired immediately on join.
+
+Treat `404`/`409` from it as "the server does not place this device in this room" and tear down
+locally.
+
+### 8.3 `tracks` absent is not `tracks: []`, and this was a live bug
+
+`POST .../voice/subscriptions` never answers `204` or a bare `null` - it answers a full `200` object.
+In an unplanned room that object **used to be**:
+
+```json
+{ "mode": "all", "revision": 0, "activeSpeakers": [], "tracks": [] }
+```
+
+`plan.For(userId)` on a plan with no sets returned an empty set, and that empty array went onto the
+wire. A guard of "absent or non-object means leave the held set alone" would not have saved a client:
+this is a well-formed object with an empty `tracks`, which means *unsubscribe from everyone*, in the
+ordinary small room, on every call to the endpoint. The same empty array was being pushed on
+`SubscriptionsChanged` from that path.
+
+Fixed server-side via `VoiceSubscriptionPlan.WireTracksFor`. The snapshot never had the bug because
+it omits the block entirely unless the plan is selective; the event and the HTTP reply now follow the
+same rule. **All three surfaces are now consistent:**
+
+| Value | Meaning |
+|---|---|
+| `tracks` absent / null | No set in force - pull everyone `Publishing` |
+| `tracks: []` | A real set that is empty - pull nobody (every tile collapsed) |
+| `tracks: [...]` | Pull exactly these |
+
+**Keep absent and empty strictly distinct**, in the types and not only in the parsing. A
+`tracks: X[]` field that defaults to `[]` on a missing key collapses the first row into the second
+and silently mutes the room. This is the single most dangerous shape in the whole contract.
