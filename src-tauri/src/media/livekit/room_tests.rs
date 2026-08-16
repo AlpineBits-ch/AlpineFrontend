@@ -334,6 +334,57 @@ async fn unpublishing_removes_the_track_and_keeps_the_connection() {
     room.close().await;
 }
 
+/// Publish the microphone, drop it, and publish it again on the same room.
+///
+/// **This is rejoining a channel you are already holding a room for**, and until it passed it was a
+/// permanent lockout rather than a failed attempt. The registry keys a room by
+/// `guild:{guild}:{channel}` and hands the live one back to the next caller, ignoring its token - so
+/// a rejoin lands on the connection the last membership left behind. If a screen share is still
+/// holding that room, or anything else outlived the microphone, the room survives the microphone's
+/// teardown and this is the exact sequence the next join runs.
+///
+/// What it used to do is `webrtc-rs`'s `ErrRTPSenderNewTrackHasIncorrectEnvelope` - surfaced to the
+/// user as "LiveKit refused the microphone track: new track must have the same envelope as
+/// previous", which names neither the cause nor anything the user can act on. `add_track` matches an
+/// existing transceiver whose sender's `initial_track_id` equals the new track's id, and every
+/// microphone is `audio`, so the second publish always lands on the first one's stopped sender - and
+/// a stopped sender cannot take a track back.
+#[tokio::test]
+#[ignore = "needs a LiveKit server on 127.0.0.1:7880"]
+async fn the_microphone_can_be_published_again_after_being_dropped() {
+    let room = Room::connect(DEV_URL, &dev_token("lk-republish", "user-1"))
+        .await
+        .expect("connect");
+
+    room.publish_audio("audio").await.expect("the first publish");
+    room.wait_until_connected(Duration::from_secs(10))
+        .await
+        .expect("connected");
+
+    room.unpublish(&["audio".to_string()])
+        .await
+        .expect("unpublish");
+
+    // The whole test. A rejoin has to be able to speak.
+    let again = room
+        .publish_audio("audio")
+        .await
+        .expect("the microphone must be publishable again on a room that outlived it");
+    assert!(!again.sid.is_empty(), "the server must issue a new SID for the new track");
+
+    // And it has to be writable, not merely accepted: an envelope that negotiates and then has no
+    // encoding behind it is the same silence with a different shape.
+    let track = room
+        .local_track("audio")
+        .await
+        .expect("the republished track must be writable");
+    assert_eq!(webrtc::track::track_local::TrackLocal::id(&*track), "audio");
+
+    assert_eq!(room.publisher_state(), RTCPeerConnectionState::Connected);
+
+    room.close().await;
+}
+
 #[tokio::test]
 #[ignore = "needs a LiveKit server on 127.0.0.1:7880"]
 async fn inbound_audio_reaches_the_sink_keyed_by_its_sid() {
@@ -395,8 +446,10 @@ async fn inbound_audio_reaches_the_sink_keyed_by_its_sid() {
 #[tokio::test]
 #[ignore = "needs a LiveKit server on 127.0.0.1:7880"]
 async fn the_sfu_forwards_a_published_screen_to_a_subscriber() {
-    use crate::media::publisher::encoder::{EncodeOutcome, EncoderContent, EncoderSpec, VideoEncoder};
-    use crate::media::publisher::encoder_mf::PooledEncoder;
+    // Through the factory, not `encoder_mf` directly: that module is `#[cfg(target_os = "windows")]`,
+    // so naming it here compiles on the machine this test is run from and breaks the build everywhere
+    // else. `new_encoder` is also what production publishes through, which is the point of the test.
+    use crate::media::publisher::encoder::{new_encoder, EncodeOutcome, EncoderContent, EncoderSpec};
     use crate::media::publisher::simulcast::LAYER_RIDS;
 
     let name = "lk-forward";
@@ -439,8 +492,8 @@ async fn the_sfu_forwards_a_published_screen_to_a_subscriber() {
 
     // Real encoder output, not synthetic bytes: the H.264 packetiser splits on Annex-B start codes,
     // so anything else produces no RTP at all and the test would fail for its own reasons.
-    let Some(mut encoder) = PooledEncoder::acquire(spec) else {
-        println!("FORWARD: no hardware encoder on this machine; skipping");
+    let Some(mut encoder) = new_encoder(spec) else {
+        println!("FORWARD: no encoder available on this machine; skipping");
         return;
     };
     let track = publisher

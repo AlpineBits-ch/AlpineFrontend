@@ -37,7 +37,7 @@
 //! with no remote description is an error, and dropping them is the same failure again.
 
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -122,6 +122,8 @@ pub struct Room {
     pub stats: Arc<RoomStats>,
     /// Where inbound audio is forwarded. See [`AudioSink`].
     audio_sink: AudioSink,
+    /// Set once the pump stops, for whatever reason. See [`Self::signal_is_closed`].
+    signal_closed: Arc<AtomicBool>,
 }
 
 impl Room {
@@ -185,6 +187,7 @@ impl Room {
         install_receive_reader(&subscriber, stats.clone(), audio_sink.clone());
 
         let signal = Arc::new(signal);
+        let signal_closed = Arc::new(AtomicBool::new(false));
         tokio::spawn(pump(
             events,
             signal.clone(),
@@ -193,6 +196,7 @@ impl Room {
             published.clone(),
             remote.clone(),
             stats.clone(),
+            signal_closed.clone(),
         ));
 
         // Whatever the join already told us about, before any event arrives.
@@ -210,7 +214,25 @@ impl Room {
             remote,
             stats,
             audio_sink,
+            signal_closed,
         })
+    }
+
+    /// Whether the signalling connection has ended, for any reason.
+    ///
+    /// **A room that reads true can never carry anything again**, and telling it apart from a live
+    /// one is what makes a rejoin possible. Both peer connections may still report `Connected` -
+    /// ICE has no idea the WebSocket went away - so every state this module otherwise exposes says
+    /// the room is healthy while nothing it publishes can be announced and nothing it subscribes to
+    /// will ever be offered.
+    ///
+    /// Read by [`super::registry::acquire`], which is the only place it can do any good: the
+    /// registry hands the *same* room to the next caller for a given channel, so without this a
+    /// dropped signal is inherited by every rejoin for the life of the process. Reconnect proper is
+    /// still unbuilt (`resume.rs` is tested and unwired); this only ensures the next attempt starts
+    /// from a fresh connection rather than from the corpse of the last one.
+    pub fn signal_is_closed(&self) -> bool {
+        self.signal_closed.load(Ordering::Relaxed)
     }
 
     /// Whether a reconnect can use what we hold, or needs a new connection first.
@@ -387,7 +409,11 @@ impl Room {
     pub async fn unpublish(&self, track_names: &[String]) -> Result<(), String> {
         let mut removed = false;
 
-        for sender in self.publisher.get_senders().await {
+        // Over transceivers rather than senders, because removing a track is only half of letting
+        // go of one - see the `stop` below, which is the half that decides whether this room can
+        // ever publish that name again.
+        for transceiver in self.publisher.get_transceivers().await {
+            let sender = transceiver.sender().await;
             let Some(track) = sender.track().await else {
                 continue;
             };
@@ -397,6 +423,32 @@ impl Room {
             if let Err(e) = self.publisher.remove_track(&sender).await {
                 eprintln!("[livekit] could not remove {}: {e}", track.id());
                 continue;
+            }
+
+            // **Stopping the transceiver is what makes a rejoin possible**, and leaving it out was a
+            // permanent lockout rather than a failed attempt.
+            //
+            // `remove_track` stops the *sender* and clears its encodings, but leaves the transceiver
+            // un-stopped and its `initial_track_id` still set. `RTCPeerConnection::add_track` then
+            // matches a later publish against it - the loop takes any transceiver that is
+            // `!stopped`, of the right kind, whose sender's `initial_track_id` equals the new
+            // track's id and whose track is now `None` - and calls `replace_track` on a sender that
+            // has already been stopped. That can only fail:
+            //
+            //     Err(ErrRTPSenderNewTrackHasIncorrectEnvelope)
+            //     "new track must have the same envelope as previous"
+            //
+            // Every microphone is named `audio`, so the ids always match and the second publish
+            // always lands on the first one's corpse. It reached the user as "LiveKit refused the
+            // microphone track", which names neither the cause nor anything they could do, and it
+            // never recovered: the registry keys a room by `guild:{guild}:{channel}` and hands the
+            // live one to the next caller regardless of its token, so every rejoin found the same
+            // dead transceiver waiting. Anything outliving the microphone reaches it - a screen
+            // share still holding the room, or a reconnect after a membership ended badly.
+            //
+            // Stopped, it is skipped by that loop and the publish builds a fresh transceiver.
+            if let Err(e) = transceiver.stop().await {
+                eprintln!("[livekit] could not stop the transceiver for {}: {e}", track.id());
             }
             removed = true;
         }
@@ -539,6 +591,16 @@ impl Room {
 
     pub async fn remote_sdp(&self) -> Option<String> {
         self.publisher.remote_description().await.map(|d| d.sdp)
+    }
+
+    /// Close only the signalling connection, leaving the peer connections up.
+    ///
+    /// Exists for the registry's eviction test, which needs the exact state a dropped connection
+    /// leaves behind: a dead signal under two peer connections that still read `Connected`. Nothing
+    /// in production calls it - a real drop arrives from the far end - and it is the only way to
+    /// produce that state without unplugging something.
+    pub async fn close_signal(&self) {
+        self.signal.close().await;
     }
 
     pub async fn close(self) {
@@ -698,7 +760,13 @@ async fn pump(
     published: Arc<Mutex<HashMap<String, Publication>>>,
     remote: Arc<Mutex<HashMap<String, RemoteTrack>>>,
     stats: Arc<RoomStats>,
+    signal_closed: Arc<AtomicBool>,
 ) {
+    // Set however this returns - a `break` below, or the event stream simply ending. Every exit
+    // means the same thing to a caller: nothing more will be signalled on this room, so it must not
+    // be handed to anyone else. See `Room::signal_is_closed`.
+    let _guard = SignalClosedOnDrop(signal_closed);
+
     // One buffer per connection. See the module docs: the server trickles before we have a
     // description to attach the candidates to.
     let held_publisher: Pending = Arc::new(Mutex::new(Vec::new()));
@@ -783,6 +851,19 @@ async fn pump(
             }
             _ => {}
         }
+    }
+}
+
+/// Marks a room's signal closed however the pump ends.
+///
+/// A guard rather than a store at each `break`, because the pump has four exits - two breaks, a
+/// `Leave`, and the event stream ending on its own - and the one that gets forgotten is the one that
+/// strands a room in the registry forever.
+struct SignalClosedOnDrop(Arc<AtomicBool>);
+
+impl Drop for SignalClosedOnDrop {
+    fn drop(&mut self) {
+        self.0.store(true, Ordering::Relaxed);
     }
 }
 

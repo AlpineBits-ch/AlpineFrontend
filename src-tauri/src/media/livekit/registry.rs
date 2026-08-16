@@ -63,8 +63,25 @@ pub async fn acquire(key: &str, url: &str, token: &str) -> Result<Arc<Room>, Str
     let mut rooms = rooms().lock().await;
 
     if let Some(entry) = rooms.get_mut(key) {
-        entry.holders += 1;
-        return Ok(entry.room.clone());
+        // **A room whose signal has ended is not a room to join.** Handing it back is how a single
+        // dropped connection became a permanent lockout: the key is `guild:{guild}:{channel}`, so
+        // every rejoin to that channel found the same dead room, published a microphone nothing
+        // would announce, and subscribed to tracks that would never be offered - while both peer
+        // connections still read `Connected`, because ICE cannot see a closed WebSocket.
+        //
+        // Evicting is not reconnecting. `resume.rs` is still unwired (spec §4.1), and a room that
+        // drops mid-call still ends that call. What this buys is that the *next* attempt starts
+        // from a fresh connection instead of inheriting the last one's corpse.
+        //
+        // The evicted entry is dropped rather than closed: closing is async and this holds the
+        // registry lock, and any holder still referencing it releases it by the usual path. Their
+        // `release` finds nothing and returns `None`, which is already the harmless case.
+        if entry.room.signal_is_closed() {
+            rooms.remove(key);
+        } else {
+            entry.holders += 1;
+            return Ok(entry.room.clone());
+        }
     }
 
     let room = Arc::new(Room::connect(url, token).await?);
@@ -126,6 +143,52 @@ mod tests {
     fn isle_has_no_room() {
         // Not an error. Proximity voice keeps its Cloudflare session and never reaches this map.
         assert_eq!(key_for(&VoiceTarget::Isle), None);
+    }
+
+    /// A dead room is never handed to the next joiner.
+    ///
+    /// **This is the lockout**, and it is the reason the fix lives here rather than in the session
+    /// layer. The signal drops - a restart elsewhere, a server-side eviction, a network blip - and
+    /// the pump stops. Nothing else changes: both peer connections still report `Connected`, because
+    /// ICE cannot see a closed WebSocket. So the room looks perfectly healthy to everything above it
+    /// and stays in this map, keyed by channel, and every rejoin to that channel gets it back and
+    /// publishes into a connection the server stopped listening to.
+    ///
+    /// The real signal is closed here rather than faked, so this also asserts the wiring: that the
+    /// pump ending is what sets the flag. A stub would pass with `Room::connect` never spawning it.
+    #[tokio::test]
+    #[ignore = "needs a LiveKit server on 127.0.0.1:7880"]
+    async fn a_room_whose_signal_has_ended_is_replaced_rather_than_rejoined() {
+        use crate::media::livekit::room_tests::{dev_token, DEV_URL};
+
+        let key = "guild:evict:me";
+        let first = acquire(key, DEV_URL, &dev_token("lk-evict", "user-1"))
+            .await
+            .expect("the first join connects");
+
+        // Straight from a live room to a dead one, the way a dropped connection does it.
+        first.close_signal().await;
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            while !first.signal_is_closed() {
+                tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+            }
+        })
+        .await
+        .expect("the pump must notice its signal closing");
+
+        let second = acquire(key, DEV_URL, &dev_token("lk-evict", "user-1"))
+            .await
+            .expect("the rejoin must connect rather than inherit");
+
+        assert!(
+            !Arc::ptr_eq(&first, &second),
+            "the rejoin was handed the same dead room, which is the lockout this prevents"
+        );
+        assert!(!second.signal_is_closed(), "the replacement must be live");
+
+        if let Some(room) = release(key).await {
+            drop(room);
+        }
     }
 
     #[tokio::test]
