@@ -321,12 +321,24 @@ impl Room {
         })
         .await;
 
-        // One track per rid, sharing id and stream_id and differing only by rid - the construction
-        // `media::publisher::rtc` already uses. `add_encoding` rejects any other combination, and
-        // the base track must itself carry a rid or the sender refuses with
-        // ErrRTPSenderNoBaseEncoding.
+        // **A lone layer takes the plain constructor, not a rid.** `media::publisher::rtc` has always
+        // branched here and this did not, which is a real difference rather than a tidier spelling:
+        // a rid on a single encoding puts `a=rid`/`a=simulcast` in the offer and a RID header
+        // extension on the wire, describing a ladder that has one rung. An SFU that classifies
+        // simulcast by rid then has one stream to file under three declared layers.
+        //
+        // Kept as a branch for the same reason that file gives: going through the same call the
+        // pre-simulcast path did is what makes "drop to one layer" a true rollback rather than a
+        // similar-looking one.
         let mut ladder: Vec<Arc<TrackLocalStaticSample>> = Vec::with_capacity(layers.len());
-        for (rid, _, _) in layers {
+        if layers.len() == 1 {
+            ladder.push(Arc::new(TrackLocalStaticSample::new(
+                h264_capability(),
+                name.to_string(),
+                name.to_string(),
+            )));
+        }
+        for (rid, _, _) in layers.iter().filter(|_| layers.len() > 1) {
             ladder.push(Arc::new(TrackLocalStaticSample::new_with_rid(
                 h264_capability(),
                 name.to_string(),
@@ -721,8 +733,16 @@ async fn pump(
             }
             // Theirs, answered by us. The subscriber connection only ever answers.
             proto::signal_response::Message::Offer(offer) => {
+                // Logged because its *absence* is a diagnosis. A subscriber that never receives an
+                // offer has nothing to answer and no track will ever open, which from every counter
+                // above looks identical to a track that opened and carried nothing.
+                let media = offer.sdp.matches("m=").count();
+                eprintln!("[livekit] subscriber offer with {media} m-line(s)");
                 match answer_subscriber(&signal, &subscriber, offer.sdp).await {
-                    Ok(()) => flush_held(&subscriber, &held_subscriber).await,
+                    Ok(()) => {
+                        eprintln!("[livekit] answered the subscriber offer");
+                        flush_held(&subscriber, &held_subscriber).await;
+                    }
                     Err(e) => eprintln!("[livekit] could not answer the subscriber offer: {e}"),
                 }
             }

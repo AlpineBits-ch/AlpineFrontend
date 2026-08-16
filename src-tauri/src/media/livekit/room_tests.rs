@@ -405,15 +405,16 @@ async fn the_sfu_forwards_a_published_screen_to_a_subscriber() {
     // is a different shape in `Room`, which always uses the rid constructor where the Cloudflare
     // path deliberately used a plain track for a lone layer, so testing one layer would be testing
     // something production never does.
+    // The microphone first, as production always does: the share joins a connection that already
+    // carries audio, and a video-only publisher is a shape this client never produces.
+    publisher.publish_audio("audio").await.expect("publish audio");
+    publisher
+        .wait_until_connected(Duration::from_secs(10))
+        .await
+        .expect("publisher connected after audio");
+
     let publication = publisher
-        .publish_video(
-            name,
-            &[
-                (LAYER_RIDS[0], spec.width, spec.height),
-                (LAYER_RIDS[1], spec.width / 2, spec.height / 2),
-                (LAYER_RIDS[2], spec.width / 4, spec.height / 4),
-            ],
-        )
+        .publish_video(name, &[(LAYER_RIDS[0], spec.width, spec.height)])
         .await
         .expect("publish");
     publisher
@@ -461,6 +462,22 @@ async fn the_sfu_forwards_a_published_screen_to_a_subscriber() {
         tokio::time::sleep(Duration::from_millis(33)).await;
     }
 
+    for (label, sdp) in [
+        ("offer", publisher.local_sdp().await),
+        ("answer", publisher.remote_sdp().await),
+    ] {
+        let Some(sdp) = sdp else { continue };
+        for line in sdp.lines() {
+            if line.starts_with("m=") || line.starts_with("a=mid:")
+                || line.starts_with("a=msid:") || line.starts_with("a=ssrc")
+                || line.starts_with("a=sendonly") || line.starts_with("a=recvonly")
+                || line.starts_with("a=inactive") || line.starts_with("a=sendrecv")
+            {
+                println!("FORWARD {label}: {line}");
+            }
+        }
+    }
+
     // Are *we* sending? `write_sample` returning Ok only means the packetiser accepted the frame;
     // it says nothing about whether the sender is transmitting. If this is zero the SFU has nothing
     // to forward and its silence is a consequence rather than the fault.
@@ -496,4 +513,30 @@ async fn the_sfu_forwards_a_published_screen_to_a_subscriber() {
 
     listener.close().await;
     publisher.close().await;
+}
+
+/// What the server says it will accept, straight off the join.
+///
+/// `JoinResponse.enabled_publish_codecs` is the room's allow-list. A publisher that offers a codec
+/// absent from it gets a track SID and no forwarding, which is indistinguishable from every other
+/// silent failure - so it is worth reading rather than assuming.
+#[tokio::test]
+#[ignore = "needs a LiveKit server on 127.0.0.1:7880"]
+async fn report_what_the_room_allows_us_to_publish() {
+    let (client, join, _events) = SignalClient::connect(
+        DEV_URL,
+        &dev_token("lk-codecs", "user-1"),
+        connect_options(),
+        None,
+    )
+    .await
+    .expect("connect");
+
+    println!("CODECS enabled_publish_codecs: {:?}", join.enabled_publish_codecs);
+    println!("CODECS server version: {:?}", join.server_info.as_ref().map(|s| &s.version));
+    if let Some(info) = join.server_info.as_ref() {
+        println!("CODECS server protocol: {}", info.protocol);
+    }
+
+    client.close().await;
 }
