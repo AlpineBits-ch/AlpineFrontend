@@ -469,6 +469,74 @@ describe('ProfileService.updateProfile', () => {
     });
 });
 
+/**
+ * `hydrateFrom` is the boot-path bulk loader `ProfileCacheService` calls with everything read
+ * back from disk. Its two invariants matter more than anything else in this file: a live row
+ * fetched this session must beat the disk copy (`??=`, not `=`), and the whole batch must land
+ * as one signal write, not one per profile - `store` re-runs every avatar and message effect on
+ * screen, and hydrating a few thousand cached rows through it would run each of those a few
+ * thousand times.
+ *
+ * <p>`profile-cache.service.spec.ts` only proves `ProfileCacheService` <i>calls</i>
+ * `hydrateFrom` with the right array - there `ProfileService` is a hand-built stand-in and this
+ * method's real body never runs. These tests exercise the real implementation instead.</p>
+ */
+describe('ProfileService.hydrateFrom', () => {
+    afterEach(() => TestBed.inject(HttpTestingController).verify());
+
+    it('does not let a hydrated row overwrite one already fetched this session', () => {
+        const {service} = setup();
+        const live = profileFor('user_a');
+        service['byProfileId'].set({[live.id]: live});
+        service['byUserId'].set({[live.userId]: live});
+
+        // Same ids, different object and different content - as if the disk copy were stale.
+        const staleSameUser = {...profileFor('user_a'), userName: 'Stale'};
+        const fresh = profileFor('user_b');
+        service.hydrateFrom([staleSameUser, fresh]);
+
+        expect(service.getCachedByUserId('user_a')).toBe(live);
+        expect(service.getCachedById(live.id)).toBe(live);
+        expect(service.getCachedByUserId('user_b')).toEqual(fresh);
+    });
+
+    it('populates both indexes for a hydrated profile', () => {
+        const {service} = setup();
+        const p = profileFor('user_c');
+
+        service.hydrateFrom([p]);
+
+        expect(service.getCachedById(p.id)).toEqual(p);
+        expect(service.getCachedByUserId(p.userId)).toEqual(p);
+    });
+
+    it('writes each index signal exactly once, regardless of how many profiles are hydrated', () => {
+        const {service} = setup();
+        const byProfileIdSet = vi.spyOn(service['byProfileId'], 'set');
+        const byUserIdSet = vi.spyOn(service['byUserId'], 'set');
+        const byProfileIdUpdate = vi.spyOn(service['byProfileId'], 'update');
+        const byUserIdUpdate = vi.spyOn(service['byUserId'], 'update');
+
+        service.hydrateFrom([profileFor('user_d'), profileFor('user_e'), profileFor('user_f')]);
+
+        expect(byProfileIdSet).toHaveBeenCalledTimes(1);
+        expect(byUserIdSet).toHaveBeenCalledTimes(1);
+        expect(byProfileIdUpdate).not.toHaveBeenCalled();
+        expect(byUserIdUpdate).not.toHaveBeenCalled();
+    });
+
+    it('does nothing for an empty batch', () => {
+        const {service} = setup();
+        const byProfileIdSet = vi.spyOn(service['byProfileId'], 'set');
+        const byUserIdSet = vi.spyOn(service['byUserId'], 'set');
+
+        service.hydrateFrom([]);
+
+        expect(byProfileIdSet).not.toHaveBeenCalled();
+        expect(byUserIdSet).not.toHaveBeenCalled();
+    });
+});
+
 describe('ProfileService.uploadBanner', () => {
     afterEach(() => TestBed.inject(HttpTestingController).verify());
 

@@ -42,7 +42,6 @@ function configure(fetchByUserId = vi.fn(() => of(profile('u1', 'ada')))) {
             {provide: ProfileService, useValue: Object.assign(
                 Object.create(ProfileService.prototype) as ProfileService,
                 {
-                    byUserIdMap: new Map<string, ProfileDto>(),
                     fetchByUserId,
                     hydrateFrom: vi.fn(),
                     cachePersist: null,
