@@ -219,9 +219,14 @@ async fn publishes_three_h264_layers_named_for_livekit() {
 #[tokio::test]
 #[ignore = "needs a LiveKit server on 127.0.0.1:7880"]
 async fn keeps_h264_high_5_2_in_the_answer() {
-    // `encoder_mf` emits High profile because of this. Cloudflare answered `42e01f` to every offer,
-    // which is why it was pinned to Constrained Baseline for so long; LiveKit forwards opaquely and
-    // keeps what we offered. If this ever fails, the encoder profile has to go back with it.
+    // `encoder_mf` emits Constrained High because of this. Cloudflare answered `42e01f` to every
+    // offer, which is why it was pinned to Constrained Baseline for so long; LiveKit forwards
+    // opaquely and keeps what we offered. If this ever fails, the encoder profile has to go back
+    // with it.
+    //
+    // `640c34`, not `640034`. Plain High is a profile essentially nothing advertises - libwebrtc
+    // matches by profile equality, and Chrome and mobile hardware both offer Constrained High - so
+    // the old string negotiated to no codec at all. See `H264_HIGH_5_2_FMTP`.
     let room = Room::connect(DEV_URL, &dev_token("lk-profile", "user-1"))
         .await
         .expect("connect");
@@ -235,8 +240,8 @@ async fn keeps_h264_high_5_2_in_the_answer() {
 
     let answer = room.remote_sdp().await.expect("answer");
     assert!(
-        answer.contains("640034"),
-        "High 5.2 must survive negotiation - it is what makes 1440p60 conformant:\n{answer}"
+        answer.contains("640c34"),
+        "Constrained High 5.2 must survive negotiation - it is what makes 1440p60 conformant:\n{answer}"
     );
 
     room.close().await;
