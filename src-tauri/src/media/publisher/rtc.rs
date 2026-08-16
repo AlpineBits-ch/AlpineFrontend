@@ -79,23 +79,12 @@ pub struct IceServerConfig {
     pub credential: Option<String>,
 }
 
-/// High profile, Level 5.2, non-interleaved: what a screen share is published as.
+/// What a screen share is published as. See [`H264_CONSTRAINED_BASELINE_5_2_FMTP`] for why that is
+/// Constrained Baseline at Level 5.2 rather than High at anything.
 ///
-/// **The level is the half that was a bug.** This used to declare `42001f` - Baseline *Level 3.1*,
-/// whose formal ceiling is 1280x720 (3600 macroblocks a frame). Every resolution above 720p that
-/// this app offers exceeded it: 1080p by 2.3x, 1440p by 4x, 2160p by 9x. It worked only because
-/// decoders in practice size themselves from the SPS in the bitstream rather than from the
-/// negotiated level, so a receiver that honoured the declaration was entitled to allocate a
-/// 720p decoder or refuse the stream outright. `0x34` = 52 = Level 5.2, which is the first level
-/// that actually covers 2160p60 - 5.0 stops short of 1440p60 and 5.1 of 4K60.
-///
-/// **The profile is the half that buys quality.** High (`0x64`) brings CABAC and the 8x8 transform,
-/// which are precisely what sharp text edges cost the most bits without. Worth roughly 10-20%
-/// BD-rate on screen content.
-///
-/// Declaring *more* than we send is the safe direction - a receiver allocates for the ceiling and
-/// is never surprised - which is why the level is pinned at the top of the range rather than
-/// computed per share.
+/// Declaring *more* than we send is the safe direction - a receiver allocates for the ceiling and is
+/// never surprised - which is why the level is pinned at the top of the range rather than computed
+/// per share.
 ///
 /// Public, and used by `super::e2e_tests` rather than copied there - see [`publisher_api`] for why
 /// a copy is the wrong shape.
@@ -103,36 +92,38 @@ pub fn h264_capability() -> RTCRtpCodecCapability {
     RTCRtpCodecCapability {
         mime_type: MIME_TYPE_H264.to_owned(),
         clock_rate: 90_000,
-        sdp_fmtp_line: H264_HIGH_5_2_FMTP.to_owned(),
+        sdp_fmtp_line: H264_CONSTRAINED_BASELINE_5_2_FMTP.to_owned(),
         ..Default::default()
     }
 }
 
-/// The fmtp line for H.264 High at Level 5.2, and the **only** High entry [`publisher_api`]
-/// registers.
+/// H.264 Constrained Baseline at **Level 5.2**, packetisation mode 1: what a share is published as.
 ///
-/// `0x34` = 52 = Level 5.2, which is what makes 1440p60 conformant. Level 5.0 - `640032`, what the
-/// webrtc-rs defaults offer - covers 1440p**30** and stops there; 5.1 stops short of 4K60.
+/// **The level is what 2K needed; the profile is what every viewer needs.** `0x34` = 52 = Level 5.2,
+/// whose MaxFS 36864 and MaxMBPS 2073600 cover 1440p60 with room to spare - Level 3.1 (`42e01f`, the
+/// usual Constrained Baseline entry) formally stops at 720p30, and 1440p exceeds it fourfold.
 ///
-/// **Constrained High (`640c34`) was tried and measured worse, twice over.** The Media Foundation
-/// encoder accepts `UCConstrainedHigh` and then fails mid-encode, silently costing the hardware
-/// encoder for the whole session; and `livekit-server` 1.13.5 appears to drop `640c34` from the
-/// answer where it keeps `640034`.
+/// **The profile is Constrained Baseline because an SFU does not transcode.** Every subscriber has
+/// to decode the one profile we send, and libwebrtc selects a codec by profile *equality* - level
+/// never blocks a match, since `level-asymmetry-allowed=1` is on every entry. An Android device on
+/// Codec2 codec naming, the norm since Android 10, advertises Constrained Baseline and nothing else
+/// as a decoder. High renders as a black tile there, which is what it did.
 ///
-/// That leaves a real open problem rather than a solved one. libwebrtc matches H.264 by profile
-/// *equality*, and mobile hardware commonly advertises Constrained High or Constrained Baseline and
-/// no plain High at all - so a phone will not select this entry. It is expected to negotiate down to
-/// one of the Constrained Baseline entries registered beside it, which is why those are kept.
-const H264_HIGH_5_2_FMTP: &str =
-    "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=640034";
+/// So the ladder is conformant at 2K by level and decodable everywhere by profile. The price is
+/// High's CABAC and 8x8 transform, worth roughly 10-20% BD-rate on the small text a share is mostly
+/// made of. `venta-mobile`'s `lib/core/voice/video_layers.dart` audits the shipped Android AAR and
+/// is the reference for the claim above.
+const H264_CONSTRAINED_BASELINE_5_2_FMTP: &str =
+    "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e034";
 
-/// The payload type the webrtc-rs defaults use for H.264 High.
+/// The payload type the webrtc-rs defaults use for Constrained Baseline, packetisation mode 1.
 ///
 /// Deliberately *that* number rather than a free one. [`publisher_api`] curates the codec list
-/// rather than extending the defaults, so this is the only High entry that exists - reusing its
-/// payload type keeps the offer the same shape as a default one, and is what stops the SFU
-/// answering two High entries onto a single payload type.
-const H264_HIGH_5_2_PAYLOAD_TYPE: u8 = 123;
+/// rather than extending the defaults, so this entry *replaces* the default `42e01f` rather than
+/// sitting beside it - and one entry per profile is the rule that matters. Two entries of the same
+/// profile get answered onto a single payload type by the SFU, with two conflicting `a=fmtp` lines,
+/// and a receiver then picks a level arbitrarily. Measured, in `offer_shape`.
+const H264_CONSTRAINED_BASELINE_5_2_PAYLOAD_TYPE: u8 = 125;
 
 /// How long to wait for the room to finish a negotiation before giving up on the publish.
 ///
@@ -212,14 +203,16 @@ pub fn publisher_api() -> Result<webrtc::api::API, String> {
         )
         .map_err(|e| format!("could not register Opus: {e}"))?;
 
-    // The Constrained Baseline rungs, verbatim from the defaults including their payload types.
-    // Kept because they are what a receiver that will not take High negotiates down to - and on
-    // mobile that is most of them, since Android hardware commonly advertises Constrained Baseline
-    // and nothing else.
+    // The remaining Baseline rungs, verbatim from the defaults including their payload types.
+    //
+    // Note what is *not* here: `42e01f` packetisation-mode 1, which the defaults put on 125. Our
+    // Constrained Baseline 5.2 entry takes that payload type instead, because two entries of one
+    // profile are what the SFU collapses onto a single payload type. These three differ from it by
+    // profile (`42001f` is Baseline, not Constrained Baseline) or by packetisation mode, so they
+    // cannot collide with it.
     for (payload_type, fmtp) in [
         (102u8, "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42001f"),
         (127, "level-asymmetry-allowed=1;packetization-mode=0;profile-level-id=42001f"),
-        (125, "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01f"),
         (108, "level-asymmetry-allowed=1;packetization-mode=0;profile-level-id=42e01f"),
     ] {
         media_engine
@@ -247,10 +240,10 @@ pub fn publisher_api() -> Result<webrtc::api::API, String> {
                     mime_type: MIME_TYPE_H264.to_owned(),
                     clock_rate: 90_000,
                     channels: 0,
-                    sdp_fmtp_line: H264_HIGH_5_2_FMTP.to_owned(),
+                    sdp_fmtp_line: H264_CONSTRAINED_BASELINE_5_2_FMTP.to_owned(),
                     rtcp_feedback: video_feedback.clone(),
                 },
-                payload_type: H264_HIGH_5_2_PAYLOAD_TYPE,
+                payload_type: H264_CONSTRAINED_BASELINE_5_2_PAYLOAD_TYPE,
                 ..Default::default()
             },
             RTPCodecType::Video,

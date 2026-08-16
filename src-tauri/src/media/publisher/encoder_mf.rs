@@ -238,45 +238,32 @@ impl MediaFoundationEncoder {
                 .and_then(|_| {
                     output.SetUINT32(&MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive.0 as u32)
                 })
-                // High profile. CABAC and the 8x8 transform, worth roughly 10-20% BD-rate on screen
-                // content and worth the most on exactly the small text this encodes.
+                // **Constrained Baseline, and the level is what 2K actually needed.**
                 //
-                // **The SFU changed, which is the condition the previous comment set for this.**
-                // This was pinned to `eAVEncH264VProfile_ConstrainedBase` because Cloudflare
-                // answered `42e01f` - Constrained Baseline 3.1 - to every offer, whatever we asked
-                // for, so High only ever worked by exceeding its own declaration and survived on
-                // receiver leniency. A decoder entitled to believe the answer could show a black
-                // tile rather than a soft one, which is not a trade worth making for a share.
+                // Profile and level are separate knobs and conflating them cost several rounds of
+                // this. *Level* is what makes a resolution legal - `rtc.rs` declares `42e034`,
+                // Level 5.2, whose MaxFS 36864 and MaxMBPS 2073600 cover 1440p60 with room to
+                // spare. *Profile* is only quality: High brings CABAC and the 8x8 transform, worth
+                // roughly 10-20% BD-rate on the small text a share is mostly made of.
                 //
-                // Measured against `livekit-server 1.13.5` on 2026-08-16: the answer keeps **all
-                // four** entries our offer carries - `42001f`, `42e01f`, `640032` and `640034`
-                // (High, Level 5.2). Nothing is dropped, because LiveKit forwards opaquely instead
-                // of imposing a codec table. So High is now negotiated rather than smuggled, and
-                // Level 5.2's `MaxFS` 36864 / `MaxMBPS` 2073600 makes the whole advertised ladder
-                // conformant - 1440p60 is 14400 macroblocks at 864000, comfortably inside.
-                // The probe that measured it is `media::livekit::probe_tests`.
+                // High was tried, on the strength of LiveKit keeping `640034` in its answer where
+                // Cloudflare dropped it. **It renders as a black tile on most Android handsets.**
+                // An SFU does not transcode, so every subscriber has to decode the one profile we
+                // send, and libwebrtc selects a codec by profile *equality* - level never blocks a
+                // match, `level-asymmetry-allowed=1` is on every entry. A device on Codec2 codec
+                // naming, which is the norm since Android 10, advertises Constrained Baseline and
+                // nothing else, as an encoder and as a decoder. Plain High matches nothing it
+                // offers. See `lib/core/voice/video_layers.dart` in venta-mobile, which audits the
+                // shipped AAR for exactly this.
                 //
-                // **Plain High, and `UCConstrainedHigh` is measured as unusable here.**
+                // Constrained High (`640c34`) is not the escape either: the MFT accepts
+                // `UCConstrainedHigh` and then fails mid-encode, silently costing the hardware
+                // encoder for the session, and only Qualcomm and Exynos handsets advertise it.
                 //
-                // Constrained High was tried the same day, to match a `640c34` declaration, because
-                // essentially nothing advertises plain High: libwebrtc matches H.264 by profile
-                // *equality*, Chrome offers `640c1f`, and Android and iOS hardware advertise
-                // Constrained High or Constrained Baseline. Two measurements killed it:
-                //
-                //  * The MFT **accepts** `eAVEncH264VProfile_UCConstrainedHigh` and then fails
-                //    while encoding - `media-foundation failed mid-session; falling back to
-                //    openh264`, every share, on real hardware. A configure-time fallback does not
-                //    catch that, because nothing has failed yet at configure time; the cost is
-                //    silently losing the hardware encoder for the whole session.
-                //  * `livekit-server` 1.13.5 appears to drop `640c34` from the answer where it
-                //    keeps `640034`, so the declaration it was meant to match did not survive
-                //    negotiation either.
-                //
-                // **The mobile-compatibility problem that prompted it is real and still open** - a
-                // phone matching by profile equality will not select a plain-High track. Neither
-                // measurement above says otherwise; they only say this was the wrong fix. The
-                // likely right one is to register no custom entry and let the defaults (`640c1f`,
-                // `42e01f`) carry it, which needs measuring rather than assuming.
+                // So the ladder is conformant at 2K by *level*, and decodable everywhere by
+                // *profile*, and the 10-20% is the price. Revisit when libwebrtc teaches its
+                // Android factories Codec2 names - that is what would make High general rather
+                // than a Qualcomm and Exynos privilege.
                 //
                 // Two things that did NOT change and are easy to conflate with this:
                 //
@@ -287,10 +274,14 @@ impl MediaFoundationEncoder {
                 //  * **`encoder_sw` stays Baseline.** OpenH264 is the fallback path and sets no
                 //    profile; a share that lands on it is unaffected by this line.
                 //
-                // Isle still speaks Cloudflare, but publishes no video, so nothing reaches this
-                // encoder over a transport that would refuse High.
+                // Constrained Baseline also has no B-frames, so the `zero B-frame count` refusal
+                // this encoder logs under High - and the reordering latency behind it - goes with
+                // it.
                 .and_then(|_| {
-                    output.SetUINT32(&MF_MT_MPEG2_PROFILE, eAVEncH264VProfile_High.0 as u32)
+                    output.SetUINT32(
+                        &MF_MT_MPEG2_PROFILE,
+                        eAVEncH264VProfile_ConstrainedBase.0 as u32,
+                    )
                 })
                 .map_err(|e| e.to_string())?;
             transform
