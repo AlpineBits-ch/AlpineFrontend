@@ -12,6 +12,7 @@ import {describe, expect, it} from 'vitest';
 import {EntitlementRungDto, EntitlementDegradationDto, VoiceRoomLimitsDto} from '../dtos/response/entitlement.dto';
 import {VoiceRoomSnapshot} from '../models/voice-room';
 import {EntitlementStore} from '../stores/entitlement.store';
+import {VoicePublishResponse} from './guild-voice.service';
 import {VoiceLimitsService} from './voice-limits.service';
 import {HttpErrorResponse} from '@angular/common/http';
 
@@ -48,6 +49,23 @@ const CAPPED: VoiceRoomLimitsDto = {
     maxPublishers: {kind: 'numeric', value: 2, unlimited: false},
     publisherCount: 1,
 };
+
+/**
+ * The reply to `POST .../voice/publish`, which is where a degradation rides now.
+ *
+ * <p>Typed rather than a bag with a `degradations` key on it: the negotiate reply this used to be
+ * read from no longer exists, and a literal would go on passing long after the field moved.</p>
+ */
+function publishReply(degradations?: EntitlementDegradationDto[]): VoicePublishResponse {
+    return {
+        identity: 'user-1',
+        rung: '720p30',
+        height: 720,
+        framerate: 30,
+        maxLayer: 'b',
+        ...(degradations ? {degradations} : {}),
+    };
+}
 
 const CEILING_DEGRADATION: EntitlementDegradationDto = {
     key: 'voice.video_ceiling',
@@ -130,7 +148,7 @@ describe('what the room reduced', () => {
         const service = setup();
         service.enterRoom('guild-1');
 
-        service.noteDegradations({degradations: [CEILING_DEGRADATION]});
+        service.noteDegradations(publishReply([CEILING_DEGRADATION]));
 
         expect(service.notices()).toEqual([expect.objectContaining({
             key: 'voice.video_ceiling',
@@ -144,13 +162,42 @@ describe('what the room reduced', () => {
         })]);
     });
 
+    /**
+     * The publish reply is the surface that carries this now. It used to be the negotiate reply,
+     * which no longer exists on either service - the SDP relay went with the SFU change - and the
+     * declaration a publish makes is what the ceiling is re-decided against.
+     */
+    it('reads the reduction off a publish reply', () => {
+        const service = setup();
+        service.enterRoom('guild-1');
+
+        service.noteDegradations(publishReply([CEILING_DEGRADATION]));
+
+        expect(service.notices()).toHaveLength(1);
+        expect(service.notices()[0].rung).toBe('720p30');
+    });
+
+    /**
+     * The join reply is the other one, and it stays: joining a full room lands you in it on an
+     * audio-only seat, and nothing has been published at that point for a publish reply to describe.
+     */
+    it('still reads the reduction off a join reply', () => {
+        const service = setup();
+        service.enterRoom('guild-1');
+
+        service.noteDegradations(
+            {...snapshot(CAPPED), degradations: [CEILING_DEGRADATION]} as VoiceRoomSnapshot);
+
+        expect(service.notices()).toHaveLength(1);
+    });
+
     /** One condition, one card. Rejoining a room the plan still caps must not stack a second. */
     it('replaces a card for the same key rather than stacking one per join', () => {
         const service = setup();
         service.enterRoom('guild-1');
 
-        service.noteDegradations({degradations: [CEILING_DEGRADATION]});
-        service.noteDegradations({degradations: [CEILING_DEGRADATION]});
+        service.noteDegradations(publishReply([CEILING_DEGRADATION]));
+        service.noteDegradations(publishReply([CEILING_DEGRADATION]));
 
         expect(service.notices()).toHaveLength(1);
     });
@@ -160,8 +207,8 @@ describe('what the room reduced', () => {
         const service = setup();
         service.enterRoom('guild-1');
 
-        service.noteDegradations({});
-        service.noteDegradations({degradations: []});
+        service.noteDegradations(publishReply());
+        service.noteDegradations(publishReply([]));
         service.noteDegradations(null);
 
         expect(service.notices()).toEqual([]);
@@ -176,7 +223,7 @@ describe('what the room reduced', () => {
     it('retires a ceiling card once the snapshot names a different rung', () => {
         const service = setup();
         service.enterRoom('guild-1');
-        service.noteDegradations({degradations: [CEILING_DEGRADATION]});
+        service.noteDegradations(publishReply([CEILING_DEGRADATION]));
 
         service.applySnapshot(snapshot({
             videoCeiling: {kind: 'ladder', rung: '1080p60', rank: 4, ladder: 'video_quality'},
@@ -188,7 +235,7 @@ describe('what the room reduced', () => {
     it('keeps a ceiling card while the snapshot still names the rung it was granted', () => {
         const service = setup();
         service.enterRoom('guild-1');
-        service.noteDegradations({degradations: [CEILING_DEGRADATION]});
+        service.noteDegradations(publishReply([CEILING_DEGRADATION]));
 
         service.applySnapshot(snapshot(CAPPED));
 
@@ -198,14 +245,12 @@ describe('what the room reduced', () => {
     it('retires a publishers-full card the moment somebody stops sharing', () => {
         const service = setup();
         service.enterRoom('guild-1');
-        service.noteDegradations({
-            degradations: [{
-                ...CEILING_DEGRADATION,
-                key: 'voice.max_publishers',
-                requested: {kind: 'numeric', value: 3, unlimited: false},
-                granted: {kind: 'numeric', value: 2, unlimited: false},
-            }],
-        });
+        service.noteDegradations(publishReply([{
+            ...CEILING_DEGRADATION,
+            key: 'voice.max_publishers',
+            requested: {kind: 'numeric', value: 3, unlimited: false},
+            granted: {kind: 'numeric', value: 2, unlimited: false},
+        }]));
         service.applySnapshot(snapshot({...CAPPED, publisherCount: 2}));
         expect(service.notices()).toHaveLength(1);
 
@@ -297,7 +342,7 @@ describe('leaving', () => {
         const service = setup();
         service.enterRoom('guild-1');
         service.applySnapshot(snapshot(CAPPED));
-        service.noteDegradations({degradations: [CEILING_DEGRADATION]});
+        service.noteDegradations(publishReply([CEILING_DEGRADATION]));
 
         service.clear();
 
@@ -310,7 +355,7 @@ describe('leaving', () => {
         const service = setup();
         service.enterRoom('guild-1');
         service.applySnapshot(snapshot(CAPPED));
-        service.noteDegradations({degradations: [CEILING_DEGRADATION]});
+        service.noteDegradations(publishReply([CEILING_DEGRADATION]));
 
         service.enterRoom('guild-2');
 

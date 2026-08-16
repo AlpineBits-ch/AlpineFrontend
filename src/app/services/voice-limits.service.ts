@@ -24,6 +24,7 @@ import {
 import {VideoCeiling} from '../models/stream-preset';
 import {VoiceRoomSnapshot} from '../models/voice-room';
 import {EntitlementStore, MY_ENTITLEMENTS} from '../stores/entitlement.store';
+import {VoicePublishResponse} from './guild-voice.service';
 
 /** The `video_quality` ladder is the only one a room reads. */
 const VIDEO_LADDER = 'video_quality';
@@ -181,11 +182,22 @@ export class VoiceLimitsService {
     /**
      * File whatever a `200` reduced.
      *
+     * <p>Two surfaces carry one, and they are the two moments something can be asked for: the join
+     * reply, when the room seats an arrival it cannot seat in full, and the <b>publish</b> reply,
+     * when a declared resolution is clamped to the rung the plan allows. The negotiate reply used to
+     * be the second of those and is gone with the SDP relay - the ceiling is now re-decided against
+     * what a publish declares, so that is where the sentence rides.</p>
+     *
      * <p>Absent and empty mean the same thing and both are the normal case - a response with nothing
      * reduced is byte-identical to what a client before this contract received. Nothing here is an
-     * error path.</p>
+     * error path; a reduction the server could not make at all is a `403` and reaches
+     * {@link noteDenial} instead.</p>
+     *
+     * <p>{@link degradationsOf} does the reading, here and nowhere else. The block is optional on
+     * every surface that carries it, so a caller that dug it out itself would be a second place for
+     * "absent" and "empty" to stop meaning the same thing.</p>
      */
-    noteDegradations(response: unknown): void {
+    noteDegradations(response: VoicePublishResponse | VoiceRoomSnapshot | null | undefined): void {
         const degradations = degradationsOf(response);
         if (degradations.length === 0) return;
 

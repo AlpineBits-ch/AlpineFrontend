@@ -1,7 +1,6 @@
 import {inject, Injectable} from '@angular/core';
 import {Observable} from 'rxjs';
 import {HttpClient} from '@angular/common/http';
-import {environment} from '../../environments/environment';
 import {CallDto} from '../dtos/response/call.dto';
 import {OngoingCallDto} from '../dtos/response/ongoing-call.dto';
 import {ShareViewersDto} from '../dtos/response/share-viewers.dto';
@@ -9,57 +8,26 @@ import {CreateCallDto} from '../dtos/request/create-call.dto';
 import {VideoPublishIntentDto} from '../dtos/response/entitlement.dto';
 import {ApiConfigService} from "./api-config.service";
 import {VoiceRoomSnapshot, VoiceSubscriberUpdate} from '../models/voice-room';
+import {
+    connectionQuery,
+    VoiceConnectionDto,
+    VoicePublishRequest,
+    VoicePublishResponse,
+    VoiceVideoDeclarationResponse,
+} from './guild-voice.service';
 
 // ── Voice media DTOs ─────────────────────────────────────────────────────────
 //
-// Backend-neutral: no SFU vocabulary reaches this client any more. The session response names its
-// backend so a client can refuse a room it cannot handle, and everything else - routes, bodies,
-// responses - is the same whichever SFU is behind it.
+// Imported rather than restated. A call room and a guild channel are the same room model behind the
+// same neutral contract - the server produces both from the same code - so a second copy of these
+// shapes here would only be a second place for them to drift.
 
-export interface CfTrackNew {
-    /** What this caller is doing, rather than where the media sits. */
-    direction: 'publish' | 'subscribe';
-    mid?: string;       // publish: set after RTCPeerConnection.setLocalDescription
-    trackName?: string; // publish: the name to publish under; subscribe: the name to pull
-    mediaSessionId?: string; // subscribe: the session publishing it
-}
-
-export interface CfTracksNewRequest {
-    sessionDescription: RTCSessionDescriptionInit;
-    tracks: CfTrackNew[];
-    /**
-     * What this client is about to encode, so the server can clamp it rather than guess.
-     *
-     * <p>Additive and optional in both directions: a server built before the entitlement contract
-     * ignores it, and an audio-only publish omits it because nothing about audio is laddered. Sent on
-     * the publish that carries the video track, never on a subscribe.</p>
-     */
-    video?: VideoPublishIntentDto;
-}
-
-export interface CfTrackResult {
-    /** Absent when the track failed - see errorCode/errorDescription. Never substitute a local
-     *  transceiver mid for a missing one: that is what turned a reported failure into a silent
-     *  one, leaving the participant marked subscribed and permanently inaudible. */
-    mid?: string;
-    trackName: string;
-    mediaSessionId?: string;
-    /** Per-track failure fields. The backend answers a response containing these with a 502 rather
-     *  than passing it off as a success, so in practice a failed track no longer reaches this
-     *  client - they are declared because the wire contract carries them. */
-    errorCode?: string;
-    errorDescription?: string;
-}
-
-export interface CfTracksNewResponse {
-    sessionDescription: RTCSessionDescriptionInit;
-    tracks: CfTrackResult[];
-    requiresImmediateRenegotiation: boolean;
-}
-
-export interface CfRenegotiateResponse {
-    sessionDescription: RTCSessionDescriptionInit;
-}
+export type {
+    VoiceConnectionDto,
+    VoicePublishRequest,
+    VoicePublishResponse,
+    VoiceVideoDeclarationResponse,
+} from './guild-voice.service';
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -180,52 +148,55 @@ export class VoiceService {
     // That is historical and both are correct; getting it backwards 404s at the gateway.
 
     /**
-     * `primary` decides whether the backend runs this session through `Call.ConnectDevice`, which
-     * is where device-takeover detection lives. The microphone is published from Rust on its own
-     * session, so the webview's session is secondary - a second primary session for the same user
-     * reads as a takeover and hangs up the call.
+     * Everything needed to connect to the SFU for this call, minted fresh every time it is asked
+     * for - taking one is `Joined`, not `Publishing`, until {@link publish} declares a track.
+     *
+     * <p>Never cache the returned `url` against a call id: a room lives on exactly one node and that
+     * field is the routing answer. Re-fetching is cheap and touches neither the roster nor a
+     * connection already held, so the rule is to ask again rather than to keep one.</p>
+     *
+     * @param primary whether this connection carries the microphone. `false` for a second connection
+     *        opened beside it: the SFU keys participants by identity and evicts an earlier session
+     *        that reappears under the same one, so a secondary connection minted as primary hangs up
+     *        this user's own call.
+     * @param tag what distinguishes that second identity - stripped to letters and digits, truncated
+     *        to 32, falling back to `alt`. One tag per connection per user.
      */
-    cfCreateSession(callId: string, primary = true): Observable<{ mediaSessionId: string; backend?: string }> {
-        return this.client.post<{ mediaSessionId: string; backend?: string }>(
-            `${this.base}/calls/${callId}/session?primary=${primary}`, {}
-        );
-    }
-
-    /** Publish and subscribe are one route; `direction` on each track says which. */
-    cfTracksNew(callId: string, mediaSessionId: string, body: CfTracksNewRequest): Observable<CfTracksNewResponse> {
-        return this.client.post<CfTracksNewResponse>(
-            `${this.base}/calls/${callId}/tracks`,
-            {mediaSessionId, ...body}
+    connection(callId: string, primary = true, tag?: string): Observable<VoiceConnectionDto> {
+        return this.client.post<VoiceConnectionDto>(
+            `${this.base}/calls/${callId}/connection${connectionQuery(primary, tag)}`, {}
         );
     }
 
     /**
-     * Re-offer on an open session, optionally re-declaring what the video now is.
+     * Declares what was just published, which is what puts this client on the call's roster as
+     * publishing.
      *
-     * <p>`video` belongs here only when this renegotiation is what changes the picture. The server's
-     * fan-out cap is computed from the last declaration it saw, so an absent field leaves that cap
-     * exactly where it is - it neither applies one nor lifts one, and a renegotiation is never
-     * refused over it. An ICE restart, a reconnect and the immediate re-offer the SFU asks for after
-     * a publish all send the body they always sent.</p>
+     * <p>Two answers carry meaning beyond success. A `200` with `degradations` is a publish that
+     * <b>worked, smaller</b>: re-encode to the granted rung and declare again, rolling nothing back.
+     * A `403` is a refusal that could not degrade - stop the local track, because the token this
+     * client connected with does not permit it either and nobody will receive it.</p>
      */
-    cfRenegotiate(
-        callId: string,
-        mediaSessionId: string,
-        sessionDescription: RTCSessionDescriptionInit,
-        video?: VideoPublishIntentDto,
-    ): Observable<CfRenegotiateResponse> {
-        return this.client.put<CfRenegotiateResponse>(
-            `${this.base}/calls/${callId}/negotiate`,
-            {mediaSessionId, sessionDescription, ...(video ? {video} : {})}
-        );
+    publish(callId: string, body: VoicePublishRequest): Observable<VoicePublishResponse> {
+        return this.client.post<VoicePublishResponse>(`${this.base}/calls/${callId}/publish`, body);
     }
 
-    /** POST, not PUT - the close verb changed with the route. */
-    cfCloseTracks(callId: string, mediaSessionId: string, trackNames: string[]): Observable<void> {
-        return this.client.post<void>(
-            `${this.base}/calls/${callId}/tracks/close`,
-            {mediaSessionId, trackNames}
-        );
+    /** Marks the tracks closed so peers drop them rather than waiting on media that has ended. */
+    unpublish(callId: string, trackNames: string[]): Observable<void> {
+        return this.client.post<void>(`${this.base}/calls/${callId}/unpublish`, {trackNames});
+    }
+
+    /**
+     * Re-declares what is being sent, for a change made without republishing.
+     *
+     * <p>A ceiling computed once at publish time is one a later resolution change walks straight
+     * past, and this is the only thing that tells the server about it. <b>It never refuses
+     * anything</b> - the cap applies to what leaves the room - and an unchanged resolution needs no
+     * call at all, since declaring nothing leaves the ceiling where the last publish put it.</p>
+     */
+    declareVideo(callId: string, video: VideoPublishIntentDto): Observable<VoiceVideoDeclarationResponse> {
+        return this.client.put<VoiceVideoDeclarationResponse>(
+            `${this.base}/calls/${callId}/video`, video);
     }
 
     /**
