@@ -4,6 +4,7 @@
 //! `docker/livekit-dev/compose.yaml`, and the Windows note in it before reaching for Docker.
 
 use livekit_api::access_token::{AccessToken, TokenVerifier, VideoGrants};
+use livekit_api::signal_client::SignalClient;
 
 use super::signal::connect_options;
 
@@ -52,4 +53,48 @@ fn connect_options_never_auto_subscribe() {
     // to everyone costs egress nobody is listening to, and nothing corrects it.
     assert!(!options.auto_subscribe);
     assert_eq!(options.sdk_options.sdk, "venta");
+}
+
+#[tokio::test]
+#[ignore = "needs a LiveKit server on 127.0.0.1:7880 - see docker/livekit-dev/compose.yaml"]
+async fn connects_and_receives_a_join_response() {
+    let token = dev_token("probe-connect", "user-1");
+
+    let (client, join, _events) = SignalClient::connect(DEV_URL, &token, connect_options(), None)
+        .await
+        .expect("the signalling connect must succeed");
+
+    // The room and our identity come back from the server rather than being echoed from the token,
+    // so this is the first point at which the whole path is proven rather than assumed.
+    assert_eq!(join.room.expect("room").name, "probe-connect");
+    assert_eq!(join.participant.expect("participant").identity, "user-1");
+
+    // Recorded rather than asserted: whether this server offers single-peer-connection mode decides
+    // how much of Phase 1 exists at all. See the spec's Phase 0 note.
+    println!("PROBE single-pc mode active: {}", client.is_single_pc_mode_active());
+    println!("PROBE subscriber primary: {}", join.subscriber_primary);
+    println!("PROBE ice servers: {}", join.ice_servers.len());
+    println!("PROBE server version: {:?}", join.server_info.as_ref().map(|s| &s.version));
+
+    client.close().await;
+}
+
+#[tokio::test]
+#[ignore = "needs a LiveKit server on 127.0.0.1:7880"]
+async fn reports_whether_the_server_accepts_single_peer_connection_mode() {
+    // Asked for explicitly. `connect_options()` leaves this off, so the reading in
+    // `connects_and_receives_a_join_response` says only that we did not ask - it is not evidence
+    // about the server. If this comes back true, the publisher/subscriber split in the spec's §2.3
+    // collapses to one peer connection and Phase 1 gets materially smaller.
+    let mut options = connect_options();
+    options.single_peer_connection = true;
+
+    let (client, _join, _events) =
+        SignalClient::connect(DEV_URL, &dev_token("probe-singlepc", "user-1"), options, None)
+            .await
+            .expect("connect");
+
+    println!("PROBE single-pc when asked for: {}", client.is_single_pc_mode_active());
+
+    client.close().await;
 }
