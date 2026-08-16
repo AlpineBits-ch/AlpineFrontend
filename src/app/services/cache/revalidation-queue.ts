@@ -48,10 +48,16 @@ export class RevalidationQueue {
         }
 
         const gap = this.minGapMs - (this.now() - this.lastStart);
-        if (gap > 0) await this.delay(gap);
+        const start = gap > 0 ? this.now() + gap : this.now();
 
-        this.lastStart = this.now();
+        // Reserve the slot and stamp the start time before awaiting the gap, so a task that is
+        // only waiting on pacing is still visible to the concurrency guard above and to
+        // `pending` - otherwise a sibling `pump()` chain can slip past both checks while this
+        // task sits in the gap, and `drain()` can resolve before it has actually run.
+        this.lastStart = start;
         this.running++;
+
+        if (gap > 0) await this.delay(gap);
 
         try {
             await task();

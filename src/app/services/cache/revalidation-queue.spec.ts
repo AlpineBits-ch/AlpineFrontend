@@ -71,4 +71,42 @@ describe('RevalidationQueue', () => {
         const clock = fakeClock();
         await new RevalidationQueue(2, 10, clock.now, clock.delay).drain();
     });
+
+    it('never exceeds its concurrency when also paced by a non-zero gap', async () => {
+        const clock = fakeClock();
+        const queue = new RevalidationQueue(2, 50, clock.now, clock.delay);
+        let live = 0;
+        let peak = 0;
+
+        for (let i = 0; i < 6; i++) {
+            queue.push(async () => {
+                live++;
+                peak = Math.max(peak, live);
+                await Promise.resolve();
+                await Promise.resolve();
+                live--;
+            });
+        }
+        await queue.drain();
+
+        expect(peak).toBeLessThanOrEqual(2);
+    });
+
+    it('drain does not resolve while a task is still waiting on the pacing gap', async () => {
+        const clock = fakeClock();
+        const queue = new RevalidationQueue(2, 50, clock.now, clock.delay);
+        const ran: number[] = [];
+
+        // The first task starts immediately (no gap to wait on). The second is shifted out of
+        // the internal queue right away too, but - because of the pacing gap - only reserves its
+        // slot; it has not actually run by the time both pushes have returned.
+        queue.push(async () => { ran.push(0); });
+        queue.push(async () => {
+            await Promise.resolve();
+            ran.push(1);
+        });
+        await queue.drain();
+
+        expect(ran.sort((a, b) => a - b)).toEqual([0, 1]);
+    });
 });
