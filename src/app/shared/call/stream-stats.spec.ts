@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {inboundStatsFor, kbpsBetween} from './stream-stats';
+import {inboundStatsFor, kbpsBetween, outboundStatsFromReport} from './stream-stats';
 
 /** A `getStats()`-shaped report: forEach over the stats it was given, nothing else. */
 function report(stats: RTCStats[]): {forEach(callback: (stat: RTCStats) => void): void} {
@@ -134,5 +134,79 @@ describe('inboundStatsFor', () => {
         const snapshot = inboundStatsFor(report([inboundRtp('3'), failed]), '3');
 
         expect(snapshot?.transport).toBeUndefined();
+    });
+});
+
+function outboundRtp(mid: string, extra: Record<string, unknown> = {}): RTCStats {
+    return {
+        type: 'outbound-rtp', kind: 'video', mid, id: `out-${mid}-${extra['rid'] ?? 'solo'}`, ...extra,
+    } as unknown as RTCStats;
+}
+
+describe('outboundStatsFromReport', () => {
+    it('produces one layer per rid, highest first, for a simulcast publication', () => {
+        const snapshot = outboundStatsFromReport(
+            report([
+                outboundRtp('1', {rid: 'b', ssrc: 2, frameWidth: 960, frameHeight: 540}),
+                outboundRtp('1', {rid: 'a', ssrc: 1, frameWidth: 1920, frameHeight: 1080}),
+            ]),
+            '1',
+        );
+
+        expect(snapshot?.direction).toBe('outbound');
+        expect(snapshot?.layers.map((l: typeof snapshot['layers'][number]) => l.rid)).toEqual(['a', 'b']);
+        expect(snapshot?.layers[0].width).toBe(1920);
+    });
+
+    it('produces one unnamed layer for a single-encoding publication', () => {
+        const snapshot = outboundStatsFromReport(report([outboundRtp('1', {ssrc: 1})]), '1');
+
+        expect(snapshot?.layers).toHaveLength(1);
+        expect(snapshot?.layers[0].rid).toBeUndefined();
+    });
+
+    it('reads the encoder fields a browser report carries', () => {
+        const snapshot = outboundStatsFromReport(
+            report([
+                outboundRtp('1', {
+                    ssrc: 1, framesPerSecond: 30, framesEncoded: 900, keyFramesEncoded: 4,
+                    packetsSent: 5000, nackCount: 2, pliCount: 1, firCount: 0,
+                    qpSum: 27_000, encoderImplementation: 'OpenH264',
+                }),
+            ]),
+            '1',
+        );
+
+        expect(snapshot?.layers[0]).toMatchObject({
+            fps: 30, framesEncoded: 900, keyFrames: 4, packets: 5000,
+            nackCount: 2, pliCount: 1, firCount: 0, encoder: 'OpenH264',
+        });
+        // qpSum is cumulative over framesEncoded; the panel wants the average.
+        expect(snapshot?.layers[0].qp).toBe(30);
+    });
+
+    it('omits qp when there are no encoded frames to average over', () => {
+        const snapshot = outboundStatsFromReport(
+            report([outboundRtp('1', {qpSum: 0, framesEncoded: 0})]), '1',
+        );
+
+        expect(snapshot?.layers[0].qp).toBeUndefined();
+    });
+
+    it('folds the remote inbound report into packets lost for the matching ssrc', () => {
+        // The only view a sender has of what the receiver actually got.
+        const remote = {
+            type: 'remote-inbound-rtp', id: 'ri-1', kind: 'video', ssrc: 1,
+            packetsLost: 12, roundTripTime: 0.021,
+        } as unknown as RTCStats;
+
+        const snapshot = outboundStatsFromReport(report([outboundRtp('1', {ssrc: 1}), remote]), '1');
+
+        expect(snapshot?.layers[0].packetsLost).toBe(12);
+        expect(snapshot?.transport?.rttMs).toBe(21);
+    });
+
+    it('answers null when no outbound stat carries that mid', () => {
+        expect(outboundStatsFromReport(report([outboundRtp('1')]), '9')).toBeNull();
     });
 });

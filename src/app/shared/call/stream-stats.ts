@@ -193,3 +193,91 @@ export function inboundStatsFor(report: StatsLike, mid: string): StreamStatsSnap
 
     return snapshot;
 }
+
+/**
+ * The outgoing half of a publication, read off a browser `getStats()` report.
+ *
+ * <p>The web host only. The desktop publisher's peer connection lives in Rust and its stats are
+ * merged there instead - see `publish_stats` - because webrtc-rs structurally cannot report any
+ * encoder field.</p>
+ *
+ * <p>Layers come back ordered by rid, so `a` (the top rung) is always first and the panel's
+ * sections read top-down like the ladder does. A publication with no rid at all is the
+ * pre-simulcast case and yields exactly one unnamed layer.</p>
+ */
+export function outboundStatsFromReport(report: StatsLike, mid: string): StreamStatsSnapshot | null {
+    const byId = indexOf(report);
+
+    const rtps: Record<string, unknown>[] = [];
+    const remoteBySsrc = new Map<number, Record<string, unknown>>();
+    for (const stat of byId.values()) {
+        const s = stat as unknown as Record<string, unknown>;
+        if (s['type'] === 'outbound-rtp' && s['kind'] === 'video' && s['mid'] === mid) rtps.push(s);
+        else if (s['type'] === 'remote-inbound-rtp' && typeof s['ssrc'] === 'number') {
+            remoteBySsrc.set(s['ssrc'] as number, s);
+        }
+    }
+    if (!rtps.length) return null;
+
+    rtps.sort((a, b) => String(a['rid'] ?? '').localeCompare(String(b['rid'] ?? '')));
+
+    let rttMs: number | undefined;
+    const layers = rtps.map(rtp => {
+        const layer: StreamLayerStats = {mid};
+        if (typeof rtp['rid'] === 'string') layer.rid = rtp['rid'] as string;
+        put(layer, 'ssrc', rtp['ssrc']);
+        put(layer, 'width', rtp['frameWidth']);
+        put(layer, 'height', rtp['frameHeight']);
+        put(layer, 'fps', rtp['framesPerSecond']);
+        put(layer, 'framesEncoded', rtp['framesEncoded']);
+        put(layer, 'keyFrames', rtp['keyFramesEncoded']);
+        put(layer, 'packets', rtp['packetsSent']);
+        put(layer, 'nackCount', rtp['nackCount']);
+        put(layer, 'pliCount', rtp['pliCount']);
+        put(layer, 'firCount', rtp['firCount']);
+        if (typeof rtp['encoderImplementation'] === 'string') {
+            layer.encoder = rtp['encoderImplementation'] as string;
+        }
+
+        // qpSum is cumulative over framesEncoded, so the useful number is the average. Guarded
+        // against a zero denominator: a publication with no encoded frames has no quantiser yet,
+        // and reporting 0 would read as "perfect quality" rather than "nothing encoded".
+        const qpSum = rtp['qpSum'];
+        const encoded = rtp['framesEncoded'];
+        if (typeof qpSum === 'number' && typeof encoded === 'number' && encoded > 0) {
+            layer.qp = Math.round(qpSum / encoded);
+        }
+
+        // What the receiver reports back over RTCP. It is the only view a sender has of loss, and
+        // the RTT it carries is the publication's, not this layer's, so it is lifted to transport.
+        const remote = typeof rtp['ssrc'] === 'number' ? remoteBySsrc.get(rtp['ssrc'] as number) : undefined;
+        if (remote) {
+            put(layer, 'packetsLost', remote['packetsLost']);
+            if (rttMs === undefined && typeof remote['roundTripTime'] === 'number') {
+                rttMs = Math.round((remote['roundTripTime'] as number) * 1000);
+            }
+        }
+
+        return layer;
+    });
+
+    const snapshot: StreamStatsSnapshot = {
+        direction: 'outbound',
+        source: 'webview',
+        capturedAt: Date.now(),
+        layers,
+    };
+
+    const codec = byId.get(rtps[0]['codecId'] as string) as unknown as Record<string, unknown> | undefined;
+    if (typeof codec?.['mimeType'] === 'string') snapshot.codec = codec['mimeType'] as string;
+    const fmtp = profileLevelIdOf(codec?.['sdpFmtpLine'] as string | undefined);
+    if (fmtp) snapshot.profileLevelId = fmtp;
+
+    const transport = transportOf(byId) ?? (rttMs === undefined ? undefined : {});
+    if (transport) {
+        if (transport.rttMs === undefined && rttMs !== undefined) transport.rttMs = rttMs;
+        snapshot.transport = transport;
+    }
+
+    return snapshot;
+}
