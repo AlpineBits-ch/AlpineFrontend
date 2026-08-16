@@ -131,3 +131,67 @@ async fn publishes_an_opus_track_under_our_own_name() {
 
     probe.close().await;
 }
+
+#[tokio::test]
+#[ignore = "needs a LiveKit server on 127.0.0.1:7880"]
+async fn publishes_three_h264_layers_named_for_livekit() {
+    use crate::media::publisher::simulcast::LAYER_RIDS;
+
+    let probe = Probe::connect(DEV_URL, &dev_token("probe-video", "user-1"))
+        .await
+        .expect("connect");
+
+    let sid = probe
+        .publish_video(
+            "screen-abc123",
+            &[
+                (LAYER_RIDS[0], 1920, 1080),
+                (LAYER_RIDS[1], 960, 540),
+                (LAYER_RIDS[2], 480, 270),
+            ],
+        )
+        .await
+        .expect("publish");
+
+    assert!(!sid.is_empty());
+    println!("PROBE video track sid: {sid}");
+
+    // The SID can arrive before the answer does, so publishing having returned is not enough.
+    probe
+        .wait_until_connected(std::time::Duration::from_secs(10))
+        .await
+        .expect("the publisher must reach connected");
+
+    let offer = probe.local_sdp().await.expect("offer");
+    let answer = probe.remote_sdp().await.expect("answer");
+
+    // The two fields that decide whether our Constrained Baseline 3.1 stream is acceptable. Printed
+    // rather than asserted because the probe reports what the server does; it does not pin it.
+    for line in answer
+        .lines()
+        .filter(|l| l.contains("profile-level-id") || l.contains("packetization-mode"))
+    {
+        println!("PROBE answer fmtp: {line}");
+    }
+    println!(
+        "PROBE offer rids: {}",
+        offer.lines().filter(|l| l.starts_with("a=rid:")).count()
+    );
+    println!(
+        "PROBE answer rids: {}",
+        answer.lines().filter(|l| l.starts_with("a=rid:")).count()
+    );
+    for line in answer.lines().filter(|l| l.starts_with("a=simulcast:")) {
+        println!("PROBE answer simulcast: {line}");
+    }
+    println!(
+        "PROBE answer has H264: {}",
+        answer.to_uppercase().contains("H264")
+    );
+
+    use webrtc::peer_connection::peer_connection_state::RTCPeerConnectionState;
+    println!("PROBE publisher state: {}", probe.publisher_state());
+    assert_eq!(probe.publisher_state(), RTCPeerConnectionState::Connected);
+
+    probe.close().await;
+}

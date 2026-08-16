@@ -25,6 +25,7 @@ use webrtc::rtp_transceiver::rtp_codec::RTCRtpCodecCapability;
 use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample;
 use webrtc::track::track_local::TrackLocal;
 
+use crate::media::publisher::rtc::h264_capability;
 use crate::media::voice::rtc::voice_api;
 
 /// How long to wait for the server to confirm a publication before giving up.
@@ -139,6 +140,116 @@ impl Probe {
 
         self.negotiate().await?;
         self.await_sid(&cid).await
+    }
+
+    /// Publish H.264 as a simulcast ladder, and return the SID the server assigned it.
+    ///
+    /// The `layers` we declare are what the server maps rid to quality by; it never reads the rid
+    /// names themselves. Highest first, matching `LAYER_RIDS`.
+    pub async fn publish_video(
+        &self,
+        name: &str,
+        layers: &[(&str, u32, u32)],
+    ) -> Result<String, String> {
+        if layers.is_empty() {
+            return Err("a ladder needs at least one layer".to_string());
+        }
+
+        self.signal
+            .send(proto::signal_request::Message::AddTrack(
+                proto::AddTrackRequest {
+                    cid: name.to_string(),
+                    name: name.to_string(),
+                    r#type: proto::TrackType::Video as i32,
+                    source: proto::TrackSource::ScreenShare as i32,
+                    width: layers[0].1,
+                    height: layers[0].2,
+                    layers: layers
+                        .iter()
+                        .enumerate()
+                        .map(|(index, (_, width, height))| proto::VideoLayer {
+                            quality: match index {
+                                0 => proto::VideoQuality::High as i32,
+                                1 => proto::VideoQuality::Medium as i32,
+                                _ => proto::VideoQuality::Low as i32,
+                            },
+                            width: *width,
+                            height: *height,
+                            ..Default::default()
+                        })
+                        .collect(),
+                    ..Default::default()
+                },
+            ))
+            .await;
+
+        // One track per rid, sharing id and stream_id and differing only by rid. This is the same
+        // construction `media::publisher::rtc` already uses: `add_encoding` rejects any other
+        // combination, and the base track must itself carry a rid or the sender refuses with
+        // ErrRTPSenderNoBaseEncoding.
+        let mut layer_tracks: Vec<Arc<TrackLocalStaticSample>> = Vec::with_capacity(layers.len());
+        for (rid, _, _) in layers {
+            layer_tracks.push(Arc::new(TrackLocalStaticSample::new_with_rid(
+                h264_capability(),
+                name.to_string(),
+                (*rid).to_owned(),
+                name.to_string(),
+            )));
+        }
+
+        let sender = self
+            .publisher
+            .add_track(Arc::clone(&layer_tracks[0]) as Arc<dyn TrackLocal + Send + Sync>)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        // Every encoding has to be attached before the offer is created: the sender refuses one
+        // afterwards (ErrRTPSenderSendAlreadyCalled), and the SDP is generated from whatever is
+        // attached at that moment.
+        for track in layer_tracks.iter().skip(1) {
+            sender
+                .add_encoding(Arc::clone(track) as Arc<dyn TrackLocal + Send + Sync>)
+                .await
+                .map_err(|e| format!("could not attach a simulcast layer: {e}"))?;
+        }
+
+        self.negotiate().await?;
+        self.await_sid(name).await
+    }
+
+    /// Wait until the publisher connection is carrying media, or give up.
+    ///
+    /// **`publish_*` returning is not this.** The SID arrives on `TrackPublishedResponse`, which the
+    /// server can send before its `Answer` - so a caller that reads the remote description straight
+    /// after publishing finds nothing there. Anything that depends on the negotiation having
+    /// completed has to wait for it explicitly.
+    pub async fn wait_until_connected(&self, timeout: Duration) -> Result<(), String> {
+        use webrtc::peer_connection::peer_connection_state::RTCPeerConnectionState;
+
+        let deadline = tokio::time::Instant::now() + timeout;
+        while tokio::time::Instant::now() < deadline {
+            match self.publisher.connection_state() {
+                RTCPeerConnectionState::Connected => return Ok(()),
+                RTCPeerConnectionState::Failed | RTCPeerConnectionState::Closed => {
+                    return Err(format!("publisher {}", self.publisher.connection_state()))
+                }
+                _ => tokio::time::sleep(Duration::from_millis(50)).await,
+            }
+        }
+        Err(format!(
+            "publisher stuck at {} after {timeout:?}",
+            self.publisher.connection_state()
+        ))
+    }
+
+    /// The offer this connection last sent, for inspecting what was actually negotiated.
+    pub async fn local_sdp(&self) -> Option<String> {
+        self.publisher.local_description().await.map(|d| d.sdp)
+    }
+
+    /// The answer the server returned, which is where a rejected codec shows up.
+    pub async fn remote_sdp(&self) -> Option<String> {
+        self.publisher.remote_description().await.map(|d| d.sdp)
     }
 
     async fn negotiate(&self) -> Result<(), String> {
