@@ -1380,6 +1380,68 @@ mod ladder_concurrency {
     /// This is the shape the sequential diagnosis does not reproduce. There, each encoder is built,
     /// drained and parked before the next exists, so at most one hardware session is live; in
     /// production all three hold a session simultaneously and are interleaved frame by frame.
+    /// Retype *upward*, which is what the failing session actually did.
+    ///
+    /// The log shows the failures beginning immediately after `now encoding at 2560x1440`, on
+    /// encoders that had been built for 1080p. Every other probe here retypes downward and back,
+    /// never past the geometry the encoder was first allocated for - and a hardware encoder sizes
+    /// its surfaces at construction, so growing one is the case none of them cover.
+    #[test]
+    #[ignore = "diagnostic: runs the real Media Foundation encoder"]
+    fn report_whether_retyping_upward_survives() {
+        let small = EncoderSpec {
+            width: 1920,
+            height: 1080,
+            fps: 30,
+            kbps: 8_000,
+            content: EncoderContent::Text,
+        };
+        let big = EncoderSpec {
+            width: 2560,
+            height: 1440,
+            fps: 30,
+            kbps: 12_000,
+            content: EncoderContent::Text,
+        };
+
+        let Some(mut encoder) = PooledEncoder::acquire(small) else {
+            println!("UPWARD: no hardware encoder");
+            return;
+        };
+
+        let mut before = 0u32;
+        for i in 0..30u64 {
+            if let EncodeOutcome::Chunk(_) = encoder.encode(&frame(small.width, small.height, i as u32), i * 33_333) {
+                before += 1;
+            }
+        }
+        println!("UPWARD at 1920x1080: {before} chunks over 30 frames");
+
+        match encoder.reconfigure(big) {
+            Ok(()) => println!("UPWARD reconfigure to 2560x1440: accepted"),
+            Err(e) => {
+                println!("UPWARD reconfigure to 2560x1440: REFUSED: {e}");
+                return;
+            }
+        }
+
+        let mut after = 0u32;
+        let mut first_failure: Option<u32> = None;
+        for i in 30..90u64 {
+            match encoder.encode(&frame(big.width, big.height, i as u32), i * 33_333) {
+                EncodeOutcome::Chunk(_) => after += 1,
+                EncodeOutcome::Skipped => {}
+                EncodeOutcome::Failed => {
+                    first_failure.get_or_insert(i as u32);
+                }
+            }
+        }
+        match first_failure {
+            None => println!("UPWARD at 2560x1440: OK, {after} chunks over 60 frames"),
+            Some(at) => println!("UPWARD at 2560x1440: FAILED first at frame {at}, {after} chunks"),
+        }
+    }
+
     #[test]
     #[ignore = "diagnostic: runs the real Media Foundation encoder"]
     fn report_whether_a_1440p_ladder_survives() {

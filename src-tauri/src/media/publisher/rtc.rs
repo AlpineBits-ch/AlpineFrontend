@@ -48,7 +48,7 @@ use webrtc::rtcp::payload_feedbacks::full_intra_request::FullIntraRequest;
 use webrtc::rtcp::payload_feedbacks::picture_loss_indication::PictureLossIndication;
 
 use webrtc::api::interceptor_registry::register_default_interceptors;
-use webrtc::api::media_engine::{MediaEngine, MIME_TYPE_H264};
+use webrtc::api::media_engine::{MediaEngine, MIME_TYPE_H264, MIME_TYPE_OPUS};
 use webrtc::api::APIBuilder;
 use webrtc::interceptor::registry::Registry;
 use webrtc::media::Sample;
@@ -108,32 +108,31 @@ pub fn h264_capability() -> RTCRtpCodecCapability {
     }
 }
 
-/// The fmtp line for H.264 **Constrained** High at Level 5.2, packetisation mode 1.
+/// The fmtp line for H.264 High at Level 5.2, and the **only** High entry [`publisher_api`]
+/// registers.
 ///
-/// `640c34`, not `640034`, and the two middle digits are the whole point. `profile-level-id` is
-/// three bytes - `profile_idc`, `profile_iop`, `level_idc` - and `0c` sets `constraint_set4` and
-/// `constraint_set5`, which is what makes it *Constrained* High rather than plain High.
+/// `0x34` = 52 = Level 5.2, which is what makes 1440p60 conformant. Level 5.0 - `640032`, what the
+/// webrtc-rs defaults offer - covers 1440p**30** and stops there; 5.1 stops short of 4K60.
 ///
-/// **libwebrtc matches H.264 by profile equality, not by capability.** Plain High and Constrained
-/// High are different profiles to that comparison, and essentially nothing advertises plain High:
-/// Chrome offers `640c1f`, and Android and iOS hardware advertise Constrained High or Constrained
-/// Baseline and nothing else. So `640034` matched no viewer - the m-line answers with no codec,
-/// which is an absent tile rather than a soft one.
+/// **Constrained High (`640c34`) was tried and measured worse, twice over.** The Media Foundation
+/// encoder accepts `UCConstrainedHigh` and then fails mid-encode, silently costing the hardware
+/// encoder for the whole session; and `livekit-server` 1.13.5 appears to drop `640c34` from the
+/// answer where it keeps `640034`.
 ///
-/// It cost nothing while Cloudflare was in front, because Cloudflare dropped every High entry
-/// anyway. It starts costing the moment an opaque SFU keeps what we offer, which is exactly what
-/// LiveKit does. Found by the mobile client's own audit of what its decoders advertise.
-///
-/// Constrained High keeps everything High was wanted for - CABAC and the 8x8 transform - and gives
-/// up only interlaced and field coding, which a screen capture never emits.
+/// That leaves a real open problem rather than a solved one. libwebrtc matches H.264 by profile
+/// *equality*, and mobile hardware commonly advertises Constrained High or Constrained Baseline and
+/// no plain High at all - so a phone will not select this entry. It is expected to negotiate down to
+/// one of the Constrained Baseline entries registered beside it, which is why those are kept.
 const H264_HIGH_5_2_FMTP: &str =
     "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=640034";
 
-/// A payload type outside everything `register_default_codecs` claims.
+/// The payload type the webrtc-rs defaults use for H.264 High.
 ///
-/// The defaults take 96, 98, 100, 102, 108, 116, 123, 125, 126 and 127 across video and their RTX
-/// pairs; 118 is free in that range and stays clear of the RTX numbering.
-const H264_HIGH_5_2_PAYLOAD_TYPE: u8 = 118;
+/// Deliberately *that* number rather than a free one. [`publisher_api`] curates the codec list
+/// rather than extending the defaults, so this is the only High entry that exists - reusing its
+/// payload type keeps the offer the same shape as a default one, and is what stops the SFU
+/// answering two High entries onto a single payload type.
+const H264_HIGH_5_2_PAYLOAD_TYPE: u8 = 123;
 
 /// How long to wait for the room to finish a negotiation before giving up on the publish.
 ///
@@ -150,19 +149,97 @@ const NEGOTIATION_SETTLE_TIMEOUT: Duration = Duration::from_secs(5);
 /// a copy that drifts from this one passes while no viewer sees a picture.
 pub fn publisher_api() -> Result<webrtc::api::API, String> {
     let mut media_engine = MediaEngine::default();
-    media_engine
-        .register_default_codecs()
-        .map_err(|e| e.to_string())?;
 
-    // High 5.2 has to be *registered* to be offered at all, because the offer's codec list comes
-    // from the media engine and not from the track. `register_default_codecs` tops out at High 5.0
-    // (`640032`), which covers 1440p30 and neither 1440p60 nor 2160p at any rate.
+    // **Curated, not `register_default_codecs()` plus an extra entry**, and the difference is the
+    // whole of 2K support.
     //
-    // This is additive: the Baseline entries stay registered and stay in the offer, so an SFU or a
-    // receiver that will not take High still has everything it had before and negotiation falls
-    // back to it. `codec_parameters_fuzzy_search` matches the track's fmtp exactly when it can and
-    // otherwise settles for any H.264, so the track binds either way - which is also why declaring
-    // this on the track alone would have changed nothing on the wire.
+    // The defaults register H.264 High **5.0** (`640032`) on payload type 123. Adding our High 5.2
+    // (`640034`) on a payload type of its own left the offer carrying *two* High entries, and
+    // `livekit-server` answers both onto one payload type - `m=video ... 123 123`, with two
+    // conflicting `a=fmtp:123` lines. A receiver then picks one arbitrarily, and picking 5.0 makes
+    // 1440p60 non-conformant, which is exactly the resolution this exists to allow. Measured, in
+    // `offer_shape::report_the_h264_entries_in_a_publishing_offer`.
+    //
+    // Registering 5.2 on 123 instead does not work either: `register_codec` silently ignores a
+    // payload type already taken, so the offer comes back with 5.0 and our entry simply absent.
+    // Also measured.
+    //
+    // So the list is built here. Only what this connection actually publishes is registered -
+    // Opus for the microphone and a share's own sound, H.264 for the picture - and High 5.2 is the
+    // *only* High entry, on the payload type the defaults used for High 5.0. Nothing collides,
+    // nothing is silently dropped, and the Constrained Baseline entries stay so a receiver that
+    // takes no High still negotiates.
+    //
+    // VP8, VP9, AV1 and HEVC are deliberately absent: this peer connection only ever sends, and it
+    // only ever sends H.264. The *subscriber* connection is built from `voice_api`, which keeps the
+    // full default set, so nothing about what we can receive changes.
+    //
+    // `register_default_codecs` registers no RTX entries at all, so curating loses none.
+    let video_feedback = vec![
+        RTCPFeedback {
+            typ: "goog-remb".to_owned(),
+            parameter: String::new(),
+        },
+        RTCPFeedback {
+            typ: "ccm".to_owned(),
+            parameter: "fir".to_owned(),
+        },
+        RTCPFeedback {
+            typ: "nack".to_owned(),
+            parameter: String::new(),
+        },
+        // How a viewer asks for the keyframe it needs in order to start decoding at all.
+        RTCPFeedback {
+            typ: "nack".to_owned(),
+            parameter: "pli".to_owned(),
+        },
+    ];
+
+    media_engine
+        .register_codec(
+            RTCRtpCodecParameters {
+                capability: RTCRtpCodecCapability {
+                    mime_type: MIME_TYPE_OPUS.to_owned(),
+                    clock_rate: 48_000,
+                    channels: 2,
+                    sdp_fmtp_line: "minptime=10;useinbandfec=1".to_owned(),
+                    rtcp_feedback: vec![],
+                },
+                payload_type: 111,
+                ..Default::default()
+            },
+            RTPCodecType::Audio,
+        )
+        .map_err(|e| format!("could not register Opus: {e}"))?;
+
+    // The Constrained Baseline rungs, verbatim from the defaults including their payload types.
+    // Kept because they are what a receiver that will not take High negotiates down to - and on
+    // mobile that is most of them, since Android hardware commonly advertises Constrained Baseline
+    // and nothing else.
+    for (payload_type, fmtp) in [
+        (102u8, "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42001f"),
+        (127, "level-asymmetry-allowed=1;packetization-mode=0;profile-level-id=42001f"),
+        (125, "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01f"),
+        (108, "level-asymmetry-allowed=1;packetization-mode=0;profile-level-id=42e01f"),
+    ] {
+        media_engine
+            .register_codec(
+                RTCRtpCodecParameters {
+                    capability: RTCRtpCodecCapability {
+                        mime_type: MIME_TYPE_H264.to_owned(),
+                        clock_rate: 90_000,
+                        channels: 0,
+                        sdp_fmtp_line: fmtp.to_owned(),
+                        rtcp_feedback: video_feedback.clone(),
+                    },
+                    payload_type,
+                    ..Default::default()
+                },
+                RTPCodecType::Video,
+            )
+            .map_err(|e| format!("could not register H.264 {payload_type}: {e}"))?;
+    }
+
     media_engine
         .register_codec(
             RTCRtpCodecParameters {
@@ -171,27 +248,7 @@ pub fn publisher_api() -> Result<webrtc::api::API, String> {
                     clock_rate: 90_000,
                     channels: 0,
                     sdp_fmtp_line: H264_HIGH_5_2_FMTP.to_owned(),
-                    // Matches what the defaults attach to every video codec. Dropping any of these
-                    // would quietly cost the thing it names - `nack pli` in particular is how a
-                    // viewer asks for the keyframe it needs to start decoding.
-                    rtcp_feedback: vec![
-                        RTCPFeedback {
-                            typ: "goog-remb".to_owned(),
-                            parameter: String::new(),
-                        },
-                        RTCPFeedback {
-                            typ: "ccm".to_owned(),
-                            parameter: "fir".to_owned(),
-                        },
-                        RTCPFeedback {
-                            typ: "nack".to_owned(),
-                            parameter: String::new(),
-                        },
-                        RTCPFeedback {
-                            typ: "nack".to_owned(),
-                            parameter: "pli".to_owned(),
-                        },
-                    ],
+                    rtcp_feedback: video_feedback.clone(),
                 },
                 payload_type: H264_HIGH_5_2_PAYLOAD_TYPE,
                 ..Default::default()
@@ -784,5 +841,46 @@ mod tests {
     #[test]
     fn answers_none_when_the_answer_names_no_profile() {
         assert_eq!(profile_level_id_in("m=video 9 UDP/TLS/RTP/SAVPF 102\r\n"), None);
+    }
+}
+
+#[cfg(test)]
+mod offer_shape {
+    use super::*;
+    use webrtc::peer_connection::configuration::RTCConfiguration;
+    use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample;
+    use webrtc::track::track_local::TrackLocal;
+
+    /// Prints every H.264 entry our publishing offer actually carries.
+    ///
+    /// The question this answers: we register High 5.2 on our own payload type *in addition to* the
+    /// High 5.0 that `register_default_codecs` provides, so the offer carries two High entries. The
+    /// SFU then answers both onto one payload type - `m=video ... 123 123`, with two conflicting
+    /// `a=fmtp:123` lines - and a receiver has to pick one arbitrarily. For 2K that ambiguity is the
+    /// whole problem: picking `640032` (Level 5.0) makes 1440p60 non-conformant.
+    #[tokio::test]
+    async fn report_the_h264_entries_in_a_publishing_offer() {
+        let api = publisher_api().expect("publisher api");
+        let pc = api
+            .new_peer_connection(RTCConfiguration::default())
+            .await
+            .expect("peer connection");
+
+        let track = Arc::new(TrackLocalStaticSample::new(
+            h264_capability(),
+            "video".to_owned(),
+            "screen-test".to_owned(),
+        ));
+        pc.add_track(track as Arc<dyn TrackLocal + Send + Sync>)
+            .await
+            .expect("add track");
+
+        let offer = pc.create_offer(None).await.expect("offer");
+        for line in offer.sdp.lines() {
+            if line.starts_with("m=video") || line.contains("profile-level-id") {
+                println!("OFFER {line}");
+            }
+        }
+        let _ = pc.close().await;
     }
 }
