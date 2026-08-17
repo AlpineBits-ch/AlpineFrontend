@@ -49,7 +49,6 @@ import {CallPanelComponent} from './call-panel/call-panel.component';
 import {UserStatusDotComponent} from '../../../../components/user-status-dot/user-status-dot.component';
 import {TypingDotsComponent} from '../../../../components/typing-dots/typing-dots.component';
 import {HighlightPipe} from '../../../../pipes/highlight.pipe';
-import {AppAvatarComponent} from '../../../../components/avatar/avatar.component';
 
 import {ConversationSearchService} from './conversation-search.service';
 import {ConversationScrollService} from './conversation-scroll.service';
@@ -66,6 +65,7 @@ import {describeRefusal} from '../../../../core/refusal-message';
 import {PinnedMessagesPanelComponent} from '../pinned-messages-panel/pinned-messages-panel.component';
 import {JumpToPresentComponent} from '../../../../components/jump-to-present/jump-to-present.component';
 import {EditGroupModalComponent} from './edit-group-modal/edit-group-modal.component';
+import {ConversationAvatarComponent} from '../conversation-avatar/conversation-avatar.component';
 
 @Component({
     selector: 'app-conversation',
@@ -82,7 +82,6 @@ import {EditGroupModalComponent} from './edit-group-modal/edit-group-modal.compo
         TypingDotsComponent,
         HighlightPipe,
         TranslateModule,
-        AppAvatarComponent,
         PinnedMessagesPanelComponent,
         MlsUnreadableBannerComponent,
         MlsJoinRequestReviewComponent,
@@ -90,6 +89,7 @@ import {EditGroupModalComponent} from './edit-group-modal/edit-group-modal.compo
         DateDividerComponent,
         JumpToPresentComponent,
         EditGroupModalComponent,
+        ConversationAvatarComponent,
     ],
     templateUrl: './conversation.component.html',
     styleUrl: './conversation.component.css',
@@ -110,7 +110,6 @@ export class ConversationComponent implements AfterViewInit {
     protected readonly chatAvatarLabel = computed(() =>
         this.convUtils.getChatAvatarLabel(this.conversation()),
     );
-    protected readonly chatIconUrl = computed(() => this.convUtils.getChatIconUrl(this.conversation()));
     protected readonly isGroup = computed(() => this.convUtils.isGroup(this.conversation()));
     protected readonly showGroupEdit = signal(false);
     protected readonly partnerStatus = computed(() => this.convUtils.getPartnerStatus(this.conversation()));

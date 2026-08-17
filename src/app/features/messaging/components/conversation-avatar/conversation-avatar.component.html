@@ -1,0 +1,20 @@
+@if (tiles().length === 2) {
+    <div [style]="boxStyle()" class="conv-stack">
+        @for (tile of tiles(); track $index) {
+            <span class="conv-tile">
+                <span class="conv-tile-initial">{{ tile.label }}</span>
+                @if (tile.imageUrl) {
+                    <img (error)="onTileError(tile.imageUrl!)" [alt]="tile.label" [src]="tile.imageUrl" class="conv-tile-image" />
+                }
+            </span>
+        }
+    </div>
+} @else {
+    <app-avatar
+        [authSrc]="iconUrl()"
+        [label]="label()"
+        [size]="size() === 'large' ? undefined : 'normal'"
+        [styleClass]="size() === 'large' ? '!w-16 !h-16 !text-2xl' : undefined"
+        [userId]="iconUrl() ? undefined : partnerId()"
+    />
+}

@@ -22,7 +22,7 @@ import {ConversationDto} from '../../../../dtos/response/conversation.dto';
 import {MessageDto} from '../../../../dtos/response/message.dto';
 import {MessageEncryptionState} from '../../../../enums/message-encryption-state.enum';
 
-import {AppAvatarComponent} from '../../../../components/avatar/avatar.component';
+import {ConversationAvatarComponent} from '../conversation-avatar/conversation-avatar.component';
 import {UserStatusDotComponent} from '../../../../components/user-status-dot/user-status-dot.component';
 import {TypingDotsComponent} from '../../../../components/typing-dots/typing-dots.component';
 import {EmptyStateComponent} from '../../../../components/empty-state/empty-state.component';
@@ -49,7 +49,7 @@ const PREVIEW_SIZE = 30;
 @Component({
     selector: 'app-conversation-list',
     imports: [
-        AppAvatarComponent,
+        ConversationAvatarComponent,
         DatePipe,
         NgClass,
         UserStatusDotComponent,

@@ -2,6 +2,7 @@ import {Component, computed, DestroyRef, effect, inject, Injector, input, signal
 import {Avatar} from 'primeng/avatar';
 import {takeUntilDestroyed, toObservable} from '@angular/core/rxjs-interop';
 import {AuthImageService} from '../../services/auth-image.service';
+import {cacheBustedUrl} from '../../models/profile-image.model';
 import {ProfileService} from '../../services/profile.service';
 import {OsInfo} from '../../platform/ports/os-info.port';
 
@@ -77,7 +78,11 @@ export class AppAvatarComponent {
     );
     protected readonly imageUrl = computed((): string | undefined => {
         if (this.imageError()) return undefined;
-        return this.authSrc() ? this.authObjectUrl() : this.profile()?.avatarUrl;
+        if (this.authSrc()) return this.authObjectUrl();
+        // The URL is derived from the profile id, so replacing the image behind it does not change
+        // it. Without the stamp the browser keeps serving the picture that was just replaced.
+        const profile = this.profile();
+        return cacheBustedUrl(profile?.avatarUrl, profile?.updatedAt);
     });
     protected readonly displayLabel = computed((): string | undefined => {
         if (this.imageUrl()) return undefined;

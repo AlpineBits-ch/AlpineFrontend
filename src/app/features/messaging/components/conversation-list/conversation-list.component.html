@@ -15,13 +15,7 @@
                     class="w-full flex items-center gap-2.5 px-2 py-2 my-0.5 rounded-xl transition-all cursor-pointer border-0 text-left"
                 >
                     <div class="relative shrink-0 self-center">
-                        @let member = convUtils.getPartnerMember(conv);
-                        <app-avatar
-                            [authSrc]="convUtils.getChatIconUrl(conv)"
-                            [label]="member?.cachedUserName?.[0]?.toUpperCase()"
-                            [userId]="member?.userId"
-                            size="normal"
-                        />
+                        <app-conversation-avatar [conversation]="conv" size="normal" />
                         <app-user-status-dot [status]="convUtils.getPartnerStatus(conv)" />
                     </div>
 
@@ -108,13 +102,7 @@
                     class="w-full flex items-center gap-2.5 px-2 py-2 rounded-xl transition-all cursor-pointer border-0 text-left"
                 >
                     <div class="relative shrink-0">
-                        @let member = convUtils.getPartnerMember(conv);
-                        <app-avatar
-                            [authSrc]="convUtils.getChatIconUrl(conv)"
-                            [label]="member?.cachedUserName?.[0]?.toUpperCase()"
-                            [userId]="member?.userId"
-                            size="normal"
-                        />
+                        <app-conversation-avatar [conversation]="conv" size="normal" />
                         <app-user-status-dot [status]="convUtils.getPartnerStatus(conv)" />
                     </div>
 

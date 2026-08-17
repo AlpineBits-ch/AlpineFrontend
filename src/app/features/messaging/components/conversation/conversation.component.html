@@ -20,12 +20,7 @@
             class="flex items-center gap-2 sm:gap-3"
         >
             <div class="relative">
-                <app-avatar
-                    [authSrc]="chatIconUrl()"
-                    [label]="chatAvatarLabel()"
-                    [userId]="convUtils.getPartnerMember(conversation())?.userId"
-                    size="normal"
-                />
+                <app-conversation-avatar [conversation]="conversation()" size="normal" />
                 <app-user-status-dot [status]="partnerStatus()" borderColor="border-app-bg" size="md" />
             </div>
             <div class="flex flex-col">
@@ -324,12 +319,7 @@
                             } @else if (!hasMore()) {
                                 <!-- Conversation start, only show when all history is loaded -->
                                 <div class="py-8 flex flex-col items-start gap-2">
-                                    <app-avatar
-                                        [authSrc]="chatIconUrl()"
-                                        [label]="chatAvatarLabel()"
-                                        [userId]="convUtils.getPartnerMember(conversation())?.userId"
-                                        styleClass="!w-16 !h-16 !text-2xl"
-                                    />
+                                    <app-conversation-avatar [conversation]="conversation()" size="large" />
                                     <h2 class="text-2xl font-bold text-text-primary mt-3">{{ chatTitle() }}</h2>
                                     <p class="text-sm text-text-muted max-w-md leading-relaxed">
                                         This is the beginning of your direct message history with
