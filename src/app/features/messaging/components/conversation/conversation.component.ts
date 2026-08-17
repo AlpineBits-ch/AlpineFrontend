@@ -96,6 +96,12 @@ import {ConversationAvatarComponent} from '../conversation-avatar/conversation-a
 })
 export class ConversationComponent implements AfterViewInit {
     public readonly conversation = input.required<ConversationDto>();
+    /**
+     * The input is the live store entity, so it gets a new object on every rename, read receipt and
+     * incoming message. Anything that means "which conversation" reads this instead, or it re-runs
+     * on all of them.
+     */
+    protected readonly conversationId = computed(() => this.conversation().id);
     public back = output();
     protected convUtils = inject(ConversationUtilsService);
     protected search = inject(ConversationSearchService);
@@ -127,7 +133,7 @@ export class ConversationComponent implements AfterViewInit {
     protected readonly messages = computed(() =>
         this.messageStore
             .entities()
-            .filter(m => m.conversationId === this.conversation().id)
+            .filter(m => m.conversationId === this.conversationId())
             .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()),
     );
     protected readonly messageRows = computed(() => buildMessageRows(this.messages()));
@@ -140,7 +146,7 @@ export class ConversationComponent implements AfterViewInit {
     private mlsHealth = inject(MlsHealthService);
     private joinRequests = inject(MlsJoinRequestService);
     /** What the last re-link attempt for this conversation achieved. */
-    protected readonly relinkStatus = computed(() => this.joinRequests.statusOf(this.conversation().id));
+    protected readonly relinkStatus = computed(() => this.joinRequests.statusOf(this.conversationId()));
     /** Display names for the admission review prompt, keyed by user id. */
     protected readonly participantNames = computed<Record<string, string>>(() =>
         Object.fromEntries(this.conversation().members.map(m => [m.userId, m.cachedUserName])),

@@ -80,6 +80,11 @@ export const ConversationStore = signalStore(
         updateMemberLastRead(conversationId: string, userId: string, lastReadMessageId: string): void {
             const conv = store.entityMap()[conversationId];
             if (!conv) return;
+            // A no-op write still hands out a new entity object, and anything reading the open
+            // conversation off the store treats that as a change.
+            if (conv.members.some(m => m.userId === userId && m.lastReadMessageId === lastReadMessageId)) {
+                return;
+            }
             patchState(
                 store,
                 updateEntity({
