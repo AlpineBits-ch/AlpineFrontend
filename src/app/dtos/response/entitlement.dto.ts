@@ -14,8 +14,7 @@ export const ENTITLEMENT_REASON_CODES = {
 } as const;
 
 export type EntitlementReason =
-    | typeof ENTITLEMENT_REASON_CODES[keyof typeof ENTITLEMENT_REASON_CODES]
-    | (string & {});
+    (typeof ENTITLEMENT_REASON_CODES)[keyof typeof ENTITLEMENT_REASON_CODES] | (string & {});
 
 /** What would fix it, which is what the button says. */
 export const ENTITLEMENT_REMEDY_CODES = {
@@ -28,8 +27,7 @@ export const ENTITLEMENT_REMEDY_CODES = {
 } as const;
 
 export type EntitlementRemedy =
-    | typeof ENTITLEMENT_REMEDY_CODES[keyof typeof ENTITLEMENT_REMEDY_CODES]
-    | (string & {});
+    (typeof ENTITLEMENT_REMEDY_CODES)[keyof typeof ENTITLEMENT_REMEDY_CODES] | (string & {});
 
 /** Which side of a pair bound. An operator ceiling carries no `boundBy` at all. */
 export type EntitlementBoundBy = 'guild' | 'user' | (string & {});
@@ -225,7 +223,7 @@ export function rungMetrics(
 export function degradationsOf(body: unknown): EntitlementDegradationDto[] {
     if (!body || typeof body !== 'object') return [];
     const list = (body as {degradations?: unknown}).degradations;
-    return Array.isArray(list) ? list as EntitlementDegradationDto[] : [];
+    return Array.isArray(list) ? (list as EntitlementDegradationDto[]) : [];
 }
 
 /** Why a module is not usable, from the three lists. */

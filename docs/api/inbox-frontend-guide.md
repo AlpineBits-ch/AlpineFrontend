@@ -12,21 +12,21 @@ https://api.venta.gg/api/v1/guild/inbox/...
 Normal `Authorization: Bearer <token>`. Every route acts on **the caller's own** inbox — there is no
 user id in any path and no way to read anyone else's.
 
-| | |
-|---|---|
-| `GET` | `/api/v1/guild/inbox/unread` |
-| `GET` | `/api/v1/guild/inbox/mentions` |
-| `GET` | `/api/v1/guild/inbox/tasks` |
-| `GET` | `/api/v1/guild/inbox/summary` |
-| `POST` | `/api/v1/guild/inbox/channels/{channelId}/read` |
-| `POST` | `/api/v1/guild/inbox/read-all` |
+|          |                                                        |
+| -------- | ------------------------------------------------------ |
+| `GET`    | `/api/v1/guild/inbox/unread`                           |
+| `GET`    | `/api/v1/guild/inbox/mentions`                         |
+| `GET`    | `/api/v1/guild/inbox/tasks`                            |
+| `GET`    | `/api/v1/guild/inbox/summary`                          |
+| `POST`   | `/api/v1/guild/inbox/channels/{channelId}/read`        |
+| `POST`   | `/api/v1/guild/inbox/read-all`                         |
 | `DELETE` | `/api/v1/guild/inbox/mentions/{messageId}?createdAt=…` |
 
 ---
 
 ## Things to know before you build against this
 
-**Timestamps decide what is unread, never ids.** Message ids sort by creation time *only* if they
+**Timestamps decide what is unread, never ids.** Message ids sort by creation time _only_ if they
 were minted after the ULID change; older ones do not sort at all. Treat every id as opaque — never
 compare two of them to work out which is newer. `lastActivityAt` and `createdAt` are what order
 things.
@@ -44,7 +44,7 @@ display only. Show them differently if the distinction matters to you.
 
 **`@here` reaches people who were online when it was sent.** If the user was idle, invisible, or
 offline at that moment it is not their mention and will not appear. `@everyone` reaches everyone who
-had already joined; `@role` reaches whoever already held the role. Being *given* a role does not
+had already joined; `@role` reaches whoever already held the role. Being _given_ a role does not
 surface that role's older pings.
 
 ---
@@ -53,10 +53,10 @@ surface that role's older pings.
 
 Channels with messages newer than the caller's read cursor, newest activity first.
 
-| Query | Type | Default | Notes |
-|---|---|---|---|
-| `limit` | int | `10` | Clamped to 1-25 |
-| `cursor` | string | — | Opaque; from the previous response's `nextCursor` |
+| Query    | Type   | Default | Notes                                             |
+| -------- | ------ | ------- | ------------------------------------------------- |
+| `limit`  | int    | `10`    | Clamped to 1-25                                   |
+| `cursor` | string | —       | Opaque; from the previous response's `nextCursor` |
 
 ```jsonc
 {
@@ -67,23 +67,23 @@ Channels with messages newer than the caller's read cursor, newest activity firs
         "guildName": "Echo",
         "guildIconUrl": "/api/v1/guild/guilds/gild_01J…/icon",
         "guildIconThumbnailUrl": "/api/v1/guild/guilds/gild_01J…/icon/thumbnail",
-        "categoryId": "cate_01J…",     // null when uncategorised
+        "categoryId": "cate_01J…", // null when uncategorised
         "categoryName": "General",
         "channelId": "chan_01J…",
         "channelName": "announcements",
         "channelType": 0,
-        "parentChannelId": null,        // set for threads and forum posts
-        "parentChannelName": null
+        "parentChannelId": null, // set for threads and forum posts
+        "parentChannelName": null,
       },
       "lastActivityAt": "2026-08-03T10:14:22.115Z",
-      "unreadCount": 8,                 // best-effort, clamped at 0
-      "mentionCount": 2,                // exact
-      "previews": [ /* InboxMessage, oldest first, max 5 */ ],
-      "previewsTruncated": true
-    }
+      "unreadCount": 8, // best-effort, clamped at 0
+      "mentionCount": 2, // exact
+      "previews": [/* InboxMessage, oldest first, max 5 */],
+      "previewsTruncated": true,
+    },
   ],
   "nextCursor": "MTc1NDIxNzY2MjAwMDAwMDA6Y2hhbl8wMUo…",
-  "previewsUnavailable": false
+  "previewsUnavailable": false,
 }
 ```
 
@@ -128,15 +128,15 @@ bookmark degrades instead of breaking.
 Messages that mentioned the caller, newest first. Merges direct/`@here` mentions with
 `@everyone`/`@role` pings.
 
-| Query | Type | Default | Notes |
-|---|---|---|---|
-| `guildId` | string | — | Restrict to one guild |
-| `since` | string | `7d` | `24h`, `7d` or `30d`. Anything else falls back to the default |
-| `includeEveryone` | bool | `true` | |
-| `includeRoles` | bool | `true` | |
-| `includeDms` | bool | `true` | |
-| `limit` | int | `25` | Clamped to 1-50 |
-| `cursor` | string | — | Opaque |
+| Query             | Type   | Default | Notes                                                         |
+| ----------------- | ------ | ------- | ------------------------------------------------------------- |
+| `guildId`         | string | —       | Restrict to one guild                                         |
+| `since`           | string | `7d`    | `24h`, `7d` or `30d`. Anything else falls back to the default |
+| `includeEveryone` | bool   | `true`  |                                                               |
+| `includeRoles`    | bool   | `true`  |                                                               |
+| `includeDms`      | bool   | `true`  |                                                               |
+| `limit`           | int    | `25`    | Clamped to 1-50                                               |
+| `cursor`          | string | —       | Opaque                                                        |
 
 ```jsonc
 {
@@ -144,16 +144,16 @@ Messages that mentioned the caller, newest first. Merges direct/`@here` mentions
     {
       "messageId": "mesg_01J…",
       "createdAt": "2026-08-03T09:41:02.884Z",
-      "kind": "Direct",              // Direct | Here | Everyone | Role
-      "roleId": null,                // set when kind is Role
+      "kind": "Direct", // Direct | Here | Everyone | Role
+      "roleId": null, // set when kind is Role
       "roleName": null,
       "authorId": "user_01J…",
-      "breadcrumb": { /* as above; null for a DM mention */ },
-      "conversationId": null,        // set for a DM mention
-      "message": { /* InboxMessage */ }
-    }
+      "breadcrumb": {/* as above; null for a DM mention */},
+      "conversationId": null, // set for a DM mention
+      "message": {/* InboxMessage */},
+    },
   ],
-  "nextCursor": null
+  "nextCursor": null,
 }
 ```
 
@@ -172,7 +172,7 @@ shorter than `limit` while more pages exist. Same rule as Unread: page until `ne
 The header badge.
 
 ```jsonc
-{ "unreadChannelCount": 4, "mentionCount": 12, "taskCount": 2, "capped": false }
+{"unreadChannelCount": 4, "mentionCount": 12, "taskCount": 2, "capped": false}
 ```
 
 `capped: true` means the real numbers are higher than reported — render as `99+`. Counting further
@@ -196,16 +196,16 @@ presence at all.
 {
   "tasks": [
     {
-      "kind": "ChoreDue",           // ChoreDue | DecisionVote | ListAssignment
-      "targetId": "choc_...",       // occurrence / decision / list item
-      "breadcrumb": { /* same shape as Unread */ },
+      "kind": "ChoreDue", // ChoreDue | DecisionVote | ListAssignment
+      "targetId": "choc_...", // occurrence / decision / list item
+      "breadcrumb": {/* same shape as Unread */},
       "title": "Bins",
       "subtitle": "Your turn",
       "dueAt": "2026-08-06T18:00:00Z",
-      "isOverdue": false
-    }
+      "isOverdue": false,
+    },
   ],
-  "truncated": false
+  "truncated": false,
 }
 ```
 
@@ -230,11 +230,11 @@ Marks one channel read up to its current head. No body. `204` on success.
 Same effect as the `guild.UpdateLastRead` hub method — this exists so the check button works without
 a live socket. A channel with no messages is a `204` no-op, not an error.
 
-| Status | Meaning |
-|---|---|
-| `204` | Done, or nothing to do |
-| `403` | Not a member of the channel's guild |
-| `404` | No such channel |
+| Status | Meaning                             |
+| ------ | ----------------------------------- |
+| `204`  | Done, or nothing to do              |
+| `403`  | Not a member of the channel's guild |
+| `404`  | No such channel                     |
 
 ---
 
@@ -243,7 +243,7 @@ a live socket. A channel with no messages is a `204` no-op, not an error.
 Marks every channel in every guild read. No body. `204`.
 
 Idempotent. Rate-limited — this is a bulk write across the caller's whole account, so don't call it
-on a timer. It marks *messages* read: it does not touch `taskCount`, because a chore that is due is
+on a timer. It marks _messages_ read: it does not touch `taskCount`, because a chore that is due is
 still due afterwards.
 
 ---
@@ -270,14 +270,14 @@ rows, so there is nothing to delete — dismissing one is accepted and does noth
   "id": "mesg_01J…",
   "createdAt": "2026-08-03T09:41:02.884Z",
   "authorId": "user_01J…",
-  "authorDisplayName": null,   // set for webhook and bot authors
+  "authorDisplayName": null, // set for webhook and bot authors
   "authorAvatarUrl": null,
-  "content": "SGVsbG8…",       // base64 bytes
+  "content": "SGVsbG8…", // base64 bytes
   "isEncrypted": false,
   "mlsGeneration": null,
-  "type": 0,                   // 0 Message, 1 Invite, 2 GuildMemberJoin, 3 GuildMemberLeave
+  "type": 0, // 0 Message, 1 Invite, 2 GuildMemberJoin, 3 GuildMemberLeave
   "systemMessageVariant": null,
-  "embedsJson": null
+  "embedsJson": null,
 }
 ```
 
@@ -305,7 +305,7 @@ Server→client only, over the existing hub. No new client→server methods.
   "conversationId": null,
   "authorId": "user_01J…",
   "kind": "Direct",
-  "createdAt": "2026-08-03T09:41:02.884Z"
+  "createdAt": "2026-08-03T09:41:02.884Z",
 }
 ```
 
@@ -316,7 +316,7 @@ Sent only to users the message actually mentioned, and only those who can see th
 Sent to the acking user's **other** devices so a second client's badge clears.
 
 ```jsonc
-{ "channelId": "chan_01J…", "lastReadMessageId": "mesg_01J…", "mentionCount": 0 }
+{"channelId": "chan_01J…", "lastReadMessageId": "mesg_01J…", "mentionCount": 0}
 ```
 
 Read-all sends `{ "all": true }` instead — treat that as "clear every badge" rather than looking for

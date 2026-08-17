@@ -43,7 +43,8 @@ function chan(over: Partial<ChannelDto> & {id: string; type: ChannelType}): Chan
 const forum = chan({id: 'f1', type: ChannelType.Forum});
 const textChannel = chan({id: 't1', type: ChannelType.Text});
 const posts = Array.from({length: 8}, (_, i) =>
-    chan({id: `p${i}`, type: ChannelType.Thread, parentChannelId: 'f1'}));
+    chan({id: `p${i}`, type: ChannelType.Thread, parentChannelId: 'f1'}),
+);
 
 function setup() {
     TestBed.configureTestingModule({providers: [provideFakePlatform()]});
@@ -145,11 +146,14 @@ describe('ForumVisitedPostsService', () => {
     });
 
     it('discards malformed entries without losing the well-formed ones', () => {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({
-            f1: ['good1', 42, 'good2', null],
-            f2: 'not-an-array',
-            f3: ['other'],
-        }));
+        localStorage.setItem(
+            STORAGE_KEY,
+            JSON.stringify({
+                f1: ['good1', 42, 'good2', null],
+                f2: 'not-an-array',
+                f3: ['other'],
+            }),
+        );
 
         const {service} = setup();
 

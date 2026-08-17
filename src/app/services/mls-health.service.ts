@@ -46,19 +46,16 @@ export class MlsHealthService {
     isBroken(contextId: string): boolean {
         const health = this.healthOf(contextId);
         if (!health) return false;
-        return health.reason === 'removed'
-            || health.reason === 'not-admitted'
+        return (
+            health.reason === 'removed' ||
+            health.reason === 'not-admitted' ||
             // Immediately, not after three: there is no "hiccup" reading of a server claiming an encrypted context is now plaintext.
-            || health.reason === 'downgraded'
-            || health.failures >= MlsHealthService.BROKEN_AFTER;
+            health.reason === 'downgraded' ||
+            health.failures >= MlsHealthService.BROKEN_AFTER
+        );
     }
 
-    recordFailure(
-        contextId: string,
-        isChannel: boolean,
-        reason: MlsFailureReason,
-        detail?: unknown,
-    ): void {
+    recordFailure(contextId: string, isChannel: boolean, reason: MlsFailureReason, detail?: unknown): void {
         this._contexts.update(current => {
             const previous = current[contextId];
             return {

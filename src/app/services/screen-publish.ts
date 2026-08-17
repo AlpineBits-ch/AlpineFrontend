@@ -46,8 +46,9 @@ export function useRustPublisher(host: PlatformHost = detectHost()): boolean {
 export function iceServers(): IceServerConfig[] {
     return environment.iceServers
         .map(server => ({
-            urls: (Array.isArray(server.urls) ? server.urls : [server.urls])
-                .filter(url => url.startsWith('stun:')),
+            urls: (Array.isArray(server.urls) ? server.urls : [server.urls]).filter(url =>
+                url.startsWith('stun:'),
+            ),
             username: server.username,
             credential: server.credential,
         }))
@@ -80,7 +81,11 @@ export function publishOptions(
 ): ScreenPublishOptions {
     const preset: StreamPreset = choice.preset;
     const {width, height} = solveGeometry(
-        choice.sourceWidth, choice.sourceHeight, preset.resolution, ceiling);
+        choice.sourceWidth,
+        choice.sourceHeight,
+        preset.resolution,
+        ceiling,
+    );
 
     return {
         sourceId: choice.sourceId,

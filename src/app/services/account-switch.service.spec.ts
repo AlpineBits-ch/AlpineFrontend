@@ -113,7 +113,7 @@ beforeEach(() => {
     confirmLeave = true;
     wipeFails = false;
     liveDeviceId = 'device-live';
-    vi.spyOn(console, 'error').mockImplementation(() => { });
+    vi.spyOn(console, 'error').mockImplementation(() => {});
     build();
 });
 
@@ -246,7 +246,9 @@ describe('beginAddAccount', () => {
 describe('adoptSignedInAccount', () => {
     it('creates a slot and makes it live', async () => {
         const slot = await service.adoptSignedInAccount({
-            userId: 'user-a', serverUrl: 'https://a.example', username: 'ada',
+            userId: 'user-a',
+            serverUrl: 'https://a.example',
+            username: 'ada',
         });
 
         expect(await registry.activeSlotId()).toBe(slot.id);
@@ -258,7 +260,8 @@ describe('adoptSignedInAccount', () => {
         trackedSet(scopedOAuthKey(BOOTSTRAP_SLOT_ID, 'refresh_token'), 'fresh-refresh');
 
         const slot = await service.adoptSignedInAccount({
-            userId: 'user-a', serverUrl: 'https://a.example',
+            userId: 'user-a',
+            serverUrl: 'https://a.example',
         });
 
         // Every login writes to the bootstrap slot, because who the tokens belong to is not known
@@ -292,10 +295,12 @@ describe('adoptSignedInAccount', () => {
 
     it('activates the slot that already exists rather than making a second', async () => {
         const first = await service.adoptSignedInAccount({
-            userId: 'user-a', serverUrl: 'https://a.example',
+            userId: 'user-a',
+            serverUrl: 'https://a.example',
         });
         const again = await service.adoptSignedInAccount({
-            userId: 'user-a', serverUrl: 'https://a.example',
+            userId: 'user-a',
+            serverUrl: 'https://a.example',
         });
 
         // Two slots for one account would be two device ids, two MLS engines and two halves of

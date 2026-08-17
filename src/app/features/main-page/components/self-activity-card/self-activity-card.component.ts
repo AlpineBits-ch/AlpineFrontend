@@ -25,7 +25,7 @@ export class SelfActivityCardComponent {
     protected readonly ownActivity = computed(() =>
         this.websocket.connectionState() === ConnectionState.Connected
             ? primaryActivity(this.userActivity.own())
-            : null
+            : null,
     );
 
     /** Cover art, when there is any. */
@@ -36,9 +36,7 @@ export class SelfActivityCardComponent {
     });
 
     /** As much identity as a name alone can carry, for when there is no art. */
-    protected readonly monogram = computed(() =>
-        this.ownActivity()?.name?.trim()?.[0]?.toUpperCase() ?? '?'
-    );
+    protected readonly monogram = computed(() => this.ownActivity()?.name?.trim()?.[0]?.toUpperCase() ?? '?');
 
     /** Whether this game is currently on screen for the room. */
     protected readonly isSharing = computed(() => this.voiceSvc.localState().isScreenSharing);

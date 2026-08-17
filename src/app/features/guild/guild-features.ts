@@ -29,7 +29,7 @@ export const GuildFeature = {
     Maintenance: 'Maintenance',
 } as const;
 
-export type GuildFeature = typeof GuildFeature[keyof typeof GuildFeature];
+export type GuildFeature = (typeof GuildFeature)[keyof typeof GuildFeature];
 
 /** Plain strings, not `GuildFeature`: unknown names must survive a round trip, or saving an unrelated toggle would switch off a module this build predates. */
 export type GuildFeatureSet = ReadonlySet<string>;
@@ -82,7 +82,12 @@ export function parseGuildFeatures(raw: string | null | undefined): GuildFeature
     if (raw === null || raw === undefined) return COMMUNITY_PRESET;
     const trimmed = raw.trim();
     if (!trimmed || trimmed === 'None') return new Set<string>();
-    return new Set(trimmed.split(',').map(name => name.trim()).filter(Boolean));
+    return new Set(
+        trimmed
+            .split(',')
+            .map(name => name.trim())
+            .filter(Boolean),
+    );
 }
 
 /** Emits `"None"` for an empty set, matching what the server serializes. */
@@ -95,7 +100,10 @@ export function guildFeatures(guild: Pick<GuildDto, 'features'> | null | undefin
     return parseGuildFeatures(guild?.features);
 }
 
-export function guildHasFeature(guild: Pick<GuildDto, 'features'> | null | undefined, feature: GuildFeature): boolean {
+export function guildHasFeature(
+    guild: Pick<GuildDto, 'features'> | null | undefined,
+    feature: GuildFeature,
+): boolean {
     return guildFeatures(guild).has(feature);
 }
 
@@ -107,7 +115,8 @@ export function hasHouseholdModule(guild: Pick<GuildDto, 'features'> | null | un
 
 export function withGuildFeature(features: GuildFeatureSet, feature: string, enabled: boolean): Set<string> {
     const next = new Set(features);
-    if (enabled) next.add(feature); else next.delete(feature);
+    if (enabled) next.add(feature);
+    else next.delete(feature);
     return next;
 }
 

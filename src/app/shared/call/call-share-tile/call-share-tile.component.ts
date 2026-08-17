@@ -86,7 +86,8 @@ export class CallShareTileComponent implements OnDestroy {
 
     /** Local publish statistics for the sharer's own tile, inbound statistics for everyone else's. */
     protected readonly panelStats = computed<StreamStatsSnapshot | null>(() =>
-        this.share().isLocal ? this.rustMedia.outboundStats() : this.inboundStatsOf()(this.share()));
+        this.share().isLocal ? this.rustMedia.outboundStats() : this.inboundStatsOf()(this.share()),
+    );
 
     protected openMenu(event: MouseEvent): void {
         event.preventDefault();
@@ -167,7 +168,8 @@ export class CallShareTileComponent implements OnDestroy {
     protected readonly copyNotice = signal<'copied' | 'failed' | null>(null);
 
     protected readonly copyNoticeKey = computed(() =>
-        this.copyNotice() === 'copied' ? 'CALL.STATS_NERD.COPIED' : 'CALL.STATS_NERD.COPY_FAILED');
+        this.copyNotice() === 'copied' ? 'CALL.STATS_NERD.COPIED' : 'CALL.STATS_NERD.COPY_FAILED',
+    );
 
     private copyNoticeTimer?: ReturnType<typeof setTimeout>;
 
@@ -194,7 +196,9 @@ export class CallShareTileComponent implements OnDestroy {
     });
 
     /** Paused only means anything while this tile is the one actually showing the preview. */
-    protected readonly previewPaused = computed(() => this.showingLocalPreview() && this.rustMedia.previewPaused());
+    protected readonly previewPaused = computed(
+        () => this.showingLocalPreview() && this.rustMedia.previewPaused(),
+    );
 
     /** Whether this share's picture is between tracks - see `CallScreenShare.state`. */
     protected readonly resuming = computed(() => this.share().state === 'resuming');
@@ -203,8 +207,9 @@ export class CallShareTileComponent implements OnDestroy {
     private readonly lastStream = signal<MediaStream | null>(null);
 
     /** What the `<video>` element actually plays: the current stream, or the last one while {@link resuming}. */
-    protected readonly pictureStream = computed(() =>
-        this.share().stream ?? (this.resuming() ? this.lastStream() ?? undefined : undefined));
+    protected readonly pictureStream = computed(
+        () => this.share().stream ?? (this.resuming() ? (this.lastStream() ?? undefined) : undefined),
+    );
 
     protected readonly zoom = signal(1);
     protected readonly pan = signal({x: 0, y: 0});
@@ -238,11 +243,13 @@ export class CallShareTileComponent implements OnDestroy {
     protected readonly canPip = computed(() => this.pipRoute() !== null);
 
     protected readonly pipLabelKey = computed(() =>
-        this.pipRoute() === 'document' ? 'CALL.POP_OUT' : 'CALL.PICTURE_IN_PICTURE');
+        this.pipRoute() === 'document' ? 'CALL.POP_OUT' : 'CALL.PICTURE_IN_PICTURE',
+    );
 
     /** Pressed state for the control. Null on the video route: that overlay's state is not tracked here. */
     protected readonly pipPressed = computed(() =>
-        this.pipRoute() === 'document' ? this.poppedOut() : null);
+        this.pipRoute() === 'document' ? this.poppedOut() : null,
+    );
 
     private dragging: {startX: number; startY: number; originX: number; originY: number} | null = null;
 
@@ -258,10 +265,13 @@ export class CallShareTileComponent implements OnDestroy {
     constructor() {
         // Remembers the picture, so pictureStream has something to hold when the track closes.
         // Only ever set from a stream that exists.
-        effect(() => {
-            const stream = this.share().stream;
-            if (stream) this.lastStream.set(stream);
-        }, {allowSignalWrites: true});
+        effect(
+            () => {
+                const stream = this.share().stream;
+                if (stream) this.lastStream.set(stream);
+            },
+            {allowSignalWrites: true},
+        );
 
         // Claims "somebody is rendering the preview" for the idle pause. Every way
         // showingLocalPreview can go false must release, or the idle timer never starts.
@@ -276,7 +286,7 @@ export class CallShareTileComponent implements OnDestroy {
             this.root,
             this.tileScope,
             computed(() => shareTile(this.share()).id),
-            computed(() => this.share().isLocal ? null : this.share().userId),
+            computed(() => (this.share().isLocal ? null : this.share().userId)),
         );
     }
 
@@ -287,7 +297,7 @@ export class CallShareTileComponent implements OnDestroy {
     }
 
     protected zoomIn(): void {
-        this.zoom.update(z => z < MAX_ZOOM ? +(z + ZOOM_STEP).toFixed(2) : z);
+        this.zoom.update(z => (z < MAX_ZOOM ? +(z + ZOOM_STEP).toFixed(2) : z));
     }
 
     protected zoomOut(): void {
@@ -344,7 +354,10 @@ export class CallShareTileComponent implements OnDestroy {
     /** Fullscreens the tile rather than the `<video>`, so the name pill, LIVE badge and viewer count go with it. */
     protected toggleFullscreen(): void {
         if (document.fullscreenElement) void document.exitFullscreen().catch(() => void 0);
-        else void this.root().nativeElement.requestFullscreen().catch(() => void 0);
+        else
+            void this.root()
+                .nativeElement.requestFullscreen()
+                .catch(() => void 0);
     }
 
     /**
@@ -404,7 +417,9 @@ export class CallShareTileComponent implements OnDestroy {
     private adoptStyles(pip: Window): void {
         for (const sheet of Array.from(document.styleSheets)) {
             try {
-                const css = Array.from(sheet.cssRules).map(rule => rule.cssText).join('\n');
+                const css = Array.from(sheet.cssRules)
+                    .map(rule => rule.cssText)
+                    .join('\n');
                 const style = pip.document.createElement('style');
                 style.textContent = css;
                 pip.document.head.append(style);
@@ -432,9 +447,8 @@ export class CallShareTileComponent implements OnDestroy {
         if (!point) return;
 
         const surface = this.surface().nativeElement;
-        const anchor = point.nextSibling?.parentNode === point.parent
-            ? point.nextSibling
-            : point.parent.firstChild;
+        const anchor =
+            point.nextSibling?.parentNode === point.parent ? point.nextSibling : point.parent.firstChild;
         point.parent.insertBefore(surface, anchor);
     }
 
@@ -457,7 +471,8 @@ export class CallShareTileComponent implements OnDestroy {
     private toggleVideoPip(): void {
         const video = this.video()?.nativeElement;
         if (!video || !videoPipSupported()) return;
-        if (document.pictureInPictureElement === video) void document.exitPictureInPicture().catch(() => void 0);
+        if (document.pictureInPictureElement === video)
+            void document.exitPictureInPicture().catch(() => void 0);
         else void video.requestPictureInPicture().catch(() => void 0);
     }
 }

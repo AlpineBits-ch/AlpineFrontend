@@ -20,7 +20,11 @@ export class BotInstallService {
         });
     }
 
-    getAuthorizeInfo(clientId: string, permissions: bigint, guildId: string): Observable<BotAuthorizeInfoDto> {
+    getAuthorizeInfo(
+        clientId: string,
+        permissions: bigint,
+        guildId: string,
+    ): Observable<BotAuthorizeInfoDto> {
         return this.http.get<BotAuthorizeInfoDto>(`${this.base()}/oauth2/authorize`, {
             params: {clientId, permissions: permissions.toString(), guildId},
         });

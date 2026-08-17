@@ -8,7 +8,7 @@ import {RustMediaService} from './rust-media.service';
 import {VoiceWebsocketService} from './voice-websocket.service';
 import {ScreenPickerService} from './screen-picker.service';
 import type {CallDto} from '../dtos/response/call.dto';
-import type {ActiveCallSession, CallParticipantUi, ScreenShareUi,} from './call-session.types';
+import type {ActiveCallSession, CallParticipantUi, ScreenShareUi} from './call-session.types';
 import {OAuthService} from 'angular-oauth2-oidc';
 import {bitrateFor, StreamPreset} from '../models/stream-preset';
 import {ScreenResumeTracker} from '../shared/call/screen-resume';
@@ -45,7 +45,7 @@ export class CallSessionService {
      * Dimensions of the captured source, kept so a mid-stream resolution change re-solves from the
      * original size rather than ratcheting down from the current output geometry.
      */
-    private screenSourceSize: { width: number; height: number } | null = null;
+    private screenSourceSize: {width: number; height: number} | null = null;
     /** True while the running share is owned by the Rust publisher rather than the webview. */
     private rustPublishing = false;
     /** The picker choice behind the running publish, so a later restart reopens the same source. */
@@ -118,8 +118,14 @@ export class CallSessionService {
         const s = this.session();
         if (!s) return;
         // Stop any active local media streams before tearing down
-        s.participants.find(p => p.isLocal)?.videoStream?.getTracks().forEach(t => t.stop());
-        s.screenShares.find(sh => sh.isLocal)?.stream?.getTracks().forEach(t => t.stop());
+        s.participants
+            .find(p => p.isLocal)
+            ?.videoStream?.getTracks()
+            .forEach(t => t.stop());
+        s.screenShares
+            .find(sh => sh.isLocal)
+            ?.stream?.getTracks()
+            .forEach(t => t.stop());
         // TODO(webrtc): disconnect all peer connections
         if (!silent) this.voiceService.leaveCall(s.callId).subscribe();
         // Held seats belong to the call that is ending: an expiry afterwards splices a dead session.
@@ -164,13 +170,17 @@ export class CallSessionService {
 
         if (s.local.isCameraOn) {
             localP?.videoStream?.getTracks().forEach(t => t.stop());
-            this.session.update(st => st ? {
-                ...st,
-                participants: st.participants.map(p =>
-                    p.isLocal ? {...p, isCameraOn: false, videoStream: undefined} : p
-                ),
-                local: {...st.local, isCameraOn: false},
-            } : st);
+            this.session.update(st =>
+                st
+                    ? {
+                          ...st,
+                          participants: st.participants.map(p =>
+                              p.isLocal ? {...p, isCameraOn: false, videoStream: undefined} : p,
+                          ),
+                          local: {...st.local, isCameraOn: false},
+                      }
+                    : st,
+            );
             // TODO(webrtc): remove video track from peer connections
         } else {
             let stream: MediaStream;
@@ -179,13 +189,17 @@ export class CallSessionService {
             } catch {
                 return; // User denied or device unavailable
             }
-            this.session.update(st => st ? {
-                ...st,
-                participants: st.participants.map(p =>
-                    p.isLocal ? {...p, isCameraOn: true, videoStream: stream} : p
-                ),
-                local: {...st.local, isCameraOn: true},
-            } : st);
+            this.session.update(st =>
+                st
+                    ? {
+                          ...st,
+                          participants: st.participants.map(p =>
+                              p.isLocal ? {...p, isCameraOn: true, videoStream: stream} : p,
+                          ),
+                          local: {...st.local, isCameraOn: true},
+                      }
+                    : st,
+            );
             // TODO(webrtc): add video track to peer connections
         }
     }
@@ -216,11 +230,15 @@ export class CallSessionService {
             this.localScreenAudioMuted.set(false);
             this.screenPreset.set(null);
             this.screenSourceSize = null;
-            this.session.update(st => st ? {
-                ...st,
-                screenShares: st.screenShares.filter(sh => !sh.isLocal),
-                local: {...st.local, isSharing: false},
-            } : st);
+            this.session.update(st =>
+                st
+                    ? {
+                          ...st,
+                          screenShares: st.screenShares.filter(sh => !sh.isLocal),
+                          local: {...st.local, isSharing: false},
+                      }
+                    : st,
+            );
             // TODO(webrtc): remove screen share track from peer connections
         } else {
             // Show custom Rust-based screen picker instead of the system picker
@@ -237,8 +255,7 @@ export class CallSessionService {
             }
 
             // Solved once, before capture starts, and held for the session.
-            const geometry = solveGeometry(
-                sourceWidth, sourceHeight, preset.resolution, NO_ROOM_CEILING);
+            const geometry = solveGeometry(sourceWidth, sourceHeight, preset.resolution, NO_ROOM_CEILING);
             let videoTrack: MediaStreamTrack;
             try {
                 videoTrack = await this.rustMedia.startScreenCapture(sourceId, geometry, preset.framerate);
@@ -251,18 +268,29 @@ export class CallSessionService {
             const stream = new MediaStream([videoTrack]);
 
             videoTrack.onended = () => {
-                this.session.update(st => st ? {
-                    ...st,
-                    screenShares: st.screenShares.filter(sh => sh.shareId !== shareId),
-                    local: {...st.local, isSharing: false},
-                } : st);
+                this.session.update(st =>
+                    st
+                        ? {
+                              ...st,
+                              screenShares: st.screenShares.filter(sh => sh.shareId !== shareId),
+                              local: {...st.local, isSharing: false},
+                          }
+                        : st,
+                );
             };
 
-            this.session.update(st => st ? {
-                ...st,
-                screenShares: [...st.screenShares, {shareId, userId: ownId, displayName: 'You', isLocal: true, stream}],
-                local: {...st.local, isSharing: true},
-            } : st);
+            this.session.update(st =>
+                st
+                    ? {
+                          ...st,
+                          screenShares: [
+                              ...st.screenShares,
+                              {shareId, userId: ownId, displayName: 'You', isLocal: true, stream},
+                          ],
+                          local: {...st.local, isSharing: true},
+                      }
+                    : st,
+            );
             // TODO(webrtc): add display media track to peer connections
         }
     }
@@ -293,9 +321,7 @@ export class CallSessionService {
         try {
             // Must be a primary connection, like the microphone's, so the share lands on the same
             // participant: a secondary token here would open a second identity.
-            const connection = await firstValueFrom(
-                this.voiceService.connection(callId, true),
-            );
+            const connection = await firstValueFrom(this.voiceService.connection(callId, true));
 
             const published = await this.rustMedia.startScreenPublish(
                 publishOptions(
@@ -325,13 +351,24 @@ export class CallSessionService {
         this.screenSourceSize = {width: choice.sourceWidth, height: choice.sourceHeight};
         this.rustPublishing = true;
         this.rustChoice = choice;
-        this.session.update(st => st ? {
-            ...st,
-            screenShares: [...st.screenShares, {
-                shareId, userId: ownId, displayName: 'You', isLocal: true, stream: undefined,
-            }],
-            local: {...st.local, isSharing: true},
-        } : st);
+        this.session.update(st =>
+            st
+                ? {
+                      ...st,
+                      screenShares: [
+                          ...st.screenShares,
+                          {
+                              shareId,
+                              userId: ownId,
+                              displayName: 'You',
+                              isLocal: true,
+                              stream: undefined,
+                          },
+                      ],
+                      local: {...st.local, isSharing: true},
+                  }
+                : st,
+        );
     }
 
     /**
@@ -376,7 +413,8 @@ export class CallSessionService {
         if (preset.resolution !== previous.resolution && this.screenSourceSize) {
             const {width, height} = this.screenSourceSize;
             await this.rustMedia.setCaptureGeometry(
-                solveGeometry(width, height, preset.resolution, NO_ROOM_CEILING));
+                solveGeometry(width, height, preset.resolution, NO_ROOM_CEILING),
+            );
         }
     }
 
@@ -407,14 +445,14 @@ export class CallSessionService {
             videoStream: undefined,
         };
 
-        this.session.update(st => st ? {...st, participants: [...st.participants, participant]} : st);
+        this.session.update(st => (st ? {...st, participants: [...st.participants, participant]} : st));
         // Someone came back, so the server's force-end countdown no longer applies.
         if ((this.session()?.participants.length ?? 0) > 1) this.aloneDeadline.set(null);
     }
 
     onParticipantLeft(userId: string): void {
         this.session.update(s =>
-            s ? {...s, participants: s.participants.filter(p => p.userId !== userId)} : s
+            s ? {...s, participants: s.participants.filter(p => p.userId !== userId)} : s,
         );
     }
 
@@ -424,17 +462,14 @@ export class CallSessionService {
      * becomes an allocating infinite loop if the object is rebuilt unconditionally.
      */
     onSpeakingChanged(userId: string, isSpeaking: boolean): void {
-        this.patchParticipant(userId, p => p.isSpeaking === isSpeaking ? p : {...p, isSpeaking});
+        this.patchParticipant(userId, p => (p.isSpeaking === isSpeaking ? p : {...p, isSpeaking}));
     }
 
     onMuteChanged(userId: string, isMuted: boolean): void {
-        this.patchParticipant(userId, p => p.isMuted === isMuted ? p : {...p, isMuted});
+        this.patchParticipant(userId, p => (p.isMuted === isMuted ? p : {...p, isMuted}));
     }
 
-    private patchParticipant(
-        userId: string,
-        fn: (p: CallParticipantUi) => CallParticipantUi,
-    ): void {
+    private patchParticipant(userId: string, fn: (p: CallParticipantUi) => CallParticipantUi): void {
         this.session.update(s => {
             if (!s) return s;
             let changed = false;
@@ -450,12 +485,18 @@ export class CallSessionService {
 
     // WebRTC will call this with the remote video stream once peer connection is established
     onCameraChanged(userId: string, isCameraOn: boolean, videoStream?: MediaStream): void {
-        this.session.update(s => s ? {
-            ...s,
-            participants: s.participants.map(p =>
-                p.userId === userId ? {...p, isCameraOn, videoStream: videoStream ?? p.videoStream} : p
-            ),
-        } : s);
+        this.session.update(s =>
+            s
+                ? {
+                      ...s,
+                      participants: s.participants.map(p =>
+                          p.userId === userId
+                              ? {...p, isCameraOn, videoStream: videoStream ?? p.videoStream}
+                              : p,
+                      ),
+                  }
+                : s,
+        );
     }
 
     // WebRTC will call this with the remote screen share stream
@@ -472,9 +513,10 @@ export class CallSessionService {
 
         this.session.update(st => {
             if (!st) return st;
-            const kept = superseded.length === 0
-                ? st.screenShares
-                : st.screenShares.filter(sh => !superseded.includes(sh.shareId));
+            const kept =
+                superseded.length === 0
+                    ? st.screenShares
+                    : st.screenShares.filter(sh => !superseded.includes(sh.shareId));
             const idx = kept.findIndex(sh => sh.shareId === shareId);
             if (idx !== -1) {
                 const updated = [...kept];
@@ -483,7 +525,14 @@ export class CallSessionService {
                 updated[idx] = {...updated[idx], state: 'live', ...(stream ? {stream} : {})};
                 return {...st, screenShares: updated};
             }
-            const share: ScreenShareUi = {shareId, userId, displayName, isLocal: false, stream, state: 'live'};
+            const share: ScreenShareUi = {
+                shareId,
+                userId,
+                displayName,
+                isLocal: false,
+                stream,
+                state: 'live',
+            };
             return {...st, screenShares: [...kept, share]};
         });
     }
@@ -500,17 +549,22 @@ export class CallSessionService {
             return;
         }
         this.screenResume.hold(shareId);
-        this.session.update(s => s ? {
-            ...s,
-            screenShares: s.screenShares.map(sh =>
-                sh.shareId === shareId ? {...sh, state: 'resuming' as const} : sh),
-        } : s);
+        this.session.update(s =>
+            s
+                ? {
+                      ...s,
+                      screenShares: s.screenShares.map(sh =>
+                          sh.shareId === shareId ? {...sh, state: 'resuming' as const} : sh,
+                      ),
+                  }
+                : s,
+        );
     }
 
     private removeScreenShare(shareId: string): void {
         this.screenResume.cancel(shareId);
         this.session.update(s =>
-            s ? {...s, screenShares: s.screenShares.filter(sh => sh.shareId !== shareId)} : s
+            s ? {...s, screenShares: s.screenShares.filter(sh => sh.shareId !== shareId)} : s,
         );
     }
 }

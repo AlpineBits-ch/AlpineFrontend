@@ -142,7 +142,10 @@ it('ends the ring when the call itself is Rejected', () => {
 it('ends the ring when nobody else can still pick up', () => {
     const declined = call({
         status: 'Ringing',
-        participants: [{userId: 'me', status: 'Connected'}, {userId: 'callee', status: 'Rejected'}],
+        participants: [
+            {userId: 'me', status: 'Connected'},
+            {userId: 'callee', status: 'Rejected'},
+        ],
     });
 
     expect(declineEndsOutgoingCall(declined, 'me')).toBe(true);

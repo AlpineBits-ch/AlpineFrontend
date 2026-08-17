@@ -32,10 +32,13 @@ class FakeAnalyser {
     getFloatTimeDomainData(buffer: Float32Array): void {
         this.reads++;
         for (let i = 0; i < buffer.length; i++) {
-            buffer[i] = this.shape === 'square'
-                ? (i % 2 === 0 ? this.amplitude : -this.amplitude)
-                // Eight whole cycles across the window, so the RMS is exactly a/sqrt(2).
-                : this.amplitude * Math.sin((2 * Math.PI * 8 * i) / buffer.length);
+            buffer[i] =
+                this.shape === 'square'
+                    ? i % 2 === 0
+                        ? this.amplitude
+                        : -this.amplitude
+                    : // Eight whole cycles across the window, so the RMS is exactly a/sqrt(2).
+                      this.amplitude * Math.sin((2 * Math.PI * 8 * i) / buffer.length);
         }
     }
 }
@@ -44,8 +47,7 @@ class FakeSourceNode {
     readonly connect = vi.fn();
     readonly disconnect = vi.fn();
 
-    constructor(readonly stream: MediaStream) {
-    }
+    constructor(readonly stream: MediaStream) {}
 }
 
 class FakeAudioContext {
@@ -81,7 +83,7 @@ let service: VoiceActivityService;
 let ctx: FakeAudioContext;
 let clockMs: number;
 /** Every change of the gate, in the order they happened, with the audio-clock instant of each. */
-let transitions: { atMs: number; speaking: boolean }[];
+let transitions: {atMs: number; speaking: boolean}[];
 let originalAudioContext: unknown;
 
 beforeEach(() => {
@@ -89,8 +91,8 @@ beforeEach(() => {
     FakeAudioContext.instances = [];
     clockMs = 0;
     transitions = [];
-    originalAudioContext = (globalThis as { AudioContext?: unknown }).AudioContext;
-    (globalThis as { AudioContext?: unknown }).AudioContext = FakeAudioContext;
+    originalAudioContext = (globalThis as {AudioContext?: unknown}).AudioContext;
+    (globalThis as {AudioContext?: unknown}).AudioContext = FakeAudioContext;
 
     TestBed.configureTestingModule({});
     service = TestBed.inject(VoiceActivityService);
@@ -99,7 +101,7 @@ beforeEach(() => {
 afterEach(() => {
     service.stop();
     vi.useRealTimers();
-    (globalThis as { AudioContext?: unknown }).AudioContext = originalAudioContext;
+    (globalThis as {AudioContext?: unknown}).AudioContext = originalAudioContext;
 });
 
 function start(stream: MediaStream = fakeStream()): void {
@@ -140,7 +142,7 @@ describe('VoiceActivityService', () => {
 
         // Not decoration: the window length is what the attack window's contiguity claim rests on.
         expect(ctx.analyser.fftSize).toBe(VAD_FFT_SIZE);
-        expect(VAD_FFT_SIZE / 48_000 * 1000).toBeGreaterThan(VAD_POLL_INTERVAL_MS);
+        expect((VAD_FFT_SIZE / 48_000) * 1000).toBeGreaterThan(VAD_POLL_INTERVAL_MS);
     });
 
     /** Never connect the analyser onward: it runs from being fed alone, and routing it howls. */

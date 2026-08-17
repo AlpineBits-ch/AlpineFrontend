@@ -36,11 +36,13 @@ function catalogue(over: Partial<BillingCatalogueDto> = {}): BillingCatalogueDto
     return {enabled: true, currency: 'usd', plans: [plan()], ...over};
 }
 
-function setup(opts: {
-    subject?: EntitlementSubjectRef;
-    publishableKey?: string;
-    currentPlan?: string;
-} = {}) {
+function setup(
+    opts: {
+        subject?: EntitlementSubjectRef;
+        publishableKey?: string;
+        currentPlan?: string;
+    } = {},
+) {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
         imports: [PlanPickerComponent],
@@ -53,7 +55,7 @@ function setup(opts: {
             {
                 provide: EntitlementStore,
                 useValue: {
-                    plan: () => opts.currentPlan ? {name: opts.currentPlan, displayName: 'X'} : null,
+                    plan: () => (opts.currentPlan ? {name: opts.currentPlan, displayName: 'X'} : null),
                     ensureLoaded: () => undefined,
                     stripePublishableKey: signal(opts.publishableKey ?? 'pk_test_x'),
                 },
@@ -77,16 +79,20 @@ function text(fixture: ComponentFixture<PlanPickerComponent>): string {
 }
 
 function buyButtons(fixture: ComponentFixture<PlanPickerComponent>): HTMLElement[] {
-    return Array.from(fixture.nativeElement.querySelectorAll('button'))
-        .filter(el => ((el as HTMLElement).textContent ?? '').includes('BILLING.PLANS.CHOOSE')) as HTMLElement[];
+    return Array.from(fixture.nativeElement.querySelectorAll('button')).filter(el =>
+        ((el as HTMLElement).textContent ?? '').includes('BILLING.PLANS.CHOOSE'),
+    ) as HTMLElement[];
 }
 
 describe('the plan comparison', () => {
     it('lists only the plans sold against this kind of subject', () => {
         const {fixture, ctrl} = setup({subject: {kind: 'guild', id: 'gld_1'}});
-        answer(ctrl, catalogue({
-            plans: [plan(), plan({name: 'venta_plus', displayName: 'Venta Plus', subjectKind: 'user'})],
-        }));
+        answer(
+            ctrl,
+            catalogue({
+                plans: [plan(), plan({name: 'venta_plus', displayName: 'Venta Plus', subjectKind: 'user'})],
+            }),
+        );
         fixture.detectChanges();
 
         expect(text(fixture)).toContain('Pro');
@@ -96,9 +102,12 @@ describe('the plan comparison', () => {
     /** The two casings the service has shipped both mean the same side of the product. */
     it('matches the subject kind whatever case it arrived in', () => {
         const {fixture, ctrl} = setup({subject: MY_ENTITLEMENTS});
-        answer(ctrl, catalogue({
-            plans: [plan({name: 'venta_plus', displayName: 'Venta Plus', subjectKind: 'User'})],
-        }));
+        answer(
+            ctrl,
+            catalogue({
+                plans: [plan({name: 'venta_plus', displayName: 'Venta Plus', subjectKind: 'User'})],
+            }),
+        );
         fixture.detectChanges();
 
         expect(text(fixture)).toContain('Venta Plus');
@@ -135,9 +144,12 @@ describe('the plan comparison', () => {
     /** `free` arrives with no price precisely so the table has something to compare against. */
     it('shows a plan with no price rather than dropping it from the comparison', () => {
         const {fixture, ctrl} = setup();
-        answer(ctrl, catalogue({
-            plans: [plan({name: 'free', displayName: 'Free', priceMinorUnits: null, purchasable: false})],
-        }));
+        answer(
+            ctrl,
+            catalogue({
+                plans: [plan({name: 'free', displayName: 'Free', priceMinorUnits: null, purchasable: false})],
+            }),
+        );
         fixture.detectChanges();
 
         expect(text(fixture)).toContain('Free');
@@ -147,16 +159,28 @@ describe('the plan comparison', () => {
 
     it('renders one row per key any plan mentions, and says so where a plan does not', () => {
         const {fixture, ctrl} = setup();
-        answer(ctrl, catalogue({
-            plans: [
-                plan({name: 'free', displayName: 'Free', priceMinorUnits: null, purchasable: false,
-                    entitlements: {'voice.max_participants': {kind: 'numeric', value: 10, unlimited: false}}}),
-                plan({entitlements: {
-                    'voice.max_participants': {kind: 'numeric', value: 75, unlimited: false},
-                    'guild.bots_installed': {kind: 'numeric', value: null, unlimited: true},
-                }}),
-            ],
-        }));
+        answer(
+            ctrl,
+            catalogue({
+                plans: [
+                    plan({
+                        name: 'free',
+                        displayName: 'Free',
+                        priceMinorUnits: null,
+                        purchasable: false,
+                        entitlements: {
+                            'voice.max_participants': {kind: 'numeric', value: 10, unlimited: false},
+                        },
+                    }),
+                    plan({
+                        entitlements: {
+                            'voice.max_participants': {kind: 'numeric', value: 75, unlimited: false},
+                            'guild.bots_installed': {kind: 'numeric', value: null, unlimited: true},
+                        },
+                    }),
+                ],
+            }),
+        );
         fixture.detectChanges();
 
         expect(text(fixture)).toContain('ENTITLEMENT.KEY.VOICE_MAX_PARTICIPANTS');
@@ -207,8 +231,10 @@ describe('the two gates on a buy button', () => {
 describe('a catalogue that would not load', () => {
     it('says so and offers a retry rather than rendering as an instance that sells nothing', () => {
         const {fixture, ctrl} = setup();
-        ctrl.expectOne(`${BASE}/api/v1/billing/catalogue`)
-            .flush('boom', {status: 500, statusText: 'Server Error'});
+        ctrl.expectOne(`${BASE}/api/v1/billing/catalogue`).flush('boom', {
+            status: 500,
+            statusText: 'Server Error',
+        });
         fixture.detectChanges();
 
         expect(text(fixture)).toContain('BILLING.ERROR.GENERIC');

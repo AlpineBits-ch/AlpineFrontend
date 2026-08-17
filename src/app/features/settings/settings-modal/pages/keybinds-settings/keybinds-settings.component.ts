@@ -4,7 +4,12 @@ import {FormsModule} from '@angular/forms';
 import {Select} from 'primeng/select';
 import {TranslateModule} from '@ngx-translate/core';
 import {KeybindsService} from '../../../../../services/keybinds.service';
-import {findKeybindAction, KEYBIND_ACTIONS, KeybindActionDef, KeybindActionId} from '../../../../../models/keybind-action.model';
+import {
+    findKeybindAction,
+    KEYBIND_ACTIONS,
+    KeybindActionDef,
+    KeybindActionId,
+} from '../../../../../models/keybind-action.model';
 import {PlatformCapabilities} from '../../../../../platform/capabilities';
 
 interface KeybindGroup {
@@ -69,7 +74,9 @@ export class KeybindsSettingsComponent implements OnDestroy {
     /** Already-assigned actions in a category, excluding one mid-way through the add flow. */
     protected assignedIn(category: string): KeybindActionDef[] {
         const excludeId = this.addingCategory() === category ? this.draftActionId() : null;
-        return KEYBIND_ACTIONS.filter(a => a.category === category && this.isBound(a.id) && a.id !== excludeId);
+        return KEYBIND_ACTIONS.filter(
+            a => a.category === category && this.isBound(a.id) && a.id !== excludeId,
+        );
     }
 
     protected unassignedIn(category: string): KeybindActionDef[] {

@@ -4,16 +4,38 @@ import DOMPurify from 'dompurify';
 
 const WIKI_PURIFY_CONFIG = {
     ALLOWED_TAGS: [
-        'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-        'p', 'br', 'hr',
-        'strong', 'em', 'del', 's', 'u',
-        'code', 'pre',
-        'ul', 'ol', 'li',
+        'h1',
+        'h2',
+        'h3',
+        'h4',
+        'h5',
+        'h6',
+        'p',
+        'br',
+        'hr',
+        'strong',
+        'em',
+        'del',
+        's',
+        'u',
+        'code',
+        'pre',
+        'ul',
+        'ol',
+        'li',
         'blockquote',
-        'table', 'thead', 'tbody', 'tr', 'th', 'td',
-        'a', 'img',
-        'span', 'div',
-        'input', 'label',
+        'table',
+        'thead',
+        'tbody',
+        'tr',
+        'th',
+        'td',
+        'a',
+        'img',
+        'span',
+        'div',
+        'input',
+        'label',
     ],
     ALLOWED_ATTR: ['href', 'src', 'alt', 'class', 'target', 'rel', 'type', 'checked'],
 };
@@ -51,8 +73,7 @@ function tagTaskItems(html: string): string {
  * Widening the allowlist by exactly one internal scheme is the smaller concession: a `wiki:` href
  * navigates inside the app and can never reach the network.
  */
-const WIKI_ANSWER_URI_REGEXP =
-    /^(?:(?:(?:f|ht)tps?|mailto|wiki):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i;
+const WIKI_ANSWER_URI_REGEXP = /^(?:(?:(?:f|ht)tps?|mailto|wiki):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i;
 
 /**
  * Renders an AI answer, keeping its citations clickable.

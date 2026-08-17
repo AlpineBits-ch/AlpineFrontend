@@ -63,7 +63,8 @@ export class TauriNotifier extends Notifier {
         // The WinRT path has no plugin permission to grant. See the class note.
         if (this.platformName === 'windows') return true;
 
-        const {isPermissionGranted, requestPermission} = await import('@choochmeque/tauri-plugin-notifications-api');
+        const {isPermissionGranted, requestPermission} =
+            await import('@choochmeque/tauri-plugin-notifications-api');
         if (await isPermissionGranted()) return true;
         return (await requestPermission()) === 'granted';
     }
@@ -91,8 +92,9 @@ export class TauriNotifier extends Notifier {
         let icon: string | undefined = n.iconUrl;
         if (this.platformName === 'macos' && icon) {
             const {invoke} = await import('@tauri-apps/api/core');
-            const local = await invoke<string | null>('prepare_notification_icon', {url: icon})
-                .catch(() => null);
+            const local = await invoke<string | null>('prepare_notification_icon', {url: icon}).catch(
+                () => null,
+            );
             icon = local ?? icon;
         }
 
@@ -170,9 +172,7 @@ export class TauriNotifier extends Notifier {
 
         const {onAction, registerActionTypes} = await import('@choochmeque/tauri-plugin-notifications-api');
         try {
-            await registerActionTypes([
-                {id: MESSAGE_ACTION_TYPE, actions: [{id: 'open', title: 'Open'}]},
-            ]);
+            await registerActionTypes([{id: MESSAGE_ACTION_TYPE, actions: [{id: 'open', title: 'Open'}]}]);
         } catch {
             // notify-rust (Linux) has no concept of action types. Swallowed rather than reported,
             // because the notification itself still shows and still routes on click where the

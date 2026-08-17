@@ -231,8 +231,7 @@ export class VoiceActivityService {
         this.analyser?.disconnect();
         // Closed rather than suspended: the caller owns the track, so nothing here is worth keeping
         // warm, and a context left suspended holds an audio thread for the life of the page.
-        void this.ctx?.close().catch(() => {
-        });
+        void this.ctx?.close().catch(() => {});
         this.ctx = null;
         this.source = null;
         this.analyser = null;

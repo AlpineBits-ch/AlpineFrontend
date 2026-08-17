@@ -59,8 +59,9 @@ export class HouseHomeComponent {
     private digestService = inject(HouseholdDigestService);
     private profiles = inject(ProfileService);
 
-    protected readonly guild = computed(() =>
-        this.guildService.guilds().find(g => g.id === this.guildId()) ?? null);
+    protected readonly guild = computed(
+        () => this.guildService.guilds().find(g => g.id === this.guildId()) ?? null,
+    );
 
     protected readonly state = computed(() => this.digestService.stateFor(this.guildId()));
     protected readonly digest = computed(() => this.state().digest);
@@ -69,11 +70,12 @@ export class HouseHomeComponent {
     protected readonly showSpinner = computed(() => this.state().loading && !this.digest());
 
     /** Everything arrived and there is nothing to do; distinct from every section being null, since an empty list is still a section with no rows. */
-    protected readonly allClear = computed(() =>
-        !!this.digest() && !this.state().loading && isDigestEmpty(this.digest()));
+    protected readonly allClear = computed(
+        () => !!this.digest() && !this.state().loading && isDigestEmpty(this.digest()),
+    );
 
     /** What the sections read from: the digest, or nothing once {@link allClear}, so the all-clear line replaces the cards instead of sitting under empty ones. */
-    private readonly sections = computed(() => this.allClear() ? null : this.digest());
+    private readonly sections = computed(() => (this.allClear() ? null : this.digest()));
 
     protected readonly chores = computed(() => this.sections()?.chores ?? null);
     protected readonly lists = computed(() => this.sections()?.lists ?? null);
@@ -88,21 +90,26 @@ export class HouseHomeComponent {
 
     /** Whether the editable away board is drawn (and the digest's read-only away summary skipped); reads `features` directly rather than inferring from a possibly stale digest payload. */
     protected readonly awayBoardVisible = computed(() =>
-        guildHasFeature(this.guild(), GuildFeature.Presence));
+        guildHasFeature(this.guild(), GuildFeature.Presence),
+    );
 
-    protected readonly billRows = computed<BillRow[]>(() => (this.bills()?.dueSoon ?? []).map(bill => ({
-        bill,
-        // Null while the amount is unknown, drawn as words rather than 0.00, since a zero here would claim this month costs nothing.
-        amount: bill.amountMinor == null ? null : formatMinor(bill.amountMinor, bill.currency),
-        myShare: bill.myShareMinor == null ? null : formatMinor(bill.myShareMinor, bill.currency),
-        dueLabel: this.dayLabel(bill.dueAt),
-    })));
+    protected readonly billRows = computed<BillRow[]>(() =>
+        (this.bills()?.dueSoon ?? []).map(bill => ({
+            bill,
+            // Null while the amount is unknown, drawn as words rather than 0.00, since a zero here would claim this month costs nothing.
+            amount: bill.amountMinor == null ? null : formatMinor(bill.amountMinor, bill.currency),
+            myShare: bill.myShareMinor == null ? null : formatMinor(bill.myShareMinor, bill.currency),
+            dueLabel: this.dayLabel(bill.dueAt),
+        })),
+    );
 
-    protected readonly awayRows = computed<AwayRow[]>(() => (this.away() ?? []).map(absence => ({
-        absence,
-        // Drawn as the last day somebody is away, not the exclusive boundary the row carries: "until the 28th" would be a day too many.
-        until: this.dayLabel(new Date(new Date(absence.endAt).getTime() - 1).toISOString()),
-    })));
+    protected readonly awayRows = computed<AwayRow[]>(() =>
+        (this.away() ?? []).map(absence => ({
+            absence,
+            // Drawn as the last day somebody is away, not the exclusive boundary the row carries: "until the 28th" would be a day too many.
+            until: this.dayLabel(new Date(new Date(absence.endAt).getTime() - 1).toISOString()),
+        })),
+    );
 
     protected readonly ledgerRows = computed<LedgerRow[]>(() =>
         (this.sections()?.ledger ?? []).map(entry => ({
@@ -110,7 +117,8 @@ export class HouseHomeComponent {
             // Never summed across rows: one ledger channel is one currency, and adding two together would produce a number in no currency at all.
             amount: formatMinor(Math.abs(entry.myNetMinor), entry.currency),
             direction: entry.myNetMinor > 0 ? 'owed' : entry.myNetMinor < 0 ? 'owes' : 'settled',
-        })));
+        })),
+    );
 
     constructor() {
         effect(() => {

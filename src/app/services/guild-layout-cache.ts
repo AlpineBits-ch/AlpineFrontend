@@ -153,11 +153,13 @@ function serialize(guilds: readonly GuildDto[]): string {
  */
 function isUsableGuild(value: unknown): value is GuildDto {
     const g = value as Partial<GuildDto> | null;
-    return !!g
-        && typeof g.id === 'string'
-        && Array.isArray(g.channels)
-        && Array.isArray(g.categories)
-        && Array.isArray(g.roles);
+    return (
+        !!g &&
+        typeof g.id === 'string' &&
+        Array.isArray(g.channels) &&
+        Array.isArray(g.categories) &&
+        Array.isArray(g.roles)
+    );
 }
 
 /**

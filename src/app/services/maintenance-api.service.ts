@@ -47,7 +47,10 @@ export class MaintenanceApiService {
 
     /** `ManageMaintenance`: cataloguing a machine is administration, unlike reporting one broken. */
     createAsset(channelId: string, body: CreateMaintenanceAssetDto): Observable<MaintenanceAsset> {
-        return this.http.post<MaintenanceAsset>(`${this.base}/channels/${channelId}/maintenance-assets`, body);
+        return this.http.post<MaintenanceAsset>(
+            `${this.base}/channels/${channelId}/maintenance-assets`,
+            body,
+        );
     }
 
     updateAsset(assetId: string, body: UpdateMaintenanceAssetDto): Observable<MaintenanceAsset> {
@@ -84,11 +87,16 @@ export class MaintenanceApiService {
         if (options.assetId) params = params.set('assetId', options.assetId);
         if (options.cursor) params = params.set('cursor', options.cursor);
         return this.http.get<MaintenanceRecordPage>(
-            `${this.base}/channels/${channelId}/maintenance-records`, {params});
+            `${this.base}/channels/${channelId}/maintenance-records`,
+            {params},
+        );
     }
 
     createRecord(channelId: string, body: CreateMaintenanceRecordDto): Observable<MaintenanceRecord> {
-        return this.http.post<MaintenanceRecord>(`${this.base}/channels/${channelId}/maintenance-records`, body);
+        return this.http.post<MaintenanceRecord>(
+            `${this.base}/channels/${channelId}/maintenance-records`,
+            body,
+        );
     }
 
     updateRecord(recordId: string, body: UpdateMaintenanceRecordDto): Observable<MaintenanceRecord> {
@@ -103,6 +111,8 @@ export class MaintenanceApiService {
 
     /** Everything in the house that needs a human: broken, overdue service, warranty inside 30 days. Each row carries its reasons; never re-derive them here. */
     attention(guildId: string): Observable<MaintenanceAttentionEntry[]> {
-        return this.http.get<MaintenanceAttentionEntry[]>(`${this.base}/guilds/${guildId}/maintenance/attention`);
+        return this.http.get<MaintenanceAttentionEntry[]>(
+            `${this.base}/guilds/${guildId}/maintenance/attention`,
+        );
     }
 }

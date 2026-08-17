@@ -2,13 +2,11 @@
     <!-- A row inside the footer's card, not a card of its own: no surface, no rounding, no margin. -->
     <div class="p-2 border-b border-border-subtle hover:bg-hover transition-colors duration-[120ms] ease-out">
         <div class="flex items-center gap-2.5 min-w-0">
-
             <!-- Art slot. Fixed square so that real cover art, when it starts arriving, replaces
                  the tile without moving anything around it. -->
             <div class="shrink-0 w-10 h-10 rounded-lg overflow-hidden">
                 @if (artUrl(); as url) {
-                    <img [src]="url" [alt]="activity.name" (error)="onArtError(url)"
-                         class="w-full h-full object-cover"/>
+                    <img [src]="url" [alt]="activity.name" (error)="onArtError(url)" class="w-full h-full object-cover" />
                 } @else {
                     <div class="w-full h-full bg-brand/20 flex items-center justify-center select-none">
                         <span class="text-[1rem] font-bold text-brand-dim">{{ monogram() }}</span>
@@ -27,17 +25,20 @@
             </div>
 
             <!-- Always drawn, so the card does not reflow the moment a voice channel is joined. -->
-            <button type="button" (click)="onShare()" [disabled]="!canShare()"
-                    [title]="shareTooltipKey() | translate"
-                    [class]="isSharing()
+            <button
+                type="button"
+                (click)="onShare()"
+                [disabled]="!canShare()"
+                [title]="shareTooltipKey() | translate"
+                [class]="
+                    isSharing()
                         ? 'bg-brand/15 text-brand-dim hover:bg-brand/25'
-                        : 'text-text-secondary hover:bg-white/[0.06] hover:text-text-primary'"
-                    class="w-8 h-8 shrink-0 flex items-center justify-center rounded-lg border-0 cursor-pointer
-                           transition-colors duration-[120ms] ease-out
-                           disabled:opacity-40 disabled:cursor-default disabled:hover:bg-transparent">
+                        : 'text-text-secondary hover:bg-white/[0.06] hover:text-text-primary'
+                "
+                class="w-8 h-8 shrink-0 flex items-center justify-center rounded-lg border-0 cursor-pointer transition-colors duration-[120ms] ease-out disabled:opacity-40 disabled:cursor-default disabled:hover:bg-transparent"
+            >
                 <i class="pi pi-desktop" style="font-size: 1rem"></i>
             </button>
-
         </div>
     </div>
 }

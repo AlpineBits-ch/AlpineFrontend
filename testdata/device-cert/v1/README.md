@@ -16,18 +16,18 @@ Every certificate is over the same account, device id and 32-byte device key unl
 says otherwise. `issuedAt`/`expiresAt` are epoch seconds, fixed rather than relative to the run, so
 the vector does not rot and so a test can pin "now" wherever it needs it.
 
-| Field | What it is |
-|---|---|
-| `accountIdentityPublicKeyB64` | The Ed25519 account identity key that issued the certificates below |
-| `impostorIdentityPublicKeyB64` | An unrelated account identity key - what a server that holds no private half can sign with |
-| `deviceSignatureKeyB64` | The device public key the good certificate covers |
-| `otherDeviceSignatureKeyB64` | A different device key, for the substitution case |
-| `certificateB64` | Valid: right key, right account, window open at `issuedAt + 60` |
-| `certificateOverOtherKeyB64` | Genuinely signed, same account, same device id, **over `otherDeviceSignatureKeyB64`**. Presented beside `deviceSignatureKeyB64` this is the substitution attack |
-| `certificateExpiredB64` + `expired*` | Genuinely signed, window entirely in the past |
-| `certificateNotYetValidB64` + `future*` | Genuinely signed, issued far beyond any clock drift |
-| `certificateInvertedWindowB64` + `inverted*` | Genuinely signed with `expiresAt` before `issuedAt` |
-| `certificateWrongIssuerB64` | Signed by `impostorIdentityPublicKeyB64` over otherwise correct fields |
+| Field                                        | What it is                                                                                                                                                      |
+| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `accountIdentityPublicKeyB64`                | The Ed25519 account identity key that issued the certificates below                                                                                             |
+| `impostorIdentityPublicKeyB64`               | An unrelated account identity key - what a server that holds no private half can sign with                                                                      |
+| `deviceSignatureKeyB64`                      | The device public key the good certificate covers                                                                                                               |
+| `otherDeviceSignatureKeyB64`                 | A different device key, for the substitution case                                                                                                               |
+| `certificateB64`                             | Valid: right key, right account, window open at `issuedAt + 60`                                                                                                 |
+| `certificateOverOtherKeyB64`                 | Genuinely signed, same account, same device id, **over `otherDeviceSignatureKeyB64`**. Presented beside `deviceSignatureKeyB64` this is the substitution attack |
+| `certificateExpiredB64` + `expired*`         | Genuinely signed, window entirely in the past                                                                                                                   |
+| `certificateNotYetValidB64` + `future*`      | Genuinely signed, issued far beyond any clock drift                                                                                                             |
+| `certificateInvertedWindowB64` + `inverted*` | Genuinely signed with `expiresAt` before `issuedAt`                                                                                                             |
+| `certificateWrongIssuerB64`                  | Signed by `impostorIdentityPublicKeyB64` over otherwise correct fields                                                                                          |
 
 ## Consuming it
 

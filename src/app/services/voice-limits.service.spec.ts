@@ -4,7 +4,11 @@
  */
 import {TestBed} from '@angular/core/testing';
 import {describe, expect, it} from 'vitest';
-import {EntitlementRungDto, EntitlementDegradationDto, VoiceRoomLimitsDto} from '../dtos/response/entitlement.dto';
+import {
+    EntitlementRungDto,
+    EntitlementDegradationDto,
+    VoiceRoomLimitsDto,
+} from '../dtos/response/entitlement.dto';
 import {VoiceRoomSnapshot} from '../models/voice-room';
 import {EntitlementStore} from '../stores/entitlement.store';
 import {VoicePublishResponse} from './guild-voice.service';
@@ -33,8 +37,13 @@ function setup(ladder: EntitlementRungDto[] | null = LADDER) {
 
 function snapshot(limits?: VoiceRoomLimitsDto): VoiceRoomSnapshot {
     return {
-        roomId: 'chan-1', kind: 'channel', guildId: 'guild-1',
-        instanceId: 'inst-1', version: 1, participants: [], limits,
+        roomId: 'chan-1',
+        kind: 'channel',
+        guildId: 'guild-1',
+        instanceId: 'inst-1',
+        version: 1,
+        participants: [],
+        limits,
     };
 }
 
@@ -135,16 +144,18 @@ describe('what the room reduced', () => {
 
         service.noteDegradations(publishReply([CEILING_DEGRADATION]));
 
-        expect(service.notices()).toEqual([expect.objectContaining({
-            key: 'voice.video_ceiling',
-            surfaceKey: 'VOICE.DEGRADED.QUALITY_CAPPED',
-            rung: '720p30',
-            messageKey: 'ENTITLEMENT.REASON.GUILD_PLAN_LIMIT',
-            // The server said this caller can act, so there is a button and no "ask an admin".
-            ctaKey: 'ENTITLEMENT.CTA.UPGRADE_SERVER',
-            hintKey: null,
-            refused: false,
-        })]);
+        expect(service.notices()).toEqual([
+            expect.objectContaining({
+                key: 'voice.video_ceiling',
+                surfaceKey: 'VOICE.DEGRADED.QUALITY_CAPPED',
+                rung: '720p30',
+                messageKey: 'ENTITLEMENT.REASON.GUILD_PLAN_LIMIT',
+                // The server said this caller can act, so there is a button and no "ask an admin".
+                ctaKey: 'ENTITLEMENT.CTA.UPGRADE_SERVER',
+                hintKey: null,
+                refused: false,
+            }),
+        ]);
     });
 
     /** The publish reply is the surface that carries this; its declaration is what the ceiling is re-decided against. */
@@ -163,8 +174,10 @@ describe('what the room reduced', () => {
         const service = setup();
         service.enterRoom('guild-1');
 
-        service.noteDegradations(
-            {...snapshot(CAPPED), degradations: [CEILING_DEGRADATION]} as VoiceRoomSnapshot);
+        service.noteDegradations({
+            ...snapshot(CAPPED),
+            degradations: [CEILING_DEGRADATION],
+        } as VoiceRoomSnapshot);
 
         expect(service.notices()).toHaveLength(1);
     });
@@ -198,9 +211,11 @@ describe('what the room reduced', () => {
         service.enterRoom('guild-1');
         service.noteDegradations(publishReply([CEILING_DEGRADATION]));
 
-        service.applySnapshot(snapshot({
-            videoCeiling: {kind: 'ladder', rung: '1080p60', rank: 4, ladder: 'video_quality'},
-        }));
+        service.applySnapshot(
+            snapshot({
+                videoCeiling: {kind: 'ladder', rung: '1080p60', rank: 4, ladder: 'video_quality'},
+            }),
+        );
 
         expect(service.notices()).toEqual([]);
     });
@@ -218,12 +233,16 @@ describe('what the room reduced', () => {
     it('retires a publishers-full card the moment somebody stops sharing', () => {
         const service = setup();
         service.enterRoom('guild-1');
-        service.noteDegradations(publishReply([{
-            ...CEILING_DEGRADATION,
-            key: 'voice.max_publishers',
-            requested: {kind: 'numeric', value: 3, unlimited: false},
-            granted: {kind: 'numeric', value: 2, unlimited: false},
-        }]));
+        service.noteDegradations(
+            publishReply([
+                {
+                    ...CEILING_DEGRADATION,
+                    key: 'voice.max_publishers',
+                    requested: {kind: 'numeric', value: 3, unlimited: false},
+                    granted: {kind: 'numeric', value: 2, unlimited: false},
+                },
+            ]),
+        );
         service.applySnapshot(snapshot({...CAPPED, publisherCount: 2}));
         expect(service.notices()).toHaveLength(1);
 
@@ -244,26 +263,30 @@ describe('what the room refused', () => {
         const seen: string[] = [];
         service.refused$.subscribe(n => seen.push(n.messageKey));
 
-        const notice = service.noteDenial(denial({
-            code: 'guild_plan_limit',
-            key: 'voice.video_ceiling',
-            granted: {kind: 'ladder', rung: 'none', rank: 0},
-            reason: 'guild_plan_limit',
-            boundBy: 'guild',
-            remedy: 'upgrade_guild',
-            actorCanRemedy: false,
-            subject: {kind: 'guild', id: 'guild-1'},
-            retryable: false,
-        }));
+        const notice = service.noteDenial(
+            denial({
+                code: 'guild_plan_limit',
+                key: 'voice.video_ceiling',
+                granted: {kind: 'ladder', rung: 'none', rank: 0},
+                reason: 'guild_plan_limit',
+                boundBy: 'guild',
+                remedy: 'upgrade_guild',
+                actorCanRemedy: false,
+                subject: {kind: 'guild', id: 'guild-1'},
+                retryable: false,
+            }),
+        );
 
-        expect(notice).toEqual(expect.objectContaining({
-            refused: true,
-            surfaceKey: 'VOICE.DEGRADED.AUDIO_ONLY',
-            messageKey: 'ENTITLEMENT.REASON.GUILD_PLAN_LIMIT',
-            // Cannot act, so a sentence naming who can and no button that would answer 403.
-            ctaKey: null,
-            hintKey: 'ENTITLEMENT.CTA.ASK_OWNER',
-        }));
+        expect(notice).toEqual(
+            expect.objectContaining({
+                refused: true,
+                surfaceKey: 'VOICE.DEGRADED.AUDIO_ONLY',
+                messageKey: 'ENTITLEMENT.REASON.GUILD_PLAN_LIMIT',
+                // Cannot act, so a sentence naming who can and no button that would answer 403.
+                ctaKey: null,
+                hintKey: 'ENTITLEMENT.CTA.ASK_OWNER',
+            }),
+        );
         expect(seen).toEqual(['ENTITLEMENT.REASON.GUILD_PLAN_LIMIT']);
         expect(service.notices()).toHaveLength(1);
     });
@@ -272,21 +295,25 @@ describe('what the room refused', () => {
     it('renders a reason it has never heard of generically, with no button', () => {
         const service = setup();
 
-        const notice = service.noteDenial(denial({
-            code: 'quota_of_the_future',
-            key: 'voice.video_ceiling',
-            reason: 'quota_of_the_future',
-            remedy: 'upgrade_guild',
-            actorCanRemedy: true,
-            subject: {kind: 'guild', id: 'guild-1'},
-            retryable: false,
-        }));
+        const notice = service.noteDenial(
+            denial({
+                code: 'quota_of_the_future',
+                key: 'voice.video_ceiling',
+                reason: 'quota_of_the_future',
+                remedy: 'upgrade_guild',
+                actorCanRemedy: true,
+                subject: {kind: 'guild', id: 'guild-1'},
+                retryable: false,
+            }),
+        );
 
-        expect(notice).toEqual(expect.objectContaining({
-            messageKey: 'ENTITLEMENT.REASON.UNKNOWN',
-            ctaKey: null,
-            hintKey: null,
-        }));
+        expect(notice).toEqual(
+            expect.objectContaining({
+                messageKey: 'ENTITLEMENT.REASON.UNKNOWN',
+                ctaKey: null,
+                hintKey: null,
+            }),
+        );
     });
 
     /** A permission refusal carries its own codes and is not an entitlement refusal, or "you cannot do this" renders as "buy more". */

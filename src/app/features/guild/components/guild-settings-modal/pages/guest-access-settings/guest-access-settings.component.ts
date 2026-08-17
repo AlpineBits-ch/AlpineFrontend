@@ -36,7 +36,17 @@ interface GrantRow {
 /** Guest access: hand someone a role that ends on its own. There is no "list temporary grants" endpoint, so this reads the ordinary role-members listing and classifies each row through `grantState`, since that listing keeps returning grants for about a week after they lapse. */
 @Component({
     selector: 'app-guest-access-settings',
-    imports: [FormsModule, Button, InputText, Select, Dialog, Tooltip, PrimeTemplate, TranslateModule, RelativeTimePipe],
+    imports: [
+        FormsModule,
+        Button,
+        InputText,
+        Select,
+        Dialog,
+        Tooltip,
+        PrimeTemplate,
+        TranslateModule,
+        RelativeTimePipe,
+    ],
     templateUrl: './guest-access-settings.component.html',
 })
 export class GuestAccessSettingsComponent implements OnInit {
@@ -77,15 +87,18 @@ export class GuestAccessSettingsComponent implements OnInit {
 
     /** @everyone is not a role anyone hands out temporarily; everybody already has it. */
     protected readonly assignableRoles = computed(() =>
-        this.guild().roles
-            .filter(r => r.type !== RoleType.Everyone)
-            .sort((a, b) => b.position - a.position));
+        this.guild()
+            .roles.filter(r => r.type !== RoleType.Everyone)
+            .sort((a, b) => b.position - a.position),
+    );
 
     protected readonly durationOptions = computed(() =>
-        GUEST_DURATIONS.map(d => ({ms: d.ms, label: this.translate.instant(d.labelKey)})));
+        GUEST_DURATIONS.map(d => ({ms: d.ms, label: this.translate.instant(d.labelKey)})),
+    );
 
-    protected readonly selectedRole = computed<RoleDto | null>(() =>
-        this.assignableRoles().find(r => r.id === this.selectedRoleId()) ?? null);
+    protected readonly selectedRole = computed<RoleDto | null>(
+        () => this.assignableRoles().find(r => r.id === this.selectedRoleId()) ?? null,
+    );
 
     /** When the pending grant would end, resolved against the clock rather than left as "1 week". */
     protected readonly grantEndsAt = computed(() => guestExpiryFromNow(this.durationMs(), this.now()));
@@ -98,23 +111,39 @@ export class GuestAccessSettingsComponent implements OnInit {
     private readonly classified = computed(() => {
         const now = this.now();
         return this.rows()
-            .map(rm => ({rm, userId: rm.member?.userId ?? rm.userId ?? '', state: grantState(rm.expiresAt, now)}))
+            .map(rm => ({
+                rm,
+                userId: rm.member?.userId ?? rm.userId ?? '',
+                state: grantState(rm.expiresAt, now),
+            }))
             .filter(x => x.userId);
     });
 
     protected readonly liveGrants = computed<GrantRow[]>(() =>
-        this.classified().filter(x => x.state === 'live').map(x => this.toRow(x.userId, x.rm, false))
-            .sort((a, b) => Date.parse(a.expiresAt) - Date.parse(b.expiresAt)));
+        this.classified()
+            .filter(x => x.state === 'live')
+            .map(x => this.toRow(x.userId, x.rm, false))
+            .sort((a, b) => Date.parse(a.expiresAt) - Date.parse(b.expiresAt)),
+    );
 
     /** Grants that have already ended but whose rows the server has not reaped yet; shown, but shown as ended, since the alternative implies the pet sitter still has the door code. */
     protected readonly lapsedGrants = computed<GrantRow[]>(() =>
-        this.classified().filter(x => x.state === 'lapsed').map(x => this.toRow(x.userId, x.rm, true)));
+        this.classified()
+            .filter(x => x.state === 'lapsed')
+            .map(x => this.toRow(x.userId, x.rm, true)),
+    );
 
     /** Ordinary permanent members of the role, which guest access has nothing to say about. */
-    protected readonly permanentCount = computed(() => this.classified().filter(x => x.state === 'permanent').length);
+    protected readonly permanentCount = computed(
+        () => this.classified().filter(x => x.state === 'permanent').length,
+    );
 
     protected readonly grantCandidates = computed(() => {
-        const held = new Set(this.classified().filter(x => x.state !== 'lapsed').map(x => x.userId));
+        const held = new Set(
+            this.classified()
+                .filter(x => x.state !== 'lapsed')
+                .map(x => x.userId),
+        );
         return this.candidates().filter(m => !held.has(m.userId));
     });
 

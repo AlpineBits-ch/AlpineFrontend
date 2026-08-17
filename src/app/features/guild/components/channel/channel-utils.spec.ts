@@ -48,9 +48,18 @@ describe('classifyAutoModError', () => {
 
 function chan(over: Partial<ChannelDto> & {id: string; type: ChannelType}): ChannelDto {
     return {
-        createdAt: new Date(), updatedAt: new Date(), name: over.id, description: '',
-        guildId: 'g1', isAgeRestricted: false, isPrivate: false, categoryId: undefined,
-        permissions: [], position: 0, parentChannelId: undefined, ...over,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        name: over.id,
+        description: '',
+        guildId: 'g1',
+        isAgeRestricted: false,
+        isPrivate: false,
+        categoryId: undefined,
+        permissions: [],
+        position: 0,
+        parentChannelId: undefined,
+        ...over,
     } as ChannelDto;
 }
 

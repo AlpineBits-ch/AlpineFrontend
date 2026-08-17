@@ -1,4 +1,12 @@
-import {ChangeDetectionStrategy, Component, computed, DestroyRef, effect, inject, signal} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    DestroyRef,
+    effect,
+    inject,
+    signal,
+} from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {HttpErrorResponse} from '@angular/common/http';
 import {Dialog} from 'primeng/dialog';
@@ -19,8 +27,7 @@ import {SocialKeyGateService} from '../../services/social-key-gate.service';
 import {VoiceChannelService} from '../../services/voice-channel.service';
 
 /** `rate-limited` is deliberately not `error`. */
-type DialogState =
-    'loading' | 'ready' | 'joining' | 'joined' | 'error' | 'blocked' | 'rate-limited';
+type DialogState = 'loading' | 'ready' | 'joining' | 'joined' | 'error' | 'blocked' | 'rate-limited';
 
 @Component({
     selector: 'app-invite-dialog',
@@ -73,7 +80,11 @@ export class InviteDialogComponent {
 
     protected readonly guildInitials = computed(() => {
         const name = this.invite()?.guild?.name ?? '';
-        return name.split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase() ?? '').join('');
+        return name
+            .split(/\s+/)
+            .slice(0, 2)
+            .map(w => w[0]?.toUpperCase() ?? '')
+            .join('');
     });
 
     /** Absent, or present-but-disabled, both mean "render nothing extra". */
@@ -83,15 +94,20 @@ export class InviteDialogComponent {
     });
 
     protected readonly welcomeChannels = computed(() =>
-        [...(this.welcomeScreen()?.channels ?? [])].sort((a, b) => a.position - b.position));
+        [...(this.welcomeScreen()?.channels ?? [])].sort((a, b) => a.position - b.position),
+    );
 
     /** Maps the tier the server reported to the requirement to spell out to the user. */
     protected readonly blockedReasonKey = computed(() => {
         switch (this.requiredLevel()) {
-            case 'Low': return 'INVITE.VERIFY_LOW';
-            case 'Medium': return 'INVITE.VERIFY_MEDIUM';
-            case 'High': return 'INVITE.VERIFY_HIGH';
-            default: return 'INVITE.VERIFY_GENERIC';
+            case 'Low':
+                return 'INVITE.VERIFY_LOW';
+            case 'Medium':
+                return 'INVITE.VERIFY_MEDIUM';
+            case 'High':
+                return 'INVITE.VERIFY_HIGH';
+            default:
+                return 'INVITE.VERIFY_GENERIC';
         }
     });
 
@@ -118,15 +134,16 @@ export class InviteDialogComponent {
         if (!id) return;
 
         this.dialogState.set('loading');
-        this.guildService.getInvite(id)
+        this.guildService
+            .getInvite(id)
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe({
                 next: invite => {
                     this.invite.set(invite);
                     this.dialogState.set('ready');
                 },
-                error: (err: HttpErrorResponse) => this.dialogState.set(
-                    err?.status === 429 ? 'rate-limited' : 'error'),
+                error: (err: HttpErrorResponse) =>
+                    this.dialogState.set(err?.status === 429 ? 'rate-limited' : 'error'),
             });
     }
 
@@ -144,7 +161,8 @@ export class InviteDialogComponent {
         }
 
         this.dialogState.set('joining');
-        this.guildService.redeemInvite(inviteId)
+        this.guildService
+            .redeemInvite(inviteId)
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe({
                 next: result => {
@@ -157,7 +175,7 @@ export class InviteDialogComponent {
                     // A 403 from redeem is either the verification gate or an ordinary
                     // ban/permission refusal - only the structured body distinguishes them,
                     // so check for the marker rather than treating every 403 the same.
-                    const body = err?.error as { error?: string; requiredLevel?: string } | null;
+                    const body = err?.error as {error?: string; requiredLevel?: string} | null;
                     if (err?.status === 403 && body?.error === 'verification_level_not_met') {
                         this.requiredLevel.set(body.requiredLevel ?? null);
                         this.dialogState.set('blocked');
@@ -176,12 +194,14 @@ export class InviteDialogComponent {
     private landInVoice(result: RedeemInviteResultDto | null | undefined): void {
         if (!result?.joinVoice || !result.channelId) return;
 
-        this.guildService.getGuild(result.guildId)
+        this.guildService
+            .getGuild(result.guildId)
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe({
                 next: guild => {
                     const channel = guild.channels.find(
-                        c => c.id === result.channelId && c.type === ChannelType.Voice);
+                        c => c.id === result.channelId && c.type === ChannelType.Voice,
+                    );
                     if (channel) void this.voiceChannels.joinChannel(channel, guild.name);
                 },
                 error: () => undefined,

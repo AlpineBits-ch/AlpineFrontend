@@ -70,7 +70,8 @@ describe('CallStreamMenuComponent', () => {
         let closed = false;
         fixture.componentInstance.close.subscribe(() => (closed = true));
 
-        fixture.nativeElement.querySelector('[data-testid="menu-stats"]')
+        fixture.nativeElement
+            .querySelector('[data-testid="menu-stats"]')
             .dispatchEvent(new MouseEvent('click', {bubbles: true}));
 
         expect(closed).toBe(false);

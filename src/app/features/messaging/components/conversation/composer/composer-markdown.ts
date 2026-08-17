@@ -1,10 +1,13 @@
 import hljs from 'highlight.js';
 
 /** A raw text run or an atomic mention chip from the contenteditable. */
-export type EditorSegment = { type: 'text'; text: string } | { type: 'chip'; el: HTMLElement } | {
-    type: 'emoji';
-    el: HTMLImageElement
-};
+export type EditorSegment =
+    | {type: 'text'; text: string}
+    | {type: 'chip'; el: HTMLElement}
+    | {
+          type: 'emoji';
+          el: HTMLImageElement;
+      };
 
 /**
  * Walk the editor DOM and extract alternating text runs and mention-chip elements.
@@ -82,13 +85,14 @@ export function highlightInlineMarkdown(text: string): string {
         const lang = match[1];
         const rawCode = match[2];
         const langSpan = lang ? `<span class="md-mark md-lang">${escapeHtml(lang)}</span>` : '';
-        const codeHtml = (lang && hljs.getLanguage(lang))
-            ? hljs.highlight(rawCode, {language: lang}).value.replace(/\n/g, '<br>')
-            : escapeHtml(rawCode).replace(/\n/g, '<br>');
+        const codeHtml =
+            lang && hljs.getLanguage(lang)
+                ? hljs.highlight(rawCode, {language: lang}).value.replace(/\n/g, '<br>')
+                : escapeHtml(rawCode).replace(/\n/g, '<br>');
         parts.push(
             `<span class="md-mark">\`\`\`</span>${langSpan}<br>` +
-            `<code class="md-codeblock">${codeHtml}</code>` +
-            `<span class="md-mark">\`\`\`</span>`
+                `<code class="md-codeblock">${codeHtml}</code>` +
+                `<span class="md-mark">\`\`\`</span>`,
         );
         lastIndex = match.index + match[0].length;
     }
@@ -104,9 +108,10 @@ export function highlightInlineMarkdown(text: string): string {
             const rawCode = um[3] ?? '';
             const langSpan = lang ? `<span class="md-mark md-lang">${escapeHtml(lang)}</span>` : '';
             if (hasNewline) {
-                const codeHtml = (lang && hljs.getLanguage(lang))
-                    ? hljs.highlight(rawCode, {language: lang}).value.replace(/\n/g, '<br>')
-                    : escapeHtml(rawCode).replace(/\n/g, '<br>');
+                const codeHtml =
+                    lang && hljs.getLanguage(lang)
+                        ? hljs.highlight(rawCode, {language: lang}).value.replace(/\n/g, '<br>')
+                        : escapeHtml(rawCode).replace(/\n/g, '<br>');
                 parts.push(`<span class="md-mark">\`\`\`</span>${langSpan}<br>${codeHtml}`);
             } else {
                 parts.push(`<span class="md-mark">\`\`\`</span>${langSpan}`);
@@ -131,18 +136,23 @@ function applyInlineStyles(text: string): string {
     html = html.replace(
         /\*\*([^*\n]+?)\*\*|__([^_\n]+?)__|~~([^~\n]+?)~~|`([^`\n]+?)`|\*([^*\n]+?)\*|_([^_\n]+?)_|\*\*([^*\n]+)$|__([^_\n]+)$|~~([^~\n]+)$|`([^`\n]+)$/gm,
         (_, b1, b2, s, c, i1, i2, ub1, ub2, us, uc) => {
-            if (b1 != null) return `<span class="md-mark">**</span><strong>${b1}</strong><span class="md-mark">**</span>`;
-            if (b2 != null) return `<span class="md-mark">__</span><strong>${b2}</strong><span class="md-mark">__</span>`;
+            if (b1 != null)
+                return `<span class="md-mark">**</span><strong>${b1}</strong><span class="md-mark">**</span>`;
+            if (b2 != null)
+                return `<span class="md-mark">__</span><strong>${b2}</strong><span class="md-mark">__</span>`;
             if (s != null) return `<span class="md-mark">~~</span><s>${s}</s><span class="md-mark">~~</span>`;
-            if (c != null) return `<span class="md-mark">\`</span><code>${c}</code><span class="md-mark">\`</span>`;
-            if (i1 != null) return `<span class="md-mark">*</span><em>${i1}</em><span class="md-mark">*</span>`;
-            if (i2 != null) return `<span class="md-mark">_</span><em>${i2}</em><span class="md-mark">_</span>`;
+            if (c != null)
+                return `<span class="md-mark">\`</span><code>${c}</code><span class="md-mark">\`</span>`;
+            if (i1 != null)
+                return `<span class="md-mark">*</span><em>${i1}</em><span class="md-mark">*</span>`;
+            if (i2 != null)
+                return `<span class="md-mark">_</span><em>${i2}</em><span class="md-mark">_</span>`;
             if (ub1 != null) return `<span class="md-mark">**</span><strong>${ub1}</strong>`;
             if (ub2 != null) return `<span class="md-mark">__</span><strong>${ub2}</strong>`;
             if (us != null) return `<span class="md-mark">~~</span><s>${us}</s>`;
             if (uc != null) return `<span class="md-mark">\`</span><code>${uc}</code>`;
             return _;
-        }
+        },
     );
 
     return html.replace(/\n/g, '<br>');

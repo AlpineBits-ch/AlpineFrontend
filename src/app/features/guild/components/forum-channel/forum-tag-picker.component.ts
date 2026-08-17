@@ -18,19 +18,27 @@ import {ForumTagChipComponent} from './forum-tag-chip.component';
                             <span class="text-offline ml-0.5">*</span>
                         }
                     </span>
-                    <span class="text-[0.625rem] tabular-nums"
-                          [class]="atCap() ? 'text-connecting' : 'text-text-muted'">
+                    <span
+                        class="text-[0.625rem] tabular-nums"
+                        [class]="atCap() ? 'text-connecting' : 'text-text-muted'"
+                    >
                         {{ selected().length }}/{{ maxTags }}
                     </span>
                 </div>
                 <div class="flex flex-wrap gap-1.5">
                     @for (tag of visibleTags(); track tag.id) {
-                        <button (click)="toggle(tag.id)"
-                                [disabled]="!isSelected(tag.id) && atCap()"
-                                class="disabled:opacity-35 disabled:cursor-not-allowed"
-                                type="button">
-                            <app-forum-tag-chip [emojiUrl]="emojiUrlFor(tag)" [interactive]="true"
-                                                [selected]="isSelected(tag.id)" [tag]="tag"/>
+                        <button
+                            (click)="toggle(tag.id)"
+                            [disabled]="!isSelected(tag.id) && atCap()"
+                            class="disabled:opacity-35 disabled:cursor-not-allowed"
+                            type="button"
+                        >
+                            <app-forum-tag-chip
+                                [emojiUrl]="emojiUrlFor(tag)"
+                                [interactive]="true"
+                                [selected]="isSelected(tag.id)"
+                                [tag]="tag"
+                            />
                         </button>
                     }
                 </div>
@@ -50,7 +58,8 @@ export class ForumTagPickerComponent {
     protected readonly maxTags = FORUM_LIMITS.tagsPerPost;
 
     protected readonly visibleTags = computed(() =>
-        this.canUseModerated() ? this.tags() : this.tags().filter(t => !t.moderated));
+        this.canUseModerated() ? this.tags() : this.tags().filter(t => !t.moderated),
+    );
 
     protected readonly atCap = computed(() => this.selected().length >= this.maxTags);
 
@@ -59,7 +68,7 @@ export class ForumTagPickerComponent {
     }
 
     protected emojiUrlFor(tag: ForumTag): string | null {
-        return tag.emojiId ? this.emojiUrls()[tag.emojiId] ?? null : null;
+        return tag.emojiId ? (this.emojiUrls()[tag.emojiId] ?? null) : null;
     }
 
     protected toggle(tagId: string): void {

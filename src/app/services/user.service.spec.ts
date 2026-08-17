@@ -166,7 +166,7 @@ describe('UserService phone number', () => {
     it('PUTs to the identity service and returns the normalised number the server stored', () => {
         const {service, ctrl} = setup();
         let returned: string | undefined;
-        service.setPhoneNumber('+41791234567').subscribe(value => returned = value);
+        service.setPhoneNumber('+41791234567').subscribe(value => (returned = value));
 
         const req = ctrl.expectOne('https://api.test.example/api/v1/identity/users/self/phone');
         expect(req.request.method).toBe('PUT');
@@ -203,11 +203,12 @@ describe('UserService phone number', () => {
         service.self.set(makeUser({phoneNumber: '+41791234567'}));
 
         let status: number | undefined;
-        service.setPhoneNumber('+0041791234567')
-            .subscribe({error: err => status = err.status});
+        service.setPhoneNumber('+0041791234567').subscribe({error: err => (status = err.status)});
 
-        ctrl.expectOne(req => req.method === 'PUT')
-            .flush('A phone number must be in international format', {status: 400, statusText: 'Bad Request'});
+        ctrl.expectOne(req => req.method === 'PUT').flush('A phone number must be in international format', {
+            status: 400,
+            statusText: 'Bad Request',
+        });
 
         expect(status).toBe(400);
         // A refused write must not look like it landed.

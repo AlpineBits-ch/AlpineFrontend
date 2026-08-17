@@ -115,14 +115,16 @@ describe('RichPresenceService fallback poll', () => {
         service.start();
         await settle();
 
-        emit([{
-            type: 'Playing',
-            name: 'Counter-Strike 2',
-            details: 'Competitive - Mirage',
-            state: 'In Queue',
-            source: 'Rpc',
-            startedAt: 1_000,
-        }]);
+        emit([
+            {
+                type: 'Playing',
+                name: 'Counter-Strike 2',
+                details: 'Competitive - Mirage',
+                state: 'In Queue',
+                source: 'Rpc',
+                startedAt: 1_000,
+            },
+        ]);
         await settle();
 
         // The same game is running, so the scan would happily report it - without the guard this is
@@ -147,12 +149,14 @@ describe('RichPresenceService fallback poll', () => {
         service.start();
         await settle();
 
-        emit([{
-            type: 'Playing',
-            name: 'Counter-Strike 2',
-            details: 'Competitive - Mirage',
-            source: 'Rpc',
-        }]);
+        emit([
+            {
+                type: 'Playing',
+                name: 'Counter-Strike 2',
+                details: 'Competitive - Mirage',
+                source: 'Rpc',
+            },
+        ]);
         await settle();
 
         // The scan that was dispatched at `start()` only now answers, with the bare sighting.

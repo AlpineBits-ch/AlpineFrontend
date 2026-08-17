@@ -13,10 +13,7 @@ function tokenize(value: string): string[] {
  * The capturable window most likely to be the game an activity names, or nothing.
  * A weak score returns null rather than the best of a bad set, and monitors are never matched.
  */
-export function bestSourceMatch(
-    activityName: string,
-    sources: readonly ScreenSource[],
-): string | null {
+export function bestSourceMatch(activityName: string, sources: readonly ScreenSource[]): string | null {
     const wanted = tokenize(activityName);
     if (!wanted.length) return null;
 

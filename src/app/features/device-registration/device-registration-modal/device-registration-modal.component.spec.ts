@@ -21,7 +21,9 @@ let registered: RegisterDeviceDto[];
  *        restore the old `isMobile ? Mobile : Desktop` line and this is what feeds it, so the test
  *        fails on the wrong device type rather than on a missing provider.
  */
-function setup(os: OsInfo = new FakeOsInfo('windows', false)): ComponentFixture<DeviceRegistrationModalComponent> {
+function setup(
+    os: OsInfo = new FakeOsInfo('windows', false),
+): ComponentFixture<DeviceRegistrationModalComponent> {
     registered = [];
 
     TestBed.resetTestingModule();
@@ -33,10 +35,13 @@ function setup(os: OsInfo = new FakeOsInfo('windows', false)): ComponentFixture<
                 useValue: {
                     getOrCreateDeviceIdentifier: async () => 'device-1',
                     deleteDeviceIdentifier: async () => undefined,
-                    generateKeyPackages: () => of({
-                        signingPublicKey: 'pub', signingPrivateKey: 'priv',
-                        keyPackages: [], keyHandle: 'handle-1',
-                    }),
+                    generateKeyPackages: () =>
+                        of({
+                            signingPublicKey: 'pub',
+                            signingPrivateKey: 'priv',
+                            keyPackages: [],
+                            keyHandle: 'handle-1',
+                        }),
                     persistSigningKey: () => of(undefined),
                     keyHandle: {set: vi.fn()},
                 },
@@ -64,7 +69,7 @@ async function registerAs(fixture: ComponentFixture<DeviceRegistrationModalCompo
         deviceName: {set(value: string): void};
         onRegister(): void;
     };
-    modal.deviceName.set('Ada\'s laptop');
+    modal.deviceName.set("Ada's laptop");
     modal.onRegister();
     await new Promise<void>(resolve => setTimeout(resolve, 0));
 }
@@ -116,6 +121,6 @@ describe('DeviceRegistrationModalComponent registration payload', () => {
         // silently discard the input this whole modal exists to collect.
         await registerAs(fixture);
 
-        expect(registered[0].deviceName).toBe('Ada\'s laptop');
+        expect(registered[0].deviceName).toBe("Ada's laptop");
     });
 });

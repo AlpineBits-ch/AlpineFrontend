@@ -102,18 +102,18 @@ export class ChoreService {
         // deduplicate - a second registration delivers every chore event twice, which for the
         // skip marker would mean two local patches of a row the server described once. This is a
         // root singleton, and `on` is safe before `start`.
-        this.realtime.on('guild.ChoreCreated',
-            (d: ChoreCreated) => this.upsertChore(d.channelId, d.chore));
-        this.realtime.on('guild.ChoreUpdated',
-            (d: ChoreUpdated) => this.upsertChore(d.channelId, d.chore));
-        this.realtime.on('guild.ChoreDeleted',
-            (d: ChoreDeleted) => this.removeChore(d.channelId, d.choreId));
-        this.realtime.on('guild.ChoreOccurrenceCreated',
-            (d: ChoreOccurrenceCreated) => this.onOccurrenceCreated(d));
-        this.realtime.on('guild.ChoreOccurrenceUpdated',
-            (d: ChoreOccurrenceUpdated) => this.onOccurrenceUpdated(d));
-        this.realtime.on('guild.ChoreOccurrenceNudged',
-            (d: ChoreOccurrenceNudged) => this.onOccurrenceNudged(d));
+        this.realtime.on('guild.ChoreCreated', (d: ChoreCreated) => this.upsertChore(d.channelId, d.chore));
+        this.realtime.on('guild.ChoreUpdated', (d: ChoreUpdated) => this.upsertChore(d.channelId, d.chore));
+        this.realtime.on('guild.ChoreDeleted', (d: ChoreDeleted) => this.removeChore(d.channelId, d.choreId));
+        this.realtime.on('guild.ChoreOccurrenceCreated', (d: ChoreOccurrenceCreated) =>
+            this.onOccurrenceCreated(d),
+        );
+        this.realtime.on('guild.ChoreOccurrenceUpdated', (d: ChoreOccurrenceUpdated) =>
+            this.onOccurrenceUpdated(d),
+        );
+        this.realtime.on('guild.ChoreOccurrenceNudged', (d: ChoreOccurrenceNudged) =>
+            this.onOccurrenceNudged(d),
+        );
         // The due-date reminder is not registered here. It arrives as `guild.HouseholdAlert` now,
         // and is handled by `HouseholdAlertService`, which the shell constructs at launch - this
         // service only exists once somebody has opened a chores board, which is precisely the
@@ -152,21 +152,25 @@ export class ChoreService {
             occurrences: this.api.listOccurrences(channelId, from, to),
             balance: this.api.balance(channelId, CHORE_LIMITS.balanceDefaultDays),
         }).subscribe({
-            next: ({chores, occurrences, balance}) => this.patch(channelId, {
-                chores, occurrences, balance,
-                loading: false,
-                loadedAt: Date.now(),
-                error: false,
-                forbidden: false,
-            }),
-            error: (err: unknown) => this.patch(channelId, {
-                loading: false,
-                // Never recorded as loaded: a failure that counted as a load would block every
-                // retry until STALE_MS had passed over data that was never fetched.
-                loadedAt: 0,
-                error: true,
-                forbidden: err instanceof HttpErrorResponse && err.status === 403,
-            }),
+            next: ({chores, occurrences, balance}) =>
+                this.patch(channelId, {
+                    chores,
+                    occurrences,
+                    balance,
+                    loading: false,
+                    loadedAt: Date.now(),
+                    error: false,
+                    forbidden: false,
+                }),
+            error: (err: unknown) =>
+                this.patch(channelId, {
+                    loading: false,
+                    // Never recorded as loaded: a failure that counted as a load would block every
+                    // retry until STALE_MS had passed over data that was never fetched.
+                    loadedAt: 0,
+                    error: true,
+                    forbidden: err instanceof HttpErrorResponse && err.status === 403,
+                }),
         });
     }
 
@@ -184,9 +188,11 @@ export class ChoreService {
      * worse than re-reading the one that is actually opened next.</p>
      */
     invalidateAll(): void {
-        this.channels.update(all => Object.fromEntries(
-            Object.entries(all).map(([channelId, state]) => [channelId, {...state, loadedAt: 0}]),
-        ));
+        this.channels.update(all =>
+            Object.fromEntries(
+                Object.entries(all).map(([channelId, state]) => [channelId, {...state, loadedAt: 0}]),
+            ),
+        );
     }
 
     // ── Chore definitions ───────────────────────────────────────────────────
@@ -197,15 +203,15 @@ export class ChoreService {
      * from the response too means the dialog can close on the response rather than on the socket.
      */
     createChore(channelId: string, dto: CreateChoreDto): Observable<Chore> {
-        return this.api.createChore(channelId, dto).pipe(
-            tap(chore => this.upsertChore(channelId, chore, true)),
-        );
+        return this.api
+            .createChore(channelId, dto)
+            .pipe(tap(chore => this.upsertChore(channelId, chore, true)));
     }
 
     updateChore(channelId: string, choreId: string, dto: UpdateChoreDto): Observable<Chore> {
-        return this.api.updateChore(choreId, dto).pipe(
-            tap(chore => this.upsertChore(channelId, chore, true)),
-        );
+        return this.api
+            .updateChore(choreId, dto)
+            .pipe(tap(chore => this.upsertChore(channelId, chore, true)));
     }
 
     /**
@@ -217,15 +223,13 @@ export class ChoreService {
      * its occurrences - it stops generating new ones, it does not forget the ones it owes.</p>
      */
     setPaused(channelId: string, choreId: string, isPaused: boolean): Observable<Chore> {
-        return this.api.updateChore(choreId, {isPaused}).pipe(
-            tap(chore => this.upsertChore(channelId, chore, true)),
-        );
+        return this.api
+            .updateChore(choreId, {isPaused})
+            .pipe(tap(chore => this.upsertChore(channelId, chore, true)));
     }
 
     deleteChore(channelId: string, choreId: string): Observable<void> {
-        return this.api.deleteChore(choreId).pipe(
-            tap(() => this.removeChore(channelId, choreId)),
-        );
+        return this.api.deleteChore(choreId).pipe(tap(() => this.removeChore(channelId, choreId)));
     }
 
     // ── The four verbs ──────────────────────────────────────────────────────
@@ -336,10 +340,12 @@ export class ChoreService {
      * sender, by design. See {@link ChoreApiService.nudge}.</p>
      */
     nudge(occurrence: ChoreOccurrence): Observable<ChoreNudgeResult> {
-        return this.api.nudge(occurrence.id).pipe(tap(result => {
-            const current = this.occurrenceById(occurrence.channelId, occurrence.id);
-            if (current) this.replaceOccurrence({...current, nudgedAt: result.nudgedAt});
-        }));
+        return this.api.nudge(occurrence.id).pipe(
+            tap(result => {
+                const current = this.occurrenceById(occurrence.channelId, occurrence.id);
+                if (current) this.replaceOccurrence({...current, nudgedAt: result.nudgedAt});
+            }),
+        );
     }
 
     // ── Realtime ────────────────────────────────────────────────────────────
@@ -415,9 +421,8 @@ export class ChoreService {
         const channelId = occurrence.channelId;
         const current = this.stateFor(channelId).occurrences;
         const index = current.findIndex(o => o.id === occurrence.id);
-        const next = index === -1
-            ? [...current, occurrence]
-            : current.map((o, i) => i === index ? occurrence : o);
+        const next =
+            index === -1 ? [...current, occurrence] : current.map((o, i) => (i === index ? occurrence : o));
         this.patch(channelId, {occurrences: next});
     }
 
@@ -436,9 +441,7 @@ export class ChoreService {
         const current = this.stateFor(channelId).chores;
         const index = current.findIndex(c => c.id === chore.id);
         this.patch(channelId, {
-            chores: index === -1
-                ? [...current, chore]
-                : current.map((c, i) => i === index ? chore : c),
+            chores: index === -1 ? [...current, chore] : current.map((c, i) => (i === index ? chore : c)),
         });
     }
 
@@ -459,14 +462,17 @@ export class ChoreService {
     private scheduleBalanceRefresh(channelId: string): void {
         if (!this.isTracked(channelId)) return;
         if (this.balanceTimers.has(channelId)) return;
-        this.balanceTimers.set(channelId, setTimeout(() => {
-            this.balanceTimers.delete(channelId);
-            this.api.balance(channelId, CHORE_LIMITS.balanceDefaultDays).subscribe({
-                next: balance => this.patch(channelId, {balance}),
-                // The panel keeps the numbers it had. A stale balance is a far better answer than
-                // an empty one, and the next load corrects it.
-                error: () => undefined,
-            });
-        }, BALANCE_COALESCE_MS));
+        this.balanceTimers.set(
+            channelId,
+            setTimeout(() => {
+                this.balanceTimers.delete(channelId);
+                this.api.balance(channelId, CHORE_LIMITS.balanceDefaultDays).subscribe({
+                    next: balance => this.patch(channelId, {balance}),
+                    // The panel keeps the numbers it had. A stale balance is a far better answer than
+                    // an empty one, and the next load corrects it.
+                    error: () => undefined,
+                });
+            }, BALANCE_COALESCE_MS),
+        );
     }
 }

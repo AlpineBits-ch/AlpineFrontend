@@ -26,8 +26,7 @@ export class WalletPreferenceService {
     order<T extends {kind: PaymentHandleKind}>(handles: readonly T[]): T[] {
         const preferred = this._preferred();
         if (!preferred) return [...handles];
-        return [...handles].sort((a, b) =>
-            Number(b.kind === preferred) - Number(a.kind === preferred));
+        return [...handles].sort((a, b) => Number(b.kind === preferred) - Number(a.kind === preferred));
     }
 }
 

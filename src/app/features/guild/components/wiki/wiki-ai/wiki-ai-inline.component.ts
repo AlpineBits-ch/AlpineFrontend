@@ -48,35 +48,41 @@ const FLUSH_MS = 90;
     imports: [FormsModule, TranslateModule, AiConnectFormComponent],
     template: `
         @if (phase() !== 'closed') {
-            <div (mousedown)="$event.stopPropagation()"
-                 [style.left.px]="position().left" [style.top.px]="position().top"
-                 class="fixed z-50 w-[26rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl
-                        border border-border bg-card shadow-2xl">
-
+            <div
+                (mousedown)="$event.stopPropagation()"
+                [style.left.px]="position().left"
+                [style.top.px]="position().top"
+                class="fixed z-50 w-[26rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl
+                        border border-border bg-card shadow-2xl"
+            >
                 <!-- Connect, reached without leaving the page you were writing on. -->
                 @if (phase() === 'connect') {
                     <div class="max-h-[70vh] overflow-y-auto p-3 thin-scrollbar">
                         <p class="mb-3 text-[0.75rem] text-white/50">
                             {{ 'WIKI.AI.CONNECT_INTRO' | translate }}
                         </p>
-                        <app-ai-connect-form (connected)="onConnected()" [showBilling]="false"/>
-                        <button (click)="close()"
-                                class="mt-3 cursor-pointer border-0 bg-transparent p-0
+                        <app-ai-connect-form (connected)="onConnected()" [showBilling]="false" />
+                        <button
+                            (click)="close()"
+                            class="mt-3 cursor-pointer border-0 bg-transparent p-0
                                        text-[0.75rem] text-white/40 hover:text-white/70"
-                                type="button">{{ 'COMMON.CANCEL' | translate }}
+                            type="button"
+                        >
+                            {{ 'COMMON.CANCEL' | translate }}
                         </button>
                     </div>
                 } @else {
                     <div class="flex flex-col gap-2 p-2">
-
                         <!-- What is happening, in the same slot in every phase. -->
                         <div class="flex items-center gap-2 px-1">
-                            <i [class.pi-spin]="phase() === 'running'"
-                               [class]="phase() === 'running' ? 'pi-spinner' : 'pi-sparkles'"
-                               class="pi text-[0.75rem] text-brand-dim"></i>
+                            <i
+                                [class.pi-spin]="phase() === 'running'"
+                                [class]="phase() === 'running' ? 'pi-spinner' : 'pi-sparkles'"
+                                class="pi text-[0.75rem] text-brand-dim"
+                            ></i>
                             <span class="flex-1 truncate text-[0.6875rem] text-white/40">
                                 @if (phase() === 'running') {
-                                    {{ (runningLabel() || 'WIKI.AI.INLINE.GENERATING') | translate }}
+                                    {{ runningLabel() || 'WIKI.AI.INLINE.GENERATING' | translate }}
                                 } @else if (phase() === 'review') {
                                     {{ 'WIKI.AI.INLINE.REVIEW' | translate }}
                                 } @else {
@@ -84,39 +90,54 @@ const FLUSH_MS = 90;
                                 }
                             </span>
                             @if (phase() !== 'running' && ai.activeProvider()) {
-                                <button (click)="phase.set('connect')"
-                                        class="cursor-pointer border-0 bg-transparent p-0
+                                <button
+                                    (click)="phase.set('connect')"
+                                    class="cursor-pointer border-0 bg-transparent p-0
                                                text-[0.6875rem] text-white/25 hover:text-white/60"
-                                        type="button">{{ providerLabel() }}
+                                    type="button"
+                                >
+                                    {{ providerLabel() }}
                                 </button>
                             }
                         </div>
 
                         @if (phase() === 'prompt' || phase() === 'review') {
-                            <div class="flex items-center gap-1.5 rounded-lg border border-border
-                                        bg-app-bg px-2 py-1.5">
-                                <input #barInput
-                                       (keydown.enter)="submit()"
-                                       (keydown.escape)="close()"
-                                       [(ngModel)]="draftPrompt"
-                                       [placeholder]="(phase() === 'review'
+                            <div
+                                class="flex items-center gap-1.5 rounded-lg border border-border
+                                        bg-app-bg px-2 py-1.5"
+                            >
+                                <input
+                                    #barInput
+                                    (keydown.enter)="submit()"
+                                    (keydown.escape)="close()"
+                                    [(ngModel)]="draftPrompt"
+                                    [placeholder]="
+                                        (phase() === 'review'
                                             ? 'WIKI.AI.INLINE.REFINE_PLACEHOLDER'
-                                            : 'WIKI.AI.INLINE.PROMPT_PLACEHOLDER') | translate"
-                                       class="flex-1 border-0 bg-transparent text-[0.8125rem]
-                                              text-white/85 outline-none placeholder-white/25"/>
-                                <button (click)="submit()"
-                                        class="flex h-6 w-6 shrink-0 cursor-pointer items-center
+                                            : 'WIKI.AI.INLINE.PROMPT_PLACEHOLDER'
+                                        ) | translate
+                                    "
+                                    class="flex-1 border-0 bg-transparent text-[0.8125rem]
+                                              text-white/85 outline-none placeholder-white/25"
+                                />
+                                <button
+                                    (click)="submit()"
+                                    class="flex h-6 w-6 shrink-0 cursor-pointer items-center
                                                justify-center rounded-md border-0 bg-brand/20
                                                text-brand-dim hover:bg-brand/30"
-                                        [title]="'WIKI.AI.INLINE.SEND' | translate" type="button">
+                                    [title]="'WIKI.AI.INLINE.SEND' | translate"
+                                    type="button"
+                                >
                                     <i class="pi pi-arrow-up text-[0.625rem]"></i>
                                 </button>
                             </div>
                         }
 
                         @if (error(); as message) {
-                            <p class="rounded-lg border border-offline/30 bg-offline/[0.08] px-2
-                                      py-1.5 text-[0.75rem] leading-snug text-white/70">
+                            <p
+                                class="rounded-lg border border-offline/30 bg-offline/[0.08] px-2
+                                      py-1.5 text-[0.75rem] leading-snug text-white/70"
+                            >
                                 {{ message }}
                             </p>
                         }
@@ -124,36 +145,44 @@ const FLUSH_MS = 90;
                         <!-- Control strip. One row, one decision each. -->
                         <div class="flex items-center gap-1 px-0.5">
                             @if (phase() === 'running') {
-                                <button (click)="stop()"
-                                        class="flex cursor-pointer items-center gap-1.5 rounded-md
+                                <button
+                                    (click)="stop()"
+                                    class="flex cursor-pointer items-center gap-1.5 rounded-md
                                                border-0 bg-white/[0.06] px-2 py-1 text-[0.75rem]
                                                text-white/65 hover:bg-white/10 hover:text-white/90"
-                                        type="button">
+                                    type="button"
+                                >
                                     <i class="pi pi-stop text-[0.625rem]"></i>
                                     {{ 'WIKI.AI.STOP' | translate }}
                                 </button>
                             } @else if (phase() === 'review') {
-                                <button (click)="accept()"
-                                        class="flex cursor-pointer items-center gap-1.5 rounded-md
+                                <button
+                                    (click)="accept()"
+                                    class="flex cursor-pointer items-center gap-1.5 rounded-md
                                                border-0 bg-brand/20 px-2 py-1 text-[0.75rem]
                                                text-brand-dim hover:bg-brand/30"
-                                        type="button">
+                                    type="button"
+                                >
                                     <i class="pi pi-check text-[0.625rem]"></i>
                                     {{ 'WIKI.AI.INLINE.ACCEPT' | translate }}
                                 </button>
-                                <button (click)="retry()"
-                                        class="flex cursor-pointer items-center gap-1.5 rounded-md
+                                <button
+                                    (click)="retry()"
+                                    class="flex cursor-pointer items-center gap-1.5 rounded-md
                                                border-0 bg-white/[0.06] px-2 py-1 text-[0.75rem]
                                                text-white/65 hover:bg-white/10 hover:text-white/90"
-                                        type="button">
+                                    type="button"
+                                >
                                     <i class="pi pi-refresh text-[0.625rem]"></i>
                                     {{ 'WIKI.AI.INLINE.RETRY' | translate }}
                                 </button>
-                                <button (click)="close()"
-                                        class="flex cursor-pointer items-center gap-1.5 rounded-md
+                                <button
+                                    (click)="close()"
+                                    class="flex cursor-pointer items-center gap-1.5 rounded-md
                                                border-0 bg-white/[0.06] px-2 py-1 text-[0.75rem]
                                                text-white/65 hover:bg-white/10 hover:text-white/90"
-                                        type="button">
+                                    type="button"
+                                >
                                     <i class="pi pi-times text-[0.625rem]"></i>
                                     {{ 'WIKI.AI.INLINE.DISCARD' | translate }}
                                 </button>
@@ -162,10 +191,13 @@ const FLUSH_MS = 90;
                                     {{ 'WIKI.AI.INLINE.HINT' | translate }}
                                 </span>
                                 @if (!ai.available()) {
-                                    <button (click)="phase.set('connect')"
-                                            class="ml-auto cursor-pointer border-0 bg-transparent
+                                    <button
+                                        (click)="phase.set('connect')"
+                                        class="ml-auto cursor-pointer border-0 bg-transparent
                                                    p-0 text-[0.6875rem] text-brand-dim
-                                                   hover:underline" type="button">
+                                                   hover:underline"
+                                        type="button"
+                                    >
                                         {{ 'WIKI.AI.INLINE.NOT_CONNECTED' | translate }}
                                     </button>
                                 }
@@ -279,13 +311,18 @@ export class WikiAiInlineComponent implements OnDestroy {
         this.begin(scope.from, scope.to);
         this.draftPrompt = '';
         this.runningLabel.set(action.labelKey ?? null);
-        this.start(() => this.ai.transform({
-            op: action.op,
-            text: scope.text,
-            instruction: action.instruction,
-            title: this.pageTitle(),
-            pageTitles: this.pageTitles(),
-        }, this.abortSignal()));
+        this.start(() =>
+            this.ai.transform(
+                {
+                    op: action.op,
+                    text: scope.text,
+                    instruction: action.instruction,
+                    title: this.pageTitle(),
+                    pageTitles: this.pageTitles(),
+                },
+                this.abortSignal(),
+            ),
+        );
     }
 
     /**
@@ -301,19 +338,22 @@ export class WikiAiInlineComponent implements OnDestroy {
         if (!editor || !prompt.trim()) return;
         void this.ai.refresh();
         const empty = !editor.state.doc.textContent.trim();
-        const {from, to} = empty
-            ? {from: 0, to: editor.state.doc.content.size}
-            : editor.state.selection;
+        const {from, to} = empty ? {from: 0, to: editor.state.doc.content.size} : editor.state.selection;
         const existingContent = empty ? '' : editor.getMarkdown();
         this.begin(from, to);
         this.draftPrompt = prompt;
         this.runningLabel.set(null);
-        this.start(() => this.ai.draft({
-            prompt,
-            title: this.pageTitle(),
-            existingContent,
-            pageTitles: this.pageTitles(),
-        }, this.abortSignal()));
+        this.start(() =>
+            this.ai.draft(
+                {
+                    prompt,
+                    title: this.pageTitle(),
+                    existingContent,
+                    pageTitles: this.pageTitles(),
+                },
+                this.abortSignal(),
+            ),
+        );
     }
 
     /** Aborts, restores the document and closes. Safe to call when nothing is open. */
@@ -342,13 +382,18 @@ export class WikiAiInlineComponent implements OnDestroy {
             // Refining works on what was generated, not on what the page held before it.
             const text = stripOuterFence(this.output);
             this.draftPrompt = '';
-            this.start(() => this.ai.transform({
-                op: 'improve',
-                text,
-                instruction: words,
-                title: this.pageTitle(),
-                pageTitles: this.pageTitles(),
-            }, this.abortSignal()));
+            this.start(() =>
+                this.ai.transform(
+                    {
+                        op: 'improve',
+                        text,
+                        instruction: words,
+                        title: this.pageTitle(),
+                        pageTitles: this.pageTitles(),
+                    },
+                    this.abortSignal(),
+                ),
+            );
             return;
         }
         if (this.sourceText) {
@@ -356,23 +401,33 @@ export class WikiAiInlineComponent implements OnDestroy {
             // to travel with it. Sending this as a draft would have the model write something new
             // over text it never saw.
             const text = this.sourceText;
-            this.start(() => this.ai.transform({
-                op: 'improve',
-                text,
-                instruction: words,
-                title: this.pageTitle(),
-                pageTitles: this.pageTitles(),
-            }, this.abortSignal()));
+            this.start(() =>
+                this.ai.transform(
+                    {
+                        op: 'improve',
+                        text,
+                        instruction: words,
+                        title: this.pageTitle(),
+                        pageTitles: this.pageTitles(),
+                    },
+                    this.abortSignal(),
+                ),
+            );
             return;
         }
-        this.start(() => this.ai.draft({
-            prompt: words,
-            title: this.pageTitle(),
-            // Deliberately not the page body. `buildDraftPrompt` labels it "existing content to
-            // revise", and an insertion at the caret is not a request to revise the page.
-            existingContent: '',
-            pageTitles: this.pageTitles(),
-        }, this.abortSignal()));
+        this.start(() =>
+            this.ai.draft(
+                {
+                    prompt: words,
+                    title: this.pageTitle(),
+                    // Deliberately not the page body. `buildDraftPrompt` labels it "existing content to
+                    // revise", and an insertion at the caret is not a request to revise the page.
+                    existingContent: '',
+                    pageTitles: this.pageTitles(),
+                },
+                this.abortSignal(),
+            ),
+        );
     }
 
     protected retry(): void {

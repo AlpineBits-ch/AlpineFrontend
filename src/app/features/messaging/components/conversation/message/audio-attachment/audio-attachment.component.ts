@@ -62,9 +62,9 @@ export class AudioAttachmentComponent {
     protected readonly muted = signal(false);
 
     protected readonly progressBackground = computed(() =>
-        fillStyle(this.duration() > 0 ? (this.currentTime() / this.duration()) * 100 : 0));
-    protected readonly volumeBackground = computed(() =>
-        fillStyle((this.muted() ? 0 : this.volume()) * 100));
+        fillStyle(this.duration() > 0 ? (this.currentTime() / this.duration()) * 100 : 0),
+    );
+    protected readonly volumeBackground = computed(() => fillStyle((this.muted() ? 0 : this.volume()) * 100));
     protected readonly volumeIcon = computed(() => {
         if (this.muted() || this.volume() === 0) return 'pi-volume-off';
         return this.volume() < 0.5 ? 'pi-volume-down' : 'pi-volume-up';
@@ -104,18 +104,17 @@ export class AudioAttachmentComponent {
             el.pause();
             return;
         }
-        if (!this.loaded && !await this.load()) return;
+        if (!this.loaded && !(await this.load())) return;
         // `play()` rejects on a codec the webview cannot decode, which is a failure to report and
         // not one to leave the button stuck showing pause.
-        await el.play().catch((err: unknown) =>
-            this.fail(true, err instanceof Error ? err.name : ''));
+        await el.play().catch((err: unknown) => this.fail(true, err instanceof Error ? err.name : ''));
     }
 
     /** The element gave up on the source. */
     protected onMediaError(): void {
         if (!this.loaded) return;
         const code = this.audioRef()?.nativeElement.error?.code;
-        this.fail(true, code ? MEDIA_ERROR_NAMES[code] ?? `code ${code}` : '');
+        this.fail(true, code ? (MEDIA_ERROR_NAMES[code] ?? `code ${code}`) : '');
         // Dropped so pressing play again re-fetches rather than re-failing on a dead element.
         this.loaded = false;
         this.releaseObjectUrl();
@@ -172,8 +171,7 @@ export class AudioAttachmentComponent {
         this.loading.set(true);
         this.fail(false);
         try {
-            const blob = await firstValueFrom(
-                this.files.downloadAttachmentById(this.attachmentId()));
+            const blob = await firstValueFrom(this.files.downloadAttachmentById(this.attachmentId()));
             this.objectUrl = URL.createObjectURL(this.retyped(blob));
             el.src = this.objectUrl;
             this.loaded = true;

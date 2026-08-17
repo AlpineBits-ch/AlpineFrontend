@@ -22,13 +22,13 @@ export class EntitlementService {
 
     /** The caller's own set, plus what kind of instance this is. */
     getMine(): Observable<EntitlementSnapshotDto> {
-        return this.http.get<EntitlementSnapshotDto>(
-            `${this.apiConfig.baseUrl()}/api/v1/entitlements/me`);
+        return this.http.get<EntitlementSnapshotDto>(`${this.apiConfig.baseUrl()}/api/v1/entitlements/me`);
     }
 
     /** One guild's set. Members only - a non-member gets the same 404 as a guild that is not there. */
     getForGuild(guildId: string): Observable<EntitlementSnapshotDto> {
         return this.http.get<EntitlementSnapshotDto>(
-            `${this.apiConfig.baseUrl()}/api/v1/entitlements/guilds/${guildId}`);
+            `${this.apiConfig.baseUrl()}/api/v1/entitlements/guilds/${guildId}`,
+        );
     }
 }

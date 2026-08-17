@@ -26,27 +26,52 @@ export interface ParsedAccelerator {
 }
 
 /** Modifier spellings accepted on input. Wider than what this app writes, to cover older tokens. */
-const MODIFIERS: Readonly<Record<string, keyof Pick<ParsedAccelerator, 'ctrl' | 'alt' | 'shift' | 'meta'>>> = {
-    Control: 'ctrl',
-    Ctrl: 'ctrl',
-    CommandOrControl: 'ctrl',
-    CmdOrCtrl: 'ctrl',
-    Alt: 'alt',
-    Option: 'alt',
-    Shift: 'shift',
-    Super: 'meta',
-    Meta: 'meta',
-    Win: 'meta',
-    Cmd: 'meta',
-    Command: 'meta',
-};
+const MODIFIERS: Readonly<Record<string, keyof Pick<ParsedAccelerator, 'ctrl' | 'alt' | 'shift' | 'meta'>>> =
+    {
+        Control: 'ctrl',
+        Ctrl: 'ctrl',
+        CommandOrControl: 'ctrl',
+        CmdOrCtrl: 'ctrl',
+        Alt: 'alt',
+        Option: 'alt',
+        Shift: 'shift',
+        Super: 'meta',
+        Meta: 'meta',
+        Win: 'meta',
+        Cmd: 'meta',
+        Command: 'meta',
+    };
 
 /** Main keys whose token already is the `KeyboardEvent.code`, beyond the regex families below. */
 const LITERAL_CODES: readonly string[] = [
-    'Backquote', 'Space', 'Tab', 'Enter', 'Escape', 'Backspace', 'Delete', 'Insert',
-    'Home', 'End', 'PageUp', 'PageDown', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
-    'Minus', 'Equal', 'BracketLeft', 'BracketRight', 'Backslash', 'Semicolon', 'Quote',
-    'Comma', 'Period', 'Slash', 'CapsLock', 'IntlBackslash',
+    'Backquote',
+    'Space',
+    'Tab',
+    'Enter',
+    'Escape',
+    'Backspace',
+    'Delete',
+    'Insert',
+    'Home',
+    'End',
+    'PageUp',
+    'PageDown',
+    'ArrowUp',
+    'ArrowDown',
+    'ArrowLeft',
+    'ArrowRight',
+    'Minus',
+    'Equal',
+    'BracketLeft',
+    'BracketRight',
+    'Backslash',
+    'Semicolon',
+    'Quote',
+    'Comma',
+    'Period',
+    'Slash',
+    'CapsLock',
+    'IntlBackslash',
 ];
 
 /** Spellings of a main key that are not a `code` but map onto exactly one. */
@@ -71,9 +96,7 @@ function familyCode(part: string): string | null {
 }
 
 function mainCode(part: string): string | null {
-    return familyCode(part)
-        ?? CODE_ALIASES[part]
-        ?? (LITERAL_CODES.includes(part) ? part : null);
+    return familyCode(part) ?? CODE_ALIASES[part] ?? (LITERAL_CODES.includes(part) ? part : null);
 }
 
 /**
@@ -84,10 +107,18 @@ function mainCode(part: string): string | null {
  */
 export function parseAccelerator(accelerator: string): ParsedAccelerator | null {
     const parsed: ParsedAccelerator = {
-        ctrl: false, alt: false, shift: false, meta: false, code: null, modifier: null,
+        ctrl: false,
+        alt: false,
+        shift: false,
+        meta: false,
+        code: null,
+        modifier: null,
     };
 
-    const parts = accelerator.split('+').map(p => p.trim()).filter(p => p.length > 0);
+    const parts = accelerator
+        .split('+')
+        .map(p => p.trim())
+        .filter(p => p.length > 0);
     if (parts.length === 0) return null;
 
     for (const part of parts) {
@@ -138,11 +169,13 @@ function modifierCodes(modifier: BareModifier): readonly string[] {
 export function matchesKeyDown(parsed: ParsedAccelerator, event: KeyboardEvent): boolean {
     if (parsed.modifier) return modifierCodes(parsed.modifier).includes(event.code);
 
-    return event.code === parsed.code
-        && event.ctrlKey === parsed.ctrl
-        && event.altKey === parsed.alt
-        && event.shiftKey === parsed.shift
-        && event.metaKey === parsed.meta;
+    return (
+        event.code === parsed.code &&
+        event.ctrlKey === parsed.ctrl &&
+        event.altKey === parsed.alt &&
+        event.shiftKey === parsed.shift &&
+        event.metaKey === parsed.meta
+    );
 }
 
 /**
@@ -155,10 +188,12 @@ export function matchesKeyUp(parsed: ParsedAccelerator, event: KeyboardEvent): b
     if (parsed.modifier) return modifierCodes(parsed.modifier).includes(event.code);
     if (event.code === parsed.code) return true;
 
-    return (parsed.ctrl && modifierCodes('Control').includes(event.code))
-        || (parsed.alt && modifierCodes('Alt').includes(event.code))
-        || (parsed.shift && modifierCodes('Shift').includes(event.code))
-        || (parsed.meta && modifierCodes('Meta').includes(event.code));
+    return (
+        (parsed.ctrl && modifierCodes('Control').includes(event.code)) ||
+        (parsed.alt && modifierCodes('Alt').includes(event.code)) ||
+        (parsed.shift && modifierCodes('Shift').includes(event.code)) ||
+        (parsed.meta && modifierCodes('Meta').includes(event.code))
+    );
 }
 
 /**
@@ -179,18 +214,21 @@ export function acceleratorFromEvent(event: KeyboardEvent): string {
 
 /** Human-readable form of an accelerator (e.g. `Control+Shift+KeyV` → `Ctrl + Shift + V`). */
 export function formatAccelerator(accelerator: string): string {
-    return accelerator.split('+').map(part => {
-        switch (part) {
-            case 'Control':
-                return 'Ctrl';
-            case 'Super':
-                return 'Win';
-            case 'Backquote':
-                return '`';
-            default:
-                if (part.startsWith('Key')) return part.slice(3);
-                if (part.startsWith('Digit')) return part.slice(5);
-                return part;
-        }
-    }).join(' + ');
+    return accelerator
+        .split('+')
+        .map(part => {
+            switch (part) {
+                case 'Control':
+                    return 'Ctrl';
+                case 'Super':
+                    return 'Win';
+                case 'Backquote':
+                    return '`';
+                default:
+                    if (part.startsWith('Key')) return part.slice(3);
+                    if (part.startsWith('Digit')) return part.slice(5);
+                    return part;
+            }
+        })
+        .join(' + ');
 }

@@ -13,8 +13,7 @@ export interface AiDraftRequest {
 }
 
 export type AiTransformOp =
-    | 'improve' | 'shorten' | 'expand' | 'grammar' | 'tone' | 'translate'
-    | 'summarize' | 'continue';
+    'improve' | 'shorten' | 'expand' | 'grammar' | 'tone' | 'translate' | 'summarize' | 'continue';
 
 export interface AiTransformRequest {
     op: AiTransformOp;
@@ -26,7 +25,11 @@ export interface AiTransformRequest {
     pageTitles: readonly string[];
 }
 
-export interface AiAskSource { id: string; title: string; content: string; }
+export interface AiAskSource {
+    id: string;
+    title: string;
+    content: string;
+}
 
 export interface AiAskRequest {
     question: string;
@@ -95,12 +98,7 @@ export const AI_PROVIDER_META: Record<AiProviderId, AiProviderMeta> = {
 
 export interface AiProvider extends AiProviderMeta {
     /** Streams the draft in chunks so the preview fills in as it generates. */
-    draft(
-        req: AiDraftRequest,
-        apiKey: string,
-        model: string,
-        signal: AbortSignal,
-    ): AsyncIterable<string>;
+    draft(req: AiDraftRequest, apiKey: string, model: string, signal: AbortSignal): AsyncIterable<string>;
 
     /** Streams the rewritten passage, and nothing else - the result replaces the selection. */
     transform(
@@ -114,20 +112,10 @@ export interface AiProvider extends AiProviderMeta {
      * Answers from wiki content. Cites sources as ordinary wiki links -
      * `[Page title](wiki:<pageId>)` - so the existing renderer resolves them with no new syntax.
      */
-    ask(
-        req: AiAskRequest,
-        apiKey: string,
-        model: string,
-        signal: AbortSignal,
-    ): AsyncIterable<string>;
+    ask(req: AiAskRequest, apiKey: string, model: string, signal: AbortSignal): AsyncIterable<string>;
 
     /** Ghost text. One short shot, not streamed: a half-rendered suggestion is worse than none. */
-    complete(
-        req: AiCompleteRequest,
-        apiKey: string,
-        model: string,
-        signal: AbortSignal,
-    ): Promise<string>;
+    complete(req: AiCompleteRequest, apiKey: string, model: string, signal: AbortSignal): Promise<string>;
 
     suggestMetadata(
         req: AiMetadataRequest,
@@ -211,22 +199,28 @@ export const AI_TRANSFORM_SYSTEM_PROMPT = [
  * of intent, and it is obvious at a glance which ones consume `instruction`.
  */
 const TRANSFORM_INSTRUCTIONS: Record<AiTransformOp, string> = {
-    improve: 'Rewrite the passage so it reads better - clearer, tighter, better organised. Keep '
-        + 'every fact and every link it already contains.',
-    shorten: 'Make the passage shorter while keeping everything that matters. Cut hedging, '
-        + 'repetition and filler first; drop facts only as a last resort.',
-    expand: 'Expand the passage with the detail a reader would want next. Add only what follows '
-        + 'from what is already there - do not invent specifics you were not given.',
-    grammar: 'Fix spelling, grammar and punctuation only. Do not change wording, tone, structure '
-        + 'or meaning beyond what those corrections require.',
+    improve:
+        'Rewrite the passage so it reads better - clearer, tighter, better organised. Keep ' +
+        'every fact and every link it already contains.',
+    shorten:
+        'Make the passage shorter while keeping everything that matters. Cut hedging, ' +
+        'repetition and filler first; drop facts only as a last resort.',
+    expand:
+        'Expand the passage with the detail a reader would want next. Add only what follows ' +
+        'from what is already there - do not invent specifics you were not given.',
+    grammar:
+        'Fix spelling, grammar and punctuation only. Do not change wording, tone, structure ' +
+        'or meaning beyond what those corrections require.',
     tone: 'Rewrite the passage in the requested tone, keeping its facts and structure.',
-    translate: 'Translate the passage into the requested language. Translate prose only: code, '
-        + 'identifiers, URLs and link targets stay exactly as they are.',
+    translate:
+        'Translate the passage into the requested language. Translate prose only: code, ' +
+        'identifiers, URLs and link targets stay exactly as they are.',
     summarize: 'Summarise the passage. Return the summary alone - it replaces the passage.',
     // The one op whose output is an addition rather than a replacement. The editor decides where
     // it lands; all this side has to do is not repeat what it was given.
-    continue: 'Continue the passage from where it stops. Return only the new text that follows '
-        + 'it, never a repeat of the passage itself.',
+    continue:
+        'Continue the passage from where it stops. Return only the new text that follows ' +
+        'it, never a repeat of the passage itself.',
 };
 
 export function buildTransformPrompt(req: AiTransformRequest): string {
@@ -243,12 +237,7 @@ export function buildTransformPrompt(req: AiTransformRequest): string {
         parts.push(`From the user: ${extra}`);
     }
 
-    parts.push(
-        '',
-        'The passage begins on the next line and runs to the end of this message.',
-        '',
-        req.text,
-    );
+    parts.push('', 'The passage begins on the next line and runs to the end of this message.', '', req.text);
     return parts.join('\n');
 }
 
@@ -320,8 +309,8 @@ export function trimAskSources(
     sources: readonly AiAskSource[],
     budget: number = ASK_SOURCE_BUDGET,
 ): TrimmedAskSources {
-    const kept: { rank: number; source: TrimmedAskSource }[] = [];
-    const skipped: { rank: number; source: AiAskSource }[] = [];
+    const kept: {rank: number; source: TrimmedAskSource}[] = [];
+    const skipped: {rank: number; source: AiAskSource}[] = [];
     let remaining = Math.max(0, budget);
 
     sources.forEach((source, rank) => {
@@ -362,10 +351,7 @@ function cutAtBoundary(text: string, max: number): string {
     return head.trimEnd();
 }
 
-export function buildAskPrompt(
-    req: AiAskRequest,
-    budget: number = ASK_SOURCE_BUDGET,
-): string {
+export function buildAskPrompt(req: AiAskRequest, budget: number = ASK_SOURCE_BUDGET): string {
     const trimmed = trimAskSources(req.sources, budget);
     const parts: string[] = [];
 
@@ -387,8 +373,8 @@ export function buildAskPrompt(
             parts.push(
                 '',
                 trimmed.omitted > 0
-                    ? `${trimmed.omitted} lower-ranked page(s) did not fit and are not shown. `
-                        + 'The sources above are partial.'
+                    ? `${trimmed.omitted} lower-ranked page(s) did not fit and are not shown. ` +
+                          'The sources above are partial.'
                     : 'The sources above are partial - at least one page was truncated.',
             );
         }
@@ -435,7 +421,12 @@ export function buildCompletePrompt(req: AiCompleteRequest): string {
     if (after) {
         // Given first, and labelled, so the model writes something that leads into what follows
         // instead of duplicating it. The text to continue has to be last - see below.
-        parts.push('', 'Text after the caret (do not repeat it, write something that leads into it):', '', after);
+        parts.push(
+            '',
+            'Text after the caret (do not repeat it, write something that leads into it):',
+            '',
+            after,
+        );
     }
 
     // Last on purpose: the continuation is generated straight off the end of the message, and

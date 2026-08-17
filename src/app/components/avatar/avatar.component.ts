@@ -8,33 +8,39 @@ import {OsInfo} from '../../platform/ports/os-info.port';
     selector: 'app-avatar',
     imports: [Avatar],
     template: `
-    @if (os.isMobile) {
-      <div class="block rounded-full overflow-hidden shrink-0" [style]="avatarSizeStyle()">
-        @if (imageUrl()) {
-          <img class="w-full h-full object-cover"
-               [src]="imageUrl()" [alt]="displayLabel() ?? ''" (error)="onError()" />
-        } @else if (displayLabel()) {
-          <div class="w-full h-full flex items-center justify-center bg-[var(--color-brand)] text-white font-semibold text-sm rounded-full">
-            {{ displayLabel() }}
-          </div>
+        @if (os.isMobile) {
+            <div class="block rounded-full overflow-hidden shrink-0" [style]="avatarSizeStyle()">
+                @if (imageUrl()) {
+                    <img
+                        class="w-full h-full object-cover"
+                        [src]="imageUrl()"
+                        [alt]="displayLabel() ?? ''"
+                        (error)="onError()"
+                    />
+                } @else if (displayLabel()) {
+                    <div
+                        class="w-full h-full flex items-center justify-center bg-[var(--color-brand)] text-white font-semibold text-sm rounded-full"
+                    >
+                        {{ displayLabel() }}
+                    </div>
+                } @else {
+                    <div class="w-full h-full flex items-center justify-center bg-white/10 rounded-full">
+                        <i class="pi pi-user text-white/40 text-xs"></i>
+                    </div>
+                }
+            </div>
         } @else {
-          <div class="w-full h-full flex items-center justify-center bg-white/10 rounded-full">
-            <i class="pi pi-user text-white/40 text-xs"></i>
-          </div>
+            <p-avatar
+                [image]="imageUrl()"
+                [label]="displayLabel()"
+                [icon]="displayIcon()"
+                shape="circle"
+                [size]="size()"
+                [styleClass]="styleClass()"
+                (onImageError)="onError()"
+            />
         }
-      </div>
-    } @else {
-      <p-avatar
-        [image]="imageUrl()"
-        [label]="displayLabel()"
-        [icon]="displayIcon()"
-        shape="circle"
-        [size]="size()"
-        [styleClass]="styleClass()"
-        (onImageError)="onError()"
-      />
-    }
-  `,
+    `,
 })
 export class AppAvatarComponent {
     readonly userId = input<string | undefined>(undefined);
@@ -56,10 +62,10 @@ export class AppAvatarComponent {
     private profileService = inject(ProfileService);
     private readonly imageError = signal(false);
     private readonly profile = computed(() =>
-        this.userId() ? this.profileService.getCachedByUserId(this.userId()!) : undefined
+        this.userId() ? this.profileService.getCachedByUserId(this.userId()!) : undefined,
     );
     protected readonly imageUrl = computed((): string | undefined =>
-        this.imageError() ? undefined : this.profile()?.avatarUrl
+        this.imageError() ? undefined : this.profile()?.avatarUrl,
     );
     protected readonly displayLabel = computed((): string | undefined => {
         if (this.imageUrl()) return undefined;

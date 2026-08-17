@@ -1,12 +1,14 @@
 <div class="flex flex-col gap-4">
-
     <!-- ── Window picker ───────────────────────────────────────────────────── -->
     <div class="flex items-center gap-2 flex-wrap">
         <div class="flex items-center rounded-lg border border-border-subtle p-0.5">
             @for (window of windows; track window) {
-                <button (click)="setMonths(window)"
-                        [class]="months() === window ? 'bg-hover text-text-primary' : 'text-text-muted hover:text-text-secondary'"
-                        class="px-3 py-1 rounded-md text-[0.6875rem] font-medium transition-colors" type="button">
+                <button
+                    (click)="setMonths(window)"
+                    [class]="months() === window ? 'bg-hover text-text-primary' : 'text-text-muted hover:text-text-secondary'"
+                    class="px-3 py-1 rounded-md text-[0.6875rem] font-medium transition-colors"
+                    type="button"
+                >
                     {{ windowLabelKey(window) | translate: windowLabelParams(window) }}
                 </button>
             }
@@ -23,7 +25,6 @@
     } @else if (state().failed) {
         <p class="text-[0.6875rem] text-offline text-center m-0">{{ 'LEDGER.SUMMARY.LOAD_FAILED' | translate }}</p>
     } @else if (summary(); as data) {
-
         <!-- ── The headline: what the house costs, and what of it is yours ─── -->
         <section class="rounded-2xl border border-border bg-card px-4 py-4 grid grid-cols-2 sm:grid-cols-3 gap-4">
             <div>
@@ -58,7 +59,6 @@
                 <p class="text-sm text-text-muted m-0">{{ 'LEDGER.SUMMARY.EMPTY' | translate }}</p>
             </div>
         } @else {
-
             <!-- ── By category ─────────────────────────────────────────────── -->
             @if (categoryRows().length > 0) {
                 <section class="rounded-2xl border border-border bg-sidebar overflow-hidden">

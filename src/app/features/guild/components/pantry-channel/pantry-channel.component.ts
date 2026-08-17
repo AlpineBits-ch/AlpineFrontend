@@ -59,8 +59,19 @@ const EXPIRING_WINDOWS = [3, 7, 14, 30] as const;
     selector: 'app-pantry-channel',
     changeDetection: ChangeDetectionStrategy.OnPush,
     imports: [
-        DatePipe, FormsModule, TranslateModule, Button, Dialog, InputText, Select, DatePicker,
-        ToggleSwitch, Tooltip, PrimeTemplate, PantryScanComponent, ModuleNotInPlanComponent,
+        DatePipe,
+        FormsModule,
+        TranslateModule,
+        Button,
+        Dialog,
+        InputText,
+        Select,
+        DatePicker,
+        ToggleSwitch,
+        Tooltip,
+        PrimeTemplate,
+        PantryScanComponent,
+        ModuleNotInPlanComponent,
     ],
     templateUrl: './pantry-channel.component.html',
 })
@@ -90,8 +101,9 @@ export class PantryChannelComponent implements OnDestroy {
 
     protected readonly icon = computed(() => channelIcon(this.channel().type));
 
-    private readonly guild = computed(() =>
-        this.guildService.guilds().find(g => g.id === this.channel().guildId) ?? null);
+    private readonly guild = computed(
+        () => this.guildService.guilds().find(g => g.id === this.channel().guildId) ?? null,
+    );
 
     /** §13.2: a 403 here usually means the guild lacks the module, not a missing role; a guild not yet loaded reads as enabled, so the view doesn't flash a module-off panel during load. */
     protected readonly moduleOff = computed(() => {
@@ -103,15 +115,17 @@ export class PantryChannelComponent implements OnDestroy {
     protected readonly guildId = computed(() => this.channel().guildId);
 
     /** Off because the plan doesn't cover it (no permission or toggle in-house fixes it); false while nothing is held, so an unread resolution renders as before. */
-    protected readonly moduleWithheld = computed(() =>
-        this.entitlements.moduleStanding(this.guildId(), GuildFeature.Pantry) === 'withheld');
+    protected readonly moduleWithheld = computed(
+        () => this.entitlements.moduleStanding(this.guildId(), GuildFeature.Pantry) === 'withheld',
+    );
 
     // ── Permissions ──────────────────────────────────────────────────────────
 
-
     private readonly ownUserId = computed(() => this.profileService.ownProfile()?.userId ?? null);
 
-    private readonly abilities = computed(() => guildAbilities(this.ownMember(), this.guild(), this.ownUserId()));
+    private readonly abilities = computed(() =>
+        guildAbilities(this.ownMember(), this.guild(), this.ownUserId()),
+    );
 
     private can = (permission: bigint): boolean => this.abilities().canModule(permission);
 
@@ -136,7 +150,9 @@ export class PantryChannelComponent implements OnDestroy {
     /** The one that drives presentation: known, and known to be off. */
     protected readonly loopOff = computed(() => this.loopKnown() && !this.restockLoopOn());
 
-    protected readonly warningDays = computed(() => this.config()?.expiryWarningDays ?? DEFAULT_EXPIRY_WARNING_DAYS);
+    protected readonly warningDays = computed(
+        () => this.config()?.expiryWarningDays ?? DEFAULT_EXPIRY_WARNING_DAYS,
+    );
 
     /** The configured list channel's name, for the banner, or null if it has vanished. */
     protected readonly restockListName = computed(() => {
@@ -145,9 +161,11 @@ export class PantryChannelComponent implements OnDestroy {
     });
 
     /** `List` channels in this guild only: a list in another house is not a legal target and the server rejects it, so it is never offered. */
-    protected readonly listChannelOptions = computed(() => (this.guild()?.channels ?? [])
-        .filter(c => c.type === ChannelType.List)
-        .map(c => ({label: c.name, value: c.id})));
+    protected readonly listChannelOptions = computed(() =>
+        (this.guild()?.channels ?? [])
+            .filter(c => c.type === ChannelType.List)
+            .map(c => ({label: c.name, value: c.id})),
+    );
 
     /** Ticked every minute so the expiry badges age without each row reading the clock, and `pantryExpiryState` is re-derived rather than frozen at first render. */
     protected readonly nowTick = signal(Date.now());
@@ -229,11 +247,13 @@ export class PantryChannelComponent implements OnDestroy {
 
         effect(() => {
             const guildId = this.channel().guildId;
-            untracked(() => this.guildService.getOwnMember(guildId).subscribe({
-                next: m => this.ownMember.set(m),
-                // Failing closed: no member means no ManagePantry, which hides the write affordances rather than offering buttons that 403.
-                error: () => this.ownMember.set(null),
-            }));
+            untracked(() =>
+                this.guildService.getOwnMember(guildId).subscribe({
+                    next: m => this.ownMember.set(m),
+                    // Failing closed: no member means no ManagePantry, which hides the write affordances rather than offering buttons that 403.
+                    error: () => this.ownMember.set(null),
+                }),
+            );
         });
     }
 
@@ -316,12 +336,12 @@ export class PantryChannelComponent implements OnDestroy {
         const request$ = id
             ? this.pantry.updateItem(channelId, id, patch)
             : this.pantry.addItem(channelId, {
-                name,
-                quantity,
-                unit: unit || null,
-                lowThreshold: tracked ? threshold : null,
-                expiresAt: expiresAt?.toISOString() ?? null,
-            });
+                  name,
+                  quantity,
+                  unit: unit || null,
+                  lowThreshold: tracked ? threshold : null,
+                  expiresAt: expiresAt?.toISOString() ?? null,
+              });
 
         request$.subscribe({
             next: () => {
@@ -394,19 +414,23 @@ export class PantryChannelComponent implements OnDestroy {
         const expiryWarningDays = this.cfgWarningDays()!;
 
         // "No list" is `clearRestockList: true` with the id omitted, never `restockListChannelId: null` (see UpdatePantryConfigDto); getting this wrong is invisible, the PUT succeeds and the loop stays wired to whatever it was.
-        this.pantry.saveConfig(this.channel().id, listChannelId
-            ? {restockListChannelId: listChannelId, expiryWarningDays}
-            : {clearRestockList: true, expiryWarningDays},
-        ).subscribe({
-            next: () => {
-                this.savingConfig.set(false);
-                this.configOpen.set(false);
-            },
-            error: err => {
-                this.savingConfig.set(false);
-                this.toast.httpError(this.translate.instant('PANTRY.CONFIG_SAVE_ERROR'), err);
-            },
-        });
+        this.pantry
+            .saveConfig(
+                this.channel().id,
+                listChannelId
+                    ? {restockListChannelId: listChannelId, expiryWarningDays}
+                    : {clearRestockList: true, expiryWarningDays},
+            )
+            .subscribe({
+                next: () => {
+                    this.savingConfig.set(false);
+                    this.configOpen.set(false);
+                },
+                error: err => {
+                    this.savingConfig.set(false);
+                    this.toast.httpError(this.translate.instant('PANTRY.CONFIG_SAVE_ERROR'), err);
+                },
+            });
     }
 
     // ── Presentation helpers ─────────────────────────────────────────────────

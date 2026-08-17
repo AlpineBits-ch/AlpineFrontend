@@ -40,7 +40,9 @@ const CHANNEL = {
     type: ChannelType.Voice,
 } as unknown as ChannelDto;
 
-interface OnWatchStreamHost {onWatchStream(event: {channel: ChannelDto; userId: string}): Promise<void>}
+interface OnWatchStreamHost {
+    onWatchStream(event: {channel: ChannelDto; userId: string}): Promise<void>;
+}
 
 function render(joinChannel: ReturnType<typeof vi.fn>): ComponentFixture<ChannelListComponent> {
     TestBed.resetTestingModule();
@@ -66,7 +68,10 @@ function render(joinChannel: ReturnType<typeof vi.fn>): ComponentFixture<Channel
                     leaveChannel: () => Promise.resolve(),
                 },
             },
-            {provide: ProfileService, useValue: {ownProfile: () => undefined, getCachedByUserId: () => undefined}},
+            {
+                provide: ProfileService,
+                useValue: {ownProfile: () => undefined, getCachedByUserId: () => undefined},
+            },
             {provide: GuildReadStateService, useValue: {ensureSeeded: () => Promise.resolve()}},
             {
                 provide: GuildService,
@@ -74,7 +79,10 @@ function render(joinChannel: ReturnType<typeof vi.fn>): ComponentFixture<Channel
             },
             {provide: OwnMemberRevisionService, useValue: {revision: signal(0)}},
             {provide: GuildVoiceService, useValue: {}},
-            {provide: GuildUiActionsService, useValue: {openCreateChannel$: new Subject(), openCreateCategory$: new Subject()}},
+            {
+                provide: GuildUiActionsService,
+                useValue: {openCreateChannel$: new Subject(), openCreateCategory$: new Subject()},
+            },
             {
                 provide: GuildWebsocketService,
                 useValue: {
@@ -120,8 +128,10 @@ describe('ChannelListComponent.onWatchStream', () => {
         const openChannelSpy = vi.spyOn(navService, 'openChannel');
         const requestSpy = vi.spyOn(TestBed.inject(CallFocusService), 'request');
 
-        await (fixture.componentInstance as unknown as OnWatchStreamHost)
-            .onWatchStream({channel: CHANNEL, userId: 'streamer-1'});
+        await (fixture.componentInstance as unknown as OnWatchStreamHost).onWatchStream({
+            channel: CHANNEL,
+            userId: 'streamer-1',
+        });
 
         expect(openChannelSpy).toHaveBeenCalledWith(CHANNEL);
         expect(joinChannel).toHaveBeenCalledWith(CHANNEL, GUILD.name);
@@ -132,12 +142,16 @@ describe('ChannelListComponent.onWatchStream', () => {
     it('does not re-join when already in the streamed channel, but still arms the request', async () => {
         const joinChannel = vi.fn().mockResolvedValue(true);
         const fixture = render(joinChannel);
-        const voiceChannelSvc = TestBed.inject(VoiceChannelService) as unknown as {joinedChannelId: ReturnType<typeof signal<string | null>>};
+        const voiceChannelSvc = TestBed.inject(VoiceChannelService) as unknown as {
+            joinedChannelId: ReturnType<typeof signal<string | null>>;
+        };
         voiceChannelSvc.joinedChannelId = signal(CHANNEL.id);
         const requestSpy = vi.spyOn(TestBed.inject(CallFocusService), 'request');
 
-        await (fixture.componentInstance as unknown as OnWatchStreamHost)
-            .onWatchStream({channel: CHANNEL, userId: 'streamer-1'});
+        await (fixture.componentInstance as unknown as OnWatchStreamHost).onWatchStream({
+            channel: CHANNEL,
+            userId: 'streamer-1',
+        });
 
         expect(joinChannel).not.toHaveBeenCalled();
         expect(requestSpy).toHaveBeenCalled();
@@ -149,8 +163,10 @@ describe('ChannelListComponent.onWatchStream', () => {
         const fixture = render(joinChannel);
         const requestSpy = vi.spyOn(TestBed.inject(CallFocusService), 'request');
 
-        await (fixture.componentInstance as unknown as OnWatchStreamHost)
-            .onWatchStream({channel: CHANNEL, userId: 'streamer-1'});
+        await (fixture.componentInstance as unknown as OnWatchStreamHost).onWatchStream({
+            channel: CHANNEL,
+            userId: 'streamer-1',
+        });
 
         expect(requestSpy).not.toHaveBeenCalled();
     });

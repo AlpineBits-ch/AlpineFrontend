@@ -14,9 +14,9 @@ import {DeviceIdentityService} from './device-identity.service';
 function configure(deviceId: () => Promise<string>) {
     const oauth = {
         // Parameters are declared so `mock.calls[0]` is typed and the assertions need no cast.
-        fetchTokenUsingGrant: vi.fn(
-            async (_grant: string, _params: Record<string, string>) => ({access_token: 'tok'}),
-        ),
+        fetchTokenUsingGrant: vi.fn(async (_grant: string, _params: Record<string, string>) => ({
+            access_token: 'tok',
+        })),
         configure: vi.fn(),
     };
 

@@ -3,9 +3,7 @@ import {rankAskSources} from './wiki-ai-shared';
 
 describe('splitAnswer', () => {
     it('returns one text segment when there are no citations', () => {
-        expect(splitAnswer('Nothing to cite here.')).toEqual([
-            {text: 'Nothing to cite here.', pageId: null},
-        ]);
+        expect(splitAnswer('Nothing to cite here.')).toEqual([{text: 'Nothing to cite here.', pageId: null}]);
     });
 
     it('splits a citation out of the surrounding prose', () => {

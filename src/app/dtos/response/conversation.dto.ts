@@ -25,5 +25,5 @@ export interface ConversationDto {
      * checks reachability before it builds the group, but a device that registered between that
      * check and this response would show up only here - so both are read.
      */
-    unreachableDevices?: { userId: string; deviceId: string; deviceName: string }[];
+    unreachableDevices?: {userId: string; deviceId: string; deviceName: string}[];
 }

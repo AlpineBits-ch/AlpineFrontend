@@ -1,10 +1,6 @@
 import {inject, Injectable, signal} from '@angular/core';
 import {SettingsStore, SettingsStoreFactory} from '../platform/ports/settings-store.port';
-import {
-    activeSlotId as liveSlotId,
-    BOOTSTRAP_SLOT_ID,
-    setActiveSlotId,
-} from './scoped-oauth-storage';
+import {activeSlotId as liveSlotId, BOOTSTRAP_SLOT_ID, setActiveSlotId} from './scoped-oauth-storage';
 import {SETTINGS_FILE} from './settings-store';
 
 // Re-exported from where it is defined, so the many callers that reach for it alongside the slot
@@ -153,28 +149,26 @@ export class AccountRegistryService {
 
             const slot: AccountSlot = existing
                 ? {
-                    ...existing,
-                    // Only overwritten when this sign-in actually carried a value: a slot that
-                    // already knows the username must not be blanked by a call that did not.
-                    username: identity.username ?? existing.username,
-                    displayName: identity.displayName ?? existing.displayName,
-                    avatarUrl: identity.avatarUrl ?? existing.avatarUrl,
-                    lastUsedAt: Date.now(),
-                }
+                      ...existing,
+                      // Only overwritten when this sign-in actually carried a value: a slot that
+                      // already knows the username must not be blanked by a call that did not.
+                      username: identity.username ?? existing.username,
+                      displayName: identity.displayName ?? existing.displayName,
+                      avatarUrl: identity.avatarUrl ?? existing.avatarUrl,
+                      lastUsedAt: Date.now(),
+                  }
                 : {
-                    id: crypto.randomUUID(),
-                    userId: identity.userId,
-                    serverUrl: identity.serverUrl,
-                    username: identity.username ?? '',
-                    displayName: identity.displayName ?? identity.username ?? '',
-                    avatarUrl: identity.avatarUrl ?? null,
-                    lastUsedAt: Date.now(),
-                };
+                      id: crypto.randomUUID(),
+                      userId: identity.userId,
+                      serverUrl: identity.serverUrl,
+                      username: identity.username ?? '',
+                      displayName: identity.displayName ?? identity.username ?? '',
+                      avatarUrl: identity.avatarUrl ?? null,
+                      lastUsedAt: Date.now(),
+                  };
 
             return {
-                slots: existing
-                    ? file.slots.map(s => (s.id === slot.id ? slot : s))
-                    : [...file.slots, slot],
+                slots: existing ? file.slots.map(s => (s.id === slot.id ? slot : s)) : [...file.slots, slot],
                 // Committed as part of the write, never as a side effect of a read - that is the
                 // distinction "Add Account" depends on.
                 live: slot.id,
@@ -193,12 +187,16 @@ export class AccountRegistryService {
     async updateProfile(slotId: string, patch: AccountProfilePatch): Promise<void> {
         await this.mutate(file => ({
             ...file,
-            slots: file.slots.map(s => (s.id === slotId ? {
-                ...s,
-                username: patch.username ?? s.username,
-                displayName: patch.displayName ?? patch.username ?? s.displayName,
-                avatarUrl: patch.avatarUrl !== undefined ? patch.avatarUrl : s.avatarUrl,
-            } : s)),
+            slots: file.slots.map(s =>
+                s.id === slotId
+                    ? {
+                          ...s,
+                          username: patch.username ?? s.username,
+                          displayName: patch.displayName ?? patch.username ?? s.displayName,
+                          avatarUrl: patch.avatarUrl !== undefined ? patch.avatarUrl : s.avatarUrl,
+                      }
+                    : s,
+            ),
             result: undefined,
         }));
     }
@@ -209,9 +207,7 @@ export class AccountRegistryService {
             const slot = file.slots.find(s => s.id === slotId);
             if (!slot) return {...file, result: false};
             return {
-                slots: file.slots.map(s =>
-                    s.id === slotId ? {...s, lastUsedAt: Date.now()} : s,
-                ),
+                slots: file.slots.map(s => (s.id === slotId ? {...s, lastUsedAt: Date.now()} : s)),
                 live: slotId,
                 result: true,
             };
@@ -230,12 +226,13 @@ export class AccountRegistryService {
             const slots = file.slots.filter(s => s.id !== slotId);
             return {
                 slots,
-                live: liveSlotId() === slotId
-                    // The most recently used survivor, so removing one of several accounts lands
-                    // somewhere useful rather than on the login screen.
-                    ? slots.slice().sort((a, b) => b.lastUsedAt - a.lastUsedAt)[0]?.id
-                        ?? BOOTSTRAP_SLOT_ID
-                    : liveSlotId(),
+                live:
+                    liveSlotId() === slotId
+                        ? // The most recently used survivor, so removing one of several accounts lands
+                          // somewhere useful rather than on the login screen.
+                          (slots.slice().sort((a, b) => b.lastUsedAt - a.lastUsedAt)[0]?.id ??
+                          BOOTSTRAP_SLOT_ID)
+                        : liveSlotId(),
                 result: undefined,
             };
         });

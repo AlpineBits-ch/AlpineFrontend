@@ -68,7 +68,9 @@ function setup() {
             {provide: ProfileService, useValue: {ownProfile}},
             {
                 provide: RealtimeConnectionService,
-                useValue: {on: (event: string, handler: (p: unknown) => void) => handlers.set(event, handler)},
+                useValue: {
+                    on: (event: string, handler: (p: unknown) => void) => handlers.set(event, handler),
+                },
             },
         ],
     });
@@ -86,8 +88,11 @@ describe('reading a set', () => {
         store.ensureLoaded(MY_ENTITLEMENTS);
 
         expect(store.snapshot(MY_ENTITLEMENTS)?.licenseMode).toBe('hosted');
-        expect(store.value(MY_ENTITLEMENTS, 'user.upload_max_bytes'))
-            .toEqual({kind: 'numeric', value: 26214400, unlimited: false});
+        expect(store.value(MY_ENTITLEMENTS, 'user.upload_max_bytes')).toEqual({
+            kind: 'numeric',
+            value: 26214400,
+            unlimited: false,
+        });
     });
 
     it('reads one guild set through its own endpoint', () => {
@@ -315,9 +320,13 @@ describe('the upload ceiling', () => {
 
     it('enforces nothing against an unlimited account', () => {
         const {store, service} = setup();
-        service.getMine.mockReturnValue(of(snapshot({
-            entitlements: {'user.upload_max_bytes': {kind: 'numeric', value: null, unlimited: true}},
-        })));
+        service.getMine.mockReturnValue(
+            of(
+                snapshot({
+                    entitlements: {'user.upload_max_bytes': {kind: 'numeric', value: null, unlimited: true}},
+                }),
+            ),
+        );
         store.ensureLoaded(MY_ENTITLEMENTS);
 
         expect(store.uploadCeilingBytes(null)).toBeNull();
@@ -349,7 +358,8 @@ describe('a published ladder', () => {
         const {store, service} = setup();
         service.getMine.mockReturnValue(of(snapshot({ladders: {video_quality: VIDEO}})));
         service.getForGuild.mockImplementation((id: string) =>
-            of(guildSnapshot(id, {ladders: {video_quality: [{rung: 'none', rank: 0}]}})));
+            of(guildSnapshot(id, {ladders: {video_quality: [{rung: 'none', rank: 0}]}})),
+        );
         store.ensureLoaded(MY_ENTITLEMENTS);
         store.ensureLoaded({kind: 'guild', id: 'guild-1'});
 
@@ -380,8 +390,12 @@ describe('the entitlements.Changed push', () => {
         store.ensureLoaded({kind: 'guild', id: 'guild-1'});
         service.getForGuild.mockClear();
 
-        handlers.get('entitlements.Changed')!(
-            {subjectKind: 'guild', subjectId: 'guild-1', version: 1, changedKeys: []});
+        handlers.get('entitlements.Changed')!({
+            subjectKind: 'guild',
+            subjectId: 'guild-1',
+            version: 1,
+            changedKeys: [],
+        });
 
         expect(service.getForGuild).toHaveBeenCalledWith('guild-1');
     });
@@ -391,8 +405,7 @@ describe('the entitlements.Changed push', () => {
         store.ensureLoaded(MY_ENTITLEMENTS);
         service.getMine.mockClear();
 
-        handlers.get('entitlements.Changed')!(
-            {subjectKind: 'user', subjectId: 'user-1', version: 1});
+        handlers.get('entitlements.Changed')!({subjectKind: 'user', subjectId: 'user-1', version: 1});
 
         expect(service.getMine).toHaveBeenCalled();
     });
@@ -401,8 +414,7 @@ describe('the entitlements.Changed push', () => {
     it('does not pull a set nobody has open', () => {
         const {service, handlers} = setup();
 
-        handlers.get('entitlements.Changed')!(
-            {subjectKind: 'guild', subjectId: 'guild-7', version: 1});
+        handlers.get('entitlements.Changed')!({subjectKind: 'guild', subjectId: 'guild-7', version: 1});
 
         expect(service.getForGuild).not.toHaveBeenCalled();
     });
@@ -416,8 +428,12 @@ describe('the entitlements.Changed push', () => {
         store.ensureFeaturesLoaded('guild-1');
         guilds.getGuildFeatures.mockClear();
 
-        handlers.get('entitlements.Changed')!(
-            {subjectKind: 'guild', subjectId: 'guild-1', version: 1, changedKeys: []});
+        handlers.get('entitlements.Changed')!({
+            subjectKind: 'guild',
+            subjectId: 'guild-1',
+            version: 1,
+            changedKeys: [],
+        });
 
         expect(guilds.getGuildFeatures).toHaveBeenCalledWith('guild-1');
     });
@@ -425,8 +441,7 @@ describe('the entitlements.Changed push', () => {
     it('does not pull a resolution nobody has open', () => {
         const {guilds, handlers} = setup();
 
-        handlers.get('entitlements.Changed')!(
-            {subjectKind: 'guild', subjectId: 'guild-7', version: 1});
+        handlers.get('entitlements.Changed')!({subjectKind: 'guild', subjectId: 'guild-7', version: 1});
 
         expect(guilds.getGuildFeatures).not.toHaveBeenCalled();
     });
@@ -439,9 +454,13 @@ describe('the entitlements.Changed push', () => {
 describe('the plan', () => {
     it('reads the plan the server named', () => {
         const {store, service} = setup();
-        service.getMine.mockReturnValue(of(snapshot({
-            plan: {name: 'plus', displayName: 'Venta Plus', version: 2},
-        })));
+        service.getMine.mockReturnValue(
+            of(
+                snapshot({
+                    plan: {name: 'plus', displayName: 'Venta Plus', version: 2},
+                }),
+            ),
+        );
 
         store.ensureLoaded(MY_ENTITLEMENTS);
 
@@ -471,9 +490,13 @@ describe('the plan', () => {
     /** The version a subject is pinned to, which is not necessarily the newest one on sale. */
     it('keeps a pinned version rather than dropping it', () => {
         const {store, service} = setup();
-        service.getForGuild.mockReturnValue(of(guildSnapshot('guild-1', {
-            plan: {name: 'plus', displayName: 'Venta Plus', version: 2},
-        })));
+        service.getForGuild.mockReturnValue(
+            of(
+                guildSnapshot('guild-1', {
+                    plan: {name: 'plus', displayName: 'Venta Plus', version: 2},
+                }),
+            ),
+        );
 
         store.ensureLoaded({kind: 'guild', id: 'guild-1'});
 
@@ -483,9 +506,13 @@ describe('the plan', () => {
     /** Absent is not version zero. A subject on an unversioned plan has no version to report. */
     it('reports no version for a plan the instance does not version', () => {
         const {store, service} = setup();
-        service.getMine.mockReturnValue(of(snapshot({
-            plan: {name: 'plus', displayName: 'Venta Plus'},
-        })));
+        service.getMine.mockReturnValue(
+            of(
+                snapshot({
+                    plan: {name: 'plus', displayName: 'Venta Plus'},
+                }),
+            ),
+        );
 
         store.ensureLoaded(MY_ENTITLEMENTS);
 

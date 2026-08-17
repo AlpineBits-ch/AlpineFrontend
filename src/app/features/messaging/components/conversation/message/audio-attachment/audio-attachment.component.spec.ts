@@ -96,8 +96,7 @@ describe('AudioAttachmentComponent', () => {
 
         const played = component['toggle']();
         await settle();
-        http.expectOne(DOWNLOAD_URL)
-            .flush(new Blob(['bytes'], {type: 'application/octet-stream'}));
+        http.expectOne(DOWNLOAD_URL).flush(new Blob(['bytes'], {type: 'application/octet-stream'}));
         await played;
 
         expect(created).toHaveBeenCalledOnce();
@@ -126,8 +125,7 @@ describe('AudioAttachmentComponent', () => {
 
         const played = component['toggle']();
         await settle();
-        http.expectOne(DOWNLOAD_URL)
-            .flush(new Blob([]), {status: 403, statusText: 'Forbidden'});
+        http.expectOne(DOWNLOAD_URL).flush(new Blob([]), {status: 403, statusText: 'Forbidden'});
         await played;
 
         expect(component['failed']()).toBe(true);

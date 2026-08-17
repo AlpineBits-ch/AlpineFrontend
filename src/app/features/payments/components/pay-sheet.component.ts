@@ -1,24 +1,25 @@
-import {ChangeDetectionStrategy, Component, computed, effect, inject, input, output, signal, untracked} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    effect,
+    inject,
+    input,
+    output,
+    signal,
+    untracked,
+} from '@angular/core';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {Button} from 'primeng/button';
 import {ExternalLinkService} from '../../../services/external-link.service';
 import {ToastService} from '../../../services/toast.service';
 import {formatMinor} from '../../../helpers/money.helper';
-import {
-    capabilitiesOf,
-    displayHandleValue,
-    PaymentHandle,
-    PaymentHandleKind,
-} from '../payment-handle.model';
+import {capabilitiesOf, displayHandleValue, PaymentHandle, PaymentHandleKind} from '../payment-handle.model';
 import {buildPaymentLink, PaymentLink} from '../payment-links';
 import {SpcCurrency, SwissQrBillInput, swissQrUnavailableReason} from '../swiss-qr-bill';
 import {PaymentHandleService} from '../payment-handle.service';
 import {WalletPreferenceService} from '../wallet-preference.service';
-import {
-    formatSwissPhoneNumber,
-    normalizeSwissPhoneNumber,
-    TWINT_CONFIRM_NAME_ADVICE,
-} from '../twint-assist';
+import {formatSwissPhoneNumber, normalizeSwissPhoneNumber, TWINT_CONFIRM_NAME_ADVICE} from '../twint-assist';
 import {SwissQrBillComponent} from './swiss-qr-bill.component';
 
 interface HandleRow {
@@ -57,9 +58,9 @@ interface HandleRow {
               The phone-number card below is outside this on purpose - see its own comment.
             -->
             @if (available()) {
-            @switch (state().status) {
-                @case ('not-shared') {
-                    <!--
+                @switch (state().status) {
+                    @case ('not-shared') {
+                        <!--
                       A state, not an error. Only the owner's device holds the content key, so a
                       person who joined after the last write simply has no wrap. It fixes itself the
                       next time they open their own settings.
@@ -69,93 +70,113 @@ interface HandleRow {
                       and a number below them is a thing to pay with. The unreadable case below is
                       not withheld - that one reports a fault, and a fault stays worth saying.
                     -->
-                    @if (!phoneNumber()) {
-                        <p class="m-0 text-[0.8125rem] text-text-muted" data-testid="not-shared">
-                            {{ 'PAY.SHEET.NOT_SHARED' | translate: {name: payeeName()} }}
+                        @if (!phoneNumber()) {
+                            <p class="m-0 text-[0.8125rem] text-text-muted" data-testid="not-shared">
+                                {{ 'PAY.SHEET.NOT_SHARED' | translate: {name: payeeName()} }}
+                            </p>
+                        }
+                    }
+                    @case ('none') {
+                        @if (!phoneNumber()) {
+                            <p class="m-0 text-[0.8125rem] text-text-muted" data-testid="no-handles">
+                                {{ 'PAY.SHEET.NO_HANDLES' | translate: {name: payeeName()} }}
+                            </p>
+                        }
+                    }
+                    @case ('unreadable') {
+                        <p class="m-0 text-[0.8125rem] text-amber-300" data-testid="unreadable">
+                            {{ 'PAY.SHEET.UNREADABLE' | translate: {name: payeeName()} }}
                         </p>
                     }
-                }
-                @case ('none') {
-                    @if (!phoneNumber()) {
-                        <p class="m-0 text-[0.8125rem] text-text-muted" data-testid="no-handles">
-                            {{ 'PAY.SHEET.NO_HANDLES' | translate: {name: payeeName()} }}
-                        </p>
-                    }
-                }
-                @case ('unreadable') {
-                    <p class="m-0 text-[0.8125rem] text-amber-300" data-testid="unreadable">
-                        {{ 'PAY.SHEET.UNREADABLE' | translate: {name: payeeName()} }}
-                    </p>
-                }
-                @case ('available') {
-                    @if (qrBill(); as bill) {
-                        <div class="rounded-xl border border-white/[0.08] p-3 flex flex-col gap-2"
-                             data-testid="qr-section">
-                            <p class="m-0 text-[0.8125rem] font-medium text-text-primary">
-                                {{ 'PAY.SHEET.QR_TITLE' | translate }}
-                            </p>
-                            <p class="m-0 text-xs text-text-muted">
-                                {{ 'PAY.SHEET.QR_HOW' | translate }}
-                            </p>
-                            <app-swiss-qr-bill [bill]="bill"/>
-                            <!--
+                    @case ('available') {
+                        @if (qrBill(); as bill) {
+                            <div
+                                class="rounded-xl border border-white/[0.08] p-3 flex flex-col gap-2"
+                                data-testid="qr-section"
+                            >
+                                <p class="m-0 text-[0.8125rem] font-medium text-text-primary">
+                                    {{ 'PAY.SHEET.QR_TITLE' | translate }}
+                                </p>
+                                <p class="m-0 text-xs text-text-muted">
+                                    {{ 'PAY.SHEET.QR_HOW' | translate }}
+                                </p>
+                                <app-swiss-qr-bill [bill]="bill" />
+                                <!--
                               Most Swiss bank apps expect a QR on paper or another screen. Only a
                               minority accept an image from the phone's own gallery, so a payer on
                               one device has to be told what to do rather than left staring at it.
                             -->
-                            <p class="m-0 text-xs text-text-muted">
-                                {{ 'PAY.SHEET.QR_SAME_DEVICE' | translate }}
-                            </p>
-                        </div>
-                    } @else if (qrRefusalKey(); as key) {
-                        <p class="m-0 text-xs text-text-muted" data-testid="qr-unavailable">
-                            {{ key | translate: {name: payeeName()} }}
-                        </p>
-                    }
-
-                    @for (row of rows(); track row.handle.kind + row.handle.value) {
-                        <div class="rounded-xl border border-white/[0.08] p-3 flex flex-col gap-2"
-                             [attr.data-testid]="'handle-' + row.handle.kind">
-                            <div class="flex items-baseline justify-between gap-2">
-                                <p class="m-0 text-[0.8125rem] font-medium text-text-primary">
-                                    {{ row.labelKey | translate }}
+                                <p class="m-0 text-xs text-text-muted">
+                                    {{ 'PAY.SHEET.QR_SAME_DEVICE' | translate }}
                                 </p>
-                                @if (row.handle.label) {
-                                    <span class="text-xs text-text-muted">{{ row.handle.label }}</span>
-                                }
                             </div>
+                        } @else if (qrRefusalKey(); as key) {
+                            <p class="m-0 text-xs text-text-muted" data-testid="qr-unavailable">
+                                {{ key | translate: {name: payeeName()} }}
+                            </p>
+                        }
 
-                            <p class="m-0 font-mono text-sm text-text-primary break-all"
-                               data-testid="handle-value">{{ row.display }}</p>
+                        @for (row of rows(); track row.handle.kind + row.handle.value) {
+                            <div
+                                class="rounded-xl border border-white/[0.08] p-3 flex flex-col gap-2"
+                                [attr.data-testid]="'handle-' + row.handle.kind"
+                            >
+                                <div class="flex items-baseline justify-between gap-2">
+                                    <p class="m-0 text-[0.8125rem] font-medium text-text-primary">
+                                        {{ row.labelKey | translate }}
+                                    </p>
+                                    @if (row.handle.label) {
+                                        <span class="text-xs text-text-muted">{{ row.handle.label }}</span>
+                                    }
+                                </div>
 
-                            <div class="flex gap-1 flex-wrap">
-                                <p-button (onClick)="copy(row.handle)" [text]="true" size="small"
-                                          icon="pi pi-copy"
-                                          [label]="'PAY.SHEET.COPY' | translate"/>
+                                <p
+                                    class="m-0 font-mono text-sm text-text-primary break-all"
+                                    data-testid="handle-value"
+                                >
+                                    {{ row.display }}
+                                </p>
 
-                                @if (row.link; as link) {
-                                    <p-button (onClick)="open(link)" [text]="true" size="small"
-                                              icon="pi pi-external-link"
-                                              [label]="'PAY.SHEET.OPEN' | translate:
-                                                  {provider: row.labelKey | translate}"/>
-                                }
-                            </div>
+                                <div class="flex gap-1 flex-wrap">
+                                    <p-button
+                                        (onClick)="copy(row.handle)"
+                                        [text]="true"
+                                        size="small"
+                                        icon="pi pi-copy"
+                                        [label]="'PAY.SHEET.COPY' | translate"
+                                    />
 
-                            <!--
+                                    @if (row.link; as link) {
+                                        <p-button
+                                            (onClick)="open(link)"
+                                            [text]="true"
+                                            size="small"
+                                            icon="pi pi-external-link"
+                                            [label]="
+                                                'PAY.SHEET.OPEN'
+                                                    | translate: {provider: row.labelKey | translate}
+                                            "
+                                        />
+                                    }
+                                </div>
+
+                                <!--
                               Rendered in full, never collapsed into an icon. The PayPal one is the
                               difference between a settle-up that costs nothing and one that quietly
                               takes about 3% off the person being repaid.
                             -->
-                            @for (warning of row.warningKeys; track warning) {
-                                <p class="m-0 text-xs text-amber-300"
-                                   [attr.data-testid]="'warning-' + warning">
-                                    {{ warning | translate: {name: payeeName()} }}
-                                </p>
-                            }
-                        </div>
+                                @for (warning of row.warningKeys; track warning) {
+                                    <p
+                                        class="m-0 text-xs text-amber-300"
+                                        [attr.data-testid]="'warning-' + warning"
+                                    >
+                                        {{ warning | translate: {name: payeeName()} }}
+                                    </p>
+                                }
+                            </div>
+                        }
                     }
                 }
-            }
             } @else {
                 <!--
                   Checked before every sealed state. Without this, the browser build falls through
@@ -187,11 +208,13 @@ interface HandleRow {
               Anna has one, and the server deliberately cannot tell us.
             -->
             @if (phoneNumber(); as number) {
-                <div class="rounded-xl border border-amber-500/25 bg-amber-500/[0.04] p-3
-                            flex flex-col gap-2" data-testid="phone-assist">
+                <div
+                    class="rounded-xl border border-amber-500/25 bg-amber-500/[0.04] p-3
+                            flex flex-col gap-2"
+                    data-testid="phone-assist"
+                >
                     <p class="m-0 text-[0.8125rem] font-medium text-text-primary">
-                        {{ (twintApplies() ? 'PAY.SHEET.TWINT_TITLE' : 'PAY.SHEET.PHONE_TITLE')
-                            | translate }}
+                        {{ (twintApplies() ? 'PAY.SHEET.TWINT_TITLE' : 'PAY.SHEET.PHONE_TITLE') | translate }}
                     </p>
 
                     <!--
@@ -199,13 +222,18 @@ interface HandleRow {
                       deep-linked or prefilled by anybody outside a merchant contract, and storing a
                       user's TWINT QR is forbidden by its own terms.
                     -->
-                    <p class="m-0 font-mono text-lg text-text-primary"
-                       data-testid="phone-number">{{ number }}</p>
+                    <p class="m-0 font-mono text-lg text-text-primary" data-testid="phone-number">
+                        {{ number }}
+                    </p>
 
                     <div class="flex gap-1">
-                        <p-button (onClick)="copyText(number)" [text]="true" size="small"
-                                  icon="pi pi-copy"
-                                  [label]="'PAY.SHEET.COPY' | translate"/>
+                        <p-button
+                            (onClick)="copyText(number)"
+                            [text]="true"
+                            size="small"
+                            icon="pi pi-copy"
+                            [label]="'PAY.SHEET.COPY' | translate"
+                        />
                     </div>
 
                     @if (twintApplies()) {
@@ -223,8 +251,7 @@ interface HandleRow {
 
                     @if (phoneUpdatedAt(); as entered) {
                         <p class="m-0 text-xs text-text-muted" data-testid="phone-updated">
-                            {{ 'PAY.SHEET.PHONE_ENTERED' | translate:
-                                {name: payeeName(), date: entered} }}
+                            {{ 'PAY.SHEET.PHONE_ENTERED' | translate: {name: payeeName(), date: entered} }}
                         </p>
                     }
                 </div>
@@ -236,7 +263,7 @@ interface HandleRow {
               heart, and the ledger has to be able to record that.
             -->
             <div class="border-t border-white/[0.06] pt-3">
-                <p-button (onClick)="markPaid.emit()" [label]="'PAY.SHEET.MARK_PAID' | translate"/>
+                <p-button (onClick)="markPaid.emit()" [label]="'PAY.SHEET.MARK_PAID' | translate" />
                 <p class="m-0 mt-1 text-xs text-text-muted">
                     {{ 'PAY.SHEET.MARK_PAID_HINT' | translate }}
                 </p>
@@ -270,11 +297,9 @@ export class PaySheetComponent {
     /** Whether the sealed half of this sheet can exist here. */
     protected readonly available = computed(() => this.handles.isAvailable());
 
-    protected readonly state = computed(() =>
-        this.handles.handlesFor(this.guildId(), this.payeeUserId()));
+    protected readonly state = computed(() => this.handles.handlesFor(this.guildId(), this.payeeUserId()));
 
-    protected readonly amountText = computed(() =>
-        formatMinor(this.amountMinor(), this.currency()));
+    protected readonly amountText = computed(() => formatMinor(this.amountMinor(), this.currency()));
 
     private readonly payload = computed(() => {
         const state = this.state();
@@ -300,8 +325,9 @@ export class PaySheetComponent {
                 display: displayHandleValue(handle),
                 labelKey: `PAY.KIND.${handle.kind.toUpperCase()}`,
                 link,
-                warningKeys: (link?.warnings ?? [])
-                    .map(w => `PAY.WARNING.${w.toUpperCase().replace(/-/g, '_')}`),
+                warningKeys: (link?.warnings ?? []).map(
+                    w => `PAY.WARNING.${w.toUpperCase().replace(/-/g, '_')}`,
+                ),
             };
         });
     });
@@ -355,7 +381,8 @@ export class PaySheetComponent {
 
     /** The payee's shared number, or null. */
     private readonly sharedPhone = computed(() =>
-        this.handles.phoneNumberFor(this.guildId(), this.payeeUserId()));
+        this.handles.phoneNumberFor(this.guildId(), this.payeeUserId()),
+    );
 
     /** The number to show, E.164 from the server, grouped for reading aloud when it is Swiss. */
     protected readonly phoneNumber = computed(() => {
@@ -380,8 +407,9 @@ export class PaySheetComponent {
         const date = new Date(updatedAt);
         return Number.isNaN(date.getTime())
             ? null
-            : new Intl.DateTimeFormat(undefined, {day: 'numeric', month: 'short', year: 'numeric'})
-                .format(date);
+            : new Intl.DateTimeFormat(undefined, {day: 'numeric', month: 'short', year: 'numeric'}).format(
+                  date,
+              );
     });
 
     constructor() {

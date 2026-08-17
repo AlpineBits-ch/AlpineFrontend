@@ -20,7 +20,10 @@
 .bg-grid {
     position: absolute;
     inset: 0;
-    background-image: radial-gradient(color-mix(in srgb, var(--color-brand) 7%, transparent) 1px, transparent 1px);
+    background-image: radial-gradient(
+        color-mix(in srgb, var(--color-brand) 7%, transparent) 1px,
+        transparent 1px
+    );
     background-size: 26px 26px;
     pointer-events: none;
     z-index: 0;
@@ -39,7 +42,11 @@
     height: 340px;
     top: -100px;
     right: -80px;
-    background: radial-gradient(circle, color-mix(in srgb, var(--color-brand) 32%, transparent) 0%, transparent 65%);
+    background: radial-gradient(
+        circle,
+        color-mix(in srgb, var(--color-brand) 32%, transparent) 0%,
+        transparent 65%
+    );
     opacity: 0.7;
     animation: orbFloat1 13s ease-in-out infinite alternate;
 }
@@ -269,8 +276,9 @@
     -webkit-backdrop-filter: blur(28px);
     border: 1px solid rgba(255, 255, 255, 0.07);
     border-radius: 18px;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.65),
-    0 1px 0 rgba(255, 255, 255, 0.04) inset;
+    box-shadow:
+        0 20px 60px rgba(0, 0, 0, 0.65),
+        0 1px 0 rgba(255, 255, 255, 0.04) inset;
 }
 
 .card-lockup {
@@ -358,7 +366,10 @@
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 9px;
     cursor: pointer;
-    transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+    transition:
+        background 0.14s ease,
+        border-color 0.14s ease,
+        color 0.14s ease;
 }
 
 .qr-cta:hover {
@@ -388,7 +399,10 @@
     padding: 9px 12px !important;
     font-size: 0.875rem !important;
     box-shadow: none !important;
-    transition: border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease !important;
+    transition:
+        border-color 0.16s ease,
+        box-shadow 0.16s ease,
+        background 0.16s ease !important;
 }
 
 ::ng-deep .login-card .p-inputtext:focus,
@@ -417,7 +431,9 @@
     color: var(--color-text-primary) !important;
     padding: 9px 12px !important;
     font-size: 0.875rem !important;
-    transition: border-color 0.16s, box-shadow 0.16s !important;
+    transition:
+        border-color 0.16s,
+        box-shadow 0.16s !important;
 }
 
 ::ng-deep .login-card .p-password input:focus {
@@ -446,7 +462,9 @@
     color: #fff !important;
     cursor: pointer !important;
     box-shadow: 0 3px 18px color-mix(in srgb, var(--color-brand-dark) 36%, transparent) !important;
-    transition: transform 0.14s ease, box-shadow 0.14s ease !important;
+    transition:
+        transform 0.14s ease,
+        box-shadow 0.14s ease !important;
     margin-top: 2px !important;
     justify-content: center !important;
 }

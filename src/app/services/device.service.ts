@@ -3,7 +3,7 @@ import {HttpClient} from '@angular/common/http';
 import {Observable} from 'rxjs';
 import {UserDeviceDto} from '../dtos/response/user-device.dto';
 import {RegisterDeviceDto} from '../dtos/request/register-device.dto';
-import {ApiConfigService} from "./api-config.service";
+import {ApiConfigService} from './api-config.service';
 
 @Injectable({providedIn: 'root'})
 export class DeviceService {
@@ -37,8 +37,8 @@ export class DeviceService {
      * every Welcome sealed to those orphaned packages is undecryptable by the very device it was
      * addressed to. Idempotent; leaves the device row, push tokens and sessions alone.
      */
-    resetKeyPackages(clientDeviceId: string): Observable<{ deletedCount: number }> {
-        return this.http.delete<{ deletedCount: number }>(
+    resetKeyPackages(clientDeviceId: string): Observable<{deletedCount: number}> {
+        return this.http.delete<{deletedCount: number}>(
             `${this.base}/client/${encodeURIComponent(clientDeviceId)}/key-packages`,
         );
     }

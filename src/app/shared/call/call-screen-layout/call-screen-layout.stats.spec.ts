@@ -27,10 +27,18 @@ const SNAPSHOT: StreamStatsSnapshot = {
 
 /** A stand-in that never claims - see the sibling specs in this directory for why. */
 function fakeRustMedia() {
-    return {previewPaused: () => false, claimPreviewRender: vi.fn(), releasePreviewRender: vi.fn(), resumePreview: vi.fn()};
+    return {
+        previewPaused: () => false,
+        claimPreviewRender: vi.fn(),
+        releasePreviewRender: vi.fn(),
+        resumePreview: vi.fn(),
+    };
 }
 
-function setup(shares: CallScreenShare[], inboundStatsOf?: (s: CallScreenShare) => StreamStatsSnapshot | null) {
+function setup(
+    shares: CallScreenShare[],
+    inboundStatsOf?: (s: CallScreenShare) => StreamStatsSnapshot | null,
+) {
     TestBed.configureTestingModule({
         imports: [CallScreenLayoutComponent, TranslateModule.forRoot()],
         providers: [
@@ -48,7 +56,8 @@ function setup(shares: CallScreenShare[], inboundStatsOf?: (s: CallScreenShare) 
         ],
     });
 
-    const fixture: ComponentFixture<CallScreenLayoutComponent> = TestBed.createComponent(CallScreenLayoutComponent);
+    const fixture: ComponentFixture<CallScreenLayoutComponent> =
+        TestBed.createComponent(CallScreenLayoutComponent);
     fixture.componentRef.setInput('screenShares', shares);
     fixture.componentRef.setInput('participants', []);
     fixture.componentRef.setInput('participantsWithAudio', new Set<string>());
@@ -87,7 +96,9 @@ describe('CallScreenLayoutComponent forwards the stats seam', () => {
 
         const layer = fixture.nativeElement.querySelector('[data-testid="stats-layer"]');
         expect(layer).toBeTruthy();
-        expect(fixture.nativeElement.querySelector('[data-testid="row-size"]').textContent).toContain('1280 x 720');
+        expect(fixture.nativeElement.querySelector('[data-testid="row-size"]').textContent).toContain(
+            '1280 x 720',
+        );
     });
 
     it('reaches the host: statsInspect re-emits the exact share the tile opened its panel for', () => {

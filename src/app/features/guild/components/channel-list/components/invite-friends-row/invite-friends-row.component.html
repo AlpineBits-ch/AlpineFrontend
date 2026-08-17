@@ -1,14 +1,11 @@
 <div class="invite-nudge">
     <div>
-        <button (click)="open.emit($event)"
-                class="chan-row"
-                data-testid="invite-friends-row"
-                type="button">
+        <button (click)="open.emit($event)" class="chan-row" data-testid="invite-friends-row" type="button">
             <!-- A default avatar, not pi-user-plus or a plus: this is the placeholder every avatar falls back to (a face that's not there yet). Drawn as inline SVG, not an icon font, for the sizing that lets the ring clip the shoulders (see .invite-nudge-slot svg in styles.css). -->
             <span class="invite-nudge-slot">
                 <svg aria-hidden="true" fill="currentColor" viewBox="0 0 12 12">
-                    <circle cx="6" cy="4" r="2.3"/>
-                    <path d="M6 7.1c-2.4 0-4.3 1.6-4.3 3.6V12h8.6v-1.3C10.3 8.7 8.4 7.1 6 7.1Z"/>
+                    <circle cx="6" cy="4" r="2.3" />
+                    <path d="M6 7.1c-2.4 0-4.3 1.6-4.3 3.6V12h8.6v-1.3C10.3 8.7 8.4 7.1 6 7.1Z" />
                 </svg>
             </span>
             <span class="chan-label">{{ 'VOICE_RING.INVITE_FRIENDS' | translate }}</span>

@@ -68,7 +68,9 @@ describe('SystemMessageComponent variant selection', () => {
     });
 
     it('picks the GUILD_MEMBER_LEAVE key when the message type is GuildMemberLeave', () => {
-        const {component, ctrl} = setup(baseMessage({type: MessageType.GuildMemberLeave, systemMessageVariant: 0}));
+        const {component, ctrl} = setup(
+            baseMessage({type: MessageType.GuildMemberLeave, systemMessageVariant: 0}),
+        );
         ctrl.expectOne(PROFILE_URL).flush({userId: 'user_1', userName: 'Ada'});
         expect(component.variantKey()).toBe('MESSAGE.SYSTEM.GUILD_MEMBER_LEAVE.0');
     });

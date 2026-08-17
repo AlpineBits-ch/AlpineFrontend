@@ -1,20 +1,21 @@
 <div class="relative">
-
     <p-button
-            (onClick)="toggle()"
-            [severity]="showPicker() ? 'primary' : 'secondary'"
-            [text]="true"
-            class="gif-picker-btn"
-            pTooltip="GIF"
-            size="small"
-            tooltipPosition="top">
+        (onClick)="toggle()"
+        [severity]="showPicker() ? 'primary' : 'secondary'"
+        [text]="true"
+        class="gif-picker-btn"
+        pTooltip="GIF"
+        size="small"
+        tooltipPosition="top"
+    >
         <span class="text-[11px] font-bold px-0.5">GIF</span>
     </p-button>
 
     @if (showPicker()) {
-        <div class="gif-picker-panel absolute bottom-full right-0 mb-2 w-80 bg-[#1a2035] border border-white/[0.08] rounded-xl shadow-2xl overflow-hidden z-50 flex flex-col"
-             style="max-height: 360px;">
-
+        <div
+            class="gif-picker-panel absolute bottom-full right-0 mb-2 w-80 bg-[#1a2035] border border-white/[0.08] rounded-xl shadow-2xl overflow-hidden z-50 flex flex-col"
+            style="max-height: 360px"
+        >
             <!-- Search bar -->
             <div class="px-3 pt-3 pb-2 shrink-0">
                 <input
@@ -28,8 +29,10 @@
             </div>
 
             <!-- Grid -->
-            <div class="overflow-y-auto flex-1 px-2 pb-2"
-                 style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
+            <div
+                class="overflow-y-auto flex-1 px-2 pb-2"
+                style="scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.08) transparent"
+            >
                 @if (loading()) {
                     <div class="flex items-center justify-center py-8 text-white/25 text-sm">Loading…</div>
                 } @else if (gifs().length === 0) {
@@ -38,11 +41,11 @@
                     <div class="grid grid-cols-3 gap-1.5">
                         @for (gif of gifs(); track gif.id) {
                             <button
-                                    (click)="select(gif)"
-                                    [title]="gif.title"
-                                    class="aspect-square overflow-hidden rounded-lg border-0 p-0 cursor-pointer hover:ring-2 hover:ring-[var(--color-brand)] transition-all bg-white/[0.04]">
-                                <img [alt]="gif.title" [src]="gif.previewUrl" class="w-full h-full object-cover"
-                                     loading="lazy"/>
+                                (click)="select(gif)"
+                                [title]="gif.title"
+                                class="aspect-square overflow-hidden rounded-lg border-0 p-0 cursor-pointer hover:ring-2 hover:ring-[var(--color-brand)] transition-all bg-white/[0.04]"
+                            >
+                                <img [alt]="gif.title" [src]="gif.previewUrl" class="w-full h-full object-cover" loading="lazy" />
                             </button>
                         }
                     </div>
@@ -53,8 +56,6 @@
             <div class="px-3 py-1.5 border-t border-white/[0.06] shrink-0 flex items-center justify-end">
                 <span class="text-[10px] text-white/20">Powered by KLIPY</span>
             </div>
-
         </div>
     }
-
 </div>

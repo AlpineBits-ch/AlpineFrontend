@@ -82,8 +82,16 @@ describe('publishOptions', () => {
     };
 
     function built(over: Partial<typeof choice> = {}, ceiling: VideoCeiling | null = null) {
-        return publishOptions({...choice, ...over}, 'share-1', 'https://api.test', 'tok', 'dev-1',
-            {guildId: 'g', channelId: 'c'}, ceiling, {url: 'wss://sfu.test', token: 'lk-tok'});
+        return publishOptions(
+            {...choice, ...over},
+            'share-1',
+            'https://api.test',
+            'tok',
+            'dev-1',
+            {guildId: 'g', channelId: 'c'},
+            ceiling,
+            {url: 'wss://sfu.test', token: 'lk-tok'},
+        );
     }
 
     it('solves the geometry from the source and the preset', () => {
@@ -106,10 +114,14 @@ describe('publishOptions', () => {
     it('caps a source share at the granted rung', () => {
         const sourceShare = {preset: {...preset, resolution: 'source'} as StreamPreset};
 
-        expect(built(sourceShare, {maxHeight: 1080, maxFramerate: 60}))
-            .toMatchObject({width: 1920, height: 1080});
-        expect(built(sourceShare, {maxHeight: 720, maxFramerate: 30}))
-            .toMatchObject({width: 1280, height: 720});
+        expect(built(sourceShare, {maxHeight: 1080, maxFramerate: 60})).toMatchObject({
+            width: 1920,
+            height: 1080,
+        });
+        expect(built(sourceShare, {maxHeight: 720, maxFramerate: 30})).toMatchObject({
+            width: 1280,
+            height: 720,
+        });
         // Nothing resolved, so nothing capped - the server is the enforcement.
         expect(built(sourceShare, null)).toMatchObject({width: 3840, height: 2160});
     });

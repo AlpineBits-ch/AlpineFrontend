@@ -185,11 +185,13 @@ export class ListService {
         const rejection = validateNewListItem(dto.text, state.items.length);
         if (rejection) {
             if (rejection === 'TEXT_TOO_LONG') {
-                this.toastService.error(this.translate.instant('LIST.ERROR_TEXT_TOO_LONG',
-                    {max: LIST_LIMITS.textMaxLength}));
+                this.toastService.error(
+                    this.translate.instant('LIST.ERROR_TEXT_TOO_LONG', {max: LIST_LIMITS.textMaxLength}),
+                );
             } else if (rejection === 'LIST_FULL') {
-                this.toastService.error(this.translate.instant('LIST.ERROR_LIST_FULL',
-                    {max: LIST_LIMITS.maxItems}));
+                this.toastService.error(
+                    this.translate.instant('LIST.ERROR_LIST_FULL', {max: LIST_LIMITS.maxItems}),
+                );
             }
             return false;
         }
@@ -202,7 +204,11 @@ export class ListService {
             // Remove-then-upsert rather than replace-in-place: if the broadcast beat the response,
             // the real row is already in the list and a blind replace would duplicate it.
             this.mutate(channelId, items =>
-                this.upsert(items.filter(item => item.id !== optimistic.id), created));
+                this.upsert(
+                    items.filter(item => item.id !== optimistic.id),
+                    created,
+                ),
+            );
             return true;
         } catch (err) {
             this.mutate(channelId, items => items.filter(item => item.id !== optimistic.id));
@@ -227,17 +233,22 @@ export class ListService {
 
         const generation = this.bumpGeneration(itemId);
         const now = new Date().toISOString();
-        this.mutate(channelId, items => items.map(item => item.id === itemId ? {
-            ...item,
-            isChecked: checked,
-            // Cleared on untick rather than left behind, so "ticked by Ada" cannot outlive the tick.
-            checkedAt: checked ? now : null,
-            checkedByUserId: checked ? this.ownUserId() : null,
-        } : item));
+        this.mutate(channelId, items =>
+            items.map(item =>
+                item.id === itemId
+                    ? {
+                          ...item,
+                          isChecked: checked,
+                          // Cleared on untick rather than left behind, so "ticked by Ada" cannot outlive the tick.
+                          checkedAt: checked ? now : null,
+                          checkedByUserId: checked ? this.ownUserId() : null,
+                      }
+                    : item,
+            ),
+        );
 
         try {
-            const updated = await firstValueFrom(
-                checked ? this.api.check(itemId) : this.api.uncheck(itemId));
+            const updated = await firstValueFrom(checked ? this.api.check(itemId) : this.api.uncheck(itemId));
             // Applied only if no newer tick has been issued since - three taps in a second are
             // three requests, and the one that finishes last is not necessarily the one that was
             // asked for last.
@@ -260,14 +271,16 @@ export class ListService {
         if (!before) return false;
 
         if (dto.text !== undefined && dto.text.length > LIST_LIMITS.textMaxLength) {
-            this.toastService.error(this.translate.instant('LIST.ERROR_TEXT_TOO_LONG',
-                {max: LIST_LIMITS.textMaxLength}));
+            this.toastService.error(
+                this.translate.instant('LIST.ERROR_TEXT_TOO_LONG', {max: LIST_LIMITS.textMaxLength}),
+            );
             return false;
         }
 
         const generation = this.bumpGeneration(itemId);
         this.mutate(channelId, items =>
-            items.map(item => item.id === itemId ? this.applyPatch(item, dto) : item));
+            items.map(item => (item.id === itemId ? this.applyPatch(item, dto) : item)),
+        );
 
         try {
             const updated = await firstValueFrom(this.api.update(itemId, dto));
@@ -339,7 +352,13 @@ export class ListService {
             // Restored by id rather than by wholesale replacement, so a row created or ticked
             // during the failed request is not thrown away with the failed order.
             this.mutate(channelId, current =>
-                renumberPositions(reorderByPartialIds(current, before.map(item => item.id))));
+                renumberPositions(
+                    reorderByPartialIds(
+                        current,
+                        before.map(item => item.id),
+                    ),
+                ),
+            );
             this.toastService.httpError(this.translate.instant('LIST.ERROR_REORDER'), err);
             return false;
         }
@@ -382,7 +401,8 @@ export class ListService {
         // Only for rows already held. An update for an unknown id is a row this client never
         // fetched (created while a load was in flight); the create event places it, not this one.
         this.mutate(channelId, items =>
-            items.some(row => row.id === item.id) ? this.upsert(items, item) : items);
+            items.some(row => row.id === item.id) ? this.upsert(items, item) : items,
+        );
     }
 
     /**
@@ -399,7 +419,8 @@ export class ListService {
         // now stale and will not be allowed to overwrite the newer broadcast.
         this.bumpGeneration(item.id);
         this.mutate(channelId, items =>
-            items.some(row => row.id === item.id) ? this.upsert(items, item) : items);
+            items.some(row => row.id === item.id) ? this.upsert(items, item) : items,
+        );
     }
 
     private onDeleted({channelId, itemId}: ListItemDeleted): void {

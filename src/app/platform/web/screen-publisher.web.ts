@@ -152,7 +152,11 @@ export class WebScreenPublisher extends ScreenPublisher implements ScreenPublish
             // Both halves must go in one negotiation, and the declared size must be the solved capture
             // geometry rather than the preset's nominal height.
             const response = await signalling.publish(
-                mediaSessionId, pc.localDescription!, tracks, publishIntent(o));
+                mediaSessionId,
+                pc.localDescription!,
+                tracks,
+                publishIntent(o),
+            );
             await pc.setRemoteDescription(response.sessionDescription);
             if (response.requiresImmediateRenegotiation) {
                 await this.renegotiate(pc, signalling, mediaSessionId);
@@ -162,7 +166,7 @@ export class WebScreenPublisher extends ScreenPublisher implements ScreenPublish
             if (!videoResult || videoResult.errorCode) {
                 throw new Error(
                     `[screen] the SFU refused the video track: ` +
-                    `${videoResult?.errorCode ?? 'no result'} ${videoResult?.errorDescription ?? ''}`.trim(),
+                        `${videoResult?.errorCode ?? 'no result'} ${videoResult?.errorDescription ?? ''}`.trim(),
                 );
             }
             // What was published, not what was asked for: the audio half can be refused on its own.
@@ -221,7 +225,8 @@ export class WebScreenPublisher extends ScreenPublisher implements ScreenPublish
             // Every rung of the ladder, not just the top one.
             for (const encoding of params.encodings) encoding.maxFramerate = rounded;
             await live.videoSender.setParameters(params);
-        } catch { /* setParameters unsupported, or the share already ended */
+        } catch {
+            /* setParameters unsupported, or the share already ended */
         }
     }
 
@@ -238,7 +243,8 @@ export class WebScreenPublisher extends ScreenPublisher implements ScreenPublish
             params.degradationPreference = policy.degradation;
             if (live.videoSender.track) live.videoSender.track.contentHint = policy.hint;
             await live.videoSender.setParameters(params);
-        } catch { /* setParameters unsupported, or the share already ended */
+        } catch {
+            /* setParameters unsupported, or the share already ended */
         }
     }
 
@@ -257,8 +263,9 @@ export class WebScreenPublisher extends ScreenPublisher implements ScreenPublish
         if (!live || live.shareId !== shareId) return null;
 
         const report = await live.pc.getStats();
-        const mid = live.pc.getTransceivers?.().find(t => t.sender.track?.kind === 'video')?.mid
-            ?? firstOutboundVideoMid(report);
+        const mid =
+            live.pc.getTransceivers?.().find(t => t.sender.track?.kind === 'video')?.mid ??
+            firstOutboundVideoMid(report);
         if (!mid) return null;
 
         return outboundStatsFromReport(report, mid);
@@ -304,12 +311,10 @@ export class WebScreenPublisher extends ScreenPublisher implements ScreenPublish
     }
 
     /** Accepted and never called: a browser publish renders its local tile from the display track. */
-    onPublishChunk(_handler: (chunk: LocalStreamChunk) => void): void {
-    }
+    onPublishChunk(_handler: (chunk: LocalStreamChunk) => void): void {}
 
     /** Nothing to gate: see {@link onPublishChunk}. */
-    async setLocalStreamEnabled(_enabled: boolean): Promise<void> {
-    }
+    async setLocalStreamEnabled(_enabled: boolean): Promise<void> {}
 
     // ── Internals ─────────────────────────────────────────────────────────────
 
@@ -318,7 +323,7 @@ export class WebScreenPublisher extends ScreenPublisher implements ScreenPublish
         if (this.live && this.live.shareId === shareId) return this.live;
         throw new Error(
             `[screen] ${action}('${shareId}') refused: the live share is ` +
-            `${this.live === null ? 'none' : `'${this.live.shareId}'`}`,
+                `${this.live === null ? 'none' : `'${this.live.shareId}'`}`,
         );
     }
 
@@ -333,8 +338,9 @@ export class WebScreenPublisher extends ScreenPublisher implements ScreenPublish
 
         if (live.previewTimer !== null) clearInterval(live.previewTimer);
         const names = [live.trackName, ...(live.audioTrackName ? [live.audioTrackName] : [])];
-        await live.signalling.closeTracks(live.mediaSessionId, names).catch(e =>
-            console.warn('[screen] closing the published tracks failed', e));
+        await live.signalling
+            .closeTracks(live.mediaSessionId, names)
+            .catch(e => console.warn('[screen] closing the published tracks failed', e));
 
         live.capture.video.onended = null;
         live.capture.stream.getTracks().forEach(t => t.stop());
@@ -375,8 +381,7 @@ export class WebScreenPublisher extends ScreenPublisher implements ScreenPublish
             video = document.createElement('video');
             video.muted = true;
             video.srcObject = new MediaStream([live.capture.video]);
-            void video.play().catch(() => {
-            });
+            void video.play().catch(() => {});
             canvas = document.createElement('canvas');
         } catch {
             return;
@@ -394,7 +399,8 @@ export class WebScreenPublisher extends ScreenPublisher implements ScreenPublish
                 if (!ctx) return;
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
                 sink(canvas.toDataURL('image/jpeg', 0.6));
-            } catch { /* a frame that could not be grabbed is skipped, not fatal */
+            } catch {
+                /* a frame that could not be grabbed is skipped, not fatal */
             }
         }, PREVIEW_INTERVAL_MS);
     }
@@ -451,7 +457,11 @@ class Signalling {
 
     /** Open a media session for this share alone. `primary=false` is load-bearing. */
     async createSession(): Promise<string> {
-        const response = await this.send<{mediaSessionId: string}>('POST', `${this.base}/session?primary=false`, {});
+        const response = await this.send<{mediaSessionId: string}>(
+            'POST',
+            `${this.base}/session?primary=false`,
+            {},
+        );
         return response.mediaSessionId;
     }
 
@@ -497,9 +507,10 @@ class Signalling {
                 'X-Device-Id': this.deviceId,
             },
             body: JSON.stringify(body),
-            signal: typeof AbortSignal?.timeout === 'function'
-                ? AbortSignal.timeout(REQUEST_TIMEOUT_MS)
-                : undefined,
+            signal:
+                typeof AbortSignal?.timeout === 'function'
+                    ? AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+                    : undefined,
         });
         if (!response.ok) {
             // The body must be carried into the message: `staleSubscription` and `session_error`

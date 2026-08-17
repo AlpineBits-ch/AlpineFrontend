@@ -1,4 +1,13 @@
-import {AfterViewInit, Component, ElementRef, EventEmitter, OnDestroy, Output, signal, ViewChild,} from '@angular/core';
+import {
+    AfterViewInit,
+    Component,
+    ElementRef,
+    EventEmitter,
+    OnDestroy,
+    Output,
+    signal,
+    ViewChild,
+} from '@angular/core';
 import {Button} from 'primeng/button';
 import {TranslateModule} from '@ngx-translate/core';
 
@@ -43,7 +52,7 @@ export class EntropyModalComponent implements AfterViewInit, OnDestroy {
         this.brandDimRgb = this.hexToRgb(style.getPropertyValue('--color-brand-dim')) ?? this.brandDimRgb;
 
         this.grid = Array.from({length: this.ROWS}, () =>
-            Array.from({length: this.COLS}, () => ({brightness: 0, visited: false}))
+            Array.from({length: this.COLS}, () => ({brightness: 0, visited: false})),
         );
 
         const canvas = this.canvasRef.nativeElement;
@@ -105,9 +114,7 @@ export class EntropyModalComponent implements AfterViewInit, OnDestroy {
             if (!cell.visited) {
                 cell.visited = true;
                 this.visitedCount++;
-                this.coveragePercent.set(
-                    Math.round((this.visitedCount / (this.COLS * this.ROWS)) * 100)
-                );
+                this.coveragePercent.set(Math.round((this.visitedCount / (this.COLS * this.ROWS)) * 100));
             }
         }
     }

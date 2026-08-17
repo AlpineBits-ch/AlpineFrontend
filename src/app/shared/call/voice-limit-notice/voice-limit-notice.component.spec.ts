@@ -70,10 +70,12 @@ describe('a limit notice', () => {
     });
 
     it('aims the button at the party the remedy applies to', () => {
-        const fixture = render([notice({
-            ctaKey: 'ENTITLEMENT.CTA.UPGRADE_ACCOUNT',
-            subject: {kind: 'user', id: 'user-1'},
-        })]);
+        const fixture = render([
+            notice({
+                ctaKey: 'ENTITLEMENT.CTA.UPGRADE_ACCOUNT',
+                subject: {kind: 'user', id: 'user-1'},
+            }),
+        ]);
         const seen: (EntitlementSubjectDto | null)[] = [];
         fixture.componentInstance.upgrade.subscribe(s => seen.push(s));
 
@@ -96,11 +98,13 @@ describe('a limit notice', () => {
      * same pair arrives for every limit on an instance that sells nothing.
      */
     it('gives neither for an operator ceiling', () => {
-        const fixture = render([notice({
-            messageKey: 'ENTITLEMENT.REASON.OPERATOR_CEILING',
-            ctaKey: null,
-            hintKey: null,
-        })]);
+        const fixture = render([
+            notice({
+                messageKey: 'ENTITLEMENT.REASON.OPERATOR_CEILING',
+                ctaKey: null,
+                hintKey: null,
+            }),
+        ]);
 
         expect(cta(fixture)).toBeNull();
         expect(text(fixture)).toContain('ENTITLEMENT.REASON.OPERATOR_CEILING');

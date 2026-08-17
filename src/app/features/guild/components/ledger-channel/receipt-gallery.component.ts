@@ -1,4 +1,13 @@
-import {ChangeDetectionStrategy, Component, computed, effect, inject, input, signal, untracked} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    effect,
+    inject,
+    input,
+    signal,
+    untracked,
+} from '@angular/core';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {Button} from 'primeng/button';
 import {

@@ -20,9 +20,15 @@ interface WalletOption {
             <label class="text-sm font-medium text-text-primary" for="wallet-preference">
                 {{ 'PAY.WALLET.TITLE' | translate }}
             </label>
-            <p-select inputId="wallet-preference" [options]="options()" optionLabel="label"
-                      optionValue="value" [ngModel]="preferred()"
-                      (ngModelChange)="wallets.setPreferred($event)" styleClass="w-64"/>
+            <p-select
+                inputId="wallet-preference"
+                [options]="options()"
+                optionLabel="label"
+                optionValue="value"
+                [ngModel]="preferred()"
+                (ngModelChange)="wallets.setPreferred($event)"
+                styleClass="w-64"
+            />
             <p class="m-0 text-xs text-text-muted">{{ 'PAY.WALLET.HELP' | translate }}</p>
         </div>
     `,

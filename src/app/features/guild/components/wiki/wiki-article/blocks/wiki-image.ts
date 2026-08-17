@@ -39,11 +39,7 @@ interface WikiImageStorage {
 }
 
 function escapeAttribute(value: string): string {
-    return value
-        .replace(/&/g, '&amp;')
-        .replace(/"/g, '&quot;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
+    return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 function widthOf(value: unknown): number | null {
@@ -135,9 +131,11 @@ class WikiImageView implements NodeView {
     stopEvent(event: Event): boolean {
         const target = event.target as globalThis.Node | null;
         if (!target) return false;
-        return this.captionInput.contains(target)
-            || this.handle.contains(target)
-            || !!this.lightbox?.contains(target);
+        return (
+            this.captionInput.contains(target) ||
+            this.handle.contains(target) ||
+            !!this.lightbox?.contains(target)
+        );
     }
 
     ignoreMutation(_mutation: ViewMutationRecord): boolean {
@@ -189,13 +187,16 @@ class WikiImageView implements NodeView {
 
         // Cleared while the bytes are in flight: leaving the previous picture up would caption the new image with the old one, and an empty string would load the page itself as an image.
         this.image.removeAttribute('src');
-        this.sources.fetch(src).then(blob => {
-            if (token !== this.srcToken) return;
-            this.objectUrl = URL.createObjectURL(blob);
-            this.image.setAttribute('src', this.objectUrl);
-        }).catch(() => {
-            // Left blank rather than broken. Nothing here can retry it usefully.
-        });
+        this.sources
+            .fetch(src)
+            .then(blob => {
+                if (token !== this.srcToken) return;
+                this.objectUrl = URL.createObjectURL(blob);
+                this.image.setAttribute('src', this.objectUrl);
+            })
+            .catch(() => {
+                // Left blank rather than broken. Nothing here can retry it usefully.
+            });
     }
 
     private releaseObjectUrl(): void {
@@ -240,9 +241,7 @@ class WikiImageView implements NodeView {
             const pos = this.getPos();
             if (pos === undefined) return;
             // Committed once, at the end: a transaction per mouse move would bury the undo stack.
-            this.editor.view.dispatch(
-                this.editor.state.tr.setNodeAttribute(pos, 'width', Math.round(width)),
-            );
+            this.editor.view.dispatch(this.editor.state.tr.setNodeAttribute(pos, 'width', Math.round(width)));
         };
         this.handle.addEventListener('pointermove', move);
         this.handle.addEventListener('pointerup', finish);
@@ -321,8 +320,7 @@ const WikiImageExtension = Image.extend<WikiImageOptions, WikiImageStorage>({
         const sources = this.options.sources;
         const registry = this.storage.views;
         const editor = this.editor;
-        return ({node, getPos}) =>
-            new WikiImageView(node, getPos, editor, labels, registry, sources);
+        return ({node, getPos}) => new WikiImageView(node, getPos, editor, labels, registry, sources);
     },
 
     addProseMirrorPlugins() {

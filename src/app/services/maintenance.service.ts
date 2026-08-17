@@ -94,12 +94,24 @@ export class MaintenanceService {
     constructor() {
         // Registered once, here, in a root singleton - `RealtimeConnectionService.on` does not
         // deduplicate.
-        this.realtime.on('guild.MaintenanceAssetCreated', (d: MaintenanceAssetCreated) => this.onAssetUpserted(d));
-        this.realtime.on('guild.MaintenanceAssetUpdated', (d: MaintenanceAssetUpdated) => this.onAssetUpserted(d));
-        this.realtime.on('guild.MaintenanceAssetDeleted', (d: MaintenanceAssetDeleted) => this.onAssetDeleted(d));
-        this.realtime.on('guild.MaintenanceRecordCreated', (d: MaintenanceRecordCreated) => this.onRecordUpserted(d));
-        this.realtime.on('guild.MaintenanceRecordUpdated', (d: MaintenanceRecordUpdated) => this.onRecordUpserted(d));
-        this.realtime.on('guild.MaintenanceRecordDeleted', (d: MaintenanceRecordDeleted) => this.onRecordDeleted(d));
+        this.realtime.on('guild.MaintenanceAssetCreated', (d: MaintenanceAssetCreated) =>
+            this.onAssetUpserted(d),
+        );
+        this.realtime.on('guild.MaintenanceAssetUpdated', (d: MaintenanceAssetUpdated) =>
+            this.onAssetUpserted(d),
+        );
+        this.realtime.on('guild.MaintenanceAssetDeleted', (d: MaintenanceAssetDeleted) =>
+            this.onAssetDeleted(d),
+        );
+        this.realtime.on('guild.MaintenanceRecordCreated', (d: MaintenanceRecordCreated) =>
+            this.onRecordUpserted(d),
+        );
+        this.realtime.on('guild.MaintenanceRecordUpdated', (d: MaintenanceRecordUpdated) =>
+            this.onRecordUpserted(d),
+        );
+        this.realtime.on('guild.MaintenanceRecordDeleted', (d: MaintenanceRecordDeleted) =>
+            this.onRecordDeleted(d),
+        );
     }
 
     // ── Reads ────────────────────────────────────────────────────────────────
@@ -132,10 +144,16 @@ export class MaintenanceService {
             // Folded to null rather than allowed to collapse the pair: the catalogue is the useful
             // half and must survive a log that 500s, and the reverse for a channel logging repairs
             // against nothing catalogued.
-            assets: this.api.listAssets(channelId)
+            assets: this.api
+                .listAssets(channelId)
                 .pipe(catchError((err: unknown) => this.swallow<MaintenanceAsset[]>(channelId, err))),
-            records: this.api.listRecords(channelId)
-                .pipe(catchError((err: unknown) => this.swallow<{items: MaintenanceRecord[]; nextCursor: string | null}>(channelId, err))),
+            records: this.api
+                .listRecords(channelId)
+                .pipe(
+                    catchError((err: unknown) =>
+                        this.swallow<{items: MaintenanceRecord[]; nextCursor: string | null}>(channelId, err),
+                    ),
+                ),
         }).subscribe(({assets, records}) => {
             this.patch(channelId, state => ({
                 ...state,
@@ -157,21 +175,22 @@ export class MaintenanceService {
         this.patch(channelId, current => ({...current, loadingMore: true}));
 
         this.api.listRecords(channelId, {cursor}).subscribe({
-            next: page => this.patch(channelId, current => {
-                // A refresh that landed while this was in the air threw away everything the page
-                // sits behind; appending it would leave a hole in the middle of the log.
-                if (current.recordsCursor !== cursor) return {...current, loadingMore: false};
-                const held = new Set(current.records.map(r => r.id));
-                return {
-                    ...current,
-                    records: this.sortedRecords([
-                        ...current.records,
-                        ...page.items.filter(r => !held.has(r.id)).map(normalizeRecord),
-                    ]),
-                    recordsCursor: page.nextCursor ?? null,
-                    loadingMore: false,
-                };
-            }),
+            next: page =>
+                this.patch(channelId, current => {
+                    // A refresh that landed while this was in the air threw away everything the page
+                    // sits behind; appending it would leave a hole in the middle of the log.
+                    if (current.recordsCursor !== cursor) return {...current, loadingMore: false};
+                    const held = new Set(current.records.map(r => r.id));
+                    return {
+                        ...current,
+                        records: this.sortedRecords([
+                            ...current.records,
+                            ...page.items.filter(r => !held.has(r.id)).map(normalizeRecord),
+                        ]),
+                        recordsCursor: page.nextCursor ?? null,
+                        loadingMore: false,
+                    };
+                }),
             error: () => this.patch(channelId, current => ({...current, loadingMore: false})),
         });
     }
@@ -201,21 +220,28 @@ export class MaintenanceService {
                     forbidden: false,
                 }));
             },
-            error: err => this.patchAttention(guildId, current => ({
-                ...current,
-                loading: false,
-                forbidden: err instanceof HttpErrorResponse && err.status === 403,
-            })),
+            error: err =>
+                this.patchAttention(guildId, current => ({
+                    ...current,
+                    loading: false,
+                    forbidden: err instanceof HttpErrorResponse && err.status === 403,
+                })),
         });
     }
 
     // ── Writes ───────────────────────────────────────────────────────────────
 
-    addAsset(guildId: string, channelId: string, body: CreateMaintenanceAssetDto): Observable<MaintenanceAsset> {
-        return this.api.createAsset(channelId, body).pipe(tap(asset => {
-            this.upsertAsset(channelId, asset);
-            this.attentionStale.add(guildId);
-        }));
+    addAsset(
+        guildId: string,
+        channelId: string,
+        body: CreateMaintenanceAssetDto,
+    ): Observable<MaintenanceAsset> {
+        return this.api.createAsset(channelId, body).pipe(
+            tap(asset => {
+                this.upsertAsset(channelId, asset);
+                this.attentionStale.add(guildId);
+            }),
+        );
     }
 
     editAsset(
@@ -224,17 +250,21 @@ export class MaintenanceService {
         assetId: string,
         body: UpdateMaintenanceAssetDto,
     ): Observable<MaintenanceAsset> {
-        return this.api.updateAsset(assetId, body).pipe(tap(asset => {
-            this.upsertAsset(channelId, asset);
-            this.attentionStale.add(guildId);
-        }));
+        return this.api.updateAsset(assetId, body).pipe(
+            tap(asset => {
+                this.upsertAsset(channelId, asset);
+                this.attentionStale.add(guildId);
+            }),
+        );
     }
 
     removeAsset(guildId: string, channelId: string, assetId: string): Observable<void> {
-        return this.api.deleteAsset(assetId).pipe(tap(() => {
-            this.dropAsset(channelId, assetId);
-            this.attentionStale.add(guildId);
-        }));
+        return this.api.deleteAsset(assetId).pipe(
+            tap(() => {
+                this.dropAsset(channelId, assetId);
+                this.attentionStale.add(guildId);
+            }),
+        );
     }
 
     /**
@@ -251,10 +281,12 @@ export class MaintenanceService {
         note?: string,
     ): Observable<MaintenanceAsset> {
         const body: UpdateAssetStatusDto = note ? {status, note} : {status};
-        return this.api.setStatus(assetId, body).pipe(tap(asset => {
-            this.upsertAsset(channelId, asset);
-            this.attentionStale.add(guildId);
-        }));
+        return this.api.setStatus(assetId, body).pipe(
+            tap(asset => {
+                this.upsertAsset(channelId, asset);
+                this.attentionStale.add(guildId);
+            }),
+        );
     }
 
     /**
@@ -270,28 +302,40 @@ export class MaintenanceService {
         assetId: string,
         body: RecordServiceDto = {},
     ): Observable<ServiceRecorded> {
-        return this.api.recordService(assetId, body).pipe(tap(result => {
-            this.upsertAsset(channelId, result.asset);
-            this.upsertRecord(channelId, result.record);
-            this.attentionStale.add(guildId);
-        }));
+        return this.api.recordService(assetId, body).pipe(
+            tap(result => {
+                this.upsertAsset(channelId, result.asset);
+                this.upsertRecord(channelId, result.record);
+                this.attentionStale.add(guildId);
+            }),
+        );
     }
 
     addRecord(channelId: string, body: CreateMaintenanceRecordDto): Observable<MaintenanceRecord> {
-        return this.api.createRecord(channelId, body)
+        return this.api
+            .createRecord(channelId, body)
             .pipe(tap(record => this.upsertRecord(channelId, record)));
     }
 
-    editRecord(channelId: string, recordId: string, body: UpdateMaintenanceRecordDto): Observable<MaintenanceRecord> {
-        return this.api.updateRecord(recordId, body)
+    editRecord(
+        channelId: string,
+        recordId: string,
+        body: UpdateMaintenanceRecordDto,
+    ): Observable<MaintenanceRecord> {
+        return this.api
+            .updateRecord(recordId, body)
             .pipe(tap(record => this.upsertRecord(channelId, record)));
     }
 
     removeRecord(channelId: string, recordId: string): Observable<void> {
-        return this.api.deleteRecord(recordId).pipe(tap(() => this.patchExisting(channelId, state => ({
-            ...state,
-            records: state.records.filter(r => r.id !== recordId),
-        }))));
+        return this.api.deleteRecord(recordId).pipe(
+            tap(() =>
+                this.patchExisting(channelId, state => ({
+                    ...state,
+                    records: state.records.filter(r => r.id !== recordId),
+                })),
+            ),
+        );
     }
 
     // ── Realtime ─────────────────────────────────────────────────────────────
@@ -334,7 +378,8 @@ export class MaintenanceService {
             ...state,
             assets: this.sortedAssets([...state.assets.filter(a => a.id !== asset.id), asset]),
         });
-        if (existingOnly) this.patchExisting(channelId, apply); else this.patch(channelId, apply);
+        if (existingOnly) this.patchExisting(channelId, apply);
+        else this.patch(channelId, apply);
 
         // The attention board holds its own copy of the asset, and a status change is precisely
         // what somebody looking at that board is waiting to see disappear off it.
@@ -354,7 +399,8 @@ export class MaintenanceService {
             ...state,
             records: this.sortedRecords([...state.records.filter(r => r.id !== record.id), record]),
         });
-        if (existingOnly) this.patchExisting(channelId, apply); else this.patch(channelId, apply);
+        if (existingOnly) this.patchExisting(channelId, apply);
+        else this.patch(channelId, apply);
     }
 
     /**
@@ -368,14 +414,19 @@ export class MaintenanceService {
     private patchAttentionAsset(asset: MaintenanceAsset): void {
         this.attention.update(all => {
             let changed = false;
-            const next = Object.fromEntries(Object.entries(all).map(([guildId, state]) => {
-                if (!state.entries.some(e => e.asset.id === asset.id)) return [guildId, state];
-                changed = true;
-                return [guildId, {
-                    ...state,
-                    entries: state.entries.map(e => e.asset.id === asset.id ? {...e, asset} : e),
-                }];
-            }));
+            const next = Object.fromEntries(
+                Object.entries(all).map(([guildId, state]) => {
+                    if (!state.entries.some(e => e.asset.id === asset.id)) return [guildId, state];
+                    changed = true;
+                    return [
+                        guildId,
+                        {
+                            ...state,
+                            entries: state.entries.map(e => (e.asset.id === asset.id ? {...e, asset} : e)),
+                        },
+                    ];
+                }),
+            );
             return changed ? next : all;
         });
     }
@@ -388,10 +439,12 @@ export class MaintenanceService {
      * the list has to not do.</p>
      */
     private sortedAssets(assets: MaintenanceAsset[]): MaintenanceAsset[] {
-        return [...assets].sort((a, b) =>
-            this.assetUrgency(a) - this.assetUrgency(b)
-            || a.name.localeCompare(b.name)
-            || a.id.localeCompare(b.id));
+        return [...assets].sort(
+            (a, b) =>
+                this.assetUrgency(a) - this.assetUrgency(b) ||
+                a.name.localeCompare(b.name) ||
+                a.id.localeCompare(b.id),
+        );
     }
 
     private assetUrgency(asset: MaintenanceAsset): number {
@@ -405,22 +458,28 @@ export class MaintenanceService {
 
     /** The log is history, so newest first - the opposite of the asset list, which is a to-do. */
     private sortedRecords(records: MaintenanceRecord[]): MaintenanceRecord[] {
-        return [...records].sort((a, b) =>
-            b.performedAt.localeCompare(a.performedAt) || b.id.localeCompare(a.id));
+        return [...records].sort(
+            (a, b) => b.performedAt.localeCompare(a.performedAt) || b.id.localeCompare(a.id),
+        );
     }
 
     private sortedAttention(entries: MaintenanceAttentionEntry[]): MaintenanceAttentionEntry[] {
-        return [...entries].sort((a, b) =>
-            reasonRank(primaryReason(a.reasons)) - reasonRank(primaryReason(b.reasons))
-            || a.asset.name.localeCompare(b.asset.name));
+        return [...entries].sort(
+            (a, b) =>
+                reasonRank(primaryReason(a.reasons)) - reasonRank(primaryReason(b.reasons)) ||
+                a.asset.name.localeCompare(b.asset.name),
+        );
     }
 
     private patch(channelId: string, fn: (state: MaintenanceChannelState) => MaintenanceChannelState): void {
         this.states.update(all => ({...all, [channelId]: fn(all[channelId] ?? EMPTY_STATE)}));
     }
 
-    private patchExisting(channelId: string, fn: (state: MaintenanceChannelState) => MaintenanceChannelState): void {
-        this.states.update(all => all[channelId] ? {...all, [channelId]: fn(all[channelId])} : all);
+    private patchExisting(
+        channelId: string,
+        fn: (state: MaintenanceChannelState) => MaintenanceChannelState,
+    ): void {
+        this.states.update(all => (all[channelId] ? {...all, [channelId]: fn(all[channelId])} : all));
     }
 
     private patchAttention(guildId: string, fn: (state: AttentionState) => AttentionState): void {

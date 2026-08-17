@@ -132,9 +132,9 @@ function findInconsistencies(
     if (typeof version === 'number' && typeof pinnedVersion === 'number' && version !== pinnedVersion) {
         // Rotations only ever go up. Backwards is not a state a real account key reaches, so it is
         // reported as its own thing rather than folded into "the version moved".
-        found.push(version < pinnedVersion
-            ? 'identity-key-version-regressed'
-            : 'identity-key-version-changed');
+        found.push(
+            version < pinnedVersion ? 'identity-key-version-regressed' : 'identity-key-version-changed',
+        );
     }
 
     return found;
@@ -187,8 +187,7 @@ export async function fingerprintOf(publicKeyBase64: string): Promise<string> {
     }
     if (raw.length !== 32) return '';
 
-    const digest = new Uint8Array(
-        await crypto.subtle.digest('SHA-256', raw.slice().buffer as ArrayBuffer));
+    const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', raw.slice().buffer as ArrayBuffer));
 
     return formatFingerprint(digest);
 }
@@ -224,8 +223,8 @@ export function planSeal(
         // `unusable` is never confirmable: there is no key to seal to, so agreeing to it would
         // produce a wrap that cannot exist rather than a risk the user accepted.
         const usable = trust.level !== 'unusable';
-        const allowed = !trust.needsConfirmation
-            || (usable && confirmedDeviceIds.has(trust.attestation.deviceId));
+        const allowed =
+            !trust.needsConfirmation || (usable && confirmedDeviceIds.has(trust.attestation.deviceId));
 
         (allowed ? included : blocked).push(trust);
     }

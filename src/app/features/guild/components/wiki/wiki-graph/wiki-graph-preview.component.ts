@@ -16,16 +16,31 @@ const PREVIEW_STEPS = 260;
     selector: 'app-wiki-graph-preview',
     template: `
         @if (view(); as v) {
-            <svg [attr.viewBox]="v.viewBox" aria-hidden="true"
-                 class="h-full w-full" preserveAspectRatio="xMidYMid slice">
+            <svg
+                [attr.viewBox]="v.viewBox"
+                aria-hidden="true"
+                class="h-full w-full"
+                preserveAspectRatio="xMidYMid slice"
+            >
                 @for (edge of v.edges; track $index) {
-                    <line [attr.x1]="edge.x1" [attr.x2]="edge.x2" [attr.y1]="edge.y1"
-                          [attr.y2]="edge.y2" stroke="currentColor" stroke-width="1"
-                          class="text-white/15"/>
+                    <line
+                        [attr.x1]="edge.x1"
+                        [attr.x2]="edge.x2"
+                        [attr.y1]="edge.y1"
+                        [attr.y2]="edge.y2"
+                        stroke="currentColor"
+                        stroke-width="1"
+                        class="text-white/15"
+                    />
                 }
                 @for (node of v.nodes; track node.id) {
-                    <circle [attr.cx]="node.x" [attr.cy]="node.y" [attr.fill]="node.color"
-                            [attr.r]="node.r" opacity="0.9"/>
+                    <circle
+                        [attr.cx]="node.x"
+                        [attr.cy]="node.y"
+                        [attr.fill]="node.color"
+                        [attr.r]="node.r"
+                        opacity="0.9"
+                    />
                 }
             </svg>
         }
@@ -48,12 +63,10 @@ export class WikiGraphPreviewComponent {
             .sort((a, b) => epoch(b.updatedAt) - epoch(a.updatedAt))
             .slice(0, PREVIEW_NODES);
 
-        const accent = getComputedStyle(this.host.nativeElement)
-            .getPropertyValue('--color-brand-dim').trim() || 'rgb(154,132,255)';
-        const model = settle(
-            buildGraph(subset, this.cache.content(), wiki?.categories ?? []),
-            PREVIEW_STEPS,
-        );
+        const accent =
+            getComputedStyle(this.host.nativeElement).getPropertyValue('--color-brand-dim').trim() ||
+            'rgb(154,132,255)';
+        const model = settle(buildGraph(subset, this.cache.content(), wiki?.categories ?? []), PREVIEW_STEPS);
         const bounds = boundsOf(model, 10);
 
         return {

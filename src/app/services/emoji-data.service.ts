@@ -4,17 +4,16 @@ export function getFlagCode(ch1: string, ch2?: string): string | null {
     const cp1 = ch1.codePointAt(0);
     const cp2 = ch2?.codePointAt(0);
     if (cp1 === undefined || cp2 === undefined) return null;
-    if (cp1 < 0x1F1E6 || cp1 > 0x1F1FF) return null;
-    if (cp2 < 0x1F1E6 || cp2 > 0x1F1FF) return null;
+    if (cp1 < 0x1f1e6 || cp1 > 0x1f1ff) return null;
+    if (cp2 < 0x1f1e6 || cp2 > 0x1f1ff) return null;
     return (
-        String.fromCodePoint(cp1 - 0x1F1E6 + 65) +
-        String.fromCodePoint(cp2 - 0x1F1E6 + 65)
+        String.fromCodePoint(cp1 - 0x1f1e6 + 65) + String.fromCodePoint(cp2 - 0x1f1e6 + 65)
     ).toLowerCase();
 }
 
 export function isRegionalIndicator(ch: string): boolean {
     const cp = ch.codePointAt(0);
-    return cp !== undefined && cp >= 0x1F1E6 && cp <= 0x1F1FF;
+    return cp !== undefined && cp >= 0x1f1e6 && cp <= 0x1f1ff;
 }
 
 export interface EmojiSuggestion {

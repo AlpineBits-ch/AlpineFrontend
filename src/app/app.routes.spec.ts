@@ -94,9 +94,12 @@ it('sends /overview without a session to the login screen', async () => {
 });
 
 it('paints nothing at all until the session question has been answered', async () => {
-    setup(() => new Promise<boolean>(resolve => {
-        held = resolve;
-    }));
+    setup(
+        () =>
+            new Promise<boolean>(resolve => {
+                held = resolve;
+            }),
+    );
     const harness = await RouterTestingHarness.create();
 
     const navigation = harness.navigateByUrl('/');
@@ -112,8 +115,7 @@ it('paints nothing at all until the session question has been answered', async (
 
 it('treats a session question that never gets answered as no session', async () => {
     vi.useFakeTimers();
-    const router = setup(() => new Promise<boolean>(() => {
-    }));
+    const router = setup(() => new Promise<boolean>(() => {}));
     const harness = await RouterTestingHarness.create();
 
     const navigation = harness.navigateByUrl('/');

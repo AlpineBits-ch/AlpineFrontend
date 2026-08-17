@@ -32,7 +32,8 @@ export class TextChannelItemComponent {
     });
 
     protected readonly readState = computed(() =>
-        this.readStateService.aggregate([this.channel().id, ...this.rollupIds()]));
+        this.readStateService.aggregate([this.channel().id, ...this.rollupIds()]),
+    );
     protected readonly isActive = computed(() => this.navService.isChannelActive(this.channel().id));
 
     /** `null` for Text, which renders a literal `#`. One table, no per-type ladder. */

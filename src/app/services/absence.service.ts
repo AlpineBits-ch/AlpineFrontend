@@ -102,16 +102,20 @@ export class AbsenceService {
         const to = new Date(Date.now() + WINDOW_FORWARD_DAYS * 86_400_000);
 
         this.api.list(guildId, from.toISOString(), to.toISOString()).subscribe({
-            next: absences => this.patch(guildId, state => ({
-                ...state,
-                absences: this.sorted(absences),
-                loading: false,
-                loaded: true,
-            })),
+            next: absences =>
+                this.patch(guildId, state => ({
+                    ...state,
+                    absences: this.sorted(absences),
+                    loading: false,
+                    loaded: true,
+                })),
             error: err => {
                 const forbidden = err instanceof HttpErrorResponse && err.status === 403;
                 this.patch(guildId, state => ({
-                    ...state, loading: false, forbidden, failed: !forbidden,
+                    ...state,
+                    loading: false,
+                    forbidden,
+                    failed: !forbidden,
                 }));
             },
         });
@@ -169,7 +173,8 @@ export class AbsenceService {
             ...state,
             absences: this.sorted([...state.absences.filter(a => a.id !== absence.id), absence]),
         });
-        if (existingOnly) this.patchExisting(guildId, apply); else this.patch(guildId, apply);
+        if (existingOnly) this.patchExisting(guildId, apply);
+        else this.patch(guildId, apply);
     }
 
     private drop(guildId: string, absenceId: string): void {
@@ -188,8 +193,7 @@ export class AbsenceService {
 
     /** Soonest start first, so the board reads as a calendar rather than as a changelog. */
     private sorted(absences: Absence[]): Absence[] {
-        return [...absences].sort((a, b) =>
-            a.startAt.localeCompare(b.startAt) || a.id.localeCompare(b.id));
+        return [...absences].sort((a, b) => a.startAt.localeCompare(b.startAt) || a.id.localeCompare(b.id));
     }
 
     private patch(guildId: string, fn: (state: AbsenceGuildState) => AbsenceGuildState): void {
@@ -197,6 +201,6 @@ export class AbsenceService {
     }
 
     private patchExisting(guildId: string, fn: (state: AbsenceGuildState) => AbsenceGuildState): void {
-        this.states.update(all => all[guildId] ? {...all, [guildId]: fn(all[guildId])} : all);
+        this.states.update(all => (all[guildId] ? {...all, [guildId]: fn(all[guildId])} : all));
     }
 }

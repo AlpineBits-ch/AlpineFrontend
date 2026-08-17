@@ -1,4 +1,14 @@
-import {ChangeDetectionStrategy, Component, computed, effect, inject, input, output, signal, untracked} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    effect,
+    inject,
+    input,
+    output,
+    signal,
+    untracked,
+} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {Button} from 'primeng/button';
@@ -113,7 +123,9 @@ export class MealsChannelComponent {
     // ── Permissions ──────────────────────────────────────────────────────────
 
     /** Owner first: SelfGuildMemberDto.permissions doesn't reliably carry Superadmin for them. */
-    private readonly abilities = computed(() => guildAbilities(this.ownMember(), this.guild(), this.ownUserId()));
+    private readonly abilities = computed(() =>
+        guildAbilities(this.ownMember(), this.guild(), this.ownUserId()),
+    );
 
     private can = (permission: bigint): boolean => this.abilities().canModule(permission);
 
@@ -138,7 +150,8 @@ export class MealsChannelComponent {
         const byDate = new Map<string, MealPlanEntry[]>();
         for (const entry of this.state().plan) {
             const held = byDate.get(entry.date);
-            if (held) held.push(entry); else byDate.set(entry.date, [entry]);
+            if (held) held.push(entry);
+            else byDate.set(entry.date, [entry]);
         }
 
         return this.meals.weekDatesFor(this.channel().id).map(date => ({
@@ -162,16 +175,21 @@ export class MealsChannelComponent {
 
     protected readonly recipes = computed(() => this.state().recipes);
     protected readonly recipeOptions = computed<Option[]>(() =>
-        this.recipes().map(recipe => ({value: recipe.id, label: recipe.title})));
+        this.recipes().map(recipe => ({value: recipe.id, label: recipe.title})),
+    );
 
-    protected readonly slotOptions = computed<Option[]>(() => this.slots.map(slot => ({
-        value: slot,
-        label: this.translate.instant(mealSlotLabelKey(slot)),
-    })));
+    protected readonly slotOptions = computed<Option[]>(() =>
+        this.slots.map(slot => ({
+            value: slot,
+            label: this.translate.instant(mealSlotLabelKey(slot)),
+        })),
+    );
 
-    protected readonly memberOptions = computed<Option[]>(() => this.members()
-        .map(m => ({value: m.userId, label: this.nameOf(m.userId)}))
-        .sort((a, b) => a.label.localeCompare(b.label)));
+    protected readonly memberOptions = computed<Option[]>(() =>
+        this.members()
+            .map(m => ({value: m.userId, label: this.nameOf(m.userId)}))
+            .sort((a, b) => a.label.localeCompare(b.label)),
+    );
 
     // ── Entry editor ─────────────────────────────────────────────────────────
     protected readonly showEntryDialog = signal(false);
@@ -185,8 +203,9 @@ export class MealsChannelComponent {
     protected readonly entryCookUserId = signal<string | null>(null);
 
     /** At least one of the two, which is the server's rule and the only one worth pre-empting. */
-    protected readonly entryValid = computed(() =>
-        !!this.entryDate() && (!!this.entryRecipeId() || !!this.entryFreeText().trim()));
+    protected readonly entryValid = computed(
+        () => !!this.entryDate() && (!!this.entryRecipeId() || !!this.entryFreeText().trim()),
+    );
 
     // ── Recipe editor ────────────────────────────────────────────────────────
     protected readonly showRecipeDialog = signal(false);
@@ -206,10 +225,12 @@ export class MealsChannelComponent {
         return this.ingredientLines().length <= this.ingredientsMax;
     });
 
-    protected readonly ingredientLines = computed(() => this.recipeIngredients()
-        .split('\n')
-        .map(line => line.trim())
-        .filter(Boolean));
+    protected readonly ingredientLines = computed(() =>
+        this.recipeIngredients()
+            .split('\n')
+            .map(line => line.trim())
+            .filter(Boolean),
+    );
 
     // ── Shopping list ────────────────────────────────────────────────────────
     protected readonly showShoppingDialog = signal(false);
@@ -220,9 +241,11 @@ export class MealsChannelComponent {
     protected readonly shoppingBusy = signal(false);
 
     /** `List` channels in this guild. A list elsewhere is not a legal target and is never offered. */
-    protected readonly listChannelOptions = computed<Option[]>(() => (this.guild()?.channels ?? [])
-        .filter(c => c.type === ChannelType.List)
-        .map(c => ({value: c.id, label: c.name})));
+    protected readonly listChannelOptions = computed<Option[]>(() =>
+        (this.guild()?.channels ?? [])
+            .filter(c => c.type === ChannelType.List)
+            .map(c => ({value: c.id, label: c.name})),
+    );
 
     // ── Cookable ─────────────────────────────────────────────────────────────
     protected readonly cookable = signal<CookableRecipe[]>([]);
@@ -296,20 +319,20 @@ export class MealsChannelComponent {
 
         const request$ = editingId
             ? this.meals.editEntry(channelId, editingId, {
-                date: this.entryDate(),
-                slot: this.entrySlot(),
-                // `clear*` rather than a null, for the same reason it is everywhere else: null on the value field reads as "leave it alone".
-                ...(recipeId ? {recipeId} : {clearRecipe: true}),
-                ...(freeText ? {freeText} : {clearFreeText: true}),
-                ...(cookUserId ? {cookUserId} : {clearCook: true}),
-            })
+                  date: this.entryDate(),
+                  slot: this.entrySlot(),
+                  // `clear*` rather than a null, for the same reason it is everywhere else: null on the value field reads as "leave it alone".
+                  ...(recipeId ? {recipeId} : {clearRecipe: true}),
+                  ...(freeText ? {freeText} : {clearFreeText: true}),
+                  ...(cookUserId ? {cookUserId} : {clearCook: true}),
+              })
             : this.meals.addEntry(channelId, {
-                date: this.entryDate(),
-                slot: this.entrySlot(),
-                ...(recipeId ? {recipeId} : {}),
-                ...(freeText ? {freeText} : {}),
-                ...(cookUserId ? {cookUserId} : {}),
-            });
+                  date: this.entryDate(),
+                  slot: this.entrySlot(),
+                  ...(recipeId ? {recipeId} : {}),
+                  ...(freeText ? {freeText} : {}),
+                  ...(cookUserId ? {cookUserId} : {}),
+              });
 
         request$.subscribe({
             next: () => {
@@ -370,20 +393,20 @@ export class MealsChannelComponent {
 
         const request$ = editingId
             ? this.meals.editRecipe(channelId, editingId, {
-                title: this.recipeTitle().trim(),
-                servings: this.recipeServings(),
-                // The list replaces wholesale, which is the shape the endpoint takes: an ingredient list is edited as a block in every client that will ever exist.
-                ingredients,
-                ...(prepMinutes ? {prepMinutes} : {clearPrepMinutes: true}),
-                ...(sourceUrl ? {sourceUrl} : {clearSourceUrl: true}),
-            })
+                  title: this.recipeTitle().trim(),
+                  servings: this.recipeServings(),
+                  // The list replaces wholesale, which is the shape the endpoint takes: an ingredient list is edited as a block in every client that will ever exist.
+                  ingredients,
+                  ...(prepMinutes ? {prepMinutes} : {clearPrepMinutes: true}),
+                  ...(sourceUrl ? {sourceUrl} : {clearSourceUrl: true}),
+              })
             : this.meals.addRecipe(channelId, {
-                title: this.recipeTitle().trim(),
-                servings: this.recipeServings(),
-                ingredients,
-                ...(prepMinutes ? {prepMinutes} : {}),
-                ...(sourceUrl ? {sourceUrl} : {}),
-            });
+                  title: this.recipeTitle().trim(),
+                  servings: this.recipeServings(),
+                  ingredients,
+                  ...(prepMinutes ? {prepMinutes} : {}),
+                  ...(sourceUrl ? {sourceUrl} : {}),
+              });
 
         request$.subscribe({
             next: () => {
@@ -437,23 +460,25 @@ export class MealsChannelComponent {
         const listChannelId = this.shoppingListChannelId();
 
         this.shoppingBusy.set(true);
-        this.meals.generateShoppingList(this.channel().id, {
-            from,
-            to,
-            ...(listChannelId ? {listChannelId} : {}),
-            includeOptional: this.shoppingIncludeOptional(),
-            skipPantry: this.shoppingSkipPantry(),
-        }).subscribe({
-            // The dialog stays open on success: the result, especially what it skipped, is the answer, and closing over it is how the button stops being trusted.
-            next: result => {
-                this.shoppingBusy.set(false);
-                this.shoppingResult.set(result);
-            },
-            error: err => {
-                this.shoppingBusy.set(false);
-                this.toast.httpError(this.translate.instant('MEALS.SHOPPING_FAILED'), err);
-            },
-        });
+        this.meals
+            .generateShoppingList(this.channel().id, {
+                from,
+                to,
+                ...(listChannelId ? {listChannelId} : {}),
+                includeOptional: this.shoppingIncludeOptional(),
+                skipPantry: this.shoppingSkipPantry(),
+            })
+            .subscribe({
+                // The dialog stays open on success: the result, especially what it skipped, is the answer, and closing over it is how the button stops being trusted.
+                next: result => {
+                    this.shoppingBusy.set(false);
+                    this.shoppingResult.set(result);
+                },
+                error: err => {
+                    this.shoppingBusy.set(false);
+                    this.toast.httpError(this.translate.instant('MEALS.SHOPPING_FAILED'), err);
+                },
+            });
     }
 
     // ── Cookable ─────────────────────────────────────────────────────────────
@@ -479,14 +504,19 @@ export class MealsChannelComponent {
 
     /** Adds a cookable recipe straight onto tonight's dinner: the point of having looked. */
     protected planTonight(recipe: Recipe): void {
-        this.meals.addEntry(this.channel().id, {
-            date: toPlanDate(new Date()),
-            slot: MealSlot.Dinner,
-            recipeId: recipe.id,
-        }).subscribe({
-            next: () => this.toast.success(this.translate.instant('MEALS.PLANNED_TONIGHT', {title: recipe.title})),
-            error: err => this.toast.httpError(this.translate.instant('MEALS.SAVE_FAILED'), err),
-        });
+        this.meals
+            .addEntry(this.channel().id, {
+                date: toPlanDate(new Date()),
+                slot: MealSlot.Dinner,
+                recipeId: recipe.id,
+            })
+            .subscribe({
+                next: () =>
+                    this.toast.success(
+                        this.translate.instant('MEALS.PLANNED_TONIGHT', {title: recipe.title}),
+                    ),
+                error: err => this.toast.httpError(this.translate.instant('MEALS.SAVE_FAILED'), err),
+            });
     }
 
     // ── Presentation ─────────────────────────────────────────────────────────
@@ -507,7 +537,8 @@ export class MealsChannelComponent {
 
     /** `Thu 14`. Built from the plain date's own parts, never through `new Date(iso)`. */
     private dayLabel(date: string): string {
-        return new Intl.DateTimeFormat(undefined, {weekday: 'short', day: 'numeric'})
-            .format(parsePlanDate(date));
+        return new Intl.DateTimeFormat(undefined, {weekday: 'short', day: 'numeric'}).format(
+            parsePlanDate(date),
+        );
     }
 }

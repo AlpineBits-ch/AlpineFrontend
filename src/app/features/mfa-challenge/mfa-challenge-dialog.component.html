@@ -1,20 +1,22 @@
 <p-dialog
-        (onHide)="mfaChallenge.dismiss(); onHide()"
-        (onShow)="onShow()"
-        [(visible)]="mfaChallenge.visible"
-        [breakpoints]="{ '640px': '95vw' }"
-        [closable]="true"
-        [dismissableMask]="false"
-        [draggable]="false"
-        [modal]="true"
-        [resizable]="false"
-        [style]="{ width: '440px' }"
-        appendTo="body">
-
+    (onHide)="mfaChallenge.dismiss(); onHide()"
+    (onShow)="onShow()"
+    [(visible)]="mfaChallenge.visible"
+    [breakpoints]="{'640px': '95vw'}"
+    [closable]="true"
+    [dismissableMask]="false"
+    [draggable]="false"
+    [modal]="true"
+    [resizable]="false"
+    [style]="{width: '440px'}"
+    appendTo="body"
+>
     <ng-template pTemplate="header">
         <div class="flex items-center gap-3">
-            <div class="w-8 h-8 rounded-lg flex items-center justify-center"
-                 style="background: color-mix(in srgb, var(--color-brand) 12%, transparent)">
+            <div
+                class="w-8 h-8 rounded-lg flex items-center justify-center"
+                style="background: color-mix(in srgb, var(--color-brand) 12%, transparent)"
+            >
                 <i class="pi pi-shield text-sm" style="color: var(--color-brand-dim)"></i>
             </div>
             <span class="text-base font-semibold" style="color: var(--color-text-primary)">
@@ -33,12 +35,13 @@
                 <!-- Enter submits. `submit()` re-checks length and the in-flight flag itself, so
                      this needs no guard of its own and cannot double-post on a held key. -->
                 <p-inputotp
-                        (keydown.enter)="submit()"
-                        (ngModelChange)="onCodeChange($event)"
-                        [integerOnly]="true"
-                        [length]="6"
-                        [ngModel]="code()"
-                        styleClass="gap-2"/>
+                    (keydown.enter)="submit()"
+                    (ngModelChange)="onCodeChange($event)"
+                    [integerOnly]="true"
+                    [length]="6"
+                    [ngModel]="code()"
+                    styleClass="gap-2"
+                />
             </div>
         } @else {
             <div class="flex flex-col gap-1.5">
@@ -46,14 +49,15 @@
                     {{ 'LOGIN.MFA.RECOVERY_CODE_LABEL' | translate }}
                 </label>
                 <input
-                        (keydown.enter)="submit()"
-                        (ngModelChange)="onCodeChange($event)"
-                        [ngModel]="code()"
-                        [placeholder]="'LOGIN.MFA.RECOVERY_CODE_PLACEHOLDER' | translate"
-                        autocomplete="one-time-code"
-                        class="w-full"
-                        pInputText
-                        type="text"/>
+                    (keydown.enter)="submit()"
+                    (ngModelChange)="onCodeChange($event)"
+                    [ngModel]="code()"
+                    [placeholder]="'LOGIN.MFA.RECOVERY_CODE_PLACEHOLDER' | translate"
+                    autocomplete="one-time-code"
+                    class="w-full"
+                    pInputText
+                    type="text"
+                />
             </div>
         }
 
@@ -64,24 +68,25 @@
         }
 
         <p-button
-                (onClick)="toggleRecoveryCode()"
-                [label]="(useRecoveryCode() ? 'LOGIN.MFA.USE_AUTHENTICATOR_CODE' : 'LOGIN.MFA.USE_RECOVERY_CODE') | translate"
-                [text]="true"
-                severity="secondary"
-                size="small"
-                styleClass="self-start !px-0"/>
+            (onClick)="toggleRecoveryCode()"
+            [label]="(useRecoveryCode() ? 'LOGIN.MFA.USE_AUTHENTICATOR_CODE' : 'LOGIN.MFA.USE_RECOVERY_CODE') | translate"
+            [text]="true"
+            severity="secondary"
+            size="small"
+            styleClass="self-start !px-0"
+        />
     </div>
 
     <ng-template pTemplate="footer">
         <div class="flex items-center justify-end gap-2 w-full">
             <p-button
-                    (onClick)="submit()"
-                    [disabled]="code().length < minCodeLength() || loading()"
-                    [label]="'LOGIN.MFA.VERIFY' | translate"
-                    [loading]="loading()"
-                    severity="primary"
-                    size="small"/>
+                (onClick)="submit()"
+                [disabled]="code().length < minCodeLength() || loading()"
+                [label]="'LOGIN.MFA.VERIFY' | translate"
+                [loading]="loading()"
+                severity="primary"
+                size="small"
+            />
         </div>
     </ng-template>
-
 </p-dialog>

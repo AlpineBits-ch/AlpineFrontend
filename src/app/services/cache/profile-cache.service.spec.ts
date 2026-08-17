@@ -10,10 +10,16 @@ import {ProfileCacheService} from './profile-cache.service';
 
 function profile(userId: string, userName: string): ProfileDto {
     return {
-        id: `prfl_${userId}`, userId, userName,
-        bio: undefined, avatarUrl: undefined, bannerUrl: undefined,
-        accentColor: null, font: ProfileFont.Default,
-        createdAt: new Date(0), updatedAt: new Date(0),
+        id: `prfl_${userId}`,
+        userId,
+        userName,
+        bio: undefined,
+        avatarUrl: undefined,
+        bannerUrl: undefined,
+        accentColor: null,
+        font: ProfileFont.Default,
+        createdAt: new Date(0),
+        updatedAt: new Date(0),
         onlineStatus: OnlineStatus.Offline,
     };
 }
@@ -21,12 +27,24 @@ function profile(userId: string, userName: string): ProfileDto {
 /** An in-memory stand-in for CacheStore, so these tests are about the service, not IndexedDB. */
 class FakeCacheStore {
     readonly entries = new Map<string, unknown>();
-    async get(_d: string, key: string) { return this.entries.get(key); }
-    async set(_d: string, key: string, value: unknown) { this.entries.set(key, value); }
-    async delete(_d: string, key: string) { this.entries.delete(key); }
-    async all<T>() { return [...this.entries.entries()] as [string, T][]; }
-    async clear() { this.entries.clear(); }
-    sizeOf() { return 0; }
+    async get(_d: string, key: string) {
+        return this.entries.get(key);
+    }
+    async set(_d: string, key: string, value: unknown) {
+        this.entries.set(key, value);
+    }
+    async delete(_d: string, key: string) {
+        this.entries.delete(key);
+    }
+    async all<T>() {
+        return [...this.entries.entries()] as [string, T][];
+    }
+    async clear() {
+        this.entries.clear();
+    }
+    sizeOf() {
+        return 0;
+    }
 }
 
 let cache: FakeCacheStore;
@@ -43,18 +61,24 @@ function configure(fetchByUserId = vi.fn(() => of(profile('u1', 'ada')))) {
     opened = [];
     TestBed.configureTestingModule({
         providers: [
-            {provide: CacheStoreFactory, useValue: {open: (id: string) => {
-                opened.push(id);
-                return cache;
-            }}},
+            {
+                provide: CacheStoreFactory,
+                useValue: {
+                    open: (id: string) => {
+                        opened.push(id);
+                        return cache;
+                    },
+                },
+            },
             {provide: DeviceIdentityService, useValue: {deviceId: async () => deviceId}},
-            {provide: ProfileService, useValue: Object.assign(
-                Object.create(ProfileService.prototype) as ProfileService,
-                {
+            {
+                provide: ProfileService,
+                useValue: Object.assign(Object.create(ProfileService.prototype) as ProfileService, {
                     fetchByUserId,
                     hydrateFrom: vi.fn(),
                     cachePersist: null,
-                })},
+                }),
+            },
         ],
     });
     profiles = TestBed.inject(ProfileService);
@@ -83,7 +107,8 @@ describe('ProfileCacheService', () => {
             expect.arrayContaining([
                 expect.objectContaining({userName: 'ada'}),
                 expect.objectContaining({userName: 'grace'}),
-            ]));
+            ]),
+        );
     });
 
     it('revives dates, which JSON does not carry', async () => {
@@ -139,7 +164,7 @@ describe('ProfileCacheService', () => {
      * - and `revalidateAll` on an exhausted quota produces three in well under a second.
      */
     it('a rejecting cache write never escapes the write-behind hook', async () => {
-        const debug = vi.spyOn(console, 'debug').mockImplementation(() => { });
+        const debug = vi.spyOn(console, 'debug').mockImplementation(() => {});
         configure();
         cache.set = () => Promise.reject(new Error('quota exceeded'));
         await subject.hydrate();

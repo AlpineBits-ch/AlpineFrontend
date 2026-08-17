@@ -30,7 +30,8 @@ function setup() {
     /** Puts this client in a channel with the named people also in it. */
     function join(channelId: string, others: string[] = []): void {
         channelParticipants.update(map =>
-            new Map(map).set(channelId, [participant('me'), ...others.map(participant)]));
+            new Map(map).set(channelId, [participant('me'), ...others.map(participant)]),
+        );
         joinedChannelId.set(channelId);
         TestBed.tick();
     }

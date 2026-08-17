@@ -56,8 +56,18 @@ interface PendingRemoval {
 @Component({
     selector: 'app-wiki-nav',
     imports: [
-        NgClass, NgTemplateOutlet, FormsModule, Button, Dialog, InputText, Select, ContextMenu,
-        Toast, Tooltip, PrimeTemplate, TranslateModule,
+        NgClass,
+        NgTemplateOutlet,
+        FormsModule,
+        Button,
+        Dialog,
+        InputText,
+        Select,
+        ContextMenu,
+        Toast,
+        Tooltip,
+        PrimeTemplate,
+        TranslateModule,
     ],
     templateUrl: './wiki-nav.component.html',
 })
@@ -73,11 +83,9 @@ export class WikiNavComponent implements OnDestroy {
     // ── In-place filtering ────────────────────────────────────────────────────
     /** Narrows the tree where it stands. ⌘K navigates away; this one does not. */
     protected readonly filterText = signal('');
-    protected readonly narrowed = computed(() => narrowNav(
-        this.state.wiki()?.categories ?? [],
-        this.state.wiki()?.pages ?? [],
-        this.filterText(),
-    ));
+    protected readonly narrowed = computed(() =>
+        narrowNav(this.state.wiki()?.categories ?? [], this.state.wiki()?.pages ?? [], this.filterText()),
+    );
 
     // ── Inline rename ─────────────────────────────────────────────────────────
     /** Holds a page *or* a category id; the two id spaces do not overlap. */
@@ -102,13 +110,12 @@ export class WikiNavComponent implements OnDestroy {
         return result;
     });
 
-    protected readonly pinnedPages = computed(() =>
-        this.visiblePages().filter(p => p.isPinned),
-    );
+    protected readonly pinnedPages = computed(() => this.visiblePages().filter(p => p.isPinned));
 
     protected readonly favouritePages = computed(() => {
         const byId = new Map(this.visiblePages().map(p => [p.id, p]));
-        return this.prefs.favourites()
+        return this.prefs
+            .favourites()
             .map(id => byId.get(id))
             .filter((p): p is WikiPageSummaryDto => !!p);
     });
@@ -117,7 +124,8 @@ export class WikiNavComponent implements OnDestroy {
     protected readonly recentPages = computed(() => {
         const byId = new Map(this.visiblePages().map(p => [p.id, p]));
         const favourites = new Set(this.prefs.favourites());
-        return this.prefs.recents()
+        return this.prefs
+            .recents()
             .filter(id => !favourites.has(id))
             .map(id => byId.get(id))
             .filter((p): p is WikiPageSummaryDto => !!p)
@@ -159,7 +167,7 @@ export class WikiNavComponent implements OnDestroy {
     @ViewChild('catCtxMenu') private catCtxMenu?: ContextMenu;
 
     // ── Drag state ────────────────────────────────────────────────────────────
-    private dragging: { type: 'category' | 'page'; id: string } | null = null;
+    private dragging: {type: 'category' | 'page'; id: string} | null = null;
     private nestTimer: ReturnType<typeof setTimeout> | null = null;
     private lastHoverTarget: string | null = null;
 
@@ -261,10 +269,11 @@ export class WikiNavComponent implements OnDestroy {
             items.push({
                 label: this.translate.instant('WIKI.NAV.ADD_ARTICLE_HERE'),
                 icon: 'pi pi-file-plus',
-                command: () => this.state.openEditor(undefined, {
-                    categoryId: page.categoryId,
-                    parentPageId: page.id,
-                }),
+                command: () =>
+                    this.state.openEditor(undefined, {
+                        categoryId: page.categoryId,
+                        parentPageId: page.id,
+                    }),
             });
         }
         if (canEdit) {
@@ -327,9 +336,7 @@ export class WikiNavComponent implements OnDestroy {
         this.renameValue.set(current);
         // The input does not exist until this render lands.
         setTimeout(() => {
-            this.host.nativeElement
-                .querySelector<HTMLInputElement>('[data-rename-input]')
-                ?.select();
+            this.host.nativeElement.querySelector<HTMLInputElement>('[data-rename-input]')?.select();
         }, 0);
     }
 
@@ -355,10 +362,13 @@ export class WikiNavComponent implements OnDestroy {
             if (page.title === name) return;
             this.state.updateWikiOptimistic(w => ({
                 ...w,
-                pages: w.pages.map(p => p.id === id ? {...p, title: name} : p),
+                pages: w.pages.map(p => (p.id === id ? {...p, title: name} : p)),
             }));
-            this.withRevert(this.wikiService.updatePage(guildId, id, {title: name}), snapshot,
-                'WIKI.NAV.RENAME_FAILED');
+            this.withRevert(
+                this.wikiService.updatePage(guildId, id, {title: name}),
+                snapshot,
+                'WIKI.NAV.RENAME_FAILED',
+            );
             return;
         }
 
@@ -366,10 +376,13 @@ export class WikiNavComponent implements OnDestroy {
         if (category && category.name !== name) {
             this.state.updateWikiOptimistic(w => ({
                 ...w,
-                categories: w.categories.map(c => c.id === id ? {...c, name} : c),
+                categories: w.categories.map(c => (c.id === id ? {...c, name} : c)),
             }));
-            this.withRevert(this.wikiService.updateCategory(guildId, id, {name}), snapshot,
-                'WIKI.NAV.RENAME_FAILED');
+            this.withRevert(
+                this.wikiService.updateCategory(guildId, id, {name}),
+                snapshot,
+                'WIKI.NAV.RENAME_FAILED',
+            );
         }
     }
 
@@ -382,10 +395,13 @@ export class WikiNavComponent implements OnDestroy {
         const isPinned = !page.isPinned;
         this.state.updateWikiOptimistic(w => ({
             ...w,
-            pages: w.pages.map(p => p.id === page.id ? {...p, isPinned} : p),
+            pages: w.pages.map(p => (p.id === page.id ? {...p, isPinned} : p)),
         }));
-        this.withRevert(this.wikiService.updatePage(guildId, page.id, {isPinned}), snapshot,
-            'WIKI.NAV.PIN_FAILED');
+        this.withRevert(
+            this.wikiService.updatePage(guildId, page.id, {isPinned}),
+            snapshot,
+            'WIKI.NAV.PIN_FAILED',
+        );
     }
 
     /** Needs the body, which the summary does not carry, so it is a fetch then a create. */
@@ -393,17 +409,20 @@ export class WikiNavComponent implements OnDestroy {
         const guildId = this.state.guildId();
         if (!guildId) return;
         this.wikiService.getPage(guildId, page.id).subscribe({
-            next: full => this.wikiService.createPage(guildId, {
-                title: this.translate.instant('WIKI.NAV.COPY_OF', {title: full.title}),
-                content: full.content,
-                categoryId: full.categoryId,
-                parentPageId: full.parentPageId,
-                tags: full.tags,
-                visibility: full.visibility,
-            }).subscribe({
-                next: () => this.state.reload(),
-                error: () => this.toast.error(this.translate.instant('WIKI.NAV.DUPLICATE_FAILED')),
-            }),
+            next: full =>
+                this.wikiService
+                    .createPage(guildId, {
+                        title: this.translate.instant('WIKI.NAV.COPY_OF', {title: full.title}),
+                        content: full.content,
+                        categoryId: full.categoryId,
+                        parentPageId: full.parentPageId,
+                        tags: full.tags,
+                        visibility: full.visibility,
+                    })
+                    .subscribe({
+                        next: () => this.state.reload(),
+                        error: () => this.toast.error(this.translate.instant('WIKI.NAV.DUPLICATE_FAILED')),
+                    }),
             error: () => this.toast.error(this.translate.instant('WIKI.NAV.DUPLICATE_FAILED')),
         });
     }
@@ -431,14 +450,10 @@ export class WikiNavComponent implements OnDestroy {
         // Children are left alone: `buildPageTree` already treats a page whose parent is missing as a root, so they surface one level up instead of vanishing with the parent.
         if (this.state.selectedPage()?.id === page.id) this.state.openHome();
 
-        this.schedule(
-            this.translate.instant('WIKI.NAV.DELETED_PAGE', {title: page.title}),
-            snapshot,
-            () => {
-                this.prefs.forget(page.id);
-                return this.wikiService.deletePage(guildId, page.id);
-            },
-        );
+        this.schedule(this.translate.instant('WIKI.NAV.DELETED_PAGE', {title: page.title}), snapshot, () => {
+            this.prefs.forget(page.id);
+            return this.wikiService.deletePage(guildId, page.id);
+        });
     }
 
     protected deleteCategory(category: WikiCategoryDto): void {
@@ -450,9 +465,9 @@ export class WikiNavComponent implements OnDestroy {
             ...w,
             categories: w.categories
                 .filter(c => c.id !== category.id)
-                .map(c => c.parentCategoryId === category.id ? {...c, parentCategoryId: undefined} : c),
+                .map(c => (c.parentCategoryId === category.id ? {...c, parentCategoryId: undefined} : c)),
             // Matches what the server does: the pages survive, uncategorized.
-            pages: w.pages.map(p => p.categoryId === category.id ? {...p, categoryId: undefined} : p),
+            pages: w.pages.map(p => (p.categoryId === category.id ? {...p, categoryId: undefined} : p)),
         }));
 
         this.schedule(
@@ -480,9 +495,7 @@ export class WikiNavComponent implements OnDestroy {
     protected onTreeKeydown(event: KeyboardEvent): void {
         if (this.renamingId()) return;
         if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
-        const items = Array.from(
-            this.host.nativeElement.querySelectorAll<HTMLElement>('[data-nav-item]'),
-        );
+        const items = Array.from(this.host.nativeElement.querySelectorAll<HTMLElement>('[data-nav-item]'));
         if (!items.length) return;
         const current = items.indexOf(document.activeElement as HTMLElement);
         let next: number;
@@ -542,9 +555,7 @@ export class WikiNavComponent implements OnDestroy {
         if (this.creatingCategory() || !this.newCategoryName().trim() || !guildId) return;
         this.creatingCategory.set(true);
         const parentId = this.newCategoryParentId();
-        const siblings = (this.state.wiki()?.categories ?? []).filter(
-            c => c.parentCategoryId === parentId,
-        );
+        const siblings = (this.state.wiki()?.categories ?? []).filter(c => c.parentCategoryId === parentId);
         this.wikiService
             .createCategory(guildId, {
                 name: this.newCategoryName().trim(),
@@ -647,10 +658,14 @@ export class WikiNavComponent implements OnDestroy {
             const draggedPage = wiki.pages.find(p => p.id === dragging.id);
             const targetPage = wiki.pages.find(p => p.id === nestTarget);
             if (draggedPage && targetPage && !this.wouldCreateCycle(draggedPage.id, nestTarget, wiki.pages)) {
-                this.movePageToGroup(draggedPage, {
-                    categoryId: targetPage.categoryId,
-                    parentPageId: nestTarget,
-                }, guildId);
+                this.movePageToGroup(
+                    draggedPage,
+                    {
+                        categoryId: targetPage.categoryId,
+                        parentPageId: nestTarget,
+                    },
+                    guildId,
+                );
             }
             return;
         }
@@ -668,10 +683,14 @@ export class WikiNavComponent implements OnDestroy {
 
             if (targetCategory) {
                 const newCategoryId = pos === 'before' ? null : targetCategory.id;
-                this.movePageToGroup(draggedPage, {
-                    categoryId: newCategoryId ?? undefined,
-                    parentPageId: null
-                }, guildId);
+                this.movePageToGroup(
+                    draggedPage,
+                    {
+                        categoryId: newCategoryId ?? undefined,
+                        parentPageId: null,
+                    },
+                    guildId,
+                );
                 return;
             }
 
@@ -679,10 +698,14 @@ export class WikiNavComponent implements OnDestroy {
             if (targetPage) {
                 const newParentId = targetPage.parentPageId ?? null;
                 if (newParentId && this.wouldCreateCycle(draggedPage.id, newParentId, wiki.pages)) return;
-                this.movePageToGroup(draggedPage, {
-                    categoryId: targetPage.categoryId,
-                    parentPageId: newParentId,
-                }, guildId);
+                this.movePageToGroup(
+                    draggedPage,
+                    {
+                        categoryId: targetPage.categoryId,
+                        parentPageId: newParentId,
+                    },
+                    guildId,
+                );
             }
         }
     }
@@ -699,7 +722,9 @@ export class WikiNavComponent implements OnDestroy {
         const groupIds = new Set(group.map(p => p.id));
         const result: PageTreeNode[] = [];
         // A page is a root if it has no parent, its parent doesn't exist in the group, or it references itself.
-        const roots = group.filter(x => !x.parentPageId || !groupIds.has(x.parentPageId) || x.parentPageId === x.id);
+        const roots = group.filter(
+            x => !x.parentPageId || !groupIds.has(x.parentPageId) || x.parentPageId === x.id,
+        );
         const build = (parentId: string, depth: number) => {
             for (const p of group.filter(x => x.parentPageId === parentId && x.id !== parentId)) {
                 result.push({page: p, depth});
@@ -743,22 +768,25 @@ export class WikiNavComponent implements OnDestroy {
         const newPositions = new Map(siblings.map((c, i) => [c.id, i]));
         this.state.updateWikiOptimistic(w => ({
             ...w,
-            categories: w.categories.map(c => newPositions.has(c.id) ? {...c, position: newPositions.get(c.id)!} : c),
+            categories: w.categories.map(c =>
+                newPositions.has(c.id) ? {...c, position: newPositions.get(c.id)!} : c,
+            ),
         }));
 
         const writes = siblings
             .map((c, i) => ({category: c, position: i}))
-            .filter(({category, position}) =>
-                categories.find(orig => orig.id === category.id)?.position !== position)
-            .map(({category, position}) =>
-                this.wikiService.updateCategory(guildId, category.id, {position}));
+            .filter(
+                ({category, position}) =>
+                    categories.find(orig => orig.id === category.id)?.position !== position,
+            )
+            .map(({category, position}) => this.wikiService.updateCategory(guildId, category.id, {position}));
         if (!writes.length) return;
         this.withRevert(forkJoin(writes), snapshot, 'WIKI.NAV.REORDER_FAILED');
     }
 
     private movePageToGroup(
         page: WikiPageSummaryDto,
-        changes: { categoryId: string | undefined; parentPageId: string | null | undefined },
+        changes: {categoryId: string | undefined; parentPageId: string | null | undefined},
         guildId: string,
     ): void {
         const sameCategory = (page.categoryId ?? null) === (changes.categoryId ?? null);
@@ -769,18 +797,17 @@ export class WikiNavComponent implements OnDestroy {
         if (!snapshot) return;
 
         // When the category changes, all descendants must follow so they don't become orphans.
-        const descendants = sameCategory
-            ? []
-            : this.collectDescendants(page.id, snapshot.pages);
+        const descendants = sameCategory ? [] : this.collectDescendants(page.id, snapshot.pages);
 
         this.state.updateWikiOptimistic(w => ({
             ...w,
             pages: w.pages.map(p => {
-                if (p.id === page.id) return {
-                    ...p,
-                    categoryId: changes.categoryId,
-                    parentPageId: changes.parentPageId ?? undefined
-                };
+                if (p.id === page.id)
+                    return {
+                        ...p,
+                        categoryId: changes.categoryId,
+                        parentPageId: changes.parentPageId ?? undefined,
+                    };
                 if (descendants.some(d => d.id === p.id)) return {...p, categoryId: changes.categoryId};
                 return p;
             }),

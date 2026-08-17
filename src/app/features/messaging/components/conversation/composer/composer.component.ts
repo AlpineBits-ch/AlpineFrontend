@@ -1,4 +1,16 @@
-import {Component, DestroyRef, computed, effect, ElementRef, inject, input, output, signal, untracked, viewChild} from '@angular/core';
+import {
+    Component,
+    DestroyRef,
+    computed,
+    effect,
+    ElementRef,
+    inject,
+    input,
+    output,
+    signal,
+    untracked,
+    viewChild,
+} from '@angular/core';
 import twemoji from 'twemoji';
 import {takeUntilDestroyed, toObservable, toSignal} from '@angular/core/rxjs-interop';
 import {catchError, debounceTime, map, of, switchMap} from 'rxjs';
@@ -23,7 +35,7 @@ import {
     buildHighlightedFragment,
     getEditorSegments,
     getTextCursorOffset,
-    restoreCursorOffset
+    restoreCursorOffset,
 } from './composer-markdown';
 import {SuggestionOverlayComponent} from './suggestion-overlay/suggestion-overlay.component';
 import {EmojiPickerButtonComponent} from './emoji-picker-button/emoji-picker-button.component';
@@ -33,7 +45,7 @@ import {EmojiDataService} from '../../../../../services/emoji-data.service';
 import {ComposerAttachmentsService} from './composer-attachments.service';
 import {AttachmentPreviewsComponent} from './attachment-previews/attachment-previews.component';
 import {GuildService} from '../../../../../services/guild.service';
-import {ProfileService} from "../../../../../services/profile.service";
+import {ProfileService} from '../../../../../services/profile.service';
 import {TranslateModule} from '@ngx-translate/core';
 import {userNameStyle} from '../../../../../models/profile-font.model';
 import {BotCommandService} from '../../../../../services/bot-command.service';
@@ -52,7 +64,14 @@ const TWEMOJI_BASE = 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/
 
 @Component({
     selector: 'app-composer',
-    imports: [Button, SuggestionOverlayComponent, EmojiPickerButtonComponent, GifPickerButtonComponent, AttachmentPreviewsComponent, TranslateModule],
+    imports: [
+        Button,
+        SuggestionOverlayComponent,
+        EmojiPickerButtonComponent,
+        GifPickerButtonComponent,
+        AttachmentPreviewsComponent,
+        TranslateModule,
+    ],
     templateUrl: './composer.component.html',
     styleUrl: './composer.component.css',
     providers: [ComposerAttachmentsService],
@@ -81,12 +100,11 @@ export class ComposerComponent {
     cancelReply = output<void>();
 
     // ── Inputs / Outputs ─────────────────────────────────────────────────────
-    commandAction = output<{ name: string; payload?: unknown }>();
+    commandAction = output<{name: string; payload?: unknown}>();
     typing = output<void>();
     // Replying to a message does not make its body trustworthy: the chip above the composer
     // renders the same `content` the bubble refuses to.
-    readonly replySnippet = computed(() =>
-        readableContent(this.replyTo(), UNDECRYPTABLE_SHORT).slice(0, 60));
+    readonly replySnippet = computed(() => readableContent(this.replyTo(), UNDECRYPTABLE_SHORT).slice(0, 60));
     readonly editorRef = viewChild.required<ElementRef<HTMLDivElement>>('editor');
     readonly fileInputRef = viewChild.required<ElementRef<HTMLInputElement>>('fileInput');
     readonly gifPickerRef = viewChild(GifPickerButtonComponent);
@@ -111,8 +129,10 @@ export class ComposerComponent {
     readonly placeholder = computed(() => {
         const cmd = this.activeCommand();
         if (!cmd) return 'Message';
-        const paramHints = cmd.params.map(p => p.required ? `<${p.label}>` : `[${p.label}]`).join(' ');
-        return paramHints ? `/${cmd.name} ${paramHints} -press Enter to send` : `/${cmd.name} -press Enter to send`;
+        const paramHints = cmd.params.map(p => (p.required ? `<${p.label}>` : `[${p.label}]`)).join(' ');
+        return paramHints
+            ? `/${cmd.name} ${paramHints} -press Enter to send`
+            : `/${cmd.name} -press Enter to send`;
     });
     protected readonly attachments = inject(ComposerAttachmentsService);
     /** True while a send is parked waiting on uploads that were still in flight when Enter landed. */
@@ -153,7 +173,7 @@ export class ComposerComponent {
     private wikiPagesGuildId: string | null = null;
 
     constructor() {
-        this.destroyRef.onDestroy(() => this.destroyed = true);
+        this.destroyRef.onDestroy(() => (this.destroyed = true));
 
         // The attachment service is told the scope rather than reaching for a route. Must stay
         // untracked: `ensureLoaded` reads the cache it also writes, so tracking it would re-run this
@@ -173,17 +193,20 @@ export class ComposerComponent {
                 this.botCommands.set([]);
                 return;
             }
-            this.botCommandService.getCommands(gid).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-                next: cmds => this.botCommands.set(cmds),
-                error: () => this.botCommands.set([]),
-            });
+            this.botCommandService
+                .getCommands(gid)
+                .pipe(takeUntilDestroyed(this.destroyRef))
+                .subscribe({
+                    next: cmds => this.botCommands.set(cmds),
+                    error: () => this.botCommands.set([]),
+                });
         });
 
-        this.guildWsService.botInstalledObservable.pipe(takeUntilDestroyed(this.destroyRef))
-            .subscribe(e => {
-                if (e.guildId === this.guildId()) this.refetchBotCommands();
-            });
-        this.guildWsService.botUninstalledObservable.pipe(takeUntilDestroyed(this.destroyRef))
+        this.guildWsService.botInstalledObservable.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(e => {
+            if (e.guildId === this.guildId()) this.refetchBotCommands();
+        });
+        this.guildWsService.botUninstalledObservable
+            .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe(e => {
                 if (e.guildId === this.guildId()) this.refetchBotCommands();
             });
@@ -195,14 +218,15 @@ export class ComposerComponent {
         if (this.overlayType() !== 'command') return [];
         const q = this.query().toLowerCase();
         const atStart = this.commandAtStart();
-        const local: ComposerCommandItem[] = COMMANDS
-            .filter(c => atStart || c.scope === 'inline')
+        const local: ComposerCommandItem[] = COMMANDS.filter(c => atStart || c.scope === 'inline')
             .filter(c => c.name.startsWith(q))
             .map(def => ({kind: 'local' as const, def}));
         // Bot commands always consume the whole message (like local 'global'-scope commands),
         // so only surface them at the start of the editor - never mid-sentence.
         const bot: ComposerCommandItem[] = atStart
-            ? this.botCommands().filter(c => c.name.startsWith(q)).map(def => ({kind: 'bot' as const, def}))
+            ? this.botCommands()
+                  .filter(c => c.name.startsWith(q))
+                  .map(def => ({kind: 'bot' as const, def}))
             : [];
         return [...local, ...bot];
     });
@@ -214,33 +238,30 @@ export class ComposerComponent {
                 const gid = this.guildId();
                 if (!gid || this.overlayType() !== 'mention') return of<MentionCandidate[]>([]);
                 return this.guildService.searchMembers(gid, q).pipe(
-                    map(members => members
-                        .filter(m => m.profile)
-                        .map((m): MentionCandidate => ({
-                            kind: 'user',
-                            userId: m.userId,
-                            userName: m.profile!.userName,
-                            avatarUrl: m.profile?.avatarUrl,
-                            accentColor: m.profile?.accentColor,
-                            font: m.profile?.font,
-                        }))
+                    map(members =>
+                        members
+                            .filter(m => m.profile)
+                            .map((m): MentionCandidate => ({
+                                kind: 'user',
+                                userId: m.userId,
+                                userName: m.profile!.userName,
+                                avatarUrl: m.profile?.avatarUrl,
+                                accentColor: m.profile?.accentColor,
+                                font: m.profile?.font,
+                            })),
                     ),
-                    catchError(() => of<MentionCandidate[]>([]))
+                    catchError(() => of<MentionCandidate[]>([])),
                 );
             }),
         ),
-        {initialValue: [] as MentionCandidate[]}
+        {initialValue: [] as MentionCandidate[]},
     );
     private readonly staticGuildCandidates = computed<MentionCandidate[]>(() => {
         if (!this.guildId()) return [];
         const roleCandidates: MentionCandidate[] = this.guildRoles()
             .filter(r => r.type !== RoleType.Everyone)
             .map(r => ({kind: 'role', roleId: r.id, name: r.name, color: r.color}));
-        return [
-            {kind: 'everyone'},
-            {kind: 'here'},
-            ...roleCandidates,
-        ];
+        return [{kind: 'everyone'}, {kind: 'here'}, ...roleCandidates];
     });
     readonly filteredMentions = computed<MentionCandidate[]>(() => {
         if (this.overlayType() !== 'mention') return [];
@@ -263,9 +284,12 @@ export class ComposerComponent {
     readonly filteredWikiPages = computed<WikiPageSummaryDto[]>(() => {
         if (this.overlayType() !== 'wiki') return [];
         const q = this.query().toLowerCase().trim();
-        const matches = this.wikiPages().filter(p => !q
-            || p.title.toLowerCase().includes(q)
-            || (p.tags ?? []).some(t => t.toLowerCase().includes(q)));
+        const matches = this.wikiPages().filter(
+            p =>
+                !q ||
+                p.title.toLowerCase().includes(q) ||
+                (p.tags ?? []).some(t => t.toLowerCase().includes(q)),
+        );
         return [...matches]
             .sort((a, b) => Number(b.isPinned) - Number(a.isPinned) || a.title.localeCompare(b.title))
             .slice(0, 8);
@@ -300,8 +324,8 @@ export class ComposerComponent {
         this.savedEmojiOffset = getTextCursorOffset(editor);
         this.isEmpty.set(
             (editor.textContent ?? '').trim() === '' &&
-            !editor.querySelector('.mention-chip') &&
-            !editor.querySelector('img[data-emoji]')
+                !editor.querySelector('.mention-chip') &&
+                !editor.querySelector('img[data-emoji]'),
         );
 
         // Auto-replace :shortcode: on closing colon
@@ -563,7 +587,15 @@ export class ComposerComponent {
             editor.innerHTML = '';
             if (cmd.params.length === 0) {
                 const result = cmd.execute('');
-                if (result.text) this.message.emit({content: result.text, attachments: [], mentions: [], roleMentions: [], mentionsEveryone: false, mentionsHere: false});
+                if (result.text)
+                    this.message.emit({
+                        content: result.text,
+                        attachments: [],
+                        mentions: [],
+                        roleMentions: [],
+                        mentionsEveryone: false,
+                        mentionsHere: false,
+                    });
                 if (result.action) this.dispatchAction(result.action);
             } else {
                 this.activeCommand.set(cmd);
@@ -618,18 +650,21 @@ export class ComposerComponent {
             type: MessageType.Message,
         });
 
-        this.botCommandService.invokeCommandWithRetry(
-            guildId,
-            channelId,
-            {botUserId: cmd.botUserId, commandName: cmd.name, options},
-            cmds => this.botCommands.set(cmds),
-        ).pipe(
-            switchMap(() => this.botCommandService.awaitBotResponse(channelId, cmd.botUserId)),
-            takeUntilDestroyed(this.destroyRef),
-        ).subscribe({
-            next: () => this.messageStore.removeMessage(tempId),
-            error: () => this.messageStore.failMessage(tempId),
-        });
+        this.botCommandService
+            .invokeCommandWithRetry(
+                guildId,
+                channelId,
+                {botUserId: cmd.botUserId, commandName: cmd.name, options},
+                cmds => this.botCommands.set(cmds),
+            )
+            .pipe(
+                switchMap(() => this.botCommandService.awaitBotResponse(channelId, cmd.botUserId)),
+                takeUntilDestroyed(this.destroyRef),
+            )
+            .subscribe({
+                next: () => this.messageStore.removeMessage(tempId),
+                error: () => this.messageStore.failMessage(tempId),
+            });
     }
 
     /** Loads this guild's page listing, once, the first time somebody types `[[` in it. */
@@ -643,14 +678,17 @@ export class ComposerComponent {
         const guild = this.guildService.guilds().find(g => g.id === guildId);
         if (!guild || !guildHasFeature(guild, GuildFeature.Wiki)) return;
 
-        this.wikiService.getWiki(guildId).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-            next: wiki => {
-                // A second guild switch while this was in flight would otherwise land one guild's
-                // pages under another guild's name.
-                if (this.wikiPagesGuildId === guildId) this.wikiPages.set(wiki.pages);
-            },
-            error: () => this.wikiPages.set([]),
-        });
+        this.wikiService
+            .getWiki(guildId)
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe({
+                next: wiki => {
+                    // A second guild switch while this was in flight would otherwise land one guild's
+                    // pages under another guild's name.
+                    if (this.wikiPagesGuildId === guildId) this.wikiPages.set(wiki.pages);
+                },
+                error: () => this.wikiPages.set([]),
+            });
     }
 
     private refetchBotCommands(): void {
@@ -686,7 +724,14 @@ export class ComposerComponent {
     // ── Mention handling ──────────────────────────────────────────────────────
 
     onGifSelected(url: string): void {
-        this.message.emit({content: url, attachments: [], mentions: [], roleMentions: [], mentionsEveryone: false, mentionsHere: false});
+        this.message.emit({
+            content: url,
+            attachments: [],
+            mentions: [],
+            roleMentions: [],
+            mentionsEveryone: false,
+            mentionsHere: false,
+        });
     }
 
     // ── Command handling ──────────────────────────────────────────────────────
@@ -737,8 +782,9 @@ export class ComposerComponent {
         // A failed upload settles too, and sending here would silently post without it. Say so
         // rather than swallow the Enter - the failed chip is on screen with its own ✕.
         if (this.attachments.hasFailed()) {
-            this.toast.error(this.translate.instant(
-                this.attachments.failureKey() ?? 'COMPOSER.UPLOAD_FAILED'));
+            this.toast.error(
+                this.translate.instant(this.attachments.failureKey() ?? 'COMPOSER.UPLOAD_FAILED'),
+            );
             return;
         }
 
@@ -765,7 +811,15 @@ export class ComposerComponent {
         const mentionsHere = chips.some(c => c.dataset['here'] === 'true');
 
         if (text || attachments.length > 0) {
-            this.message.emit({content: text, attachments, inReplyTo: this.replyTo()?.id, mentions, roleMentions, mentionsEveryone, mentionsHere});
+            this.message.emit({
+                content: text,
+                attachments,
+                inReplyTo: this.replyTo()?.id,
+                mentions,
+                roleMentions,
+                mentionsEveryone,
+                mentionsHere,
+            });
         }
 
         editor.innerHTML = '';
@@ -843,13 +897,13 @@ export class ComposerComponent {
         }
     }
 
-    private dispatchAction(action: { name: string; payload?: unknown }): void {
+    private dispatchAction(action: {name: string; payload?: unknown}): void {
         if (action.name === 'open-gif-picker') {
             this.gifPickerRef()?.open();
             return;
         }
         if (action.name === 'open-gif-picker-with-search') {
-            const query = (action.payload as { query: string }).query;
+            const query = (action.payload as {query: string}).query;
             this.gifPickerRef()?.openWithSearch(query);
             return;
         }

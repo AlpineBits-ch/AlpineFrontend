@@ -30,7 +30,7 @@ export class NotificationSettingsComponent {
 
     protected readonly fileInput = viewChild<ElementRef<HTMLInputElement>>('fileInput');
     protected readonly uploadError = signal('');
-    protected readonly soundItems: { key: SoundKey; label: string; description: string }[] = [
+    protected readonly soundItems: {key: SoundKey; label: string; description: string}[] = [
         {key: 'incomingCall', label: 'Incoming Call', description: 'Plays when someone calls you.'},
         {key: 'outgoingCall', label: 'Outgoing Call', description: 'Plays while your call is connecting.'},
         {key: 'message', label: 'Messages', description: 'Plays when a new message arrives.'},

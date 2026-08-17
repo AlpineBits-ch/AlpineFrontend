@@ -106,7 +106,7 @@ export function resolveTransformScope(editor: Editor, op: AiTransformOp): WikiAi
 }
 
 /** The caret's own block when it holds text, otherwise the whole document. */
-function enclosingRange(editor: Editor): { from: number; to: number } {
+function enclosingRange(editor: Editor): {from: number; to: number} {
     const {$from} = editor.state.selection;
     if ($from.depth > 0 && $from.parent.isTextblock && $from.parent.textContent.trim()) {
         return {from: $from.start(), to: $from.end()};
@@ -128,10 +128,7 @@ function enclosingRange(editor: Editor): { from: number; to: number } {
  * a question nobody happened to word the same way is exactly the case where a strict filter
  * answers "the wiki does not cover that" about a page that was sitting right there.
  */
-export function rankAskSources(
-    candidates: readonly AiAskSource[],
-    question: string,
-): AiAskSource[] {
+export function rankAskSources(candidates: readonly AiAskSource[], question: string): AiAskSource[] {
     const terms = question
         .toLowerCase()
         .split(/[^\p{L}\p{N}]+/u)

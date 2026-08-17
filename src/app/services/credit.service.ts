@@ -24,9 +24,7 @@ export const CREDIT_ERROR_CODES = {
     insufficientBalance: 'insufficient_balance',
 } as const;
 
-export type CreditErrorCode =
-    | typeof CREDIT_ERROR_CODES[keyof typeof CREDIT_ERROR_CODES]
-    | (string & {});
+export type CreditErrorCode = (typeof CREDIT_ERROR_CODES)[keyof typeof CREDIT_ERROR_CODES] | (string & {});
 
 /** A credit refusal from the plain `{code, message}` body. Not `describeBillingError`: that one reads `detail`. */
 export interface CreditFailure {
@@ -71,7 +69,7 @@ function jsonBody(raw: unknown): JsonBody | null {
             return null;
         }
     }
-    return raw && typeof raw === 'object' ? raw as JsonBody : null;
+    return raw && typeof raw === 'object' ? (raw as JsonBody) : null;
 }
 
 function firstString(...candidates: unknown[]): string | null {
@@ -89,25 +87,28 @@ export class CreditService {
 
     /** The balance, the lots and the dates those lapse. 404 means credit does not exist here. */
     getWallet(): Observable<CreditWalletDto> {
-        return this.http.get<CreditWalletDto>(
-            `${this.apiConfig.baseUrl()}/api/v1/billing/credit/me`);
+        return this.http.get<CreditWalletDto>(`${this.apiConfig.baseUrl()}/api/v1/billing/credit/me`);
     }
 
     /** The ledger in the server's own plain language, newest first. */
     getLedger(limit = 25): Observable<CreditLedgerDto> {
         return this.http.get<CreditLedgerDto>(
-            `${this.apiConfig.baseUrl()}/api/v1/billing/credit/me/ledger?limit=${limit}`);
+            `${this.apiConfig.baseUrl()}/api/v1/billing/credit/me/ledger?limit=${limit}`,
+        );
     }
 
     /** What the balance can buy, in points and in cash, with the balance beside it. */
     getCatalogue(): Observable<CreditCatalogueDto> {
         return this.http.get<CreditCatalogueDto>(
-            `${this.apiConfig.baseUrl()}/api/v1/billing/credit/me/catalogue`);
+            `${this.apiConfig.baseUrl()}/api/v1/billing/credit/me/catalogue`,
+        );
     }
 
     /** Spends credit on one SKU. Touches no card: the response's `startsAt` is what the caller must render. */
     purchase(request: PurchaseCreditRequest): Observable<CreditPurchaseDto> {
         return this.http.post<CreditPurchaseDto>(
-            `${this.apiConfig.baseUrl()}/api/v1/billing/credit/me/purchases`, request);
+            `${this.apiConfig.baseUrl()}/api/v1/billing/credit/me/purchases`,
+            request,
+        );
     }
 }

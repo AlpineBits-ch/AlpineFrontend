@@ -43,10 +43,18 @@ export class ComposerAttachmentsService implements OnDestroy {
 
         const ceiling = this.entitlements.uploadCeilingBytes(this.guildId());
         if (ceiling !== null && file.size > ceiling) {
-            this.files.update(prev => [...prev, {
-                file, previewUrl, name: file.name, isImage,
-                isUploading: false, uploadFailed: true, errorKey: 'COMPOSER.UPLOAD_TOO_LARGE',
-            }]);
+            this.files.update(prev => [
+                ...prev,
+                {
+                    file,
+                    previewUrl,
+                    name: file.name,
+                    isImage,
+                    isUploading: false,
+                    uploadFailed: true,
+                    errorKey: 'COMPOSER.UPLOAD_TOO_LARGE',
+                },
+            ]);
             return;
         }
 
@@ -56,21 +64,23 @@ export class ComposerAttachmentsService implements OnDestroy {
             name: file.name,
             isImage,
             isUploading: true,
-            uploadFailed: false
+            uploadFailed: false,
         };
         this.files.update(prev => [...prev, entry]);
 
         this.fileService.uploadFile(file).subscribe({
-            next: (response) => {
+            next: response => {
                 this.files.update(prev =>
-                    prev.map(f => f === entry ? {...f, uploadedId: response.id, isUploading: false} : f)
+                    prev.map(f => (f === entry ? {...f, uploadedId: response.id, isUploading: false} : f)),
                 );
                 this.releaseIfSettled();
             },
             error: (err: unknown) => {
                 const errorKey = uploadFailureKey(err);
                 this.files.update(prev =>
-                    prev.map(f => f === entry ? {...f, isUploading: false, uploadFailed: true, errorKey} : f)
+                    prev.map(f =>
+                        f === entry ? {...f, isUploading: false, uploadFailed: true, errorKey} : f,
+                    ),
                 );
                 this.releaseIfSettled();
             },
@@ -128,7 +138,9 @@ export class ComposerAttachmentsService implements OnDestroy {
 
     /** Returns IDs of successfully uploaded files, revokes all preview URLs, and clears the list. */
     flushAndClear(): string[] {
-        const ids = this.files().filter(f => f.uploadedId).map(f => f.uploadedId!);
+        const ids = this.files()
+            .filter(f => f.uploadedId)
+            .map(f => f.uploadedId!);
         for (const f of this.files()) URL.revokeObjectURL(f.previewUrl);
         this.files.set([]);
         return ids;

@@ -66,17 +66,19 @@ function channel(id: string, guildId = 'g1'): ChannelDto {
         isAgeRestricted: false,
         isPrivate: false,
         categoryId: undefined,
-        permissions: [{
-            id: `perm_${id}`,
-            createdAt: new Date(ISO),
-            updatedAt: new Date(ISO),
-            channelId: id,
-            roleId: 'r1',
-            memberId: undefined,
-            categoryId: undefined,
-            allowPermissions: 'ViewChannel',
-            denyPermissions: 'None',
-        }],
+        permissions: [
+            {
+                id: `perm_${id}`,
+                createdAt: new Date(ISO),
+                updatedAt: new Date(ISO),
+                channelId: id,
+                roleId: 'r1',
+                memberId: undefined,
+                categoryId: undefined,
+                allowPermissions: 'ViewChannel',
+                denyPermissions: 'None',
+            },
+        ],
         position: 0,
         slowModeSeconds: 0,
         parentChannelId: undefined,
@@ -181,10 +183,13 @@ describe('guild layout cache date revival', () => {
     it('leaves an unparseable date alone rather than producing an Invalid Date', () => {
         const store = installStorage();
         store.set(ACTIVE_SLOT_KEY, 'slot-a');
-        store.set(guildLayoutCacheKey('slot-a'), JSON.stringify({
-            v: 1,
-            guilds: [{...guild('g1'), createdAt: 'not a date'}],
-        }));
+        store.set(
+            guildLayoutCacheKey('slot-a'),
+            JSON.stringify({
+                v: 1,
+                guilds: [{...guild('g1'), createdAt: 'not a date'}],
+            }),
+        );
 
         const [g] = readGuildLayoutCache();
         expect(g.createdAt).toBe('not a date' as unknown as Date);
@@ -271,10 +276,13 @@ describe('guild layout cache failing soft', () => {
     it('drops entries that are missing the arrays every consumer indexes into', () => {
         const store = installStorage();
         store.set(ACTIVE_SLOT_KEY, 'slot-a');
-        store.set(guildLayoutCacheKey('slot-a'), JSON.stringify({
-            v: 1,
-            guilds: [{id: 'broken', name: 'Broken'}, guild('ok')],
-        }));
+        store.set(
+            guildLayoutCacheKey('slot-a'),
+            JSON.stringify({
+                v: 1,
+                guilds: [{id: 'broken', name: 'Broken'}, guild('ok')],
+            }),
+        );
 
         expect(readGuildLayoutCache().map(g => g.id)).toEqual(['ok']);
     });
@@ -311,7 +319,11 @@ describe('guild layout cache size cap', () => {
 
         // Each guild carries enough channels to make a hundred of them exceed any sane cap.
         const fat = Array.from({length: 200}, (_, i) =>
-            guild(`g${i}`, Array.from({length: 60}, (_, c) => channel(`c${i}_${c}`, `g${i}`))));
+            guild(
+                `g${i}`,
+                Array.from({length: 60}, (_, c) => channel(`c${i}_${c}`, `g${i}`)),
+            ),
+        );
 
         writeGuildLayoutCache(fat);
 

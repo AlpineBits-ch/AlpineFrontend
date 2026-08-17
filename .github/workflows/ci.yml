@@ -139,7 +139,7 @@ jobs:
       - name: Build the WASM crypto engine
         env:
           RUSTC_WRAPPER: sccache
-          SCCACHE_GHA_ENABLED: "true"
+          SCCACHE_GHA_ENABLED: 'true'
         run: bun run build:wasm
 
       - name: Assert the WASM engine landed where Angular will copy it
@@ -282,7 +282,7 @@ jobs:
       - name: Build the workspace
         env:
           RUSTC_WRAPPER: sccache
-          SCCACHE_GHA_ENABLED: "true"
+          SCCACHE_GHA_ENABLED: 'true'
         run: cargo build --workspace --all-targets
 
       # ── Why this step and the next one are two steps ────────────────────────────────────────
@@ -362,7 +362,7 @@ jobs:
       - name: Test Venta (src-tauri)
         env:
           RUSTC_WRAPPER: sccache
-          SCCACHE_GHA_ENABLED: "true"
+          SCCACHE_GHA_ENABLED: 'true'
         run: cargo test -p Venta
 
       # The crypto engine, in its own package since the workspace split. Pure RustCrypto, no
@@ -374,7 +374,7 @@ jobs:
       - name: Test venta-crypto (native)
         env:
           RUSTC_WRAPPER: sccache
-          SCCACHE_GHA_ENABLED: "true"
+          SCCACHE_GHA_ENABLED: 'true'
         run: |
           set -o pipefail
           cargo test -p venta-crypto 2>&1 | tee crypto-tests.log
@@ -445,7 +445,7 @@ jobs:
       - name: Voice pipeline end-to-end
         env:
           RUSTC_WRAPPER: sccache
-          SCCACHE_GHA_ENABLED: "true"
+          SCCACHE_GHA_ENABLED: 'true'
         run: |
           set -o pipefail
           # No --nocapture: it interleaves the pipeline's own eprintln output into the result
@@ -488,7 +488,7 @@ jobs:
       - name: Screen publish end-to-end
         env:
           RUSTC_WRAPPER: sccache
-          SCCACHE_GHA_ENABLED: "true"
+          SCCACHE_GHA_ENABLED: 'true'
         run: |
           set -o pipefail
           # `-p Venta --lib`: see the note in the voice step. These tests did not move either.
@@ -585,7 +585,7 @@ jobs:
       - name: Check venta-crypto compiles for wasm32
         env:
           RUSTC_WRAPPER: sccache
-          SCCACHE_GHA_ENABLED: "true"
+          SCCACHE_GHA_ENABLED: 'true'
         run: cargo check -p venta-crypto --target wasm32-unknown-unknown --no-default-features
 
       # wasm-pack, not a hand-rolled `CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER=...`. `wasm-pack
@@ -648,7 +648,7 @@ jobs:
       - name: Golden-vector parity, native vs wasm
         env:
           RUSTC_WRAPPER: sccache
-          SCCACHE_GHA_ENABLED: "true"
+          SCCACHE_GHA_ENABLED: 'true'
         run: |
           set -o pipefail
           wasm-pack test --node crates/venta-crypto 2>&1 | tee wasm-tests.log

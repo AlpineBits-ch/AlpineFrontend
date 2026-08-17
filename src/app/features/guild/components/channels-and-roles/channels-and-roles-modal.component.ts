@@ -1,4 +1,13 @@
-import {ChangeDetectionStrategy, Component, computed, effect, inject, model, signal, untracked} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    effect,
+    inject,
+    model,
+    signal,
+    untracked,
+} from '@angular/core';
 import {Dialog} from 'primeng/dialog';
 import {Button} from 'primeng/button';
 import {PrimeTemplate} from 'primeng/api';
@@ -42,7 +51,9 @@ export class ChannelsAndRolesModalComponent {
         return map;
     });
 
-    protected readonly sortedPrompts = computed(() => [...this.prompts()].sort((a, b) => a.position - b.position));
+    protected readonly sortedPrompts = computed(() =>
+        [...this.prompts()].sort((a, b) => a.position - b.position),
+    );
 
     protected readonly dirty = computed(() => {
         const original = this.originalAnswers();
@@ -74,7 +85,7 @@ export class ChannelsAndRolesModalComponent {
     }
 
     protected selectedFor(promptId: string | undefined): string[] {
-        return promptId ? this.answers()[promptId] ?? [] : [];
+        return promptId ? (this.answers()[promptId] ?? []) : [];
     }
 
     protected isMissing(promptId: string | undefined): boolean {

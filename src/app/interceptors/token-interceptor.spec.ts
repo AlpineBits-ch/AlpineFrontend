@@ -15,7 +15,7 @@ function setup() {
         getAccessToken: vi.fn(() => 'old-token') as ReturnType<typeof vi.fn>,
         // Present because the interceptor will not spend a refresh token it does not have.
         getRefreshToken: vi.fn(() => 'refresh-token') as ReturnType<typeof vi.fn>,
-         
+
         refreshToken: vi.fn() as any,
         logOut: vi.fn(),
     };
@@ -99,19 +99,16 @@ it('does NOT call softLogout for concurrent 401s while refresh is in-flight', as
 
     // Three simultaneous requests
     http.get(API).subscribe({
-        next: () => {
-        }, error: () => {
-        }
+        next: () => {},
+        error: () => {},
     });
     http.get(API).subscribe({
-        next: () => {
-        }, error: () => {
-        }
+        next: () => {},
+        error: () => {},
     });
     http.get(API).subscribe({
-        next: () => {
-        }, error: () => {
-        }
+        next: () => {},
+        error: () => {},
     });
 
     // All three return 401
@@ -153,19 +150,16 @@ it('calls softLogout exactly once when the refresh fails, regardless of concurre
     oAuth.refreshToken.mockReturnValue(new Promise<void>((_, r) => (reject = r)));
 
     http.get(API).subscribe({
-        next: () => {
-        }, error: () => {
-        }
+        next: () => {},
+        error: () => {},
     });
     http.get(API).subscribe({
-        next: () => {
-        }, error: () => {
-        }
+        next: () => {},
+        error: () => {},
     });
     http.get(API).subscribe({
-        next: () => {
-        }, error: () => {
-        }
+        next: () => {},
+        error: () => {},
     });
 
     flush401(ctrl);
@@ -190,9 +184,8 @@ it('calls softLogout when the retry request itself returns 401', async () => {
     oAuth.refreshToken.mockReturnValue(new Promise<void>(r => (resolve = r)));
 
     http.get(API).subscribe({
-        next: () => {
-        }, error: () => {
-        }
+        next: () => {},
+        error: () => {},
     });
 
     flush401(ctrl);
@@ -242,13 +235,14 @@ it('does not try to refresh when a status call answers 401', async () => {
     const {http, ctrl, oAuth} = setup();
 
     http.get('https://api.venta.gg/api/v1/status/summary').subscribe({
-        next: () => {
-        }, error: () => {
-        }
+        next: () => {},
+        error: () => {},
     });
 
-    ctrl.expectOne('https://api.venta.gg/api/v1/status/summary')
-        .flush('Unauthorized', {status: 401, statusText: 'Unauthorized'});
+    ctrl.expectOne('https://api.venta.gg/api/v1/status/summary').flush('Unauthorized', {
+        status: 401,
+        statusText: 'Unauthorized',
+    });
     await tick();
 
     // The endpoint answers when auth does not, so a 401 here must not burn the refresh token.
@@ -261,9 +255,8 @@ it('does not post a refresh it has no token for, and ends the session instead', 
     oAuth.getRefreshToken.mockReturnValue(null);
 
     http.get(API).subscribe({
-        next: () => {
-        }, error: () => {
-        }
+        next: () => {},
+        error: () => {},
     });
 
     ctrl.expectOne(API).flush('Unauthorized', {status: 401, statusText: 'Unauthorized'});

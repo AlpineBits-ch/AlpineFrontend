@@ -36,8 +36,7 @@ const PAST_ALL_RETRIES = SESSION_WAIT_DELAYS_MS.reduce((a, b) => a + b, 0) + 200
  * of the tracks it was constructed with matters to any assertion here.
  */
 class FakeMediaStream {
-    constructor(readonly tracks: MediaStreamTrack[] = []) {
-    }
+    constructor(readonly tracks: MediaStreamTrack[] = []) {}
 
     getVideoTracks(): MediaStreamTrack[] {
         return this.tracks.filter(t => t.kind !== 'audio');
@@ -66,7 +65,10 @@ function localTrack(settings: {height?: number; frameRate?: number} = {height: 7
             if (typeof c.frameRate === 'number') current.frameRate = c.frameRate;
         }),
         stop: vi.fn(),
-    } as unknown as MediaStreamTrack & {applyConstraints: ReturnType<typeof vi.fn>; stop: ReturnType<typeof vi.fn>};
+    } as unknown as MediaStreamTrack & {
+        applyConstraints: ReturnType<typeof vi.fn>;
+        stop: ReturnType<typeof vi.fn>;
+    };
 }
 
 /**
@@ -82,11 +84,14 @@ function remoteTrack(options: {
     stats?: Record<string, unknown>[];
     attached?: boolean;
 }): RemoteMediaTrack {
-    const media = options.attached === false ? undefined : {
-        mediaStreamTrack: {kind: 'video', id: options.sid} as MediaStreamTrack,
-        getRTCStatsReport: async () =>
-            new Map((options.stats ?? []).map((s, i) => [`s${i}`, s])) as unknown as RTCStatsReport,
-    };
+    const media =
+        options.attached === false
+            ? undefined
+            : {
+                  mediaStreamTrack: {kind: 'video', id: options.sid} as MediaStreamTrack,
+                  getRTCStatsReport: async () =>
+                      new Map((options.stats ?? []).map((s, i) => [`s${i}`, s])) as unknown as RTCStatsReport,
+              };
     return {
         trackSid: options.sid,
         identity: `${options.userId}#view`,
@@ -95,20 +100,31 @@ function remoteTrack(options: {
     } as unknown as RemoteMediaTrack;
 }
 
-function setup(options: {
-    connection?: (callId: string, primary?: boolean, tag?: string) => Observable<unknown>;
-    publish?: () => Observable<unknown>;
-} = {}) {
+function setup(
+    options: {
+        connection?: (callId: string, primary?: boolean, tag?: string) => Observable<unknown>;
+        publish?: () => Observable<unknown>;
+    } = {},
+) {
     // Every observable the service subscribes to at connect. An incomplete set throws before any
     // test body runs.
     const ws: Record<string, Subject<unknown>> = {};
     for (const name of [
-        'participantJoinedObservable', 'trackPublishedObservable', 'trackClosedObservable',
-        'muteChangedObservable', 'speakingChangedObservable', 'cameraChangedObservable',
-        'screenShareStartedObservable', 'screenShareStoppedObservable',
-        'callParticipantLeftObservable', 'callAloneObservable', 'callEndedObservable',
-        'voiceSnapshotObservable', 'voiceResyncObservable',
-    ]) ws[name] = new Subject();
+        'participantJoinedObservable',
+        'trackPublishedObservable',
+        'trackClosedObservable',
+        'muteChangedObservable',
+        'speakingChangedObservable',
+        'cameraChangedObservable',
+        'screenShareStartedObservable',
+        'screenShareStoppedObservable',
+        'callParticipantLeftObservable',
+        'callAloneObservable',
+        'callEndedObservable',
+        'voiceSnapshotObservable',
+        'voiceResyncObservable',
+    ])
+        ws[name] = new Subject();
 
     const session = signal<{
         callId: string;
@@ -127,26 +143,45 @@ function setup(options: {
     // Named rather than inline, because the teardown a departure runs is what the cross-room tests
     // below assert on: it is keyed on user and not on room, so the only question is whether it ran.
     const sessionParticipantLeft = vi.fn();
-    const getCallSnapshot = vi.fn(() => of({
-        roomId: 'call-1', kind: 'call', guildId: null,
-        instanceId: 'inst-1', version: 1, participants: [],
-    }));
+    const getCallSnapshot = vi.fn(() =>
+        of({
+            roomId: 'call-1',
+            kind: 'call',
+            guildId: null,
+            instanceId: 'inst-1',
+            version: 1,
+            participants: [],
+        }),
+    );
     // Answers differently per (primary, tag), because the whole point of the two fetches is that
     // they are two: one identity each. A stub that answered identically would let a service that
     // reused one connection for both pass.
-    const connection = vi.fn(options.connection ?? ((_id: string, primary = true, tag?: string) => of({
-        backend: 'livekit',
-        url: primary ? 'wss://sfu.test/primary' : 'wss://sfu.test/view',
-        token: primary ? 'tok-primary' : 'tok-view',
-        room: 'call-1',
-        identity: primary ? 'me' : `me#${tag}`,
-        mediaSessionId: primary ? 'me' : `me#${tag}`,
-        expiresAt: '',
-        canPublishAudio: true, canPublishVideo: true,
-    })));
-    const publish = vi.fn(options.publish ?? (() => of({
-        identity: 'me#view', rung: null, height: null, framerate: null, maxLayer: null,
-    })));
+    const connection = vi.fn(
+        options.connection ??
+            ((_id: string, primary = true, tag?: string) =>
+                of({
+                    backend: 'livekit',
+                    url: primary ? 'wss://sfu.test/primary' : 'wss://sfu.test/view',
+                    token: primary ? 'tok-primary' : 'tok-view',
+                    room: 'call-1',
+                    identity: primary ? 'me' : `me#${tag}`,
+                    mediaSessionId: primary ? 'me' : `me#${tag}`,
+                    expiresAt: '',
+                    canPublishAudio: true,
+                    canPublishVideo: true,
+                })),
+    );
+    const publish = vi.fn(
+        options.publish ??
+            (() =>
+                of({
+                    identity: 'me#view',
+                    rung: null,
+                    height: null,
+                    framerate: null,
+                    maxLayer: null,
+                })),
+    );
     const unpublish = vi.fn(() => of(undefined));
     const declareVideo = vi.fn(() => of({changed: true, maxLayer: null}));
 
@@ -214,9 +249,13 @@ function setup(options: {
             {
                 provide: VoiceWebsocketService,
                 useValue: {
-                    ...ws, connectionState: () => 2, invokeVoiceHeartbeat: vi.fn(),
-                    invokeMuteChange: vi.fn(), invokeCameraChanged: vi.fn(),
-                    invokeScreenShareStarted: vi.fn(), invokeScreenShareStopped: vi.fn(),
+                    ...ws,
+                    connectionState: () => 2,
+                    invokeVoiceHeartbeat: vi.fn(),
+                    invokeMuteChange: vi.fn(),
+                    invokeCameraChanged: vi.fn(),
+                    invokeScreenShareStarted: vi.fn(),
+                    invokeScreenShareStopped: vi.fn(),
                 },
             },
             {provide: AudioSettingsService, useValue: {buildVideoConstraint: vi.fn(async () => true)}},
@@ -249,8 +288,22 @@ function setup(options: {
 
     const service = TestBed.inject(CallWebRtcService);
     return {
-        service, ws, session, livekit, remoteTracks, publications, engineSubscribe, engineVolume, getCallSnapshot,
-        connection, publish, unpublish, declareVideo, toggleCamera, toggleScreenShare, engineStart,
+        service,
+        ws,
+        session,
+        livekit,
+        remoteTracks,
+        publications,
+        engineSubscribe,
+        engineVolume,
+        getCallSnapshot,
+        connection,
+        publish,
+        unpublish,
+        declareVideo,
+        toggleCamera,
+        toggleScreenShare,
+        engineStart,
         sessionParticipantLeft,
         resolveStart: (s: VoiceSession) => resolveStart(s),
     };
@@ -260,9 +313,11 @@ const tick = (ms = 0) => new Promise<void>(r => setTimeout(r, ms));
 
 /** Reaches the private subscribe directly: the announcement paths that call it are already covered. */
 function subscribeAudio(service: CallWebRtcService, userId: string): Promise<void> {
-    return (service as unknown as {
-        subscribeToTrack(u: string, s: string, t: string, k: 'audio'): Promise<void>;
-    }).subscribeToTrack(userId, 'them', 'audio', 'audio');
+    return (
+        service as unknown as {
+            subscribeToTrack(u: string, s: string, t: string, k: 'audio'): Promise<void>;
+        }
+    ).subscribeToTrack(userId, 'them', 'audio', 'audio');
 }
 
 /**
@@ -284,10 +339,13 @@ describe('joining the room', () => {
 
         // Each goes where it belongs, and nowhere else.
         expect(engineStart).toHaveBeenCalledWith(
-            {kind: 'call', callId: 'call-1'}, expect.any(String), expect.any(String), 'dev-1',
-            {url: 'wss://sfu.test/primary', token: 'tok-primary'});
-        expect(livekit.connect)
-            .toHaveBeenCalledWith({url: 'wss://sfu.test/view', token: 'tok-view'});
+            {kind: 'call', callId: 'call-1'},
+            expect.any(String),
+            expect.any(String),
+            'dev-1',
+            {url: 'wss://sfu.test/primary', token: 'tok-primary'},
+        );
+        expect(livekit.connect).toHaveBeenCalledWith({url: 'wss://sfu.test/view', token: 'tok-view'});
     });
 
     /**
@@ -300,11 +358,18 @@ describe('joining the room', () => {
         // each grant is read off the connection that would exercise it: the microphone publishes on
         // the primary, the camera on this room.
         const {service} = setup({
-            connection: (_id, primary = true) => of({
-                backend: 'livekit', url: 'wss://sfu.test', token: 'tok', room: 'call-1',
-                identity: 'me', mediaSessionId: 'me', expiresAt: '',
-                canPublishAudio: primary, canPublishVideo: !primary,
-            }),
+            connection: (_id, primary = true) =>
+                of({
+                    backend: 'livekit',
+                    url: 'wss://sfu.test',
+                    token: 'tok',
+                    room: 'call-1',
+                    identity: 'me',
+                    mediaSessionId: 'me',
+                    expiresAt: '',
+                    canPublishAudio: primary,
+                    canPublishVideo: !primary,
+                }),
         });
         await tick();
 
@@ -329,7 +394,11 @@ describe('subscribing before the publication exists', () => {
         await pending;
 
         expect(engineSubscribe).toHaveBeenCalledWith(
-            expect.objectContaining({slot: 'slot-1'}), 'them', 'them', 'audio');
+            expect.objectContaining({slot: 'slot-1'}),
+            'them',
+            'them',
+            'audio',
+        );
     });
 
     /**
@@ -337,18 +406,22 @@ describe('subscribing before the publication exists', () => {
      * subscribe twice - and released if the session never arrives, so a later announcement or the
      * next snapshot still can. Leaving it consumed is what made one bad moment permanent.
      */
-    it('releases the dedupe guard when the session never arrives', async () => {
-        const {service, engineSubscribe, resolveStart} = setup();
+    it(
+        'releases the dedupe guard when the session never arrives',
+        async () => {
+            const {service, engineSubscribe, resolveStart} = setup();
 
-        await subscribeAudio(service, 'them');
-        expect(engineSubscribe).not.toHaveBeenCalled();
+            await subscribeAudio(service, 'them');
+            expect(engineSubscribe).not.toHaveBeenCalled();
 
-        // The publication turns up late; the retry must not be skipped as a duplicate.
-        resolveStart({slot: 'slot-1', mediaSessionId: '', trackName: 'audio'} as VoiceSession);
-        await subscribeAudio(service, 'them');
+            // The publication turns up late; the retry must not be skipped as a duplicate.
+            resolveStart({slot: 'slot-1', mediaSessionId: '', trackName: 'audio'} as VoiceSession);
+            await subscribeAudio(service, 'them');
 
-        expect(engineSubscribe).toHaveBeenCalledTimes(1);
-    }, PAST_ALL_RETRIES + 5_000);
+            expect(engineSubscribe).toHaveBeenCalledTimes(1);
+        },
+        PAST_ALL_RETRIES + 5_000,
+    );
 
     /** Once it has actually worked, a repeat announcement is a duplicate and must not resubscribe. */
     it('does not subscribe twice for the same participant', async () => {
@@ -391,9 +464,11 @@ describe('subscribing before the publication exists', () => {
  */
 describe('screen-share audio', () => {
     function subscribeScreenAudio(service: CallWebRtcService, userId: string, trackName: string) {
-        return (service as unknown as {
-            subscribeToTrack(u: string, s: string, t: string, k: 'screenAudio'): Promise<void>;
-        }).subscribeToTrack(userId, 'them', trackName, 'screenAudio');
+        return (
+            service as unknown as {
+                subscribeToTrack(u: string, s: string, t: string, k: 'screenAudio'): Promise<void>;
+            }
+        ).subscribeToTrack(userId, 'them', trackName, 'screenAudio');
     }
 
     /**
@@ -407,7 +482,11 @@ describe('screen-share audio', () => {
         await subscribeScreenAudio(service, 'them', 'screen-audio-abc');
 
         expect(engineSubscribe).toHaveBeenCalledWith(
-            expect.objectContaining({slot: 'slot-1'}), 'screen-audio-abc', 'them', 'screen-audio-abc');
+            expect.objectContaining({slot: 'slot-1'}),
+            'screen-audio-abc',
+            'them',
+            'screen-audio-abc',
+        );
     });
 
     it('mutes one participant stream without touching their voice', async () => {
@@ -450,9 +529,14 @@ describe('screen-share audio', () => {
  */
 describe('reconciling remote video', () => {
     function want(service: CallWebRtcService, name: string, userId: string, shareId: string | null) {
-        (service as unknown as {
-            wantVideo(n: string, w: {userId: string; kind: 'video' | 'screen'; shareId: string | null}): void;
-        }).wantVideo(name, {userId, kind: shareId ? 'screen' : 'video', shareId});
+        (
+            service as unknown as {
+                wantVideo(
+                    n: string,
+                    w: {userId: string; kind: 'video' | 'screen'; shareId: string | null},
+                ): void;
+            }
+        ).wantVideo(name, {userId, kind: shareId ? 'screen' : 'video', shareId});
     }
 
     /**
@@ -477,7 +561,9 @@ describe('reconciling remote video', () => {
     it('hands a subscribed camera to the session, and takes it back when the track goes', async () => {
         const {service, remoteTracks} = setup();
         await tick();
-        const onCameraChanged = TestBed.inject(CallSessionService).onCameraChanged as unknown as ReturnType<typeof vi.fn>;
+        const onCameraChanged = TestBed.inject(CallSessionService).onCameraChanged as unknown as ReturnType<
+            typeof vi.fn
+        >;
 
         want(service, 'video', 'them', null);
         remoteTracks.set(new Map([['t1', remoteTrack({sid: 't1', name: 'video', userId: 'them'})]]));
@@ -502,10 +588,12 @@ describe('reconciling remote video', () => {
         await tick();
 
         want(service, 'screen-share-a', 'them', 'share-a');
-        remoteTracks.set(new Map([
-            ['t1', remoteTrack({sid: 't1', name: 'screen-share-a', userId: 'them'})],
-            ['t2', remoteTrack({sid: 't2', name: 'screen-share-b', userId: 'them'})],
-        ]));
+        remoteTracks.set(
+            new Map([
+                ['t1', remoteTrack({sid: 't1', name: 'screen-share-a', userId: 'them'})],
+                ['t2', remoteTrack({sid: 't2', name: 'screen-share-b', userId: 'them'})],
+            ]),
+        );
         TestBed.tick();
 
         // Only the one nothing asked for.
@@ -535,9 +623,7 @@ describe('reconciling remote video', () => {
         livekit.setSubscribed.mockClear();
 
         // Guild voice pulls a camera onto the shared room.
-        remoteTracks.set(new Map([
-            ['t9', remoteTrack({sid: 't9', name: 'camera', userId: 'them'})],
-        ]));
+        remoteTracks.set(new Map([['t9', remoteTrack({sid: 't9', name: 'camera', userId: 'them'})]]));
         TestBed.tick();
 
         expect(livekit.setSubscribed).not.toHaveBeenCalledWith('t9', false);
@@ -554,9 +640,9 @@ describe('reconciling remote video', () => {
         await tick();
         const callSession = TestBed.inject(CallSessionService);
 
-        remoteTracks.set(new Map([
-            ['t1', remoteTrack({sid: 't1', name: 'screen-audio-abc', userId: 'them'})],
-        ]));
+        remoteTracks.set(
+            new Map([['t1', remoteTrack({sid: 't1', name: 'screen-audio-abc', userId: 'them'})]]),
+        );
         TestBed.tick();
 
         // Read through `describeTrack`, which tests `screen-audio-` before `screen-`: backwards,
@@ -572,9 +658,9 @@ describe('reconciling remote video', () => {
         const callSession = TestBed.inject(CallSessionService);
 
         want(service, 'video', 'them', null);
-        remoteTracks.set(new Map([
-            ['t1', remoteTrack({sid: 't1', name: 'video', userId: 'them', attached: false})],
-        ]));
+        remoteTracks.set(
+            new Map([['t1', remoteTrack({sid: 't1', name: 'video', userId: 'them', attached: false})]]),
+        );
         TestBed.tick();
 
         expect(callSession.onCameraChanged).not.toHaveBeenCalled();
@@ -587,9 +673,11 @@ describe('reconciling remote video', () => {
  */
 describe('declaring a local publication', () => {
     function publishCamera(service: CallWebRtcService, track: MediaStreamTrack) {
-        return (service as unknown as {
-            publishVideoTrack(s: MediaStream): Promise<void>;
-        }).publishVideoTrack(new FakeMediaStream([track]) as unknown as MediaStream);
+        return (
+            service as unknown as {
+                publishVideoTrack(s: MediaStream): Promise<void>;
+            }
+        ).publishVideoTrack(new FakeMediaStream([track]) as unknown as MediaStream);
     }
 
     it('declares the track name and what the capture is actually sending', async () => {
@@ -599,7 +687,8 @@ describe('declaring a local publication', () => {
         await publishCamera(service, localTrack({height: 1080, frameRate: 60}));
 
         expect(publish).toHaveBeenCalledWith('call-1', {
-            trackNames: ['video'], video: {height: 1080, framerate: 60},
+            trackNames: ['video'],
+            video: {height: 1080, framerate: 60},
         });
     });
 
@@ -608,7 +697,7 @@ describe('declaring a local publication', () => {
      * publishing, so announcing a track the SFU is not yet carrying gives every peer a tile with
      * nothing behind it.
      */
-    it('publishes on the room before declaring it, under the roster\'s name', async () => {
+    it("publishes on the room before declaring it, under the roster's name", async () => {
         const track = localTrack();
         const {service, livekit, publish} = setup();
         await tick();
@@ -616,8 +705,9 @@ describe('declaring a local publication', () => {
         await publishCamera(service, track);
 
         expect(livekit.publishTrack).toHaveBeenCalledWith(track, 'video');
-        expect(livekit.publishTrack.mock.invocationCallOrder[0])
-            .toBeLessThan(publish.mock.invocationCallOrder[0]);
+        expect(livekit.publishTrack.mock.invocationCallOrder[0]).toBeLessThan(
+            publish.mock.invocationCallOrder[0],
+        );
     });
 
     /** A share is a webview publication on the DM surface, unlike the guild one. */
@@ -626,14 +716,19 @@ describe('declaring a local publication', () => {
         const {service, livekit, publish} = setup();
         await tick();
 
-        await (service as unknown as {
-            publishScreenTrack(id: string, s: MediaStream): Promise<void>;
-        }).publishScreenTrack('share-1', new FakeMediaStream([track]) as unknown as MediaStream);
+        await (
+            service as unknown as {
+                publishScreenTrack(id: string, s: MediaStream): Promise<void>;
+            }
+        ).publishScreenTrack('share-1', new FakeMediaStream([track]) as unknown as MediaStream);
 
         expect(livekit.publishTrack).toHaveBeenCalledWith(track, 'screen-share-1');
-        expect(publish).toHaveBeenCalledWith('call-1', expect.objectContaining({
-            trackNames: ['screen-share-1'],
-        }));
+        expect(publish).toHaveBeenCalledWith(
+            'call-1',
+            expect.objectContaining({
+                trackNames: ['screen-share-1'],
+            }),
+        );
     });
 
     /**
@@ -643,10 +738,15 @@ describe('declaring a local publication', () => {
     it('re-encodes to the granted rung and declares it again', async () => {
         const track = localTrack({height: 1080, frameRate: 60});
         const {service, declareVideo} = setup({
-            publish: () => of({
-                identity: 'me#view', rung: '720p30', height: 720, framerate: 30, maxLayer: null,
-                degradations: [{key: 'voice.video', reason: 'guild_plan_limit'}],
-            }),
+            publish: () =>
+                of({
+                    identity: 'me#view',
+                    rung: '720p30',
+                    height: 720,
+                    framerate: 30,
+                    maxLayer: null,
+                    degradations: [{key: 'voice.video', reason: 'guild_plan_limit'}],
+                }),
         });
         await tick();
 
@@ -665,14 +765,23 @@ describe('declaring a local publication', () => {
     it('stops the local track and puts the toggle back on a refusal', async () => {
         const track = localTrack();
         const {service, toggleCamera} = setup({
-            publish: () => throwError(() => new HttpErrorResponse({
-                status: 403,
-                error: {
-                    code: 'guild_plan_limit', key: 'voice.video',
-                    reason: 'guild_plan_limit', boundBy: 'guild', remedy: 'upgrade_guild',
-                    actorCanRemedy: false, subject: {kind: 'guild', id: 'guild-1'}, retryable: false,
-                },
-            })),
+            publish: () =>
+                throwError(
+                    () =>
+                        new HttpErrorResponse({
+                            status: 403,
+                            error: {
+                                code: 'guild_plan_limit',
+                                key: 'voice.video',
+                                reason: 'guild_plan_limit',
+                                boundBy: 'guild',
+                                remedy: 'upgrade_guild',
+                                actorCanRemedy: false,
+                                subject: {kind: 'guild', id: 'guild-1'},
+                                retryable: false,
+                            },
+                        }),
+                ),
         });
         await tick();
 
@@ -680,8 +789,9 @@ describe('declaring a local publication', () => {
 
         expect(track.stop).toHaveBeenCalled();
         expect(toggleCamera).toHaveBeenCalled();
-        expect(TestBed.inject(ToastService).error)
-            .toHaveBeenCalledWith('ENTITLEMENT.REASON.GUILD_PLAN_LIMIT');
+        expect(TestBed.inject(ToastService).error).toHaveBeenCalledWith(
+            'ENTITLEMENT.REASON.GUILD_PLAN_LIMIT',
+        );
     });
 
     /** Peers drop a closed track rather than waiting on media that has ended. */
@@ -710,7 +820,9 @@ describe('the heartbeat', () => {
         (service as unknown as {sendHeartbeat(): void}).sendHeartbeat();
 
         expect(TestBed.inject(VoiceWebsocketService).invokeVoiceHeartbeat).toHaveBeenCalledWith(
-            'call-1', expect.objectContaining({mediaSessionId: '', audioTrackName: 'audio'}));
+            'call-1',
+            expect.objectContaining({mediaSessionId: '', audioTrackName: 'audio'}),
+        );
     });
 
     it('says nothing is published when there is no publication', async () => {
@@ -720,7 +832,9 @@ describe('the heartbeat', () => {
         (service as unknown as {sendHeartbeat(): void}).sendHeartbeat();
 
         expect(TestBed.inject(VoiceWebsocketService).invokeVoiceHeartbeat).toHaveBeenCalledWith(
-            'call-1', expect.objectContaining({mediaSessionId: null, audioTrackName: null}));
+            'call-1',
+            expect.objectContaining({mediaSessionId: null, audioTrackName: null}),
+        );
     });
 });
 
@@ -732,9 +846,11 @@ describe('the heartbeat', () => {
  */
 describe('stream volume', () => {
     function subscribeScreenAudio(service: CallWebRtcService, userId: string, trackName: string) {
-        return (service as unknown as {
-            subscribeToTrack(u: string, s: string, t: string, k: 'screenAudio'): Promise<void>;
-        }).subscribeToTrack(userId, 'them', trackName, 'screenAudio');
+        return (
+            service as unknown as {
+                subscribeToTrack(u: string, s: string, t: string, k: 'screenAudio'): Promise<void>;
+            }
+        ).subscribeToTrack(userId, 'them', trackName, 'screenAudio');
     }
 
     it('defaults to full volume for a stream nothing has touched', () => {
@@ -837,19 +953,29 @@ describe('a room the server will not open', () => {
     /** An entitlement refusal is its own sentence, naming which side bound. */
     it('names an entitlement refusal', async () => {
         setup({
-            connection: () => throwError(() => new HttpErrorResponse({
-                status: 403,
-                error: {
-                    code: 'guild_plan_limit', key: 'voice.max_participants',
-                    reason: 'guild_plan_limit', boundBy: 'guild', remedy: 'upgrade_guild',
-                    actorCanRemedy: false, subject: {kind: 'guild', id: 'guild-1'}, retryable: false,
-                },
-            })),
+            connection: () =>
+                throwError(
+                    () =>
+                        new HttpErrorResponse({
+                            status: 403,
+                            error: {
+                                code: 'guild_plan_limit',
+                                key: 'voice.max_participants',
+                                reason: 'guild_plan_limit',
+                                boundBy: 'guild',
+                                remedy: 'upgrade_guild',
+                                actorCanRemedy: false,
+                                subject: {kind: 'guild', id: 'guild-1'},
+                                retryable: false,
+                            },
+                        }),
+                ),
         });
         await tick();
 
-        expect(TestBed.inject(ToastService).error)
-            .toHaveBeenCalledWith('ENTITLEMENT.REASON.GUILD_PLAN_LIMIT');
+        expect(TestBed.inject(ToastService).error).toHaveBeenCalledWith(
+            'ENTITLEMENT.REASON.GUILD_PLAN_LIMIT',
+        );
     });
 });
 
@@ -872,9 +998,19 @@ describe('inbound screen-share fps', () => {
     it('reports a remote share fps keyed by share id once a stat carries one', async () => {
         const {service, remoteTracks} = setup();
         await tick();
-        remoteTracks.set(new Map([['t1', remoteTrack({
-            sid: 't1', name: 'screen-share-1', userId: 'them', stats: [inboundRtpVideo('m1', 24)],
-        })]]));
+        remoteTracks.set(
+            new Map([
+                [
+                    't1',
+                    remoteTrack({
+                        sid: 't1',
+                        name: 'screen-share-1',
+                        userId: 'them',
+                        stats: [inboundRtpVideo('m1', 24)],
+                    }),
+                ],
+            ]),
+        );
 
         await poll(service);
 
@@ -884,14 +1020,28 @@ describe('inbound screen-share fps', () => {
     it('gives two concurrent remote shares (different users) two independent fps numbers', async () => {
         const {service, remoteTracks} = setup();
         await tick();
-        remoteTracks.set(new Map([
-            ['t1', remoteTrack({
-                sid: 't1', name: 'screen-share-a', userId: 'them-a', stats: [inboundRtpVideo('m1', 30)],
-            })],
-            ['t2', remoteTrack({
-                sid: 't2', name: 'screen-share-b', userId: 'them-b', stats: [inboundRtpVideo('m2', 12)],
-            })],
-        ]));
+        remoteTracks.set(
+            new Map([
+                [
+                    't1',
+                    remoteTrack({
+                        sid: 't1',
+                        name: 'screen-share-a',
+                        userId: 'them-a',
+                        stats: [inboundRtpVideo('m1', 30)],
+                    }),
+                ],
+                [
+                    't2',
+                    remoteTrack({
+                        sid: 't2',
+                        name: 'screen-share-b',
+                        userId: 'them-b',
+                        stats: [inboundRtpVideo('m2', 12)],
+                    }),
+                ],
+            ]),
+        );
 
         await poll(service);
 
@@ -906,14 +1056,28 @@ describe('inbound screen-share fps', () => {
     it('gives two shares from the SAME remote user two independent fps numbers', async () => {
         const {service, remoteTracks} = setup();
         await tick();
-        remoteTracks.set(new Map([
-            ['t1', remoteTrack({
-                sid: 't1', name: 'screen-share-old', userId: 'them', stats: [inboundRtpVideo('m1', 5)],
-            })],
-            ['t2', remoteTrack({
-                sid: 't2', name: 'screen-share-new', userId: 'them', stats: [inboundRtpVideo('m2', 30)],
-            })],
-        ]));
+        remoteTracks.set(
+            new Map([
+                [
+                    't1',
+                    remoteTrack({
+                        sid: 't1',
+                        name: 'screen-share-old',
+                        userId: 'them',
+                        stats: [inboundRtpVideo('m1', 5)],
+                    }),
+                ],
+                [
+                    't2',
+                    remoteTrack({
+                        sid: 't2',
+                        name: 'screen-share-new',
+                        userId: 'them',
+                        stats: [inboundRtpVideo('m2', 30)],
+                    }),
+                ],
+            ]),
+        );
 
         await poll(service);
 
@@ -923,9 +1087,19 @@ describe('inbound screen-share fps', () => {
     it('leaves a share out rather than reporting 0 while its stat has not arrived yet', async () => {
         const {service, remoteTracks} = setup();
         await tick();
-        remoteTracks.set(new Map([['t1', remoteTrack({
-            sid: 't1', name: 'screen-share-1', userId: 'them', stats: [inboundRtpVideo('m1', undefined)],
-        })]]));
+        remoteTracks.set(
+            new Map([
+                [
+                    't1',
+                    remoteTrack({
+                        sid: 't1',
+                        name: 'screen-share-1',
+                        userId: 'them',
+                        stats: [inboundRtpVideo('m1', undefined)],
+                    }),
+                ],
+            ]),
+        );
 
         await poll(service);
 
@@ -935,9 +1109,19 @@ describe('inbound screen-share fps', () => {
     it('clears a share that stops appearing in the report, rather than keeping its last number', async () => {
         const {service, remoteTracks} = setup();
         await tick();
-        remoteTracks.set(new Map([['t1', remoteTrack({
-            sid: 't1', name: 'screen-share-1', userId: 'them', stats: [inboundRtpVideo('m1', 24)],
-        })]]));
+        remoteTracks.set(
+            new Map([
+                [
+                    't1',
+                    remoteTrack({
+                        sid: 't1',
+                        name: 'screen-share-1',
+                        userId: 'them',
+                        stats: [inboundRtpVideo('m1', 24)],
+                    }),
+                ],
+            ]),
+        );
         await poll(service);
         expect(service.inboundVideoFpsByShare()).toEqual({'share-1': 24});
 
@@ -975,21 +1159,32 @@ describe('the inspected inbound bitrate', () => {
         bytes: number[],
     ): {poll: () => Promise<void>} {
         let index = 0;
-        remoteTracks.set(new Map([['t1', {
-            trackSid: 't1',
-            identity: 'user_a#view',
-            userId: 'user_a',
-            publication: {
-                trackSid: 't1',
-                trackName: 'screen-share_a',
-                track: {
-                    mediaStreamTrack: {kind: 'video'},
-                    getRTCStatsReport: async () => new Map([
-                        ['s1', inboundRtpBytes('m1', bytes[Math.min(index++, bytes.length - 1)])],
-                    ]),
-                },
-            },
-        } as unknown as RemoteMediaTrack]]));
+        remoteTracks.set(
+            new Map([
+                [
+                    't1',
+                    {
+                        trackSid: 't1',
+                        identity: 'user_a#view',
+                        userId: 'user_a',
+                        publication: {
+                            trackSid: 't1',
+                            trackName: 'screen-share_a',
+                            track: {
+                                mediaStreamTrack: {kind: 'video'},
+                                getRTCStatsReport: async () =>
+                                    new Map([
+                                        [
+                                            's1',
+                                            inboundRtpBytes('m1', bytes[Math.min(index++, bytes.length - 1)]),
+                                        ],
+                                    ]),
+                            },
+                        },
+                    } as unknown as RemoteMediaTrack,
+                ],
+            ]),
+        );
         s.inspected.set({shareId: 'share_a', userId: 'user_a'});
         return {poll: () => internals(s).pollStats()};
     }

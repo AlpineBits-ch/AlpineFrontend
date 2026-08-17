@@ -41,8 +41,13 @@ interface StrandedDevice {
         @if (unavailable()) {
             <div class="flex items-center gap-2" data-testid="coverage-unavailable">
                 <span class="text-xs text-text-muted">{{ 'DEVICE_ACCESS.UNAVAILABLE' | translate }}</span>
-                <p-button (onClick)="retry()" [label]="'DEVICE_ACCESS.RETRY' | translate"
-                          [text]="true" severity="secondary" size="small"/>
+                <p-button
+                    (onClick)="retry()"
+                    [label]="'DEVICE_ACCESS.RETRY' | translate"
+                    [text]="true"
+                    severity="secondary"
+                    size="small"
+                />
             </div>
         }
     `,
@@ -61,7 +66,8 @@ export class MlsCoverageDevicesComponent {
     private readonly coverage = inject(MlsCoverageService);
 
     protected readonly unavailable = computed(
-        () => this.coverage.coverageOf(this.contextId())?.unavailable === true);
+        () => this.coverage.coverageOf(this.contextId())?.unavailable === true,
+    );
 
     protected readonly devices = computed<StrandedDevice[]>(() => {
         const view = this.coverage.coverageOf(this.contextId());

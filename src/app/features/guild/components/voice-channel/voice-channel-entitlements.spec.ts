@@ -75,7 +75,9 @@ function render(room: RoomState = {}) {
                     participantsWithAudio: signal(new Set<string>()),
                     rtcState: signal('connected'),
                     localState: signal({
-                        isMuted: false, isDeafened: false, isCameraOn: false,
+                        isMuted: false,
+                        isDeafened: false,
+                        isCameraOn: false,
                         isScreenSharing: room.isScreenSharing ?? false,
                     }),
                     localVideoStream: signal(null),
@@ -113,7 +115,10 @@ function render(room: RoomState = {}) {
                     resumePreview: () => void 0,
                 },
             },
-            {provide: NavigationService, useValue: {mobileNavOpen: signal(false), workspace: signal({type: 'home'})}},
+            {
+                provide: NavigationService,
+                useValue: {mobileNavOpen: signal(false), workspace: signal({type: 'home'})},
+            },
             {provide: GuildService, useValue: {getOwnMember: () => of(null)}},
             {provide: OwnMemberRevisionService, useValue: {revision: signal(0)}},
             {provide: GuildVoiceService, useValue: {}},
@@ -121,8 +126,11 @@ function render(room: RoomState = {}) {
             {
                 provide: ShareWatchService,
                 useValue: {
-                    setWatching: vi.fn(), refresh: vi.fn(), clear: vi.fn(),
-                    viewerCount: () => 0, viewersOf: () => [],
+                    setWatching: vi.fn(),
+                    refresh: vi.fn(),
+                    clear: vi.fn(),
+                    viewerCount: () => 0,
+                    viewersOf: () => [],
                 },
             },
         ],
@@ -180,10 +188,12 @@ describe('a room the plan clamped', () => {
     /** A user-bound ceiling is the reader's own account, not whichever server they are standing in. */
     it('sends a user-bound remedy to the account billing page instead', () => {
         const {fixture, settingsUi} = render({
-            notices: [notice({
-                ctaKey: 'ENTITLEMENT.CTA.UPGRADE_ACCOUNT',
-                subject: {kind: 'user', id: 'user-1'},
-            })],
+            notices: [
+                notice({
+                    ctaKey: 'ENTITLEMENT.CTA.UPGRADE_ACCOUNT',
+                    subject: {kind: 'user', id: 'user-1'},
+                }),
+            ],
         });
 
         (find(fixture, 'voice-limit-cta') as HTMLButtonElement).click();
@@ -207,8 +217,7 @@ describe('an audio-only room', () => {
     it('states it as a standing fact and disables the video controls', () => {
         const {fixture} = render({audioOnly: true, videoBlock: 'audio_only'});
 
-        expect(find(fixture, 'audio-only-badge')!.textContent!.trim())
-            .toBe('VOICE.DEGRADED.AUDIO_ONLY');
+        expect(find(fixture, 'audio-only-badge')!.textContent!.trim()).toBe('VOICE.DEGRADED.AUDIO_ONLY');
         expect((find(fixture, 'camera-toggle') as HTMLButtonElement).disabled).toBe(true);
         expect((find(fixture, 'share-toggle') as HTMLButtonElement).disabled).toBe(true);
     });
@@ -229,8 +238,9 @@ describe('a room out of publisher slots', () => {
         });
 
         expect(find(fixture, 'publisher-slots')!.textContent!.trim()).toBe('2/2');
-        expect((find(fixture, 'share-toggle') as HTMLButtonElement).getAttribute('title'))
-            .toBe('VOICE.DEGRADED.PUBLISHERS_FULL');
+        expect((find(fixture, 'share-toggle') as HTMLButtonElement).getAttribute('title')).toBe(
+            'VOICE.DEGRADED.PUBLISHERS_FULL',
+        );
         // Not an audio-only room: the plan carries video, the room is simply busy right now.
         expect(find(fixture, 'audio-only-badge')).toBeNull();
     });
@@ -238,7 +248,6 @@ describe('a room out of publisher slots', () => {
     it('draws the room denominator in the header when the room has one', () => {
         const {fixture} = render({participantSlots: {used: 3, max: 10}});
 
-        expect(find(fixture, 'participant-slots')!.textContent)
-            .toContain('CALL.PARTICIPANT_COUNT_OF');
+        expect(find(fixture, 'participant-slots')!.textContent).toContain('CALL.PARTICIPANT_COUNT_OF');
     });
 });

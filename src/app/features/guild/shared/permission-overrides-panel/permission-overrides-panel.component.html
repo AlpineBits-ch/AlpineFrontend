@@ -5,18 +5,18 @@
 } @else {
     <!-- Height tracks the viewport, not a fixed px value, to avoid nesting the permission list's scroll inside the modal's own scroll. -->
     <div class="flex gap-4 h-[clamp(22rem,58vh,40rem)]">
-
         <div class="w-44 shrink-0 flex flex-col gap-2">
             <div class="flex items-center justify-between px-1">
                 <p class="text-[0.625rem] font-semibold text-text-muted uppercase tracking-widest">
                     {{ (kind() === 'role' ? 'PERM_OVERRIDE.ROLES' : 'PERM_OVERRIDE.MEMBERS') | translate }}
                 </p>
                 <button
-                        (click)="toggleAddPopover($event)"
-                        [attr.aria-label]="'PERM_OVERRIDE.ADD' | translate"
-                        [pTooltip]="'PERM_OVERRIDE.ADD' | translate"
-                        class="w-5 h-5 rounded-full flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-hover transition-colors cursor-pointer border-0"
-                        tooltipPosition="top">
+                    (click)="toggleAddPopover($event)"
+                    [attr.aria-label]="'PERM_OVERRIDE.ADD' | translate"
+                    [pTooltip]="'PERM_OVERRIDE.ADD' | translate"
+                    class="w-5 h-5 rounded-full flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-hover transition-colors cursor-pointer border-0"
+                    tooltipPosition="top"
+                >
                     <i class="pi pi-plus text-[0.625rem]"></i>
                 </button>
             </div>
@@ -27,16 +27,20 @@
                         <div class="my-1 border-t border-border-subtle"></div>
                     }
                     <button
-                            (click)="select(entry.id)"
-                            [ngClass]="selected()?.id === entry.id ? 'bg-hover text-text-primary' : 'text-text-secondary hover:bg-hover/60 hover:text-text-primary'"
-                            class="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors cursor-pointer border-0 text-left">
+                        (click)="select(entry.id)"
+                        [ngClass]="
+                            selected()?.id === entry.id
+                                ? 'bg-hover text-text-primary'
+                                : 'text-text-secondary hover:bg-hover/60 hover:text-text-primary'
+                        "
+                        class="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors cursor-pointer border-0 text-left"
+                    >
                         @if (kind() === 'role') {
                             <span [style.background]="entry.color || 'var(--color-brand)'" class="w-2.5 h-2.5 rounded-full shrink-0"></span>
                         } @else {
                             <div class="w-5 h-5 rounded-full bg-card shrink-0 flex items-center justify-center overflow-hidden">
                                 @if (avatarUrl(entry); as url) {
-                                    <img (error)="onAvatarError(url)" [alt]="entry.name" [src]="url"
-                                         class="w-full h-full object-cover"/>
+                                    <img (error)="onAvatarError(url)" [alt]="entry.name" [src]="url" class="w-full h-full object-cover" />
                                 } @else {
                                     <span class="text-[0.5625rem] font-semibold text-text-muted">{{ initial(entry.name) }}</span>
                                 }
@@ -44,9 +48,11 @@
                         }
                         <span class="truncate">{{ entry.name }}</span>
                         @if (entry.dirty) {
-                            <span [pTooltip]="'PERM_OVERRIDE.UNSAVED' | translate"
-                                  class="ml-auto w-1.5 h-1.5 rounded-full bg-connecting shrink-0"
-                                  tooltipPosition="right"></span>
+                            <span
+                                [pTooltip]="'PERM_OVERRIDE.UNSAVED' | translate"
+                                class="ml-auto w-1.5 h-1.5 rounded-full bg-connecting shrink-0"
+                                tooltipPosition="right"
+                            ></span>
                         }
                     </button>
                 }
@@ -64,8 +70,7 @@
                     } @else {
                         <div class="w-7 h-7 rounded-full bg-card shrink-0 flex items-center justify-center overflow-hidden">
                             @if (avatarUrl(entry); as url) {
-                                <img (error)="onAvatarError(url)" [alt]="entry.name" [src]="url"
-                                     class="w-full h-full object-cover"/>
+                                <img (error)="onAvatarError(url)" [alt]="entry.name" [src]="url" class="w-full h-full object-cover" />
                             } @else {
                                 <span class="text-xs font-semibold text-text-muted">{{ initial(entry.name) }}</span>
                             }
@@ -73,19 +78,33 @@
                     }
                     <span class="text-sm font-semibold text-text-primary flex-1 truncate">{{ entry.name }}</span>
                     @if (entry.hasOverride) {
-                        <p-button (onClick)="delete.emit(entry.id)" [pTooltip]="'PERM_OVERRIDE.REMOVE' | translate"
-                                  [text]="true" icon="pi pi-trash" severity="danger" size="small" tooltipPosition="top"/>
+                        <p-button
+                            (onClick)="delete.emit(entry.id)"
+                            [pTooltip]="'PERM_OVERRIDE.REMOVE' | translate"
+                            [text]="true"
+                            icon="pi pi-trash"
+                            severity="danger"
+                            size="small"
+                            tooltipPosition="top"
+                        />
                     }
                     @if (entry.dirty) {
-                        <p-button (onClick)="save.emit(entry.id)" [label]="'COMMON.SAVE' | translate"
-                                  [loading]="entry.saving" icon="pi pi-save" severity="primary" size="small"/>
+                        <p-button
+                            (onClick)="save.emit(entry.id)"
+                            [label]="'COMMON.SAVE' | translate"
+                            [loading]="entry.saving"
+                            icon="pi pi-save"
+                            severity="primary"
+                            size="small"
+                        />
                     }
                 </div>
                 <div class="flex-1 min-h-0 overflow-y-auto thin-scrollbar px-4 py-3">
                     <app-permission-override-editor
-                            (overrideChange)="change.emit({id: entry.id, override: $event})"
-                            [channelType]="channelType()"
-                            [override]="entry.override"/>
+                        (overrideChange)="change.emit({id: entry.id, override: $event})"
+                        [channelType]="channelType()"
+                        [override]="entry.override"
+                    />
                 </div>
             } @else {
                 <div class="flex-1 flex items-center justify-center px-4">
@@ -100,15 +119,15 @@
     <div class="max-h-64 overflow-y-auto thin-scrollbar py-1">
         @for (entry of addable(); track entry.id) {
             <button
-                    (click)="onAdd(entry.id)"
-                    class="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-hover transition-colors cursor-pointer border-0 text-left">
+                (click)="onAdd(entry.id)"
+                class="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-hover transition-colors cursor-pointer border-0 text-left"
+            >
                 @if (kind() === 'role') {
                     <span [style.background]="entry.color || 'var(--color-brand)'" class="w-2.5 h-2.5 rounded-full shrink-0"></span>
                 } @else {
                     <div class="w-6 h-6 rounded-full bg-card shrink-0 flex items-center justify-center overflow-hidden">
                         @if (avatarUrl(entry); as url) {
-                            <img (error)="onAvatarError(url)" [alt]="entry.name" [src]="url"
-                                 class="w-full h-full object-cover"/>
+                            <img (error)="onAvatarError(url)" [alt]="entry.name" [src]="url" class="w-full h-full object-cover" />
                         } @else {
                             <span class="text-[0.625rem] font-semibold text-text-muted">{{ initial(entry.name) }}</span>
                         }

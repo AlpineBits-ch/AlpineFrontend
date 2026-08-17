@@ -47,9 +47,11 @@ export class VoiceRingCardComponent {
      * the old one.</p>
      */
     protected name(incoming: IncomingRing): string {
-        return this.profileService.getCachedByUserId(incoming.ring.inviterId)?.userName
-            ?? incoming.ring.inviterName
-            ?? '';
+        return (
+            this.profileService.getCachedByUserId(incoming.ring.inviterId)?.userName ??
+            incoming.ring.inviterName ??
+            ''
+        );
     }
 
     protected initial(incoming: IncomingRing): string {

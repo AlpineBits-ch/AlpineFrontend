@@ -4,17 +4,15 @@ import {ChannelDto, ChannelType, GuildDto} from '../../dtos/response/guild.dto';
 import {GuildFeature, guildHasFeature, hasHouseholdModule} from '../guild/guild-features';
 import {AccountRegistryService, BOOTSTRAP_SLOT_ID} from '../../services/account-registry.service';
 
-export type WorkspaceContext =
-    | { type: 'dms' }
-    | { type: 'server'; guild: GuildDto };
+export type WorkspaceContext = {type: 'dms'} | {type: 'server'; guild: GuildDto};
 
 export type MainView =
-    | { type: 'home' }
-    | { type: 'conversation'; conversation: ConversationDto }
-    | { type: 'channel'; channel: ChannelDto }
-    | { type: 'wiki'; guildId: string }
+    | {type: 'home'}
+    | {type: 'conversation'; conversation: ConversationDto}
+    | {type: 'channel'; channel: ChannelDto}
+    | {type: 'wiki'; guildId: string}
     /** The household digest - one guild-scoped view over six modules, not a channel. */
-    | { type: 'house'; guildId: string };
+    | {type: 'house'; guildId: string};
 
 interface PersistedNav {
     kind: 'dms-home' | 'dms-conversation' | 'server-channel' | 'server-wiki' | 'server-house';
@@ -70,8 +68,12 @@ export class NavigationService {
             const raw = localStorage.getItem(this.navKey());
             if (!raw) return false;
             const state = JSON.parse(raw) as PersistedNav;
-            if (state.kind !== 'server-channel' && state.kind !== 'server-wiki'
-                && state.kind !== 'server-house') return false;
+            if (
+                state.kind !== 'server-channel' &&
+                state.kind !== 'server-wiki' &&
+                state.kind !== 'server-house'
+            )
+                return false;
             const guild = guilds.find(g => g.id === state.guildId);
             if (!guild) return false;
             this.workspace.set({type: 'server', guild});
@@ -83,9 +85,10 @@ export class NavigationService {
             } else if (state.kind === 'server-house' && hasHouseholdModule(guild)) {
                 this.mainView.set({type: 'house', guildId: guild.id});
             } else {
-                const ch = guild.channels.find(c => c.id === state.channelId)
-                    ?? guild.channels.find(c => c.type === ChannelType.Text)
-                    ?? guild.channels[0];
+                const ch =
+                    guild.channels.find(c => c.id === state.channelId) ??
+                    guild.channels.find(c => c.type === ChannelType.Text) ??
+                    guild.channels[0];
                 if (ch) this.mainView.set({type: 'channel', channel: ch});
             }
             this.pushHistory();
@@ -326,9 +329,10 @@ export class NavigationService {
         const view = this.mainView();
         let state: PersistedNav;
         if (ws.type === 'dms') {
-            state = view.type === 'conversation'
-                ? {kind: 'dms-conversation', conversationId: view.conversation.id}
-                : {kind: 'dms-home'};
+            state =
+                view.type === 'conversation'
+                    ? {kind: 'dms-conversation', conversationId: view.conversation.id}
+                    : {kind: 'dms-home'};
         } else {
             if (view.type === 'wiki') {
                 state = {kind: 'server-wiki', guildId: ws.guild.id};
@@ -342,7 +346,6 @@ export class NavigationService {
         }
         try {
             localStorage.setItem(this.navKey(), JSON.stringify(state));
-        } catch {
-        }
+        } catch {}
     }
 }

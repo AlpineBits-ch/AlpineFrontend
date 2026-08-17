@@ -1,9 +1,10 @@
 @if (open()) {
     <div (click)="closed.emit()" class="fixed inset-0 z-50 bg-black/60">
-        <div (click)="$event.stopPropagation()" (keydown)="onKeydown($event)"
-             class="mx-auto mt-[10vh] flex max-h-[76vh] w-full max-w-2xl flex-col overflow-hidden
-                    rounded-2xl border border-border bg-card shadow-2xl">
-
+        <div
+            (click)="$event.stopPropagation()"
+            (keydown)="onKeydown($event)"
+            class="mx-auto mt-[10vh] flex max-h-[76vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl"
+        >
             <!-- Header -->
             <div class="flex shrink-0 items-center gap-2.5 border-b border-white/[0.08] px-5 py-3">
                 <i class="pi pi-sparkles text-sm text-brand-dim"></i>
@@ -11,15 +12,15 @@
                     {{ 'WIKI.AI.ASK.TITLE' | translate }}
                 </span>
                 @if (turns().length) {
-                    <button (click)="clear()"
-                            class="cursor-pointer border-0 bg-transparent p-0 text-[0.6875rem]
-                                   text-white/35 hover:text-white/70" type="button">
+                    <button
+                        (click)="clear()"
+                        class="cursor-pointer border-0 bg-transparent p-0 text-[0.6875rem] text-white/35 hover:text-white/70"
+                        type="button"
+                    >
                         {{ 'WIKI.AI.ASK.NEW_CONVERSATION' | translate }}
                     </button>
                 }
-                <kbd class="rounded border border-border px-1.5 py-0.5 text-[0.625rem] text-white/30">
-                    esc
-                </kbd>
+                <kbd class="rounded border border-border px-1.5 py-0.5 text-[0.625rem] text-white/30"> esc </kbd>
             </div>
 
             @if (connecting() || !ai.available()) {
@@ -28,15 +29,13 @@
                     <p class="mb-4 text-[0.8125rem] text-white/55">
                         {{ 'WIKI.AI.CONNECT_INTRO' | translate }}
                     </p>
-                    <app-ai-connect-form (connected)="onConnected()" [showBilling]="false"/>
+                    <app-ai-connect-form (connected)="onConnected()" [showBilling]="false" />
                 </div>
             } @else {
-
                 <!-- What the answer is allowed to see. Stated before the first question, not as a
                      footnote after a confident answer built on four pages. -->
                 @if (!sourcesComplete()) {
-                    <div class="flex shrink-0 items-center gap-2.5 border-b border-white/[0.08]
-                                bg-white/[0.02] px-5 py-2.5">
+                    <div class="flex shrink-0 items-center gap-2.5 border-b border-white/[0.08] bg-white/[0.02] px-5 py-2.5">
                         @if (sourcesLoading()) {
                             <i class="pi pi-spin pi-spinner text-[0.75rem] text-white/30"></i>
                             <span class="flex-1 text-[0.75rem] text-white/45">
@@ -47,20 +46,24 @@
                             <span class="flex-1 text-[0.75rem] text-white/45">
                                 {{ 'WIKI.AI.ASK.PARTIAL_INDEX' | translate: {n: sources().length} }}
                             </span>
-                            <button (click)="warmRequested.emit()"
-                                    class="shrink-0 cursor-pointer rounded border-0 bg-white/[0.06]
-                                           px-2 py-1 text-[0.75rem] text-white/70 hover:bg-hover"
-                                    type="button">{{ 'COMMON.RETRY' | translate }}
+                            <button
+                                (click)="warmRequested.emit()"
+                                class="shrink-0 cursor-pointer rounded border-0 bg-white/[0.06] px-2 py-1 text-[0.75rem] text-white/70 hover:bg-hover"
+                                type="button"
+                            >
+                                {{ 'COMMON.RETRY' | translate }}
                             </button>
                         } @else {
                             <i class="pi pi-clock text-[0.75rem] text-white/30"></i>
                             <span class="flex-1 text-[0.75rem] text-white/45">
                                 {{ 'WIKI.AI.ASK.NEEDS_INDEX' | translate }}
                             </span>
-                            <button (click)="warmRequested.emit()"
-                                    class="shrink-0 cursor-pointer rounded border-0 bg-white/[0.06]
-                                           px-2 py-1 text-[0.75rem] text-white/70 hover:bg-hover"
-                                    type="button">{{ 'WIKI.AI.ASK.LOAD_PAGES' | translate }}
+                            <button
+                                (click)="warmRequested.emit()"
+                                class="shrink-0 cursor-pointer rounded border-0 bg-white/[0.06] px-2 py-1 text-[0.75rem] text-white/70 hover:bg-hover"
+                                type="button"
+                            >
+                                {{ 'WIKI.AI.ASK.LOAD_PAGES' | translate }}
                             </button>
                         }
                     </div>
@@ -70,15 +73,13 @@
                 <div class="flex-1 overflow-y-auto thin-scrollbar">
                     @for (turn of turns(); track $index; let last = $last) {
                         <div class="border-b border-white/[0.06] px-5 py-4 last:border-b-0">
-                            <p class="mb-2 flex items-start gap-2 text-[0.875rem] font-medium
-                                      text-white/85">
+                            <p class="mb-2 flex items-start gap-2 text-[0.875rem] font-medium text-white/85">
                                 <i class="pi pi-comment mt-1 text-[0.6875rem] text-white/25"></i>
                                 <span class="flex-1">{{ turn.question }}</span>
                             </p>
 
                             @if (turn.error) {
-                                <p class="rounded-lg border border-offline/30 bg-offline/[0.08]
-                                          px-3 py-2 text-[0.8125rem] text-white/70">
+                                <p class="rounded-lg border border-offline/30 bg-offline/[0.08] px-3 py-2 text-[0.8125rem] text-white/70">
                                     {{ turn.error }}
                                 </p>
                             }
@@ -86,13 +87,13 @@
                             <!-- Rendered markdown, not raw text: answers come back with headings,
                                  lists and emphasis. `wiki-content` is the same class page bodies
                                  use, so an answer is typeset like the pages it is quoting. -->
-                            <div (click)="onAnswerClick($event)"
-                                 [innerHTML]="renderAnswer(turn.answer)"
-                                 class="wiki-content pl-5 text-[0.8125rem] leading-relaxed
-                                        text-white/70"></div>
+                            <div
+                                (click)="onAnswerClick($event)"
+                                [innerHTML]="renderAnswer(turn.answer)"
+                                class="wiki-content pl-5 text-[0.8125rem] leading-relaxed text-white/70"
+                            ></div>
                             @if (running() && last) {
-                                <span class="ml-5 inline-block h-3 w-1.5 animate-pulse
-                                             bg-brand-dim align-middle"></span>
+                                <span class="ml-5 inline-block h-3 w-1.5 animate-pulse bg-brand-dim align-middle"></span>
                             }
 
                             @if (turn.answer && !running()) {
@@ -120,31 +121,31 @@
 
                 <!-- Question -->
                 <div class="flex shrink-0 items-center gap-3 border-t border-white/[0.08] px-5 py-3">
-                    <input #questionInput
-                           (keydown.enter)="send()"
-                           [(ngModel)]="question"
-                           [disabled]="blocked()"
-                           [placeholder]="(blocked()
-                                ? 'WIKI.AI.ASK.PLACEHOLDER_WAITING'
-                                : 'WIKI.AI.ASK.PLACEHOLDER') | translate"
-                           class="flex-1 border-0 bg-transparent text-[0.9375rem] text-white/85
-                                  outline-none placeholder-white/25 disabled:cursor-not-allowed"/>
+                    <input
+                        #questionInput
+                        (keydown.enter)="send()"
+                        [(ngModel)]="question"
+                        [disabled]="blocked()"
+                        [placeholder]="(blocked() ? 'WIKI.AI.ASK.PLACEHOLDER_WAITING' : 'WIKI.AI.ASK.PLACEHOLDER') | translate"
+                        class="flex-1 border-0 bg-transparent text-[0.9375rem] text-white/85 outline-none placeholder-white/25 disabled:cursor-not-allowed"
+                    />
                     @if (running()) {
-                        <button (click)="stop()"
-                                class="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md
-                                       border-0 bg-white/[0.06] px-2.5 py-1.5 text-[0.75rem]
-                                       text-white/70 hover:bg-hover" type="button">
+                        <button
+                            (click)="stop()"
+                            class="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md border-0 bg-white/[0.06] px-2.5 py-1.5 text-[0.75rem] text-white/70 hover:bg-hover"
+                            type="button"
+                        >
                             <i class="pi pi-stop text-[0.625rem]"></i>
                             {{ 'WIKI.AI.STOP' | translate }}
                         </button>
                     } @else {
-                        <button (click)="send()"
-                                [disabled]="blocked()"
-                                class="flex h-7 w-7 shrink-0 cursor-pointer items-center
-                                       justify-center rounded-md border-0 bg-brand/20 text-brand-dim
-                                       hover:bg-brand/30 disabled:cursor-not-allowed
-                                       disabled:opacity-40"
-                                [title]="'WIKI.AI.ASK.SEND' | translate" type="button">
+                        <button
+                            (click)="send()"
+                            [disabled]="blocked()"
+                            class="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-brand/20 text-brand-dim hover:bg-brand/30 disabled:cursor-not-allowed disabled:opacity-40"
+                            [title]="'WIKI.AI.ASK.SEND' | translate"
+                            type="button"
+                        >
                             <i class="pi pi-arrow-up text-[0.6875rem]"></i>
                         </button>
                     }

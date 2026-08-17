@@ -1,6 +1,18 @@
 import {computed, effect, inject, Injectable, signal} from '@angular/core';
 import {HttpClient, HttpErrorResponse} from '@angular/common/http';
-import {catchError, filter, map, Observable, race, Subject, switchMap, take, tap, throwError, timeout} from 'rxjs';
+import {
+    catchError,
+    filter,
+    map,
+    Observable,
+    race,
+    Subject,
+    switchMap,
+    take,
+    tap,
+    throwError,
+    timeout,
+} from 'rxjs';
 import {ApiConfigService} from './api-config.service';
 import {BotCommandDto} from '../dtos/response/bot-command.dto';
 import {InvokeBotCommandDto} from '../dtos/request/invoke-bot-command.dto';
@@ -58,12 +70,18 @@ export class BotCommandService {
     }
 
     invokeCommand(guildId: string, channelId: string, dto: InvokeBotCommandDto): Observable<void> {
-        return this.http.post<void>(`${this.base()}/guilds/${guildId}/channels/${channelId}/interactions`, dto);
+        return this.http.post<void>(
+            `${this.base()}/guilds/${guildId}/channels/${channelId}/interactions`,
+            dto,
+        );
     }
 
     /** Answers a modal a bot pushed with `guild.ModalOpen`. Channel-scoped, not message-scoped; the server answers 202 and the bot replies on its own schedule, so there is deliberately no reply to await. */
     submitModal(guildId: string, channelId: string, dto: SubmitModalDto): Observable<void> {
-        return this.http.post<void>(`${this.base()}/guilds/${guildId}/channels/${channelId}/modal-submit`, dto);
+        return this.http.post<void>(
+            `${this.base()}/guilds/${guildId}/channels/${channelId}/modal-submit`,
+            dto,
+        );
     }
 
     /** A 404 can mean the bot isn't installed, or that our cached command list is stale, so discovery is refetched once and retried before surfacing an error. `onCommandsRefetched` lets the caller refresh its own cache in step. */

@@ -1,5 +1,4 @@
 <div class="flex flex-col gap-8 max-w-2xl">
-
     @if (unavailable()) {
         <div class="flex items-start gap-3 bg-rose-400/[0.06] border border-rose-400/20 rounded-xl px-4 py-3">
             <i class="pi pi-exclamation-triangle text-rose-400 text-sm mt-0.5"></i>
@@ -22,10 +21,12 @@
                 <p class="text-sm text-white/60">{{ 'SETTINGS.PRIVACY.SHARE_ACTIVITY' | translate }}</p>
                 <p class="text-xs text-white/25 mt-0.5">{{ 'SETTINGS.PRIVACY.SHARE_ACTIVITY_DESC' | translate }}</p>
             </div>
-            <p-toggleswitch [disabled]="disabled()"
-                            [ngModel]="settings().shareActivity"
-                            (ngModelChange)="onShareActivity($event)"
-                            styleClass="shrink-0"/>
+            <p-toggleswitch
+                [disabled]="disabled()"
+                [ngModel]="settings().shareActivity"
+                (ngModelChange)="onShareActivity($event)"
+                styleClass="shrink-0"
+            />
         </div>
     </section>
 
@@ -42,20 +43,26 @@
             <p class="text-sm text-white/35">{{ 'SETTINGS.ACTIVITY.GAMES_EMPTY' | translate }}</p>
         } @else {
             @for (game of games(); track game.name) {
-                <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3"
-                     [class.opacity-50]="!settings().shareActivity">
+                <div
+                    class="flex items-center justify-between bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3"
+                    [class.opacity-50]="!settings().shareActivity"
+                >
                     <div class="flex items-center gap-2 min-w-0 pr-4">
                         <p class="text-sm text-white/60 truncate">{{ game.name }}</p>
                         @if (game.live) {
-                            <span class="shrink-0 text-[9px] font-bold uppercase tracking-wide px-1 py-[1px] rounded bg-brand/20 text-brand-dim">
+                            <span
+                                class="shrink-0 text-[9px] font-bold uppercase tracking-wide px-1 py-[1px] rounded bg-brand/20 text-brand-dim"
+                            >
                                 {{ 'SETTINGS.ACTIVITY.GAME_RUNNING' | translate }}
                             </span>
                         }
                     </div>
-                    <p-toggleswitch [disabled]="disabled() || !settings().shareActivity"
-                                    [ngModel]="game.shared"
-                                    (ngModelChange)="onGameShared(game.name, $event)"
-                                    styleClass="shrink-0"/>
+                    <p-toggleswitch
+                        [disabled]="disabled() || !settings().shareActivity"
+                        [ngModel]="game.shared"
+                        (ngModelChange)="onGameShared(game.name, $event)"
+                        styleClass="shrink-0"
+                    />
                 </div>
             }
         }
@@ -74,10 +81,12 @@
                     <p class="text-sm text-white/60">{{ 'SETTINGS.ACTIVITY.DISCORD_INTEGRATION' | translate }}</p>
                     <p class="text-xs text-white/25 mt-0.5">{{ 'SETTINGS.ACTIVITY.DISCORD_INTEGRATION_DESC' | translate }}</p>
                 </div>
-                <p-toggleswitch [disabled]="!canDetect()"
-                                [ngModel]="discordIntegration()"
-                                (ngModelChange)="onDiscordIntegration($event)"
-                                styleClass="shrink-0"/>
+                <p-toggleswitch
+                    [disabled]="!canDetect()"
+                    [ngModel]="discordIntegration()"
+                    (ngModelChange)="onDiscordIntegration($event)"
+                    styleClass="shrink-0"
+                />
             </div>
 
             <!-- The switch above was disabled with nothing said. -->
@@ -97,5 +106,4 @@
             }
         </div>
     </section>
-
 </div>

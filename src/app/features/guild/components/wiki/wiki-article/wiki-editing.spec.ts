@@ -24,9 +24,8 @@ describe('wiki editor keys', () => {
     /** Types text the way a person does, so input rules see it. */
     function type(text: string): void {
         const {from, to} = editor.state.selection;
-        const handled = editor.view.someProp(
-            'handleTextInput',
-            fn => fn(editor.view, from, to, text, () => editor.state.tr.insertText(text, from, to)),
+        const handled = editor.view.someProp('handleTextInput', fn =>
+            fn(editor.view, from, to, text, () => editor.state.tr.insertText(text, from, to)),
         );
         if (!handled) editor.view.dispatch(editor.state.tr.insertText(text, from, to));
     }
@@ -109,10 +108,9 @@ describe('wiki editor keys', () => {
         });
 
         it('moves between table cells rather than indenting inside one', () => {
-            editor.commands.setContent(
-                '| Field | Value |\n| --- | --- |\n| Date |  |',
-                {contentType: 'markdown'},
-            );
+            editor.commands.setContent('| Field | Value |\n| --- | --- |\n| Date |  |', {
+                contentType: 'markdown',
+            });
             // First header cell.
             editor.commands.setTextSelection(4);
             const start = editor.state.selection.$from.parent.textContent;
@@ -225,10 +223,7 @@ describe('wiki clipboard text', () => {
         editor.commands.selectAll();
         const {from, to} = editor.state.selection;
         const slice = editor.state.doc.slice(from, to);
-        return editor.view.someProp(
-            'clipboardTextSerializer',
-            fn => fn(slice, editor.view),
-        ) ?? '';
+        return editor.view.someProp('clipboardTextSerializer', fn => fn(slice, editor.view)) ?? '';
     }
 
     it('separates blocks by exactly one blank line', () => {

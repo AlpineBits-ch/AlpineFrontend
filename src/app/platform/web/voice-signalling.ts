@@ -264,17 +264,21 @@ export class VoiceSignalling {
         tracks: LocalTrackRef[],
         video?: VideoPublishIntentDto,
     ): Promise<TracksResponseDto> {
-        return firstValueFrom(this.http.post<TracksResponseDto>(
-            tracksUrl(this.apiBase, this.target),
-            publishBody(this.dialect, sessionId, sdp, tracks, video),
-        ));
+        return firstValueFrom(
+            this.http.post<TracksResponseDto>(
+                tracksUrl(this.apiBase, this.target),
+                publishBody(this.dialect, sessionId, sdp, tracks, video),
+            ),
+        );
     }
 
     subscribe(sessionId: string, sdp: SdpPayload, tracks: RemoteTrackRef[]): Promise<TracksResponseDto> {
-        return firstValueFrom(this.http.post<TracksResponseDto>(
-            tracksUrl(this.apiBase, this.target),
-            subscribeBody(this.dialect, sessionId, sdp, tracks),
-        ));
+        return firstValueFrom(
+            this.http.post<TracksResponseDto>(
+                tracksUrl(this.apiBase, this.target),
+                subscribeBody(this.dialect, sessionId, sdp, tracks),
+            ),
+        );
     }
 
     renegotiate(
@@ -282,19 +286,19 @@ export class VoiceSignalling {
         sdp: SdpPayload,
         video?: VideoPublishIntentDto,
     ): Promise<RenegotiateResponseDto> {
-        return firstValueFrom(this.http.put<RenegotiateResponseDto>(
-            negotiateUrl(this.apiBase, this.target),
-            renegotiateBody(this.dialect, sessionId, sdp, video),
-        ));
+        return firstValueFrom(
+            this.http.put<RenegotiateResponseDto>(
+                negotiateUrl(this.apiBase, this.target),
+                renegotiateBody(this.dialect, sessionId, sdp, video),
+            ),
+        );
     }
 
     closeTracks(sessionId: string, trackNames: string[]): Promise<unknown> {
         const url = closeTracksUrl(this.apiBase, this.target);
         const body = closeTracksBody(this.dialect, sessionId, trackNames);
         return firstValueFrom(
-            closeTracksMethod(this.dialect) === 'post'
-                ? this.http.post(url, body)
-                : this.http.put(url, body),
+            closeTracksMethod(this.dialect) === 'post' ? this.http.post(url, body) : this.http.put(url, body),
         );
     }
 }

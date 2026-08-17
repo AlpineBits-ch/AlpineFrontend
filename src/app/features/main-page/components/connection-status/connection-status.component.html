@@ -2,31 +2,34 @@
 
 <div class="flex items-center gap-1.5">
     <!-- Status dot -->
-    <div [ngClass]="{
-      'bg-online': state === ConnectionState.Connected,
-      'bg-connecting animate-pulse': state === ConnectionState.Connecting,
-      'bg-offline': state === ConnectionState.Disconnected
-    }"
-         class="w-1.5 h-1.5 rounded-full shrink-0">
-    </div>
+    <div
+        [ngClass]="{
+            'bg-online': state === ConnectionState.Connected,
+            'bg-connecting animate-pulse': state === ConnectionState.Connecting,
+            'bg-offline': state === ConnectionState.Disconnected,
+        }"
+        class="w-1.5 h-1.5 rounded-full shrink-0"
+    ></div>
 
     <!-- Status text -->
-    <span [ngClass]="{
-      'text-online/85': state === ConnectionState.Connected,
-      'text-connecting/90':   state === ConnectionState.Connecting,
-      'text-offline/90':    state === ConnectionState.Disconnected
-    }"
-          class="text-[11px] font-medium leading-none">
-    @switch (state) {
-        @case (ConnectionState.Connected) {
-            {{ 'CONNECTION.CONNECTED' | translate }}
+    <span
+        [ngClass]="{
+            'text-online/85': state === ConnectionState.Connected,
+            'text-connecting/90': state === ConnectionState.Connecting,
+            'text-offline/90': state === ConnectionState.Disconnected,
+        }"
+        class="text-[11px] font-medium leading-none"
+    >
+        @switch (state) {
+            @case (ConnectionState.Connected) {
+                {{ 'CONNECTION.CONNECTED' | translate }}
+            }
+            @case (ConnectionState.Connecting) {
+                {{ 'CONNECTION.CONNECTING' | translate }}
+            }
+            @case (ConnectionState.Disconnected) {
+                {{ 'CONNECTION.DISCONNECTED' | translate }}
+            }
         }
-        @case (ConnectionState.Connecting) {
-            {{ 'CONNECTION.CONNECTING' | translate }}
-        }
-        @case (ConnectionState.Disconnected) {
-            {{ 'CONNECTION.DISCONNECTED' | translate }}
-        }
-    }
-  </span>
+    </span>
 </div>

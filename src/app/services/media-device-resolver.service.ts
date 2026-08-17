@@ -59,7 +59,9 @@ export class MediaDeviceResolverService {
 
         const matched = matchByLabel(devices, stored);
         if (!matched) {
-            console.warn(`[media-devices] no connected ${kind} matches "${stored}"; using the system default`);
+            console.warn(
+                `[media-devices] no connected ${kind} matches "${stored}"; using the system default`,
+            );
         }
         return matched;
     }
@@ -69,7 +71,8 @@ export class MediaDeviceResolverService {
         if (this.cache) return this.cache;
         if (!navigator.mediaDevices?.enumerateDevices) return [];
 
-        this.inflight ??= navigator.mediaDevices.enumerateDevices()
+        this.inflight ??= navigator.mediaDevices
+            .enumerateDevices()
             .then(devices => {
                 this.cache = devices;
                 return devices;
@@ -120,5 +123,8 @@ function matchByLabel(devices: MediaDeviceInfo[], name: string): string {
 
 /** Strip Chromium's "Default - "/"Communications - " prefix and case/space noise. */
 function normalise(label: string): string {
-    return label.replace(/^(default|communications)\s*-\s*/i, '').trim().toLowerCase();
+    return label
+        .replace(/^(default|communications)\s*-\s*/i, '')
+        .trim()
+        .toLowerCase();
 }

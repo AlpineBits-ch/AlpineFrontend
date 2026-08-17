@@ -8,8 +8,6 @@ import {WebSettingsStoreFactory} from './web/settings-store';
  *
  * Neither adapter holds state, so callers may build one per use.
  */
-export function createSettingsStoreFactory(
-    host: PlatformHost = detectHost(),
-): SettingsStoreFactory {
+export function createSettingsStoreFactory(host: PlatformHost = detectHost()): SettingsStoreFactory {
     return host === 'tauri' ? new TauriSettingsStoreFactory() : new WebSettingsStoreFactory();
 }

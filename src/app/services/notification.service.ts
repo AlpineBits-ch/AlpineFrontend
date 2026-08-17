@@ -92,7 +92,7 @@ export class NotificationService {
         // clicked - and, on macOS, so the action type is registered before one is sent under it.
         await this.initPromise;
 
-        if (!await this.ensurePermission()) return;
+        if (!(await this.ensurePermission())) return;
 
         await this.notifier.notify({
             title: params.title,

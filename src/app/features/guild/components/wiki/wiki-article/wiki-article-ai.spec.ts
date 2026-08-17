@@ -24,9 +24,18 @@ describe('WikiArticleComponent AI entry points', () => {
 
     function page(): WikiPageDto {
         return {
-            id: 'p1', guildId: 'g1', title: 'On-call', slug: 'on-call', authorId: 'u1',
-            createdAt: new Date(0), updatedAt: new Date(0), visibility: 'public', tags: [],
-            isPinned: false, revisionCount: 1, content: 'The rota rotates weekly.',
+            id: 'p1',
+            guildId: 'g1',
+            title: 'On-call',
+            slug: 'on-call',
+            authorId: 'u1',
+            createdAt: new Date(0),
+            updatedAt: new Date(0),
+            visibility: 'public',
+            tags: [],
+            isPinned: false,
+            revisionCount: 1,
+            content: 'The rota rotates weekly.',
         };
     }
 

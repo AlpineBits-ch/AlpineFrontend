@@ -174,9 +174,10 @@ export class DecisionService {
     private upsert(channelId: string, decision: Decision): void {
         const current = this.state()[channelId] ?? EMPTY;
         const index = current.decisions.findIndex(d => d.id === decision.id);
-        const decisions = index === -1
-            ? [decision, ...current.decisions]
-            : current.decisions.map((d, i) => i === index ? decision : d);
+        const decisions =
+            index === -1
+                ? [decision, ...current.decisions]
+                : current.decisions.map((d, i) => (i === index ? decision : d));
         this.patch(channelId, {decisions});
     }
 
@@ -185,7 +186,8 @@ export class DecisionService {
         if (!current.decisions.some(d => d.id === decisionId)) return;
         this.patch(channelId, {
             decisions: current.decisions.map(d =>
-                d.id === decisionId ? {...d, status: DecisionStatus.Cancelled} : d),
+                d.id === decisionId ? {...d, status: DecisionStatus.Cancelled} : d,
+            ),
         });
     }
 

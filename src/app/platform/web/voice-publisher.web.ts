@@ -18,11 +18,7 @@ import {
     VoiceStats,
     VoiceTarget,
 } from '../ports/voice-publisher.port';
-import {
-    DEFAULT_SPATIAL_MODEL,
-    REMOTE_LEVEL_INTERVAL_MS,
-    VoiceMixer,
-} from './voice-mixer';
+import {DEFAULT_SPATIAL_MODEL, REMOTE_LEVEL_INTERVAL_MS, VoiceMixer} from './voice-mixer';
 import {trackError, VOICE_TRACK_NAME, VoiceSignalling} from './voice-signalling';
 import {applySimpleBitrate, VOICE_AUDIO_KBPS} from '../../services/webrtc-encoding';
 
@@ -349,7 +345,9 @@ export class WebVoicePublisher extends VoicePublisher {
         let framesCaptured = 0;
         let packetsEncoded = 0;
 
-        for (const publication of [...this.publications.values()].sort((a, b) => a.slot.localeCompare(b.slot))) {
+        for (const publication of [...this.publications.values()].sort((a, b) =>
+            a.slot.localeCompare(b.slot),
+        )) {
             const read = await this.readStats(publication);
             publications.push(read.publication);
             // Gauges of one shared capture, so the largest reading rather than a sum.
@@ -374,7 +372,9 @@ export class WebVoicePublisher extends VoicePublisher {
             muted: this.muted,
             gateOpen: [...this.publications.values()].some(p => this.gateOpenFor(p)),
             // Render quanta the graph has produced, as 10 ms frames, the same unit Rust reports.
-            playoutFrames: this.ctx ? Math.round(Math.max(0, this.ctx.currentTime * 1000 - this.captureStartedAt) / 10) : 0,
+            playoutFrames: this.ctx
+                ? Math.round(Math.max(0, this.ctx.currentTime * 1000 - this.captureStartedAt) / 10)
+                : 0,
             mixRms: this.mixer?.mixRms() ?? 0,
             deafened: this.deafened,
             masterVolume: this.outputVolume,
@@ -549,7 +549,9 @@ export class WebVoicePublisher extends VoicePublisher {
         // subscription, and reporting one as subscribed makes the fault permanent.
         if (this.mixer?.has(id)) {
             if (routesTo(p.mids, id)) return;
-            console.warn(`[voice] source ${id} has no mid route - re-pulling rather than reporting it subscribed`);
+            console.warn(
+                `[voice] source ${id} has no mid route - re-pulling rather than reporting it subscribed`,
+            );
             this.drop(p, id);
         }
 
@@ -584,7 +586,8 @@ export class WebVoicePublisher extends VoicePublisher {
             // Stopping is the most JSEP allows; a stopped transceiver can be recycled.
             try {
                 transceiver.stop();
-            } catch { /* already stopped, or the connection is gone */
+            } catch {
+                /* already stopped, or the connection is gone */
             }
             // Must rethrow unchanged: `isStaleSubscription` and `isDeadMediaSession` read the
             // `HttpErrorResponse` status and body.
@@ -606,10 +609,10 @@ export class WebVoicePublisher extends VoicePublisher {
     private async renegotiate(p: Publication): Promise<void> {
         const offer = await p.pc.createOffer();
         await p.pc.setLocalDescription(offer);
-        const response = await p.signalling.renegotiate(
-            p.mediaSessionId,
-            {type: 'offer', sdp: p.pc.localDescription?.sdp ?? offer.sdp ?? ''},
-        );
+        const response = await p.signalling.renegotiate(p.mediaSessionId, {
+            type: 'offer',
+            sdp: p.pc.localDescription?.sdp ?? offer.sdp ?? '',
+        });
         await p.pc.setRemoteDescription(response.sessionDescription as RTCSessionDescriptionInit);
     }
 
@@ -620,7 +623,9 @@ export class WebVoicePublisher extends VoicePublisher {
         if (!id) {
             p.counters.unroutableTracks++;
             console.error('[voice] a remote track opened on an unmapped mid; its audio cannot be routed', {
-                slot: p.slot, mid, routes: [...p.mids],
+                slot: p.slot,
+                mid,
+                routes: [...p.mids],
             });
             return;
         }
@@ -767,7 +772,8 @@ function numberOf(value: unknown): number {
 
 /** The `candidate:` lines this side offered. */
 function candidatesIn(sdp: string): string[] {
-    return sdp.split(/\r\n|\n/)
+    return sdp
+        .split(/\r\n|\n/)
         .filter(line => line.startsWith('a=candidate:'))
         .map(line => line.slice('a='.length));
 }

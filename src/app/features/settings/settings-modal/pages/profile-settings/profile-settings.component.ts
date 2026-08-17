@@ -24,7 +24,13 @@ import {AccountPhoneComponent} from '../../../components/account-phone.component
 @Component({
     selector: 'app-profile-settings',
     imports: [
-        Button, Dialog, ImageCropperComponent, TranslateModule, FormsModule, DatePipe, Select,
+        Button,
+        Dialog,
+        ImageCropperComponent,
+        TranslateModule,
+        FormsModule,
+        DatePipe,
+        Select,
         AccountPhoneComponent,
     ],
     templateUrl: './profile-settings.component.html',
@@ -41,8 +47,9 @@ export class ProfileSettingsComponent implements OnInit {
     protected readonly uploadingBanner = signal(false);
     protected readonly bannerCropVisible = signal(false);
     protected readonly bannerCropSrc = signal('');
-    protected readonly fontOptions = (Object.entries(FONT_LABELS) as [ProfileFont, string][])
-        .map(([value, label]) => ({value, label}));
+    protected readonly fontOptions = (Object.entries(FONT_LABELS) as [ProfileFont, string][]).map(
+        ([value, label]) => ({value, label}),
+    );
     protected readonly FONT_STACKS = FONT_STACKS;
     protected readonly safeAccentColor = safeAccentColor;
     private readonly brokenImages = inject(BrokenImageService);
@@ -68,14 +75,12 @@ export class ProfileSettingsComponent implements OnInit {
     protected readonly showNewPw = signal(false);
     protected readonly showConfirmPw = signal(false);
     protected readonly passwordChanging = signal(false);
-    protected readonly passwordResult = signal<{ code: number; message: string } | null>(null);
+    protected readonly passwordResult = signal<{code: number; message: string} | null>(null);
     // Sign out all other devices
     protected readonly signOutAllVisible = signal(false);
     protected readonly signingOutAll = signal(false);
     protected readonly signOutSuccess = signal(false);
-    protected readonly avatarLabel = computed(() =>
-        (this.ownProfile()?.userName?.[0] ?? '?').toUpperCase()
-    );
+    protected readonly avatarLabel = computed(() => (this.ownProfile()?.userName?.[0] ?? '?').toUpperCase());
     protected readonly usernameDisplay = computed(() => this.ownProfile()?.userName ?? '-');
     // Steam link
     protected readonly linkingSteam = signal(false);
@@ -117,7 +122,11 @@ export class ProfileSettingsComponent implements OnInit {
     }
 
     protected get passwordMismatch(): boolean {
-        return this.newPassword.length > 0 && this.confirmPassword.length > 0 && this.newPassword !== this.confirmPassword;
+        return (
+            this.newPassword.length > 0 &&
+            this.confirmPassword.length > 0 &&
+            this.newPassword !== this.confirmPassword
+        );
     }
 
     protected get passwordFormValid(): boolean {
@@ -129,52 +138,64 @@ export class ProfileSettingsComponent implements OnInit {
     }
 
     ngOnInit(): void {
-        this.userService.getSelf().pipe(take(1)).subscribe({
-            next: user => {
-                this.user.set(user);
-                this.userLoading.set(false);
-            },
-            error: () => this.userLoading.set(false),
-        });
+        this.userService
+            .getSelf()
+            .pipe(take(1))
+            .subscribe({
+                next: user => {
+                    this.user.set(user);
+                    this.userLoading.set(false);
+                },
+                error: () => this.userLoading.set(false),
+            });
     }
 
     protected linkSteam(): void {
         if (this.linkingSteam()) return;
         this.linkingSteam.set(true);
-        this.steamService.getLinkStartUrl().pipe(take(1)).subscribe({
-            next: ({redirectUrl}) => {
-                // Steam login opens in the browser; the result returns via the
-                // venta://steam-auth deep link handled in AppComponent/SteamService.
-                void this.externalLink.openExternalLink(redirectUrl);
-            },
-            error: err => {
-                this.linkingSteam.set(false);
-                this.toast.httpError('Could not start Steam linking', err);
-            },
-        });
+        this.steamService
+            .getLinkStartUrl()
+            .pipe(take(1))
+            .subscribe({
+                next: ({redirectUrl}) => {
+                    // Steam login opens in the browser; the result returns via the
+                    // venta://steam-auth deep link handled in AppComponent/SteamService.
+                    void this.externalLink.openExternalLink(redirectUrl);
+                },
+                error: err => {
+                    this.linkingSteam.set(false);
+                    this.toast.httpError('Could not start Steam linking', err);
+                },
+            });
     }
 
     protected unlinkSteam(): void {
         if (this.unlinkingSteam()) return;
         this.unlinkingSteam.set(true);
-        this.steamService.unlink().pipe(take(1)).subscribe({
-            next: () => {
-                this.unlinkingSteam.set(false);
-                this.unlinkSteamVisible.set(false);
-                this.toast.success('Steam account unlinked');
-                this.refreshUser();
-            },
-            error: err => {
-                this.unlinkingSteam.set(false);
-                this.toast.httpError('Could not unlink Steam', err);
-            },
-        });
+        this.steamService
+            .unlink()
+            .pipe(take(1))
+            .subscribe({
+                next: () => {
+                    this.unlinkingSteam.set(false);
+                    this.unlinkSteamVisible.set(false);
+                    this.toast.success('Steam account unlinked');
+                    this.refreshUser();
+                },
+                error: err => {
+                    this.unlinkingSteam.set(false);
+                    this.toast.httpError('Could not unlink Steam', err);
+                },
+            });
     }
 
     private refreshUser(): void {
-        this.userService.getSelf().pipe(take(1)).subscribe({
-            next: user => this.user.set(user),
-        });
+        this.userService
+            .getSelf()
+            .pipe(take(1))
+            .subscribe({
+                next: user => this.user.set(user),
+            });
     }
 
     protected pickFile(): void {
@@ -198,12 +219,13 @@ export class ProfileSettingsComponent implements OnInit {
     protected onCropConfirmed(file: File): void {
         this.cropVisible.set(false);
         this.uploading.set(true);
-        this.profileService.uploadAvatar(file).pipe(
-            finalize(() => this.uploading.set(false)),
-        ).subscribe({
-            next: () => this.avatarError.set(false),
-            error: err => this.toast.httpError('Could not upload avatar', err),
-        });
+        this.profileService
+            .uploadAvatar(file)
+            .pipe(finalize(() => this.uploading.set(false)))
+            .subscribe({
+                next: () => this.avatarError.set(false),
+                error: err => this.toast.httpError('Could not upload avatar', err),
+            });
     }
 
     protected onAvatarError(): void {
@@ -220,9 +242,11 @@ export class ProfileSettingsComponent implements OnInit {
 
     protected readonly detailsDirty = computed(() => {
         const p = this.ownProfile();
-        return this.bioEdit() !== (p?.bio ?? '')
-            || this.accentColorEdit() !== (p?.accentColor ?? '')
-            || this.fontEdit() !== (p?.font ?? ProfileFont.Default);
+        return (
+            this.bioEdit() !== (p?.bio ?? '') ||
+            this.accentColorEdit() !== (p?.accentColor ?? '') ||
+            this.fontEdit() !== (p?.font ?? ProfileFont.Default)
+        );
     });
 
     protected readonly fontStackPreview = computed(() => FONT_STACKS[this.fontEdit()]);
@@ -230,15 +254,16 @@ export class ProfileSettingsComponent implements OnInit {
     protected saveDetails(): void {
         if (!this.detailsDirty() || this.savingDetails()) return;
         this.savingDetails.set(true);
-        this.profileService.updateProfile({
-            bio: this.bioEdit(),
-            accentColor: this.accentColorEdit(),
-            font: this.fontEdit(),
-        }).pipe(
-            finalize(() => this.savingDetails.set(false)),
-        ).subscribe({
-            error: err => this.toast.httpError('Could not save profile changes', err),
-        });
+        this.profileService
+            .updateProfile({
+                bio: this.bioEdit(),
+                accentColor: this.accentColorEdit(),
+                font: this.fontEdit(),
+            })
+            .pipe(finalize(() => this.savingDetails.set(false)))
+            .subscribe({
+                error: err => this.toast.httpError('Could not save profile changes', err),
+            });
     }
 
     protected pickBannerFile(): void {
@@ -262,79 +287,92 @@ export class ProfileSettingsComponent implements OnInit {
     protected onBannerCropConfirmed(file: File): void {
         this.bannerCropVisible.set(false);
         this.uploadingBanner.set(true);
-        this.profileService.uploadBanner(file).pipe(
-            finalize(() => this.uploadingBanner.set(false)),
-        ).subscribe({
-            error: err => this.toast.httpError('Could not upload banner', err),
-        });
+        this.profileService
+            .uploadBanner(file)
+            .pipe(finalize(() => this.uploadingBanner.set(false)))
+            .subscribe({
+                error: err => this.toast.httpError('Could not upload banner', err),
+            });
     }
 
     protected submitPasswordChange(): void {
         if (!this.passwordFormValid || this.passwordChanging()) return;
         this.passwordChanging.set(true);
         this.passwordResult.set(null);
-        this.userService.changePassword(this.currentPassword, this.newPassword).pipe(take(1)).subscribe({
-            next: ({code}) => {
-                this.passwordChanging.set(false);
-                this.passwordResult.set({code, message: this.passwordCodeMessage(code)});
-                if (code >= 200 && code < 300) {
-                    this.currentPassword = '';
-                    this.newPassword = '';
-                    this.confirmPassword = '';
-                }
-            },
-        });
+        this.userService
+            .changePassword(this.currentPassword, this.newPassword)
+            .pipe(take(1))
+            .subscribe({
+                next: ({code}) => {
+                    this.passwordChanging.set(false);
+                    this.passwordResult.set({code, message: this.passwordCodeMessage(code)});
+                    if (code >= 200 && code < 300) {
+                        this.currentPassword = '';
+                        this.newPassword = '';
+                        this.confirmPassword = '';
+                    }
+                },
+            });
     }
 
     protected confirmSignOutAll(): void {
         this.signingOutAll.set(true);
-        this.userService.signOutAllOtherDevices().pipe(take(1)).subscribe({
-            next: () => {
-                this.signingOutAll.set(false);
-                this.signOutSuccess.set(true);
-                this.signOutAllVisible.set(false);
-            },
-            error: () => {
-                this.signingOutAll.set(false);
-                this.signOutAllVisible.set(false);
-            },
-        });
+        this.userService
+            .signOutAllOtherDevices()
+            .pipe(take(1))
+            .subscribe({
+                next: () => {
+                    this.signingOutAll.set(false);
+                    this.signOutSuccess.set(true);
+                    this.signOutAllVisible.set(false);
+                },
+                error: () => {
+                    this.signingOutAll.set(false);
+                    this.signOutAllVisible.set(false);
+                },
+            });
     }
 
     protected confirmDeleteAccount(): void {
         this.deleting.set(true);
-        this.userService.deleteAccount().pipe(take(1)).subscribe({
-            next: user => {
-                this.deleting.set(false);
-                this.confirmDeleteVisible.set(false);
-                this.user.set(user);
-                this.toast.success('Account deletion scheduled');
-            },
-            error: (err: HttpErrorResponse) => {
-                this.deleting.set(false);
-                this.toast.httpError('Could not delete account', err);
-            },
-        });
+        this.userService
+            .deleteAccount()
+            .pipe(take(1))
+            .subscribe({
+                next: user => {
+                    this.deleting.set(false);
+                    this.confirmDeleteVisible.set(false);
+                    this.user.set(user);
+                    this.toast.success('Account deletion scheduled');
+                },
+                error: (err: HttpErrorResponse) => {
+                    this.deleting.set(false);
+                    this.toast.httpError('Could not delete account', err);
+                },
+            });
     }
 
     protected confirmCancelDeletion(): void {
         this.cancellingDeletion.set(true);
-        this.userService.cancelDeletion().pipe(take(1)).subscribe({
-            next: user => {
-                this.cancellingDeletion.set(false);
-                this.cancelDeleteVisible.set(false);
-                this.user.set(user);
-                this.toast.success('Account deletion cancelled');
-            },
-            error: (err: HttpErrorResponse) => {
-                this.cancellingDeletion.set(false);
-                if (err.status === 409) {
-                    this.toast.error('Too late to cancel - the deletion has already started.');
-                } else {
-                    this.toast.httpError('Could not cancel account deletion', err);
-                }
-            },
-        });
+        this.userService
+            .cancelDeletion()
+            .pipe(take(1))
+            .subscribe({
+                next: user => {
+                    this.cancellingDeletion.set(false);
+                    this.cancelDeleteVisible.set(false);
+                    this.user.set(user);
+                    this.toast.success('Account deletion cancelled');
+                },
+                error: (err: HttpErrorResponse) => {
+                    this.cancellingDeletion.set(false);
+                    if (err.status === 409) {
+                        this.toast.error('Too late to cancel - the deletion has already started.');
+                    } else {
+                        this.toast.httpError('Could not cancel account deletion', err);
+                    }
+                },
+            });
     }
 
     private passwordCodeMessage(code: number): string {

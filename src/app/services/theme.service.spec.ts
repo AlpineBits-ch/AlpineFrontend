@@ -39,10 +39,7 @@ function setup() {
 
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
-        providers: [
-            provideZonelessChangeDetection(),
-            {provide: FileSaver, useValue: saver},
-        ],
+        providers: [provideZonelessChangeDetection(), {provide: FileSaver, useValue: saver}],
     });
     return {service: TestBed.inject(ThemeService), saver};
 }

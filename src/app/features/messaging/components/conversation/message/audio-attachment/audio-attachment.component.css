@@ -26,7 +26,9 @@
     border-radius: 50%;
     background: var(--color-brand);
     cursor: pointer;
-    transition: background 0.12s, transform 0.1s;
+    transition:
+        background 0.12s,
+        transform 0.1s;
 }
 
 .media-slider:hover::-webkit-slider-thumb {

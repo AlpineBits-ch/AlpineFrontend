@@ -41,9 +41,7 @@ interface MentionRow {
  */
 @Component({
     selector: 'app-wiki-context-rail',
-    imports: [
-        AppAvatarComponent, TranslateModule, WikiRailSectionComponent, WikiPagePropertiesComponent,
-    ],
+    imports: [AppAvatarComponent, TranslateModule, WikiRailSectionComponent, WikiPagePropertiesComponent],
     templateUrl: './wiki-context-rail.component.html',
     host: {class: 'flex flex-col h-full min-h-0'},
 })
@@ -82,12 +80,10 @@ export class WikiContextRailComponent implements OnDestroy {
         return entries.length >= 2 ? entries : [];
     });
 
-    protected readonly currentHeadingId = computed(() =>
-        this.activeHeadingId() ?? this.spyHeadingId());
+    protected readonly currentHeadingId = computed(() => this.activeHeadingId() ?? this.spyHeadingId());
 
     /** Counted from the live editor body when there is one, so the figure is what the page will be rather than what it was. `||` and not `??`: an editor that hasn't mounted yet reports an empty string, and that is not a page with no words in it. */
-    protected readonly stats = computed(() =>
-        pageStats(this.liveContent() || this.page()?.content || ''));
+    protected readonly stats = computed(() => pageStats(this.liveContent() || this.page()?.content || ''));
 
     protected readonly backlinks = computed(() => {
         const pageId = this.page()?.id;
@@ -105,15 +101,16 @@ export class WikiContextRailComponent implements OnDestroy {
         return findUnlinkedMentions({id: page.id, title: page.title}, this.cache.content())
             .map(mention => ({mention, source: byId.get(mention.sourceId)}))
             .filter((row): row is MentionRow => !!row.source)
-            .sort((a, b) =>
-                b.mention.count - a.mention.count || a.source.title.localeCompare(b.source.title));
+            .sort(
+                (a, b) => b.mention.count - a.mention.count || a.source.title.localeCompare(b.source.title),
+            );
     });
 
-    protected readonly visibleMentions = computed(() =>
-        this.unlinkedMentions().slice(0, MENTION_LIMIT));
+    protected readonly visibleMentions = computed(() => this.unlinkedMentions().slice(0, MENTION_LIMIT));
 
     protected readonly hiddenMentionCount = computed(() =>
-        Math.max(0, this.unlinkedMentions().length - MENTION_LIMIT));
+        Math.max(0, this.unlinkedMentions().length - MENTION_LIMIT),
+    );
 
     protected readonly author = computed(() => {
         const id = this.page()?.authorId;
@@ -194,16 +191,18 @@ export class WikiContextRailComponent implements OnDestroy {
                     this.linkingId.set(null);
                     return;
                 }
-                this.wikiService.updatePage(guildId, row.source.id, {
-                    content: linked,
-                    summary: this.translate.instant('WIKI.RAIL.LINK_SUMMARY', {title: target.title}),
-                }).subscribe({
-                    next: saved => {
-                        this.cache.put(saved.id, saved.content);
-                        this.linkingId.set(null);
-                    },
-                    error: () => this.failLink(row.source.id),
-                });
+                this.wikiService
+                    .updatePage(guildId, row.source.id, {
+                        content: linked,
+                        summary: this.translate.instant('WIKI.RAIL.LINK_SUMMARY', {title: target.title}),
+                    })
+                    .subscribe({
+                        next: saved => {
+                            this.cache.put(saved.id, saved.content);
+                            this.linkingId.set(null);
+                        },
+                        error: () => this.failLink(row.source.id),
+                    });
             },
             error: () => this.failLink(row.source.id),
         });
@@ -211,7 +210,9 @@ export class WikiContextRailComponent implements OnDestroy {
 
     protected formatDate(date: Date | string): string {
         return new Date(date).toLocaleDateString('en-US', {
-            year: 'numeric', month: 'short', day: 'numeric',
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
         });
     }
 

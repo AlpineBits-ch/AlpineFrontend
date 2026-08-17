@@ -238,7 +238,7 @@ jobs:
       - name: Build Tauri (Windows)
         env:
           RUSTC_WRAPPER: sccache
-          SCCACHE_GHA_ENABLED: "true"
+          SCCACHE_GHA_ENABLED: 'true'
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           # What sign.ps1 redeems its freshly minted OIDC assertion against, via
@@ -379,7 +379,7 @@ jobs:
       - name: Build Tauri (Linux)
         env:
           RUSTC_WRAPPER: sccache
-          SCCACHE_GHA_ENABLED: "true"
+          SCCACHE_GHA_ENABLED: 'true'
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           # The only job that uploads frontend sourcemaps - see the note in release-windows. If this

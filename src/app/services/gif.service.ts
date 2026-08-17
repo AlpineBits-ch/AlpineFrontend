@@ -15,10 +15,10 @@ export interface GifResult {
 // ── Klipy response shape ──────────────────────────────────────────────────────
 
 interface KlipyFileVariant {
-    gif?: { url: string; width: number; height: number };
-    webp?: { url: string };
-    jpg?: { url: string };
-    mp4?: { url: string };
+    gif?: {url: string; width: number; height: number};
+    webp?: {url: string};
+    jpg?: {url: string};
+    mp4?: {url: string};
 }
 
 interface KlipyItem {
@@ -57,9 +57,7 @@ export class GifService {
     }
 
     search(query: string): Observable<GifResult[]> {
-        const params = new HttpParams()
-            .set('q', query)
-            .set('per_page', PER_PAGE);
+        const params = new HttpParams().set('q', query).set('per_page', PER_PAGE);
         return this.http
             .get<KlipyResponse>(`${BASE}/${environment.klipyApiKey}/gifs/search`, {params})
             .pipe(map(r => r.data.data.map(toResult)));

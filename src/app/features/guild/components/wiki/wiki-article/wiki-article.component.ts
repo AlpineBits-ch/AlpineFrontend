@@ -35,7 +35,12 @@ import {SlashItem, WikiSlashMenuComponent} from './wiki-slash-menu.component';
 import {WikiLinkMenuComponent} from './wiki-link-menu.component';
 import {WikiToolbarComponent} from './wiki-toolbar.component';
 import {WikiEmojiMenuComponent} from './wiki-emoji-menu.component';
-import {parseUserHref, userHref, WikiMentionMember, WikiMentionMenuComponent} from './wiki-mention-menu.component';
+import {
+    parseUserHref,
+    userHref,
+    WikiMentionMember,
+    WikiMentionMenuComponent,
+} from './wiki-mention-menu.component';
 import {EmojiSuggestion} from '../../../../../services/emoji-data.service';
 import {WikiTemplateChoice} from '../wiki-templates/wiki-template.model';
 import {WikiAiService} from '../wiki-ai.service';
@@ -48,9 +53,17 @@ import {acceleratorFromEvent, KeybindsService} from '../../../../../services/key
 @Component({
     selector: 'app-wiki-article',
     imports: [
-        FormsModule, Button, TranslateModule, WikiBubbleMenuComponent, WikiSlashMenuComponent,
-        WikiLinkMenuComponent, WikiToolbarComponent, WikiLinkPreviewComponent,
-        WikiEmojiMenuComponent, WikiMentionMenuComponent, WikiAiInlineComponent,
+        FormsModule,
+        Button,
+        TranslateModule,
+        WikiBubbleMenuComponent,
+        WikiSlashMenuComponent,
+        WikiLinkMenuComponent,
+        WikiToolbarComponent,
+        WikiLinkPreviewComponent,
+        WikiEmojiMenuComponent,
+        WikiMentionMenuComponent,
+        WikiAiInlineComponent,
         WikiAiMetadataComponent,
     ],
     templateUrl: './wiki-article.component.html',
@@ -211,9 +224,9 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
             // "stale content" banners.
             const remoteConflict = this.wikiState.pendingRemoteUpdate()?.id === page?.id;
             this.pendingDraft.set(
-                existing
-                && !remoteConflict
-                && this.drafts.divergesFrom(existing, page?.title ?? '', page?.content ?? '')
+                existing &&
+                    !remoteConflict &&
+                    this.drafts.divergesFrom(existing, page?.title ?? '', page?.content ?? '')
                     ? existing
                     : null,
             );
@@ -282,13 +295,15 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
                 }),
                 Extension.create({
                     name: 'wikiGhostText',
-                    addProseMirrorPlugins: () => [wikiGhostTextPlugin({
-                        // Checks available() as well as the preference: with no key connected,
-                        // every pause in typing would fire a request that can only throw.
-                        enabled: () => this.wikiAi.ghostTextEnabled() && this.wikiAi.available(),
-                        title: () => this.title(),
-                        complete: (req, signal) => this.wikiAi.complete(req, signal),
-                    })],
+                    addProseMirrorPlugins: () => [
+                        wikiGhostTextPlugin({
+                            // Checks available() as well as the preference: with no key connected,
+                            // every pause in typing would fire a request that can only throw.
+                            enabled: () => this.wikiAi.ghostTextEnabled() && this.wikiAi.available(),
+                            title: () => this.title(),
+                            complete: (req, signal) => this.wikiAi.complete(req, signal),
+                        }),
+                    ],
                 }),
             ],
             editable: this.editing(),
@@ -361,7 +376,6 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
         this.editorEl.nativeElement.addEventListener('pointerdown', this.pointerDownHandler);
         document.addEventListener('pointerup', this.pointerUpHandler);
 
-
         // Delayed so sweeping the pointer across a paragraph of links does not strobe a popover
         // per link.
         this.overHandler = (event: MouseEvent) => {
@@ -414,8 +428,7 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
             this.onSourceInput(markdown);
             return;
         }
-        this.editor?.chain().focus().selectAll()
-            .insertContent(markdown, {contentType: 'markdown'}).run();
+        this.editor?.chain().focus().selectAll().insertContent(markdown, {contentType: 'markdown'}).run();
     }
 
     /** Streams a whole-page draft from the dialog's prompt; an empty page gets its whole body, a written one gets an insertion at the caret. */
@@ -486,8 +499,7 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
 
     /** Shortcuts that still work in the raw markdown buffer: toggle (else the mode is a one-way door) and save (losing it risks data loss). Everything else on the editor's keymap acts on a ProseMirror document this textarea is not. */
     protected onSourceKeydown(event: KeyboardEvent): void {
-        if (event.key === 'Control' || event.key === 'Alt'
-            || event.key === 'Shift' || event.key === 'Meta') {
+        if (event.key === 'Control' || event.key === 'Alt' || event.key === 'Shift' || event.key === 'Meta') {
             return;
         }
 
@@ -555,8 +567,7 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
                 // The parent feeds the server's response back as the page input, and the reload
                 // effect is gated on this flag, so it is only safe to clear when nothing was
                 // typed while the request was in flight.
-                this.dirty = this.markdown() !== base.content
-                    || this.title().trim() !== base.title;
+                this.dirty = this.markdown() !== base.content || this.title().trim() !== base.title;
                 this.dirtyChanged.emit(this.dirty);
                 // The draft is now published; keeping it would offer to restore content
                 // identical to what the server already has.
@@ -617,8 +628,8 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
             const page = this.page();
             // Compared the same way divergesFrom compares on the way back out, so a draft
             // exists only when restoring it would visibly change something.
-            const unchanged = this.title() === (page?.title ?? '')
-                && this.markdown() === (page?.content ?? '');
+            const unchanged =
+                this.title() === (page?.title ?? '') && this.markdown() === (page?.content ?? '');
             if (unchanged) {
                 this.drafts.clear(this.guildId(), page?.id ?? null);
                 return;
@@ -682,7 +693,8 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
         const editor = this.editor;
         if (!editor) return;
         this.deleteTriggerRun();
-        editor.chain()
+        editor
+            .chain()
             .focus()
             .insertContent({
                 type: 'text',
@@ -701,7 +713,8 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
         const editor = this.editor;
         if (!editor) return;
         this.deleteTriggerRun();
-        editor.chain()
+        editor
+            .chain()
             .focus()
             .insertContent({
                 type: 'text',
@@ -729,7 +742,8 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
         if (!target || target.guildId !== this.guildId()) return false;
 
         const title = this.wiki()?.pages.find(p => p.id === target.pageId)?.title;
-        this.editor.chain()
+        this.editor
+            .chain()
             .focus()
             .insertContent({
                 type: 'text',
@@ -784,10 +798,12 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
             return true;
         }
         // Each menu returns false while it is shut, so the chain stops at the open one.
-        return !!(this.slashMenu?.handleKey(event.key)
-            || this.linkMenu?.handleKey(event.key)
-            || this.emojiMenu?.handleKey(event.key)
-            || this.mentionMenu?.handleKey(event.key));
+        return !!(
+            this.slashMenu?.handleKey(event.key) ||
+            this.linkMenu?.handleKey(event.key) ||
+            this.emojiMenu?.handleKey(event.key) ||
+            this.mentionMenu?.handleKey(event.key)
+        );
     }
 
     private closeMenus(): void {
@@ -798,8 +814,7 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
     }
 
     private anyMenuOpen(): boolean {
-        return this.slashOpen() || this.linkMenuOpen()
-            || this.emojiMenuOpen() || this.mentionMenuOpen();
+        return this.slashOpen() || this.linkMenuOpen() || this.emojiMenuOpen() || this.mentionMenuOpen();
     }
 
     private uploadFile(file: File): void {
@@ -809,8 +824,12 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
         this.fileService.uploadFile(file).subscribe({
             // Built from the id, not read off the response: url is not actually sent, and an
             // undefined here would be written into the saved page as the image's src.
-            next: attachment => this.replaceImageSrc(
-                blobUrl, this.fileService.attachmentDownloadUrl(attachment.id), attachment.fileName),
+            next: attachment =>
+                this.replaceImageSrc(
+                    blobUrl,
+                    this.fileService.attachmentDownloadUrl(attachment.id),
+                    attachment.fileName,
+                ),
             // A failed upload drops the placeholder rather than leaving a broken blob: URL,
             // which would render as a broken image and save as one.
             error: () => this.replaceImageSrc(blobUrl, '', ''),

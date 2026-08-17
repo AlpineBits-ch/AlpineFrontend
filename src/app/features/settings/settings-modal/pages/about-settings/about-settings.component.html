@@ -1,9 +1,7 @@
 <div class="flex flex-col gap-8 max-w-2xl">
-
     <!-- Application -->
     <section class="flex flex-col gap-3">
-        <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">
-            Application</h2>
+        <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">Application</h2>
 
         <div class="bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-4 flex flex-col gap-1.5">
             <p class="text-sm font-semibold text-white/70">{{ appInfo.productName() }}</p>
@@ -15,8 +13,8 @@
         <!-- Only where the running app can replace itself. A web client updates by being reloaded, so
              there is no control here to explain the absence of - see the component. -->
         @if (capabilities.selfUpdate) {
-        <div class="flex items-center gap-3" data-testid="update-check">
-            <p-button
+            <div class="flex items-center gap-3" data-testid="update-check">
+                <p-button
                     (onClick)="updateService.checkForUpdates(true)"
                     [disabled]="updateService.isChecking() || updateService.isDownloading()"
                     [label]="updateService.isChecking() ? 'Checking…' : 'Check for updates'"
@@ -24,42 +22,45 @@
                     [text]="true"
                     severity="secondary"
                     size="small"
-                    styleClass="w-fit !px-0"/>
-            @if (updateService.checkStatus() === 'up-to-date') {
-                <span class="flex items-center gap-1.5 text-xs" style="color: var(--color-online)">
-                    <i class="pi pi-check-circle text-xs"></i>
-                    You're up to date
-                </span>
-            }
-            @if (updateService.checkStatus() === 'error') {
-                <span class="flex items-center gap-1.5 text-xs" style="color: var(--color-offline)">
-                    <i class="pi pi-times-circle text-xs"></i>
-                    Check failed
-                </span>
-            }
-        </div>
+                    styleClass="w-fit !px-0"
+                />
+                @if (updateService.checkStatus() === 'up-to-date') {
+                    <span class="flex items-center gap-1.5 text-xs" style="color: var(--color-online)">
+                        <i class="pi pi-check-circle text-xs"></i>
+                        You're up to date
+                    </span>
+                }
+                @if (updateService.checkStatus() === 'error') {
+                    <span class="flex items-center gap-1.5 text-xs" style="color: var(--color-offline)">
+                        <i class="pi pi-times-circle text-xs"></i>
+                        Check failed
+                    </span>
+                }
+            </div>
         }
     </section>
 
     <!-- Third-party software -->
     <section class="flex flex-col gap-3">
         <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">
-            Third-party software</h2>
+            Third-party software
+        </h2>
 
         <p class="text-xs text-white/35 leading-relaxed">
-            {{ appInfo.productName() }} is built on open-source software. The notices below reproduce the copyright and
-            licence terms of every package it includes, as those licences require.
+            {{ appInfo.productName() }} is built on open-source software. The notices below reproduce the copyright and licence terms of
+            every package it includes, as those licences require.
         </p>
 
         @switch (noticesState()) {
             @case ('idle') {
                 <p-button
-                        (onClick)="loadNotices()"
-                        icon="pi pi-book"
-                        label="View licences"
-                        severity="secondary"
-                        size="small"
-                        styleClass="w-fit"/>
+                    (onClick)="loadNotices()"
+                    icon="pi pi-book"
+                    label="View licences"
+                    severity="secondary"
+                    size="small"
+                    styleClass="w-fit"
+                />
             }
             @case ('loading') {
                 <p class="text-xs text-white/30">Loading licences…</p>
@@ -70,15 +71,22 @@
                         <i class="pi pi-times-circle text-xs"></i>
                         Could not load licences
                     </span>
-                    <p-button (onClick)="noticesState.set('idle')" [text]="true" label="Retry"
-                              severity="secondary" size="small" styleClass="!px-0"/>
+                    <p-button
+                        (onClick)="noticesState.set('idle')"
+                        [text]="true"
+                        label="Retry"
+                        severity="secondary"
+                        size="small"
+                        styleClass="!px-0"
+                    />
                 </div>
             }
             @case ('ready') {
-                <div class="notices thin-scrollbar bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-4"
-                     [innerHTML]="notices()"></div>
+                <div
+                    class="notices thin-scrollbar bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-4"
+                    [innerHTML]="notices()"
+                ></div>
             }
         }
     </section>
-
 </div>

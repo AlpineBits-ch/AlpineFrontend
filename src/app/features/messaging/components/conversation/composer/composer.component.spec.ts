@@ -20,9 +20,12 @@ function gateStub(satisfied: boolean) {
     let release: ((allowed: boolean) => void) | null = null;
     return {
         isSatisfied: vi.fn(() => satisfied),
-        require: vi.fn(() => new Promise<boolean>(resolve => {
-            release = resolve;
-        })),
+        require: vi.fn(
+            () =>
+                new Promise<boolean>(resolve => {
+                    release = resolve;
+                }),
+        ),
         /** Completes the pending require(), as the key-setup dialog would. */
         settle(allowed: boolean) {
             satisfied = allowed;
@@ -65,7 +68,10 @@ describe('ComposerComponent', () => {
                 // Reached transitively: the composer injects BotCommandService and
                 // GuildWebsocketService, whose chain ends at AuthService -> OAuthService.
                 // The composer never calls it, so a bare stub is enough.
-                {provide: OAuthService, useValue: {getAccessToken: () => null, refreshToken: vi.fn(), logOut: vi.fn()}},
+                {
+                    provide: OAuthService,
+                    useValue: {getAccessToken: () => null, refreshToken: vi.fn(), logOut: vi.fn()},
+                },
                 // Real NotificationService calls Tauri APIs (platform(), focus sync via
                 // UserSettingsService) from its constructor, which reject under jsdom.
                 {provide: NotificationService, useValue: {createNotification: vi.fn()}},
@@ -75,8 +81,7 @@ describe('ComposerComponent', () => {
                 MessageService,
                 provideTranslateService({defaultLanguage: 'en'}),
             ],
-        })
-            .compileComponents();
+        }).compileComponents();
 
         fixture = TestBed.createComponent(ComposerComponent);
         component = fixture.componentInstance;

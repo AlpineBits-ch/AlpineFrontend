@@ -29,9 +29,7 @@ export class CategoryOverviewComponent implements OnInit {
 
     onChange(): void {
         const c = this.category();
-        this.dirty.set(
-            this.name() !== c.name || this.description() !== (c.description ?? '')
-        );
+        this.dirty.set(this.name() !== c.name || this.description() !== (c.description ?? ''));
     }
 
     save(): void {

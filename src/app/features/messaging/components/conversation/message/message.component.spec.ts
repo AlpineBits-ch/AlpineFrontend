@@ -91,8 +91,8 @@ describe('MessageComponent publish()', () => {
     it('sends exactly one POST when publish() is called twice before the first response arrives (double-click race)', async () => {
         const {component, ctrl} = await setup();
 
-        (component as unknown as { publish(): void }).publish();
-        (component as unknown as { publish(): void }).publish();
+        (component as unknown as {publish(): void}).publish();
+        (component as unknown as {publish(): void}).publish();
 
         ctrl.expectOne(PUBLISH_URL);
         // If the in-flight guard didn't take effect synchronously, expectOne above
@@ -101,7 +101,11 @@ describe('MessageComponent publish()', () => {
 
     it('latches published() and clears publishing() after a successful publish', async () => {
         const {component, ctrl} = await setup();
-        const c = component as unknown as { publish(): void; published: () => boolean; publishing: () => boolean };
+        const c = component as unknown as {
+            publish(): void;
+            published: () => boolean;
+            publishing: () => boolean;
+        };
 
         c.publish();
         expect(c.publishing()).toBe(true);
@@ -116,7 +120,11 @@ describe('MessageComponent publish()', () => {
 
     it('releases publishing() without latching published() after a failed publish, allowing a retry', async () => {
         const {component, ctrl} = await setup();
-        const c = component as unknown as { publish(): void; published: () => boolean; publishing: () => boolean };
+        const c = component as unknown as {
+            publish(): void;
+            published: () => boolean;
+            publishing: () => boolean;
+        };
 
         c.publish();
         const req = ctrl.expectOne(PUBLISH_URL);
@@ -133,7 +141,7 @@ describe('MessageComponent publish()', () => {
 
     it('routes {published: 0} to the success toast, not the error toast', async () => {
         const {component, ctrl, messageService} = await setup();
-        const c = component as unknown as { publish(): void };
+        const c = component as unknown as {publish(): void};
         const addSpy = vi.spyOn(messageService, 'add');
 
         c.publish();
@@ -146,7 +154,7 @@ describe('MessageComponent publish()', () => {
 
     it('picks the singular translation key when exactly one channel received the publish', async () => {
         const {component, ctrl} = await setup();
-        const c = component as unknown as { publish(): void };
+        const c = component as unknown as {publish(): void};
         const translate = TestBed.inject(TranslateService);
         const instantSpy = vi.spyOn(translate, 'instant');
 
@@ -159,7 +167,7 @@ describe('MessageComponent publish()', () => {
 
     it('picks the plural translation key when more than one channel received the publish', async () => {
         const {component, ctrl} = await setup();
-        const c = component as unknown as { publish(): void };
+        const c = component as unknown as {publish(): void};
         const translate = TestBed.inject(TranslateService);
         const instantSpy = vi.spyOn(translate, 'instant');
 
@@ -223,7 +231,7 @@ describe('MessageComponent link previews', () => {
         expect(component.hasRenderableContent()).toBe(true);
     });
 
-    it('strips the sender\'s no-preview brackets from the displayed text only', async () => {
+    it("strips the sender's no-preview brackets from the displayed text only", async () => {
         const {component} = await setup({content: btoa('see <https://example.com> for more')});
 
         expect(component.displayContent()).toBe('see https://example.com for more');
@@ -235,35 +243,41 @@ describe('MessageComponent link previews', () => {
     it('offers a restore only where a preview could actually come back', async () => {
         const linked = await setup(
             {content: btoa('https://example.com'), flags: 4, channelId: 'chan1'},
-            {canDeleteAnyMessage: true});
+            {canDeleteAnyMessage: true},
+        );
         expect(linked.component.canRestoreEmbeds()).toBe(true);
 
         // No link at all - nothing was ever unfurled, so there is nothing to restore.
-        const bare = await setup({content: btoa('no links here'), flags: 4, channelId: 'chan1'},
-            {canDeleteAnyMessage: true});
+        const bare = await setup(
+            {content: btoa('no links here'), flags: 4, channelId: 'chan1'},
+            {canDeleteAnyMessage: true},
+        );
         expect(bare.component.canRestoreEmbeds()).toBe(false);
 
         // The server does not unfurl a URL inside a code span, so neither do we offer to.
         const fenced = await setup(
             {content: btoa('`https://example.com`'), flags: 4, channelId: 'chan1'},
-            {canDeleteAnyMessage: true});
+            {canDeleteAnyMessage: true},
+        );
         expect(fenced.component.canRestoreEmbeds()).toBe(false);
 
         // Nor one the sender opted out of with angle brackets.
         const optedOut = await setup(
             {content: btoa('<https://example.com>'), flags: 4, channelId: 'chan1'},
-            {canDeleteAnyMessage: true});
+            {canDeleteAnyMessage: true},
+        );
         expect(optedOut.component.canRestoreEmbeds()).toBe(false);
     });
 
     /** Rendering a ✕ the server would 403 is worse than not offering it. */
     it('offers the ✕ to a DeleteAnyMessage holder in a channel but never in a DM', async () => {
-        const channel = await setup({channelId: 'chan1', conversationId: undefined},
-            {canDeleteAnyMessage: true});
+        const channel = await setup(
+            {channelId: 'chan1', conversationId: undefined},
+            {canDeleteAnyMessage: true},
+        );
         expect(channel.component.canSuppressEmbeds()).toBe(true);
 
-        const dm = await setup({channelId: undefined, conversationId: 'conv1'},
-            {canDeleteAnyMessage: true});
+        const dm = await setup({channelId: undefined, conversationId: 'conv1'}, {canDeleteAnyMessage: true});
         expect(dm.component.canSuppressEmbeds()).toBe(false);
 
         const unprivileged = await setup({channelId: 'chan1'}, {canDeleteAnyMessage: false});
@@ -271,9 +285,13 @@ describe('MessageComponent link previews', () => {
     });
 
     it('PATCHes the suppression and rolls the optimistic state back when that fails', async () => {
-        const {component, ctrl} = await setup({channelId: 'chan1', embedsJson: '[{"type":"link"}]'},
-            {canDeleteAnyMessage: true});
-        const store = TestBed.inject(MessageStore) as unknown as { applyEmbedSuppression: ReturnType<typeof vi.fn> };
+        const {component, ctrl} = await setup(
+            {channelId: 'chan1', embedsJson: '[{"type":"link"}]'},
+            {canDeleteAnyMessage: true},
+        );
+        const store = TestBed.inject(MessageStore) as unknown as {
+            applyEmbedSuppression: ReturnType<typeof vi.fn>;
+        };
 
         component.toggleEmbedSuppression();
 

@@ -1,4 +1,5 @@
 # webrtc-audio-processing-sys
+
 [![Crates.io](https://img.shields.io/crates/v/webrtc-audio-processing-sys.svg)](https://crates.io/crates/webrtc-audio-processing-sys)
 [![Docs.rs](https://docs.rs/webrtc-audio-processing-sys/badge.svg)](https://docs.rs/webrtc-audio-processing-sys)
 [![Build Status](https://travis-ci.org/tonarino/webrtc-audio-processing.svg?branch=master)](https://travis-ci.org/tonarino/webrtc-audio-processing)
@@ -27,5 +28,5 @@ Static linking can be enabled with the `bundled` feature flag.
 
 The following tools are needed in order to use the `bundled` feature flag:
 
-* meson
-* ninja
+- meson
+- ninja

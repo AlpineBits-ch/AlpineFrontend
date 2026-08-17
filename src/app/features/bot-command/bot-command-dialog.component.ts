@@ -12,7 +12,11 @@ import {MessageEncryptionState} from '../../enums/message-encryption-state.enum'
 import {MessageType} from '../../enums/message-type.enum';
 import {BotCommandOptionDto} from '../../dtos/response/bot-command.dto';
 import {InvokeBotCommandOptionDto} from '../../dtos/request/invoke-bot-command.dto';
-import {DiscordOptionType, discordOptionInputKind, discordOptionPlaceholder} from '../../enums/discord-option-type.enum';
+import {
+    DiscordOptionType,
+    discordOptionInputKind,
+    discordOptionPlaceholder,
+} from '../../enums/discord-option-type.enum';
 
 type OptionValue = string | boolean;
 
@@ -96,16 +100,21 @@ export class BotCommandDialogComponent {
         });
         this.dialogService.close();
 
-        this.botCommandService.invokeCommandWithRetry(
-            request.guildId,
-            request.channelId,
-            {botUserId: request.command.botUserId, commandName: request.command.name, options},
-        ).pipe(
-            switchMap(() => this.botCommandService.awaitBotResponse(request.channelId, request.command.botUserId)),
-        ).subscribe({
-            next: () => this.messageStore.removeMessage(tempId),
-            error: () => this.messageStore.failMessage(tempId),
-        });
+        this.botCommandService
+            .invokeCommandWithRetry(request.guildId, request.channelId, {
+                botUserId: request.command.botUserId,
+                commandName: request.command.name,
+                options,
+            })
+            .pipe(
+                switchMap(() =>
+                    this.botCommandService.awaitBotResponse(request.channelId, request.command.botUserId),
+                ),
+            )
+            .subscribe({
+                next: () => this.messageStore.removeMessage(tempId),
+                error: () => this.messageStore.failMessage(tempId),
+            });
     }
 
     protected dismiss(): void {
@@ -123,7 +132,8 @@ export class BotCommandDialogComponent {
 
     private coerce(option: BotCommandOptionDto, value: OptionValue | undefined): string | number | boolean {
         if (option.type === DiscordOptionType.Boolean) return !!value;
-        if (option.type === DiscordOptionType.Integer || option.type === DiscordOptionType.Number) return Number(value);
+        if (option.type === DiscordOptionType.Integer || option.type === DiscordOptionType.Number)
+            return Number(value);
         return String(value ?? '');
     }
 }

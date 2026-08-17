@@ -1,36 +1,31 @@
 <p-dialog
-        (visibleChange)="onVisibleChange($event)"
-        [breakpoints]="{ '640px': '100vw' }"
-        [closable]="!applying()"
-        [closeOnEscape]="!applying()"
-        [draggable]="false"
-        [modal]="true"
-        [resizable]="false"
-        [style]="{ width: '520px' }"
-        [visible]="visible()"
-        appendTo="body">
-
+    (visibleChange)="onVisibleChange($event)"
+    [breakpoints]="{'640px': '100vw'}"
+    [closable]="!applying()"
+    [closeOnEscape]="!applying()"
+    [draggable]="false"
+    [modal]="true"
+    [resizable]="false"
+    [style]="{width: '520px'}"
+    [visible]="visible()"
+    appendTo="body"
+>
     <ng-template pTemplate="header">
         <span class="text-sm font-semibold text-text-primary">{{ 'BILLING.CHANGE.TITLE' | translate }}</span>
     </ng-template>
 
     <div class="flex flex-col gap-5 pb-1">
-
         @if (applied(); as updated) {
-
             <div class="flex flex-col gap-1.5">
                 <p class="text-sm font-semibold text-text-primary m-0">
-                    {{ 'BILLING.CHANGE.DONE_TITLE' | translate:{plan: updated.planDisplayName} }}
+                    {{ 'BILLING.CHANGE.DONE_TITLE' | translate: {plan: updated.planDisplayName} }}
                 </p>
                 <p class="text-xs text-text-muted m-0 leading-relaxed">
                     {{ 'BILLING.CHANGE.DONE_BODY' | translate }}
                 </p>
             </div>
-            <p-button (onClick)="close()" [label]="'BILLING.CHECKOUT.CLOSE' | translate" severity="primary"
-                      styleClass="justify-center"/>
-
+            <p-button (onClick)="close()" [label]="'BILLING.CHECKOUT.CLOSE' | translate" severity="primary" styleClass="justify-center" />
         } @else {
-
             <!-- What they are on now, on every step. Somebody comparing two prices should not have
                  to remember which one they are already paying. -->
             <div class="flex items-baseline justify-between gap-4 rounded-xl border border-white/[0.10] bg-white/[0.03] px-4 py-3">
@@ -70,9 +65,10 @@
                         }
                     </p>
                     <button
-                            (click)="loadCatalogue()"
-                            class="self-start text-xs font-semibold text-[var(--color-brand-dim)] hover:text-white transition-colors duration-[var(--duration-fast)]"
-                            type="button">
+                        (click)="loadCatalogue()"
+                        class="self-start text-xs font-semibold text-[var(--color-brand-dim)] hover:text-white transition-colors duration-[var(--duration-fast)]"
+                        type="button"
+                    >
                         {{ 'BILLING.PLANS.RETRY' | translate }}
                     </button>
                 </div>
@@ -81,7 +77,6 @@
                     {{ 'BILLING.CHANGE.NO_OPTIONS' | translate }}
                 </p>
             } @else {
-
                 <fieldset class="flex flex-col gap-2 m-0 p-0 border-0">
                     <legend class="text-[0.625rem] font-semibold text-white/25 uppercase tracking-widest mb-2">
                         {{ 'BILLING.CHANGE.CHOOSE_LEGEND' | translate }}
@@ -89,17 +84,21 @@
 
                     @for (option of options(); track option.plan.name) {
                         <label
-                                [class]="selected()?.name === option.plan.name
+                            [class]="
+                                selected()?.name === option.plan.name
                                     ? 'border-[var(--color-brand)] bg-[color-mix(in_srgb,var(--color-brand)_10%,transparent)]'
-                                    : 'border-white/[0.10] bg-white/[0.03] hover:border-white/[0.16]'"
-                                class="flex flex-wrap items-center gap-x-3 gap-y-1 cursor-pointer rounded-xl border px-3 py-2.5 transition-colors duration-[var(--duration-fast)]">
+                                    : 'border-white/[0.10] bg-white/[0.03] hover:border-white/[0.16]'
+                            "
+                            class="flex flex-wrap items-center gap-x-3 gap-y-1 cursor-pointer rounded-xl border px-3 py-2.5 transition-colors duration-[var(--duration-fast)]"
+                        >
                             <input
-                                    (change)="select(option.plan)"
-                                    [checked]="selected()?.name === option.plan.name"
-                                    [disabled]="applying()"
-                                    class="accent-[var(--color-brand)] shrink-0"
-                                    name="change-plan-option"
-                                    type="radio"/>
+                                (change)="select(option.plan)"
+                                [checked]="selected()?.name === option.plan.name"
+                                [disabled]="applying()"
+                                class="accent-[var(--color-brand)] shrink-0"
+                                name="change-plan-option"
+                                type="radio"
+                            />
                             <span class="flex flex-col min-w-0 flex-1">
                                 <span class="text-sm font-semibold text-text-primary truncate">
                                     {{ option.plan.displayName }}
@@ -120,8 +119,7 @@
 
                 <!-- The proration, which is the whole reason this is two steps rather than one. -->
                 @if (previewLoading()) {
-                    <div aria-hidden="true"
-                         class="flex flex-col gap-3 rounded-xl border border-white/[0.10] bg-white/[0.03] px-4 py-3.5">
+                    <div aria-hidden="true" class="flex flex-col gap-3 rounded-xl border border-white/[0.10] bg-white/[0.03] px-4 py-3.5">
                         <span class="block h-7 w-28 rounded bg-white/[0.08] motion-safe:animate-pulse"></span>
                         <span class="block h-3 w-56 rounded bg-white/[0.08] motion-safe:animate-pulse"></span>
                         <div class="flex flex-col gap-2 border-t border-white/[0.06] pt-3">
@@ -142,27 +140,29 @@
                             }
                         </p>
                         <button
-                                (click)="retryPreview()"
-                                class="self-start text-xs font-semibold text-[var(--color-brand-dim)] hover:text-white transition-colors duration-[var(--duration-fast)]"
-                                type="button">
+                            (click)="retryPreview()"
+                            class="self-start text-xs font-semibold text-[var(--color-brand-dim)] hover:text-white transition-colors duration-[var(--duration-fast)]"
+                            type="button"
+                        >
                             {{ 'BILLING.CHANGE.PREVIEW_RETRY' | translate }}
                         </button>
                     </div>
                 } @else if (preview()) {
                     <div class="flex flex-col gap-3 rounded-xl border border-white/[0.10] bg-white/[0.03] px-4 py-3.5">
-
                         @if (immediate(); as amount) {
                             <div class="flex flex-col gap-1">
                                 <!-- Typeset as the one number that matters, and said in words underneath. -->
                                 @if (amount.direction !== 'none') {
-                                    <p aria-hidden="true"
-                                       [class]="amount.direction === 'credit' ? 'text-[var(--color-online)]' : 'text-text-primary'"
-                                       class="text-2xl font-semibold m-0 tracking-tight">
+                                    <p
+                                        aria-hidden="true"
+                                        [class]="amount.direction === 'credit' ? 'text-[var(--color-online)]' : 'text-text-primary'"
+                                        class="text-2xl font-semibold m-0 tracking-tight"
+                                    >
                                         {{ amount.amount }}
                                     </p>
                                 }
                                 <p class="text-sm text-text-secondary m-0 leading-relaxed">
-                                    {{ amount.key | translate:{amount: amount.amount} }}
+                                    {{ amount.key | translate: {amount: amount.amount} }}
                                 </p>
                             </div>
                         }
@@ -177,8 +177,10 @@
                                         </span>
                                         <!-- Signed, so the minus carries the meaning without the
                                              colour having to. -->
-                                        <span [class]="line.credit ? 'text-[var(--color-online)]' : 'text-text-secondary'"
-                                              class="text-xs whitespace-nowrap tabular-nums">
+                                        <span
+                                            [class]="line.credit ? 'text-[var(--color-online)]' : 'text-text-secondary'"
+                                            class="text-xs whitespace-nowrap tabular-nums"
+                                        >
                                             {{ line.amount }}
                                         </span>
                                     </li>
@@ -188,7 +190,7 @@
 
                         @if (nextInvoiceAt(); as date) {
                             <p class="text-xs text-text-muted m-0 leading-relaxed border-t border-white/[0.06] pt-3">
-                                {{ 'BILLING.CHANGE.NEXT_INVOICE' | translate:{amount: nextInvoiceTotal(), date: date} }}
+                                {{ 'BILLING.CHANGE.NEXT_INVOICE' | translate: {amount: nextInvoiceTotal(), date: date} }}
                             </p>
                         }
                     </div>
@@ -210,18 +212,24 @@
                 }
 
                 <div class="flex flex-wrap items-center gap-2">
-                    <p-button (onClick)="close()" [disabled]="applying()"
-                              [label]="'BILLING.CHECKOUT.CANCEL' | translate" [text]="true"
-                              severity="secondary" styleClass="flex-1 justify-center"/>
-                    <p-button (onClick)="confirm()"
-                              [disabled]="!canConfirm()"
-                              [label]="'BILLING.CHANGE.CONFIRM' | translate"
-                              [loading]="applying()"
-                              severity="primary" styleClass="flex-1 justify-center"/>
+                    <p-button
+                        (onClick)="close()"
+                        [disabled]="applying()"
+                        [label]="'BILLING.CHECKOUT.CANCEL' | translate"
+                        [text]="true"
+                        severity="secondary"
+                        styleClass="flex-1 justify-center"
+                    />
+                    <p-button
+                        (onClick)="confirm()"
+                        [disabled]="!canConfirm()"
+                        [label]="'BILLING.CHANGE.CONFIRM' | translate"
+                        [loading]="applying()"
+                        severity="primary"
+                        styleClass="flex-1 justify-center"
+                    />
                 </div>
             }
         }
-
     </div>
-
 </p-dialog>

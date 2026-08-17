@@ -11,10 +11,7 @@ function setup() {
 
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
-        providers: [
-            provideZonelessChangeDetection(),
-            {provide: LinkOpener, useValue: opener},
-        ],
+        providers: [provideZonelessChangeDetection(), {provide: LinkOpener, useValue: opener}],
     });
     return {service: TestBed.inject(ExternalLinkService), opener};
 }

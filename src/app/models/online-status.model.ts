@@ -14,7 +14,7 @@ export const ONLINE_STATUS_LABEL_KEYS: Record<OnlineStatus, string> = {
 
 /** The translation key naming a status, or null when there is no status to name. */
 export function statusLabelKey(status: OnlineStatus | null | undefined): string | null {
-    return status ? ONLINE_STATUS_LABEL_KEYS[status] ?? null : null;
+    return status ? (ONLINE_STATUS_LABEL_KEYS[status] ?? null) : null;
 }
 
 /**

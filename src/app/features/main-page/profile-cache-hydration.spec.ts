@@ -1,5 +1,9 @@
 import {describe, expect, it} from 'vitest';
-import {hydrateThenReveal, ProfileCacheHydrationSteps, revealAfterAccountGateBlock} from './profile-cache-hydration';
+import {
+    hydrateThenReveal,
+    ProfileCacheHydrationSteps,
+    revealAfterAccountGateBlock,
+} from './profile-cache-hydration';
 
 /**
  * Pins the ordering rule `MainPageComponent.runDeviceLaunch` relies on: hydration must finish
@@ -26,9 +30,10 @@ describe('hydrateThenReveal', () => {
     it('does not mark ready until hydration resolves', async () => {
         let resolveHydrate!: (count: number) => void;
         const {calls, steps: s} = steps({
-            hydrate: () => new Promise<number>(resolve => {
-                resolveHydrate = resolve;
-            }),
+            hydrate: () =>
+                new Promise<number>(resolve => {
+                    resolveHydrate = resolve;
+                }),
         });
 
         const done = hydrateThenReveal(s);
@@ -123,9 +128,10 @@ describe('revealAfterAccountGateBlock', () => {
     it('does not mark ready until hydration resolves on the email-verification path', async () => {
         let resolveHydrate!: (count: number) => void;
         const {calls, steps: s} = steps({
-            hydrate: () => new Promise<number>(resolve => {
-                resolveHydrate = resolve;
-            }),
+            hydrate: () =>
+                new Promise<number>(resolve => {
+                    resolveHydrate = resolve;
+                }),
         });
 
         const done = revealAfterAccountGateBlock('email-verification', s);
@@ -182,8 +188,9 @@ describe('revealAfterAccountGateBlock', () => {
     it('treats an unanswerable slot lookup as no slot, and still reveals', async () => {
         const {calls, steps: s} = steps();
 
-        await revealAfterAccountGateBlock(
-            'email-verification', s, () => Promise.reject(new Error('registry unreadable')));
+        await revealAfterAccountGateBlock('email-verification', s, () =>
+            Promise.reject(new Error('registry unreadable')),
+        );
 
         expect(calls).toEqual(['markReady']);
     });

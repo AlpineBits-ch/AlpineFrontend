@@ -2,8 +2,8 @@ import {inject, Injectable, signal} from '@angular/core';
 import {OAuthService} from 'angular-oauth2-oidc';
 import {environment} from '../../environments/environment';
 import {authConfig} from '../auth.config';
-import {Observable} from "rxjs";
-import {HttpClient} from "@angular/common/http";
+import {Observable} from 'rxjs';
+import {HttpClient} from '@angular/common/http';
 import {activeSlotId, scopedOAuthKey} from './scoped-oauth-storage';
 
 const STORAGE_KEY = 'server_url';
@@ -17,8 +17,9 @@ const STORAGE_KEY = 'server_url';
  * installation upgrading already has.</p>
  */
 function readServerUrl(): string | null {
-    return localStorage.getItem(scopedOAuthKey(activeSlotId(), STORAGE_KEY))
-        ?? localStorage.getItem(STORAGE_KEY);
+    return (
+        localStorage.getItem(scopedOAuthKey(activeSlotId(), STORAGE_KEY)) ?? localStorage.getItem(STORAGE_KEY)
+    );
 }
 
 function writeServerUrl(url: string): void {
@@ -45,7 +46,6 @@ export class ApiConfigService {
             tokenEndpoint: `${url}/connect/token`,
         });
     }
-
 
     /**
      * Whether this URL is one of ours, and therefore one the bearer token belongs on.

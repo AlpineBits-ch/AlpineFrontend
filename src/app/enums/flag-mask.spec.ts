@@ -99,6 +99,8 @@ describe('has and diff', () => {
 describe('label', () => {
     it('splits a camel-case key into words', () => {
         expect(codec.label('Read')).toBe('Read');
-        expect(createFlagCodec({ReadMessageHistory: 1n}).label('ReadMessageHistory')).toBe('Read Message History');
+        expect(createFlagCodec({ReadMessageHistory: 1n}).label('ReadMessageHistory')).toBe(
+            'Read Message History',
+        );
     });
 });

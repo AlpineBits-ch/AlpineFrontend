@@ -163,8 +163,7 @@ export class WebMediaDeviceSource extends MediaDeviceSource implements OutputSup
 
 /** Whether anything in this engine can route playback to a chosen device. */
 function hasSinkApi(): boolean {
-    const onMedia = typeof HTMLMediaElement !== 'undefined'
-        && 'setSinkId' in HTMLMediaElement.prototype;
+    const onMedia = typeof HTMLMediaElement !== 'undefined' && 'setSinkId' in HTMLMediaElement.prototype;
     const onContext = typeof AudioContext !== 'undefined' && 'setSinkId' in AudioContext.prototype;
     return onMedia || onContext;
 }

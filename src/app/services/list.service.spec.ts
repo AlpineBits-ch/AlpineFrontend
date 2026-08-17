@@ -136,8 +136,14 @@ describe('ListService realtime reconciliation', () => {
     afterEach(() => ctrl.verify());
 
     it('registers each of the six events exactly once', () => {
-        for (const event of ['guild.ListItemCreated', 'guild.ListItemUpdated', 'guild.ListItemChecked',
-            'guild.ListItemDeleted', 'guild.ListItemsReordered', 'guild.ListCleared']) {
+        for (const event of [
+            'guild.ListItemCreated',
+            'guild.ListItemUpdated',
+            'guild.ListItemChecked',
+            'guild.ListItemDeleted',
+            'guild.ListItemsReordered',
+            'guild.ListCleared',
+        ]) {
             expect(realtime.countFor(event), event).toBe(1);
         }
     });
@@ -152,10 +158,7 @@ describe('ListService realtime reconciliation', () => {
     });
 
     it('sorts the loaded list by position and renumbers it to the index', () => {
-        loadWith(service, ctrl, [
-            itemFixture('b', {position: 7}),
-            itemFixture('a', {position: 2}),
-        ]);
+        loadWith(service, ctrl, [itemFixture('b', {position: 7}), itemFixture('a', {position: 2})]);
 
         expect(ids(service)).toEqual(['a', 'b']);
         expect(service.stateFor(CHANNEL).items.map(i => i.position)).toEqual([0, 1]);
@@ -172,18 +175,21 @@ describe('ListService realtime reconciliation', () => {
         loadWith(service, ctrl, []);
         // PantryRestockService emits an anonymous object, not a full ListItemDto: no
         // addedByUserId and no createdAt.
-        realtime.emit('guild.ListItemCreated', scope({
-            item: {
-                id: 'oat-milk',
-                channelId: CHANNEL,
-                text: 'Oat milk',
-                quantity: '2',
-                section: 'Dairy',
-                position: 0,
-                sourcePantryItemId: 'p9',
-                isChecked: false,
-            },
-        }));
+        realtime.emit(
+            'guild.ListItemCreated',
+            scope({
+                item: {
+                    id: 'oat-milk',
+                    channelId: CHANNEL,
+                    text: 'Oat milk',
+                    quantity: '2',
+                    section: 'Dairy',
+                    position: 0,
+                    sourcePantryItemId: 'p9',
+                    isChecked: false,
+                },
+            }),
+        );
 
         const [item] = service.stateFor(CHANNEL).items;
         expect(item.sourcePantryItemId).toBe('p9');
@@ -231,9 +237,12 @@ describe('ListService realtime reconciliation', () => {
 
     it('unticks on a ListItemChecked carrying isChecked false', () => {
         loadWith(service, ctrl, [itemFixture('a', {isChecked: true, checkedByUserId: 'flatmate'})]);
-        realtime.emit('guild.ListItemChecked', scope({
-            item: itemFixture('a', {isChecked: false, checkedAt: null, checkedByUserId: null}),
-        }));
+        realtime.emit(
+            'guild.ListItemChecked',
+            scope({
+                item: itemFixture('a', {isChecked: false, checkedAt: null, checkedByUserId: null}),
+            }),
+        );
 
         expect(service.stateFor(CHANNEL).items[0].isChecked).toBe(false);
     });
@@ -246,7 +255,11 @@ describe('ListService realtime reconciliation', () => {
     });
 
     it('applies a partial reorder echo with omitted ids trailing', () => {
-        loadWith(service, ctrl, ['a', 'b', 'c', 'd'].map((id, i) => itemFixture(id, {position: i})));
+        loadWith(
+            service,
+            ctrl,
+            ['a', 'b', 'c', 'd'].map((id, i) => itemFixture(id, {position: i})),
+        );
         realtime.emit('guild.ListItemsReordered', scope({itemIds: ['c', 'a']}));
 
         expect(ids(service)).toEqual(['c', 'a', 'b', 'd']);
@@ -278,8 +291,7 @@ describe('ListService optimism', () => {
     afterEach(() => ctrl.verify());
 
     function expectCreate(): TestRequest {
-        return ctrl.expectOne(r =>
-            r.method === 'POST' && r.url === `${base}/channels/${CHANNEL}/list-items`);
+        return ctrl.expectOne(r => r.method === 'POST' && r.url === `${base}/channels/${CHANNEL}/list-items`);
     }
 
     it('shows a new row before the server answers, then swaps in the server row', async () => {
@@ -370,7 +382,11 @@ describe('ListService optimism', () => {
     });
 
     it('refuses the 501st row without issuing a request', async () => {
-        loadWith(service, ctrl, Array.from({length: 500}, (_, i) => itemFixture(`i${i}`, {position: i})));
+        loadWith(
+            service,
+            ctrl,
+            Array.from({length: 500}, (_, i) => itemFixture(`i${i}`, {position: i})),
+        );
 
         expect(await service.addItem(CHANNEL, {text: 'One too many'})).toBe(false);
         expect(service.stateFor(CHANNEL).items.length).toBe(500);
@@ -387,9 +403,12 @@ describe('ListService optimism', () => {
         req.flush(itemFixture('a', {isChecked: true, checkedByUserId: 'me'}));
         await pending;
 
-        realtime.emit('guild.ListItemChecked', scope({
-            item: itemFixture('a', {isChecked: true, checkedByUserId: 'me'}),
-        }));
+        realtime.emit(
+            'guild.ListItemChecked',
+            scope({
+                item: itemFixture('a', {isChecked: true, checkedByUserId: 'me'}),
+            }),
+        );
 
         // Optimistic tick, then the response, then the echo - three touches, one state.
         expect(service.stateFor(CHANNEL).items[0].isChecked).toBe(true);
@@ -408,8 +427,10 @@ describe('ListService optimism', () => {
         loadWith(service, ctrl, [itemFixture('a', {isChecked: false, text: 'Milk'})]);
 
         const pending = service.setChecked(CHANNEL, 'a', true);
-        ctrl.expectOne(r => r.url === `${base}/list-items/a/check`)
-            .flush('nope', {status: 500, statusText: 'Server Error'});
+        ctrl.expectOne(r => r.url === `${base}/list-items/a/check`).flush('nope', {
+            status: 500,
+            statusText: 'Server Error',
+        });
 
         expect(await pending).toBe(false);
         expect(service.stateFor(CHANNEL).items[0].isChecked).toBe(false);
@@ -422,8 +443,9 @@ describe('ListService optimism', () => {
         const pending = service.setChecked(CHANNEL, 'a', false);
         expect(service.stateFor(CHANNEL).items[0].checkedByUserId).toBe(null);
 
-        ctrl.expectOne(r => r.method === 'DELETE' && r.url === `${base}/list-items/a/check`)
-            .flush(itemFixture('a', {isChecked: false}));
+        ctrl.expectOne(r => r.method === 'DELETE' && r.url === `${base}/list-items/a/check`).flush(
+            itemFixture('a', {isChecked: false}),
+        );
         await pending;
 
         expect(service.stateFor(CHANNEL).items[0].isChecked).toBe(false);
@@ -436,7 +458,9 @@ describe('ListService optimism', () => {
         const checkReq = ctrl.expectOne(r => r.method === 'POST' && r.url === `${base}/list-items/a/check`);
 
         const second = service.setChecked(CHANNEL, 'a', false);
-        const uncheckReq = ctrl.expectOne(r => r.method === 'DELETE' && r.url === `${base}/list-items/a/check`);
+        const uncheckReq = ctrl.expectOne(
+            r => r.method === 'DELETE' && r.url === `${base}/list-items/a/check`,
+        );
 
         // The untick answers first, the stale tick second.
         uncheckReq.flush(itemFixture('a', {isChecked: false}));
@@ -447,26 +471,37 @@ describe('ListService optimism', () => {
     });
 
     it('restores a failed delete at its original index', async () => {
-        loadWith(service, ctrl, ['a', 'b', 'c'].map((id, i) => itemFixture(id, {position: i})));
+        loadWith(
+            service,
+            ctrl,
+            ['a', 'b', 'c'].map((id, i) => itemFixture(id, {position: i})),
+        );
 
         const pending = service.deleteItem(CHANNEL, 'b');
         expect(ids(service)).toEqual(['a', 'c']);
 
-        ctrl.expectOne(r => r.method === 'DELETE' && r.url === `${base}/list-items/b`)
-            .flush('nope', {status: 500, statusText: 'Server Error'});
+        ctrl.expectOne(r => r.method === 'DELETE' && r.url === `${base}/list-items/b`).flush('nope', {
+            status: 500,
+            statusText: 'Server Error',
+        });
 
         expect(await pending).toBe(false);
         expect(ids(service)).toEqual(['a', 'b', 'c']);
     });
 
     it('sends only the affected prefix on a drag, and reorders locally at once', async () => {
-        loadWith(service, ctrl, ['a', 'b', 'c', 'd', 'e'].map((id, i) => itemFixture(id, {position: i})));
+        loadWith(
+            service,
+            ctrl,
+            ['a', 'b', 'c', 'd', 'e'].map((id, i) => itemFixture(id, {position: i})),
+        );
 
         const pending = service.moveItem(CHANNEL, 1, 2);
         expect(ids(service)).toEqual(['a', 'c', 'b', 'd', 'e']);
 
-        const req = ctrl.expectOne(r =>
-            r.method === 'POST' && r.url === `${base}/channels/${CHANNEL}/list-items/reorder`);
+        const req = ctrl.expectOne(
+            r => r.method === 'POST' && r.url === `${base}/channels/${CHANNEL}/list-items/reorder`,
+        );
         // Down to the further of the two indices and no further: everything below it kept its
         // relative order, and omitted ids trail the ones sent anyway.
         expect(req.request.body.itemIds).toEqual(['a', 'c', 'b']);
@@ -476,26 +511,38 @@ describe('ListService optimism', () => {
     });
 
     it('restores the previous order when the reorder fails', async () => {
-        loadWith(service, ctrl, ['a', 'b', 'c'].map((id, i) => itemFixture(id, {position: i})));
+        loadWith(
+            service,
+            ctrl,
+            ['a', 'b', 'c'].map((id, i) => itemFixture(id, {position: i})),
+        );
 
         const pending = service.moveItem(CHANNEL, 2, 0);
         expect(ids(service)).toEqual(['c', 'a', 'b']);
 
-        ctrl.expectOne(r => r.url === `${base}/channels/${CHANNEL}/list-items/reorder`)
-            .flush('nope', {status: 500, statusText: 'Server Error'});
+        ctrl.expectOne(r => r.url === `${base}/channels/${CHANNEL}/list-items/reorder`).flush('nope', {
+            status: 500,
+            statusText: 'Server Error',
+        });
 
         expect(await pending).toBe(false);
         expect(ids(service)).toEqual(['a', 'b', 'c']);
     });
 
     it('keeps a row created during a failed reorder', async () => {
-        loadWith(service, ctrl, ['a', 'b'].map((id, i) => itemFixture(id, {position: i})));
+        loadWith(
+            service,
+            ctrl,
+            ['a', 'b'].map((id, i) => itemFixture(id, {position: i})),
+        );
 
         const pending = service.moveItem(CHANNEL, 1, 0);
         realtime.emit('guild.ListItemCreated', scope({item: itemFixture('late')}));
 
-        ctrl.expectOne(r => r.url === `${base}/channels/${CHANNEL}/list-items/reorder`)
-            .flush('nope', {status: 500, statusText: 'Server Error'});
+        ctrl.expectOne(r => r.url === `${base}/channels/${CHANNEL}/list-items/reorder`).flush('nope', {
+            status: 500,
+            statusText: 'Server Error',
+        });
         await pending;
 
         expect(ids(service)).toEqual(['a', 'b', 'late']);
@@ -510,9 +557,9 @@ describe('ListService optimism', () => {
         const pending = service.clearChecked(CHANNEL);
         expect(ids(service)).toEqual(['b']);
 
-        ctrl.expectOne(r =>
-            r.method === 'DELETE' && r.url === `${base}/channels/${CHANNEL}/list-items/checked`)
-            .flush('nope', {status: 500, statusText: 'Server Error'});
+        ctrl.expectOne(
+            r => r.method === 'DELETE' && r.url === `${base}/channels/${CHANNEL}/list-items/checked`,
+        ).flush('nope', {status: 500, statusText: 'Server Error'});
 
         expect(await pending).toBe(false);
         expect(ids(service)).toEqual(['a', 'b']);
@@ -520,8 +567,10 @@ describe('ListService optimism', () => {
 
     it('records a 403 separately from a network failure so the caller can read features first', () => {
         service.reload(CHANNEL);
-        ctrl.expectOne(r => r.url === `${base}/channels/${CHANNEL}/list-items`)
-            .flush('nope', {status: 403, statusText: 'Forbidden'});
+        ctrl.expectOne(r => r.url === `${base}/channels/${CHANNEL}/list-items`).flush('nope', {
+            status: 403,
+            statusText: 'Forbidden',
+        });
 
         expect(service.stateFor(CHANNEL).forbidden).toBe(true);
         expect(service.stateFor(CHANNEL).hasLoaded).toBe(false);

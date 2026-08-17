@@ -49,9 +49,9 @@ function setup(options: SetupOptions = {}) {
     const members = options.members ?? [member('ada')];
 
     const rings = {
-        invite: vi.fn(() => options.inviteFails
-            ? throwError(() => options.inviteFails)
-            : of({conversationId: 'conv_1'})),
+        invite: vi.fn(() =>
+            options.inviteFails ? throwError(() => options.inviteFails) : of({conversationId: 'conv_1'}),
+        ),
     };
     const ringState = {
         send: vi.fn(),
@@ -99,8 +99,9 @@ function setup(options: SetupOptions = {}) {
     fixture.detectChanges();
 
     const rows = (): HTMLButtonElement[] =>
-        [...fixture.nativeElement.querySelectorAll('button')]
-            .filter((b): b is HTMLButtonElement => !b.hasAttribute('aria-label'));
+        [...fixture.nativeElement.querySelectorAll('button')].filter(
+            (b): b is HTMLButtonElement => !b.hasAttribute('aria-label'),
+        );
 
     return {fixture, rings, ringState, rows};
 }
@@ -159,8 +160,9 @@ describe('ChannelInvitePanelComponent', () => {
     it('rings from inside it, and only from the bell', () => {
         const {fixture, ringState, rings} = setup({joinedChannelId: CHANNEL});
 
-        const bell: HTMLButtonElement =
-            fixture.nativeElement.querySelector('[aria-label="VOICE_RING.RING_THEM"]');
+        const bell: HTMLButtonElement = fixture.nativeElement.querySelector(
+            '[aria-label="VOICE_RING.RING_THEM"]',
+        );
         bell.click();
         fixture.detectChanges();
 

@@ -1,10 +1,24 @@
 export type AuditLogActionType =
-    | 'MemberBanned' | 'MemberUnbanned' | 'MemberKicked' | 'MemberMuted' | 'MemberUnmuted' | 'MemberLeft'
-    | 'RoleCreated' | 'RoleUpdated' | 'RoleDeleted' | 'RolePositionsChanged'
-    | 'ChannelCreated' | 'ChannelDeleted' | 'ChannelUpdated' | 'ChannelPermissionChanged'
-    | 'CategoryCreated' | 'CategoryDeleted'
-    | 'GuildUpdated' | 'GuildDeleted'
-    | 'InviteCreated' | 'InviteDeleted';
+    | 'MemberBanned'
+    | 'MemberUnbanned'
+    | 'MemberKicked'
+    | 'MemberMuted'
+    | 'MemberUnmuted'
+    | 'MemberLeft'
+    | 'RoleCreated'
+    | 'RoleUpdated'
+    | 'RoleDeleted'
+    | 'RolePositionsChanged'
+    | 'ChannelCreated'
+    | 'ChannelDeleted'
+    | 'ChannelUpdated'
+    | 'ChannelPermissionChanged'
+    | 'CategoryCreated'
+    | 'CategoryDeleted'
+    | 'GuildUpdated'
+    | 'GuildDeleted'
+    | 'InviteCreated'
+    | 'InviteDeleted';
 
 export interface AuditLogEntryDto {
     id: string;

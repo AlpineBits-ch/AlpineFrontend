@@ -89,7 +89,9 @@
     line-height: 1;
     cursor: pointer;
     user-select: none;
-    transition: transform 0.15s ease, color 0.15s ease;
+    transition:
+        transform 0.15s ease,
+        color 0.15s ease;
 }
 
 .wiki-article-body ::ng-deep .wiki-toggle-marker:hover {
@@ -202,7 +204,9 @@
     font-family: inherit;
     font-size: 0.6875rem;
     cursor: pointer;
-    transition: background 0.12s ease, color 0.12s ease;
+    transition:
+        background 0.12s ease,
+        color 0.12s ease;
 }
 
 .wiki-article-body ::ng-deep .wiki-code-copy:hover {
@@ -564,7 +568,9 @@
     color: rgba(255, 255, 255, 0.55);
     font-size: 0.6875rem;
     cursor: pointer;
-    transition: background 0.12s ease, color 0.12s ease;
+    transition:
+        background 0.12s ease,
+        color 0.12s ease;
 }
 
 .wiki-article-body ::ng-deep .wiki-table-controls button:hover {

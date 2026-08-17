@@ -2,7 +2,12 @@
 import {signal} from '@angular/core';
 import {TestBed} from '@angular/core/testing';
 import {FakeVoicePublisher, idleVoiceStats} from '../platform/testing/fake-voice-publisher';
-import {VoiceProcessing, VoicePublisher, VoiceSession, VoiceTarget} from '../platform/ports/voice-publisher.port';
+import {
+    VoiceProcessing,
+    VoicePublisher,
+    VoiceSession,
+    VoiceTarget,
+} from '../platform/ports/voice-publisher.port';
 import {AudioSettings, AudioSettingsService} from './audio-settings.service';
 import {SILENCE_DBFS, VoiceEngineService} from './voice-engine.service';
 
@@ -119,7 +124,7 @@ describe('the settings payload', () => {
         expect(lastPayload().sensitivity).toBe(1);
     });
 
-    it('maps the input mode to the engine\'s two names', async () => {
+    it("maps the input mode to the engine's two names", async () => {
         withSettings({inputMode: 'push-to-talk'});
         await engine.applySettings();
         expect(lastPayload().inputMode).toBe('ptt');
@@ -213,7 +218,7 @@ describe('the engine events', () => {
         expect(engine.thresholdDb()).toBe(-45);
     });
 
-    it('drive every remote participant\'s meter', async () => {
+    it("drive every remote participant's meter", async () => {
         // The only remote speaking signal there is: playout happens below this line on both hosts.
         const session = await start();
         publisher.emit(session, {kind: 'levels', levels: [{id: 'user_a', level: 0.3, speaking: true}]});
@@ -221,7 +226,7 @@ describe('the engine events', () => {
         expect(engine.remoteLevels().get('user_a')?.speaking).toBe(true);
     });
 
-    it('clear a slot\'s meters when its call ends', async () => {
+    it("clear a slot's meters when its call ends", async () => {
         const session = await start();
         await engine.subscribe(session, 'user_a', 'their_sess', 'audio');
         publisher.emit(session, {kind: 'levels', levels: [{id: 'user_a', level: 0.3, speaking: true}]});

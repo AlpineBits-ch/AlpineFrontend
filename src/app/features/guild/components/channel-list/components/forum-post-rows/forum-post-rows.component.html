@@ -6,10 +6,12 @@
             @let state = stateOf(post.id);
             @let unread = state.isUnread || state.mentionCount > 0;
 
-            <button (click)="open(post)"
-                    [class.is-active]="isOpen(post.id)"
-                    [class.is-unread]="!isOpen(post.id) && unread"
-                    class="chan-row">
+            <button
+                (click)="open(post)"
+                [class.is-active]="isOpen(post.id)"
+                [class.is-unread]="!isOpen(post.id) && unread"
+                class="chan-row"
+            >
                 <span class="chan-label">{{ post.name }}</span>
                 @if (state.mentionCount > 0) {
                     <span class="chan-badge chan-badge-mention">{{ state.mentionCount }}</span>

@@ -64,8 +64,7 @@ describe('NotificationSettingsComponent host limits', () => {
     it('says notifications only arrive while Venta is open, in a browser', () => {
         const fixture = render('web');
 
-        expect(foregroundLine(fixture)?.textContent?.trim())
-            .toBe('SETTINGS.NOTIFICATIONS.FOREGROUND_ONLY');
+        expect(foregroundLine(fixture)?.textContent?.trim()).toBe('SETTINGS.NOTIFICATIONS.FOREGROUND_ONLY');
         // Not blocked, only foreground-only: the two are different facts and must not appear together
         // just because the host is a browser.
         expect(blockedLine(fixture)).toBeNull();
@@ -117,8 +116,9 @@ describe('NotificationSettingsComponent go-live toggles', () => {
 
     it('flips the toggle for the clicked guild only', () => {
         const fixture = render('tauri', false, [guildFixture('g1', 'Alpha'), guildFixture('g2', 'Beta')]);
-        const g1Switch = fixture.nativeElement
-            .querySelector('[data-testid="go-live-toggle-g1"] input') as HTMLInputElement;
+        const g1Switch = fixture.nativeElement.querySelector(
+            '[data-testid="go-live-toggle-g1"] input',
+        ) as HTMLInputElement;
 
         g1Switch.click();
         fixture.detectChanges();
@@ -141,10 +141,12 @@ describe('NotificationSettingsComponent go-live toggles', () => {
         await fixture.whenStable();
         fixture.detectChanges();
 
-        const friendsSwitch = fixture.nativeElement
-            .querySelector('[data-testid="go-live-friends-toggle"] input') as HTMLInputElement;
-        const g1Switch = fixture.nativeElement
-            .querySelector('[data-testid="go-live-toggle-g1"] input') as HTMLInputElement;
+        const friendsSwitch = fixture.nativeElement.querySelector(
+            '[data-testid="go-live-friends-toggle"] input',
+        ) as HTMLInputElement;
+        const g1Switch = fixture.nativeElement.querySelector(
+            '[data-testid="go-live-toggle-g1"] input',
+        ) as HTMLInputElement;
 
         expect(friendsSwitch.checked).toBe(true);
         expect(g1Switch.checked).toBe(false);
@@ -152,15 +154,16 @@ describe('NotificationSettingsComponent go-live toggles', () => {
 
     it('flips the friends toggle without touching any guild toggle', () => {
         const fixture = render('tauri', false, [guildFixture('g1', 'Alpha')]);
-        const friendsSwitch = fixture.nativeElement
-            .querySelector('[data-testid="go-live-friends-toggle"] input') as HTMLInputElement;
+        const friendsSwitch = fixture.nativeElement.querySelector(
+            '[data-testid="go-live-friends-toggle"] input',
+        ) as HTMLInputElement;
 
         friendsSwitch.click();
         fixture.detectChanges();
 
         const component = fixture.componentInstance as unknown as {
             isGoLiveEnabled(id: string): boolean;
-            userSettings: { notificationSettings(): { goLiveFriendsEnabled: boolean } };
+            userSettings: {notificationSettings(): {goLiveFriendsEnabled: boolean}};
         };
         expect(component.userSettings.notificationSettings().goLiveFriendsEnabled).toBe(false);
         expect(component.isGoLiveEnabled('g1')).toBe(false);

@@ -60,22 +60,29 @@ export class TemplatesSettingsComponent implements OnInit {
         const trimmedName = this.name().trim();
         if (!trimmedName || this.saving() || !this.canCreateTemplate()) return;
         this.saving.set(true);
-        this.guildTemplateService.createFromGuild(this.guild().id, {
-            name: trimmedName,
-            description: this.description().trim() || undefined,
-        }).subscribe({
-            next: template => {
-                this.saving.set(false);
-                this.created.update(ts => [template, ...ts]);
-                this.name.set('');
-                this.description.set('');
-                this.toastService.success(this.translate.instant('GUILD_SETTINGS.TEMPLATES.SUCCESS_TITLE'));
-            },
-            error: err => {
-                this.saving.set(false);
-                this.toastService.httpError(this.translate.instant('GUILD_SETTINGS.TEMPLATES.SAVE_ERROR_TOAST'), err);
-            },
-        });
+        this.guildTemplateService
+            .createFromGuild(this.guild().id, {
+                name: trimmedName,
+                description: this.description().trim() || undefined,
+            })
+            .subscribe({
+                next: template => {
+                    this.saving.set(false);
+                    this.created.update(ts => [template, ...ts]);
+                    this.name.set('');
+                    this.description.set('');
+                    this.toastService.success(
+                        this.translate.instant('GUILD_SETTINGS.TEMPLATES.SUCCESS_TITLE'),
+                    );
+                },
+                error: err => {
+                    this.saving.set(false);
+                    this.toastService.httpError(
+                        this.translate.instant('GUILD_SETTINGS.TEMPLATES.SAVE_ERROR_TOAST'),
+                        err,
+                    );
+                },
+            });
     }
 
     copyId(template: CreatedTemplateDto): void {

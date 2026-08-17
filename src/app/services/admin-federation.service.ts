@@ -46,9 +46,7 @@ export class AdminFederationService {
     }
 
     getInstances(status?: FederationStatus): Observable<FederationInstance[]> {
-        const url = status
-            ? `${this.base}/instances?status=${status}`
-            : `${this.base}/instances`;
+        const url = status ? `${this.base}/instances?status=${status}` : `${this.base}/instances`;
         return this.http.get<FederationInstance[]>(url);
     }
 

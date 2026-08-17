@@ -68,9 +68,7 @@ export function extractLinkedPageIds(markdown: string): string[] {
  * Self-links are dropped: a page that references itself would otherwise report a backlink from
  * itself, which reads as "1 page links here" on a page nothing actually links to.
  */
-export function buildBacklinkIndex(
-    contentByPageId: ReadonlyMap<string, string>,
-): Map<string, string[]> {
+export function buildBacklinkIndex(contentByPageId: ReadonlyMap<string, string>): Map<string, string[]> {
     const index = new Map<string, string[]>();
     for (const [sourceId, content] of contentByPageId) {
         for (const targetId of extractLinkedPageIds(content)) {
@@ -134,11 +132,7 @@ export function findUnlinkedMentions(
  * Returns null when there is nothing safe to do - no mention, or a title carrying brackets, which
  * would produce a link the markdown parser reads as something else entirely.
  */
-export function linkFirstMention(
-    markdown: string,
-    title: string,
-    pageId: string,
-): string | null {
+export function linkFirstMention(markdown: string, title: string, pageId: string): string | null {
     const needle = title.trim();
     if (!needle || /[[\]]/.test(needle)) return null;
     const [at] = findPlainOccurrences(markdown, needle);
@@ -212,10 +206,11 @@ function maskFencedCode(chars: string[], markdown: string): void {
         const fence = /^[ \t]{0,3}(`{3,}|~{3,})/.exec(line);
         if (open) {
             maskRange(chars, offset, offset + line.length);
-            const closes = fence
-                && fence[1][0] === open[0]
-                && fence[1].length >= open.length
-                && line.slice(fence[0].length).trim() === '';
+            const closes =
+                fence &&
+                fence[1][0] === open[0] &&
+                fence[1].length >= open.length &&
+                line.slice(fence[0].length).trim() === '';
             if (closes) open = null;
         } else if (fence) {
             open = fence[1];

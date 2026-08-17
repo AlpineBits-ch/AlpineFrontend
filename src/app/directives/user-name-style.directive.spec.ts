@@ -8,7 +8,7 @@ import {UserNameStyleDirective} from './user-name-style.directive';
     template: `<span [appUserNameStyle]="profile">Name</span>`,
 })
 class HostComponent {
-    profile: { accentColor?: string | null; font?: ProfileFont } | null = null;
+    profile: {accentColor?: string | null; font?: ProfileFont} | null = null;
 }
 
 describe('UserNameStyleDirective', () => {

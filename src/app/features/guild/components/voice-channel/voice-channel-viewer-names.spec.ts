@@ -24,7 +24,9 @@ const CHANNEL = {
     type: ChannelType.Voice,
 } as unknown as ChannelDto;
 
-function render(participants: {userId: string; displayName: string}[]): ComponentFixture<VoiceChannelComponent> {
+function render(
+    participants: {userId: string; displayName: string}[],
+): ComponentFixture<VoiceChannelComponent> {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
         providers: [
@@ -43,7 +45,12 @@ function render(participants: {userId: string; displayName: string}[]): Componen
                     channelParticipants: signal(new Map<string, unknown[]>([[CHANNEL.id, participants]])),
                     participantsWithAudio: signal(new Set<string>()),
                     rtcState: signal('connected'),
-                    localState: signal({isMuted: false, isDeafened: false, isCameraOn: false, isScreenSharing: false}),
+                    localState: signal({
+                        isMuted: false,
+                        isDeafened: false,
+                        isCameraOn: false,
+                        isScreenSharing: false,
+                    }),
                     localVideoStream: signal(null),
                     localScreenStream: signal(null),
                     localScreenHasAudio: signal(false),
@@ -79,14 +86,23 @@ function render(participants: {userId: string; displayName: string}[]): Componen
                     resumePreview: () => void 0,
                 },
             },
-            {provide: NavigationService, useValue: {mobileNavOpen: signal(false), workspace: signal({type: 'home'})}},
+            {
+                provide: NavigationService,
+                useValue: {mobileNavOpen: signal(false), workspace: signal({type: 'home'})},
+            },
             {provide: GuildService, useValue: {getOwnMember: () => of(null)}},
             {provide: OwnMemberRevisionService, useValue: {revision: signal(0)}},
             {provide: GuildVoiceService, useValue: {}},
             // app-call-screen-layout injects the real ShareWatchService unless overridden; its dependency chain (GuildWebsocketService/VoiceWebsocketService -> RealtimeConnectionService -> AuthService -> OAuthService) is otherwise unavailable in this test module.
             {
                 provide: ShareWatchService,
-                useValue: {setWatching: vi.fn(), refresh: vi.fn(), clear: vi.fn(), viewerCount: () => 0, viewersOf: () => []},
+                useValue: {
+                    setWatching: vi.fn(),
+                    refresh: vi.fn(),
+                    clear: vi.fn(),
+                    viewerCount: () => 0,
+                    viewersOf: () => [],
+                },
             },
         ],
     });

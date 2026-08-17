@@ -78,11 +78,13 @@ export class UserTokenService {
 
             // The device id is what lets the server leave out the device already handling an
             // event - without it the token can be neither targeted nor cleaned up.
-            await firstValueFrom(this.client.post(this.pushTokenUrl(), {
-                token,
-                kind,
-                deviceId: await this.deviceIdentity.deviceId(),
-            }));
+            await firstValueFrom(
+                this.client.post(this.pushTokenUrl(), {
+                    token,
+                    kind,
+                    deviceId: await this.deviceIdentity.deviceId(),
+                }),
+            );
 
             await this.rememberToken({token, kind});
         } catch (error) {
@@ -99,9 +101,7 @@ export class UserTokenService {
             const stored = await this.storedToken();
             if (!stored) return;
 
-            const params = new HttpParams()
-                .set('token', stored.token)
-                .set('kind', stored.kind);
+            const params = new HttpParams().set('token', stored.token).set('kind', stored.kind);
 
             await firstValueFrom(this.client.delete(this.pushTokenUrl(), {params}));
             await this.forgetToken();
@@ -120,8 +120,10 @@ export class UserTokenService {
     private noTokenReason(token: string | null, kind: PushTokenKind | null): string {
         if (kind === null) return 'this host takes no push at all';
         if (kind === 'WebPush') {
-            return 'Web Push is not implemented - it needs a service worker, VAPID keys and a server ' +
-                'that accepts a WebPush token kind';
+            return (
+                'Web Push is not implemented - it needs a service worker, VAPID keys and a server ' +
+                'that accepts a WebPush token kind'
+            );
         }
         return `this host mints no ${kind} token`;
     }

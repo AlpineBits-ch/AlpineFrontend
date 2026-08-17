@@ -1,11 +1,11 @@
 import {inject, Injectable} from '@angular/core';
-import {HttpClient} from "@angular/common/http";
-import {catchError, from, Observable, switchMap, tap, throwError} from "rxjs";
-import {OAuthService, TokenResponse} from "angular-oauth2-oidc";
-import {ApiConfigService} from "./api-config.service";
-import {DeviceIdentityService} from "./device-identity.service";
-import {describeCurrentDevice} from "./device-description";
-import {checkJsonSettings} from "../core/json-settings-limits";
+import {HttpClient} from '@angular/common/http';
+import {catchError, from, Observable, switchMap, tap, throwError} from 'rxjs';
+import {OAuthService, TokenResponse} from 'angular-oauth2-oidc';
+import {ApiConfigService} from './api-config.service';
+import {DeviceIdentityService} from './device-identity.service';
+import {describeCurrentDevice} from './device-description';
+import {checkJsonSettings} from '../core/json-settings-limits';
 
 @Injectable({
     providedIn: 'root',
@@ -32,7 +32,7 @@ export class AuthService {
             email,
             password,
             birthdate,
-            username
+            username,
         });
     }
 
@@ -59,9 +59,9 @@ export class AuthService {
                 return from(this.oauthService.fetchTokenUsingGrant('password', parameters));
             }),
             tap({
-                error: (err) => console.error('Login failed', err)
+                error: err => console.error('Login failed', err),
             }),
-            catchError((err) => throwError(() => err))
+            catchError(err => throwError(() => err)),
         );
     }
 
@@ -99,7 +99,8 @@ export class AuthService {
         }
 
         if (!this._activeRefresh) {
-            this._activeRefresh = this.oauthService.refreshToken()
+            this._activeRefresh = this.oauthService
+                .refreshToken()
                 .then(() => {
                     this._activeRefresh = null;
                     return this.oauthService.getAccessToken() ?? '';

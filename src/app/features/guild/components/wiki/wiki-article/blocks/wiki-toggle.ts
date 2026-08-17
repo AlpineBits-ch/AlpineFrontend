@@ -9,7 +9,7 @@ const TRAILING_REGEX = /^[ \t]*\r?\n?/;
 const SUMMARY_REGEX = /^[ \t]*<summary>([\s\S]*?)<\/summary>[ \t]*\r?\n?/;
 
 /** Finds the </details> that closes the one at the start of source, counting nested opens; a non-greedy [\s\S]*? would stop at the first close tag, which for a toggle inside a toggle is the inner one, and the outer would swallow half its own body. */
-function matchDetails(source: string): { raw: string; open: boolean; inner: string } | null {
+function matchDetails(source: string): {raw: string; open: boolean; inner: string} | null {
     const head = OPEN_REGEX.exec(source);
     if (!head) return null;
 
@@ -61,8 +61,7 @@ export const WikiToggleSummary = Node.create({
         return ['summary', {class: 'wiki-toggle-summary'}, 0];
     },
 
-    renderMarkdown: (node, helpers) =>
-        node.content ? helpers.renderChildren(node.content, '') : '',
+    renderMarkdown: (node, helpers) => (node.content ? helpers.renderChildren(node.content, '') : ''),
 });
 
 export const WikiToggleBody = Node.create({
@@ -80,8 +79,7 @@ export const WikiToggleBody = Node.create({
         return ['div', {'data-toggle-body': '', class: 'wiki-toggle-body'}, 0];
     },
 
-    renderMarkdown: (node, helpers) =>
-        node.content ? helpers.renderChildren(node.content, '\n\n') : '',
+    renderMarkdown: (node, helpers) => (node.content ? helpers.renderChildren(node.content, '\n\n') : ''),
 });
 
 export const WikiToggle = Node.create<WikiToggleOptions>({
@@ -217,15 +215,17 @@ export const WikiToggle = Node.create<WikiToggleOptions>({
 
     addCommands() {
         return {
-            setToggle: () => ({commands}) =>
-                commands.insertContent({
-                    type: this.name,
-                    attrs: {open: true},
-                    content: [
-                        {type: 'toggleSummary'},
-                        {type: 'toggleBody', content: [{type: 'paragraph'}]},
-                    ],
-                }),
+            setToggle:
+                () =>
+                ({commands}) =>
+                    commands.insertContent({
+                        type: this.name,
+                        attrs: {open: true},
+                        content: [
+                            {type: 'toggleSummary'},
+                            {type: 'toggleBody', content: [{type: 'paragraph'}]},
+                        ],
+                    }),
         };
     },
 

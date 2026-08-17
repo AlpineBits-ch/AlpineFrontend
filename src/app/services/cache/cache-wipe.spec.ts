@@ -34,8 +34,12 @@ function mlsStub() {
         unloadSigningKey: () => of(undefined as void),
         clearStoredSigningKey: () => of(undefined as void),
         clearStorage: () => of(undefined as void),
-        clearGroupRegistry: async () => { /* no-op */ },
-        clearMessageCache: async () => { /* no-op */ },
+        clearGroupRegistry: async () => {
+            /* no-op */
+        },
+        clearMessageCache: async () => {
+            /* no-op */
+        },
     };
 }
 
@@ -63,7 +67,14 @@ function build(): SessionTeardownService {
             SessionTeardownService,
             {provide: MlsService, useValue: mlsStub()},
             {provide: DeviceService, useValue: deviceStub()},
-            {provide: MlsCoverageService, useValue: {clear: () => { coverageCleared = true; }}},
+            {
+                provide: MlsCoverageService,
+                useValue: {
+                    clear: () => {
+                        coverageCleared = true;
+                    },
+                },
+            },
             {provide: CacheStoreFactory, useFactory: fakeCacheStores},
             // Stubbed because the real one reaches ApiConfigService -> OAuthService, which this
             // pure Tauri harness has no business providing. Only the write-behind hook is used.
@@ -77,12 +88,16 @@ beforeEach(() => {
     clearCalls = [];
     clearThrows = false;
     coverageCleared = false;
-    profiles = {cachePersist: () => { /* the outgoing account's hook */ }};
-    vi.spyOn(console, 'error').mockImplementation(() => { });
+    profiles = {
+        cachePersist: () => {
+            /* the outgoing account's hook */
+        },
+    };
+    vi.spyOn(console, 'error').mockImplementation(() => {});
 });
 
 describe('cache wipe', () => {
-    it('clears this device\'s cache store as part of wipeEngineState', async () => {
+    it("clears this device's cache store as part of wipeEngineState", async () => {
         const service = build();
 
         await service.wipeEngineState(DEVICE_ID);
@@ -124,8 +139,7 @@ describe('cache wipe', () => {
 
         await service.wipeEngineState(DEVICE_ID);
 
-        expect(console.error).toHaveBeenCalledWith(
-            expect.stringContaining('cache'), expect.any(Error));
+        expect(console.error).toHaveBeenCalledWith(expect.stringContaining('cache'), expect.any(Error));
     });
 
     /**

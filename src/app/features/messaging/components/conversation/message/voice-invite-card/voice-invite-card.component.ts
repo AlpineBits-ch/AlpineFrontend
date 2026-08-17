@@ -44,8 +44,7 @@ export class VoiceInviteCardComponent {
     protected readonly ringId = computed(() => this.venta()?.ring_id);
 
     /** The channel's name as it read when the invitation was sent. */
-    protected readonly channelName = computed(() =>
-        this.venta()?.channel_name || this.embed().title || '');
+    protected readonly channelName = computed(() => this.venta()?.channel_name || this.embed().title || '');
 
     /** Whether the ring can still be accepted. */
     protected readonly live = computed(() => {
@@ -65,9 +64,11 @@ export class VoiceInviteCardComponent {
     });
 
     /** Whether joining will pull them out of a channel they are already in. Worth saying. */
-    protected readonly willMove = computed(() =>
-        !!this.voiceChannels.joinedChannelId()
-        && this.voiceChannels.joinedChannelId() !== this.channelId());
+    protected readonly willMove = computed(
+        () =>
+            !!this.voiceChannels.joinedChannelId() &&
+            this.voiceChannels.joinedChannelId() !== this.channelId(),
+    );
 
     constructor() {
         effect(() => {

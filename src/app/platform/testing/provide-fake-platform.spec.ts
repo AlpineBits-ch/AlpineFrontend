@@ -88,8 +88,8 @@ describe('provideFakePlatform', () => {
         expect(
             declared,
             'A port exists that provideFakePlatform() does not provide (or vice versa). An unprovided\n' +
-            'port surfaces as NG0201 in whichever unrelated spec first reaches it transitively - add a\n' +
-            'fake in src/app/platform/testing/ and a line in provide-fake-platform.ts.',
+                'port surfaces as NG0201 in whichever unrelated spec first reaches it transitively - add a\n' +
+                'fake in src/app/platform/testing/ and a line in provide-fake-platform.ts.',
         ).toEqual(Object.keys(PORTS).sort());
     });
 

@@ -49,8 +49,14 @@ const PREVIEW_SIZE = 30;
 @Component({
     selector: 'app-conversation-list',
     imports: [
-        AppAvatarComponent, DatePipe, NgClass, UserStatusDotComponent, TypingDotsComponent, EmptyStateComponent,
-        ContextMenu, ConfirmDialog,
+        AppAvatarComponent,
+        DatePipe,
+        NgClass,
+        UserStatusDotComponent,
+        TypingDotsComponent,
+        EmptyStateComponent,
+        ContextMenu,
+        ConfirmDialog,
         TranslateModule,
     ],
     providers: [ConfirmationService],
@@ -59,19 +65,24 @@ const PREVIEW_SIZE = 30;
     animations: [
         trigger('convList', [
             transition(':increment, :decrement, * => *', [
-                query(':enter', [
-                    style({opacity: 0, transform: 'translateY(-6px) scale(0.98)'}),
-                    stagger(40, [
-                        animate('220ms cubic-bezier(0.4, 0, 0.2, 1)',
-                            style({opacity: 1, transform: 'translateY(0) scale(1)'})
-                        ),
-                    ]),
-                ], {optional: true}),
-                query(':leave', [
-                    animate('160ms ease-in',
-                        style({opacity: 0, transform: 'translateX(8px)'})
-                    ),
-                ], {optional: true}),
+                query(
+                    ':enter',
+                    [
+                        style({opacity: 0, transform: 'translateY(-6px) scale(0.98)'}),
+                        stagger(40, [
+                            animate(
+                                '220ms cubic-bezier(0.4, 0, 0.2, 1)',
+                                style({opacity: 1, transform: 'translateY(0) scale(1)'}),
+                            ),
+                        ]),
+                    ],
+                    {optional: true},
+                ),
+                query(
+                    ':leave',
+                    [animate('160ms ease-in', style({opacity: 0, transform: 'translateX(8px)'}))],
+                    {optional: true},
+                ),
             ]),
         ]),
     ],
@@ -79,7 +90,11 @@ const PREVIEW_SIZE = 30;
 export class ConversationListComponent {
     public conversationSelected = output<ConversationDto>();
     public os = inject(OsInfo);
-    readonly sortKey = computed(() => this.sortedConversations().map(c => c.id).join(','));
+    readonly sortKey = computed(() =>
+        this.sortedConversations()
+            .map(c => c.id)
+            .join(','),
+    );
     // whenever the open conversation loads its full message history.
     readonly previewMessages = signal<Map<string, MessageDto[]>>(new Map());
     // messages and via direct decode for WS-received messages (already decrypted in content).
@@ -91,8 +106,8 @@ export class ConversationListComponent {
     protected conversationStore = inject(ConversationStore);
     readonly sortedConversations = computed(() =>
         [...this.conversationStore.entities()].sort(
-            (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-        )
+            (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+        ),
     );
     protected convUtils = inject(ConversationUtilsService);
     protected readonly contextConv = signal<ConversationDto | null>(null);
@@ -148,12 +163,14 @@ export class ConversationListComponent {
         this.observeLoadMoreSentinel();
         this.conversationStore.loadInitial();
 
-        toObservable(this.conversationStore.loaded).pipe(
-            filter(loaded => loaded),
-            take(1),
-        ).subscribe(() => {
-            this.navService.tryRestoreConversationNav(this.conversationStore.entities());
-        });
+        toObservable(this.conversationStore.loaded)
+            .pipe(
+                filter(loaded => loaded),
+                take(1),
+            )
+            .subscribe(() => {
+                this.navService.tryRestoreConversationNav(this.conversationStore.entities());
+            });
 
         // Prepend new messages to the preview window (keeps newest-first order).
         const prependPreview = (msg: MessageDto) => {
@@ -174,44 +191,51 @@ export class ConversationListComponent {
             convs
                 .filter(c => !loaded.has(c.id))
                 .forEach(c => {
-                    this.messagingService.getMessagesForConversation(c.id, 0, PREVIEW_SIZE).subscribe(async msgs => {
-                        // API returns messages ascending (oldest-first); reverse so index 0 is always the newest,
-                        // consistent with the websocket prepend behaviour.
-                        const reversed = [...msgs].reverse();
-                        this.previewMessages.update(map => new Map(map).set(c.id, reversed));
-                        // Populate decrypted preview text from MLS cache for encrypted messages.
-                        for (const msg of reversed) {
-                            if (msg.encryptionState === MessageEncryptionState.Encrypted) {
-                                // Context, generation and claimed author all go into the lookup:
-                                // the cache is keyed on more than the server-chosen `messageId`
-                                // precisely so a preview cannot pick up another conversation's
-                                // plaintext for a replayed id.
-                                const cached = await this.mlsService.getCachedMessage(
-                                    c.id, msg.mlsGeneration ?? null, msg.id, msg.authorId);
-                                if (cached) {
-                                    try {
-                                        const bytes = Uint8Array.from(atob(cached), c => c.charCodeAt(0));
-                                        const text = new TextDecoder('utf-8', {fatal: true}).decode(bytes)
-                                            .replace(/@([\w\-.]+)#\w+/g, '@$1');
-                                        this.decryptedPreviews.update(m => new Map(m).set(msg.id, text));
-                                    } catch {
+                    this.messagingService
+                        .getMessagesForConversation(c.id, 0, PREVIEW_SIZE)
+                        .subscribe(async msgs => {
+                            // API returns messages ascending (oldest-first); reverse so index 0 is always the newest,
+                            // consistent with the websocket prepend behaviour.
+                            const reversed = [...msgs].reverse();
+                            this.previewMessages.update(map => new Map(map).set(c.id, reversed));
+                            // Populate decrypted preview text from MLS cache for encrypted messages.
+                            for (const msg of reversed) {
+                                if (msg.encryptionState === MessageEncryptionState.Encrypted) {
+                                    // Context, generation and claimed author all go into the lookup:
+                                    // the cache is keyed on more than the server-chosen `messageId`
+                                    // precisely so a preview cannot pick up another conversation's
+                                    // plaintext for a replayed id.
+                                    const cached = await this.mlsService.getCachedMessage(
+                                        c.id,
+                                        msg.mlsGeneration ?? null,
+                                        msg.id,
+                                        msg.authorId,
+                                    );
+                                    if (cached) {
+                                        try {
+                                            const bytes = Uint8Array.from(atob(cached), c => c.charCodeAt(0));
+                                            const text = new TextDecoder('utf-8', {fatal: true})
+                                                .decode(bytes)
+                                                .replace(/@([\w\-.]+)#\w+/g, '@$1');
+                                            this.decryptedPreviews.update(m => new Map(m).set(msg.id, text));
+                                        } catch {}
                                     }
                                 }
                             }
-                        }
-                    });
+                        });
                 });
         });
     }
 
-    public getPreview(conv: ConversationDto): { sender: string; text: string } | null {
+    public getPreview(conv: ConversationDto): {sender: string; text: string} | null {
         const msg = this.previewMessages().get(conv.id)?.[0]; // [0] is newest
         if (!msg) return null;
 
         const ownId = this.profileService.ownProfile()?.userId;
-        const sender = msg.authorId === ownId
-            ? 'You'
-            : (conv.members.find(m => m.userId === msg.authorId)?.cachedUserName ?? 'Unknown');
+        const sender =
+            msg.authorId === ownId
+                ? 'You'
+                : (conv.members.find(m => m.userId === msg.authorId)?.cachedUserName ?? 'Unknown');
 
         // Before anything is decoded, and for encrypted and plaintext alike. The sidebar reads the
         // same `content` the bubble does, so suppressing an unverified body in the thread and not
@@ -226,7 +250,8 @@ export class ConversationListComponent {
             // and won't survive a strict UTF-8 decode, so use that as the gate.
             try {
                 const bytes = Uint8Array.from(atob(msg.content), c => c.charCodeAt(0));
-                const text = new TextDecoder('utf-8', {fatal: true}).decode(bytes)
+                const text = new TextDecoder('utf-8', {fatal: true})
+                    .decode(bytes)
                     .replace(/@([\w\-.]+)#\w+/g, '@$1');
                 return {sender, text};
             } catch {
@@ -290,7 +315,8 @@ export class ConversationListComponent {
                 // the server call below fails we have already given up the ability to read anything
                 // sent afterwards - which is the half that matters for our own forward secrecy.
                 // Doing it after would leave the keys behind whenever the request failed.
-                void this.mlsSync.leaveContext(conv.id, false)
+                void this.mlsSync
+                    .leaveContext(conv.id, false)
                     .catch(err => console.error('Could not leave the MLS group', conv.id, err))
                     .finally(() => {
                         this.conversationService.deleteConversation(conv.id).subscribe({
@@ -302,7 +328,7 @@ export class ConversationListComponent {
                                 }
                                 this.toast.success('Conversation deleted', {detail: name});
                             },
-                            error: (err) => this.toast.httpError('Failed to delete conversation', err),
+                            error: err => this.toast.httpError('Failed to delete conversation', err),
                         });
                     });
             },

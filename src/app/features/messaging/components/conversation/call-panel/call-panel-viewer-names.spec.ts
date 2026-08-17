@@ -62,17 +62,17 @@ function render(): ComponentFixture<CallPanelComponent> {
 describe('CallPanelComponent viewer name resolution', () => {
     it('resolves a known participant to their display name', () => {
         const fixture = render();
-        (TestBed.inject(CallSessionService) as unknown as {session: ReturnType<typeof signal>})
-            .session.set({
-                callId: 'call-1',
-                startedAt: new Date().toISOString(),
-                local: {isMuted: false, isDeafened: false, isCameraOn: false, isSharing: false},
-                participants: [{userId: 'user-a', displayName: 'Alice', isLocal: false}],
-                screenShares: [],
-            });
+        (TestBed.inject(CallSessionService) as unknown as {session: ReturnType<typeof signal>}).session.set({
+            callId: 'call-1',
+            startedAt: new Date().toISOString(),
+            local: {isMuted: false, isDeafened: false, isCameraOn: false, isSharing: false},
+            participants: [{userId: 'user-a', displayName: 'Alice', isLocal: false}],
+            screenShares: [],
+        });
 
-        const resolve = (fixture.componentInstance as unknown as {resolveParticipantName: (id: string) => string})
-            .resolveParticipantName;
+        const resolve = (
+            fixture.componentInstance as unknown as {resolveParticipantName: (id: string) => string}
+        ).resolveParticipantName;
 
         expect(resolve('user-a')).toBe('Alice');
     });
@@ -80,8 +80,9 @@ describe('CallPanelComponent viewer name resolution', () => {
     it('falls back to a translated placeholder, never the raw user id, for an unresolved viewer', () => {
         const fixture = render();
 
-        const resolve = (fixture.componentInstance as unknown as {resolveParticipantName: (id: string) => string})
-            .resolveParticipantName;
+        const resolve = (
+            fixture.componentInstance as unknown as {resolveParticipantName: (id: string) => string}
+        ).resolveParticipantName;
 
         // No translations are loaded, so `.instant()` echoes the key back - proof this is the
         // translated placeholder path, not the raw id, without depending on locale content.

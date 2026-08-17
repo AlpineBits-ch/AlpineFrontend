@@ -20,7 +20,7 @@ export class WikiDeepLinkService {
     private readonly state = inject(WikiStateService);
 
     /** The page we are on our way to, if any. Cleared the moment it is opened or abandoned. */
-    private readonly pending = signal<{ guildId: string; pageId: string } | null>(null);
+    private readonly pending = signal<{guildId: string; pageId: string} | null>(null);
 
     constructor() {
         effect(() => {
@@ -46,7 +46,8 @@ export class WikiDeepLinkService {
                     return;
                 }
                 // A page created since this listing was fetched is absent from it but perfectly readable. `openPage` only needs an id, so the full page stands in for a summary.
-                this.wikiService.getPage(target.guildId, target.pageId)
+                this.wikiService
+                    .getPage(target.guildId, target.pageId)
                     .subscribe({next: page => this.state.openPage(page), error: () => undefined});
             });
         });

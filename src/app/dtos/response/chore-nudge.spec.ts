@@ -20,7 +20,7 @@ function occurrence(overrides: Partial<ChoreOccurrence> = {}): ChoreOccurrence {
 }
 
 describe('canNudge', () => {
-    it('allows a nudge on somebody else\'s overdue turn', () => {
+    it("allows a nudge on somebody else's overdue turn", () => {
         expect(canNudge(occurrence(), 2, OWN, NOW)).toBe(true);
     });
 
@@ -75,8 +75,9 @@ describe('nextNudgeAt', () => {
 
     it('is the cooldown past the last nudge', () => {
         const last = '2026-08-15T00:00:00Z';
-        expect(nextNudgeAt(occurrence({nudgedAt: last}))?.toISOString())
-            .toBe(new Date(Date.parse(last) + NUDGE_COOLDOWN_HOURS * 3_600_000).toISOString());
+        expect(nextNudgeAt(occurrence({nudgedAt: last}))?.toISOString()).toBe(
+            new Date(Date.parse(last) + NUDGE_COOLDOWN_HOURS * 3_600_000).toISOString(),
+        );
     });
 
     it('is null for an unparseable stamp', () => {

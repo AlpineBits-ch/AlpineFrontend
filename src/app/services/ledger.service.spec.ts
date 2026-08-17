@@ -162,10 +162,11 @@ describe('LedgerService', () => {
         it('treats a 403 as "there may be no module here" and never as data', () => {
             const {service, ctrl} = setup();
             service.loadFor(CHANNEL);
-            expectExpenses(ctrl)
-                .flush('Ledger is not enabled', {status: 403, statusText: 'Forbidden'});
-            ctrl.expectOne(`${GUILD}/channels/${CHANNEL}/ledger/config`)
-                .flush(null, {status: 403, statusText: 'Forbidden'});
+            expectExpenses(ctrl).flush('Ledger is not enabled', {status: 403, statusText: 'Forbidden'});
+            ctrl.expectOne(`${GUILD}/channels/${CHANNEL}/ledger/config`).flush(null, {
+                status: 403,
+                statusText: 'Forbidden',
+            });
             answerBalances(ctrl);
 
             expect(service.stateFor(CHANNEL).forbidden).toBe(true);
@@ -299,14 +300,16 @@ describe('LedgerService', () => {
             service.loadFor(CHANNEL);
             // 1000 across three: the server's remainder rule, which the client must not re-derive.
             answerLoad(ctrl, {
-                expenses: [expense({
-                    amountMinor: 1000,
-                    shares: [
-                        {userId: 'user_anna', shareValue: 0, amountMinor: 334},
-                        {userId: 'user_marco', shareValue: 0, amountMinor: 333},
-                        {userId: 'user_lea', shareValue: 0, amountMinor: 333},
-                    ],
-                })],
+                expenses: [
+                    expense({
+                        amountMinor: 1000,
+                        shares: [
+                            {userId: 'user_anna', shareValue: 0, amountMinor: 334},
+                            {userId: 'user_marco', shareValue: 0, amountMinor: 333},
+                            {userId: 'user_lea', shareValue: 0, amountMinor: 333},
+                        ],
+                    }),
+                ],
                 balances: [
                     {userId: 'user_anna', netMinor: 666},
                     {userId: 'user_marco', netMinor: -333},
@@ -331,11 +334,17 @@ describe('LedgerService', () => {
             const {service, ctrl} = setup();
             service.loadFor(CHANNEL);
             expectExpenses(ctrl).flush({items: [], nextCursor: null});
-            ctrl.expectOne(`${GUILD}/channels/${CHANNEL}/ledger/config`).flush({channelId: CHANNEL, currency: 'CHF'});
-            ctrl.expectOne(`${GUILD}/channels/${CHANNEL}/ledger/balances`)
-                .flush([{userId: 'user_anna', netMinor: 500}]);
-            ctrl.expectOne(`${GUILD}/channels/${CHANNEL}/ledger/settle-suggestion`)
-                .flush(null, {status: 500, statusText: 'Server Error'});
+            ctrl.expectOne(`${GUILD}/channels/${CHANNEL}/ledger/config`).flush({
+                channelId: CHANNEL,
+                currency: 'CHF',
+            });
+            ctrl.expectOne(`${GUILD}/channels/${CHANNEL}/ledger/balances`).flush([
+                {userId: 'user_anna', netMinor: 500},
+            ]);
+            ctrl.expectOne(`${GUILD}/channels/${CHANNEL}/ledger/settle-suggestion`).flush(null, {
+                status: 500,
+                statusText: 'Server Error',
+            });
 
             expect(service.stateFor(CHANNEL).balances.length).toBe(1);
         });
@@ -446,12 +455,14 @@ describe('LedgerService', () => {
             service.loadFor(CHANNEL);
             answerLoad(ctrl);
 
-            service.addExpense(CHANNEL, {
-                description: 'Rent',
-                amountMinor: 180000,
-                splitKind: ExpenseSplitKind.Equal,
-                shares: [],
-            }).subscribe();
+            service
+                .addExpense(CHANNEL, {
+                    description: 'Rent',
+                    amountMinor: 180000,
+                    splitKind: ExpenseSplitKind.Equal,
+                    shares: [],
+                })
+                .subscribe();
 
             const req = ctrl.expectOne(`${GUILD}/channels/${CHANNEL}/expenses`);
             expect(req.request.method).toBe('POST');
@@ -488,15 +499,21 @@ describe('LedgerService', () => {
             service.loadFor(CHANNEL);
             answerLoad(ctrl);
 
-            service.addExpense(CHANNEL, {
-                description: 'Migros',
-                amountMinor: 1000,
-                splitKind: ExpenseSplitKind.Equal,
-            }).subscribe();
+            service
+                .addExpense(CHANNEL, {
+                    description: 'Migros',
+                    amountMinor: 1000,
+                    splitKind: ExpenseSplitKind.Equal,
+                })
+                .subscribe();
             ctrl.expectOne(`${GUILD}/channels/${CHANNEL}/expenses`).flush(expense());
             answerBalances(ctrl);
 
-            hubHandlers.get('guild.ExpenseCreated')!({guildId: 'gild_1', channelId: CHANNEL, expense: expense()});
+            hubHandlers.get('guild.ExpenseCreated')!({
+                guildId: 'gild_1',
+                channelId: CHANNEL,
+                expense: expense(),
+            });
             expect(service.stateFor(CHANNEL).expenses.length).toBe(1);
             answerBalances(ctrl);
         });
@@ -506,11 +523,13 @@ describe('LedgerService', () => {
             service.loadFor(CHANNEL);
             answerLoad(ctrl, {balances: [{userId: 'user_anna', netMinor: 334}]});
 
-            service.recordSettlement(CHANNEL, {
-                fromUserId: 'user_marco',
-                toUserId: 'user_anna',
-                amountMinor: 334,
-            }).subscribe();
+            service
+                .recordSettlement(CHANNEL, {
+                    fromUserId: 'user_marco',
+                    toUserId: 'user_anna',
+                    amountMinor: 334,
+                })
+                .subscribe();
 
             const req = ctrl.expectOne(`${GUILD}/channels/${CHANNEL}/ledger/settlements`);
             expect(req.request.method).toBe('POST');
@@ -547,12 +566,14 @@ describe('LedgerService', () => {
             service.loadFor(CHANNEL);
             answerLoad(ctrl);
 
-            service.addExpense(CHANNEL, {
-                description: 'Rent',
-                amountMinor: 180000,
-                splitKind: ExpenseSplitKind.Equal,
-                shares: [],
-            }).subscribe();
+            service
+                .addExpense(CHANNEL, {
+                    description: 'Rent',
+                    amountMinor: 180000,
+                    splitKind: ExpenseSplitKind.Equal,
+                    shares: [],
+                })
+                .subscribe();
 
             const req = ctrl.expectOne(`${GUILD}/channels/${CHANNEL}/expenses`);
             // No payerUserId and no occurredAt: both default server-side to "the caller, now", and
@@ -572,17 +593,19 @@ describe('LedgerService', () => {
             service.loadFor(CHANNEL);
             answerLoad(ctrl);
 
-            service.addExpense(CHANNEL, {
-                description: 'Internet',
-                amountMinor: 6000,
-                payerUserId: 'user_anna',
-                occurredAt: '2026-08-01T12:00:00.000Z',
-                splitKind: ExpenseSplitKind.Shares,
-                shares: [
-                    {userId: 'user_anna', shareValue: 2},
-                    {userId: 'user_marco', shareValue: 1},
-                ],
-            }).subscribe();
+            service
+                .addExpense(CHANNEL, {
+                    description: 'Internet',
+                    amountMinor: 6000,
+                    payerUserId: 'user_anna',
+                    occurredAt: '2026-08-01T12:00:00.000Z',
+                    splitKind: ExpenseSplitKind.Shares,
+                    shares: [
+                        {userId: 'user_anna', shareValue: 2},
+                        {userId: 'user_marco', shareValue: 1},
+                    ],
+                })
+                .subscribe();
 
             const req = ctrl.expectOne(`${GUILD}/channels/${CHANNEL}/expenses`);
             // `shareValue` is a weight, and a request share carries no `amountMinor`: the server
@@ -607,11 +630,13 @@ describe('LedgerService', () => {
             service.loadFor(CHANNEL);
             answerLoad(ctrl);
 
-            service.recordSettlement(CHANNEL, {
-                fromUserId: 'user_marco',
-                toUserId: 'user_anna',
-                amountMinor: 334,
-            }).subscribe();
+            service
+                .recordSettlement(CHANNEL, {
+                    fromUserId: 'user_marco',
+                    toUserId: 'user_anna',
+                    amountMinor: 334,
+                })
+                .subscribe();
 
             const req = ctrl.expectOne(`${GUILD}/channels/${CHANNEL}/ledger/settlements`);
             expect(req.request.method).toBe('POST');

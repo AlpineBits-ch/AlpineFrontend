@@ -23,11 +23,7 @@ import {AccountRegistryService} from './account-registry.service';
 import {AccountSwitchService, ReentryTarget} from './account-switch.service';
 import {DeviceIdentityService} from './device-identity.service';
 import {SessionTeardownService} from './session-teardown.service';
-import {
-    BOOTSTRAP_SLOT_ID,
-    ScopedOAuthStorage,
-    scopedOAuthKey,
-} from './scoped-oauth-storage';
+import {BOOTSTRAP_SLOT_ID, ScopedOAuthStorage, scopedOAuthKey} from './scoped-oauth-storage';
 
 /** This runner's global `localStorage` has no methods, so the mirror would be unobservable. */
 const store = new Map<string, string>();
@@ -112,7 +108,8 @@ describe('adding a second account', () => {
         const first = boot();
         signInAs();
         await first.switcher.adoptSignedInAccount({
-            userId: 'user-a', serverUrl: 'https://a.example',
+            userId: 'user-a',
+            serverUrl: 'https://a.example',
         });
         expect(sessionToken()).toBe('token-from-login');
 
@@ -133,7 +130,8 @@ describe('adding a second account', () => {
         const first = boot();
         signInAs();
         await first.switcher.adoptSignedInAccount({
-            userId: 'user-a', serverUrl: 'https://a.example',
+            userId: 'user-a',
+            serverUrl: 'https://a.example',
         });
 
         first.switcher.beginAddAccount();
@@ -151,7 +149,8 @@ describe('adding a second account', () => {
         const first = boot();
         signInAs();
         const slotA = await first.switcher.adoptSignedInAccount({
-            userId: 'user-a', serverUrl: 'https://a.example',
+            userId: 'user-a',
+            serverUrl: 'https://a.example',
         });
 
         first.switcher.beginAddAccount();
@@ -160,8 +159,7 @@ describe('adding a second account', () => {
         await second.registry.activeSlotId();
 
         // Set aside, not signed out. The whole point is that it is still there to go back to.
-        expect(localStorage.getItem(scopedOAuthKey(slotA.id, 'access_token')))
-            .toBe('token-from-login');
+        expect(localStorage.getItem(scopedOAuthKey(slotA.id, 'access_token'))).toBe('token-from-login');
         expect(await second.registry.list()).toHaveLength(1);
     });
 
@@ -169,7 +167,8 @@ describe('adding a second account', () => {
         const first = boot();
         signInAs();
         const slotA = await first.switcher.adoptSignedInAccount({
-            userId: 'user-a', serverUrl: 'https://a.example',
+            userId: 'user-a',
+            serverUrl: 'https://a.example',
         });
 
         first.switcher.beginAddAccount();
@@ -179,15 +178,14 @@ describe('adding a second account', () => {
         await second.registry.activeSlotId();
         new ScopedOAuthStorage().setItem('access_token', 'token-for-b');
         const slotB = await second.switcher.adoptSignedInAccount({
-            userId: 'user-b', serverUrl: 'https://b.example',
+            userId: 'user-b',
+            serverUrl: 'https://b.example',
         });
 
         expect(slotB.id).not.toBe(slotA.id);
         expect(await second.registry.list()).toHaveLength(2);
-        expect(localStorage.getItem(scopedOAuthKey(slotA.id, 'access_token')))
-            .toBe('token-from-login');
-        expect(localStorage.getItem(scopedOAuthKey(slotB.id, 'access_token')))
-            .toBe('token-for-b');
+        expect(localStorage.getItem(scopedOAuthKey(slotA.id, 'access_token'))).toBe('token-from-login');
+        expect(localStorage.getItem(scopedOAuthKey(slotB.id, 'access_token'))).toBe('token-for-b');
         // And the second account is the one live now.
         expect(sessionToken()).toBe('token-for-b');
     });
@@ -198,7 +196,8 @@ describe('switching, across the same boundary', () => {
         const first = boot();
         signInAs();
         const a = await first.switcher.adoptSignedInAccount({
-            userId: 'user-a', serverUrl: 'https://a.example',
+            userId: 'user-a',
+            serverUrl: 'https://a.example',
         });
 
         first.switcher.beginAddAccount();
@@ -207,7 +206,8 @@ describe('switching, across the same boundary', () => {
         await second.registry.activeSlotId();
         new ScopedOAuthStorage().setItem('access_token', 'token-for-b');
         const b = await second.switcher.adoptSignedInAccount({
-            userId: 'user-b', serverUrl: 'https://b.example',
+            userId: 'user-b',
+            serverUrl: 'https://b.example',
         });
         return {a, b};
     }
@@ -243,7 +243,8 @@ describe('switching, across the same boundary', () => {
         const first = boot();
         signInAs();
         const only = await first.switcher.adoptSignedInAccount({
-            userId: 'user-a', serverUrl: 'https://a.example',
+            userId: 'user-a',
+            serverUrl: 'https://a.example',
         });
 
         await first.switcher.signOutOf(only.id);

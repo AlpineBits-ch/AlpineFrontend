@@ -37,8 +37,9 @@ describe('a p-menu with a custom item template', () => {
     }
 
     function clickLabelled(fixture: ReturnType<typeof setup>, label: string): void {
-        const link = [...fixture.nativeElement.querySelectorAll('.p-menu-item-link')]
-            .find((el): el is HTMLElement => (el as HTMLElement).textContent?.trim() === label);
+        const link = [...fixture.nativeElement.querySelectorAll('.p-menu-item-link')].find(
+            (el): el is HTMLElement => (el as HTMLElement).textContent?.trim() === label,
+        );
         link?.click();
         fixture.detectChanges();
     }

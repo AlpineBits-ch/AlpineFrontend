@@ -103,12 +103,15 @@ export class WikiAiDialogComponent {
         this.draft.set('');
 
         try {
-            const stream = this.ai.draft({
-                prompt: request,
-                title: this.pageTitle(),
-                existingContent: this.existingContent(),
-                pageTitles: this.pageTitles(),
-            }, controller.signal);
+            const stream = this.ai.draft(
+                {
+                    prompt: request,
+                    title: this.pageTitle(),
+                    existingContent: this.existingContent(),
+                    pageTitles: this.pageTitles(),
+                },
+                controller.signal,
+            );
             for await (const chunk of stream) {
                 this.draft.update(text => text + chunk);
             }

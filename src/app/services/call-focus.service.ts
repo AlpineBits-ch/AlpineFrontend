@@ -6,7 +6,12 @@ const REQUEST_TTL_MS = 120_000;
 /** Lets a caller outside the call stage say "focus this share" without reaching into `CallScreenLayoutComponent`, its only reader. One request is held at a time, not queued: a second `request()` replaces the first. */
 @Injectable({providedIn: 'root'})
 export class CallFocusService {
-    private readonly _requested = signal<{scopeKey: string; shareId?: string; userId?: string; expiresAt: number} | null>(null);
+    private readonly _requested = signal<{
+        scopeKey: string;
+        shareId?: string;
+        userId?: string;
+        expiresAt: number;
+    } | null>(null);
 
     readonly requested = this._requested.asReadonly();
 

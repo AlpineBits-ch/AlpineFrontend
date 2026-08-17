@@ -1,4 +1,14 @@
-import {Component, computed, ElementRef, inject, input, OnDestroy, OnInit, signal, ViewChild} from '@angular/core';
+import {
+    Component,
+    computed,
+    ElementRef,
+    inject,
+    input,
+    OnDestroy,
+    OnInit,
+    signal,
+    ViewChild,
+} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {Button} from 'primeng/button';
 import {InputText} from 'primeng/inputtext';
@@ -78,7 +88,8 @@ export class EmojiSettingsComponent implements OnInit, OnDestroy {
             if (row.status === 'done') continue;
             const name = row.name.trim();
             if (!name) issues.set(row.key, 'GUILD_SETTINGS.EMOJIS.NAME_REQUIRED');
-            else if (!EMOJI_NAME_PATTERN.test(name)) issues.set(row.key, 'GUILD_SETTINGS.EMOJIS.NAME_INVALID');
+            else if (!EMOJI_NAME_PATTERN.test(name))
+                issues.set(row.key, 'GUILD_SETTINGS.EMOJIS.NAME_INVALID');
             else if (taken.has(name)) issues.set(row.key, 'GUILD_SETTINGS.EMOJIS.NAME_TAKEN');
             else if (seen.has(name)) issues.set(row.key, 'GUILD_SETTINGS.EMOJIS.NAME_DUPLICATE');
             seen.add(name);
@@ -184,7 +195,10 @@ export class EmojiSettingsComponent implements OnInit, OnDestroy {
             key: this.nextKey++,
             file,
             previewUrl: URL.createObjectURL(file),
-            name: file.name.replace(/\.[^.]+$/, '').replace(/[^a-zA-Z0-9_]/g, '_').slice(0, 32),
+            name: file.name
+                .replace(/\.[^.]+$/, '')
+                .replace(/[^a-zA-Z0-9_]/g, '_')
+                .slice(0, 32),
             animated: file.type === 'image/gif',
             status: 'pending',
             errorKey: null,
@@ -230,7 +244,9 @@ export class EmojiSettingsComponent implements OnInit, OnDestroy {
     confirmUpload(): void {
         if (this.uploading() || this.hasBlockingIssue() || this.remainingCount() === 0) return;
         // A retry re-arms whatever failed last time; the successes stay done and are not re-sent.
-        this.queue.update(rows => rows.map(r => r.status === 'error' ? {...r, status: 'pending', errorKey: null} : r));
+        this.queue.update(rows =>
+            rows.map(r => (r.status === 'error' ? {...r, status: 'pending', errorKey: null} : r)),
+        );
         this.uploading.set(true);
         this.uploadNext();
     }
@@ -243,7 +259,9 @@ export class EmojiSettingsComponent implements OnInit, OnDestroy {
             if (this.failedCount() === 0) {
                 const count = this.uploadedCount();
                 this.closeUploadDialog();
-                this.toastService.success(this.translate.instant('GUILD_SETTINGS.EMOJIS.UPLOAD_DONE', {count}));
+                this.toastService.success(
+                    this.translate.instant('GUILD_SETTINGS.EMOJIS.UPLOAD_DONE', {count}),
+                );
             }
             return;
         }
@@ -265,7 +283,7 @@ export class EmojiSettingsComponent implements OnInit, OnDestroy {
     }
 
     private patchRow(key: number, patch: Partial<QueuedEmoji>): void {
-        this.queue.update(rows => rows.map(r => r.key === key ? {...r, ...patch} : r));
+        this.queue.update(rows => rows.map(r => (r.key === key ? {...r, ...patch} : r)));
     }
 
     /** No published size cap to state up front, so the server's rejection is named instead. A 409 should be rare since {@link rowIssues} checks the loaded list first, but a name taken by another admin between check and request can still land here. */
@@ -313,7 +331,10 @@ export class EmojiSettingsComponent implements OnInit, OnDestroy {
             },
             error: err => {
                 this.deletingId.set(null);
-                this.toastService.httpError(this.translate.instant('GUILD_SETTINGS.EMOJIS.DELETE_ERROR'), err);
+                this.toastService.httpError(
+                    this.translate.instant('GUILD_SETTINGS.EMOJIS.DELETE_ERROR'),
+                    err,
+                );
             },
         });
     }

@@ -76,8 +76,10 @@ describe('profiles embedded in the member list', () => {
         const {service, profiles, ctrl} = setup();
 
         service.getMembers('g1', 0, 100).subscribe();
-        ctrl.expectOne(`${BASE}/guilds/g1/members?skip=0&take=100`)
-            .flush([member('u1', profile('u1', 'Ada')), member('u2', profile('u2', 'Grace'))]);
+        ctrl.expectOne(`${BASE}/guilds/g1/members?skip=0&take=100`).flush([
+            member('u1', profile('u1', 'Ada')),
+            member('u2', profile('u2', 'Grace')),
+        ]);
 
         expect(profiles.getCachedByUserId('u1')?.userName).toBe('Ada');
         expect(profiles.getCachedByUserId('u2')?.userName).toBe('Grace');
@@ -88,8 +90,9 @@ describe('profiles embedded in the member list', () => {
         const {service, profiles, ctrl} = setup();
 
         service.getMembers('g1', 0, 100).subscribe();
-        ctrl.expectOne(`${BASE}/guilds/g1/members?skip=0&take=100`)
-            .flush([member('u1', profile('u1', 'Ada'))]);
+        ctrl.expectOne(`${BASE}/guilds/g1/members?skip=0&take=100`).flush([
+            member('u1', profile('u1', 'Ada')),
+        ]);
 
         profiles.resolveByUserId('u1');
 
@@ -102,8 +105,10 @@ describe('profiles embedded in the member list', () => {
         const {service, profiles, ctrl} = setup();
 
         service.getMembers('g1', 0, 100).subscribe();
-        ctrl.expectOne(`${BASE}/guilds/g1/members?skip=0&take=100`)
-            .flush([member('u1', undefined), member('u2', profile('u2', 'Grace'))]);
+        ctrl.expectOne(`${BASE}/guilds/g1/members?skip=0&take=100`).flush([
+            member('u1', undefined),
+            member('u2', profile('u2', 'Grace')),
+        ]);
 
         expect(profiles.getCachedByUserId('u1')).toBeUndefined();
         expect(profiles.getCachedByUserId('u2')?.userName).toBe('Grace');
@@ -113,8 +118,9 @@ describe('profiles embedded in the member list', () => {
         const {service, profiles, ctrl} = setup();
 
         service.searchMembers('g1', 'ad').subscribe();
-        ctrl.expectOne(`${BASE}/guilds/g1/members/search?search=ad`)
-            .flush([member('u1', profile('u1', 'Ada'))]);
+        ctrl.expectOne(`${BASE}/guilds/g1/members/search?search=ad`).flush([
+            member('u1', profile('u1', 'Ada')),
+        ]);
 
         expect(profiles.getCachedByUserId('u1')?.userName).toBe('Ada');
     });
@@ -124,9 +130,11 @@ describe('profiles embedded in the member list', () => {
         const {service, ctrl} = setup();
         let result: GuildMemberDto[] | undefined;
 
-        service.searchMembers('g1', 'nobody').subscribe(r => result = r);
-        ctrl.expectOne(`${BASE}/guilds/g1/members/search?search=nobody`)
-            .flush(null, {status: 404, statusText: 'Not Found'});
+        service.searchMembers('g1', 'nobody').subscribe(r => (result = r));
+        ctrl.expectOne(`${BASE}/guilds/g1/members/search?search=nobody`).flush(null, {
+            status: 404,
+            statusText: 'Not Found',
+        });
 
         expect(result).toEqual([]);
     });

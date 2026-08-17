@@ -64,17 +64,19 @@ export const EXPIRY_WARNING_DAYS_MIN = 1;
 export const EXPIRY_WARNING_DAYS_MAX = 90;
 
 export function isValidExpiryWarningDays(days: number | null | undefined): boolean {
-    return typeof days === 'number'
-        && Number.isInteger(days)
-        && days >= EXPIRY_WARNING_DAYS_MIN
-        && days <= EXPIRY_WARNING_DAYS_MAX;
+    return (
+        typeof days === 'number' &&
+        Number.isInteger(days) &&
+        days >= EXPIRY_WARNING_DAYS_MIN &&
+        days <= EXPIRY_WARNING_DAYS_MAX
+    );
 }
 
 // ── Derived state ───────────────────────────────────────────────────────────
 
 /** What a row is doing in the restock loop. "Low" and "already on the shopping list" are distinct. */
 export type PantryStockState =
-/** No threshold: never chased. Not the same as "fine". */
+    /** No threshold: never chased. Not the same as "fine". */
     | 'untracked'
     /** Above its threshold. */
     | 'ok'

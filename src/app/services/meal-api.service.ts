@@ -91,14 +91,20 @@ export class MealApiService {
      */
     generateShoppingList(channelId: string, body: GenerateShoppingListDto): Observable<ShoppingListResult> {
         return this.http.post<ShoppingListResult>(
-            `${this.base}/channels/${channelId}/meal-plan/shopping-list`, body);
+            `${this.base}/channels/${channelId}/meal-plan/shopping-list`,
+            body,
+        );
     }
 
     /**
      * Recipes ranked by how much about-to-expire stock they use up: `expiringCount` descending,
      * then `missingCount` ascending.
      */
-    cookable(channelId: string, expiringDays?: number | null, limit?: number | null): Observable<CookableResult> {
+    cookable(
+        channelId: string,
+        expiringDays?: number | null,
+        limit?: number | null,
+    ): Observable<CookableResult> {
         let params = new HttpParams();
         if (expiringDays != null) params = params.set('expiringDays', expiringDays);
         if (limit != null) params = params.set('limit', limit);

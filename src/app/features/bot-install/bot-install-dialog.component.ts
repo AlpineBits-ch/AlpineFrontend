@@ -33,7 +33,9 @@ export class BotInstallDialogComponent {
     protected readonly consentComponent = viewChild(BotInstallConsentComponent);
 
     protected readonly visible = computed(() => this.dialogService.request() !== null);
-    protected readonly canGoBack = computed(() => this.step() === 'consent' && !this.dialogService.request()?.guildId);
+    protected readonly canGoBack = computed(
+        () => this.step() === 'consent' && !this.dialogService.request()?.guildId,
+    );
 
     constructor() {
         effect(() => {

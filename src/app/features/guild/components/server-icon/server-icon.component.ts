@@ -46,8 +46,8 @@ export class ServerIconComponent implements OnDestroy {
 
     protected readonly imgSrc = signal('');
     protected readonly imgFailed = signal(false);
-    protected readonly fallbackColorClass = computed(() =>
-        FALLBACK_PALETTE[hashToIndex(this.serverData().id, FALLBACK_PALETTE.length)]
+    protected readonly fallbackColorClass = computed(
+        () => FALLBACK_PALETTE[hashToIndex(this.serverData().id, FALLBACK_PALETTE.length)],
     );
 
     private retryCount = 0;
@@ -55,12 +55,15 @@ export class ServerIconComponent implements OnDestroy {
     private probes: HTMLImageElement[] = [];
 
     constructor() {
-        effect(() => {
-            const newUrl = this.serverData().icon ?? '';
-            if (newUrl !== this.imgSrc()) {
-                this.reset(newUrl);
-            }
-        }, {allowSignalWrites: true});
+        effect(
+            () => {
+                const newUrl = this.serverData().icon ?? '';
+                if (newUrl !== this.imgSrc()) {
+                    this.reset(newUrl);
+                }
+            },
+            {allowSignalWrites: true},
+        );
     }
 
     ngOnDestroy(): void {

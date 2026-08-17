@@ -2,8 +2,7 @@
  * Which edge or corner a resize drag started from. Matches Tauri's `ResizeDirection`.
  */
 export type ResizeDirection =
-    | 'North' | 'East' | 'South' | 'West'
-    | 'NorthEast' | 'NorthWest' | 'SouthEast' | 'SouthWest';
+    'North' | 'East' | 'South' | 'West' | 'NorthEast' | 'NorthWest' | 'SouthEast' | 'SouthWest';
 
 /**
  * The window frame the app draws for itself. Desktop-only.

@@ -24,7 +24,9 @@ export class DiscordImportProgressService {
 
     async requestOpen(params: DiscordImportLinkParams): Promise<void> {
         if (params.error) {
-            this.toastService.error(this.translate.instant('DISCORD_IMPORT.LINK_ERROR_TOAST', {error: params.error}));
+            this.toastService.error(
+                this.translate.instant('DISCORD_IMPORT.LINK_ERROR_TOAST', {error: params.error}),
+            );
             return;
         }
         if (!params.jobId) return;

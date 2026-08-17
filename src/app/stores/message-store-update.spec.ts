@@ -40,29 +40,46 @@ function encryptedMessage(overrides: Partial<MessageDto> = {}): MessageDto {
 
 function setup() {
     const mls = {
-        getCachedMessage: vi.fn<(
-            contextId: string, generation: number | null, messageId: string, author?: string,
-        ) => Promise<string | null>>(async () => null),
-        cacheMessage: vi.fn<(
-            contextId: string, generation: number | null, messageId: string, plaintextB64: string,
-            author?: string,
-        ) => Promise<void>>(async () => undefined),
+        getCachedMessage: vi.fn<
+            (
+                contextId: string,
+                generation: number | null,
+                messageId: string,
+                author?: string,
+            ) => Promise<string | null>
+        >(async () => null),
+        cacheMessage: vi.fn<
+            (
+                contextId: string,
+                generation: number | null,
+                messageId: string,
+                plaintextB64: string,
+                author?: string,
+            ) => Promise<void>
+        >(async () => undefined),
         getKnownGeneration: vi.fn(async () => 1),
         getGroupId: vi.fn(async () => GROUP),
         // Null unless a test says otherwise.
         getEncryptionFloor: vi.fn<(contextId: string) => Promise<number | null>>(async () => null),
     };
     const sync = {
-        decryptMessage: vi.fn<(
-            contextId: string, isChannel: boolean, groupId: string, ciphertextB64: string,
-            messageId: string, expectedSenderUserId?: string,
-        ) => Promise<string | null>>(async () => null),
-        replayedMessages: new Subject<{ contextId: string; messages: MlsReplayedMessage[] }>(),
+        decryptMessage: vi.fn<
+            (
+                contextId: string,
+                isChannel: boolean,
+                groupId: string,
+                ciphertextB64: string,
+                messageId: string,
+                expectedSenderUserId?: string,
+            ) => Promise<string | null>
+        >(async () => null),
+        replayedMessages: new Subject<{contextId: string; messages: MlsReplayedMessage[]}>(),
     };
 
     const messaging = {
-        getMessagesForConversation: vi.fn<(id: string, offset: number, size: number) =>
-            Observable<MessageDto[]>>(() => of([])),
+        getMessagesForConversation: vi.fn<
+            (id: string, offset: number, size: number) => Observable<MessageDto[]>
+        >(() => of([])),
     };
 
     // Just enough for the store to construct without the real IndexedDB chain behind `MessageCacheService`.
@@ -75,7 +92,10 @@ function setup() {
     // Handed back so a test can push a channel edit or bulk delete through the real socket wiring.
     const guildMessageUpdated = new Subject<MessageUpdatedEvent>();
     const guildMessagesBulkDeleted = new Subject<{
-        guildId: string; channelId: string; messageIds: string[]; actorUserId: string;
+        guildId: string;
+        channelId: string;
+        messageIds: string[];
+        actorUserId: string;
     }>();
 
     TestBed.configureTestingModule({
@@ -86,19 +106,28 @@ function setup() {
             {provide: MessageCacheService, useValue: messageCache},
             MlsHealthService,
             {
-                provide: MessagingWebsocketService, useValue: {
-                    messageObservable: new Subject(), messageUpdatedObservable: new Subject(),
-                    messageDeletedObservable: new Subject(), conversationRemovedObservable: new Subject(),
-                    conversationMemberRemovedObservable: new Subject(), reactionAddedObservable: new Subject(),
-                    reactionRemovedObservable: new Subject(), messagePinnedObservable: new Subject(),
+                provide: MessagingWebsocketService,
+                useValue: {
+                    messageObservable: new Subject(),
+                    messageUpdatedObservable: new Subject(),
+                    messageDeletedObservable: new Subject(),
+                    conversationRemovedObservable: new Subject(),
+                    conversationMemberRemovedObservable: new Subject(),
+                    reactionAddedObservable: new Subject(),
+                    reactionRemovedObservable: new Subject(),
+                    messagePinnedObservable: new Subject(),
                     messageUnpinnedObservable: new Subject(),
                 },
             },
             {
-                provide: GuildWebsocketService, useValue: {
-                    messageObservable: new Subject(), reactionAddedObservable: new Subject(),
-                    reactionRemovedObservable: new Subject(), messagePinnedObservable: new Subject(),
-                    messageUnpinnedObservable: new Subject(), messageUpdatedObservable: guildMessageUpdated,
+                provide: GuildWebsocketService,
+                useValue: {
+                    messageObservable: new Subject(),
+                    reactionAddedObservable: new Subject(),
+                    reactionRemovedObservable: new Subject(),
+                    messagePinnedObservable: new Subject(),
+                    messageUnpinnedObservable: new Subject(),
+                    messageUpdatedObservable: guildMessageUpdated,
                     messagesBulkDeletedObservable: guildMessagesBulkDeleted,
                     ephemeralMessageObservable: new Subject(),
                 },
@@ -177,9 +206,12 @@ describe('MessageStore.applyRemoteUpdate', () => {
 
     it('applies a plaintext edit unchanged', async () => {
         const {store, sync} = setup();
-        store.addMessage(encryptedMessage({
-            encryptionState: MessageEncryptionState.Plain, content: 'hello',
-        }));
+        store.addMessage(
+            encryptedMessage({
+                encryptionState: MessageEncryptionState.Plain,
+                content: 'hello',
+            }),
+        );
 
         await store.applyRemoteUpdate({
             messageId: 'msg-1',
@@ -223,8 +255,10 @@ describe('MessageStore.applyRemoteUpdate', () => {
         store.addMessage(encryptedMessage({id: 'msg-3'}));
 
         guildMessagesBulkDeleted.next({
-            guildId: 'guil-1', channelId: 'chan-1',
-            messageIds: ['msg-1', 'msg-3'], actorUserId: 'user-9',
+            guildId: 'guil-1',
+            channelId: 'chan-1',
+            messageIds: ['msg-1', 'msg-3'],
+            actorUserId: 'user-9',
         });
 
         expect(store.entityMap()['msg-1']).toBeUndefined();
@@ -236,8 +270,11 @@ describe('MessageStore.applyRemoteUpdate', () => {
         const {store} = setup();
 
         await store.applyRemoteUpdate({
-            messageId: 'unknown', content: 'x', authorId: 'user-2',
-            conversationId: CONTEXT, channelId: undefined,
+            messageId: 'unknown',
+            content: 'x',
+            authorId: 'user-2',
+            conversationId: CONTEXT,
+            channelId: undefined,
         });
 
         // Nothing to judge it against, so there is no safe way to render it.
@@ -250,8 +287,11 @@ describe('MessageStore.applyRemoteUpdate', () => {
         mls.getGroupId.mockResolvedValue(null as unknown as string);
 
         await store.applyRemoteUpdate({
-            messageId: 'msg-1', content: 'SSBhbSB0aGUgc2VydmVy', authorId: 'user-2',
-            conversationId: CONTEXT, channelId: undefined,
+            messageId: 'msg-1',
+            content: 'SSBhbSB0aGUgc2VydmVy',
+            authorId: 'user-2',
+            conversationId: CONTEXT,
+            channelId: undefined,
         });
 
         expect(store.entityMap()['msg-1'].undecryptable).toBe(true);
@@ -282,16 +322,23 @@ describe('MessageStore.applyRemoteUpdate', () => {
 
     it('applies a suppression to a plaintext message without calling it an edit', async () => {
         const {store} = setup();
-        store.addMessage(encryptedMessage({
-            encryptionState: MessageEncryptionState.Plain,
-            content: 'hello',
-            embedsJson: '[{"type":"link"}]',
-        }));
+        store.addMessage(
+            encryptedMessage({
+                encryptionState: MessageEncryptionState.Plain,
+                content: 'hello',
+                embedsJson: '[{"type":"link"}]',
+            }),
+        );
 
         await store.applyRemoteUpdate({
-            messageId: 'msg-1', content: 'hello', authorId: 'user-2',
-            conversationId: CONTEXT, channelId: undefined,
-            embedsJson: null, flags: 4, isAuthorEdit: false,
+            messageId: 'msg-1',
+            content: 'hello',
+            authorId: 'user-2',
+            conversationId: CONTEXT,
+            channelId: undefined,
+            embedsJson: null,
+            flags: 4,
+            isAuthorEdit: false,
         });
 
         const stored = store.entityMap()['msg-1'];
@@ -307,9 +354,13 @@ describe('MessageStore.applyRemoteUpdate', () => {
         sync.decryptMessage.mockResolvedValue(null);
 
         await store.applyRemoteUpdate({
-            messageId: 'msg-1', content: 'SSBhbSB0aGUgc2VydmVy', authorId: 'user-2',
-            conversationId: CONTEXT, channelId: undefined,
-            flags: 4, isAuthorEdit: true,
+            messageId: 'msg-1',
+            content: 'SSBhbSB0aGUgc2VydmVy',
+            authorId: 'user-2',
+            conversationId: CONTEXT,
+            channelId: undefined,
+            flags: 4,
+            isAuthorEdit: true,
         });
 
         expect(store.entityMap()['msg-1'].undecryptable).toBe(true);
@@ -321,9 +372,13 @@ describe('MessageStore.applyRemoteUpdate', () => {
         store.addMessage(encryptedMessage({encryptionState: MessageEncryptionState.Plain}));
 
         await store.applyRemoteUpdate({
-            messageId: 'msg-1', content: 'edited', authorId: 'user-2',
-            conversationId: CONTEXT, channelId: undefined,
-            editedAt: '2026-08-04T10:00:00Z', isAuthorEdit: true,
+            messageId: 'msg-1',
+            content: 'edited',
+            authorId: 'user-2',
+            conversationId: CONTEXT,
+            channelId: undefined,
+            editedAt: '2026-08-04T10:00:00Z',
+            isAuthorEdit: true,
         });
 
         expect(store.entityMap()['msg-1'].editedAt).toBe('2026-08-04T10:00:00Z');
@@ -346,8 +401,11 @@ describe('MessageStore.applyRemoteUpdate', () => {
         sync.decryptMessage.mockResolvedValue('ZWRpdGVk');
 
         await store.applyRemoteUpdate({
-            messageId: 'msg-1', content: 'Y2lwaGVydGV4dA==', authorId: 'user-2',
-            conversationId: CONTEXT, channelId: undefined,
+            messageId: 'msg-1',
+            content: 'Y2lwaGVydGV4dA==',
+            authorId: 'user-2',
+            conversationId: CONTEXT,
+            channelId: undefined,
         });
 
         expect(mls.cacheMessage).toHaveBeenCalledWith(CONTEXT, 1, 'msg-1', 'ZWRpdGVk', 'user-2');
@@ -389,8 +447,7 @@ describe('MessageStore history decryption', () => {
     it('renders a Plain message normally in a context that was never encrypted', async () => {
         const {store, mls, messaging} = setup();
         mls.getEncryptionFloor.mockResolvedValue(null);
-        messaging.getMessagesForConversation.mockReturnValue(
-            of([plainMessage({content: 'aGVsbG8='})]));
+        messaging.getMessagesForConversation.mockReturnValue(of([plainMessage({content: 'aGVsbG8='})]));
 
         store.loadForConversation(CONTEXT);
         await settle();
@@ -426,8 +483,7 @@ describe('MessageStore replayed messages', () => {
         expect(store.entityMap()['msg-1'].content).toBe('cmVwbGF5ZWQ=');
         expect(store.entityMap()['msg-1'].undecryptable).toBe(false);
         // Cached too: the drain has already consumed the only chance to decrypt these bytes.
-        expect(mls.cacheMessage).toHaveBeenCalledWith(
-            CONTEXT, 1, 'msg-1', 'cmVwbGF5ZWQ=', 'user-2');
+        expect(mls.cacheMessage).toHaveBeenCalledWith(CONTEXT, 1, 'msg-1', 'cmVwbGF5ZWQ=', 'user-2');
         expect(sync.replayedMessages).toBeTruthy();
     });
 
@@ -437,9 +493,7 @@ describe('MessageStore replayed messages', () => {
 
         sync.replayedMessages.next({
             contextId: CONTEXT,
-            messages: [
-                {messageId: 'msg-1', plaintext: 'cmVwbGF5ZWQ=', senderIdentity: 'user-2', epoch: 4},
-            ],
+            messages: [{messageId: 'msg-1', plaintext: 'cmVwbGF5ZWQ=', senderIdentity: 'user-2', epoch: 4}],
         });
         await Promise.resolve();
         await Promise.resolve();
@@ -470,7 +524,6 @@ describe('MessageStore replayed messages', () => {
         ]);
 
         // Paging back to it later must find the plaintext: there is no second chance to decrypt.
-        expect(mls.cacheMessage).toHaveBeenCalledWith(
-            CONTEXT, 1, 'not-loaded', 'cmVwbGF5ZWQ=', 'user-2');
+        expect(mls.cacheMessage).toHaveBeenCalledWith(CONTEXT, 1, 'not-loaded', 'cmVwbGF5ZWQ=', 'user-2');
     });
 });

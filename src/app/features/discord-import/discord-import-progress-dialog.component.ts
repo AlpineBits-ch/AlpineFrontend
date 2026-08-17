@@ -1,4 +1,12 @@
-import {ChangeDetectionStrategy, Component, computed, DestroyRef, effect, inject, signal} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    DestroyRef,
+    effect,
+    inject,
+    signal,
+} from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {Dialog} from 'primeng/dialog';
 import {Button} from 'primeng/button';
@@ -69,39 +77,45 @@ export class DiscordImportProgressDialogComponent {
             // giving an instant first check without a second, uncoordinated subscription that
             // could race the interval and double-fire onCompleted().
             let consecutivePollFailures = 0;
-            this.pollSub = timer(0, POLL_INTERVAL_MS).pipe(
-                switchMap(() => this.discordImportService.getJob(request.jobId).pipe(
-                    catchError(err => {
-                        consecutivePollFailures++;
-                        if (consecutivePollFailures >= MAX_CONSECUTIVE_POLL_FAILURES) {
-                            return throwError(() => err);
+            this.pollSub = timer(0, POLL_INTERVAL_MS)
+                .pipe(
+                    switchMap(() =>
+                        this.discordImportService.getJob(request.jobId).pipe(
+                            catchError(err => {
+                                consecutivePollFailures++;
+                                if (consecutivePollFailures >= MAX_CONSECUTIVE_POLL_FAILURES) {
+                                    return throwError(() => err);
+                                }
+                                // Skip this tick - the next timer interval will retry.
+                                return EMPTY;
+                            }),
+                        ),
+                    ),
+                    takeWhile(job => !TERMINAL_STATUSES.includes(job.status), true),
+                    takeUntilDestroyed(this.destroyRef),
+                )
+                .subscribe({
+                    next: job => {
+                        consecutivePollFailures = 0;
+                        this.job.set(job);
+                        if (job.status === 'Completed') {
+                            if (job.guildId) {
+                                this.onCompleted(job.guildId);
+                            } else {
+                                // Terminal status with no guildId to navigate to - don't leave the
+                                // dialog spinning forever, surface it as an error and let go.
+                                this.toastService.error(
+                                    this.translate.instant('DISCORD_IMPORT.GUILD_NOT_FOUND'),
+                                );
+                                this.dialogService.close();
+                            }
                         }
-                        // Skip this tick - the next timer interval will retry.
-                        return EMPTY;
-                    }),
-                )),
-                takeWhile(job => !TERMINAL_STATUSES.includes(job.status), true),
-                takeUntilDestroyed(this.destroyRef),
-            ).subscribe({
-                next: job => {
-                    consecutivePollFailures = 0;
-                    this.job.set(job);
-                    if (job.status === 'Completed') {
-                        if (job.guildId) {
-                            this.onCompleted(job.guildId);
-                        } else {
-                            // Terminal status with no guildId to navigate to - don't leave the
-                            // dialog spinning forever, surface it as an error and let go.
-                            this.toastService.error(this.translate.instant('DISCORD_IMPORT.GUILD_NOT_FOUND'));
-                            this.dialogService.close();
-                        }
-                    }
-                },
-                error: err => {
-                    this.toastService.httpError(this.translate.instant('DISCORD_IMPORT.POLL_ERROR'), err);
-                    this.dialogService.close();
-                },
-            });
+                    },
+                    error: err => {
+                        this.toastService.httpError(this.translate.instant('DISCORD_IMPORT.POLL_ERROR'), err);
+                        this.dialogService.close();
+                    },
+                });
         });
     }
 
@@ -116,7 +130,9 @@ export class DiscordImportProgressDialogComponent {
             next: guild => {
                 this.guildService.guildJoined$.next();
                 this.navigationService.selectServer(guild);
-                this.toastService.success(this.translate.instant('DISCORD_IMPORT.SUCCESS_TOAST', {name: guild.name}));
+                this.toastService.success(
+                    this.translate.instant('DISCORD_IMPORT.SUCCESS_TOAST', {name: guild.name}),
+                );
                 this.dialogService.close();
             },
             error: err => {

@@ -2,12 +2,7 @@ import {TestBed} from '@angular/core/testing';
 import {HttpErrorResponse} from '@angular/common/http';
 import {Observable, of, throwError} from 'rxjs';
 import {MasterKeyStateService} from './master-key-state.service';
-import {
-    BackupService,
-    MasterKeyWrappingDto,
-    PutRecoveryKeyDto,
-    RecoveryKeyDto,
-} from './backup.service';
+import {BackupService, MasterKeyWrappingDto, PutRecoveryKeyDto, RecoveryKeyDto} from './backup.service';
 import {
     CredentialKind,
     CredentialRejectedError,
@@ -43,27 +38,38 @@ function envelope(overrides: Partial<RecoveryKeyDto> = {}): RecoveryKeyDto {
 function setup() {
     const backup = {
         getRecoveryKey: vi.fn<() => Observable<RecoveryKeyDto>>(() => of(envelope())),
-        putRecoveryKey: vi.fn<(dto: PutRecoveryKeyDto) => Observable<{ version: number }>>(
-            () => of({version: 1})),
-        rewrapPassword: vi.fn<(version: number, w: MasterKeyWrappingDto) =>
-            Observable<{ version: number; encryptedHistoryRecoverable: boolean }>>(
-            () => of({version: 1, encryptedHistoryRecoverable: true})),
+        putRecoveryKey: vi.fn<(dto: PutRecoveryKeyDto) => Observable<{version: number}>>(() =>
+            of({version: 1}),
+        ),
+        rewrapPassword: vi.fn<
+            (
+                version: number,
+                w: MasterKeyWrappingDto,
+            ) => Observable<{version: number; encryptedHistoryRecoverable: boolean}>
+        >(() => of({version: 1, encryptedHistoryRecoverable: true})),
     };
     // Typed with the real parameter list on purpose. A zero-argument double is what let the call
     // site drop two required arguments and stay green: `mock.calls` had no positions to assert on,
     // so nothing here could notice the shape of the call at all.
     const masterKey = {
-        rewrap: vi.fn(async (
-            _encrypted: EncryptedMasterKey,
-            _fromCredential: string,
-            _fromKind: CredentialKind,
-            _toCredential: string,
-            _toKind: CredentialKind,
-        ) => ({
-            cipherText: 'bmV3', salt: 'bmV3c2FsdA==', iv: 'bmV3aXY=',
-            argon2Iterations: 3, argon2Memory: 65536, argon2Parallelism: 1, version: 1,
-            publicVerifier: 'dmVyaWZpZXI=',
-        })),
+        rewrap: vi.fn(
+            async (
+                _encrypted: EncryptedMasterKey,
+                _fromCredential: string,
+                _fromKind: CredentialKind,
+                _toCredential: string,
+                _toKind: CredentialKind,
+            ) => ({
+                cipherText: 'bmV3',
+                salt: 'bmV3c2FsdA==',
+                iv: 'bmV3aXY=',
+                argon2Iterations: 3,
+                argon2Memory: 65536,
+                argon2Parallelism: 1,
+                version: 1,
+                publicVerifier: 'dmVyaWZpZXI=',
+            }),
+        ),
         generateRecoveryCode: vi.fn(async () => 'AAAA-BBBB-CCCC-DDDD-EEEE-FFFF-GGGG-HHHH'),
     };
 
@@ -98,20 +104,28 @@ describe('MasterKeyStateService', () => {
 
         it('reports a reset that needs re-wrapping', async () => {
             const {state, backup} = setup();
-            backup.getRecoveryKey.mockReturnValue(of(envelope({
-                passwordWrappingInvalidatedAt: '2026-08-01T10:00:00Z',
-            })));
+            backup.getRecoveryKey.mockReturnValue(
+                of(
+                    envelope({
+                        passwordWrappingInvalidatedAt: '2026-08-01T10:00:00Z',
+                    }),
+                ),
+            );
 
             expect(await state.refresh()).toBe('rewrap-required');
         });
 
         it('reports a completed loss ahead of anything else', async () => {
             const {state, backup} = setup();
-            backup.getRecoveryKey.mockReturnValue(of(envelope({
-                recoveryCodeWrapping: null,
-                passwordWrappingInvalidatedAt: '2026-08-01T10:00:00Z',
-                encryptedHistoryRecoverable: false,
-            })));
+            backup.getRecoveryKey.mockReturnValue(
+                of(
+                    envelope({
+                        recoveryCodeWrapping: null,
+                        passwordWrappingInvalidatedAt: '2026-08-01T10:00:00Z',
+                        encryptedHistoryRecoverable: false,
+                    }),
+                ),
+            );
 
             // Already lost, not a prompt to do something: no password will ever open this key
             // again. Offering a repair here would be a lie.
@@ -120,8 +134,7 @@ describe('MasterKeyStateService', () => {
 
         it('treats a 404 as first-run rather than a fault', async () => {
             const {state, backup} = setup();
-            backup.getRecoveryKey.mockReturnValue(
-                throwError(() => new HttpErrorResponse({status: 404})));
+            backup.getRecoveryKey.mockReturnValue(throwError(() => new HttpErrorResponse({status: 404})));
 
             expect(await state.refresh()).toBe('not-set-up');
             expect(state.needsAttention()).toBe(false);
@@ -129,13 +142,16 @@ describe('MasterKeyStateService', () => {
 
         it('keeps the previous verdict when the lookup fails', async () => {
             const {state, backup} = setup();
-            backup.getRecoveryKey.mockReturnValue(of(envelope({
-                encryptedHistoryRecoverable: false,
-            })));
+            backup.getRecoveryKey.mockReturnValue(
+                of(
+                    envelope({
+                        encryptedHistoryRecoverable: false,
+                    }),
+                ),
+            );
             await state.refresh();
 
-            backup.getRecoveryKey.mockReturnValue(
-                throwError(() => new HttpErrorResponse({status: 500})));
+            backup.getRecoveryKey.mockReturnValue(throwError(() => new HttpErrorResponse({status: 500})));
 
             // Guessing 'ok' on a failed lookup is how a real loss goes unreported.
             expect(await state.refresh()).toBe('unrecoverable');
@@ -155,13 +171,19 @@ describe('MasterKeyStateService', () => {
     describe('re-wrapping after a reset', () => {
         it('re-wraps from the recovery code at the same version', async () => {
             const {state, backup, masterKey} = setup();
-            backup.getRecoveryKey.mockReturnValue(of(envelope({
-                passwordWrappingInvalidatedAt: '2026-08-01T10:00:00Z',
-            })));
+            backup.getRecoveryKey.mockReturnValue(
+                of(
+                    envelope({
+                        passwordWrappingInvalidatedAt: '2026-08-01T10:00:00Z',
+                    }),
+                ),
+            );
             await state.refresh();
 
             const result = await state.rewrapUnderNewPassword(
-                'AAAA-BBBB-CCCC-DDDD-EEEE-FFFF-GGGG-HHHH', 'new-pw');
+                'AAAA-BBBB-CCCC-DDDD-EEEE-FFFF-GGGG-HHHH',
+                'new-pw',
+            );
 
             expect(result.outcome).toBe('ok');
             expect(masterKey.rewrap).toHaveBeenCalled();
@@ -174,9 +196,13 @@ describe('MasterKeyStateService', () => {
 
         it('names both credential kinds on the re-wrap', async () => {
             const {state, backup, masterKey} = setup();
-            backup.getRecoveryKey.mockReturnValue(of(envelope({
-                passwordWrappingInvalidatedAt: '2026-08-01T10:00:00Z',
-            })));
+            backup.getRecoveryKey.mockReturnValue(
+                of(
+                    envelope({
+                        passwordWrappingInvalidatedAt: '2026-08-01T10:00:00Z',
+                    }),
+                ),
+            );
             await state.refresh();
 
             await state.rewrapUnderNewPassword('AAAA-BBBB-CCCC-DDDD-EEEE-FFFF-GGGG-HHHH', 'new-pw');
@@ -194,12 +220,17 @@ describe('MasterKeyStateService', () => {
 
         it('reports a wrong recovery code without writing anything', async () => {
             const {state, backup, masterKey} = setup();
-            backup.getRecoveryKey.mockReturnValue(of(envelope({
-                passwordWrappingInvalidatedAt: '2026-08-01T10:00:00Z',
-            })));
+            backup.getRecoveryKey.mockReturnValue(
+                of(
+                    envelope({
+                        passwordWrappingInvalidatedAt: '2026-08-01T10:00:00Z',
+                    }),
+                ),
+            );
             await state.refresh();
             masterKey.rewrap.mockRejectedValue(
-                new CredentialRejectedError('recoveryCode', 'Decryption failed'));
+                new CredentialRejectedError('recoveryCode', 'Decryption failed'),
+            );
 
             const result = await state.rewrapUnderNewPassword('WRONG', 'new-pw');
 
@@ -209,12 +240,20 @@ describe('MasterKeyStateService', () => {
 
         it('does not report an engine failure as a bad recovery code', async () => {
             const {state, backup, masterKey} = setup();
-            backup.getRecoveryKey.mockReturnValue(of(envelope({
-                passwordWrappingInvalidatedAt: '2026-08-01T10:00:00Z',
-            })));
+            backup.getRecoveryKey.mockReturnValue(
+                of(
+                    envelope({
+                        passwordWrappingInvalidatedAt: '2026-08-01T10:00:00Z',
+                    }),
+                ),
+            );
             await state.refresh();
-            masterKey.rewrap.mockRejectedValue(new MasterKeyEngineError(
-                'rewrap_master_key', 'invalid args `fromKind` for command `rewrap_master_key`'));
+            masterKey.rewrap.mockRejectedValue(
+                new MasterKeyEngineError(
+                    'rewrap_master_key',
+                    'invalid args `fromKind` for command `rewrap_master_key`',
+                ),
+            );
 
             // The C2 outcome, stated as a test: a user mid-recovery, holding a *correct* code and
             // no other credential, was told the one thing that would make them stop trying.
@@ -226,10 +265,14 @@ describe('MasterKeyStateService', () => {
 
         it('cannot re-wrap an account that never had a recovery code', async () => {
             const {state, backup} = setup();
-            backup.getRecoveryKey.mockReturnValue(of(envelope({
-                recoveryCodeWrapping: null,
-                encryptedHistoryRecoverable: false,
-            })));
+            backup.getRecoveryKey.mockReturnValue(
+                of(
+                    envelope({
+                        recoveryCodeWrapping: null,
+                        encryptedHistoryRecoverable: false,
+                    }),
+                ),
+            );
             await state.refresh();
 
             const result = await state.rewrapUnderNewPassword('anything', 'new-pw');
@@ -314,8 +357,7 @@ describe('MasterKeyStateService', () => {
             const {state, backup, masterKey} = setup();
             backup.getRecoveryKey.mockReturnValue(of(envelope({recoveryCodeWrapping: null})));
             await state.refresh();
-            masterKey.rewrap.mockRejectedValue(
-                new CredentialRejectedError('password', 'Decryption failed'));
+            masterKey.rewrap.mockRejectedValue(new CredentialRejectedError('password', 'Decryption failed'));
 
             const result = await state.addRecoveryCode('wrong');
 
@@ -327,8 +369,12 @@ describe('MasterKeyStateService', () => {
             const {state, backup, masterKey} = setup();
             backup.getRecoveryKey.mockReturnValue(of(envelope({recoveryCodeWrapping: null})));
             await state.refresh();
-            masterKey.rewrap.mockRejectedValue(new MasterKeyEngineError(
-                'rewrap_master_key', 'invalid args `toKind` for command `rewrap_master_key`'));
+            masterKey.rewrap.mockRejectedValue(
+                new MasterKeyEngineError(
+                    'rewrap_master_key',
+                    'invalid args `toKind` for command `rewrap_master_key`',
+                ),
+            );
 
             // Live behaviour before this change: no Alpine user could ever obtain a recovery code,
             // and the reason shown was "Check your password and try again."

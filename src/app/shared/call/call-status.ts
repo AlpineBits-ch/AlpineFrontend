@@ -3,7 +3,7 @@
 /** Worst first. The index in this array is the precedence. */
 const PRECEDENCE = ['failed', 'lost', 'connecting', 'no-audio', 'alone', 'connected'] as const;
 
-export type CallStatusKind = typeof PRECEDENCE[number];
+export type CallStatusKind = (typeof PRECEDENCE)[number];
 
 /** Drives colour and the pulse. `ok` is the resting state and never pulses. */
 export type CallStatusTone = 'ok' | 'warn' | 'error';

@@ -1,6 +1,5 @@
 @if (config(); as cfg) {
     <div class="flex flex-col gap-8">
-
         <!-- ── Posting rules ──────────────────────────────────────────────── -->
         <section class="flex flex-col gap-4">
             <div>
@@ -13,36 +12,63 @@
                     <p class="text-sm text-text-primary m-0">{{ 'FORUM_SETTINGS.REQUIRE_TAG' | translate }}</p>
                     <p class="text-xs text-text-muted m-0 mt-0.5">{{ 'FORUM_SETTINGS.REQUIRE_TAG_DESC' | translate }}</p>
                 </div>
-                <p-toggleswitch (ngModelChange)="patchConfig('requireTag', $event)" [disabled]="tags().length === 0"
-                                [ngModel]="cfg.requireTag"/>
+                <p-toggleswitch
+                    (ngModelChange)="patchConfig('requireTag', $event)"
+                    [disabled]="tags().length === 0"
+                    [ngModel]="cfg.requireTag"
+                />
             </div>
 
             <div class="grid gap-3 sm:grid-cols-2">
                 <label class="flex flex-col gap-1.5">
                     <span class="text-xs font-medium text-text-secondary">{{ 'FORUM_SETTINGS.DEFAULT_SORT' | translate }}</span>
-                    <p-select (ngModelChange)="patchConfig('defaultSortOrder', $event)" [ngModel]="cfg.defaultSortOrder"
-                              [options]="sortOptions()" appendTo="body" optionLabel="label" optionValue="value"
-                              styleClass="w-full"/>
+                    <p-select
+                        (ngModelChange)="patchConfig('defaultSortOrder', $event)"
+                        [ngModel]="cfg.defaultSortOrder"
+                        [options]="sortOptions()"
+                        appendTo="body"
+                        optionLabel="label"
+                        optionValue="value"
+                        styleClass="w-full"
+                    />
                 </label>
 
                 <label class="flex flex-col gap-1.5">
                     <span class="text-xs font-medium text-text-secondary">{{ 'FORUM_SETTINGS.DEFAULT_LAYOUT' | translate }}</span>
-                    <p-select (ngModelChange)="patchConfig('defaultLayout', $event)" [ngModel]="cfg.defaultLayout"
-                              [options]="layoutOptions()" appendTo="body" optionLabel="label" optionValue="value"
-                              styleClass="w-full"/>
+                    <p-select
+                        (ngModelChange)="patchConfig('defaultLayout', $event)"
+                        [ngModel]="cfg.defaultLayout"
+                        [options]="layoutOptions()"
+                        appendTo="body"
+                        optionLabel="label"
+                        optionValue="value"
+                        styleClass="w-full"
+                    />
                 </label>
 
                 <label class="flex flex-col gap-1.5">
                     <span class="text-xs font-medium text-text-secondary">{{ 'FORUM_SETTINGS.AUTO_ARCHIVE' | translate }}</span>
-                    <p-select (ngModelChange)="patchConfig('defaultAutoArchiveMinutes', $event)"
-                              [ngModel]="cfg.defaultAutoArchiveMinutes" [options]="archiveOptions()" appendTo="body"
-                              optionLabel="label" optionValue="value" styleClass="w-full"/>
+                    <p-select
+                        (ngModelChange)="patchConfig('defaultAutoArchiveMinutes', $event)"
+                        [ngModel]="cfg.defaultAutoArchiveMinutes"
+                        [options]="archiveOptions()"
+                        appendTo="body"
+                        optionLabel="label"
+                        optionValue="value"
+                        styleClass="w-full"
+                    />
                 </label>
 
                 <label class="flex flex-col gap-1.5">
                     <span class="text-xs font-medium text-text-secondary">{{ 'FORUM_SETTINGS.POST_SLOWMODE' | translate }}</span>
-                    <input (change)="onSlowModeChange($any($event.target).value)"
-                           [value]="cfg.defaultThreadSlowModeSeconds" max="21600" min="0" pInputText type="number"/>
+                    <input
+                        (change)="onSlowModeChange($any($event.target).value)"
+                        [value]="cfg.defaultThreadSlowModeSeconds"
+                        max="21600"
+                        min="0"
+                        pInputText
+                        type="number"
+                    />
                     <span class="text-[0.6875rem] text-text-muted">{{ 'FORUM_SETTINGS.POST_SLOWMODE_HINT' | translate }}</span>
                 </label>
             </div>
@@ -56,13 +82,17 @@
                     <p class="text-xs text-text-muted m-0 mt-1">{{ 'FORUM_SETTINGS.TAGS_DESC' | translate }}</p>
                 </div>
                 <div class="flex items-center gap-2 shrink-0">
-                    <span class="text-[0.6875rem] tabular-nums"
-                          [class]="atTagCap() ? 'text-connecting' : 'text-text-muted'">
+                    <span class="text-[0.6875rem] tabular-nums" [class]="atTagCap() ? 'text-connecting' : 'text-text-muted'">
                         {{ tags().length }}/{{ maxTags }}
                     </span>
-                    <p-button (onClick)="openCreateTag()" [disabled]="atTagCap()"
-                              [label]="'FORUM_SETTINGS.NEW_TAG' | translate" icon="pi pi-plus" severity="secondary"
-                              size="small"/>
+                    <p-button
+                        (onClick)="openCreateTag()"
+                        [disabled]="atTagCap()"
+                        [label]="'FORUM_SETTINGS.NEW_TAG' | translate"
+                        icon="pi pi-plus"
+                        severity="secondary"
+                        size="small"
+                    />
                 </div>
             </div>
 
@@ -74,21 +104,23 @@
             } @else {
                 <div class="flex flex-col gap-1">
                     @for (tag of tags(); track tag.id; let i = $index) {
-                        <div (dragover)="onDragOver($event)"
-                             (dragstart)="onDragStart(i)"
-                             (drop)="onDrop(i)"
-                             [draggable]="true"
-                             class="group/tag flex items-center gap-2 p-2 rounded-xl bg-card/60 border border-border-subtle
-                                    hover:border-border-default transition-colors cursor-grab active:cursor-grabbing">
-
+                        <div
+                            (dragover)="onDragOver($event)"
+                            (dragstart)="onDragStart(i)"
+                            (drop)="onDrop(i)"
+                            [draggable]="true"
+                            class="group/tag flex items-center gap-2 p-2 rounded-xl bg-card/60 border border-border-subtle hover:border-border-default transition-colors cursor-grab active:cursor-grabbing"
+                        >
                             <i class="pi pi-bars text-[0.625rem] text-text-muted shrink-0"></i>
 
-                            <app-forum-tag-chip [emojiUrl]="emojiUrlFor(tag)" [tag]="tag"/>
+                            <app-forum-tag-chip [emojiUrl]="emojiUrlFor(tag)" [tag]="tag" />
 
                             @if (tag.moderated) {
-                                <i [pTooltip]="'FORUM_SETTINGS.MODERATED_HINT' | translate"
-                                   class="pi pi-shield text-[0.625rem] text-connecting shrink-0"
-                                   tooltipPosition="top"></i>
+                                <i
+                                    [pTooltip]="'FORUM_SETTINGS.MODERATED_HINT' | translate"
+                                    class="pi pi-shield text-[0.625rem] text-connecting shrink-0"
+                                    tooltipPosition="top"
+                                ></i>
                             }
 
                             <span class="text-[0.6875rem] text-text-muted tabular-nums ml-auto shrink-0">
@@ -96,25 +128,31 @@
                             </span>
 
                             <!-- Arrow controls: drag-and-drop alone is unreachable by keyboard -->
-                            <div class="flex flex-col shrink-0 opacity-0 group-hover/tag:opacity-100 focus-within:opacity-100 transition-opacity">
-                                <button (click)="moveTagBy(i, -1)" [attr.aria-label]="'FORUM_SETTINGS.MOVE_UP' | translate"
-                                        [disabled]="i === 0"
-                                        class="h-3 w-5 grid place-items-center text-text-muted hover:text-text-primary disabled:opacity-25 transition-colors"
-                                        type="button">
+                            <div
+                                class="flex flex-col shrink-0 opacity-0 group-hover/tag:opacity-100 focus-within:opacity-100 transition-opacity"
+                            >
+                                <button
+                                    (click)="moveTagBy(i, -1)"
+                                    [attr.aria-label]="'FORUM_SETTINGS.MOVE_UP' | translate"
+                                    [disabled]="i === 0"
+                                    class="h-3 w-5 grid place-items-center text-text-muted hover:text-text-primary disabled:opacity-25 transition-colors"
+                                    type="button"
+                                >
                                     <i class="pi pi-chevron-up text-[0.5rem]"></i>
                                 </button>
-                                <button (click)="moveTagBy(i, 1)" [attr.aria-label]="'FORUM_SETTINGS.MOVE_DOWN' | translate"
-                                        [disabled]="i === tags().length - 1"
-                                        class="h-3 w-5 grid place-items-center text-text-muted hover:text-text-primary disabled:opacity-25 transition-colors"
-                                        type="button">
+                                <button
+                                    (click)="moveTagBy(i, 1)"
+                                    [attr.aria-label]="'FORUM_SETTINGS.MOVE_DOWN' | translate"
+                                    [disabled]="i === tags().length - 1"
+                                    class="h-3 w-5 grid place-items-center text-text-muted hover:text-text-primary disabled:opacity-25 transition-colors"
+                                    type="button"
+                                >
                                     <i class="pi pi-chevron-down text-[0.5rem]"></i>
                                 </button>
                             </div>
 
-                            <p-button (onClick)="openEditTag(tag)" [text]="true" icon="pi pi-pencil" severity="secondary"
-                                      size="small"/>
-                            <p-button (onClick)="askDelete(tag)" [text]="true" icon="pi pi-trash" severity="danger"
-                                      size="small"/>
+                            <p-button (onClick)="openEditTag(tag)" [text]="true" icon="pi pi-pencil" severity="secondary" size="small" />
+                            <p-button (onClick)="askDelete(tag)" [text]="true" icon="pi pi-trash" severity="danger" size="small" />
                         </div>
                     }
                 </div>
@@ -128,8 +166,15 @@
 }
 
 <!-- ── Tag editor ─────────────────────────────────────────────────────────── -->
-<p-dialog (visibleChange)="showTagDialog.set($event)" [draggable]="false" [modal]="true" [resizable]="false"
-          [style]="{width: '420px'}" [visible]="showTagDialog()" appendTo="body">
+<p-dialog
+    (visibleChange)="showTagDialog.set($event)"
+    [draggable]="false"
+    [modal]="true"
+    [resizable]="false"
+    [style]="{width: '420px'}"
+    [visible]="showTagDialog()"
+    appendTo="body"
+>
     <ng-template pTemplate="header">
         <span class="text-sm font-semibold text-text-primary">
             {{ (draft().id ? 'FORUM_SETTINGS.EDIT_TAG' : 'FORUM_SETTINGS.NEW_TAG') | translate }}
@@ -139,15 +184,21 @@
     <div class="flex flex-col gap-4">
         <!-- Live preview, so colour and emoji choices are judged as the chip, not as a hex code -->
         <div class="flex justify-center py-2 rounded-xl bg-card/60 border border-border-subtle">
-            <app-forum-tag-chip [emojiUrl]="draftPreviewEmojiUrl()" [tag]="draftPreview()"/>
+            <app-forum-tag-chip [emojiUrl]="draftPreviewEmojiUrl()" [tag]="draftPreview()" />
         </div>
 
         <label class="flex flex-col gap-1.5">
             <span class="text-xs font-medium text-text-secondary">{{ 'FORUM_SETTINGS.TAG_NAME' | translate }}</span>
             <!-- Enter saves the tag; `saveTag()` re-checks the trimmed name and the in-flight flag. -->
-        <input (keydown.enter)="saveTag()" (ngModelChange)="patchDraft({name: $event})"
-               [maxlength]="maxNameLength" [ngModel]="draft().name"
-                   [placeholder]="'FORUM_SETTINGS.TAG_NAME_PLACEHOLDER' | translate" pInputText type="text"/>
+            <input
+                (keydown.enter)="saveTag()"
+                (ngModelChange)="patchDraft({name: $event})"
+                [maxlength]="maxNameLength"
+                [ngModel]="draft().name"
+                [placeholder]="'FORUM_SETTINGS.TAG_NAME_PLACEHOLDER' | translate"
+                pInputText
+                type="text"
+            />
             @if (nameTakenError()) {
                 <span class="text-[0.6875rem] text-offline">{{ 'FORUM_SETTINGS.TAG_NAME_TAKEN' | translate }}</span>
             }
@@ -156,23 +207,40 @@
         <div class="grid grid-cols-[5rem_1fr] gap-3">
             <label class="flex flex-col gap-1.5">
                 <span class="text-xs font-medium text-text-secondary">{{ 'FORUM_SETTINGS.TAG_COLOR' | translate }}</span>
-                <input (ngModelChange)="patchDraft({color: $event})" [ngModel]="draft().color"
-                       class="h-9 w-full rounded-lg bg-card border border-border cursor-pointer" type="color"/>
+                <input
+                    (ngModelChange)="patchDraft({color: $event})"
+                    [ngModel]="draft().color"
+                    class="h-9 w-full rounded-lg bg-card border border-border cursor-pointer"
+                    type="color"
+                />
             </label>
 
             <label class="flex flex-col gap-1.5">
                 <span class="text-xs font-medium text-text-secondary">{{ 'FORUM_SETTINGS.TAG_EMOJI' | translate }}</span>
-                <input (keydown.enter)="saveTag()" (ngModelChange)="setUnicodeEmoji($event)" [maxlength]="8"
-               [ngModel]="draft().emojiName"
-                       [placeholder]="'FORUM_SETTINGS.TAG_EMOJI_PLACEHOLDER' | translate" pInputText type="text"/>
+                <input
+                    (keydown.enter)="saveTag()"
+                    (ngModelChange)="setUnicodeEmoji($event)"
+                    [maxlength]="8"
+                    [ngModel]="draft().emojiName"
+                    [placeholder]="'FORUM_SETTINGS.TAG_EMOJI_PLACEHOLDER' | translate"
+                    pInputText
+                    type="text"
+                />
             </label>
         </div>
 
         <label class="flex flex-col gap-1.5">
             <span class="text-xs font-medium text-text-secondary">{{ 'FORUM_SETTINGS.TAG_SERVER_EMOJI' | translate }}</span>
-            <p-select (ngModelChange)="setGuildEmoji($event)" [filter]="true" [ngModel]="draft().emojiId"
-                      [options]="guildEmojiOptions()" appendTo="body" optionLabel="label" optionValue="value"
-                      styleClass="w-full"/>
+            <p-select
+                (ngModelChange)="setGuildEmoji($event)"
+                [filter]="true"
+                [ngModel]="draft().emojiId"
+                [options]="guildEmojiOptions()"
+                appendTo="body"
+                optionLabel="label"
+                optionValue="value"
+                styleClass="w-full"
+            />
         </label>
 
         <div class="flex items-start justify-between gap-4">
@@ -180,21 +248,32 @@
                 <p class="text-sm text-text-primary m-0">{{ 'FORUM_SETTINGS.MODERATED' | translate }}</p>
                 <p class="text-xs text-text-muted m-0 mt-0.5">{{ 'FORUM_SETTINGS.MODERATED_DESC' | translate }}</p>
             </div>
-            <p-toggleswitch (ngModelChange)="patchDraft({moderated: $event})" [ngModel]="draft().moderated"/>
+            <p-toggleswitch (ngModelChange)="patchDraft({moderated: $event})" [ngModel]="draft().moderated" />
         </div>
     </div>
 
     <ng-template pTemplate="footer">
-        <p-button (onClick)="showTagDialog.set(false)" [label]="'COMMON.CANCEL' | translate" [text]="true"
-                  severity="secondary"/>
-        <p-button (onClick)="saveTag()" [disabled]="!draft().name.trim()" [label]="'COMMON.SAVE' | translate"
-                  [loading]="savingTag()" severity="primary"/>
+        <p-button (onClick)="showTagDialog.set(false)" [label]="'COMMON.CANCEL' | translate" [text]="true" severity="secondary" />
+        <p-button
+            (onClick)="saveTag()"
+            [disabled]="!draft().name.trim()"
+            [label]="'COMMON.SAVE' | translate"
+            [loading]="savingTag()"
+            severity="primary"
+        />
     </ng-template>
 </p-dialog>
 
 <!-- ── Delete confirm ─────────────────────────────────────────────────────── -->
-<p-dialog (visibleChange)="showDeleteDialog.set($event)" [draggable]="false" [modal]="true" [resizable]="false"
-          [style]="{width: '380px'}" [visible]="showDeleteDialog()" appendTo="body">
+<p-dialog
+    (visibleChange)="showDeleteDialog.set($event)"
+    [draggable]="false"
+    [modal]="true"
+    [resizable]="false"
+    [style]="{width: '380px'}"
+    [visible]="showDeleteDialog()"
+    appendTo="body"
+>
     <ng-template pTemplate="header">
         <span class="text-sm font-semibold text-text-primary">{{ 'FORUM_SETTINGS.DELETE_TAG' | translate }}</span>
     </ng-template>
@@ -204,9 +283,13 @@
         </p>
     }
     <ng-template pTemplate="footer">
-        <p-button (onClick)="showDeleteDialog.set(false)" [label]="'COMMON.CANCEL' | translate" [text]="true"
-                  severity="secondary"/>
-        <p-button (onClick)="confirmDelete()" [label]="'COMMON.DELETE' | translate" [loading]="deleting()"
-                  [outlined]="true" severity="danger"/>
+        <p-button (onClick)="showDeleteDialog.set(false)" [label]="'COMMON.CANCEL' | translate" [text]="true" severity="secondary" />
+        <p-button
+            (onClick)="confirmDelete()"
+            [label]="'COMMON.DELETE' | translate"
+            [loading]="deleting()"
+            [outlined]="true"
+            severity="danger"
+        />
     </ng-template>
 </p-dialog>

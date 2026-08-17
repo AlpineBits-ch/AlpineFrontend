@@ -1,19 +1,20 @@
 <p-dialog
-        [(visible)]="isVisible"
-        [breakpoints]="{'860px': '92vw', '640px': '100vw'}"
-        [closable]="true"
-        [dismissableMask]="true"
-        [draggable]="false"
-        [modal]="true"
-        [resizable]="false"
-        [style]="{width: '860px', height: '580px'}"
-        appendTo="body"
-        styleClass="settings-dialog">
-
+    [(visible)]="isVisible"
+    [breakpoints]="{'860px': '92vw', '640px': '100vw'}"
+    [closable]="true"
+    [dismissableMask]="true"
+    [draggable]="false"
+    [modal]="true"
+    [resizable]="false"
+    [style]="{width: '860px', height: '580px'}"
+    appendTo="body"
+    styleClass="settings-dialog"
+>
     @if (category() && guild()) {
         <div class="flex h-full flex-col sm:flex-row">
-
-            <nav class="sm:w-48 shrink-0 bg-sidebar border-b sm:border-b-0 sm:border-r border-white/[0.10] flex sm:flex-col py-2 sm:py-4 overflow-x-auto sm:overflow-x-hidden">
+            <nav
+                class="sm:w-48 shrink-0 bg-sidebar border-b sm:border-b-0 sm:border-r border-white/[0.10] flex sm:flex-col py-2 sm:py-4 overflow-x-auto sm:overflow-x-hidden"
+            >
                 <div class="hidden sm:flex flex-col flex-1">
                     <div class="px-4 mb-4">
                         <div class="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/[0.04]">
@@ -22,20 +23,23 @@
                         </div>
                     </div>
                     <div class="px-3">
-                        <p class="text-[10px] font-semibold text-white/25 uppercase tracking-widest px-3 mb-1">Category
-                            Settings</p>
+                        <p class="text-[10px] font-semibold text-white/25 uppercase tracking-widest px-3 mb-1">Category Settings</p>
                         @for (item of navItems; track item.id) {
-                            <button (click)="activePage.set(item.id)"
-                                    [ngClass]="navItemClasses(item.id)"
-                                    class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all cursor-pointer border-0 text-left">
+                            <button
+                                (click)="activePage.set(item.id)"
+                                [ngClass]="navItemClasses(item.id)"
+                                class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all cursor-pointer border-0 text-left"
+                            >
                                 <i [class]="item.icon" class="text-sm shrink-0"></i>
                                 {{ item.label }}
                             </button>
                         }
                     </div>
                     <div class="mt-auto px-3 pt-4 border-t border-white/[0.10] mx-3">
-                        <button (click)="confirmDelete.set(true)"
-                                class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all cursor-pointer border-0 text-left text-rose-400/70 hover:text-rose-400 hover:bg-rose-500/10">
+                        <button
+                            (click)="confirmDelete.set(true)"
+                            class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all cursor-pointer border-0 text-left text-rose-400/70 hover:text-rose-400 hover:bg-rose-500/10"
+                        >
                             <i class="pi pi-trash text-sm shrink-0"></i>
                             Delete Category
                         </button>
@@ -43,9 +47,11 @@
                 </div>
                 <div class="flex sm:hidden items-center gap-1 px-2">
                     @for (item of navItems; track item.id) {
-                        <button (click)="activePage.set(item.id)"
-                                [ngClass]="navItemClasses(item.id)"
-                                class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all cursor-pointer border-0 shrink-0">
+                        <button
+                            (click)="activePage.set(item.id)"
+                            [ngClass]="navItemClasses(item.id)"
+                            class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all cursor-pointer border-0 shrink-0"
+                        >
                             <i [class]="item.icon" class="text-xs"></i>
                             {{ item.label }}
                         </button>
@@ -56,18 +62,18 @@
             <div class="flex-1 flex flex-col min-w-0 overflow-hidden bg-app-bg">
                 <div class="flex items-center justify-between px-6 sm:px-8 py-4 border-b border-white/[0.10] shrink-0">
                     <h1 class="text-sm font-semibold text-white/85">{{ currentLabel() }}</h1>
-                    <p-button (onClick)="isVisible.set(false)" [text]="true" icon="pi pi-times" severity="secondary"
-                              size="small"/>
+                    <p-button (onClick)="isVisible.set(false)" [text]="true" icon="pi pi-times" severity="secondary" size="small" />
                 </div>
-                <div class="flex-1 overflow-y-auto px-6 sm:px-8 py-6 min-h-0"
-                     style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
+                <div
+                    class="flex-1 overflow-y-auto px-6 sm:px-8 py-6 min-h-0"
+                    style="scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.08) transparent"
+                >
                     @switch (activePage()) {
                         @case ('overview') {
-                            <app-category-overview (categoryUpdated)="onCategoryUpdated($event)"
-                                                   [category]="category()!"/>
+                            <app-category-overview (categoryUpdated)="onCategoryUpdated($event)" [category]="category()!" />
                         }
                         @case ('permissions') {
-                            <app-category-permissions [category]="category()!" [guild]="guild()!"/>
+                            <app-category-permissions [category]="category()!" [guild]="guild()!" />
                         }
                     }
                 </div>
@@ -77,22 +83,26 @@
 </p-dialog>
 
 <p-dialog
-        [(visible)]="confirmDelete"
-        [closable]="true" [dismissableMask]="true" [draggable]="false" [modal]="true"
-        [resizable]="false" [style]="{width: '380px'}"
-        appendTo="body">
+    [(visible)]="confirmDelete"
+    [closable]="true"
+    [dismissableMask]="true"
+    [draggable]="false"
+    [modal]="true"
+    [resizable]="false"
+    [style]="{width: '380px'}"
+    appendTo="body"
+>
     <ng-template pTemplate="header">
         <span class="text-sm font-semibold text-white/85">Delete Category</span>
     </ng-template>
     @if (category()) {
         <p class="text-sm text-white/60 py-2">
-            Delete <strong class="text-white/80">{{ category()!.name }}</strong>? Channels inside will be uncategorized.
+            Delete <strong class="text-white/80">{{ category()!.name }}</strong
+            >? Channels inside will be uncategorized.
         </p>
         <div class="flex gap-2 justify-end mt-4 pt-4 border-t border-white/[0.10]">
-            <p-button (onClick)="confirmDelete.set(false)" [text]="true" label="Cancel" severity="secondary"
-                      size="small"/>
-            <p-button (onClick)="deleteCategory()" [loading]="deleting()" [outlined]="true" label="Delete"
-                      severity="danger" size="small"/>
+            <p-button (onClick)="confirmDelete.set(false)" [text]="true" label="Cancel" severity="secondary" size="small" />
+            <p-button (onClick)="deleteCategory()" [loading]="deleting()" [outlined]="true" label="Delete" severity="danger" size="small" />
         </div>
     }
 </p-dialog>

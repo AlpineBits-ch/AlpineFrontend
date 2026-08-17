@@ -270,8 +270,10 @@ describe('the mix graph', () => {
         mixer.setPosition('user_a', {x: 10, y: 0, z: 0});
 
         const g = graphOf(ctx);
-        expect(g.distance.gain.value).toBeCloseTo(distanceGainFor(
-            {refDistance: 1, rolloff: 1.6, maxDistance: 20, intensity: 1}, 10), 6);
+        expect(g.distance.gain.value).toBeCloseTo(
+            distanceGainFor({refDistance: 1, rolloff: 1.6, maxDistance: 20, intensity: 1}, 10),
+            6,
+        );
         expect(g.distance.gain.value).toBeLessThan(0.2);
         expect(g.panner.pan.value).toBe(1);
         expect(g.wet.gain.value).toBe(1);
@@ -301,8 +303,9 @@ describe('the mix graph', () => {
     });
 
     it('refuses a model that would silence the mix', () => {
-        expect(() => mixer.setSpatialModel({refDistance: 1, rolloff: 1.6, maxDistance: 0, intensity: 1}))
-            .toThrow();
+        expect(() =>
+            mixer.setSpatialModel({refDistance: 1, rolloff: 1.6, maxDistance: 0, intensity: 1}),
+        ).toThrow();
     });
 
     it('applies per-source volume to that source alone', () => {

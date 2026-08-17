@@ -21,6 +21,11 @@ export class ConversationUtilsService {
         return others.length === 1 ? others[0] : null;
     }
 
+    /** Not a 1-on-1. Counted off the roster rather than getOtherMembers, so it holds before the own profile loads. */
+    isGroup(conv: ConversationDto): boolean {
+        return conv.members.length > 2;
+    }
+
     /** Online status of the DM partner, or null for group chats. */
     getPartnerStatus(conv: ConversationDto): OnlineStatus | null {
         const member = this.getPartnerMember(conv);

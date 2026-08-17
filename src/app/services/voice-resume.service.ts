@@ -50,7 +50,8 @@ export class VoiceResumeService {
      * device that is live makes the offer wrong rather than merely redundant.</p>
      */
     readonly offer = computed<VoiceResumeOffer | null>(() =>
-        this.voiceChannel.isInVoice() ? null : this.offerSignal());
+        this.voiceChannel.isInVoice() ? null : this.offerSignal(),
+    );
 
     /**
      * Asks the server where it places this client, once.
@@ -146,8 +147,7 @@ export class VoiceResumeService {
  * <p>Split out so the precedence is testable without a live injector, and so it reads as the one
  * decision it is.</p>
  */
-export function toOffer(
-    channel: VoiceStateDto | null, call: OngoingCallDto | null): VoiceResumeOffer | null {
+export function toOffer(channel: VoiceStateDto | null, call: OngoingCallDto | null): VoiceResumeOffer | null {
     if (channel) {
         return {
             kind: 'channel',

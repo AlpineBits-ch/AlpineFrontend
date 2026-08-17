@@ -28,16 +28,36 @@ function guildFixture(): GuildDto {
         categories: [],
         channels: [
             {
-                id: 'chan_1', createdAt: new Date(), updatedAt: new Date(), name: 'general',
-                description: '', type: ChannelType.Text, guildId: 'g1', isAgeRestricted: false,
-                isPrivate: false, categoryId: undefined, permissions: [], position: 0,
-                slowModeSeconds: 0, parentChannelId: undefined,
+                id: 'chan_1',
+                createdAt: new Date(),
+                updatedAt: new Date(),
+                name: 'general',
+                description: '',
+                type: ChannelType.Text,
+                guildId: 'g1',
+                isAgeRestricted: false,
+                isPrivate: false,
+                categoryId: undefined,
+                permissions: [],
+                position: 0,
+                slowModeSeconds: 0,
+                parentChannelId: undefined,
             },
             {
-                id: 'chan_2', createdAt: new Date(), updatedAt: new Date(), name: 'Lounge',
-                description: '', type: ChannelType.Voice, guildId: 'g1', isAgeRestricted: false,
-                isPrivate: false, categoryId: undefined, permissions: [], position: 1,
-                slowModeSeconds: 0, parentChannelId: undefined,
+                id: 'chan_2',
+                createdAt: new Date(),
+                updatedAt: new Date(),
+                name: 'Lounge',
+                description: '',
+                type: ChannelType.Voice,
+                guildId: 'g1',
+                isAgeRestricted: false,
+                isPrivate: false,
+                categoryId: undefined,
+                permissions: [],
+                position: 1,
+                slowModeSeconds: 0,
+                parentChannelId: undefined,
             },
         ],
         roles: [],
@@ -48,8 +68,15 @@ function guildFixture(): GuildDto {
 
 function inviteFixture(overrides: Partial<InviteDto> = {}): InviteDto {
     return {
-        id: 'i1', createdAt: new Date(), updatedAt: new Date(), type: InviteType.Permanent,
-        state: InviteState.Active, guildId: 'g1', code: 'abc', useCount: 0, ...overrides,
+        id: 'i1',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        type: InviteType.Permanent,
+        state: InviteState.Active,
+        guildId: 'g1',
+        code: 'abc',
+        useCount: 0,
+        ...overrides,
     };
 }
 
@@ -57,7 +84,8 @@ function inviteFixture(overrides: Partial<InviteDto> = {}): InviteDto {
 function stubClipboard(writeText: () => Promise<void>) {
     const original = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
     Object.defineProperty(navigator, 'clipboard', {value: {writeText}, configurable: true});
-    return () => Object.defineProperty(navigator, 'clipboard', original ?? {value: undefined, configurable: true});
+    return () =>
+        Object.defineProperty(navigator, 'clipboard', original ?? {value: undefined, configurable: true});
 }
 
 /** Lets the clipboard promise and its handlers settle. */
@@ -77,7 +105,8 @@ function setup() {
         ],
     });
 
-    const fixture: ComponentFixture<InvitesSettingsComponent> = TestBed.createComponent(InvitesSettingsComponent);
+    const fixture: ComponentFixture<InvitesSettingsComponent> =
+        TestBed.createComponent(InvitesSettingsComponent);
     fixture.componentRef.setInput('guild', guildFixture());
     const component = fixture.componentInstance;
     const ctrl = TestBed.inject(HttpTestingController);
@@ -217,7 +246,8 @@ describe('InvitesSettingsComponent invite state', () => {
         const {component} = setup();
         // The server derives `state` on every read, including the consumed-one-time case nothing here can see; a local `expiresAt < now` check would be a second source of truth that disagrees with it, so a lapsed timestamp on an Active row is not treated as expired.
         const lapsed = inviteFixture({
-            id: 'i2', expiresAt: new Date(Date.now() - 60_000).toISOString(),
+            id: 'i2',
+            expiresAt: new Date(Date.now() - 60_000).toISOString(),
         });
         const expired = inviteFixture({id: 'i3', state: InviteState.Expired});
         component.invites.set([inviteFixture(), lapsed, expired]);
@@ -232,7 +262,11 @@ describe('InvitesSettingsComponent invite state', () => {
 
     it('keeps revoked and expired apart', () => {
         const {component} = setup();
-        const revoked = inviteFixture({id: 'i4', state: InviteState.Revoked, revokedAt: new Date().toISOString()});
+        const revoked = inviteFixture({
+            id: 'i4',
+            state: InviteState.Revoked,
+            revokedAt: new Date().toISOString(),
+        });
         const expired = inviteFixture({id: 'i5', state: InviteState.Expired});
         component.invites.set([revoked, expired]);
 
@@ -283,8 +317,9 @@ describe('InvitesSettingsComponent revoke confirmation', () => {
         component.invites.set([inviteFixture()]);
 
         component.revokeInvite(inviteFixture());
-        ctrl.expectOne(`${BASE}/invites/i1`)
-            .flush(inviteFixture({state: InviteState.Revoked, revokedAt: '2026-08-15T00:00:00Z'}));
+        ctrl.expectOne(`${BASE}/invites/i1`).flush(
+            inviteFixture({state: InviteState.Revoked, revokedAt: '2026-08-15T00:00:00Z'}),
+        );
 
         // The row survives server-side (members who joined through it still point at it), so the audit view shows what happened to it rather than losing it.
         expect(component.invites().length).toBe(1);

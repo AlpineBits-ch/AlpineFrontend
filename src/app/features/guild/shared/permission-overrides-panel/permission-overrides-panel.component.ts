@@ -38,7 +38,7 @@ export class PermissionOverridesPanelComponent {
     readonly channelType = input<ChannelType | null>(null);
 
     add = output<string>();
-    change = output<{ id: string; override: PermOverride }>();
+    change = output<{id: string; override: PermOverride}>();
     save = output<string>();
     delete = output<string>();
 
@@ -55,7 +55,7 @@ export class PermissionOverridesPanelComponent {
 
     // The API sends an avatarUrl for every profile, uploaded or not; a URL that already failed to load is the only signal this entry has no avatar. See BrokenImageService.
     protected avatarUrl(entry: OverrideEntry): string | undefined {
-        return this.brokenImages.isBroken(entry.avatarUrl) ? undefined : entry.avatarUrl ?? undefined;
+        return this.brokenImages.isBroken(entry.avatarUrl) ? undefined : (entry.avatarUrl ?? undefined);
     }
 
     protected onAvatarError(url: string): void {
@@ -86,7 +86,9 @@ export class PermissionOverridesPanelComponent {
 
     detailPlaceholderText(): string {
         if (this.entries().length === 0) return this.sidebarEmptyText();
-        return this.kind() === 'role' ? 'Select a role to edit its permissions' : 'Select a member to edit its permissions';
+        return this.kind() === 'role'
+            ? 'Select a role to edit its permissions'
+            : 'Select a member to edit its permissions';
     }
 
     addableEmptyText(): string {

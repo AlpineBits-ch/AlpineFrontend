@@ -6,7 +6,7 @@ const MARKER = 'user is not allowed to sign in';
 interface MaybeHttpError {
     status?: number;
     error?: unknown;
-    reason?: { status?: number; error?: unknown };
+    reason?: {status?: number; error?: unknown};
 }
 
 export interface SignInBlocked {
@@ -20,8 +20,9 @@ function candidateTexts(body: unknown): string[] {
     if (!body || typeof body !== 'object') return [];
 
     const o = body as Record<string, unknown>;
-    return [o['text'], o['detail'], o['title'], o['message'], o['error'], o['error_description']]
-        .filter((v): v is string => typeof v === 'string');
+    return [o['text'], o['detail'], o['title'], o['message'], o['error'], o['error_description']].filter(
+        (v): v is string => typeof v === 'string',
+    );
 }
 
 function readReference(body: unknown): string | null {
@@ -45,8 +46,8 @@ export function signInBlocked(err: unknown): SignInBlocked | null {
     if ((e.status ?? e.reason?.status) !== 403) return null;
 
     const body = e.error ?? e.reason?.error;
-    const matched = candidateTexts(body).some(text =>
-        text.trim().replace(/^"|"$/g, '').replace(/\.$/, '').toLowerCase() === MARKER
+    const matched = candidateTexts(body).some(
+        text => text.trim().replace(/^"|"$/g, '').replace(/\.$/, '').toLowerCase() === MARKER,
     );
     if (!matched) return null;
 

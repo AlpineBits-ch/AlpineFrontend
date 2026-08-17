@@ -6,7 +6,7 @@ import {CategoryDto, GuildDto} from '../../../../dtos/response/guild.dto';
 import {CategoryOverviewComponent} from './pages/category-overview/category-overview.component';
 import {CategoryPermissionsComponent} from './pages/category-permissions/category-permissions.component';
 import {GuildService} from '../../../../services/guild.service';
-import {PrimeTemplate} from "primeng/api";
+import {PrimeTemplate} from 'primeng/api';
 import {TranslateModule} from '@ngx-translate/core';
 
 interface NavItem {
@@ -17,7 +17,15 @@ interface NavItem {
 
 @Component({
     selector: 'app-category-settings-modal',
-    imports: [NgClass, Dialog, Button, CategoryOverviewComponent, CategoryPermissionsComponent, PrimeTemplate, TranslateModule],
+    imports: [
+        NgClass,
+        Dialog,
+        Button,
+        CategoryOverviewComponent,
+        CategoryPermissionsComponent,
+        PrimeTemplate,
+        TranslateModule,
+    ],
     templateUrl: './category-settings-modal.component.html',
 })
 export class CategorySettingsModalComponent {

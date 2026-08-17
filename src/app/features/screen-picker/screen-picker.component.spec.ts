@@ -75,7 +75,7 @@ function save(preset: StreamPreset): void {
 describe('the pre-share dialog', () => {
     let restoreStorage: () => void;
 
-    beforeEach(() => restoreStorage = installMemoryStorage());
+    beforeEach(() => (restoreStorage = installMemoryStorage()));
     afterEach(() => restoreStorage());
 
     /** The whole point of the refactor: one click, no Next, no Go Live. */
@@ -85,7 +85,7 @@ describe('the pre-share dialog', () => {
 
         tiles(fixture)[0].click();
 
-        const choice = await pending as ScreenPickerChoice;
+        const choice = (await pending) as ScreenPickerChoice;
         expect(choice.sourceId).toBe('monitor:0');
         expect(choice.sourceWidth).toBe(2560);
         expect(choice.sourceHeight).toBe(1440);
@@ -95,8 +95,9 @@ describe('the pre-share dialog', () => {
     /** There is no second step to confirm on, so nothing may be left standing between the two. */
     it('draws no confirmation controls', () => {
         const fixture = render();
-        const labels = Array.from(fixture.nativeElement.querySelectorAll('button'))
-            .map(b => (b as HTMLButtonElement).textContent?.trim());
+        const labels = Array.from(fixture.nativeElement.querySelectorAll('button')).map(b =>
+            (b as HTMLButtonElement).textContent?.trim(),
+        );
 
         expect(labels).not.toContain('Next');
         expect(labels).not.toContain('Go Live');
@@ -113,7 +114,11 @@ describe('the pre-share dialog', () => {
 
         tiles(fixture)[0].click();
 
-        expect((await pending as ScreenPickerChoice).preset).toEqual({resolution: '720p', framerate: 15, content: 'text'});
+        expect(((await pending) as ScreenPickerChoice).preset).toEqual({
+            resolution: '720p',
+            framerate: 15,
+            content: 'text',
+        });
     });
 
     /** Passed through as stored, never clamped here. */
@@ -124,9 +129,16 @@ describe('the pre-share dialog', () => {
 
         tiles(fixture)[0].click();
 
-        expect((await pending as ScreenPickerChoice).preset).toEqual({resolution: '1440p', framerate: 60, content: 'text'});
-        expect(JSON.parse(localStorage.getItem(PRESET_KEY)!))
-            .toEqual({resolution: '1440p', framerate: 60, content: 'text'});
+        expect(((await pending) as ScreenPickerChoice).preset).toEqual({
+            resolution: '1440p',
+            framerate: 60,
+            content: 'text',
+        });
+        expect(JSON.parse(localStorage.getItem(PRESET_KEY)!)).toEqual({
+            resolution: '1440p',
+            framerate: 60,
+            content: 'text',
+        });
     });
 
     /**
@@ -139,7 +151,7 @@ describe('the pre-share dialog', () => {
 
         tiles(fixture)[0].click();
 
-        expect((await pending as ScreenPickerChoice).shareAudio).toBe(true);
+        expect(((await pending) as ScreenPickerChoice).shareAudio).toBe(true);
     });
 
     it('carries the audio checkbox into the share when it is cleared', async () => {
@@ -155,7 +167,7 @@ describe('the pre-share dialog', () => {
 
         tiles(fixture)[0].click();
 
-        expect((await pending as ScreenPickerChoice).shareAudio).toBe(false);
+        expect(((await pending) as ScreenPickerChoice).shareAudio).toBe(false);
     });
 
     /**
@@ -165,7 +177,7 @@ describe('the pre-share dialog', () => {
     it('suggests the hinted window without sharing it', () => {
         const fixture = render();
         let published = false;
-        void open(fixture).then(() => published = true);
+        void open(fixture).then(() => (published = true));
 
         fixture.componentInstance.picker.preferredSourceId.set('window:7');
         fixture.detectChanges();

@@ -56,23 +56,32 @@ export interface HereMentionCandidate {
     kind: 'here';
 }
 
-export type MentionCandidate = UserMentionCandidate | RoleMentionCandidate | EveryoneMentionCandidate | HereMentionCandidate;
+export type MentionCandidate =
+    UserMentionCandidate | RoleMentionCandidate | EveryoneMentionCandidate | HereMentionCandidate;
 
 export function mentionCandidateId(c: MentionCandidate): string {
     switch (c.kind) {
-        case 'user': return `user:${c.userId}`;
-        case 'role': return `role:${c.roleId}`;
-        case 'everyone': return 'everyone';
-        case 'here': return 'here';
+        case 'user':
+            return `user:${c.userId}`;
+        case 'role':
+            return `role:${c.roleId}`;
+        case 'everyone':
+            return 'everyone';
+        case 'here':
+            return 'here';
     }
 }
 
 export function mentionCandidateLabel(c: MentionCandidate): string {
     switch (c.kind) {
-        case 'user': return c.userName;
-        case 'role': return c.name;
-        case 'everyone': return 'everyone';
-        case 'here': return 'here';
+        case 'user':
+            return c.userName;
+        case 'role':
+            return c.name;
+        case 'everyone':
+            return 'everyone';
+        case 'here':
+            return 'here';
     }
 }
 
@@ -81,11 +90,11 @@ export function mentionCandidateMatches(c: MentionCandidate, query: string): boo
 }
 
 export type TriggerDetection =
-    | { type: 'mention'; query: string; range: Range }
-    | { type: 'command'; query: string; range: Range; atStart: boolean }
-    | { type: 'emoji'; query: string; range: Range }
-    | { type: 'channel'; query: string; range: Range }
-    | { type: 'wiki'; query: string; range: Range }
+    | {type: 'mention'; query: string; range: Range}
+    | {type: 'command'; query: string; range: Range; atStart: boolean}
+    | {type: 'emoji'; query: string; range: Range}
+    | {type: 'channel'; query: string; range: Range}
+    | {type: 'wiki'; query: string; range: Range}
     | null;
 
 /** Inspect the current selection to detect an active @ mention, / command, or : emoji trigger. */

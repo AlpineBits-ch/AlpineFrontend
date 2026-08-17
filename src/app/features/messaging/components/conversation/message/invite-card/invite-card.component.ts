@@ -48,8 +48,7 @@ export class InviteCardComponent {
     });
 
     /** Revoked, exhausted or lapsed - anything that means "do not offer Join". */
-    protected readonly unusable = computed(() =>
-        this.hasLapsed() || this.freshness() === 'gone');
+    protected readonly unusable = computed(() => this.hasLapsed() || this.freshness() === 'gone');
 
     protected readonly maxUses = computed(() => this.venta()?.max_uses);
 
@@ -59,7 +58,12 @@ export class InviteCardComponent {
     });
 
     protected readonly guildInitials = computed(() =>
-        this.title().split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase() ?? '').join(''));
+        this.title()
+            .split(/\s+/)
+            .slice(0, 2)
+            .map(w => w[0]?.toUpperCase() ?? '')
+            .join(''),
+    );
 
     private readonly guildService = inject(GuildService);
     private readonly destroyRef = inject(DestroyRef);
@@ -70,7 +74,8 @@ export class InviteCardComponent {
         if (!code || this.freshness() !== 'unknown') return;
 
         this.freshness.set('checking');
-        this.guildService.getInviteByCode(code)
+        this.guildService
+            .getInviteByCode(code)
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe({
                 next: invite => this.freshness.set(isInviteUsable(invite) ? 'usable' : 'gone'),
@@ -88,7 +93,8 @@ export class InviteCardComponent {
         if (!code || this.joinState() === 'joining' || this.joinState() === 'joined') return;
 
         this.joinState.set('joining');
-        this.guildService.redeemInvite(code)
+        this.guildService
+            .redeemInvite(code)
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe({
                 next: () => {

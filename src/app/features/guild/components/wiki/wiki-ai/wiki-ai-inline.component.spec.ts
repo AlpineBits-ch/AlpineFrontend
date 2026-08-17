@@ -154,8 +154,9 @@ describe('WikiAiInlineComponent entry points', () => {
         input.dispatchEvent(new Event('input'));
         fixture.detectChanges();
         // By its icon: the first button in the bar is the provider label, not Generate.
-        const send = Array.from(fixture.nativeElement.querySelectorAll('button'))
-            .find(b => (b as HTMLElement).querySelector('.pi-arrow-up')) as HTMLElement;
+        const send = Array.from(fixture.nativeElement.querySelectorAll('button')).find(b =>
+            (b as HTMLElement).querySelector('.pi-arrow-up'),
+        ) as HTMLElement;
         send.click();
         fixture.detectChanges();
         expect(asked.length).toBe(1);

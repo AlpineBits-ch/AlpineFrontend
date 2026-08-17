@@ -80,7 +80,7 @@ export class HomeStatusService {
         // nothing to recompute, and a timer ticking through an empty app is pure churn.
         effect(() => {
             const anything = [...this._byGuild().values()].some(m => m.size > 0);
-            untracked(() => anything ? this.startSweep() : this.stopSweep());
+            untracked(() => (anything ? this.startSweep() : this.stopSweep()));
         });
     }
 
@@ -158,7 +158,10 @@ export class HomeStatusService {
             note: body.note?.trim() ? body.note.trim() : null,
         };
         if (body.expiresInMinutes != null) {
-            payload.expiresInMinutes = Math.min(Math.max(1, Math.round(body.expiresInMinutes)), HOME_STATUS_MAX_MINUTES);
+            payload.expiresInMinutes = Math.min(
+                Math.max(1, Math.round(body.expiresInMinutes)),
+                HOME_STATUS_MAX_MINUTES,
+            );
         }
         const saved = normalizeHomeStatus(await firstValueFrom(this.api.set(guildId, payload)));
         if (saved) this.upsert(guildId, saved);

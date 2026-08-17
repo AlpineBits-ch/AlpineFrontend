@@ -26,9 +26,7 @@ export class WikiActivityFeedComponent {
     protected readonly entries = computed(() => buildWikiActivity(this.pages(), this.limit()));
 
     private readonly profileService = inject(ProfileService);
-    private readonly categoryNames = computed(
-        () => new Map(this.categories().map(c => [c.id, c.name])),
-    );
+    private readonly categoryNames = computed(() => new Map(this.categories().map(c => [c.id, c.name])));
 
     constructor() {
         this.clock.retain();

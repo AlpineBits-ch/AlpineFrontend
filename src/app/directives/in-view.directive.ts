@@ -16,14 +16,17 @@ export class InViewDirective implements OnInit, OnDestroy {
             return;
         }
 
-        this.observer = new IntersectionObserver(entries => {
-            if (!entries.some(entry => entry.isIntersecting)) return;
-            this.disconnect();
-            this.appInView.emit();
-        }, {
-            // A screen's worth of margin, so a tile is asked for before it is scrolled to.
-            rootMargin: '200px',
-        });
+        this.observer = new IntersectionObserver(
+            entries => {
+                if (!entries.some(entry => entry.isIntersecting)) return;
+                this.disconnect();
+                this.appInView.emit();
+            },
+            {
+                // A screen's worth of margin, so a tile is asked for before it is scrolled to.
+                rootMargin: '200px',
+            },
+        );
 
         this.observer.observe(this.host.nativeElement);
     }

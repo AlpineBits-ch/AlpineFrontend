@@ -21,35 +21,54 @@ interface ControlAction {
 
 const ACTIONS: readonly ControlAction[] = [
     {
-        id: 'row-above', icon: 'pi-arrow-up', label: l => l.tableAddRowAbove,
+        id: 'row-above',
+        icon: 'pi-arrow-up',
+        label: l => l.tableAddRowAbove,
         run: editor => editor.chain().focus().addRowBefore().run(),
     },
     {
-        id: 'row-below', icon: 'pi-arrow-down', label: l => l.tableAddRowBelow,
+        id: 'row-below',
+        icon: 'pi-arrow-down',
+        label: l => l.tableAddRowBelow,
         run: editor => editor.chain().focus().addRowAfter().run(),
     },
     {
-        id: 'column-left', icon: 'pi-arrow-left', label: l => l.tableAddColumnLeft,
+        id: 'column-left',
+        icon: 'pi-arrow-left',
+        label: l => l.tableAddColumnLeft,
         run: editor => editor.chain().focus().addColumnBefore().run(),
     },
     {
-        id: 'column-right', icon: 'pi-arrow-right', label: l => l.tableAddColumnRight,
+        id: 'column-right',
+        icon: 'pi-arrow-right',
+        label: l => l.tableAddColumnRight,
         run: editor => editor.chain().focus().addColumnAfter().run(),
     },
     {
-        id: 'header-row', icon: 'pi-table', label: l => l.tableToggleHeaderRow,
+        id: 'header-row',
+        icon: 'pi-table',
+        label: l => l.tableToggleHeaderRow,
         run: editor => editor.chain().focus().toggleHeaderRow().run(),
     },
     {
-        id: 'delete-row', icon: 'pi-minus', label: l => l.tableDeleteRow, danger: true,
+        id: 'delete-row',
+        icon: 'pi-minus',
+        label: l => l.tableDeleteRow,
+        danger: true,
         run: editor => editor.chain().focus().deleteRow().run(),
     },
     {
-        id: 'delete-column', icon: 'pi-minus', label: l => l.tableDeleteColumn, danger: true,
+        id: 'delete-column',
+        icon: 'pi-minus',
+        label: l => l.tableDeleteColumn,
+        danger: true,
         run: editor => editor.chain().focus().deleteColumn().run(),
     },
     {
-        id: 'delete-table', icon: 'pi-trash', label: l => l.tableDelete, danger: true,
+        id: 'delete-table',
+        icon: 'pi-trash',
+        label: l => l.tableDelete,
+        danger: true,
         run: editor => editor.chain().focus().deleteTable().run(),
     },
 ];
@@ -158,10 +177,7 @@ export const WikiTableControls = Extension.create<WikiTableControlsOptions>({
     },
 
     addProseMirrorPlugins() {
-        return [
-            editableColumnResizing(this.editor),
-            controlsPlugin(this.editor, this.options.labels),
-        ];
+        return [editableColumnResizing(this.editor), controlsPlugin(this.editor, this.options.labels)];
     },
 });
 

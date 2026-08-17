@@ -26,9 +26,7 @@ export function buildTrail(wiki: WikiDto | null, pageId: string | null): TrailSe
         current = current.parentPageId ? byId.get(current.parentPageId) : undefined;
     }
 
-    const category = page.categoryId
-        ? wiki.categories.find(c => c.id === page.categoryId)
-        : undefined;
+    const category = page.categoryId ? wiki.categories.find(c => c.id === page.categoryId) : undefined;
 
     return [
         ...(category ? [{id: category.id, label: category.name, kind: 'category' as const}] : []),

@@ -1,11 +1,11 @@
 @switch (view()) {
-
     @case ('root') {
         <div class="self-menu-view">
             <app-profile-header
-                    (avatarErrorChange)="onAvatarError()"
-                    [avatarError]="avatarError()"
-                    [profile]="profileService.ownProfile()"/>
+                (avatarErrorChange)="onAvatarError()"
+                [avatarError]="avatarError()"
+                [profile]="profileService.ownProfile()"
+            />
 
             <!-- What you can do about yourself. A raised card rather than a flat list: without it
                  the rows read as more of the profile above them instead of as a menu. -->
@@ -29,11 +29,10 @@
                      offers to change it. -->
                 <button type="button" (click)="show('status')" class="self-menu-row">
                     <span class="relative flex items-center justify-center w-4 h-4 shrink-0">
-                        <app-user-status-dot [standalone]="true" [status]="currentStatus()"
-                                             borderColor="border-card" size="md"/>
+                        <app-user-status-dot [standalone]="true" [status]="currentStatus()" borderColor="border-card" size="md" />
                     </span>
                     <span class="flex-1">
-                        {{ (statusLabelKey(currentStatus()) ?? 'STATUS.TITLE') | translate }}
+                        {{ statusLabelKey(currentStatus()) ?? 'STATUS.TITLE' | translate }}
                     </span>
                     <i class="pi pi-chevron-right self-menu-chevron"></i>
                 </button>
@@ -72,8 +71,7 @@
                     }
                     <button type="button" (click)="chooseStatus(status)" class="self-menu-row">
                         <span class="relative flex items-center justify-center w-4 h-4 shrink-0">
-                            <app-user-status-dot [standalone]="true" [status]="status"
-                                                 borderColor="border-card" size="md"/>
+                            <app-user-status-dot [standalone]="true" [status]="status" borderColor="border-card" size="md" />
                         </span>
                         <span class="flex-1">{{ statusLabelKey(status) | translate }}</span>
                         @if (status === currentStatus()) {
@@ -92,7 +90,7 @@
                 <span>{{ 'PROFILE_MENU.SWITCH_ACCOUNTS' | translate }}</span>
             </button>
 
-            <app-account-switcher (addAccount)="addAccount.emit()"/>
+            <app-account-switcher (addAccount)="addAccount.emit()" />
         </div>
     }
 }

@@ -1,4 +1,14 @@
-import {ChangeDetectionStrategy, Component, computed, effect, inject, input, output, signal, untracked} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    effect,
+    inject,
+    input,
+    output,
+    signal,
+    untracked,
+} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {Button} from 'primeng/button';
@@ -38,8 +48,9 @@ export class PantryScanComponent {
     /** The codes this guild has learned, filtered as the user types. */
     protected readonly suggestions = signal<PantryBarcode[]>([]);
 
-    protected readonly asksForName = computed(() =>
-        !!this.needsNameFor() && this.needsNameFor() === this.barcode().trim());
+    protected readonly asksForName = computed(
+        () => !!this.needsNameFor() && this.needsNameFor() === this.barcode().trim(),
+    );
 
     protected readonly canSubmit = computed(() => {
         if (this.saving() || !this.barcode().trim()) return false;
@@ -49,17 +60,19 @@ export class PantryScanComponent {
     /** What the house already knows this code is, if anything. Shown so the scan is confirmable. */
     protected readonly knownAs = computed(() => {
         const code = this.barcode().trim();
-        return code ? this.suggestions().find(b => b.barcode === code) ?? null : null;
+        return code ? (this.suggestions().find(b => b.barcode === code) ?? null) : null;
     });
 
     constructor() {
         // Warmed once per guild rather than per keystroke: the learned set is small (one house's shopping), and holding it locally is what makes a typed code complete instantly.
         effect(() => {
             const guildId = this.guildId();
-            untracked(() => this.pantry.barcodes(guildId).subscribe({
-                next: barcodes => this.suggestions.set(barcodes),
-                error: () => undefined,
-            }));
+            untracked(() =>
+                this.pantry.barcodes(guildId).subscribe({
+                    next: barcodes => this.suggestions.set(barcodes),
+                    error: () => undefined,
+                }),
+            );
         });
     }
 
@@ -89,7 +102,9 @@ export class PantryScanComponent {
                 this.saving.set(false);
                 // `learned` is the one moment worth saying anything: a house that gets a toast per tin stops scanning.
                 if (result.learned) {
-                    this.toast.success(this.translate.instant('PANTRY.SCAN_LEARNED', {name: result.item.name}));
+                    this.toast.success(
+                        this.translate.instant('PANTRY.SCAN_LEARNED', {name: result.item.name}),
+                    );
                 }
                 this.reset();
                 this.scanned.emit();

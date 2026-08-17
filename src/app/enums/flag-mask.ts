@@ -107,9 +107,10 @@ export function createFlagCodec<T extends FlagTable>(table: T): FlagCodec<Extrac
 
         has: (mask, flag) => (mask & flag) === flag,
 
-        diff: (requested, grantable) => keys.filter(
-            key => (requested & table[key]) === table[key] && (grantable & table[key]) !== table[key],
-        ),
+        diff: (requested, grantable) =>
+            keys.filter(
+                key => (requested & table[key]) === table[key] && (grantable & table[key]) !== table[key],
+            ),
 
         label: key => key.replace(/([A-Z])/g, ' $1').trim(),
     };
@@ -122,6 +123,7 @@ export function createFlagCodec<T extends FlagTable>(table: T): FlagCodec<Extrac
 function numericValue(serialized: SerializedFlags): bigint | null {
     if (typeof serialized === 'bigint') return serialized;
     if (typeof serialized === 'number') return Number.isInteger(serialized) ? BigInt(serialized) : 0n;
-    if (typeof serialized === 'string' && NUMERIC.test(serialized)) return BigInt(serialized.replace('n', ''));
+    if (typeof serialized === 'string' && NUMERIC.test(serialized))
+        return BigInt(serialized.replace('n', ''));
     return null;
 }

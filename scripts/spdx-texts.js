@@ -130,14 +130,14 @@ the following restrictions:
 
 /** Short, stable licence bodies safe to inline. */
 const INLINE_TEXTS = {
-    'MIT': MIT,
+    MIT: MIT,
     'MIT-0': MIT_0,
-    'ISC': ISC,
+    ISC: ISC,
     '0BSD': ZERO_BSD,
     'BSD-1-Clause': BSD_1,
     'BSD-2-Clause': BSD_2,
     'BSD-3-Clause': BSD_3,
-    'Zlib': ZLIB,
+    Zlib: ZLIB,
 };
 
 /**
@@ -156,7 +156,7 @@ const HARVEST_MARKERS = {
     'Unicode-3.0': /UNICODE LICENSE V3/i,
     'BSL-1.0': /Boost Software License - Version 1\.0/i,
     'CC0-1.0': /CC0 1\.0 Universal/i,
-    'Unlicense': /This is free and unencumbered software released into the public domain/i,
+    Unlicense: /This is free and unencumbered software released into the public domain/i,
     'CDLA-Permissive-2.0': /Community Data License Agreement - Permissive - Version 2\.0/i,
 };
 

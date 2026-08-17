@@ -66,8 +66,10 @@ class FakeEngineModule implements VentaCryptoModule {
         if (!args.stateKeyB64) {
             // The native wording, verbatim, because `mls.service.ts`'s classifier is meant to tell this
             // from a corrupt state file and only the second wipes a device's groups.
-            throw 'MlsError: no state key was supplied - mls_state.json cannot be written unsealed, so '
-            + 'encryption stays unavailable until the keychain produces one';
+            throw (
+                'MlsError: no state key was supplied - mls_state.json cannot be written unsealed, so ' +
+                'encryption stays unavailable until the keychain produces one'
+            );
         }
         return JSON.stringify(false);
     };
@@ -270,34 +272,39 @@ describe('WebMlsEngine persistence', () => {
         const restored = await engine.call<boolean>('mls_init_storage', initArgs('device-b'));
 
         expect(restored).toBe(false);
-        await expect(engine.call('mls_get_group_info', {groupIdB64: 'YWNjb3VudEE='}))
-            .rejects.toBe('GroupNotFound: group not found');
+        await expect(engine.call('mls_get_group_info', {groupIdB64: 'YWNjb3VudEE='})).rejects.toBe(
+            'GroupNotFound: group not found',
+        );
     });
 
     it('refuses a mutation before initStorage, rather than performing an unpersistable one', async () => {
         // Native's `save_to_disk` with no `state_path` is an error, not a no-op, for exactly this
         // reason: it used to return `Ok(())`, and every group an uninitialised engine joined vanished
         // on the next launch with nothing saying so.
-        await expect(engine.call('mls_create_group', {groupIdB64: 'Z3JvdXAx', keyHandle: 'h'}))
-            .rejects.toThrow(/MLS storage is not initialised/);
+        await expect(
+            engine.call('mls_create_group', {groupIdB64: 'Z3JvdXAx', keyHandle: 'h'}),
+        ).rejects.toThrow(/MLS storage is not initialised/);
     });
 
     it('recovers from that on the next initStorage, because import replaces rather than merges', async () => {
-        await engine.call('mls_create_group', {groupIdB64: 'Z3JvdXAx', keyHandle: 'h'})
+        await engine
+            .call('mls_create_group', {groupIdB64: 'Z3JvdXAx', keyHandle: 'h'})
             .catch(() => undefined);
 
         // Not latched, unlike a failed write: the ordering fault fixes itself, and refusing forever
         // would take the page down for something recoverable.
         await engine.call('mls_init_storage', initArgs());
-        await expect(engine.call('mls_create_group', {groupIdB64: 'Z3JvdXAy', keyHandle: 'h'}))
-            .resolves.toBeTruthy();
+        await expect(
+            engine.call('mls_create_group', {groupIdB64: 'Z3JvdXAy', keyHandle: 'h'}),
+        ).resolves.toBeTruthy();
     });
 
     it('refuses the state key being absent, in the engine own words', async () => {
         // Not paraphrased and not wrapped: `mls.service.ts`'s classifier is meant to tell a transient
         // key-store failure from a corrupt state file, and only the second wipes a device's groups.
-        await expect(engine.call('mls_init_storage', {scope: DEVICE_A, adoptLegacy: false}))
-            .rejects.toMatch(/no state key was supplied/);
+        await expect(engine.call('mls_init_storage', {scope: DEVICE_A, adoptLegacy: false})).rejects.toMatch(
+            /no state key was supplied/,
+        );
     });
 });
 
@@ -310,35 +317,40 @@ describe('WebMlsEngine when the state cannot be written', () => {
     it('refuses the operation rather than reporting a success that will not survive', async () => {
         module.exportError = 'MlsError: could not seal the state';
 
-        await expect(engine.call('mls_send_message', {groupIdB64: 'Z3JvdXAx', keyHandle: 'h', plaintextB64: 'aGk='}))
-            .rejects.toBeInstanceOf(MlsStateNotPersistedError);
+        await expect(
+            engine.call('mls_send_message', {groupIdB64: 'Z3JvdXAx', keyHandle: 'h', plaintextB64: 'aGk='}),
+        ).rejects.toBeInstanceOf(MlsStateNotPersistedError);
     });
 
     it('latches, so nothing piles more unpersisted work onto a diverged engine', async () => {
         module.exportError = 'MlsError: could not seal the state';
-        await expect(engine.call('mls_send_message', {groupIdB64: 'Z3JvdXAx', keyHandle: 'h', plaintextB64: 'aGk='}))
-            .rejects.toBeInstanceOf(MlsStateNotPersistedError);
+        await expect(
+            engine.call('mls_send_message', {groupIdB64: 'Z3JvdXAx', keyHandle: 'h', plaintextB64: 'aGk='}),
+        ).rejects.toBeInstanceOf(MlsStateNotPersistedError);
 
         // Even with the fault gone: a mixture of persisted and unpersisted operations is the one state
         // a reload cannot repair, so the refusal stands until the page is reloaded.
         module.exportError = undefined;
         module.calls.length = 0;
-        await expect(engine.call('mls_create_group', {groupIdB64: 'Z3JvdXAy', keyHandle: 'h'}))
-            .rejects.toBeInstanceOf(MlsStateNotPersistedError);
+        await expect(
+            engine.call('mls_create_group', {groupIdB64: 'Z3JvdXAy', keyHandle: 'h'}),
+        ).rejects.toBeInstanceOf(MlsStateNotPersistedError);
         expect(module.calls).toEqual([]);
     });
 
     it('keeps answering reads, which cannot deepen the divergence', async () => {
         module.exportError = 'MlsError: could not seal the state';
-        await expect(engine.call('mls_send_message', {groupIdB64: 'Z3JvdXAx', keyHandle: 'h', plaintextB64: 'aGk='}))
-            .rejects.toBeInstanceOf(MlsStateNotPersistedError);
+        await expect(
+            engine.call('mls_send_message', {groupIdB64: 'Z3JvdXAx', keyHandle: 'h', plaintextB64: 'aGk='}),
+        ).rejects.toBeInstanceOf(MlsStateNotPersistedError);
 
         await expect(engine.call('mls_get_group_info', {groupIdB64: 'Z3JvdXAx'})).resolves.toBeTruthy();
     });
 
     it('rolls back to the last durable state on the reload it asks for', async () => {
         module.exportError = 'MlsError: could not seal the state';
-        await engine.call('mls_send_message', {groupIdB64: 'Z3JvdXAx', keyHandle: 'h', plaintextB64: 'aGk='})
+        await engine
+            .call('mls_send_message', {groupIdB64: 'Z3JvdXAx', keyHandle: 'h', plaintextB64: 'aGk='})
             .catch(() => undefined);
 
         reload();
@@ -358,7 +370,11 @@ describe('WebMlsEngine when the stored state cannot be read', () => {
 
     /** A reload whose store rejects every read - a `blocked` upgrade, a transient IndexedDB fault. */
     function reloadWithUnreadableStore(): void {
-        reload({get: async () => { throw new Error('the database is blocked'); }});
+        reload({
+            get: async () => {
+                throw new Error('the database is blocked');
+            },
+        });
     }
 
     it('does not throw out of initStorage, because the caller answer to that is a wipe', async () => {
@@ -374,14 +390,17 @@ describe('WebMlsEngine when the stored state cannot be read', () => {
         reloadWithUnreadableStore();
         await engine.call('mls_init_storage', initArgs());
 
-        await expect(engine.call('mls_create_group', {groupIdB64: 'Z3JvdXAy', keyHandle: 'h'}))
-            .rejects.toBeInstanceOf(MlsStateUnreadableError);
+        await expect(
+            engine.call('mls_create_group', {groupIdB64: 'Z3JvdXAy', keyHandle: 'h'}),
+        ).rejects.toBeInstanceOf(MlsStateUnreadableError);
     });
 
     it('leaves the blob intact, so the next load can still recover it', async () => {
         reloadWithUnreadableStore();
         await engine.call('mls_init_storage', initArgs());
-        await engine.call('mls_create_group', {groupIdB64: 'Z3JvdXAy', keyHandle: 'h'}).catch(() => undefined);
+        await engine
+            .call('mls_create_group', {groupIdB64: 'Z3JvdXAy', keyHandle: 'h'})
+            .catch(() => undefined);
         await engine.call('mls_clear_storage').catch(() => undefined);
 
         // The fault was transient; the state is still there.
@@ -416,7 +435,11 @@ describe('WebMlsEngine clearing', () => {
     });
 
     it('reports a wipe that did not reach storage', async () => {
-        reload({delete: async () => { throw new Error('the database is read-only'); }});
+        reload({
+            delete: async () => {
+                throw new Error('the database is read-only');
+            },
+        });
         await engine.call('mls_init_storage', initArgs());
 
         // A wipe that did not wipe leaves this account's key material for whoever uses the browser
@@ -433,7 +456,9 @@ describe('WebMlsEngine availability', () => {
 
     it('reports a module that failed to load, and refuses every call loudly', async () => {
         const broken = new WebMlsEngine(
-            async () => { throw new Error('chunk load failed'); },
+            async () => {
+                throw new Error('chunk load failed');
+            },
             open,
             name => new WebLocksSessionLock(name, profile),
         );
@@ -442,8 +467,9 @@ describe('WebMlsEngine availability', () => {
         expect(broken.available).toBe(false);
         // Not a resolved value and not a silent no-op: "it crashes earlier" is not an access control,
         // and reporting success for an operation that never happened is the failure being avoided.
-        await expect(broken.call('mls_get_group_info', {groupIdB64: 'Z3JvdXAx'}))
-            .rejects.toThrow(/chunk load failed/);
+        await expect(broken.call('mls_get_group_info', {groupIdB64: 'Z3JvdXAx'})).rejects.toThrow(
+            /chunk load failed/,
+        );
     });
 
     it('is optimistic before the load resolves, which the encryption floor depends on', async () => {
@@ -504,8 +530,9 @@ describe('WebMlsEngine with two tabs in one browser profile', () => {
     it('refuses a mutation from the second tab', async () => {
         await second.engine.call('mls_init_storage', initArgs());
 
-        await expect(second.engine.call('mls_send_message', sendArgs))
-            .rejects.toBeInstanceOf(MlsSessionHeldElsewhereError);
+        await expect(second.engine.call('mls_send_message', sendArgs)).rejects.toBeInstanceOf(
+            MlsSessionHeldElsewhereError,
+        );
     });
 
     it('does not run the command in the second tab engine either', async () => {
@@ -524,7 +551,8 @@ describe('WebMlsEngine with two tabs in one browser profile', () => {
         const before = await blob();
 
         await second.engine.call('mls_send_message', sendArgs).catch(() => undefined);
-        await second.engine.call('mls_create_group', {groupIdB64: 'Z3JvdXAy', keyHandle: 'h'})
+        await second.engine
+            .call('mls_create_group', {groupIdB64: 'Z3JvdXAy', keyHandle: 'h'})
             .catch(() => undefined);
 
         expect(await blob()).toBe(before);
@@ -550,8 +578,9 @@ describe('WebMlsEngine with two tabs in one browser profile', () => {
         // The read-only tab is not honest here. `mls_process_message` advances the ratchet, so receiving
         // is a write; and this engine never restored the blob, so "no such group" would be a confident
         // wrong answer that callers respond to by trying to rejoin.
-        await expect(second.engine.call('mls_get_group_info', {groupIdB64: GROUP}))
-            .rejects.toBeInstanceOf(MlsSessionHeldElsewhereError);
+        await expect(second.engine.call('mls_get_group_info', {groupIdB64: GROUP})).rejects.toBeInstanceOf(
+            MlsSessionHeldElsewhereError,
+        );
     });
 
     it('never wipes stored state on being blocked, because init resolves rather than rejects', async () => {
@@ -604,10 +633,12 @@ describe('WebMlsEngine with two tabs in one browser profile', () => {
     it('lets a second account work in the second tab, because the lock names the scope', async () => {
         // Two accounts in one profile have two device ids, two blobs and no shared engine state, so one
         // must not lock the other out - the guard is per scope for the same reason `state::${scope}` is.
-        await expect(second.engine.call<boolean>('mls_init_storage', initArgs('device-b')))
-            .resolves.toBe(false);
-        await expect(second.engine.call('mls_create_group', {groupIdB64: 'YWNjb3VudEI=', keyHandle: 'h'}))
-            .resolves.toBeTruthy();
+        await expect(second.engine.call<boolean>('mls_init_storage', initArgs('device-b'))).resolves.toBe(
+            false,
+        );
+        await expect(
+            second.engine.call('mls_create_group', {groupIdB64: 'YWNjb3VudEI=', keyHandle: 'h'}),
+        ).resolves.toBeTruthy();
         expect(second.engine.sessionState()).toBe('held');
     });
 
@@ -621,30 +652,31 @@ describe('WebMlsEngine with two tabs in one browser profile', () => {
         expect(await blob()).toBeUndefined();
     });
 
-    it('refuses the second tab in its own words, and not in words two classifiers read as something else',
-        async () => {
-            await second.engine.call('mls_init_storage', initArgs());
-            const message = await second.engine.call('mls_send_message', sendArgs)
-                .then(() => '', (err: unknown) => (err as Error).message);
+    it('refuses the second tab in its own words, and not in words two classifiers read as something else', async () => {
+        await second.engine.call('mls_init_storage', initArgs());
+        const message = await second.engine.call('mls_send_message', sendArgs).then(
+            () => '',
+            (err: unknown) => (err as Error).message,
+        );
 
-            expect(message).toContain('another tab');
-            // `MlsService.callOptional` reads the command name plus "not found"/"unknown command"/"not
-            // allowed" as a command this build does not define, and answers by degrading the feature
-            // silently. A refusal must never be readable that way.
-            expect(message).not.toMatch(/not\s+found|unknown command|not\s+allowed/i);
-            // And `classifyMlsStorageFault` reads these as "the stored state is present and unreadable",
-            // whose licence is to delete the user's only copy of their group keys.
-            for (const marker of [
-                "did not open with this device's state key",
-                'is listed in state but its data is missing from storage',
-                'failed to load group',
-                'encrypted blob too short',
-                'aead::Error',
-                'does not hold a state blob',
-            ]) {
-                expect(message).not.toContain(marker);
-            }
-        });
+        expect(message).toContain('another tab');
+        // `MlsService.callOptional` reads the command name plus "not found"/"unknown command"/"not
+        // allowed" as a command this build does not define, and answers by degrading the feature
+        // silently. A refusal must never be readable that way.
+        expect(message).not.toMatch(/not\s+found|unknown command|not\s+allowed/i);
+        // And `classifyMlsStorageFault` reads these as "the stored state is present and unreadable",
+        // whose licence is to delete the user's only copy of their group keys.
+        for (const marker of [
+            "did not open with this device's state key",
+            'is listed in state but its data is missing from storage',
+            'failed to load group',
+            'encrypted blob too short',
+            'aead::Error',
+            'does not hold a state blob',
+        ]) {
+            expect(message).not.toContain(marker);
+        }
+    });
 
     it('does not persist an operation whose ownership went away while it ran', async () => {
         // The narrow window the export is guarded against on its own account: ownership is checked
@@ -658,8 +690,9 @@ describe('WebMlsEngine with two tabs in one browser profile', () => {
             return send(json);
         };
 
-        await expect(first.engine.call('mls_send_message', sendArgs))
-            .rejects.toBeInstanceOf(MlsSessionHeldElsewhereError);
+        await expect(first.engine.call('mls_send_message', sendArgs)).rejects.toBeInstanceOf(
+            MlsSessionHeldElsewhereError,
+        );
         expect(await blob()).toBe(before);
     });
 
@@ -723,8 +756,7 @@ describe('WebMlsEngine with two tabs in one browser profile', () => {
             // `true` is "state was restored". A listener that found `false` would be relaunching onto
             // an empty engine and would then persist it over the other tab's blob.
             await expect(relaunched).resolves.toBe(true);
-            await expect(second.engine.call('mls_get_group_info', {groupIdB64: GROUP}))
-                .resolves.toBeTruthy();
+            await expect(second.engine.call('mls_get_group_info', {groupIdB64: GROUP})).resolves.toBeTruthy();
         });
 
         it('stops calling a listener that has been removed', async () => {
@@ -774,8 +806,9 @@ describe('WebMlsEngine with two tabs in one browser profile', () => {
                 // A throw that escaped into `navigator.locks.request`'s callback would settle it, which
                 // releases the lock this tab has just been granted - the takeover undoing itself.
                 expect(second.engine.sessionState()).toBe('held');
-                await expect(second.engine.call('mls_get_group_info', {groupIdB64: GROUP}))
-                    .resolves.toBeTruthy();
+                await expect(
+                    second.engine.call('mls_get_group_info', {groupIdB64: GROUP}),
+                ).resolves.toBeTruthy();
             } finally {
                 error.mockRestore();
             }
@@ -818,14 +851,19 @@ describe('WebMlsEngine where the browser has no Web Locks', () => {
     it('refuses every command rather than risking a second engine', async () => {
         await unguarded.call('mls_init_storage', initArgs());
 
-        await expect(unguarded.call('mls_create_group', {groupIdB64: 'Z3JvdXAx', keyHandle: 'h'}))
-            .rejects.toBeInstanceOf(MlsSessionGuardUnavailableError);
+        await expect(
+            unguarded.call('mls_create_group', {groupIdB64: 'Z3JvdXAx', keyHandle: 'h'}),
+        ).rejects.toBeInstanceOf(MlsSessionGuardUnavailableError);
     });
 
     it('says why, in terms that name the browser rather than the operation', async () => {
         await unguarded.call('mls_init_storage', initArgs());
-        const message = await unguarded.call('mls_send_message', {groupIdB64: 'Z3JvdXAx', keyHandle: 'h', plaintextB64: 'aGk='})
-            .then(() => '', (err: unknown) => (err as Error).message);
+        const message = await unguarded
+            .call('mls_send_message', {groupIdB64: 'Z3JvdXAx', keyHandle: 'h', plaintextB64: 'aGk='})
+            .then(
+                () => '',
+                (err: unknown) => (err as Error).message,
+            );
 
         expect(message).toContain('Web Locks');
         expect(message).not.toMatch(/not\s+found|unknown command|not\s+allowed/i);
@@ -842,7 +880,8 @@ describe('WebMlsEngine where the browser has no Web Locks', () => {
 
     it('does not write the blob', async () => {
         await unguarded.call('mls_init_storage', initArgs());
-        await unguarded.call('mls_create_group', {groupIdB64: 'Z3JvdXAx', keyHandle: 'h'})
+        await unguarded
+            .call('mls_create_group', {groupIdB64: 'Z3JvdXAx', keyHandle: 'h'})
             .catch(() => undefined);
 
         const store = await open();
@@ -860,15 +899,17 @@ describe('WebMlsEngine where the browser has no Web Locks', () => {
         const refusing = new WebMlsEngine(
             async () => module,
             open,
-            name => new WebLocksSessionLock(name, {
-                request: () => Promise.reject(new Error('nope')),
-                query: () => Promise.reject(new Error('nope')),
-            } as LockManager),
+            name =>
+                new WebLocksSessionLock(name, {
+                    request: () => Promise.reject(new Error('nope')),
+                    query: () => Promise.reject(new Error('nope')),
+                } as LockManager),
         );
 
         await expect(refusing.call<boolean>('mls_init_storage', initArgs())).resolves.toBe(false);
-        await expect(refusing.call('mls_create_group', {groupIdB64: 'Z3JvdXAx', keyHandle: 'h'}))
-            .rejects.toBeInstanceOf(MlsSessionGuardUnavailableError);
+        await expect(
+            refusing.call('mls_create_group', {groupIdB64: 'Z3JvdXAx', keyHandle: 'h'}),
+        ).rejects.toBeInstanceOf(MlsSessionGuardUnavailableError);
     });
 
     it('warns on the boot path, because a refusing tab otherwise looks like a working one', async () => {
@@ -912,10 +953,17 @@ describe('the mutating command set', () => {
 
     it('excludes the commands that only read, and the one that deletes instead of writing', () => {
         for (const command of [
-            'mls_load_signing_key', 'mls_unload_signing_key', 'mls_export_state', 'mls_export_backup',
-            'mls_get_members', 'mls_get_group_info', 'mls_export_group_info',
-            'mls_signing_key_fingerprint', 'mls_inspect_key_package',
-            'mls_init_storage', 'mls_clear_storage',
+            'mls_load_signing_key',
+            'mls_unload_signing_key',
+            'mls_export_state',
+            'mls_export_backup',
+            'mls_get_members',
+            'mls_get_group_info',
+            'mls_export_group_info',
+            'mls_signing_key_fingerprint',
+            'mls_inspect_key_package',
+            'mls_init_storage',
+            'mls_clear_storage',
         ]) {
             expect(MLS_MUTATING_COMMANDS.has(command), command).toBe(false);
         }

@@ -31,7 +31,7 @@ export class CacheSealService {
     private readonly keys = new Map<string, Promise<CryptoKey | null>>();
 
     async available(): Promise<boolean> {
-        return await this.cryptoKey() !== null;
+        return (await this.cryptoKey()) !== null;
     }
 
     async seal(value: unknown): Promise<string | null> {
@@ -54,7 +54,10 @@ export class CacheSealService {
 
         try {
             const plaintext = await crypto.subtle.decrypt(
-                {name: 'AES-GCM', iv: fromB64(ivB64)}, key, fromB64(ctB64));
+                {name: 'AES-GCM', iv: fromB64(ivB64)},
+                key,
+                fromB64(ctB64),
+            );
             return JSON.parse(new TextDecoder().decode(plaintext)) as T;
         } catch {
             // A cache entry that will not open is a miss, not an error. It can be re-fetched.
@@ -99,8 +102,7 @@ export class CacheSealService {
         const raw = await this.secureStore.getItem(`alpine_mls_${deviceId}_statekey`);
         if (!raw) return null;
 
-        return crypto.subtle.importKey(
-            'raw', fromB64(raw), 'AES-GCM', false, ['encrypt', 'decrypt']);
+        return crypto.subtle.importKey('raw', fromB64(raw), 'AES-GCM', false, ['encrypt', 'decrypt']);
     }
 }
 

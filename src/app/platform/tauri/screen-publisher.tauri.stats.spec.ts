@@ -14,12 +14,27 @@ describe('publishStatsToSnapshot', () => {
                 protocol: 'udp',
                 availableOutgoingKbps: 2400,
             },
-            layers: [{
-                rid: 'a', ssrc: 1, mid: '0', width: 1920, height: 1080, fps: 30, targetKbps: 2600,
-                bytesSent: 1000, packetsSent: 10, packetsLost: 3, nackCount: 2, pliCount: 1,
-                firCount: null, framesEncoded: 900, keyframes: 4, framesDropped: 2,
-                encoder: 'openh264',
-            }],
+            layers: [
+                {
+                    rid: 'a',
+                    ssrc: 1,
+                    mid: '0',
+                    width: 1920,
+                    height: 1080,
+                    fps: 30,
+                    targetKbps: 2600,
+                    bytesSent: 1000,
+                    packetsSent: 10,
+                    packetsLost: 3,
+                    nackCount: 2,
+                    pliCount: 1,
+                    firCount: null,
+                    framesEncoded: 900,
+                    keyframes: 4,
+                    framesDropped: 2,
+                    encoder: 'openh264',
+                },
+            ],
             audio: null,
         });
 
@@ -38,18 +53,40 @@ describe('publishStatsToSnapshot', () => {
             availableOutgoingKbps: 2400,
         });
         expect(snapshot.layers[0]).toMatchObject({
-            rid: 'a', width: 1920, targetKbps: 2600, framesEncoded: 900, encoder: 'openh264',
+            rid: 'a',
+            width: 1920,
+            targetKbps: 2600,
+            framesEncoded: 900,
+            encoder: 'openh264',
         });
     });
 
     it('never invents a qp for a native payload', () => {
         const snapshot = publishStatsToSnapshot({
-            codec: null, profileLevelId: null, transport: null,
-            layers: [{
-                rid: 'a', ssrc: null, mid: null, width: 1920, height: 1080, fps: 30, targetKbps: 2600,
-                bytesSent: 0, packetsSent: 0, packetsLost: null, nackCount: 0, pliCount: null,
-                firCount: null, framesEncoded: 0, keyframes: 0, framesDropped: 0, encoder: 'openh264',
-            }],
+            codec: null,
+            profileLevelId: null,
+            transport: null,
+            layers: [
+                {
+                    rid: 'a',
+                    ssrc: null,
+                    mid: null,
+                    width: 1920,
+                    height: 1080,
+                    fps: 30,
+                    targetKbps: 2600,
+                    bytesSent: 0,
+                    packetsSent: 0,
+                    packetsLost: null,
+                    nackCount: 0,
+                    pliCount: null,
+                    firCount: null,
+                    framesEncoded: 0,
+                    keyframes: 0,
+                    framesDropped: 0,
+                    encoder: 'openh264',
+                },
+            ],
             audio: null,
         });
 
@@ -58,12 +95,30 @@ describe('publishStatsToSnapshot', () => {
 
     it('carries bytesSent through so the caller can differentiate it into a rate', () => {
         const snapshot = publishStatsToSnapshot({
-            codec: null, profileLevelId: null, transport: null,
-            layers: [{
-                rid: 'a', ssrc: null, mid: null, width: 1, height: 1, fps: 1, targetKbps: 1,
-                bytesSent: 125_000, packetsSent: 0, packetsLost: null, nackCount: 0, pliCount: null,
-                firCount: null, framesEncoded: 0, keyframes: 0, framesDropped: 0, encoder: 'x',
-            }],
+            codec: null,
+            profileLevelId: null,
+            transport: null,
+            layers: [
+                {
+                    rid: 'a',
+                    ssrc: null,
+                    mid: null,
+                    width: 1,
+                    height: 1,
+                    fps: 1,
+                    targetKbps: 1,
+                    bytesSent: 125_000,
+                    packetsSent: 0,
+                    packetsLost: null,
+                    nackCount: 0,
+                    pliCount: null,
+                    firCount: null,
+                    framesEncoded: 0,
+                    keyframes: 0,
+                    framesDropped: 0,
+                    encoder: 'x',
+                },
+            ],
             audio: null,
         });
 
@@ -97,7 +152,11 @@ describe('publishStatsToSnapshot', () => {
 
     it('reports no transport at all when there was nothing to report', () => {
         const snapshot = publishStatsToSnapshot({
-            codec: null, profileLevelId: null, transport: null, layers: [], audio: null,
+            codec: null,
+            profileLevelId: null,
+            transport: null,
+            layers: [],
+            audio: null,
         });
 
         expect(snapshot.transport).toBeUndefined();

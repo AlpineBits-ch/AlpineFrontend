@@ -1,8 +1,19 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {TestBed} from '@angular/core/testing';
-import {HttpClient, HttpErrorResponse, HttpHeaders, provideHttpClient, withInterceptors} from '@angular/common/http';
+import {
+    HttpClient,
+    HttpErrorResponse,
+    HttpHeaders,
+    provideHttpClient,
+    withInterceptors,
+} from '@angular/common/http';
 import {HttpTestingController, provideHttpClientTesting} from '@angular/common/http/testing';
-import {_resetRateLimitState, jittered, parseRetryAfter, rateLimitInterceptor} from './rate-limit-interceptor';
+import {
+    _resetRateLimitState,
+    jittered,
+    parseRetryAfter,
+    rateLimitInterceptor,
+} from './rate-limit-interceptor';
 
 function tooManyRequests(body: unknown, headers?: Record<string, string>): HttpErrorResponse {
     return new HttpErrorResponse({
@@ -17,10 +28,7 @@ const TOO_MANY = {status: 429, statusText: 'Too Many Requests'};
 
 function setupHttp() {
     TestBed.configureTestingModule({
-        providers: [
-            provideHttpClient(withInterceptors([rateLimitInterceptor])),
-            provideHttpClientTesting(),
-        ],
+        providers: [provideHttpClient(withInterceptors([rateLimitInterceptor])), provideHttpClientTesting()],
     });
     return {
         http: TestBed.inject(HttpClient),
@@ -86,8 +94,7 @@ describe('parseRetryAfter', () => {
 
     it('returns null for anything that is not a 429', () => {
         expect(parseRetryAfter(new HttpErrorResponse({status: 500}))).toBeNull();
-        expect(parseRetryAfter(new HttpErrorResponse({status: 403, error: {retry_after: 1}})))
-            .toBeNull();
+        expect(parseRetryAfter(new HttpErrorResponse({status: 403, error: {retry_after: 1}}))).toBeNull();
     });
 });
 
@@ -131,7 +138,7 @@ describe('rateLimitInterceptor amplification', () => {
     it('turns one logical request into no more than three on the wire', () => {
         const {http, ctrl} = setupHttp();
         let failed = false;
-        http.get('/x').subscribe({error: () => failed = true});
+        http.get('/x').subscribe({error: () => (failed = true)});
 
         let sent = 0;
         for (let round = 0; round < 6; round++) {
@@ -208,7 +215,7 @@ describe('rateLimitInterceptor amplification', () => {
     it('does not retry or gate on errors that are not 429', () => {
         const {http, ctrl} = setupHttp();
         let status = 0;
-        http.get('/x').subscribe({error: (e: HttpErrorResponse) => status = e.status});
+        http.get('/x').subscribe({error: (e: HttpErrorResponse) => (status = e.status)});
 
         ctrl.expectOne('/x').flush({}, {status: 500, statusText: 'Server Error'});
         expect(status).toBe(500);

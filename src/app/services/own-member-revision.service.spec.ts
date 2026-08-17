@@ -49,7 +49,13 @@ function setup() {
 }
 
 function selfMember(permissions: string): SelfGuildMemberDto {
-    return {id: 'mem_1', guildId: 'g1', userId: 'me', permissions, roleMembers: []} as unknown as SelfGuildMemberDto;
+    return {
+        id: 'mem_1',
+        guildId: 'g1',
+        userId: 'me',
+        permissions,
+        roleMembers: [],
+    } as unknown as SelfGuildMemberDto;
 }
 
 describe('OwnMemberRevisionService', () => {
@@ -87,7 +93,7 @@ describe('OwnMemberRevisionService', () => {
         ws.memberUpdatedObservable.next({guildId: 'g1', userId: 'me', nickname: null});
 
         let row: SelfGuildMemberDto | undefined;
-        guilds.getOwnMember('g1').subscribe(m => row = m);
+        guilds.getOwnMember('g1').subscribe(m => (row = m));
         ctrl.expectOne(ME).flush(selfMember('ViewChannel'));
         expect(row?.permissions).toBe('ViewChannel');
     });

@@ -86,5 +86,5 @@ filtering. A denied permission is reported rather than retried, because
 `Notification.requestPermission()` on a denied origin resolves `denied` without prompting.
 
 The `backgroundPush` capability flag is false on web for exactly this reason, and is distinct from
-`nativeToasts`: a tab *can* show a toast, it just cannot receive one while closed. Settings copy must
+`nativeToasts`: a tab _can_ show a toast, it just cannot receive one while closed. Settings copy must
 say "notifications only arrive while Venta is open" rather than "notifications unavailable".

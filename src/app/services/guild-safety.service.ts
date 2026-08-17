@@ -78,6 +78,7 @@ export class GuildSafetyService {
     /** Members still sitting on the rules screen. Needs ModerateMembers or ManageGuild. */
     getPendingMembers(guildId: string, limit = 100, offset = 0): Observable<PendingMember[]> {
         return this.http.get<PendingMember[]>(
-            `${this.base}/guilds/${guildId}/members/pending?limit=${limit}&offset=${offset}`);
+            `${this.base}/guilds/${guildId}/members/pending?limit=${limit}&offset=${offset}`,
+        );
     }
 }

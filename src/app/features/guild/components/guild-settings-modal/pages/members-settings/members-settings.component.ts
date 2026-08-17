@@ -11,11 +11,15 @@ import {GuildService} from '../../../../../../services/guild.service';
 import {ProfileService} from '../../../../../../services/profile.service';
 import {BrokenImageService} from '../../../../../../services/broken-image.service';
 import {ProfileDto} from '../../../../../../dtos/response/profile.dto';
-import {parsePermissionCarrier, Permissions, stringifyPermissionCarrier} from '../../../../../../enums/permissions.enum';
+import {
+    parsePermissionCarrier,
+    Permissions,
+    stringifyPermissionCarrier,
+} from '../../../../../../enums/permissions.enum';
 import {EMPTY_CARRIER, FlagCarrier} from '../../../../../../enums/flag-mask';
 import {PermissionToggleComponent} from '../../../../shared/permission-toggle/permission-toggle.component';
 import {guildFeatures} from '../../../../guild-features';
-import {PrimeTemplate} from "primeng/api";
+import {PrimeTemplate} from 'primeng/api';
 import {ToastService} from '../../../../../../services/toast.service';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {UserNameStyleDirective} from '../../../../../../directives/user-name-style.directive';
@@ -34,7 +38,17 @@ interface MemberRow {
 
 @Component({
     selector: 'app-members-settings',
-    imports: [FormsModule, Button, InputText, Dialog, Tooltip, PermissionToggleComponent, PrimeTemplate, TranslateModule, UserNameStyleDirective],
+    imports: [
+        FormsModule,
+        Button,
+        InputText,
+        Dialog,
+        Tooltip,
+        PermissionToggleComponent,
+        PrimeTemplate,
+        TranslateModule,
+        UserNameStyleDirective,
+    ],
     templateUrl: './members-settings.component.html',
 })
 export class MembersSettingsComponent implements OnInit {
@@ -135,10 +149,9 @@ export class MembersSettingsComponent implements OnInit {
             next: masks => {
                 // The response is the four masks, not a member row; merged in rather than swapped for, or the row would lose its profile, roles and presence.
                 this.members.update(list =>
-                    list.map(r => r.member.id === row.member.id
-                        ? {...r, member: {...r.member, ...masks}}
-                        : r
-                    )
+                    list.map(r =>
+                        r.member.id === row.member.id ? {...r, member: {...r.member, ...masks}} : r,
+                    ),
                 );
                 this.editMember.set(null);
                 this.showEditDialog.set(false);
@@ -146,7 +159,10 @@ export class MembersSettingsComponent implements OnInit {
             },
             error: err => {
                 this.editSaving.set(false);
-                this.toastService.httpError(this.translate.instant('GUILD_SETTINGS.MEMBERS.PERMISSIONS_ERROR'), err);
+                this.toastService.httpError(
+                    this.translate.instant('GUILD_SETTINGS.MEMBERS.PERMISSIONS_ERROR'),
+                    err,
+                );
             },
         });
     }
@@ -193,18 +209,23 @@ export class MembersSettingsComponent implements OnInit {
         if (this.banning()) return;
         this.banning.set(true);
         const reason = this.banReason().trim();
-        this.guildService.banMember(this.guild().id, {userId: row.member.userId, reason: reason || undefined}).subscribe({
-            next: () => {
-                this.members.update(list => list.filter(r => r.member.id !== row.member.id));
-                this.closeBanDialog();
-                this.banning.set(false);
-                this.toastService.success(this.translate.instant('GUILD_SETTINGS.MEMBERS.BAN_SUCCESS'));
-            },
-            error: err => {
-                this.banning.set(false);
-                this.toastService.httpError(this.translate.instant('GUILD_SETTINGS.MEMBERS.BAN_ERROR'), err);
-            },
-        });
+        this.guildService
+            .banMember(this.guild().id, {userId: row.member.userId, reason: reason || undefined})
+            .subscribe({
+                next: () => {
+                    this.members.update(list => list.filter(r => r.member.id !== row.member.id));
+                    this.closeBanDialog();
+                    this.banning.set(false);
+                    this.toastService.success(this.translate.instant('GUILD_SETTINGS.MEMBERS.BAN_SUCCESS'));
+                },
+                error: err => {
+                    this.banning.set(false);
+                    this.toastService.httpError(
+                        this.translate.instant('GUILD_SETTINGS.MEMBERS.BAN_ERROR'),
+                        err,
+                    );
+                },
+            });
     }
 
     /** Whether kick and ban are worth offering at all; the server refuses both for the owner and for the caller's own membership, so showing them only bought the user an error toast. Leaving is its own control elsewhere; this page is for acting on other people. */
@@ -236,7 +257,10 @@ export class MembersSettingsComponent implements OnInit {
 
     /** Tooltip for the "+n" chip, so a long role list is still readable. */
     extraRoleNames(row: MemberRow): string {
-        return row.roles.slice(this.MAX_ROLE_CHIPS).map(r => r.name).join(', ');
+        return row.roles
+            .slice(this.MAX_ROLE_CHIPS)
+            .map(r => r.name)
+            .join(', ');
     }
 
     /** Roles saved without a colour come back empty; fall back to the brand accent. */
@@ -291,9 +315,10 @@ export class MembersSettingsComponent implements OnInit {
         rows.forEach(row => {
             if (row.profile) return;
             this.profileService.fetchByUserId(row.member.userId).subscribe({
-                next: p => this.members.update(list =>
-                    list.map(r => r.member.id === row.member.id ? {...r, profile: p} : r)
-                ),
+                next: p =>
+                    this.members.update(list =>
+                        list.map(r => (r.member.id === row.member.id ? {...r, profile: p} : r)),
+                    ),
             });
         });
     }
@@ -330,8 +355,8 @@ export class MembersSettingsComponent implements OnInit {
     }
 
     private rolesFor(member: GuildMemberDto): MemberRole[] {
-        return this.guild().roles
-            .filter(r => r.userId === member.userId)
+        return this.guild()
+            .roles.filter(r => r.userId === member.userId)
             .map(r => ({name: r.name, color: r.color}));
     }
 }

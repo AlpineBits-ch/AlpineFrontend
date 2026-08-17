@@ -14,11 +14,13 @@ export class VoiceControlsService {
     private callSession = inject(CallSessionService);
 
     /** The state the button should show: the call wins when both are live, otherwise the channel's sticky state. */
-    readonly isMuted = computed(() =>
-        this.callSession.session()?.local.isMuted ?? this.voiceChannel.localState().isMuted);
+    readonly isMuted = computed(
+        () => this.callSession.session()?.local.isMuted ?? this.voiceChannel.localState().isMuted,
+    );
 
-    readonly isDeafened = computed(() =>
-        this.callSession.session()?.local.isDeafened ?? this.voiceChannel.localState().isDeafened);
+    readonly isDeafened = computed(
+        () => this.callSession.session()?.local.isDeafened ?? this.voiceChannel.localState().isDeafened,
+    );
 
     /** Toggles every live surface, and the channel's sticky state when none is live. */
     toggleMute(): void {

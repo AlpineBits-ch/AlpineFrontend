@@ -19,8 +19,7 @@ import {TauriScreenPublisher} from './screen-publisher.tauri';
 
 /** Stands in for Tauri's `Channel`: the adapter only ever assigns `onmessage`. */
 class FakeChannel<T> {
-    onmessage: (message: T) => void = () => {
-    };
+    onmessage: (message: T) => void = () => {};
 }
 
 interface FakeCore {
@@ -33,7 +32,8 @@ function fakeCore(): FakeCore {
         invoke: vi.fn(async (command: string) =>
             command === 'start_screen_publish'
                 ? {mediaSessionId: 'cf-1', trackName: 'screen-abc', audioTrackName: null, encoder: 'openh264'}
-                : undefined),
+                : undefined,
+        ),
         Channel: FakeChannel,
     };
 }
@@ -80,9 +80,26 @@ describe('TauriScreenPublisher.start', () => {
         await publisher(core).start(options());
 
         expect(Object.keys(payload(core)).sort()).toEqual([
-            'apiBase', 'callId', 'channelId', 'content', 'deviceId', 'fps', 'guildId', 'height',
-            'iceServers', 'kbps', 'livekitToken', 'livekitUrl', 'localStream', 'onLocalStream',
-            'onPreview', 'shareAudio', 'shareId', 'sourceId', 'token', 'width',
+            'apiBase',
+            'callId',
+            'channelId',
+            'content',
+            'deviceId',
+            'fps',
+            'guildId',
+            'height',
+            'iceServers',
+            'kbps',
+            'livekitToken',
+            'livekitUrl',
+            'localStream',
+            'onLocalStream',
+            'onPreview',
+            'shareAudio',
+            'shareId',
+            'sourceId',
+            'token',
+            'width',
         ]);
     });
 
@@ -172,8 +189,7 @@ describe('TauriScreenPublisher.start', () => {
     it('sends the unused target keys as null rather than omitting them', async () => {
         const core = fakeCore();
 
-        await publisher(core).start(
-            options({guildId: undefined, channelId: undefined, callId: 'call-1'}));
+        await publisher(core).start(options({guildId: undefined, channelId: undefined, callId: 'call-1'}));
 
         expect(payload(core)['callId']).toBe('call-1');
         expect(payload(core)['guildId']).toBeNull();

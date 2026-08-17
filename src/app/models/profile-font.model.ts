@@ -32,10 +32,12 @@ export function safeAccentColor(color: string | null | undefined): string | null
     return color && /^#[0-9a-fA-F]{6}$/.test(color) ? color : null;
 }
 
-export function userNameStyle(
-    profile: UserNameStyleInput | null | undefined,
-): { color?: string; fontFamily?: string; fontSizeAdjust?: string } {
-    const style: { color?: string; fontFamily?: string; fontSizeAdjust?: string } = {};
+export function userNameStyle(profile: UserNameStyleInput | null | undefined): {
+    color?: string;
+    fontFamily?: string;
+    fontSizeAdjust?: string;
+} {
+    const style: {color?: string; fontFamily?: string; fontSizeAdjust?: string} = {};
     const color = safeAccentColor(profile?.accentColor);
     if (color) style.color = color;
     if (profile?.font && profile.font !== ProfileFont.Default) {

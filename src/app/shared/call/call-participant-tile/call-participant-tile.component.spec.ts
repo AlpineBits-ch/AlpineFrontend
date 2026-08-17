@@ -36,7 +36,10 @@ function render(overrides: Partial<CallParticipant> = {}): ComponentFixture<Call
         imports: [CallParticipantTileComponent, TranslateModule.forRoot()],
         providers: [
             {provide: OsInfo, useValue: new FakeOsInfo('web', false)},
-            {provide: ProfileService, useValue: {getCachedByUserId: () => undefined, resolveByUserId: () => undefined}},
+            {
+                provide: ProfileService,
+                useValue: {getCachedByUserId: () => undefined, resolveByUserId: () => undefined},
+            },
         ],
     });
 
@@ -56,8 +59,9 @@ function render(overrides: Partial<CallParticipant> = {}): ComponentFixture<Call
  * a text-equality search over every div would return the root instead of the pill.</p>
  */
 function pill(fixture: ComponentFixture<CallParticipantTileComponent>): HTMLElement {
-    const span = Array.from(fixture.nativeElement.querySelectorAll('span') as NodeListOf<HTMLElement>)
-        .find(el => el.textContent?.trim() === 'Alice' && el.children.length === 0);
+    const span = Array.from(fixture.nativeElement.querySelectorAll('span') as NodeListOf<HTMLElement>).find(
+        el => el.textContent?.trim() === 'Alice' && el.children.length === 0,
+    );
     const el = span?.parentElement;
     if (!el) throw new Error('name pill not found');
     return el;

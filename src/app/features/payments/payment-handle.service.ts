@@ -12,11 +12,7 @@ import {
     PaymentHandlesChanged,
     SharedPhoneNumber,
 } from './payment-handle.dto';
-import {
-    openPaymentHandles,
-    PaymentCryptoError,
-    sealPaymentHandles,
-} from './payment-handle-crypto';
+import {openPaymentHandles, PaymentCryptoError, sealPaymentHandles} from './payment-handle-crypto';
 import {
     classifyRecipient,
     DevicePins,
@@ -59,9 +55,15 @@ interface GuildPaymentState {
 }
 
 const EMPTY: GuildPaymentState = {
-    loaded: false, loading: false, forbidden: false, failed: false,
-    rosterVersion: 0, members: {}, ownRosterVersion: null,
-    phoneNumbers: {}, sharingPhoneNumber: false,
+    loaded: false,
+    loading: false,
+    forbidden: false,
+    failed: false,
+    rosterVersion: 0,
+    members: {},
+    ownRosterVersion: null,
+    phoneNumbers: {},
+    sharingPhoneNumber: false,
 };
 
 /**
@@ -148,9 +150,9 @@ export class PaymentHandleService {
     /** Whether the signed-in member should be prompted to re-seal. */
     needsResealFor(guildId: string): boolean {
         const state = this.stateFor(guildId);
-        return state.loaded
-            && state.ownRosterVersion !== null
-            && state.ownRosterVersion < state.rosterVersion;
+        return (
+            state.loaded && state.ownRosterVersion !== null && state.ownRosterVersion < state.rosterVersion
+        );
     }
 
     /**
@@ -188,7 +190,8 @@ export class PaymentHandleService {
         const pins = this.pins.read(ownUserId, guildId);
 
         const trusts = await Promise.all(
-            response.recipients.map(recipient => this.classify(recipient, pins)));
+            response.recipients.map(recipient => this.classify(recipient, pins)),
+        );
 
         return planSeal(trusts, confirmedDeviceIds, response.unresolvedMemberIds ?? []);
     }
@@ -213,12 +216,14 @@ export class PaymentHandleService {
             ownUserId,
         );
 
-        await firstValueFrom(this.api.seal(guildId, {
-            ciphertext: envelope.ciphertext,
-            nonce: envelope.nonce,
-            version: envelope.version,
-            wraps: envelope.wraps,
-        }));
+        await firstValueFrom(
+            this.api.seal(guildId, {
+                ciphertext: envelope.ciphertext,
+                nonce: envelope.nonce,
+                version: envelope.version,
+                wraps: envelope.wraps,
+            }),
+        );
 
         this.pins.write(ownUserId, guildId, pinsAfterSeal(plan, this.pins.read(ownUserId, guildId)));
 
@@ -248,16 +253,12 @@ export class PaymentHandleService {
 
     // ── Internals ────────────────────────────────────────────────────────────
 
-    private async classify(
-        recipient: PaymentHandleRecipient,
-        pins: DevicePins,
-    ): Promise<RecipientTrust> {
+    private async classify(recipient: PaymentHandleRecipient, pins: DevicePins): Promise<RecipientTrust> {
         const fingerprint = await fingerprintOf(recipient.publicKey);
         const pinned = pins[recipient.deviceId] ?? null;
         // Only computed when it is going to be shown, which is when the key has actually moved.
-        const previous = pinned && pinned.publicKey !== recipient.publicKey
-            ? await fingerprintOf(pinned.publicKey)
-            : null;
+        const previous =
+            pinned && pinned.publicKey !== recipient.publicKey ? await fingerprintOf(pinned.publicKey) : null;
 
         return classifyRecipient(recipient, fingerprint, pins, previous);
     }
@@ -304,7 +305,13 @@ export class PaymentHandleService {
             try {
                 const json = privateKey
                     ? await openPaymentHandles(
-                        blob, blob.wrappedKey, privateKey, ownDeviceId, guildId, blob.userId)
+                          blob,
+                          blob.wrappedKey,
+                          privateKey,
+                          ownDeviceId,
+                          guildId,
+                          blob.userId,
+                      )
                     : null;
 
                 if (json === null) {
@@ -336,8 +343,8 @@ export class PaymentHandleService {
             failed: false,
             rosterVersion: directory.memberRosterVersion,
             members,
-            ownRosterVersion: directory.members
-                .find(m => m.userId === ownUserId)?.memberRosterVersion ?? null,
+            ownRosterVersion:
+                directory.members.find(m => m.userId === ownUserId)?.memberRosterVersion ?? null,
             // Kept in their own map rather than attached to the member states above. See
             // `GuildPaymentState.phoneNumbers` for why merging the two would be the wrong tidy-up.
             phoneNumbers: phoneNumbersOf(directory),

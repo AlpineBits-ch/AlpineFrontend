@@ -41,8 +41,7 @@ export interface MlsJoinRequestApprovalResultDto {
 }
 
 /** Why an approval did not result in an admission. */
-export class JoinRequestVerificationError extends Error {
-}
+export class JoinRequestVerificationError extends Error {}
 
 /**
  * What "Re-link device" was actually able to do.
@@ -114,14 +113,16 @@ export function describeRelinkOutcome(outcome: MlsRelinkOutcome): MlsRelinkStatu
         case 'requested':
             return {
                 tone: 'pending',
-                message: 'Asked to be admitted. Someone already in the conversation has to approve '
-                    + 'this device before it can read anything.',
+                message:
+                    'Asked to be admitted. Someone already in the conversation has to approve ' +
+                    'this device before it can read anything.',
             };
         case 'pending':
             return {
                 tone: 'pending',
-                message: 'This device has already asked to be admitted, and is waiting for someone '
-                    + 'already in the conversation to approve it.',
+                message:
+                    'This device has already asked to be admitted, and is waiting for someone ' +
+                    'already in the conversation to approve it.',
             };
         case 'failed':
             return {tone: 'failed', message: `Re-linking failed. ${outcome.message}`};
@@ -143,7 +144,7 @@ export function describeRelinkOutcome(outcome: MlsRelinkOutcome): MlsRelinkStatu
 export function describeRequestFailure(err: unknown): string {
     if (err instanceof HttpErrorResponse) {
         const body = err.error as {detail?: string; title?: string; message?: string} | string | null;
-        const served = typeof body === 'string' ? body : body?.detail ?? body?.message ?? body?.title;
+        const served = typeof body === 'string' ? body : (body?.detail ?? body?.message ?? body?.title);
         if (served) return served;
         return `The server refused the request (HTTP ${err.status}).`;
     }
@@ -205,8 +206,10 @@ export class MlsJoinRequestService {
 
     private base(contextId: string, isChannel: boolean): string {
         const collection = isChannel ? 'channels' : 'conversations';
-        return `${this.apiConfig.baseUrl()}/api/v1/messaging/${collection}/`
-            + `${encodeURIComponent(contextId)}/mls/join-requests`;
+        return (
+            `${this.apiConfig.baseUrl()}/api/v1/messaging/${collection}/` +
+            `${encodeURIComponent(contextId)}/mls/join-requests`
+        );
     }
 
     list(contextId: string, isChannel: boolean): Observable<MlsJoinRequestDto[]> {
@@ -237,11 +240,13 @@ export class MlsJoinRequestService {
 
         const info = await firstValueFrom(this.mls.inspectKeyPackage(keyPackage.keyPackage));
 
-        return firstValueFrom(this.http.post<MlsJoinRequestDto>(this.base(contextId, isChannel), {
-            keyPackage: keyPackage.keyPackage,
-            deviceId: await this.deviceIdentity.deviceId(),
-            signatureKeyFingerprint: info.signatureKeyFingerprint,
-        }));
+        return firstValueFrom(
+            this.http.post<MlsJoinRequestDto>(this.base(contextId, isChannel), {
+                keyPackage: keyPackage.keyPackage,
+                deviceId: await this.deviceIdentity.deviceId(),
+                signatureKeyFingerprint: info.signatureKeyFingerprint,
+            }),
+        );
     }
 
     /**
@@ -308,15 +313,18 @@ export class MlsJoinRequestService {
 
         // The floor outranks the server's field: a context this device has ever encrypted stays
         // encrypted here (§L.6), so "not encrypted" is only believable below it.
-        if (!encrypted && await this.mls.getEncryptionFloor(contextId) === null) {
+        if (!encrypted && (await this.mls.getEncryptionFloor(contextId)) === null) {
             return {state: 'not-encrypted'};
         }
 
         // No leaf, and no Welcome that would give us one. Correct the reason before asking, so the
         // banner stops claiming a decrypt problem when the real state is exclusion.
         this.health.recordFailure(
-            contextId, isChannel, 'not-admitted',
-            'this device holds no MLS group for the context and no Welcome is waiting for it');
+            contextId,
+            isChannel,
+            'not-admitted',
+            'this device holds no MLS group for the context and no Welcome is waiting for it',
+        );
 
         try {
             const existing = await this.myPendingRequest(contextId, isChannel);
@@ -348,7 +356,12 @@ export class MlsJoinRequestService {
      */
     async sweepForAdmission(candidates: MlsAdmissionCandidate[]): Promise<MlsSweepOutcome> {
         const outcome: MlsSweepOutcome = {
-            probed: 0, requested: 0, alreadyPending: 0, recovered: 0, failed: 0, deferred: 0,
+            probed: 0,
+            requested: 0,
+            alreadyPending: 0,
+            recovered: 0,
+            failed: 0,
+            deferred: 0,
         };
 
         // No signing key loaded means no key package to offer and nothing to join with. Asking
@@ -403,8 +416,10 @@ export class MlsJoinRequestService {
         // Nothing to join. The floor outranks the wire (§L.6), so a context this device has held a
         // group for stays a candidate even when the server now calls it plaintext - that claim is
         // the one thing the floor exists to disbelieve.
-        if (!candidate.serverSaysEncrypted
-            && await this.mls.getEncryptionFloor(candidate.contextId) === null) {
+        if (
+            !candidate.serverSaysEncrypted &&
+            (await this.mls.getEncryptionFloor(candidate.contextId)) === null
+        ) {
             return false;
         }
 
@@ -428,28 +443,34 @@ export class MlsJoinRequestService {
     async approve(contextId: string, isChannel: boolean, request: MlsJoinRequestDto): Promise<boolean> {
         const result = await firstValueFrom(
             this.http.post<MlsJoinRequestApprovalResultDto>(
-                `${this.base(contextId, isChannel)}/${request.id}/approve`, null),
+                `${this.base(contextId, isChannel)}/${request.id}/approve`,
+                null,
+            ),
         );
 
         if (!result.thresholdMet) return false;
         if (!result.keyPackage) {
             throw new JoinRequestVerificationError(
-                'The server reported the threshold met but returned no key package.');
+                'The server reported the threshold met but returned no key package.',
+            );
         }
 
         const info = await firstValueFrom(this.mls.inspectKeyPackage(result.keyPackage));
 
         if (info.keyPackageHash !== request.keyPackageHash) {
             throw new JoinRequestVerificationError(
-                'The key package does not match the one that was reviewed. Nothing was added.');
+                'The key package does not match the one that was reviewed. Nothing was added.',
+            );
         }
         if (info.signatureKeyFingerprint !== request.signatureKeyFingerprint) {
             throw new JoinRequestVerificationError(
-                'The identity key does not match the one that was reviewed. Nothing was added.');
+                'The identity key does not match the one that was reviewed. Nothing was added.',
+            );
         }
         if (info.identity !== request.requesterUserId) {
             throw new JoinRequestVerificationError(
-                'The key package claims a different user than the request. Nothing was added.');
+                'The key package claims a different user than the request. Nothing was added.',
+            );
         }
 
         const keyHandle = this.mls.keyHandle();
@@ -457,18 +478,18 @@ export class MlsJoinRequestService {
 
         const admitted = await this.sync.publish(contextId, isChannel, async () => {
             const groupId = (await this.mls.getActiveGroupId(contextId))!;
-            const out = await firstValueFrom(
-                this.mls.addMembers(groupId, keyHandle, [result.keyPackage!]),
-            );
+            const out = await firstValueFrom(this.mls.addMembers(groupId, keyHandle, [result.keyPackage!]));
             return {
                 commit: out.commit,
                 epoch: out.epoch,
                 groupInfo: out.groupInfo,
-                deviceWelcomes: [{
-                    deviceId: request.requesterDeviceId,
-                    userId: request.requesterUserId,
-                    welcome: out.welcome!,
-                }],
+                deviceWelcomes: [
+                    {
+                        deviceId: request.requesterDeviceId,
+                        userId: request.requesterUserId,
+                        welcome: out.welcome!,
+                    },
+                ],
                 fulfilledJoinRequestIds: [request.id],
             };
         });

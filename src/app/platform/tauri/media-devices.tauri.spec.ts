@@ -55,9 +55,7 @@ describe('TauriMediaDeviceSource', () => {
     it('maps cameras, which report no default', async () => {
         const source = new TauriMediaDeviceSource();
 
-        expect(await source.cameras()).toEqual([
-            {id: '0', label: 'Integrated Camera', isDefault: false},
-        ]);
+        expect(await source.cameras()).toEqual([{id: '0', label: 'Integrated Camera', isDefault: false}]);
         expect(invoke).toHaveBeenCalledWith('enumerate_camera_devices');
     });
 
@@ -70,8 +68,10 @@ describe('TauriMediaDeviceSource', () => {
 
     /** Desktop playback opens the cpal device by id, so selection does not depend on `setSinkId`. */
     it('reports full output support', async () => {
-        expect(await new TauriMediaDeviceSource().outputSupport())
-            .toEqual({enumerable: true, selectable: true});
+        expect(await new TauriMediaDeviceSource().outputSupport()).toEqual({
+            enumerable: true,
+            selectable: true,
+        });
     });
 
     /** The catalog decides what an unavailable list means; the adapter does not swallow it. */

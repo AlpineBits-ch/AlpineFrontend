@@ -17,9 +17,7 @@ export class AppearanceSettingsComponent {
     readonly colorGroups = COLOR_GROUPS;
     readonly colorLabels = COLOR_LABELS as Record<string, string>;
 
-    readonly isBuiltIn = computed(() =>
-        this.themeService.activeThemeId() === 'alpine-dark'
-    );
+    readonly isBuiltIn = computed(() => this.themeService.activeThemeId() === 'alpine-dark');
 
     // New-theme creation form
     readonly showNewForm = signal(false);
@@ -75,7 +73,7 @@ export class AppearanceSettingsComponent {
         const file = (event.target as HTMLInputElement).files?.[0];
         if (!file) return;
         const reader = new FileReader();
-        reader.onload = (e) => {
+        reader.onload = e => {
             try {
                 this.themeService.importTheme(e.target!.result as string);
             } catch {

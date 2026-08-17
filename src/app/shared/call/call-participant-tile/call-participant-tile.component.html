@@ -6,13 +6,16 @@
      so switching your camera on resized your tile and reflowed the whole grid, and any call with a
      mix of the two was ragged rows of two different shapes. The tile is a seat in the call; what
      is drawn inside it is the part that varies. -->
-<div #root
-     (contextmenu)="contextMenu.emit($event); $event.preventDefault(); $event.stopPropagation()"
-     [class]="'group relative flex aspect-video w-full flex-col items-center justify-center overflow-hidden '
-              + 'rounded-2xl border transition-colors '
-              + (p.isCameraOn ? 'bg-black ' : 'bg-card ')
-              + (p.isSpeaking ? 'border-online/60 speaking-ring' : 'border-border-subtle')">
-
+<div
+    #root
+    (contextmenu)="contextMenu.emit($event); $event.preventDefault(); $event.stopPropagation()"
+    [class]="
+        'group relative flex aspect-video w-full flex-col items-center justify-center overflow-hidden ' +
+        'rounded-2xl border transition-colors ' +
+        (p.isCameraOn ? 'bg-black ' : 'bg-card ') +
+        (p.isSpeaking ? 'border-online/60 speaking-ring' : 'border-border-subtle')
+    "
+>
     <!-- Camera, filling the tile.
 
          It used to be a 64px circle in the middle of an otherwise empty card - the same treatment
@@ -21,13 +24,15 @@
          face-sized space is for. -->
     @if (p.isCameraOn) {
         @if (videoStream(); as stream) {
-            <video #video
-                   [class.-scale-x-100]="p.isLocal"
-                   [muted]="p.isLocal"
-                   [streamSrc]="stream"
-                   autoplay
-                   class="absolute inset-0 h-full w-full object-cover"
-                   playsinline></video>
+            <video
+                #video
+                [class.-scale-x-100]="p.isLocal"
+                [muted]="p.isLocal"
+                [streamSrc]="stream"
+                autoplay
+                class="absolute inset-0 h-full w-full object-cover"
+                playsinline
+            ></video>
         } @else {
             <!-- Camera on, no stream yet: the track is still being negotiated. -->
             <div class="absolute inset-0 flex items-center justify-center bg-card">
@@ -35,29 +40,32 @@
             </div>
         }
     } @else {
-        <app-avatar [label]="p.avatarLabel" [userId]="p.userId" size="large"/>
+        <app-avatar [label]="p.avatarLabel" [userId]="p.userId" size="large" />
     }
 
     @if (p.isScreenSharing) {
-        <app-call-live-badge class="absolute right-3 top-3 z-20"/>
+        <app-call-live-badge class="absolute right-3 top-3 z-20" />
     }
 
     <!-- Video actions. Hover-only, so a wall of tiles is faces rather than buttons. -->
     @if (p.isCameraOn && videoStream()) {
-        <div class="absolute left-3 top-3 z-20 flex items-center gap-1.5 opacity-0 transition-opacity
-                    group-hover:opacity-100 focus-within:opacity-100">
+        <div
+            class="absolute left-3 top-3 z-20 flex items-center gap-1.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100"
+        >
             @if (canPip()) {
                 <app-call-tile-action
-                        (action)="togglePip()"
-                        [label]="'CALL.PICTURE_IN_PICTURE' | translate"
-                        icon="pi-external-link"
-                        size="sm"/>
+                    (action)="togglePip()"
+                    [label]="'CALL.PICTURE_IN_PICTURE' | translate"
+                    icon="pi-external-link"
+                    size="sm"
+                />
             }
             <app-call-tile-action
-                    (action)="toggleFullscreen()"
-                    [label]="'CALL.FULLSCREEN' | translate"
-                    icon="pi-window-maximize"
-                    size="sm"/>
+                (action)="toggleFullscreen()"
+                [label]="'CALL.FULLSCREEN' | translate"
+                icon="pi-window-maximize"
+                size="sm"
+            />
         </div>
     }
 
@@ -68,12 +76,15 @@
          height, and a one-person tile read as off-balance rather than centred. Absolute positioning
          unconditionally takes the name out of that column: the avatar is then the column's only
          child, and `items-center justify-center` on the root centres it on its own. -->
-    <div class="absolute bottom-2 left-2 z-20 flex max-w-[calc(100%-1rem)] items-center justify-center gap-1.5
-                rounded-lg bg-black/50 px-2 py-1 backdrop-blur-sm">
+    <div
+        class="absolute bottom-2 left-2 z-20 flex max-w-[calc(100%-1rem)] items-center justify-center gap-1.5 rounded-lg bg-black/50 px-2 py-1 backdrop-blur-sm"
+    >
         @if (p.isMuted) {
             <!-- Drawn slash - PrimeIcons has no slashed microphone, see .icon-slashed. -->
-            <span [attr.aria-label]="'CALL.MUTED' | translate"
-                  class="icon-slashed relative flex shrink-0 items-center justify-center text-xs text-offline">
+            <span
+                [attr.aria-label]="'CALL.MUTED' | translate"
+                class="icon-slashed relative flex shrink-0 items-center justify-center text-xs text-offline"
+            >
                 <i class="pi pi-microphone"></i>
             </span>
         }
@@ -82,6 +93,6 @@
 
     <!-- Audio badge: quiet while the subscribe is still landing, amber once it is overdue -->
     @if (!p.isLocal) {
-        <app-call-audio-status [state]="audioState()" class="absolute bottom-3 right-3 z-20"/>
+        <app-call-audio-status [state]="audioState()" class="absolute bottom-3 right-3 z-20" />
     }
 </div>

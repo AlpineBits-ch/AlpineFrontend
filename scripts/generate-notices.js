@@ -66,7 +66,10 @@ const REPO_NOTICE_FILES = [
 
 /** Legacy manifests write `MIT/Apache-2.0`; SPDX means `OR` by that. */
 function normalizeExpression(expr) {
-    return String(expr).replace(/\s*\/\s*/g, ' OR ').replace(/\s+/g, ' ').trim();
+    return String(expr)
+        .replace(/\s*\/\s*/g, ' OR ')
+        .replace(/\s+/g, ' ')
+        .trim();
 }
 
 /** Splits on `op` at paren depth zero, so `(MIT OR Apache-2.0) AND IJG` splits correctly on AND. */
@@ -124,8 +127,9 @@ function stripOuterParens(s) {
  * string was carried forward as a single licence id - one that has no text and never will.
  */
 function parseExpression(expr) {
-    return splitTopLevel(stripOuterParens(normalizeExpression(expr)), 'AND')
-        .map(conj => splitTopLevel(stripOuterParens(conj), 'OR').map(stripOuterParens));
+    return splitTopLevel(stripOuterParens(normalizeExpression(expr)), 'AND').map(conj =>
+        splitTopLevel(stripOuterParens(conj), 'OR').map(stripOuterParens),
+    );
 }
 
 /** `Apache-2.0 WITH LLVM-exception` resolves against the base licence's text. */
@@ -290,9 +294,8 @@ function matchCanonicalBody(fileText, canonicalText) {
 }
 
 function attributionLine(entry) {
-    const who = entry.authors && entry.authors.length
-        ? entry.authors.join(', ')
-        : entry.repository || entry.name;
+    const who =
+        entry.authors && entry.authors.length ? entry.authors.join(', ') : entry.repository || entry.name;
     return `Copyright (c) the ${entry.name} authors — ${who}`;
 }
 
@@ -393,7 +396,10 @@ function readManifest(dir) {
 function declaredLicense(manifest) {
     let license = manifest.license;
     if (!license && Array.isArray(manifest.licenses)) {
-        license = manifest.licenses.map(l => (typeof l === 'string' ? l : l.type)).filter(Boolean).join(' OR ');
+        license = manifest.licenses
+            .map(l => (typeof l === 'string' ? l : l.type))
+            .filter(Boolean)
+            .join(' OR ');
     }
     if (license && typeof license === 'object') license = license.type || '';
     return license || '';
@@ -569,10 +575,7 @@ function groupByNotice(entries, pool, catalogue) {
         }
         for (const ref of notice.refs) usedLicenceIds.add(ref.id);
 
-        const key = JSON.stringify([
-            notice.refs.map(r => [r.id, r.header]),
-            notice.blocks.map(b => b.text),
-        ]);
+        const key = JSON.stringify([notice.refs.map(r => [r.id, r.header]), notice.blocks.map(b => b.text)]);
         if (!groups.has(key)) groups.set(key, {refs: notice.refs, blocks: notice.blocks, packages: []});
         groups.get(key).packages.push(entry);
     }
@@ -612,7 +615,9 @@ function renderGroup(group) {
         if (ref.header) {
             lines.push(...fencedBlock(ref.header));
         }
-        lines.push(`Distributed under the [${ref.id} licence](#${anchorFor(ref.id)}), reproduced in full below.`);
+        lines.push(
+            `Distributed under the [${ref.id} licence](#${anchorFor(ref.id)}), reproduced in full below.`,
+        );
         lines.push('');
     }
 
@@ -641,12 +646,7 @@ function renderSection(title, intro, groups) {
  * every package that relies on them.
  */
 function renderLicenceTexts(usedIds, pool) {
-    const lines = [
-        '## Licence texts',
-        '',
-        'The full text of each licence referenced above.',
-        '',
-    ];
+    const lines = ['## Licence texts', '', 'The full text of each licence referenced above.', ''];
     for (const id of [...usedIds].sort()) {
         const text = INLINE_TEXTS[id] || (pool[id] && pool[id].text);
         if (!text) continue;
@@ -666,18 +666,25 @@ function renderLicenceTexts(usedIds, pool) {
  */
 function demoteHeadings(markdown) {
     let inFence = false;
-    return markdown.split('\n').map(line => {
-        if (/^\s*```/.test(line)) inFence = !inFence;
-        if (inFence) return line;
-        return line.replace(/^(#{1,4})\s/, (_, hashes) => `##${hashes} `);
-    }).join('\n');
+    return markdown
+        .split('\n')
+        .map(line => {
+            if (/^\s*```/.test(line)) inFence = !inFence;
+            if (inFence) return line;
+            return line.replace(/^(#{1,4})\s/, (_, hashes) => `##${hashes} `);
+        })
+        .join('\n');
 }
 
 /** Embeds the in-repo notice files listed in REPO_NOTICE_FILES, failing loudly if one has moved. */
 function renderRepoNotices(repoDir) {
-    const sections = ['## Bundled data and vendored source', '',
+    const sections = [
+        '## Bundled data and vendored source',
+        '',
         'Components compiled or embedded into the application that are not package-manager dependencies,',
-        'and so appear in neither list below.', ''];
+        'and so appear in neither list below.',
+        '',
+    ];
 
     for (const notice of REPO_NOTICE_FILES) {
         const full = path.join(repoDir, notice.file);
@@ -705,28 +712,22 @@ function render({rustGroups, npmGroups, optional, extra, repoNotices, licenceTex
     ].join('\n');
 
     const parts = [head, extra.trim(), '', repoNotices, ''];
-    parts.push(renderSection(
-        'Rust crates',
-        'Compiled into the application binary.',
-        rustGroups,
-    ));
-    parts.push(renderSection(
-        'npm packages',
-        'Bundled into the application frontend.',
-        npmGroups,
-    ));
+    parts.push(renderSection('Rust crates', 'Compiled into the application binary.', rustGroups));
+    parts.push(renderSection('npm packages', 'Bundled into the application frontend.', npmGroups));
 
     if (optional.length) {
-        parts.push([
-            '## Platform-specific native builds',
-            '',
-            'Optional packages containing a prebuilt binary for one platform each; a given install has',
-            'only the one it runs on. Each is published by the project named beside it and carries that',
-            "project's licence, reproduced in full above.",
-            '',
-            ...optional.map(([name, parent]) => `- \`${name}\` — part of ${parent}`),
-            '',
-        ].join('\n'));
+        parts.push(
+            [
+                '## Platform-specific native builds',
+                '',
+                'Optional packages containing a prebuilt binary for one platform each; a given install has',
+                'only the one it runs on. Each is published by the project named beside it and carries that',
+                "project's licence, reproduced in full above.",
+                '',
+                ...optional.map(([name, parent]) => `- \`${name}\` — part of ${parent}`),
+                '',
+            ].join('\n'),
+        );
     }
 
     parts.push(licenceTexts);
@@ -764,7 +765,8 @@ function main() {
         for (const f of failures) process.stderr.write(`  - ${f}\n`);
         process.stderr.write(
             '\nAdd the licence id to scripts/spdx-texts.js, or record the package in ' +
-            'scripts/extra-notices.md if its terms cannot be expressed as SPDX.\n');
+                'scripts/extra-notices.md if its terms cannot be expressed as SPDX.\n',
+        );
         process.exit(1);
     }
 
@@ -788,9 +790,12 @@ function main() {
 
     const kb = Math.round(Buffer.byteLength(output, 'utf8') / 1024);
     process.stdout.write(
-        `\nWrote ${path.relative(REPO, OUT_FILE)} — ${rust.length} crates, ${npm.length} npm packages, ${kb} kB\n`);
+        `\nWrote ${path.relative(REPO, OUT_FILE)} — ${rust.length} crates, ${npm.length} npm packages, ${kb} kB\n`,
+    );
     if (missingPool.length) {
-        process.stdout.write(`Unused SPDX harvest markers (nothing in the tree needed them): ${missingPool.join(', ')}\n`);
+        process.stdout.write(
+            `Unused SPDX harvest markers (nothing in the tree needed them): ${missingPool.join(', ')}\n`,
+        );
     }
     if (optional.length) {
         process.stdout.write(`${optional.length} platform-specific native builds listed by name.\n`);

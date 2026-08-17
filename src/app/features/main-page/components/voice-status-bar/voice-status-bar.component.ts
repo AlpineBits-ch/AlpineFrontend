@@ -49,9 +49,7 @@ export class VoiceStatusBarComponent {
     protected readonly callStatus = computed((): CallStatus => {
         const rtcState = this.isGuildVoice() ? this.voiceSvc.rtcState() : this.callWebRtc.rtcState();
         const status = resolveCallStatus({rtcState, stalledAudio: false, aloneUntil: null});
-        return status.kind === 'connected'
-            ? {...status, labelKey: 'VOICE_BAR.VOICE_CONNECTED'}
-            : status;
+        return status.kind === 'connected' ? {...status, labelKey: 'VOICE_BAR.VOICE_CONNECTED'} : status;
     });
 
     protected readonly labelClass = computed(() => {
@@ -63,14 +61,17 @@ export class VoiceStatusBarComponent {
     protected readonly dotClass = computed(() => {
         const tone = this.callStatus().tone;
         const colour = tone === 'error' ? 'bg-offline' : tone === 'warn' ? 'bg-connecting' : 'bg-online';
-        const pulse = tone === 'error' ? 'status-pulse status-pulse--urgent' : tone === 'warn' ? 'status-pulse' : '';
+        const pulse =
+            tone === 'error' ? 'status-pulse status-pulse--urgent' : tone === 'warn' ? 'status-pulse' : '';
         return `size-2 shrink-0 rounded-full ${colour} ${pulse}`;
     });
 
     /** True while this client's own screen is going out, on whichever surface is active. */
-    protected readonly isSharing = computed(() => this.isGuildVoice()
-        ? this.voiceSvc.localState().isScreenSharing
-        : (this.callSession.session()?.local.isSharing ?? false));
+    protected readonly isSharing = computed(() =>
+        this.isGuildVoice()
+            ? this.voiceSvc.localState().isScreenSharing
+            : (this.callSession.session()?.local.isSharing ?? false),
+    );
 
     /** Whether the live row below is actually the thing putting the preview image on screen right
      *  now - see RustMediaService.claimPreviewRender for Task 10's idle pause. */
@@ -131,7 +132,8 @@ export class VoiceStatusBarComponent {
      * their UI. `CALL.DISCONNECT` is the existing, locale-neutral "Disconnect" for that branch.
      */
     protected readonly disconnectLabelKey = computed(() =>
-        this.isGuildVoice() ? 'VOICE_BAR.DISCONNECT' : 'CALL.DISCONNECT');
+        this.isGuildVoice() ? 'VOICE_BAR.DISCONNECT' : 'CALL.DISCONNECT',
+    );
 
     /**
      * Stops the local screen share through the same path the in-call controls bar uses. There is

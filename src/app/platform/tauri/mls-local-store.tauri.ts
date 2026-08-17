@@ -56,7 +56,7 @@ class DeferredLazyStore implements MlsLocalStore {
      */
     private queue: Promise<unknown> = Promise.resolve();
 
-    constructor(private readonly file: string) { }
+    constructor(private readonly file: string) {}
 
     async get<T>(key: string): Promise<T | undefined> {
         return (await this.store()).get<T>(key);
@@ -73,7 +73,10 @@ class DeferredLazyStore implements MlsLocalStore {
     update<T>(key: string, next: (current: T | undefined) => T | undefined): Promise<T | undefined> {
         // The previous link's failure is not this call's, so it is swallowed here rather than
         // propagated - one rejected update must not poison every later one on the same file.
-        const result = this.queue.then(() => this.applyUpdate(key, next), () => this.applyUpdate(key, next));
+        const result = this.queue.then(
+            () => this.applyUpdate(key, next),
+            () => this.applyUpdate(key, next),
+        );
         this.queue = result.catch(() => undefined);
         return result;
     }

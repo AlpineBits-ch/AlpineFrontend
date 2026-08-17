@@ -21,10 +21,7 @@ function offeringUpdater(): FakeUpdater {
 function setup(updater: Updater): UpdateService {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
-        providers: [
-            provideZonelessChangeDetection(),
-            {provide: Updater, useValue: updater},
-        ],
+        providers: [provideZonelessChangeDetection(), {provide: Updater, useValue: updater}],
     });
     return TestBed.inject(UpdateService);
 }

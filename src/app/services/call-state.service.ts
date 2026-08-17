@@ -77,23 +77,30 @@ export class CallStateService implements OnDestroy {
         // in that case, so without this the card and ringing would persist forever
         // and a subsequent Accept click would silently fail against a dead call.
         this.incomingEndedSub = this.ws.callEndedObservable.subscribe(({callId}) =>
-            this.dismissIncomingIfMatches(callId));
+            this.dismissIncomingIfMatches(callId),
+        );
 
         // Three further ways this device's ring stops without it being the one that acted.
         // Without these the card and ringtone persist after another of the user's devices deals
         // with the call, and a later Accept click fails silently against a call that moved on.
         this.deviceSubs = new Subscription();
-        this.deviceSubs.add(this.ws.callAcceptedObservable.subscribe(({callId}) =>
-            this.dismissIncomingIfMatches(callId)));
-        this.deviceSubs.add(this.ws.callDeviceDismissedObservable.subscribe(({callId}) =>
-            this.dismissIncomingIfMatches(callId)));
-        this.deviceSubs.add(this.ws.callDeviceTakeoverObservable.subscribe(({callId}) => {
-            if (this.callSession.session()?.callId !== callId) return;
-            // The server has already moved the session to the other device, so tear down
-            // silently - calling leave here would drop us out of the call we just joined there.
-            this.callSession.end(true);
-            this.toast.info('You joined this call on another device');
-        }));
+        this.deviceSubs.add(
+            this.ws.callAcceptedObservable.subscribe(({callId}) => this.dismissIncomingIfMatches(callId)),
+        );
+        this.deviceSubs.add(
+            this.ws.callDeviceDismissedObservable.subscribe(({callId}) =>
+                this.dismissIncomingIfMatches(callId),
+            ),
+        );
+        this.deviceSubs.add(
+            this.ws.callDeviceTakeoverObservable.subscribe(({callId}) => {
+                if (this.callSession.session()?.callId !== callId) return;
+                // The server has already moved the session to the other device, so tear down
+                // silently - calling leave here would drop us out of the call we just joined there.
+                this.callSession.end(true);
+                this.toast.info('You joined this call on another device');
+            }),
+        );
 
         // `call.IncomingCall` is broadcast once and never replayed, so every way of not being
         // connected at that instant ends with the same silence: somebody is calling and this client
@@ -128,7 +135,7 @@ export class CallStateService implements OnDestroy {
         if (this.callSession.session() || this.incomingCall()) return;
         this.catchingUp.set(true);
         this.voiceService.getPendingCall().subscribe({
-            next: (call) => {
+            next: call => {
                 this.catchingUp.set(false);
                 if (!call) return;
                 // Re-checked after the round trip: the real `call.IncomingCall` landing, or the
@@ -145,11 +152,16 @@ export class CallStateService implements OnDestroy {
         });
     }
 
-    startCall(conversationId: string, participants: string[], displayName: string, avatarLabel: string): void {
+    startCall(
+        conversationId: string,
+        participants: string[],
+        displayName: string,
+        avatarLabel: string,
+    ): void {
         this.outgoingCall.set({conversationId, displayName, avatarLabel, startedAt: new Date()});
         this.startRingback();
         this.voiceService.createCall({conversationId, participants}).subscribe({
-            next: (callDto) => {
+            next: callDto => {
                 this.pendingCallDto = callDto;
                 // Join immediately so WebRTC listeners are wired up before ParticipantJoined fires.
                 // The outgoing overlay stays visible on top until the callee accepts/declines.
@@ -173,15 +185,24 @@ export class CallStateService implements OnDestroy {
                         first(),
                         map(() => 'accepted' as const),
                     ),
-                    this.ws.participantJoinedObservable.pipe(first(), map(() => 'joined' as const)),
-                    this.ws.callEndedObservable.pipe(first(), map(() => 'ended' as const)),
+                    this.ws.participantJoinedObservable.pipe(
+                        first(),
+                        map(() => 'joined' as const),
+                    ),
+                    this.ws.callEndedObservable.pipe(
+                        first(),
+                        map(() => 'ended' as const),
+                    ),
                     // The other side saying no. Filtered rather than taken outright: a decline in a
                     // group call names one invitee while the rest keep ringing, and race only
                     // commits to a source that actually emits, so a non-final decline leaves the
                     // other two arms live. Without this the caller rang until the alone-timeout.
                     this.ws.callDeclinedObservable.pipe(
-                        filter(call => call.id === callDto.id
-                            && declineEndsOutgoingCall(call, this.profileService.ownProfile()?.userId)),
+                        filter(
+                            call =>
+                                call.id === callDto.id &&
+                                declineEndsOutgoingCall(call, this.profileService.ownProfile()?.userId),
+                        ),
                         first(),
                         map(() => 'declined' as const),
                     ),
@@ -218,14 +239,14 @@ export class CallStateService implements OnDestroy {
         if (conv) this.navService.openConversation(conv);
         this.joiningConversationId.set(incoming.call.conversationId);
         this.voiceService.acceptCall(incoming.call.id).subscribe({
-            next: (callDto) => {
+            next: callDto => {
                 this.joiningConversationId.set(null);
                 this.callSession.join(callDto, callDto.conversationId);
             },
             // Most commonly the caller already cancelled - without this, accepting a
             // call that just ended silently dropped you into the conversation with
             // no call session and no explanation.
-            error: (err) => {
+            error: err => {
                 this.joiningConversationId.set(null);
                 this.toast.httpError('Could not join call - it may have ended', err);
             },
@@ -250,11 +271,11 @@ export class CallStateService implements OnDestroy {
         // on screen now, and the response is the thing being waited on.
         this.joiningConversationId.set(conversationId);
         this.voiceService.acceptCall(callId).subscribe({
-            next: (callDto) => {
+            next: callDto => {
                 this.joiningConversationId.set(null);
                 this.callSession.join(callDto, callDto.conversationId);
             },
-            error: (err) => {
+            error: err => {
                 this.joiningConversationId.set(null);
                 this.toast.httpError('Could not join call - it may have ended', err);
             },
@@ -267,7 +288,7 @@ export class CallStateService implements OnDestroy {
         this.stopRingtone();
         this.incomingCall.set(null);
         this.voiceService.declineCall(incoming.call.id).subscribe({
-            error: (err) => this.toast.httpError('Could not decline call', err),
+            error: err => this.toast.httpError('Could not decline call', err),
         });
     }
 
@@ -339,9 +360,8 @@ export class CallStateService implements OnDestroy {
             }
             // Use the currently open conversation, fall back to first in store
             const view = this.navService.mainView();
-            const conv = view.type === 'conversation'
-                ? view.conversation
-                : this.conversationStore.entities()[0];
+            const conv =
+                view.type === 'conversation' ? view.conversation : this.conversationStore.entities()[0];
             if (!conv) return;
             const ownId = this.profileService.ownProfile()?.userId ?? 'me';
             // Participants = all actual members of the conversation
@@ -370,9 +390,9 @@ export class CallStateService implements OnDestroy {
             ? [call.creatorId]
             : call.participants.map(p => p.userId).filter(id => id !== ownId);
 
-        const conv = this.conversationStore.entities().find(c =>
-            callerIds.some(id => c.members.some(m => m.userId === id))
-        );
+        const conv = this.conversationStore
+            .entities()
+            .find(c => callerIds.some(id => c.members.some(m => m.userId === id)));
 
         let displayName = 'Unknown';
         let avatarLabel = '?';
@@ -380,9 +400,10 @@ export class CallStateService implements OnDestroy {
         if (conv) {
             const others = conv.members.filter(m => m.userId !== ownId);
             if (others.length > 0) {
-                displayName = others.length === 1
-                    ? others[0].cachedUserName
-                    : others.map(m => m.cachedUserName).join(', ');
+                displayName =
+                    others.length === 1
+                        ? others[0].cachedUserName
+                        : others.map(m => m.cachedUserName).join(', ');
                 avatarLabel = (others[0].cachedUserName?.[0] ?? '?').toUpperCase();
             }
         }

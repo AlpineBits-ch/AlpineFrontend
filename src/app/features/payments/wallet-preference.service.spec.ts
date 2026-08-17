@@ -65,8 +65,11 @@ describe('WalletPreferenceService.order', () => {
     ];
 
     it('keeps the owner order when nothing is preferred', () => {
-        expect(make().order(handles).map(h => h.kind))
-            .toEqual([PaymentHandleKind.Iban, PaymentHandleKind.PayPal, PaymentHandleKind.Revolut]);
+        expect(
+            make()
+                .order(handles)
+                .map(h => h.kind),
+        ).toEqual([PaymentHandleKind.Iban, PaymentHandleKind.PayPal, PaymentHandleKind.Revolut]);
     });
 
     it('lifts the preferred kind to the front and leaves the rest in place', () => {
@@ -75,8 +78,11 @@ describe('WalletPreferenceService.order', () => {
         const service = make();
         service.setPreferred(PaymentHandleKind.Revolut);
 
-        expect(service.order(handles).map(h => h.kind))
-            .toEqual([PaymentHandleKind.Revolut, PaymentHandleKind.Iban, PaymentHandleKind.PayPal]);
+        expect(service.order(handles).map(h => h.kind)).toEqual([
+            PaymentHandleKind.Revolut,
+            PaymentHandleKind.Iban,
+            PaymentHandleKind.PayPal,
+        ]);
     });
 
     it('hides nothing when the preferred kind is absent', () => {

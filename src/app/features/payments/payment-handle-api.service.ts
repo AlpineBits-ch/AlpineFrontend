@@ -26,20 +26,22 @@ export class PaymentHandleApiService {
 
     /** Every member's sealed blob, with only this device's wraps. `ViewChannel` is not needed. */
     directory(guildId: string): Observable<PaymentHandleDirectory> {
-        return this.http.get<PaymentHandleDirectory>(
-            `${this.base}/guilds/${guildId}/payment-handles`);
+        return this.http.get<PaymentHandleDirectory>(`${this.base}/guilds/${guildId}/payment-handles`);
     }
 
     /** The devices to seal to, with the key and the attestation state for each. */
     recipients(guildId: string): Observable<PaymentHandleRecipients> {
         return this.http.get<PaymentHandleRecipients>(
-            `${this.base}/guilds/${guildId}/payment-handles/recipients`);
+            `${this.base}/guilds/${guildId}/payment-handles/recipients`,
+        );
     }
 
     /** Replaces the caller's own sealed blob. There is no route that writes anybody else's. */
     seal(guildId: string, body: SealPaymentHandlesDto): Observable<SealPaymentHandlesResult> {
         return this.http.put<SealPaymentHandlesResult>(
-            `${this.base}/guilds/${guildId}/payment-handles`, body);
+            `${this.base}/guilds/${guildId}/payment-handles`,
+            body,
+        );
     }
 
     /** Drops the caller's blob and every wrap of it. Idempotent - deleting nothing is a `204`. */
@@ -54,6 +56,7 @@ export class PaymentHandleApiService {
     setPhoneSharing(guildId: string, share: boolean): Observable<PhoneSharingResult> {
         return this.http.put<PhoneSharingResult>(
             `${this.base}/guilds/${guildId}/payment-handles/phone-sharing`,
-            {share} satisfies SetPhoneSharingDto);
+            {share} satisfies SetPhoneSharingDto,
+        );
     }
 }

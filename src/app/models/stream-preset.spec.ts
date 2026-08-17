@@ -35,8 +35,9 @@ describe('stream-preset', () => {
 
     it('keeps source above the tallest measured resolution', () => {
         for (const framerate of FRAMERATE_OPTIONS) {
-            expect(bitrateFor({resolution: '2160p', framerate}))
-                .toBeLessThanOrEqual(bitrateFor({resolution: 'source', framerate}));
+            expect(bitrateFor({resolution: '2160p', framerate})).toBeLessThanOrEqual(
+                bitrateFor({resolution: 'source', framerate}),
+            );
         }
     });
 
@@ -44,8 +45,9 @@ describe('stream-preset', () => {
         const ladder: StreamResolution[] = ['720p', '1080p', '1440p', '2160p'];
         for (const framerate of FRAMERATE_OPTIONS) {
             for (let i = 1; i < ladder.length; i++) {
-                expect(bitrateFor({resolution: ladder[i - 1], framerate}))
-                    .toBeLessThan(bitrateFor({resolution: ladder[i], framerate}));
+                expect(bitrateFor({resolution: ladder[i - 1], framerate})).toBeLessThan(
+                    bitrateFor({resolution: ladder[i], framerate}),
+                );
             }
         }
     });
@@ -62,10 +64,12 @@ describe('stream-preset', () => {
     it('rises with framerate at a fixed resolution', () => {
         const resolutions: StreamResolution[] = ['720p', '1080p', '1440p', '2160p', 'source'];
         for (const resolution of resolutions) {
-            expect(bitrateFor({resolution, framerate: 15}))
-                .toBeLessThan(bitrateFor({resolution, framerate: 30}));
-            expect(bitrateFor({resolution, framerate: 30}))
-                .toBeLessThan(bitrateFor({resolution, framerate: 60}));
+            expect(bitrateFor({resolution, framerate: 15})).toBeLessThan(
+                bitrateFor({resolution, framerate: 30}),
+            );
+            expect(bitrateFor({resolution, framerate: 30})).toBeLessThan(
+                bitrateFor({resolution, framerate: 60}),
+            );
         }
     });
 
@@ -109,8 +113,11 @@ describe('a granted video rung', () => {
             expect(isResolutionAllowed(resolution, null)).toBe(true);
         }
         for (const fps of FRAMERATE_OPTIONS) expect(isFramerateAllowed(fps, null)).toBe(true);
-        expect(clampPreset({resolution: '1440p', framerate: 60, content: 'text'}, null))
-            .toEqual({resolution: '1440p', framerate: 60, content: 'text'});
+        expect(clampPreset({resolution: '1440p', framerate: 60, content: 'text'}, null)).toEqual({
+            resolution: '1440p',
+            framerate: 60,
+            content: 'text',
+        });
     });
 
     it('stops the picker where the rung stops', () => {
@@ -131,15 +138,25 @@ describe('a granted video rung', () => {
     it('keeps offering source, whose height it cannot know', () => {
         expect(resolutionHeight('source')).toBeNull();
         expect(isResolutionAllowed('source', RUNG_720P30)).toBe(true);
-        expect(clampPreset({resolution: 'source', framerate: 30, content: 'text'}, RUNG_720P30))
-            .toEqual({resolution: 'source', framerate: 30, content: 'text'});
+        expect(clampPreset({resolution: 'source', framerate: 30, content: 'text'}, RUNG_720P30)).toEqual({
+            resolution: 'source',
+            framerate: 30,
+            content: 'text',
+        });
     });
 
     it('clamps a saved preset down to the tallest and fastest the rung permits', () => {
-        expect(clampPreset({resolution: '1440p', framerate: 60, content: 'text'}, RUNG_720P30))
-            .toEqual({resolution: '720p', framerate: 30, content: 'text'});
-        expect(clampPreset({resolution: '1080p', framerate: 60, content: 'text'}, {maxHeight: 1080, maxFramerate: 30}))
-            .toEqual({resolution: '1080p', framerate: 30, content: 'text'});
+        expect(clampPreset({resolution: '1440p', framerate: 60, content: 'text'}, RUNG_720P30)).toEqual({
+            resolution: '720p',
+            framerate: 30,
+            content: 'text',
+        });
+        expect(
+            clampPreset(
+                {resolution: '1080p', framerate: 60, content: 'text'},
+                {maxHeight: 1080, maxFramerate: 30},
+            ),
+        ).toEqual({resolution: '1080p', framerate: 30, content: 'text'});
     });
 
     it('returns the same object when nothing needed clamping', () => {
@@ -155,16 +172,22 @@ describe('a granted video rung', () => {
         expect(isAudioOnlyCeiling(null)).toBe(false);
         expect(isResolutionAllowed('720p', none)).toBe(false);
         expect(isFramerateAllowed(15, none)).toBe(false);
-        expect(clampPreset({resolution: '1080p', framerate: 60, content: 'text'}, none))
-            .toEqual({resolution: '1080p', framerate: 60, content: 'text'});
+        expect(clampPreset({resolution: '1080p', framerate: 60, content: 'text'}, none)).toEqual({
+            resolution: '1080p',
+            framerate: 60,
+            content: 'text',
+        });
     });
 
     /** Negative case: a ceiling below every measured option leaves the choice alone to be clamped. */
     it('leaves a preset alone when no measured resolution fits under the ceiling', () => {
-        expect(clampPreset({resolution: '1080p', framerate: 30, content: 'text'}, {maxHeight: 480, maxFramerate: 30}))
-            .toEqual({resolution: '1080p', framerate: 30, content: 'text'});
+        expect(
+            clampPreset(
+                {resolution: '1080p', framerate: 30, content: 'text'},
+                {maxHeight: 480, maxFramerate: 30},
+            ),
+        ).toEqual({resolution: '1080p', framerate: 30, content: 'text'});
     });
-
 });
 
 /** The top of the ladder, which is what a Pro guild resolves to. */
@@ -195,13 +218,22 @@ describe('the 2160p60 rung', () => {
     });
 
     it('clamps up to 4K only where the rung reaches it', () => {
-        expect(clampPreset({resolution: 'source', framerate: 60, content: 'games'}, RUNG_2160P60))
-            .toEqual({resolution: 'source', framerate: 60, content: 'games'});
+        expect(clampPreset({resolution: 'source', framerate: 60, content: 'games'}, RUNG_2160P60)).toEqual({
+            resolution: 'source',
+            framerate: 60,
+            content: 'games',
+        });
         // A preset taller than the rung falls to the tallest the rung does permit.
-        expect(clampPreset({resolution: '2160p', framerate: 60, content: 'games'}, RUNG_1440P60))
-            .toEqual({resolution: '1440p', framerate: 60, content: 'games'});
-        expect(clampPreset({resolution: '2160p', framerate: 60, content: 'games'}, RUNG_1080P60))
-            .toEqual({resolution: '1080p', framerate: 60, content: 'games'});
+        expect(clampPreset({resolution: '2160p', framerate: 60, content: 'games'}, RUNG_1440P60)).toEqual({
+            resolution: '1440p',
+            framerate: 60,
+            content: 'games',
+        });
+        expect(clampPreset({resolution: '2160p', framerate: 60, content: 'games'}, RUNG_1080P60)).toEqual({
+            resolution: '1080p',
+            framerate: 60,
+            content: 'games',
+        });
     });
 
     /** A 4K share is still a choice, never a default: nobody is opted into the egress. */

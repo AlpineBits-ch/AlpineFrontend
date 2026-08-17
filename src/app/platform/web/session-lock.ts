@@ -89,9 +89,7 @@ export function detectLockManager(): LockManager | undefined {
         return undefined;
     }
     if (candidate === null || typeof candidate !== 'object') return undefined;
-    return typeof (candidate as LockManager).request === 'function'
-        ? candidate as LockManager
-        : undefined;
+    return typeof (candidate as LockManager).request === 'function' ? (candidate as LockManager) : undefined;
 }
 
 /** {@link SessionLock} over `navigator.locks`. */
@@ -117,7 +115,10 @@ export class WebLocksSessionLock implements SessionLock {
     /** Notified when a queued request is granted. See {@link SessionLock.onGranted}. */
     private readonly granted = new Set<() => void>();
 
-    constructor(readonly name: string, locks: LockManager | undefined = detectLockManager()) {
+    constructor(
+        readonly name: string,
+        locks: LockManager | undefined = detectLockManager(),
+    ) {
         this.locks = locks;
     }
 
@@ -134,7 +135,7 @@ export class WebLocksSessionLock implements SessionLock {
     }
 
     async claim(): Promise<SessionClaim> {
-        if (this.locks === undefined) return this.established = 'unsupported';
+        if (this.locks === undefined) return (this.established = 'unsupported');
         if (this.owned) return 'held';
         // Already in the queue: asking again would only queue behind our own request.
         if (this.queued) return 'blocked';
@@ -163,9 +164,9 @@ export class WebLocksSessionLock implements SessionLock {
             } catch {
                 // Must report unsupported rather than raise: this runs inside `mls_init_storage`,
                 // whose rejection the boot path answers by wiping local MLS state.
-                return this.established = 'unsupported';
+                return (this.established = 'unsupported');
             }
-            if (free) return this.established = 'held';
+            if (free) return (this.established = 'held');
 
             // Queued with no timeout, and never awaited; the grant is what performs the takeover.
             this.queued = true;
@@ -176,7 +177,7 @@ export class WebLocksSessionLock implements SessionLock {
                 this.queued = false;
                 if (this.dropQueued === drop) this.dropQueued = undefined;
             });
-            return this.established = 'blocked';
+            return (this.established = 'blocked');
         } finally {
             this.pending = undefined;
         }

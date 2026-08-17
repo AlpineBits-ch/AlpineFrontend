@@ -9,8 +9,7 @@ const BASE = 'https://api.test.example';
 
 @Component({
     imports: [AuthImageDirective],
-    template: `
-        <img alt="test" [appAuthSrc]="url()"/>`,
+    template: ` <img alt="test" [appAuthSrc]="url()" />`,
 })
 class HostComponent {
     readonly url = signal<string | null>(null);
@@ -90,8 +89,10 @@ describe('AuthImageDirective', () => {
         fixture.componentInstance.url.set(`${BASE}/api/v1/messaging/attachments/gone/thumbnail`);
         fixture.detectChanges();
 
-        http.expectOne(`${BASE}/api/v1/messaging/attachments/gone/thumbnail`)
-            .flush(new Blob([]), {status: 401, statusText: 'Unauthorized'});
+        http.expectOne(`${BASE}/api/v1/messaging/attachments/gone/thumbnail`).flush(new Blob([]), {
+            status: 401,
+            statusText: 'Unauthorized',
+        });
         await fixture.whenStable();
 
         expect(img.hasAttribute('src')).toBe(false);

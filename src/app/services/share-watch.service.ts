@@ -7,8 +7,7 @@ import {ShareViewersDto} from '../dtos/response/share-viewers.dto';
 
 /** Where a screen share lives. Guild voice and direct calls draw share ids from different spaces. */
 export type WatchScope =
-    | {kind: 'channel'; guildId: string; channelId: string}
-    | {kind: 'call'; callId: string};
+    {kind: 'channel'; guildId: string; channelId: string} | {kind: 'call'; callId: string};
 
 export function scopeKey(scope: WatchScope): string {
     return scope.kind === 'channel' ? `channel:${scope.channelId}` : `call:${scope.callId}`;
@@ -109,9 +108,10 @@ export class ShareWatchService implements OnDestroy {
      * shows an audience of nobody until the next viewer comes or goes.
      */
     refresh(scope: WatchScope): void {
-        const request = scope.kind === 'channel'
-            ? this.guildVoice.getShareViewers(scope.guildId, scope.channelId)
-            : this.voiceService.getShareViewers(scope.callId);
+        const request =
+            scope.kind === 'channel'
+                ? this.guildVoice.getShareViewers(scope.guildId, scope.channelId)
+                : this.voiceService.getShareViewers(scope.callId);
 
         request.subscribe({
             next: snapshot => this.viewers.update(state => ({...state, [scopeKey(scope)]: snapshot})),
@@ -121,9 +121,10 @@ export class ShareWatchService implements OnDestroy {
     }
 
     private watch(scope: WatchScope, shareId: string): void {
-        const request = scope.kind === 'channel'
-            ? this.guildVoice.watchShare(scope.guildId, scope.channelId, shareId)
-            : this.voiceService.watchShare(scope.callId, shareId);
+        const request =
+            scope.kind === 'channel'
+                ? this.guildVoice.watchShare(scope.guildId, scope.channelId, shareId)
+                : this.voiceService.watchShare(scope.callId, shareId);
 
         request.subscribe({
             next: dto => this.applyViewers(dto),
@@ -135,9 +136,10 @@ export class ShareWatchService implements OnDestroy {
     }
 
     private unwatch(scope: WatchScope, shareId: string): void {
-        const request = scope.kind === 'channel'
-            ? this.guildVoice.unwatchShare(scope.guildId, scope.channelId, shareId)
-            : this.voiceService.unwatchShare(scope.callId, shareId);
+        const request =
+            scope.kind === 'channel'
+                ? this.guildVoice.unwatchShare(scope.guildId, scope.channelId, shareId)
+                : this.voiceService.unwatchShare(scope.callId, shareId);
 
         request.subscribe({next: dto => this.applyViewers(dto), error: () => void 0});
     }

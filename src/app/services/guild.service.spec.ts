@@ -109,7 +109,12 @@ describe('GuildService audit log and role reorder', () => {
 
     it('reorderRoles PATCHes the roles array', () => {
         const {service, ctrl} = setup();
-        const dto = {roles: [{roleId: 'r1', position: 0}, {roleId: 'r2', position: 1}]};
+        const dto = {
+            roles: [
+                {roleId: 'r1', position: 0},
+                {roleId: 'r2', position: 1},
+            ],
+        };
         service.reorderRoles('g1', dto).subscribe();
         const req = ctrl.expectOne(`${BASE}/guilds/g1/roles/reorder`);
         expect(req.request.method).toBe('PATCH');
@@ -143,7 +148,9 @@ describe('GuildService channel/category updates and permission overwrites', () =
 
     it('upsertChannelMemberPermission PUTs to /channels/{channelId}/permissions/members/{memberId}', () => {
         const {service, ctrl} = setup();
-        service.upsertChannelMemberPermission('c1', 'm1', {allowPermissions: 'None', denyPermissions: 'None'}).subscribe();
+        service
+            .upsertChannelMemberPermission('c1', 'm1', {allowPermissions: 'None', denyPermissions: 'None'})
+            .subscribe();
         const req = ctrl.expectOne(`${BASE}/channels/c1/permissions/members/m1`);
         expect(req.request.method).toBe('PUT');
         req.flush({});
@@ -167,7 +174,9 @@ describe('GuildService channel/category updates and permission overwrites', () =
 
     it('upsertCategoryRolePermission PUTs to /categories/{categoryId}/permissions/roles/{roleId}', () => {
         const {service, ctrl} = setup();
-        service.upsertCategoryRolePermission('cat1', 'r1', {allowPermissions: 'None', denyPermissions: 'None'}).subscribe();
+        service
+            .upsertCategoryRolePermission('cat1', 'r1', {allowPermissions: 'None', denyPermissions: 'None'})
+            .subscribe();
         const req = ctrl.expectOne(`${BASE}/categories/cat1/permissions/roles/r1`);
         expect(req.request.method).toBe('PUT');
         req.flush({});
@@ -285,7 +294,7 @@ describe('GuildService.getOwnMember caching', () => {
         ctrl.expectOne(`${BASE}/guilds/g1/me`).flush(selfMember('g1', 'ManageGuild'));
 
         let row: SelfGuildMemberDto | undefined;
-        service.getOwnMember('g1').subscribe(m => row = m);
+        service.getOwnMember('g1').subscribe(m => (row = m));
 
         ctrl.expectNone(`${BASE}/guilds/g1/me`);
         expect(row?.permissions).toBe('ManageGuild');
@@ -297,7 +306,7 @@ describe('GuildService.getOwnMember caching', () => {
         ctrl.expectOne(`${BASE}/guilds/g1/me`).flush(selfMember('g1', 'ManageGuild'));
 
         let row: SelfGuildMemberDto | undefined;
-        service.getOwnMember('g2').subscribe(m => row = m);
+        service.getOwnMember('g2').subscribe(m => (row = m));
 
         ctrl.expectOne(`${BASE}/guilds/g2/me`).flush(selfMember('g2', 'ViewChannel'));
         expect(row?.permissions).toBe('ViewChannel');
@@ -311,7 +320,7 @@ describe('GuildService.getOwnMember caching', () => {
         expect(errors).toHaveLength(1);
 
         let row: SelfGuildMemberDto | undefined;
-        service.getOwnMember('g1').subscribe(m => row = m);
+        service.getOwnMember('g1').subscribe(m => (row = m));
 
         ctrl.expectOne(`${BASE}/guilds/g1/me`).flush(selfMember('g1', 'ManageGuild'));
         expect(row?.permissions).toBe('ManageGuild');
@@ -326,7 +335,7 @@ describe('GuildService.getOwnMember caching', () => {
         vi.advanceTimersByTime(31_000);
 
         let row: SelfGuildMemberDto | undefined;
-        service.getOwnMember('g1').subscribe(m => row = m);
+        service.getOwnMember('g1').subscribe(m => (row = m));
         ctrl.expectOne(`${BASE}/guilds/g1/me`).flush(selfMember('g1', 'ViewChannel'));
         expect(row?.permissions).toBe('ViewChannel');
     });
@@ -349,7 +358,7 @@ describe('GuildService.invalidateOwnMember', () => {
         service.invalidateOwnMember('g1');
 
         let row: SelfGuildMemberDto | undefined;
-        service.getOwnMember('g1').subscribe(m => row = m);
+        service.getOwnMember('g1').subscribe(m => (row = m));
         ctrl.expectOne(`${BASE}/guilds/g1/me`).flush(selfMember('g1', 'ViewChannel'));
         expect(row?.permissions).toBe('ViewChannel');
     });
@@ -399,7 +408,7 @@ describe('GuildService.invalidateOwnMember', () => {
         stale.flush(selfMember('g1', 'ManageGuild'));
 
         let row: SelfGuildMemberDto | undefined;
-        service.getOwnMember('g1').subscribe(m => row = m);
+        service.getOwnMember('g1').subscribe(m => (row = m));
         ctrl.expectOne(`${BASE}/guilds/g1/me`).flush(selfMember('g1', 'ViewChannel'));
         expect(row?.permissions).toBe('ViewChannel');
     });
@@ -458,8 +467,10 @@ describe('GuildService own-member invalidation on mutations', () => {
         warm(service, ctrl);
 
         service.updateMemberPermissions('g1', 'm1', 'ManageGuild').subscribe({error: () => undefined});
-        ctrl.expectOne(`${BASE}/guilds/g1/members/m1/permissions`)
-            .flush('no', {status: 403, statusText: 'Forbidden'});
+        ctrl.expectOne(`${BASE}/guilds/g1/members/m1/permissions`).flush('no', {
+            status: 403,
+            statusText: 'Forbidden',
+        });
 
         service.getOwnMember('g1').subscribe();
         ctrl.expectNone(`${BASE}/guilds/g1/me`);

@@ -24,9 +24,10 @@ export function siteHost(apiUrl: string, label: SiteLabel): string {
     const {hostname, protocol, port} = parsed;
     const labels = hostname.split('.');
 
-    const host = labels.length < 3 || /^[\d.]+$/.test(hostname)
-        ? `${label}.${hostname}`
-        : [label, ...labels.slice(1)].join('.');
+    const host =
+        labels.length < 3 || /^[\d.]+$/.test(hostname)
+            ? `${label}.${hostname}`
+            : [label, ...labels.slice(1)].join('.');
 
     return `${protocol}//${host}${port ? `:${port}` : ''}`;
 }

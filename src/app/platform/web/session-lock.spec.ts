@@ -252,9 +252,17 @@ describe('detectLockManager', () => {
     });
 
     it('reports the absence rather than throwing where reading navigator throws', () => {
-        vi.stubGlobal('navigator', new Proxy({}, {
-            get: () => { throw new Error('blocked by the embedder'); },
-        }));
+        vi.stubGlobal(
+            'navigator',
+            new Proxy(
+                {},
+                {
+                    get: () => {
+                        throw new Error('blocked by the embedder');
+                    },
+                },
+            ),
+        );
 
         expect(detectLockManager()).toBeUndefined();
     });

@@ -40,7 +40,9 @@ describe('BotCommandService.submitModal', () => {
 
     it('POSTs to the channel-scoped modal-submit route, not a message-scoped one', () => {
         const {service, ctrl} = setup();
-        service.submitModal('gild_1', 'chan_1', {botUserId: 'bot_1', customId: 'feedback', components: []}).subscribe();
+        service
+            .submitModal('gild_1', 'chan_1', {botUserId: 'bot_1', customId: 'feedback', components: []})
+            .subscribe();
 
         const req = ctrl.expectOne(`${BASE}/guilds/gild_1/channels/chan_1/modal-submit`);
         expect(req.request.method).toBe('POST');
@@ -49,11 +51,13 @@ describe('BotCommandService.submitModal', () => {
 
     it('sends the dto verbatim, keeping the components snake_case on the wire', () => {
         const {service, ctrl} = setup();
-        service.submitModal('gild_1', 'chan_1', {
-            botUserId: 'bot_1',
-            customId: 'feedback',
-            components: [{type: 1, components: [{type: 4, custom_id: 'summary', value: 'It broke'}]}],
-        }).subscribe();
+        service
+            .submitModal('gild_1', 'chan_1', {
+                botUserId: 'bot_1',
+                customId: 'feedback',
+                components: [{type: 1, components: [{type: 4, custom_id: 'summary', value: 'It broke'}]}],
+            })
+            .subscribe();
 
         const req = ctrl.expectOne(`${BASE}/guilds/gild_1/channels/chan_1/modal-submit`);
         expect(req.request.body).toEqual({
@@ -67,11 +71,14 @@ describe('BotCommandService.submitModal', () => {
     it('does not retry a 404 the way invokeCommandWithRetry does - the command list is irrelevant here', () => {
         const {service, ctrl} = setup();
         let status = 0;
-        service.submitModal('gild_1', 'chan_1', {botUserId: 'bot_1', customId: 'feedback', components: []})
-            .subscribe({error: err => status = err.status});
+        service
+            .submitModal('gild_1', 'chan_1', {botUserId: 'bot_1', customId: 'feedback', components: []})
+            .subscribe({error: err => (status = err.status)});
 
-        ctrl.expectOne(`${BASE}/guilds/gild_1/channels/chan_1/modal-submit`)
-            .flush('Bot is not installed in this guild.', {status: 404, statusText: 'Not Found'});
+        ctrl.expectOne(`${BASE}/guilds/gild_1/channels/chan_1/modal-submit`).flush(
+            'Bot is not installed in this guild.',
+            {status: 404, statusText: 'Not Found'},
+        );
 
         expect(status).toBe(404);
         ctrl.expectNone(`${BASE}/guilds/gild_1/commands`);

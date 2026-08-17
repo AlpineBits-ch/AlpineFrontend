@@ -37,7 +37,10 @@ class FakePublication {
 /** Enough of `Room` for the service to drive, plus `emit` so a test can play the server's part. */
 class FakeRoom {
     readonly handlers = new Map<string, Set<(...args: unknown[]) => void>>();
-    readonly remoteParticipants = new Map<string, {identity: string; trackPublications: Map<string, FakePublication>}>();
+    readonly remoteParticipants = new Map<
+        string,
+        {identity: string; trackPublications: Map<string, FakePublication>}
+    >();
     connectedWith: {url: string; token: string; opts?: RoomConnectOptions} | null = null;
     disconnectCalls = 0;
     removeAllListenersCalls = 0;
@@ -315,7 +318,8 @@ describe('the layer a subscription asks for', () => {
      * viewer to a rung the server did not pick, and adaptive stream would stop moving them off it.
      */
     it('leaves the server in charge of an unrecognised spelling', () => {
-        for (const layer of ['d', 'A', 'high', '', 'medium']) expect(service.setLayer('TR_1', layer)).toBe(false);
+        for (const layer of ['d', 'A', 'high', '', 'medium'])
+            expect(service.setLayer('TR_1', layer)).toBe(false);
 
         expect(camera.qualityCalls).toEqual([]);
     });
@@ -372,7 +376,12 @@ describe('what the room is holding', () => {
         const camera = CAMERA();
         subscribe('user-1', camera);
 
-        room().emit(RoomEvent.TrackUnsubscribed, {} as RemoteTrack, camera, room().remoteParticipants.get('user-1'));
+        room().emit(
+            RoomEvent.TrackUnsubscribed,
+            {} as RemoteTrack,
+            camera,
+            room().remoteParticipants.get('user-1'),
+        );
 
         expect(service.remoteTracks().size).toBe(0);
     });
@@ -415,7 +424,12 @@ describe('disconnecting', () => {
         await connect();
         const camera = new FakePublication('TR_1', Track.Kind.Video, Track.Source.Camera);
         room().publish('user-1', camera);
-        room().emit(RoomEvent.TrackSubscribed, {} as RemoteTrack, camera, room().remoteParticipants.get('user-1'));
+        room().emit(
+            RoomEvent.TrackSubscribed,
+            {} as RemoteTrack,
+            camera,
+            room().remoteParticipants.get('user-1'),
+        );
 
         await service.disconnect();
 

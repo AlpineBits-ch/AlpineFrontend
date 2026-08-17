@@ -7,8 +7,7 @@
     @if (failed()) {
         <div class="flex items-center justify-between bg-rose-400/[0.06] border border-rose-400/20 rounded-xl px-4 py-3">
             <p class="text-sm text-white/60">{{ 'SETTINGS.PRIVACY.BLOCKED_LOAD_ERROR' | translate }}</p>
-            <p-button [label]="'SETTINGS.PRIVACY.RETRY' | translate" severity="secondary" size="small"
-                      (onClick)="load()"/>
+            <p-button [label]="'SETTINGS.PRIVACY.RETRY' | translate" severity="secondary" size="small" (onClick)="load()" />
         </div>
     } @else if (loading() && blocked().length === 0) {
         <p class="text-sm text-white/35">{{ 'SETTINGS.PRIVACY.BLOCKED_LOADING' | translate }}</p>
@@ -20,21 +19,28 @@
                 <div>
                     <p class="text-sm text-white/60">{{ entry.userName }}</p>
                     <p class="text-xs text-white/25 mt-0.5">
-                        {{ 'SETTINGS.PRIVACY.BLOCKED_SINCE' | translate }} {{ entry.blockedAt | date:'mediumDate' }}
+                        {{ 'SETTINGS.PRIVACY.BLOCKED_SINCE' | translate }} {{ entry.blockedAt | date: 'mediumDate' }}
                     </p>
                 </div>
-                <p-button [label]="'SETTINGS.PRIVACY.UNBLOCK' | translate"
-                          severity="secondary" size="small"
-                          [loading]="isPending(entry.userId)"
-                          (onClick)="unblock(entry)"/>
+                <p-button
+                    [label]="'SETTINGS.PRIVACY.UNBLOCK' | translate"
+                    severity="secondary"
+                    size="small"
+                    [loading]="isPending(entry.userId)"
+                    (onClick)="unblock(entry)"
+                />
             </div>
         }
 
         @if (nextCursor()) {
-            <p-button [label]="'SETTINGS.PRIVACY.LOAD_MORE' | translate"
-                      severity="secondary" size="small" [text]="true"
-                      [loading]="loading()"
-                      (onClick)="loadMore()"/>
+            <p-button
+                [label]="'SETTINGS.PRIVACY.LOAD_MORE' | translate"
+                severity="secondary"
+                size="small"
+                [text]="true"
+                [loading]="loading()"
+                (onClick)="loadMore()"
+            />
         }
     }
 </section>

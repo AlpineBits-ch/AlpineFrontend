@@ -46,10 +46,12 @@ export class QrLoginService {
      */
     start(device: StartQrLoginDto = describeCurrentDevice()): Observable<QrLoginStartResponse> {
         return from(this.deviceIdentity.deviceId().catch(() => null)).pipe(
-            switchMap(clientDeviceId => this.http.post<QrLoginStartResponse>(
-                `${this.base}/start`,
-                clientDeviceId ? {...device, clientDeviceId} : device,
-            )),
+            switchMap(clientDeviceId =>
+                this.http.post<QrLoginStartResponse>(
+                    `${this.base}/start`,
+                    clientDeviceId ? {...device, clientDeviceId} : device,
+                ),
+            ),
         );
     }
 
@@ -61,7 +63,8 @@ export class QrLoginService {
         return this.http.get<QrLoginStatusResponse>(`${this.base}/status/${encodeURIComponent(code)}`).pipe(
             map((res): QrPollResult => normalizeStatus(res.status)),
             catchError((err: unknown) => {
-                if (err instanceof HttpErrorResponse && err.status === 404) return of<QrPollResult>('expired');
+                if (err instanceof HttpErrorResponse && err.status === 404)
+                    return of<QrPollResult>('expired');
                 return throwError(() => err);
             }),
         );

@@ -1,19 +1,19 @@
 <!-- Pinned inside the tile, over the picture. Its own scroll container: a three-rung ladder is
      taller than a small tile, and the page behind must never scroll to accommodate it. -->
-<div class="pointer-events-auto absolute left-3 top-3 z-30 flex max-h-[calc(100%-1.5rem)] w-64 flex-col
-            overflow-y-auto thin-scrollbar rounded-xl border border-border bg-card/95 p-3 backdrop-blur-sm
-            shadow-[0_8px_28px_rgba(0,0,0,0.55)]">
-
+<div
+    class="pointer-events-auto absolute left-3 top-3 z-30 flex max-h-[calc(100%-1.5rem)] w-64 flex-col overflow-y-auto thin-scrollbar rounded-xl border border-border bg-card/95 p-3 backdrop-blur-sm shadow-[0_8px_28px_rgba(0,0,0,0.55)]"
+>
     <div class="mb-2 flex items-center gap-2">
         <p class="min-w-0 flex-1 truncate text-[0.6875rem] font-semibold uppercase tracking-wide text-white/40">
             {{ title() | translate }}
         </p>
-        <button (click)="close.emit()"
-                [attr.aria-label]="'CALL.STATS_NERD.CLOSE' | translate"
-                class="call-focusable flex size-5 shrink-0 cursor-pointer items-center justify-center rounded
-                       border-0 bg-transparent text-white/45 transition-colors hover:bg-white/10 hover:text-white/85"
-                data-testid="stats-close"
-                type="button">
+        <button
+            (click)="close.emit()"
+            [attr.aria-label]="'CALL.STATS_NERD.CLOSE' | translate"
+            class="call-focusable flex size-5 shrink-0 cursor-pointer items-center justify-center rounded border-0 bg-transparent text-white/45 transition-colors hover:bg-white/10 hover:text-white/85"
+            data-testid="stats-close"
+            type="button"
+        >
             <i class="pi pi-times text-[0.5625rem]"></i>
         </button>
     </div>
@@ -54,5 +54,4 @@
             {{ 'CALL.STATS_NERD.NO_DATA' | translate }}
         </p>
     }
-
 </div>

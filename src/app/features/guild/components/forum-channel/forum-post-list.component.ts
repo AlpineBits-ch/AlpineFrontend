@@ -48,8 +48,18 @@ import {channelIcon} from '../../channel-types';
     selector: 'app-forum-post-list',
     changeDetection: ChangeDetectionStrategy.OnPush,
     imports: [
-        Button, InputText, Textarea, Dialog, Menu, Tooltip, FormsModule, PrimeTemplate, TranslateModule,
-        ForumTagChipComponent, ForumTagPickerComponent, ForumPostCardComponent,
+        Button,
+        InputText,
+        Textarea,
+        Dialog,
+        Menu,
+        Tooltip,
+        FormsModule,
+        PrimeTemplate,
+        TranslateModule,
+        ForumTagChipComponent,
+        ForumTagPickerComponent,
+        ForumPostCardComponent,
     ],
     templateUrl: './forum-post-list.component.html',
     // The list scrolls internally at every mount point, so the host has to be a sized flex item rather than inheriting whatever the mount site happens to be.
@@ -101,7 +111,9 @@ export class ForumPostListComponent implements OnDestroy {
     protected readonly loadingMore = computed(() => this.postList.stateFor(this.forum().id).loadingMore);
     protected readonly nextCursor = computed(() => this.postList.stateFor(this.forum().id).nextCursor);
     protected readonly hasLoaded = computed(() => this.postList.stateFor(this.forum().id).hasLoaded);
-    protected readonly selectedTagIds = computed(() => this.postList.stateFor(this.forum().id).selectedTagIds);
+    protected readonly selectedTagIds = computed(
+        () => this.postList.stateFor(this.forum().id).selectedTagIds,
+    );
     protected readonly showArchived = computed(() => this.postList.stateFor(this.forum().id).showArchived);
 
     protected readonly tags = computed(() => this.forumState.tagsFor(this.forum().id));
@@ -111,8 +123,7 @@ export class ForumPostListComponent implements OnDestroy {
     protected readonly requireTag = computed(() => this.config()?.requireTag ?? false);
 
     /** In the narrow pane a Gallery grid is a one-column grid with wasted gutters, so compact always renders as a list, without writing to ForumStateService so the user's stored Gallery preference survives in the full-width view. */
-    protected readonly effectiveLayout = computed(() =>
-        this.compact() ? ForumLayout.List : this.layout());
+    protected readonly effectiveLayout = computed(() => (this.compact() ? ForumLayout.List : this.layout()));
 
     /** The post currently open in the main view, highlighted in the pane. */
     protected readonly openPostId = computed(() => {
@@ -134,20 +145,26 @@ export class ForumPostListComponent implements OnDestroy {
     private readonly isOwner = computed(() => {
         const ws = this.navService.workspace();
         const ownUserId = this.profileService.ownProfile()?.userId;
-        return ws.type === 'server' && ws.guild.id === this.forum().guildId
-            && !!ownUserId && ownUserId === ws.guild.ownerId;
+        return (
+            ws.type === 'server' &&
+            ws.guild.id === this.forum().guildId &&
+            !!ownUserId &&
+            ownUserId === ws.guild.ownerId
+        );
     });
 
     /** Owner first: SelfGuildMemberDto.permissions doesn't reliably carry Superadmin for them. */
-    private can = (permission: bigint) => this.isOwner()
-        || hasPermission(this.permissions(), Permissions.Superadmin)
-        || hasPermission(this.permissions(), permission);
+    private can = (permission: bigint) =>
+        this.isOwner() ||
+        hasPermission(this.permissions(), Permissions.Superadmin) ||
+        hasPermission(this.permissions(), permission);
 
     protected readonly canCreatePost = computed(() => this.can(Permissions.CreateThreads));
     protected readonly canModerate = computed(() => this.can(Permissions.ManageAnyThread));
     /** Gate for applying moderated tags: the server accepts either bit. */
-    protected readonly canUseModeratedTags = computed(() =>
-        this.can(Permissions.ManageAnyThread) || this.can(Permissions.ManageChannel));
+    protected readonly canUseModeratedTags = computed(
+        () => this.can(Permissions.ManageAnyThread) || this.can(Permissions.ManageChannel),
+    );
 
     protected readonly sortMenuItems = computed<MenuItem[]>(() => [
         {
@@ -233,7 +250,7 @@ export class ForumPostListComponent implements OnDestroy {
     }
 
     protected emojiUrlFor(tag: ForumTag): string | null {
-        return tag.emojiId ? this.emojiUrls()[tag.emojiId] ?? null : null;
+        return tag.emojiId ? (this.emojiUrls()[tag.emojiId] ?? null) : null;
     }
 
     // ── Create ───────────────────────────────────────────────────────────────
@@ -262,22 +279,24 @@ export class ForumPostListComponent implements OnDestroy {
         const tagIds = this.createTagIds();
         const forumId = this.forum().id;
 
-        this.guildService.createThread(forumId, {
-            name,
-            content: content || undefined,
-            tagIds: tagIds.length ? tagIds : undefined,
-        }).subscribe({
-            next: post => {
-                this.showCreateDialog.set(false);
-                this.creating.set(false);
-                this.navService.openChannel(post);
-                this.postList.reload(forumId);
-            },
-            error: err => {
-                this.creating.set(false);
-                this.toastService.httpError(this.translate.instant('FORUM.CREATE_ERROR'), err);
-            },
-        });
+        this.guildService
+            .createThread(forumId, {
+                name,
+                content: content || undefined,
+                tagIds: tagIds.length ? tagIds : undefined,
+            })
+            .subscribe({
+                next: post => {
+                    this.showCreateDialog.set(false);
+                    this.creating.set(false);
+                    this.navService.openChannel(post);
+                    this.postList.reload(forumId);
+                },
+                error: err => {
+                    this.creating.set(false);
+                    this.toastService.httpError(this.translate.instant('FORUM.CREATE_ERROR'), err);
+                },
+            });
     }
 
     // ── Post actions ─────────────────────────────────────────────────────────

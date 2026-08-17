@@ -6,14 +6,16 @@ import {ForumTag} from '../../../../dtos/response/forum.dto';
     selector: 'app-forum-tag-chip',
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
-        <span [class.cursor-pointer]="interactive()"
-              [style.background]="background()"
-              [style.border-color]="borderColor()"
-              [style.color]="textColor()"
-              class="inline-flex items-center gap-1.5 rounded-full border font-medium leading-none transition-colors select-none whitespace-nowrap"
-              [class]="sizeClasses()">
+        <span
+            [class.cursor-pointer]="interactive()"
+            [style.background]="background()"
+            [style.border-color]="borderColor()"
+            [style.color]="textColor()"
+            class="inline-flex items-center gap-1.5 rounded-full border font-medium leading-none transition-colors select-none whitespace-nowrap"
+            [class]="sizeClasses()"
+        >
             @if (emojiUrl(); as url) {
-                <img [src]="url" alt="" class="w-3.5 h-3.5 object-contain shrink-0"/>
+                <img [src]="url" alt="" class="w-3.5 h-3.5 object-contain shrink-0" />
             } @else if (tag().emojiName) {
                 <span class="shrink-0">{{ tag().emojiName }}</span>
             }
@@ -40,7 +42,8 @@ export class ForumTagChipComponent {
     readonly count = input<number | null>(null);
 
     protected readonly sizeClasses = computed(() =>
-        this.size() === 'xs' ? 'text-[0.625rem] px-1.5 py-[0.1875rem]' : 'text-[0.6875rem] px-2 py-1');
+        this.size() === 'xs' ? 'text-[0.625rem] px-1.5 py-[0.1875rem]' : 'text-[0.6875rem] px-2 py-1',
+    );
 
     /** Falsy or the server's #000000 default both mean "no colour". */
     private readonly hasColor = computed(() => {

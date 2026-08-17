@@ -33,7 +33,12 @@ describe('slugify', () => {
 
 describe('buildToc', () => {
     it('assigns a slug id per heading', () => {
-        expect(buildToc([{level: 1, text: 'Intro'}, {level: 2, text: 'Details'}])).toEqual([
+        expect(
+            buildToc([
+                {level: 1, text: 'Intro'},
+                {level: 2, text: 'Details'},
+            ]),
+        ).toEqual([
             {id: 'intro', text: 'Intro', level: 1},
             {id: 'details', text: 'Details', level: 2},
         ]);
@@ -41,11 +46,13 @@ describe('buildToc', () => {
 
     // Two "Notes" headings are common. Without suffixing, both anchors point at the first.
     it('suffixes duplicate slugs so every id is unique', () => {
-        expect(buildToc([
-            {level: 2, text: 'Notes'},
-            {level: 2, text: 'Notes'},
-            {level: 2, text: 'Notes'},
-        ]).map(e => e.id)).toEqual(['notes', 'notes-2', 'notes-3']);
+        expect(
+            buildToc([
+                {level: 2, text: 'Notes'},
+                {level: 2, text: 'Notes'},
+                {level: 2, text: 'Notes'},
+            ]).map(e => e.id),
+        ).toEqual(['notes', 'notes-2', 'notes-3']);
     });
 
     it('returns nothing for a document with no headings', () => {
@@ -78,9 +85,13 @@ function body(html: string): HTMLElement {
 describe('applyHeadingIds', () => {
     it('stamps the toc ids onto the rendered headings in document order', () => {
         const root = body('<h1>Intro</h1><p>x</p><h2>Details</h2>');
-        const stamped = applyHeadingIds(root, buildToc([
-            {level: 1, text: 'Intro'}, {level: 2, text: 'Details'},
-        ]));
+        const stamped = applyHeadingIds(
+            root,
+            buildToc([
+                {level: 1, text: 'Intro'},
+                {level: 2, text: 'Details'},
+            ]),
+        );
         expect(stamped).toBe(2);
         expect(headingElementsIn(root).map(el => el.id)).toEqual(['wiki-h-intro', 'wiki-h-details']);
     });
@@ -88,7 +99,13 @@ describe('applyHeadingIds', () => {
     // Position, not text: matching on the slug would put both "Notes" ids on the first heading.
     it('gives duplicate headings the distinct ids the toc assigned them', () => {
         const root = body('<h2>Notes</h2><h2>Notes</h2>');
-        applyHeadingIds(root, buildToc([{level: 2, text: 'Notes'}, {level: 2, text: 'Notes'}]));
+        applyHeadingIds(
+            root,
+            buildToc([
+                {level: 2, text: 'Notes'},
+                {level: 2, text: 'Notes'},
+            ]),
+        );
         expect(headingElementsIn(root).map(el => el.id)).toEqual(['wiki-h-notes', 'wiki-h-notes-2']);
     });
 
@@ -104,7 +121,13 @@ describe('applyHeadingIds', () => {
     // A heading whose entry is gone would otherwise keep answering to an anchor that has moved.
     it('clears ids it set from headings the toc no longer covers', () => {
         const root = body('<h2>Notes</h2><h2>Extra</h2>');
-        applyHeadingIds(root, buildToc([{level: 2, text: 'Notes'}, {level: 2, text: 'Extra'}]));
+        applyHeadingIds(
+            root,
+            buildToc([
+                {level: 2, text: 'Notes'},
+                {level: 2, text: 'Extra'},
+            ]),
+        );
         applyHeadingIds(root, buildToc([{level: 2, text: 'Notes'}]));
         expect(headingElementsIn(root).map(el => el.id)).toEqual(['wiki-h-notes', '']);
     });

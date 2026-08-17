@@ -31,7 +31,7 @@ export class KeyBackupRestoreComponent {
     protected readonly passphrase = signal('');
     protected readonly errorMsg = signal('');
     /** Set when the restore succeeded, so the outcome can state which of §D's two rows applied. */
-    protected readonly outcome = signal<{ engineRestored: boolean; deviceId: string } | null>(null);
+    protected readonly outcome = signal<{engineRestored: boolean; deviceId: string} | null>(null);
 
     private readonly mlsService = inject(MlsService);
     private readonly userService = inject(UserService);
@@ -184,8 +184,10 @@ export class KeyBackupRestoreComponent {
 /** One message per remedy. */
 export function describeImportFailure(err: unknown): string {
     if (err instanceof MlsFeatureUnavailableError) {
-        return 'This build does not include the key-restore engine, so this file cannot be opened '
-            + 'here. Keep it - a build that does will read it.';
+        return (
+            'This build does not include the key-restore engine, so this file cannot be opened ' +
+            'here. Keep it - a build that does will read it.'
+        );
     }
     if (!(err instanceof MlsBackupImportError)) {
         return `Restore failed: ${err instanceof Error ? err.message : String(err)}`;
@@ -193,38 +195,37 @@ export function describeImportFailure(err: unknown): string {
 
     const messages: Record<MlsBackupImportFailure, string> = {
         'not-a-backup':
-            'That file is not a Venta key backup, or it is incomplete. Check you picked the '
-            + '.venta-keys file and that it copied across in full.',
+            'That file is not a Venta key backup, or it is incomplete. Check you picked the ' +
+            '.venta-keys file and that it copied across in full.',
         'unsupported-version-newer':
-            'That backup was written by a newer version of Venta than this one. Update and try '
-            + 'again - the file is fine.',
+            'That backup was written by a newer version of Venta than this one. Update and try ' +
+            'again - the file is fine.',
         // Deliberately not "update and try again". The two version failures have opposite
         // remedies, and telling someone with an older file to update is advice that cannot work
         // and, acted on, leaves them further from the build that could have read it.
         'unsupported-version-older':
-            'That backup was written by a version of Venta too old for this one to read. The file '
-            + 'is fine - restore it on the version that wrote it, and export a fresh backup from '
-            + 'there.',
+            'That backup was written by a version of Venta too old for this one to read. The file ' +
+            'is fine - restore it on the version that wrote it, and export a fresh backup from ' +
+            'there.',
         'wrong-passphrase-or-altered':
-            'That passphrase did not open the backup. It is the account password you were asked '
-            + 'for when the file was saved. If you are certain it is right, the file itself may '
-            + 'have been altered or truncated in transit - this check cannot tell the two apart.',
+            'That passphrase did not open the backup. It is the account password you were asked ' +
+            'for when the file was saved. If you are certain it is right, the file itself may ' +
+            'have been altered or truncated in transit - this check cannot tell the two apart.',
         'wrong-account':
-            'That backup belongs to a different account. Sign in as that account to restore it; '
-            + 'it will not be merged into this one.',
+            'That backup belongs to a different account. Sign in as that account to restore it; ' +
+            'it will not be merged into this one.',
         'header-mismatch':
-            'That backup\'s header does not match its contents, so it has been modified since it '
-            + 'was written. Nothing has been restored.',
+            "That backup's header does not match its contents, so it has been modified since it " +
+            'was written. Nothing has been restored.',
         'hostile-kdf-parameters':
-            'That backup declares key-derivation settings this build refuses to attempt. A genuine '
-            + 'Venta backup never does, so treat the file as corrupt.',
+            'That backup declares key-derivation settings this build refuses to attempt. A genuine ' +
+            'Venta backup never does, so treat the file as corrupt.',
         'malformed-contents':
             'That backup opened but is missing something it needs. Nothing has been restored.',
         'local-store-failed':
-            'The backup opened, but this device could not save what it restored. Nothing is '
-            + 'half-applied; try again.',
-        'engine-failed':
-            'This device could not run the restore. Your passphrase was not the problem.',
+            'The backup opened, but this device could not save what it restored. Nothing is ' +
+            'half-applied; try again.',
+        'engine-failed': 'This device could not run the restore. Your passphrase was not the problem.',
     };
 
     // The engine's own words are appended for the cases where the category is all this side knows.

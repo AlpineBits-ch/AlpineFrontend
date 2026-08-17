@@ -41,8 +41,7 @@ describe('EmbedPlayerComponent frame', () => {
         TestBed.resetTestingModule();
         await TestBed.configureTestingModule({imports: [EmbedPlayerComponent]}).compileComponents();
 
-        const fixture: ComponentFixture<EmbedPlayerComponent> =
-            TestBed.createComponent(EmbedPlayerComponent);
+        const fixture: ComponentFixture<EmbedPlayerComponent> = TestBed.createComponent(EmbedPlayerComponent);
         fixture.componentRef.setInput('video', {
             url: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
             width: 1280,
@@ -50,8 +49,7 @@ describe('EmbedPlayerComponent frame', () => {
         });
         fixture.detectChanges();
 
-        (fixture.componentInstance as unknown as { playing: { set(v: boolean): void } })
-            .playing.set(true);
+        (fixture.componentInstance as unknown as {playing: {set(v: boolean): void}}).playing.set(true);
         fixture.detectChanges();
 
         return fixture.nativeElement.querySelector('iframe');

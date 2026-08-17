@@ -28,7 +28,10 @@ function render(p: VoiceChannelParticipant): ComponentFixture<VoiceParticipantRo
         providers: [
             provideFakePlatform(),
             // app-avatar reaches for this to resolve a display label; irrelevant here since every row already carries its own avatarLabel/displayName.
-            {provide: ProfileService, useValue: {getCachedByUserId: () => undefined, resolveByUserId: () => void 0}},
+            {
+                provide: ProfileService,
+                useValue: {getCachedByUserId: () => undefined, resolveByUserId: () => void 0},
+            },
         ],
     });
     const fixture = TestBed.createComponent(VoiceParticipantRowComponent);
@@ -94,8 +97,8 @@ describe('VoiceParticipantRowComponent watch badge', () => {
         const fixture = render(participant({isScreenSharing: true}));
         let watched = false;
         let opened = false;
-        fixture.componentInstance.watch.subscribe(() => watched = true);
-        fixture.componentInstance.open.subscribe(() => opened = true);
+        fixture.componentInstance.watch.subscribe(() => (watched = true));
+        fixture.componentInstance.open.subscribe(() => (opened = true));
 
         watchButton(fixture)!.click();
 
@@ -106,7 +109,7 @@ describe('VoiceParticipantRowComponent watch badge', () => {
     it('still opens the row when the click lands outside the badge', () => {
         const fixture = render(participant({isScreenSharing: true}));
         let opened = false;
-        fixture.componentInstance.open.subscribe(() => opened = true);
+        fixture.componentInstance.open.subscribe(() => (opened = true));
 
         (fixture.nativeElement.querySelector('[data-testid="voice-participant"]') as HTMLElement).click();
 

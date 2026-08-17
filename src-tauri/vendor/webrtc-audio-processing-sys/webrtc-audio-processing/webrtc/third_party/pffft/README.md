@@ -1,29 +1,36 @@
 # Notes on PFFFT
+
 We strongly recommend to **read this file** before using PFFFT and to **always wrap** the original C library within a C++ wrapper.
 
 [Example of PFFFT wrapper](https://cs.chromium.org/chromium/src/third_party/webrtc/modules/audio_processing/utility/pffft_wrapper.h).
 
 ## Scratch buffer
+
 The caller can optionally provide a scratch buffer. When not provided, VLA is used to provide a thread-safe option.
 However, it is recommended to write a C++ wrapper which allocates its own scratch buffer.
 Note that the scratch buffer has the same memory alignment requirements of the input and output vectors.
 
 ## Output layout
+
 PFFFT computes the forward transform with two possible output layouts:
+
 1. ordered
 2. unordered
 
 ### Ordered layout
+
 Calling `pffft_transform_ordered` produces an array of **interleaved real and imaginary parts**.
 The last Fourier coefficient is purely real and stored in the imaginary part of the DC component (which is also purely real).
 
 ### Unordered layout
+
 Calling `pffft_transform` produces an array with a more complex structure, but in a more efficient way than `pffft_transform_ordered`.
 Below, the output produced by Matlab and that produced by PFFFT are compared.
 The comparison is made for a 32 point transform of a 16 sample buffer.
 A 32 point transform has been chosen as this is the minimum supported by PFFFT.
 
 Important notes:
+
 - In Matlab the DC (Matlab index 1 [R1, I1]]) and Nyquist (Matlab index 17 [R17, I17]) values are not repeated as complex conjugates.
 - In PFFFT the Nyquist real and imaginary parts ([R17, I17]) are omitted entirely.
 - In PFFFT the final 8 values (4 real and 4 imaginary) are not in the same order as all of the others.

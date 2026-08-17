@@ -3,7 +3,13 @@ import {Router} from '@angular/router';
 import {BotInstallDialogService} from './bot-install-dialog.service';
 import {AuthService} from '../../services/auth.service';
 
-const PARAMS = {clientId: 'client_1', permissions: 513n, guildId: undefined, redirectUri: undefined, state: undefined};
+const PARAMS = {
+    clientId: 'client_1',
+    permissions: 513n,
+    guildId: undefined,
+    redirectUri: undefined,
+    state: undefined,
+};
 
 function setup(isLoggedIn: boolean) {
     const authService = {isLoggedIn: vi.fn(() => Promise.resolve(isLoggedIn))};

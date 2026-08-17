@@ -51,7 +51,7 @@ export function validateNewListItem(text: string, currentCount: number): ListIte
  * Applies the server's reorder rule to a local list: the ids sent come first, in the order given,
  * and every id omitted keeps its relative order after them. Unknown ids are skipped, not an error.
  */
-export function reorderByPartialIds<T extends { id: string }>(
+export function reorderByPartialIds<T extends {id: string}>(
     items: readonly T[],
     sentIds: readonly string[],
 ): T[] {
@@ -71,7 +71,7 @@ export function reorderByPartialIds<T extends { id: string }>(
 
 /** Rewrites `position` to match array index, which is what "add to the end" is computed from. */
 export function renumberPositions(items: readonly ListItem[]): ListItem[] {
-    return items.map((item, index) => item.position === index ? item : {...item, position: index});
+    return items.map((item, index) => (item.position === index ? item : {...item, position: index}));
 }
 
 // ── Realtime payloads ───────────────────────────────────────────────────────
@@ -88,9 +88,8 @@ export interface ListEventScope {
  * The item shape on `guild.ListItemCreated`, which is not always a full `ListItemDto`: the pantry
  * restock loop emits a narrower object. {@link normalizeCreatedItem} fills the rest.
  */
-export type CreatedListItem =
-    Pick<ListItem, 'id' | 'channelId' | 'text' | 'position' | 'isChecked'>
-    & Partial<ListItem>;
+export type CreatedListItem = Pick<ListItem, 'id' | 'channelId' | 'text' | 'position' | 'isChecked'> &
+    Partial<ListItem>;
 
 export interface ListItemCreated extends ListEventScope {
     item: CreatedListItem;

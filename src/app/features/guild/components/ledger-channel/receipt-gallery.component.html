@@ -1,5 +1,4 @@
 <div class="flex flex-col gap-3">
-
     @if (loading() && receipts().length === 0) {
         <div class="flex items-center justify-center py-8">
             <i class="pi pi-spin pi-spinner text-lg text-text-muted"></i>
@@ -7,8 +6,7 @@
     } @else if (failed()) {
         <div class="flex flex-col items-center gap-2 py-6">
             <p class="text-[0.6875rem] text-offline m-0">{{ 'RECEIPTS.LOAD_FAILED' | translate }}</p>
-            <p-button (onClick)="reload()" [label]="'COMMON.RETRY' | translate" [text]="true"
-                      severity="secondary" size="small"/>
+            <p-button (onClick)="reload()" [label]="'COMMON.RETRY' | translate" [text]="true" severity="secondary" size="small" />
         </div>
     } @else if (receipts().length === 0) {
         <div class="flex flex-col items-center justify-center py-8 gap-2 text-center">
@@ -22,11 +20,15 @@
                     <!-- The URL is used the moment it arrives and never stored; opened in a new tab rather than a lightbox so nothing holds its own copy of a link already counting down. -->
                     @if (isImage(receipt) && receipt.url) {
                         <a [href]="receipt.url" class="block aspect-square" rel="noopener" target="_blank">
-                            <img [alt]="receipt.fileName" [src]="receipt.url" class="w-full h-full object-cover"/>
+                            <img [alt]="receipt.fileName" [src]="receipt.url" class="w-full h-full object-cover" />
                         </a>
                     } @else {
-                        <a [href]="receipt.url ?? ''" class="flex flex-col items-center justify-center aspect-square gap-2 px-2"
-                           rel="noopener" target="_blank">
+                        <a
+                            [href]="receipt.url ?? ''"
+                            class="flex flex-col items-center justify-center aspect-square gap-2 px-2"
+                            rel="noopener"
+                            target="_blank"
+                        >
                             <i class="pi pi-file-pdf text-2xl text-text-muted"></i>
                             <span class="text-[0.625rem] text-text-muted text-center break-all line-clamp-2">
                                 {{ receipt.fileName }}
@@ -37,8 +39,14 @@
                     <div class="px-2 py-1 border-t border-border-subtle flex items-center gap-1">
                         <span class="text-[0.5625rem] text-text-muted truncate">{{ sizeLabel(receipt) }}</span>
                         @if (canEdit()) {
-                            <p-button (onClick)="remove(receipt)" [text]="true" class="ml-auto"
-                                      icon="pi pi-trash" severity="danger" size="small"/>
+                            <p-button
+                                (onClick)="remove(receipt)"
+                                [text]="true"
+                                class="ml-auto"
+                                icon="pi pi-trash"
+                                severity="danger"
+                                size="small"
+                            />
                         }
                     </div>
                 </div>
@@ -50,15 +58,21 @@
         <div class="flex items-center gap-2">
             <label
                 [class.opacity-50]="atCapacity() || uploading()"
-                class="inline-flex items-center gap-1.5 rounded-lg border border-border-subtle px-3 py-1.5 text-[0.6875rem] text-text-secondary cursor-pointer hover:bg-hover transition-colors">
+                class="inline-flex items-center gap-1.5 rounded-lg border border-border-subtle px-3 py-1.5 text-[0.6875rem] text-text-secondary cursor-pointer hover:bg-hover transition-colors"
+            >
                 @if (uploading()) {
                     <i class="pi pi-spin pi-spinner text-[0.625rem]"></i>
                 } @else {
                     <i class="pi pi-upload text-[0.625rem]"></i>
                 }
                 {{ 'RECEIPTS.ADD' | translate }}
-                <input (change)="onFilePicked($event)" [accept]="accept" [disabled]="atCapacity() || uploading()"
-                       class="hidden" type="file"/>
+                <input
+                    (change)="onFilePicked($event)"
+                    [accept]="accept"
+                    [disabled]="atCapacity() || uploading()"
+                    class="hidden"
+                    type="file"
+                />
             </label>
             <span class="text-[0.625rem] text-text-muted">
                 {{ 'RECEIPTS.LIMIT' | translate: {count: receipts().length, max: maxReceipts} }}

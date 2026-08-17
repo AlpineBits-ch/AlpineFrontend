@@ -58,14 +58,14 @@ describe('buildSwissQrBillPayload - the structure the specification fixes', () =
 
     it('puts the creditor block on lines 4 to 11 with the structured address type', () => {
         const out = lines(buildSwissQrBillPayload(input()));
-        expect(out[3]).toBe('CH4431999123000889012');   // 4  IBAN
-        expect(out[4]).toBe('S');                       // 5  address type, structured since Nov 2025
-        expect(out[5]).toBe('Anna Muster');             // 6  name
-        expect(out[6]).toBe('Bahnhofstrasse');          // 7  street
-        expect(out[7]).toBe('12');                      // 8  building number
-        expect(out[8]).toBe('8001');                    // 9  post code
-        expect(out[9]).toBe('Zuerich');                 // 10 town
-        expect(out[10]).toBe('CH');                     // 11 country
+        expect(out[3]).toBe('CH4431999123000889012'); // 4  IBAN
+        expect(out[4]).toBe('S'); // 5  address type, structured since Nov 2025
+        expect(out[5]).toBe('Anna Muster'); // 6  name
+        expect(out[6]).toBe('Bahnhofstrasse'); // 7  street
+        expect(out[7]).toBe('12'); // 8  building number
+        expect(out[8]).toBe('8001'); // 9  post code
+        expect(out[9]).toBe('Zuerich'); // 10 town
+        expect(out[10]).toBe('CH'); // 11 country
     });
 
     /**
@@ -102,17 +102,41 @@ describe('buildSwissQrBillPayload - the structure the specification fixes', () =
     });
 
     it('reproduces the brief worked example in full', () => {
-        expect(buildSwissQrBillPayload(input())).toBe([
-            'SPC', '0200', '1',
-            'CH4431999123000889012',
-            'S', 'Anna Muster', 'Bahnhofstrasse', '12', '8001', 'Zuerich', 'CH',
-            '', '', '', '', '', '', '',
-            '42.50', 'CHF',
-            '', '', '', '', '', '', '',
-            'NON', '',
-            'Groceries July - shared flat',
-            'EPD',
-        ].join('\n'));
+        expect(buildSwissQrBillPayload(input())).toBe(
+            [
+                'SPC',
+                '0200',
+                '1',
+                'CH4431999123000889012',
+                'S',
+                'Anna Muster',
+                'Bahnhofstrasse',
+                '12',
+                '8001',
+                'Zuerich',
+                'CH',
+                '',
+                '',
+                '',
+                '',
+                '',
+                '',
+                '',
+                '42.50',
+                'CHF',
+                '',
+                '',
+                '',
+                '',
+                '',
+                '',
+                '',
+                'NON',
+                '',
+                'Groceries July - shared flat',
+                'EPD',
+            ].join('\n'),
+        );
     });
 });
 
@@ -149,8 +173,9 @@ describe('buildSwissQrBillPayload - the amount', () => {
     });
 
     it('refuses an amount past the field maximum', () => {
-        expect(() => buildSwissQrBillPayload(input({amountMinor: 100_000_000_000})))
-            .toThrow(SwissQrBillError);
+        expect(() => buildSwissQrBillPayload(input({amountMinor: 100_000_000_000}))).toThrow(
+            SwissQrBillError,
+        );
     });
 });
 
@@ -158,24 +183,32 @@ describe('buildSwissQrBillPayload - what it refuses', () => {
     it('refuses a German IBAN, valid though it is', () => {
         // The QR-bill was developed for payments inside Switzerland and Liechtenstein only. A
         // perfectly good DE IBAN in this field produces a code no Swiss bank app will act on.
-        const err = grab(() => buildSwissQrBillPayload(input({
-            creditor: {...input().creditor, iban: 'DE75512108001245126199'},
-        })));
+        const err = grab(() =>
+            buildSwissQrBillPayload(
+                input({
+                    creditor: {...input().creditor, iban: 'DE75512108001245126199'},
+                }),
+            ),
+        );
         expect(err).toBeInstanceOf(SwissQrBillError);
         expect((err as SwissQrBillError).field).toBe('iban');
         expect(err?.message).toContain('DE');
     });
 
     it('refuses an IBAN that fails mod-97 even when it starts CH', () => {
-        expect(() => buildSwissQrBillPayload(input({
-            creditor: {...input().creditor, iban: 'CH4431999123000889013'},
-        }))).toThrow(/not a valid IBAN/);
+        expect(() =>
+            buildSwissQrBillPayload(
+                input({
+                    creditor: {...input().creditor, iban: 'CH4431999123000889013'},
+                }),
+            ),
+        ).toThrow(/not a valid IBAN/);
     });
 
     it('refuses a currency other than CHF or EUR', () => {
-        expect(() => buildSwissQrBillPayload(
-            input({currency: 'GBP' as unknown as 'CHF'})),
-        ).toThrow(/CHF or EUR/);
+        expect(() => buildSwissQrBillPayload(input({currency: 'GBP' as unknown as 'CHF'}))).toThrow(
+            /CHF or EUR/,
+        );
     });
 
     it('accepts EUR, which is the one other currency the scheme carries', () => {
@@ -184,16 +217,24 @@ describe('buildSwissQrBillPayload - what it refuses', () => {
 
     it('refuses a missing creditor name, post code or town', () => {
         for (const field of ['name', 'postCode', 'town'] as const) {
-            expect(() => buildSwissQrBillPayload(input({
-                creditor: {...input().creditor, [field]: '   '},
-            }))).toThrow(SwissQrBillError);
+            expect(() =>
+                buildSwissQrBillPayload(
+                    input({
+                        creditor: {...input().creditor, [field]: '   '},
+                    }),
+                ),
+            ).toThrow(SwissQrBillError);
         }
     });
 
     it('allows an empty street and building number', () => {
-        const out = lines(buildSwissQrBillPayload(input({
-            creditor: {...input().creditor, street: undefined, buildingNumber: undefined},
-        })));
+        const out = lines(
+            buildSwissQrBillPayload(
+                input({
+                    creditor: {...input().creditor, street: undefined, buildingNumber: undefined},
+                }),
+            ),
+        );
         expect(out[6]).toBe('');
         expect(out[7]).toBe('');
         // Everything after them must not have shifted.
@@ -201,20 +242,29 @@ describe('buildSwissQrBillPayload - what it refuses', () => {
     });
 
     it('refuses a creditor country that is not a two-letter code', () => {
-        expect(() => buildSwissQrBillPayload(input({
-            creditor: {...input().creditor, country: 'Switzerland'},
-        }))).toThrow(/two-letter/);
+        expect(() =>
+            buildSwissQrBillPayload(
+                input({
+                    creditor: {...input().creditor, country: 'Switzerland'},
+                }),
+            ),
+        ).toThrow(/two-letter/);
     });
 
     it('refuses an over-long name rather than truncating it', () => {
-        expect(() => buildSwissQrBillPayload(input({
-            creditor: {...input().creditor, name: 'A'.repeat(71)},
-        }))).toThrow(/over the 70 limit/);
+        expect(() =>
+            buildSwissQrBillPayload(
+                input({
+                    creditor: {...input().creditor, name: 'A'.repeat(71)},
+                }),
+            ),
+        ).toThrow(/over the 70 limit/);
     });
 
     it('refuses an over-long message', () => {
-        expect(() => buildSwissQrBillPayload(input({message: 'x'.repeat(141)})))
-            .toThrow(/over the 140 limit/);
+        expect(() => buildSwissQrBillPayload(input({message: 'x'.repeat(141)}))).toThrow(
+            /over the 140 limit/,
+        );
     });
 
     /**
@@ -223,14 +273,20 @@ describe('buildSwissQrBillPayload - what it refuses', () => {
      * IBAN fields - and the name arrives here out of somebody else's sealed blob.
      */
     it('refuses a line feed inside a field, which would rewrite every line after it', () => {
-        expect(() => buildSwissQrBillPayload(input({
-            creditor: {...input().creditor, name: 'Anna Muster\nCH9300762011623852957'},
-        }))).toThrow(/line break or control character/);
+        expect(() =>
+            buildSwissQrBillPayload(
+                input({
+                    creditor: {...input().creditor, name: 'Anna Muster\nCH9300762011623852957'},
+                }),
+            ),
+        ).toThrow(/line break or control character/);
     });
 
     it('refuses a carriage return and a Unicode line separator too', () => {
         expect(() => buildSwissQrBillPayload(input({message: 'a\rb'}))).toThrow(SwissQrBillError);
-        expect(() => buildSwissQrBillPayload(input({message: 'a' + '\u2028' + 'b'}))).toThrow(SwissQrBillError);
+        expect(() => buildSwissQrBillPayload(input({message: 'a' + '\u2028' + 'b'}))).toThrow(
+            SwissQrBillError,
+        );
     });
 
     it('keeps the payload inside the character cap', () => {
@@ -240,24 +296,40 @@ describe('buildSwissQrBillPayload - what it refuses', () => {
 
 describe('buildSwissQrBillPayload - tolerances on the way in', () => {
     it('accepts a grouped IBAN and stores the compact form', () => {
-        expect(lines(buildSwissQrBillPayload(input({
-            creditor: {...input().creditor, iban: 'CH44 3199 9123 0008 8901 2'},
-        })))[3]).toBe('CH4431999123000889012');
+        expect(
+            lines(
+                buildSwissQrBillPayload(
+                    input({
+                        creditor: {...input().creditor, iban: 'CH44 3199 9123 0008 8901 2'},
+                    }),
+                ),
+            )[3],
+        ).toBe('CH4431999123000889012');
     });
 
     it('upper-cases the country and the currency', () => {
-        const out = lines(buildSwissQrBillPayload(input({
-            creditor: {...input().creditor, country: 'ch'},
-            currency: 'chf' as 'CHF',
-        })));
+        const out = lines(
+            buildSwissQrBillPayload(
+                input({
+                    creditor: {...input().creditor, country: 'ch'},
+                    currency: 'chf' as 'CHF',
+                }),
+            ),
+        );
         expect(out[10]).toBe('CH');
         expect(out[19]).toBe('CHF');
     });
 
     it('keeps umlauts, which v2.3 explicitly permits', () => {
-        expect(lines(buildSwissQrBillPayload(input({
-            creditor: {...input().creditor, town: 'Zürich'},
-        })))[9]).toBe('Zürich');
+        expect(
+            lines(
+                buildSwissQrBillPayload(
+                    input({
+                        creditor: {...input().creditor, town: 'Zürich'},
+                    }),
+                ),
+            )[9],
+        ).toBe('Zürich');
     });
 });
 

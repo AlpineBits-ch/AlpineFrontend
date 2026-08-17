@@ -78,8 +78,10 @@ export class WebWindowChrome extends WindowChrome {
 
 /** Named so an unhandled rejection in a console names the control that should have been hidden. */
 function unsupported(operation: string): Promise<never> {
-    return Promise.reject(new Error(
-        `WindowChrome.${operation}() is desktop-only; this host has no window frame. ` +
-        'Gate the control on WindowChrome.supported or PlatformCapabilities.customWindowChrome.',
-    ));
+    return Promise.reject(
+        new Error(
+            `WindowChrome.${operation}() is desktop-only; this host has no window frame. ` +
+                'Gate the control on WindowChrome.supported or PlatformCapabilities.customWindowChrome.',
+        ),
+    );
 }

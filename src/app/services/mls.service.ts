@@ -29,7 +29,11 @@ export interface MlsTypedError {
 }
 
 const ERROR_KINDS: MlsErrorKind[] = [
-    'WrongEpoch', 'UnknownSender', 'ValidationError', 'GroupNotFound', 'KeyNotFound',
+    'WrongEpoch',
+    'UnknownSender',
+    'ValidationError',
+    'GroupNotFound',
+    'KeyNotFound',
 ];
 
 export function parseMlsError(raw: unknown): MlsTypedError {
@@ -188,7 +192,7 @@ function describeCause(err: unknown): string {
 /** The three entries `autoUnlock` needs, in the order it passes them to `mls_load_signing_key`. All three absent and some absent are different events with opposite responses. */
 const SIGNING_FIELDS = ['pub', 'priv', 'identity'] as const;
 
-type SigningField = typeof SIGNING_FIELDS[number];
+type SigningField = (typeof SIGNING_FIELDS)[number];
 
 /** What one signing entry turned out to be. Four states, and they must stay four: a `!value` test collapses absence, fault and empty string into the one answer that mints a fresh keypair. */
 type SigningEntryRead =
@@ -212,8 +216,9 @@ function classifySigningEntry(
         return {
             field,
             state: 'faulted',
-            detail: 'the read resolved undefined, which SecureStore.getItem does not permit - so the '
-                + 'store did not answer, rather than answering that nothing is there',
+            detail:
+                'the read resolved undefined, which SecureStore.getItem does not permit - so the ' +
+                'store did not answer, rather than answering that nothing is there',
         };
     }
     if (value === null) return {field, state: 'absent'};
@@ -253,7 +258,10 @@ export type MlsBackupImportFailure =
     | 'engine-failed';
 
 export class MlsBackupImportError extends Error {
-    constructor(readonly reason: MlsBackupImportFailure, readonly detail: string) {
+    constructor(
+        readonly reason: MlsBackupImportFailure,
+        readonly detail: string,
+    ) {
         super(detail);
     }
 }
@@ -318,8 +326,7 @@ function fromB64(b64: string): ArrayBuffer {
 
 @Injectable({providedIn: 'root'})
 export class MlsService {
-
-    public readonly keyHandle = signal<string | undefined>(undefined)
+    public readonly keyHandle = signal<string | undefined>(undefined);
 
     private readonly _groupQueues = new Map<string, Promise<unknown>>();
     private readonly deviceIdentity = inject(DeviceIdentityService);
@@ -439,9 +446,10 @@ export class MlsService {
      * {@link getEncryptionFloor} either, whose `null` on an unavailable engine would lower it.
      */
     private async raiseEncryptionFloor(contextId: string, generation: number): Promise<void> {
-        await (await this.registry()).update<number>(
-            MlsService.encryptionFloorKey(contextId),
-            current => (current !== undefined && current >= generation ? current : generation),
+        await (
+            await this.registry()
+        ).update<number>(MlsService.encryptionFloorKey(contextId), current =>
+            current !== undefined && current >= generation ? current : generation,
         );
     }
 
@@ -511,10 +519,14 @@ export class MlsService {
         authorId?: string,
     ): Promise<void> {
         const sealed = await this.seal(plaintextB64);
-        await (await this.cacheStore()).set(
-            MlsService.cacheKey(contextId, generation, messageId),
-            {v: 1, at: Date.now(), ...sealed, author: authorId} satisfies CachedMessage,
-        );
+        await (
+            await this.cacheStore()
+        ).set(MlsService.cacheKey(contextId, generation, messageId), {
+            v: 1,
+            at: Date.now(),
+            ...sealed,
+            author: authorId,
+        } satisfies CachedMessage);
         // The superseded bare-id entry, dropped rather than aged out: the bare key is the
         // exploitable one, and two keys for one message is two copies of the plaintext.
         await (await this.cacheStore()).delete(messageId);
@@ -595,7 +607,7 @@ export class MlsService {
         if (entries.length <= MlsService.MESSAGE_CACHE_LIMIT) return;
 
         const aged = entries
-            .map(([id, value]) => ({id, at: typeof value === 'string' ? 0 : value.at ?? 0}))
+            .map(([id, value]) => ({id, at: typeof value === 'string' ? 0 : (value.at ?? 0)}))
             .sort((a, b) => a.at - b.at);
 
         // Oldest first: least likely to be scrolled back to, and the ratchet cannot recover any of
@@ -604,7 +616,7 @@ export class MlsService {
         for (const {id} of excess) await (await this.cacheStore()).delete(id);
     }
 
-    private async seal(plaintextB64: string): Promise<{ iv: string; ct: string }> {
+    private async seal(plaintextB64: string): Promise<{iv: string; ct: string}> {
         const key = await this.cacheKey();
         const iv = crypto.getRandomValues(new Uint8Array(12));
         const ct = await crypto.subtle.encrypt(
@@ -662,11 +674,11 @@ export class MlsService {
                     // Phrased with no `MLS_STATE_UNREADABLE_MARKERS` marker, so it classifies as
                     // `unknown`: transient, no wipe.
                     throw new Error(
-                        `SecureStore.getItem("${name}") resolved undefined. The port answers a string `
-                        + `or null, so this is a store that could not read, not a device with no entry `
-                        + `- and minting a fresh state key over an entry that may still be there is `
-                        + `what makes a recoverable fault into permanent loss of this device's group `
-                        + `keys.`,
+                        `SecureStore.getItem("${name}") resolved undefined. The port answers a string ` +
+                            `or null, so this is a store that could not read, not a device with no entry ` +
+                            `- and minting a fresh state key over an entry that may still be there is ` +
+                            `what makes a recoverable fault into permanent loss of this device's group ` +
+                            `keys.`,
                     );
                 }
                 // Absent, or an empty string: neither can be a 32-byte base64 key, so minting
@@ -679,8 +691,8 @@ export class MlsService {
             // Unreachable: the callback mints for both. Asserted rather than cast, because the
             // alternative is handing the engine an empty sealing key.
             throw new Error(
-                `SecureStore.update("${name}") resolved without a state key, so the MLS engine state `
-                + `cannot be sealed. Nothing has been written over.`,
+                `SecureStore.update("${name}") resolved without a state key, so the MLS engine state ` +
+                    `cannot be sealed. Nothing has been written over.`,
             );
         }
         return stored;
@@ -692,11 +704,13 @@ export class MlsService {
         signingPrivateKeyB64: string,
         identity: string,
     ): Observable<string> {
-        return from(this.call<string>('mls_load_signing_key', {
-            signingPublicKeyB64,
-            signingPrivateKeyB64,
-            identity,
-        }));
+        return from(
+            this.call<string>('mls_load_signing_key', {
+                signingPublicKeyB64,
+                signingPrivateKeyB64,
+                identity,
+            }),
+        );
     }
 
     // -------------------------------------------------------------------------
@@ -729,7 +743,9 @@ export class MlsService {
      * @param count      Number of key packages to generate.
      */
     generateAdditionalKeyPackages(keyHandle: string, count: number): Observable<KeyPackageResult[]> {
-        return from(this.call<KeyPackageResult[]>('mls_generate_key_packages_with_handle', {keyHandle, count}));
+        return from(
+            this.call<KeyPackageResult[]>('mls_generate_key_packages_with_handle', {keyHandle, count}),
+        );
     }
 
     /**
@@ -738,12 +754,9 @@ export class MlsService {
      * @param groupIdB64  Arbitrary group ID bytes (base64).
      * @param keyHandle   Handle returned by `loadSigningKey` or `generateKeyPackages`.
      */
-    createGroup(
-        groupIdB64: string,
-        keyHandle: string,
-    ): Observable<MlsGroupInfo> {
+    createGroup(groupIdB64: string, keyHandle: string): Observable<MlsGroupInfo> {
         return this.serialized(groupIdB64, () =>
-            this.call<MlsGroupInfo>('mls_create_group', {groupIdB64, keyHandle})
+            this.call<MlsGroupInfo>('mls_create_group', {groupIdB64, keyHandle}),
         );
     }
 
@@ -759,13 +772,9 @@ export class MlsService {
      * @returns  `commit`, broadcast to all current members, and `welcome`, sent
      *           only to the newly added members.
      */
-    addMembers(
-        groupIdB64: string,
-        keyHandle: string,
-        keyPackagesB64: string[],
-    ): Observable<MlsCommitOut> {
+    addMembers(groupIdB64: string, keyHandle: string, keyPackagesB64: string[]): Observable<MlsCommitOut> {
         return this.serialized(groupIdB64, () =>
-            this.call<MlsCommitOut>('mls_add_members', {groupIdB64, keyHandle, keyPackagesB64})
+            this.call<MlsCommitOut>('mls_add_members', {groupIdB64, keyHandle, keyPackagesB64}),
         );
     }
 
@@ -775,10 +784,7 @@ export class MlsService {
      * @param welcomeB64  Base64 TLS-serialized Welcome (from `addMembers().welcome`).
      * @param keyHandle   Handle for the signing key whose KeyPackage was in the Welcome.
      */
-    joinGroup(
-        welcomeB64: string,
-        keyHandle: string,
-    ): Observable<MlsGroupInfo> {
+    joinGroup(welcomeB64: string, keyHandle: string): Observable<MlsGroupInfo> {
         return from(this.call<MlsGroupInfo>('mls_join_group', {welcomeB64, keyHandle}));
     }
 
@@ -790,22 +796,16 @@ export class MlsService {
      * Local group state is dropped immediately, so this device loses access whether or not anyone
      * ever commits the proposal.
      */
-    leaveGroup(
-        groupIdB64: string,
-        keyHandle: string,
-    ): Observable<MlsCommitOut> {
+    leaveGroup(groupIdB64: string, keyHandle: string): Observable<MlsCommitOut> {
         return this.serialized(groupIdB64, () =>
-            this.call<MlsCommitOut>('mls_leave_group', {groupIdB64, keyHandle})
+            this.call<MlsCommitOut>('mls_leave_group', {groupIdB64, keyHandle}),
         );
     }
 
     /** Commits every pending proposal, in practice the Remove a departing member left behind. Without it {@link leaveGroup} never completes and the group keeps encrypting to a member who erased their state. */
-    commitPendingProposals(
-        groupIdB64: string,
-        keyHandle: string,
-    ): Observable<MlsCommitOut> {
+    commitPendingProposals(groupIdB64: string, keyHandle: string): Observable<MlsCommitOut> {
         return this.serialized(groupIdB64, () =>
-            this.call<MlsCommitOut>('mls_commit_pending_proposals', {groupIdB64, keyHandle})
+            this.call<MlsCommitOut>('mls_commit_pending_proposals', {groupIdB64, keyHandle}),
         );
     }
 
@@ -827,23 +827,16 @@ export class MlsService {
      * @returns the group's epoch after the merge.
      */
     mergePendingCommit(groupIdB64: string): Observable<number> {
-        return this.serialized(groupIdB64, () =>
-            this.call<number>('mls_merge_pending_commit', {groupIdB64})
-        );
+        return this.serialized(groupIdB64, () => this.call<number>('mls_merge_pending_commit', {groupIdB64}));
     }
 
     /** Discards a staged commit the server refused: the losing side of a concurrent-commit race. Applying a commit the server did not take forks this device off the group permanently. */
     clearPendingCommit(groupIdB64: string): Observable<void> {
-        return this.serialized(groupIdB64, () =>
-            this.call<void>('mls_clear_pending_commit', {groupIdB64})
-        );
+        return this.serialized(groupIdB64, () => this.call<void>('mls_clear_pending_commit', {groupIdB64}));
     }
 
     /** A TLS-serialized GroupInfo blob for external commit or offline recovery, published so members who missed commits can re-sync. */
-    exportGroupInfo(
-        groupIdB64: string,
-        keyHandle: string,
-    ): Observable<string> {
+    exportGroupInfo(groupIdB64: string, keyHandle: string): Observable<string> {
         return from(this.call<string>('mls_export_group_info', {groupIdB64, keyHandle}));
     }
 
@@ -853,10 +846,7 @@ export class MlsService {
      * @param groupInfoB64  TLS-serialized GroupInfo from `exportGroupInfo`.
      * @param keyHandle     Handle for the re-joining member's signing key.
      */
-    rejoinGroup(
-        groupInfoB64: string,
-        keyHandle: string,
-    ): Observable<MlsRejoinOut> {
+    rejoinGroup(groupInfoB64: string, keyHandle: string): Observable<MlsRejoinOut> {
         return from(this.call<MlsRejoinOut>('mls_rejoin_group', {groupInfoB64, keyHandle}));
     }
 
@@ -864,13 +854,13 @@ export class MlsService {
     deleteGroup(groupIdB64: string): Observable<void> {
         // Serialized like every other mutation: deleting outside the queue tears the group out from
         // under an in-flight decrypt or staged commit, which reads as corruption.
-        return this.serialized(groupIdB64, () =>
-            this.call<void>('mls_delete_group', {groupIdB64}),
-        ).pipe(map(() => {
-            // Dropped only after the delete lands, so a queued operation behind it still runs
-            // against the same chain rather than jumping ahead of it.
-            this._groupQueues.delete(groupIdB64);
-        }));
+        return this.serialized(groupIdB64, () => this.call<void>('mls_delete_group', {groupIdB64})).pipe(
+            map(() => {
+                // Dropped only after the delete lands, so a queued operation behind it still runs
+                // against the same chain rather than jumping ahead of it.
+                this._groupQueues.delete(groupIdB64);
+            }),
+        );
     }
 
     /**
@@ -883,9 +873,13 @@ export class MlsService {
         groupIdB64: string,
         keyHandle: string,
         plaintextB64: string,
-    ): Observable<{ ciphertext: string; epoch: number }> {
+    ): Observable<{ciphertext: string; epoch: number}> {
         return this.serialized(groupIdB64, () =>
-            this.call<{ ciphertext: string; epoch: number }>('mls_send_message', {groupIdB64, keyHandle, plaintextB64})
+            this.call<{ciphertext: string; epoch: number}>('mls_send_message', {
+                groupIdB64,
+                keyHandle,
+                plaintextB64,
+            }),
         );
     }
 
@@ -907,7 +901,7 @@ export class MlsService {
         messageId?: string,
     ): Observable<MlsProcessedMessage> {
         return this.serialized(groupIdB64, () =>
-            this.call<MlsProcessedMessage>('mls_process_message', {groupIdB64, messageB64, messageId})
+            this.call<MlsProcessedMessage>('mls_process_message', {groupIdB64, messageB64, messageId}),
         );
     }
 
@@ -916,9 +910,7 @@ export class MlsService {
         return this.serialized(groupIdB64, () =>
             // Empty is the honest answer when the engine has no buffer: nothing was held, so
             // nothing is waiting to be replayed.
-            this.callOptional<MlsReplayedMessage[]>(
-                'mls_drain_pending_messages', {groupIdB64}, () => [],
-            )
+            this.callOptional<MlsReplayedMessage[]>('mls_drain_pending_messages', {groupIdB64}, () => []),
         );
     }
 
@@ -932,13 +924,9 @@ export class MlsService {
      * @param leafIndices  Leaf indices of the members to remove (from `MlsMemberInfo.leafIndex`).
      * @returns  `commit`, broadcast to all remaining members.
      */
-    removeMembers(
-        groupIdB64: string,
-        keyHandle: string,
-        leafIndices: number[],
-    ): Observable<MlsCommitOut> {
+    removeMembers(groupIdB64: string, keyHandle: string, leafIndices: number[]): Observable<MlsCommitOut> {
         return this.serialized(groupIdB64, () =>
-            this.call<MlsCommitOut>('mls_remove_members', {groupIdB64, keyHandle, leafIndices})
+            this.call<MlsCommitOut>('mls_remove_members', {groupIdB64, keyHandle, leafIndices}),
         );
     }
 
@@ -969,14 +957,16 @@ export class MlsService {
     initStorage(): Observable<boolean> {
         // Both fetched here rather than passed in, so no caller can forget the key and leave the
         // state file in the clear, or forget the scope and share one file between accounts.
-        return from((async () => {
-            const [stateKeyB64, scope, adoptLegacy] = await Promise.all([
-                this.localStateKey(),
-                this.deviceIdentity.deviceId(),
-                this.deviceIdentity.ownsLegacyState(),
-            ]);
-            return this.call<boolean>('mls_init_storage', {stateKeyB64, scope, adoptLegacy});
-        })());
+        return from(
+            (async () => {
+                const [stateKeyB64, scope, adoptLegacy] = await Promise.all([
+                    this.localStateKey(),
+                    this.deviceIdentity.deviceId(),
+                    this.deviceIdentity.ownsLegacyState(),
+                ]);
+                return this.call<boolean>('mls_init_storage', {stateKeyB64, scope, adoptLegacy});
+            })(),
+        );
     }
 
     /**
@@ -1044,9 +1034,7 @@ export class MlsService {
         if (!keyHandle) throw new Error('MLS session is locked');
 
         const deviceId = await this.deviceIdentity.deviceId();
-        const groupRegistry = Object.fromEntries(
-            await (await this.registry()).entries<string | number>(),
-        );
+        const groupRegistry = Object.fromEntries(await (await this.registry()).entries<string | number>());
 
         const messageCache = includeMessageCache ? await this.readMessageCachePlain() : undefined;
 
@@ -1058,16 +1046,22 @@ export class MlsService {
 
         // Distinguishable from a failure, so the logout flow can offer to continue without a
         // backup instead of looping on a retry that cannot succeed.
-        return this.callOptional<string>('mls_export_backup', {
-            passphrase,
-            userId,
-            deviceId,
-            appVersion,
-            keyHandle,
-            groupRegistry,
-            messageCache,
-            accountIdentity,
-        }, () => { throw new MlsFeatureUnavailableError('mls_export_backup'); });
+        return this.callOptional<string>(
+            'mls_export_backup',
+            {
+                passphrase,
+                userId,
+                deviceId,
+                appVersion,
+                keyHandle,
+                groupRegistry,
+                messageCache,
+                accountIdentity,
+            },
+            () => {
+                throw new MlsFeatureUnavailableError('mls_export_backup');
+            },
+        );
     }
 
     /**
@@ -1083,17 +1077,27 @@ export class MlsService {
      *
      * @throws MlsBackupImportError with a `reason` the UI can render distinctly.
      */
-    async importBackup(blob: string, passphrase: string, expectedUserId: string): Promise<MlsBackupImportResult> {
+    async importBackup(
+        blob: string,
+        passphrase: string,
+        expectedUserId: string,
+    ): Promise<MlsBackupImportResult> {
         const currentDeviceId = await this.deviceIdentity.deviceId();
 
         let result: MlsBackupImportResult;
         try {
-            result = await this.callOptional<MlsBackupImportResult>('mls_import_backup', {
-                blob,
-                passphrase,
-                expectedUserId,
-                currentDeviceId,
-            }, () => { throw new MlsFeatureUnavailableError('mls_import_backup'); });
+            result = await this.callOptional<MlsBackupImportResult>(
+                'mls_import_backup',
+                {
+                    blob,
+                    passphrase,
+                    expectedUserId,
+                    currentDeviceId,
+                },
+                () => {
+                    throw new MlsFeatureUnavailableError('mls_import_backup');
+                },
+            );
         } catch (err) {
             if (err instanceof MlsFeatureUnavailableError) throw err;
             throw classifyBackupImport(err);
@@ -1103,12 +1107,18 @@ export class MlsService {
             // First, and into the keychain rather than only into this session: `autoUnlock` reads
             // the pair from `alpine_mls_{deviceId}_*` on every cold start, so a session-only
             // restore looks like lost keys after the next kill. The only step no re-run repairs.
-            await firstValueFrom(this.persistSigningKey(currentDeviceId, {
-                signingPublicKey: result.signingPublicKey,
-                signingPrivateKey: result.signingPrivateKey,
-                keyPackages: [],
-                keyHandle: result.keyHandle,
-            }, result.identity));
+            await firstValueFrom(
+                this.persistSigningKey(
+                    currentDeviceId,
+                    {
+                        signingPublicKey: result.signingPublicKey,
+                        signingPrivateKey: result.signingPrivateKey,
+                        keyPackages: [],
+                        keyHandle: result.keyHandle,
+                    },
+                    result.identity,
+                ),
+            );
 
             // Beside the signing key and for the same reason: it lives in the keychain, and a
             // venta-mobile envelope's §H key is only kept if it is written here, since the next
@@ -1128,8 +1138,8 @@ export class MlsService {
         } catch (err) {
             throw new MlsBackupImportError(
                 'local-store-failed',
-                `The backup opened, but this device could not save what it restored: `
-                + `${err instanceof Error ? err.message : String(err)}`,
+                `The backup opened, but this device could not save what it restored: ` +
+                    `${err instanceof Error ? err.message : String(err)}`,
             );
         }
 
@@ -1138,10 +1148,7 @@ export class MlsService {
     }
 
     /** Stores the §H account identity keypair when the envelope carried one. Written only when both halves are present: a half pair makes the next export emit a broken `accountIdentity` section. */
-    private async persistAccountIdentity(
-        deviceId: string,
-        result: MlsBackupImportResult,
-    ): Promise<void> {
+    private async persistAccountIdentity(deviceId: string, result: MlsBackupImportResult): Promise<void> {
         const pub = result.accountIdentityPublicKey;
         const priv = result.accountIdentityPrivateKey;
         if (!pub || !priv) return;
@@ -1153,9 +1160,7 @@ export class MlsService {
     }
 
     /** The §H keypair this device holds, or null. Both halves or neither. */
-    private async readAccountIdentity(
-        deviceId: string,
-    ): Promise<{pub: string; priv: string} | null> {
+    private async readAccountIdentity(deviceId: string): Promise<{pub: string; priv: string} | null> {
         try {
             const [pub, priv] = await Promise.all([
                 this.secureStore.getItem(this.accountIdentityKey(deviceId, 'pub')),
@@ -1181,9 +1186,7 @@ export class MlsService {
      * - `ctx#floor`: raised, never lowered, via {@link raiseEncryptionFloor}.
      * - `ctx#active`: taken only when at or above the resulting floor.
      */
-    private async mergeRestoredRegistry(
-        restored: Record<string, string | number>,
-    ): Promise<void> {
+    private async mergeRestoredRegistry(restored: Record<string, string | number>): Promise<void> {
         const registry = await this.registry();
 
         // Two passes: `#active` is judged against a floor this same backup may raise, so one pass
@@ -1239,11 +1242,7 @@ export class MlsService {
     }
 
     /** Stores a freshly generated batch's signing key in the OS keychain, once after `generateKeyPackages` on first registration. Later launches use `autoUnlock`. */
-    persistSigningKey(
-        deviceId: string,
-        batch: MlsKeyPackageBatch,
-        identity: string,
-    ): Observable<void> {
+    persistSigningKey(deviceId: string, batch: MlsKeyPackageBatch, identity: string): Observable<void> {
         return from(
             Promise.all([
                 this.secureStore.setItem(this.secureKey(deviceId, 'pub'), batch.signingPublicKey),
@@ -1281,15 +1280,18 @@ export class MlsService {
                 if (expectedUserId && identity !== expectedUserId) {
                     const err: MlsTypedError = {
                         kind: 'IdentityMismatch',
-                        message: `The signing key stored for this device belongs to ${identity}, `
-                            + `not to the signed-in account`,
+                        message:
+                            `The signing key stored for this device belongs to ${identity}, ` +
+                            `not to the signed-in account`,
                     };
                     throw err;
                 }
-                return this.loadSigningKey(pub, priv, identity).pipe(map(keyHandle => {
-                    this.keyHandle.set(keyHandle);
-                    return keyHandle;
-                }));
+                return this.loadSigningKey(pub, priv, identity).pipe(
+                    map(keyHandle => {
+                        this.keyHandle.set(keyHandle);
+                        return keyHandle;
+                    }),
+                );
             }),
         );
     }
@@ -1314,8 +1316,9 @@ export class MlsService {
         if (faulted.length > 0) {
             const err: MlsTypedError = {
                 kind: 'MlsError',
-                message: 'Secure storage is unavailable: '
-                    + faulted.map(entry => `${entry.field}: ${entry.detail}`).join('; '),
+                message:
+                    'Secure storage is unavailable: ' +
+                    faulted.map(entry => `${entry.field}: ${entry.detail}`).join('; '),
             };
             throw err;
         }
@@ -1334,11 +1337,12 @@ export class MlsService {
         if (present.length < entries.length) {
             const err: MlsTypedError = {
                 kind: 'KeyStoreIncomplete',
-                message: 'This device\'s signing key is only partly in secure storage ('
-                    + entries.map(entry => `${entry.field}: ${entry.state}`).join(', ')
-                    + '). Something is stored, so this device has registered - registering again '
-                    + 'would mint a fresh keypair over it and orphan this device from every group it '
-                    + 'belongs to, so it is deliberately not offered.',
+                message:
+                    "This device's signing key is only partly in secure storage (" +
+                    entries.map(entry => `${entry.field}: ${entry.state}`).join(', ') +
+                    '). Something is stored, so this device has registered - registering again ' +
+                    'would mint a fresh keypair over it and orphan this device from every group it ' +
+                    'belongs to, so it is deliberately not offered.',
             };
             throw err;
         }
@@ -1414,8 +1418,17 @@ export class MlsService {
     /** Serializes `op` behind any in-flight operation for `groupId`. The queue continues even when a prior operation rejects. */
     private serialized<T>(groupId: string, op: () => Promise<T>): Observable<T> {
         const prev = this._groupQueues.get(groupId) ?? Promise.resolve();
-        const task = prev.then(() => op(), () => op());
-        this._groupQueues.set(groupId, task.then(() => undefined, () => undefined));
+        const task = prev.then(
+            () => op(),
+            () => op(),
+        );
+        this._groupQueues.set(
+            groupId,
+            task.then(
+                () => undefined,
+                () => undefined,
+            ),
+        );
         return from(task);
     }
 

@@ -2,7 +2,11 @@ import {ChangeDetectionStrategy, Component, computed, input, output} from '@angu
 import {FormsModule} from '@angular/forms';
 import {Select} from 'primeng/select';
 import {MultiSelect} from 'primeng/multiselect';
-import {OnboardingPrompt, OnboardingPromptOption, OnboardingPromptType} from '../../../../dtos/response/guild-safety.dto';
+import {
+    OnboardingPrompt,
+    OnboardingPromptOption,
+    OnboardingPromptType,
+} from '../../../../dtos/response/guild-safety.dto';
 
 /** One prompt's options, rendered the way the admin declared: MultipleChoice as selectable cards, Dropdown as a real select. Shared by the join wizard and the Channels & Roles screen. Purely controlled: it owns no selection state, which is what lets the wizard hold every answer until the single accept call at the end. */
 @Component({
@@ -12,41 +16,67 @@ import {OnboardingPrompt, OnboardingPromptOption, OnboardingPromptType} from '..
     template: `
         @if (isDropdown()) {
             @if (prompt().singleSelect) {
-                <p-select (ngModelChange)="setSingle($event)" [filter]="options().length > 8"
-                          [ngModel]="singleValue()" [options]="dropdownOptions()" [showClear]="!prompt().required"
-                          appendTo="body" optionLabel="label" optionValue="value" placeholder="-" styleClass="w-full"/>
+                <p-select
+                    (ngModelChange)="setSingle($event)"
+                    [filter]="options().length > 8"
+                    [ngModel]="singleValue()"
+                    [options]="dropdownOptions()"
+                    [showClear]="!prompt().required"
+                    appendTo="body"
+                    optionLabel="label"
+                    optionValue="value"
+                    placeholder="-"
+                    styleClass="w-full"
+                />
             } @else {
-                <p-multiSelect (ngModelChange)="selectionChange.emit($event)" [filter]="options().length > 8"
-                               [ngModel]="selected()" [options]="dropdownOptions()" appendTo="body" optionLabel="label"
-                               optionValue="value" placeholder="-" styleClass="w-full"/>
+                <p-multiSelect
+                    (ngModelChange)="selectionChange.emit($event)"
+                    [filter]="options().length > 8"
+                    [ngModel]="selected()"
+                    [options]="dropdownOptions()"
+                    appendTo="body"
+                    optionLabel="label"
+                    optionValue="value"
+                    placeholder="-"
+                    styleClass="w-full"
+                />
             }
         } @else {
             <div class="grid gap-2 sm:grid-cols-2">
                 @for (option of options(); track option.id) {
-                    <button (click)="toggle(option)"
-                            [class]="isSelected(option)
+                    <button
+                        (click)="toggle(option)"
+                        [class]="
+                            isSelected(option)
                                 ? 'border-brand bg-[color-mix(in_srgb,var(--color-brand)_12%,transparent)]'
-                                : 'border-border-subtle bg-card/60 hover:bg-hover hover:border-border-default'"
-                            class="flex items-start gap-3 p-3 rounded-xl border text-left transition-colors"
-                            type="button">
-
+                                : 'border-border-subtle bg-card/60 hover:bg-hover hover:border-border-default'
+                        "
+                        class="flex items-start gap-3 p-3 rounded-xl border text-left transition-colors"
+                        type="button"
+                    >
                         @if (emojiUrlFor(option); as url) {
-                            <img [src]="url" alt="" class="w-5 h-5 object-contain shrink-0 mt-0.5"/>
+                            <img [src]="url" alt="" class="w-5 h-5 object-contain shrink-0 mt-0.5" />
                         } @else if (option.emoji) {
                             <span class="text-base leading-none shrink-0 mt-0.5">{{ option.emoji }}</span>
                         }
 
                         <span class="flex-1 min-w-0">
-                            <span class="block text-sm font-medium text-text-primary truncate">{{ option.title }}</span>
+                            <span class="block text-sm font-medium text-text-primary truncate">{{
+                                option.title
+                            }}</span>
                             @if (option.description) {
-                                <span class="block text-xs text-text-muted mt-0.5 line-clamp-2">{{ option.description }}</span>
+                                <span class="block text-xs text-text-muted mt-0.5 line-clamp-2">{{
+                                    option.description
+                                }}</span>
                             }
                         </span>
 
-                        <span [class]="isSelected(option) ? 'border-brand bg-brand' : 'border-border-default'"
-                              [class.rounded-full]="prompt().singleSelect"
-                              [class.rounded]="!prompt().singleSelect"
-                              class="w-4 h-4 shrink-0 mt-0.5 border grid place-items-center transition-colors">
+                        <span
+                            [class]="isSelected(option) ? 'border-brand bg-brand' : 'border-border-default'"
+                            [class.rounded-full]="prompt().singleSelect"
+                            [class.rounded]="!prompt().singleSelect"
+                            class="w-4 h-4 shrink-0 mt-0.5 border grid place-items-center transition-colors"
+                        >
                             @if (isSelected(option)) {
                                 <i class="pi pi-check text-[0.5rem] text-white"></i>
                             }
@@ -69,10 +99,12 @@ export class OnboardingPromptStepComponent {
     protected readonly isDropdown = computed(() => this.prompt().type === OnboardingPromptType.Dropdown);
 
     protected readonly options = computed(() =>
-        [...this.prompt().options].sort((a, b) => a.position - b.position));
+        [...this.prompt().options].sort((a, b) => a.position - b.position),
+    );
 
     protected readonly dropdownOptions = computed(() =>
-        this.options().map(o => ({label: o.title, value: o.id ?? ''})));
+        this.options().map(o => ({label: o.title, value: o.id ?? ''})),
+    );
 
     /** p-select wants an explicit null for "nothing chosen"; an empty array index is undefined. */
     protected readonly singleValue = computed<string | null>(() => this.selected()[0] ?? null);
@@ -83,7 +115,7 @@ export class OnboardingPromptStepComponent {
 
     /** An option's `emoji` is either a unicode character or a guild emoji id, with no discriminator: a hit in the url map is the only reliable way to tell them apart. */
     protected emojiUrlFor(option: OnboardingPromptOption): string | null {
-        return option.emoji ? this.emojiUrls()[option.emoji] ?? null : null;
+        return option.emoji ? (this.emojiUrls()[option.emoji] ?? null) : null;
     }
 
     protected setSingle(optionId: string | null): void {
@@ -102,6 +134,7 @@ export class OnboardingPromptStepComponent {
         }
 
         this.selectionChange.emit(
-            this.selected().includes(id) ? this.selected().filter(x => x !== id) : [...this.selected(), id]);
+            this.selected().includes(id) ? this.selected().filter(x => x !== id) : [...this.selected(), id],
+        );
     }
 }

@@ -32,7 +32,7 @@ export function guestExpiryFromNow(durationMs: number, now: number = Date.now())
 }
 
 /** Durations the grant dialog offers, in milliseconds. All inside the one-year cap. */
-export const GUEST_DURATIONS: readonly { labelKey: string; ms: number }[] = [
+export const GUEST_DURATIONS: readonly {labelKey: string; ms: number}[] = [
     {labelKey: 'GUEST_ACCESS.DURATION.HOURS_6', ms: 6 * 60 * 60 * 1000},
     {labelKey: 'GUEST_ACCESS.DURATION.DAY_1', ms: 24 * 60 * 60 * 1000},
     {labelKey: 'GUEST_ACCESS.DURATION.DAYS_3', ms: 3 * 24 * 60 * 60 * 1000},

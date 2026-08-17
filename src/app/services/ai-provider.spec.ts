@@ -41,14 +41,16 @@ describe('buildTransformPrompt', () => {
 
     it('omits the user line when there is no instruction, or only whitespace', () => {
         expect(buildTransformPrompt({...base, op: 'improve'})).not.toContain('From the user');
-        expect(buildTransformPrompt({...base, op: 'improve', instruction: '  '}))
-            .not.toContain('From the user');
+        expect(buildTransformPrompt({...base, op: 'improve', instruction: '  '})).not.toContain(
+            'From the user',
+        );
     });
 
     it('omits the page list rather than sending an empty one', () => {
         expect(buildTransformPrompt({...base, op: 'improve'})).not.toContain('Other pages');
-        expect(buildTransformPrompt({...base, op: 'improve', pageTitles: ['Deploys', 'Oncall']}))
-            .toContain('Other pages in this wiki: Deploys, Oncall');
+        expect(buildTransformPrompt({...base, op: 'improve', pageTitles: ['Deploys', 'Oncall']})).toContain(
+            'Other pages in this wiki: Deploys, Oncall',
+        );
     });
 
     it('tells continue not to repeat the passage', () => {
@@ -105,7 +107,7 @@ describe('trimAskSources', () => {
     });
 
     it('cuts at a word boundary rather than mid-word', () => {
-        const words = ('lorem ipsum dolor '.repeat(200)).trim();
+        const words = 'lorem ipsum dolor '.repeat(200).trim();
         const trimmed = trimAskSources([{id: 'a', title: 'A', content: words}], 1000);
         expect(trimmed.sources[0].truncated).toBe(true);
         expect(trimmed.sources[0].content.endsWith(' ')).toBe(false);
@@ -146,10 +148,13 @@ describe('buildAskPrompt', () => {
     });
 
     it('warns that the sources are partial when a page was left out', () => {
-        const prompt = buildAskPrompt({
-            question: 'q',
-            sources: [source('a', 'A', 5000), source('b', 'B', 5000)],
-        }, 1000);
+        const prompt = buildAskPrompt(
+            {
+                question: 'q',
+                sources: [source('a', 'A', 5000), source('b', 'B', 5000)],
+            },
+            1000,
+        );
         expect(prompt).toContain('did not fit');
         expect(prompt).toContain('partial');
     });
@@ -177,8 +182,7 @@ describe('shouldSkipCompletion', () => {
     });
 
     it('runs once there is a sentence to build on', () => {
-        expect(shouldSkipCompletion({before: 'The pipeline runs', after: '', title: 'T'}))
-            .toBe(false);
+        expect(shouldSkipCompletion({before: 'The pipeline runs', after: '', title: 'T'})).toBe(false);
     });
 });
 
@@ -194,8 +198,7 @@ describe('buildCompletePrompt', () => {
             after: 'unless it is a holiday.',
             title: 'T',
         });
-        expect(prompt.indexOf('unless it is a holiday.'))
-            .toBeLessThan(prompt.indexOf('Deploys happen on'));
+        expect(prompt.indexOf('unless it is a holiday.')).toBeLessThan(prompt.indexOf('Deploys happen on'));
     });
 
     it('omits the following-text section when there is none', () => {
@@ -225,8 +228,9 @@ describe('sanitizeCompletion', () => {
     });
 
     it('stops at the first blank line - a new paragraph is past what was asked for', () => {
-        expect(sanitizeCompletion('The pipeline runs', ' nightly.\n\nIt also runs on merge.'))
-            .toBe(' nightly.');
+        expect(sanitizeCompletion('The pipeline runs', ' nightly.\n\nIt also runs on merge.')).toBe(
+            ' nightly.',
+        );
     });
 
     it('caps a runaway suggestion at a word boundary', () => {
@@ -250,20 +254,18 @@ describe('pickFastModel', () => {
     it('replaces a flagship model with the fast one', () => {
         expect(pickFastModel('gpt-5', 'gpt-5-nano')).toBe('gpt-5-nano');
         expect(pickFastModel('claude-opus-5', 'claude-haiku-4-5')).toBe('claude-haiku-4-5');
-        expect(pickFastModel('gemini-2.5-pro', 'gemini-2.5-flash-lite'))
-            .toBe('gemini-2.5-flash-lite');
+        expect(pickFastModel('gemini-2.5-pro', 'gemini-2.5-flash-lite')).toBe('gemini-2.5-flash-lite');
     });
 
     it('keeps a small model the user chose deliberately', () => {
         expect(pickFastModel('gpt-5-mini', 'gpt-5-nano')).toBe('gpt-5-mini');
         expect(pickFastModel('claude-haiku-4-5', 'claude-haiku-4-5')).toBe('claude-haiku-4-5');
-        expect(pickFastModel('gemini-2.5-flash', 'gemini-2.5-flash-lite'))
-            .toBe('gemini-2.5-flash');
+        expect(pickFastModel('gemini-2.5-flash', 'gemini-2.5-flash-lite')).toBe('gemini-2.5-flash');
     });
 });
 
 describe('buildMetadataPrompt', () => {
-    it('offers the wiki\'s existing tags so the model reuses them', () => {
+    it("offers the wiki's existing tags so the model reuses them", () => {
         const prompt = buildMetadataPrompt({
             title: 'Runbook',
             content: 'body',
@@ -273,13 +275,15 @@ describe('buildMetadataPrompt', () => {
     });
 
     it('omits the tag line rather than claiming the wiki has no tags', () => {
-        expect(buildMetadataPrompt({title: 'T', content: 'body', existingTags: []}))
-            .not.toContain('already used');
+        expect(buildMetadataPrompt({title: 'T', content: 'body', existingTags: []})).not.toContain(
+            'already used',
+        );
     });
 
     it('labels an empty page', () => {
-        expect(buildMetadataPrompt({title: 'T', content: '  ', existingTags: []}))
-            .toContain('(this page is empty)');
+        expect(buildMetadataPrompt({title: 'T', content: '  ', existingTags: []})).toContain(
+            '(this page is empty)',
+        );
     });
 });
 
@@ -299,8 +303,7 @@ describe('parseAiMetadata', () => {
     });
 
     it('survives a preamble and a sign-off', () => {
-        expect(parseAiMetadata(`Sure, here you go:\n${valid}\nHope that helps!`).tags)
-            .toEqual(['deploy']);
+        expect(parseAiMetadata(`Sure, here you go:\n${valid}\nHope that helps!`).tags).toEqual(['deploy']);
     });
 
     it('folds whitespace in a tag to a hyphen', () => {

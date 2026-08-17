@@ -27,7 +27,7 @@ function picker(capabilities: PlatformCapabilities = tauriCapabilities()): Scree
 describe('ScreenPickerService', () => {
     let restoreStorage: () => void;
 
-    beforeEach(() => restoreStorage = installMemoryStorage());
+    beforeEach(() => (restoreStorage = installMemoryStorage()));
     afterEach(() => restoreStorage());
 
     it('resolves with the chosen source, preset and audio flag', async () => {
@@ -104,7 +104,7 @@ describe('ScreenPickerService', () => {
 describe('ScreenPickerService without an in-app picker', () => {
     let restoreStorage: () => void;
 
-    beforeEach(() => restoreStorage = installMemoryStorage());
+    beforeEach(() => (restoreStorage = installMemoryStorage()));
     afterEach(() => restoreStorage());
 
     it('resolves immediately without showing the overlay', async () => {
@@ -130,7 +130,10 @@ describe('ScreenPickerService without an in-app picker', () => {
      * across hosts.
      */
     it('uses the stored preset', async () => {
-        localStorage.setItem(PRESET_KEY, JSON.stringify({resolution: '720p', framerate: 15, content: 'text'}));
+        localStorage.setItem(
+            PRESET_KEY,
+            JSON.stringify({resolution: '720p', framerate: 15, content: 'text'}),
+        );
 
         const choice = await picker(webCapabilities()).show();
 

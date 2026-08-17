@@ -38,8 +38,10 @@ interface JoinRequestRow {
     imports: [Button],
     template: `
         @if (rows().length > 0) {
-            <div class="mx-4 mb-3 rounded-xl border border-sky-400/30 bg-sky-400/[0.08] px-4 py-3"
-                 data-testid="join-request-review">
+            <div
+                class="mx-4 mb-3 rounded-xl border border-sky-400/30 bg-sky-400/[0.08] px-4 py-3"
+                data-testid="join-request-review"
+            >
                 <div class="flex items-start gap-2.5">
                     <i class="pi pi-user-plus text-sky-300 text-[0.875rem] shrink-0 mt-0.5"></i>
                     <p class="m-0 text-[0.8125rem] font-medium text-text-primary">
@@ -49,15 +51,20 @@ interface JoinRequestRow {
 
                 <!-- A key package mismatch is what tampering looks like, so it must never collapse into a generic error toast. -->
                 @if (verificationError(); as message) {
-                    <div class="mt-2.5 flex items-start gap-2 rounded-lg border border-red-500/40
-                                bg-red-500/10 px-3 py-2" data-testid="verification-error">
-                        <i class="pi pi-exclamation-triangle text-red-300 text-[0.875rem] shrink-0 mt-0.5"></i>
+                    <div
+                        class="mt-2.5 flex items-start gap-2 rounded-lg border border-red-500/40
+                                bg-red-500/10 px-3 py-2"
+                        data-testid="verification-error"
+                    >
+                        <i
+                            class="pi pi-exclamation-triangle text-red-300 text-[0.875rem] shrink-0 mt-0.5"
+                        ></i>
                         <div class="min-w-0">
                             <p class="m-0 text-[0.8125rem] text-red-200">Nothing was added. {{ message }}</p>
                             <p class="m-0 mt-0.5 text-xs text-red-300/80">
-                                This can mean someone is tampering with the admission rather than
-                                that something broke. Do not approve again until you have confirmed
-                                the fingerprint with its owner directly.
+                                This can mean someone is tampering with the admission rather than that
+                                something broke. Do not approve again until you have confirmed the fingerprint
+                                with its owner directly.
                             </p>
                         </div>
                     </div>
@@ -69,15 +76,19 @@ interface JoinRequestRow {
 
                         @if (row.deviceName) {
                             <p class="m-0 mt-0.5 text-xs text-text-muted">
-                                It calls itself "{{ row.deviceName }}". That name is chosen by the
-                                device and proves nothing on its own.
+                                It calls itself "{{ row.deviceName }}". That name is chosen by the device and
+                                proves nothing on its own.
                             </p>
                         }
 
                         <p class="m-0 mt-0.5 text-xs text-text-muted">{{ row.question }}</p>
 
-                        <p class="m-0 mt-1.5 font-mono text-sm tracking-wider text-text-primary"
-                           data-testid="fingerprint">{{ row.request.signatureKeyFingerprint }}</p>
+                        <p
+                            class="m-0 mt-1.5 font-mono text-sm tracking-wider text-text-primary"
+                            data-testid="fingerprint"
+                        >
+                            {{ row.request.signatureKeyFingerprint }}
+                        </p>
 
                         @if (row.alreadyApproved) {
                             <p class="m-0 mt-1.5 text-xs text-emerald-300">
@@ -86,11 +97,23 @@ interface JoinRequestRow {
                             </p>
                         } @else {
                             <div class="mt-2 flex gap-1">
-                                <p-button (onClick)="approve(row)" [disabled]="!!actingOn()"
-                                          [loading]="actingOn() === row.request.id" [text]="true"
-                                          label="Approve" severity="success" size="small"/>
-                                <p-button (onClick)="deny(row)" [disabled]="!!actingOn()"
-                                          [text]="true" label="Deny" severity="danger" size="small"/>
+                                <p-button
+                                    (onClick)="approve(row)"
+                                    [disabled]="!!actingOn()"
+                                    [loading]="actingOn() === row.request.id"
+                                    [text]="true"
+                                    label="Approve"
+                                    severity="success"
+                                    size="small"
+                                />
+                                <p-button
+                                    (onClick)="deny(row)"
+                                    [disabled]="!!actingOn()"
+                                    [text]="true"
+                                    label="Deny"
+                                    severity="danger"
+                                    size="small"
+                                />
                             </div>
                         }
                     </div>
@@ -140,40 +163,45 @@ export class MlsJoinRequestReviewComponent {
         const names = this.participantNames();
         const deviceNames = this.pushedDeviceNames();
 
-        return this.requests()
-            .filter(request => request.state === 'Pending')
-            // The device asking is not a reviewer of its own request; the server refuses that outright.
-            .filter(request => request.requesterDeviceId !== ownDeviceId)
-            .map(request => {
-                const isOwnAccount = !!ownUserId && request.requesterUserId === ownUserId;
-                const peerName = names[request.requesterUserId] ?? 'Someone in this conversation';
+        return (
+            this.requests()
+                .filter(request => request.state === 'Pending')
+                // The device asking is not a reviewer of its own request; the server refuses that outright.
+                .filter(request => request.requesterDeviceId !== ownDeviceId)
+                .map(request => {
+                    const isOwnAccount = !!ownUserId && request.requesterUserId === ownUserId;
+                    const peerName = names[request.requesterUserId] ?? 'Someone in this conversation';
 
-                return {
-                    request,
-                    isOwnAccount,
-                    who: isOwnAccount
-                        ? 'Another of your own devices is asking to be let in.'
-                        : `${peerName} added a device, and it is asking to be let in.`,
-                    question: isOwnAccount
-                        // The other device shows its own fingerprint on the banner that told it to ask.
-                        ? 'Open the device that is asking and compare the fingerprint it shows '
-                        + 'against this one. If you are not looking at that device right now, deny '
-                        + 'this - a device you cannot see is a device you cannot vouch for.'
-                        : `Check with ${peerName} some other way - a call, in person - that their `
-                        + 'new device shows this same fingerprint. Do not ask here, and do not '
-                        + 'take the server\'s word for it: relaying this request is all it can do.',
-                    deviceName: deviceNames[request.id] ?? null,
-                    alreadyApproved: !!ownUserId && request.approverUserIds.includes(ownUserId),
-                    remainingApprovals: Math.max(
-                        0, request.requiredApprovals - request.approverUserIds.length),
-                } satisfies JoinRequestRow;
-            });
+                    return {
+                        request,
+                        isOwnAccount,
+                        who: isOwnAccount
+                            ? 'Another of your own devices is asking to be let in.'
+                            : `${peerName} added a device, and it is asking to be let in.`,
+                        question: isOwnAccount
+                            ? // The other device shows its own fingerprint on the banner that told it to ask.
+                              'Open the device that is asking and compare the fingerprint it shows ' +
+                              'against this one. If you are not looking at that device right now, deny ' +
+                              'this - a device you cannot see is a device you cannot vouch for.'
+                            : `Check with ${peerName} some other way - a call, in person - that their ` +
+                              'new device shows this same fingerprint. Do not ask here, and do not ' +
+                              "take the server's word for it: relaying this request is all it can do.",
+                        deviceName: deviceNames[request.id] ?? null,
+                        alreadyApproved: !!ownUserId && request.approverUserIds.includes(ownUserId),
+                        remainingApprovals: Math.max(
+                            0,
+                            request.requiredApprovals - request.approverUserIds.length,
+                        ),
+                    } satisfies JoinRequestRow;
+                })
+        );
     });
 
     protected readonly heading = computed(() =>
         this.rows().length === 1
             ? 'A device is waiting to be let into this conversation'
-            : `${this.rows().length} devices are waiting to be let into this conversation`);
+            : `${this.rows().length} devices are waiting to be let into this conversation`,
+    );
 
     constructor() {
         effect(() => {
@@ -231,8 +259,7 @@ export class MlsJoinRequestReviewComponent {
         this.actionError.set(null);
 
         try {
-            await firstValueFrom(
-                this.joinRequests.deny(this.contextId(), this.isChannel(), row.request.id));
+            await firstValueFrom(this.joinRequests.deny(this.contextId(), this.isChannel(), row.request.id));
         } catch (err) {
             this.actionError.set(describeRequestFailure(err));
         } finally {
@@ -259,8 +286,7 @@ export class MlsJoinRequestReviewComponent {
                 return;
             }
 
-            this.requests.set(
-                await firstValueFrom(this.joinRequests.list(contextId, this.isChannel())));
+            this.requests.set(await firstValueFrom(this.joinRequests.list(contextId, this.isChannel())));
             this.loadError.set(false);
         } catch {
             this.requests.set([]);

@@ -30,9 +30,14 @@ function setup(options: SetupOptions = {}) {
         toggleDeafen: vi.fn(),
     };
 
-    const session = signal(options.inCall
-        ? {callId: 'call-1', local: {isMuted: options.callMuted ?? false, isDeafened: options.callDeafened ?? false}}
-        : null);
+    const session = signal(
+        options.inCall
+            ? {
+                  callId: 'call-1',
+                  local: {isMuted: options.callMuted ?? false, isDeafened: options.callDeafened ?? false},
+              }
+            : null,
+    );
     const callSession = {
         session,
         toggleMute: vi.fn(),

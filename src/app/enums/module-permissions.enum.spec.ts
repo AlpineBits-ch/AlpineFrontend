@@ -15,11 +15,30 @@ const keys = Object.keys(ModulePermissions).filter(k => k !== 'None') as ModuleP
 /** The bit numbers are the contract with `Guild.Domain/Enums/ModulePermissions.cs`. */
 describe('ModulePermissions bit positions', () => {
     const expected: Record<string, number> = {
-        ViewWiki: 0, CreateWikiPages: 1, EditOwnWikiPages: 2, EditAnyWikiPage: 3, DeleteWikiPages: 4,
-        ManageWikiRevisions: 5, ManageWikiStructure: 6, ModerateWikiComments: 7, PublishWikiPublicly: 8,
-        ManageLists: 9, AddListItems: 10, CheckOffListItems: 11, ManageChores: 12, CompleteChores: 13,
-        ManageLedger: 14, AddExpenses: 15, ManagePantry: 16, CreateDecisions: 17, VoteDecisions: 18,
-        ManageGuests: 19, PlanMeals: 20, ManageMeals: 21, LogMaintenance: 22, ManageMaintenance: 23,
+        ViewWiki: 0,
+        CreateWikiPages: 1,
+        EditOwnWikiPages: 2,
+        EditAnyWikiPage: 3,
+        DeleteWikiPages: 4,
+        ManageWikiRevisions: 5,
+        ManageWikiStructure: 6,
+        ModerateWikiComments: 7,
+        PublishWikiPublicly: 8,
+        ManageLists: 9,
+        AddListItems: 10,
+        CheckOffListItems: 11,
+        ManageChores: 12,
+        CompleteChores: 13,
+        ManageLedger: 14,
+        AddExpenses: 15,
+        ManagePantry: 16,
+        CreateDecisions: 17,
+        VoteDecisions: 18,
+        ManageGuests: 19,
+        PlanMeals: 20,
+        ManageMeals: 21,
+        LogMaintenance: 22,
+        ManageMaintenance: 23,
     };
 
     it.each(Object.entries(expected))('puts %s at bit %i', (key, bit) => {

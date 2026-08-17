@@ -1,5 +1,4 @@
 <div class="flex flex-col gap-8 max-w-2xl">
-
     @if (unavailable()) {
         <div class="flex items-start gap-3 bg-rose-400/[0.06] border border-rose-400/20 rounded-xl px-4 py-3">
             <i class="pi pi-exclamation-triangle text-rose-400 text-sm mt-0.5"></i>
@@ -26,9 +25,7 @@
                         <p class="text-xs text-amber-400/70 mt-1">{{ 'SETTINGS.PRIVACY.MINOR_LOCKED' | translate }}</p>
                     }
                 </div>
-                <p-toggleswitch [disabled]="isDisabled(row.key)"
-                                [ngModel]="settings()[row.key]"
-                                (ngModelChange)="write(row.key, $event)"/>
+                <p-toggleswitch [disabled]="isDisabled(row.key)" [ngModel]="settings()[row.key]" (ngModelChange)="write(row.key, $event)" />
             </div>
         }
     </section>
@@ -42,18 +39,22 @@
         <div class="flex flex-col gap-2">
             <p class="text-xs text-white/35 mb-1">{{ 'SETTINGS.PRIVACY.DM_QUESTION' | translate }}</p>
             @for (opt of directMessageOptions; track opt.value) {
-                <label class="flex items-center justify-between bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3"
-                       [class.cursor-pointer]="!isDisabled('directMessagePolicy')"
-                       [class.cursor-not-allowed]="isDisabled('directMessagePolicy')">
+                <label
+                    class="flex items-center justify-between bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3"
+                    [class.cursor-pointer]="!isDisabled('directMessagePolicy')"
+                    [class.cursor-not-allowed]="isDisabled('directMessagePolicy')"
+                >
                     <div class="pr-4">
                         <p class="text-sm text-white/60">{{ opt.labelKey | translate }}</p>
                         <p class="text-xs text-white/25 mt-0.5">{{ opt.descKey | translate }}</p>
                     </div>
-                    <p-radiobutton [disabled]="isDisabled('directMessagePolicy')"
-                                   [ngModel]="settings().directMessagePolicy"
-                                   (ngModelChange)="write('directMessagePolicy', $event)"
-                                   [value]="opt.value"
-                                   name="directMessagePolicy"/>
+                    <p-radiobutton
+                        [disabled]="isDisabled('directMessagePolicy')"
+                        [ngModel]="settings().directMessagePolicy"
+                        (ngModelChange)="write('directMessagePolicy', $event)"
+                        [value]="opt.value"
+                        name="directMessagePolicy"
+                    />
                 </label>
             }
             @if (isRestricted('directMessagePolicy')) {
@@ -61,7 +62,7 @@
             }
 
             <!-- Only rendered while the policy above admits server members. -->
-            <app-guild-dm-overrides/>
+            <app-guild-dm-overrides />
         </div>
     </section>
 
@@ -74,25 +75,29 @@
         <div class="flex flex-col gap-2">
             <p class="text-xs text-white/35 mb-1">{{ 'SETTINGS.PRIVACY.FR_QUESTION' | translate }}</p>
             @for (opt of friendRequestOptions; track opt.value) {
-                <label class="flex items-center justify-between bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3"
-                       [class.cursor-pointer]="!isDisabled('friendRequestPolicy')"
-                       [class.cursor-not-allowed]="isDisabled('friendRequestPolicy')">
+                <label
+                    class="flex items-center justify-between bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3"
+                    [class.cursor-pointer]="!isDisabled('friendRequestPolicy')"
+                    [class.cursor-not-allowed]="isDisabled('friendRequestPolicy')"
+                >
                     <div class="pr-4">
                         <p class="text-sm text-white/60">{{ opt.labelKey | translate }}</p>
                         <p class="text-xs text-white/25 mt-0.5">{{ opt.descKey | translate }}</p>
                     </div>
-                    <p-radiobutton [disabled]="isDisabled('friendRequestPolicy')"
-                                   [ngModel]="settings().friendRequestPolicy"
-                                   (ngModelChange)="write('friendRequestPolicy', $event)"
-                                   [value]="opt.value"
-                                   name="friendRequestPolicy"/>
+                    <p-radiobutton
+                        [disabled]="isDisabled('friendRequestPolicy')"
+                        [ngModel]="settings().friendRequestPolicy"
+                        (ngModelChange)="write('friendRequestPolicy', $event)"
+                        [value]="opt.value"
+                        name="friendRequestPolicy"
+                    />
                 </label>
             }
         </div>
     </section>
 
     <!-- Blocked users -->
-    <app-blocked-users/>
+    <app-blocked-users />
 
     <!-- Discoverability -->
     <section class="flex flex-col gap-4">
@@ -109,9 +114,7 @@
                         <p class="text-xs text-amber-400/70 mt-1">{{ 'SETTINGS.PRIVACY.MINOR_LOCKED' | translate }}</p>
                     }
                 </div>
-                <p-toggleswitch [disabled]="isDisabled(row.key)"
-                                [ngModel]="settings()[row.key]"
-                                (ngModelChange)="write(row.key, $event)"/>
+                <p-toggleswitch [disabled]="isDisabled(row.key)" [ngModel]="settings()[row.key]" (ngModelChange)="write(row.key, $event)" />
             </div>
         }
     </section>
@@ -126,12 +129,14 @@
         @for (row of visibilityRows; track row.key) {
             <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3 gap-4">
                 <p class="text-sm text-white/60">{{ row.labelKey | translate }}</p>
-                <p-select [disabled]="isDisabled(row.key)"
-                          [ngModel]="settings()[row.key]"
-                          (ngModelChange)="write(row.key, $event)"
-                          [options]="visibilityOptions"
-                          optionValue="value"
-                          styleClass="min-w-40">
+                <p-select
+                    [disabled]="isDisabled(row.key)"
+                    [ngModel]="settings()[row.key]"
+                    (ngModelChange)="write(row.key, $event)"
+                    [options]="visibilityOptions"
+                    optionValue="value"
+                    styleClass="min-w-40"
+                >
                     <ng-template #selectedItem let-opt>{{ opt.labelKey | translate }}</ng-template>
                     <ng-template #item let-opt>{{ opt.labelKey | translate }}</ng-template>
                 </p-select>
@@ -151,9 +156,7 @@
                     <p class="text-sm text-white/60">{{ row.labelKey | translate }}</p>
                     <p class="text-xs text-white/25 mt-0.5">{{ row.descKey | translate }}</p>
                 </div>
-                <p-toggleswitch [disabled]="isDisabled(row.key)"
-                                [ngModel]="settings()[row.key]"
-                                (ngModelChange)="write(row.key, $event)"/>
+                <p-toggleswitch [disabled]="isDisabled(row.key)" [ngModel]="settings()[row.key]" (ngModelChange)="write(row.key, $event)" />
             </div>
         }
     </section>
@@ -170,9 +173,7 @@
                     <p class="text-sm text-white/60">{{ row.labelKey | translate }}</p>
                     <p class="text-xs text-white/25 mt-0.5">{{ row.descKey | translate }}</p>
                 </div>
-                <p-toggleswitch [disabled]="isDisabled(row.key)"
-                                [ngModel]="settings()[row.key]"
-                                (ngModelChange)="write(row.key, $event)"/>
+                <p-toggleswitch [disabled]="isDisabled(row.key)" [ngModel]="settings()[row.key]" (ngModelChange)="write(row.key, $event)" />
             </div>
         }
 
@@ -182,18 +183,24 @@
                     <p class="text-sm text-white/60">{{ 'SETTINGS.PRIVACY.DM_RETENTION' | translate }}</p>
                     <p class="text-xs text-white/25 mt-0.5">{{ 'SETTINGS.PRIVACY.DM_RETENTION_DESC' | translate }}</p>
                 </div>
-                <p-toggleswitch [disabled]="isDisabled('dmRetentionDays')"
-                                [ngModel]="retentionEnabled()"
-                                (ngModelChange)="onRetentionToggle($event)"/>
+                <p-toggleswitch
+                    [disabled]="isDisabled('dmRetentionDays')"
+                    [ngModel]="retentionEnabled()"
+                    (ngModelChange)="onRetentionToggle($event)"
+                />
             </div>
             @if (retentionEnabled()) {
                 <div class="flex items-center gap-3 pt-3 border-t border-white/[0.06]">
                     <label class="text-xs text-white/35">{{ 'SETTINGS.PRIVACY.DM_RETENTION_DAYS' | translate }}</label>
-                    <p-inputnumber [disabled]="isDisabled('dmRetentionDays')"
-                                   [ngModel]="settings().dmRetentionDays"
-                                   (ngModelChange)="onRetentionDays($event)"
-                                   [min]="retentionMin" [max]="retentionMax" [showButtons]="true"
-                                   styleClass="w-32"/>
+                    <p-inputnumber
+                        [disabled]="isDisabled('dmRetentionDays')"
+                        [ngModel]="settings().dmRetentionDays"
+                        (ngModelChange)="onRetentionDays($event)"
+                        [min]="retentionMin"
+                        [max]="retentionMax"
+                        [showButtons]="true"
+                        styleClass="w-32"
+                    />
                 </div>
             }
         </div>
@@ -213,12 +220,14 @@
                     <p class="text-xs text-amber-400/70 mt-1">{{ 'SETTINGS.PRIVACY.MINOR_LOCKED' | translate }}</p>
                 }
             </div>
-            <p-select [disabled]="isDisabled('explicitContentFilter')"
-                      [ngModel]="settings().explicitContentFilter"
-                      (ngModelChange)="write('explicitContentFilter', $event)"
-                      [options]="explicitFilterOptions"
-                      optionValue="value"
-                      styleClass="min-w-44">
+            <p-select
+                [disabled]="isDisabled('explicitContentFilter')"
+                [ngModel]="settings().explicitContentFilter"
+                (ngModelChange)="write('explicitContentFilter', $event)"
+                [options]="explicitFilterOptions"
+                optionValue="value"
+                styleClass="min-w-44"
+            >
                 <ng-template #selectedItem let-opt>{{ opt.labelKey | translate }}</ng-template>
                 <ng-template #item let-opt>{{ opt.labelKey | translate }}</ng-template>
             </p-select>
@@ -237,14 +246,11 @@
                     <p class="text-sm text-white/60">{{ row.labelKey | translate }}</p>
                     <p class="text-xs text-white/25 mt-0.5">{{ row.descKey | translate }}</p>
                 </div>
-                <p-toggleswitch [disabled]="isDisabled(row.key)"
-                                [ngModel]="settings()[row.key]"
-                                (ngModelChange)="write(row.key, $event)"/>
+                <p-toggleswitch [disabled]="isDisabled(row.key)" [ngModel]="settings()[row.key]" (ngModelChange)="write(row.key, $event)" />
             </div>
         }
     </section>
 
     <!-- Your data -->
-    <app-data-export/>
-
+    <app-data-export />
 </div>

@@ -5,7 +5,7 @@ export type MfaErrorKind = 'required' | 'invalid';
 interface MaybeHttpError {
     status?: number;
     error?: unknown;
-    reason?: { status?: number; error?: unknown };
+    reason?: {status?: number; error?: unknown};
 }
 
 /**
@@ -26,8 +26,8 @@ export function mfaErrorKind(err: unknown): MfaErrorKind | null {
     const body = e.error ?? e.reason?.error;
     let text: string | null = null;
     if (typeof body === 'string') text = body;
-    else if (body && typeof body === 'object' && typeof (body as { text?: unknown }).text === 'string') {
-        text = (body as { text: string }).text;
+    else if (body && typeof body === 'object' && typeof (body as {text?: unknown}).text === 'string') {
+        text = (body as {text: string}).text;
     }
     if (!text) return null;
 

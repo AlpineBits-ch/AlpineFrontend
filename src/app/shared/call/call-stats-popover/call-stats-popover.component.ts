@@ -15,8 +15,10 @@ import {CallStats} from '../../../services/call-webrtc.service';
     changeDetection: ChangeDetectionStrategy.OnPush,
     imports: [TranslateModule],
     template: `
-        <div class="absolute right-3 top-full z-30 mt-1 w-56 rounded-xl border border-border bg-card p-3
-                    shadow-[0_8px_28px_rgba(0,0,0,0.55)]">
+        <div
+            class="absolute right-3 top-full z-30 mt-1 w-56 rounded-xl border border-border bg-card p-3
+                    shadow-[0_8px_28px_rgba(0,0,0,0.55)]"
+        >
             <p class="mb-2 text-[0.6875rem] font-semibold uppercase tracking-wide text-white/40">
                 {{ 'CALL.STATS_TITLE' | translate }}
             </p>
@@ -25,7 +27,11 @@ import {CallStats} from '../../../services/call-webrtc.service';
                 @for (row of rows(); track row.key) {
                     <div class="flex items-baseline justify-between gap-3">
                         <dt class="min-w-0 truncate text-white/55">{{ row.key | translate }}</dt>
-                        <dd [class]="'shrink-0 tabular-nums ' + (row.warn ? 'text-connecting' : 'text-white/85')">
+                        <dd
+                            [class]="
+                                'shrink-0 tabular-nums ' + (row.warn ? 'text-connecting' : 'text-white/85')
+                            "
+                        >
                             {{ row.value }}
                         </dd>
                     </div>
@@ -48,8 +54,10 @@ export class CallStatsPopoverComponent {
 
         // Video lines only exist when video does - a call with no camera and no share would
         // otherwise show two permanent zeroes.
-        if (s.inboundVideoKbps > 0) rows.push({key: 'CALL.STATS.VIDEO_DOWN', value: kbps(s.inboundVideoKbps)});
-        if (s.outboundVideoKbps > 0) rows.push({key: 'CALL.STATS.VIDEO_UP', value: kbps(s.outboundVideoKbps)});
+        if (s.inboundVideoKbps > 0)
+            rows.push({key: 'CALL.STATS.VIDEO_DOWN', value: kbps(s.inboundVideoKbps)});
+        if (s.outboundVideoKbps > 0)
+            rows.push({key: 'CALL.STATS.VIDEO_UP', value: kbps(s.outboundVideoKbps)});
         if (s.packetsLost > 0) {
             rows.push({key: 'CALL.STATS.PACKETS_LOST', value: `${s.packetsLost}`, warn: true});
         }

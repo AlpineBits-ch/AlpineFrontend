@@ -49,8 +49,7 @@ function render(host: PlatformHost, options: Options = {}): ComponentFixture<Voi
                 provide: AudioSettingsService,
                 useValue: {
                     settings,
-                    update: (patch: Partial<AudioSettings>) =>
-                        settings.update(s => ({...s, ...patch})),
+                    update: (patch: Partial<AudioSettings>) => settings.update(s => ({...s, ...patch})),
                     buildAudioConstraint: async () => true,
                     buildVideoConstraint: async () => true,
                     resolveSpeakerSinkId: async () => null,
@@ -65,7 +64,8 @@ function render(host: PlatformHost, options: Options = {}): ComponentFixture<Voi
                     speakers: signal<DeviceOption[]>(options.speakers ?? []),
                     namesWithheld: signal(options.namesWithheld ?? false),
                     outputSupport: signal<OutputSupport>(
-                        options.outputSupport ?? {enumerable: true, selectable: true}),
+                        options.outputSupport ?? {enumerable: true, selectable: true},
+                    ),
                     refresh: async () => undefined,
                 },
             },
@@ -116,8 +116,9 @@ describe('VoiceVideoSettingsComponent push to talk', () => {
         const fixture = render('web');
 
         expect(pttRadio(fixture).disabled).toBe(true);
-        expect(byTestId(fixture, 'ptt-unsupported')?.textContent?.trim())
-            .toBe('SETTINGS.VOICE.PTT_UNSUPPORTED');
+        expect(byTestId(fixture, 'ptt-unsupported')?.textContent?.trim()).toBe(
+            'SETTINGS.VOICE.PTT_UNSUPPORTED',
+        );
     });
 
     it('does not offer a key to bind in a browser, even with the mode stored', () => {
@@ -189,8 +190,9 @@ describe('VoiceVideoSettingsComponent output device', () => {
         const fixture = render('web', {outputSupport: {enumerable: false, selectable: false}});
 
         expect(byTestId(fixture, 'output-picker')).toBeNull();
-        expect(byTestId(fixture, 'output-not-selectable')?.textContent?.trim())
-            .toBe('SETTINGS.VOICE.OUTPUT_NOT_SELECTABLE');
+        expect(byTestId(fixture, 'output-not-selectable')?.textContent?.trim()).toBe(
+            'SETTINGS.VOICE.OUTPUT_NOT_SELECTABLE',
+        );
     });
 
     it('is offered on the desktop shell, which always reports full support', () => {
@@ -207,8 +209,9 @@ describe('VoiceVideoSettingsComponent withheld device names', () => {
     it('explains the numbered stand-ins when the host is withholding them', () => {
         const fixture = render('web', {namesWithheld: true});
 
-        expect(byTestId(fixture, 'device-names-withheld')?.textContent?.trim())
-            .toBe('SETTINGS.VOICE.DEVICE_NAMES_WITHHELD');
+        expect(byTestId(fixture, 'device-names-withheld')?.textContent?.trim()).toBe(
+            'SETTINGS.VOICE.DEVICE_NAMES_WITHHELD',
+        );
     });
 });
 
@@ -224,7 +227,8 @@ describe('VoiceVideoSettingsComponent Isle proximity voice', () => {
         const fixture = render('web');
 
         expect(byTestId(fixture, 'isle-keybinds-link')).toBeNull();
-        expect(byTestId(fixture, 'isle-hotkey-unsupported')?.textContent?.trim())
-            .toBe('SETTINGS.VOICE.ISLE_HOTKEY_UNSUPPORTED');
+        expect(byTestId(fixture, 'isle-hotkey-unsupported')?.textContent?.trim()).toBe(
+            'SETTINGS.VOICE.ISLE_HOTKEY_UNSUPPORTED',
+        );
     });
 });

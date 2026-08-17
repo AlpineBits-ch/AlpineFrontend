@@ -42,7 +42,12 @@ function setup(s: CallScreenShare): ComponentFixture<CallShareTileComponent> {
         providers: [
             {
                 provide: RustMediaService,
-                useValue: {previewPaused: () => false, claimPreviewRender: vi.fn(), releasePreviewRender: vi.fn(), resumePreview: vi.fn()},
+                useValue: {
+                    previewPaused: () => false,
+                    claimPreviewRender: vi.fn(),
+                    releasePreviewRender: vi.fn(),
+                    resumePreview: vi.fn(),
+                },
             },
         ],
     });
@@ -55,7 +60,9 @@ function setup(s: CallScreenShare): ComponentFixture<CallShareTileComponent> {
 
 /** The PiP action is the only tile action using this icon - fullscreen and maximise use others. */
 function pipButton(fixture: ComponentFixture<CallShareTileComponent>): Element | null {
-    return (fixture.nativeElement as HTMLElement).querySelector('app-call-tile-action[icon="pi-external-link"]');
+    return (fixture.nativeElement as HTMLElement).querySelector(
+        'app-call-tile-action[icon="pi-external-link"]',
+    );
 }
 
 describe('CallShareTileComponent PiP gating', () => {
@@ -99,8 +106,7 @@ describe('CallShareTileComponent PiP gating', () => {
 
         const fixture = setup(share({stream: {} as MediaStream}));
 
-        expect(pipButton(fixture)?.querySelector('button')?.getAttribute('aria-label'))
-            .toBe('CALL.POP_OUT');
+        expect(pipButton(fixture)?.querySelector('button')?.getAttribute('aria-label')).toBe('CALL.POP_OUT');
     });
 
     it('shows the button for a preview-only local share when document PiP is supported', () => {
@@ -118,8 +124,7 @@ describe('CallShareTileComponent PiP gating', () => {
 
         const fixture = setup(share({stream: {} as MediaStream}));
 
-        expect(pipButton(fixture)?.querySelector('button')?.getAttribute('aria-label'))
-            .toBe('CALL.POP_OUT');
+        expect(pipButton(fixture)?.querySelector('button')?.getAttribute('aria-label')).toBe('CALL.POP_OUT');
     });
 
     it('labels the video-PiP fallback as picture in picture', () => {
@@ -127,8 +132,9 @@ describe('CallShareTileComponent PiP gating', () => {
 
         const fixture = setup(share({stream: {} as MediaStream}));
 
-        expect(pipButton(fixture)?.querySelector('button')?.getAttribute('aria-label'))
-            .toBe('CALL.PICTURE_IN_PICTURE');
+        expect(pipButton(fixture)?.querySelector('button')?.getAttribute('aria-label')).toBe(
+            'CALL.PICTURE_IN_PICTURE',
+        );
     });
 
     it('hides the button when document PiP is supported but there is nothing to look at', () => {

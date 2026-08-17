@@ -61,14 +61,17 @@ async function open(
 ): Promise<string> {
     const wrap = envelope.wraps.find(w => w.recipientDeviceId === reader.deviceId);
     if (!wrap) throw new Error(`no wrap for ${reader.deviceId}`);
-    return openPaymentHandles(
-        envelope, wrap.wrappedKey, reader.privateKey, reader.deviceId, GUILD, OWNER);
+    return openPaymentHandles(envelope, wrap.wrappedKey, reader.privateKey, reader.deviceId, GUILD, OWNER);
 }
 
 describe('sealPaymentHandles - the round trip', () => {
     it('lets every device it was sealed to read the same plaintext', async () => {
         const sealed = await sealPaymentHandles(
-            PLAINTEXT, [anna, annaLaptop, ben].map(recipientOf), GUILD, OWNER);
+            PLAINTEXT,
+            [anna, annaLaptop, ben].map(recipientOf),
+            GUILD,
+            OWNER,
+        );
 
         expect(sealed.version).toBe(PAYMENT_HANDLE_ENVELOPE_VERSION);
         expect(sealed.wraps).toHaveLength(3);
@@ -79,8 +82,7 @@ describe('sealPaymentHandles - the round trip', () => {
     });
 
     it('names the recipient user on every wrap, which is what the server checks membership on', async () => {
-        const sealed = await sealPaymentHandles(
-            PLAINTEXT, [anna, ben].map(recipientOf), GUILD, OWNER);
+        const sealed = await sealPaymentHandles(PLAINTEXT, [anna, ben].map(recipientOf), GUILD, OWNER);
 
         expect(sealed.wraps.map(w => [w.recipientUserId, w.recipientDeviceId])).toEqual([
             [OWNER, 'dev_anna_phone'],
@@ -91,7 +93,11 @@ describe('sealPaymentHandles - the round trip', () => {
     it('encrypts once and wraps many times, so a longer roster does not grow the ciphertext', async () => {
         const one = await sealPaymentHandles(PLAINTEXT, [recipientOf(anna)], GUILD, OWNER);
         const three = await sealPaymentHandles(
-            PLAINTEXT, [anna, annaLaptop, ben].map(recipientOf), GUILD, OWNER);
+            PLAINTEXT,
+            [anna, annaLaptop, ben].map(recipientOf),
+            GUILD,
+            OWNER,
+        );
 
         expect(fromBase64(three.ciphertext).length).toBe(fromBase64(one.ciphertext).length);
         expect(three.wraps).toHaveLength(3);
@@ -116,7 +122,11 @@ describe('sealPaymentHandles - the round trip', () => {
 
     it('stays inside the server size caps for a realistic handle list', async () => {
         const sealed = await sealPaymentHandles(
-            PLAINTEXT, [anna, annaLaptop, ben].map(recipientOf), GUILD, OWNER);
+            PLAINTEXT,
+            [anna, annaLaptop, ben].map(recipientOf),
+            GUILD,
+            OWNER,
+        );
 
         expect(fromBase64(sealed.ciphertext).length).toBeLessThanOrEqual(8 * 1024);
         expect(fromBase64(sealed.nonce).length).toBeLessThanOrEqual(64);
@@ -131,20 +141,26 @@ describe('openPaymentHandles - what it refuses', () => {
         const sealed = await sealPaymentHandles(PLAINTEXT, [recipientOf(anna)], GUILD, OWNER);
         const stranger = device('user_carla', 'dev_carla_phone');
 
-        await expect(openPaymentHandles(
-            sealed, sealed.wraps[0].wrappedKey, stranger.privateKey, stranger.deviceId, GUILD, OWNER),
+        await expect(
+            openPaymentHandles(
+                sealed,
+                sealed.wraps[0].wrappedKey,
+                stranger.privateKey,
+                stranger.deviceId,
+                GUILD,
+                OWNER,
+            ),
         ).rejects.toThrow(PaymentCryptoError);
     });
 
     it('refuses a wrap moved from one device row to another', async () => {
         // The device id is bound into both the key derivation and the AEAD additional data, so
         // Ben's wrap presented as Anna's derives a different key and fails the tag.
-        const sealed = await sealPaymentHandles(
-            PLAINTEXT, [anna, ben].map(recipientOf), GUILD, OWNER);
+        const sealed = await sealPaymentHandles(PLAINTEXT, [anna, ben].map(recipientOf), GUILD, OWNER);
         const bensWrap = sealed.wraps.find(w => w.recipientDeviceId === ben.deviceId)!;
 
-        await expect(openPaymentHandles(
-            sealed, bensWrap.wrappedKey, ben.privateKey, anna.deviceId, GUILD, OWNER),
+        await expect(
+            openPaymentHandles(sealed, bensWrap.wrappedKey, ben.privateKey, anna.deviceId, GUILD, OWNER),
         ).rejects.toThrow(PaymentCryptoError);
     });
 
@@ -154,17 +170,30 @@ describe('openPaymentHandles - what it refuses', () => {
         // somebody else's.
         const sealed = await sealPaymentHandles(PLAINTEXT, [recipientOf(anna)], GUILD, OWNER);
 
-        await expect(openPaymentHandles(
-            sealed, sealed.wraps[0].wrappedKey, anna.privateKey, anna.deviceId,
-            'guild_somewhere_else', OWNER),
+        await expect(
+            openPaymentHandles(
+                sealed,
+                sealed.wraps[0].wrappedKey,
+                anna.privateKey,
+                anna.deviceId,
+                'guild_somewhere_else',
+                OWNER,
+            ),
         ).rejects.toThrow(PaymentCryptoError);
     });
 
     it('refuses a blob attributed to a different owner', async () => {
         const sealed = await sealPaymentHandles(PLAINTEXT, [recipientOf(anna)], GUILD, OWNER);
 
-        await expect(openPaymentHandles(
-            sealed, sealed.wraps[0].wrappedKey, anna.privateKey, anna.deviceId, GUILD, 'user_ben'),
+        await expect(
+            openPaymentHandles(
+                sealed,
+                sealed.wraps[0].wrappedKey,
+                anna.privateKey,
+                anna.deviceId,
+                GUILD,
+                'user_ben',
+            ),
         ).rejects.toThrow(PaymentCryptoError);
     });
 
@@ -173,9 +202,15 @@ describe('openPaymentHandles - what it refuses', () => {
         const bytes = fromBase64(sealed.ciphertext);
         bytes[0] ^= 0x01;
 
-        await expect(openPaymentHandles(
-            {...sealed, ciphertext: toBase64(bytes)},
-            sealed.wraps[0].wrappedKey, anna.privateKey, anna.deviceId, GUILD, OWNER),
+        await expect(
+            openPaymentHandles(
+                {...sealed, ciphertext: toBase64(bytes)},
+                sealed.wraps[0].wrappedKey,
+                anna.privateKey,
+                anna.deviceId,
+                GUILD,
+                OWNER,
+            ),
         ).rejects.toThrow(PaymentCryptoError);
     });
 
@@ -183,8 +218,8 @@ describe('openPaymentHandles - what it refuses', () => {
         const sealed = await sealPaymentHandles(PLAINTEXT, [recipientOf(anna)], GUILD, OWNER);
         const truncated = toBase64(fromBase64(sealed.wraps[0].wrappedKey).subarray(0, 40));
 
-        await expect(openPaymentHandles(
-            sealed, truncated, anna.privateKey, anna.deviceId, GUILD, OWNER),
+        await expect(
+            openPaymentHandles(sealed, truncated, anna.privateKey, anna.deviceId, GUILD, OWNER),
         ).rejects.toThrow(/not in a form this build can open/);
     });
 
@@ -193,18 +228,30 @@ describe('openPaymentHandles - what it refuses', () => {
         // something the user can act on, and implying tampering there would be wrong.
         const sealed = await sealPaymentHandles(PLAINTEXT, [recipientOf(anna)], GUILD, OWNER);
 
-        await expect(openPaymentHandles(
-            {...sealed, version: 99}, sealed.wraps[0].wrappedKey, anna.privateKey, anna.deviceId,
-            GUILD, OWNER),
+        await expect(
+            openPaymentHandles(
+                {...sealed, version: 99},
+                sealed.wraps[0].wrappedKey,
+                anna.privateKey,
+                anna.deviceId,
+                GUILD,
+                OWNER,
+            ),
         ).rejects.toThrow(/version 99/);
     });
 
     it('refuses a private key that is not a 32-byte Ed25519 seed', async () => {
         const sealed = await sealPaymentHandles(PLAINTEXT, [recipientOf(anna)], GUILD, OWNER);
 
-        await expect(openPaymentHandles(
-            sealed, sealed.wraps[0].wrappedKey, toBase64(new Uint8Array(64)), anna.deviceId,
-            GUILD, OWNER),
+        await expect(
+            openPaymentHandles(
+                sealed,
+                sealed.wraps[0].wrappedKey,
+                toBase64(new Uint8Array(64)),
+                anna.deviceId,
+                GUILD,
+                OWNER,
+            ),
         ).rejects.toThrow(/32-byte Ed25519 seed/);
     });
 });
@@ -213,20 +260,53 @@ describe('sealPaymentHandles - refusing a key it cannot use', () => {
     it('throws rather than skipping a device with a wrong-length key', async () => {
         // Never silently skipped. A user who believes they sealed to Ben's two phones and reached
         // one has a worse problem than a user who was told the write did not happen.
-        await expect(sealPaymentHandles(PLAINTEXT, [{
-            userId: 'user_ben', deviceId: 'dev_ben_phone', publicKey: toBase64(new Uint8Array(16)),
-        }], GUILD, OWNER)).rejects.toThrow(/not an Ed25519 public key/);
+        await expect(
+            sealPaymentHandles(
+                PLAINTEXT,
+                [
+                    {
+                        userId: 'user_ben',
+                        deviceId: 'dev_ben_phone',
+                        publicKey: toBase64(new Uint8Array(16)),
+                    },
+                ],
+                GUILD,
+                OWNER,
+            ),
+        ).rejects.toThrow(/not an Ed25519 public key/);
     });
 
     it('names the device in the failure, so the user is told which person is affected', async () => {
-        await expect(sealPaymentHandles(PLAINTEXT, [{
-            userId: 'user_ben', deviceId: 'dev_ben_tablet', publicKey: 'not base64 at all!!',
-        }], GUILD, OWNER)).rejects.toThrow(/dev_ben_tablet/);
+        await expect(
+            sealPaymentHandles(
+                PLAINTEXT,
+                [
+                    {
+                        userId: 'user_ben',
+                        deviceId: 'dev_ben_tablet',
+                        publicKey: 'not base64 at all!!',
+                    },
+                ],
+                GUILD,
+                OWNER,
+            ),
+        ).rejects.toThrow(/dev_ben_tablet/);
     });
 
     it('refuses an all-zero key, which agrees to a degenerate secret', async () => {
-        await expect(sealPaymentHandles(PLAINTEXT, [{
-            userId: 'user_ben', deviceId: 'dev_ben_phone', publicKey: toBase64(new Uint8Array(32)),
-        }], GUILD, OWNER)).rejects.toThrow(PaymentCryptoError);
+        await expect(
+            sealPaymentHandles(
+                PLAINTEXT,
+                [
+                    {
+                        userId: 'user_ben',
+                        deviceId: 'dev_ben_phone',
+                        publicKey: toBase64(new Uint8Array(32)),
+                    },
+                ],
+                GUILD,
+                OWNER,
+            ),
+        ).rejects.toThrow(PaymentCryptoError);
     });
 });

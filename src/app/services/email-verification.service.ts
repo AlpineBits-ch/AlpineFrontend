@@ -57,14 +57,13 @@ export class EmailVerificationService {
     resendCode(email: string): Observable<void> {
         return this.http.get<void>(
             `${this.apiConfig.baseUrl()}/api/v1/identity/user/generate-verification-code`,
-            {params: new HttpParams().set('email', email)}
+            {params: new HttpParams().set('email', email)},
         );
     }
 
     verifyCode(email: string, code: string): Observable<void> {
-        return this.http.get<void>(
-            `${this.apiConfig.baseUrl()}/api/v1/identity/user/verify-email`,
-            {params: new HttpParams().set('email', email).set('code', code)}
-        );
+        return this.http.get<void>(`${this.apiConfig.baseUrl()}/api/v1/identity/user/verify-email`, {
+            params: new HttpParams().set('email', email).set('code', code),
+        });
     }
 }

@@ -64,27 +64,30 @@ function preview(over: Partial<ChangePreviewDto> = {}): ChangePreviewDto {
     };
 }
 
-function setup(opts: {
-    subject?: EntitlementSubjectRef;
-    plans?: BillingPlanDto[];
-    catalogueError?: unknown;
-    preview?: ChangePreviewDto;
-    previewError?: unknown;
-    changeError?: unknown;
-    changeInFlight?: Subject<SubscriptionDto>;
-} = {}) {
-    const catalogue = vi.fn<() => Observable<BillingCatalogueDto>>(() => opts.catalogueError
-        ? throwError(() => opts.catalogueError)
-        : of({
-            enabled: true,
-            currency: 'usd',
-            plans: opts.plans ?? [plan()],
-        }));
+function setup(
+    opts: {
+        subject?: EntitlementSubjectRef;
+        plans?: BillingPlanDto[];
+        catalogueError?: unknown;
+        preview?: ChangePreviewDto;
+        previewError?: unknown;
+        changeError?: unknown;
+        changeInFlight?: Subject<SubscriptionDto>;
+    } = {},
+) {
+    const catalogue = vi.fn<() => Observable<BillingCatalogueDto>>(() =>
+        opts.catalogueError
+            ? throwError(() => opts.catalogueError)
+            : of({
+                  enabled: true,
+                  currency: 'usd',
+                  plans: opts.plans ?? [plan()],
+              }),
+    );
 
-    const previewed = vi.fn<(id: string, r: ChangePlanRequest) => Observable<ChangePreviewDto>>(
-        () => opts.previewError
-            ? throwError(() => opts.previewError)
-            : of(opts.preview ?? preview()));
+    const previewed = vi.fn<(id: string, r: ChangePlanRequest) => Observable<ChangePreviewDto>>(() =>
+        opts.previewError ? throwError(() => opts.previewError) : of(opts.preview ?? preview()),
+    );
 
     const changed = vi.fn<(id: string, r: ChangePlanRequest) => Observable<SubscriptionDto>>(() => {
         if (opts.changeInFlight) return opts.changeInFlight.asObservable();
@@ -136,8 +139,9 @@ function options(): HTMLInputElement[] {
 }
 
 function button(label: string): HTMLButtonElement {
-    const found = Array.from(document.body.querySelectorAll('button'))
-        .find(el => ((el as HTMLElement).textContent ?? '').includes(label));
+    const found = Array.from(document.body.querySelectorAll('button')).find(el =>
+        ((el as HTMLElement).textContent ?? '').includes(label),
+    );
     if (!found) throw new Error(`no button containing ${label}`);
     return found as HTMLButtonElement;
 }

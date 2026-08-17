@@ -52,10 +52,10 @@ describe('entitlementReasonKey', () => {
 
     /** Without `boundBy` there is one sentence for two opposite facts. */
     it('splits a paired ceiling by the side that bound', () => {
-        expect(entitlementReasonKey('paired_ceiling', 'guild'))
-            .toBe('ENTITLEMENT.REASON.PAIRED_CEILING_GUILD');
-        expect(entitlementReasonKey('paired_ceiling', 'user'))
-            .toBe('ENTITLEMENT.REASON.PAIRED_CEILING_USER');
+        expect(entitlementReasonKey('paired_ceiling', 'guild')).toBe(
+            'ENTITLEMENT.REASON.PAIRED_CEILING_GUILD',
+        );
+        expect(entitlementReasonKey('paired_ceiling', 'user')).toBe('ENTITLEMENT.REASON.PAIRED_CEILING_USER');
     });
 
     it('falls back rather than guessing which side of a pair bound', () => {
@@ -87,19 +87,29 @@ describe('describeEntitlementLimit', () => {
     });
 
     it('offers the account upgrade for a user-side limit', () => {
-        const notice = describeEntitlementLimit(degradation({
-            reason: 'user_plan_limit', boundBy: 'user', remedy: 'upgrade_user', actorCanRemedy: true,
-            subject: {kind: 'user', id: 'user-1'},
-        }));
+        const notice = describeEntitlementLimit(
+            degradation({
+                reason: 'user_plan_limit',
+                boundBy: 'user',
+                remedy: 'upgrade_user',
+                actorCanRemedy: true,
+                subject: {kind: 'user', id: 'user-1'},
+            }),
+        );
 
         expect(notice.ctaKey).toBe('ENTITLEMENT.CTA.UPGRADE_ACCOUNT');
     });
 
     /** Nothing that can be bought moves an operator ceiling. */
     it('draws no button for an operator ceiling', () => {
-        const notice = describeEntitlementLimit(degradation({
-            reason: 'operator_ceiling', boundBy: undefined, remedy: 'none', actorCanRemedy: false,
-        }));
+        const notice = describeEntitlementLimit(
+            degradation({
+                reason: 'operator_ceiling',
+                boundBy: undefined,
+                remedy: 'none',
+                actorCanRemedy: false,
+            }),
+        );
 
         expect(notice.messageKey).toBe('ENTITLEMENT.REASON.OPERATOR_CEILING');
         expect(notice.ctaKey).toBeNull();
@@ -108,9 +118,13 @@ describe('describeEntitlementLimit', () => {
 
     /** A remedy this build does not understand is a remedy it should not offer. */
     it('suppresses the button for an unknown reason whatever the remedy says', () => {
-        const notice = describeEntitlementLimit(degradation({
-            reason: 'trial_expired', remedy: 'upgrade_guild', actorCanRemedy: true,
-        }));
+        const notice = describeEntitlementLimit(
+            degradation({
+                reason: 'trial_expired',
+                remedy: 'upgrade_guild',
+                actorCanRemedy: true,
+            }),
+        );
 
         expect(notice.messageKey).toBe('ENTITLEMENT.REASON.UNKNOWN');
         expect(notice.ctaKey).toBeNull();
@@ -118,9 +132,12 @@ describe('describeEntitlementLimit', () => {
     });
 
     it('suppresses the button for a remedy it does not recognise', () => {
-        const notice = describeEntitlementLimit(degradation({
-            remedy: 'trade_favours', actorCanRemedy: true,
-        }));
+        const notice = describeEntitlementLimit(
+            degradation({
+                remedy: 'trade_favours',
+                actorCanRemedy: true,
+            }),
+        );
 
         expect(notice.messageKey).toBe('ENTITLEMENT.REASON.GUILD_PLAN_LIMIT');
         expect(notice.ctaKey).toBeNull();
@@ -131,9 +148,14 @@ describe('describeEntitlementLimit', () => {
     });
 
     it('names the module for an out-of-plan refusal', () => {
-        const notice = describeEntitlementLimit(denialBody({
-            key: 'guild.features', feature: 'Forums', requested: undefined, granted: undefined,
-        }));
+        const notice = describeEntitlementLimit(
+            denialBody({
+                key: 'guild.features',
+                feature: 'Forums',
+                requested: undefined,
+                granted: undefined,
+            }),
+        );
 
         expect(notice.feature).toBe('Forums');
     });
@@ -155,7 +177,8 @@ describe('describeEntitlementDenial', () => {
 
     it('ignores a body whose code and reason disagree', () => {
         const err = new HttpErrorResponse({
-            status: 403, error: denialBody({code: 'user_plan_limit'}),
+            status: 403,
+            error: denialBody({code: 'user_plan_limit'}),
         });
 
         expect(describeEntitlementDenial(err)).toBeNull();
@@ -183,7 +206,12 @@ describe('uploadFailureKey', () => {
     it('names the limit when the server named one', () => {
         const err = new HttpErrorResponse({
             status: 403,
-            error: denialBody({key: 'storage.upload_max_bytes', reason: 'paired_ceiling', code: 'paired_ceiling', boundBy: 'user'}),
+            error: denialBody({
+                key: 'storage.upload_max_bytes',
+                reason: 'paired_ceiling',
+                code: 'paired_ceiling',
+                boundBy: 'user',
+            }),
         });
 
         expect(uploadFailureKey(err)).toBe('ENTITLEMENT.REASON.PAIRED_CEILING_USER');
@@ -199,8 +227,9 @@ describe('uploadFailureKey', () => {
 
 describe('the key catalogue', () => {
     it('names every key the guide enumerates', () => {
-        expect(entitlementKeyNameKey('voice.max_participants'))
-            .toBe('ENTITLEMENT.KEY.VOICE_MAX_PARTICIPANTS');
+        expect(entitlementKeyNameKey('voice.max_participants')).toBe(
+            'ENTITLEMENT.KEY.VOICE_MAX_PARTICIPANTS',
+        );
         expect(entitlementKeyNameKey('user.max_devices')).toBe('ENTITLEMENT.KEY.USER_MAX_DEVICES');
     });
 
@@ -214,8 +243,7 @@ describe('the key catalogue', () => {
         expect(ENTITLEMENT_TRANSLATION_KEYS).toContain('ENTITLEMENT.CTA.ASK_OWNER');
         expect(ENTITLEMENT_TRANSLATION_KEYS).toContain('ENTITLEMENT.KEY.GUILD_VANITY_URL');
         expect(ENTITLEMENT_TRANSLATION_KEYS).toContain('CHORES.NOT_IN_PLAN_TITLE');
-        expect(ENTITLEMENT_TRANSLATION_KEYS)
-            .toContain('GUILD_SETTINGS.MODULES.NOT_IN_PLAN_BODY');
+        expect(ENTITLEMENT_TRANSLATION_KEYS).toContain('GUILD_SETTINGS.MODULES.NOT_IN_PLAN_BODY');
         expect(new Set(ENTITLEMENT_TRANSLATION_KEYS).size).toBe(ENTITLEMENT_TRANSLATION_KEYS.length);
         expect(ENTITLEMENT_TRANSLATION_KEYS.length).toBe(29);
     });
@@ -223,8 +251,10 @@ describe('the key catalogue', () => {
 
 describe('moduleNotInPlanCopy', () => {
     it('names the module where this build has copy for it', () => {
-        expect(moduleNotInPlanCopy('Chores'))
-            .toEqual({titleKey: 'CHORES.NOT_IN_PLAN_TITLE', bodyKey: 'CHORES.NOT_IN_PLAN_BODY'});
+        expect(moduleNotInPlanCopy('Chores')).toEqual({
+            titleKey: 'CHORES.NOT_IN_PLAN_TITLE',
+            bodyKey: 'CHORES.NOT_IN_PLAN_BODY',
+        });
     });
 
     /** A module added after this build still has to render a sentence. */
@@ -244,19 +274,22 @@ describe('moduleNotInPlanCopy', () => {
 
 describe('entitlementRemedyCopy', () => {
     it('offers the server upgrade to a caller who can buy it', () => {
-        expect(entitlementRemedyCopy('upgrade_guild', true))
-            .toEqual({ctaKey: 'ENTITLEMENT.CTA.UPGRADE_SERVER', hintKey: null});
+        expect(entitlementRemedyCopy('upgrade_guild', true)).toEqual({
+            ctaKey: 'ENTITLEMENT.CTA.UPGRADE_SERVER',
+            hintKey: null,
+        });
     });
 
     it('names who can act instead of offering a button that would 403', () => {
-        expect(entitlementRemedyCopy('upgrade_guild', false))
-            .toEqual({ctaKey: null, hintKey: 'ENTITLEMENT.CTA.ASK_OWNER'});
+        expect(entitlementRemedyCopy('upgrade_guild', false)).toEqual({
+            ctaKey: null,
+            hintKey: 'ENTITLEMENT.CTA.ASK_OWNER',
+        });
     });
 
     /** "Ask an admin" is nonsense against a limit on the reader's own account. */
     it('says nothing about asking somebody else for an account limit', () => {
-        expect(entitlementRemedyCopy('upgrade_user', false))
-            .toEqual({ctaKey: null, hintKey: null});
+        expect(entitlementRemedyCopy('upgrade_user', false)).toEqual({ctaKey: null, hintKey: null});
     });
 
     /** `none` is what every limit on an instance that sells nothing arrives as. */
@@ -270,7 +303,6 @@ describe('entitlementRemedyCopy', () => {
 
     /** A remedy this build does not understand is a remedy it should not offer. */
     it('suppresses everything for a reason it could not read', () => {
-        expect(entitlementRemedyCopy('upgrade_guild', true, false))
-            .toEqual({ctaKey: null, hintKey: null});
+        expect(entitlementRemedyCopy('upgrade_guild', true, false)).toEqual({ctaKey: null, hintKey: null});
     });
 });

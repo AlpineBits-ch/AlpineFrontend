@@ -1,40 +1,46 @@
 <!-- The bar reads as part of Alpine now: the app's own card surface and border, not a black glass
      slab with a 32px drop shadow floating over a near-black stage, where the shadow had nothing to
      cast onto and only muddied the tile edges under it. -->
-<div class="flex shrink-0 items-center justify-center gap-3 rounded-2xl border border-border bg-sidebar/95
-            px-4 py-4 shadow-[0_4px_16px_rgba(0,0,0,0.35)] backdrop-blur-sm"
-     [attr.aria-label]="'CALL.CONTROLS' | translate"
-     role="group">
-
+<div
+    class="flex shrink-0 items-center justify-center gap-3 rounded-2xl border border-border bg-sidebar/95 px-4 py-4 shadow-[0_4px_16px_rgba(0,0,0,0.35)] backdrop-blur-sm"
+    [attr.aria-label]="'CALL.CONTROLS' | translate"
+    role="group"
+>
     <!-- Mute -->
     <button
-            (click)="muteToggle.emit()"
-            [attr.aria-label]="(isMuted() ? 'CALL.UNMUTE' : 'CALL.MUTE') | translate"
-            [attr.aria-pressed]="isMuted()"
-            [attr.title]="(isMuted() ? 'CALL.UNMUTE' : 'CALL.MUTE') | translate"
-            [class]="toggleClass(isMuted(), 'danger')"
-            type="button">
+        (click)="muteToggle.emit()"
+        [attr.aria-label]="(isMuted() ? 'CALL.UNMUTE' : 'CALL.MUTE') | translate"
+        [attr.aria-pressed]="isMuted()"
+        [attr.title]="(isMuted() ? 'CALL.UNMUTE' : 'CALL.MUTE') | translate"
+        [class]="toggleClass(isMuted(), 'danger')"
+        type="button"
+    >
         <!-- The slash is drawn, not looked up: PrimeIcons has no slashed microphone, and binding a
              `pi-microphone-slash` that does not exist renders an empty glyph - which is exactly what
              this button did when muted, a red square with no icon in it. See .icon-slashed. -->
-        <span [class.icon-slashed]="isMuted()"
-              class="relative flex items-center justify-center transition-transform duration-150 group-hover:scale-110">
+        <span
+            [class.icon-slashed]="isMuted()"
+            class="relative flex items-center justify-center transition-transform duration-150 group-hover:scale-110"
+        >
             <i class="pi pi-microphone text-base"></i>
         </span>
     </button>
 
     <!-- Deafen -->
     <button
-            (click)="deafenToggle.emit()"
-            [attr.aria-label]="(isDeafened() ? 'CALL.UNDEAFEN' : 'CALL.DEAFEN') | translate"
-            [attr.aria-pressed]="isDeafened()"
-            [attr.title]="(isDeafened() ? 'CALL.UNDEAFEN' : 'CALL.DEAFEN') | translate"
-            [class]="toggleClass(isDeafened(), 'danger')"
-            type="button">
+        (click)="deafenToggle.emit()"
+        [attr.aria-label]="(isDeafened() ? 'CALL.UNDEAFEN' : 'CALL.DEAFEN') | translate"
+        [attr.aria-pressed]="isDeafened()"
+        [attr.title]="(isDeafened() ? 'CALL.UNDEAFEN' : 'CALL.DEAFEN') | translate"
+        [class]="toggleClass(isDeafened(), 'danger')"
+        type="button"
+    >
         <!-- Headphones rather than a speaker, and slashed only when deafened: the icon used to be
              the "off" speaker in both states, so the button never showed which way it was set. -->
-        <span [class.icon-slashed]="isDeafened()"
-              class="relative flex items-center justify-center transition-transform duration-150 group-hover:scale-110">
+        <span
+            [class.icon-slashed]="isDeafened()"
+            class="relative flex items-center justify-center transition-transform duration-150 group-hover:scale-110"
+        >
             <i class="pi pi-headphones text-base"></i>
         </span>
     </button>
@@ -43,110 +49,129 @@
          is real and it works elsewhere, and an absent button reads as a client that cannot do this
          at all. `disabled` and not only a class, so the keyboard cannot reach past it either. -->
     <button
-            (click)="cameraToggle.emit()"
-            [attr.aria-label]="(isCameraOn() ? 'CALL.CAMERA_OFF' : 'CALL.CAMERA_ON_ACTION') | translate"
-            [attr.aria-pressed]="isCameraOn()"
-            [attr.title]="cameraBlockedKey()
+        (click)="cameraToggle.emit()"
+        [attr.aria-label]="(isCameraOn() ? 'CALL.CAMERA_OFF' : 'CALL.CAMERA_ON_ACTION') | translate"
+        [attr.aria-pressed]="isCameraOn()"
+        [attr.title]="
+            cameraBlockedKey()
                 ? (cameraBlockedKey()! | translate)
-                : ((isCameraOn() ? 'CALL.CAMERA_OFF' : 'CALL.CAMERA_ON_ACTION') | translate)"
-            [class]="toggleClass(isCameraOn(), 'brand', !!cameraBlockedKey())"
-            [disabled]="!!cameraBlockedKey()"
-            data-testid="camera-toggle"
-            type="button">
+                : ((isCameraOn() ? 'CALL.CAMERA_OFF' : 'CALL.CAMERA_ON_ACTION') | translate)
+        "
+        [class]="toggleClass(isCameraOn(), 'brand', !!cameraBlockedKey())"
+        [disabled]="!!cameraBlockedKey()"
+        data-testid="camera-toggle"
+        type="button"
+    >
         <i class="pi pi-camera text-base transition-transform duration-150 group-hover:scale-110"></i>
     </button>
 
     <!-- Screen share -->
     <div class="relative flex items-center">
         <button
-                (click)="screenShareToggle.emit()"
-                [attr.aria-label]="(isScreenSharing() ? 'CALL.STOP_SHARING' : 'CALL.SHARE_SCREEN') | translate"
-                [attr.aria-pressed]="isScreenSharing()"
-                [attr.title]="shareBlockedKey()
+            (click)="screenShareToggle.emit()"
+            [attr.aria-label]="(isScreenSharing() ? 'CALL.STOP_SHARING' : 'CALL.SHARE_SCREEN') | translate"
+            [attr.aria-pressed]="isScreenSharing()"
+            [attr.title]="
+                shareBlockedKey()
                     ? (shareBlockedKey()! | translate)
-                    : ((isScreenSharing() ? 'CALL.STOP_SHARING' : 'CALL.SHARE_SCREEN') | translate)"
-                [class]="toggleClass(isScreenSharing(), 'brand', !!shareBlockedKey())"
-                [disabled]="!!shareBlockedKey()"
-                data-testid="share-toggle"
-                type="button">
+                    : ((isScreenSharing() ? 'CALL.STOP_SHARING' : 'CALL.SHARE_SCREEN') | translate)
+            "
+            [class]="toggleClass(isScreenSharing(), 'brand', !!shareBlockedKey())"
+            [disabled]="!!shareBlockedKey()"
+            data-testid="share-toggle"
+            type="button"
+        >
             <i class="pi pi-desktop text-base transition-transform duration-150 group-hover:scale-110"></i>
         </button>
 
         <!-- "2/2". Room state, and the difference between "you cannot share" reading as a mystery
              and reading as a queue - which is what it is. Both halves or neither. -->
         @if (publisherSlots(); as slots) {
-            <span aria-hidden="true"
-                  class="pointer-events-none absolute -bottom-1 -right-1 rounded-full border border-sidebar
-                         bg-app-bg px-1.5 py-px text-[0.625rem] font-semibold tabular-nums text-white/50"
-                  data-testid="publisher-slots">{{ slots.used }}/{{ slots.max }}</span>
+            <span
+                aria-hidden="true"
+                class="pointer-events-none absolute -bottom-1 -right-1 rounded-full border border-sidebar bg-app-bg px-1.5 py-px text-[0.625rem] font-semibold tabular-nums text-white/50"
+                data-testid="publisher-slots"
+                >{{ slots.used }}/{{ slots.max }}</span
+            >
         }
     </div>
 
     <!-- Mute stream audio -only shown when sharing and screen has audio -->
     @if (isScreenSharing() && screenHasAudio()) {
         <button
-                (click)="screenAudioToggle.emit()"
-                [attr.aria-label]="(screenAudioMuted() ? 'CALL.UNMUTE_STREAM_AUDIO' : 'CALL.MUTE_STREAM_AUDIO') | translate"
-                [attr.aria-pressed]="screenAudioMuted()"
-                [attr.title]="(screenAudioMuted() ? 'CALL.UNMUTE_STREAM_AUDIO' : 'CALL.MUTE_STREAM_AUDIO') | translate"
-                [class]="toggleClass(screenAudioMuted(), 'danger')"
-                type="button">
-            <i [class]="screenAudioMuted() ? 'pi-volume-off' : 'pi-volume-up'"
-               class="pi text-base transition-transform duration-150 group-hover:scale-110"></i>
+            (click)="screenAudioToggle.emit()"
+            [attr.aria-label]="(screenAudioMuted() ? 'CALL.UNMUTE_STREAM_AUDIO' : 'CALL.MUTE_STREAM_AUDIO') | translate"
+            [attr.aria-pressed]="screenAudioMuted()"
+            [attr.title]="(screenAudioMuted() ? 'CALL.UNMUTE_STREAM_AUDIO' : 'CALL.MUTE_STREAM_AUDIO') | translate"
+            [class]="toggleClass(screenAudioMuted(), 'danger')"
+            type="button"
+        >
+            <i
+                [class]="screenAudioMuted() ? 'pi-volume-off' : 'pi-volume-up'"
+                class="pi text-base transition-transform duration-150 group-hover:scale-110"
+            ></i>
         </button>
     }
 
     <!-- Stream quality -visible only while sharing. Bitrate is derived from the pair, never set. -->
     @if (isScreenSharing() && preset()) {
-        <div [attr.aria-label]="'CALL.RESOLUTION' | translate"
-             class="flex items-center gap-0.5 rounded-lg border border-border-subtle bg-white/[0.05] p-1"
-             role="group">
+        <div
+            [attr.aria-label]="'CALL.RESOLUTION' | translate"
+            class="flex items-center gap-0.5 rounded-lg border border-border-subtle bg-white/[0.05] p-1"
+            role="group"
+        >
             <!-- Options the granted rung does not reach stay visible and stop working. Removing
                  them would leave a picker that silently has fewer buttons on one server than on
                  another, with nothing on screen saying why. -->
             @for (res of resolutions; track res.value) {
                 <button
-                        (click)="setResolution(res.value)"
-                        [attr.aria-pressed]="isResolution(res.value)"
-                        [attr.title]="resolutionAllowed(res.value)
-                            ? res.label
-                            : ('CALL.ABOVE_PLAN' | translate)"
-                        [class]="segmentClass(isResolution(res.value), resolutionAllowed(res.value))"
-                        [disabled]="!resolutionAllowed(res.value)"
-                        type="button">{{ res.label }}
+                    (click)="setResolution(res.value)"
+                    [attr.aria-pressed]="isResolution(res.value)"
+                    [attr.title]="resolutionAllowed(res.value) ? res.label : ('CALL.ABOVE_PLAN' | translate)"
+                    [class]="segmentClass(isResolution(res.value), resolutionAllowed(res.value))"
+                    [disabled]="!resolutionAllowed(res.value)"
+                    type="button"
+                >
+                    {{ res.label }}
                 </button>
             }
         </div>
-        <div [attr.aria-label]="'CALL.FRAMERATE' | translate"
-             class="flex items-center gap-0.5 rounded-lg border border-border-subtle bg-white/[0.05] p-1"
-             role="group">
+        <div
+            [attr.aria-label]="'CALL.FRAMERATE' | translate"
+            class="flex items-center gap-0.5 rounded-lg border border-border-subtle bg-white/[0.05] p-1"
+            role="group"
+        >
             <!-- A lower framerate is legal on every rung above `none`, so this only ever cuts the
                  top off - 15 fps is never disabled by a ceiling. -->
             @for (fps of framerates; track fps) {
                 <button
-                        (click)="setFramerate(fps)"
-                        [attr.aria-pressed]="isFramerate(fps)"
-                        [attr.title]="framerateAllowed(fps)
-                            ? ('CALL.FPS' | translate: {fps})
-                            : ('CALL.ABOVE_PLAN' | translate)"
-                        [class]="segmentClass(isFramerate(fps), framerateAllowed(fps))"
-                        [disabled]="!framerateAllowed(fps)"
-                        type="button">{{ fps }}
+                    (click)="setFramerate(fps)"
+                    [attr.aria-pressed]="isFramerate(fps)"
+                    [attr.title]="framerateAllowed(fps) ? ('CALL.FPS' | translate: {fps}) : ('CALL.ABOVE_PLAN' | translate)"
+                    [class]="segmentClass(isFramerate(fps), framerateAllowed(fps))"
+                    [disabled]="!framerateAllowed(fps)"
+                    type="button"
+                >
+                    {{ fps }}
                 </button>
             }
         </div>
         <!-- No disabled state and no ceiling: the mode decides what degrades, not what is spent,
              so no rung has an opinion about it. See `setContent`. -->
-        <div [attr.aria-label]="'CALL.OPTIMIZE_FOR' | translate"
-             class="flex items-center gap-0.5 rounded-lg border border-border-subtle bg-white/[0.05] p-1"
-             role="group">
+        <div
+            [attr.aria-label]="'CALL.OPTIMIZE_FOR' | translate"
+            class="flex items-center gap-0.5 rounded-lg border border-border-subtle bg-white/[0.05] p-1"
+            role="group"
+        >
             @for (mode of contents; track mode.value) {
                 <button
-                        (click)="setContent(mode.value)"
-                        [attr.aria-pressed]="isContent(mode.value)"
-                        [attr.title]="mode.key + '_HINT' | translate"
-                        [class]="segmentClass(isContent(mode.value))"
-                        type="button">{{ mode.key | translate }}
+                    (click)="setContent(mode.value)"
+                    [attr.aria-pressed]="isContent(mode.value)"
+                    [attr.title]="mode.key + '_HINT' | translate"
+                    [class]="segmentClass(isContent(mode.value))"
+                    type="button"
+                >
+                    {{ mode.key | translate }}
                 </button>
             }
         </div>
@@ -156,13 +181,12 @@
 
     <!-- Disconnect / End Call -->
     <button
-            (click)="disconnect.emit()"
-            [attr.aria-label]="disconnectLabel()"
-            [attr.title]="disconnectLabel()"
-            class="call-focusable group flex size-12 cursor-pointer items-center justify-center rounded-xl border-0
-                   bg-offline/15 text-offline transition-all duration-150 hover:bg-offline/25 active:scale-95"
-            type="button">
+        (click)="disconnect.emit()"
+        [attr.aria-label]="disconnectLabel()"
+        [attr.title]="disconnectLabel()"
+        class="call-focusable group flex size-12 cursor-pointer items-center justify-center rounded-xl border-0 bg-offline/15 text-offline transition-all duration-150 hover:bg-offline/25 active:scale-95"
+        type="button"
+    >
         <i class="pi pi-phone rotate-[135deg] text-base transition-transform duration-150 group-hover:scale-110"></i>
     </button>
-
 </div>

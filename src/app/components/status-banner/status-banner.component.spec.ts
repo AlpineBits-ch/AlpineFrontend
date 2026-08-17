@@ -16,7 +16,10 @@ const BANNER: StatusBannerDto = {
     componentKey: 'accounts',
 };
 
-function setup(bar: StatusBarKind | null, banner: StatusBannerDto | null = BANNER): {
+function setup(
+    bar: StatusBarKind | null,
+    banner: StatusBannerDto | null = BANNER,
+): {
     fixture: ComponentFixture<StatusBannerComponent>;
     text: () => string;
     dismiss: ReturnType<typeof vi.fn>;

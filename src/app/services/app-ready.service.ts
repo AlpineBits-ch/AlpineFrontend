@@ -23,12 +23,14 @@ export class AppReadyService {
     revealWhenRouted(): void {
         this.safetyNet ??= setTimeout(() => this.markReady(), SPLASH_SAFETY_NET_MS);
 
-        this.router.events.pipe(
-            filter(e => e instanceof NavigationEnd),
-            take(1),
-        ).subscribe(() => {
-            if (!this.router.url.startsWith('/overview')) this.markReady();
-        });
+        this.router.events
+            .pipe(
+                filter(e => e instanceof NavigationEnd),
+                take(1),
+            )
+            .subscribe(() => {
+                if (!this.router.url.startsWith('/overview')) this.markReady();
+            });
     }
 
     markReady(): void {

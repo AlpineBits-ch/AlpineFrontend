@@ -122,14 +122,14 @@ const COMMIT_WITH_WELCOME: MlsCommitOut = {
     commit: 'Y29tbWl0',
     welcome: 'd2VsY29tZQ==',
     epoch: 1,
-    groupInfo: null
+    groupInfo: null,
 };
 
 const COMMIT_NO_WELCOME: MlsCommitOut = {
     commit: 'Y29tbWl0',
     welcome: null,
     epoch: 2,
-    groupInfo: null
+    groupInfo: null,
 };
 
 const APP_MESSAGE: MlsProcessedMessage = {
@@ -307,7 +307,7 @@ describe('MlsService', () => {
         it('returns an Observable', () => {
             mockInvoke(KEY_HANDLE);
             const result = service.loadSigningKey(PUB, PRIV, 'alice');
-            expect(typeof (result as unknown as { subscribe: unknown }).subscribe).toBe('function');
+            expect(typeof (result as unknown as {subscribe: unknown}).subscribe).toBe('function');
         });
 
         it('calls invoke with command "mls_load_signing_key"', async () => {
@@ -350,9 +350,9 @@ describe('MlsService', () => {
 
         it('propagates invoke rejection', async () => {
             mockInvokeReject('bad key bytes');
-            await expect(
-                firstValueFrom(service.loadSigningKey(PUB, PRIV, 'alice')),
-            ).rejects.toBe('bad key bytes');
+            await expect(firstValueFrom(service.loadSigningKey(PUB, PRIV, 'alice'))).rejects.toBe(
+                'bad key bytes',
+            );
         });
     });
 
@@ -364,7 +364,7 @@ describe('MlsService', () => {
         it('returns an Observable', () => {
             mockInvoke(undefined);
             const result = service.unloadSigningKey(KEY_HANDLE);
-            expect(typeof (result as unknown as { subscribe: unknown }).subscribe).toBe('function');
+            expect(typeof (result as unknown as {subscribe: unknown}).subscribe).toBe('function');
         });
 
         it('calls invoke with command "mls_unload_signing_key"', async () => {
@@ -394,17 +394,13 @@ describe('MlsService', () => {
         it('returns an Observable (not a Promise)', () => {
             mockInvoke(KEY_PKG_BATCH);
             const result = service.generateKeyPackages('alice', 3);
-            expect(typeof (result as unknown as { subscribe: unknown }).subscribe)
-                .toBe('function');
+            expect(typeof (result as unknown as {subscribe: unknown}).subscribe).toBe('function');
         });
 
         it('calls invoke with the correct command name', async () => {
             mockInvoke(KEY_PKG_BATCH);
             await firstValueFrom(service.generateKeyPackages('alice', 1));
-            expect(invokeStub).toHaveBeenCalledWith(
-                'generate_mls_key_packages',
-                expect.any(Object),
-            );
+            expect(invokeStub).toHaveBeenCalledWith('generate_mls_key_packages', expect.any(Object));
         });
 
         it('passes identity as "identity"', async () => {
@@ -472,9 +468,9 @@ describe('MlsService', () => {
 
         it('propagates invoke rejection as an Observable error', async () => {
             mockInvokeReject('crypto error');
-            await expect(
-                firstValueFrom(service.generateKeyPackages('alice', 1)),
-            ).rejects.toBe('crypto error');
+            await expect(firstValueFrom(service.generateKeyPackages('alice', 1))).rejects.toBe(
+                'crypto error',
+            );
         });
 
         it('passes identity with special characters verbatim', async () => {
@@ -505,7 +501,7 @@ describe('MlsService', () => {
         it('returns an Observable', () => {
             mockInvoke([KEY_PKG_RESULT]);
             const result = service.generateAdditionalKeyPackages(KEY_HANDLE, 1);
-            expect(typeof (result as unknown as { subscribe: unknown }).subscribe).toBe('function');
+            expect(typeof (result as unknown as {subscribe: unknown}).subscribe).toBe('function');
         });
 
         it('calls invoke with command "mls_generate_key_packages_with_handle"', async () => {
@@ -564,9 +560,9 @@ describe('MlsService', () => {
 
         it('propagates invoke rejection', async () => {
             mockInvokeReject('KeyNotFound: no signing key loaded for handle');
-            await expect(
-                firstValueFrom(service.generateAdditionalKeyPackages(KEY_HANDLE, 1)),
-            ).rejects.toBe('KeyNotFound: no signing key loaded for handle');
+            await expect(firstValueFrom(service.generateAdditionalKeyPackages(KEY_HANDLE, 1))).rejects.toBe(
+                'KeyNotFound: no signing key loaded for handle',
+            );
         });
 
         it('each call triggers a fresh invoke', async () => {
@@ -587,8 +583,7 @@ describe('MlsService', () => {
         it('returns an Observable', () => {
             mockInvoke(GROUP_INFO);
             const result = service.createGroup(GID, KEY_HANDLE);
-            expect(typeof (result as unknown as { subscribe: unknown }).subscribe)
-                .toBe('function');
+            expect(typeof (result as unknown as {subscribe: unknown}).subscribe).toBe('function');
         });
 
         it('calls invoke with command "mls_create_group"', async () => {
@@ -641,9 +636,9 @@ describe('MlsService', () => {
 
         it('propagates invoke rejection', async () => {
             mockInvokeReject('group already exists');
-            await expect(
-                firstValueFrom(service.createGroup(GID, KEY_HANDLE)),
-            ).rejects.toBe('group already exists');
+            await expect(firstValueFrom(service.createGroup(GID, KEY_HANDLE))).rejects.toBe(
+                'group already exists',
+            );
         });
     });
 
@@ -658,8 +653,7 @@ describe('MlsService', () => {
         it('returns an Observable', () => {
             mockInvoke(COMMIT_WITH_WELCOME);
             const result = service.addMembers(GID, KEY_HANDLE, KPS);
-            expect(typeof (result as unknown as { subscribe: unknown }).subscribe)
-                .toBe('function');
+            expect(typeof (result as unknown as {subscribe: unknown}).subscribe).toBe('function');
         });
 
         it('calls invoke with command "mls_add_members"', async () => {
@@ -739,9 +733,9 @@ describe('MlsService', () => {
 
         it('propagates invoke rejection', async () => {
             mockInvokeReject('group not found');
-            await expect(
-                firstValueFrom(service.addMembers(GID, KEY_HANDLE, KPS)),
-            ).rejects.toBe('group not found');
+            await expect(firstValueFrom(service.addMembers(GID, KEY_HANDLE, KPS))).rejects.toBe(
+                'group not found',
+            );
         });
     });
 
@@ -762,8 +756,7 @@ describe('MlsService', () => {
         it('returns an Observable', () => {
             mockInvoke(JOINED_GROUP);
             const result = service.joinGroup(WELCOME, KEY_HANDLE);
-            expect(typeof (result as unknown as { subscribe: unknown }).subscribe)
-                .toBe('function');
+            expect(typeof (result as unknown as {subscribe: unknown}).subscribe).toBe('function');
         });
 
         it('calls invoke with command "mls_join_group"', async () => {
@@ -810,9 +803,9 @@ describe('MlsService', () => {
 
         it('propagates invoke rejection', async () => {
             mockInvokeReject('message is not a Welcome');
-            await expect(
-                firstValueFrom(service.joinGroup(WELCOME, KEY_HANDLE)),
-            ).rejects.toBe('message is not a Welcome');
+            await expect(firstValueFrom(service.joinGroup(WELCOME, KEY_HANDLE))).rejects.toBe(
+                'message is not a Welcome',
+            );
         });
     });
 
@@ -827,7 +820,7 @@ describe('MlsService', () => {
         it('returns an Observable', () => {
             mockInvoke(LEAVE_COMMIT);
             const result = service.leaveGroup(GID, KEY_HANDLE);
-            expect(typeof (result as unknown as { subscribe: unknown }).subscribe).toBe('function');
+            expect(typeof (result as unknown as {subscribe: unknown}).subscribe).toBe('function');
         });
 
         it('calls invoke with command "mls_leave_group"', async () => {
@@ -889,7 +882,7 @@ describe('MlsService', () => {
         it('returns an Observable', () => {
             mockInvoke(GROUP_INFO_B64);
             const result = service.exportGroupInfo(GID, KEY_HANDLE);
-            expect(typeof (result as unknown as { subscribe: unknown }).subscribe).toBe('function');
+            expect(typeof (result as unknown as {subscribe: unknown}).subscribe).toBe('function');
         });
 
         it('calls invoke with command "mls_export_group_info"', async () => {
@@ -924,7 +917,9 @@ describe('MlsService', () => {
 
         it('propagates invoke rejection', async () => {
             mockInvokeReject('group not found');
-            await expect(firstValueFrom(service.exportGroupInfo(GID, KEY_HANDLE))).rejects.toBe('group not found');
+            await expect(firstValueFrom(service.exportGroupInfo(GID, KEY_HANDLE))).rejects.toBe(
+                'group not found',
+            );
         });
     });
 
@@ -938,7 +933,7 @@ describe('MlsService', () => {
         it('returns an Observable', () => {
             mockInvoke(REJOIN_OUT);
             const result = service.rejoinGroup(GI_B64, KEY_HANDLE);
-            expect(typeof (result as unknown as { subscribe: unknown }).subscribe).toBe('function');
+            expect(typeof (result as unknown as {subscribe: unknown}).subscribe).toBe('function');
         });
 
         it('calls invoke with command "mls_rejoin_group"', async () => {
@@ -986,7 +981,9 @@ describe('MlsService', () => {
 
         it('propagates invoke rejection', async () => {
             mockInvokeReject('not a GroupInfo');
-            await expect(firstValueFrom(service.rejoinGroup(GI_B64, KEY_HANDLE))).rejects.toBe('not a GroupInfo');
+            await expect(firstValueFrom(service.rejoinGroup(GI_B64, KEY_HANDLE))).rejects.toBe(
+                'not a GroupInfo',
+            );
         });
     });
 
@@ -1000,7 +997,7 @@ describe('MlsService', () => {
         it('returns an Observable', () => {
             mockInvoke(undefined);
             const result = service.deleteGroup(GID);
-            expect(typeof (result as unknown as { subscribe: unknown }).subscribe).toBe('function');
+            expect(typeof (result as unknown as {subscribe: unknown}).subscribe).toBe('function');
         });
 
         it('calls invoke with command "mls_delete_group"', async () => {
@@ -1023,21 +1020,21 @@ describe('MlsService', () => {
 
         it('propagates invoke rejection', async () => {
             mockInvokeReject('GroupNotFound: group not found');
-            await expect(firstValueFrom(service.deleteGroup(GID))).rejects.toBe('GroupNotFound: group not found');
+            await expect(firstValueFrom(service.deleteGroup(GID))).rejects.toBe(
+                'GroupNotFound: group not found',
+            );
         });
 
         it('removes the group queue entry from _groupQueues on success', async () => {
             mockInvoke(undefined);
-            const queues = (service as unknown as { _groupQueues: Map<string, Promise<unknown>> })
-                ._groupQueues;
+            const queues = (service as unknown as {_groupQueues: Map<string, Promise<unknown>>})._groupQueues;
             queues.set(GID, Promise.resolve());
             await firstValueFrom(service.deleteGroup(GID));
             expect(queues.has(GID)).toBe(false);
         });
 
         it('does not clear the queue entry when invoke rejects', async () => {
-            const queues = (service as unknown as { _groupQueues: Map<string, Promise<unknown>> })
-                ._groupQueues;
+            const queues = (service as unknown as {_groupQueues: Map<string, Promise<unknown>>})._groupQueues;
             queues.set(GID, Promise.resolve());
             mockInvokeReject('GroupNotFound: group not found');
             await expect(firstValueFrom(service.deleteGroup(GID))).rejects.toBeTruthy();
@@ -1046,8 +1043,7 @@ describe('MlsService', () => {
 
         it('queue deletion is safe when the group was never queued', async () => {
             mockInvoke(undefined);
-            const queues = (service as unknown as { _groupQueues: Map<string, Promise<unknown>> })
-                ._groupQueues;
+            const queues = (service as unknown as {_groupQueues: Map<string, Promise<unknown>>})._groupQueues;
             expect(queues.has(GID)).toBe(false);
             await firstValueFrom(service.deleteGroup(GID));
             expect(queues.has(GID)).toBe(false);
@@ -1066,8 +1062,7 @@ describe('MlsService', () => {
         it('returns an Observable', () => {
             mockInvoke(CIPHERTEXT);
             const result = service.sendMessage(GID, KEY_HANDLE, PT);
-            expect(typeof (result as unknown as { subscribe: unknown }).subscribe)
-                .toBe('function');
+            expect(typeof (result as unknown as {subscribe: unknown}).subscribe).toBe('function');
         });
 
         it('calls invoke with command "mls_send_message"', async () => {
@@ -1123,9 +1118,9 @@ describe('MlsService', () => {
 
         it('propagates invoke rejection', async () => {
             mockInvokeReject('group not found');
-            await expect(
-                firstValueFrom(service.sendMessage(GID, KEY_HANDLE, PT)),
-            ).rejects.toBe('group not found');
+            await expect(firstValueFrom(service.sendMessage(GID, KEY_HANDLE, PT))).rejects.toBe(
+                'group not found',
+            );
         });
     });
 
@@ -1140,8 +1135,7 @@ describe('MlsService', () => {
         it('returns an Observable', () => {
             mockInvoke(APP_MESSAGE);
             const result = service.processMessage(GID, MSG);
-            expect(typeof (result as unknown as { subscribe: unknown }).subscribe)
-                .toBe('function');
+            expect(typeof (result as unknown as {subscribe: unknown}).subscribe).toBe('function');
         });
 
         it('calls invoke with command "mls_process_message"', async () => {
@@ -1165,8 +1159,7 @@ describe('MlsService', () => {
         it('passes the group, the message and the message id', async () => {
             mockInvoke(APP_MESSAGE);
             await firstValueFrom(service.processMessage(GID, MSG, 'msg-1'));
-            expect(Object.keys(callArgs()).sort())
-                .toEqual(['groupIdB64', 'messageB64', 'messageId'].sort());
+            expect(Object.keys(callArgs()).sort()).toEqual(['groupIdB64', 'messageB64', 'messageId'].sort());
             // The id is what lets a buffered future-epoch message be attributed to the row it came
             // from when it is replayed; without it the plaintext surfaces with nothing to attach.
             expect(callArgs()['messageId']).toBe('msg-1');
@@ -1333,23 +1326,20 @@ describe('MlsService', () => {
 
         it('propagates invoke rejection', async () => {
             mockInvokeReject('bad message');
-            await expect(
-                firstValueFrom(service.processMessage(GID, MSG)),
-            ).rejects.toBe('bad message');
+            await expect(firstValueFrom(service.processMessage(GID, MSG))).rejects.toBe('bad message');
         });
 
         describe('WrongEpoch error', () => {
             it('surfaces a WrongEpoch error from Rust', async () => {
                 mockInvokeReject('WrongEpoch: epoch is 3 but message is for epoch 4');
-                await expect(
-                    firstValueFrom(service.processMessage(GID, MSG)),
-                ).rejects.toBe('WrongEpoch: epoch is 3 but message is for epoch 4');
+                await expect(firstValueFrom(service.processMessage(GID, MSG))).rejects.toBe(
+                    'WrongEpoch: epoch is 3 but message is for epoch 4',
+                );
             });
         });
     });
     // The check that does something, the server-claimed author against the authenticated
     // credential, is covered in `mls-sync.service.spec.ts`.
-
 
     // ─────────────────────────────────────────────────────────────────────────
     // removeMembers
@@ -1362,8 +1352,7 @@ describe('MlsService', () => {
         it('returns an Observable', () => {
             mockInvoke(COMMIT_NO_WELCOME);
             const result = service.removeMembers(GID, KEY_HANDLE, LEAVES);
-            expect(typeof (result as unknown as { subscribe: unknown }).subscribe)
-                .toBe('function');
+            expect(typeof (result as unknown as {subscribe: unknown}).subscribe).toBe('function');
         });
 
         it('calls invoke with command "mls_remove_members"', async () => {
@@ -1393,9 +1382,7 @@ describe('MlsService', () => {
         it('passes exactly 3 keys to invoke (no raw key material)', async () => {
             mockInvoke(COMMIT_NO_WELCOME);
             await firstValueFrom(service.removeMembers(GID, KEY_HANDLE, LEAVES));
-            expect(Object.keys(callArgs()).sort()).toEqual(
-                ['groupIdB64', 'keyHandle', 'leafIndices'].sort(),
-            );
+            expect(Object.keys(callArgs()).sort()).toEqual(['groupIdB64', 'keyHandle', 'leafIndices'].sort());
         });
 
         it('resolves with MlsCommitOut from invoke', async () => {
@@ -1424,9 +1411,9 @@ describe('MlsService', () => {
 
         it('propagates invoke rejection', async () => {
             mockInvokeReject('group not found');
-            await expect(
-                firstValueFrom(service.removeMembers(GID, KEY_HANDLE, LEAVES)),
-            ).rejects.toBe('group not found');
+            await expect(firstValueFrom(service.removeMembers(GID, KEY_HANDLE, LEAVES))).rejects.toBe(
+                'group not found',
+            );
         });
     });
 
@@ -1441,8 +1428,7 @@ describe('MlsService', () => {
         it('returns an Observable', () => {
             mockInvoke(MEMBERS);
             const result = service.getMembers(GID);
-            expect(typeof (result as unknown as { subscribe: unknown }).subscribe)
-                .toBe('function');
+            expect(typeof (result as unknown as {subscribe: unknown}).subscribe).toBe('function');
         });
 
         it('calls invoke with command "mls_get_members"', async () => {
@@ -1488,9 +1474,7 @@ describe('MlsService', () => {
 
         it('propagates invoke rejection', async () => {
             mockInvokeReject('group not found');
-            await expect(
-                firstValueFrom(service.getMembers(GID)),
-            ).rejects.toBe('group not found');
+            await expect(firstValueFrom(service.getMembers(GID))).rejects.toBe('group not found');
         });
 
         it('resolves with an empty array when the group has no members', async () => {
@@ -1510,8 +1494,7 @@ describe('MlsService', () => {
         it('returns an Observable', () => {
             mockInvoke(GROUP_INFO);
             const result = service.getGroupInfo(GID);
-            expect(typeof (result as unknown as { subscribe: unknown }).subscribe)
-                .toBe('function');
+            expect(typeof (result as unknown as {subscribe: unknown}).subscribe).toBe('function');
         });
 
         it('calls invoke with command "mls_get_group_info"', async () => {
@@ -1558,9 +1541,7 @@ describe('MlsService', () => {
 
         it('propagates invoke rejection', async () => {
             mockInvokeReject('group not found');
-            await expect(
-                firstValueFrom(service.getGroupInfo(GID)),
-            ).rejects.toBe('group not found');
+            await expect(firstValueFrom(service.getGroupInfo(GID))).rejects.toBe('group not found');
         });
     });
 
@@ -1754,8 +1735,7 @@ describe('MlsService', () => {
             mockInvoke(KEY_PKG_BATCH);
             const obs = service.generateKeyPackages('alice', 1);
             expect(obs).toBeDefined();
-            expect(typeof (obs as unknown as { subscribe: unknown }).subscribe)
-                .toBe('function');
+            expect(typeof (obs as unknown as {subscribe: unknown}).subscribe).toBe('function');
         });
 
         it('different methods return independent Observables', async () => {
@@ -1803,15 +1783,12 @@ describe('MlsService', () => {
 
         it('queue continues after a prior operation fails', async () => {
             const results: number[] = [];
-            invokeStub
-                .mockRejectedValueOnce('network error')
-                .mockImplementationOnce(async () => {
-                    results.push(2);
-                    return GROUP_INFO;
-                });
-
-            const a = firstValueFrom(service.createGroup(GID, KEY_HANDLE)).catch(() => {
+            invokeStub.mockRejectedValueOnce('network error').mockImplementationOnce(async () => {
+                results.push(2);
+                return GROUP_INFO;
             });
+
+            const a = firstValueFrom(service.createGroup(GID, KEY_HANDLE)).catch(() => {});
             const b = firstValueFrom(service.createGroup(GID, KEY_HANDLE));
             await b;
             expect(results).toEqual([2]);
@@ -1862,7 +1839,7 @@ describe('MlsService', () => {
         it('returns an Observable', () => {
             mockInvoke(false);
             const result = service.initStorage();
-            expect(typeof (result as unknown as { subscribe: unknown }).subscribe).toBe('function');
+            expect(typeof (result as unknown as {subscribe: unknown}).subscribe).toBe('function');
         });
 
         it('calls invoke with command "mls_init_storage"', async () => {
@@ -1917,18 +1894,17 @@ describe('MlsService', () => {
 
         const storedKey = (): string | null => secureStore.peek(STATE_KEY_NAME);
 
-        it('mints a 32-byte key on a device that has none, and stores it under the device-scoped name',
-            async () => {
-                mockInvoke(false);
-                await firstValueFrom(service.initStorage());
+        it('mints a 32-byte key on a device that has none, and stores it under the device-scoped name', async () => {
+            mockInvoke(false);
+            await firstValueFrom(service.initStorage());
 
-                const minted = storedKey();
-                expect(minted).toBeTruthy();
-                expect(Buffer.from(minted as string, 'base64')).toHaveLength(32);
-                // The name is what makes the key reachable on the next launch; renaming it presents
-                // as this device being ejected from every group it belongs to.
-                expect(callArgs()['stateKeyB64']).toBe(minted);
-            });
+            const minted = storedKey();
+            expect(minted).toBeTruthy();
+            expect(Buffer.from(minted as string, 'base64')).toHaveLength(32);
+            // The name is what makes the key reachable on the next launch; renaming it presents
+            // as this device being ejected from every group it belongs to.
+            expect(callArgs()['stateKeyB64']).toBe(minted);
+        });
 
         it('reuses a stored key and writes nothing', async () => {
             const existing = Buffer.alloc(32, 7).toString('base64');
@@ -1944,26 +1920,26 @@ describe('MlsService', () => {
         /**
          * The regression. A store that could not read must not be read as a store with no entry.
          */
-        it('does not mint when the read fails - it propagates, and the engine is never called',
-            async () => {
-                secureStore.put(STATE_KEY_NAME, Buffer.alloc(32, 9).toString('base64'));
-                const locked = new Error('the OS keychain is locked');
-                secureStore.getError = locked;
-                mockInvoke(false);
+        it('does not mint when the read fails - it propagates, and the engine is never called', async () => {
+            secureStore.put(STATE_KEY_NAME, Buffer.alloc(32, 9).toString('base64'));
+            const locked = new Error('the OS keychain is locked');
+            secureStore.getError = locked;
+            mockInvoke(false);
 
-                await expect(firstValueFrom(service.initStorage())).rejects.toBe(locked);
+            await expect(firstValueFrom(service.initStorage())).rejects.toBe(locked);
 
-                // Nothing was handed to the engine, so nothing could have been sealed under a key
-                // that is not this device's.
-                expect(invokeStub).not.toHaveBeenCalled();
-                // And the entry that was there is still there, unchanged.
-                expect(storedKey()).toBe(Buffer.alloc(32, 9).toString('base64'));
-            });
+            // Nothing was handed to the engine, so nothing could have been sealed under a key
+            // that is not this device's.
+            expect(invokeStub).not.toHaveBeenCalled();
+            // And the entry that was there is still there, unchanged.
+            expect(storedKey()).toBe(Buffer.alloc(32, 9).toString('base64'));
+        });
 
         /** `undefined` is not an answer {@link SecureStore} permits: it is a read that faulted, never absence. */
         it('does not mint when the read resolves undefined instead of null', async () => {
             secureStore.put(STATE_KEY_NAME, Buffer.alloc(32, 4).toString('base64'));
-            const read = vi.spyOn(secureStore, 'getItem')
+            const read = vi
+                .spyOn(secureStore, 'getItem')
                 .mockResolvedValue(undefined as unknown as string | null);
             mockInvoke(false);
 
@@ -1987,33 +1963,34 @@ describe('MlsService', () => {
         });
 
         /** End to end through the classifier: a locked keychain must end in a retry banner, never a wipe. */
-        it('a failed read reaches the storage-init classifier as transient, and nothing is wiped',
-            async () => {
-                secureStore.put(STATE_KEY_NAME, Buffer.alloc(32, 3).toString('base64'));
-                secureStore.getError = new Error('Couldn\'t access platform secure storage: '
-                    + 'the credential store is locked');
-                const wipe = vi.fn(async () => undefined);
+        it('a failed read reaches the storage-init classifier as transient, and nothing is wiped', async () => {
+            secureStore.put(STATE_KEY_NAME, Buffer.alloc(32, 3).toString('base64'));
+            secureStore.getError = new Error(
+                "Couldn't access platform secure storage: " + 'the credential store is locked',
+            );
+            const wipe = vi.fn(async () => undefined);
 
-                const outcome = await runMlsStorageInit({
-                    initStorage: () => firstValueFrom(service.initStorage()),
-                    wipe,
-                });
-
-                expect(outcome.fault?.kind).toBe('unknown');
-                expect(outcome.fault?.mayWipe).toBe(false);
-                expect(outcome.fault?.retryable).toBe(true);
-                expect(outcome.wiped).toBe(false);
-                expect(wipe).not.toHaveBeenCalled();
-                expect(storedKey()).toBe(Buffer.alloc(32, 3).toString('base64'));
+            const outcome = await runMlsStorageInit({
+                initStorage: () => firstValueFrom(service.initStorage()),
+                wipe,
             });
+
+            expect(outcome.fault?.kind).toBe('unknown');
+            expect(outcome.fault?.mayWipe).toBe(false);
+            expect(outcome.fault?.retryable).toBe(true);
+            expect(outcome.wiped).toBe(false);
+            expect(wipe).not.toHaveBeenCalled();
+            expect(storedKey()).toBe(Buffer.alloc(32, 3).toString('base64'));
+        });
 
         /** The cache derives the same key once per session, so a failed derivation must never be the thing that is cached. */
         it('does not remember a failed key derivation for the rest of the session', async () => {
             secureStore.put(STATE_KEY_NAME, Buffer.alloc(32, 5).toString('base64'));
             secureStore.getError = new Error('the OS keychain is locked');
 
-            await expect(service.cacheMessage('ctx-key-retry', 3, 'msg-1', 'aGVsbG8='))
-                .rejects.toThrow('locked');
+            await expect(service.cacheMessage('ctx-key-retry', 3, 'msg-1', 'aGVsbG8=')).rejects.toThrow(
+                'locked',
+            );
 
             secureStore.getError = null;
             await service.cacheMessage('ctx-key-retry', 3, 'msg-1', 'aGVsbG8=');
@@ -2022,12 +1999,14 @@ describe('MlsService', () => {
 
         /** The refusal above is a message the classifier reads, so its wording must not license a wipe. */
         it('the refusal for an undefined read is not classified as unreadable stored state', () => {
-            const fault = classifyMlsStorageFault(new Error(
-                'SecureStore.getItem("x") resolved undefined. The port answers a string or null, so '
-                + 'this is a store that could not read, not a device with no entry - and minting a '
-                + 'fresh state key over an entry that may still be there is what makes a recoverable '
-                + 'fault into permanent loss of this device\'s group keys.',
-            ));
+            const fault = classifyMlsStorageFault(
+                new Error(
+                    'SecureStore.getItem("x") resolved undefined. The port answers a string or null, so ' +
+                        'this is a store that could not read, not a device with no entry - and minting a ' +
+                        'fresh state key over an entry that may still be there is what makes a recoverable ' +
+                        "fault into permanent loss of this device's group keys.",
+                ),
+            );
             expect(fault.kind).toBe('unknown');
             expect(fault.mayWipe).toBe(false);
         });
@@ -2071,8 +2050,7 @@ describe('MlsService', () => {
             registered();
             mockInvoke(KEY_HANDLE);
 
-            await expect(firstValueFrom(service.autoUnlock(DEVICE_ID, 'user-1')))
-                .resolves.toBe(KEY_HANDLE);
+            await expect(firstValueFrom(service.autoUnlock(DEVICE_ID, 'user-1'))).resolves.toBe(KEY_HANDLE);
             expect(callCmd()).toBe('mls_load_signing_key');
             // The order matters: the three entries are handed over positionally, and swapping two
             // loads a keypair whose halves do not match, failing far away from here.
@@ -2109,12 +2087,9 @@ describe('MlsService', () => {
             ['the public half', PUB],
             ['the private half', PRIV],
             ['the stored identity', IDENTITY],
-        ])('reports a failed read of %s as transient, not as an unregistered device', async (
-            _label,
-            key,
-        ) => {
+        ])('reports a failed read of %s as transient, not as an unregistered device', async (_label, key) => {
             registered();
-            secureStore.failRead(key, new Error('Couldn\'t access platform secure storage'));
+            secureStore.failRead(key, new Error("Couldn't access platform secure storage"));
 
             expect((await refusal('user-1')).kind).toBe('MlsError');
         });
@@ -2167,8 +2142,11 @@ describe('MlsService', () => {
         /** `undefined` is off the port's contract and is the falsy value a truthiness test silently reads as "never registered". */
         it('treats a read that resolved undefined as a fault, not as absence', async () => {
             registered();
-            const read = vi.spyOn(secureStore, 'getItem').mockImplementation(async key =>
-                key === PUB ? (undefined as unknown as string | null) : secureStore.peek(key));
+            const read = vi
+                .spyOn(secureStore, 'getItem')
+                .mockImplementation(async key =>
+                    key === PUB ? (undefined as unknown as string | null) : secureStore.peek(key),
+                );
 
             try {
                 const err = await refusal('user-1');
@@ -2240,7 +2218,7 @@ describe('MlsService', () => {
         it('returns an Observable', () => {
             mockInvoke(BLOB);
             const result = service.exportState(ENC_KEY);
-            expect(typeof (result as unknown as { subscribe: unknown }).subscribe).toBe('function');
+            expect(typeof (result as unknown as {subscribe: unknown}).subscribe).toBe('function');
         });
 
         it('calls invoke with command "mls_export_state"', async () => {
@@ -2269,7 +2247,9 @@ describe('MlsService', () => {
 
         it('propagates invoke rejection', async () => {
             mockInvokeReject('MlsError: encryption failed');
-            await expect(firstValueFrom(service.exportState(ENC_KEY))).rejects.toBe('MlsError: encryption failed');
+            await expect(firstValueFrom(service.exportState(ENC_KEY))).rejects.toBe(
+                'MlsError: encryption failed',
+            );
         });
 
         it('each call triggers a fresh invoke', async () => {
@@ -2291,7 +2271,7 @@ describe('MlsService', () => {
         it('returns an Observable', () => {
             mockInvoke(undefined);
             const result = service.importState(BLOB, ENC_KEY);
-            expect(typeof (result as unknown as { subscribe: unknown }).subscribe).toBe('function');
+            expect(typeof (result as unknown as {subscribe: unknown}).subscribe).toBe('function');
         });
 
         it('calls invoke with command "mls_import_state"', async () => {
@@ -2326,12 +2306,16 @@ describe('MlsService', () => {
 
         it('propagates invoke rejection (wrong key)', async () => {
             mockInvokeReject('MlsError: aead::Error');
-            await expect(firstValueFrom(service.importState(BLOB, ENC_KEY))).rejects.toBe('MlsError: aead::Error');
+            await expect(firstValueFrom(service.importState(BLOB, ENC_KEY))).rejects.toBe(
+                'MlsError: aead::Error',
+            );
         });
 
         it('propagates invoke rejection (truncated blob)', async () => {
             mockInvokeReject('MlsError: encrypted blob too short');
-            await expect(firstValueFrom(service.importState('dG9vc2hvcnQ=', ENC_KEY))).rejects.toBe('MlsError: encrypted blob too short');
+            await expect(firstValueFrom(service.importState('dG9vc2hvcnQ=', ENC_KEY))).rejects.toBe(
+                'MlsError: encrypted blob too short',
+            );
         });
     });
 
@@ -2432,9 +2416,7 @@ describe('MlsService', () => {
 
             // Step 2: Alice replenishes key packages without rotating her signing key
             invokeStub.mockResolvedValueOnce(ALICE_EXTRA_PKGS as never);
-            const extraPkgs = await firstValueFrom(
-                service.generateAdditionalKeyPackages(ALICE_HANDLE, 1),
-            );
+            const extraPkgs = await firstValueFrom(service.generateAdditionalKeyPackages(ALICE_HANDLE, 1));
             expect(callCmd(1)).toBe('mls_generate_key_packages_with_handle');
             expect(callArgs(1)['keyHandle']).toBe(ALICE_HANDLE);
             expect(callArgs(1)['count']).toBe(1);
@@ -2515,8 +2497,7 @@ describe('MlsService', () => {
 
             // Step 12: Alice deletes the local group state and the queue entry is cleaned up
             invokeStub.mockResolvedValueOnce(undefined as never);
-            const queues = (service as unknown as { _groupQueues: Map<string, Promise<unknown>> })
-                ._groupQueues;
+            const queues = (service as unknown as {_groupQueues: Map<string, Promise<unknown>>})._groupQueues;
             await firstValueFrom(service.deleteGroup(GID));
             expect(callCmd(11)).toBe('mls_delete_group');
             expect(queues.has(GID)).toBe(false);
@@ -2539,13 +2520,15 @@ describe('MlsService', () => {
             set(k: string, v: unknown): Promise<void>;
             entries(): Promise<[string, unknown][]>;
         }> {
-            return (service as unknown as {
-                cacheStore(): Promise<{
-                    get(k: string): Promise<unknown>;
-                    set(k: string, v: unknown): Promise<void>;
-                    entries(): Promise<[string, unknown][]>;
-                }>
-            }).cacheStore();
+            return (
+                service as unknown as {
+                    cacheStore(): Promise<{
+                        get(k: string): Promise<unknown>;
+                        set(k: string, v: unknown): Promise<void>;
+                        entries(): Promise<[string, unknown][]>;
+                    }>;
+                }
+            ).cacheStore();
         }
 
         it('round-trips a cached plaintext', async () => {
@@ -2556,8 +2539,9 @@ describe('MlsService', () => {
         it('does not store the plaintext where a disk reader can find it', async () => {
             await service.cacheMessage(CTX_A, 3, 'msg-1', 'aGVsbG8=');
 
-            const stored = await (await rawCache()).get('conversation-a#3#msg-1') as {
-                iv: string; ct: string
+            const stored = (await (await rawCache()).get('conversation-a#3#msg-1')) as {
+                iv: string;
+                ct: string;
             };
 
             expect(stored.iv).toBeTruthy();
@@ -2615,22 +2599,21 @@ describe('MlsService', () => {
             expect(await service.getCachedMessage(CTX_A, 3, 'legacy')).toBe('bGVnYWN5');
         });
 
-        it('promotes a legacy bare-id entry onto the composite key and drops the bare one',
-            async () => {
-                await (await rawCache()).set('legacy', 'bGVnYWN5');
-                await service.getCachedMessage(CTX_A, 3, 'legacy', 'alice');
+        it('promotes a legacy bare-id entry onto the composite key and drops the bare one', async () => {
+            await (await rawCache()).set('legacy', 'bGVnYWN5');
+            await service.getCachedMessage(CTX_A, 3, 'legacy', 'alice');
 
-                // Draining, not carrying forever: two keys for one message is two copies of the
-                // plaintext, and the bare one is the exploitable one. Mobile drains the same way.
-                const keys = (await (await rawCache()).entries()).map(([k]) => k);
-                expect(keys).toContain('conversation-a#3#legacy');
-                expect(keys).not.toContain('legacy');
-            });
+            // Draining, not carrying forever: two keys for one message is two copies of the
+            // plaintext, and the bare one is the exploitable one. Mobile drains the same way.
+            const keys = (await (await rawCache()).entries()).map(([k]) => k);
+            expect(keys).toContain('conversation-a#3#legacy');
+            expect(keys).not.toContain('legacy');
+        });
 
         it('returns null rather than garbage for an entry it cannot open', async () => {
-            await (await rawCache()).set(
-                'conversation-a#3#broken',
-                {v: 1, at: Date.now(), iv: 'AAAAAAAAAAAAAAAA', ct: 'AAAA'});
+            await (
+                await rawCache()
+            ).set('conversation-a#3#broken', {v: 1, at: Date.now(), iv: 'AAAAAAAAAAAAAAAA', ct: 'AAAA'});
 
             // No worse than a cache miss: the message renders as undecryptable.
             expect(await service.getCachedMessage(CTX_A, 3, 'broken')).toBeNull();
@@ -2720,8 +2703,9 @@ describe('MlsService', () => {
                 // Thrown where the call is made, not surfaced later as a rejected stream: a
                 // caller that never subscribes must not be able to believe the work was queued.
                 expect(() => service.getMembers(GID)).toThrow(/MLS is unavailable/);
-                await expect(firstValueFrom(service.processMessage(GID, 'bXNn')))
-                    .rejects.toThrow(/MLS is unavailable/);
+                await expect(firstValueFrom(service.processMessage(GID, 'bXNn'))).rejects.toThrow(
+                    /MLS is unavailable/,
+                );
                 expect(invokeStub).not.toHaveBeenCalled();
             } finally {
                 engine.available = true;
@@ -2739,8 +2723,7 @@ describe('MlsService', () => {
 describe('MlsService when a command is missing from the build', () => {
     let service: MlsService;
 
-    const notFound = (command: string) =>
-        Promise.reject(`Command ${command} not found`);
+    const notFound = (command: string) => Promise.reject(`Command ${command} not found`);
 
     beforeEach(() => {
         TestBed.configureTestingModule({providers: [MlsService, ...platformProviders()]});
@@ -2752,8 +2735,7 @@ describe('MlsService when a command is missing from the build', () => {
 
         // Empty is the honest answer: no buffer exists, so nothing was held. Catch-up runs this on
         // every sync, and throwing would log an error per context per launch forever.
-        await expect(firstValueFrom(service.drainPendingMessages('Z3JvdXA=')))
-            .resolves.toEqual([]);
+        await expect(firstValueFrom(service.drainPendingMessages('Z3JvdXA='))).resolves.toEqual([]);
     });
 
     it('reports an absent export as unavailable rather than failed', async () => {
@@ -2762,32 +2744,35 @@ describe('MlsService when a command is missing from the build', () => {
 
         // The distinction the logout dialog needs: "not available" offers a way forward, "failed"
         // sends the user back to retry something that can never succeed.
-        await expect(service.exportBackup('pw', 'user-1', '3.0.0', false))
-            .rejects.toBeInstanceOf(MlsFeatureUnavailableError);
+        await expect(service.exportBackup('pw', 'user-1', '3.0.0', false)).rejects.toBeInstanceOf(
+            MlsFeatureUnavailableError,
+        );
     });
 
     it('reports an absent import as unavailable rather than failed', async () => {
         invokeStub.mockImplementation(() => notFound('mls_import_backup') as never);
 
-        await expect(service.importBackup('blob', 'pw', 'user-1'))
-            .rejects.toBeInstanceOf(MlsFeatureUnavailableError);
+        await expect(service.importBackup('blob', 'pw', 'user-1')).rejects.toBeInstanceOf(
+            MlsFeatureUnavailableError,
+        );
     });
 
     it('does not mistake a real engine failure for a missing command', async () => {
         // The guard matches the command name *and* the not-found wording, or an engine error that
         // merely contains "not found" is swallowed as an absent feature.
-        invokeStub.mockImplementation(() =>
-            Promise.reject('GroupNotFound: group not found') as never);
+        invokeStub.mockImplementation(() => Promise.reject('GroupNotFound: group not found') as never);
 
-        await expect(firstValueFrom(service.drainPendingMessages('Z3JvdXA=')))
-            .rejects.toBe('GroupNotFound: group not found');
+        await expect(firstValueFrom(service.drainPendingMessages('Z3JvdXA='))).rejects.toBe(
+            'GroupNotFound: group not found',
+        );
     });
 
     it('still surfaces an export failure from a command that does exist', async () => {
         invokeStub.mockImplementation(() => Promise.reject('MlsError: disk full') as never);
         service.keyHandle.set('handle');
 
-        await expect(service.exportBackup('pw', 'user-1', '3.0.0', false))
-            .rejects.not.toBeInstanceOf(MlsFeatureUnavailableError);
+        await expect(service.exportBackup('pw', 'user-1', '3.0.0', false)).rejects.not.toBeInstanceOf(
+            MlsFeatureUnavailableError,
+        );
     });
 });

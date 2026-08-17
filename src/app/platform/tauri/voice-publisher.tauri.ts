@@ -138,8 +138,7 @@ export class TauriVoicePublisher extends VoicePublisher {
      * not reach `Engine::set_config`, which would reopen or close every publication for no reason.</p>
      */
     async setProcessing(p: VoiceProcessing): Promise<void> {
-        const unchanged = this.processing !== null
-            && JSON.stringify(this.processing) === JSON.stringify(p);
+        const unchanged = this.processing !== null && JSON.stringify(this.processing) === JSON.stringify(p);
         this.processing = p;
         if (unchanged || this.running.size === 0) return;
 

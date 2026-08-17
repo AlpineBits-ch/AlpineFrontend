@@ -5,7 +5,7 @@ const WIKI_URL_SOURCE =
     'https:\\/\\/venta\\.gg\\/wiki\\/([A-Za-z0-9_-]+)\\/([A-Za-z0-9_-]+)(?:\\/[^\\s<>]*)?';
 
 /** The whole string is one wiki link and nothing else. */
-export function parseWikiUrl(text: string): { guildId: string; pageId: string } | null {
+export function parseWikiUrl(text: string): {guildId: string; pageId: string} | null {
     const match = new RegExp(`^${WIKI_URL_SOURCE}$`).exec(text.trim());
     return match ? {guildId: match[1], pageId: match[2]} : null;
 }

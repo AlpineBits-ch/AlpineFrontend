@@ -3,7 +3,7 @@ import {of, Subject, throwError} from 'rxjs';
 import {WikiContentCacheService} from './wiki-content-cache.service';
 import {WikiService} from '../../../../services/wiki.service';
 
-function wikiWith(pages: { id: string; content?: string }[]) {
+function wikiWith(pages: {id: string; content?: string}[]) {
     return {id: 'w', guildId: 'g1', categories: [], pages} as never;
 }
 
@@ -12,10 +12,14 @@ describe('WikiContentCacheService', () => {
     let getWikiWithContent: ReturnType<typeof vi.fn>;
 
     beforeEach(() => {
-        getWikiWithContent = vi.fn(() => of(wikiWith([
-            {id: 'p1', content: 'body one'},
-            {id: 'p2', content: 'body two'},
-        ])));
+        getWikiWithContent = vi.fn(() =>
+            of(
+                wikiWith([
+                    {id: 'p1', content: 'body one'},
+                    {id: 'p2', content: 'body two'},
+                ]),
+            ),
+        );
         TestBed.configureTestingModule({
             providers: [{provide: WikiService, useValue: {getWikiWithContent}}],
         });

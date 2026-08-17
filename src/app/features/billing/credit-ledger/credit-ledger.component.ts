@@ -34,11 +34,13 @@ export class CreditLedgerComponent {
 
     protected readonly skeletonRows = [1, 2, 3];
 
-    protected readonly rows = computed<LedgerRow[]>(() => (this.ledger()?.entries ?? []).map(entry => ({
-        entry,
-        date: formatBillingDate(entry.createdAt, 'short'),
-        incoming: entry.amount > 0,
-    })));
+    protected readonly rows = computed<LedgerRow[]>(() =>
+        (this.ledger()?.entries ?? []).map(entry => ({
+            entry,
+            date: formatBillingDate(entry.createdAt, 'short'),
+            incoming: entry.amount > 0,
+        })),
+    );
 
     constructor() {
         this.load();

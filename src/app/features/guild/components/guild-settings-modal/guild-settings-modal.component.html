@@ -1,18 +1,18 @@
 <!-- Closing is the component's call, not the dialog's: closable/closeOnEscape would set visible false behind our back and take a dirty page's edits with it; Escape is handled in onEscape, the X below calls requestClose. -->
 <p-dialog
-        #mainDialog
-        [(visible)]="isVisible"
-        [breakpoints]="{'960px': '92vw', '640px': '100vw'}"
-        [closable]="false"
-        [closeOnEscape]="false"
-        [dismissableMask]="false"
-        [draggable]="false"
-        [modal]="true"
-        [resizable]="false"
-        [style]="{width: '990px', height: '620px', maxHeight: '90dvh'}"
-        appendTo="body"
-        styleClass="settings-dialog">
-
+    #mainDialog
+    [(visible)]="isVisible"
+    [breakpoints]="{'960px': '92vw', '640px': '100vw'}"
+    [closable]="false"
+    [closeOnEscape]="false"
+    [dismissableMask]="false"
+    [draggable]="false"
+    [modal]="true"
+    [resizable]="false"
+    [style]="{width: '990px', height: '620px', maxHeight: '90dvh'}"
+    appendTo="body"
+    styleClass="settings-dialog"
+>
     @if (access() === 'checking') {
         <div class="flex h-full items-center justify-center bg-app-bg">
             <i class="pi pi-spin pi-spinner text-xl text-text-secondary"></i>
@@ -24,168 +24,194 @@
                 <h1 class="text-sm font-semibold text-text-primary">{{ 'GUILD_SETTINGS.NO_ACCESS_TITLE' | translate }}</h1>
                 <p class="text-[0.8125rem] text-text-secondary max-w-sm">{{ 'GUILD_SETTINGS.NO_ACCESS_DESC' | translate }}</p>
             </div>
-            <p-button (onClick)="isVisible.set(false)"
-                      [label]="'GUILD_SETTINGS.CLOSE' | translate"
-                      severity="secondary"
-                      size="small"/>
+            <p-button (onClick)="isVisible.set(false)" [label]="'GUILD_SETTINGS.CLOSE' | translate" severity="secondary" size="small" />
         </div>
     } @else {
-
-    <div class="flex h-full flex-col sm:flex-row">
-
-        <!-- ── Left nav ────────────────────────────────────────────────────────── -->
-        <nav #navScroller
-             class="sm:w-52 shrink-0 bg-sidebar border-b sm:border-b-0 sm:border-r border-white/[0.10] flex sm:flex-col py-2 sm:py-4 overflow-x-auto sm:overflow-x-hidden overflow-y-hidden sm:overflow-y-auto thin-scrollbar">
-
-            <!-- Desktop: guild identity + groups -->
-            <div class="hidden sm:flex flex-col flex-1">
-
-                <!-- Guild name header -->
-                <div class="px-4 mb-4">
-                    <p class="text-[0.625rem] font-semibold text-text-secondary uppercase tracking-widest mb-1">{{ 'GUILD_SETTINGS.SERVER' | translate }}</p>
-                    <div class="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-white/[0.04]">
-                        @if (!headerIconFailed()) {
-                            <img (error)="onHeaderIconError()" [alt]="guild().name"
-                                 [src]="guildIconUrl()"
-                                 class="w-6 h-6 rounded-lg object-cover shrink-0"/>
-                        } @else {
-                            <div class="w-6 h-6 rounded-lg bg-brand/20 flex items-center justify-center shrink-0">
-                                <span class="text-xs font-bold text-brand-dim">{{ guild().name.charAt(0).toUpperCase() }}</span>
-                            </div>
-                        }
-                        <span class="text-sm font-semibold text-white/85 truncate">{{ guild().name }}</span>
-                    </div>
-                </div>
-
-                @for (group of navGroups(); track group.titleKey) {
-                    <div class="px-3 mb-4">
-                        <p class="text-[0.625rem] font-semibold text-text-secondary uppercase tracking-widest px-3 mb-1">
-                            {{ group.titleKey | translate }}
+        <div class="flex h-full flex-col sm:flex-row">
+            <!-- ── Left nav ────────────────────────────────────────────────────────── -->
+            <nav
+                #navScroller
+                class="sm:w-52 shrink-0 bg-sidebar border-b sm:border-b-0 sm:border-r border-white/[0.10] flex sm:flex-col py-2 sm:py-4 overflow-x-auto sm:overflow-x-hidden overflow-y-hidden sm:overflow-y-auto thin-scrollbar"
+            >
+                <!-- Desktop: guild identity + groups -->
+                <div class="hidden sm:flex flex-col flex-1">
+                    <!-- Guild name header -->
+                    <div class="px-4 mb-4">
+                        <p class="text-[0.625rem] font-semibold text-text-secondary uppercase tracking-widest mb-1">
+                            {{ 'GUILD_SETTINGS.SERVER' | translate }}
                         </p>
-                        @for (item of group.items; track item.id) {
-                            <button (click)="requestPage(item.id)"
+                        <div class="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-white/[0.04]">
+                            @if (!headerIconFailed()) {
+                                <img
+                                    (error)="onHeaderIconError()"
+                                    [alt]="guild().name"
+                                    [src]="guildIconUrl()"
+                                    class="w-6 h-6 rounded-lg object-cover shrink-0"
+                                />
+                            } @else {
+                                <div class="w-6 h-6 rounded-lg bg-brand/20 flex items-center justify-center shrink-0">
+                                    <span class="text-xs font-bold text-brand-dim">{{ guild().name.charAt(0).toUpperCase() }}</span>
+                                </div>
+                            }
+                            <span class="text-sm font-semibold text-white/85 truncate">{{ guild().name }}</span>
+                        </div>
+                    </div>
+
+                    @for (group of navGroups(); track group.titleKey) {
+                        <div class="px-3 mb-4">
+                            <p class="text-[0.625rem] font-semibold text-text-secondary uppercase tracking-widest px-3 mb-1">
+                                {{ group.titleKey | translate }}
+                            </p>
+                            @for (item of group.items; track item.id) {
+                                <button
+                                    (click)="requestPage(item.id)"
                                     [attr.aria-current]="activePage() === item.id ? 'page' : null"
                                     [ngClass]="navItemClasses(item.id)"
-                                    class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all cursor-pointer border-0 text-left">
-                                <i [class]="item.icon" class="text-sm shrink-0"></i>
-                                {{ item.labelKey | translate }}
-                            </button>
-                        }
-                    </div>
-                }
-            </div>
-
-            <!-- Mobile scrolling tab bar; data-page-id is how revealNavItem finds the active pill to scroll to. -->
-            <div class="flex sm:hidden items-center gap-1 px-2">
-                @for (group of navGroups(); track group.titleKey) {
-                    @if (!$first) {
-                        <span aria-hidden="true" class="h-6 w-px shrink-0 bg-white/[0.10] mx-1.5"></span>
+                                    class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all cursor-pointer border-0 text-left"
+                                >
+                                    <i [class]="item.icon" class="text-sm shrink-0"></i>
+                                    {{ item.labelKey | translate }}
+                                </button>
+                            }
+                        </div>
                     }
-                    <span class="shrink-0 px-1 text-[0.625rem] font-semibold text-text-secondary uppercase tracking-widest">
-                        {{ group.titleKey | translate }}
-                    </span>
-                    @for (item of group.items; track item.id) {
-                        <button (click)="requestPage(item.id)"
+                </div>
+
+                <!-- Mobile scrolling tab bar; data-page-id is how revealNavItem finds the active pill to scroll to. -->
+                <div class="flex sm:hidden items-center gap-1 px-2">
+                    @for (group of navGroups(); track group.titleKey) {
+                        @if (!$first) {
+                            <span aria-hidden="true" class="h-6 w-px shrink-0 bg-white/[0.10] mx-1.5"></span>
+                        }
+                        <span class="shrink-0 px-1 text-[0.625rem] font-semibold text-text-secondary uppercase tracking-widest">
+                            {{ group.titleKey | translate }}
+                        </span>
+                        @for (item of group.items; track item.id) {
+                            <button
+                                (click)="requestPage(item.id)"
                                 [attr.aria-current]="activePage() === item.id ? 'page' : null"
                                 [attr.data-page-id]="item.id"
                                 [ngClass]="navItemClasses(item.id)"
-                                class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all cursor-pointer border-0 shrink-0">
-                            <i [class]="item.icon" class="text-xs"></i>
-                            {{ item.labelKey | translate }}
-                        </button>
+                                class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all cursor-pointer border-0 shrink-0"
+                            >
+                                <i [class]="item.icon" class="text-xs"></i>
+                                {{ item.labelKey | translate }}
+                            </button>
+                        }
                     }
-                }
-            </div>
-        </nav>
+                </div>
+            </nav>
 
-        <!-- ── Content area ────────────────────────────────────────────────────── -->
-        <div class="flex-1 flex flex-col min-w-0 overflow-hidden bg-app-bg">
+            <!-- ── Content area ────────────────────────────────────────────────────── -->
+            <div class="flex-1 flex flex-col min-w-0 overflow-hidden bg-app-bg">
+                <!-- Header -->
+                <div class="flex items-center justify-end sm:justify-between px-6 sm:px-8 py-4 border-b border-white/[0.10] shrink-0">
+                    <!-- Hidden on mobile: the tab strip above already names the page there. -->
+                    <h1 class="hidden sm:block text-sm font-semibold text-text-primary">{{ currentLabel() | translate }}</h1>
+                    <p-button
+                        (onClick)="requestClose()"
+                        [ariaLabel]="'GUILD_SETTINGS.CLOSE' | translate"
+                        [text]="true"
+                        icon="pi pi-times"
+                        severity="secondary"
+                        size="small"
+                    />
+                </div>
 
-            <!-- Header -->
-            <div class="flex items-center justify-end sm:justify-between px-6 sm:px-8 py-4 border-b border-white/[0.10] shrink-0">
-                <!-- Hidden on mobile: the tab strip above already names the page there. -->
-                <h1 class="hidden sm:block text-sm font-semibold text-text-primary">{{ currentLabel() | translate }}</h1>
-                <p-button (onClick)="requestClose()" [ariaLabel]="'GUILD_SETTINGS.CLOSE' | translate" [text]="true"
-                          icon="pi pi-times" severity="secondary" size="small"/>
-            </div>
-
-            <!-- Page content -->
-            <div class="flex-1 overflow-y-auto px-6 sm:px-8 py-6 min-h-0 thin-scrollbar"
->
-                @switch (activePage()) {
-                    @case ('overview') {
-                        <app-overview-settings (dirtyChange)="onPageDirtyChange($event)" (guildDeleted)="guildDeleted.emit($event)" (guildUpdated)="onGuildUpdated($event)" [guild]="guild()"/>
+                <!-- Page content -->
+                <div class="flex-1 overflow-y-auto px-6 sm:px-8 py-6 min-h-0 thin-scrollbar">
+                    @switch (activePage()) {
+                        @case ('overview') {
+                            <app-overview-settings
+                                (dirtyChange)="onPageDirtyChange($event)"
+                                (guildDeleted)="guildDeleted.emit($event)"
+                                (guildUpdated)="onGuildUpdated($event)"
+                                [guild]="guild()"
+                            />
+                        }
+                        @case ('modules') {
+                            <app-modules-settings (guildUpdated)="onGuildUpdated($event)" [guild]="guild()" />
+                        }
+                        @case ('members') {
+                            <app-members-settings [guild]="guild()" />
+                        }
+                        @case ('roles') {
+                            <app-roles-settings
+                                (dirtyChange)="onPageDirtyChange($event)"
+                                (rolesChanged)="onRolesChanged($event)"
+                                [guild]="guild()"
+                            />
+                        }
+                        @case ('invites') {
+                            <app-invites-settings [guild]="guild()" />
+                        }
+                        @case ('emojis') {
+                            <app-emoji-settings [guild]="guild()" />
+                        }
+                        @case ('templates') {
+                            <app-templates-settings [guild]="guild()" />
+                        }
+                        @case ('discord-sync') {
+                            <app-discord-sync-settings [guild]="guild()" />
+                        }
+                        @case ('bans') {
+                            <app-bans-settings [guild]="guild()" />
+                        }
+                        @case ('moderation') {
+                            <app-moderation-settings [guild]="guild()" />
+                        }
+                        @case ('audit-log') {
+                            <app-audit-log-settings [guild]="guild()" />
+                        }
+                        @case ('onboarding') {
+                            <app-onboarding-settings (dirtyChange)="onPageDirtyChange($event)" [guild]="guild()" />
+                        }
+                        @case ('quiet-hours') {
+                            <app-quiet-hours-settings (dirtyChange)="onPageDirtyChange($event)" [guild]="guild()" />
+                        }
+                        @case ('guest-access') {
+                            <app-guest-access-settings [guild]="guild()" />
+                        }
+                        @case ('plan') {
+                            <app-plan-panel [subject]="planSubject()" />
+                        }
                     }
-                    @case ('modules') {
-                        <app-modules-settings (guildUpdated)="onGuildUpdated($event)" [guild]="guild()"/>
-                    }
-                    @case ('members') {
-                        <app-members-settings [guild]="guild()"/>
-                    }
-                    @case ('roles') {
-                        <app-roles-settings (dirtyChange)="onPageDirtyChange($event)" (rolesChanged)="onRolesChanged($event)" [guild]="guild()"/>
-                    }
-                    @case ('invites') {
-                        <app-invites-settings [guild]="guild()"/>
-                    }
-                    @case ('emojis') {
-                        <app-emoji-settings [guild]="guild()"/>
-                    }
-                    @case ('templates') {
-                        <app-templates-settings [guild]="guild()"/>
-                    }
-                    @case ('discord-sync') {
-                        <app-discord-sync-settings [guild]="guild()"/>
-                    }
-                    @case ('bans') {
-                        <app-bans-settings [guild]="guild()"/>
-                    }
-                    @case ('moderation') {
-                        <app-moderation-settings [guild]="guild()"/>
-                    }
-                    @case ('audit-log') {
-                        <app-audit-log-settings [guild]="guild()"/>
-                    }
-                    @case ('onboarding') {
-                        <app-onboarding-settings (dirtyChange)="onPageDirtyChange($event)" [guild]="guild()"/>
-                    }
-                    @case ('quiet-hours') {
-                        <app-quiet-hours-settings (dirtyChange)="onPageDirtyChange($event)" [guild]="guild()"/>
-                    }
-                    @case ('guest-access') {
-                        <app-guest-access-settings [guild]="guild()"/>
-                    }
-                    @case ('plan') {
-                        <app-plan-panel [subject]="planSubject()"/>
-                    }
-                }
+                </div>
             </div>
         </div>
-
-    </div>
-
     }
 </p-dialog>
 
 <!-- Unsaved-changes guard: nav clicks, close, and Escape land here while a page is dirty. Deliberately has no X and no dismissable mask; Escape maps to Keep Editing here, the option that can't lose anything. -->
 <p-dialog
-        [closable]="false"
-        [closeOnEscape]="false"
-        [dismissableMask]="false"
-        [draggable]="false"
-        [modal]="true"
-        [resizable]="false"
-        [style]="{width: '400px'}"
-        [visible]="showUnsavedDialog()"
-        appendTo="body">
+    [closable]="false"
+    [closeOnEscape]="false"
+    [dismissableMask]="false"
+    [draggable]="false"
+    [modal]="true"
+    [resizable]="false"
+    [style]="{width: '400px'}"
+    [visible]="showUnsavedDialog()"
+    appendTo="body"
+>
     <ng-template pTemplate="header">
         <span class="text-sm font-semibold text-text-primary">{{ 'GUILD_SETTINGS.UNSAVED.TITLE' | translate }}</span>
     </ng-template>
     <p class="text-sm text-text-secondary py-2">{{ 'GUILD_SETTINGS.UNSAVED.DESC' | translate }}</p>
     <div class="flex gap-2 justify-end mt-4 pt-4 border-t border-white/[0.10]">
-        <p-button (onClick)="keepEditing()" [label]="'GUILD_SETTINGS.UNSAVED.KEEP_EDITING' | translate" [text]="true"
-                  severity="secondary" size="small"/>
-        <p-button (onClick)="discardAndContinue()" [label]="'GUILD_SETTINGS.UNSAVED.DISCARD' | translate"
-                  [outlined]="true" severity="danger" size="small"/>
+        <p-button
+            (onClick)="keepEditing()"
+            [label]="'GUILD_SETTINGS.UNSAVED.KEEP_EDITING' | translate"
+            [text]="true"
+            severity="secondary"
+            size="small"
+        />
+        <p-button
+            (onClick)="discardAndContinue()"
+            [label]="'GUILD_SETTINGS.UNSAVED.DISCARD' | translate"
+            [outlined]="true"
+            severity="danger"
+            size="small"
+        />
     </div>
 </p-dialog>

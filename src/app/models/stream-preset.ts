@@ -118,7 +118,7 @@ export function clampPreset(preset: StreamPreset, ceiling: VideoCeiling | null |
 
     const resolution = isResolutionAllowed(preset.resolution, ceiling)
         ? preset.resolution
-        : tallestAllowed(ceiling) ?? preset.resolution;
+        : (tallestAllowed(ceiling) ?? preset.resolution);
 
     const framerate = isFramerateAllowed(preset.framerate, ceiling)
         ? preset.framerate

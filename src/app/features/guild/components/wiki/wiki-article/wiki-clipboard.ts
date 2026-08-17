@@ -16,8 +16,10 @@ export const WikiClipboardMarkdown = Extension.create({
                         const content = slice.content.toJSON() ?? [];
                         // Falls back to the flat walk where the markdown manager is not registered, which is the case in any editor built without the Markdown extension.
                         const text = manager
-                            ? (manager as {serialize: (json: unknown) => string})
-                                .serialize({type: 'doc', content})
+                            ? (manager as {serialize: (json: unknown) => string}).serialize({
+                                  type: 'doc',
+                                  content,
+                              })
                             : slice.content.textBetween(0, slice.content.size, '\n\n');
                         return tidyBlankLines(text);
                     },

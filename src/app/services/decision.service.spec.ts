@@ -70,7 +70,9 @@ function setup() {
 
 /** Loads a channel so it counts as tracked - realtime deliberately ignores everything else. */
 async function loadChannel(
-    service: DecisionService, http: HttpTestingController, decisions: Decision[],
+    service: DecisionService,
+    http: HttpTestingController,
+    decisions: Decision[],
 ): Promise<void> {
     const loading = service.loadFor('chan_1');
     http.expectOne(`${GUILD}/channels/chan_1/decisions`).flush(decisions);
@@ -82,8 +84,12 @@ describe('DecisionService realtime', () => {
         const {service} = setup();
         expect(service).toBeTruthy();
 
-        for (const event of ['guild.DecisionCreated', 'guild.DecisionUpdated',
-            'guild.DecisionClosed', 'guild.DecisionCancelled']) {
+        for (const event of [
+            'guild.DecisionCreated',
+            'guild.DecisionUpdated',
+            'guild.DecisionClosed',
+            'guild.DecisionCancelled',
+        ]) {
             expect(hubHandlers.get(event)?.length).toBe(1);
         }
     });
@@ -93,7 +99,9 @@ describe('DecisionService realtime', () => {
         await loadChannel(service, http, []);
 
         fireHub<DecisionCreated>('guild.DecisionCreated', {
-            guildId: 'gild_1', channelId: 'chan_1', decision: decision(),
+            guildId: 'gild_1',
+            channelId: 'chan_1',
+            decision: decision(),
         });
 
         expect(service.stateFor('chan_1').decisions.map(d => d.id)).toEqual(['deci_1']);
@@ -104,7 +112,9 @@ describe('DecisionService realtime', () => {
         const {service, http} = setup();
 
         fireHub<DecisionCreated>('guild.DecisionCreated', {
-            guildId: 'gild_1', channelId: 'chan_other', decision: decision({channelId: 'chan_other'}),
+            guildId: 'gild_1',
+            channelId: 'chan_other',
+            decision: decision({channelId: 'chan_other'}),
         });
 
         // Seeding from an event would leave the channel holding one decision and looking loaded.
@@ -138,7 +148,9 @@ describe('DecisionService realtime', () => {
         await loadChannel(service, http, [decision()]);
 
         fireHub<DecisionCancelled>('guild.DecisionCancelled', {
-            guildId: 'gild_1', channelId: 'chan_1', decisionId: 'deci_1',
+            guildId: 'gild_1',
+            channelId: 'chan_1',
+            decisionId: 'deci_1',
         });
 
         expect(service.stateFor('chan_1').decisions[0].status).toBe(DecisionStatus.Cancelled);
@@ -150,8 +162,9 @@ describe('DecisionService loading', () => {
     it('normalises the int enum form off the list endpoint', async () => {
         const {service, http} = setup();
         const loading = service.loadFor('chan_1');
-        http.expectOne(`${GUILD}/channels/chan_1/decisions`)
-            .flush([{...decision(), status: 2, myVoteKind: 2}]);
+        http.expectOne(`${GUILD}/channels/chan_1/decisions`).flush([
+            {...decision(), status: 2, myVoteKind: 2},
+        ]);
         await loading;
 
         const [row] = service.stateFor('chan_1').decisions;
@@ -163,8 +176,10 @@ describe('DecisionService loading', () => {
     it('distinguishes a 403 - which may mean the module is off, not a permission problem', async () => {
         const {service, http} = setup();
         const loading = service.loadFor('chan_1');
-        http.expectOne(`${GUILD}/channels/chan_1/decisions`)
-            .flush('nope', {status: 403, statusText: 'Forbidden'});
+        http.expectOne(`${GUILD}/channels/chan_1/decisions`).flush('nope', {
+            status: 403,
+            statusText: 'Forbidden',
+        });
         await loading;
 
         expect(service.stateFor('chan_1').error).toBe('forbidden');
@@ -192,7 +207,8 @@ describe('DecisionService writes', () => {
         await loadChannel(service, http, [decision()]);
 
         const voting = service.vote('chan_1', 'deci_1', {
-            kind: DecisionVoteKind.Support, optionId: 'opti_1',
+            kind: DecisionVoteKind.Support,
+            optionId: 'opti_1',
         });
         const req = http.expectOne(`${GUILD}/decisions/deci_1/vote`);
         expect(req.request.method).toBe('PUT');
@@ -220,16 +236,19 @@ describe('DecisionService writes', () => {
 
 describe('voteBodyProblem', () => {
     it('requires a reason on a block - the server returns 400 without one', () => {
-        expect(voteBodyProblem({kind: DecisionVoteKind.Block, optionId: 'opti_1'}))
-            .toBe('reason-required');
-        expect(voteBodyProblem({kind: DecisionVoteKind.Block, optionId: 'opti_1', reason: '   '})).toBe('reason-required');
-        expect(voteBodyProblem({kind: DecisionVoteKind.Block, optionId: 'opti_1', reason: 'No room'}))
-            .toBeNull();
+        expect(voteBodyProblem({kind: DecisionVoteKind.Block, optionId: 'opti_1'})).toBe('reason-required');
+        expect(voteBodyProblem({kind: DecisionVoteKind.Block, optionId: 'opti_1', reason: '   '})).toBe(
+            'reason-required',
+        );
+        expect(
+            voteBodyProblem({kind: DecisionVoteKind.Block, optionId: 'opti_1', reason: 'No room'}),
+        ).toBeNull();
     });
 
     it('accepts a whole-decision block: null optionId with a reason is a supported gesture', () => {
-        expect(voteBodyProblem({kind: DecisionVoteKind.Block, optionId: null, reason: 'Not our call'}))
-            .toBeNull();
+        expect(
+            voteBodyProblem({kind: DecisionVoteKind.Block, optionId: null, reason: 'Not our call'}),
+        ).toBeNull();
     });
 
     it('requires an optionId on a support', () => {
@@ -301,7 +320,8 @@ describe('DecisionService request bodies', () => {
         await loadChannel(service, http, [decision()]);
 
         const voting = service.vote('chan_1', 'deci_1', {
-            kind: DecisionVoteKind.Support, optionId: 'opti_1',
+            kind: DecisionVoteKind.Support,
+            optionId: 'opti_1',
         });
         const req = http.expectOne(`${GUILD}/decisions/deci_1/vote`);
         expect(req.request.method).toBe('PUT');
@@ -328,11 +348,15 @@ describe('DecisionService request bodies', () => {
         await loadChannel(service, http, [decision()]);
 
         const voting = service.vote('chan_1', 'deci_1', {
-            kind: DecisionVoteKind.Block, optionId: null, reason: 'Not our call to make',
+            kind: DecisionVoteKind.Block,
+            optionId: null,
+            reason: 'Not our call to make',
         });
         const req = http.expectOne(`${GUILD}/decisions/deci_1/vote`);
         expect(wireBody(req.request.body)).toEqual({
-            kind: 'Block', optionId: null, reason: 'Not our call to make',
+            kind: 'Block',
+            optionId: null,
+            reason: 'Not our call to make',
         });
         req.flush(decision());
         await voting;
@@ -348,23 +372,28 @@ describe('createDecisionProblem', () => {
 
     it('counts options after dropping the blanks, as CreateAsync does', () => {
         expect(createDecisionProblem({title: 'Cat?', options: ['Yes', '   ']})).toBe('too-few-options');
-        expect(createDecisionProblem({
-            title: 'Cat?',
-            options: Array.from({length: DECISION_LIMITS.maxOptions + 1}, (_, i) => `Option ${i}`),
-        })).toBe('too-many-options');
+        expect(
+            createDecisionProblem({
+                title: 'Cat?',
+                options: Array.from({length: DECISION_LIMITS.maxOptions + 1}, (_, i) => `Option ${i}`),
+            }),
+        ).toBe('too-many-options');
     });
 
     it('refuses a title past MaxTitleLength', () => {
-        expect(createDecisionProblem({...draft, title: 'x'.repeat(DECISION_LIMITS.titleMaxLength)}))
-            .toBeNull();
-        expect(createDecisionProblem({...draft, title: 'x'.repeat(DECISION_LIMITS.titleMaxLength + 1)}))
-            .toBe('title-too-long');
+        expect(
+            createDecisionProblem({...draft, title: 'x'.repeat(DECISION_LIMITS.titleMaxLength)}),
+        ).toBeNull();
+        expect(createDecisionProblem({...draft, title: 'x'.repeat(DECISION_LIMITS.titleMaxLength + 1)})).toBe(
+            'title-too-long',
+        );
     });
 
     it('refuses a deadline that has already passed, but not a null one', () => {
         const now = Date.parse('2026-08-03T12:00:00.000Z');
-        expect(createDecisionProblem({...draft, closesAt: '2026-08-03T11:59:00.000Z'}, now))
-            .toBe('closes-at-past');
+        expect(createDecisionProblem({...draft, closesAt: '2026-08-03T11:59:00.000Z'}, now)).toBe(
+            'closes-at-past',
+        );
         expect(createDecisionProblem({...draft, closesAt: '2026-08-03T12:01:00.000Z'}, now)).toBeNull();
         expect(createDecisionProblem({...draft, closesAt: null}, now)).toBeNull();
     });

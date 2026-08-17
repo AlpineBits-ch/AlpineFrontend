@@ -1,9 +1,14 @@
 <div class="flex flex-col h-full bg-app-bg overflow-hidden">
-
     <!-- Header. Drawn even when the module is off, so a phone still has its way back to the channel list; the body below is what disappears, not the shell. -->
     <header class="app-header flex items-center gap-2 px-3 sm:px-5 border-b border-border-subtle shrink-0 bg-app-bg">
-        <p-button (onClick)="navService.mobileNavOpen.set(true)" [text]="true" class="lg:hidden" icon="pi pi-bars"
-                  severity="secondary" size="small"/>
+        <p-button
+            (onClick)="navService.mobileNavOpen.set(true)"
+            [text]="true"
+            class="lg:hidden"
+            icon="pi pi-bars"
+            severity="secondary"
+            size="small"
+        />
 
         <div class="flex items-center gap-2 sm:gap-3 min-w-0">
             <i [class]="icon()" class="text-text-muted shrink-0"></i>
@@ -18,20 +23,43 @@
         @if (!hidden()) {
             <div class="ml-auto flex items-center gap-1">
                 <!-- Deliberately here, not in guild settings (gated on ManageGuild): every member must be able to record how they are paid back. -->
-                <p-button (onClick)="showHandlesDialog.set(true)" [pTooltip]="'PAY.EDITOR.TITLE' | translate"
-                          [text]="true" icon="pi pi-wallet" severity="secondary" size="small"
-                          tooltipPosition="bottom"/>
+                <p-button
+                    (onClick)="showHandlesDialog.set(true)"
+                    [pTooltip]="'PAY.EDITOR.TITLE' | translate"
+                    [text]="true"
+                    icon="pi pi-wallet"
+                    severity="secondary"
+                    size="small"
+                    tooltipPosition="bottom"
+                />
                 @if (canManageLedger()) {
-                    <p-button (onClick)="openCurrencyDialog()" [pTooltip]="'LEDGER.CURRENCY_SETTING' | translate"
-                              [text]="true" icon="pi pi-cog" severity="secondary" size="small"
-                              tooltipPosition="bottom"/>
+                    <p-button
+                        (onClick)="openCurrencyDialog()"
+                        [pTooltip]="'LEDGER.CURRENCY_SETTING' | translate"
+                        [text]="true"
+                        icon="pi pi-cog"
+                        severity="secondary"
+                        size="small"
+                        tooltipPosition="bottom"
+                    />
                 }
                 @if (canAddExpense()) {
-                    <p-button (onClick)="openSettle()" [label]="'LEDGER.RECORD_PAYMENT' | translate" [text]="true"
-                              class="hidden sm:inline-flex" icon="pi pi-check-circle" severity="secondary"
-                              size="small"/>
-                    <p-button (onClick)="openAddExpense()" [label]="'LEDGER.ADD_EXPENSE' | translate" icon="pi pi-plus"
-                              severity="primary" size="small"/>
+                    <p-button
+                        (onClick)="openSettle()"
+                        [label]="'LEDGER.RECORD_PAYMENT' | translate"
+                        [text]="true"
+                        class="hidden sm:inline-flex"
+                        icon="pi pi-check-circle"
+                        severity="secondary"
+                        size="small"
+                    />
+                    <p-button
+                        (onClick)="openAddExpense()"
+                        [label]="'LEDGER.ADD_EXPENSE' | translate"
+                        icon="pi pi-plus"
+                        severity="primary"
+                        size="small"
+                    />
                 }
             </div>
         }
@@ -41,19 +69,28 @@
     @if (!hidden()) {
         <div class="px-3 sm:px-5 pt-3 shrink-0">
             <div class="flex items-center rounded-lg border border-border-subtle p-0.5 self-start w-fit">
-                <button (click)="tab.set('expenses')"
-                        [class]="tab() === 'expenses' ? 'bg-hover text-text-primary' : 'text-text-muted hover:text-text-secondary'"
-                        class="px-3 py-1 rounded-md text-[0.6875rem] font-medium transition-colors" type="button">
+                <button
+                    (click)="tab.set('expenses')"
+                    [class]="tab() === 'expenses' ? 'bg-hover text-text-primary' : 'text-text-muted hover:text-text-secondary'"
+                    class="px-3 py-1 rounded-md text-[0.6875rem] font-medium transition-colors"
+                    type="button"
+                >
                     {{ 'LEDGER.EXPENSES' | translate }}
                 </button>
-                <button (click)="tab.set('bills')"
-                        [class]="tab() === 'bills' ? 'bg-hover text-text-primary' : 'text-text-muted hover:text-text-secondary'"
-                        class="px-3 py-1 rounded-md text-[0.6875rem] font-medium transition-colors" type="button">
+                <button
+                    (click)="tab.set('bills')"
+                    [class]="tab() === 'bills' ? 'bg-hover text-text-primary' : 'text-text-muted hover:text-text-secondary'"
+                    class="px-3 py-1 rounded-md text-[0.6875rem] font-medium transition-colors"
+                    type="button"
+                >
                     {{ 'BILLS.TAB' | translate }}
                 </button>
-                <button (click)="tab.set('summary')"
-                        [class]="tab() === 'summary' ? 'bg-hover text-text-primary' : 'text-text-muted hover:text-text-secondary'"
-                        class="px-3 py-1 rounded-md text-[0.6875rem] font-medium transition-colors" type="button">
+                <button
+                    (click)="tab.set('summary')"
+                    [class]="tab() === 'summary' ? 'bg-hover text-text-primary' : 'text-text-muted hover:text-text-secondary'"
+                    class="px-3 py-1 rounded-md text-[0.6875rem] font-medium transition-colors"
+                    type="button"
+                >
                     {{ 'LEDGER.SUMMARY.TAB' | translate }}
                 </button>
             </div>
@@ -64,21 +101,23 @@
     @if (!hidden()) {
         <div class="flex-1 min-h-0 overflow-y-auto thin-scrollbar">
             <div class="px-3 sm:px-5 py-4 flex flex-col gap-4 max-w-3xl mx-auto w-full">
-
                 @if (tab() === 'bills') {
-                    <app-bills-panel [canAddExpense]="canAddExpense()" [canManage]="canManageLedger()"
-                                     [channelId]="channel().id" [currency]="currency()"
-                                     [memberOptions]="memberOptions()" [nameOf]="nameResolver()"
-                                     [ownUserId]="ownUserId()"/>
+                    <app-bills-panel
+                        [canAddExpense]="canAddExpense()"
+                        [canManage]="canManageLedger()"
+                        [channelId]="channel().id"
+                        [currency]="currency()"
+                        [memberOptions]="memberOptions()"
+                        [nameOf]="nameResolver()"
+                        [ownUserId]="ownUserId()"
+                    />
                 } @else if (tab() === 'summary') {
-                    <app-ledger-summary [channelId]="channel().id" [currency]="currency()"
-                                        [nameOf]="nameResolver()"/>
+                    <app-ledger-summary [channelId]="channel().id" [currency]="currency()" [nameOf]="nameResolver()" />
                 } @else if (state().loading && !state().loaded) {
                     <div class="flex items-center justify-center py-16">
                         <i class="pi pi-spin pi-spinner text-xl text-text-muted"></i>
                     </div>
                 } @else {
-
                     <!-- ── Your position ──────────────────────────────────────────── -->
                     <section class="rounded-2xl border border-border bg-card px-4 py-4">
                         @if (settled()) {
@@ -95,8 +134,10 @@
                             <p class="text-[0.6875rem] uppercase tracking-widest text-text-muted m-0">
                                 {{ (ownNetMinor() >= 0 ? 'LEDGER.YOU_ARE_OWED' : 'LEDGER.YOU_OWE') | translate }}
                             </p>
-                            <p [class]="ownNetMinor() >= 0 ? 'text-online' : 'text-offline'"
-                               class="text-2xl font-semibold m-0 mt-1 tabular-nums">
+                            <p
+                                [class]="ownNetMinor() >= 0 ? 'text-online' : 'text-offline'"
+                                class="text-2xl font-semibold m-0 mt-1 tabular-nums"
+                            >
                                 {{ absMoney(ownNetMinor()) }}
                             </p>
                         }
@@ -112,14 +153,18 @@
                             </div>
                             @for (row of balanceRows(); track row.userId) {
                                 <div class="flex items-center gap-3 px-4 py-2.5 border-b border-border-subtle last:border-b-0">
-                                    <div class="w-7 h-7 rounded-full bg-hover grid place-items-center text-[0.6875rem] font-semibold text-text-secondary shrink-0">
+                                    <div
+                                        class="w-7 h-7 rounded-full bg-hover grid place-items-center text-[0.6875rem] font-semibold text-text-secondary shrink-0"
+                                    >
                                         {{ initialOf(row.userId) }}
                                     </div>
                                     <span class="text-[0.8125rem] text-text-primary truncate">
                                         {{ row.isSelf ? ('LEDGER.YOU' | translate) : row.name }}
                                     </span>
-                                    <span [class]="row.netMinor >= 0 ? 'text-online' : 'text-offline'"
-                                          class="ml-auto text-[0.8125rem] font-semibold tabular-nums shrink-0">
+                                    <span
+                                        [class]="row.netMinor >= 0 ? 'text-online' : 'text-offline'"
+                                        class="ml-auto text-[0.8125rem] font-semibold tabular-nums shrink-0"
+                                    >
                                         {{ absMoney(row.netMinor) }}
                                     </span>
                                     <span class="text-[0.625rem] text-text-muted w-16 text-right shrink-0">
@@ -147,9 +192,13 @@
                                         {{ money(row.suggestion.amountMinor) }}
                                     </span>
                                     @if (row.canRecord) {
-                                        <p-button (onClick)="openSettle(row.suggestion)"
-                                                  [label]="'LEDGER.MARK_PAID' | translate" [text]="true"
-                                                  severity="secondary" size="small"/>
+                                        <p-button
+                                            (onClick)="openSettle(row.suggestion)"
+                                            [label]="'LEDGER.MARK_PAID' | translate"
+                                            [text]="true"
+                                            severity="secondary"
+                                            size="small"
+                                        />
                                     }
                                 </div>
                             }
@@ -162,11 +211,15 @@
                             @for (settlement of state().recentSettlements; track settlement.id) {
                                 <p class="text-[0.6875rem] text-text-muted m-0">
                                     <i class="pi pi-check-circle text-online text-[0.625rem] mr-1"></i>
-                                    {{ 'LEDGER.SETTLEMENT_LINE' | translate: {
-                                        from: nameOf(settlement.fromUserId),
-                                        to: nameOf(settlement.toUserId),
-                                        amount: money(settlement.amountMinor)
-                                    } }}
+                                    {{
+                                        'LEDGER.SETTLEMENT_LINE'
+                                            | translate
+                                                : {
+                                                      from: nameOf(settlement.fromUserId),
+                                                      to: nameOf(settlement.toUserId),
+                                                      amount: money(settlement.amountMinor),
+                                                  }
+                                    }}
                                 </p>
                             }
                         </section>
@@ -178,10 +231,17 @@
                             <span class="text-xs font-semibold text-text-secondary">{{ 'LEDGER.EXPENSES' | translate }}</span>
                             <!-- Applied server-side and from the first page: narrowing only what is already loaded would call fifty rows "all the groceries". -->
                             <div class="ml-auto flex items-center gap-1.5">
-                                <p-select (ngModelChange)="setCategoryFilter($event)" [ngModel]="categoryFilter()"
-                                          [options]="categoryOptions()"
-                                          [placeholder]="'LEDGER.CATEGORY_ALL' | translate" [showClear]="true"
-                                          optionLabel="label" optionValue="value" size="small" styleClass="w-40"/>
+                                <p-select
+                                    (ngModelChange)="setCategoryFilter($event)"
+                                    [ngModel]="categoryFilter()"
+                                    [options]="categoryOptions()"
+                                    [placeholder]="'LEDGER.CATEGORY_ALL' | translate"
+                                    [showClear]="true"
+                                    optionLabel="label"
+                                    optionValue="value"
+                                    size="small"
+                                    styleClass="w-40"
+                                />
                             </div>
                         </div>
 
@@ -190,8 +250,13 @@
                                 <i class="pi pi-wallet text-3xl text-white/10"></i>
                                 <p class="text-sm text-text-muted m-0">{{ 'LEDGER.EMPTY' | translate }}</p>
                                 @if (canAddExpense()) {
-                                    <p-button (onClick)="openAddExpense()" [label]="'LEDGER.ADD_EXPENSE' | translate"
-                                              [text]="true" severity="secondary" size="small"/>
+                                    <p-button
+                                        (onClick)="openAddExpense()"
+                                        [label]="'LEDGER.ADD_EXPENSE' | translate"
+                                        [text]="true"
+                                        severity="secondary"
+                                        size="small"
+                                    />
                                 }
                             </div>
                         } @else {
@@ -203,9 +268,9 @@
                                         </p>
                                         <p class="text-[0.6875rem] text-text-muted m-0 mt-0.5">
                                             {{ 'LEDGER.PAID_BY' | translate: {name: row.payerName} }}
-                                            <span class="mx-1">·</span>{{ day(row.expense.occurredAt) }}
-                                            <span class="mx-1">·</span>{{ row.splitLabelKey | translate }}
-                                            <span class="mx-1">·</span>{{ row.categoryLabelKey | translate }}
+                                            <span class="mx-1">·</span>{{ day(row.expense.occurredAt) }} <span class="mx-1">·</span
+                                            >{{ row.splitLabelKey | translate }} <span class="mx-1">·</span
+                                            >{{ row.categoryLabelKey | translate }}
                                             @if (row.receiptCount > 0) {
                                                 <i class="pi pi-paperclip text-[0.5625rem] ml-1.5"></i>
                                             }
@@ -231,33 +296,58 @@
 
                                     <!-- Receipts are readable by anybody who can see the channel; only the editor may add or remove one. -->
                                     <div class="flex items-center shrink-0">
-                                        <p-button (onClick)="openReceipts(row.expense)"
-                                                  [pTooltip]="'RECEIPTS.TITLE' | translate" [text]="true"
-                                                  icon="pi pi-receipt" severity="secondary" size="small"
-                                                  tooltipPosition="left"/>
+                                        <p-button
+                                            (onClick)="openReceipts(row.expense)"
+                                            [pTooltip]="'RECEIPTS.TITLE' | translate"
+                                            [text]="true"
+                                            icon="pi pi-receipt"
+                                            severity="secondary"
+                                            size="small"
+                                            tooltipPosition="left"
+                                        />
                                     </div>
 
                                     @if (row.canEdit) {
                                         <!-- Armed by the first press, done by the second: a delete moves everybody's balance, not just the presser's. -->
                                         @if (confirmDeleteId() === row.expense.id) {
                                             <div class="flex items-center shrink-0">
-                                                <p-button (onClick)="deleteExpense(row.expense)"
-                                                          [label]="'LEDGER.CONFIRM_DELETE' | translate" [text]="true"
-                                                          severity="danger" size="small"/>
-                                                <p-button (onClick)="confirmDeleteId.set(null)"
-                                                          [label]="'COMMON.CANCEL' | translate" [text]="true"
-                                                          severity="secondary" size="small"/>
+                                                <p-button
+                                                    (onClick)="deleteExpense(row.expense)"
+                                                    [label]="'LEDGER.CONFIRM_DELETE' | translate"
+                                                    [text]="true"
+                                                    severity="danger"
+                                                    size="small"
+                                                />
+                                                <p-button
+                                                    (onClick)="confirmDeleteId.set(null)"
+                                                    [label]="'COMMON.CANCEL' | translate"
+                                                    [text]="true"
+                                                    severity="secondary"
+                                                    size="small"
+                                                />
                                             </div>
                                         } @else {
-                                            <div class="flex items-center shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-                                                <p-button (onClick)="openEditExpense(row.expense)"
-                                                          [pTooltip]="'COMMON.EDIT' | translate" [text]="true"
-                                                          icon="pi pi-pencil" severity="secondary" size="small"
-                                                          tooltipPosition="left"/>
-                                                <p-button (onClick)="deleteExpense(row.expense)"
-                                                          [pTooltip]="'COMMON.DELETE' | translate" [text]="true"
-                                                          icon="pi pi-trash" severity="danger" size="small"
-                                                          tooltipPosition="left"/>
+                                            <div
+                                                class="flex items-center shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity"
+                                            >
+                                                <p-button
+                                                    (onClick)="openEditExpense(row.expense)"
+                                                    [pTooltip]="'COMMON.EDIT' | translate"
+                                                    [text]="true"
+                                                    icon="pi pi-pencil"
+                                                    severity="secondary"
+                                                    size="small"
+                                                    tooltipPosition="left"
+                                                />
+                                                <p-button
+                                                    (onClick)="deleteExpense(row.expense)"
+                                                    [pTooltip]="'COMMON.DELETE' | translate"
+                                                    [text]="true"
+                                                    icon="pi pi-trash"
+                                                    severity="danger"
+                                                    size="small"
+                                                    tooltipPosition="left"
+                                                />
                                             </div>
                                         }
                                     }
@@ -269,9 +359,15 @@
                     <!-- The ledger is paged: a cursor means there are older expenses behind what is on screen and otherwise unreachable. -->
                     @if (state().nextCursor) {
                         <div class="flex justify-center">
-                            <p-button (onClick)="loadMore()" [label]="'LEDGER.LOAD_OLDER' | translate"
-                                      [loading]="state().loadingMore" [text]="true"
-                                      icon="pi pi-history" severity="secondary" size="small"/>
+                            <p-button
+                                (onClick)="loadMore()"
+                                [label]="'LEDGER.LOAD_OLDER' | translate"
+                                [loading]="state().loadingMore"
+                                [text]="true"
+                                icon="pi pi-history"
+                                severity="secondary"
+                                size="small"
+                            />
                         </div>
                     }
 
@@ -285,8 +381,15 @@
 </div>
 
 <!-- ── Add / edit expense ──────────────────────────────────────────────────── -->
-<p-dialog (visibleChange)="showExpenseDialog.set($event)" [draggable]="false" [modal]="true" [resizable]="false"
-          [style]="{width: '520px'}" [visible]="showExpenseDialog()" appendTo="body">
+<p-dialog
+    (visibleChange)="showExpenseDialog.set($event)"
+    [draggable]="false"
+    [modal]="true"
+    [resizable]="false"
+    [style]="{width: '520px'}"
+    [visible]="showExpenseDialog()"
+    appendTo="body"
+>
     <ng-template pTemplate="header">
         <div class="flex flex-col gap-0.5">
             <span class="text-sm font-semibold text-text-primary">
@@ -299,9 +402,15 @@
     <div class="flex flex-col gap-4">
         <div class="flex flex-col gap-1.5">
             <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'LEDGER.DESCRIPTION' | translate }}</label>
-            <input (keydown.enter)="submitExpense()" (ngModelChange)="formDescription.set($event)" [maxlength]="descriptionMaxLength"
-                   [ngModel]="formDescription()"
-                   [placeholder]="'LEDGER.DESCRIPTION_PLACEHOLDER' | translate" pInputText type="text"/>
+            <input
+                (keydown.enter)="submitExpense()"
+                (ngModelChange)="formDescription.set($event)"
+                [maxlength]="descriptionMaxLength"
+                [ngModel]="formDescription()"
+                [placeholder]="'LEDGER.DESCRIPTION_PLACEHOLDER' | translate"
+                pInputText
+                type="text"
+            />
         </div>
 
         <div class="flex gap-3">
@@ -310,9 +419,15 @@
                     {{ 'LEDGER.AMOUNT' | translate: {currency: currency()} }}
                 </label>
                 <!-- inputmode="decimal", but a text input: the value travels as a string and becomes whole minor units via parseMinor. -->
-                <input (keydown.enter)="submitExpense()" (ngModelChange)="formAmount.set($event)" [ngModel]="formAmount()"
-                       [placeholder]="'LEDGER.AMOUNT_PLACEHOLDER' | translate" inputmode="decimal" pInputText
-                       type="text"/>
+                <input
+                    (keydown.enter)="submitExpense()"
+                    (ngModelChange)="formAmount.set($event)"
+                    [ngModel]="formAmount()"
+                    [placeholder]="'LEDGER.AMOUNT_PLACEHOLDER' | translate"
+                    inputmode="decimal"
+                    pInputText
+                    type="text"
+                />
                 @if (formAmountInvalid()) {
                     <span class="text-[0.625rem] text-offline">{{ 'LEDGER.AMOUNT_INVALID' | translate }}</span>
                 } @else if (formAmountMinor() !== null) {
@@ -322,15 +437,22 @@
 
             <div class="flex flex-col gap-1.5 w-40">
                 <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'LEDGER.DATE' | translate }}</label>
-                <input (ngModelChange)="formOccurredAt.set($event)" [ngModel]="formOccurredAt()" pInputText type="date"/>
+                <input (ngModelChange)="formOccurredAt.set($event)" [ngModel]="formOccurredAt()" pInputText type="date" />
             </div>
         </div>
 
         <div class="flex flex-col gap-1.5">
             <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'LEDGER.PAID_BY_LABEL' | translate }}</label>
-            <p-select (ngModelChange)="formPayerUserId.set($event)" [disabled]="!canNamePayer()" [filter]="true"
-                      [ngModel]="formPayerUserId()" [options]="memberOptions()" optionLabel="label"
-                      optionValue="value" styleClass="w-full"/>
+            <p-select
+                (ngModelChange)="formPayerUserId.set($event)"
+                [disabled]="!canNamePayer()"
+                [filter]="true"
+                [ngModel]="formPayerUserId()"
+                [options]="memberOptions()"
+                optionLabel="label"
+                optionValue="value"
+                styleClass="w-full"
+            />
             @if (!canNamePayer()) {
                 <span class="text-[0.625rem] text-text-muted">{{ 'LEDGER.PAYER_LOCKED' | translate }}</span>
             }
@@ -343,30 +465,50 @@
         <!-- Left at Uncategorized rather than guessed: a defaulted "Groceries" would quietly file the rent under food. -->
         <div class="flex flex-col gap-1.5">
             <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'LEDGER.CATEGORY' | translate }}</label>
-            <p-select (ngModelChange)="formCategory.set($event)" [ngModel]="formCategory()"
-                      [options]="categoryOptions()" optionLabel="label" optionValue="value" styleClass="w-full"/>
+            <p-select
+                (ngModelChange)="formCategory.set($event)"
+                [ngModel]="formCategory()"
+                [options]="categoryOptions()"
+                optionLabel="label"
+                optionValue="value"
+                styleClass="w-full"
+            />
         </div>
 
         <!-- Split. Exact is deliberately absent: the client must never decide who eats the remainder; the server already has, and will disagree. -->
         <div class="flex flex-col gap-2">
             <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'LEDGER.SPLIT' | translate }}</label>
             <div class="flex items-center rounded-lg border border-border-subtle p-0.5 self-start">
-                <button (click)="setSplitKind(SplitKind.Equal)"
-                        [class]="formSplitKind() === SplitKind.Equal ? 'bg-hover text-text-primary' : 'text-text-muted hover:text-text-secondary'"
-                        class="px-3 py-1 rounded-md text-[0.6875rem] font-medium transition-colors" type="button">
+                <button
+                    (click)="setSplitKind(SplitKind.Equal)"
+                    [class]="
+                        formSplitKind() === SplitKind.Equal ? 'bg-hover text-text-primary' : 'text-text-muted hover:text-text-secondary'
+                    "
+                    class="px-3 py-1 rounded-md text-[0.6875rem] font-medium transition-colors"
+                    type="button"
+                >
                     {{ 'LEDGER.SPLIT_EQUAL' | translate }}
                 </button>
-                <button (click)="setSplitKind(SplitKind.Shares)"
-                        [class]="formSplitKind() === SplitKind.Shares ? 'bg-hover text-text-primary' : 'text-text-muted hover:text-text-secondary'"
-                        class="px-3 py-1 rounded-md text-[0.6875rem] font-medium transition-colors" type="button">
+                <button
+                    (click)="setSplitKind(SplitKind.Shares)"
+                    [class]="
+                        formSplitKind() === SplitKind.Shares ? 'bg-hover text-text-primary' : 'text-text-muted hover:text-text-secondary'
+                    "
+                    class="px-3 py-1 rounded-md text-[0.6875rem] font-medium transition-colors"
+                    type="button"
+                >
                     {{ 'LEDGER.SPLIT_SHARES' | translate }}
                 </button>
             </div>
 
             @if (formSplitKind() === SplitKind.Equal) {
                 <label class="flex items-start gap-2 cursor-pointer">
-                    <input (ngModelChange)="formSplitEveryone.set($event)" [ngModel]="formSplitEveryone()"
-                           class="mt-0.5 accent-brand" type="checkbox"/>
+                    <input
+                        (ngModelChange)="formSplitEveryone.set($event)"
+                        [ngModel]="formSplitEveryone()"
+                        class="mt-0.5 accent-brand"
+                        type="checkbox"
+                    />
                     <span class="min-w-0">
                         <span class="text-[0.8125rem] text-text-primary block">{{ 'LEDGER.SPLIT_EVERYONE' | translate }}</span>
                         <span class="text-[0.625rem] text-text-muted block">{{ 'LEDGER.SPLIT_EVERYONE_HINT' | translate }}</span>
@@ -378,14 +520,22 @@
                 <div class="rounded-xl border border-border-subtle divide-y divide-white/[0.04] max-h-56 overflow-y-auto thin-scrollbar">
                     @for (option of memberOptions(); track option.value) {
                         <div class="flex items-center gap-2 px-3 py-2">
-                            <input (change)="toggleParticipant(option.value)" [checked]="isParticipant(option.value)"
-                                   class="accent-brand" type="checkbox"/>
+                            <input
+                                (change)="toggleParticipant(option.value)"
+                                [checked]="isParticipant(option.value)"
+                                class="accent-brand"
+                                type="checkbox"
+                            />
                             <span class="text-[0.8125rem] text-text-primary truncate">{{ option.label }}</span>
                             @if (formSplitKind() === SplitKind.Shares && isParticipant(option.value)) {
-                                <input (input)="setWeight(option.value, $any($event.target).value)"
-                                       [value]="weightOf(option.value)"
-                                       class="ml-auto w-16 bg-card border border-border rounded-md px-2 py-1 text-[0.6875rem] text-text-primary text-right"
-                                       min="1" step="1" type="number"/>
+                                <input
+                                    (input)="setWeight(option.value, $any($event.target).value)"
+                                    [value]="weightOf(option.value)"
+                                    class="ml-auto w-16 bg-card border border-border rounded-md px-2 py-1 text-[0.6875rem] text-text-primary text-right"
+                                    min="1"
+                                    step="1"
+                                    type="number"
+                                />
                             }
                         </div>
                     }
@@ -404,16 +554,27 @@
     </div>
 
     <ng-template pTemplate="footer">
-        <p-button (onClick)="showExpenseDialog.set(false)" [label]="'COMMON.CANCEL' | translate" [text]="true"
-                  severity="secondary"/>
-        <p-button (onClick)="submitExpense()" [disabled]="!formValid()" [label]="'COMMON.SAVE' | translate"
-                  [loading]="saving()" severity="primary"/>
+        <p-button (onClick)="showExpenseDialog.set(false)" [label]="'COMMON.CANCEL' | translate" [text]="true" severity="secondary" />
+        <p-button
+            (onClick)="submitExpense()"
+            [disabled]="!formValid()"
+            [label]="'COMMON.SAVE' | translate"
+            [loading]="saving()"
+            severity="primary"
+        />
     </ng-template>
 </p-dialog>
 
 <!-- ── Record a settlement ─────────────────────────────────────────────────── -->
-<p-dialog (visibleChange)="showSettleDialog.set($event)" [draggable]="false" [modal]="true" [resizable]="false"
-          [style]="{width: '460px'}" [visible]="showSettleDialog()" appendTo="body">
+<p-dialog
+    (visibleChange)="showSettleDialog.set($event)"
+    [draggable]="false"
+    [modal]="true"
+    [resizable]="false"
+    [style]="{width: '460px'}"
+    [visible]="showSettleDialog()"
+    appendTo="body"
+>
     <ng-template pTemplate="header">
         <span class="text-sm font-semibold text-text-primary">{{ 'LEDGER.RECORD_PAYMENT' | translate }}</span>
     </ng-template>
@@ -427,13 +588,27 @@
         <div class="flex gap-3">
             <div class="flex flex-col gap-1.5 flex-1 min-w-0">
                 <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'LEDGER.FROM' | translate }}</label>
-                <p-select (ngModelChange)="settleFromUserId.set($event)" [filter]="true" [ngModel]="settleFromUserId()"
-                          [options]="memberOptions()" optionLabel="label" optionValue="value" styleClass="w-full"/>
+                <p-select
+                    (ngModelChange)="settleFromUserId.set($event)"
+                    [filter]="true"
+                    [ngModel]="settleFromUserId()"
+                    [options]="memberOptions()"
+                    optionLabel="label"
+                    optionValue="value"
+                    styleClass="w-full"
+                />
             </div>
             <div class="flex flex-col gap-1.5 flex-1 min-w-0">
                 <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'LEDGER.TO' | translate }}</label>
-                <p-select (ngModelChange)="settleToUserId.set($event)" [filter]="true" [ngModel]="settleToUserId()"
-                          [options]="memberOptions()" optionLabel="label" optionValue="value" styleClass="w-full"/>
+                <p-select
+                    (ngModelChange)="settleToUserId.set($event)"
+                    [filter]="true"
+                    [ngModel]="settleToUserId()"
+                    [options]="memberOptions()"
+                    optionLabel="label"
+                    optionValue="value"
+                    styleClass="w-full"
+                />
             </div>
         </div>
 
@@ -441,8 +616,14 @@
             <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">
                 {{ 'LEDGER.AMOUNT' | translate: {currency: currency()} }}
             </label>
-            <input (keydown.enter)="submitSettlement()" (ngModelChange)="settleAmount.set($event)" [ngModel]="settleAmount()" inputmode="decimal"
-                   pInputText type="text"/>
+            <input
+                (keydown.enter)="submitSettlement()"
+                (ngModelChange)="settleAmount.set($event)"
+                [ngModel]="settleAmount()"
+                inputmode="decimal"
+                pInputText
+                type="text"
+            />
             @if (settleAmountMinor() !== null) {
                 <span class="text-[0.625rem] text-text-muted">{{ money(settleAmountMinor()!) }}</span>
             }
@@ -455,25 +636,41 @@
         <!-- Shown only when the viewer is the payer (see `payeeForSheet`); `markPaid` calls the same `submitSettlement()` as the footer, since the sheet itself never confirms payment, only the payer's own assertion does. -->
         @if (payeeForSheet(); as payee) {
             <div class="border-t border-border-subtle pt-3">
-                <app-pay-sheet (markPaid)="submitSettlement()" [amountMinor]="settleAmountMinor() ?? 0"
-                               [currency]="currency()" [guildId]="channel().guildId"
-                               [payeeName]="nameOf(payee)" [payeeUserId]="payee"
-                               [reference]="settlementReference()"/>
+                <app-pay-sheet
+                    (markPaid)="submitSettlement()"
+                    [amountMinor]="settleAmountMinor() ?? 0"
+                    [currency]="currency()"
+                    [guildId]="channel().guildId"
+                    [payeeName]="nameOf(payee)"
+                    [payeeUserId]="payee"
+                    [reference]="settlementReference()"
+                />
             </div>
         }
     </div>
 
     <ng-template pTemplate="footer">
-        <p-button (onClick)="showSettleDialog.set(false)" [label]="'COMMON.CANCEL' | translate" [text]="true"
-                  severity="secondary"/>
-        <p-button (onClick)="submitSettlement()" [disabled]="!settleValid() || !canRecordCurrentSettlement()"
-                  [label]="'LEDGER.RECORD' | translate" [loading]="saving()" severity="primary"/>
+        <p-button (onClick)="showSettleDialog.set(false)" [label]="'COMMON.CANCEL' | translate" [text]="true" severity="secondary" />
+        <p-button
+            (onClick)="submitSettlement()"
+            [disabled]="!settleValid() || !canRecordCurrentSettlement()"
+            [label]="'LEDGER.RECORD' | translate"
+            [loading]="saving()"
+            severity="primary"
+        />
     </ng-template>
 </p-dialog>
 
 <!-- ── Currency ────────────────────────────────────────────────────────────── -->
-<p-dialog (visibleChange)="showCurrencyDialog.set($event)" [draggable]="false" [modal]="true" [resizable]="false"
-          [style]="{width: '440px'}" [visible]="showCurrencyDialog()" appendTo="body">
+<p-dialog
+    (visibleChange)="showCurrencyDialog.set($event)"
+    [draggable]="false"
+    [modal]="true"
+    [resizable]="false"
+    [style]="{width: '440px'}"
+    [visible]="showCurrencyDialog()"
+    appendTo="body"
+>
     <ng-template pTemplate="header">
         <span class="text-sm font-semibold text-text-primary">{{ 'LEDGER.CURRENCY_SETTING' | translate }}</span>
     </ng-template>
@@ -481,8 +678,16 @@
     <div class="flex flex-col gap-4">
         <div class="flex flex-col gap-1.5">
             <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'LEDGER.CURRENCY_CODE' | translate }}</label>
-            <input (keydown.enter)="submitCurrency()" (ngModelChange)="currencyDraft.set($event)" [maxlength]="3" [ngModel]="currencyDraft()"
-                   class="uppercase" pInputText placeholder="CHF" type="text"/>
+            <input
+                (keydown.enter)="submitCurrency()"
+                (ngModelChange)="currencyDraft.set($event)"
+                [maxlength]="3"
+                [ngModel]="currencyDraft()"
+                class="uppercase"
+                pInputText
+                placeholder="CHF"
+                type="text"
+            />
         </div>
 
         <!-- Relabels, does not convert: stated, and then shown. -->
@@ -497,17 +702,28 @@
     </div>
 
     <ng-template pTemplate="footer">
-        <p-button (onClick)="showCurrencyDialog.set(false)" [label]="'COMMON.CANCEL' | translate" [text]="true"
-                  severity="secondary"/>
-        <p-button (onClick)="submitCurrency()" [disabled]="!currencyValid()"
-                  [label]="'LEDGER.CURRENCY_CONFIRM' | translate" [loading]="saving()" severity="danger"/>
+        <p-button (onClick)="showCurrencyDialog.set(false)" [label]="'COMMON.CANCEL' | translate" [text]="true" severity="secondary" />
+        <p-button
+            (onClick)="submitCurrency()"
+            [disabled]="!currencyValid()"
+            [label]="'LEDGER.CURRENCY_CONFIRM' | translate"
+            [loading]="saving()"
+            severity="danger"
+        />
     </ng-template>
 </p-dialog>
 
 <!-- ── Receipts ────────────────────────────────────────────────────────────── -->
 <!-- Mounted only while open: the gallery re-lists on construction, and a panel kept alive in the background would end up showing expired URLs. -->
-<p-dialog (visibleChange)="$event || receiptsFor.set(null)" [draggable]="false" [modal]="true"
-          [resizable]="false" [style]="{width: '520px'}" [visible]="!!receiptsFor()" appendTo="body">
+<p-dialog
+    (visibleChange)="$event || receiptsFor.set(null)"
+    [draggable]="false"
+    [modal]="true"
+    [resizable]="false"
+    [style]="{width: '520px'}"
+    [visible]="!!receiptsFor()"
+    appendTo="body"
+>
     <ng-template pTemplate="header">
         <div class="flex flex-col gap-0.5">
             <span class="text-sm font-semibold text-text-primary">{{ 'RECEIPTS.TITLE' | translate }}</span>
@@ -516,19 +732,26 @@
     </ng-template>
 
     @if (receiptsFor(); as expense) {
-        <app-receipt-gallery [canEdit]="canEditExpense(expense)" [expenseId]="expense.id"/>
+        <app-receipt-gallery [canEdit]="canEditExpense(expense)" [expenseId]="expense.id" />
     }
 </p-dialog>
 
 <!-- ── Payment handles ─────────────────────────────────────────────────────── -->
 <!-- Mounted only while open: the editor decrypts on load and holds the plaintext in memory, which a background dialog has no reason to keep around. -->
-<p-dialog (visibleChange)="showHandlesDialog.set($event)" [draggable]="false" [modal]="true"
-          [resizable]="false" [style]="{width: '560px'}" [visible]="showHandlesDialog()" appendTo="body">
+<p-dialog
+    (visibleChange)="showHandlesDialog.set($event)"
+    [draggable]="false"
+    [modal]="true"
+    [resizable]="false"
+    [style]="{width: '560px'}"
+    [visible]="showHandlesDialog()"
+    appendTo="body"
+>
     <ng-template pTemplate="header">
         <span class="text-sm font-semibold text-text-primary">{{ 'PAY.EDITOR.TITLE' | translate }}</span>
     </ng-template>
 
     @if (showHandlesDialog()) {
-        <app-payment-handles-editor [guildId]="channel().guildId"/>
+        <app-payment-handles-editor [guildId]="channel().guildId" />
     }
 </p-dialog>

@@ -31,21 +31,23 @@ export function pageStats(markdown: string): PageStats {
  * characters go, because none of them is a word.
  */
 function proseOf(markdown: string): string {
-    return markdown
-        // Fence markers and their info string, never the code between them.
-        .replace(/^[ \t]{0,3}(?:`{3,}|~{3,}).*$/gm, ' ')
-        // An image contributes no prose; its alt text is a label, not a sentence.
-        .replace(/!\[[^\]]*]\([^)]*\)/g, ' ')
-        // A link keeps its label and loses its target.
-        .replace(/\[([^\]]*)]\([^)]*\)/g, '$1')
-        // Pages saved before the markdown switch are stored as HTML.
-        .replace(/<[^>]+>/g, ' ')
-        .replace(/^[ \t]*[>#]+[ \t]*/gm, ' ')
-        .replace(/^[ \t]*(?:[-*+]|\d+[.)])[ \t]+/gm, ' ')
-        // Table pipes and the dashed separator row.
-        .replace(/^[ \t]*\|?[ \t]*:?-{3,}:?[ \t]*(?:\|[ \t]*:?-{3,}:?[ \t]*)*\|?[ \t]*$/gm, ' ')
-        .replace(/\|/g, ' ')
-        .replace(/[*_~`]/g, '')
-        .replace(/\s+/g, ' ')
-        .trim();
+    return (
+        markdown
+            // Fence markers and their info string, never the code between them.
+            .replace(/^[ \t]{0,3}(?:`{3,}|~{3,}).*$/gm, ' ')
+            // An image contributes no prose; its alt text is a label, not a sentence.
+            .replace(/!\[[^\]]*]\([^)]*\)/g, ' ')
+            // A link keeps its label and loses its target.
+            .replace(/\[([^\]]*)]\([^)]*\)/g, '$1')
+            // Pages saved before the markdown switch are stored as HTML.
+            .replace(/<[^>]+>/g, ' ')
+            .replace(/^[ \t]*[>#]+[ \t]*/gm, ' ')
+            .replace(/^[ \t]*(?:[-*+]|\d+[.)])[ \t]+/gm, ' ')
+            // Table pipes and the dashed separator row.
+            .replace(/^[ \t]*\|?[ \t]*:?-{3,}:?[ \t]*(?:\|[ \t]*:?-{3,}:?[ \t]*)*\|?[ \t]*$/gm, ' ')
+            .replace(/\|/g, ' ')
+            .replace(/[*_~`]/g, '')
+            .replace(/\s+/g, ' ')
+            .trim()
+    );
 }

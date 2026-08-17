@@ -57,27 +57,43 @@ function setup(options: {hasMore?: boolean; loading?: boolean} = {}) {
         providers: [
             {provide: ConversationStore, useValue: conversationStore},
             {provide: MessageStore, useValue: {removeMessagesForConversation: vi.fn()}},
-            {provide: ProfileService, useValue: {
-                ownProfile: () => ({userId: 'me'}), getCachedByUserId: () => undefined,
-                resolveByUserId: vi.fn(),
-            }},
-            {provide: MessagingService, useValue: {
-                getMessagesForConversation: () => of([]),
-                messageSentObservable: new Subject(),
-            }},
+            {
+                provide: ProfileService,
+                useValue: {
+                    ownProfile: () => ({userId: 'me'}),
+                    getCachedByUserId: () => undefined,
+                    resolveByUserId: vi.fn(),
+                },
+            },
+            {
+                provide: MessagingService,
+                useValue: {
+                    getMessagesForConversation: () => of([]),
+                    messageSentObservable: new Subject(),
+                },
+            },
             {provide: ConversationService, useValue: {deleteConversation: () => of(undefined)}},
             {provide: MessagingWebsocketService, useValue: {messageObservable: new Subject()}},
-            {provide: ConversationUtilsService, useValue: {
-                getChatTitle: () => 'Chat', getPartnerMember: () => undefined,
-                getPartnerStatus: () => undefined, getTypingLabel: () => null,
-            }},
+            {
+                provide: ConversationUtilsService,
+                useValue: {
+                    getChatTitle: () => 'Chat',
+                    getPartnerMember: () => undefined,
+                    getPartnerStatus: () => undefined,
+                    getTypingLabel: () => null,
+                },
+            },
             {provide: MlsService, useValue: {getCachedMessage: vi.fn(async () => null)}},
             {provide: MlsSyncService, useValue: {leaveContext: vi.fn(async () => undefined)}},
             {provide: ToastService, useValue: {success: vi.fn(), httpError: vi.fn()}},
-            {provide: NavigationService, useValue: {
-                mainView: signal({type: 'home'}), tryRestoreConversationNav: vi.fn(),
-                showHome: vi.fn(),
-            }},
+            {
+                provide: NavigationService,
+                useValue: {
+                    mainView: signal({type: 'home'}),
+                    tryRestoreConversationNav: vi.fn(),
+                    showHome: vi.fn(),
+                },
+            },
             // The paging sentinel is on the mobile branch of the template, so this list has to believe it
             // is on a phone. `OsInfo` rather than the deleted `PlatformService` - see its port.
             {provide: OsInfo, useValue: new FakeOsInfo('android', true)},
@@ -85,7 +101,7 @@ function setup(options: {hasMore?: boolean; loading?: boolean} = {}) {
     });
 
     const fixture = TestBed.createComponent(ConversationListComponent);
-    const component = fixture.componentInstance as unknown as { requestNextPage(): void };
+    const component = fixture.componentInstance as unknown as {requestNextPage(): void};
     return {fixture, component, hasMore, loading, loadMore};
 }
 

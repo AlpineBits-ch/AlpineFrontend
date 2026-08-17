@@ -38,7 +38,18 @@ const HEX_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
 
 @Component({
     selector: 'app-roles-settings',
-    imports: [NgClass, FormsModule, Button, InputText, Textarea, Dialog, Tooltip, PermissionToggleComponent, PrimeTemplate, TranslateModule],
+    imports: [
+        NgClass,
+        FormsModule,
+        Button,
+        InputText,
+        Textarea,
+        Dialog,
+        Tooltip,
+        PermissionToggleComponent,
+        PrimeTemplate,
+        TranslateModule,
+    ],
     templateUrl: './roles-settings.component.html',
 })
 export class RolesSettingsComponent implements OnInit {
@@ -101,7 +112,7 @@ export class RolesSettingsComponent implements OnInit {
                 roleMember: rm,
                 profile: userId ? this.profileService.getCachedByUserId(userId) : undefined,
             };
-        })
+        }),
     );
     private toastService = inject(ToastService);
     private translate = inject(TranslateService);
@@ -120,7 +131,9 @@ export class RolesSettingsComponent implements OnInit {
     protected readonly colorInvalid = computed(() => !HEX_COLOR_PATTERN.test(this.editColor().trim()));
 
     /** The create dialog used to persist whatever was typed; it gets the same check as the editor. */
-    protected readonly createColorInvalid = computed(() => !HEX_COLOR_PATTERN.test(this.createColor().trim()));
+    protected readonly createColorInvalid = computed(
+        () => !HEX_COLOR_PATTERN.test(this.createColor().trim()),
+    );
 
     /** Module set for this guild: permission groups whose module is off aren't offered. */
     protected readonly features = computed(() => guildFeatures(this.guild()));
@@ -144,8 +157,9 @@ export class RolesSettingsComponent implements OnInit {
             .subscribe(dto => {
                 const posMap = new Map(dto.roles.map(r => [r.roleId, r.position]));
                 this.roles.update(list =>
-                    list.map(r => posMap.has(r.id) ? {...r, position: posMap.get(r.id)!} : r)
-                        .sort((a, b) => a.position - b.position)
+                    list
+                        .map(r => (posMap.has(r.id) ? {...r, position: posMap.get(r.id)!} : r))
+                        .sort((a, b) => a.position - b.position),
                 );
             });
     }
@@ -223,14 +237,19 @@ export class RolesSettingsComponent implements OnInit {
         const withPositions = reordered.map((r, i) => ({...r, position: i}));
         this.roles.set(withPositions);
 
-        this.guildService.reorderRoles(this.guild().id, {
-            roles: withPositions.map(r => ({roleId: r.id, position: r.position})),
-        }).subscribe({
-            error: err => {
-                this.toastService.httpError(this.translate.instant('GUILD_SETTINGS.ROLES.REORDER_ERROR'), err);
-                this.roles.set(previous);
-            },
-        });
+        this.guildService
+            .reorderRoles(this.guild().id, {
+                roles: withPositions.map(r => ({roleId: r.id, position: r.position})),
+            })
+            .subscribe({
+                error: err => {
+                    this.toastService.httpError(
+                        this.translate.instant('GUILD_SETTINGS.ROLES.REORDER_ERROR'),
+                        err,
+                    );
+                    this.roles.set(previous);
+                },
+            });
     }
 
     /** Clicking a role in the list discarded pending edits without a word. Ask first. */
@@ -283,10 +302,10 @@ export class RolesSettingsComponent implements OnInit {
         if (!r) return;
         this.editDirty.set(
             this.editName() !== r.name ||
-            this.editDescription() !== (r.description ?? '') ||
-            this.editColor() !== (r.color ?? '#4B5BC4') ||
-            this.editPermMask() !== parsePermissionCarrier(r.permissions).value ||
-            this.editModuleMask() !== parseModulePermissionCarrier(r.modulePermissions).value
+                this.editDescription() !== (r.description ?? '') ||
+                this.editColor() !== (r.color ?? '#4B5BC4') ||
+                this.editPermMask() !== parsePermissionCarrier(r.permissions).value ||
+                this.editModuleMask() !== parseModulePermissionCarrier(r.modulePermissions).value,
         );
     }
 
@@ -317,7 +336,7 @@ export class RolesSettingsComponent implements OnInit {
         this.guildService.updateRole(role.id, dto).subscribe({
             next: () => {
                 const updated: RoleDto = {...role, ...dto};
-                this.roles.update(list => list.map(r => r.id === role.id ? updated : r));
+                this.roles.update(list => list.map(r => (r.id === role.id ? updated : r)));
                 this.selectedRole.set(updated);
                 this.editDirty.set(false);
                 this.editSaving.set(false);
@@ -328,7 +347,10 @@ export class RolesSettingsComponent implements OnInit {
                 if (err.status === 403) {
                     this.toastService.error(this.translate.instant('GUILD_SETTINGS.ROLES.ESCALATION_ERROR'));
                 } else {
-                    this.toastService.httpError(this.translate.instant('GUILD_SETTINGS.ROLES.SAVE_ERROR'), err);
+                    this.toastService.httpError(
+                        this.translate.instant('GUILD_SETTINGS.ROLES.SAVE_ERROR'),
+                        err,
+                    );
                 }
             },
         });
@@ -359,7 +381,10 @@ export class RolesSettingsComponent implements OnInit {
                 if (err.status === 403) {
                     this.toastService.error(this.translate.instant('GUILD_SETTINGS.ROLES.ESCALATION_ERROR'));
                 } else {
-                    this.toastService.httpError(this.translate.instant('GUILD_SETTINGS.ROLES.CREATE_ERROR'), err);
+                    this.toastService.httpError(
+                        this.translate.instant('GUILD_SETTINGS.ROLES.CREATE_ERROR'),
+                        err,
+                    );
                 }
             },
         });
@@ -386,7 +411,8 @@ export class RolesSettingsComponent implements OnInit {
 
     loadMoreRoleMembers(): void {
         const role = this.selectedRole();
-        if (!role || this.roleMembersLoadingMore() || !this.roleMembersHasMore() || this.roleMembersLoading()) return;
+        if (!role || this.roleMembersLoadingMore() || !this.roleMembersHasMore() || this.roleMembersLoading())
+            return;
         this.roleMembersLoadingMore.set(true);
         this.fetchMembersPage(role.id);
     }

@@ -126,8 +126,7 @@ interface RemoteTrackPlan {
 class FakeSender {
     parameters: RTCRtpSendParameters = {encodings: [{}]} as RTCRtpSendParameters;
 
-    constructor(readonly track: MediaStreamTrack) {
-    }
+    constructor(readonly track: MediaStreamTrack) {}
 
     getParameters(): RTCRtpSendParameters {
         return this.parameters;
@@ -267,7 +266,10 @@ function defaultResponse(request: Sent): unknown {
     // A fresh id per call, because the SFU never hands the same session out twice - and one of the
     // assertions below turns on exactly that (a stop naming a session that has been replaced).
     if (request.url.includes('/session')) {
-        return {mediaSessionId: `my_sess${sessionSeq++ === 0 ? '' : `-${sessionSeq - 1}`}`, backend: 'cloudflare'};
+        return {
+            mediaSessionId: `my_sess${sessionSeq++ === 0 ? '' : `-${sessionSeq - 1}`}`,
+            backend: 'cloudflare',
+        };
     }
     if (request.url.includes('/negotiate') || request.url.includes('renegotiate')) {
         return {sessionDescription: {type: 'answer', sdp: 'v=0'}};
@@ -278,9 +280,10 @@ function defaultResponse(request: Sent): unknown {
         sessionDescription: {type: 'answer', sdp: 'v=0'},
         // A publish is answered with the name it will be resolved by; a subscribe with the mid the SFU
         // allocated, which is the only thing that can route its packets.
-        tracks: direction === 'publish' || direction === 'local'
-            ? [{mid: '0', trackName: 'audio'}]
-            : [{mid: '1', trackName: track['trackName']}],
+        tracks:
+            direction === 'publish' || direction === 'local'
+                ? [{mid: '0', trackName: 'audio'}]
+                : [{mid: '1', trackName: track['trackName']}],
         requiresImmediateRenegotiation: false,
     };
 }
@@ -338,13 +341,14 @@ beforeEach(() => {
         value: {getUserMedia, enumerateDevices: vi.fn().mockResolvedValue([]), addEventListener: vi.fn()},
     });
 
-    const record = (method: 'post' | 'put') => vi.fn((url: string, body: Record<string, unknown>) => {
-        const request: Sent = {method, url, body};
-        sent.push(request);
-        const response = responder(request);
-        if (response instanceof Error) throw response;
-        return of(response);
-    });
+    const record = (method: 'post' | 'put') =>
+        vi.fn((url: string, body: Record<string, unknown>) => {
+            const request: Sent = {method, url, body};
+            sent.push(request);
+            const response = responder(request);
+            if (response instanceof Error) throw response;
+            return of(response);
+        });
 
     TestBed.configureTestingModule({
         providers: [
@@ -488,9 +492,10 @@ describe('start', () => {
     it('rejects rather than reporting a publication the SFU refused', async () => {
         // A per-track error inside an HTTP 200 is the shape that leaves a publisher inaudible while
         // every layer above reports success.
-        responder = request => request.url.includes('/tracks')
-            ? {sessionDescription: {type: 'answer', sdp: ''}, tracks: [{errorCode: 'no_such_session'}]}
-            : defaultResponse(request);
+        responder = request =>
+            request.url.includes('/tracks')
+                ? {sessionDescription: {type: 'answer', sdp: ''}, tracks: [{errorCode: 'no_such_session'}]}
+                : defaultResponse(request);
 
         await expect(start()).rejects.toThrow(/no_such_session/);
     });
@@ -614,9 +619,10 @@ describe('subscribe', () => {
         // multiply the two schedules - four attempts becoming sixteen - against a backend that already
         // absorbs several seconds of the publish race.
         const session = await start();
-        responder = request => request.url.includes('/tracks') && subscribeRequests().length > 0
-            ? new Error('not_found_track_error')
-            : defaultResponse(request);
+        responder = request =>
+            request.url.includes('/tracks') && subscribeRequests().length > 0
+                ? new Error('not_found_track_error')
+                : defaultResponse(request);
 
         await expect(publisher.subscribe(session, 'user_a', 'their_sess', 'audio')).rejects.toThrow();
         expect(subscribeRequests()).toHaveLength(1);
@@ -652,8 +658,7 @@ describe('subscribe', () => {
             return response;
         };
 
-        await expect(publisher.subscribe(session, 'user_a', 'their_sess', 'audio'))
-            .rejects.toThrow(/no mid/);
+        await expect(publisher.subscribe(session, 'user_a', 'their_sess', 'audio')).rejects.toThrow(/no mid/);
     });
 
     it('rolls back a failed pull so the retry above it is not blocked', async () => {
@@ -687,9 +692,14 @@ describe('subscribe', () => {
     });
 
     it('rejects for a slot with no publication on it', async () => {
-        await expect(publisher.subscribe(
-            {slot: 'primary', mediaSessionId: 'x', trackName: 'audio'}, 'user_a', 's', 'audio',
-        )).rejects.toThrow(/no voice session/);
+        await expect(
+            publisher.subscribe(
+                {slot: 'primary', mediaSessionId: 'x', trackName: 'audio'},
+                'user_a',
+                's',
+                'audio',
+            ),
+        ).rejects.toThrow(/no voice session/);
     });
 
     it('takes a participant out of the mix on unsubscribe', async () => {
@@ -744,10 +754,17 @@ describe('stats', () => {
 
         pc.stats = new Map<string, Record<string, unknown>>([
             ['o', {type: 'outbound-rtp', kind: 'audio', packetsSent: 500}],
-            ['ok', {
-                type: 'inbound-rtp', kind: 'audio', trackIdentifier: 'remote-a', packetsReceived: 300,
-                jitterBufferDelay: 0.24, jitterBufferEmittedCount: 4,
-            }],
+            [
+                'ok',
+                {
+                    type: 'inbound-rtp',
+                    kind: 'audio',
+                    trackIdentifier: 'remote-a',
+                    packetsReceived: 300,
+                    jitterBufferDelay: 0.24,
+                    jitterBufferEmittedCount: 4,
+                },
+            ],
             ['orphan', {type: 'inbound-rtp', kind: 'audio', trackIdentifier: 'nobody', packetsReceived: 40}],
             ['src', {type: 'media-source', kind: 'audio', totalSamplesDuration: 3}],
         ]);
@@ -801,10 +818,12 @@ describe('settings', () => {
         await publisher.setProcessing(processing({echoCancellation: false, noiseSuppression: 'none'}));
 
         const track = mic.getAudioTracks()[0] as unknown as FakeTrack;
-        expect(track.applyConstraints).toHaveBeenCalledWith(expect.objectContaining({
-            echoCancellation: false,
-            noiseSuppression: false,
-        }));
+        expect(track.applyConstraints).toHaveBeenCalledWith(
+            expect.objectContaining({
+                echoCancellation: false,
+                noiseSuppression: false,
+            }),
+        );
     });
 
     it('keeps the browser filter on for the enhanced mode it cannot provide', async () => {
@@ -814,7 +833,9 @@ describe('settings', () => {
         await publisher.setProcessing(processing({noiseSuppression: 'enhanced'}));
 
         const track = mic.getAudioTracks()[0] as unknown as FakeTrack;
-        expect(track.applyConstraints).toHaveBeenCalledWith(expect.objectContaining({noiseSuppression: true}));
+        expect(track.applyConstraints).toHaveBeenCalledWith(
+            expect.objectContaining({noiseSuppression: true}),
+        );
     });
 
     it('carries the microphone slider, which had nothing to act on before', async () => {

@@ -59,14 +59,14 @@ describe('ActivitySettingsComponent Discord integration', () => {
         expect(reason(fixture)).not.toBeNull();
         // The key, not the sentence: the copy lives in the locales submodule and is not this spec's to
         // pin. What matters is that the row says something rather than sitting there dead.
-        expect(reason(fixture)?.textContent?.trim())
-            .toBe('SETTINGS.ACTIVITY.DISCORD_INTEGRATION_UNSUPPORTED');
+        expect(reason(fixture)?.textContent?.trim()).toBe(
+            'SETTINGS.ACTIVITY.DISCORD_INTEGRATION_UNSUPPORTED',
+        );
     });
 
     it('still explains the per-game list in a browser', () => {
         // The pre-existing half of the same gate. Asserted here so a refactor that collapses the two
         // cannot quietly drop the older one.
-        expect(render('web').nativeElement.textContent)
-            .toContain('SETTINGS.ACTIVITY.GAMES_UNSUPPORTED');
+        expect(render('web').nativeElement.textContent).toContain('SETTINGS.ACTIVITY.GAMES_UNSUPPORTED');
     });
 });

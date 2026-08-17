@@ -32,9 +32,7 @@ export class FollowChannelDialogComponent {
     protected readonly submitting = signal(false);
     protected readonly inlineError = signal<string | null>(null);
 
-    protected readonly guildOptions = computed(() =>
-        this.guilds().map(g => ({label: g.name, value: g.id}))
-    );
+    protected readonly guildOptions = computed(() => this.guilds().map(g => ({label: g.name, value: g.id})));
 
     protected readonly channelOptions = computed(() => {
         const guild = this.guilds().find(g => g.id === this.selectedGuildId());
@@ -44,8 +42,8 @@ export class FollowChannelDialogComponent {
             .map(c => ({label: c.name, value: c.id}));
     });
 
-    protected readonly canConfirm = computed(() =>
-        !!this.selectedGuildId() && !!this.selectedChannelId() && !this.submitting()
+    protected readonly canConfirm = computed(
+        () => !!this.selectedGuildId() && !!this.selectedChannelId() && !this.submitting(),
     );
 
     constructor() {

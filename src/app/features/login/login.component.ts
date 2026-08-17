@@ -1,27 +1,27 @@
 import {Component, computed, DestroyRef, inject, signal} from '@angular/core';
 import {takeUntilDestroyed, toObservable} from '@angular/core/rxjs-interop';
-import {InputText} from "primeng/inputtext";
-import {PasswordDirective} from "primeng/password";
-import {Button} from "primeng/button";
-import {AuthService} from "../../services/auth.service";
-import {catchError, debounceTime, distinctUntilChanged, EMPTY, of, switchMap, tap} from "rxjs";
-import {email, form, FormField, pattern, required} from "@angular/forms/signals";
-import {Router} from "@angular/router";
-import {NgClass} from "@angular/common";
-import {FormsModule} from "@angular/forms";
-import {UserSettingsService} from "../../services/user-settings.service";
-import {ToastService} from "../../services/toast.service";
+import {InputText} from 'primeng/inputtext';
+import {PasswordDirective} from 'primeng/password';
+import {Button} from 'primeng/button';
+import {AuthService} from '../../services/auth.service';
+import {catchError, debounceTime, distinctUntilChanged, EMPTY, of, switchMap, tap} from 'rxjs';
+import {email, form, FormField, pattern, required} from '@angular/forms/signals';
+import {Router} from '@angular/router';
+import {NgClass} from '@angular/common';
+import {FormsModule} from '@angular/forms';
+import {UserSettingsService} from '../../services/user-settings.service';
+import {ToastService} from '../../services/toast.service';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {EmailVerificationService} from '../../services/email-verification.service';
 import {hasFieldError, RegistrationFieldErrors, registrationFieldErrors} from './registration-errors';
 import {MfaChallengeService, mfaErrorKind} from '../../services/mfa-challenge.service';
 import {PasswordResetDialogService} from '../password-reset/password-reset.service';
-import {ExternalLinkService} from "../../services/external-link.service";
-import {ApiConfigService, ServerConfiguration} from "../../services/api-config.service";
-import {environment} from "../../../environments/environment";
-import {QrLoginPanelComponent} from "./qr-login-panel/qr-login-panel.component";
-import {AccountRegistryService, AccountSlot} from "../../services/account-registry.service";
-import {AccountSwitchService} from "../../services/account-switch.service";
+import {ExternalLinkService} from '../../services/external-link.service';
+import {ApiConfigService, ServerConfiguration} from '../../services/api-config.service';
+import {environment} from '../../../environments/environment';
+import {QrLoginPanelComponent} from './qr-login-panel/qr-login-panel.component';
+import {AccountRegistryService, AccountSlot} from '../../services/account-registry.service';
+import {AccountSwitchService} from '../../services/account-switch.service';
 import {signInBlocked} from './sign-in-blocked';
 import {BlockedSignInComponent} from './blocked-sign-in/blocked-sign-in.component';
 import {SupportService} from '../../services/support.service';
@@ -53,7 +53,7 @@ interface RegisterModel {
         FormsModule,
         TranslateModule,
         QrLoginPanelComponent,
-        BlockedSignInComponent
+        BlockedSignInComponent,
     ],
     templateUrl: './login.component.html',
     styleUrl: './login.component.css',
@@ -80,19 +80,13 @@ export class Login {
 
     // ── Login form ────────────────────────────────────────────────────────────
     protected readonly loginModel = signal<LoginModel>({username: '', password: ''});
-    protected loginForm = form(this.loginModel, (_schema) => {});
-    protected readonly serverLabel = computed(() =>
-        ApiConfigService.serverLabel(this.loginModel().username)
-    );
-    protected readonly isCustomServer = computed(() =>
-        this.loginModel().username.includes('@')
-    );
+    protected loginForm = form(this.loginModel, _schema => {});
+    protected readonly serverLabel = computed(() => ApiConfigService.serverLabel(this.loginModel().username));
+    protected readonly isCustomServer = computed(() => this.loginModel().username.includes('@'));
     protected readonly loginServerConfig = signal<ServerConfiguration | null>(null);
     protected readonly loginServerConfigLoading = signal(false);
     protected readonly loginServerConfigError = signal(false);
-    protected readonly loginEnabled = computed(() =>
-        this.loginServerConfig()?.isLoginEnabled !== false
-    );
+    protected readonly loginEnabled = computed(() => this.loginServerConfig()?.isLoginEnabled !== false);
 
     // ── Register form ─────────────────────────────────────────────────────────
     protected readonly registerModel = signal<RegisterModel>({
@@ -100,24 +94,22 @@ export class Login {
         email: '',
         password: '',
         confirmPassword: '',
-        birthdate: ''
+        birthdate: '',
     });
     protected readonly passwordMismatch = signal(false);
 
     /** What the server refused, per field. */
     protected readonly serverErrors = signal<RegistrationFieldErrors>({general: []});
 
-    protected registerForm = form(this.registerModel, (schema) => {
+    protected registerForm = form(this.registerModel, schema => {
         required(schema.birthdate, {message: 'Birthdate is required.'});
         required(schema.email, {message: 'Email is required.'});
         required(schema.password, {message: 'Password is required.'});
         required(schema.confirmPassword, {message: 'Confirm password is required.'});
         email(schema.email, {message: 'Please enter a valid email address.'});
-        pattern(
-            schema.birthdate,
-            /^(0[1-9]|[12][0-9]|3[01])\.(0[1-9]|1[012])\.(19|20)\d\d$/,
-            {message: 'Please enter a valid date in dd.mm.yyyy format.'}
-        );
+        pattern(schema.birthdate, /^(0[1-9]|[12][0-9]|3[01])\.(0[1-9]|1[012])\.(19|20)\d\d$/, {
+            message: 'Please enter a valid date in dd.mm.yyyy format.',
+        });
     });
 
     // ── Server selector ───────────────────────────────────────────────────────
@@ -131,9 +123,7 @@ export class Login {
     protected readonly serverConfigLoading = signal(false);
     protected readonly serverConfigError = signal(false);
     protected readonly serverUrl = computed(() => ApiConfigService.domainToUrl(this.serverDomain()));
-    protected readonly registerEnabled = computed(() =>
-        this.serverConfig()?.isRegisterEnabled !== false
-    );
+    protected readonly registerEnabled = computed(() => this.serverConfig()?.isRegisterEnabled !== false);
 
     private apiConfigService = inject(ApiConfigService);
     private userSettings = inject(UserSettingsService);
@@ -164,24 +154,26 @@ export class Login {
             return atIdx > 0 ? `https://${u.slice(atIdx + 1)}` : environment.apiUrl;
         });
 
-        toObservable(loginServerUrl).pipe(
-            debounceTime(500),
-            distinctUntilChanged(),
-            switchMap(url => {
-                this.loginServerConfigLoading.set(true);
-                this.loginServerConfigError.set(false);
-                return this.apiConfigService.getServerConfiguration(url).pipe(
-                    catchError(() => {
-                        this.loginServerConfigError.set(true);
-                        return of(null);
-                    })
-                );
-            }),
-            takeUntilDestroyed(this.destroyRef)
-        ).subscribe(config => {
-            this.loginServerConfig.set(config);
-            this.loginServerConfigLoading.set(false);
-        });
+        toObservable(loginServerUrl)
+            .pipe(
+                debounceTime(500),
+                distinctUntilChanged(),
+                switchMap(url => {
+                    this.loginServerConfigLoading.set(true);
+                    this.loginServerConfigError.set(false);
+                    return this.apiConfigService.getServerConfiguration(url).pipe(
+                        catchError(() => {
+                            this.loginServerConfigError.set(true);
+                            return of(null);
+                        }),
+                    );
+                }),
+                takeUntilDestroyed(this.destroyRef),
+            )
+            .subscribe(config => {
+                this.loginServerConfig.set(config);
+                this.loginServerConfigLoading.set(false);
+            });
 
         // Fetch server config on init (default server)
         this.fetchServerConfig(environment.apiUrl);
@@ -223,39 +215,39 @@ export class Login {
     }
 
     protected login(): void {
-        this.authService.login(
-            this.loginModel().username,
-            this.loginModel().password
-        ).pipe(
-            tap(() => {
-                this.userSettings.load();
-                void this.router.navigate(['/overview']);
-            }),
-            catchError((err) => {
-                if (mfaErrorKind(err) === 'required') {
-                    const {username, password} = this.loginModel();
-                    this.mfaChallenge.show(username, password);
+        this.authService
+            .login(this.loginModel().username, this.loginModel().password)
+            .pipe(
+                tap(() => {
+                    this.userSettings.load();
+                    void this.router.navigate(['/overview']);
+                }),
+                catchError(err => {
+                    if (mfaErrorKind(err) === 'required') {
+                        const {username, password} = this.loginModel();
+                        this.mfaChallenge.show(username, password);
+                        return EMPTY;
+                    }
+                    // Checked before the generic 403 branch below, which reads every refusal as an
+                    // unconfirmed email. A restricted account used to land in the "check your inbox
+                    // for a code" dialog and type codes that could never work.
+                    const restricted = signInBlocked(err);
+                    if (restricted) {
+                        this.blockedApiBase.set(this.apiConfigService.baseUrl());
+                        this.blocked.set(restricted);
+                        return EMPTY;
+                    }
+                    const status = err?.status ?? err?.reason?.status;
+                    if (status === 403) {
+                        const {username, password} = this.loginModel();
+                        this.emailVerification.show(username, {credentials: {loginId: username, password}});
+                        return EMPTY;
+                    }
+                    this.toast.httpError('Sign in failed', err, {detail: 'Invalid username or password.'});
                     return EMPTY;
-                }
-                // Checked before the generic 403 branch below, which reads every refusal as an
-                // unconfirmed email. A restricted account used to land in the "check your inbox
-                // for a code" dialog and type codes that could never work.
-                const restricted = signInBlocked(err);
-                if (restricted) {
-                    this.blockedApiBase.set(this.apiConfigService.baseUrl());
-                    this.blocked.set(restricted);
-                    return EMPTY;
-                }
-                const status = err?.status ?? err?.reason?.status;
-                if (status === 403) {
-                    const {username, password} = this.loginModel();
-                    this.emailVerification.show(username, {credentials: {loginId: username, password}});
-                    return EMPTY;
-                }
-                this.toast.httpError('Sign in failed', err, {detail: 'Invalid username or password.'});
-                return EMPTY;
-            })
-        ).subscribe();
+                }),
+            )
+            .subscribe();
     }
 
     protected register(): void {
@@ -285,24 +277,27 @@ export class Login {
 
         this.passwordMismatch.set(false);
         this.serverErrors.set({general: []});
-        this.authService.register(model.email, model.username, model.password, this.parseBirthdate(model.birthdate)).pipe(
-            tap(() => {
-                // A 202, and nothing more: the address may have been free, or it may already have an
-                // account, and the response is identical either way by design. So no "account
-                // created" - what is true for every outcome is that mail is on the way if that
-                // address could be registered, and the next step is the code from it.
-                const handle = domain !== 'venta.gg' ? `${model.username}@${domain}` : model.username;
-                // Ready on the sign-in tab behind the dialog, for the user whose auto-sign-in does
-                // not happen: on a self-hosted server the bare username would reach the wrong one.
-                this.loginModel.update(m => ({...m, username: handle}));
-                this.emailVerification.show(model.email, {
-                    certainty: 'unknown',
-                    credentials: {loginId: handle, password: model.password}
-                });
-                this.switchToMode('login');
-            }),
-            catchError((err) => this.onRegisterRefused(err))
-        ).subscribe();
+        this.authService
+            .register(model.email, model.username, model.password, this.parseBirthdate(model.birthdate))
+            .pipe(
+                tap(() => {
+                    // A 202, and nothing more: the address may have been free, or it may already have an
+                    // account, and the response is identical either way by design. So no "account
+                    // created" - what is true for every outcome is that mail is on the way if that
+                    // address could be registered, and the next step is the code from it.
+                    const handle = domain !== 'venta.gg' ? `${model.username}@${domain}` : model.username;
+                    // Ready on the sign-in tab behind the dialog, for the user whose auto-sign-in does
+                    // not happen: on a self-hosted server the bare username would reach the wrong one.
+                    this.loginModel.update(m => ({...m, username: handle}));
+                    this.emailVerification.show(model.email, {
+                        certainty: 'unknown',
+                        credentials: {loginId: handle, password: model.password},
+                    });
+                    this.switchToMode('login');
+                }),
+                catchError(err => this.onRegisterRefused(err)),
+            )
+            .subscribe();
     }
 
     /** Puts a registration `400` back on the form. */
@@ -311,7 +306,7 @@ export class Login {
         this.serverErrors.set(errors);
         if (!hasFieldError(errors)) {
             this.toast.error(this.translate.instant('LOGIN.REGISTER.FAILED'), {
-                detail: errors.general[0] ?? this.translate.instant('LOGIN.REGISTER.FAILED_DETAIL')
+                detail: errors.general[0] ?? this.translate.instant('LOGIN.REGISTER.FAILED_DETAIL'),
             });
         }
         return EMPTY;
@@ -349,15 +344,18 @@ export class Login {
     private fetchServerConfig(url: string): void {
         this.serverConfigLoading.set(true);
         this.serverConfigError.set(false);
-        this.apiConfigService.getServerConfiguration(url).pipe(
-            catchError(() => {
-                this.serverConfigError.set(true);
-                return of(null);
-            })
-        ).subscribe(config => {
-            this.serverConfig.set(config);
-            this.serverConfigLoading.set(false);
-        });
+        this.apiConfigService
+            .getServerConfiguration(url)
+            .pipe(
+                catchError(() => {
+                    this.serverConfigError.set(true);
+                    return of(null);
+                }),
+            )
+            .subscribe(config => {
+                this.serverConfig.set(config);
+                this.serverConfigLoading.set(false);
+            });
     }
 
     private parseBirthdate(dateStr: string): Date {

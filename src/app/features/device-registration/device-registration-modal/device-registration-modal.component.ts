@@ -60,55 +60,64 @@ export class DeviceRegistrationModalComponent {
                         switchMap(user =>
                             this.mlsService.generateKeyPackages(user.id, 10).pipe(
                                 switchMap(batch =>
-                                    this.deviceService.registerDevice({
-                                        clientDeviceId: deviceId,
-                                        deviceName,
-                                        deviceType,
-                                        identityPublicKey: batch.signingPublicKey,
-                                    }).pipe(
-                                        // Contract §A: this path just minted a fresh keypair, so any
-                                        // key package the server still holds is sealed to a dead
-                                        // key. Idempotent, and runs regardless of `identityRotated`.
-                                        switchMap(device => this.deviceService.resetKeyPackages(deviceId).pipe(
-                                            catchError(err => {
-                                                console.error(
-                                                    'Could not reset stale key packages after minting a new identity',
-                                                    err);
-                                                return of({deletedCount: 0});
-                                            }),
-                                            map(() => device),
-                                        )),
-                                        switchMap(() => this.mlsService.persistSigningKey(deviceId, batch, user.id)),
-                                        map(() => batch.keyHandle),
-                                    ),
+                                    this.deviceService
+                                        .registerDevice({
+                                            clientDeviceId: deviceId,
+                                            deviceName,
+                                            deviceType,
+                                            identityPublicKey: batch.signingPublicKey,
+                                        })
+                                        .pipe(
+                                            // Contract §A: this path just minted a fresh keypair, so any
+                                            // key package the server still holds is sealed to a dead
+                                            // key. Idempotent, and runs regardless of `identityRotated`.
+                                            switchMap(device =>
+                                                this.deviceService.resetKeyPackages(deviceId).pipe(
+                                                    catchError(err => {
+                                                        console.error(
+                                                            'Could not reset stale key packages after minting a new identity',
+                                                            err,
+                                                        );
+                                                        return of({deletedCount: 0});
+                                                    }),
+                                                    map(() => device),
+                                                ),
+                                            ),
+                                            switchMap(() =>
+                                                this.mlsService.persistSigningKey(deviceId, batch, user.id),
+                                            ),
+                                            map(() => batch.keyHandle),
+                                        ),
                                 ),
                             ),
                         ),
                     ),
-                )
+                ),
             );
 
-        attemptRegistration().pipe(
-            catchError((firstError) => {
-                console.warn('First registration attempt failed. Retrying...', firstError);
+        attemptRegistration()
+            .pipe(
+                catchError(firstError => {
+                    console.warn('First registration attempt failed. Retrying...', firstError);
 
-                return from(this.mlsService.deleteDeviceIdentifier()).pipe(
-                    switchMap(() => attemptRegistration()),
-                    catchError((secondError) => {
-                        return throwError(() => secondError);
-                    })
-                );
-            }),
-            tap(keyHandle => {
-                this.step.set('done');
-                this.mlsService.keyHandle.set(keyHandle);
-                setTimeout(() => this.registered.emit(keyHandle), 1600);
-            }),
-            catchError(() => {
-                this.errorMsg.set('Registration failed. Please try again.');
-                this.step.set('input');
-                return EMPTY;
-            }),
-        ).subscribe();
+                    return from(this.mlsService.deleteDeviceIdentifier()).pipe(
+                        switchMap(() => attemptRegistration()),
+                        catchError(secondError => {
+                            return throwError(() => secondError);
+                        }),
+                    );
+                }),
+                tap(keyHandle => {
+                    this.step.set('done');
+                    this.mlsService.keyHandle.set(keyHandle);
+                    setTimeout(() => this.registered.emit(keyHandle), 1600);
+                }),
+                catchError(() => {
+                    this.errorMsg.set('Registration failed. Please try again.');
+                    this.step.set('input');
+                    return EMPTY;
+                }),
+            )
+            .subscribe();
     }
 }

@@ -22,15 +22,16 @@ import {Button} from 'primeng/button';
     changeDetection: ChangeDetectionStrategy.OnPush,
     imports: [TranslateModule, Button],
     template: `
-        <div class="relative flex aspect-video w-full flex-col items-center justify-center gap-4
+        <div
+            class="relative flex aspect-video w-full flex-col items-center justify-center gap-4
                     overflow-hidden rounded-2xl border border-border-subtle p-4"
-             style="background: radial-gradient(circle at 50% 32%,
+            style="background: radial-gradient(circle at 50% 32%,
                         color-mix(in srgb, var(--color-brand) 20%, transparent) 0%,
                         transparent 65%),
                     linear-gradient(160deg,
                         color-mix(in srgb, var(--color-brand-dark) 38%, var(--color-card)) 0%,
-                        var(--color-card) 100%)">
-
+                        var(--color-card) 100%)"
+        >
             <!-- Decorative only, and deliberately not the reference's illustration - see the class
                  doc. A single oversized, low-contrast PrimeIcon does the same "fill the empty tile"
                  job as artwork without needing an asset. -->
@@ -40,11 +41,13 @@ import {Button} from 'primeng/button';
                 <p class="max-w-[14rem] text-center text-[0.6875rem] text-white/50">
                     {{ 'CALL.INVITE_TO_VOICE_HINT' | translate }}
                 </p>
-                <p-button (onClick)="invite.emit()"
-                          [label]="'CALL.INVITE_TO_VOICE' | translate"
-                          icon="pi pi-user-plus"
-                          severity="primary"
-                          size="small"/>
+                <p-button
+                    (onClick)="invite.emit()"
+                    [label]="'CALL.INVITE_TO_VOICE' | translate"
+                    icon="pi pi-user-plus"
+                    severity="primary"
+                    size="small"
+                />
             </div>
         </div>
     `,

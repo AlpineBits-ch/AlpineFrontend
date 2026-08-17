@@ -79,12 +79,12 @@ export class ChannelInvitePanelComponent implements OnInit {
     });
 
     /** Sitting in the room, which is the one thing a ring needs and an invitation does not. */
-    protected readonly canRing = computed(() =>
-        this.voiceChannels.joinedChannelId() === this.channelId());
+    protected readonly canRing = computed(() => this.voiceChannels.joinedChannelId() === this.channelId());
 
     /** A ring already out of this channel. One at a time, so the bells hold still while it stands. */
     protected readonly pendingRing = computed(() =>
-        this.ringState.outgoingFor(this.guildId(), this.channelId()));
+        this.ringState.outgoingFor(this.guildId(), this.channelId()),
+    );
 
     /** Loaded once per mount, since the host builds/destroys this panel on open/close. Must be ngOnInit, not the constructor: required inputs aren't set yet there (NG0950). */
     ngOnInit(): void {
@@ -99,7 +99,8 @@ export class ChannelInvitePanelComponent implements OnInit {
         this.inviting.set(candidate.userId);
         this.refusal.set(null);
 
-        this.rings.invite(this.guildId(), this.channelId(), candidate.userId)
+        this.rings
+            .invite(this.guildId(), this.channelId(), candidate.userId)
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe({
                 next: () => {
@@ -110,9 +111,10 @@ export class ChannelInvitePanelComponent implements OnInit {
                     this.inviting.set(null);
                     this.refusal.set({
                         userId: candidate.userId,
-                        messageKey: (err?.error as VoiceRingRefusalDto | null)?.reason === 'RecipientPolicy'
-                            ? 'VOICE_RING.INVITE_REFUSED'
-                            : 'VOICE_RING.INVITE_FAILED',
+                        messageKey:
+                            (err?.error as VoiceRingRefusalDto | null)?.reason === 'RecipientPolicy'
+                                ? 'VOICE_RING.INVITE_REFUSED'
+                                : 'VOICE_RING.INVITE_FAILED',
                     });
                 },
             });
@@ -126,7 +128,8 @@ export class ChannelInvitePanelComponent implements OnInit {
     }
 
     private load(): void {
-        this.rosterService.load(this.guildId(), this.channelId())
+        this.rosterService
+            .load(this.guildId(), this.channelId())
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe(roster => this.roster.set(roster));
     }

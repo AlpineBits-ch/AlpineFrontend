@@ -99,19 +99,19 @@ fresh CSP nonce that its markup must match.
 
 ## Files
 
-| File | What it is |
-|---|---|
-| `Dockerfile` | Packages the prebuilt output. No build stage: the Angular and wasm compiles happen in the workflow, so no source enters the docker context. Also the payload assertions — no sourcemaps, no TypeScript, wasm engine present, no inline script in `index.html`. |
-| `nginx.conf` | The server block: SPA fallback, cache policy, `application/wasm`, and the `sub_filter`s that inject the CSP nonce and the API-host meta tag. |
-| `security-headers.conf.template` | Every security header, with `__CONNECT_SRC__` as the one substitution point. |
-| `40-render-csp.sh` | Runs from `/docker-entrypoint.d/` at container start: validates `VENTA_API_HOSTS`, derives the `wss://` forms, renders the template. |
+| File                             | What it is                                                                                                                                                                                                                                                     |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Dockerfile`                     | Packages the prebuilt output. No build stage: the Angular and wasm compiles happen in the workflow, so no source enters the docker context. Also the payload assertions — no sourcemaps, no TypeScript, wasm engine present, no inline script in `index.html`. |
+| `nginx.conf`                     | The server block: SPA fallback, cache policy, `application/wasm`, and the `sub_filter`s that inject the CSP nonce and the API-host meta tag.                                                                                                                   |
+| `security-headers.conf.template` | Every security header, with `__CONNECT_SRC__` as the one substitution point.                                                                                                                                                                                   |
+| `40-render-csp.sh`               | Runs from `/docker-entrypoint.d/` at container start: validates `VENTA_API_HOSTS`, derives the `wss://` forms, renders the template.                                                                                                                           |
 
 ## For client developers
 
 The rendered host list is published to the app as a meta tag in `index.html`:
 
 ```html
-<meta name="venta-api-hosts" content="https://chat.example.org">
+<meta name="venta-api-hosts" content="https://chat.example.org" />
 ```
 
 Space-separated origins, injected by nginx from the same string `connect-src` was built from. Read

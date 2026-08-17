@@ -30,16 +30,18 @@ export class CreateCategoryModalComponent {
     protected submit(): void {
         if (this.creating() || !this.name().trim()) return;
         this.creating.set(true);
-        this.guildService.createCategory({
-            guildId: this.guildId(),
-            name: this.name().trim(),
-            position: this.position(),
-        }).subscribe({
-            next: () => {
-                this.isVisible.set(false);
-                this.creating.set(false);
-            },
-            error: () => this.creating.set(false),
-        });
+        this.guildService
+            .createCategory({
+                guildId: this.guildId(),
+                name: this.name().trim(),
+                position: this.position(),
+            })
+            .subscribe({
+                next: () => {
+                    this.isVisible.set(false);
+                    this.creating.set(false);
+                },
+                error: () => this.creating.set(false),
+            });
     }
 }

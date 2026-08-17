@@ -31,7 +31,7 @@ export class UserActivityService {
     /** The signed-in user's own activities, as the server sees them. */
     readonly own = computed(() => {
         const userId = this.profiles.ownProfile()?.userId;
-        return userId ? this.byUserId()[userId] ?? [] : [];
+        return userId ? (this.byUserId()[userId] ?? []) : [];
     });
 
     constructor() {

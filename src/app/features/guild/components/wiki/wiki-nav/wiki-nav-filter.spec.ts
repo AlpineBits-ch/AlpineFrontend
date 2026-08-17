@@ -1,10 +1,10 @@
 import {FilterableCategory, FilterablePage, narrowNav} from './wiki-nav-filter';
 
-function category(over: Partial<FilterableCategory> & { id: string }): FilterableCategory {
+function category(over: Partial<FilterableCategory> & {id: string}): FilterableCategory {
     return {name: over.id, ...over};
 }
 
-function page(over: Partial<FilterablePage> & { id: string }): FilterablePage {
+function page(over: Partial<FilterablePage> & {id: string}): FilterablePage {
     return {title: over.id, tags: [], ...over};
 }
 
@@ -15,10 +15,11 @@ describe('narrowNav', () => {
     });
 
     it('keeps pages whose title matches, case insensitively', () => {
-        const result = narrowNav([], [
-            page({id: 'a', title: 'Deploying'}),
-            page({id: 'b', title: 'Onboarding'}),
-        ], 'DEPLOY');
+        const result = narrowNav(
+            [],
+            [page({id: 'a', title: 'Deploying'}), page({id: 'b', title: 'Onboarding'})],
+            'DEPLOY',
+        );
         expect([...result!.pageIds]).toEqual(['a']);
     });
 
@@ -29,11 +30,15 @@ describe('narrowNav', () => {
 
     // A nested hit whose parent row is hidden is unreachable: the tree would render it at the top level or not at all.
     it('keeps the ancestors of a matching page', () => {
-        const result = narrowNav([], [
-            page({id: 'root', title: 'Guides'}),
-            page({id: 'mid', title: 'Servers', parentPageId: 'root'}),
-            page({id: 'leaf', title: 'Deploying', parentPageId: 'mid'}),
-        ], 'deploy');
+        const result = narrowNav(
+            [],
+            [
+                page({id: 'root', title: 'Guides'}),
+                page({id: 'mid', title: 'Servers', parentPageId: 'root'}),
+                page({id: 'leaf', title: 'Deploying', parentPageId: 'mid'}),
+            ],
+            'deploy',
+        );
         expect([...result!.pageIds].sort()).toEqual(['leaf', 'mid', 'root']);
     });
 
@@ -48,7 +53,10 @@ describe('narrowNav', () => {
 
     it('keeps parent categories of a surviving category', () => {
         const result = narrowNav(
-            [category({id: 'top', name: 'Handbook'}), category({id: 'sub', name: 'Ops', parentCategoryId: 'top'})],
+            [
+                category({id: 'top', name: 'Handbook'}),
+                category({id: 'sub', name: 'Ops', parentCategoryId: 'top'}),
+            ],
             [page({id: 'a', title: 'Deploying', categoryId: 'sub'})],
             'deploy',
         );
@@ -67,7 +75,10 @@ describe('narrowNav', () => {
 
     it('keeps pages of a subcategory of a matching category', () => {
         const result = narrowNav(
-            [category({id: 'top', name: 'Operations'}), category({id: 'sub', name: 'Runbooks', parentCategoryId: 'top'})],
+            [
+                category({id: 'top', name: 'Operations'}),
+                category({id: 'sub', name: 'Runbooks', parentCategoryId: 'top'}),
+            ],
             [page({id: 'a', title: 'Nothing alike', categoryId: 'sub'})],
             'operations',
         );
@@ -87,10 +98,14 @@ describe('narrowNav', () => {
 
     // The DTOs allow a page to be its own ancestor; the nav's own tree builder defends against the same shape, and a filter that hung on it would take the whole panel with it.
     it('terminates on a parent cycle', () => {
-        const result = narrowNav([], [
-            page({id: 'a', title: 'Deploying', parentPageId: 'b'}),
-            page({id: 'b', title: 'Other', parentPageId: 'a'}),
-        ], 'deploy');
+        const result = narrowNav(
+            [],
+            [
+                page({id: 'a', title: 'Deploying', parentPageId: 'b'}),
+                page({id: 'b', title: 'Other', parentPageId: 'a'}),
+            ],
+            'deploy',
+        );
         expect(result!.pageIds.has('a')).toBe(true);
     });
 

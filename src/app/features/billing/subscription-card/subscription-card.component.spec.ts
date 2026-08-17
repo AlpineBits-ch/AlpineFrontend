@@ -29,29 +29,31 @@ function subscription(over: Partial<SubscriptionDto> = {}): SubscriptionDto {
     };
 }
 
-function setup(opts: {
-    subject?: EntitlementSubjectRef;
-    subscriptions?: SubscriptionDto[];
-    listError?: unknown;
-    cancelResult?: SubscriptionDto;
-    cancelError?: unknown;
-    resumeError?: unknown;
-} = {}) {
+function setup(
+    opts: {
+        subject?: EntitlementSubjectRef;
+        subscriptions?: SubscriptionDto[];
+        listError?: unknown;
+        cancelResult?: SubscriptionDto;
+        cancelError?: unknown;
+        resumeError?: unknown;
+    } = {},
+) {
     let listed = 0;
     const list = vi.fn<() => Observable<SubscriptionDto[]>>(() => {
         listed++;
-        return opts.listError
-            ? throwError(() => opts.listError)
-            : of(opts.subscriptions ?? [subscription()]);
+        return opts.listError ? throwError(() => opts.listError) : of(opts.subscriptions ?? [subscription()]);
     });
 
-    const cancel = vi.fn<(id: string) => Observable<SubscriptionDto>>(() => opts.cancelError
-        ? throwError(() => opts.cancelError)
-        : of(opts.cancelResult ?? subscription({cancelAtPeriodEnd: true})));
+    const cancel = vi.fn<(id: string) => Observable<SubscriptionDto>>(() =>
+        opts.cancelError
+            ? throwError(() => opts.cancelError)
+            : of(opts.cancelResult ?? subscription({cancelAtPeriodEnd: true})),
+    );
 
-    const resume = vi.fn<(id: string) => Observable<SubscriptionDto>>(() => opts.resumeError
-        ? throwError(() => opts.resumeError)
-        : of(subscription({cancelAtPeriodEnd: false})));
+    const resume = vi.fn<(id: string) => Observable<SubscriptionDto>>(() =>
+        opts.resumeError ? throwError(() => opts.resumeError) : of(subscription({cancelAtPeriodEnd: false})),
+    );
 
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
@@ -92,8 +94,9 @@ function text(_fixture: ComponentFixture<SubscriptionCardComponent>): string {
 function button(fixture: ComponentFixture<SubscriptionCardComponent>, label: string): HTMLElement {
     const scopes: ParentNode[] = [fixture.nativeElement, document.body];
     for (const scope of scopes) {
-        const found = Array.from(scope.querySelectorAll('button'))
-            .find(el => ((el as HTMLElement).textContent ?? '').includes(label));
+        const found = Array.from(scope.querySelectorAll('button')).find(el =>
+            ((el as HTMLElement).textContent ?? '').includes(label),
+        );
         if (found) return found as HTMLElement;
     }
     throw new Error(`no button containing ${label}`);
@@ -228,11 +231,13 @@ describe('a payment that failed', () => {
     /** "Update your card" is not something a manager who is not the payer can act on. */
     it('points a non-payer at whoever holds the card rather than at a card they cannot reach', () => {
         const {fixture} = setup({
-            subscriptions: [subscription({
-                status: 'past_due',
-                gracePeriodEndsAt: '2026-03-03T00:00:00Z',
-                isPayer: false,
-            })],
+            subscriptions: [
+                subscription({
+                    status: 'past_due',
+                    gracePeriodEndsAt: '2026-03-03T00:00:00Z',
+                    isPayer: false,
+                }),
+            ],
         });
 
         expect(text(fixture)).toContain('BILLING.SUBSCRIPTION.GRACE_BODY_OTHER');
@@ -379,7 +384,9 @@ describe('which subject the card is about', () => {
     it('matches a user subscription against the account id rather than the literal me', () => {
         const {fixture} = setup({
             subject: MY_ENTITLEMENTS,
-            subscriptions: [subscription({subjectKind: 'user', subjectId: 'usr_9', planDisplayName: 'Venta Plus'})],
+            subscriptions: [
+                subscription({subjectKind: 'user', subjectId: 'usr_9', planDisplayName: 'Venta Plus'}),
+            ],
         });
 
         expect(text(fixture)).toContain('Venta Plus');

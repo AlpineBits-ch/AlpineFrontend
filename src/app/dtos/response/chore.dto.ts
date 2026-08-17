@@ -170,9 +170,11 @@ export function isChoreOutstanding(occurrence: ChoreOccurrence): boolean {
 
 /** Someone other than the assignee did it. The UI names both; the balance credits `assignedUserId`. */
 export function wasDoneByProxy(occurrence: ChoreOccurrence): boolean {
-    return isChoreDone(occurrence)
-        && !!occurrence.completedByUserId
-        && occurrence.completedByUserId !== occurrence.assignedUserId;
+    return (
+        isChoreDone(occurrence) &&
+        !!occurrence.completedByUserId &&
+        occurrence.completedByUserId !== occurrence.assignedUserId
+    );
 }
 
 /** Which side of their share a member is on. `balanceMinutes` is a delta, never a total. */

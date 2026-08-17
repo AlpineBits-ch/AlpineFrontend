@@ -49,7 +49,7 @@ function plugin(): Promise<StorePlugin> {
 class DeferredLazyStore implements SettingsStore {
     private instance: Promise<SettingsStore> | undefined;
 
-    constructor(private readonly file: string) { }
+    constructor(private readonly file: string) {}
 
     async get<T>(key: string): Promise<T | undefined> {
         return (await this.store()).get<T>(key);

@@ -1,4 +1,14 @@
-import {ChangeDetectionStrategy, Component, computed, effect, inject, input, output, signal, untracked} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    effect,
+    inject,
+    input,
+    output,
+    signal,
+    untracked,
+} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {Button} from 'primeng/button';
@@ -115,7 +125,9 @@ export class MaintenanceChannelComponent {
     // ── Permissions ──────────────────────────────────────────────────────────
 
     /** Owner first: SelfGuildMemberDto.permissions doesn't reliably carry Superadmin for them. */
-    private readonly abilities = computed(() => guildAbilities(this.ownMember(), this.guild(), this.ownUserId()));
+    private readonly abilities = computed(() =>
+        guildAbilities(this.ownMember(), this.guild(), this.ownUserId()),
+    );
 
     private can = (permission: bigint): boolean => this.abilities().canModule(permission);
 
@@ -126,41 +138,46 @@ export class MaintenanceChannelComponent {
 
     // ── Rows ─────────────────────────────────────────────────────────────────
 
-    protected readonly assetRows = computed<AssetRow[]>(() => this.state().assets.map(asset => ({
-        asset,
-        statusKey: assetStatusLabelKey(asset.status),
-        warrantyLabel: asset.warrantyUntil ? this.day(asset.warrantyUntil) : null,
-        warrantyUrgent: asset.isWarrantyExpiring,
-        nextServiceLabel: asset.nextServiceAt ? this.day(asset.nextServiceAt) : null,
-    })));
+    protected readonly assetRows = computed<AssetRow[]>(() =>
+        this.state().assets.map(asset => ({
+            asset,
+            statusKey: assetStatusLabelKey(asset.status),
+            warrantyLabel: asset.warrantyUntil ? this.day(asset.warrantyUntil) : null,
+            warrantyUrgent: asset.isWarrantyExpiring,
+            nextServiceLabel: asset.nextServiceAt ? this.day(asset.nextServiceAt) : null,
+        })),
+    );
 
-    protected readonly attentionRows = computed<AttentionRow[]>(() => this.attention().entries.map(entry => ({
-        entry,
-        reasonKeys: entry.reasons.map(attentionReasonLabelKey),
-        primaryKey: this.primaryKeyOf(entry),
-        warrantyLabel: entry.asset.warrantyUntil ? this.day(entry.asset.warrantyUntil) : null,
-    })));
+    protected readonly attentionRows = computed<AttentionRow[]>(() =>
+        this.attention().entries.map(entry => ({
+            entry,
+            reasonKeys: entry.reasons.map(attentionReasonLabelKey),
+            primaryKey: this.primaryKeyOf(entry),
+            warrantyLabel: entry.asset.warrantyUntil ? this.day(entry.asset.warrantyUntil) : null,
+        })),
+    );
 
     protected readonly recordRows = computed<RecordRow[]>(() => {
         const assets = new Map(this.state().assets.map(a => [a.id, a.name]));
         return this.state().records.map(record => ({
             record,
-            assetName: record.assetId ? assets.get(record.assetId) ?? null : null,
+            assetName: record.assetId ? (assets.get(record.assetId) ?? null) : null,
             performedLabel: this.day(record.performedAt),
             // Formatted only at the point of display, from whole minor units, as everywhere else.
-            cost: record.costMinor != null
-                ? formatMinor(record.costMinor, record.currency ?? 'CHF')
-                : null,
+            cost: record.costMinor != null ? formatMinor(record.costMinor, record.currency ?? 'CHF') : null,
         }));
     });
 
     protected readonly assetOptions = computed<Option[]>(() =>
-        this.state().assets.map(asset => ({value: asset.id, label: asset.name})));
+        this.state().assets.map(asset => ({value: asset.id, label: asset.name})),
+    );
 
-    protected readonly statusOptions = computed<Option[]>(() => this.statuses.map(status => ({
-        value: status,
-        label: this.translate.instant(assetStatusLabelKey(status)),
-    })));
+    protected readonly statusOptions = computed<Option[]>(() =>
+        this.statuses.map(status => ({
+            value: status,
+            label: this.translate.instant(assetStatusLabelKey(status)),
+        })),
+    );
 
     // ── Asset editor ─────────────────────────────────────────────────────────
     protected readonly showAssetDialog = signal(false);
@@ -204,7 +221,8 @@ export class MaintenanceChannelComponent {
     protected readonly serviceCurrency = signal('CHF');
 
     protected readonly serviceCostMinor = computed(() =>
-        this.serviceCost().trim() ? parseMinor(this.serviceCost(), this.serviceCurrency()) : null);
+        this.serviceCost().trim() ? parseMinor(this.serviceCost(), this.serviceCurrency()) : null,
+    );
 
     constructor() {
         effect(() => {
@@ -307,27 +325,33 @@ export class MaintenanceChannelComponent {
 
         const request$ = editingId
             ? this.maintenance.editAsset(guildId, channelId, editingId, {
-                ...common,
-                // `clear*` rather than a null, the same rule as every other patch in the household surface: null on the value field reads as "leave it alone".
-                ...(this.dateIso(this.assetPurchasedAt())
-                    ? {purchasedAt: this.dateIso(this.assetPurchasedAt())}
-                    : {clearPurchasedAt: true}),
-                ...(this.dateIso(this.assetWarrantyUntil())
-                    ? {warrantyUntil: this.dateIso(this.assetWarrantyUntil())}
-                    : {clearWarrantyUntil: true}),
-                ...(interval ? {serviceIntervalDays: interval} : {clearServiceInterval: true}),
-                ...(this.dateIso(this.assetLastServicedAt())
-                    ? {lastServicedAt: this.dateIso(this.assetLastServicedAt())}
-                    : {}),
-            })
+                  ...common,
+                  // `clear*` rather than a null, the same rule as every other patch in the household surface: null on the value field reads as "leave it alone".
+                  ...(this.dateIso(this.assetPurchasedAt())
+                      ? {purchasedAt: this.dateIso(this.assetPurchasedAt())}
+                      : {clearPurchasedAt: true}),
+                  ...(this.dateIso(this.assetWarrantyUntil())
+                      ? {warrantyUntil: this.dateIso(this.assetWarrantyUntil())}
+                      : {clearWarrantyUntil: true}),
+                  ...(interval ? {serviceIntervalDays: interval} : {clearServiceInterval: true}),
+                  ...(this.dateIso(this.assetLastServicedAt())
+                      ? {lastServicedAt: this.dateIso(this.assetLastServicedAt())}
+                      : {}),
+              })
             : this.maintenance.addAsset(guildId, channelId, {
-                ...common,
-                ...(this.dateIso(this.assetPurchasedAt()) ? {purchasedAt: this.dateIso(this.assetPurchasedAt())} : {}),
-                ...(this.dateIso(this.assetWarrantyUntil()) ? {warrantyUntil: this.dateIso(this.assetWarrantyUntil())} : {}),
-                ...(interval ? {serviceIntervalDays: interval} : {}),
-                // Counted from here rather than from today, so a boiler serviced eight months ago schedules the next one four months out instead of a year.
-                ...(this.dateIso(this.assetLastServicedAt()) ? {lastServicedAt: this.dateIso(this.assetLastServicedAt())} : {}),
-            });
+                  ...common,
+                  ...(this.dateIso(this.assetPurchasedAt())
+                      ? {purchasedAt: this.dateIso(this.assetPurchasedAt())}
+                      : {}),
+                  ...(this.dateIso(this.assetWarrantyUntil())
+                      ? {warrantyUntil: this.dateIso(this.assetWarrantyUntil())}
+                      : {}),
+                  ...(interval ? {serviceIntervalDays: interval} : {}),
+                  // Counted from here rather than from today, so a boiler serviced eight months ago schedules the next one four months out instead of a year.
+                  ...(this.dateIso(this.assetLastServicedAt())
+                      ? {lastServicedAt: this.dateIso(this.assetLastServicedAt())}
+                      : {}),
+              });
 
         request$.subscribe({
             next: () => {
@@ -376,19 +400,24 @@ export class MaintenanceChannelComponent {
         if (this.saving() || !asset) return;
 
         this.saving.set(true);
-        this.maintenance.setStatus(
-            this.channel().guildId, this.channel().id, asset.id,
-            this.statusValue(), this.statusNote().trim() || undefined,
-        ).subscribe({
-            next: () => {
-                this.saving.set(false);
-                this.showStatusDialog.set(false);
-            },
-            error: err => {
-                this.saving.set(false);
-                this.toast.httpError(this.translate.instant('MAINTENANCE.STATUS_FAILED'), err);
-            },
-        });
+        this.maintenance
+            .setStatus(
+                this.channel().guildId,
+                this.channel().id,
+                asset.id,
+                this.statusValue(),
+                this.statusNote().trim() || undefined,
+            )
+            .subscribe({
+                next: () => {
+                    this.saving.set(false);
+                    this.showStatusDialog.set(false);
+                },
+                error: err => {
+                    this.saving.set(false);
+                    this.toast.httpError(this.translate.instant('MAINTENANCE.STATUS_FAILED'), err);
+                },
+            });
     }
 
     private writeStatus(asset: MaintenanceAsset, status: AssetStatus): void {
@@ -420,25 +449,27 @@ export class MaintenanceChannelComponent {
         const vendorName = this.serviceVendorName().trim();
 
         this.saving.set(true);
-        this.maintenance.recordService(this.channel().guildId, this.channel().id, asset.id, {
-            // When it was actually done, not when it was typed: the next due date counts from this.
-            ...(this.dateIso(this.servicePerformedAt()) ? {performedAt: this.dateIso(this.servicePerformedAt())} : {}),
-            ...(title ? {title} : {}),
-            ...(notes ? {notes} : {}),
-            ...(vendorName ? {vendorName} : {}),
-            ...(costMinor != null && costMinor > 0
-                ? {costMinor, currency: this.serviceCurrency()}
-                : {}),
-        }).subscribe({
-            next: () => {
-                this.saving.set(false);
-                this.showServiceDialog.set(false);
-            },
-            error: err => {
-                this.saving.set(false);
-                this.toast.httpError(this.translate.instant('MAINTENANCE.SERVICE_FAILED'), err);
-            },
-        });
+        this.maintenance
+            .recordService(this.channel().guildId, this.channel().id, asset.id, {
+                // When it was actually done, not when it was typed: the next due date counts from this.
+                ...(this.dateIso(this.servicePerformedAt())
+                    ? {performedAt: this.dateIso(this.servicePerformedAt())}
+                    : {}),
+                ...(title ? {title} : {}),
+                ...(notes ? {notes} : {}),
+                ...(vendorName ? {vendorName} : {}),
+                ...(costMinor != null && costMinor > 0 ? {costMinor, currency: this.serviceCurrency()} : {}),
+            })
+            .subscribe({
+                next: () => {
+                    this.saving.set(false);
+                    this.showServiceDialog.set(false);
+                },
+                error: err => {
+                    this.saving.set(false);
+                    this.toast.httpError(this.translate.instant('MAINTENANCE.SERVICE_FAILED'), err);
+                },
+            });
     }
 
     // ── Presentation ─────────────────────────────────────────────────────────
@@ -465,7 +496,9 @@ export class MaintenanceChannelComponent {
     protected day(iso: string): string {
         const date = new Date(iso);
         if (Number.isNaN(date.getTime())) return iso;
-        return new Intl.DateTimeFormat(undefined, {day: 'numeric', month: 'short', year: 'numeric'}).format(date);
+        return new Intl.DateTimeFormat(undefined, {day: 'numeric', month: 'short', year: 'numeric'}).format(
+            date,
+        );
     }
 
     private primaryKeyOf(entry: MaintenanceAttentionEntry): string | null {

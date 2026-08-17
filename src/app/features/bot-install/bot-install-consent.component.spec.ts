@@ -30,7 +30,8 @@ function setup(guildName?: string) {
         ],
     });
 
-    const fixture: ComponentFixture<BotInstallConsentComponent> = TestBed.createComponent(BotInstallConsentComponent);
+    const fixture: ComponentFixture<BotInstallConsentComponent> =
+        TestBed.createComponent(BotInstallConsentComponent);
     fixture.componentRef.setInput('clientId', 'client_1');
     fixture.componentRef.setInput('permissions', Permissions.ViewChannel | Permissions.BanMembers);
     fixture.componentRef.setInput('guildId', 'g1');
@@ -67,8 +68,10 @@ describe('BotInstallConsentComponent fetch', () => {
 
     it('sets state to error when the fetch fails', () => {
         const {component, ctrl, fixture} = setup('Guild Name');
-        ctrl.expectOne(req => req.url === `${BASE}/oauth2/authorize` && req.method === 'GET')
-            .flush('boom', {status: 500, statusText: 'Server Error'});
+        ctrl.expectOne(req => req.url === `${BASE}/oauth2/authorize` && req.method === 'GET').flush('boom', {
+            status: 500,
+            statusText: 'Server Error',
+        });
         fixture.detectChanges();
         expect(component.state()).toBe('error');
     });
@@ -87,7 +90,15 @@ describe('BotInstallConsentComponent guild name resolution', () => {
         const {component, ctrl, fixture} = setup(undefined);
         flushInfo(ctrl, fixture);
         const guildReq = ctrl.expectOne(`https://api.test.example/api/v1/guild/guilds/g1`);
-        guildReq.flush({id: 'g1', name: 'Fetched Guild', description: '', ownerId: '', categories: [], channels: [], roles: []});
+        guildReq.flush({
+            id: 'g1',
+            name: 'Fetched Guild',
+            description: '',
+            ownerId: '',
+            categories: [],
+            channels: [],
+            roles: [],
+        });
         fixture.detectChanges();
         expect(component.resolvedGuildName()).toBe('Fetched Guild');
     });
@@ -125,7 +136,9 @@ describe('BotInstallConsentComponent.confirm', () => {
         });
         req.flush({guildId: 'g1', grantedPermissions: stringifyPermissions(Permissions.ViewChannel)});
 
-        expect(emitted).toEqual([{guildId: 'g1', grantedPermissions: stringifyPermissions(Permissions.ViewChannel)}]);
+        expect(emitted).toEqual([
+            {guildId: 'g1', grantedPermissions: stringifyPermissions(Permissions.ViewChannel)},
+        ]);
     });
 
     it('resets to ready (not error) on confirm failure, keeping info intact', () => {

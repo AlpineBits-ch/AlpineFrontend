@@ -46,16 +46,10 @@ export interface AskTurnSummary {
  * question and sources. History is stated as part of the question text itself, capped to the last
  * few turns so an unbounded transcript doesn't grow the request without bound.
  */
-export function buildAskQuestion(
-    history: readonly AskTurnSummary[],
-    question: string,
-    maxTurns = 3,
-): string {
+export function buildAskQuestion(history: readonly AskTurnSummary[], question: string, maxTurns = 3): string {
     const recent = history.filter(turn => turn.answer.trim()).slice(-maxTurns);
     if (!recent.length) return question;
 
-    const transcript = recent
-        .map(turn => `Q: ${turn.question}\nA: ${turn.answer}`)
-        .join('\n\n');
+    const transcript = recent.map(turn => `Q: ${turn.question}\nA: ${turn.answer}`).join('\n\n');
     return `Earlier in this conversation:\n\n${transcript}\n\nFollow-up question: ${question}`;
 }

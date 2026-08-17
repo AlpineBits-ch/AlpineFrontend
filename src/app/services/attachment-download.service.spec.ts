@@ -97,8 +97,7 @@ describe('AttachmentDownloadService', () => {
         const saved = service.save({id: 'a1', fileName: 'holiday.png'});
         await settle();
         // A Blob body even for the error: the request asks for `responseType: 'blob'`, and the testing backend refuses to convert a string for it.
-        http.expectOne(DOWNLOAD_URL)
-            .flush(new Blob(['nope']), {status: 500, statusText: 'Server Error'});
+        http.expectOne(DOWNLOAD_URL).flush(new Blob(['nope']), {status: 500, statusText: 'Server Error'});
 
         await expect(saved).rejects.toBeTruthy();
         expect(saver.calls).toHaveLength(0);

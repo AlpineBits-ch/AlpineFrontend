@@ -156,13 +156,15 @@ describe('toChannelJoinRequestEvent', () => {
     });
 
     it('requires manual approval when the field is explicitly true', () => {
-        expect(toChannelJoinRequestEvent({...BASE, requiresManualApproval: true}).requiresManualApproval)
-            .toBe(true);
+        expect(
+            toChannelJoinRequestEvent({...BASE, requiresManualApproval: true}).requiresManualApproval,
+        ).toBe(true);
     });
 
     it('only skips manual approval when a server explicitly says so', () => {
-        expect(toChannelJoinRequestEvent({...BASE, requiresManualApproval: false}).requiresManualApproval)
-            .toBe(false);
+        expect(
+            toChannelJoinRequestEvent({...BASE, requiresManualApproval: false}).requiresManualApproval,
+        ).toBe(false);
     });
 
     it('marks the context as a channel, so the review surface reads the channel route', () => {

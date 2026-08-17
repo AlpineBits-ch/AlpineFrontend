@@ -93,7 +93,10 @@ export class VoiceRingStateService implements OnDestroy {
     private catchingUp = false;
 
     constructor() {
-        void this.deviceIdentity.deviceId().then(id => this.ownDeviceId = id).catch(() => undefined);
+        void this.deviceIdentity
+            .deviceId()
+            .then(id => (this.ownDeviceId = id))
+            .catch(() => undefined);
 
         this.ws.voiceRingIncomingObservable.subscribe(ring => this.addIncoming(ring));
         this.ws.voiceRingSentObservable.subscribe(ring => this.trackOutgoing(ring));
@@ -136,7 +139,7 @@ export class VoiceRingStateService implements OnDestroy {
                 for (const ring of pending) this.addIncoming(fromDto(ring));
             },
             // Silent: a failed background read costs a card that the live event may still deliver.
-            error: () => this.catchingUp = false,
+            error: () => (this.catchingUp = false),
         });
     }
 
@@ -255,8 +258,9 @@ export class VoiceRingStateService implements OnDestroy {
         this.incoming.update(list => {
             // The same inviter ringing a second channel supersedes the first, so never two cards
             // from one face. The server closes the older ring too; this is the local half.
-            const kept = list.filter(i =>
-                i.ring.ringId !== ring.ringId && i.ring.inviterId !== ring.inviterId);
+            const kept = list.filter(
+                i => i.ring.ringId !== ring.ringId && i.ring.inviterId !== ring.inviterId,
+            );
             return [{ring, secondsLeft: ring.expiresInSeconds}, ...kept];
         });
     }
@@ -293,16 +297,14 @@ export class VoiceRingStateService implements OnDestroy {
     joinVoiceChannel(guildId: string, channelId: string): void {
         this.guildService.getGuild(guildId).subscribe({
             next: guild => {
-                const channel = guild.channels.find(
-                    c => c.id === channelId && c.type === ChannelType.Voice);
+                const channel = guild.channels.find(c => c.id === channelId && c.type === ChannelType.Voice);
                 if (!channel) {
                     this.toast.info(this.translate.instant('VOICE_RING.CHANNEL_GONE'));
                     return;
                 }
                 void this.voiceChannels.joinChannel(channel, guild.name);
             },
-            error: err => this.toast.httpError(
-                this.translate.instant('VOICE_RING.ACCEPT_FAILED'), err),
+            error: err => this.toast.httpError(this.translate.instant('VOICE_RING.ACCEPT_FAILED'), err),
         });
     }
 
@@ -315,11 +317,12 @@ export class VoiceRingStateService implements OnDestroy {
         // A ring to ourselves, or at a channel that is not voice. Our bug, not something to report.
         if (status === 400) return;
 
-        const messageKey = status === 403 && !body?.reason
-            ? 'VOICE_RING.NOT_IN_CHANNEL'
-            : status === 404
-                ? 'VOICE_RING.TARGET_NOT_FOUND'
-                : refusalMessageKey(body?.reason);
+        const messageKey =
+            status === 403 && !body?.reason
+                ? 'VOICE_RING.NOT_IN_CHANNEL'
+                : status === 404
+                  ? 'VOICE_RING.TARGET_NOT_FOUND'
+                  : refusalMessageKey(body?.reason);
 
         const retryAfterSeconds = Math.max(0, body?.retryAfterSeconds ?? 0);
         this.refusals.update(map => ({...map, [key(guildId, channelId)]: {messageKey, retryAfterSeconds}}));
@@ -355,9 +358,9 @@ export class VoiceRingStateService implements OnDestroy {
      */
     private startTicking(): void {
         this.ticker = setInterval(() => {
-            this.incoming.update(list => list
-                .map(i => ({...i, secondsLeft: i.secondsLeft - 1}))
-                .filter(i => i.secondsLeft > 0));
+            this.incoming.update(list =>
+                list.map(i => ({...i, secondsLeft: i.secondsLeft - 1})).filter(i => i.secondsLeft > 0),
+            );
 
             this.outgoing.update(map => {
                 const next: Record<string, OutgoingRing> = {};

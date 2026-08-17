@@ -1,4 +1,14 @@
-import {Component, computed, effect, HostListener, inject, input, OnDestroy, output, signal} from '@angular/core';
+import {
+    Component,
+    computed,
+    effect,
+    HostListener,
+    inject,
+    input,
+    OnDestroy,
+    output,
+    signal,
+} from '@angular/core';
 import {TranslateModule} from '@ngx-translate/core';
 import {
     CallParticipant,
@@ -37,8 +47,8 @@ import {StreamStatsSnapshot} from '../stream-stats';
     ],
     templateUrl: './call-screen-layout.component.html',
     host: {
-        class: 'flex flex-col min-h-0'
-    }
+        class: 'flex flex-col min-h-0',
+    },
 })
 export class CallScreenLayoutComponent implements OnDestroy {
     readonly screenShares = input.required<CallScreenShare[]>();
@@ -96,7 +106,6 @@ export class CallScreenLayoutComponent implements OnDestroy {
         return remote.length > 0 ? remote : this.screenShares().filter(s => !hidden.has(s.shareId));
     });
 
-
     /** Everyone in the call, as a full seat on the stage. One participant, one seat, unconditionally. */
     private readonly participantTiles = computed(() => this.participants().map(cameraTile));
 
@@ -112,9 +121,11 @@ export class CallScreenLayoutComponent implements OnDestroy {
 
     /** Who is left for the participants strip: everyone whose face is not already on the stage. */
     protected readonly stripParticipants = computed(() => {
-        const onStage = new Set(this.displayedTiles()
-            .filter(t => t.kind === 'camera')
-            .map(t => t.participant.userId));
+        const onStage = new Set(
+            this.displayedTiles()
+                .filter(t => t.kind === 'camera')
+                .map(t => t.participant.userId),
+        );
         return this.participants().filter(p => !onStage.has(p.userId));
     });
 
@@ -147,13 +158,28 @@ export class CallScreenLayoutComponent implements OnDestroy {
     });
 
     /**
+     * How the stage grid is sized. Maximised is one `1fr` row the tile fills, so the picture fits the
+     * box it was given: `auto-rows-min` sizes a row from `aspect-video`, which at full stage width is
+     * taller than the space left by the strip and the controls, and the stage scrolls.
+     * Two columns are forced while the invite card is showing, because gridClass() counts
+     * {@link displayedTiles} alone.
+     */
+    protected readonly stageClass = computed(() => {
+        if (this.maximizedId() !== null) return 'grid-cols-1 grid-rows-1 overflow-hidden';
+        const cols = this.showInviteCard() ? 'grid-cols-2' : this.gridClass();
+        return `auto-rows-min overflow-y-auto thin-scrollbar ${cols}`;
+    });
+
+    /**
      * Whether `app-call-invite-card` fills the stage beside a lone tile: a share-less stage of one
      * tile, in a channel scope. The card must never reach {@link displayedShares} or the watch claim.
      */
-    protected readonly showInviteCard = computed(() =>
-        this.displayedShares().length === 0
-        && this.displayedTiles().length === 1
-        && this.watchScope()?.kind === 'channel');
+    protected readonly showInviteCard = computed(
+        () =>
+            this.displayedShares().length === 0 &&
+            this.displayedTiles().length === 1 &&
+            this.watchScope()?.kind === 'channel',
+    );
 
     /** Re-emits the invite press with the channel it belongs to. Silent off a channel scope. */
     protected emitInviteRequest(): void {
@@ -163,8 +189,11 @@ export class CallScreenLayoutComponent implements OnDestroy {
     }
 
     /** Whether to offer the persistent grid/focus control. Needs a share to focus and a tile to focus away from. */
-    protected readonly canToggleFocus = computed(() =>
-        this.maximizedId() !== null || (this.displayedTiles().length > 1 && this.displayedShares().length > 0));
+    protected readonly canToggleFocus = computed(
+        () =>
+            this.maximizedId() !== null ||
+            (this.displayedTiles().length > 1 && this.displayedShares().length > 0),
+    );
 
     constructor() {
         // The watch claim is driven by what is actually rendered, not by what is subscribed.
@@ -185,17 +214,21 @@ export class CallScreenLayoutComponent implements OnDestroy {
 
         // The door an external caller uses to say "focus this share". consume() must be called here:
         // reading its signal is what re-runs this effect, and consuming is what makes it one-shot.
-        effect(() => {
-            const scope = this.watchScope();
-            if (!scope) return;
+        effect(
+            () => {
+                const scope = this.watchScope();
+                if (!scope) return;
 
-            const target = this.callFocus.consume(scopeKey(scope));
-            if (!target) return;
+                const target = this.callFocus.consume(scopeKey(scope));
+                if (!target) return;
 
-            const shareId = target.shareId
-                ?? (target.userId ? this.getShareForUser(target.userId)?.shareId : undefined);
-            if (shareId) this.maximizedId.set(shareId);
-        }, {allowSignalWrites: true});
+                const shareId =
+                    target.shareId ??
+                    (target.userId ? this.getShareForUser(target.userId)?.shareId : undefined);
+                if (shareId) this.maximizedId.set(shareId);
+            },
+            {allowSignalWrites: true},
+        );
 
         // A hidden id is only meaningful while the share it names still exists.
         effect(() => {
@@ -209,24 +242,30 @@ export class CallScreenLayoutComponent implements OnDestroy {
 
         // Remembers whose stream is maximised, so replacementFor can follow them when the share id
         // changes underneath. Only ever written from a share that is actually present.
-        effect(() => {
-            const id = this.maximizedId();
-            if (id === null) {
-                this.maximizedOwner.set(null);
-                return;
-            }
-            const share = this.screenShares().find(s => s.shareId === id);
-            if (share) this.maximizedOwner.set(share.userId);
-        }, {allowSignalWrites: true});
+        effect(
+            () => {
+                const id = this.maximizedId();
+                if (id === null) {
+                    this.maximizedOwner.set(null);
+                    return;
+                }
+                const share = this.screenShares().find(s => s.shareId === id);
+                if (share) this.maximizedOwner.set(share.userId);
+            },
+            {allowSignalWrites: true},
+        );
 
         // Re-points the maximise at the replacement, or releases it when nothing replaced the share.
-        effect(() => {
-            const id = this.maximizedId();
-            if (id === null) return;
-            if (this.screenShares().some(s => s.shareId === id)) return;
-            const replacement = this.replacementFor(id);
-            this.maximizedId.set(replacement ? replacement.shareId : null);
-        }, {allowSignalWrites: true});
+        effect(
+            () => {
+                const id = this.maximizedId();
+                if (id === null) return;
+                if (this.screenShares().some(s => s.shareId === id)) return;
+                const replacement = this.replacementFor(id);
+                this.maximizedId.set(replacement ? replacement.shareId : null);
+            },
+            {allowSignalWrites: true},
+        );
 
         // Claims "somebody is rendering the preview" for the idle pause. Every way claimingPreview
         // can go false must release, or the idle timer stays blocked.
@@ -275,7 +314,7 @@ export class CallScreenLayoutComponent implements OnDestroy {
     }
 
     protected toggleMaximize(shareId: string): void {
-        this.maximizedId.update(id => id === shareId ? null : shareId);
+        this.maximizedId.update(id => (id === shareId ? null : shareId));
     }
 
     /** Escape gives the stage back. Ignored while a real fullscreen is open: the browser takes that press. */

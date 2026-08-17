@@ -47,13 +47,21 @@ describe('isGroupedWithPrevious', () => {
 
     it('returns false for a different author', () => {
         const previous = makeMessage({id: 'm1', authorId: 'author-a'});
-        const current = makeMessage({id: 'm2', authorId: 'author-b', createdAt: new Date('2026-07-28T10:00:05.000Z')});
+        const current = makeMessage({
+            id: 'm2',
+            authorId: 'author-b',
+            createdAt: new Date('2026-07-28T10:00:05.000Z'),
+        });
         expect(isGroupedWithPrevious(current, previous)).toBe(false);
     });
 
     it('returns false when the current message is a reply', () => {
         const previous = makeMessage({id: 'm1'});
-        const current = makeMessage({id: 'm2', createdAt: new Date('2026-07-28T10:00:05.000Z'), inReplyTo: 'm0'});
+        const current = makeMessage({
+            id: 'm2',
+            createdAt: new Date('2026-07-28T10:00:05.000Z'),
+            inReplyTo: 'm0',
+        });
         expect(isGroupedWithPrevious(current, previous)).toBe(false);
     });
 

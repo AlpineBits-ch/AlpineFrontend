@@ -151,5 +151,5 @@ export interface ScreenPublisherHost {
  */
 export function hostFor(publisher: ScreenPublisher): ScreenPublisherHost | null {
     const candidate = publisher as unknown as Partial<ScreenPublisherHost>;
-    return typeof candidate.nativeCapture === 'boolean' ? candidate as ScreenPublisherHost : null;
+    return typeof candidate.nativeCapture === 'boolean' ? (candidate as ScreenPublisherHost) : null;
 }

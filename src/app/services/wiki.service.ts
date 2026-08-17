@@ -9,7 +9,7 @@ import {
     UpdateWikiCategoryDto,
     UpdateWikiPageDto,
 } from '../dtos/request/wiki.dto';
-import {ApiConfigService} from "./api-config.service";
+import {ApiConfigService} from './api-config.service';
 
 @Injectable({providedIn: 'root'})
 export class WikiService {
@@ -19,9 +19,9 @@ export class WikiService {
     private readonly base = this.apiConfig.baseUrl() + '/api/v1/guild';
 
     getWiki(guildId: string): Observable<WikiDto> {
-        return this.http.get<WikiDto>(`${this.base}/guilds/${guildId}/wiki`).pipe(
-            catchError(() => of({id: '', guildId, categories: [], pages: []} as WikiDto)),
-        );
+        return this.http
+            .get<WikiDto>(`${this.base}/guilds/${guildId}/wiki`)
+            .pipe(catchError(() => of({id: '', guildId, categories: [], pages: []} as WikiDto)));
     }
 
     /**

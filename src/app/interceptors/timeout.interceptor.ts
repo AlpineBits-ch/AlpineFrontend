@@ -8,11 +8,14 @@ export const timeoutInterceptor: HttpInterceptorFn = (req, next) => {
         timeout(REQUEST_TIMEOUT_MS),
         catchError(err => {
             if (err instanceof TimeoutError) {
-                return throwError(() => new HttpErrorResponse({
-                    status: 0,
-                    statusText: 'Request timed out',
-                    url: req.url,
-                }));
+                return throwError(
+                    () =>
+                        new HttpErrorResponse({
+                            status: 0,
+                            statusText: 'Request timed out',
+                            url: req.url,
+                        }),
+                );
             }
             return throwError(() => err);
         }),

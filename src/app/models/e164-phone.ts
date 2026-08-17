@@ -72,5 +72,10 @@ export function e164ProblemKey(problem: E164Problem): string {
 
 /** Every problem this module can report, for the copy test that pins a string behind each. */
 export const E164_PROBLEMS: readonly E164Problem[] = [
-    'empty', 'no-plus', 'not-a-number', 'too-short', 'too-long', 'trunk-prefix',
+    'empty',
+    'no-plus',
+    'not-a-number',
+    'too-short',
+    'too-long',
+    'trunk-prefix',
 ];

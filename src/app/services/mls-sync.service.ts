@@ -70,7 +70,7 @@ export class MlsSyncService {
      * Without this they were dropped: a message decrypts from the wire exactly once, so an
      * application message that raced ahead of its commit was unreadable for good.
      */
-    readonly replayedMessages = new Subject<{ contextId: string; messages: MlsReplayedMessage[] }>();
+    readonly replayedMessages = new Subject<{contextId: string; messages: MlsReplayedMessage[]}>();
 
     private readonly mls = inject(MlsService);
     private readonly transport = inject(MlsTransportService);
@@ -182,7 +182,7 @@ export class MlsSyncService {
         const groupId = await this.mls.getGroupId(contextId, generation);
         if (!groupId) return;
 
-        for (; ;) {
+        for (;;) {
             let epoch: number;
             try {
                 epoch = (await firstValueFrom(this.mls.getGroupInfo(groupId))).epoch;
@@ -337,9 +337,7 @@ export class MlsSyncService {
         return this.serialized(contextId, async () => {
             let processed;
             try {
-                processed = await firstValueFrom(
-                    this.mls.processMessage(groupId, ciphertextB64, messageId),
-                );
+                processed = await firstValueFrom(this.mls.processMessage(groupId, ciphertextB64, messageId));
             } catch (err) {
                 // Routine at the edge of the ratchet - a message paged in from beyond its reach can
                 // never be decrypted - so it is counted rather than shouted about. What matters is
@@ -353,9 +351,13 @@ export class MlsSyncService {
             if (processed.kind !== 'application' || !processed.plaintext) return null;
 
             if (!this.senderMatchesClaimedAuthor(processed.senderIdentity, expectedSenderUserId)) {
-                this.health.recordFailure(contextId, isChannel, 'decrypt-failed',
-                    `the server attributed this message to ${expectedSenderUserId}, but it was `
-                    + `signed by ${processed.senderIdentity}`);
+                this.health.recordFailure(
+                    contextId,
+                    isChannel,
+                    'decrypt-failed',
+                    `the server attributed this message to ${expectedSenderUserId}, but it was ` +
+                        `signed by ${processed.senderIdentity}`,
+                );
                 return null;
             }
 
@@ -479,17 +481,14 @@ export class MlsSyncService {
             }
 
             try {
-                const result = await firstValueFrom(
-                    this.transport.publishCommit(contextId, isChannel, dto),
-                );
+                const result = await firstValueFrom(this.transport.publishCommit(contextId, isChannel, dto));
                 // `duplicate` means the server matched this exact payload from this device and
                 // returned the row it already held. That is a *success*, and the distinction is
                 // what the flag is for: the first attempt did land, the response was simply lost,
                 // and treating it as a lost race is what used to discard a commit the group had
                 // already applied.
                 if (result.duplicate) {
-                    console.info('The first publish landed after all; keeping the staged commit',
-                        contextId);
+                    console.info('The first publish landed after all; keeping the staged commit', contextId);
                 }
                 return true;
             } catch (retryErr) {
@@ -548,7 +547,11 @@ export class MlsSyncService {
         const published = await this.publish(contextId, isChannel, async () => {
             const groupId = (await this.mls.getActiveGroupId(contextId))!;
             const out = await firstValueFrom(
-                this.mls.addMembers(groupId, keyHandle, invitees.map(t => t.token)),
+                this.mls.addMembers(
+                    groupId,
+                    keyHandle,
+                    invitees.map(t => t.token),
+                ),
             );
 
             return {
@@ -612,14 +615,16 @@ export class MlsSyncService {
         // could never gain a member after anyone left it.
         const state = await firstValueFrom(this.transport.getState(contextId, isChannel));
         try {
-            await firstValueFrom(this.transport.publishCommit(contextId, isChannel, {
-                epoch: (state.epoch ?? 0) + 1,
-                commit: proposal.commit,
-                senderDeviceId: await this.deviceIdentity.deviceId(),
-                generation,
-                welcomes: [],
-                isProposal: true,
-            }));
+            await firstValueFrom(
+                this.transport.publishCommit(contextId, isChannel, {
+                    epoch: (state.epoch ?? 0) + 1,
+                    commit: proposal.commit,
+                    senderDeviceId: await this.deviceIdentity.deviceId(),
+                    generation,
+                    welcomes: [],
+                    isProposal: true,
+                }),
+            );
         } catch (err) {
             // Nothing to undo: local state is already gone, which is the part that matters for our
             // own forward secrecy. The group keeps listing us until someone removes us.
@@ -671,9 +676,12 @@ export class MlsSyncService {
             const floor = await this.mls.getEncryptionFloor(contextId);
             if (floor !== null) {
                 this.health.recordFailure(
-                    contextId, isChannel, 'downgraded',
-                    `the server reports this context as unencrypted, but this device has held an `
-                    + `MLS group for it up to generation ${floor}`);
+                    contextId,
+                    isChannel,
+                    'downgraded',
+                    `the server reports this context as unencrypted, but this device has held an ` +
+                        `MLS group for it up to generation ${floor}`,
+                );
                 return state;
             }
 
@@ -706,7 +714,13 @@ export class MlsSyncService {
     private serialized<T>(contextId: string, op: () => Promise<T>): Promise<T> {
         const prev = this.queues.get(contextId) ?? Promise.resolve();
         const task = prev.then(op, op);
-        this.queues.set(contextId, task.then(() => undefined, () => undefined));
+        this.queues.set(
+            contextId,
+            task.then(
+                () => undefined,
+                () => undefined,
+            ),
+        );
         return task;
     }
 }

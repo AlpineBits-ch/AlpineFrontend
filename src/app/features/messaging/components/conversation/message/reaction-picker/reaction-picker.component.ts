@@ -80,17 +80,21 @@ export class ReactionPickerComponent implements OnDestroy {
                 theme: 'dark',
                 previewPosition: 'none',
                 skinTonePosition: 'none',
-                custom: customEmojis.length ? [{
-                    id: 'guild',
-                    name: 'This Server',
-                    emojis: customEmojis.map(e => ({
-                        id: e.id,
-                        name: e.name,
-                        keywords: [e.name],
-                        skins: [{src: e.imageUrl}],
-                    })),
-                }] : [],
-                onEmojiSelect: (emoji: { native?: string; id: string; name: string; src?: string }) => {
+                custom: customEmojis.length
+                    ? [
+                          {
+                              id: 'guild',
+                              name: 'This Server',
+                              emojis: customEmojis.map(e => ({
+                                  id: e.id,
+                                  name: e.name,
+                                  keywords: [e.name],
+                                  skins: [{src: e.imageUrl}],
+                              })),
+                          },
+                      ]
+                    : [],
+                onEmojiSelect: (emoji: {native?: string; id: string; name: string; src?: string}) => {
                     if (emoji.src) {
                         this.emojiSelected.emit({customEmojiId: emoji.id, customEmojiName: emoji.name});
                     } else {

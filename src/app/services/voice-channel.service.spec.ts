@@ -21,8 +21,12 @@ import {SCREEN_RESUME_GRACE_MS} from '../shared/call/screen-resume';
 /** A room at v1 with nobody in it: what most of these tests want the recovery path to return. */
 function emptySnapshot(roomId: string): VoiceRoomSnapshot {
     return {
-        roomId, kind: 'channel', guildId: 'guild-1',
-        instanceId: 'inst-1', version: 1, participants: [],
+        roomId,
+        kind: 'channel',
+        guildId: 'guild-1',
+        instanceId: 'inst-1',
+        version: 1,
+        participants: [],
     };
 }
 
@@ -32,8 +36,10 @@ function publisher(userId: string, over: Partial<VoiceParticipantSnapshot> = {})
         mediaSessionId: `cf-${userId}`,
         audioTrackName: 'audio',
         publishState: 'Publishing',
-        isSelfMuted: false, isSelfDeafened: false,
-        isServerMuted: false, isServerDeafened: false,
+        isSelfMuted: false,
+        isSelfDeafened: false,
+        isServerMuted: false,
+        isServerDeafened: false,
         isStreaming: false,
         shares: [],
         joinedAt: '2026-08-07T12:00:00Z',
@@ -44,20 +50,34 @@ function publisher(userId: string, over: Partial<VoiceParticipantSnapshot> = {})
 function setup(options: {inChannel?: boolean} = {}) {
     const ws: Record<string, Subject<unknown>> = {};
     for (const name of [
-        'userJoinedVoiceObservable', 'userLeftVoiceObservable', 'guildParticipantJoinedObservable',
-        'guildTrackPublishedObservable', 'guildTrackClosedObservable', 'voiceMuteChangedObservable',
-        'voiceDeafenChangedObservable', 'voiceCameraChangedObservable',
-        'voiceScreenShareStartedObservable', 'voiceScreenShareStoppedObservable',
-        'movedToChannelObservable', 'kickedByOtherDeviceObservable',
-        'voiceSnapshotObservable', 'voiceResyncObservable',
-    ]) ws[name] = new Subject();
+        'userJoinedVoiceObservable',
+        'userLeftVoiceObservable',
+        'guildParticipantJoinedObservable',
+        'guildTrackPublishedObservable',
+        'guildTrackClosedObservable',
+        'voiceMuteChangedObservable',
+        'voiceDeafenChangedObservable',
+        'voiceCameraChangedObservable',
+        'voiceScreenShareStartedObservable',
+        'voiceScreenShareStoppedObservable',
+        'movedToChannelObservable',
+        'kickedByOtherDeviceObservable',
+        'voiceSnapshotObservable',
+        'voiceResyncObservable',
+    ])
+        ws[name] = new Subject();
 
     // Outbound calls: the service announces its own mute and deafen through these.
     const wsCalls: Record<string, ReturnType<typeof vi.fn>> = {};
     for (const name of [
-        'invokeVoiceMuteChanged', 'invokeVoiceDeafenChanged', 'invokeVoiceCameraChanged',
-        'invokeVoiceScreenShareStarted', 'invokeVoiceScreenShareStopped', 'invokeVoiceHeartbeat',
-    ]) wsCalls[name] = vi.fn();
+        'invokeVoiceMuteChanged',
+        'invokeVoiceDeafenChanged',
+        'invokeVoiceCameraChanged',
+        'invokeVoiceScreenShareStarted',
+        'invokeVoiceScreenShareStopped',
+        'invokeVoiceHeartbeat',
+    ])
+        wsCalls[name] = vi.fn();
 
     // The hub's connection state, as a signal so a test can drive the reconnect path.
     const connectionState = signal(ConnectionState.Connected);
@@ -77,7 +97,7 @@ function setup(options: {inChannel?: boolean} = {}) {
         subscribedUserIds: vi.fn(() => [] as string[]),
         cleanupParticipant: vi.fn(),
         handleRemoteTrackClosed: vi.fn(),
-        publishedMedia: null as { mediaSessionId: string; audioTrackName: string } | null,
+        publishedMedia: null as {mediaSessionId: string; audioTrackName: string} | null,
         teardown: vi.fn(),
         connect: vi.fn(async () => true),
         setDeafened: vi.fn(),
@@ -172,7 +192,10 @@ it('does not subscribe to our own audio when the server announces us', async () 
     const {ws, rtc} = setup();
 
     ws['guildParticipantJoinedObservable'].next({
-        channelId: 'chan-1', userId: 'me', mediaSessionId: 'sess-mine', audioTrackName: 'audio',
+        channelId: 'chan-1',
+        userId: 'me',
+        mediaSessionId: 'sess-mine',
+        audioTrackName: 'audio',
     });
     await tick();
 
@@ -183,7 +206,10 @@ it('still subscribes when somebody else is announced', async () => {
     const {ws, rtc} = setup();
 
     ws['guildParticipantJoinedObservable'].next({
-        channelId: 'chan-1', userId: 'them', mediaSessionId: 'sess-theirs', audioTrackName: 'audio',
+        channelId: 'chan-1',
+        userId: 'them',
+        mediaSessionId: 'sess-theirs',
+        audioTrackName: 'audio',
     });
     await tick();
 
@@ -203,7 +229,7 @@ describe('sticky mute and deafen', () => {
 
     // The unit-test environment's localStorage is a stub without `clear`.
     let restoreStorage: () => void;
-    beforeEach(() => restoreStorage = installMemoryStorage());
+    beforeEach(() => (restoreStorage = installMemoryStorage()));
     afterEach(() => restoreStorage());
 
     describe('loadStickyVoiceState', () => {
@@ -229,8 +255,10 @@ describe('sticky mute and deafen', () => {
 
         /** Neither can mean anything after a channel change: both hold a live publication. */
         it('never restores camera or screen share', () => {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(
-                {isMuted: true, isDeafened: false, isCameraOn: true, isScreenSharing: true}));
+            localStorage.setItem(
+                STORAGE_KEY,
+                JSON.stringify({isMuted: true, isDeafened: false, isCameraOn: true, isScreenSharing: true}),
+            );
             expect(loadStickyVoiceState()).toEqual({isMuted: true, isDeafened: false});
         });
     });
@@ -287,7 +315,10 @@ describe('sticky mute and deafen', () => {
 
         await service.joinChannel(CHANNEL, 'Guild');
 
-        const own = service.channelParticipants().get(CHANNEL.id)?.find(p => p.isLocal);
+        const own = service
+            .channelParticipants()
+            .get(CHANNEL.id)
+            ?.find(p => p.isLocal);
         expect(own?.isMuted).toBe(true);
     });
 
@@ -335,8 +366,10 @@ describe('sticky mute and deafen', () => {
 
         service.toggleMute();
 
-        expect(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}'))
-            .toEqual({isMuted: true, isDeafened: false});
+        expect(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}')).toEqual({
+            isMuted: true,
+            isDeafened: false,
+        });
     });
 
     /** Deafening implies muting, and both halves have to survive a restart. */
@@ -345,14 +378,19 @@ describe('sticky mute and deafen', () => {
 
         service.toggleDeafen();
 
-        expect(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}'))
-            .toEqual({isMuted: true, isDeafened: true});
+        expect(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}')).toEqual({
+            isMuted: true,
+            isDeafened: true,
+        });
     });
 });
 
 describe('a join the server refuses', () => {
     const CHANNEL = {
-        id: 'chan-2', guildId: 'guild-1', name: 'General', type: ChannelType.Voice,
+        id: 'chan-2',
+        guildId: 'guild-1',
+        name: 'General',
+        type: ChannelType.Voice,
     } as ChannelDto;
 
     /** A refusal shaped the way `Echo.Entitlements` sends one: 403, `code` equal to `reason`. */
@@ -438,19 +476,23 @@ describe('a join the server refuses', () => {
     /** A degradation is a `200`: the room admitted us and gave less than was asked for. */
     it('stays in a room that admitted it on reduced terms, and holds what was reduced', async () => {
         const {service, guildVoice, toast} = setup({inChannel: false});
-        guildVoice.join.mockReturnValue(of({
-            ...emptySnapshot(CHANNEL.id),
-            degradations: [{
-                key: 'voice.video_ceiling',
-                requested: {kind: 'ladder', rung: '1080p60', rank: 4},
-                granted: {kind: 'ladder', rung: '720p30', rank: 2},
-                reason: 'guild_plan_limit',
-                boundBy: 'guild',
-                remedy: 'upgrade_guild',
-                actorCanRemedy: false,
-                subject: {kind: 'guild', id: 'guild-1'},
-            }],
-        }));
+        guildVoice.join.mockReturnValue(
+            of({
+                ...emptySnapshot(CHANNEL.id),
+                degradations: [
+                    {
+                        key: 'voice.video_ceiling',
+                        requested: {kind: 'ladder', rung: '1080p60', rank: 4},
+                        granted: {kind: 'ladder', rung: '720p30', rank: 2},
+                        reason: 'guild_plan_limit',
+                        boundBy: 'guild',
+                        remedy: 'upgrade_guild',
+                        actorCanRemedy: false,
+                        subject: {kind: 'guild', id: 'guild-1'},
+                    },
+                ],
+            }),
+        );
 
         const joined = await service.joinChannel(CHANNEL, 'Guild');
 
@@ -459,15 +501,17 @@ describe('a join the server refuses', () => {
         expect(toast.error).not.toHaveBeenCalled();
         // Not a toast: a ceiling is the state of the room for as long as the call lasts.
         expect(toast.info).not.toHaveBeenCalled();
-        expect(service.limits.notices()).toEqual([expect.objectContaining({
-            key: 'voice.video_ceiling',
-            messageKey: 'ENTITLEMENT.REASON.GUILD_PLAN_LIMIT',
-            surfaceKey: 'VOICE.DEGRADED.QUALITY_CAPPED',
-            rung: '720p30',
-            // The server said this caller cannot act: a sentence naming who can, and no button.
-            ctaKey: null,
-            hintKey: 'ENTITLEMENT.CTA.ASK_OWNER',
-        })]);
+        expect(service.limits.notices()).toEqual([
+            expect.objectContaining({
+                key: 'voice.video_ceiling',
+                messageKey: 'ENTITLEMENT.REASON.GUILD_PLAN_LIMIT',
+                surfaceKey: 'VOICE.DEGRADED.QUALITY_CAPPED',
+                rung: '720p30',
+                // The server said this caller cannot act: a sentence naming who can, and no button.
+                ctaKey: null,
+                hintKey: 'ENTITLEMENT.CTA.ASK_OWNER',
+            }),
+        ]);
     });
 
     /** Absent and empty mean the same thing, and both are the normal case. */
@@ -481,20 +525,24 @@ describe('a join the server refuses', () => {
     });
 
     /** Nothing one room said about its plan may follow the user into the next one. */
-    it('drops the last room\'s limits on leaving', async () => {
+    it("drops the last room's limits on leaving", async () => {
         const {service, guildVoice} = setup({inChannel: false});
-        guildVoice.join.mockReturnValue(of({
-            ...emptySnapshot(CHANNEL.id),
-            degradations: [{
-                key: 'voice.video_ceiling',
-                requested: {kind: 'ladder', rung: '1080p60', rank: 4},
-                granted: {kind: 'ladder', rung: 'none', rank: 0},
-                reason: 'guild_plan_limit',
-                remedy: 'upgrade_guild',
-                actorCanRemedy: true,
-                subject: {kind: 'guild', id: 'guild-1'},
-            }],
-        }));
+        guildVoice.join.mockReturnValue(
+            of({
+                ...emptySnapshot(CHANNEL.id),
+                degradations: [
+                    {
+                        key: 'voice.video_ceiling',
+                        requested: {kind: 'ladder', rung: '1080p60', rank: 4},
+                        granted: {kind: 'ladder', rung: 'none', rank: 0},
+                        reason: 'guild_plan_limit',
+                        remedy: 'upgrade_guild',
+                        actorCanRemedy: true,
+                        subject: {kind: 'guild', id: 'guild-1'},
+                    },
+                ],
+            }),
+        );
 
         await service.joinChannel(CHANNEL, 'Guild');
         expect(service.limits.notices()).toHaveLength(1);
@@ -509,8 +557,7 @@ describe('a join the server refuses', () => {
     it('reports true for the channel it is already in', async () => {
         const {service, guildVoice} = setup();
 
-        const joined = await service.joinChannel(
-            {...CHANNEL, id: 'chan-1'} as ChannelDto, 'Guild');
+        const joined = await service.joinChannel({...CHANNEL, id: 'chan-1'} as ChannelDto, 'Guild');
 
         expect(joined).toBe(true);
         expect(guildVoice.join).not.toHaveBeenCalled();
@@ -523,16 +570,24 @@ describe('screen share backfill from the snapshot', () => {
 
         ws['voiceSnapshotObservable'].next({
             ...emptySnapshot('chan-1'),
-            participants: [publisher('them', {
-                isStreaming: true,
-                shares: [{shareId: 'abc', trackNames: ['screen-abc'], mediaSessionId: 'cf-screen-them'}],
-            })],
+            participants: [
+                publisher('them', {
+                    isStreaming: true,
+                    shares: [{shareId: 'abc', trackNames: ['screen-abc'], mediaSessionId: 'cf-screen-them'}],
+                }),
+            ],
         });
         await tick();
 
         // The share's own session, not `cf-them`: a share is published on a session of its own.
         expect(rtc.subscribeVideo).toHaveBeenCalledWith(
-            'guild-1', 'chan-1', 'them', 'cf-screen-them', 'screen-abc', 'screen');
+            'guild-1',
+            'chan-1',
+            'them',
+            'cf-screen-them',
+            'screen-abc',
+            'screen',
+        );
     });
 
     /** A share can carry audio, and the two halves are one share tied by the same id. */
@@ -541,21 +596,36 @@ describe('screen share backfill from the snapshot', () => {
 
         ws['voiceSnapshotObservable'].next({
             ...emptySnapshot('chan-1'),
-            participants: [publisher('them', {
-                isStreaming: true,
-                shares: [{
-                    shareId: 'abc',
-                    trackNames: ['screen-abc', 'screen-audio-abc'],
-                    mediaSessionId: 'cf-screen-them',
-                }],
-            })],
+            participants: [
+                publisher('them', {
+                    isStreaming: true,
+                    shares: [
+                        {
+                            shareId: 'abc',
+                            trackNames: ['screen-abc', 'screen-audio-abc'],
+                            mediaSessionId: 'cf-screen-them',
+                        },
+                    ],
+                }),
+            ],
         });
         await tick();
 
         expect(rtc.subscribeVideo).toHaveBeenCalledWith(
-            'guild-1', 'chan-1', 'them', 'cf-screen-them', 'screen-abc', 'screen');
+            'guild-1',
+            'chan-1',
+            'them',
+            'cf-screen-them',
+            'screen-abc',
+            'screen',
+        );
         expect(rtc.subscribeAudio).toHaveBeenCalledWith([
-            {userId: 'them', mediaSessionId: 'cf-screen-them', trackName: 'screen-audio-abc', kind: 'screenAudio'},
+            {
+                userId: 'them',
+                mediaSessionId: 'cf-screen-them',
+                trackName: 'screen-audio-abc',
+                kind: 'screenAudio',
+            },
         ]);
     });
 
@@ -565,9 +635,13 @@ describe('screen share backfill from the snapshot', () => {
 
         ws['voiceSnapshotObservable'].next({
             ...emptySnapshot('chan-1'),
-            participants: [publisher('them', {
-                publishState: 'Joined', mediaSessionId: null, audioTrackName: null,
-            })],
+            participants: [
+                publisher('them', {
+                    publishState: 'Joined',
+                    mediaSessionId: null,
+                    audioTrackName: null,
+                }),
+            ],
         });
         await tick();
 
@@ -593,10 +667,14 @@ describe('screen share backfill from the snapshot', () => {
 
         ws['voiceSnapshotObservable'].next({
             ...emptySnapshot('chan-1'),
-            participants: [publisher('me', {
-                isStreaming: true,
-                shares: [{shareId: 'mine', trackNames: ['screen-mine'], mediaSessionId: 'cf-screen-mine'}],
-            })],
+            participants: [
+                publisher('me', {
+                    isStreaming: true,
+                    shares: [
+                        {shareId: 'mine', trackNames: ['screen-mine'], mediaSessionId: 'cf-screen-mine'},
+                    ],
+                }),
+            ],
         });
         await tick();
 
@@ -610,14 +688,22 @@ describe('screen share backfill from the snapshot', () => {
 
         ws['voiceSnapshotObservable'].next({
             ...emptySnapshot('chan-1'),
-            participants: [publisher('them', {
-                videoTracks: [{trackName: 'camera', mediaSessionId: 'cf-camera-them'}],
-            })],
+            participants: [
+                publisher('them', {
+                    videoTracks: [{trackName: 'camera', mediaSessionId: 'cf-camera-them'}],
+                }),
+            ],
         });
         await tick();
 
         expect(rtc.subscribeVideo).toHaveBeenCalledWith(
-            'guild-1', 'chan-1', 'them', 'cf-camera-them', 'camera', 'video');
+            'guild-1',
+            'chan-1',
+            'them',
+            'cf-camera-them',
+            'camera',
+            'video',
+        );
     });
 
     it('marks a camera the snapshot reports as on', async () => {
@@ -625,14 +711,20 @@ describe('screen share backfill from the snapshot', () => {
 
         ws['voiceSnapshotObservable'].next({
             ...emptySnapshot('chan-1'),
-            participants: [publisher('them', {
-                videoTracks: [{trackName: 'camera', mediaSessionId: 'cf-camera-them'}],
-            })],
+            participants: [
+                publisher('them', {
+                    videoTracks: [{trackName: 'camera', mediaSessionId: 'cf-camera-them'}],
+                }),
+            ],
         });
         await tick();
 
-        expect(service.channelParticipants().get('chan-1')
-            ?.find(p => p.userId === 'them')?.isCameraOn).toBe(true);
+        expect(
+            service
+                .channelParticipants()
+                .get('chan-1')
+                ?.find(p => p.userId === 'them')?.isCameraOn,
+        ).toBe(true);
     });
 
     /** They are on camera whether or not we can pull it: the mark is about them, not about us. */
@@ -645,8 +737,12 @@ describe('screen share backfill from the snapshot', () => {
         });
         await tick();
 
-        expect(service.channelParticipants().get('chan-1')
-            ?.find(p => p.userId === 'them')?.isCameraOn).toBe(true);
+        expect(
+            service
+                .channelParticipants()
+                .get('chan-1')
+                ?.find(p => p.userId === 'them')?.isCameraOn,
+        ).toBe(true);
     });
 
     it('leaves the camera mark off when the snapshot reports no video', async () => {
@@ -658,8 +754,12 @@ describe('screen share backfill from the snapshot', () => {
         });
         await tick();
 
-        expect(service.channelParticipants().get('chan-1')
-            ?.find(p => p.userId === 'them')?.isCameraOn).toBe(false);
+        expect(
+            service
+                .channelParticipants()
+                .get('chan-1')
+                ?.find(p => p.userId === 'them')?.isCameraOn,
+        ).toBe(false);
     });
 
     /** `video`, not `screen`: the kind decides the tile layout, and the share loop hardcodes `'screen'`. */
@@ -668,18 +768,32 @@ describe('screen share backfill from the snapshot', () => {
 
         ws['voiceSnapshotObservable'].next({
             ...emptySnapshot('chan-1'),
-            participants: [publisher('them', {
-                isStreaming: true,
-                shares: [{shareId: 'abc', trackNames: ['screen-abc'], mediaSessionId: 'cf-screen-them'}],
-                videoTracks: [{trackName: 'camera', mediaSessionId: 'cf-them'}],
-            })],
+            participants: [
+                publisher('them', {
+                    isStreaming: true,
+                    shares: [{shareId: 'abc', trackNames: ['screen-abc'], mediaSessionId: 'cf-screen-them'}],
+                    videoTracks: [{trackName: 'camera', mediaSessionId: 'cf-them'}],
+                }),
+            ],
         });
         await tick();
 
         expect(rtc.subscribeVideo).toHaveBeenCalledWith(
-            'guild-1', 'chan-1', 'them', 'cf-screen-them', 'screen-abc', 'screen');
+            'guild-1',
+            'chan-1',
+            'them',
+            'cf-screen-them',
+            'screen-abc',
+            'screen',
+        );
         expect(rtc.subscribeVideo).toHaveBeenCalledWith(
-            'guild-1', 'chan-1', 'them', 'cf-them', 'camera', 'video');
+            'guild-1',
+            'chan-1',
+            'them',
+            'cf-them',
+            'camera',
+            'video',
+        );
     });
 
     /** Our own camera, for the same reason as our own share: a session cannot pull its own track. */
@@ -688,9 +802,11 @@ describe('screen share backfill from the snapshot', () => {
 
         ws['voiceSnapshotObservable'].next({
             ...emptySnapshot('chan-1'),
-            participants: [publisher('me', {
-                videoTracks: [{trackName: 'camera', mediaSessionId: 'cf-me'}],
-            })],
+            participants: [
+                publisher('me', {
+                    videoTracks: [{trackName: 'camera', mediaSessionId: 'cf-me'}],
+                }),
+            ],
         });
         await tick();
 
@@ -703,15 +819,23 @@ describe('screen share backfill from the snapshot', () => {
 
         ws['voiceSnapshotObservable'].next({
             ...emptySnapshot('chan-1'),
-            participants: [publisher('them', {
-                isStreaming: true,
-                shares: [{shareId: 'abc', trackNames: ['screen-abc'], mediaSessionId: 'cf-screen-them'}],
-            })],
+            participants: [
+                publisher('them', {
+                    isStreaming: true,
+                    shares: [{shareId: 'abc', trackNames: ['screen-abc'], mediaSessionId: 'cf-screen-them'}],
+                }),
+            ],
         });
         await tick();
 
         expect(rtc.subscribeVideo).toHaveBeenCalledWith(
-            'guild-1', 'chan-1', 'them', 'cf-screen-them', 'screen-abc', 'screen');
+            'guild-1',
+            'chan-1',
+            'them',
+            'cf-screen-them',
+            'screen-abc',
+            'screen',
+        );
         expect(rtc.subscribeVideo).toHaveBeenCalledTimes(1);
     });
 
@@ -721,9 +845,11 @@ describe('screen share backfill from the snapshot', () => {
 
         ws['voiceSnapshotObservable'].next({
             ...emptySnapshot('chan-1'),
-            participants: [publisher('them', {
-                videoTracks: [{trackName: 'camera', mediaSessionId: null}],
-            })],
+            participants: [
+                publisher('them', {
+                    videoTracks: [{trackName: 'camera', mediaSessionId: null}],
+                }),
+            ],
         });
         await tick();
 
@@ -746,13 +872,19 @@ describe('screen share backfill from the snapshot', () => {
 
     it('subscribes from the snapshot the join call returns', async () => {
         const {service, guildVoice, rtc} = setup({inChannel: false});
-        guildVoice.join.mockReturnValue(of({
-            ...emptySnapshot('chan-1'),
-            participants: [publisher('them', {
-                isStreaming: true,
-                shares: [{shareId: 'abc', trackNames: ['screen-abc'], mediaSessionId: 'cf-screen-them'}],
-            })],
-        }));
+        guildVoice.join.mockReturnValue(
+            of({
+                ...emptySnapshot('chan-1'),
+                participants: [
+                    publisher('them', {
+                        isStreaming: true,
+                        shares: [
+                            {shareId: 'abc', trackNames: ['screen-abc'], mediaSessionId: 'cf-screen-them'},
+                        ],
+                    }),
+                ],
+            }),
+        );
 
         await service.joinChannel(
             {id: 'chan-1', guildId: 'guild-1', name: 'General', type: ChannelType.Voice} as ChannelDto,
@@ -760,16 +892,24 @@ describe('screen share backfill from the snapshot', () => {
         );
 
         expect(rtc.subscribeVideo).toHaveBeenCalledWith(
-            'guild-1', 'chan-1', 'them', 'cf-screen-them', 'screen-abc', 'screen');
+            'guild-1',
+            'chan-1',
+            'them',
+            'cf-screen-them',
+            'screen-abc',
+            'screen',
+        );
     });
 
     /** LiveKit sends a null `mediaSessionId`: fall back to the user id, which is the primary connection's identity. */
     it('backfills a publisher whose snapshot row carries no media session', async () => {
         const {service, guildVoice, rtc} = setup({inChannel: false});
-        guildVoice.join.mockReturnValue(of({
-            ...emptySnapshot('chan-1'),
-            participants: [publisher('them', {mediaSessionId: null})],
-        }));
+        guildVoice.join.mockReturnValue(
+            of({
+                ...emptySnapshot('chan-1'),
+                participants: [publisher('them', {mediaSessionId: null})],
+            }),
+        );
 
         await service.joinChannel(
             {id: 'chan-1', guildId: 'guild-1', name: 'General', type: ChannelType.Voice} as ChannelDto,
@@ -784,10 +924,12 @@ describe('screen share backfill from the snapshot', () => {
     /** A real session id still wins: falling back unconditionally would address the wrong connection. */
     it('prefers the snapshot media session over the user id when one is present', async () => {
         const {service, guildVoice, rtc} = setup({inChannel: false});
-        guildVoice.join.mockReturnValue(of({
-            ...emptySnapshot('chan-1'),
-            participants: [publisher('them')],
-        }));
+        guildVoice.join.mockReturnValue(
+            of({
+                ...emptySnapshot('chan-1'),
+                participants: [publisher('them')],
+            }),
+        );
 
         await service.joinChannel(
             {id: 'chan-1', guildId: 'guild-1', name: 'General', type: ChannelType.Voice} as ChannelDto,
@@ -802,12 +944,18 @@ describe('screen share backfill from the snapshot', () => {
     /** Loosening the `mediaSessionId` requirement must not loosen this one: `Joined` has published nothing. */
     it('still skips a participant who has not published', async () => {
         const {service, guildVoice, rtc} = setup({inChannel: false});
-        guildVoice.join.mockReturnValue(of({
-            ...emptySnapshot('chan-1'),
-            participants: [publisher('them', {
-                publishState: 'Joined', mediaSessionId: null, audioTrackName: null,
-            })],
-        }));
+        guildVoice.join.mockReturnValue(
+            of({
+                ...emptySnapshot('chan-1'),
+                participants: [
+                    publisher('them', {
+                        publishState: 'Joined',
+                        mediaSessionId: null,
+                        audioTrackName: null,
+                    }),
+                ],
+            }),
+        );
 
         await service.joinChannel(
             {id: 'chan-1', guildId: 'guild-1', name: 'General', type: ChannelType.Voice} as ChannelDto,
@@ -829,7 +977,12 @@ describe('screen share backfill from the snapshot', () => {
         );
         await tick();
 
-        expect(service.channelParticipants().get('chan-1')?.some(p => p.isLocal)).toBe(true);
+        expect(
+            service
+                .channelParticipants()
+                .get('chan-1')
+                ?.some(p => p.isLocal),
+        ).toBe(true);
     });
 
     it('ignores a snapshot for a channel we are not in', async () => {
@@ -854,8 +1007,12 @@ describe('version recovery', () => {
         guildVoice.getSnapshot.mockClear();
 
         ws['voiceMuteChangedObservable'].next({
-            channelId: 'chan-1', userId: 'them', isMuted: true, serverForced: false,
-            instanceId: 'inst-1', version: 4,
+            channelId: 'chan-1',
+            userId: 'them',
+            isMuted: true,
+            serverForced: false,
+            instanceId: 'inst-1',
+            version: 4,
         });
         await tick();
 
@@ -870,8 +1027,12 @@ describe('version recovery', () => {
         guildVoice.getSnapshot.mockClear();
 
         ws['guildParticipantJoinedObservable'].next({
-            channelId: 'chan-1', userId: 'them', mediaSessionId: 'cf-them', audioTrackName: 'audio',
-            instanceId: 'inst-1', version: 2,
+            channelId: 'chan-1',
+            userId: 'them',
+            mediaSessionId: 'cf-them',
+            audioTrackName: 'audio',
+            instanceId: 'inst-1',
+            version: 2,
         });
         await tick();
 
@@ -887,8 +1048,12 @@ describe('version recovery', () => {
         guildVoice.getSnapshot.mockClear();
 
         ws['voiceMuteChangedObservable'].next({
-            channelId: 'chan-1', userId: 'them', isMuted: true, serverForced: false,
-            instanceId: 'inst-2', version: 2,
+            channelId: 'chan-1',
+            userId: 'them',
+            isMuted: true,
+            serverForced: false,
+            instanceId: 'inst-2',
+            version: 2,
         });
         await tick();
 
@@ -957,11 +1122,13 @@ describe('heartbeat', () => {
 
         ws['voiceSnapshotObservable'].next({...emptySnapshot('chan-1'), version: 7});
         await tick();
-        (service as unknown as { sendHeartbeat(id: string): void }).sendHeartbeat('chan-1');
+        (service as unknown as {sendHeartbeat(id: string): void}).sendHeartbeat('chan-1');
 
         expect(wsCalls['invokeVoiceHeartbeat']).toHaveBeenCalledWith('chan-1', {
-            knownInstanceId: 'inst-1', knownVersion: 7,
-            mediaSessionId: 'cf-rust', audioTrackName: 'audio',
+            knownInstanceId: 'inst-1',
+            knownVersion: 7,
+            mediaSessionId: 'cf-rust',
+            audioTrackName: 'audio',
         });
     });
 
@@ -969,10 +1136,13 @@ describe('heartbeat', () => {
     it('reports null handles when not publishing', () => {
         const {wsCalls, service} = setup();
 
-        (service as unknown as { sendHeartbeat(id: string): void }).sendHeartbeat('chan-1');
+        (service as unknown as {sendHeartbeat(id: string): void}).sendHeartbeat('chan-1');
 
         expect(wsCalls['invokeVoiceHeartbeat']).toHaveBeenCalledWith('chan-1', {
-            knownInstanceId: null, knownVersion: 0, mediaSessionId: null, audioTrackName: null,
+            knownInstanceId: null,
+            knownVersion: 0,
+            mediaSessionId: null,
+            audioTrackName: null,
         });
     });
 });
@@ -1130,19 +1300,21 @@ describe('starting video in a room that will not carry it', () => {
     it('acknowledges a refusal that beat the pre-flight, by name', async () => {
         const {service, toast} = setup();
 
-        service.limits.noteDenial(new HttpErrorResponse({
-            status: 403,
-            error: {
-                code: 'guild_plan_limit',
-                key: 'voice.video_ceiling',
-                reason: 'guild_plan_limit',
-                boundBy: 'guild',
-                remedy: 'upgrade_guild',
-                actorCanRemedy: true,
-                subject: {kind: 'guild', id: 'guild-1'},
-                retryable: false,
-            },
-        }));
+        service.limits.noteDenial(
+            new HttpErrorResponse({
+                status: 403,
+                error: {
+                    code: 'guild_plan_limit',
+                    key: 'voice.video_ceiling',
+                    reason: 'guild_plan_limit',
+                    boundBy: 'guild',
+                    remedy: 'upgrade_guild',
+                    actorCanRemedy: true,
+                    subject: {kind: 'guild', id: 'guild-1'},
+                    retryable: false,
+                },
+            }),
+        );
 
         expect(toast.error).toHaveBeenCalledWith('ENTITLEMENT.REASON.GUILD_PLAN_LIMIT');
         expect(service.limits.notices()).toHaveLength(1);
@@ -1156,10 +1328,12 @@ describe('a screen track closing', () => {
         const harness = setup();
         harness.ws['voiceSnapshotObservable'].next({
             ...emptySnapshot('chan-1'),
-            participants: [publisher('them', {
-                isStreaming: true,
-                shares: [{shareId: 'abc', trackNames: ['screen-abc'], mediaSessionId: 'cf-screen-them'}],
-            })],
+            participants: [
+                publisher('them', {
+                    isStreaming: true,
+                    shares: [{shareId: 'abc', trackNames: ['screen-abc'], mediaSessionId: 'cf-screen-them'}],
+                }),
+            ],
         });
         await tick();
         vi.useFakeTimers();
@@ -1176,8 +1350,9 @@ describe('a screen track closing', () => {
 
     /** Whether the roster still has this person down as sharing, which is what the stage reads. */
     function stillSharing(service: VoiceChannelService): boolean {
-        return (service.channelParticipants().get('chan-1') ?? [])
-            .some(p => p.userId === 'them' && p.isScreenSharing);
+        return (service.channelParticipants().get('chan-1') ?? []).some(
+            p => p.userId === 'them' && p.isScreenSharing,
+        );
     }
 
     afterEach(() => vi.useRealTimers());
@@ -1244,8 +1419,7 @@ describe('leaving a channel', () => {
     it('is out of the channel before the network answers', () => {
         const {service, rtc} = setup();
         // Never settles: stands in for the teardown and the leave request still being in flight.
-        rtc.closeAllTracks.mockReturnValue(new Promise<undefined>(() => {
-        }));
+        rtc.closeAllTracks.mockReturnValue(new Promise<undefined>(() => {}));
 
         void service.leaveChannel();
 
@@ -1268,9 +1442,11 @@ describe('leaving a channel', () => {
     it('does not connect the next channel over a teardown that is still running', async () => {
         const {service, rtc} = setup();
         let finishTeardown: () => void = () => void 0;
-        rtc.closeAllTracks.mockReturnValue(new Promise<undefined>(resolve => {
-            finishTeardown = () => resolve(undefined);
-        }));
+        rtc.closeAllTracks.mockReturnValue(
+            new Promise<undefined>(resolve => {
+                finishTeardown = () => resolve(undefined);
+            }),
+        );
 
         void service.leaveChannel();
         const joining = service.joinChannel(
@@ -1291,10 +1467,16 @@ describe('leaving a channel', () => {
 /** A second join of any channel must be refused: two in flight race over one set of joined-state signals. */
 describe('a join in flight', () => {
     const CHANNEL = {
-        id: 'chan-2', guildId: 'guild-1', name: 'General', type: ChannelType.Voice,
+        id: 'chan-2',
+        guildId: 'guild-1',
+        name: 'General',
+        type: ChannelType.Voice,
     } as ChannelDto;
     const OTHER = {
-        id: 'chan-3', guildId: 'guild-1', name: 'Gaming', type: ChannelType.Voice,
+        id: 'chan-3',
+        guildId: 'guild-1',
+        name: 'Gaming',
+        type: ChannelType.Voice,
     } as ChannelDto;
 
     it('names the channel it is joining until the join settles', async () => {
@@ -1343,8 +1525,12 @@ describe('a self-addressed UserLeftVoice', () => {
         ws['userLeftVoiceObservable'].next({userId: 'me', channelId: 'ghost-chan', guildId: 'guild-1'});
         await tick();
 
-        expect(service.channelParticipants().get('ghost-chan')?.map(p => p.userId))
-            .not.toContain('me');
+        expect(
+            service
+                .channelParticipants()
+                .get('ghost-chan')
+                ?.map(p => p.userId),
+        ).not.toContain('me');
     });
 
     it('is ignored for the channel we are in', async () => {
@@ -1389,8 +1575,12 @@ describe('a self-addressed UserLeftVoice', () => {
         ws['userLeftVoiceObservable'].next({userId: 'them', channelId: 'ghost-chan', guildId: 'guild-1'});
         await tick();
 
-        expect(service.channelParticipants().get('ghost-chan')?.map(p => p.userId))
-            .not.toContain('them');
+        expect(
+            service
+                .channelParticipants()
+                .get('ghost-chan')
+                ?.map(p => p.userId),
+        ).not.toContain('them');
     });
 
     /** And a real departure from the room we are in still unwinds everything held for them. */

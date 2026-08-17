@@ -82,8 +82,7 @@ export class GuildReadStateService {
             let cursor: string | null = null;
             let pages = 0;
             do {
-                const inboxPage: InboxUnreadPage =
-                    await firstValueFrom(this.inboxApi.unread(25, cursor));
+                const inboxPage: InboxUnreadPage = await firstValueFrom(this.inboxApi.unread(25, cursor));
                 this._channelStates.update(states => {
                     const next = {...states};
                     for (const group of inboxPage.groups) {

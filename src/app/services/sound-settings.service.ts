@@ -3,9 +3,9 @@ import {Injectable, signal} from '@angular/core';
 export type SoundKey = 'incomingCall' | 'outgoingCall' | 'message' | 'voiceJoin' | 'voiceLeave';
 
 export interface SoundConfig {
-    volume: number;       // 0–1
-    customUrl?: string;   // data: URL from uploaded file; undefined = bundled default sound
-    customName?: string;  // original filename shown in UI
+    volume: number; // 0–1
+    customUrl?: string; // data: URL from uploaded file; undefined = bundled default sound
+    customName?: string; // original filename shown in UI
 }
 
 export interface SoundSettings {
@@ -35,7 +35,8 @@ export class SoundSettingsService {
             const next = {...s, [key]: {...s[key], ...patch}};
             try {
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-            } catch { /* quota exceeded */
+            } catch {
+                /* quota exceeded */
             }
             return next;
         });
@@ -74,8 +75,7 @@ export class SoundSettingsService {
     private playFile(url: string, volume: number): void {
         const audio = new Audio(url);
         audio.volume = Math.max(0, Math.min(1, volume));
-        void audio.play().catch(() => {
-        });
+        void audio.play().catch(() => {});
     }
 
     private load(): SoundSettings {

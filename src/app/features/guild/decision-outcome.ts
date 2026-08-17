@@ -5,8 +5,7 @@ export type OptionStanding = 'carried' | 'blocked' | 'eligible';
 
 /** Ordered by `position` then title; never by `supportCount` - that would let a blocked option with more support rank above eligible ones. */
 export function optionsInDisplayOrder(decision: Decision): DecisionOption[] {
-    return [...decision.options].sort((a, b) =>
-        a.position - b.position || a.title.localeCompare(b.title));
+    return [...decision.options].sort((a, b) => a.position - b.position || a.title.localeCompare(b.title));
 }
 
 /** One reasoned block is enough to disqualify an option; `supportCount` is never consulted, no amount of support outvotes an objection. */

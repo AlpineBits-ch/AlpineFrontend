@@ -55,7 +55,7 @@ describe('PrivacySettingsService', () => {
             expect(service.settings().version).toBe(3);
         });
 
-        it('goes to unavailable rather than pretending the defaults are the user\'s choices', () => {
+        it("goes to unavailable rather than pretending the defaults are the user's choices", () => {
             service.refresh().subscribe();
             http.expectOne(BASE).flush('nope', {status: 500, statusText: 'Server Error'});
 
@@ -138,9 +138,11 @@ describe('PrivacySettingsService', () => {
             http.expectOne(BASE).flush(serverRecord({allowDataCollection: true, version: 4}));
         });
 
-        it('adopts the server\'s copy, including the new version', () => {
+        it("adopts the server's copy, including the new version", () => {
             service.patch({directMessagePolicy: DirectMessagePolicy.Nobody}).subscribe();
-            http.expectOne(BASE).flush(serverRecord({directMessagePolicy: DirectMessagePolicy.Nobody, version: 9}));
+            http.expectOne(BASE).flush(
+                serverRecord({directMessagePolicy: DirectMessagePolicy.Nobody, version: 9}),
+            );
 
             expect(service.settings().version).toBe(9);
             expect(service.settings().directMessagePolicy).toBe(DirectMessagePolicy.Nobody);
@@ -163,17 +165,18 @@ describe('PrivacySettingsService', () => {
         });
 
         it('records the field when the server refuses it under the minor floor', () => {
-            service.patch({directMessagePolicy: DirectMessagePolicy.Everyone}).subscribe({error: () => void 0});
-            http.expectOne(BASE).flush(
-                {code: 'minor_restriction'},
-                {status: 403, statusText: 'Forbidden'},
-            );
+            service
+                .patch({directMessagePolicy: DirectMessagePolicy.Everyone})
+                .subscribe({error: () => void 0});
+            http.expectOne(BASE).flush({code: 'minor_restriction'}, {status: 403, statusText: 'Forbidden'});
 
             expect(service.minorRestricted().has('directMessagePolicy')).toBe(true);
         });
 
         it('does not record a restriction for an ordinary failure', () => {
-            service.patch({directMessagePolicy: DirectMessagePolicy.Everyone}).subscribe({error: () => void 0});
+            service
+                .patch({directMessagePolicy: DirectMessagePolicy.Everyone})
+                .subscribe({error: () => void 0});
             http.expectOne(BASE).flush('', {status: 500, statusText: 'Server Error'});
 
             expect(service.minorRestricted().size).toBe(0);

@@ -64,9 +64,10 @@ export function buildReportEvidence(options: BuildEvidenceOptions): ReportEviden
     if (!reported) return null;
 
     // Scoped to the reported message's own container. Never send another conversation.
-    const sameContainer = (m: MessageDto) => reported.conversationId
-        ? m.conversationId === reported.conversationId
-        : m.channelId === reported.channelId;
+    const sameContainer = (m: MessageDto) =>
+        reported.conversationId
+            ? m.conversationId === reported.conversationId
+            : m.channelId === reported.channelId;
 
     const ordered = messages
         .filter(m => sameContainer(m) && !m.isEphemeral && !m.isBotCommandPlaceholder && !m.isPending)

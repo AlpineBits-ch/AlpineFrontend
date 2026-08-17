@@ -47,13 +47,16 @@ class FakeSpatial {
         this.resets++;
     }
 
-    setMasterVolume(): void { /* not under test */
+    setMasterVolume(): void {
+        /* not under test */
     }
 
-    setSpatialEnabled(): void { /* not under test */
+    setSpatialEnabled(): void {
+        /* not under test */
     }
 
-    async setOutputDevice(): Promise<void> { /* not under test */
+    async setOutputDevice(): Promise<void> {
+        /* not under test */
     }
 }
 
@@ -167,14 +170,16 @@ describe('a pull that fails', () => {
         expect(spatial.added, 'an unpulled peer must not be placed').toEqual([]);
         // Left standing, so a republish or hub reconnect gets to try again rather than treating the
         // peer as handled.
-        expect(rtc.subscribeDiagnostics().peers).toEqual([{
-            userId: 'u1',
-            peerSessionId: 'peer-session-1',
-            trackName: 'audio',
-            pulled: false,
-            attempts: ISLE_SUBSCRIBE_RETRY_DELAYS_MS.length + 1,
-            lastError: 'Error: the SFU refused the pull',
-        }]);
+        expect(rtc.subscribeDiagnostics().peers).toEqual([
+            {
+                userId: 'u1',
+                peerSessionId: 'peer-session-1',
+                trackName: 'audio',
+                pulled: false,
+                attempts: ISLE_SUBSCRIBE_RETRY_DELAYS_MS.length + 1,
+                lastError: 'Error: the SFU refused the pull',
+            },
+        ]);
     });
 
     it('stops retrying once the peer has left', async () => {
@@ -226,7 +231,9 @@ describe('dedupe', () => {
         expect(publisher.unsubscribed.map(([, id]) => id)).toEqual(['u1']);
         // Order, not just presence.
         const dropAt = publisher.calls.findIndex(c => c[0] === 'unsubscribe');
-        const secondPullAt = publisher.calls.findIndex(c => c[0] === 'subscribe' && c[3] === 'peer-session-2');
+        const secondPullAt = publisher.calls.findIndex(
+            c => c[0] === 'subscribe' && c[3] === 'peer-session-2',
+        );
         expect(dropAt).toBeGreaterThan(-1);
         expect(dropAt).toBeLessThan(secondPullAt);
         expect(rtc.peers().has('u1')).toBe(true);

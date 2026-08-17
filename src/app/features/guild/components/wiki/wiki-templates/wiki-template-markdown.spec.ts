@@ -21,10 +21,13 @@ describe('renderWikiTemplate', () => {
 
     // A single newline between blocks is a soft break, so the heading would be swallowed by the paragraph above it and never appear as a heading at all.
     it('separates blocks with a blank line', () => {
-        const md = renderWikiTemplate(template([
-            {kind: 'paragraph', textKey: 'P'},
-            {kind: 'heading', level: 2, textKey: 'H'},
-        ]), echo);
+        const md = renderWikiTemplate(
+            template([
+                {kind: 'paragraph', textKey: 'P'},
+                {kind: 'heading', level: 2, textKey: 'H'},
+            ]),
+            echo,
+        );
         expect(md).toBe('P\n\n## H\n');
     });
 
@@ -39,46 +42,55 @@ describe('renderWikiTemplate', () => {
     });
 
     it('quotes every line of a callout, including the marker', () => {
-        const md = renderWikiTemplate(
-            template([{kind: 'callout', variant: 'TIP', textKey: 'T'}]),
-            echo,
-        );
+        const md = renderWikiTemplate(template([{kind: 'callout', variant: 'TIP', textKey: 'T'}]), echo);
         expect(md).toBe('> [!TIP]\n> T\n');
     });
 
     it('renders a table with a separator row and blank cells', () => {
-        const md = renderWikiTemplate(template([{
-            kind: 'table',
-            headerKeys: ['H1', 'H2'],
-            rowKeys: [['A', '']],
-        }]), echo);
+        const md = renderWikiTemplate(
+            template([
+                {
+                    kind: 'table',
+                    headerKeys: ['H1', 'H2'],
+                    rowKeys: [['A', '']],
+                },
+            ]),
+            echo,
+        );
         expect(md).toBe('| H1 | H2 |\n| --- | --- |\n| A |  |\n');
     });
 
     it('pads a short row out to the header width', () => {
-        const md = renderWikiTemplate(template([{
-            kind: 'table',
-            headerKeys: ['H1', 'H2', 'H3'],
-            rowKeys: [['A']],
-        }]), echo);
+        const md = renderWikiTemplate(
+            template([
+                {
+                    kind: 'table',
+                    headerKeys: ['H1', 'H2', 'H3'],
+                    rowKeys: [['A']],
+                },
+            ]),
+            echo,
+        );
         expect(md).toContain('| A |  |  |');
     });
 
     // Both are things a translator can introduce without ever seeing the table.
     it('escapes pipes and flattens newlines inside a cell', () => {
-        const md = renderWikiTemplate(template([{
-            kind: 'table',
-            headerKeys: ['H'],
-            rowKeys: [['X']],
-        }]), () => 'a | b\nc');
+        const md = renderWikiTemplate(
+            template([
+                {
+                    kind: 'table',
+                    headerKeys: ['H'],
+                    rowKeys: [['X']],
+                },
+            ]),
+            () => 'a | b\nc',
+        );
         expect(md).toContain('| a \\| b c |');
     });
 
     it('fences a code block with its language', () => {
-        const md = renderWikiTemplate(
-            template([{kind: 'code', language: 'bash', lines: ['ls']}]),
-            echo,
-        );
+        const md = renderWikiTemplate(template([{kind: 'code', language: 'bash', lines: ['ls']}]), echo);
         expect(md).toBe('```bash\nls\n```\n');
     });
 });

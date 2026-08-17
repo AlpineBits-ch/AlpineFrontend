@@ -30,11 +30,13 @@ export class AppInfoService {
         // shape so this has one code path. The catch arms are what used to cover "there is no Tauri
         // app to ask"; they now cover only a genuine IPC failure, and the version is then omitted
         // rather than shown as a stale hardcoded string.
-        this.os.appVersion()
+        this.os
+            .appVersion()
             .then(version => this.version.set(version))
             .catch(() => this.version.set(''));
 
-        this.os.appName()
+        this.os
+            .appName()
             .then(name => this.productName.set(name))
             .catch(() => this.productName.set(FALLBACK_PRODUCT_NAME));
     }

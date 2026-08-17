@@ -100,16 +100,21 @@ export function validateModalField(field: ModalField, raw: string): string | nul
 }
 
 /** Builds the `components` of a modal-submit body. */
-export function buildModalSubmitRows(fields: ModalField[], values: Record<string, string>): BotComponentPayload[] {
+export function buildModalSubmitRows(
+    fields: ModalField[],
+    values: Record<string, string>,
+): BotComponentPayload[] {
     return fields
         .filter(field => !field.unsupported)
         .map(field => ({
             type: BotComponentType.ActionRow,
-            components: [{
-                type: BotComponentType.TextInput,
-                custom_id: field.customId,
-                value: values[field.key] ?? '',
-            }],
+            components: [
+                {
+                    type: BotComponentType.TextInput,
+                    custom_id: field.customId,
+                    value: values[field.key] ?? '',
+                },
+            ],
         }));
 }
 
@@ -142,10 +147,13 @@ export class BotModalDialogComponent {
 
     protected readonly visible = computed(() => this.dialogService.request() !== null);
 
-    protected readonly title = computed(() => this.dialogService.request()?.title?.trim() || 'A bot needs some details');
+    protected readonly title = computed(
+        () => this.dialogService.request()?.title?.trim() || 'A bot needs some details',
+    );
 
     protected readonly fields = computed<ModalField[]>(() =>
-        flattenModalRows(this.dialogService.request()?.components ?? []).map(toModalField));
+        flattenModalRows(this.dialogService.request()?.components ?? []).map(toModalField),
+    );
 
     /**
      * Derived from {@link fields} rather than reset by an effect, so a second modal replacing the
@@ -200,20 +208,22 @@ export class BotModalDialogComponent {
         if (!guildId || !customId) return;
 
         this.submitting.set(true);
-        this.botCommandService.submitModal(guildId, request.channelId, {
-            botUserId: request.botUserId,
-            customId,
-            components: buildModalSubmitRows(this.fields(), this.form().values),
-        }).subscribe({
-            next: () => {
-                this.submitting.set(false);
-                this.dialogService.close();
-            },
-            error: (error: unknown) => {
-                this.submitting.set(false);
-                this.form.update(state => ({...state, error: describeModalSubmitFailure(error)}));
-            },
-        });
+        this.botCommandService
+            .submitModal(guildId, request.channelId, {
+                botUserId: request.botUserId,
+                customId,
+                components: buildModalSubmitRows(this.fields(), this.form().values),
+            })
+            .subscribe({
+                next: () => {
+                    this.submitting.set(false);
+                    this.dialogService.close();
+                },
+                error: (error: unknown) => {
+                    this.submitting.set(false);
+                    this.form.update(state => ({...state, error: describeModalSubmitFailure(error)}));
+                },
+            });
     }
 
     protected dismiss(): void {

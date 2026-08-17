@@ -71,36 +71,54 @@ const CAPABILITIES: Readonly<Record<PaymentHandleKind, HandleCapabilities>> = {
     // Not a link: an IBAN is paid by scanning the Swiss QR-bill built from it, or by typing it into
     // a bank. `payto:` (RFC 8905) would be the natural URI and has no handlers anywhere.
     [PaymentHandleKind.Iban]: {
-        linkable: false, canPrefillAmount: false, canPrefillCurrency: false,
-        canPrefillNote: false, canLockAmount: false,
+        linkable: false,
+        canPrefillAmount: false,
+        canPrefillCurrency: false,
+        canPrefillNote: false,
+        canLockAmount: false,
     },
     // The one officially documented consumer link with both an amount and a currency.
     [PaymentHandleKind.PayPal]: {
-        linkable: true, canPrefillAmount: true, canPrefillCurrency: true,
-        canPrefillNote: false, canLockAmount: false,
+        linkable: true,
+        canPrefillAmount: true,
+        canPrefillCurrency: true,
+        canPrefillNote: false,
+        canLockAmount: false,
     },
     // revolut.me carries the Revtag and nothing else. An amount-bearing Revolut link is minted by
     // the recipient inside their app, per request, and cannot be constructed by us.
     [PaymentHandleKind.Revolut]: {
-        linkable: true, canPrefillAmount: false, canPrefillCurrency: false,
-        canPrefillNote: false, canLockAmount: false,
+        linkable: true,
+        canPrefillAmount: false,
+        canPrefillCurrency: false,
+        canPrefillNote: false,
+        canLockAmount: false,
     },
     // Wise publishes an open link for **business** accounts only. Personal money requests are
     // recipient-minted and expire after 30 days, and the Wisetag URL format is not published at all,
     // so there is nothing here a third party can build. Displayed, never linked.
     [PaymentHandleKind.Wise]: {
-        linkable: false, canPrefillAmount: false, canPrefillCurrency: false,
-        canPrefillNote: false, canLockAmount: false,
+        linkable: false,
+        canPrefillAmount: false,
+        canPrefillCurrency: false,
+        canPrefillNote: false,
+        canLockAmount: false,
     },
     // Reverse-engineered from the app binary, undocumented since forever, US-only and USD-only.
     // Shipped as a stored handle that renders as text; see `payment-links.ts` for why no link.
     [PaymentHandleKind.Venmo]: {
-        linkable: false, canPrefillAmount: false, canPrefillCurrency: false,
-        canPrefillNote: false, canLockAmount: false,
+        linkable: false,
+        canPrefillAmount: false,
+        canPrefillCurrency: false,
+        canPrefillNote: false,
+        canLockAmount: false,
     },
     [PaymentHandleKind.Other]: {
-        linkable: false, canPrefillAmount: false, canPrefillCurrency: false,
-        canPrefillNote: false, canLockAmount: false,
+        linkable: false,
+        canPrefillAmount: false,
+        canPrefillCurrency: false,
+        canPrefillNote: false,
+        canLockAmount: false,
     },
 };
 
@@ -177,9 +195,13 @@ export function checkHandleValue(kind: PaymentHandleKind, raw: string): HandleCh
         return {
             valid: false,
             normalized: iban.normalized,
-            problem: iban.problem === 'checksum' ? 'iban-checksum'
-                : iban.problem === 'country-length' ? 'iban-country-length'
-                    : iban.problem === 'length' ? 'iban-length'
+            problem:
+                iban.problem === 'checksum'
+                    ? 'iban-checksum'
+                    : iban.problem === 'country-length'
+                      ? 'iban-country-length'
+                      : iban.problem === 'length'
+                        ? 'iban-length'
                         : 'iban-charset',
         };
     }
@@ -211,8 +233,7 @@ export function parsePayload(json: string): PaymentHandlePayload {
     const known = new Set<string>(PAYMENT_HANDLE_KINDS);
 
     const handles = (Array.isArray(raw.handles) ? raw.handles : [])
-        .filter((h): h is PaymentHandle =>
-            !!h && typeof h.value === 'string' && known.has(h.kind as string))
+        .filter((h): h is PaymentHandle => !!h && typeof h.value === 'string' && known.has(h.kind as string))
         .slice(0, HANDLE_LIMITS.maxHandles)
         .map(h => ({
             kind: h.kind,

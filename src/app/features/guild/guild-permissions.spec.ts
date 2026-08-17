@@ -1,4 +1,9 @@
-import {effectiveGuildPermissions, guildAbilities, memberCanManageGuild, NO_ABILITIES} from './guild-permissions';
+import {
+    effectiveGuildPermissions,
+    guildAbilities,
+    memberCanManageGuild,
+    NO_ABILITIES,
+} from './guild-permissions';
 import {GuildMemberDto} from '../../dtos/response/member.dto';
 import {GuildDto, RoleDto} from '../../dtos/response/guild.dto';
 import {Permissions} from '../../enums/permissions.enum';
@@ -56,8 +61,7 @@ describe('effectiveGuildPermissions', () => {
             effectivePermissions: 'Superadmin',
         } as unknown as GuildMemberDto;
 
-        expect(effectiveGuildPermissions(withResolved) & Permissions.Superadmin)
-            .toBe(Permissions.Superadmin);
+        expect(effectiveGuildPermissions(withResolved) & Permissions.Superadmin).toBe(Permissions.Superadmin);
     });
 
     // "None" is what the server sends for a member with nothing, and it must not be mistaken for
@@ -80,8 +84,7 @@ describe('effectiveGuildPermissions', () => {
             effectivePermissions: Number(Permissions.ManageGuild),
         } as unknown as GuildMemberDto;
 
-        expect(effectiveGuildPermissions(numeric) & Permissions.ManageGuild)
-            .toBe(Permissions.ManageGuild);
+        expect(effectiveGuildPermissions(numeric) & Permissions.ManageGuild).toBe(Permissions.ManageGuild);
     });
 
     it('unions a numeric member mask with the named roles it holds', () => {
@@ -98,8 +101,7 @@ describe('effectiveGuildPermissions', () => {
     it('falls back to the union when the server has not shipped the field', () => {
         const legacy = member('ViewChannel', ['ManageGuild']);
 
-        expect(effectiveGuildPermissions(legacy) & Permissions.ManageGuild)
-            .toBe(Permissions.ManageGuild);
+        expect(effectiveGuildPermissions(legacy) & Permissions.ManageGuild).toBe(Permissions.ManageGuild);
     });
 });
 
@@ -136,7 +138,9 @@ describe('guildAbilities module resolution', () => {
     it('grants module bits to Superadmin, which has no bit of its own over here', () => {
         const admin = {permissions: 'Superadmin', roleMembers: []} as unknown as GuildMemberDto;
 
-        expect(guildAbilities(admin, guild([]), SOMEONE).canModule(ModulePermissions.ManageLedger)).toBe(true);
+        expect(guildAbilities(admin, guild([]), SOMEONE).canModule(ModulePermissions.ManageLedger)).toBe(
+            true,
+        );
     });
 
     it('grants module bits to the owner, whose member row carries nothing', () => {
@@ -151,7 +155,9 @@ describe('guildAbilities module resolution', () => {
         const admin = {permissions: 'Superadmin', roleMembers: []} as unknown as GuildMemberDto;
         const noLedger = guild([], 'Wiki, Lists');
 
-        expect(guildAbilities(admin, noLedger, SOMEONE).canModule(ModulePermissions.ManageLedger)).toBe(false);
+        expect(guildAbilities(admin, noLedger, SOMEONE).canModule(ModulePermissions.ManageLedger)).toBe(
+            false,
+        );
     });
 
     it('clamps a disabled module even for the owner', () => {
@@ -162,7 +168,11 @@ describe('guildAbilities module resolution', () => {
     });
 
     it('does not clamp when no guild was supplied', () => {
-        const solo = {permissions: 'None', modulePermissions: 'ManageLedger', roleMembers: []} as unknown as GuildMemberDto;
+        const solo = {
+            permissions: 'None',
+            modulePermissions: 'ManageLedger',
+            roleMembers: [],
+        } as unknown as GuildMemberDto;
 
         expect(guildAbilities(solo, null, SOMEONE).canModule(ModulePermissions.ManageLedger)).toBe(true);
     });

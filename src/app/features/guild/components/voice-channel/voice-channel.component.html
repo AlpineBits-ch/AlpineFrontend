@@ -1,12 +1,12 @@
 <div class="flex h-full flex-col overflow-hidden bg-app-bg">
-
     <!-- Header -->
     <header class="app-header flex shrink-0 items-center border-b border-border-subtle bg-app-bg px-3 sm:px-5">
-        <button (click)="navService.mobileNavOpen.set(true)"
-                [attr.aria-label]="'CALL.OPEN_NAVIGATION' | translate"
-                class="call-focusable mr-1 flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-lg
-                       border-0 bg-transparent text-white/50 transition-colors hover:bg-white/[0.07] lg:hidden"
-                type="button">
+        <button
+            (click)="navService.mobileNavOpen.set(true)"
+            [attr.aria-label]="'CALL.OPEN_NAVIGATION' | translate"
+            class="call-focusable mr-1 flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent text-white/50 transition-colors hover:bg-white/[0.07] lg:hidden"
+            type="button"
+        >
             <i class="pi pi-bars text-sm"></i>
         </button>
         <div class="flex min-w-0 items-center gap-2 sm:gap-3">
@@ -25,9 +25,10 @@
 
             <!-- A state, never an error: holds whether or not anybody has tried to publish; the reason and upgrade live on the notice below. -->
             @if (audioOnly()) {
-                <span class="shrink-0 rounded-full border border-white/10 bg-white/[0.06] px-2 py-0.5
-                             text-[0.625rem] font-semibold uppercase tracking-wide text-white/45"
-                      data-testid="audio-only-badge">
+                <span
+                    class="shrink-0 rounded-full border border-white/10 bg-white/[0.06] px-2 py-0.5 text-[0.625rem] font-semibold uppercase tracking-wide text-white/45"
+                    data-testid="audio-only-badge"
+                >
                     {{ 'VOICE.DEGRADED.AUDIO_ONLY' | translate }}
                 </span>
             }
@@ -36,57 +37,48 @@
 
     <!-- Content -->
     @if (!isJoined()) {
-
         <!-- Lobby view -->
         <app-voice-channel-lobby
-                (joinAndWatch)="joinAndWatch($event)"
-                (joinVoice)="joinChannel()"
-                [channel]="channel()"
-                [joining]="isJoining()"
-                [participants]="participants()"
-                class="min-h-0 flex-1"
+            (joinAndWatch)="joinAndWatch($event)"
+            (joinVoice)="joinChannel()"
+            [channel]="channel()"
+            [joining]="isJoining()"
+            [participants]="participants()"
+            class="min-h-0 flex-1"
         />
-
     } @else {
-
         <!-- Connected view: status row, stage, controls, the same three parts in the same order as the DM call panel. See call-status.ts. -->
         <div class="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-
             <!-- No `meta` here: the header above already carries the roster count, so repeating it here would show the same number twice; the DM panel passes meta because there it's the call's elapsed time. -->
-            <app-call-status-bar
-                    [rtcState]="voiceSvc.rtcState()"
-                    [stalledAudio]="audio.anyStalled()"/>
+            <app-call-status-bar [rtcState]="voiceSvc.rtcState()" [stalledAudio]="audio.anyStalled()" />
 
             <!-- Above the stage, not over it: a standing condition that must survive the controls auto-hiding, not something floating over the video. -->
-            <app-voice-limit-notice
-                    (upgrade)="onUpgrade($event)"
-                    [notices]="limitNotices()"/>
+            <app-voice-limit-notice (upgrade)="onUpgrade($event)" [notices]="limitNotices()" />
 
-            <div appAutoHideCallControls
-                 #autoHide="appAutoHideCallControls"
-                 class="relative min-h-0 flex-1">
+            <div appAutoHideCallControls #autoHide="appAutoHideCallControls" class="relative min-h-0 flex-1">
                 <!-- Every participant is a full seat, sharing or not, never a strip of avatars; see CallScreenLayoutComponent.participantTiles. -->
                 <app-call-screen-layout
-                        (inviteRequested)="openRingPicker()"
-                        (localAudioToggle)="toggleLocalScreenAudio()"
-                        (participantContextMenu)="onParticipantContextMenu($event.event, $event.participant)"
-                        (remoteAudioToggle)="toggleRemoteScreenAudio($event)"
-                        (statsInspect)="onStatsInspect($event)"
-                        [inboundStatsOf]="inboundStatsOf"
-                        [nameOf]="resolveMemberName"
-                        [participants]="callParticipants()"
-                        [participantsWithAudio]="voiceSvc.participantsWithAudio()"
-                        [screenShares]="callScreenShares()"
-                        [watchScope]="watchScope()"
-                        class="h-full w-full"
+                    (inviteRequested)="openRingPicker()"
+                    (localAudioToggle)="toggleLocalScreenAudio()"
+                    (participantContextMenu)="onParticipantContextMenu($event.event, $event.participant)"
+                    (remoteAudioToggle)="toggleRemoteScreenAudio($event)"
+                    (statsInspect)="onStatsInspect($event)"
+                    [inboundStatsOf]="inboundStatsOf"
+                    [nameOf]="resolveMemberName"
+                    [participants]="callParticipants()"
+                    [participantsWithAudio]="voiceSvc.participantsWithAudio()"
+                    [screenShares]="callScreenShares()"
+                    [watchScope]="watchScope()"
+                    class="h-full w-full"
                 />
 
                 <!-- Screen audio was asked for and could not be had: every other signal says the share is fine, so without this the honest report is "nobody can hear my game". -->
                 @if (screenAudioUnavailable()) {
                     <div class="pointer-events-none absolute bottom-28 left-0 right-0 z-20 flex justify-center px-6">
-                        <p class="pointer-events-auto rounded-lg border border-amber-400/20 bg-amber-400/[0.08]
-                                  px-3 py-2 text-xs text-white/70"
-                           data-testid="screen-audio-unavailable">
+                        <p
+                            class="pointer-events-auto rounded-lg border border-amber-400/20 bg-amber-400/[0.08] px-3 py-2 text-xs text-white/70"
+                            data-testid="screen-audio-unavailable"
+                        >
                             {{ 'CALL.SCREEN_AUDIO_UNAVAILABLE' | translate }}
                         </p>
                     </div>
@@ -95,64 +87,61 @@
                 <!-- Hidden state is opacity + pointer-events, never display/visibility, so Tab can still reach the controls; see AutoHideCallControlsDirective on the stage container above. -->
                 <div class="pointer-events-none absolute bottom-8 left-0 right-0 z-20 flex justify-center">
                     <app-call-controls-bar
-                            (cameraToggle)="toggleCamera()"
-                            (deafenToggle)="toggleDeafen()"
-                            (disconnect)="leaveChannel()"
-                            (muteToggle)="toggleMute()"
-                            (presetChange)="setScreenPreset($event)"
-                            (screenAudioToggle)="toggleLocalScreenAudio()"
-                            (screenShareToggle)="toggleScreenShare()"
-                            (focusin)="autoHide.onControlsFocusIn()"
-                            (focusout)="autoHide.onControlsFocusOut()"
-                            (pointerenter)="autoHide.onControlsPointerEnter()"
-                            (pointerleave)="autoHide.onControlsPointerLeave()"
-                            [class.opacity-0]="!autoHide.revealed()"
-                            [class.pointer-events-auto]="autoHide.revealed()"
-                            [class.pointer-events-none]="!autoHide.revealed()"
-                            [disconnectLabel]="'CALL.DISCONNECT' | translate"
-                            [isCameraOn]="voiceSvc.localState().isCameraOn"
-                            [isDeafened]="voiceSvc.localState().isDeafened"
-                            [isMuted]="voiceSvc.localState().isMuted"
-                            [isScreenSharing]="voiceSvc.localState().isScreenSharing"
-                            [preset]="voiceSvc.rtc.screenPreset()"
-                            [cameraBlockedKey]="cameraBlockedKey()"
-                            [shareBlockedKey]="shareBlockedKey()"
-                            [publisherSlots]="publisherSlots()"
-                            [videoCeiling]="videoCeiling()"
-                            [screenAudioMuted]="voiceSvc.localScreenAudioMuted()"
-                            [screenHasAudio]="voiceSvc.localScreenHasAudio()"
-                            class="transition-opacity duration-150 motion-reduce:transition-none"
+                        (cameraToggle)="toggleCamera()"
+                        (deafenToggle)="toggleDeafen()"
+                        (disconnect)="leaveChannel()"
+                        (muteToggle)="toggleMute()"
+                        (presetChange)="setScreenPreset($event)"
+                        (screenAudioToggle)="toggleLocalScreenAudio()"
+                        (screenShareToggle)="toggleScreenShare()"
+                        (focusin)="autoHide.onControlsFocusIn()"
+                        (focusout)="autoHide.onControlsFocusOut()"
+                        (pointerenter)="autoHide.onControlsPointerEnter()"
+                        (pointerleave)="autoHide.onControlsPointerLeave()"
+                        [class.opacity-0]="!autoHide.revealed()"
+                        [class.pointer-events-auto]="autoHide.revealed()"
+                        [class.pointer-events-none]="!autoHide.revealed()"
+                        [disconnectLabel]="'CALL.DISCONNECT' | translate"
+                        [isCameraOn]="voiceSvc.localState().isCameraOn"
+                        [isDeafened]="voiceSvc.localState().isDeafened"
+                        [isMuted]="voiceSvc.localState().isMuted"
+                        [isScreenSharing]="voiceSvc.localState().isScreenSharing"
+                        [preset]="voiceSvc.rtc.screenPreset()"
+                        [cameraBlockedKey]="cameraBlockedKey()"
+                        [shareBlockedKey]="shareBlockedKey()"
+                        [publisherSlots]="publisherSlots()"
+                        [videoCeiling]="videoCeiling()"
+                        [screenAudioMuted]="voiceSvc.localScreenAudioMuted()"
+                        [screenHasAudio]="voiceSvc.localScreenHasAudio()"
+                        class="transition-opacity duration-150 motion-reduce:transition-none"
                     />
                 </div>
             </div>
-
         </div>
-
     }
-
 </div>
 
 <!-- Context menu -->
 @if (participantMenu(); as menu) {
     <app-call-context-menu
-            (ban)="banParticipant()"
-            (close)="participantMenu.set(null)"
-            (kick)="kickParticipant()"
-            (serverDeafen)="toggleServerDeafen()"
-            (streamVolumeChange)="onStreamVolumeChange($event)"
-            (volumeChange)="onVolumeChange($event)"
-            [isSuperadmin]="isSuperadmin()"
-            [menu]="menu"
-            [moderationEnabled]="hasModeration()"
+        (ban)="banParticipant()"
+        (close)="participantMenu.set(null)"
+        (kick)="kickParticipant()"
+        (serverDeafen)="toggleServerDeafen()"
+        (streamVolumeChange)="onStreamVolumeChange($event)"
+        (volumeChange)="onVolumeChange($event)"
+        [isSuperadmin]="isSuperadmin()"
+        [menu]="menu"
+        [moderationEnabled]="hasModeration()"
     />
 }
 
 <!-- Who to ring into this channel. Mounted only while open; see showRingPicker. -->
 @if (showRingPicker()) {
     <app-voice-ring-picker
-            [(visible)]="showRingPicker"
-            [alreadyIn]="participantUserIds()"
-            [channelId]="channel().id"
-            [guildId]="channel().guildId"
+        [(visible)]="showRingPicker"
+        [alreadyIn]="participantUserIds()"
+        [channelId]="channel().id"
+        [guildId]="channel().guildId"
     />
 }

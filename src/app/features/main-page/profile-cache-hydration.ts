@@ -47,7 +47,7 @@ export async function revealAfterAccountGateBlock(
     }
     // Failing to answer is treated as "no slot": skipping hydration costs a cold start, hydrating
     // without a slot leaves durable residue under the bootstrap id.
-    if (!await hasAccountSlot().catch(() => false)) {
+    if (!(await hasAccountSlot().catch(() => false))) {
         steps.markReady();
         return;
     }

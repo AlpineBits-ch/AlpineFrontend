@@ -18,7 +18,7 @@ const TUNING_DEFAULTS = {
     maxDistance: 8000,
     rolloffFactor: 1.6,
 };
-const envTuning = (environment as { isleVoice?: Partial<typeof TUNING_DEFAULTS> }).isleVoice ?? {};
+const envTuning = (environment as {isleVoice?: Partial<typeof TUNING_DEFAULTS>}).isleVoice ?? {};
 const TUNING = {...TUNING_DEFAULTS, ...envTuning};
 
 /** Backend `VoiceGridConfig.CellSize` (cm) = 80 m: audible range must never exceed one cell, or two players a metre apart across a cell border hear nothing. */
@@ -26,8 +26,10 @@ const BACKEND_CELL_SIZE = 8000;
 /** Audible range in Unreal units (cm) = 80 m; audio is inaudible beyond this. */
 const CELL_UNITS = Math.min(TUNING.maxDistance, BACKEND_CELL_SIZE);
 if (TUNING.maxDistance > BACKEND_CELL_SIZE) {
-    console.warn(`[isle-voice] maxDistance ${TUNING.maxDistance} exceeds backend CellSize ` +
-        `${BACKEND_CELL_SIZE}; clamping to avoid the cell-border cliff.`);
+    console.warn(
+        `[isle-voice] maxDistance ${TUNING.maxDistance} exceeds backend CellSize ` +
+            `${BACKEND_CELL_SIZE}; clamping to avoid the cell-border cliff.`,
+    );
 }
 
 /** Unreal units per metre. Telemetry is in centimetres; the mixer works in metres. */
@@ -89,8 +91,7 @@ export class SpatialAudioService {
     // ── Listener (self) ──────────────────────────────────────────────────────────
 
     /** Latest self telemetry. Velocity defaults to 0 (older servers) → hold position. */
-    updateSelf(x: number, y: number, z: number, yaw: number,
-               vx = 0, vy = 0, vz = 0): void {
+    updateSelf(x: number, y: number, z: number, yaw: number, vx = 0, vy = 0, vz = 0): void {
         this.self = {x, y, z, vx, vy, vz, recvAt: performance.now()};
         this.selfYaw = yaw;
     }
@@ -111,8 +112,7 @@ export class SpatialAudioService {
      * Update a peer's world telemetry (yaw currently unused for peers). Stored with its receipt
      * time; the tick loop extrapolates and repositions.
      */
-    updatePeer(userId: string, x: number, y: number, z: number,
-               vx = 0, vy = 0, vz = 0): void {
+    updatePeer(userId: string, x: number, y: number, z: number, vx = 0, vy = 0, vz = 0): void {
         this.peers.set(userId, {x, y, z, vx, vy, vz, recvAt: performance.now()});
     }
 
@@ -148,12 +148,13 @@ export class SpatialAudioService {
             // Zero centres every placed source while leaving distance attenuation alone.
             intensity: this.spatialEnabled ? clamp01(TUNING.spatialIntensity) : 0,
         };
-        await this.engine.setSpatialModel(model).catch(e =>
-            console.error('[isle-voice] the mixer rejected the spatial model', e));
+        await this.engine
+            .setSpatialModel(model)
+            .catch(e => console.error('[isle-voice] the mixer rejected the spatial model', e));
     }
 
     /** Extrapolate a sample to "now" (pos + vel·dt), coasting at most MAX_EXTRAP_MS. */
-    private extrapolate(s: MotionState): { x: number; y: number; z: number } {
+    private extrapolate(s: MotionState): {x: number; y: number; z: number} {
         const dt = Math.min(performance.now() - s.recvAt, MAX_EXTRAP_MS) / 1000;
         return {x: s.x + s.vx * dt, y: s.y + s.vy * dt, z: s.z + s.vz * dt};
     }
@@ -181,8 +182,10 @@ export class SpatialAudioService {
         // Both endpoints coast off their own velocity, so a moving listener still pans correctly.
         const me = this.extrapolate(this.self);
         const them = this.extrapolate(state);
-        void this.engine.setPosition(userId, listenerRelative(
-            them.x - me.x, them.y - me.y, them.z - me.z, this.selfYaw));
+        void this.engine.setPosition(
+            userId,
+            listenerRelative(them.x - me.x, them.y - me.y, them.z - me.z, this.selfYaw),
+        );
     }
 }
 
@@ -198,8 +201,11 @@ function clamp01(v: number): number {
  * handedness wrong silently mirrors the world.
  */
 export function listenerRelative(
-    dFwd: number, dRight: number, dUp: number, yawDegrees: number,
-): { x: number; y: number; z: number } {
+    dFwd: number,
+    dRight: number,
+    dUp: number,
+    yawDegrees: number,
+): {x: number; y: number; z: number} {
     const yaw = (yawDegrees * Math.PI) / 180;
     const cos = Math.cos(yaw);
     const sin = Math.sin(yaw);

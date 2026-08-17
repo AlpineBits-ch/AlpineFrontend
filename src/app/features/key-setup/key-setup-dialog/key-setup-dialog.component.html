@@ -1,20 +1,18 @@
 <p-dialog
-        [breakpoints]="{ '640px': '100vw' }"
-        [closable]="false"
-        [dismissableMask]="false"
-        [draggable]="false"
-        [modal]="true"
-        [resizable]="false"
-        [style]="{ width: '480px' }"
-        [visible]="visible"
-        appendTo="body"
-        styleClass="key-setup-dialog">
-
+    [breakpoints]="{'640px': '100vw'}"
+    [closable]="false"
+    [dismissableMask]="false"
+    [draggable]="false"
+    [modal]="true"
+    [resizable]="false"
+    [style]="{width: '480px'}"
+    [visible]="visible"
+    appendTo="body"
+    styleClass="key-setup-dialog"
+>
     @switch (step()) {
-
         @case ('password') {
             <div class="ks-panel" data-testid="key-setup">
-
                 <div class="ks-icon-wrap">
                     <div class="ks-icon-ring">
                         <i class="pi pi-lock text-2xl" style="color: var(--color-brand-dim)"></i>
@@ -25,63 +23,59 @@
                     <!-- Deferred prompt. -->
                     <h2 class="ks-title">Keep your messages</h2>
                     <p class="ks-subtitle">
-                        Set up encryption now and your conversations come back when you sign in
-                        again. Without it, signing out or reinstalling loses your message history
-                        for good. This only happens once.
+                        Set up encryption now and your conversations come back when you sign in again. Without it, signing out or
+                        reinstalling loses your message history for good. This only happens once.
                     </p>
                 } @else {
                     <h2 class="ks-title">Secure Your Account</h2>
                     <p class="ks-subtitle">
-                        {{ appInfo.productName() }} uses end-to-end encryption. Enter your password to generate
-                        your personal encryption keys -this only happens once.
+                        {{ appInfo.productName() }} uses end-to-end encryption. Enter your password to generate your personal encryption
+                        keys -this only happens once.
                     </p>
                 }
 
                 <div class="ks-field">
                     <label class="ks-label">Password</label>
                     <input
-                            (input)="onPasswordInput($event)"
-                            (keydown.enter)="onContinue()"
-                            [feedback]="false"
-                            [value]="password()"
-                            data-testid="key-setup-password"
-                            pPassword
-                            placeholder="Your account password"
-                            type="password"
+                        (input)="onPasswordInput($event)"
+                        (keydown.enter)="onContinue()"
+                        [feedback]="false"
+                        [value]="password()"
+                        data-testid="key-setup-password"
+                        pPassword
+                        placeholder="Your account password"
+                        type="password"
                     />
                 </div>
 
                 @if (errorMsg()) {
-                    <p class="ks-error" data-testid="key-setup-error">
-                        <i class="pi pi-exclamation-circle mr-1.5"></i>{{ errorMsg() }}
-                    </p>
+                    <p class="ks-error" data-testid="key-setup-error"><i class="pi pi-exclamation-circle mr-1.5"></i>{{ errorMsg() }}</p>
                 }
 
                 <p-button
-                        (onClick)="onContinue()"
-                        icon="pi pi-arrow-right"
-                        iconPos="right"
-                        data-testid="key-setup-continue"
-                        label="Continue"
-                        styleClass="w-full justify-center mt-2"
+                    (onClick)="onContinue()"
+                    icon="pi pi-arrow-right"
+                    iconPos="right"
+                    data-testid="key-setup-continue"
+                    label="Continue"
+                    styleClass="w-full justify-center mt-2"
                 />
 
                 @if (dismissible) {
                     <p-button
-                            (onClick)="dismiss()"
-                            [text]="true"
-                            data-testid="key-setup-dismiss"
-                            label="Not now"
-                            severity="secondary"
-                            styleClass="w-full justify-center"
+                        (onClick)="dismiss()"
+                        [text]="true"
+                        data-testid="key-setup-dismiss"
+                        label="Not now"
+                        severity="secondary"
+                        styleClass="w-full justify-center"
                     />
                 }
-
             </div>
         }
         @case ('entropy') {
             <div class="ks-panel" data-testid="key-setup">
-                <app-entropy-modal (done)="onEntropyDone($event)"/>
+                <app-entropy-modal (done)="onEntropyDone($event)" />
             </div>
         }
         <!-- Shown once, and never again. -->
@@ -95,50 +89,49 @@
 
                 <h2 class="ks-title">Save your recovery code</h2>
                 <p class="ks-subtitle">
-                    Write this down and keep it somewhere safe. It is the only way back into your
-                    encrypted messages if you ever forget your password.
+                    Write this down and keep it somewhere safe. It is the only way back into your encrypted messages if you ever forget your
+                    password.
                 </p>
 
                 <div class="my-4 rounded-xl border border-white/[0.08] bg-black/30 px-4 py-3">
-                    <code data-testid="key-setup-recovery-code"
-                          class="block select-all break-all text-center font-mono text-[0.95rem]
-                                 leading-7 tracking-[0.12em] text-white/90">{{ recoveryCode() }}</code>
+                    <code
+                        data-testid="key-setup-recovery-code"
+                        class="block select-all break-all text-center font-mono text-[0.95rem] leading-7 tracking-[0.12em] text-white/90"
+                        >{{ recoveryCode() }}</code
+                    >
                 </div>
 
                 <p-button
-                        (onClick)="copyRecoveryCode()"
-                        [icon]="copied() ? 'pi pi-check' : 'pi pi-copy'"
-                        [label]="copied() ? 'Copied' : 'Copy code'"
-                        [text]="true"
-                        severity="secondary"
-                        size="small"
-                        styleClass="w-full justify-center"
+                    (onClick)="copyRecoveryCode()"
+                    [icon]="copied() ? 'pi pi-check' : 'pi pi-copy'"
+                    [label]="copied() ? 'Copied' : 'Copy code'"
+                    [text]="true"
+                    severity="secondary"
+                    size="small"
+                    styleClass="w-full justify-center"
                 />
 
                 <div class="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/[0.08] px-4 py-3">
                     <p class="m-0 text-[0.8125rem] font-medium text-amber-200">
-                        If you lose both your password and this code, your encrypted history cannot
-                        be recovered.
+                        If you lose both your password and this code, your encrypted history cannot be recovered.
                     </p>
                     <p class="m-0 mt-1 text-xs text-white/55">
-                        Not by us and not by anyone else - nobody but you can decrypt it. This code
-                        is shown once and is not stored anywhere you can look it up later.
+                        Not by us and not by anyone else - nobody but you can decrypt it. This code is shown once and is not stored anywhere
+                        you can look it up later.
                     </p>
                 </div>
 
                 @if (errorMsg()) {
-                    <p class="ks-error" data-testid="key-setup-error">
-                        <i class="pi pi-exclamation-circle mr-1.5"></i>{{ errorMsg() }}
-                    </p>
+                    <p class="ks-error" data-testid="key-setup-error"><i class="pi pi-exclamation-circle mr-1.5"></i>{{ errorMsg() }}</p>
                 }
 
                 <p-button
-                        (onClick)="toConfirmStep()"
-                        icon="pi pi-arrow-right"
-                        iconPos="right"
-                        data-testid="key-setup-saved"
-                        label="I've saved it"
-                        styleClass="w-full justify-center mt-3"
+                    (onClick)="toConfirmStep()"
+                    icon="pi pi-arrow-right"
+                    iconPos="right"
+                    data-testid="key-setup-saved"
+                    label="I've saved it"
+                    styleClass="w-full justify-center mt-3"
                 />
             </div>
         }
@@ -153,46 +146,41 @@
                 </div>
 
                 <h2 class="ks-title">Confirm your recovery code</h2>
-                <p class="ks-subtitle">
-                    Type it back in so we know you really have it. Hyphens and capitalisation don't
-                    matter.
-                </p>
+                <p class="ks-subtitle">Type it back in so we know you really have it. Hyphens and capitalisation don't matter.</p>
 
                 <div class="ks-field">
                     <label class="ks-label">Recovery code</label>
                     <input
-                            (input)="onConfirmationInput($event)"
-                            (keydown.enter)="onConfirmCode()"
-                            [value]="confirmation()"
-                            class="w-full font-mono"
-                            data-testid="key-setup-confirm-code"
-                            placeholder="XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX"
-                            type="text"
+                        (input)="onConfirmationInput($event)"
+                        (keydown.enter)="onConfirmCode()"
+                        [value]="confirmation()"
+                        class="w-full font-mono"
+                        data-testid="key-setup-confirm-code"
+                        placeholder="XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX"
+                        type="text"
                     />
                 </div>
 
                 @if (errorMsg()) {
-                    <p class="ks-error" data-testid="key-setup-error">
-                        <i class="pi pi-exclamation-circle mr-1.5"></i>{{ errorMsg() }}
-                    </p>
+                    <p class="ks-error" data-testid="key-setup-error"><i class="pi pi-exclamation-circle mr-1.5"></i>{{ errorMsg() }}</p>
                 }
 
                 <div class="mt-2 flex gap-2">
                     <p-button
-                            (onClick)="backToCode()"
-                            [text]="true"
-                            data-testid="key-setup-show-code-again"
-                            label="Show code again"
-                            severity="secondary"
-                            styleClass="justify-center"
+                        (onClick)="backToCode()"
+                        [text]="true"
+                        data-testid="key-setup-show-code-again"
+                        label="Show code again"
+                        severity="secondary"
+                        styleClass="justify-center"
                     />
                     <p-button
-                            (onClick)="onConfirmCode()"
-                            icon="pi pi-arrow-right"
-                            iconPos="right"
-                            data-testid="key-setup-finish"
-                            label="Finish setup"
-                            styleClass="flex-1 justify-center"
+                        (onClick)="onConfirmCode()"
+                        icon="pi pi-arrow-right"
+                        iconPos="right"
+                        data-testid="key-setup-finish"
+                        label="Finish setup"
+                        styleClass="flex-1 justify-center"
                     />
                 </div>
             </div>
@@ -216,7 +204,5 @@
                 <p class="ks-subtitle">Your encryption keys are set up. All your data is end-to-end encrypted.</p>
             </div>
         }
-
     }
-
 </p-dialog>

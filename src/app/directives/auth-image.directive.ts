@@ -14,11 +14,11 @@ export class AuthImageDirective {
     private objectUrl: string | null = null;
 
     constructor() {
-        effect((onCleanup) => {
+        effect(onCleanup => {
             const url = this.appAuthSrc();
             let cancelled = false;
             // A response still in flight must not overwrite an element that has moved on.
-            onCleanup(() => cancelled = true);
+            onCleanup(() => (cancelled = true));
 
             this.release();
             if (!url) return;
@@ -28,14 +28,17 @@ export class AuthImageDirective {
                 return;
             }
 
-            this.images.fetch(url).then(blob => {
-                if (cancelled) return;
-                this.objectUrl = URL.createObjectURL(blob);
-                this.el.nativeElement.src = this.objectUrl;
-            }).catch(() => {
-                // Leaves the element with no `src` at all. An empty string would resolve against
-                // the page and load the document as an image.
-            });
+            this.images
+                .fetch(url)
+                .then(blob => {
+                    if (cancelled) return;
+                    this.objectUrl = URL.createObjectURL(blob);
+                    this.el.nativeElement.src = this.objectUrl;
+                })
+                .catch(() => {
+                    // Leaves the element with no `src` at all. An empty string would resolve against
+                    // the page and load the document as an image.
+                });
         });
 
         inject(DestroyRef).onDestroy(() => this.release());

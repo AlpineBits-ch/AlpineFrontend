@@ -15,13 +15,18 @@ import {WebNotifier} from './notifier.web';
 
 class FakeNotification {
     static permission: NotificationPermission = 'granted';
-    static requestPermission = vi.fn(async (): Promise<NotificationPermission> => FakeNotification.permission);
+    static requestPermission = vi.fn(
+        async (): Promise<NotificationPermission> => FakeNotification.permission,
+    );
     static constructed: FakeNotification[] = [];
 
     onclick: (() => void) | null = null;
     readonly close = vi.fn();
 
-    constructor(readonly title: string, readonly options?: NotificationOptions) {
+    constructor(
+        readonly title: string,
+        readonly options?: NotificationOptions,
+    ) {
         FakeNotification.constructed.push(this);
     }
 }
@@ -170,7 +175,10 @@ describe('notify', () => {
 
         await notifier.notify({title: 'Ada', body: 'ping', tag: 'conv-1'});
 
-        expect(showNotification).toHaveBeenCalledWith('Ada', expect.objectContaining({body: 'ping', tag: 'conv-1'}));
+        expect(showNotification).toHaveBeenCalledWith(
+            'Ada',
+            expect.objectContaining({body: 'ping', tag: 'conv-1'}),
+        );
     });
 
     it('degrades with a warning when neither the constructor nor a worker is available', async () => {

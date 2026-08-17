@@ -41,22 +41,23 @@ describe('translation keys', () => {
             }
         }
 
-        expect(missing, `keys used in templates but absent from en.json:\n${missing.join('\n')}`)
-            .toEqual([]);
+        expect(missing, `keys used in templates but absent from en.json:\n${missing.join('\n')}`).toEqual([]);
     });
 
     it('finds keys at all, so a broken pattern cannot pass as a clean sweep', () => {
         // Without this the regex could stop matching and the check above would go green having inspected nothing.
-        const found = sourceFiles(SOURCE_ROOT)
-            .flatMap(f => [...readFileSync(f, 'utf8').matchAll(STATIC_KEY)].map(m => m[1]));
+        const found = sourceFiles(SOURCE_ROOT).flatMap(f =>
+            [...readFileSync(f, 'utf8').matchAll(STATIC_KEY)].map(m => m[1]),
+        );
 
         expect(found.length).toBeGreaterThan(100);
         expect(found).toContain('CALL.PARTICIPANT_COUNT');
     });
 
     it('finds instant() keys too', () => {
-        const found = sourceFiles(SOURCE_ROOT)
-            .flatMap(f => [...readFileSync(f, 'utf8').matchAll(INSTANT_KEY)].map(m => m[1]));
+        const found = sourceFiles(SOURCE_ROOT).flatMap(f =>
+            [...readFileSync(f, 'utf8').matchAll(INSTANT_KEY)].map(m => m[1]),
+        );
 
         expect(found.length).toBeGreaterThan(100);
         expect(found).toContain('VOICE.JOIN_FAILED');
@@ -68,8 +69,7 @@ describe('translation keys', () => {
         const missing = ENTITLEMENT_TRANSLATION_KEYS.filter(key => !(key in strings));
 
         expect(ENTITLEMENT_TRANSLATION_KEYS.length).toBeGreaterThan(10);
-        expect(missing, `keys held in a table but absent from en.json:\n${missing.join('\n')}`)
-            .toEqual([]);
+        expect(missing, `keys held in a table but absent from en.json:\n${missing.join('\n')}`).toEqual([]);
     });
 
     /** The same, for what a voice room says about its own limits. */
@@ -97,7 +97,6 @@ describe('translation keys', () => {
             .map(([label, keys]) => `"${label}" is the label for ${keys.join(' and ')}`);
 
         expect(Object.keys(ENTITLEMENT_KEY_NAME_KEYS).length).toBeGreaterThan(5);
-        expect(collisions, `entitlement keys sharing one label:\n${collisions.join('\n')}`)
-            .toEqual([]);
+        expect(collisions, `entitlement keys sharing one label:\n${collisions.join('\n')}`).toEqual([]);
     });
 });

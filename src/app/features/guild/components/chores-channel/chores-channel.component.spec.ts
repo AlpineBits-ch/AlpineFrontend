@@ -68,19 +68,21 @@ function occurrenceFixture(overrides: Partial<ChoreOccurrence> = {}): ChoreOccur
     };
 }
 
-function setup(opts: {
-    features?: string;
-    rolePermissions?: string;
-    chores?: Chore[];
-    occurrences?: ChoreOccurrence[];
-    balance?: ChoreBalanceEntry[];
-    /** Overridable so a test can build a house that was never seeded with Flatmates. */
-    roles?: { id: string; name: string }[];
-    /** `withheld` is the module the owner chose and the plan does not cover. */
-    standing?: 'off' | 'withheld' | 'unknown';
-    /** What the guild's own snapshot says about who can fix it. Absent means none is held. */
-    remedy?: { remedy: string; actorCanRemedy: boolean };
-} = {}) {
+function setup(
+    opts: {
+        features?: string;
+        rolePermissions?: string;
+        chores?: Chore[];
+        occurrences?: ChoreOccurrence[];
+        balance?: ChoreBalanceEntry[];
+        /** Overridable so a test can build a house that was never seeded with Flatmates. */
+        roles?: {id: string; name: string}[];
+        /** `withheld` is the module the owner chose and the plan does not cover. */
+        standing?: 'off' | 'withheld' | 'unknown';
+        /** What the guild's own snapshot says about who can fix it. Absent means none is held. */
+        remedy?: {remedy: string; actorCanRemedy: boolean};
+    } = {},
+) {
     const guild = {
         id: 'g1',
         ownerId: 'someone-else',
@@ -126,21 +128,27 @@ function setup(opts: {
             {provide: EntitlementStore, useValue: entitlements},
             {provide: ChoreService, useValue: choreService},
             {provide: NavigationService, useValue: {mobileNavOpen: signal(false)}},
-            {provide: ProfileService, useValue: {ownProfile: () => ({userId: 'user_ben'}), getCachedByUserId: () => undefined}},
+            {
+                provide: ProfileService,
+                useValue: {ownProfile: () => ({userId: 'user_ben'}), getCachedByUserId: () => undefined},
+            },
             {
                 provide: GuildService,
                 useValue: {
                     guilds: signal([guild]),
-                    getOwnMember: () => of({
-                        permissions: opts.rolePermissions ?? 'ViewChannel,ManageChores,CompleteChores',
-                        // Both masks get the same names; each parser keeps only the ones it defines.
-                        modulePermissions: opts.rolePermissions ?? 'ViewChannel,ManageChores,CompleteChores',
-                        roleMembers: [],
-                    }),
-                    getMembers: () => of([
-                        {userId: 'user_anna', nickname: 'Anna', profile: {userName: 'anna'}},
-                        {userId: 'user_ben', nickname: 'Ben', profile: {userName: 'ben'}},
-                    ]),
+                    getOwnMember: () =>
+                        of({
+                            permissions: opts.rolePermissions ?? 'ViewChannel,ManageChores,CompleteChores',
+                            // Both masks get the same names; each parser keeps only the ones it defines.
+                            modulePermissions:
+                                opts.rolePermissions ?? 'ViewChannel,ManageChores,CompleteChores',
+                            roleMembers: [],
+                        }),
+                    getMembers: () =>
+                        of([
+                            {userId: 'user_anna', nickname: 'Anna', profile: {userName: 'anna'}},
+                            {userId: 'user_ben', nickname: 'Ben', profile: {userName: 'ben'}},
+                        ]),
                 },
             },
         ],
@@ -248,10 +256,12 @@ describe('ChoresChannelComponent skipping is not completing', () => {
         expect(skipped.nativeElement.querySelector('.line-through')).toBe(null);
 
         const done = setup({
-            occurrences: [occurrenceFixture({
-                completedAt: '2026-08-03T19:12:00.000Z',
-                completedByUserId: 'user_anna',
-            })],
+            occurrences: [
+                occurrenceFixture({
+                    completedAt: '2026-08-03T19:12:00.000Z',
+                    completedByUserId: 'user_anna',
+                }),
+            ],
         });
         expect(done.nativeElement.querySelector('.line-through')).not.toBe(null);
     });
@@ -266,13 +276,15 @@ describe('ChoresChannelComponent skipping is not completing', () => {
 });
 
 describe('ChoresChannelComponent doer versus assignee', () => {
-    it('names both when someone did another member\'s turn', () => {
+    it("names both when someone did another member's turn", () => {
         const fixture = setup({
-            occurrences: [occurrenceFixture({
-                assignedUserId: 'user_anna',
-                completedByUserId: 'user_ben',
-                completedAt: '2026-08-03T19:12:00.000Z',
-            })],
+            occurrences: [
+                occurrenceFixture({
+                    assignedUserId: 'user_anna',
+                    completedByUserId: 'user_ben',
+                    completedAt: '2026-08-03T19:12:00.000Z',
+                }),
+            ],
         });
 
         // "Ben did Anna's washing-up", plus the credit line: the balance credits the assignee, so collapsing these into one name would credit the wrong flatmate on screen.
@@ -282,11 +294,13 @@ describe('ChoresChannelComponent doer versus assignee', () => {
 
     it('uses the single-name form when the assignee did their own turn', () => {
         const fixture = setup({
-            occurrences: [occurrenceFixture({
-                assignedUserId: 'user_anna',
-                completedByUserId: 'user_anna',
-                completedAt: '2026-08-03T19:12:00.000Z',
-            })],
+            occurrences: [
+                occurrenceFixture({
+                    assignedUserId: 'user_anna',
+                    completedByUserId: 'user_anna',
+                    completedAt: '2026-08-03T19:12:00.000Z',
+                }),
+            ],
         });
 
         expect(text(fixture)).not.toContain('CHORES.DONE_BY_PROXY');

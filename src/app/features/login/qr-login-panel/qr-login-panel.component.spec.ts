@@ -24,10 +24,7 @@ describe('QrLoginPanelComponent', () => {
 
         await TestBed.configureTestingModule({
             imports: [QrLoginPanelComponent],
-            providers: [
-                provideTranslateService(),
-                {provide: QrLoginService, useValue: qrStub},
-            ],
+            providers: [provideTranslateService(), {provide: QrLoginService, useValue: qrStub}],
         }).compileComponents();
 
         fixture = TestBed.createComponent(QrLoginPanelComponent);

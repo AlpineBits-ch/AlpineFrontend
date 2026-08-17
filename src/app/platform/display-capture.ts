@@ -66,7 +66,8 @@ export async function captureDisplay(request: DisplayCaptureRequest): Promise<Di
     // An opening value only. `applyScreenEncoding` sets the hint that governs, moments later.
     try {
         video.contentHint = 'detail';
-    } catch { /* contentHint unsupported */
+    } catch {
+        /* contentHint unsupported */
     }
 
     const audio = stream.getAudioTracks()[0] ?? null;

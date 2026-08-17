@@ -1,12 +1,7 @@
 import {Component, inject, output, signal} from '@angular/core';
 import {DatePipe} from '@angular/common';
 import {TranslateModule} from '@ngx-translate/core';
-import {
-    InboxMentionEntry,
-    InboxPreview,
-    InboxService,
-    InboxUnreadEntry,
-} from '../../services/inbox.service';
+import {InboxMentionEntry, InboxPreview, InboxService, InboxUnreadEntry} from '../../services/inbox.service';
 import {InboxTask, isDismissable} from '../../dtos/response/inbox.dto';
 import {ProfileService} from '../../services/profile.service';
 import {readableContent, UNDECRYPTABLE_SHORT} from '../../helpers/message-content.helper';
@@ -27,7 +22,7 @@ export class InboxPanelComponent {
     protected inbox = inject(InboxService);
     private profiles = inject(ProfileService);
 
-    protected readonly tabs: readonly { id: InboxTab; labelKey: string }[] = [
+    protected readonly tabs: readonly {id: InboxTab; labelKey: string}[] = [
         {id: 'unread', labelKey: 'INBOX.TAB_UNREAD'},
         {id: 'mentions', labelKey: 'INBOX.TAB_MENTIONS'},
         {id: 'tasks', labelKey: 'INBOX.TAB_TASKS'},
@@ -129,9 +124,11 @@ export class InboxPanelComponent {
     /** Who wrote a preview. `authorDisplayName` is set only for webhooks and bots; everyone else comes from the cache. */
     protected authorName(preview: InboxPreview | undefined): string {
         if (!preview) return '';
-        return preview.authorDisplayName
-            ?? this.profiles.getCachedByUserId(preview.message.authorId)?.userName
-            ?? '';
+        return (
+            preview.authorDisplayName ??
+            this.profiles.getCachedByUserId(preview.message.authorId)?.userName ??
+            ''
+        );
     }
 
     /** `Echo / General`, or just the guild when the channel sits outside a category. */

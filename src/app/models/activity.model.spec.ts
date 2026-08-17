@@ -47,8 +47,9 @@ describe('primaryActivity', () => {
 
 describe('activityKey', () => {
     it('is the same triple the server uses to decide whether startedAt is preserved', () => {
-        expect(activityKey(game({applicationId: '123'})))
-            .toBe(activityKey(game({applicationId: '123', startedAt: 999})));
+        expect(activityKey(game({applicationId: '123'}))).toBe(
+            activityKey(game({applicationId: '123', startedAt: 999})),
+        );
     });
 
     it('separates two games that differ only by application id', () => {
@@ -73,10 +74,9 @@ describe('activitiesEqual', () => {
     it('notices details, state and party changing under the same game', () => {
         expect(activitiesEqual([game()], [game({details: 'Competitive'})])).toBe(false);
         expect(activitiesEqual([game()], [game({state: 'In Queue'})])).toBe(false);
-        expect(activitiesEqual(
-            [game({party: {size: 2, max: 5}})],
-            [game({party: {size: 3, max: 5}})],
-        )).toBe(false);
+        expect(activitiesEqual([game({party: {size: 2, max: 5}})], [game({party: {size: 3, max: 5}})])).toBe(
+            false,
+        );
     });
 
     it('notices a game stopping', () => {

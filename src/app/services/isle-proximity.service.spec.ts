@@ -85,7 +85,10 @@ function setup() {
                     setOutputDevice: vi.fn(async () => void 0),
                 },
             },
-            {provide: HotkeyService, useValue: {supported: false, bind: vi.fn(), unbind: vi.fn(async () => void 0)}},
+            {
+                provide: HotkeyService,
+                useValue: {supported: false, bind: vi.fn(), unbind: vi.fn(async () => void 0)},
+            },
             {
                 provide: NativePttService,
                 useValue: {
@@ -97,12 +100,18 @@ function setup() {
                     disarm: vi.fn(),
                 },
             },
-            {provide: AudioSettingsService, useValue: {settings: signal({} as AudioSettings), update: vi.fn()}},
+            {
+                provide: AudioSettingsService,
+                useValue: {settings: signal({} as AudioSettings), update: vi.fn()},
+            },
             {provide: KeybindsService, useValue: {rebind$: new Subject<string>(), getBinding: () => null}},
             {provide: UserService, useValue: {self: signal({steamId: 'steam-1'})}},
             {provide: ToastService, useValue: {error: vi.fn(), httpError: vi.fn()}},
             {provide: SoundSettingsService, useValue: {playVoiceLeave: vi.fn()}},
-            {provide: RealtimeConnectionService, useValue: {connectionState: signal(ConnectionState.Connected)}},
+            {
+                provide: RealtimeConnectionService,
+                useValue: {connectionState: signal(ConnectionState.Connected)},
+            },
             {provide: PrivacySettingsService, useValue: {allowPositionalVoiceCapture: () => true}},
         ],
     });
@@ -124,7 +133,9 @@ afterEach(() => {
 describe('isle.SubscribeMutual', () => {
     it('is forwarded even before the join has finished', () => {
         const {service, ws, rtc} = setup();
-        expect(service.isVoiceActive(), 'the window this test is about is the one before this flips').toBe(false);
+        expect(service.isVoiceActive(), 'the window this test is about is the one before this flips').toBe(
+            false,
+        );
 
         ws.subscribeMutual$.next({targetUserId: 'u1', cfSessionId: 'peer-session-1', trackName: 'audio'});
 

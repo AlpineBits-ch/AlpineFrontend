@@ -181,15 +181,18 @@ export class GuildSettingsModalComponent {
         return memberCanManageGuild(this.ownMember(), this.guild().ownerId, ownUserId) ? 'granted' : 'denied';
     });
 
-    readonly guildIconUrl = computed(() =>
-        `${environment.apiUrl}/api/v1/guild/guilds/${this.guild().id}/icon`
+    readonly guildIconUrl = computed(
+        () => `${environment.apiUrl}/api/v1/guild/guilds/${this.guild().id}/icon`,
     );
-    readonly navGroups = computed<NavGroup[]>(
-        () => buildGuildNavGroups(this.guild(), this.entitlements.upgradesAvailable()));
+    readonly navGroups = computed<NavGroup[]>(() =>
+        buildGuildNavGroups(this.guild(), this.entitlements.upgradesAvailable()),
+    );
 
     /** What the Plan page reads. Rebuilt only when the guild changes, so the input holds still. */
-    protected readonly planSubject = computed<EntitlementSubjectRef>(
-        () => ({kind: 'guild', id: this.guild().id}));
+    protected readonly planSubject = computed<EntitlementSubjectRef>(() => ({
+        kind: 'guild',
+        id: this.guild().id,
+    }));
 
     constructor() {
         // Resets the dirty/pending flags on close so a stale flag doesn't guard the next open.

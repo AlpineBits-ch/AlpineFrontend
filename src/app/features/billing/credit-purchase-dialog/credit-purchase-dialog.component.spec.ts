@@ -39,16 +39,18 @@ function purchase(over: Partial<CreditPurchaseDto> = {}): CreditPurchaseDto {
     };
 }
 
-function setup(opts: {
-    subject?: EntitlementSubjectRef;
-    sku?: CreditSkuDto;
-    balance?: number;
-    result?: CreditPurchaseDto;
-    error?: unknown;
-    /** Fails the first call and succeeds afterwards, for the retry path. */
-    failFirst?: boolean;
-    inFlight?: Subject<CreditPurchaseDto>;
-} = {}) {
+function setup(
+    opts: {
+        subject?: EntitlementSubjectRef;
+        sku?: CreditSkuDto;
+        balance?: number;
+        result?: CreditPurchaseDto;
+        error?: unknown;
+        /** Fails the first call and succeeds afterwards, for the retry path. */
+        failFirst?: boolean;
+        inFlight?: Subject<CreditPurchaseDto>;
+    } = {},
+) {
     let calls = 0;
     const buy = vi.fn<(r: PurchaseCreditRequest) => Observable<CreditPurchaseDto>>(() => {
         calls++;
@@ -73,8 +75,9 @@ function setup(opts: {
         ],
     });
 
-    const fixture: ComponentFixture<CreditPurchaseDialogComponent> =
-        TestBed.createComponent(CreditPurchaseDialogComponent);
+    const fixture: ComponentFixture<CreditPurchaseDialogComponent> = TestBed.createComponent(
+        CreditPurchaseDialogComponent,
+    );
     const emitted: CreditPurchaseDto[] = [];
     fixture.componentRef.setInput('sku', opts.sku ?? sku());
     fixture.componentRef.setInput('subject', opts.subject ?? {kind: 'guild', id: 'gld_1'});
@@ -92,8 +95,9 @@ function text(): string {
 }
 
 function button(label: string): HTMLButtonElement {
-    const found = Array.from(document.body.querySelectorAll('button'))
-        .find(el => ((el as HTMLElement).textContent ?? '').includes(label));
+    const found = Array.from(document.body.querySelectorAll('button')).find(el =>
+        ((el as HTMLElement).textContent ?? '').includes(label),
+    );
     if (!found) throw new Error(`no button containing ${label}`);
     return found as HTMLButtonElement;
 }
@@ -231,7 +235,7 @@ describe('a refused spend', () => {
                 status: 400,
                 error: {
                     code: 'already_permanent',
-                    message: 'guild gld_1 already holds \'pro\' with no end date. Nothing has been charged.',
+                    message: "guild gld_1 already holds 'pro' with no end date. Nothing has been charged.",
                 },
             }),
         });

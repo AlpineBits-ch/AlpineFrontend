@@ -126,7 +126,7 @@ describe('CallShareTileComponent stats menu', () => {
         expect(fixture.nativeElement.querySelector('[data-testid="stats-empty"]')).toBeTruthy();
     });
 
-    it('asks the resolver for this tile\'s own share', () => {
+    it("asks the resolver for this tile's own share", () => {
         const resolver = vi.fn(() => SNAPSHOT);
         const fixture = setup(resolver);
 
@@ -239,7 +239,7 @@ describe('CallShareTileComponent copy raw stats', () => {
             value: {writeText: (text: string) => (written.push(text), Promise.resolve())},
         });
         const inspected = signal<CallScreenShare | null>(null);
-        const fixture = setup(s => inspected() && inspected()!.shareId === s.shareId ? SNAPSHOT : null);
+        const fixture = setup(s => (inspected() && inspected()!.shareId === s.shareId ? SNAPSHOT : null));
         fixture.componentInstance.statsInspect.subscribe(s => inspected.set(s));
 
         rightClick(fixture);
@@ -257,7 +257,7 @@ describe('CallShareTileComponent copy raw stats', () => {
         });
         const inspected = signal<CallScreenShare | null>(null);
         const emitted: (CallScreenShare | null)[] = [];
-        const fixture = setup(s => inspected() && inspected()!.shareId === s.shareId ? SNAPSHOT : null);
+        const fixture = setup(s => (inspected() && inspected()!.shareId === s.shareId ? SNAPSHOT : null));
         fixture.componentInstance.statsInspect.subscribe(s => {
             emitted.push(s);
             inspected.set(s);

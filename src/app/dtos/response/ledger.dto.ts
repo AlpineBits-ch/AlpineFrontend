@@ -15,7 +15,9 @@ export enum ExpenseSplitKind {
 
 /** Declaration order of the server's `ExpenseSplitKind`, for the case the payload carries an int. */
 const SPLIT_KIND_BY_ORDINAL: readonly ExpenseSplitKind[] = [
-    ExpenseSplitKind.Equal, ExpenseSplitKind.Shares, ExpenseSplitKind.Exact,
+    ExpenseSplitKind.Equal,
+    ExpenseSplitKind.Shares,
+    ExpenseSplitKind.Exact,
 ];
 
 /** What an expense was for. `Uncategorized` is the zero value and is not `Other`; keep them apart. */
@@ -37,10 +39,19 @@ export enum ExpenseCategory {
 
 /** Declaration order of the server's enum, for the case the payload carries an int. */
 const CATEGORY_BY_ORDINAL: readonly ExpenseCategory[] = [
-    ExpenseCategory.Uncategorized, ExpenseCategory.Groceries, ExpenseCategory.Rent,
-    ExpenseCategory.Utilities, ExpenseCategory.Internet, ExpenseCategory.Household,
-    ExpenseCategory.Transport, ExpenseCategory.EatingOut, ExpenseCategory.Entertainment,
-    ExpenseCategory.Health, ExpenseCategory.Pets, ExpenseCategory.Repairs, ExpenseCategory.Other,
+    ExpenseCategory.Uncategorized,
+    ExpenseCategory.Groceries,
+    ExpenseCategory.Rent,
+    ExpenseCategory.Utilities,
+    ExpenseCategory.Internet,
+    ExpenseCategory.Household,
+    ExpenseCategory.Transport,
+    ExpenseCategory.EatingOut,
+    ExpenseCategory.Entertainment,
+    ExpenseCategory.Health,
+    ExpenseCategory.Pets,
+    ExpenseCategory.Repairs,
+    ExpenseCategory.Other,
 ];
 
 /** Every category, in the declaration order the picker offers them. */
@@ -58,7 +69,7 @@ export function normalizeExpenseCategory(
 ): ExpenseCategory {
     if (typeof value === 'number') return CATEGORY_BY_ORDINAL[value] ?? ExpenseCategory.Uncategorized;
     return (CATEGORY_BY_ORDINAL as readonly string[]).includes(value as string)
-        ? value as ExpenseCategory
+        ? (value as ExpenseCategory)
         : ExpenseCategory.Uncategorized;
 }
 
@@ -179,10 +190,12 @@ export function normalizeExpense(raw: Expense): Expense {
     };
 }
 
-export function normalizeSplitKind(value: ExpenseSplitKind | number | string | null | undefined): ExpenseSplitKind {
+export function normalizeSplitKind(
+    value: ExpenseSplitKind | number | string | null | undefined,
+): ExpenseSplitKind {
     if (typeof value === 'number') return SPLIT_KIND_BY_ORDINAL[value] ?? ExpenseSplitKind.Equal;
     // A name the enum does not carry means a newer server; fall back to Equal.
     return (SPLIT_KIND_BY_ORDINAL as readonly string[]).includes(value as string)
-        ? value as ExpenseSplitKind
+        ? (value as ExpenseSplitKind)
         : ExpenseSplitKind.Equal;
 }

@@ -80,7 +80,5 @@ export function hasUnresolvedChores(summary: MoveOutSummary): boolean {
 
 /** Whether the `409` is worth showing a currency total for, or just a "not settled" line. */
 export function totalOutstandingMinor(outstanding: readonly MoveOutOutstanding[], currency: string): number {
-    return outstanding
-        .filter(o => o.currency === currency)
-        .reduce((sum, o) => sum + o.netMinor, 0);
+    return outstanding.filter(o => o.currency === currency).reduce((sum, o) => sum + o.netMinor, 0);
 }

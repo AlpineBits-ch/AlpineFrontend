@@ -17,8 +17,7 @@ describe('wiki-link', () => {
     });
 
     it('tolerates a trailing readable slug', () => {
-        expect(parseWikiUrl(`${wikiUrl(guildId, pageId)}/getting-started`))
-            .toEqual({guildId, pageId});
+        expect(parseWikiUrl(`${wikiUrl(guildId, pageId)}/getting-started`)).toEqual({guildId, pageId});
     });
 
     it('does not treat a link with trailing prose as a whole-message link', () => {
@@ -33,8 +32,9 @@ describe('wiki-link', () => {
 
     describe('wikiSnippet', () => {
         it('strips markdown down to prose', () => {
-            expect(wikiSnippet('# Title\n\nSome **bold** and a [link](wiki:1).'))
-                .toBe('Title Some bold and a link.');
+            expect(wikiSnippet('# Title\n\nSome **bold** and a [link](wiki:1).')).toBe(
+                'Title Some bold and a link.',
+            );
         });
 
         it('drops code fences whole', () => {
@@ -42,8 +42,7 @@ describe('wiki-link', () => {
         });
 
         it('drops a callout marker but keeps what the callout says', () => {
-            expect(wikiSnippet('> [!NOTE]\n> Deploy from main only.'))
-                .toBe('Deploy from main only.');
+            expect(wikiSnippet('> [!NOTE]\n> Deploy from main only.')).toBe('Deploy from main only.');
         });
 
         it('reads a table as its cells, without the pipes or the rule row', () => {
@@ -52,8 +51,7 @@ describe('wiki-link', () => {
         });
 
         it('drops checkboxes from a task list', () => {
-            expect(wikiSnippet('- [ ] first thing\n- [x] second thing'))
-                .toBe('first thing second thing');
+            expect(wikiSnippet('- [ ] first thing\n- [x] second thing')).toBe('first thing second thing');
         });
 
         it('drops a setext underline rather than reading it as content', () => {

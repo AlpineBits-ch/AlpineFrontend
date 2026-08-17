@@ -13,9 +13,13 @@ import {
 } from './channel-types';
 
 const HOUSEHOLD_TYPES = [
-    ChannelType.List, ChannelType.Chores, ChannelType.Ledger,
-    ChannelType.Pantry, ChannelType.Decisions,
-    ChannelType.Meals, ChannelType.Maintenance,
+    ChannelType.List,
+    ChannelType.Chores,
+    ChannelType.Ledger,
+    ChannelType.Pantry,
+    ChannelType.Decisions,
+    ChannelType.Meals,
+    ChannelType.Maintenance,
 ] as const;
 
 describe('CHANNEL_META', () => {
@@ -23,7 +27,10 @@ describe('CHANNEL_META', () => {
         const allTypes = Object.values(ChannelType);
         expect(CHANNEL_META).toHaveLength(allTypes.length);
         for (const type of allTypes) {
-            expect(CHANNEL_META.filter(m => m.type === type), type).toHaveLength(1);
+            expect(
+                CHANNEL_META.filter(m => m.type === type),
+                type,
+            ).toHaveLength(1);
         }
     });
 
@@ -32,7 +39,7 @@ describe('CHANNEL_META', () => {
             expect(meta.labelKey, meta.type).toBeTruthy();
             expect(meta.descKey, meta.type).toBeTruthy();
             if (meta.type === ChannelType.Text) {
-                expect(meta.icon).toBeNull();  // renders a literal '#'
+                expect(meta.icon).toBeNull(); // renders a literal '#'
             } else {
                 expect(meta.icon, meta.type).toMatch(/^pi pi-/);
             }

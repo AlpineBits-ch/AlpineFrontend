@@ -59,8 +59,9 @@ export class SocialKeyGateService {
 
         if (this.raisedByGate) {
             // Best-effort: a failed interest update only means the picker's stored answer lags.
-            void this.onboarding.addSocialInterest().catch(err =>
-                console.error('Could not record the social interest after key setup', err));
+            void this.onboarding
+                .addSocialInterest()
+                .catch(err => console.error('Could not record the social interest after key setup', err));
         }
 
         this.close(true);

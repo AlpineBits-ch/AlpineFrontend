@@ -12,8 +12,9 @@ describe('userNameStyle', () => {
     });
 
     it('returns the accent color when set', () => {
-        expect(userNameStyle({accentColor: '#5865F2', font: ProfileFont.Default}))
-            .toEqual({color: '#5865F2'});
+        expect(userNameStyle({accentColor: '#5865F2', font: ProfileFont.Default})).toEqual({
+            color: '#5865F2',
+        });
     });
 
     it('omits fontFamily for ProfileFont.Default', () => {
@@ -21,17 +22,22 @@ describe('userNameStyle', () => {
     });
 
     it('returns the mapped font-family for a non-default font', () => {
-        expect(userNameStyle({accentColor: null, font: ProfileFont.Serif}))
-            .toEqual({fontFamily: FONT_STACKS[ProfileFont.Serif]});
+        expect(userNameStyle({accentColor: null, font: ProfileFont.Serif})).toEqual({
+            fontFamily: FONT_STACKS[ProfileFont.Serif],
+        });
     });
 
     it('returns both color and fontFamily together', () => {
-        expect(userNameStyle({accentColor: '#ff0000', font: ProfileFont.Monospace}))
-            .toEqual({color: '#ff0000', fontFamily: FONT_STACKS[ProfileFont.Monospace]});
+        expect(userNameStyle({accentColor: '#ff0000', font: ProfileFont.Monospace})).toEqual({
+            color: '#ff0000',
+            fontFamily: FONT_STACKS[ProfileFont.Monospace],
+        });
     });
 
     it('rejects an invalid accentColor rather than passing it through as CSS', () => {
-        expect(userNameStyle({accentColor: 'url(javascript:alert(1))', font: ProfileFont.Default})).toEqual({});
+        expect(userNameStyle({accentColor: 'url(javascript:alert(1))', font: ProfileFont.Default})).toEqual(
+            {},
+        );
     });
 
     it('adds fontSizeAdjust for fonts with a small x-height relative to the default font', () => {
@@ -42,8 +48,9 @@ describe('userNameStyle', () => {
     });
 
     it('omits fontSizeAdjust for fonts that do not need size correction', () => {
-        expect(userNameStyle({accentColor: null, font: ProfileFont.Serif}))
-            .toEqual({fontFamily: FONT_STACKS[ProfileFont.Serif]});
+        expect(userNameStyle({accentColor: null, font: ProfileFont.Serif})).toEqual({
+            fontFamily: FONT_STACKS[ProfileFont.Serif],
+        });
     });
 });
 

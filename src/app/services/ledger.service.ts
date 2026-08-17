@@ -170,7 +170,9 @@ export class LedgerService {
         this.realtime.on('guild.SettlementRecorded', (d: SettlementRecorded) => this.onSettlementRecorded(d));
         // Counts only - see `receiptCounts`. Nothing holds a receipt URL between requests.
         this.realtime.on('guild.ExpenseReceiptAdded', (d: ExpenseReceiptAdded) => this.onReceiptAdded(d));
-        this.realtime.on('guild.ExpenseReceiptDeleted', (d: ExpenseReceiptDeleted) => this.onReceiptDeleted(d));
+        this.realtime.on('guild.ExpenseReceiptDeleted', (d: ExpenseReceiptDeleted) =>
+            this.onReceiptDeleted(d),
+        );
     }
 
     // ── Reads ────────────────────────────────────────────────────────────────
@@ -216,17 +218,20 @@ export class LedgerService {
         // No cursor: a refresh re-reads the *first* page and replaces what was held. Carrying the
         // stored cursor over would append the page after the one that is about to be discarded and
         // leave a hole in the middle of the ledger.
-        this.api.listExpenses(channelId, EXPENSE_PAGE_SIZE, null, this.stateFor(channelId).category).subscribe({
-            next: page => this.patch(channelId, state => ({
-                ...state,
-                expenses: this.sorted((page.items ?? []).map(normalizeExpense)),
-                nextCursor: page.nextCursor ?? null,
-                loading: false,
-                loadingMore: false,
-                loaded: true,
-            })),
-            error: err => this.onLoadError(channelId, err),
-        });
+        this.api
+            .listExpenses(channelId, EXPENSE_PAGE_SIZE, null, this.stateFor(channelId).category)
+            .subscribe({
+                next: page =>
+                    this.patch(channelId, state => ({
+                        ...state,
+                        expenses: this.sorted((page.items ?? []).map(normalizeExpense)),
+                        nextCursor: page.nextCursor ?? null,
+                        loading: false,
+                        loadingMore: false,
+                        loaded: true,
+                    })),
+                error: err => this.onLoadError(channelId, err),
+            });
 
         this.api.getConfig(channelId).subscribe({
             // A missing config is survivable - `currencyFor` falls back to the expenses - so this
@@ -257,24 +262,27 @@ export class LedgerService {
         this.patch(channelId, current => ({...current, loadingMore: true}));
 
         this.api.listExpenses(channelId, EXPENSE_PAGE_SIZE, cursor, state.category).subscribe({
-            next: page => this.patch(channelId, current => {
-                // A `refresh` that landed while this page was in the air threw away everything this
-                // page sits behind, and moved the cursor back to the top of the ledger. Applying
-                // the page anyway would append rows from further down than the ones now held -
-                // leaving a hole in the middle - and then point the cursor past it, so nothing
-                // would ever fetch what was skipped. Dropping it costs one wasted request.
-                if (current.nextCursor !== cursor) return {...current, loadingMore: false};
+            next: page =>
+                this.patch(channelId, current => {
+                    // A `refresh` that landed while this page was in the air threw away everything this
+                    // page sits behind, and moved the cursor back to the top of the ledger. Applying
+                    // the page anyway would append rows from further down than the ones now held -
+                    // leaving a hole in the middle - and then point the cursor past it, so nothing
+                    // would ever fetch what was skipped. Dropping it costs one wasted request.
+                    if (current.nextCursor !== cursor) return {...current, loadingMore: false};
 
-                return {
-                    ...current,
-                    // Merged by id rather than concatenated: an expense added while the page was in
-                    // flight arrives over the socket too, and a cursor page can legitimately
-                    // re-send a row the client already holds.
-                    expenses: this.sorted(this.mergeById(current.expenses, (page.items ?? []).map(normalizeExpense))),
-                    nextCursor: page.nextCursor ?? null,
-                    loadingMore: false,
-                };
-            }),
+                    return {
+                        ...current,
+                        // Merged by id rather than concatenated: an expense added while the page was in
+                        // flight arrives over the socket too, and a cursor page can legitimately
+                        // re-send a row the client already holds.
+                        expenses: this.sorted(
+                            this.mergeById(current.expenses, (page.items ?? []).map(normalizeExpense)),
+                        ),
+                        nextCursor: page.nextCursor ?? null,
+                        loadingMore: false,
+                    };
+                }),
             error: () => this.patch(channelId, current => ({...current, loadingMore: false})),
         });
     }
@@ -310,12 +318,16 @@ export class LedgerService {
         from.setMonth(from.getMonth() - months);
 
         this.api.summary(channelId, {from: from.toISOString()}).subscribe({
-            next: summary => this.patchSummary(channelId, state =>
-                // Dropped if the window moved on while this was in the air - the answer is for a
-                // question nobody is asking any more, and applying it would relabel the picker.
-                state.months === months ? {...state, summary, loading: false} : state),
-            error: () => this.patchSummary(channelId, state =>
-                state.months === months ? {...state, loading: false, failed: true} : state),
+            next: summary =>
+                this.patchSummary(channelId, state =>
+                    // Dropped if the window moved on while this was in the air - the answer is for a
+                    // question nobody is asking any more, and applying it would relabel the picker.
+                    state.months === months ? {...state, summary, loading: false} : state,
+                ),
+            error: () =>
+                this.patchSummary(channelId, state =>
+                    state.months === months ? {...state, loading: false, failed: true} : state,
+                ),
         });
     }
 
@@ -329,18 +341,24 @@ export class LedgerService {
      * opened once.</p>
      */
     listReceipts(expenseId: string): Observable<ExpenseReceipt[]> {
-        return this.api.listReceipts(expenseId)
-            .pipe(tap(receipts => this.setReceiptIds(expenseId, receipts.map(r => r.id))));
+        return this.api.listReceipts(expenseId).pipe(
+            tap(receipts =>
+                this.setReceiptIds(
+                    expenseId,
+                    receipts.map(r => r.id),
+                ),
+            ),
+        );
     }
 
     uploadReceipt(expenseId: string, file: File): Observable<ExpenseReceipt> {
-        return this.api.uploadReceipt(expenseId, file)
+        return this.api
+            .uploadReceipt(expenseId, file)
             .pipe(tap(receipt => this.addReceiptId(expenseId, receipt.id)));
     }
 
     removeReceipt(expenseId: string, receiptId: string): Observable<void> {
-        return this.api.deleteReceipt(receiptId)
-            .pipe(tap(() => this.dropReceiptId(expenseId, receiptId)));
+        return this.api.deleteReceipt(receiptId).pipe(tap(() => this.dropReceiptId(expenseId, receiptId)));
     }
 
     /**
@@ -361,9 +379,11 @@ export class LedgerService {
         forkJoin({
             // Failures are folded to null rather than allowed to collapse the pair: a settle
             // suggestion that 500s must not also blank out the balances that did arrive.
-            balances: this.api.balances(channelId)
+            balances: this.api
+                .balances(channelId)
                 .pipe(catchError((err: unknown) => this.swallow<LedgerBalance[]>(channelId, err))),
-            suggestions: this.api.settleSuggestion(channelId)
+            suggestions: this.api
+                .settleSuggestion(channelId)
                 .pipe(catchError((err: unknown) => this.swallow<TransferSuggestion[]>(channelId, err))),
         }).subscribe(({balances, suggestions}) => {
             this.patch(channelId, state => ({
@@ -384,32 +404,40 @@ export class LedgerService {
     // expense id, so applying the same expense twice is a no-op.
 
     addExpense(channelId: string, body: CreateExpenseDto): Observable<Expense> {
-        return this.api.createExpense(channelId, body).pipe(tap(expense => {
-            this.upsertExpense(channelId, expense);
-            this.refreshBalances(channelId);
-        }));
+        return this.api.createExpense(channelId, body).pipe(
+            tap(expense => {
+                this.upsertExpense(channelId, expense);
+                this.refreshBalances(channelId);
+            }),
+        );
     }
 
     editExpense(channelId: string, expenseId: string, body: UpdateExpenseDto): Observable<Expense> {
-        return this.api.updateExpense(expenseId, body).pipe(tap(expense => {
-            this.upsertExpense(channelId, expense);
-            this.refreshBalances(channelId);
-        }));
+        return this.api.updateExpense(expenseId, body).pipe(
+            tap(expense => {
+                this.upsertExpense(channelId, expense);
+                this.refreshBalances(channelId);
+            }),
+        );
     }
 
     removeExpense(channelId: string, expenseId: string): Observable<void> {
-        return this.api.deleteExpense(expenseId).pipe(tap(() => {
-            this.dropExpense(channelId, expenseId);
-            this.refreshBalances(channelId);
-        }));
+        return this.api.deleteExpense(expenseId).pipe(
+            tap(() => {
+                this.dropExpense(channelId, expenseId);
+                this.refreshBalances(channelId);
+            }),
+        );
     }
 
     /** Records that a payment happened. Nothing moves; the balances just stop saying it is owed. */
     recordSettlement(channelId: string, body: RecordSettlementDto): Observable<Settlement> {
-        return this.api.recordSettlement(channelId, body).pipe(tap(settlement => {
-            this.rememberSettlement(channelId, settlement);
-            this.refreshBalances(channelId);
-        }));
+        return this.api.recordSettlement(channelId, body).pipe(
+            tap(settlement => {
+                this.rememberSettlement(channelId, settlement);
+                this.refreshBalances(channelId);
+            }),
+        );
     }
 
     /**
@@ -420,8 +448,9 @@ export class LedgerService {
      * getting here.</p>
      */
     saveConfig(channelId: string, body: UpdateLedgerConfigDto): Observable<LedgerConfig> {
-        return this.api.updateConfig(channelId, body).pipe(tap(config =>
-            this.patch(channelId, state => ({...state, config}))));
+        return this.api
+            .updateConfig(channelId, body)
+            .pipe(tap(config => this.patch(channelId, state => ({...state, config}))));
     }
 
     // ── Realtime ─────────────────────────────────────────────────────────────
@@ -513,8 +542,9 @@ export class LedgerService {
      * order between renders.</p>
      */
     private sorted(expenses: Expense[]): Expense[] {
-        return [...expenses].sort((a, b) =>
-            b.occurredAt.localeCompare(a.occurredAt) || b.id.localeCompare(a.id));
+        return [...expenses].sort(
+            (a, b) => b.occurredAt.localeCompare(a.occurredAt) || b.id.localeCompare(a.id),
+        );
     }
 
     /** A fresh listing is authoritative and replaces whatever the events had accumulated. */
@@ -547,7 +577,7 @@ export class LedgerService {
 
     /** As {@link patch}, but silently drops events for channels nobody has opened. */
     private patchExisting(channelId: string, fn: (state: LedgerChannelState) => LedgerChannelState): void {
-        this.states.update(all => all[channelId] ? {...all, [channelId]: fn(all[channelId])} : all);
+        this.states.update(all => (all[channelId] ? {...all, [channelId]: fn(all[channelId])} : all));
     }
 
     private onLoadError(channelId: string, err: unknown): void {

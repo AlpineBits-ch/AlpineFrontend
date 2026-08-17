@@ -89,7 +89,11 @@ function setup() {
             {
                 provide: NotificationService,
                 useValue: {
-                    createNotification: (params: {title: string; message: string; extra?: Record<string, string>}) => {
+                    createNotification: (params: {
+                        title: string;
+                        message: string;
+                        extra?: Record<string, string>;
+                    }) => {
                         notifications.push(params);
                         return Promise.resolve();
                     },
@@ -115,11 +119,13 @@ function flushLoad(
     http.expectOne(r => r.url === `${G}/channels/${CHANNEL}/chores/balance`).flush(balance);
 }
 
-function loaded(overrides: {
-    chores?: Chore[];
-    occurrences?: ChoreOccurrence[];
-    balance?: ChoreBalanceEntry[];
-} = {}) {
+function loaded(
+    overrides: {
+        chores?: Chore[];
+        occurrences?: ChoreOccurrence[];
+        balance?: ChoreBalanceEntry[];
+    } = {},
+) {
     const {service, http} = setup();
     service.loadFor(CHANNEL);
     flushLoad(http, overrides.chores, overrides.occurrences, overrides.balance);
@@ -167,8 +173,10 @@ describe('ChoreService loading', () => {
     it('flags a 403 separately from an ordinary failure', () => {
         const {service, http} = setup();
         service.loadFor(CHANNEL);
-        http.expectOne(r => r.url === `${G}/channels/${CHANNEL}/chores`)
-            .flush({}, {status: 403, statusText: 'Forbidden'});
+        http.expectOne(r => r.url === `${G}/channels/${CHANNEL}/chores`).flush(
+            {},
+            {status: 403, statusText: 'Forbidden'},
+        );
         // The three reads go out as one forkJoin, so the first error tears the siblings down.
         // Draining them keeps `verify` about requests nobody answered.
         http.match(() => true);
@@ -182,8 +190,10 @@ describe('ChoreService loading', () => {
     it('does not record a failed load as loaded, so a retry is not blocked by the TTL', () => {
         const {service, http} = setup();
         service.loadFor(CHANNEL);
-        http.expectOne(r => r.url === `${G}/channels/${CHANNEL}/chores`)
-            .flush({}, {status: 500, statusText: 'Server Error'});
+        http.expectOne(r => r.url === `${G}/channels/${CHANNEL}/chores`).flush(
+            {},
+            {status: 500, statusText: 'Server Error'},
+        );
         http.match(() => true);
 
         expect(service.stateFor(CHANNEL).loadedAt).toBe(0);
@@ -233,12 +243,14 @@ describe('ChoreService guild.ChoreOccurrenceUpdated', () => {
 
         // The retired shape: an id and a flag, no occurrence. A handler written against the
         // snapshot alone throws here and takes every later handler for this event with it.
-        expect(() => fire('guild.ChoreOccurrenceUpdated', {
-            guildId: 'gild_1',
-            channelId: CHANNEL,
-            occurrenceId: 'occr_1',
-            skipped: true,
-        })).not.toThrow();
+        expect(() =>
+            fire('guild.ChoreOccurrenceUpdated', {
+                guildId: 'gild_1',
+                channelId: CHANNEL,
+                occurrenceId: 'occr_1',
+                skipped: true,
+            }),
+        ).not.toThrow();
 
         // The row is left as it was rather than half-patched; the next board load corrects it.
         expect(occurrenceStatus(row(service))).toBe('due');
@@ -304,7 +316,9 @@ describe('ChoreService guild.ChoreOccurrenceUpdated', () => {
     it('drops events for a channel that was never opened', () => {
         const {service} = setup();
         fire('guild.ChoreOccurrenceCreated', {
-            guildId: 'gild_1', channelId: 'chan_other', occurrence: occurrence({channelId: 'chan_other'}),
+            guildId: 'gild_1',
+            channelId: 'chan_other',
+            occurrence: occurrence({channelId: 'chan_other'}),
         });
         expect(service.stateFor('chan_other').occurrences.length).toBe(0);
     });
@@ -314,7 +328,9 @@ describe('ChoreService chore events', () => {
     it('upserts a created chore', () => {
         const {service} = loaded();
         fire('guild.ChoreCreated', {
-            guildId: 'gild_1', channelId: CHANNEL, chore: chore({id: 'chor_2', title: 'Bins'}),
+            guildId: 'gild_1',
+            channelId: CHANNEL,
+            chore: chore({id: 'chor_2', title: 'Bins'}),
         });
         expect(service.stateFor(CHANNEL).chores.map(c => c.id)).toEqual(['chor_1', 'chor_2']);
     });
@@ -322,13 +338,15 @@ describe('ChoreService chore events', () => {
     it('replaces rather than duplicates on update', () => {
         const {service} = loaded();
         fire('guild.ChoreUpdated', {
-            guildId: 'gild_1', channelId: CHANNEL, chore: chore({effortMinutes: 40}),
+            guildId: 'gild_1',
+            channelId: CHANNEL,
+            chore: chore({effortMinutes: 40}),
         });
         expect(service.stateFor(CHANNEL).chores.length).toBe(1);
         expect(service.stateFor(CHANNEL).chores[0].effortMinutes).toBe(40);
     });
 
-    it('sweeps a deleted chore\'s occurrences, which the event does not enumerate', () => {
+    it("sweeps a deleted chore's occurrences, which the event does not enumerate", () => {
         const {service} = loaded({
             occurrences: [occurrence(), occurrence({id: 'occr_2', choreId: 'chor_other'})],
         });
@@ -360,7 +378,9 @@ describe('ChoreService verbs', () => {
 
     it('clears any completion when skipping, so nothing downstream reads it as done', () => {
         const {service, http} = loaded({
-            occurrences: [occurrence({completedAt: '2026-08-03T19:00:00.000Z', completedByUserId: 'user_ben'})],
+            occurrences: [
+                occurrence({completedAt: '2026-08-03T19:00:00.000Z', completedByUserId: 'user_ben'}),
+            ],
         });
 
         service.skip(row(service)).subscribe();
@@ -389,8 +409,10 @@ describe('ChoreService verbs', () => {
         service.skip(before).subscribe({error: () => undefined});
         expect(occurrenceStatus(row(service))).toBe('skipped');
 
-        http.expectOne(`${G}/chore-occurrences/occr_1/skip`)
-            .flush({}, {status: 403, statusText: 'Forbidden'});
+        http.expectOne(`${G}/chore-occurrences/occr_1/skip`).flush(
+            {},
+            {status: 403, statusText: 'Forbidden'},
+        );
 
         expect(occurrenceStatus(row(service))).toBe('due');
         expect(row(service).skippedAt).toBeNull();
@@ -400,8 +422,10 @@ describe('ChoreService verbs', () => {
         const {service, http} = loaded();
 
         service.complete(row(service)).subscribe({error: () => undefined});
-        http.expectOne(`${G}/chore-occurrences/occr_1/complete`)
-            .flush({}, {status: 500, statusText: 'Server Error'});
+        http.expectOne(`${G}/chore-occurrences/occr_1/complete`).flush(
+            {},
+            {status: 500, statusText: 'Server Error'},
+        );
 
         expect(occurrenceStatus(row(service))).toBe('due');
         expect(row(service).completedByUserId).toBeNull();
@@ -415,8 +439,7 @@ describe('ChoreService verbs', () => {
         // the wrong flatmate.
         expect(row(service).assignedUserId).toBe('user_anna');
 
-        http.expectOne(`${G}/chore-occurrences/occr_1/swap`)
-            .flush(occurrence({assignedUserId: 'user_ben'}));
+        http.expectOne(`${G}/chore-occurrences/occr_1/swap`).flush(occurrence({assignedUserId: 'user_ben'}));
         expect(row(service).assignedUserId).toBe('user_ben');
     });
 
@@ -424,9 +447,11 @@ describe('ChoreService verbs', () => {
         const {service, http} = loaded();
         let status = 0;
 
-        service.swap(row(service)).subscribe({error: err => status = err.status});
-        http.expectOne(`${G}/chore-occurrences/occr_1/swap`)
-            .flush({}, {status: 400, statusText: 'Bad Request'});
+        service.swap(row(service)).subscribe({error: err => (status = err.status)});
+        http.expectOne(`${G}/chore-occurrences/occr_1/swap`).flush(
+            {},
+            {status: 400, statusText: 'Bad Request'},
+        );
 
         expect(status).toBe(400);
         expect(row(service).assignedUserId).toBe('user_anna');
@@ -437,7 +462,10 @@ describe('ChoreService verbs', () => {
         const {service, http} = loaded();
 
         service.complete(row(service)).subscribe();
-        http.expectOne(`${G}/chore-occurrences/occr_1/complete`).flush(null, {status: 204, statusText: 'No Content'});
+        http.expectOne(`${G}/chore-occurrences/occr_1/complete`).flush(null, {
+            status: 204,
+            statusText: 'No Content',
+        });
         vi.advanceTimersByTime(2000);
         http.expectOne(r => r.url === `${G}/channels/${CHANNEL}/chores/balance`).flush([]);
 
@@ -459,7 +487,9 @@ describe('ChoreService occurrence generation', () => {
         expect(service.stateFor(CHANNEL).occurrences.length).toBe(0);
 
         fire('guild.ChoreOccurrenceCreated', {
-            guildId: 'gild_1', channelId: CHANNEL, occurrence: occurrence({id: 'occr_9'}),
+            guildId: 'gild_1',
+            channelId: CHANNEL,
+            occurrence: occurrence({id: 'occr_9'}),
         });
 
         expect(service.stateFor(CHANNEL).occurrences.map(o => o.id)).toEqual(['occr_9']);
@@ -473,16 +503,18 @@ describe('ChoreService request bodies', () => {
     it('posts a create carrying an anchor when one was picked', () => {
         const {service, http} = loaded();
 
-        service.createChore(CHANNEL, {
-            title: 'Bins',
-            description: null,
-            intervalDays: 7,
-            anchorAt: '2026-08-04T07:00:00.000Z',
-            effortMinutes: 10,
-            graceHours: 24,
-            rotationRoleId: 'role_flatmates',
-            fixedAssigneeUserId: null,
-        }).subscribe();
+        service
+            .createChore(CHANNEL, {
+                title: 'Bins',
+                description: null,
+                intervalDays: 7,
+                anchorAt: '2026-08-04T07:00:00.000Z',
+                effortMinutes: 10,
+                graceHours: 24,
+                rotationRoleId: 'role_flatmates',
+                fixedAssigneeUserId: null,
+            })
+            .subscribe();
 
         const req = http.expectOne(`${G}/channels/${CHANNEL}/chores`);
         expect(req.request.method).toBe('POST');
@@ -504,10 +536,12 @@ describe('ChoreService request bodies', () => {
 
         // The three cadence fields are omitted too: CreateChoreDto defaults them to 7 / 15 / 24,
         // and a client that restated the defaults would keep restating them after they changed.
-        service.createChore(CHANNEL, {
-            title: 'Recycling',
-            fixedAssigneeUserId: 'user_anna',
-        }).subscribe();
+        service
+            .createChore(CHANNEL, {
+                title: 'Recycling',
+                fixedAssigneeUserId: 'user_anna',
+            })
+            .subscribe();
 
         const req = http.expectOne(`${G}/channels/${CHANNEL}/chores`);
         expect(wireBody(req.request.body)).toEqual({
@@ -547,11 +581,13 @@ describe('ChoreService request bodies', () => {
     it('has no anchorAt to send on an update - UpdateChoreDto does not carry one', () => {
         const {service, http} = loaded();
 
-        service.updateChore(CHANNEL, 'chor_1', {
-            title: 'Washing-up (evenings)',
-            intervalDays: 2,
-            isPaused: false,
-        }).subscribe();
+        service
+            .updateChore(CHANNEL, 'chor_1', {
+                title: 'Washing-up (evenings)',
+                intervalDays: 2,
+                isPaused: false,
+            })
+            .subscribe();
 
         const req = http.expectOne(`${G}/chores/chor_1`);
         // The server has no field for it, so an anchorAt here is dropped in silence and reads from

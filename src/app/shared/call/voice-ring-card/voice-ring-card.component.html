@@ -3,7 +3,7 @@
         @for (incoming of ringState.incoming(); track incoming.ring.ringId) {
             <div class="w-72 rounded-2xl border border-border-default bg-card p-4 shadow-xl">
                 <div class="flex items-center gap-3">
-                    <app-avatar [label]="initial(incoming)" [userId]="incoming.ring.inviterId"/>
+                    <app-avatar [label]="initial(incoming)" [userId]="incoming.ring.inviterId" />
                     <div class="min-w-0 flex-1">
                         <p class="m-0 truncate text-sm font-semibold text-white/85">
                             {{ 'VOICE_RING.INVITED_BY' | translate: {name: name(incoming)} }}
@@ -28,12 +28,20 @@
                 }
 
                 <div class="mt-3 flex justify-end gap-2">
-                    <p-button (onClick)="ringState.decline(incoming.ring.ringId)"
-                              [label]="'VOICE_RING.DECLINE' | translate"
-                              [text]="true" severity="secondary" size="small"/>
-                    <p-button (onClick)="ringState.accept(incoming.ring.ringId)"
-                              [label]="'VOICE_RING.ACCEPT' | translate"
-                              icon="pi pi-check" severity="primary" size="small"/>
+                    <p-button
+                        (onClick)="ringState.decline(incoming.ring.ringId)"
+                        [label]="'VOICE_RING.DECLINE' | translate"
+                        [text]="true"
+                        severity="secondary"
+                        size="small"
+                    />
+                    <p-button
+                        (onClick)="ringState.accept(incoming.ring.ringId)"
+                        [label]="'VOICE_RING.ACCEPT' | translate"
+                        icon="pi pi-check"
+                        severity="primary"
+                        size="small"
+                    />
                 </div>
             </div>
         }

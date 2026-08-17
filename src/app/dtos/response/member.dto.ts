@@ -1,7 +1,7 @@
-﻿import {RoleDto} from "./guild.dto";
-import {OnlineStatus, ProfileDto} from "./profile.dto";
-import {MemberType} from "../../enums/member-type.enum";
-import {Activity} from "../../models/activity.model";
+﻿import {RoleDto} from './guild.dto';
+import {OnlineStatus, ProfileDto} from './profile.dto';
+import {MemberType} from '../../enums/member-type.enum';
+import {Activity} from '../../models/activity.model';
 
 export interface GuildMemberDto {
     id: string;
@@ -33,11 +33,11 @@ export interface GuildMemberDto {
     type: MemberType;
     nickname: string | null;
     profile: ProfileDto | undefined;
-    readState: ReadStateDto[]
+    readState: ReadStateDto[];
     // Contract change: GET /guilds/{guildId}/members must now include each member's role
     // assignments, same shape as GET /guilds/{guildId}/me already returns. Optional until the
     // backend ships this - frontend guards with `member.roleMembers ?? []`.
-    roleMembers?: { role: RoleDto }[]
+    roleMembers?: {role: RoleDto}[];
     /**
      * Rich presence, projected server-side through `ProjectActivitiesFor` — so what arrives here is
      * already filtered for the viewer's blocks, the subject's `shareActivity` setting, a `Hidden`
@@ -46,11 +46,11 @@ export interface GuildMemberDto {
      * <p>Optional exactly as `roleMembers` above: absent until the backend ships it, and absent
      * again for any member with nothing to report. Read it as `member.activities ?? []`.</p>
      */
-    activities?: Activity[]
+    activities?: Activity[];
 }
 
 export interface SelfGuildMemberDto extends GuildMemberDto {
-    roleMembers: { role: RoleDto }[]
+    roleMembers: {role: RoleDto}[];
 
     /**
      * What the caller may actually do in this guild, already resolved server-side: ownership,
@@ -74,7 +74,7 @@ export interface SelfGuildMemberDto extends GuildMemberDto {
      * field exists to remove. The roles reachable from `roleMembers` here are a flat shape without
      * `modulePermissions` either, so that union resolves each role out of `guild.roles`.</p>
      */
-    effectivePermissions?: string | number
+    effectivePermissions?: string | number;
 }
 
 /**
@@ -89,7 +89,6 @@ export interface MemberPermissionsDto {
     allowModulePermissions: string;
     denyModulePermissions: string;
 }
-
 
 export interface RoleMemberDto {
     id: string;
@@ -115,7 +114,7 @@ export interface RoleMemberDto {
         userId: string;
         createdAt: Date;
         updatedAt: Date;
-    }
+    };
 }
 
 export interface ReadStateDto {

@@ -23,9 +23,9 @@ import {WikiSearchRecentsService} from './wiki-search-recents.service';
 
 /** One row of the palette. Modelled as a union so one arrow-key handler drives all three kinds. */
 export type PaletteRow =
-    | { kind: 'page'; page: WikiPageSummaryDto; hit: SearchHit; path: string[] }
-    | { kind: 'create'; title: string }
-    | { kind: 'recent'; query: string };
+    | {kind: 'page'; page: WikiPageSummaryDto; hit: SearchHit; path: string[]}
+    | {kind: 'create'; title: string}
+    | {kind: 'recent'; query: string};
 
 /**
  * ⌘K over the wiki. Titles and tags are searchable with zero requests, so results appear on the
@@ -68,8 +68,8 @@ export class WikiSearchPaletteComponent implements AfterViewInit {
         authorId: this.authorFilter(),
     }));
 
-    protected readonly activeFilterCount = computed(() =>
-        [this.tagFilter(), this.categoryFilter(), this.authorFilter()].filter(Boolean).length,
+    protected readonly activeFilterCount = computed(
+        () => [this.tagFilter(), this.categoryFilter(), this.authorFilter()].filter(Boolean).length,
     );
 
     protected readonly results = computed(() => {
@@ -103,7 +103,10 @@ export class WikiSearchPaletteComponent implements AfterViewInit {
         const typed = this.query().trim();
         const results = this.results();
         const rows: PaletteRow[] = results.map(r => ({
-            kind: 'page' as const, page: r.page, hit: r.hit, path: r.path,
+            kind: 'page' as const,
+            page: r.page,
+            hit: r.hit,
+            path: r.path,
         }));
 
         if (!typed && !hasActiveFilters(this.filters())) {
@@ -132,8 +135,9 @@ export class WikiSearchPaletteComponent implements AfterViewInit {
         const ids = new Set((this.wiki()?.pages ?? []).map(p => p.authorId).filter(Boolean));
         return [...ids]
             .map(id => ({
-                label: this.profileService.getCachedByUserId(id)?.userName
-                    ?? this.translate.instant('WIKI.SEARCH.UNKNOWN_AUTHOR'),
+                label:
+                    this.profileService.getCachedByUserId(id)?.userName ??
+                    this.translate.instant('WIKI.SEARCH.UNKNOWN_AUTHOR'),
                 value: id,
             }))
             .sort((a, b) => a.label.localeCompare(b.label));
@@ -233,22 +237,24 @@ export class WikiSearchPaletteComponent implements AfterViewInit {
         const guildId = this.guildId();
         if (!title.trim() || !this.canCreate() || this.creating() || !guildId) return;
         this.creating.set(true);
-        this.wikiService.createPage(guildId, {
-            title: title.trim(),
-            content: '',
-            // A filtered search says where the user is looking; the new page belongs there.
-            categoryId: this.categoryFilter(),
-        }).subscribe({
-            next: page => {
-                this.creating.set(false);
-                this.recents.record(title);
-                this.pageSelected.emit(page);
-                this.closed.emit();
-            },
-            error: () => {
-                this.creating.set(false);
-                this.toast.error(this.translate.instant('WIKI.SEARCH.CREATE_FAILED'));
-            },
-        });
+        this.wikiService
+            .createPage(guildId, {
+                title: title.trim(),
+                content: '',
+                // A filtered search says where the user is looking; the new page belongs there.
+                categoryId: this.categoryFilter(),
+            })
+            .subscribe({
+                next: page => {
+                    this.creating.set(false);
+                    this.recents.record(title);
+                    this.pageSelected.emit(page);
+                    this.closed.emit();
+                },
+                error: () => {
+                    this.creating.set(false);
+                    this.toast.error(this.translate.instant('WIKI.SEARCH.CREATE_FAILED'));
+                },
+            });
     }
 }

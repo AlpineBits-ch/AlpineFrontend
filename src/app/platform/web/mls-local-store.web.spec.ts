@@ -159,7 +159,10 @@ describe('IdbMlsLocalStore across two tabs of one profile', () => {
         await first.set('ctx-1#active', 2);
 
         expect(new Map(await second.entries<number>())).toEqual(
-            new Map([[FLOOR, 2], ['ctx-1#active', 2]]),
+            new Map([
+                [FLOOR, 2],
+                ['ctx-1#active', 2],
+            ]),
         );
     });
 
@@ -285,9 +288,11 @@ describe('IdbMlsLocalStore.update', () => {
         const store = openTab().open(REGISTRY);
         await store.set(FLOOR, 7);
 
-        await expect(store.update<number>(FLOOR, () => {
-            throw new Error('the key store could not be read');
-        })).rejects.toThrow(/could not be read/);
+        await expect(
+            store.update<number>(FLOOR, () => {
+                throw new Error('the key store could not be read');
+            }),
+        ).rejects.toThrow(/could not be read/);
 
         expect(await freshRead<number>(REGISTRY, FLOOR)).toBe(7);
     });
@@ -295,9 +300,11 @@ describe('IdbMlsLocalStore.update', () => {
     it('releases the file after a throw, so the next caller is not locked out', async () => {
         const store = openTab().open(REGISTRY);
 
-        await store.update(FLOOR, () => {
-            throw new Error('boom');
-        }).catch(() => undefined);
+        await store
+            .update(FLOOR, () => {
+                throw new Error('boom');
+            })
+            .catch(() => undefined);
 
         // A critical section that leaked on the error path would deadlock every later read of this
         // file, in every tab, for as long as the page stays open.

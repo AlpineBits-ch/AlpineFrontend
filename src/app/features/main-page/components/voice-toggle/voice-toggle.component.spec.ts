@@ -35,8 +35,10 @@ function deviceRows(fixture: ComponentFixture<VoiceToggleComponent>): MenuItem[]
 
 describe('VoiceToggleComponent device names', () => {
     it('lists the devices and nothing else when the names are real', () => {
-        expect(deviceRows(render(DEVICES, false)).map(r => r.label))
-            .toEqual(['Microphone 1', 'Microphone 2']);
+        expect(deviceRows(render(DEVICES, false)).map(r => r.label)).toEqual([
+            'Microphone 1',
+            'Microphone 2',
+        ]);
     });
 
     it('adds an unpickable hint when the host is withholding names', () => {

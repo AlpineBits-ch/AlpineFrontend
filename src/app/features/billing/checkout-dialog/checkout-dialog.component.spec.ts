@@ -10,7 +10,11 @@ import {StripeLoaderService} from '../../../services/stripe-loader.service';
 import {ProfileService} from '../../../services/profile.service';
 import {EntitlementStore, EntitlementSubjectRef, MY_ENTITLEMENTS} from '../../../stores/entitlement.store';
 import {ACTIVATION_POLL_BACKOFF} from '../../../core/subscription-activation';
-import {BillingPlanDto, CreateSubscriptionResponseDto, SubscriptionDto} from '../../../dtos/response/billing.dto';
+import {
+    BillingPlanDto,
+    CreateSubscriptionResponseDto,
+    SubscriptionDto,
+} from '../../../dtos/response/billing.dto';
 import {CreateSubscriptionRequest} from '../../../dtos/request/billing.dto';
 
 const PLAN: BillingPlanDto = {
@@ -44,16 +48,19 @@ function subscription(status: string): SubscriptionDto {
     };
 }
 
-function setup(opts: {
-    subject?: EntitlementSubjectRef;
-    clientSecret?: string | null;
-    createError?: unknown;
-    statuses?: string[];
-} = {}) {
-    const created = vi.fn<(r: CreateSubscriptionRequest) => Observable<CreateSubscriptionResponseDto>>(
-        () => opts.createError
+function setup(
+    opts: {
+        subject?: EntitlementSubjectRef;
+        clientSecret?: string | null;
+        createError?: unknown;
+        statuses?: string[];
+    } = {},
+) {
+    const created = vi.fn<(r: CreateSubscriptionRequest) => Observable<CreateSubscriptionResponseDto>>(() =>
+        opts.createError
             ? throwError(() => opts.createError)
-            : of({subscription: subscription('incomplete'), clientSecret: opts.clientSecret ?? null}));
+            : of({subscription: subscription('incomplete'), clientSecret: opts.clientSecret ?? null}),
+    );
 
     const statuses = opts.statuses ?? ['active'];
     let read = 0;
@@ -76,7 +83,10 @@ function setup(opts: {
             {provide: EntitlementStore, useValue: {invalidate, ensureLoaded}},
             {
                 provide: StripeLoaderService,
-                useValue: {configured: signal(true), load: async () => ({stripe: null, reason: 'load_failed'})},
+                useValue: {
+                    configured: signal(true),
+                    load: async () => ({stripe: null, reason: 'load_failed'}),
+                },
             },
             // Three reads and no real waiting. The interesting property of the poll is what it does
             // when it runs out, and thirty seconds of it is a test nobody runs.

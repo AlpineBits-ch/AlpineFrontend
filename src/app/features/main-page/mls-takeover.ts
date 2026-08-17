@@ -34,8 +34,8 @@ export function relaunchOnSessionTakeover(steps: SessionTakeoverSteps): Subscrip
 
     return steps.takeovers().subscribe(() => {
         log(
-            'This tab has been handed the account\'s encryption engine by a closing tab - running the '
-            + 'device launch again',
+            "This tab has been handed the account's encryption engine by a closing tab - running the " +
+                'device launch again',
         );
         void steps.relaunch().catch((err: unknown) => {
             console.error('The launch sequence failed after a session takeover', err);

@@ -47,8 +47,8 @@ export function wikiExtensions(
             // user: carries @mentions; without it here the mark is dropped at parse time, so a page would lose every mention the moment it was reloaded.
             protocols: ['http', 'https', 'mailto', WIKI_LINK_PROTOCOL, USER_LINK_PROTOCOL],
             // linkify would happily autolink a bare `wiki:` or `user:` string typed as prose.
-            shouldAutoLink: url => !url.startsWith(`${WIKI_LINK_PROTOCOL}:`)
-                && !url.startsWith(`${USER_LINK_PROTOCOL}:`),
+            shouldAutoLink: url =>
+                !url.startsWith(`${WIKI_LINK_PROTOCOL}:`) && !url.startsWith(`${USER_LINK_PROTOCOL}:`),
         }),
         // includeChildren so the walk reaches inside a toggle: the summary is nested under a non-textblock, and the default walk stops there before it ever sees it.
         Placeholder.configure({

@@ -34,10 +34,7 @@ function category(id: string, position: number): WikiCategoryDto {
 
 describe('buildGraph', () => {
     it('turns a wiki link into an edge between the two pages', () => {
-        const model = buildGraph(
-            [page('a'), page('b')],
-            new Map([['a', 'see [B](wiki:b)']]),
-        );
+        const model = buildGraph([page('a'), page('b')], new Map([['a', 'see [B](wiki:b)']]));
         expect(model.edges.length).toBe(1);
         expect(model.nodes[model.edges[0].a].id).toBe('a');
         expect(model.nodes[model.edges[0].b].id).toBe('b');
@@ -48,7 +45,10 @@ describe('buildGraph', () => {
     it('collapses a reciprocal pair of links into one edge', () => {
         const model = buildGraph(
             [page('a'), page('b')],
-            new Map([['a', '[B](wiki:b)'], ['b', '[A](wiki:a)']]),
+            new Map([
+                ['a', '[B](wiki:b)'],
+                ['b', '[A](wiki:a)'],
+            ]),
         );
         expect(model.edges.length).toBe(1);
     });
@@ -64,10 +64,7 @@ describe('buildGraph', () => {
     });
 
     it('records neighbours in both directions', () => {
-        const model = buildGraph(
-            [page('a'), page('b')],
-            new Map([['a', '[B](wiki:b)']]),
-        );
+        const model = buildGraph([page('a'), page('b')], new Map([['a', '[B](wiki:b)']]));
         expect(model.neighbours[0]).toEqual([1]);
         expect(model.neighbours[1]).toEqual([0]);
     });

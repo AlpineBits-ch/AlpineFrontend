@@ -14,7 +14,10 @@ export class GuildEmojiService {
         return this.http.get<GuildEmojiDto[]>(`${this.base}/guilds/${guildId}/emojis`);
     }
 
-    uploadEmoji(guildId: string, params: { name: string; animated: boolean; file: File }): Observable<GuildEmojiDto> {
+    uploadEmoji(
+        guildId: string,
+        params: {name: string; animated: boolean; file: File},
+    ): Observable<GuildEmojiDto> {
         const fd = new FormData();
         fd.append('name', params.name);
         fd.append('animated', String(params.animated));

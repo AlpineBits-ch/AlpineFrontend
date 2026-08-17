@@ -23,8 +23,12 @@ const store = {
         }
         return values.get(key) ?? null;
     }),
-    set: vi.fn(async (key: string, value: unknown) => { values.set(key, value); }),
-    delete: vi.fn(async (key: string) => { values.delete(key); }),
+    set: vi.fn(async (key: string, value: unknown) => {
+        values.set(key, value);
+    }),
+    delete: vi.fn(async (key: string) => {
+        values.delete(key);
+    }),
     save: vi.fn(async () => undefined),
 };
 
@@ -45,8 +49,10 @@ let secure: FakeSecureStore;
 
 /** The registry, stubbed: these tests are about the id, not about slot bookkeeping. */
 class RegistryStub {
-    constructor(public slotId: string = BOOTSTRAP_SLOT_ID) { }
-    async activeSlotId(): Promise<string> { return this.slotId; }
+    constructor(public slotId: string = BOOTSTRAP_SLOT_ID) {}
+    async activeSlotId(): Promise<string> {
+        return this.slotId;
+    }
 }
 
 let registry: RegistryStub;
@@ -76,10 +82,7 @@ beforeEach(() => {
     registry = new RegistryStub();
 });
 
-function setup(
-    slotId = BOOTSTRAP_SLOT_ID,
-    backend: SettingsStoreFactory = settings,
-): DeviceIdentityService {
+function setup(slotId = BOOTSTRAP_SLOT_ID, backend: SettingsStoreFactory = settings): DeviceIdentityService {
     registry.slotId = slotId;
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
@@ -134,9 +137,7 @@ it('generates and persists an id when the slot has none', async () => {
 it('keeps one slot stable across repeated calls', async () => {
     const service = setup('slot-a');
 
-    const [a, b, c] = await Promise.all([
-        service.deviceId(), service.deviceId(), service.deviceId(),
-    ]);
+    const [a, b, c] = await Promise.all([service.deviceId(), service.deviceId(), service.deviceId()]);
 
     expect(b).toBe(a);
     expect(c).toBe(a);
@@ -342,8 +343,10 @@ describe('registration', () => {
         const result = service.ensureRegistered();
         await new Promise<void>(r => setTimeout(r, 0));
 
-        ctrl.expectOne('https://api.venta.gg/api/v1/identity/devices')
-            .flush('nope', {status: 500, statusText: 'Server Error'});
+        ctrl.expectOne('https://api.venta.gg/api/v1/identity/devices').flush('nope', {
+            status: 500,
+            statusText: 'Server Error',
+        });
 
         await expect(result).resolves.toBe(false);
     });
@@ -355,9 +358,7 @@ describe('registration', () => {
         // The url depends on an awaited store read, so let the microtask queue drain first.
         await new Promise<void>(r => setTimeout(r, 0));
 
-        const req = ctrl.expectOne(
-            'https://api.venta.gg/api/v1/identity/devices/client/stored-device-id',
-        );
+        const req = ctrl.expectOne('https://api.venta.gg/api/v1/identity/devices/client/stored-device-id');
         expect(req.request.method).toBe('DELETE');
         req.flush(null);
     });
@@ -381,7 +382,7 @@ describe('outside Tauri', () => {
 
     function stored<T>(key: string): T | undefined {
         const raw = localStorage.getItem(PREFIX + key);
-        return raw === null ? undefined : JSON.parse(raw) as T;
+        return raw === null ? undefined : (JSON.parse(raw) as T);
     }
 
     it('mints and persists an id without ever opening the Tauri store', async () => {
@@ -455,10 +456,10 @@ describe('outside Tauri', () => {
         const id = await service.deviceId();
 
         // Byte for byte what the desktop path holds, only JSON encoded and prefixed.
-        expect(localStorage.getItem(`${PREFIX}mls_device_ids`))
-            .toBe(JSON.stringify({[BOOTSTRAP_SLOT_ID]: id}));
-        expect(localStorage.getItem(`${PREFIX}mls_device_id`))
-            .toBe(JSON.stringify({value: id}));
+        expect(localStorage.getItem(`${PREFIX}mls_device_ids`)).toBe(
+            JSON.stringify({[BOOTSTRAP_SLOT_ID]: id}),
+        );
+        expect(localStorage.getItem(`${PREFIX}mls_device_id`)).toBe(JSON.stringify({value: id}));
     });
 
     it('reset drops the live slot and the legacy mirror, and the next read mints anew', async () => {

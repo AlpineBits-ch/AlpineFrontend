@@ -37,19 +37,15 @@ export class SelfProfileMenuComponent {
     protected readonly statuses = SELECTABLE_STATUSES;
     protected readonly statusLabelKey = statusLabelKey;
 
-    protected readonly currentStatus = computed(() =>
-        this.profileService.ownProfile()?.onlineStatus ?? null
-    );
+    protected readonly currentStatus = computed(() => this.profileService.ownProfile()?.onlineStatus ?? null);
 
-    protected readonly isAdmin = computed(() =>
-        this.userService.self()?.userType === UserType.Admin
-    );
+    protected readonly isAdmin = computed(() => this.userService.self()?.userType === UserType.Admin);
 
     private readonly accounts = inject(AccountRegistryService);
 
     /** Whether there is anywhere to switch *to*. */
     protected readonly hasOtherAccounts = computed(() =>
-        this.accounts.slots().some(slot => slot.id !== this.accounts.activeSlotIdSnapshot())
+        this.accounts.slots().some(slot => slot.id !== this.accounts.activeSlotIdSnapshot()),
     );
 
     /** Called by the host when the popover closes, so it never reopens mid-submenu. */

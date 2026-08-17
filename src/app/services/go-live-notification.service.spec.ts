@@ -17,7 +17,7 @@ const CHANNEL = 'channel-1';
 const OWN_USER_ID = 'me';
 const STREAMER_ID = 'streamer-1';
 
-function guild(overrides: Partial<{ id: string; name: string; channels: { id: string; name: string }[] }> = {}) {
+function guild(overrides: Partial<{id: string; name: string; channels: {id: string; name: string}[]}> = {}) {
     return {
         id: GUILD,
         name: 'Test Guild',
@@ -28,46 +28,67 @@ function guild(overrides: Partial<{ id: string; name: string; channels: { id: st
 
 function notificationSettings(overrides: Partial<NotificationSettings> = {}): NotificationSettings {
     return {
-        enabled: true, dm: true, mentions: true, sounds: true,
-        cooldownEnabled: false, cooldownSeconds: 10, goLiveGuildIds: [], goLiveFriendsEnabled: true,
+        enabled: true,
+        dm: true,
+        mentions: true,
+        sounds: true,
+        cooldownEnabled: false,
+        cooldownSeconds: 10,
+        goLiveGuildIds: [],
+        goLiveFriendsEnabled: true,
         ...overrides,
     };
 }
 
-function setup(options: {
-    goLiveGuildIds?: string[];
-    goLiveFriendsEnabled?: boolean;
-    friendIds?: string[];
-    joinedChannelId?: string | null;
-    ownProfileLoaded?: boolean;
-    guilds?: unknown[];
-    cacheMiss?: boolean;
-} = {}) {
+function setup(
+    options: {
+        goLiveGuildIds?: string[];
+        goLiveFriendsEnabled?: boolean;
+        friendIds?: string[];
+        joinedChannelId?: string | null;
+        ownProfileLoaded?: boolean;
+        guilds?: unknown[];
+        cacheMiss?: boolean;
+    } = {},
+) {
     const streamerWentLive$ = new Subject<StreamerWentLive>();
-    const created: { title: string; message: string; actionTypeId?: string; extra?: Record<string, string> }[] = [];
+    const created: {title: string; message: string; actionTypeId?: string; extra?: Record<string, string>}[] =
+        [];
 
     TestBed.configureTestingModule({
         providers: [
             {provide: GuildVoiceActivityService, useValue: {streamerWentLive$}},
-            {provide: VoiceChannelService, useValue: {joinedChannelId: signal(options.joinedChannelId ?? null)}},
             {
-                provide: ProfileService, useValue: {
-                    ownProfile: signal(options.ownProfileLoaded === false ? undefined : {userId: OWN_USER_ID}),
+                provide: VoiceChannelService,
+                useValue: {joinedChannelId: signal(options.joinedChannelId ?? null)},
+            },
+            {
+                provide: ProfileService,
+                useValue: {
+                    ownProfile: signal(
+                        options.ownProfileLoaded === false ? undefined : {userId: OWN_USER_ID},
+                    ),
                     getCachedByUserId: (userId: string) =>
-                        options.cacheMiss ? undefined : {userName: userId === STREAMER_ID ? 'Streamer' : userId},
+                        options.cacheMiss
+                            ? undefined
+                            : {userName: userId === STREAMER_ID ? 'Streamer' : userId},
                 },
             },
             {provide: GuildService, useValue: {guilds: signal(options.guilds ?? [guild()])}},
             {
-                provide: UserSettingsService, useValue: {
-                    notificationSettings: signal(notificationSettings({
-                        goLiveGuildIds: options.goLiveGuildIds ?? [],
-                        goLiveFriendsEnabled: options.goLiveFriendsEnabled ?? true,
-                    })),
+                provide: UserSettingsService,
+                useValue: {
+                    notificationSettings: signal(
+                        notificationSettings({
+                            goLiveGuildIds: options.goLiveGuildIds ?? [],
+                            goLiveFriendsEnabled: options.goLiveFriendsEnabled ?? true,
+                        }),
+                    ),
                 },
             },
             {
-                provide: NotificationService, useValue: {
+                provide: NotificationService,
+                useValue: {
                     createNotification: (opts: any) => {
                         created.push(opts);
                         return Promise.resolve();
@@ -75,14 +96,16 @@ function setup(options: {
                 },
             },
             {
-                provide: RelationshipStore, useValue: {
+                provide: RelationshipStore,
+                useValue: {
                     friends: signal((options.friendIds ?? []).map(id => ({other: {userId: id}}))),
                 },
             },
             // Echoes the key and its params - deterministic and enough to prove the right strings
             // and placeholders were asked for, without loading real translations.
             {
-                provide: TranslateService, useValue: {
+                provide: TranslateService,
+                useValue: {
                     instant: (key: string, params?: Record<string, unknown>) =>
                         params ? `${key}(${Object.values(params).join(',')})` : key,
                 },
@@ -108,7 +131,12 @@ describe('GoLiveNotificationService', () => {
 
         expect(created.length).toBe(1);
         expect(created[0].actionTypeId).toBe(STREAM_LIVE_ACTION_TYPE);
-        expect(created[0].extra).toEqual({type: STREAM_LIVE_ACTION_TYPE, guildId: GUILD, channelId: CHANNEL, userId: STREAMER_ID});
+        expect(created[0].extra).toEqual({
+            type: STREAM_LIVE_ACTION_TYPE,
+            guildId: GUILD,
+            channelId: CHANNEL,
+            userId: STREAMER_ID,
+        });
         expect(created[0].title).toContain('Streamer');
     });
 
@@ -132,7 +160,9 @@ describe('GoLiveNotificationService', () => {
         // The failure the reviewer caught: friendship used to override the guild toggle
         // unconditionally, leaving no way to quiet one loud friend short of the master switch.
         const {streamerWentLive$, created} = setup({
-            goLiveGuildIds: [], friendIds: [STREAMER_ID], goLiveFriendsEnabled: false,
+            goLiveGuildIds: [],
+            friendIds: [STREAMER_ID],
+            goLiveFriendsEnabled: false,
         });
 
         streamerWentLive$.next(live());
@@ -143,7 +173,9 @@ describe('GoLiveNotificationService', () => {
     it('still notifies for a friend whose guild is separately opted in, even with the friends toggle off', () => {
         // The two gates are independent, not one overriding the other.
         const {streamerWentLive$, created} = setup({
-            goLiveGuildIds: [GUILD], friendIds: [STREAMER_ID], goLiveFriendsEnabled: false,
+            goLiveGuildIds: [GUILD],
+            friendIds: [STREAMER_ID],
+            goLiveFriendsEnabled: false,
         });
 
         streamerWentLive$.next(live());

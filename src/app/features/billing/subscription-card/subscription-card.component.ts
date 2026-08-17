@@ -3,11 +3,7 @@ import {Dialog} from 'primeng/dialog';
 import {Button} from 'primeng/button';
 import {PrimeTemplate} from 'primeng/api';
 import {TranslateModule} from '@ngx-translate/core';
-import {
-    SubscriptionDto,
-    sameSubjectKind,
-    subscriptionStanding,
-} from '../../../dtos/response/billing.dto';
+import {SubscriptionDto, sameSubjectKind, subscriptionStanding} from '../../../dtos/response/billing.dto';
 import {BillingService, BILLING_ERROR_CODES, describeBillingError} from '../../../services/billing.service';
 import {ProfileService} from '../../../services/profile.service';
 import {EntitlementSubjectRef} from '../../../stores/entitlement.store';
@@ -89,9 +85,13 @@ export class SubscriptionCardComponent {
     });
 
     /** The one action available on a subscription that is already winding down. */
-    protected readonly canResume = computed(() => this.canAct() && this.subscription()?.cancelAtPeriodEnd === true);
+    protected readonly canResume = computed(
+        () => this.canAct() && this.subscription()?.cancelAtPeriodEnd === true,
+    );
 
-    protected readonly canCancel = computed(() => this.canAct() && this.subscription()?.cancelAtPeriodEnd !== true);
+    protected readonly canCancel = computed(
+        () => this.canAct() && this.subscription()?.cancelAtPeriodEnd !== true,
+    );
 
     constructor() {
         effect(() => {
@@ -218,7 +218,7 @@ export class SubscriptionCardComponent {
 
     /** The guild, or this account. `me` is a routing shorthand and not an id the server takes. */
     private subjectId(subject: EntitlementSubjectRef): string | null {
-        return subject.kind === 'guild' ? subject.id : this.profile.ownProfile()?.userId ?? null;
+        return subject.kind === 'guild' ? subject.id : (this.profile.ownProfile()?.userId ?? null);
     }
 
     private clearError(): void {
@@ -236,7 +236,6 @@ export class SubscriptionCardComponent {
 
 /** The subscription for one subject, out of everything the caller can see. */
 function pickFor(all: SubscriptionDto[], kind: string, subjectId: string): SubscriptionDto | null {
-    const mine = (all ?? []).filter(
-        s => sameSubjectKind(s.subjectKind, kind) && s.subjectId === subjectId);
+    const mine = (all ?? []).filter(s => sameSubjectKind(s.subjectKind, kind) && s.subjectId === subjectId);
     return mine.find(s => subscriptionStanding(s.status) !== 'ended') ?? mine[0] ?? null;
 }

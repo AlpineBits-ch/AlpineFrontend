@@ -1,11 +1,7 @@
 import {MediaDeviceEntry, MediaDeviceSource} from '../ports/media-devices.port';
 
 /** One entry, with the fields a spec rarely cares about filled in. */
-export function deviceEntry(
-    id: string,
-    label = id,
-    isDefault = false,
-): MediaDeviceEntry {
+export function deviceEntry(id: string, label = id, isDefault = false): MediaDeviceEntry {
     return {id, label, isDefault};
 }
 

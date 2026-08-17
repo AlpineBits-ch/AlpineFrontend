@@ -22,12 +22,12 @@ const SURFACE_BACKING: Record<string, string> = {
 @Component({
     selector: 'app-user-status-dot',
     template: `
-    @if (status() !== null) {
-      <div [class]="outerClasses()">
-        <div [class]="innerClasses()"></div>
-      </div>
-    }
-  `,
+        @if (status() !== null) {
+            <div [class]="outerClasses()">
+                <div [class]="innerClasses()"></div>
+            </div>
+        }
+    `,
 })
 export class UserStatusDotComponent {
     readonly status = input.required<OnlineStatus | null>();
@@ -41,13 +41,19 @@ export class UserStatusDotComponent {
             return ['rounded-full', SIZE_CLASSES[this.size()], backing].join(' ');
         }
         return [
-            'absolute', '-bottom-0.5', '-right-0.5', 'rounded-full', 'border-2',
-            SIZE_CLASSES[this.size()], this.borderColor(), backing,
+            'absolute',
+            '-bottom-0.5',
+            '-right-0.5',
+            'rounded-full',
+            'border-2',
+            SIZE_CLASSES[this.size()],
+            this.borderColor(),
+            backing,
         ].join(' ');
     });
 
     protected readonly innerClasses = computed(() =>
-        ['w-full', 'h-full', 'rounded-full', ...this.statusClasses()].join(' ')
+        ['w-full', 'h-full', 'rounded-full', ...this.statusClasses()].join(' '),
     );
 
     /** Colour plus silhouette. Online is the only status with no mask. */

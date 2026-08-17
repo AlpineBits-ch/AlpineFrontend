@@ -26,7 +26,10 @@ function readyExport(): DataExportDto {
     };
 }
 
-function render(host: PlatformHost, items: DataExportDto[] = [readyExport()]): ComponentFixture<DataExportComponent> {
+function render(
+    host: PlatformHost,
+    items: DataExportDto[] = [readyExport()],
+): ComponentFixture<DataExportComponent> {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
         providers: [
@@ -70,15 +73,13 @@ describe('DataExportComponent download', () => {
         const fixture = render('web');
 
         expect(downloadButton(fixture)).toBeNull();
-        expect(reason(fixture)?.textContent?.trim())
-            .toBe('SETTINGS.PRIVACY.EXPORT_DOWNLOAD_UNSUPPORTED');
+        expect(reason(fixture)?.textContent?.trim()).toBe('SETTINGS.PRIVACY.EXPORT_DOWNLOAD_UNSUPPORTED');
     });
 
     it('still lets a browser user request one', () => {
         // The gate is about collecting the archive, not about asking for it. Taking the request button
         // away would strip a working GDPR control from the web client.
-        expect(render('web').nativeElement.textContent)
-            .toContain('SETTINGS.PRIVACY.EXPORT_REQUEST_ACTION');
+        expect(render('web').nativeElement.textContent).toContain('SETTINGS.PRIVACY.EXPORT_REQUEST_ACTION');
     });
 
     it('says nothing about downloading an export that is not downloadable', () => {

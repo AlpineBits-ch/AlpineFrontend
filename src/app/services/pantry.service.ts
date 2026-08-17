@@ -167,11 +167,13 @@ export class PantryService {
 
     /** Scans a code into this pantry: tops up the row if it is there, creates it if not. `created` separates a new row from a top-up; only `learned` is worth interrupting anybody about. */
     scan(guildId: string, channelId: string, dto: ScanPantryItemDto): Observable<ScanPantryItemResult> {
-        return this.api.scan(channelId, dto).pipe(tap(result => {
-            this.upsert(channelId, result.item);
-            // A scan can carry an expiry, and the expiring view is keyed on the guild rather than the channel, which is why `guildId` is a parameter here.
-            this.expiringStale.add(guildId);
-        }));
+        return this.api.scan(channelId, dto).pipe(
+            tap(result => {
+                this.upsert(channelId, result.item);
+                // A scan can carry an expiry, and the expiring view is keyed on the guild rather than the channel, which is why `guildId` is a parameter here.
+                this.expiringStale.add(guildId);
+            }),
+        );
     }
 
     /** One-tap "used it up". Runs the server's low-stock loop, so the same alerts fire. */
@@ -181,10 +183,12 @@ export class PantryService {
         itemId: string,
         dto: ConsumePantryItemDto = {},
     ): Observable<PantryItem> {
-        return this.api.consume(itemId, dto).pipe(tap(item => {
-            this.upsert(channelId, item);
-            this.expiringStale.add(guildId);
-        }));
+        return this.api.consume(itemId, dto).pipe(
+            tap(item => {
+                this.upsert(channelId, item);
+                this.expiringStale.add(guildId);
+            }),
+        );
     }
 
     /** One-tap "put some back". Also ticks off the shopping-list line the pantry created. */
@@ -194,10 +198,12 @@ export class PantryService {
         itemId: string,
         dto: RestockPantryItemDto = {},
     ): Observable<PantryItem> {
-        return this.api.restock(itemId, dto).pipe(tap(item => {
-            this.upsert(channelId, item);
-            this.expiringStale.add(guildId);
-        }));
+        return this.api.restock(itemId, dto).pipe(
+            tap(item => {
+                this.upsert(channelId, item);
+                this.expiringStale.add(guildId);
+            }),
+        );
     }
 
     /** The codes this guild has learned. Uncached, because it backs a search-as-you-type field and every answer is query-specific. */
@@ -211,7 +217,8 @@ export class PantryService {
     private onItemUpserted(payload: PantryItemCreated | PantryItemUpdated): void {
         this.expiringStale.add(payload.guildId);
         this.patchExpiring(payload.guildId, list =>
-            list.map(i => i.id === payload.item.id ? payload.item : i));
+            list.map(i => (i.id === payload.item.id ? payload.item : i)),
+        );
 
         // Events for pantries nobody has opened are dropped rather than seeding a partial list that reports itself as loaded.
         if (!(payload.channelId in this.itemsByChannel())) return;
@@ -230,7 +237,7 @@ export class PantryService {
         this.itemsByChannel.update(m => {
             const list = m[channelId] ?? [];
             const next = list.some(i => i.id === item.id)
-                ? list.map(i => i.id === item.id ? item : i)
+                ? list.map(i => (i.id === item.id ? item : i))
                 : [...list, item];
             return {...m, [channelId]: this.sorted(next)};
         });

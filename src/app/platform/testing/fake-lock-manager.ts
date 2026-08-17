@@ -64,15 +64,17 @@ export class FakeLockManager implements LockManager {
             return Promise.reject(new TypeError('FakeLockManager.request: no callback'));
         }
         if (options.mode !== undefined && options.mode !== 'exclusive') {
-            return Promise.reject(new TypeError(
-                `FakeLockManager: only exclusive locks are modelled, got "${options.mode}"`,
-            ));
+            return Promise.reject(
+                new TypeError(`FakeLockManager: only exclusive locks are modelled, got "${options.mode}"`),
+            );
         }
         if (options.steal === true) {
-            return Promise.reject(new TypeError(
-                'FakeLockManager: `steal` is deliberately not modelled - see WebMlsEngine on why the '
-                + 'guard does not steal locks',
-            ));
+            return Promise.reject(
+                new TypeError(
+                    'FakeLockManager: `steal` is deliberately not modelled - see WebMlsEngine on why the ' +
+                        'guard does not steal locks',
+                ),
+            );
         }
         if (options.signal?.aborted === true) {
             return Promise.reject(abortError());
@@ -181,12 +183,14 @@ export class FakeLockManager implements LockManager {
 
         const lock: Lock = {name, mode: 'exclusive'};
         try {
-            waiter.settle(await Promise.race([
-                Promise.resolve(waiter.callback(lock)),
-                // `held` resolving means the lock was taken back rather than given up, which for a
-                // callback that never resolves - the session lock - is how a closed tab arrives.
-                held.then(() => undefined),
-            ]));
+            waiter.settle(
+                await Promise.race([
+                    Promise.resolve(waiter.callback(lock)),
+                    // `held` resolving means the lock was taken back rather than given up, which for a
+                    // callback that never resolves - the session lock - is how a closed tab arrives.
+                    held.then(() => undefined),
+                ]),
+            );
         } catch (err) {
             waiter.fail(err);
         } finally {

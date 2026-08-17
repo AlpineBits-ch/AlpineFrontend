@@ -73,10 +73,7 @@ export function headingElementsIn(root: ParentNode | null | undefined): HTMLElem
  * edit; the caller re-applies after every update rather than assuming one pass is enough.
  * Returns how many headings were stamped, so a caller can tell a stale document from a matched one.
  */
-export function applyHeadingIds(
-    root: ParentNode | null | undefined,
-    entries: readonly TocEntry[],
-): number {
+export function applyHeadingIds(root: ParentNode | null | undefined, entries: readonly TocEntry[]): number {
     const elements = headingElementsIn(root);
     const paired = Math.min(elements.length, entries.length);
     for (let i = 0; i < paired; i++) {

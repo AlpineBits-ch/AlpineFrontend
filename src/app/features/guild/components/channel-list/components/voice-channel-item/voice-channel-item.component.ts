@@ -38,11 +38,13 @@ export class VoiceChannelItemComponent {
     private voiceChannelSvc = inject(VoiceChannelService);
     private inviteNudge = inject(InviteNudgeService);
 
-    protected readonly participants = computed<VoiceChannelParticipant[]>(() =>
-        this.voiceChannelSvc.channelParticipants().get(this.channel().id) ?? []
+    protected readonly participants = computed<VoiceChannelParticipant[]>(
+        () => this.voiceChannelSvc.channelParticipants().get(this.channel().id) ?? [],
     );
 
-    protected readonly isJoined = computed(() => this.voiceChannelSvc.joinedChannelId() === this.channel().id);
+    protected readonly isJoined = computed(
+        () => this.voiceChannelSvc.joinedChannelId() === this.channel().id,
+    );
 
     /** A join for this channel is still in flight; scoped to this channel so a join running for a different room isn't claimed here too. */
     protected readonly isJoining = computed(() => this.voiceChannelSvc.pendingJoinId() === this.channel().id);
@@ -59,8 +61,11 @@ export class VoiceChannelItemComponent {
         const now = this.minuteClock.now();
         const channelId = this.channel().id;
 
-        return this.eventStore.eventsForGuild(this.channel().guildId)
-            .find(e => e.voiceChannelId === channelId && phaseOf(e, now) === 'live') ?? null;
+        return (
+            this.eventStore
+                .eventsForGuild(this.channel().guildId)
+                .find(e => e.voiceChannelId === channelId && phaseOf(e, now) === 'live') ?? null
+        );
     });
 
     constructor() {

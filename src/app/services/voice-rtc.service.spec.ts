@@ -9,12 +9,7 @@ import {ConnectionState} from 'livekit-client';
 import {of, Subject, throwError} from 'rxjs';
 import {GuildVoiceService, VoiceConnectionDto, VoicePublishResponse} from './guild-voice.service';
 import {LiveKitRoomService, RemoteMediaTrack} from './livekit-room.service';
-import {
-    CAMERA_TRACK,
-    SUBSCRIBE_RETRY_DELAYS_MS,
-    trackIntent,
-    VoiceRTCService,
-} from './voice-rtc.service';
+import {CAMERA_TRACK, SUBSCRIBE_RETRY_DELAYS_MS, trackIntent, VoiceRTCService} from './voice-rtc.service';
 import {VoiceEngineService} from './voice-engine.service';
 import {RustMediaService} from './rust-media.service';
 import {ScreenPickerService} from './screen-picker.service';
@@ -119,7 +114,14 @@ function connectionReply(overrides: Partial<VoiceConnectionDto> = {}): VoiceConn
 
 /** An ordinary publish reply: nothing capped, nothing reduced. */
 function publishReply(overrides: Partial<VoicePublishResponse> = {}): VoicePublishResponse {
-    return {identity: 'user_me#view', rung: null, height: null, framerate: null, maxLayer: null, ...overrides};
+    return {
+        identity: 'user_me#view',
+        rung: null,
+        height: null,
+        framerate: null,
+        maxLayer: null,
+        ...overrides,
+    };
 }
 
 let engine: FakeEngine;
@@ -132,7 +134,9 @@ let publishEnded: Subject<void>;
 const notFound = () => new Error('not_found_track_error');
 
 const target = (userId = 'user_a', mediaSessionId = 'sess_1') => ({
-    userId, mediaSessionId, trackName: 'audio',
+    userId,
+    mediaSessionId,
+    trackName: 'audio',
 });
 
 /** The publication this channel's audio runs on. `mediaSessionId` is empty on purpose, not absent. */
@@ -203,9 +207,14 @@ describe('joining the room', () => {
     /** Answers a different url and token per connection, so mixing the two is visible. */
     function twoConnections(): void {
         connection.mockImplementation((_g: string, _c: string, primary = true, tag?: string) =>
-            of(connectionReply(primary
-                ? {url: 'wss://primary', token: 'mic-jwt', identity: 'user_me'}
-                : {url: 'wss://view', token: 'view-jwt', identity: `user_me#${tag}`})));
+            of(
+                connectionReply(
+                    primary
+                        ? {url: 'wss://primary', token: 'mic-jwt', identity: 'user_me'}
+                        : {url: 'wss://view', token: 'view-jwt', identity: `user_me#${tag}`},
+                ),
+            ),
+        );
     }
 
     beforeEach(() => {
@@ -214,7 +223,8 @@ describe('joining the room', () => {
         // Unmocked this hits the real `HttpClient`, which the testing backend never answers: a hang.
         publish = vi.spyOn(guildVoice, 'publish').mockReturnValue(of(publishReply()));
         Object.assign(service as unknown as Record<string, unknown>, {
-            voiceTarget: null, primaryConnection: null,
+            voiceTarget: null,
+            primaryConnection: null,
         });
     });
 
@@ -241,7 +251,9 @@ describe('joining the room', () => {
 
         expect(engine.start).toHaveBeenCalledWith(
             {kind: 'guild', guildId: 'g1', channelId: 'c1'},
-            'https://example.test', 'token', 'device',
+            'https://example.test',
+            'token',
+            'device',
             {url: 'wss://primary', token: 'mic-jwt'},
         );
         expect(room.connect).toHaveBeenCalledWith({url: 'wss://view', token: 'view-jwt'});
@@ -262,14 +274,16 @@ describe('joining the room', () => {
         await service.connect('g1', 'c2');
 
         expect(room.connect).toHaveBeenLastCalledWith({
-            url: 'wss://sfu-ash1.venta.gg', token: 'jwt',
+            url: 'wss://sfu-ash1.venta.gg',
+            token: 'jwt',
         });
     });
 
     /** Each flag comes from the connection that enforces it: the node decides, not our arithmetic. */
     it('renders each button from the connection that would enforce it', async () => {
         connection.mockImplementation((_g: string, _c: string, primary = true) =>
-            of(connectionReply({canPublishAudio: !primary, canPublishVideo: primary})));
+            of(connectionReply({canPublishAudio: !primary, canPublishVideo: primary})),
+        );
 
         await service.connect('g1', 'c1');
 
@@ -280,7 +294,8 @@ describe('joining the room', () => {
     /** Joining is complete once the microphone publishes; losing the view room is not a failed join. */
     it('stays joined when the view room cannot be reached', async () => {
         connection.mockImplementation((_g: string, _c: string, primary = true) =>
-            primary ? of(connectionReply()) : throwError(() => new Error('no route')));
+            primary ? of(connectionReply()) : throwError(() => new Error('no route')),
+        );
 
         const joined = await service.connect('g1', 'c1');
 
@@ -289,9 +304,10 @@ describe('joining the room', () => {
     });
 
     /** The other direction: without the microphone's connection there is nothing to join for. */
-    it('does not join when the microphone\'s connection cannot be minted', async () => {
+    it("does not join when the microphone's connection cannot be minted", async () => {
         connection.mockImplementation((_g: string, _c: string, primary = true) =>
-            primary ? throwError(() => new Error('no route')) : of(connectionReply()));
+            primary ? throwError(() => new Error('no route')) : of(connectionReply()),
+        );
 
         const joined = await service.connect('g1', 'c1');
 
@@ -384,7 +400,7 @@ describe('pulling remote video', () => {
         expect(room.setSubscribed).not.toHaveBeenCalledWith(`TR_${CAMERA_TRACK}`, false);
     });
 
-    it('stops wanting a departed participant\'s video', async () => {
+    it("stops wanting a departed participant's video", async () => {
         room.announce('user_a', 'screen-abc');
         await service.subscribeVideo('g1', 'c1', 'user_a', 'sess_1', 'screen-abc', 'screen');
         room.hold(remoteTrack('user_a', 'screen-abc'));
@@ -400,8 +416,7 @@ describe('pulling remote video', () => {
 /** `describeTrack` is the only thing that decides which map a track lands in. */
 describe('projecting what the room holds', () => {
     class FakeMediaStream {
-        constructor(readonly tracks: unknown[]) {
-        }
+        constructor(readonly tracks: unknown[]) {}
     }
 
     beforeEach(() => {
@@ -509,11 +524,13 @@ it('stops retrying when the participant leaves mid-backoff', async () => {
 
 it('drops a subscription that completed after the participant left', async () => {
     // The failure the token guard exists for: the call is in flight, not sleeping, when they go.
-    let settle: () => void = () => {
-    };
-    engine.subscribe.mockImplementationOnce(() => new Promise<void>(r => {
-        settle = r;
-    }));
+    let settle: () => void = () => {};
+    engine.subscribe.mockImplementationOnce(
+        () =>
+            new Promise<void>(r => {
+                settle = r;
+            }),
+    );
 
     const done = service.subscribeAudio([target()]);
     await vi.advanceTimersByTimeAsync(0);
@@ -536,11 +553,13 @@ it('ignores a repeated announcement for an identity it is already pulling', asyn
 
 /** Three unawaited paths announce one publisher; an in-flight duplicate must not tear the first down. */
 it('does not tear down a subscription when one participant is announced twice at once', async () => {
-    let settle: () => void = () => {
-    };
-    engine.subscribe.mockImplementationOnce(() => new Promise<void>(r => {
-        settle = r;
-    }));
+    let settle: () => void = () => {};
+    engine.subscribe.mockImplementationOnce(
+        () =>
+            new Promise<void>(r => {
+                settle = r;
+            }),
+    );
 
     const first = service.subscribeAudio([target()]);
     await vi.advanceTimersByTimeAsync(0);
@@ -555,11 +574,13 @@ it('does not tear down a subscription when one participant is announced twice at
 
 /** The unsubscribe of the old identity must land before the new one is pulled, never after it. */
 it('orders a corrected announcement behind the one it supersedes', async () => {
-    let settle: () => void = () => {
-    };
-    engine.subscribe.mockImplementationOnce(() => new Promise<void>(r => {
-        settle = r;
-    }));
+    let settle: () => void = () => {};
+    engine.subscribe.mockImplementationOnce(
+        () =>
+            new Promise<void>(r => {
+                settle = r;
+            }),
+    );
 
     const first = service.subscribeAudio([target('user_a', 'sess_1')]);
     await vi.advanceTimersByTimeAsync(0);
@@ -568,8 +589,9 @@ it('orders a corrected announcement behind the one it supersedes', async () => {
     await Promise.all([first, second]);
 
     expect(engine.subscribe).toHaveBeenNthCalledWith(2, SESSION, 'user_a', 'sess_2', 'audio');
-    expect(engine.unsubscribe.mock.invocationCallOrder[0])
-        .toBeLessThan(engine.subscribe.mock.invocationCallOrder[1]);
+    expect(engine.unsubscribe.mock.invocationCallOrder[0]).toBeLessThan(
+        engine.subscribe.mock.invocationCallOrder[1],
+    );
 });
 
 it('resubscribes when the same participant is announced on a new identity', async () => {
@@ -613,8 +635,7 @@ describe('publishing the camera', () => {
             applyConstraints: vi.fn(async () => undefined),
         };
         (globalThis as unknown as Record<string, unknown>)['MediaStream'] = class {
-            constructor(readonly tracks: unknown[]) {
-            }
+            constructor(readonly tracks: unknown[]) {}
         };
         Object.defineProperty(globalThis.navigator, 'mediaDevices', {
             configurable: true,
@@ -628,24 +649,33 @@ describe('publishing the camera', () => {
         expect(name).toBe(CAMERA_TRACK);
         expect(room.publishTrack).toHaveBeenCalledWith(cameraTrack, CAMERA_TRACK);
         expect(publish).toHaveBeenCalledWith('g1', 'c1', {trackNames: [CAMERA_TRACK], video: undefined});
-        expect(room.publishTrack.mock.invocationCallOrder[0])
-            .toBeLessThan(publish.mock.invocationCallOrder[0]);
+        expect(room.publishTrack.mock.invocationCallOrder[0]).toBeLessThan(
+            publish.mock.invocationCallOrder[0],
+        );
     });
 
     /** A clamped publish still worked: nothing rolls back, the capture is re-encoded to the granted rung. */
     it('re-encodes to the granted rung on a clamped publish', async () => {
-        publish.mockReturnValue(of(publishReply({
-            rung: '720p30', height: 720, framerate: 30,
-            degradations: [{
-                key: 'voice.video_ceiling',
-                requested: {kind: 'ladder', rung: '1080p60', rank: 4, ladder: 'video_quality'},
-                granted: {kind: 'ladder', rung: '720p30', rank: 2, ladder: 'video_quality'},
-                reason: 'guild_plan',
-                remedy: 'upgrade_guild',
-                actorCanRemedy: true,
-                subject: {kind: 'guild', id: 'g1'},
-            }],
-        })));
+        publish.mockReturnValue(
+            of(
+                publishReply({
+                    rung: '720p30',
+                    height: 720,
+                    framerate: 30,
+                    degradations: [
+                        {
+                            key: 'voice.video_ceiling',
+                            requested: {kind: 'ladder', rung: '1080p60', rank: 4, ladder: 'video_quality'},
+                            granted: {kind: 'ladder', rung: '720p30', rank: 2, ladder: 'video_quality'},
+                            reason: 'guild_plan',
+                            remedy: 'upgrade_guild',
+                            actorCanRemedy: true,
+                            subject: {kind: 'guild', id: 'g1'},
+                        },
+                    ],
+                }),
+            ),
+        );
 
         const name = await service.publishCamera('g1', 'c1');
 
@@ -664,10 +694,15 @@ describe('publishing the camera', () => {
 
     /** A 403 is a refusal no retry gets past, and a running capture leaves the camera light on. */
     it('stops the local track when the publish is refused', async () => {
-        publish.mockReturnValue(throwError(() => ({
-            status: 403,
-            error: {key: 'voice.video_ceiling', granted: {kind: 'ladder', rung: 'none', rank: 0, ladder: 'video_quality'}},
-        })));
+        publish.mockReturnValue(
+            throwError(() => ({
+                status: 403,
+                error: {
+                    key: 'voice.video_ceiling',
+                    granted: {kind: 'ladder', rung: 'none', rank: 0, ladder: 'video_quality'},
+                },
+            })),
+        );
 
         const name = await service.publishCamera('g1', 'c1');
 
@@ -725,14 +760,21 @@ describe('changing resolution mid-share', () => {
             rustPublishing: true,
             screenShareId: 'live-share',
             screenSourceSize: {width: 1920, height: 1080},
-            rustChoice: {sourceId: 'monitor:0', sourceWidth: 1920, sourceHeight: 1080, preset: {resolution: '1080p', framerate: 30, content: 'text'}, shareAudio: false},
+            rustChoice: {
+                sourceId: 'monitor:0',
+                sourceWidth: 1920,
+                sourceHeight: 1080,
+                preset: {resolution: '1080p', framerate: 30, content: 'text'},
+                shareAudio: false,
+            },
         });
         service.screenPreset.set({resolution: '1080p', framerate: 30, content: 'text'});
         return rustMedia as unknown as Publisher;
     }
 
     beforeEach(() => {
-        declareVideo = vi.spyOn(TestBed.inject(GuildVoiceService), 'declareVideo')
+        declareVideo = vi
+            .spyOn(TestBed.inject(GuildVoiceService), 'declareVideo')
             .mockReturnValue(of({changed: true, maxLayer: null}));
     });
 
@@ -809,7 +851,7 @@ describe('changing resolution mid-share', () => {
     });
 
     /** Declare the solved height, not the preset's nominal one, or the server caps a share inside its rung. */
-    it('declares the size it actually solved to, not the preset\'s nominal one', async () => {
+    it("declares the size it actually solved to, not the preset's nominal one", async () => {
         sharing();
         // An ultrawide fitted into a 1080p box encodes 810 lines.
         Object.assign(service as unknown as Record<string, unknown>, {
@@ -898,7 +940,7 @@ describe('declaring a share', () => {
         });
     });
 
-    it('declares the solved capture height rather than the preset\'s nominal one', async () => {
+    it("declares the solved capture height rather than the preset's nominal one", async () => {
         publisher(null);
 
         await service.publishScreen('g1', 'c1');
@@ -911,10 +953,15 @@ describe('declaring a share', () => {
     /** A refusal the room could not degrade has to stop the media: nobody would receive it. */
     it('stops the publish when the declaration is refused', async () => {
         const rustMedia = publisher(null);
-        publish.mockReturnValue(throwError(() => ({
-            status: 403,
-            error: {key: 'voice.video_ceiling', granted: {kind: 'ladder', rung: 'none', rank: 0, ladder: 'video_quality'}},
-        })));
+        publish.mockReturnValue(
+            throwError(() => ({
+                status: 403,
+                error: {
+                    key: 'voice.video_ceiling',
+                    granted: {kind: 'ladder', rung: 'none', rank: 0, ladder: 'video_quality'},
+                },
+            })),
+        );
 
         const result = await service.publishScreen('g1', 'c1');
 
@@ -930,8 +977,10 @@ describe('declaring a share', () => {
         const stopped = await service.closeScreen('g1', 'c1');
 
         expect(stopped?.shareId).toBe(started!.shareId);
-        expect(unpublish).toHaveBeenCalledWith('g1', 'c1',
-            [`screen-${started!.shareId}`, `screen-audio-${started!.shareId}`]);
+        expect(unpublish).toHaveBeenCalledWith('g1', 'c1', [
+            `screen-${started!.shareId}`,
+            `screen-audio-${started!.shareId}`,
+        ]);
     });
 });
 
@@ -973,11 +1022,13 @@ describe('inbound screen-share fps', () => {
     }
 
     function sharing(userId: string, shareId: string, stats: Record<string, unknown>[]): void {
-        room.hold(remoteTrack(userId, `screen-${shareId}`, {
-            videoTrack: {
-                getRTCStatsReport: async () => new Map(stats.map((s, i) => [`s${i}`, s])),
-            },
-        }));
+        room.hold(
+            remoteTrack(userId, `screen-${shareId}`, {
+                videoTrack: {
+                    getRTCStatsReport: async () => new Map(stats.map((s, i) => [`s${i}`, s])),
+                },
+            }),
+        );
     }
 
     function poll(): Promise<void> {
@@ -1011,11 +1062,13 @@ describe('inbound screen-share fps', () => {
 
     /** This is a screen-share readout only; a camera riding the same room is not one. */
     it('ignores a camera track riding the same room', async () => {
-        room.hold(remoteTrack('user_a', CAMERA_TRACK, {
-            videoTrack: {
-                getRTCStatsReport: async () => new Map([['s0', inboundRtpVideo('m1', 30)]]),
-            },
-        }));
+        room.hold(
+            remoteTrack('user_a', CAMERA_TRACK, {
+                videoTrack: {
+                    getRTCStatsReport: async () => new Map([['s0', inboundRtpVideo('m1', 30)]]),
+                },
+            }),
+        );
 
         await poll();
 
@@ -1032,13 +1085,14 @@ describe('the inspected inbound bitrate', () => {
 
     function inspect(bytes: number[]): {poll: () => Promise<void>} {
         let index = 0;
-        room.hold(remoteTrack('user_a', 'screen-abc', {
-            videoTrack: {
-                getRTCStatsReport: async () => new Map([
-                    ['s0', inboundRtpBytes('m1', bytes[Math.min(index++, bytes.length - 1)])],
-                ]),
-            },
-        }));
+        room.hold(
+            remoteTrack('user_a', 'screen-abc', {
+                videoTrack: {
+                    getRTCStatsReport: async () =>
+                        new Map([['s0', inboundRtpBytes('m1', bytes[Math.min(index++, bytes.length - 1)])]]),
+                },
+            }),
+        );
         service.inspected.set({shareId: 'share_a', userId: 'user_a'});
         return {poll: () => (service as unknown as {pollStats(): Promise<void>}).pollStats()};
     }
@@ -1098,7 +1152,10 @@ describe('the inspected inbound bitrate', () => {
 /** A stream's volume is its own gain, independent of its owner's voice. */
 describe('stream volume', () => {
     const screenTarget = (userId = 'user_a', mediaSessionId = 'sess_1', trackName = 'screen-audio-abc') => ({
-        userId, mediaSessionId, trackName, kind: 'screenAudio' as const,
+        userId,
+        mediaSessionId,
+        trackName,
+        kind: 'screenAudio' as const,
     });
 
     it('defaults to full volume for a stream nothing has touched', () => {
@@ -1183,8 +1240,7 @@ describe('the stated video intent', () => {
 
     /** Cameras report fractional rates; the wire carries whole frames. */
     it('rounds a fractional framerate', () => {
-        expect(trackIntent(track({height: 1080, frameRate: 29.97})))
-            .toEqual({height: 1080, framerate: 30});
+        expect(trackIntent(track({height: 1080, frameRate: 29.97}))).toEqual({height: 1080, framerate: 30});
     });
 
     /** A clamp the server cannot compute beats one computed from a number this client invented. */
@@ -1202,7 +1258,11 @@ describe('a quality change against a granted rung', () => {
         const limits = TestBed.inject(VoiceLimitsService);
         limits.enterRoom('g1');
         limits.applySnapshot({
-            roomId: 'c1', kind: 'channel', guildId: 'g1', instanceId: 'i1', version: 1,
+            roomId: 'c1',
+            kind: 'channel',
+            guildId: 'g1',
+            instanceId: 'i1',
+            version: 1,
             participants: [],
             limits: {videoCeiling: {kind: 'ladder', rung, rank: 2, ladder: 'video_quality'}},
         });

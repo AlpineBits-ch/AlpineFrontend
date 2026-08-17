@@ -26,13 +26,14 @@ import {
               Loud, and never a blank square. A QR that silently failed to build looks exactly like
               one that is still loading, and the payer would sit waiting to scan nothing.
             -->
-            <div class="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2"
-                 data-testid="qr-error">
+            <div
+                class="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2"
+                data-testid="qr-error"
+            >
                 <p class="m-0 text-[0.8125rem] text-amber-200">{{ message }}</p>
             </div>
         } @else {
-            <canvas #canvas class="rounded-lg bg-white p-2"
-                    [attr.aria-label]="ariaLabel()"></canvas>
+            <canvas #canvas class="rounded-lg bg-white p-2" [attr.aria-label]="ariaLabel()"></canvas>
         }
     `,
 })
@@ -52,9 +53,7 @@ export class SwissQrBillComponent {
             return {payload: buildSwissQrBillPayload(this.bill())};
         } catch (err) {
             return {
-                refusal: err instanceof SwissQrBillError
-                    ? err.message
-                    : 'The QR-bill could not be built.',
+                refusal: err instanceof SwissQrBillError ? err.message : 'The QR-bill could not be built.',
             };
         }
     });

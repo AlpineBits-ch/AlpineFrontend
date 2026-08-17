@@ -16,9 +16,20 @@ function withLive(publisher: WebScreenPublisher, shareId: string, report: RTCSta
 describe('WebScreenPublisher.stats', () => {
     it('reads the running publication and returns an outbound snapshot', async () => {
         const publisher = new WebScreenPublisher();
-        withLive(publisher, 'share-1', statsReport([
-            {type: 'outbound-rtp', kind: 'video', mid: '0', id: 'o1', ssrc: 1, frameWidth: 1920} as unknown as RTCStats,
-        ]));
+        withLive(
+            publisher,
+            'share-1',
+            statsReport([
+                {
+                    type: 'outbound-rtp',
+                    kind: 'video',
+                    mid: '0',
+                    id: 'o1',
+                    ssrc: 1,
+                    frameWidth: 1920,
+                } as unknown as RTCStats,
+            ]),
+        );
 
         const snapshot = await publisher.stats('share-1');
 
@@ -37,9 +48,20 @@ describe('WebScreenPublisher.stats', () => {
      */
     it('answers null for a share id that is not the running one', async () => {
         const publisher = new WebScreenPublisher();
-        withLive(publisher, 'share-1', statsReport([
-            {type: 'outbound-rtp', kind: 'video', mid: '0', id: 'o1', ssrc: 1, frameWidth: 1920} as unknown as RTCStats,
-        ]));
+        withLive(
+            publisher,
+            'share-1',
+            statsReport([
+                {
+                    type: 'outbound-rtp',
+                    kind: 'video',
+                    mid: '0',
+                    id: 'o1',
+                    ssrc: 1,
+                    frameWidth: 1920,
+                } as unknown as RTCStats,
+            ]),
+        );
 
         expect(await publisher.stats('share-stale')).toBeNull();
         expect(await publisher.stats('share-1')).not.toBeNull();

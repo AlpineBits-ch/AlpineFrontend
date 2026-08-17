@@ -82,8 +82,9 @@ export class ListApiService {
      * `guild.ListCleared` broadcast, so the caller must treat `null` as "it worked, count
      * unknown" rather than as a failure.</p>
      */
-    clearChecked(channelId: string): Observable<{ removedCount: number } | null> {
-        return this.http.delete<{ removedCount: number } | null>(
-            `${this.base}/channels/${channelId}/list-items/checked`);
+    clearChecked(channelId: string): Observable<{removedCount: number} | null> {
+        return this.http.delete<{removedCount: number} | null>(
+            `${this.base}/channels/${channelId}/list-items/checked`,
+        );
     }
 }

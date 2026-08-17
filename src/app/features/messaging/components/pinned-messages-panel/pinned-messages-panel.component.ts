@@ -36,26 +36,18 @@ export class PinnedMessagesPanelComponent {
             this.load();
         });
 
-        this.messagingWs.messagePinnedObservable
-            .pipe(takeUntilDestroyed(this.destroyRef))
-            .subscribe(e => {
-                if (e.conversationId === this.conversationId()) this.load();
-            });
-        this.messagingWs.messageUnpinnedObservable
-            .pipe(takeUntilDestroyed(this.destroyRef))
-            .subscribe(e => {
-                if (e.conversationId === this.conversationId()) this.load();
-            });
-        this.guildWs.messagePinnedObservable
-            .pipe(takeUntilDestroyed(this.destroyRef))
-            .subscribe(e => {
-                if (e.channelId === this.channelId()) this.load();
-            });
-        this.guildWs.messageUnpinnedObservable
-            .pipe(takeUntilDestroyed(this.destroyRef))
-            .subscribe(e => {
-                if (e.channelId === this.channelId()) this.load();
-            });
+        this.messagingWs.messagePinnedObservable.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(e => {
+            if (e.conversationId === this.conversationId()) this.load();
+        });
+        this.messagingWs.messageUnpinnedObservable.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(e => {
+            if (e.conversationId === this.conversationId()) this.load();
+        });
+        this.guildWs.messagePinnedObservable.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(e => {
+            if (e.channelId === this.channelId()) this.load();
+        });
+        this.guildWs.messageUnpinnedObservable.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(e => {
+            if (e.channelId === this.channelId()) this.load();
+        });
     }
 
     load(): void {

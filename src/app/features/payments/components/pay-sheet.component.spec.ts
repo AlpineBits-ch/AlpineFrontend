@@ -52,10 +52,7 @@ interface Harness {
 }
 
 /** The real component against the real {@link PaymentHandleService} and the real capability set. */
-async function setup(
-    host: PlatformHost,
-    phoneNumbers: SharedPhoneNumber[] = [PHONE],
-): Promise<Harness> {
+async function setup(host: PlatformHost, phoneNumbers: SharedPhoneNumber[] = [PHONE]): Promise<Harness> {
     TestBed.configureTestingModule({
         imports: [PaySheetComponent, TranslateModule.forRoot()],
         providers: [
@@ -88,8 +85,7 @@ async function setup(
     // even when the transport is synchronous, and the desktop path is several awaits deeper than
     // the browser one - so a fixed number of microtask turns settles one host and not the other,
     // which reads as "the card is hidden on the desktop" for a card that is merely late.
-    await vi.waitFor(() =>
-        expect(TestBed.inject(PaymentHandleService).stateFor(GUILD).loaded).toBe(true));
+    await vi.waitFor(() => expect(TestBed.inject(PaymentHandleService).stateFor(GUILD).loaded).toBe(true));
     fixture.detectChanges();
     const el = fixture.nativeElement as HTMLElement;
 
@@ -97,8 +93,7 @@ async function setup(
         fixture,
         phoneAssist: () => el.querySelector<HTMLElement>('[data-testid="phone-assist"]'),
         phoneNumber: () =>
-            el.querySelector<HTMLElement>('[data-testid="phone-number"]')?.textContent?.trim()
-            ?? null,
+            el.querySelector<HTMLElement>('[data-testid="phone-number"]')?.textContent?.trim() ?? null,
         copyButton: () => el.querySelector<HTMLElement>('[data-testid="phone-assist"] p-button'),
         unavailableNote: () => el.querySelector<HTMLElement>('[data-testid="unavailable"]'),
         noHandles: () => el.querySelector<HTMLElement>('[data-testid="no-handles"]'),
@@ -127,10 +122,8 @@ describe('PaySheetComponent capability split', () => {
             const harness = await setup('web');
 
             expect(harness.unavailableNote()).not.toBeNull();
-            expect(harness.fixture.nativeElement.querySelector('[data-testid="qr-section"]'))
-                .toBeNull();
-            expect(harness.fixture.nativeElement.querySelector('[data-testid="handle-value"]'))
-                .toBeNull();
+            expect(harness.fixture.nativeElement.querySelector('[data-testid="qr-section"]')).toBeNull();
+            expect(harness.fixture.nativeElement.querySelector('[data-testid="handle-value"]')).toBeNull();
         });
 
         it('never claims the housemate recorded nothing', async () => {

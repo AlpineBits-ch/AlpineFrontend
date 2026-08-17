@@ -59,13 +59,15 @@ describe('MlsTransportService', () => {
 
         it('publishes a commit with its generation and welcomes', () => {
             const {service, ctrl} = setup();
-            service.publishCommit('conv1', false, {
-                epoch: 5,
-                commit: 'Y29tbWl0',
-                senderDeviceId: 'device-a',
-                generation: 2,
-                welcomes: [{deviceId: 'device-b', userId: 'user-2', welcome: 'd2VsY29tZQ=='}],
-            }).subscribe();
+            service
+                .publishCommit('conv1', false, {
+                    epoch: 5,
+                    commit: 'Y29tbWl0',
+                    senderDeviceId: 'device-a',
+                    generation: 2,
+                    welcomes: [{deviceId: 'device-b', userId: 'user-2', welcome: 'd2VsY29tZQ=='}],
+                })
+                .subscribe();
 
             const req = ctrl.expectOne(`${MLS}/conversations/conv1/mls/commits`);
             expect(req.request.method).toBe('POST');
@@ -103,11 +105,13 @@ describe('MlsTransportService', () => {
     describe('channel toggles', () => {
         it('enables with the group it just built', () => {
             const {service, ctrl} = setup();
-            service.enableChannelEncryption('chan1', {
-                mlsGroupId: 'Z3JvdXA=',
-                epoch: 1,
-                welcomes: [],
-            }).subscribe();
+            service
+                .enableChannelEncryption('chan1', {
+                    mlsGroupId: 'Z3JvdXA=',
+                    epoch: 1,
+                    welcomes: [],
+                })
+                .subscribe();
             const req = ctrl.expectOne(`${MLS}/channels/chan1/mls/enable`);
             expect(req.request.method).toBe('POST');
             expect(req.request.body.mlsGroupId).toBe('Z3JvdXA=');
@@ -126,7 +130,9 @@ describe('MlsTransportService', () => {
             const {service, ctrl} = setup();
             service.getState('chan1', true).subscribe();
             ctrl.expectOne(`${MLS}/channels/chan1/mls/state`).flush({
-                contextId: 'chan1', encrypted: false, generations: [],
+                contextId: 'chan1',
+                encrypted: false,
+                generations: [],
             });
         });
     });
@@ -138,8 +144,12 @@ describe('MlsTransportService', () => {
             const req = ctrl.expectOne(`${MLS}/channels/chan1/mls/coverage`);
             expect(req.request.method).toBe('GET');
             req.flush({
-                contextId: 'chan1', encrypted: true, generation: 1,
-                ownDevices: [], unreachableDevices: [], coverageUnavailable: false,
+                contextId: 'chan1',
+                encrypted: true,
+                generation: 1,
+                ownDevices: [],
+                unreachableDevices: [],
+                coverageUnavailable: false,
             });
         });
 
@@ -147,8 +157,11 @@ describe('MlsTransportService', () => {
             const {service, ctrl} = setup();
             service.getCoverage('conv1', false).subscribe();
             ctrl.expectOne(`${MLS}/conversations/conv1/mls/coverage`).flush({
-                contextId: 'conv1', encrypted: false,
-                ownDevices: [], unreachableDevices: [], coverageUnavailable: false,
+                contextId: 'conv1',
+                encrypted: false,
+                ownDevices: [],
+                unreachableDevices: [],
+                coverageUnavailable: false,
             });
         });
     });
@@ -157,7 +170,9 @@ describe('MlsTransportService', () => {
         const {service, ctrl} = setup();
         service.getState('a/b', false).subscribe();
         ctrl.expectOne(`${MLS}/conversations/a%2Fb/mls/state`).flush({
-            contextId: 'a/b', encrypted: false, generations: [],
+            contextId: 'a/b',
+            encrypted: false,
+            generations: [],
         });
     });
 });

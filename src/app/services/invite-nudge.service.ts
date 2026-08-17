@@ -20,7 +20,7 @@ export class InviteNudgeService implements OnDestroy {
         // Joining raises it; leaving, or being moved, takes it down with the room it belonged to.
         effect(() => {
             const joined = this.voice.joinedChannelId();
-            untracked(() => joined ? this.arm(joined) : this.dismiss());
+            untracked(() => (joined ? this.arm(joined) : this.dismiss()));
         });
 
         // Somebody arrived, so the question the row was asking has been answered. A room that fills during the opening wait is caught by arm()'s own re-check instead.

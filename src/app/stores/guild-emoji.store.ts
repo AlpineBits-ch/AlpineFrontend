@@ -29,7 +29,7 @@ export const GuildEmojiStore = signalStore(
 
         ensureLoaded(guildId: string): void {
             const entry = store.byGuild()[guildId];
-            const isStale = !entry || (Date.now() - entry.fetchedAt) > STALE_MS;
+            const isStale = !entry || Date.now() - entry.fetchedAt > STALE_MS;
             // The loading guard makes ensureLoaded() re-entrancy-safe; invalidate() clears it so a fetch can supersede.
             if (!isStale || entry?.loading) return;
 
@@ -38,7 +38,12 @@ export const GuildEmojiStore = signalStore(
             patchState(store, {
                 byGuild: {
                     ...store.byGuild(),
-                    [guildId]: {emojis: entry?.emojis ?? [], fetchedAt: entry?.fetchedAt ?? 0, loading: true, requestId},
+                    [guildId]: {
+                        emojis: entry?.emojis ?? [],
+                        fetchedAt: entry?.fetchedAt ?? 0,
+                        loading: true,
+                        requestId,
+                    },
                 },
             });
 
@@ -47,7 +52,10 @@ export const GuildEmojiStore = signalStore(
                     const current = store.byGuild()[guildId];
                     if (current?.requestId !== requestId) return;
                     patchState(store, {
-                        byGuild: {...store.byGuild(), [guildId]: {emojis, fetchedAt: Date.now(), loading: false, requestId}},
+                        byGuild: {
+                            ...store.byGuild(),
+                            [guildId]: {emojis, fetchedAt: Date.now(), loading: false, requestId},
+                        },
                     });
                 },
                 error: () => {
@@ -56,7 +64,12 @@ export const GuildEmojiStore = signalStore(
                     patchState(store, {
                         byGuild: {
                             ...store.byGuild(),
-                            [guildId]: {emojis: current.emojis, fetchedAt: current.fetchedAt, loading: false, requestId},
+                            [guildId]: {
+                                emojis: current.emojis,
+                                fetchedAt: current.fetchedAt,
+                                loading: false,
+                                requestId,
+                            },
                         },
                     });
                 },
@@ -66,14 +79,19 @@ export const GuildEmojiStore = signalStore(
         addEmoji(guildId: string, emoji: GuildEmojiDto): void {
             const entry = store.byGuild()[guildId];
             if (!entry) return;
-            patchState(store, {byGuild: {...store.byGuild(), [guildId]: {...entry, emojis: [...entry.emojis, emoji]}}});
+            patchState(store, {
+                byGuild: {...store.byGuild(), [guildId]: {...entry, emojis: [...entry.emojis, emoji]}},
+            });
         },
 
         removeEmoji(guildId: string, emojiId: string): void {
             const entry = store.byGuild()[guildId];
             if (!entry) return;
             patchState(store, {
-                byGuild: {...store.byGuild(), [guildId]: {...entry, emojis: entry.emojis.filter(e => e.id !== emojiId)}},
+                byGuild: {
+                    ...store.byGuild(),
+                    [guildId]: {...entry, emojis: entry.emojis.filter(e => e.id !== emojiId)},
+                },
             });
         },
 

@@ -91,14 +91,24 @@ describe('the ceiling from the snapshot', () => {
 describe('a refusal from the server', () => {
     it('names an entitlement refusal', () => {
         const {service, uploadFile} = setup();
-        uploadFile.mockReturnValue(throwError(() => new HttpErrorResponse({
-            status: 403,
-            error: {
-                code: 'user_plan_limit', key: 'user.upload_max_bytes', reason: 'user_plan_limit',
-                boundBy: 'user', remedy: 'upgrade_user', actorCanRemedy: true,
-                subject: {kind: 'user', id: 'user-1'}, retryable: false,
-            },
-        })));
+        uploadFile.mockReturnValue(
+            throwError(
+                () =>
+                    new HttpErrorResponse({
+                        status: 403,
+                        error: {
+                            code: 'user_plan_limit',
+                            key: 'user.upload_max_bytes',
+                            reason: 'user_plan_limit',
+                            boundBy: 'user',
+                            remedy: 'upgrade_user',
+                            actorCanRemedy: true,
+                            subject: {kind: 'user', id: 'user-1'},
+                            retryable: false,
+                        },
+                    }),
+            ),
+        );
 
         service.attach(fileOf(1024));
 

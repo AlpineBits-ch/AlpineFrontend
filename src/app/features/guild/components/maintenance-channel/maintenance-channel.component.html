@@ -1,9 +1,14 @@
 <div class="flex flex-col h-full bg-app-bg overflow-hidden">
-
     <!-- Header. Drawn even when the module is off, so a phone still has its way back. -->
     <header class="app-header flex items-center gap-2 px-3 sm:px-5 border-b border-border-subtle shrink-0 bg-app-bg">
-        <p-button (onClick)="navService.mobileNavOpen.set(true)" [text]="true" class="lg:hidden" icon="pi pi-bars"
-                  severity="secondary" size="small"/>
+        <p-button
+            (onClick)="navService.mobileNavOpen.set(true)"
+            [text]="true"
+            class="lg:hidden"
+            icon="pi pi-bars"
+            severity="secondary"
+            size="small"
+        />
 
         <div class="flex items-center gap-2 sm:gap-3 min-w-0">
             <i [class]="icon()" class="text-text-muted shrink-0"></i>
@@ -12,8 +17,13 @@
 
         @if (!hidden() && canManage()) {
             <div class="ml-auto flex items-center gap-1">
-                <p-button (onClick)="openAddAsset()" [label]="'MAINTENANCE.ADD_ASSET' | translate"
-                          icon="pi pi-plus" severity="primary" size="small"/>
+                <p-button
+                    (onClick)="openAddAsset()"
+                    [label]="'MAINTENANCE.ADD_ASSET' | translate"
+                    icon="pi pi-plus"
+                    severity="primary"
+                    size="small"
+                />
             </div>
         }
     </header>
@@ -22,19 +32,28 @@
     @if (!hidden()) {
         <div class="px-3 sm:px-5 pt-3 shrink-0">
             <div class="flex items-center rounded-lg border border-border-subtle p-0.5 w-fit">
-                <button (click)="view.set('assets')"
-                        [class]="view() === 'assets' ? 'bg-hover text-text-primary' : 'text-text-muted hover:text-text-secondary'"
-                        class="px-3 py-1 rounded-md text-[0.6875rem] font-medium transition-colors" type="button">
+                <button
+                    (click)="view.set('assets')"
+                    [class]="view() === 'assets' ? 'bg-hover text-text-primary' : 'text-text-muted hover:text-text-secondary'"
+                    class="px-3 py-1 rounded-md text-[0.6875rem] font-medium transition-colors"
+                    type="button"
+                >
                     {{ 'MAINTENANCE.TAB_ASSETS' | translate }}
                 </button>
-                <button (click)="view.set('log')"
-                        [class]="view() === 'log' ? 'bg-hover text-text-primary' : 'text-text-muted hover:text-text-secondary'"
-                        class="px-3 py-1 rounded-md text-[0.6875rem] font-medium transition-colors" type="button">
+                <button
+                    (click)="view.set('log')"
+                    [class]="view() === 'log' ? 'bg-hover text-text-primary' : 'text-text-muted hover:text-text-secondary'"
+                    class="px-3 py-1 rounded-md text-[0.6875rem] font-medium transition-colors"
+                    type="button"
+                >
                     {{ 'MAINTENANCE.TAB_LOG' | translate }}
                 </button>
-                <button (click)="showAttention()"
-                        [class]="view() === 'attention' ? 'bg-hover text-text-primary' : 'text-text-muted hover:text-text-secondary'"
-                        class="px-3 py-1 rounded-md text-[0.6875rem] font-medium transition-colors" type="button">
+                <button
+                    (click)="showAttention()"
+                    [class]="view() === 'attention' ? 'bg-hover text-text-primary' : 'text-text-muted hover:text-text-secondary'"
+                    class="px-3 py-1 rounded-md text-[0.6875rem] font-medium transition-colors"
+                    type="button"
+                >
                     {{ 'MAINTENANCE.TAB_ATTENTION' | translate }}
                 </button>
             </div>
@@ -42,21 +61,24 @@
 
         <div class="flex-1 min-h-0 overflow-y-auto thin-scrollbar">
             <div class="px-3 sm:px-5 py-4 flex flex-col gap-4 max-w-3xl mx-auto w-full">
-
                 @if (state().loading && !state().loaded) {
                     <div class="flex items-center justify-center py-16">
                         <i class="pi pi-spin pi-spinner text-xl text-text-muted"></i>
                     </div>
                 } @else if (view() === 'assets') {
-
                     <!-- ── Catalogue ───────────────────────────────────────────── -->
                     @if (assetRows().length === 0) {
                         <div class="flex flex-col items-center justify-center py-12 gap-3 text-center px-6">
                             <i class="pi pi-wrench text-3xl text-white/10"></i>
                             <p class="text-sm text-text-muted m-0">{{ 'MAINTENANCE.ASSETS_EMPTY' | translate }}</p>
                             @if (canManage()) {
-                                <p-button (onClick)="openAddAsset()" [label]="'MAINTENANCE.ADD_ASSET' | translate"
-                                          [text]="true" severity="secondary" size="small"/>
+                                <p-button
+                                    (onClick)="openAddAsset()"
+                                    [label]="'MAINTENANCE.ADD_ASSET' | translate"
+                                    [text]="true"
+                                    severity="secondary"
+                                    size="small"
+                                />
                             }
                         </div>
                     } @else {
@@ -66,8 +88,10 @@
                                     <div class="min-w-0 flex-1">
                                         <p class="text-[0.8125rem] text-text-primary font-medium m-0 truncate">
                                             {{ row.asset.name }}
-                                            <span [class]="statusClass(row.asset.status)"
-                                                  class="ml-1.5 rounded-md border px-1.5 py-0.5 text-[0.5625rem] uppercase tracking-wide">
+                                            <span
+                                                [class]="statusClass(row.asset.status)"
+                                                class="ml-1.5 rounded-md border px-1.5 py-0.5 text-[0.5625rem] uppercase tracking-wide"
+                                            >
                                                 {{ row.statusKey | translate }}
                                             </span>
                                         </p>
@@ -93,11 +117,13 @@
 
                                         <!-- The one date nobody tracks and that is expensive to miss, given a line of its own rather than a footnote. -->
                                         @if (row.warrantyLabel) {
-                                            <p [class]="row.warrantyUrgent ? 'text-amber-300' : 'text-text-muted'"
-                                               class="text-[0.6875rem] m-0 mt-1 inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5"
-                                               [class.border-amber-400/25]="row.warrantyUrgent"
-                                               [class.bg-amber-400/5]="row.warrantyUrgent"
-                                               [class.border-border-subtle]="!row.warrantyUrgent">
+                                            <p
+                                                [class]="row.warrantyUrgent ? 'text-amber-300' : 'text-text-muted'"
+                                                class="text-[0.6875rem] m-0 mt-1 inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5"
+                                                [class.border-amber-400/25]="row.warrantyUrgent"
+                                                [class.bg-amber-400/5]="row.warrantyUrgent"
+                                                [class.border-border-subtle]="!row.warrantyUrgent"
+                                            >
                                                 <i class="pi pi-shield text-[0.5625rem]"></i>
                                                 {{ 'MAINTENANCE.WARRANTY_UNTIL' | translate: {date: row.warrantyLabel} }}
                                             </p>
@@ -108,39 +134,77 @@
                                         <!-- One tap, and it takes the participation bit: whoever found it broken is whoever tried to use it. -->
                                         @if (canLog()) {
                                             @if (row.asset.status === AssetStatus.Broken) {
-                                                <p-button (onClick)="markOk(row.asset)"
-                                                          [pTooltip]="'MAINTENANCE.MARK_OK' | translate" [text]="true"
-                                                          icon="pi pi-check" severity="success" size="small"
-                                                          tooltipPosition="left"/>
+                                                <p-button
+                                                    (onClick)="markOk(row.asset)"
+                                                    [pTooltip]="'MAINTENANCE.MARK_OK' | translate"
+                                                    [text]="true"
+                                                    icon="pi pi-check"
+                                                    severity="success"
+                                                    size="small"
+                                                    tooltipPosition="left"
+                                                />
                                             } @else {
-                                                <p-button (onClick)="markBroken(row.asset)"
-                                                          [pTooltip]="'MAINTENANCE.MARK_BROKEN' | translate" [text]="true"
-                                                          icon="pi pi-exclamation-triangle" severity="danger" size="small"
-                                                          tooltipPosition="left"/>
+                                                <p-button
+                                                    (onClick)="markBroken(row.asset)"
+                                                    [pTooltip]="'MAINTENANCE.MARK_BROKEN' | translate"
+                                                    [text]="true"
+                                                    icon="pi pi-exclamation-triangle"
+                                                    severity="danger"
+                                                    size="small"
+                                                    tooltipPosition="left"
+                                                />
                                             }
-                                            <p-button (onClick)="openStatus(row.asset)"
-                                                      [pTooltip]="'MAINTENANCE.SET_STATUS' | translate" [text]="true"
-                                                      icon="pi pi-flag" severity="secondary" size="small"
-                                                      tooltipPosition="left"/>
-                                            <p-button (onClick)="openService(row.asset)"
-                                                      [pTooltip]="'MAINTENANCE.RECORD_SERVICE' | translate" [text]="true"
-                                                      icon="pi pi-wrench" severity="secondary" size="small"
-                                                      tooltipPosition="left"/>
+                                            <p-button
+                                                (onClick)="openStatus(row.asset)"
+                                                [pTooltip]="'MAINTENANCE.SET_STATUS' | translate"
+                                                [text]="true"
+                                                icon="pi pi-flag"
+                                                severity="secondary"
+                                                size="small"
+                                                tooltipPosition="left"
+                                            />
+                                            <p-button
+                                                (onClick)="openService(row.asset)"
+                                                [pTooltip]="'MAINTENANCE.RECORD_SERVICE' | translate"
+                                                [text]="true"
+                                                icon="pi pi-wrench"
+                                                severity="secondary"
+                                                size="small"
+                                                tooltipPosition="left"
+                                            />
                                         }
 
                                         @if (canManage()) {
                                             @if (confirmDeleteAssetId() === row.asset.id) {
-                                                <p-button (onClick)="removeAsset(row.asset)"
-                                                          [label]="'MAINTENANCE.CONFIRM_DELETE' | translate" [text]="true"
-                                                          severity="danger" size="small"/>
-                                                <p-button (onClick)="confirmDeleteAssetId.set(null)"
-                                                          [label]="'COMMON.CANCEL' | translate" [text]="true"
-                                                          severity="secondary" size="small"/>
+                                                <p-button
+                                                    (onClick)="removeAsset(row.asset)"
+                                                    [label]="'MAINTENANCE.CONFIRM_DELETE' | translate"
+                                                    [text]="true"
+                                                    severity="danger"
+                                                    size="small"
+                                                />
+                                                <p-button
+                                                    (onClick)="confirmDeleteAssetId.set(null)"
+                                                    [label]="'COMMON.CANCEL' | translate"
+                                                    [text]="true"
+                                                    severity="secondary"
+                                                    size="small"
+                                                />
                                             } @else {
-                                                <p-button (onClick)="openEditAsset(row.asset)" [text]="true"
-                                                          icon="pi pi-pencil" severity="secondary" size="small"/>
-                                                <p-button (onClick)="removeAsset(row.asset)" [text]="true"
-                                                          icon="pi pi-trash" severity="danger" size="small"/>
+                                                <p-button
+                                                    (onClick)="openEditAsset(row.asset)"
+                                                    [text]="true"
+                                                    icon="pi pi-pencil"
+                                                    severity="secondary"
+                                                    size="small"
+                                                />
+                                                <p-button
+                                                    (onClick)="removeAsset(row.asset)"
+                                                    [text]="true"
+                                                    icon="pi pi-trash"
+                                                    severity="danger"
+                                                    size="small"
+                                                />
                                             }
                                         }
                                     </div>
@@ -148,9 +212,7 @@
                             }
                         </section>
                     }
-
                 } @else if (view() === 'log') {
-
                     <!-- ── The service log ─────────────────────────────────────── -->
                     <section class="rounded-2xl border border-border bg-sidebar overflow-hidden">
                         <div class="px-4 py-2.5 border-b border-border-subtle">
@@ -192,16 +254,19 @@
 
                             @if (state().recordsCursor) {
                                 <div class="flex justify-center py-2">
-                                    <p-button (onClick)="loadMoreRecords()" [label]="'MAINTENANCE.LOAD_OLDER' | translate"
-                                              [loading]="state().loadingMore" [text]="true" severity="secondary"
-                                              size="small"/>
+                                    <p-button
+                                        (onClick)="loadMoreRecords()"
+                                        [label]="'MAINTENANCE.LOAD_OLDER' | translate"
+                                        [loading]="state().loadingMore"
+                                        [text]="true"
+                                        severity="secondary"
+                                        size="small"
+                                    />
                                 </div>
                             }
                         }
                     </section>
-
                 } @else {
-
                     <!-- ── The attention board, guild-wide ─────────────────────── -->
                     <div class="flex items-center gap-2">
                         <div class="min-w-0">
@@ -209,8 +274,15 @@
                             <!-- Spans every upkeep channel the caller can see: it is a question about the house, not about this room. -->
                             <p class="text-[0.625rem] text-text-muted m-0 mt-0.5">{{ 'MAINTENANCE.ATTENTION_HINT' | translate }}</p>
                         </div>
-                        <p-button (onClick)="refreshAttention()" [loading]="attention().loading" [text]="true"
-                                  class="ml-auto" icon="pi pi-refresh" severity="secondary" size="small"/>
+                        <p-button
+                            (onClick)="refreshAttention()"
+                            [loading]="attention().loading"
+                            [text]="true"
+                            class="ml-auto"
+                            icon="pi pi-refresh"
+                            severity="secondary"
+                            size="small"
+                        />
                     </div>
 
                     @if (attentionRows().length === 0) {
@@ -229,11 +301,16 @@
                                         <!-- Every reason, not only the most urgent: the board can say a machine is both broken and out of warranty, where a one-line surface can't. -->
                                         <p class="text-[0.6875rem] text-text-muted m-0 mt-0.5">
                                             @for (key of row.reasonKeys; track key; let last = $last) {
-                                                {{ key | translate }}@if (!last) {<span class="mx-1">·</span>}
+                                                {{ key | translate }}
+                                                @if (!last) {
+                                                    <span class="mx-1">·</span>
+                                                }
                                             }
                                         </p>
                                         @if (row.warrantyLabel) {
-                                            <p class="text-[0.6875rem] text-amber-300 m-0 mt-1 inline-flex items-center gap-1 rounded-md border border-amber-400/25 bg-amber-400/5 px-1.5 py-0.5">
+                                            <p
+                                                class="text-[0.6875rem] text-amber-300 m-0 mt-1 inline-flex items-center gap-1 rounded-md border border-amber-400/25 bg-amber-400/5 px-1.5 py-0.5"
+                                            >
                                                 <i class="pi pi-shield text-[0.5625rem]"></i>
                                                 {{ 'MAINTENANCE.WARRANTY_UNTIL' | translate: {date: row.warrantyLabel} }}
                                             </p>
@@ -244,15 +321,25 @@
                                         <div class="flex items-center shrink-0">
                                             <!-- Same one tap, from the board as well: the asset may live in a channel the reader never opens. -->
                                             @if (row.entry.asset.status !== AssetStatus.Broken) {
-                                                <p-button (onClick)="markBroken(row.entry.asset)"
-                                                          [pTooltip]="'MAINTENANCE.MARK_BROKEN' | translate" [text]="true"
-                                                          icon="pi pi-exclamation-triangle" severity="danger"
-                                                          size="small" tooltipPosition="left"/>
+                                                <p-button
+                                                    (onClick)="markBroken(row.entry.asset)"
+                                                    [pTooltip]="'MAINTENANCE.MARK_BROKEN' | translate"
+                                                    [text]="true"
+                                                    icon="pi pi-exclamation-triangle"
+                                                    severity="danger"
+                                                    size="small"
+                                                    tooltipPosition="left"
+                                                />
                                             }
-                                            <p-button (onClick)="openService(row.entry.asset)"
-                                                      [pTooltip]="'MAINTENANCE.RECORD_SERVICE' | translate" [text]="true"
-                                                      icon="pi pi-wrench" severity="secondary" size="small"
-                                                      tooltipPosition="left"/>
+                                            <p-button
+                                                (onClick)="openService(row.entry.asset)"
+                                                [pTooltip]="'MAINTENANCE.RECORD_SERVICE' | translate"
+                                                [text]="true"
+                                                icon="pi pi-wrench"
+                                                severity="secondary"
+                                                size="small"
+                                                tooltipPosition="left"
+                                            />
                                         </div>
                                     }
                                 </div>
@@ -270,8 +357,15 @@
 </div>
 
 <!-- ── Asset editor ────────────────────────────────────────────────────────── -->
-<p-dialog (visibleChange)="showAssetDialog.set($event)" [draggable]="false" [modal]="true" [resizable]="false"
-          [style]="{width: '560px'}" [visible]="showAssetDialog()" appendTo="body">
+<p-dialog
+    (visibleChange)="showAssetDialog.set($event)"
+    [draggable]="false"
+    [modal]="true"
+    [resizable]="false"
+    [style]="{width: '560px'}"
+    [visible]="showAssetDialog()"
+    appendTo="body"
+>
     <ng-template pTemplate="header">
         <span class="text-sm font-semibold text-text-primary">
             {{ (editingAssetId() ? 'MAINTENANCE.EDIT_ASSET' : 'MAINTENANCE.ADD_ASSET') | translate }}
@@ -282,52 +376,69 @@
         <div class="flex gap-3">
             <div class="flex flex-col gap-1.5 flex-1 min-w-0">
                 <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MAINTENANCE.NAME' | translate }}</label>
-                <input (ngModelChange)="assetName.set($event)" [maxlength]="nameMaxLength" [ngModel]="assetName()"
-                       [placeholder]="'MAINTENANCE.NAME_PLACEHOLDER' | translate" pInputText type="text"/>
+                <input
+                    (ngModelChange)="assetName.set($event)"
+                    [maxlength]="nameMaxLength"
+                    [ngModel]="assetName()"
+                    [placeholder]="'MAINTENANCE.NAME_PLACEHOLDER' | translate"
+                    pInputText
+                    type="text"
+                />
             </div>
             <div class="flex flex-col gap-1.5 flex-1 min-w-0">
                 <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MAINTENANCE.LOCATION' | translate }}</label>
-                <input (ngModelChange)="assetLocation.set($event)" [ngModel]="assetLocation()" pInputText type="text"/>
+                <input (ngModelChange)="assetLocation.set($event)" [ngModel]="assetLocation()" pInputText type="text" />
             </div>
         </div>
 
         <div class="flex gap-3">
             <div class="flex flex-col gap-1.5 flex-1 min-w-0">
                 <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MAINTENANCE.BRAND' | translate }}</label>
-                <input (ngModelChange)="assetBrand.set($event)" [ngModel]="assetBrand()" pInputText type="text"/>
+                <input (ngModelChange)="assetBrand.set($event)" [ngModel]="assetBrand()" pInputText type="text" />
             </div>
             <div class="flex flex-col gap-1.5 flex-1 min-w-0">
                 <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MAINTENANCE.MODEL' | translate }}</label>
-                <input (ngModelChange)="assetModel.set($event)" [ngModel]="assetModel()" pInputText type="text"/>
+                <input (ngModelChange)="assetModel.set($event)" [ngModel]="assetModel()" pInputText type="text" />
             </div>
             <div class="flex flex-col gap-1.5 flex-1 min-w-0">
                 <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MAINTENANCE.SERIAL' | translate }}</label>
-                <input (ngModelChange)="assetSerial.set($event)" [ngModel]="assetSerial()" pInputText type="text"/>
+                <input (ngModelChange)="assetSerial.set($event)" [ngModel]="assetSerial()" pInputText type="text" />
             </div>
         </div>
 
         <!-- Purchase and warranty together, because the second is the reason to record the first. -->
         <div class="flex gap-3">
             <div class="flex flex-col gap-1.5 flex-1 min-w-0">
-                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MAINTENANCE.PURCHASED_AT' | translate }}</label>
-                <input (ngModelChange)="assetPurchasedAt.set($event)" [ngModel]="assetPurchasedAt()" pInputText type="date"/>
+                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{
+                    'MAINTENANCE.PURCHASED_AT' | translate
+                }}</label>
+                <input (ngModelChange)="assetPurchasedAt.set($event)" [ngModel]="assetPurchasedAt()" pInputText type="date" />
             </div>
             <div class="flex flex-col gap-1.5 flex-1 min-w-0">
                 <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MAINTENANCE.WARRANTY' | translate }}</label>
-                <input (ngModelChange)="assetWarrantyUntil.set($event)" [ngModel]="assetWarrantyUntil()" pInputText type="date"/>
+                <input (ngModelChange)="assetWarrantyUntil.set($event)" [ngModel]="assetWarrantyUntil()" pInputText type="date" />
                 <span class="text-[0.625rem] text-text-muted">{{ 'MAINTENANCE.WARRANTY_HINT' | translate }}</span>
             </div>
         </div>
 
         <div class="flex gap-3">
             <div class="flex flex-col gap-1.5 w-40">
-                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MAINTENANCE.SERVICE_INTERVAL' | translate }}</label>
-                <input (ngModelChange)="assetServiceIntervalDays.set($event ? +$event : null)"
-                       [ngModel]="assetServiceIntervalDays()" min="1" pInputText type="number"/>
+                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{
+                    'MAINTENANCE.SERVICE_INTERVAL' | translate
+                }}</label>
+                <input
+                    (ngModelChange)="assetServiceIntervalDays.set($event ? +$event : null)"
+                    [ngModel]="assetServiceIntervalDays()"
+                    min="1"
+                    pInputText
+                    type="number"
+                />
             </div>
             <div class="flex flex-col gap-1.5 flex-1 min-w-0">
-                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MAINTENANCE.LAST_SERVICED' | translate }}</label>
-                <input (ngModelChange)="assetLastServicedAt.set($event)" [ngModel]="assetLastServicedAt()" pInputText type="date"/>
+                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{
+                    'MAINTENANCE.LAST_SERVICED' | translate
+                }}</label>
+                <input (ngModelChange)="assetLastServicedAt.set($event)" [ngModel]="assetLastServicedAt()" pInputText type="date" />
                 <!-- Counted from here rather than from today, so a boiler serviced eight months ago is due in four rather than in twelve. -->
                 <span class="text-[0.625rem] text-text-muted">{{ 'MAINTENANCE.LAST_SERVICED_HINT' | translate }}</span>
             </div>
@@ -336,36 +447,50 @@
         <div class="flex gap-3">
             <div class="flex flex-col gap-1.5 flex-1 min-w-0">
                 <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MAINTENANCE.VENDOR' | translate }}</label>
-                <input (ngModelChange)="assetVendorName.set($event)" [ngModel]="assetVendorName()" pInputText type="text"/>
+                <input (ngModelChange)="assetVendorName.set($event)" [ngModel]="assetVendorName()" pInputText type="text" />
             </div>
             <div class="flex flex-col gap-1.5 flex-1 min-w-0">
-                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MAINTENANCE.VENDOR_PHONE' | translate }}</label>
-                <input (ngModelChange)="assetVendorPhone.set($event)" [ngModel]="assetVendorPhone()" pInputText type="tel"/>
+                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{
+                    'MAINTENANCE.VENDOR_PHONE' | translate
+                }}</label>
+                <input (ngModelChange)="assetVendorPhone.set($event)" [ngModel]="assetVendorPhone()" pInputText type="tel" />
             </div>
             <div class="flex flex-col gap-1.5 flex-1 min-w-0">
-                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MAINTENANCE.VENDOR_EMAIL' | translate }}</label>
-                <input (ngModelChange)="assetVendorEmail.set($event)" [ngModel]="assetVendorEmail()" pInputText type="email"/>
+                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{
+                    'MAINTENANCE.VENDOR_EMAIL' | translate
+                }}</label>
+                <input (ngModelChange)="assetVendorEmail.set($event)" [ngModel]="assetVendorEmail()" pInputText type="email" />
             </div>
         </div>
 
         <div class="flex flex-col gap-1.5">
             <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MAINTENANCE.NOTES' | translate }}</label>
-            <input (ngModelChange)="assetNotes.set($event)" [maxlength]="noteMaxLength" [ngModel]="assetNotes()"
-                   pInputText type="text"/>
+            <input (ngModelChange)="assetNotes.set($event)" [maxlength]="noteMaxLength" [ngModel]="assetNotes()" pInputText type="text" />
         </div>
     </div>
 
     <ng-template pTemplate="footer">
-        <p-button (onClick)="showAssetDialog.set(false)" [label]="'COMMON.CANCEL' | translate" [text]="true"
-                  severity="secondary"/>
-        <p-button (onClick)="submitAsset()" [disabled]="!assetValid()" [label]="'COMMON.SAVE' | translate"
-                  [loading]="saving()" severity="primary"/>
+        <p-button (onClick)="showAssetDialog.set(false)" [label]="'COMMON.CANCEL' | translate" [text]="true" severity="secondary" />
+        <p-button
+            (onClick)="submitAsset()"
+            [disabled]="!assetValid()"
+            [label]="'COMMON.SAVE' | translate"
+            [loading]="saving()"
+            severity="primary"
+        />
     </ng-template>
 </p-dialog>
 
 <!-- ── Status ──────────────────────────────────────────────────────────────── -->
-<p-dialog (visibleChange)="showStatusDialog.set($event)" [draggable]="false" [modal]="true" [resizable]="false"
-          [style]="{width: '440px'}" [visible]="showStatusDialog()" appendTo="body">
+<p-dialog
+    (visibleChange)="showStatusDialog.set($event)"
+    [draggable]="false"
+    [modal]="true"
+    [resizable]="false"
+    [style]="{width: '440px'}"
+    [visible]="showStatusDialog()"
+    appendTo="body"
+>
     <ng-template pTemplate="header">
         <div class="flex flex-col gap-0.5">
             <span class="text-sm font-semibold text-text-primary">{{ 'MAINTENANCE.SET_STATUS' | translate }}</span>
@@ -376,31 +501,48 @@
     <div class="flex flex-col gap-4">
         <div class="flex flex-col gap-1.5">
             <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MAINTENANCE.STATUS' | translate }}</label>
-            <p-select (ngModelChange)="statusValue.set($event)" [ngModel]="statusValue()" [options]="statusOptions()"
-                      optionLabel="label" optionValue="value" styleClass="w-full"/>
+            <p-select
+                (ngModelChange)="statusValue.set($event)"
+                [ngModel]="statusValue()"
+                [options]="statusOptions()"
+                optionLabel="label"
+                optionValue="value"
+                styleClass="w-full"
+            />
             <!-- The pair people conflate. One is a fault, the other is a decision. -->
             <span class="text-[0.625rem] text-text-muted">{{ 'MAINTENANCE.STATUS_HINT' | translate }}</span>
         </div>
 
         <div class="flex flex-col gap-1.5">
             <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MAINTENANCE.STATUS_NOTE' | translate }}</label>
-            <input (keydown.enter)="submitStatus()" (ngModelChange)="statusNote.set($event)"
-                   [maxlength]="noteMaxLength" [ngModel]="statusNote()"
-                   [placeholder]="'MAINTENANCE.STATUS_NOTE_PLACEHOLDER' | translate" pInputText type="text"/>
+            <input
+                (keydown.enter)="submitStatus()"
+                (ngModelChange)="statusNote.set($event)"
+                [maxlength]="noteMaxLength"
+                [ngModel]="statusNote()"
+                [placeholder]="'MAINTENANCE.STATUS_NOTE_PLACEHOLDER' | translate"
+                pInputText
+                type="text"
+            />
         </div>
     </div>
 
     <ng-template pTemplate="footer">
-        <p-button (onClick)="showStatusDialog.set(false)" [label]="'COMMON.CANCEL' | translate" [text]="true"
-                  severity="secondary"/>
-        <p-button (onClick)="submitStatus()" [label]="'COMMON.SAVE' | translate" [loading]="saving()"
-                  severity="primary"/>
+        <p-button (onClick)="showStatusDialog.set(false)" [label]="'COMMON.CANCEL' | translate" [text]="true" severity="secondary" />
+        <p-button (onClick)="submitStatus()" [label]="'COMMON.SAVE' | translate" [loading]="saving()" severity="primary" />
     </ng-template>
 </p-dialog>
 
 <!-- ── Record a service ────────────────────────────────────────────────────── -->
-<p-dialog (visibleChange)="showServiceDialog.set($event)" [draggable]="false" [modal]="true" [resizable]="false"
-          [style]="{width: '480px'}" [visible]="showServiceDialog()" appendTo="body">
+<p-dialog
+    (visibleChange)="showServiceDialog.set($event)"
+    [draggable]="false"
+    [modal]="true"
+    [resizable]="false"
+    [style]="{width: '480px'}"
+    [visible]="showServiceDialog()"
+    appendTo="body"
+>
     <ng-template pTemplate="header">
         <div class="flex flex-col gap-0.5">
             <span class="text-sm font-semibold text-text-primary">{{ 'MAINTENANCE.RECORD_SERVICE' | translate }}</span>
@@ -411,14 +553,22 @@
     <div class="flex flex-col gap-4">
         <div class="flex gap-3">
             <div class="flex flex-col gap-1.5 w-40">
-                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MAINTENANCE.PERFORMED_AT' | translate }}</label>
-                <input (ngModelChange)="servicePerformedAt.set($event)" [ngModel]="servicePerformedAt()"
-                       pInputText type="date"/>
+                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{
+                    'MAINTENANCE.PERFORMED_AT' | translate
+                }}</label>
+                <input (ngModelChange)="servicePerformedAt.set($event)" [ngModel]="servicePerformedAt()" pInputText type="date" />
             </div>
             <div class="flex flex-col gap-1.5 flex-1 min-w-0">
-                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MAINTENANCE.SERVICE_TITLE' | translate }}</label>
-                <input (ngModelChange)="serviceTitle.set($event)" [ngModel]="serviceTitle()"
-                       [placeholder]="'MAINTENANCE.SERVICE_TITLE_PLACEHOLDER' | translate" pInputText type="text"/>
+                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{
+                    'MAINTENANCE.SERVICE_TITLE' | translate
+                }}</label>
+                <input
+                    (ngModelChange)="serviceTitle.set($event)"
+                    [ngModel]="serviceTitle()"
+                    [placeholder]="'MAINTENANCE.SERVICE_TITLE_PLACEHOLDER' | translate"
+                    pInputText
+                    type="text"
+                />
             </div>
         </div>
         <!-- The next due date counts from when it was actually done, not from now. -->
@@ -427,25 +577,34 @@
         <div class="flex gap-3">
             <div class="flex flex-col gap-1.5 flex-1 min-w-0">
                 <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MAINTENANCE.VENDOR' | translate }}</label>
-                <input (ngModelChange)="serviceVendorName.set($event)" [ngModel]="serviceVendorName()"
-                       pInputText type="text"/>
+                <input (ngModelChange)="serviceVendorName.set($event)" [ngModel]="serviceVendorName()" pInputText type="text" />
             </div>
             <div class="flex flex-col gap-1.5 w-32">
                 <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MAINTENANCE.COST' | translate }}</label>
-                <input (ngModelChange)="serviceCost.set($event)" [ngModel]="serviceCost()" inputmode="decimal"
-                       pInputText type="text"/>
+                <input (ngModelChange)="serviceCost.set($event)" [ngModel]="serviceCost()" inputmode="decimal" pInputText type="text" />
             </div>
             <div class="flex flex-col gap-1.5 w-24">
                 <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MAINTENANCE.CURRENCY' | translate }}</label>
-                <input (ngModelChange)="serviceCurrency.set($event)" [maxlength]="3" [ngModel]="serviceCurrency()"
-                       class="uppercase" pInputText type="text"/>
+                <input
+                    (ngModelChange)="serviceCurrency.set($event)"
+                    [maxlength]="3"
+                    [ngModel]="serviceCurrency()"
+                    class="uppercase"
+                    pInputText
+                    type="text"
+                />
             </div>
         </div>
 
         <div class="flex flex-col gap-1.5">
             <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MAINTENANCE.NOTES' | translate }}</label>
-            <input (ngModelChange)="serviceNotes.set($event)" [maxlength]="noteMaxLength" [ngModel]="serviceNotes()"
-                   pInputText type="text"/>
+            <input
+                (ngModelChange)="serviceNotes.set($event)"
+                [maxlength]="noteMaxLength"
+                [ngModel]="serviceNotes()"
+                pInputText
+                type="text"
+            />
         </div>
 
         <!-- A visit is not proof it works, so this does not clear a Broken status. -->
@@ -457,9 +616,7 @@
     </div>
 
     <ng-template pTemplate="footer">
-        <p-button (onClick)="showServiceDialog.set(false)" [label]="'COMMON.CANCEL' | translate" [text]="true"
-                  severity="secondary"/>
-        <p-button (onClick)="submitService()" [label]="'COMMON.SAVE' | translate" [loading]="saving()"
-                  severity="primary"/>
+        <p-button (onClick)="showServiceDialog.set(false)" [label]="'COMMON.CANCEL' | translate" [text]="true" severity="secondary" />
+        <p-button (onClick)="submitService()" [label]="'COMMON.SAVE' | translate" [loading]="saving()" severity="primary" />
     </ng-template>
 </p-dialog>

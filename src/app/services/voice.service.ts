@@ -6,7 +6,7 @@ import {OngoingCallDto} from '../dtos/response/ongoing-call.dto';
 import {ShareViewersDto} from '../dtos/response/share-viewers.dto';
 import {CreateCallDto} from '../dtos/request/create-call.dto';
 import {VideoPublishIntentDto} from '../dtos/response/entitlement.dto';
-import {ApiConfigService} from "./api-config.service";
+import {ApiConfigService} from './api-config.service';
 import {VoiceRoomSnapshot, VoiceSubscriberUpdate} from '../models/voice-room';
 import {
     connectionQuery,
@@ -129,9 +129,7 @@ export class VoiceService {
      * and one who was never invited - and is what the "join the call" banner reads.
      */
     getConversationCall(conversationId: string): Observable<OngoingCallDto | null> {
-        return this.client.get<OngoingCallDto | null>(
-            `${this.base}/conversations/${conversationId}/call`
-        );
+        return this.client.get<OngoingCallDto | null>(`${this.base}/conversations/${conversationId}/call`);
     }
 
     // ── Screen share viewers ─────────────────────────────────────────────────
@@ -144,15 +142,11 @@ export class VoiceService {
      * a client to tear one down.
      */
     watchShare(callId: string, shareId: string): Observable<ShareViewersDto> {
-        return this.client.post<ShareViewersDto>(
-            `${this.base}/call/${callId}/shares/${shareId}/watch`, {}
-        );
+        return this.client.post<ShareViewersDto>(`${this.base}/call/${callId}/shares/${shareId}/watch`, {});
     }
 
     unwatchShare(callId: string, shareId: string): Observable<ShareViewersDto> {
-        return this.client.delete<ShareViewersDto>(
-            `${this.base}/call/${callId}/shares/${shareId}/watch`
-        );
+        return this.client.delete<ShareViewersDto>(`${this.base}/call/${callId}/shares/${shareId}/watch`);
     }
 
     /** Everyone watching each live share in this call - the catch-up read for joining mid-stream. */
@@ -182,7 +176,8 @@ export class VoiceService {
      */
     connection(callId: string, primary = true, tag?: string): Observable<VoiceConnectionDto> {
         return this.client.post<VoiceConnectionDto>(
-            `${this.base}/calls/${callId}/connection${connectionQuery(primary, tag)}`, {}
+            `${this.base}/calls/${callId}/connection${connectionQuery(primary, tag)}`,
+            {},
         );
     }
 
@@ -213,8 +208,7 @@ export class VoiceService {
      * call at all, since declaring nothing leaves the ceiling where the last publish put it.</p>
      */
     declareVideo(callId: string, video: VideoPublishIntentDto): Observable<VoiceVideoDeclarationResponse> {
-        return this.client.put<VoiceVideoDeclarationResponse>(
-            `${this.base}/calls/${callId}/video`, video);
+        return this.client.put<VoiceVideoDeclarationResponse>(`${this.base}/calls/${callId}/video`, video);
     }
 
     /**

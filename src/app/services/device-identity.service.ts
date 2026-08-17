@@ -12,7 +12,9 @@ const LEGACY_DEVICE_ID_KEY = 'mls_device_id';
 /** `slotId -> deviceId`. */
 const DEVICE_IDS_KEY = 'mls_device_ids';
 
-interface StoredId {value: string}
+interface StoredId {
+    value: string;
+}
 
 /**
  * The device identity of whichever account is live - the id the backend validates as `X-Device-Id`,
@@ -142,12 +144,14 @@ export class DeviceIdentityService {
             if (!identityPublicKey) return false;
 
             const {deviceName, deviceType} = describeCurrentDevice();
-            await firstValueFrom(this.devices.registerDevice({
-                clientDeviceId: deviceId,
-                deviceName,
-                deviceType,
-                identityPublicKey,
-            }));
+            await firstValueFrom(
+                this.devices.registerDevice({
+                    clientDeviceId: deviceId,
+                    deviceName,
+                    deviceType,
+                    identityPublicKey,
+                }),
+            );
             return true;
         } catch (err) {
             console.error('Device re-registration failed', err);
@@ -157,9 +161,7 @@ export class DeviceIdentityService {
 
     /** "Forget this device" - see {@link DeviceService.deleteDevice} for what this destroys. */
     unregister(): Observable<void> {
-        return from(this.deviceId()).pipe(
-            switchMap(deviceId => this.devices.deleteDevice(deviceId)),
-        );
+        return from(this.deviceId()).pipe(switchMap(deviceId => this.devices.deleteDevice(deviceId)));
     }
 
     private forSlot(slotId: string): Promise<string> {

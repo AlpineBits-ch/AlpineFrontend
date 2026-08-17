@@ -50,8 +50,10 @@ const INCONSISTENCY_KEYS: Readonly<Record<AttestationInconsistency, string>> = {
               Not swallowed. Sealing against a roster the server admitted was short leaves those
               people unable to read the blob, and this is the only signal that says so.
             -->
-            <div class="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 mb-3"
-                 data-testid="unresolved-members">
+            <div
+                class="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 mb-3"
+                data-testid="unresolved-members"
+            >
                 <p class="m-0 text-[0.8125rem] text-amber-200">
                     {{ 'PAY.TRUST.UNRESOLVED' | translate: {count: unresolved().length} }}
                 </p>
@@ -59,8 +61,7 @@ const INCONSISTENCY_KEYS: Readonly<Record<AttestationInconsistency, string>> = {
         }
 
         @if (rows().length > 0) {
-            <div class="rounded-xl border border-white/[0.08] bg-white/[0.02] p-3"
-                 data-testid="trust-review">
+            <div class="rounded-xl border border-white/[0.08] bg-white/[0.02] p-3" data-testid="trust-review">
                 <p class="m-0 text-[0.8125rem] font-medium text-text-primary">
                     {{ 'PAY.TRUST.HEADING' | translate: {count: rows().length} }}
                 </p>
@@ -69,13 +70,17 @@ const INCONSISTENCY_KEYS: Readonly<Record<AttestationInconsistency, string>> = {
                 </p>
 
                 @for (row of rows(); track row.trust.attestation.deviceId) {
-                    <div class="mt-3 border-t border-white/[0.06] pt-3"
-                         [attr.data-testid]="'trust-row-' + row.trust.attestation.deviceId">
+                    <div
+                        class="mt-3 border-t border-white/[0.06] pt-3"
+                        [attr.data-testid]="'trust-row-' + row.trust.attestation.deviceId"
+                    >
                         <p class="m-0 text-[0.8125rem] text-text-primary">{{ row.deviceLabel }}</p>
 
-                        <p class="m-0 mt-0.5 text-xs"
-                           [class.text-red-300]="row.alarming"
-                           [class.text-text-muted]="!row.alarming">
+                        <p
+                            class="m-0 mt-0.5 text-xs"
+                            [class.text-red-300]="row.alarming"
+                            [class.text-text-muted]="!row.alarming"
+                        >
                             {{ row.reasonKey | translate }}
                         </p>
 
@@ -85,32 +90,47 @@ const INCONSISTENCY_KEYS: Readonly<Record<AttestationInconsistency, string>> = {
                           the certificate" is something a person can repeat to somebody who can act.
                         -->
                         @for (key of row.inconsistencyKeys; track key) {
-                            <p class="m-0 mt-0.5 text-xs text-red-300"
-                               [attr.data-testid]="'inconsistency-' + key">
+                            <p
+                                class="m-0 mt-0.5 text-xs text-red-300"
+                                [attr.data-testid]="'inconsistency-' + key"
+                            >
                                 {{ key | translate }}
                             </p>
                         }
 
                         @if (row.trust.fingerprint) {
-                            <p class="m-0 mt-1.5 font-mono text-sm tracking-wider text-text-primary"
-                               data-testid="fingerprint">{{ row.trust.fingerprint }}</p>
+                            <p
+                                class="m-0 mt-1.5 font-mono text-sm tracking-wider text-text-primary"
+                                data-testid="fingerprint"
+                            >
+                                {{ row.trust.fingerprint }}
+                            </p>
                         }
 
                         @if (row.trust.previousFingerprint; as previous) {
                             <p class="m-0 mt-0.5 text-xs text-text-muted">
                                 {{ 'PAY.TRUST.PREVIOUS_FINGERPRINT' | translate }}
                             </p>
-                            <p class="m-0 font-mono text-sm tracking-wider text-text-muted"
-                               data-testid="previous-fingerprint">{{ previous }}</p>
+                            <p
+                                class="m-0 font-mono text-sm tracking-wider text-text-muted"
+                                data-testid="previous-fingerprint"
+                            >
+                                {{ previous }}
+                            </p>
                         }
 
                         @if (row.confirmable) {
                             <div class="mt-2">
-                                <p-button (onClick)="toggle(row)" [text]="true" size="small"
-                                          [severity]="row.confirmed ? 'success' : 'secondary'"
-                                          [label]="(row.confirmed
-                                              ? 'PAY.TRUST.CONFIRMED'
-                                              : 'PAY.TRUST.CONFIRM') | translate"/>
+                                <p-button
+                                    (onClick)="toggle(row)"
+                                    [text]="true"
+                                    size="small"
+                                    [severity]="row.confirmed ? 'success' : 'secondary'"
+                                    [label]="
+                                        (row.confirmed ? 'PAY.TRUST.CONFIRMED' : 'PAY.TRUST.CONFIRM')
+                                            | translate
+                                    "
+                                />
                             </div>
                         } @else {
                             <p class="m-0 mt-2 text-xs text-text-muted">
@@ -139,16 +159,16 @@ export class RecipientTrustReviewComponent {
         // next plan and stops being a question - which is the point of confirming it.
         return this.plan().blocked.map(trust => ({
             trust,
-            deviceLabel: trust.attestation.deviceName?.trim()
-                || trust.attestation.deviceId,
+            deviceLabel: trust.attestation.deviceName?.trim() || trust.attestation.deviceId,
             reasonKey: REASON_KEYS[trust.level] || 'PAY.TRUST.REASON_UNATTESTED',
             inconsistencyKeys: trust.inconsistencies.map(i => INCONSISTENCY_KEYS[i]),
             // A key that moved under a device we already sealed to is the shape of an actual
             // substitution, and a directory disagreeing with its own evidence is the shape of one
             // being attempted. Everything else is unproven, which is not the same thing.
-            alarming: trust.level === 'key-changed'
-                || trust.level === 'attestation-inconsistent'
-                || trust.level === 'revoked',
+            alarming:
+                trust.level === 'key-changed' ||
+                trust.level === 'attestation-inconsistent' ||
+                trust.level === 'revoked',
             confirmed: confirmed.has(trust.attestation.deviceId),
             confirmable: trust.level !== 'unusable',
         }));

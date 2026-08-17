@@ -1,4 +1,14 @@
-import {ChangeDetectionStrategy, Component, computed, effect, inject, input, OnInit, output, signal} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    effect,
+    inject,
+    input,
+    OnInit,
+    output,
+    signal,
+} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {Button} from 'primeng/button';
 import {InputText} from 'primeng/inputtext';
@@ -27,8 +37,18 @@ import {OnboardingPromptEditorComponent} from './onboarding-prompt-editor.compon
 @Component({
     selector: 'app-onboarding-settings',
     imports: [
-        FormsModule, Button, InputText, Textarea, ToggleSwitch, MultiSelect, Select, Tooltip, Dialog, PrimeTemplate,
-        TranslateModule, OnboardingPromptEditorComponent,
+        FormsModule,
+        Button,
+        InputText,
+        Textarea,
+        ToggleSwitch,
+        MultiSelect,
+        Select,
+        Tooltip,
+        Dialog,
+        PrimeTemplate,
+        TranslateModule,
+        OnboardingPromptEditorComponent,
     ],
     templateUrl: './onboarding-settings.component.html',
     changeDetection: ChangeDetectionStrategy.OnPush,
@@ -73,19 +93,23 @@ export class OnboardingSettingsComponent implements OnInit {
     protected readonly pendingLoaded = signal(false);
 
     /** The two halves save through different endpoints, so each keeps its own baseline and the shell is told about the union; serialising is what lets a prompt reorder or an edit-and-undo settle back to clean, where a plain dirty flag would latch true until a save. */
-    private readonly configSnapshot = computed(() => JSON.stringify({
-        enabled: this.enabled(),
-        mode: this.mode(),
-        rulesText: this.rulesText(),
-        defaultChannelIds: this.defaultChannelIds(),
-        prompts: this.prompts(),
-    }));
+    private readonly configSnapshot = computed(() =>
+        JSON.stringify({
+            enabled: this.enabled(),
+            mode: this.mode(),
+            rulesText: this.rulesText(),
+            defaultChannelIds: this.defaultChannelIds(),
+            prompts: this.prompts(),
+        }),
+    );
 
-    private readonly welcomeSnapshot = computed(() => JSON.stringify({
-        enabled: this.welcomeEnabled(),
-        description: this.welcomeDescription(),
-        channels: this.welcomeChannels(),
-    }));
+    private readonly welcomeSnapshot = computed(() =>
+        JSON.stringify({
+            enabled: this.welcomeEnabled(),
+            description: this.welcomeDescription(),
+            channels: this.welcomeChannels(),
+        }),
+    );
 
     private readonly configBaseline = signal(this.configSnapshot());
     private readonly welcomeBaseline = signal(this.welcomeSnapshot());
@@ -99,14 +123,23 @@ export class OnboardingSettingsComponent implements OnInit {
     private translate = inject(TranslateService);
 
     protected readonly channelOptions = computed(() =>
-        this.guild().channels
-            .filter(c => !c.parentChannelId && c.type !== ChannelType.Thread && c.type !== ChannelType.Voice)
+        this.guild()
+            .channels.filter(
+                c => !c.parentChannelId && c.type !== ChannelType.Thread && c.type !== ChannelType.Voice,
+            )
             .sort((a, b) => a.position - b.position)
-            .map(c => ({label: c.name, value: c.id})));
+            .map(c => ({label: c.name, value: c.id})),
+    );
 
     protected readonly modeOptions = computed(() => [
-        {label: this.translate.instant('GUILD_SETTINGS.ONBOARDING.MODE_DEFAULT'), value: OnboardingMode.Default},
-        {label: this.translate.instant('GUILD_SETTINGS.ONBOARDING.MODE_ADVANCED'), value: OnboardingMode.Advanced},
+        {
+            label: this.translate.instant('GUILD_SETTINGS.ONBOARDING.MODE_DEFAULT'),
+            value: OnboardingMode.Default,
+        },
+        {
+            label: this.translate.instant('GUILD_SETTINGS.ONBOARDING.MODE_ADVANCED'),
+            value: OnboardingMode.Advanced,
+        },
     ]);
 
     /** Channels not already on the welcome screen; it caps at 5 and forbids duplicates. */
@@ -115,17 +148,22 @@ export class OnboardingSettingsComponent implements OnInit {
         return this.channelOptions().filter(o => !used.has(o.value));
     });
 
-    protected readonly atWelcomeCap = computed(() => this.welcomeChannels().length >= this.limits.welcomeChannels);
+    protected readonly atWelcomeCap = computed(
+        () => this.welcomeChannels().length >= this.limits.welcomeChannels,
+    );
     protected readonly atPromptCap = computed(() => this.prompts().length >= this.limits.promptsPerGuild);
 
     // ── Validation ───────────────────────────────────────────────────────────
     // Live, so a blocking problem is visible next to the field that caused it instead of appearing in a summary box only after the Save button has already been pressed.
-    protected readonly needsContent = computed(() =>
-        this.enabled() && !this.rulesText().trim() && !this.prompts().some(p => p.inOnboarding));
+    protected readonly needsContent = computed(
+        () => this.enabled() && !this.rulesText().trim() && !this.prompts().some(p => p.inOnboarding),
+    );
 
     protected readonly rulesTooLong = computed(() => this.rulesText().length > this.limits.rulesTextLength);
 
-    protected readonly tooManyChannels = computed(() => this.defaultChannelIds().length > this.limits.defaultChannels);
+    protected readonly tooManyChannels = computed(
+        () => this.defaultChannelIds().length > this.limits.defaultChannels,
+    );
 
     protected readonly validationErrors = computed(() => {
         const errors: string[] = [];
@@ -177,7 +215,9 @@ export class OnboardingSettingsComponent implements OnInit {
             next: screen => {
                 this.welcomeEnabled.set(screen.enabled);
                 this.welcomeDescription.set(screen.description ?? '');
-                this.welcomeChannels.set([...(screen.channels ?? [])].sort((a, b) => a.position - b.position));
+                this.welcomeChannels.set(
+                    [...(screen.channels ?? [])].sort((a, b) => a.position - b.position),
+                );
                 this.welcomeBaseline.set(this.welcomeSnapshot());
             },
             // A guild that has never configured one is a normal, non-noteworthy state, and the untouched baseline already matches the empty form it leaves on screen.
@@ -211,7 +251,7 @@ export class OnboardingSettingsComponent implements OnInit {
     protected onPromptSaved(prompt: OnboardingPrompt): void {
         const index = this.editingIndex();
         this.prompts.update(list => {
-            const next = index === null ? [...list, prompt] : list.map((p, i) => i === index ? prompt : p);
+            const next = index === null ? [...list, prompt] : list.map((p, i) => (i === index ? prompt : p));
             return next.map((p, position) => ({...p, position}));
         });
     }
@@ -227,7 +267,9 @@ export class OnboardingSettingsComponent implements OnInit {
         const index = this.removeIndex();
         this.showRemovePrompt.set(false);
         if (index === null) return;
-        this.prompts.update(list => list.filter((_, i) => i !== index).map((p, position) => ({...p, position})));
+        this.prompts.update(list =>
+            list.filter((_, i) => i !== index).map((p, position) => ({...p, position})),
+        );
         this.removeIndex.set(null);
     }
 
@@ -295,12 +337,13 @@ export class OnboardingSettingsComponent implements OnInit {
     }
 
     protected patchWelcomeChannel(index: number, patch: Partial<WelcomeChannel>): void {
-        this.welcomeChannels.update(list => list.map((c, i) => i === index ? {...c, ...patch} : c));
+        this.welcomeChannels.update(list => list.map((c, i) => (i === index ? {...c, ...patch} : c)));
     }
 
     protected removeWelcomeChannel(index: number): void {
         this.welcomeChannels.update(list =>
-            list.filter((_, i) => i !== index).map((c, position) => ({...c, position})));
+            list.filter((_, i) => i !== index).map((c, position) => ({...c, position})),
+        );
     }
 
     protected saveWelcomeScreen(): void {

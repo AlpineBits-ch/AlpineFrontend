@@ -154,13 +154,15 @@ export class LocalStreamRenderer {
         }
 
         try {
-            decoder.decode(new EncodedVideoChunk({
-                type: chunk.keyframe ? 'key' : 'delta',
-                timestamp: chunk.timestampUs,
-                // Copied, not passed by reference: `data` is a view over the buffer the IPC layer
-                // handed us and `decode` may hold it past this call.
-                data: chunk.data.slice(),
-            }));
+            decoder.decode(
+                new EncodedVideoChunk({
+                    type: chunk.keyframe ? 'key' : 'delta',
+                    timestamp: chunk.timestampUs,
+                    // Copied, not passed by reference: `data` is a view over the buffer the IPC layer
+                    // handed us and `decode` may hold it past this call.
+                    data: chunk.data.slice(),
+                }),
+            );
         } catch {
             // A malformed unit, or a decoder that errored between the state check and here.
             this.awaitingKeyframe = true;

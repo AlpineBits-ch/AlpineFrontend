@@ -273,8 +273,9 @@ export class CallWebRtcService {
         // onSpeakingChanged, so tracking it would retrigger the effect in an infinite loop.
         effect(() => {
             const speaking = this.voiceEngine.speaking();
-            const localId = untracked(() =>
-                this.callSession.session()?.participants.find(p => p.isLocal)?.userId);
+            const localId = untracked(
+                () => this.callSession.session()?.participants.find(p => p.isLocal)?.userId,
+            );
             if (localId) this.callSession.onSpeakingChanged(localId, speaking);
         });
 
@@ -364,7 +365,8 @@ export class CallWebRtcService {
         const willMute = !this.screenAudioMutedSignal().has(userId);
         const sourceId = this.remoteScreenAudioIds.get(userId);
         // Unmuting restores the stored volume, not unity: mute must not clobber the stored level.
-        if (sourceId) void this.voiceEngine.setUserVolume(sourceId, willMute ? 0 : this.getScreenVolume(userId));
+        if (sourceId)
+            void this.voiceEngine.setUserVolume(sourceId, willMute ? 0 : this.getScreenVolume(userId));
         this.screenAudioMutedSignal.update(s => {
             const n = new Set(s);
             if (willMute) n.add(userId);
@@ -444,9 +446,9 @@ export class CallWebRtcService {
         // Declare the microphone. Until this lands the snapshot carries `publishState: "Joined"`,
         // and other clients skip a non-`Publishing` participant's shares entirely (guide §9 rule 1).
         // Not fatal if it fails; the 30s heartbeat asserts the same state and repairs it.
-        await firstValueFrom(
-            this.voiceService.publish(callId, {trackNames: [MICROPHONE_TRACK]}),
-        ).catch(e => console.error('[call] could not declare the microphone', e));
+        await firstValueFrom(this.voiceService.publish(callId, {trackNames: [MICROPHONE_TRACK]})).catch(e =>
+            console.error('[call] could not declare the microphone', e),
+        );
 
         // Apply current mute state immediately: the user may have muted before connecting, and the
         // engine starts with its talk key up, which in push-to-talk mode means the gate is shut.
@@ -542,7 +544,7 @@ export class CallWebRtcService {
         await this.roomMedia.publishTrack?.(track, 'video');
         if (this.callId !== callId) return;
 
-        if (!await this.declarePublish(callId, ['video'], track)) {
+        if (!(await this.declarePublish(callId, ['video'], track))) {
             void this.roomMedia.unpublishTrack?.('video');
             // Refused outright, and the local toggle is still on, so put it back.
             this.localVideoTrack = null;
@@ -577,7 +579,7 @@ export class CallWebRtcService {
         await this.roomMedia.publishTrack?.(track, trackName);
         if (this.callId !== callId) return;
 
-        if (!await this.declarePublish(callId, [trackName], track)) {
+        if (!(await this.declarePublish(callId, [trackName], track))) {
             void this.roomMedia.unpublishTrack?.(trackName);
             this.localScreenTrack = null;
             this.screenShareId = null;
@@ -596,8 +598,9 @@ export class CallWebRtcService {
         if (!shareId) return;
 
         await this.roomMedia.unpublishTrack?.(screenTrackName(shareId));
-        await firstValueFrom(this.voiceService.unpublish(callId, [screenTrackName(shareId)]))
-            .catch(() => void 0);
+        await firstValueFrom(this.voiceService.unpublish(callId, [screenTrackName(shareId)])).catch(
+            () => void 0,
+        );
         if (this.callId === callId) this.voiceWs.invokeScreenShareStopped(callId, shareId);
     }
 
@@ -810,7 +813,8 @@ export class CallWebRtcService {
      * this room has not subscribed to. An unknown name is a race, not an error: counted and retried.
      */
     private subscribeVideo(trackName: string, want: WantedVideo): void {
-        const sid = this.roomMedia.publicationsOf?.(want.userId)
+        const sid = this.roomMedia
+            .publicationsOf?.(want.userId)
             ?.find(p => p.trackName === trackName)?.trackSid;
         if (!sid) {
             this.unresolvedVideoSignal.update(n => n + 1);
@@ -829,7 +833,7 @@ export class CallWebRtcService {
             this.warnedMissingRoomSurface = true;
             console.error(
                 '[call] the room wrapper carries no publish/publications surface: ' +
-                'cameras and shares cannot be published and roster rows cannot be resolved to track sids',
+                    'cameras and shares cannot be published and roster rows cannot be resolved to track sids',
             );
         }
         return room;
@@ -865,7 +869,11 @@ export class CallWebRtcService {
                 // Audio of either kind belongs to the Rust room and must never be played here.
                 continue;
             }
-            this.attachedVideo.set(name, {userId: track.userId, kind: kind === 'video' ? 'video' : 'screen', shareId});
+            this.attachedVideo.set(name, {
+                userId: track.userId,
+                kind: kind === 'video' ? 'video' : 'screen',
+                shareId,
+            });
         }
     }
 
@@ -925,7 +933,10 @@ export class CallWebRtcService {
      * be built in the same pass that collects the stats, or a track that appeared between two reads
      * lands in one and not the other.
      */
-    private async inboundReport(): Promise<{report: StatsLike; owners: ReadonlyMap<string, InboundTrackOwner>}> {
+    private async inboundReport(): Promise<{
+        report: StatsLike;
+        owners: ReadonlyMap<string, InboundTrackOwner>;
+    }> {
         const stats: RTCStats[] = [];
         const owners = new Map<string, InboundTrackOwner>();
 
@@ -960,7 +971,9 @@ export class CallWebRtcService {
         const inspectedSnapshot = detailedStatsForShare(report, owners, this.inspected()?.shareId ?? null);
         this.inspectedStats.set(this.withMeasuredBitrate(inspectedSnapshot));
 
-        let inAudio = 0, inVideo = 0, packetsLost = 0;
+        let inAudio = 0,
+            inVideo = 0,
+            packetsLost = 0;
         report.forEach((stat: RTCStats) => {
             if (stat.type !== 'inbound-rtp') return;
             const s = stat as RTCInboundRtpStreamStats;
@@ -976,8 +989,7 @@ export class CallWebRtcService {
         }
 
         const dt = (now - this.prevStatsTs) / 1000;
-        const kbps = (cur: number, prev: number) =>
-            Math.max(0, Math.round(((cur - prev) * 8) / dt / 1000));
+        const kbps = (cur: number, prev: number) => Math.max(0, Math.round(((cur - prev) * 8) / dt / 1000));
 
         this.stats.set({
             inboundKbps: kbps(inAudio + inVideo, this.prevBytes.inAudio + this.prevBytes.inVideo),
@@ -1148,7 +1160,9 @@ export class CallWebRtcService {
                         void this.subscribeToTrack(p.userId, shareIdentity, trackName, 'screenAudio');
                     } else {
                         this.wantedVideo.set(trackName, {
-                            userId: p.userId, kind: 'screen', shareId: share.shareId,
+                            userId: p.userId,
+                            kind: 'screen',
+                            shareId: share.shareId,
                         });
                     }
                 }
@@ -1190,29 +1204,35 @@ export class CallWebRtcService {
     private setupWsListeners(): void {
         this.wsSubs = [
             // Someone joined: add to UI and pull their audio onto the Rust mixer.
-            this.voiceWs.participantJoinedObservable.subscribe(e => this.gate(e, () => {
-                this.callSession.onParticipantJoined(e.userId);
-                // Our own announcement reaches us too; pulling our own microphone back would put us
-                // in the mix twice.
-                const localId = this.callSession.session()?.participants.find(p => p.isLocal)?.userId;
-                if (e.userId === localId) return;
-                void this.subscribeToTrack(e.userId, e.mediaSessionId, e.audioTrackName, 'audio');
-            })),
+            this.voiceWs.participantJoinedObservable.subscribe(e =>
+                this.gate(e, () => {
+                    this.callSession.onParticipantJoined(e.userId);
+                    // Our own announcement reaches us too; pulling our own microphone back would put us
+                    // in the mix twice.
+                    const localId = this.callSession.session()?.participants.find(p => p.isLocal)?.userId;
+                    if (e.userId === localId) return;
+                    void this.subscribeToTrack(e.userId, e.mediaSessionId, e.audioTrackName, 'audio');
+                }),
+            ),
 
             // New video / screen track published: want it.
-            this.voiceWs.trackPublishedObservable.subscribe(e => this.gate(e, () => {
-                const localId = this.callSession.session()?.participants.find(p => p.isLocal)?.userId;
-                if (e.userId === localId) return; // Skip own tracks
-                if (e.kind === 'video') {
-                    this.wantVideo(e.trackName, {userId: e.userId, kind: 'video', shareId: null});
-                } else if (e.kind === 'screen') {
-                    this.wantVideo(e.trackName, {
-                        userId: e.userId, kind: 'screen', shareId: e.shareId ?? null,
-                    });
-                } else if (e.kind === 'screenAudio') {
-                    void this.subscribeToTrack(e.userId, e.mediaSessionId, e.trackName, 'screenAudio');
-                }
-            })),
+            this.voiceWs.trackPublishedObservable.subscribe(e =>
+                this.gate(e, () => {
+                    const localId = this.callSession.session()?.participants.find(p => p.isLocal)?.userId;
+                    if (e.userId === localId) return; // Skip own tracks
+                    if (e.kind === 'video') {
+                        this.wantVideo(e.trackName, {userId: e.userId, kind: 'video', shareId: null});
+                    } else if (e.kind === 'screen') {
+                        this.wantVideo(e.trackName, {
+                            userId: e.userId,
+                            kind: 'screen',
+                            shareId: e.shareId ?? null,
+                        });
+                    } else if (e.kind === 'screenAudio') {
+                        void this.subscribeToTrack(e.userId, e.mediaSessionId, e.trackName, 'screenAudio');
+                    }
+                }),
+            ),
 
             // Authoritative state, pushed on join, on publish, and whenever the server decides we
             // are out of date. Applied wholesale; it is not a delta.
@@ -1222,45 +1242,54 @@ export class CallWebRtcService {
             }),
 
             // A track stopped.
-            this.voiceWs.trackClosedObservable.subscribe(e => this.gate(e, () => {
-                const {kind, shareId} = describeTrack(e.trackName);
-                if (kind === 'screenAudio') {
-                    // Must be dropped, or a stopped share keeps its mixer slot forever: silent, but
-                    // still popped and mixed on every frame.
-                    void this.dropSource(e.trackName);
-                    this.remoteScreenAudioIds.delete(e.userId);
-                    return;
-                }
-                // Both, and the overlap is required: a close for a track this room never held
-                // reconciles to nothing, so the tile is cleared here too. Every step is idempotent.
-                this.dropVideo(e.trackName);
-                if (kind === 'screen' && shareId) this.callSession.onScreenShareStopped(shareId);
-                else if (kind === 'video') this.callSession.onCameraChanged(e.userId, false);
-            })),
+            this.voiceWs.trackClosedObservable.subscribe(e =>
+                this.gate(e, () => {
+                    const {kind, shareId} = describeTrack(e.trackName);
+                    if (kind === 'screenAudio') {
+                        // Must be dropped, or a stopped share keeps its mixer slot forever: silent, but
+                        // still popped and mixed on every frame.
+                        void this.dropSource(e.trackName);
+                        this.remoteScreenAudioIds.delete(e.userId);
+                        return;
+                    }
+                    // Both, and the overlap is required: a close for a track this room never held
+                    // reconciles to nothing, so the tile is cleared here too. Every step is idempotent.
+                    this.dropVideo(e.trackName);
+                    if (kind === 'screen' && shareId) this.callSession.onScreenShareStopped(shareId);
+                    else if (kind === 'video') this.callSession.onCameraChanged(e.userId, false);
+                }),
+            ),
 
             // Remote mute/speaking/camera state changes
-            this.voiceWs.muteChangedObservable.subscribe(e => this.gate(e, () =>
-                this.callSession.onMuteChanged(e.userId, e.isMuted))),
+            this.voiceWs.muteChangedObservable.subscribe(e =>
+                this.gate(e, () => this.callSession.onMuteChanged(e.userId, e.isMuted)),
+            ),
 
             // Relay, and the highest-frequency one there is: applied without advancing the version
             // and without gap detection, so an unsynchronised room does not refetch at speaking rate.
-            this.voiceWs.speakingChangedObservable.subscribe(e => this.gateRelay(e, () =>
-                this.callSession.onSpeakingChanged(e.userId, e.isSpeaking))),
+            this.voiceWs.speakingChangedObservable.subscribe(e =>
+                this.gateRelay(e, () => this.callSession.onSpeakingChanged(e.userId, e.isSpeaking)),
+            ),
 
             // Relay: not stored server-side, not versioned. See VoiceRoomTracker.receiveRelay.
-            this.voiceWs.cameraChangedObservable.subscribe(e => this.gateRelay(e, () => {
-                // Turn-off: update the UI immediately. Turn-on is handled by TrackPublished, which
-                // is what carries the track name there is nothing to pull without.
-                if (!e.isCameraOn) this.callSession.onCameraChanged(e.userId, false);
-            })),
+            this.voiceWs.cameraChangedObservable.subscribe(e =>
+                this.gateRelay(e, () => {
+                    // Turn-off: update the UI immediately. Turn-on is handled by TrackPublished, which
+                    // is what carries the track name there is nothing to pull without.
+                    if (!e.isCameraOn) this.callSession.onCameraChanged(e.userId, false);
+                }),
+            ),
 
             // Screen share start: surface in the UI immediately, before any media arrives.
-            this.voiceWs.screenShareStartedObservable.subscribe(e => this.gate(e, () => {
-                this.callSession.onScreenShareStarted(e.shareId, e.userId, undefined);
-            })),
+            this.voiceWs.screenShareStartedObservable.subscribe(e =>
+                this.gate(e, () => {
+                    this.callSession.onScreenShareStarted(e.shareId, e.userId, undefined);
+                }),
+            ),
 
-            this.voiceWs.screenShareStoppedObservable.subscribe(e => this.gate(e, () =>
-                this.callSession.onScreenShareStopped(e.shareId))),
+            this.voiceWs.screenShareStoppedObservable.subscribe(e =>
+                this.gate(e, () => this.callSession.onScreenShareStopped(e.shareId)),
+            ),
 
             // Someone left: drop them from the UI and unwind everything we hold for them. The only
             // departure event the contract carries. Every step is idempotent, so the overlap with

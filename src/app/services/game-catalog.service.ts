@@ -52,14 +52,16 @@ export class GameCatalogService {
             const state = await this.catalog.state();
             this._state.set(state);
 
-            const headers = state.etag
-                ? new HttpHeaders({'If-None-Match': state.etag})
-                : undefined;
+            const headers = state.etag ? new HttpHeaders({'If-None-Match': state.etag}) : undefined;
 
-            const response = await firstValueFrom(this.http.get(
-                `${this.apiConfig.baseUrl()}/api/v1/social/games/catalog`,
-                {params: {os: state.os}, headers, observe: 'response', responseType: 'text'},
-            ));
+            const response = await firstValueFrom(
+                this.http.get(`${this.apiConfig.baseUrl()}/api/v1/social/games/catalog`, {
+                    params: {os: state.os},
+                    headers,
+                    observe: 'response',
+                    responseType: 'text',
+                }),
+            );
 
             if (response.status !== 200 || !response.body) return;
 
@@ -71,7 +73,10 @@ export class GameCatalogService {
             if (err instanceof HttpErrorResponse && err.status === 304) return;
             if (!this.warned) {
                 this.warned = true;
-                console.warn('[GameCatalog] could not sync the game catalog; detection stays on the legacy list', err);
+                console.warn(
+                    '[GameCatalog] could not sync the game catalog; detection stays on the legacy list',
+                    err,
+                );
             }
         } finally {
             this.syncing = false;

@@ -21,7 +21,11 @@ import {TranslateModule} from '@ngx-translate/core';
             {{ 'CALL.LIVE' | translate }}
         </span>
     `,
-    styles: `:host { display: inline-flex; }`,
+    styles: `
+        :host {
+            display: inline-flex;
+        }
+    `,
 })
 export class CallLiveBadgeComponent {
     /** `solid` sits on video and has to win against it; `soft` sits on a surface beside text. */
@@ -31,13 +35,10 @@ export class CallLiveBadgeComponent {
     readonly dot = input(false);
 
     protected readonly shellClass = computed(() => {
-        const base = 'inline-flex items-center gap-1 rounded font-bold uppercase leading-none tracking-widest '
-            + (this.size() === 'sm'
-                ? 'px-1 py-0.5 text-[0.5625rem]'
-                : 'px-1.5 py-0.5 text-[0.6875rem]');
+        const base =
+            'inline-flex items-center gap-1 rounded font-bold uppercase leading-none tracking-widest ' +
+            (this.size() === 'sm' ? 'px-1 py-0.5 text-[0.5625rem]' : 'px-1.5 py-0.5 text-[0.6875rem]');
 
-        return this.variant() === 'solid'
-            ? `${base} bg-live text-white`
-            : `${base} bg-live/15 text-live`;
+        return this.variant() === 'solid' ? `${base} bg-live text-white` : `${base} bg-live/15 text-live`;
     });
 }

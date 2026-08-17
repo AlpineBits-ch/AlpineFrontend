@@ -70,8 +70,9 @@ export const KEYBIND_ACTIONS: readonly KeybindActionDef[] = [
         id: 'isle-push-to-mute',
         category: 'Isle Proxchat',
         label: 'Push to Mute',
-        description: 'Hold to mute your Isle proximity mic. Handy when you\'re talking on another '
-            + 'voice app at the same time and don\'t want it to pick you up too.',
+        description:
+            "Hold to mute your Isle proximity mic. Handy when you're talking on another " +
+            "voice app at the same time and don't want it to pick you up too.",
         mechanism: 'native',
         nativeSlot: 2,
     },
@@ -95,8 +96,9 @@ export const KEYBIND_ACTIONS: readonly KeybindActionDef[] = [
         id: 'call-push-to-mute',
         category: 'Voice Calls',
         label: 'Push to Mute',
-        description: 'Hold to mute your mic during a call or voice channel. Handy when you\'re talking '
-            + 'on another voice app at the same time and don\'t want it to pick you up too.',
+        description:
+            "Hold to mute your mic during a call or voice channel. Handy when you're talking " +
+            "on another voice app at the same time and don't want it to pick you up too.",
         mechanism: 'native',
         nativeSlot: 5,
     },
@@ -106,17 +108,42 @@ export const KEYBIND_ACTIONS: readonly KeybindActionDef[] = [
 /** The wiki editor's shortcuts. */
 function wikiEditorActions(): KeybindActionDef[] {
     const rows: [WikiEditorKeybindId, string, string, string][] = [
-        ['wiki-toggle-markdown', 'Toggle Markdown Source', 'Switch between the rich text editor and raw markdown.', 'Control+Shift+KeyM'],
+        [
+            'wiki-toggle-markdown',
+            'Toggle Markdown Source',
+            'Switch between the rich text editor and raw markdown.',
+            'Control+Shift+KeyM',
+        ],
         ['wiki-bold', 'Bold', 'Wrap the selection in bold.', 'Control+KeyB'],
         ['wiki-italic', 'Italic', 'Wrap the selection in italics.', 'Control+KeyI'],
         ['wiki-underline', 'Underline', 'Underline the selection.', 'Control+KeyU'],
         ['wiki-strike', 'Strikethrough', 'Strike through the selection.', 'Control+Shift+KeyS'],
         ['wiki-inline-code', 'Inline Code', 'Format the selection as inline code.', 'Control+KeyE'],
-        ['wiki-heading-1', 'Heading 1', 'Turn the current block into a level 1 heading.', 'Control+Alt+Digit1'],
-        ['wiki-heading-2', 'Heading 2', 'Turn the current block into a level 2 heading.', 'Control+Alt+Digit2'],
-        ['wiki-heading-3', 'Heading 3', 'Turn the current block into a level 3 heading.', 'Control+Alt+Digit3'],
+        [
+            'wiki-heading-1',
+            'Heading 1',
+            'Turn the current block into a level 1 heading.',
+            'Control+Alt+Digit1',
+        ],
+        [
+            'wiki-heading-2',
+            'Heading 2',
+            'Turn the current block into a level 2 heading.',
+            'Control+Alt+Digit2',
+        ],
+        [
+            'wiki-heading-3',
+            'Heading 3',
+            'Turn the current block into a level 3 heading.',
+            'Control+Alt+Digit3',
+        ],
         ['wiki-bullet-list', 'Bullet List', 'Turn the selection into a bullet list.', 'Control+Shift+Digit8'],
-        ['wiki-numbered-list', 'Numbered List', 'Turn the selection into a numbered list.', 'Control+Shift+Digit7'],
+        [
+            'wiki-numbered-list',
+            'Numbered List',
+            'Turn the selection into a numbered list.',
+            'Control+Shift+Digit7',
+        ],
         ['wiki-task-list', 'Checklist', 'Turn the selection into a checklist.', 'Control+Shift+Digit9'],
         ['wiki-quote', 'Quote', 'Wrap the selection in a block quote.', 'Control+Shift+KeyB'],
         ['wiki-code-block', 'Code Block', 'Turn the selection into a code block.', 'Control+Alt+KeyC'],
@@ -135,8 +162,9 @@ function wikiEditorActions(): KeybindActionDef[] {
 }
 
 /** Every action the wiki editor binds, in the order the shortcuts overlay lists them. */
-export const WIKI_EDITOR_KEYBINDS: readonly KeybindActionDef[] =
-    KEYBIND_ACTIONS.filter(action => action.category === WIKI_EDITOR_CATEGORY);
+export const WIKI_EDITOR_KEYBINDS: readonly KeybindActionDef[] = KEYBIND_ACTIONS.filter(
+    action => action.category === WIKI_EDITOR_CATEGORY,
+);
 
 export function findKeybindAction(id: KeybindActionId): KeybindActionDef {
     const action = KEYBIND_ACTIONS.find(a => a.id === id);

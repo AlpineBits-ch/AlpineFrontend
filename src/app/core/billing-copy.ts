@@ -43,6 +43,6 @@ export function billingErrorCopy(err: unknown): BillingErrorCopy {
         return {key: null, text: failure.detail};
     }
 
-    const key = failure.code === null ? null : ERROR_KEYS[failure.code] ?? null;
+    const key = failure.code === null ? null : (ERROR_KEYS[failure.code] ?? null);
     return {key: key ?? BILLING_GENERIC_ERROR_KEY, text: null};
 }

@@ -1,13 +1,4 @@
-import {
-    Component,
-    computed,
-    effect,
-    HostListener,
-    inject,
-    input,
-    signal,
-    viewChild,
-} from '@angular/core';
+import {Component, computed, effect, HostListener, inject, input, signal, viewChild} from '@angular/core';
 import {Button} from 'primeng/button';
 import {TranslateModule} from '@ngx-translate/core';
 import {Dialog} from 'primeng/dialog';
@@ -43,11 +34,24 @@ const NAV_WIDTH_MAX = 420;
 @Component({
     selector: 'app-wiki',
     imports: [
-        WikiNavComponent, WikiHomeComponent, WikiArticleComponent, WikiBreadcrumbsComponent,
-        WikiContextRailComponent, WikiSearchPaletteComponent, WikiHistoryComponent,
-        WikiAiDialogComponent, WikiShareDialogComponent, WikiTemplatePickerComponent,
-        WikiShortcutsOverlayComponent, WikiShortcutKeysDirective, WikiGraphComponent,
-        WikiAiAskComponent, Button, Dialog, PrimeTemplate, TranslateModule,
+        WikiNavComponent,
+        WikiHomeComponent,
+        WikiArticleComponent,
+        WikiBreadcrumbsComponent,
+        WikiContextRailComponent,
+        WikiSearchPaletteComponent,
+        WikiHistoryComponent,
+        WikiAiDialogComponent,
+        WikiShareDialogComponent,
+        WikiTemplatePickerComponent,
+        WikiShortcutsOverlayComponent,
+        WikiShortcutKeysDirective,
+        WikiGraphComponent,
+        WikiAiAskComponent,
+        Button,
+        Dialog,
+        PrimeTemplate,
+        TranslateModule,
     ],
     templateUrl: './wiki.component.html',
     styleUrl: './wiki.component.css',
@@ -108,9 +112,7 @@ export class WikiComponent {
     /** Context for the model: what else lives in this wiki, minus the page being written. */
     protected readonly siblingTitles = computed(() => {
         const currentId = this.articlePage()?.id;
-        return (this.state.wiki()?.pages ?? [])
-            .filter(p => p.id !== currentId)
-            .map(p => p.title);
+        return (this.state.wiki()?.pages ?? []).filter(p => p.id !== currentId).map(p => p.title);
     });
 
     /** EditOwnWikiPages needs the page's author, so this is per-page rather than per-guild. */
@@ -176,10 +178,9 @@ export class WikiComponent {
      */
     protected onHeadingsChanged(headings: Heading[]): void {
         this.headings.set(headings);
-        setTimeout(() => applyHeadingIds(
-            document.querySelector('.wiki-article-body'),
-            buildToc(this.headings()),
-        ));
+        setTimeout(() =>
+            applyHeadingIds(document.querySelector('.wiki-article-body'), buildToc(this.headings())),
+        );
     }
 
     /**
@@ -191,8 +192,9 @@ export class WikiComponent {
     protected openAiDialog(): void {
         if (this.state.wikiView() !== 'editor') {
             // Same reason as `startAiPage`: no picker behind the dialog.
-            this.state.openEditor(this.state.selectedPage() ?? undefined, undefined,
-                {skipTemplatePicker: true});
+            this.state.openEditor(this.state.selectedPage() ?? undefined, undefined, {
+                skipTemplatePicker: true,
+            });
         }
         this.aiOpen.set(true);
     }
@@ -217,8 +219,9 @@ export class WikiComponent {
     protected onAiStreamRequest(prompt: string): void {
         this.aiOpen.set(false);
         if (this.state.wikiView() !== 'editor') {
-            this.state.openEditor(this.state.selectedPage() ?? undefined, undefined,
-                {skipTemplatePicker: true});
+            this.state.openEditor(this.state.selectedPage() ?? undefined, undefined, {
+                skipTemplatePicker: true,
+            });
         }
         // Deferred in both cases, not only after a view switch. The article is reached through a
         // view query on a `?.`, so a tick where it has not been matched yet drops the prompt with
@@ -252,7 +255,7 @@ export class WikiComponent {
         if (index < 0) return;
         const headings = document.querySelectorAll(
             '.wiki-article-body h1, .wiki-article-body h2, .wiki-article-body h3, ' +
-            '.wiki-article-body h4, .wiki-article-body h5, .wiki-article-body h6',
+                '.wiki-article-body h4, .wiki-article-body h5, .wiki-article-body h6',
         );
         headings[index]?.scrollIntoView({behavior: 'smooth', block: 'start'});
     }
@@ -282,10 +285,7 @@ export class WikiComponent {
         const startWidth = this.navWidth();
 
         const onMove = (move: MouseEvent) => {
-            const next = Math.min(
-                NAV_WIDTH_MAX,
-                Math.max(NAV_WIDTH_MIN, startWidth + move.clientX - startX),
-            );
+            const next = Math.min(NAV_WIDTH_MAX, Math.max(NAV_WIDTH_MIN, startWidth + move.clientX - startX));
             this.navWidth.set(next);
         };
         const onUp = () => {

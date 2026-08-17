@@ -47,12 +47,14 @@ export class InboxApiService {
      * there is no backfill before the feature shipped - this is a recent-activity view, never a
      * complete archive.</p>
      */
-    mentions(opts: {
-        limit?: number;
-        cursor?: string | null;
-        guildId?: string;
-        since?: InboxMentionWindow;
-    } = {}): Observable<InboxMentionsPage> {
+    mentions(
+        opts: {
+            limit?: number;
+            cursor?: string | null;
+            guildId?: string;
+            since?: InboxMentionWindow;
+        } = {},
+    ): Observable<InboxMentionsPage> {
         let params = new HttpParams().set('limit', opts.limit ?? 25);
         if (opts.cursor) params = params.set('cursor', opts.cursor);
         if (opts.guildId) params = params.set('guildId', opts.guildId);

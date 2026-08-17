@@ -122,7 +122,7 @@ beforeEach(() => {
     importError = null;
     resetFails = false;
     replenishFails = false;
-    vi.spyOn(console, 'error').mockImplementation(() => { });
+    vi.spyOn(console, 'error').mockImplementation(() => {});
 });
 
 afterEach(() => vi.restoreAllMocks());
@@ -197,7 +197,8 @@ describe('adopting the backup device id', () => {
 
         expect(inner(component).step()).toBe('offer-adopt');
         expect(inner(component).outcome()).toEqual({
-            engineRestored: false, deviceId: BACKUP_DEVICE,
+            engineRestored: false,
+            deviceId: BACKUP_DEVICE,
         });
     });
 
@@ -215,10 +216,7 @@ describe('adopting the backup device id', () => {
     it('adopts the id and re-imports, which is what recovers the history', async () => {
         const component = build();
         armWithFile(component);
-        importResults = [
-            importResult({engineRestored: false}),
-            importResult({engineRestored: true}),
-        ];
+        importResults = [importResult({engineRestored: false}), importResult({engineRestored: true})];
 
         await inner(component).restore();
         await inner(component).adoptAndRestore();
@@ -226,10 +224,15 @@ describe('adopting the backup device id', () => {
         // The second import is not a retry: adopting the id is what makes the *same* blob restore
         // the engine, so it has to be re-opened afterwards.
         expect(calls).toEqual([
-            'importBackup', `resetKeyPackages:${THIS_DEVICE}`, 'ensureRegistered',
+            'importBackup',
+            `resetKeyPackages:${THIS_DEVICE}`,
+            'ensureRegistered',
             'replenishKeyCount',
-            `adopt:${BACKUP_DEVICE}`, 'importBackup', `resetKeyPackages:${BACKUP_DEVICE}`,
-            'ensureRegistered', 'replenishKeyCount',
+            `adopt:${BACKUP_DEVICE}`,
+            'importBackup',
+            `resetKeyPackages:${BACKUP_DEVICE}`,
+            'ensureRegistered',
+            'replenishKeyCount',
         ]);
         expect(inner(component).step()).toBe('done');
         expect(inner(component).outcome()?.engineRestored).toBe(true);
@@ -238,25 +241,18 @@ describe('adopting the backup device id', () => {
     it('adopts before re-importing, or the second import refuses for the same reason as the first', async () => {
         const component = build();
         armWithFile(component);
-        importResults = [
-            importResult({engineRestored: false}),
-            importResult({engineRestored: true}),
-        ];
+        importResults = [importResult({engineRestored: false}), importResult({engineRestored: true})];
 
         await inner(component).restore();
         await inner(component).adoptAndRestore();
 
-        expect(calls.indexOf(`adopt:${BACKUP_DEVICE}`))
-            .toBeLessThan(calls.lastIndexOf('importBackup'));
+        expect(calls.indexOf(`adopt:${BACKUP_DEVICE}`)).toBeLessThan(calls.lastIndexOf('importBackup'));
     });
 
     it('re-registers under the adopted id, not the one it replaced', async () => {
         const component = build();
         armWithFile(component);
-        importResults = [
-            importResult({engineRestored: false}),
-            importResult({engineRestored: true}),
-        ];
+        importResults = [importResult({engineRestored: false}), importResult({engineRestored: true})];
 
         await inner(component).restore();
         await inner(component).adoptAndRestore();

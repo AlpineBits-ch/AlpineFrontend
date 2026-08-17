@@ -105,21 +105,17 @@ class FakePublisher extends ScreenPublisher implements ScreenPublisherHost {
         throw new Error('not used');
     }
 
-    async setNativeCaptureFps(): Promise<void> {
-    }
+    async setNativeCaptureFps(): Promise<void> {}
 
-    async setNativeCaptureGeometry(): Promise<void> {
-    }
+    async setNativeCaptureGeometry(): Promise<void> {}
 
-    async stopNativeScreenCapture(): Promise<void> {
-    }
+    async stopNativeScreenCapture(): Promise<void> {}
 
     async startNativeLoopbackCapture(): Promise<void> {
         throw new Error('not used');
     }
 
-    async stopNativeLoopbackCapture(): Promise<void> {
-    }
+    async stopNativeLoopbackCapture(): Promise<void> {}
 
     async prefersNativeAudioCapture(): Promise<boolean> {
         return false;
@@ -164,17 +160,13 @@ class PortOnlyPublisher extends ScreenPublisher {
         throw new Error('not used');
     }
 
-    async stop(): Promise<void> {
-    }
+    async stop(): Promise<void> {}
 
-    async setFps(): Promise<void> {
-    }
+    async setFps(): Promise<void> {}
 
-    async setSpec(): Promise<void> {
-    }
+    async setSpec(): Promise<void> {}
 
-    async setAudioMuted(): Promise<void> {
-    }
+    async setAudioMuted(): Promise<void> {}
 
     async stats(): Promise<StreamStatsSnapshot | null> {
         return null;
@@ -246,7 +238,9 @@ describe('RustMediaService: forwarding', () => {
 
     it('delegates source enumeration and thumbnails', async () => {
         const fake = new FakePublisher();
-        fake.sourceList = [{id: 'm0', name: 'Screen 1', isMonitor: true, thumbnail: '', width: 1920, height: 1080}];
+        fake.sourceList = [
+            {id: 'm0', name: 'Screen 1', isMonitor: true, thumbnail: '', width: 1920, height: 1080},
+        ];
         fake.thumbnailList = [{id: 'm0', thumbnail: 'jpeg'}];
         const {service} = setup(fake);
 
@@ -330,8 +324,7 @@ describe('RustMediaService: the share id it holds', () => {
      */
     it('forgets the share even when the port fails to stop it', async () => {
         const fake = new FakePublisher();
-        vi.spyOn(console, 'warn').mockImplementation(() => {
-        });
+        vi.spyOn(console, 'warn').mockImplementation(() => {});
         vi.spyOn(fake, 'stop').mockRejectedValue(new Error('IPC died'));
         const {service} = setup(fake);
         await service.startScreenPublish(options({shareId: 'live'}));
@@ -916,7 +909,8 @@ describe('RustMediaService: outbound stats poll', () => {
         // Nothing to differentiate against yet - undefined, not 0, which would claim the stream is
         // sending nothing rather than "not measured".
         expect(service.outboundStats()?.layers[0].kbps).toBeUndefined();
-        const layer = service.outboundStats()?.layers[0] as (StreamLayerStats & {bytesSent?: number}) | undefined;
+        const layer = service.outboundStats()?.layers[0] as
+            (StreamLayerStats & {bytesSent?: number}) | undefined;
         expect(layer?.bytesSent).toBe(10_000);
     });
 
@@ -943,8 +937,14 @@ describe('RustMediaService: outbound stats poll', () => {
     it('differentiates each simulcast rung against its own previous sample', async () => {
         const fake = new FakePublisher();
         fake.statsResponses = [
-            snapshot([{rid: 'a', bytesSent: 0}, {rid: 'b', bytesSent: 0}]),
-            snapshot([{rid: 'a', bytesSent: 125_000}, {rid: 'b', bytesSent: 250_000}]),
+            snapshot([
+                {rid: 'a', bytesSent: 0},
+                {rid: 'b', bytesSent: 0},
+            ]),
+            snapshot([
+                {rid: 'a', bytesSent: 125_000},
+                {rid: 'b', bytesSent: 250_000},
+            ]),
         ];
         const service = await inspecting(fake);
 

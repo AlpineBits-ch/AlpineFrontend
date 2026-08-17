@@ -76,8 +76,12 @@ describe('MlsService.importBackup', () => {
 
         const [command, args] = invokeStub.mock.calls.at(-1)!;
         expect(command).toBe('mls_import_backup');
-        expect(Object.keys(args as object).sort())
-            .toEqual(['blob', 'currentDeviceId', 'expectedUserId', 'passphrase']);
+        expect(Object.keys(args as object).sort()).toEqual([
+            'blob',
+            'currentDeviceId',
+            'expectedUserId',
+            'passphrase',
+        ]);
         // Refused in Rust on a mismatch: a blob for another account can never be merged into this one.
         expect((args as Record<string, unknown>)['expectedUserId']).toBe('user-1');
     });
@@ -142,9 +146,11 @@ describe('MlsService.importBackup', () => {
             await service.registerGroup('ctx-1', 5, 'Y3VycmVudA==');
             expect(await service.getEncryptionFloor('ctx-1')).toBe(5);
 
-            invokeStub.mockResolvedValue(importResult({
-                groupRegistry: {'ctx-1#2': 'b2xk', 'ctx-1#floor': 2, 'ctx-1#active': 2},
-            }) as never);
+            invokeStub.mockResolvedValue(
+                importResult({
+                    groupRegistry: {'ctx-1#2': 'b2xk', 'ctx-1#floor': 2, 'ctx-1#active': 2},
+                }) as never,
+            );
 
             await service.importBackup('<blob>', 'pass', 'user-1');
 
@@ -154,9 +160,11 @@ describe('MlsService.importBackup', () => {
         it('raises the floor when the backup knows of a later generation', async () => {
             await service.registerGroup('ctx-1', 5, 'Y3VycmVudA==');
 
-            invokeStub.mockResolvedValue(importResult({
-                groupRegistry: {'ctx-1#7': 'bmV3ZXI=', 'ctx-1#floor': 7, 'ctx-1#active': 7},
-            }) as never);
+            invokeStub.mockResolvedValue(
+                importResult({
+                    groupRegistry: {'ctx-1#7': 'bmV3ZXI=', 'ctx-1#floor': 7, 'ctx-1#active': 7},
+                }) as never,
+            );
 
             await service.importBackup('<blob>', 'pass', 'user-1');
 
@@ -166,9 +174,11 @@ describe('MlsService.importBackup', () => {
         it('leaves an equal floor alone', async () => {
             await service.registerGroup('ctx-1', 5, 'Y3VycmVudA==');
 
-            invokeStub.mockResolvedValue(importResult({
-                groupRegistry: {'ctx-1#floor': 5},
-            }) as never);
+            invokeStub.mockResolvedValue(
+                importResult({
+                    groupRegistry: {'ctx-1#floor': 5},
+                }) as never,
+            );
 
             await service.importBackup('<blob>', 'pass', 'user-1');
 
@@ -176,9 +186,11 @@ describe('MlsService.importBackup', () => {
         });
 
         it('sets a floor for a context this device has never encrypted', async () => {
-            invokeStub.mockResolvedValue(importResult({
-                groupRegistry: {'ctx-new#3': 'Zg==', 'ctx-new#floor': 3},
-            }) as never);
+            invokeStub.mockResolvedValue(
+                importResult({
+                    groupRegistry: {'ctx-new#3': 'Zg==', 'ctx-new#floor': 3},
+                }) as never,
+            );
 
             await service.importBackup('<blob>', 'pass', 'user-1');
 
@@ -188,9 +200,11 @@ describe('MlsService.importBackup', () => {
         it('does not move the active generation back below the floor', async () => {
             await service.registerGroup('ctx-1', 5, 'Y3VycmVudA==');
 
-            invokeStub.mockResolvedValue(importResult({
-                groupRegistry: {'ctx-1#2': 'b2xk', 'ctx-1#floor': 2, 'ctx-1#active': 2},
-            }) as never);
+            invokeStub.mockResolvedValue(
+                importResult({
+                    groupRegistry: {'ctx-1#2': 'b2xk', 'ctx-1#floor': 2, 'ctx-1#active': 2},
+                }) as never,
+            );
 
             await service.importBackup('<blob>', 'pass', 'user-1');
 
@@ -201,9 +215,11 @@ describe('MlsService.importBackup', () => {
         it('takes the active generation when it is at or above the floor', async () => {
             await service.registerGroup('ctx-1', 5, 'Y3VycmVudA==');
 
-            invokeStub.mockResolvedValue(importResult({
-                groupRegistry: {'ctx-1#9': 'bmV3', 'ctx-1#floor': 9, 'ctx-1#active': 9},
-            }) as never);
+            invokeStub.mockResolvedValue(
+                importResult({
+                    groupRegistry: {'ctx-1#9': 'bmV3', 'ctx-1#floor': 9, 'ctx-1#active': 9},
+                }) as never,
+            );
 
             await service.importBackup('<blob>', 'pass', 'user-1');
 
@@ -213,9 +229,11 @@ describe('MlsService.importBackup', () => {
         it('still restores the per-generation group mappings from an older backup', async () => {
             await service.registerGroup('ctx-1', 5, 'Y3VycmVudA==');
 
-            invokeStub.mockResolvedValue(importResult({
-                groupRegistry: {'ctx-1#2': 'b2xk', 'ctx-1#floor': 2, 'ctx-1#active': 2},
-            }) as never);
+            invokeStub.mockResolvedValue(
+                importResult({
+                    groupRegistry: {'ctx-1#2': 'b2xk', 'ctx-1#floor': 2, 'ctx-1#active': 2},
+                }) as never,
+            );
 
             await service.importBackup('<blob>', 'pass', 'user-1');
 
@@ -230,10 +248,12 @@ describe('MlsService.importBackup', () => {
 
     describe('account identity key', () => {
         it('stores both halves when the envelope carried them', async () => {
-            invokeStub.mockResolvedValue(importResult({
-                accountIdentityPublicKey: 'YWNjLXB1Yg==',
-                accountIdentityPrivateKey: 'YWNjLXByaXY=',
-            }) as never);
+            invokeStub.mockResolvedValue(
+                importResult({
+                    accountIdentityPublicKey: 'YWNjLXB1Yg==',
+                    accountIdentityPrivateKey: 'YWNjLXByaXY=',
+                }) as never,
+            );
 
             await service.importBackup('<blob>', 'pass', 'user-1');
 
@@ -252,10 +272,12 @@ describe('MlsService.importBackup', () => {
         });
 
         it('writes nothing when only one half is present', async () => {
-            invokeStub.mockResolvedValue(importResult({
-                accountIdentityPublicKey: 'YWNjLXB1Yg==',
-                accountIdentityPrivateKey: null,
-            }) as never);
+            invokeStub.mockResolvedValue(
+                importResult({
+                    accountIdentityPublicKey: 'YWNjLXB1Yg==',
+                    accountIdentityPrivateKey: null,
+                }) as never,
+            );
 
             await service.importBackup('<blob>', 'pass', 'user-1');
 
@@ -277,13 +299,19 @@ describe('MlsService.importBackup', () => {
         ['MlsError: backup version 2 is newer than this build supports', 'unsupported-version-newer'],
         ['MlsError: backup version 0 is older than this build supports', 'unsupported-version-older'],
         ['MlsError: unsupported backup cipher or key derivation', 'unsupported-version-newer'],
-        ['MlsError: refusing declared Argon2 parameters (m=4294967295 KiB, t=3, p=4) - above the',
-            'hostile-kdf-parameters'],
-        ['MlsError: this backup belongs to a different account (user-9), not the one signed in',
-            'wrong-account'],
+        [
+            'MlsError: refusing declared Argon2 parameters (m=4294967295 KiB, t=3, p=4) - above the',
+            'hostile-kdf-parameters',
+        ],
+        [
+            'MlsError: this backup belongs to a different account (user-9), not the one signed in',
+            'wrong-account',
+        ],
         ['MlsError: backup header does not match its contents', 'header-mismatch'],
-        ['MlsError: could not open the backup - wrong passphrase, or the file has been altered',
-            'wrong-passphrase-or-altered'],
+        [
+            'MlsError: could not open the backup - wrong passphrase, or the file has been altered',
+            'wrong-passphrase-or-altered',
+        ],
         ['MlsError: backup has no signing key', 'malformed-contents'],
         ['MlsError: backup engine state is unreadable: invalid type', 'malformed-contents'],
     ];
@@ -292,8 +320,7 @@ describe('MlsService.importBackup', () => {
         it(`classifies "${engineError.slice(0, 44)}…" as ${reason}`, async () => {
             invokeStub.mockRejectedValue(engineError as never);
 
-            await expect(service.importBackup('<blob>', 'pass', 'user-1'))
-                .rejects.toMatchObject({reason});
+            await expect(service.importBackup('<blob>', 'pass', 'user-1')).rejects.toMatchObject({reason});
         });
     }
 
@@ -301,8 +328,9 @@ describe('MlsService.importBackup', () => {
         invokeStub.mockRejectedValue('something nobody anticipated' as never);
 
         // The allow-list falls through to `engine-failed`, never to the passphrase.
-        await expect(service.importBackup('<blob>', 'pass', 'user-1'))
-            .rejects.toMatchObject({reason: 'engine-failed'});
+        await expect(service.importBackup('<blob>', 'pass', 'user-1')).rejects.toMatchObject({
+            reason: 'engine-failed',
+        });
     });
 
     it('touches no local store when the engine refuses', async () => {
@@ -322,32 +350,36 @@ describe('MlsService.importBackup', () => {
         invokeStub.mockResolvedValue(importResult() as never);
         setItem.mockRejectedValueOnce(new Error('keychain locked'));
 
-        await expect(service.importBackup('<blob>', 'pass', 'user-1'))
-            .rejects.toMatchObject({reason: 'local-store-failed'});
+        await expect(service.importBackup('<blob>', 'pass', 'user-1')).rejects.toMatchObject({
+            reason: 'local-store-failed',
+        });
     });
 });
 
 describe('describeImportFailure', () => {
     it('gives each failure its own remedy', () => {
         const reasons = [
-            'not-a-backup', 'unsupported-version-newer', 'unsupported-version-older',
-            'wrong-passphrase-or-altered', 'wrong-account',
-            'header-mismatch', 'hostile-kdf-parameters', 'malformed-contents',
-            'local-store-failed', 'engine-failed',
+            'not-a-backup',
+            'unsupported-version-newer',
+            'unsupported-version-older',
+            'wrong-passphrase-or-altered',
+            'wrong-account',
+            'header-mismatch',
+            'hostile-kdf-parameters',
+            'malformed-contents',
+            'local-store-failed',
+            'engine-failed',
         ] as const;
 
-        const messages = reasons.map(r =>
-            describeImportFailure(new MlsBackupImportError(r, 'detail')));
+        const messages = reasons.map(r => describeImportFailure(new MlsBackupImportError(r, 'detail')));
 
         // Distinct, because the actions they ask for are distinct.
         expect(new Set(messages).size).toBe(reasons.length);
     });
 
     it('tells only the newer case to update', () => {
-        const newer = describeImportFailure(
-            new MlsBackupImportError('unsupported-version-newer', 'detail'));
-        const older = describeImportFailure(
-            new MlsBackupImportError('unsupported-version-older', 'detail'));
+        const newer = describeImportFailure(new MlsBackupImportError('unsupported-version-newer', 'detail'));
+        const older = describeImportFailure(new MlsBackupImportError('unsupported-version-older', 'detail'));
 
         expect(newer).toMatch(/update/i);
         // Advice that cannot work: an older backup is not fixed by updating.
@@ -357,7 +389,8 @@ describe('describeImportFailure', () => {
 
     it('says a wrong passphrase and an altered file cannot be told apart', () => {
         const message = describeImportFailure(
-            new MlsBackupImportError('wrong-passphrase-or-altered', 'detail'));
+            new MlsBackupImportError('wrong-passphrase-or-altered', 'detail'),
+        );
 
         // AES-GCM cannot distinguish a wrong key from altered bytes.
         expect(message).toMatch(/passphrase/i);

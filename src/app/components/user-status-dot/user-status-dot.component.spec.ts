@@ -12,7 +12,8 @@ describe('UserStatusDotComponent', () => {
         fixture = TestBed.createComponent(UserStatusDotComponent);
         fixture.componentRef.setInput('status', status);
         if (options.standalone !== undefined) fixture.componentRef.setInput('standalone', options.standalone);
-        if (options.borderColor !== undefined) fixture.componentRef.setInput('borderColor', options.borderColor);
+        if (options.borderColor !== undefined)
+            fixture.componentRef.setInput('borderColor', options.borderColor);
         fixture.detectChanges();
         return fixture.nativeElement as HTMLElement;
     }
@@ -24,7 +25,7 @@ describe('UserStatusDotComponent', () => {
 
     /** The inner element carries the colour and the silhouette. */
     function inner(el: HTMLElement): HTMLElement | null {
-        return outer(el)?.firstElementChild as HTMLElement ?? null;
+        return (outer(el)?.firstElementChild as HTMLElement) ?? null;
     }
 
     // Colors come from the theme tokens in styles.css, not hardcoded palette classes.
@@ -82,10 +83,12 @@ describe('UserStatusDotComponent', () => {
 
     /** Without an opaque backing on the outer element, the silhouette's notch shows the avatar behind it. */
     it('backs the dot with the surface it is drawn on', async () => {
-        expect(outer(await render(OnlineStatus.Idle, {borderColor: 'border-card'}))?.className)
-            .toContain('bg-card');
-        expect(outer(await render(OnlineStatus.Idle, {borderColor: 'border-app-bg'}))?.className)
-            .toContain('bg-app-bg');
+        expect(outer(await render(OnlineStatus.Idle, {borderColor: 'border-card'}))?.className).toContain(
+            'bg-card',
+        );
+        expect(outer(await render(OnlineStatus.Idle, {borderColor: 'border-app-bg'}))?.className).toContain(
+            'bg-app-bg',
+        );
     });
 
     it('falls back to the sidebar surface for an unrecognised border colour', async () => {

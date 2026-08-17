@@ -77,10 +77,7 @@ export class WebSecureStore extends SecureStore {
      * signing-key write. Nothing nests: `applyUpdate` reaches `getItem`/`setItem`, and those take no
      * lock.</p>
      */
-    override update(
-        key: string,
-        next: (current: string | null) => string | null,
-    ): Promise<string | null> {
+    override update(key: string, next: (current: string | null) => string | null): Promise<string | null> {
         return withWebLock(
             criticalSectionName('secure-store', key),
             () => this.applyUpdate(key, next),
@@ -99,7 +96,7 @@ export class WebSecureStore extends SecureStore {
             // "key" that is not the one it stored; saying so is the only honest answer.
             throw new IdbCorruptValueError(
                 `secure store key "${key}" holds binary data; only strings are stored here, so ` +
-                `something else wrote to "${DB_NAME}"/"${STORE_NAME}"`,
+                    `something else wrote to "${DB_NAME}"/"${STORE_NAME}"`,
             );
         }
         return value;

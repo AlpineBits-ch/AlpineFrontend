@@ -65,7 +65,8 @@ export class CallStreamStatsComponent {
     }
 
     protected readonly title = computed(() =>
-        this.stats()?.direction === 'outbound' ? 'CALL.STATS_NERD.TITLE_OUT' : 'CALL.STATS_NERD.TITLE_IN');
+        this.stats()?.direction === 'outbound' ? 'CALL.STATS_NERD.TITLE_OUT' : 'CALL.STATS_NERD.TITLE_IN',
+    );
 
     protected readonly headerRows = computed<StatRow[]>(() => {
         const s = this.stats();
@@ -82,7 +83,9 @@ export class CallStreamStatsComponent {
             rows.push({key: 'CALL.STATS_NERD.RTT', testId: 'row-rtt', value: `${t.rttMs} ms`});
         }
         if (t?.localCandidateType || t?.remoteCandidateType) {
-            const path = [t.protocol, t.localCandidateType, t.remoteCandidateType].filter(Boolean).join(' / ');
+            const path = [t.protocol, t.localCandidateType, t.remoteCandidateType]
+                .filter(Boolean)
+                .join(' / ');
             rows.push({key: 'CALL.STATS_NERD.PATH', testId: 'row-path', value: path});
         }
         if (t?.availableOutgoingKbps !== undefined) {
@@ -101,7 +104,8 @@ export class CallStreamStatsComponent {
             title: layer.rid ? 'CALL.STATS_NERD.LAYER' : 'CALL.STATS_NERD.LAYER_ONLY',
             titleArgs: {rid: layer.rid ?? ''},
             rows: rowsFor(layer),
-        })));
+        })),
+    );
 }
 
 /**
@@ -126,9 +130,10 @@ function rowsFor(layer: StreamLayerStats): StatRow[] {
     if (layer.kbps !== undefined) {
         // Shown against the rung's budget when there is one. The pair is the finding: a layer far
         // under its target, or silent, is what a broken simulcast ladder looks like from here.
-        const value = layer.targetKbps === undefined
-            ? `${layer.kbps} kbps`
-            : `${layer.kbps} / ${layer.targetKbps} kbps`;
+        const value =
+            layer.targetKbps === undefined
+                ? `${layer.kbps} kbps`
+                : `${layer.kbps} / ${layer.targetKbps} kbps`;
         rows.push({key: 'CALL.STATS_NERD.BITRATE', testId: 'row-bitrate', value});
     } else if (layer.targetKbps !== undefined) {
         rows.push({
@@ -141,12 +146,16 @@ function rowsFor(layer: StreamLayerStats): StatRow[] {
     }
     if (layer.framesEncoded !== undefined) {
         rows.push({
-            key: 'CALL.STATS_NERD.FRAMES_ENCODED', testId: 'row-encoded', value: `${layer.framesEncoded}`,
+            key: 'CALL.STATS_NERD.FRAMES_ENCODED',
+            testId: 'row-encoded',
+            value: `${layer.framesEncoded}`,
         });
     }
     if (layer.framesDecoded !== undefined) {
         rows.push({
-            key: 'CALL.STATS_NERD.FRAMES_DECODED', testId: 'row-decoded', value: `${layer.framesDecoded}`,
+            key: 'CALL.STATS_NERD.FRAMES_DECODED',
+            testId: 'row-decoded',
+            value: `${layer.framesDecoded}`,
         });
     }
     if (layer.keyFrames !== undefined) {

@@ -1,7 +1,7 @@
 import {inject, Injectable} from '@angular/core';
 import {HttpClient} from '@angular/common/http';
 import {Observable} from 'rxjs';
-import {ApiConfigService} from "./api-config.service";
+import {ApiConfigService} from './api-config.service';
 import {EntitlementDegradationDto, VideoPublishIntentDto} from '../dtos/response/entitlement.dto';
 import {GuildVoiceActivityDto} from '../dtos/response/guild-voice-activity.dto';
 import {ShareViewersDto} from '../dtos/response/share-viewers.dto';
@@ -114,8 +114,7 @@ export class GuildVoiceService {
      * does not extend the seat it reports.
      */
     getVoiceState(): Observable<VoiceStateDto | null> {
-        return this.client.get<VoiceStateDto | null>(
-            `${this.apiConfig.baseUrl()}/api/v1/guild/voice/state`);
+        return this.client.get<VoiceStateDto | null>(`${this.apiConfig.baseUrl()}/api/v1/guild/voice/state`);
     }
     /** Join the room, and get its authoritative state back in the same round trip. */
     join(guildId: string, channelId: string): Observable<VoiceRoomSnapshot> {
@@ -157,10 +156,16 @@ export class GuildVoiceService {
      *        32, falling back to `alt`. One tag per connection per user: two connections sharing a
      *        tag share an identity and the second evicts the first, so never reuse a tag string.
      */
-    connection(guildId: string, channelId: string, primary = true, tag?: string)
-        : Observable<VoiceConnectionDto> {
+    connection(
+        guildId: string,
+        channelId: string,
+        primary = true,
+        tag?: string,
+    ): Observable<VoiceConnectionDto> {
         return this.client.post<VoiceConnectionDto>(
-            `${this.base(guildId, channelId)}/connection${connectionQuery(primary, tag)}`, {});
+            `${this.base(guildId, channelId)}/connection${connectionQuery(primary, tag)}`,
+            {},
+        );
     }
 
     /**
@@ -168,8 +173,7 @@ export class GuildVoiceService {
      * `200` with `degradations` worked smaller: re-encode and declare again, roll nothing back.
      * `403` could not degrade: stop the local track, because no retry will be received.
      */
-    publish(guildId: string, channelId: string, body: VoicePublishRequest)
-        : Observable<VoicePublishResponse> {
+    publish(guildId: string, channelId: string, body: VoicePublishRequest): Observable<VoicePublishResponse> {
         return this.client.post<VoicePublishResponse>(`${this.base(guildId, channelId)}/publish`, body);
     }
 
@@ -182,23 +186,27 @@ export class GuildVoiceService {
      * Re-declares what is being sent, for a resolution change made without republishing: the only
      * thing that stops a later change walking past the ceiling set at publish time. Never refuses.
      */
-    declareVideo(guildId: string, channelId: string, video: VideoPublishIntentDto)
-        : Observable<VoiceVideoDeclarationResponse> {
+    declareVideo(
+        guildId: string,
+        channelId: string,
+        video: VideoPublishIntentDto,
+    ): Observable<VoiceVideoDeclarationResponse> {
         return this.client.put<VoiceVideoDeclarationResponse>(
-            `${this.base(guildId, channelId)}/video`, video);
+            `${this.base(guildId, channelId)}/video`,
+            video,
+        );
     }
 
     serverDeafen(guildId: string, channelId: string, userId: string, isDeafened: boolean): Observable<void> {
-        return this.client.patch<void>(
-            `${this.base(guildId, channelId)}/participants/${userId}/deafen`,
-            {isDeafened},
-        );
+        return this.client.patch<void>(`${this.base(guildId, channelId)}/participants/${userId}/deafen`, {
+            isDeafened,
+        });
     }
 
     /** Voice occupancy across every guild this user is in: one request for the whole server rail. */
     getVoiceActivity(): Observable<GuildVoiceActivityDto[]> {
         return this.client.get<GuildVoiceActivityDto[]>(
-            `${this.apiConfig.baseUrl()}/api/v1/guild/guilds/voice-activity`
+            `${this.apiConfig.baseUrl()}/api/v1/guild/guilds/voice-activity`,
         );
     }
 
@@ -211,21 +219,20 @@ export class GuildVoiceService {
      */
     watchShare(guildId: string, channelId: string, shareId: string): Observable<ShareViewersDto> {
         return this.client.post<ShareViewersDto>(
-            `${this.base(guildId, channelId)}/shares/${shareId}/watch`, {}
+            `${this.base(guildId, channelId)}/shares/${shareId}/watch`,
+            {},
         );
     }
 
     unwatchShare(guildId: string, channelId: string, shareId: string): Observable<ShareViewersDto> {
         return this.client.delete<ShareViewersDto>(
-            `${this.base(guildId, channelId)}/shares/${shareId}/watch`
+            `${this.base(guildId, channelId)}/shares/${shareId}/watch`,
         );
     }
 
     /** Everyone watching each live share in this channel: the catch-up read for joining mid-stream. */
     getShareViewers(guildId: string, channelId: string): Observable<Record<string, string[]>> {
-        return this.client.get<Record<string, string[]>>(
-            `${this.base(guildId, channelId)}/shares/viewers`
-        );
+        return this.client.get<Record<string, string[]>>(`${this.base(guildId, channelId)}/shares/viewers`);
     }
 
     // ── Subscriber state ─────────────────────────────────────────────────────

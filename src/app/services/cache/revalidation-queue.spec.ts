@@ -7,8 +7,12 @@ function fakeClock() {
     let t = 0;
     return {
         now: () => t,
-        delay: async (ms: number) => { t += ms; },
-        advance: (ms: number) => { t += ms; },
+        delay: async (ms: number) => {
+            t += ms;
+        },
+        advance: (ms: number) => {
+            t += ms;
+        },
     };
 }
 
@@ -18,7 +22,10 @@ describe('RevalidationQueue', () => {
         const queue = new RevalidationQueue(2, 10, clock.now, clock.delay);
         const done: number[] = [];
 
-        for (let i = 0; i < 5; i++) queue.push(async () => { done.push(i); });
+        for (let i = 0; i < 5; i++)
+            queue.push(async () => {
+                done.push(i);
+            });
         await queue.drain();
 
         expect(done.sort((a, b) => a - b)).toEqual([0, 1, 2, 3, 4]);
@@ -48,8 +55,12 @@ describe('RevalidationQueue', () => {
         const queue = new RevalidationQueue(1, 0, clock.now, clock.delay);
         const done: string[] = [];
 
-        queue.push(async () => { throw new Error('429'); });
-        queue.push(async () => { done.push('after'); });
+        queue.push(async () => {
+            throw new Error('429');
+        });
+        queue.push(async () => {
+            done.push('after');
+        });
         await queue.drain();
 
         expect(done).toEqual(['after']);
@@ -60,7 +71,10 @@ describe('RevalidationQueue', () => {
         const queue = new RevalidationQueue(1, 100, clock.now, clock.delay);
         const at: number[] = [];
 
-        for (let i = 0; i < 3; i++) queue.push(async () => { at.push(clock.now()); });
+        for (let i = 0; i < 3; i++)
+            queue.push(async () => {
+                at.push(clock.now());
+            });
         await queue.drain();
 
         expect(at[1] - at[0]).toBeGreaterThanOrEqual(100);
@@ -99,7 +113,9 @@ describe('RevalidationQueue', () => {
 
         // The second task is shifted out of the queue immediately but, because of the pacing gap,
         // only reserves its slot; it has not run by the time both pushes have returned.
-        queue.push(async () => { ran.push(0); });
+        queue.push(async () => {
+            ran.push(0);
+        });
         queue.push(async () => {
             await Promise.resolve();
             ran.push(1);

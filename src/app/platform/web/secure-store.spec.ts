@@ -119,19 +119,17 @@ describe('WebSecureStore', () => {
 
     // ── The failure that matters ─────────────────────────────────────────────
 
-    it('rejects a write when there is no IndexedDB, rather than storing it anywhere else',
-        async () => {
-            removeIndexedDb();
-            const store = new WebSecureStore();
+    it('rejects a write when there is no IndexedDB, rather than storing it anywhere else', async () => {
+        removeIndexedDb();
+        const store = new WebSecureStore();
 
-            await expect(store.setItem('master_key', 'wrapped-master-key'))
-                .rejects.toThrow(IdbUnavailableError);
+        await expect(store.setItem('master_key', 'wrapped-master-key')).rejects.toThrow(IdbUnavailableError);
 
-            // The assertion this file exists for: no silent downgrade. A `localStorage` fallback
-            // would have made the write "succeed" into storage the design refuses to put key
-            // material in, and a caller cannot tell the difference from the return value alone.
-            expect([...localStore.keys()]).toEqual([]);
-        });
+        // The assertion this file exists for: no silent downgrade. A `localStorage` fallback
+        // would have made the write "succeed" into storage the design refuses to put key
+        // material in, and a caller cannot tell the difference from the return value alone.
+        expect([...localStore.keys()]).toEqual([]);
+    });
 
     it('rejects a read when there is no IndexedDB, rather than answering "no key"', async () => {
         removeIndexedDb();
@@ -140,8 +138,7 @@ describe('WebSecureStore', () => {
         // Answering null here would be the worse bug of the two: `MlsService` reads a missing
         // signing key as "this device needs a fresh identity", which orphans it from every group
         // it belongs to while the key is still sitting in a database this build could not open.
-        await expect(store.getItem('alpine_mls_device-a_priv'))
-            .rejects.toThrow(IdbUnavailableError);
+        await expect(store.getItem('alpine_mls_device-a_priv')).rejects.toThrow(IdbUnavailableError);
     });
 
     it('does not remember an open failure, so one bad boot is not a dead session', async () => {
@@ -163,11 +160,10 @@ describe('WebSecureStore', () => {
 
         // Only strings are written here. Coercing three bytes into a "key" would present as a
         // signing key that is silently the wrong one; saying so is the only honest answer.
-        await expect(new WebSecureStore().getItem('alpine_mls_device-a_priv'))
-            .rejects.toThrow(/binary/);
+        await expect(new WebSecureStore().getItem('alpine_mls_device-a_priv')).rejects.toThrow(/binary/);
     });
 
-    it('does not close, or get closed by, the MLS engine\'s own database', async () => {
+    it("does not close, or get closed by, the MLS engine's own database", async () => {
         // What the WASM MLS engine will hold: its exported state blob, in a database of its own.
         // The two must not interact, and the reason they would have is not obvious: adding an object
         // store to an existing database is a version change, and `idb.ts` yields to one by closing
@@ -256,16 +252,18 @@ describe('WebSecureStore.update across two tabs of one profile', () => {
         });
 
         let stalled = false;
-        const store = new WebSecureStore(profile, () => storeWith(real => ({
-            set: async (key, value) => {
-                if (!stalled) {
-                    stalled = true;
-                    arrive();
-                    await held;
-                }
-                await real.set(key, value);
-            },
-        })));
+        const store = new WebSecureStore(profile, () =>
+            storeWith(real => ({
+                set: async (key, value) => {
+                    if (!stalled) {
+                        stalled = true;
+                        arrive();
+                        await held;
+                    }
+                    await real.set(key, value);
+                },
+            })),
+        );
         return {store, deciding, release};
     }
 
@@ -315,9 +313,11 @@ describe('WebSecureStore.update across two tabs of one profile', () => {
         const store = new WebSecureStore(profile, () => storeWith());
         await store.setItem(STATE_KEY, 'seed');
 
-        await expect(store.update(STATE_KEY, () => {
-            throw new Error('the key store could not be read');
-        })).rejects.toThrow(/could not be read/);
+        await expect(
+            store.update(STATE_KEY, () => {
+                throw new Error('the key store could not be read');
+            }),
+        ).rejects.toThrow(/could not be read/);
 
         // A critical section that leaked on the error path would lock every tab out of this entry for
         // as long as the page stays open, which for the state key is a launch that never completes.

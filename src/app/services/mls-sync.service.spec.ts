@@ -43,12 +43,14 @@ function makeMls() {
         epochs,
 
         keyHandle: () => 'handle',
-        getGroupId: vi.fn(async (contextId: string, generation: number) =>
-            registry.get(`${contextId}#${generation}`) ?? null),
+        getGroupId: vi.fn(
+            async (contextId: string, generation: number) =>
+                registry.get(`${contextId}#${generation}`) ?? null,
+        ),
         getKnownGeneration: vi.fn(async (contextId: string) => activeGeneration.get(contextId) ?? null),
         getActiveGroupId: vi.fn(async (contextId: string) => {
             const gen = activeGeneration.get(contextId);
-            return gen === undefined ? null : registry.get(`${contextId}#${gen}`) ?? null;
+            return gen === undefined ? null : (registry.get(`${contextId}#${gen}`) ?? null);
         }),
         registerGroup: vi.fn(async (contextId: string, generation: number, groupId: string) => {
             registry.set(`${contextId}#${generation}`, groupId);
@@ -59,15 +61,19 @@ function makeMls() {
         clearActiveGeneration: vi.fn(async (contextId: string) => {
             activeGeneration.delete(contextId);
         }),
-        getEncryptionFloor: vi.fn(async (contextId: string) =>
-            encryptionFloor.get(contextId) ?? null),
+        getEncryptionFloor: vi.fn(async (contextId: string) => encryptionFloor.get(contextId) ?? null),
         clearEncryptionFloor: vi.fn(async (contextId: string) => {
             encryptionFloor.delete(contextId);
         }),
 
-        getGroupInfo: vi.fn((groupId: string) => of({
-            groupId, epoch: epochs.get(groupId) ?? 0, ownLeafIndex: 0, members: [],
-        })),
+        getGroupInfo: vi.fn((groupId: string) =>
+            of({
+                groupId,
+                epoch: epochs.get(groupId) ?? 0,
+                ownLeafIndex: 0,
+                members: [],
+            }),
+        ),
         joinGroup: vi.fn(() => {
             calls.push('joinGroup');
             return of({groupId: GROUP, epoch: 1, ownLeafIndex: 1, members: []});
@@ -77,10 +83,16 @@ function makeMls() {
                 calls.push('processMessage');
                 epochs.set(groupId, (epochs.get(groupId) ?? 0) + 1);
                 return of({
-                    kind: 'commit', plaintext: null, selfRemoved: false,
-                    addedMembers: [], removedLeafIndices: [], senderIdentity: null, epoch: null,
+                    kind: 'commit',
+                    plaintext: null,
+                    selfRemoved: false,
+                    addedMembers: [],
+                    removedLeafIndices: [],
+                    senderIdentity: null,
+                    epoch: null,
                 });
-            }),
+            },
+        ),
         mergePendingCommit: vi.fn((groupId: string) => {
             calls.push('mergePendingCommit');
             epochs.set(groupId, (epochs.get(groupId) ?? 0) + 1);
@@ -92,12 +104,20 @@ function makeMls() {
         }),
         exportGroupInfo: vi.fn(() => of('Z3JvdXBpbmZv')),
         deleteGroup: vi.fn(() => of(undefined)),
-        addMembers: vi.fn(() => of({commit: 'Y29tbWl0', welcome: 'd2VsY29tZQ==', epoch: 1, groupInfo: 'ZnJlc2hpbmZv'})),
-        removeMembers: vi.fn(() => of({commit: 'Y29tbWl0', welcome: null, epoch: 1, groupInfo: 'ZnJlc2hpbmZv'})),
-        commitPendingProposals: vi.fn(() => of({commit: 'Y29tbWl0', welcome: null, epoch: 1, groupInfo: 'ZnJlc2hpbmZv'})),
+        addMembers: vi.fn(() =>
+            of({commit: 'Y29tbWl0', welcome: 'd2VsY29tZQ==', epoch: 1, groupInfo: 'ZnJlc2hpbmZv'}),
+        ),
+        removeMembers: vi.fn(() =>
+            of({commit: 'Y29tbWl0', welcome: null, epoch: 1, groupInfo: 'ZnJlc2hpbmZv'}),
+        ),
+        commitPendingProposals: vi.fn(() =>
+            of({commit: 'Y29tbWl0', welcome: null, epoch: 1, groupInfo: 'ZnJlc2hpbmZv'}),
+        ),
         leaveGroup: vi.fn(() => of({commit: 'cHJvcG9zYWw=', welcome: null, epoch: 0, groupInfo: null})),
         drainPendingMessages: vi.fn<(groupId: string) => Observable<MlsReplayedMessage[]>>(() => of([])),
-        getMembers: vi.fn(() => of([{leafIndex: 0, identity: 'user-2', encryptionKey: '', signatureKey: ''}])),
+        getMembers: vi.fn(() =>
+            of([{leafIndex: 0, identity: 'user-2', encryptionKey: '', signatureKey: ''}]),
+        ),
     };
 }
 
@@ -106,14 +126,18 @@ function makeTransport() {
         getPendingWelcomes: vi.fn<(deviceId: string) => Observable<PendingWelcomeDto[]>>(() => of([])),
         ackWelcomes: vi.fn<(ids: string[]) => Observable<AckWelcomesResultDto>>(() => of({acknowledged: 0})),
         getCommits: vi.fn<(...args: unknown[]) => Observable<MlsCommitDto[]>>(() => of([])),
-        publishCommit: vi.fn<(contextId: string, isChannel: boolean, dto: PublishMlsCommitDto) => Observable<MlsCommitPublishedDto>>(
-            () => of({contextId: CONTEXT, generation: 1, epoch: 1}),
+        publishCommit: vi.fn<
+            (
+                contextId: string,
+                isChannel: boolean,
+                dto: PublishMlsCommitDto,
+            ) => Observable<MlsCommitPublishedDto>
+        >(() => of({contextId: CONTEXT, generation: 1, epoch: 1})),
+        getState: vi.fn<(...args: unknown[]) => Observable<MlsContextStateDto>>(() =>
+            of({contextId: CONTEXT, encrypted: true, activeGeneration: 1, epoch: 0, generations: []}),
         ),
-        getState: vi.fn<(...args: unknown[]) => Observable<MlsContextStateDto>>(
-            () => of({contextId: CONTEXT, encrypted: true, activeGeneration: 1, epoch: 0, generations: []}),
-        ),
-        consumeTokensForUsers: vi.fn<(userIds: string[]) => Observable<ConsumeTokensResultDto>>(
-            () => of({deviceTokens: [], unreachableDevices: []}),
+        consumeTokensForUsers: vi.fn<(userIds: string[]) => Observable<ConsumeTokensResultDto>>(() =>
+            of({deviceTokens: [], unreachableDevices: []}),
         ),
         enableChannelEncryption: vi.fn(),
         disableChannelEncryption: vi.fn(),
@@ -191,10 +215,12 @@ describe('MlsSyncService', () => {
 
         it('acknowledges the good ones even when a sibling fails', async () => {
             const {sync, mls, transport} = setup();
-            transport.getPendingWelcomes.mockReturnValue(of([
-                welcome({id: 'pewe_bad', contextId: 'conv-bad'}),
-                welcome({id: 'pewe_good', contextId: 'conv-good'}),
-            ]));
+            transport.getPendingWelcomes.mockReturnValue(
+                of([
+                    welcome({id: 'pewe_bad', contextId: 'conv-bad'}),
+                    welcome({id: 'pewe_good', contextId: 'conv-good'}),
+                ]),
+            );
             mls.joinGroup
                 .mockReturnValueOnce(throwError(() => new Error('bad welcome')))
                 .mockReturnValueOnce(of({groupId: GROUP, epoch: 1, ownLeafIndex: 1, members: []}));
@@ -285,17 +311,22 @@ describe('MlsSyncService', () => {
             expect(transport.getCommits).not.toHaveBeenCalled();
         });
 
-        it('commits a departing member\'s proposal rather than leaving it hanging', async () => {
+        it("commits a departing member's proposal rather than leaving it hanging", async () => {
             const {sync, mls, transport} = setup();
             mls.registry.set(`${CONTEXT}#1`, GROUP);
             mls.activeGeneration.set(CONTEXT, 1);
-            transport.getCommits
-                .mockReturnValueOnce(of([commit(1)]))
-                .mockReturnValue(of([]));
-            mls.processMessage.mockReturnValue(of({
-                kind: 'proposal', plaintext: null, selfRemoved: false,
-                addedMembers: [], removedLeafIndices: [], senderIdentity: null, epoch: null,
-            }));
+            transport.getCommits.mockReturnValueOnce(of([commit(1)])).mockReturnValue(of([]));
+            mls.processMessage.mockReturnValue(
+                of({
+                    kind: 'proposal',
+                    plaintext: null,
+                    selfRemoved: false,
+                    addedMembers: [],
+                    removedLeafIndices: [],
+                    senderIdentity: null,
+                    epoch: null,
+                }),
+            );
 
             await sync.syncContext(CONTEXT, false);
 
@@ -309,13 +340,18 @@ describe('MlsSyncService', () => {
             const {sync, mls, transport} = setup();
             mls.registry.set(`${CONTEXT}#1`, GROUP);
             mls.activeGeneration.set(CONTEXT, 1);
-            transport.getCommits
-                .mockReturnValueOnce(of([commit(1)]))
-                .mockReturnValue(of([]));
-            mls.processMessage.mockReturnValue(of({
-                kind: 'proposal', plaintext: null, selfRemoved: false,
-                addedMembers: [], removedLeafIndices: [], senderIdentity: null, epoch: null,
-            }));
+            transport.getCommits.mockReturnValueOnce(of([commit(1)])).mockReturnValue(of([]));
+            mls.processMessage.mockReturnValue(
+                of({
+                    kind: 'proposal',
+                    plaintext: null,
+                    selfRemoved: false,
+                    addedMembers: [],
+                    removedLeafIndices: [],
+                    senderIdentity: null,
+                    epoch: null,
+                }),
+            );
 
             await sync.syncContext(CONTEXT, false);
             await sync.syncContext(CONTEXT, false);
@@ -333,10 +369,17 @@ describe('MlsSyncService', () => {
             // the same `sinceEpoch` forever. Counting it as progress meant the loop never
             // terminated and issued an unbounded stream of requests.
             transport.getCommits.mockReturnValue(of([commit(1)]));
-            mls.processMessage.mockReturnValue(of({
-                kind: 'proposal', plaintext: null, selfRemoved: false,
-                addedMembers: [], removedLeafIndices: [], senderIdentity: null, epoch: null,
-            }));
+            mls.processMessage.mockReturnValue(
+                of({
+                    kind: 'proposal',
+                    plaintext: null,
+                    selfRemoved: false,
+                    addedMembers: [],
+                    removedLeafIndices: [],
+                    senderIdentity: null,
+                    epoch: null,
+                }),
+            );
 
             await sync.syncContext(CONTEXT, false);
 
@@ -352,25 +395,37 @@ describe('MlsSyncService', () => {
             // The proposal does not claim epoch 1, so the real commit that follows it is also at
             // epoch 1 and must still be applied. Treating the proposal as progress would have gone
             // looking for epoch 2 next and stopped at the gap.
-            transport.getCommits
-                .mockReturnValueOnce(of([commit(1), commit(1)]))
-                .mockReturnValue(of([]));
+            transport.getCommits.mockReturnValueOnce(of([commit(1), commit(1)])).mockReturnValue(of([]));
             mls.processMessage
-                .mockReturnValueOnce(of({
-                    kind: 'proposal', plaintext: null, selfRemoved: false,
-                    addedMembers: [], removedLeafIndices: [], senderIdentity: null, epoch: null,
-                }))
-                .mockReturnValue(of({
-                    kind: 'commit', plaintext: null, selfRemoved: false,
-                    addedMembers: [], removedLeafIndices: [], senderIdentity: null, epoch: 1,
-                }));
+                .mockReturnValueOnce(
+                    of({
+                        kind: 'proposal',
+                        plaintext: null,
+                        selfRemoved: false,
+                        addedMembers: [],
+                        removedLeafIndices: [],
+                        senderIdentity: null,
+                        epoch: null,
+                    }),
+                )
+                .mockReturnValue(
+                    of({
+                        kind: 'commit',
+                        plaintext: null,
+                        selfRemoved: false,
+                        addedMembers: [],
+                        removedLeafIndices: [],
+                        senderIdentity: null,
+                        epoch: 1,
+                    }),
+                );
 
             await sync.syncContext(CONTEXT, false);
 
             expect(mls.processMessage).toHaveBeenCalledTimes(2);
         });
 
-        it('trusts the server\'s isProposal flag rather than what the bytes turn out to be', async () => {
+        it("trusts the server's isProposal flag rather than what the bytes turn out to be", async () => {
             const {sync, mls, transport} = setup();
             mls.registry.set(`${CONTEXT}#1`, GROUP);
             mls.activeGeneration.set(CONTEXT, 1);
@@ -380,10 +435,12 @@ describe('MlsSyncService', () => {
             // epoch number. Inferring proposal-ness from the engine's verdict would mean applying
             // the bytes before being able to decide, which is exactly backwards.
             transport.getCommits
-                .mockReturnValueOnce(of([
-                    {...commit(1), isProposal: true},
-                    {...commit(1), commit: 'cmVhbGNvbW1pdA=='},
-                ]))
+                .mockReturnValueOnce(
+                    of([
+                        {...commit(1), isProposal: true},
+                        {...commit(1), commit: 'cmVhbGNvbW1pdA=='},
+                    ]),
+                )
                 .mockReturnValue(of([]));
 
             await sync.syncContext(CONTEXT, false);
@@ -397,19 +454,26 @@ describe('MlsSyncService', () => {
             mls.registry.set(`${CONTEXT}#1`, GROUP);
             mls.activeGeneration.set(CONTEXT, 1);
             transport.getCommits
-                .mockReturnValueOnce(of([
-                    {...commit(1), isProposal: true},
-                    {...commit(1), commit: 'cmVhbGNvbW1pdA=='},
-                ]))
+                .mockReturnValueOnce(
+                    of([
+                        {...commit(1), isProposal: true},
+                        {...commit(1), commit: 'cmVhbGNvbW1pdA=='},
+                    ]),
+                )
                 .mockReturnValue(of([]));
             // A proposal is only valid in the epoch it was built against, so one arriving after the
             // group moved on simply fails - and must not take the whole catch-up down with it.
-            mls.processMessage
-                .mockReturnValueOnce(throwError(() => new Error('WrongEpoch')))
-                .mockReturnValue(of({
-                    kind: 'commit', plaintext: null, selfRemoved: false,
-                    addedMembers: [], removedLeafIndices: [], senderIdentity: null, epoch: 1,
-                }));
+            mls.processMessage.mockReturnValueOnce(throwError(() => new Error('WrongEpoch'))).mockReturnValue(
+                of({
+                    kind: 'commit',
+                    plaintext: null,
+                    selfRemoved: false,
+                    addedMembers: [],
+                    removedLeafIndices: [],
+                    senderIdentity: null,
+                    epoch: 1,
+                }),
+            );
 
             await sync.syncContext(CONTEXT, false);
 
@@ -420,12 +484,10 @@ describe('MlsSyncService', () => {
             const {sync, mls, transport} = setup();
             mls.registry.set(`${CONTEXT}#1`, GROUP);
             mls.activeGeneration.set(CONTEXT, 1);
-            transport.getCommits
-                .mockReturnValueOnce(of([commit(1)]))
-                .mockReturnValue(of([]));
-            mls.drainPendingMessages.mockReturnValue(of([
-                {messageId: 'msg-1', plaintext: 'aGk=', senderIdentity: 'user-2', epoch: 1},
-            ]));
+            transport.getCommits.mockReturnValueOnce(of([commit(1)])).mockReturnValue(of([]));
+            mls.drainPendingMessages.mockReturnValue(
+                of([{messageId: 'msg-1', plaintext: 'aGk=', senderIdentity: 'user-2', epoch: 1}]),
+            );
 
             const seen: string[] = [];
             sync.replayedMessages.subscribe(e => seen.push(...e.messages.map(m => m.messageId!)));
@@ -442,10 +504,17 @@ describe('MlsSyncService', () => {
             mls.registry.set(`${CONTEXT}#1`, GROUP);
             mls.activeGeneration.set(CONTEXT, 1);
             transport.getCommits.mockReturnValue(of([commit(1), commit(2)]));
-            mls.processMessage.mockReturnValue(of({
-                kind: 'commit', plaintext: null, selfRemoved: true,
-                addedMembers: [], removedLeafIndices: [0], senderIdentity: null, epoch: 1,
-            }));
+            mls.processMessage.mockReturnValue(
+                of({
+                    kind: 'commit',
+                    plaintext: null,
+                    selfRemoved: true,
+                    addedMembers: [],
+                    removedLeafIndices: [0],
+                    senderIdentity: null,
+                    epoch: 1,
+                }),
+            );
 
             const seen: boolean[] = [];
             sync.contextChanged.subscribe(e => seen.push(e.selfRemoved));
@@ -472,7 +541,9 @@ describe('MlsSyncService', () => {
             seedGroup(mls);
 
             await sync.publish(CONTEXT, false, async () => ({
-                commit: 'Y29tbWl0', epoch: 1, deviceWelcomes: [],
+                commit: 'Y29tbWl0',
+                epoch: 1,
+                deviceWelcomes: [],
             }));
 
             expect(mls.mergePendingCommit).toHaveBeenCalledWith(GROUP);
@@ -487,7 +558,9 @@ describe('MlsSyncService', () => {
             );
 
             await sync.publish(CONTEXT, false, async () => ({
-                commit: 'Y29tbWl0', epoch: 1, deviceWelcomes: [],
+                commit: 'Y29tbWl0',
+                epoch: 1,
+                deviceWelcomes: [],
             }));
 
             // Applying a commit the server refused forks this device off the group for good.
@@ -519,7 +592,9 @@ describe('MlsSyncService', () => {
             );
 
             const ok = await sync.publish(CONTEXT, false, async () => ({
-                commit: 'Y29tbWl0', epoch: 1, deviceWelcomes: [],
+                commit: 'Y29tbWl0',
+                epoch: 1,
+                deviceWelcomes: [],
             }));
 
             expect(ok).toBe(false);
@@ -529,13 +604,15 @@ describe('MlsSyncService', () => {
         it('rethrows a non-conflict failure instead of silently swallowing it', async () => {
             const {sync, mls, transport} = setup();
             seedGroup(mls);
-            transport.publishCommit.mockReturnValue(
-                throwError(() => new HttpErrorResponse({status: 500})),
-            );
+            transport.publishCommit.mockReturnValue(throwError(() => new HttpErrorResponse({status: 500})));
 
-            await expect(sync.publish(CONTEXT, false, async () => ({
-                commit: 'Y29tbWl0', epoch: 1, deviceWelcomes: [],
-            }))).rejects.toBeInstanceOf(HttpErrorResponse);
+            await expect(
+                sync.publish(CONTEXT, false, async () => ({
+                    commit: 'Y29tbWl0',
+                    epoch: 1,
+                    deviceWelcomes: [],
+                })),
+            ).rejects.toBeInstanceOf(HttpErrorResponse);
 
             expect(mls.clearPendingCommit).toHaveBeenCalled();
         });
@@ -561,9 +638,13 @@ describe('MlsSyncService', () => {
             seedGroup(mls);
             mls.mergePendingCommit.mockReturnValue(throwError(() => new Error('disk full')));
 
-            await expect(sync.publish(CONTEXT, false, async () => ({
-                commit: 'Y29tbWl0', epoch: 1, deviceWelcomes: [],
-            }))).rejects.toBeInstanceOf(Error);
+            await expect(
+                sync.publish(CONTEXT, false, async () => ({
+                    commit: 'Y29tbWl0',
+                    epoch: 1,
+                    deviceWelcomes: [],
+                })),
+            ).rejects.toBeInstanceOf(Error);
 
             // The server has the commit. Discarding ours here - which the single catch around both
             // calls used to do - leaves this device permanently behind a commit everyone else
@@ -582,7 +663,9 @@ describe('MlsSyncService', () => {
                 .mockReturnValueOnce(of({contextId: CONTEXT, generation: 1, epoch: 1, duplicate: true}));
 
             const ok = await sync.publish(CONTEXT, false, async () => ({
-                commit: 'Y29tbWl0', epoch: 1, deviceWelcomes: [],
+                commit: 'Y29tbWl0',
+                epoch: 1,
+                deviceWelcomes: [],
             }));
 
             expect(ok).toBe(true);
@@ -600,12 +683,20 @@ describe('MlsSyncService', () => {
                 // device and returned the row it already held. The publish landed; only the
                 // response was lost. Reading it as a lost race is what discarded commits the group
                 // had already applied.
-                .mockReturnValueOnce(of({
-                    contextId: CONTEXT, generation: 1, epoch: 1, duplicate: true, isProposal: false,
-                }));
+                .mockReturnValueOnce(
+                    of({
+                        contextId: CONTEXT,
+                        generation: 1,
+                        epoch: 1,
+                        duplicate: true,
+                        isProposal: false,
+                    }),
+                );
 
             const ok = await sync.publish(CONTEXT, false, async () => ({
-                commit: 'Y29tbWl0', epoch: 1, deviceWelcomes: [],
+                commit: 'Y29tbWl0',
+                epoch: 1,
+                deviceWelcomes: [],
             }));
 
             expect(ok).toBe(true);
@@ -618,7 +709,10 @@ describe('MlsSyncService', () => {
             seedGroup(mls);
 
             await sync.publish(CONTEXT, false, async () => ({
-                commit: 'Y29tbWl0', epoch: 1, deviceWelcomes: [], groupInfo: 'ZnJlc2hpbmZv',
+                commit: 'Y29tbWl0',
+                epoch: 1,
+                deviceWelcomes: [],
+                groupInfo: 'ZnJlc2hpbmZv',
             }));
 
             // An exported GroupInfo describes the epoch the group is on *now*, and the commit is
@@ -637,12 +731,12 @@ describe('MlsSyncService', () => {
                 .mockReturnValueOnce(throwError(() => new HttpErrorResponse({status: 409, error: {}})))
                 .mockReturnValueOnce(of({contextId: CONTEXT, generation: 1, epoch: 2}));
             // The catch-up between the two attempts replays whatever won the epoch.
-            transport.getCommits
-                .mockReturnValueOnce(of([commit(1)]))
-                .mockReturnValue(of([]));
+            transport.getCommits.mockReturnValueOnce(of([commit(1)])).mockReturnValue(of([]));
 
             const ok = await sync.publish(CONTEXT, false, async () => ({
-                commit: 'Y29tbWl0', epoch: 1, deviceWelcomes: [],
+                commit: 'Y29tbWl0',
+                epoch: 1,
+                deviceWelcomes: [],
             }));
 
             expect(ok).toBe(true);
@@ -662,13 +756,19 @@ describe('MlsSyncService', () => {
         it('returns the plaintext when the sender is a current member', async () => {
             const {sync, mls} = setup();
             seedGroup(mls);
-            mls.processMessage.mockReturnValue(of({
-                kind: 'application', plaintext: 'aGk=', selfRemoved: false,
-                addedMembers: [], removedLeafIndices: [], senderIdentity: 'user-2', epoch: null,
-            }));
+            mls.processMessage.mockReturnValue(
+                of({
+                    kind: 'application',
+                    plaintext: 'aGk=',
+                    selfRemoved: false,
+                    addedMembers: [],
+                    removedLeafIndices: [],
+                    senderIdentity: 'user-2',
+                    epoch: null,
+                }),
+            );
 
-            const plaintext = await sync.decryptMessage(
-                CONTEXT, false, GROUP, 'Y2lwaGVy', 'msg-1', 'user-2');
+            const plaintext = await sync.decryptMessage(CONTEXT, false, GROUP, 'Y2lwaGVy', 'msg-1', 'user-2');
 
             expect(plaintext).toBe('aGk=');
         });
@@ -676,10 +776,17 @@ describe('MlsSyncService', () => {
         it('does not re-check the roster, because openmls already did', async () => {
             const {sync, mls} = setup();
             seedGroup(mls);
-            mls.processMessage.mockReturnValue(of({
-                kind: 'application', plaintext: 'aGk=', selfRemoved: false,
-                addedMembers: [], removedLeafIndices: [], senderIdentity: 'user-2', epoch: null,
-            }));
+            mls.processMessage.mockReturnValue(
+                of({
+                    kind: 'application',
+                    plaintext: 'aGk=',
+                    selfRemoved: false,
+                    addedMembers: [],
+                    removedLeafIndices: [],
+                    senderIdentity: 'user-2',
+                    epoch: null,
+                }),
+            );
 
             const plaintext = await sync.decryptMessage(CONTEXT, false, GROUP, 'Y2lwaGVy', 'msg-1');
 
@@ -696,15 +803,21 @@ describe('MlsSyncService', () => {
         it('refuses a message whose credential disagrees with the claimed author', async () => {
             const {sync, mls} = setup();
             seedGroup(mls);
-            mls.processMessage.mockReturnValue(of({
-                kind: 'application', plaintext: 'aGk=', selfRemoved: false,
-                addedMembers: [], removedLeafIndices: [], senderIdentity: 'user-2', epoch: null,
-            }));
+            mls.processMessage.mockReturnValue(
+                of({
+                    kind: 'application',
+                    plaintext: 'aGk=',
+                    selfRemoved: false,
+                    addedMembers: [],
+                    removedLeafIndices: [],
+                    senderIdentity: 'user-2',
+                    epoch: null,
+                }),
+            );
 
             // Only the credential inside the ciphertext is authenticated; the author on the
             // envelope is the server's word. A disagreement means neither is safe to attribute.
-            const plaintext = await sync.decryptMessage(
-                CONTEXT, false, GROUP, 'Y2lwaGVy', 'msg-1', 'user-9');
+            const plaintext = await sync.decryptMessage(CONTEXT, false, GROUP, 'Y2lwaGVy', 'msg-1', 'user-9');
 
             expect(plaintext).toBeNull();
         });
@@ -726,10 +839,17 @@ describe('MlsSyncService', () => {
         it('says nothing about a context that reads fine', async () => {
             const {sync, mls, health} = setup();
             seedGroup(mls);
-            mls.processMessage.mockReturnValue(of({
-                kind: 'application', plaintext: 'aGk=', selfRemoved: false,
-                addedMembers: [], removedLeafIndices: [], senderIdentity: 'user-2', epoch: null,
-            }));
+            mls.processMessage.mockReturnValue(
+                of({
+                    kind: 'application',
+                    plaintext: 'aGk=',
+                    selfRemoved: false,
+                    addedMembers: [],
+                    removedLeafIndices: [],
+                    senderIdentity: 'user-2',
+                    epoch: null,
+                }),
+            );
 
             await sync.decryptMessage(CONTEXT, false, GROUP, 'Y2lwaGVy', 'msg-1', 'user-2');
 
@@ -739,10 +859,17 @@ describe('MlsSyncService', () => {
         it('does not treat an early message as a failure', async () => {
             const {sync, mls, health} = setup();
             seedGroup(mls);
-            mls.processMessage.mockReturnValue(of({
-                kind: 'buffered', plaintext: null, selfRemoved: false,
-                addedMembers: [], removedLeafIndices: [], senderIdentity: null, epoch: 5,
-            }));
+            mls.processMessage.mockReturnValue(
+                of({
+                    kind: 'buffered',
+                    plaintext: null,
+                    selfRemoved: false,
+                    addedMembers: [],
+                    removedLeafIndices: [],
+                    senderIdentity: null,
+                    epoch: 5,
+                }),
+            );
 
             const plaintext = await sync.decryptMessage(CONTEXT, false, GROUP, 'Y2lwaGVy', 'msg-1');
 
@@ -757,10 +884,12 @@ describe('MlsSyncService', () => {
             const {sync, mls, transport} = setup();
             mls.registry.set(`${CONTEXT}#1`, GROUP);
             mls.activeGeneration.set(CONTEXT, 1);
-            transport.consumeTokensForUsers.mockReturnValue(of({
-                deviceTokens: [{deviceId: 'device-b', userId: 'user-2', token: 'a2V5'}],
-                unreachableDevices: [{userId: 'user-3', deviceId: 'device-c', deviceName: "Bob's phone"}],
-            }));
+            transport.consumeTokensForUsers.mockReturnValue(
+                of({
+                    deviceTokens: [{deviceId: 'device-b', userId: 'user-2', token: 'a2V5'}],
+                    unreachableDevices: [{userId: 'user-3', deviceId: 'device-c', deviceName: "Bob's phone"}],
+                }),
+            );
 
             const unreachable = await sync.addMembers(CONTEXT, false, ['user-2', 'user-3']);
 
@@ -773,10 +902,12 @@ describe('MlsSyncService', () => {
             const {sync, mls, transport} = setup();
             mls.registry.set(`${CONTEXT}#1`, GROUP);
             mls.activeGeneration.set(CONTEXT, 1);
-            transport.consumeTokensForUsers.mockReturnValue(of({
-                deviceTokens: [{deviceId: DEVICE_ID, userId: 'user-1', token: 'a2V5'}],
-                unreachableDevices: [],
-            }));
+            transport.consumeTokensForUsers.mockReturnValue(
+                of({
+                    deviceTokens: [{deviceId: DEVICE_ID, userId: 'user-1', token: 'a2V5'}],
+                    unreachableDevices: [],
+                }),
+            );
 
             await sync.addMembers(CONTEXT, false, ['user-1']);
 
@@ -812,21 +943,24 @@ describe('MlsSyncService', () => {
     });
 
     describe('state reconciliation', () => {
-        it('forgets the active generation when a never-encrypted context reports plaintext',
-            async () => {
-                const {sync, mls, transport} = setup();
-                // Registry seeded directly, without `registerGroup`, so no floor exists - this is
-                // a context this device has never actually encrypted anything in.
-                mls.registry.set(`${CONTEXT}#1`, GROUP);
-                mls.activeGeneration.set(CONTEXT, 1);
-                transport.getState.mockReturnValue(of({
-                    contextId: CONTEXT, encrypted: false, generations: [],
-                }));
+        it('forgets the active generation when a never-encrypted context reports plaintext', async () => {
+            const {sync, mls, transport} = setup();
+            // Registry seeded directly, without `registerGroup`, so no floor exists - this is
+            // a context this device has never actually encrypted anything in.
+            mls.registry.set(`${CONTEXT}#1`, GROUP);
+            mls.activeGeneration.set(CONTEXT, 1);
+            transport.getState.mockReturnValue(
+                of({
+                    contextId: CONTEXT,
+                    encrypted: false,
+                    generations: [],
+                }),
+            );
 
-                await sync.refreshState(CONTEXT, false);
+            await sync.refreshState(CONTEXT, false);
 
-                expect(mls.clearActiveGeneration).toHaveBeenCalledWith(CONTEXT);
-            });
+            expect(mls.clearActiveGeneration).toHaveBeenCalledWith(CONTEXT);
+        });
 
         // ─── C1: the server must not be able to switch encryption off ─────────
         //
@@ -836,26 +970,33 @@ describe('MlsSyncService', () => {
         // needed and no MLS property was broken; the client simply stopped using them because it
         // was asked to.
 
-        it('refuses to clear the generation when the context has ever been encrypted here',
-            async () => {
-                const {sync, mls, transport} = setup();
-                await mls.registerGroup(CONTEXT, 1, GROUP);
-                transport.getState.mockReturnValue(of({
-                    contextId: CONTEXT, encrypted: false, generations: [],
-                }));
+        it('refuses to clear the generation when the context has ever been encrypted here', async () => {
+            const {sync, mls, transport} = setup();
+            await mls.registerGroup(CONTEXT, 1, GROUP);
+            transport.getState.mockReturnValue(
+                of({
+                    contextId: CONTEXT,
+                    encrypted: false,
+                    generations: [],
+                }),
+            );
 
-                await sync.refreshState(CONTEXT, false);
+            await sync.refreshState(CONTEXT, false);
 
-                expect(mls.clearActiveGeneration).not.toHaveBeenCalled();
-                expect(await mls.getKnownGeneration(CONTEXT)).toBe(1);
-            });
+            expect(mls.clearActiveGeneration).not.toHaveBeenCalled();
+            expect(await mls.getKnownGeneration(CONTEXT)).toBe(1);
+        });
 
         it('reports a claimed downgrade as a failure the user can see', async () => {
             const {sync, mls, transport, health} = setup();
             await mls.registerGroup(CONTEXT, 1, GROUP);
-            transport.getState.mockReturnValue(of({
-                contextId: CONTEXT, encrypted: false, generations: [],
-            }));
+            transport.getState.mockReturnValue(
+                of({
+                    contextId: CONTEXT,
+                    encrypted: false,
+                    generations: [],
+                }),
+            );
 
             await sync.refreshState(CONTEXT, false);
 
@@ -869,9 +1010,13 @@ describe('MlsSyncService', () => {
             const {sync, mls, transport} = setup();
             await mls.registerGroup(CONTEXT, 1, GROUP);
             await mls.clearActiveGeneration(CONTEXT);
-            transport.getState.mockReturnValue(of({
-                contextId: CONTEXT, encrypted: false, generations: [],
-            }));
+            transport.getState.mockReturnValue(
+                of({
+                    contextId: CONTEXT,
+                    encrypted: false,
+                    generations: [],
+                }),
+            );
 
             await sync.refreshState(CONTEXT, false);
 
@@ -884,9 +1029,15 @@ describe('MlsSyncService', () => {
             const {sync, mls, transport} = setup();
             mls.registry.set(`${CONTEXT}#1`, GROUP);
             mls.activeGeneration.set(CONTEXT, 1);
-            transport.getState.mockReturnValue(of({
-                contextId: CONTEXT, encrypted: true, activeGeneration: 2, epoch: 0, generations: [],
-            }));
+            transport.getState.mockReturnValue(
+                of({
+                    contextId: CONTEXT,
+                    encrypted: true,
+                    activeGeneration: 2,
+                    epoch: 0,
+                    generations: [],
+                }),
+            );
 
             await sync.refreshState(CONTEXT, false);
 

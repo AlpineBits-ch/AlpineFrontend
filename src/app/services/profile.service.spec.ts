@@ -44,9 +44,17 @@ function drainAndReset(): void {
 
 function profileFor(userId: string) {
     return {
-        id: `p_${userId}`, userId, userName: 'Ada', bio: undefined, avatarUrl: undefined,
-        bannerUrl: undefined, accentColor: null, font: ProfileFont.Default,
-        createdAt: new Date(), updatedAt: new Date(), onlineStatus: OnlineStatus.Online,
+        id: `p_${userId}`,
+        userId,
+        userName: 'Ada',
+        bio: undefined,
+        avatarUrl: undefined,
+        bannerUrl: undefined,
+        accentColor: null,
+        font: ProfileFont.Default,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        onlineStatus: OnlineStatus.Online,
     };
 }
 
@@ -100,7 +108,7 @@ describe('ProfileService request coalescing', () => {
         // friends-list effect re-running.
         for (let i = 0; i < 10; i++) service.resolveByUserId(USER);
         let fromCache: string | undefined;
-        service.getByUserId(USER).subscribe(p => fromCache = p.userName);
+        service.getByUserId(USER).subscribe(p => (fromCache = p.userName));
 
         expect(fromCache).toBe('Ada');
         ctrl.expectNone(BY_USER);
@@ -113,10 +121,12 @@ describe('ProfileService request coalescing', () => {
         service.resolveByUserId('user_b');
         service.resolveByUserId('user_a');
 
-        ctrl.expectOne('https://api.test.example/api/v1/social/profiles/by-user/user_a')
-            .flush(profileFor('user_a'));
-        ctrl.expectOne('https://api.test.example/api/v1/social/profiles/by-user/user_b')
-            .flush(profileFor('user_b'));
+        ctrl.expectOne('https://api.test.example/api/v1/social/profiles/by-user/user_a').flush(
+            profileFor('user_a'),
+        );
+        ctrl.expectOne('https://api.test.example/api/v1/social/profiles/by-user/user_b').flush(
+            profileFor('user_b'),
+        );
     });
 
     // The coalescing window is not a second cache. Settings tables call `fetchByUserId` precisely
@@ -240,7 +250,7 @@ describe('ProfileService negative caching', () => {
         service.fetchByUserId(USER).subscribe();
         ctrl.expectOne(BY_USER).flush(profileFor(USER));
 
-        const marked = (service as unknown as { negativeByUserId: Map<string, number> }).negativeByUserId;
+        const marked = (service as unknown as {negativeByUserId: Map<string, number>}).negativeByUserId;
         expect(marked.has(USER)).toBe(false);
     });
 
@@ -425,16 +435,32 @@ describe('ProfileService.setSelfStatus', () => {
     it('updates ownProfile signal on success', () => {
         const {service, ctrl} = setup();
         service['ownProfile'].set({
-            id: 'p1', userId: 'u1', userName: 'me', bio: undefined, avatarUrl: undefined,
-            bannerUrl: undefined, accentColor: null, font: ProfileFont.Default,
-            createdAt: new Date(), updatedAt: new Date(), onlineStatus: OnlineStatus.Online,
+            id: 'p1',
+            userId: 'u1',
+            userName: 'me',
+            bio: undefined,
+            avatarUrl: undefined,
+            bannerUrl: undefined,
+            accentColor: null,
+            font: ProfileFont.Default,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            onlineStatus: OnlineStatus.Online,
         });
         service.setSelfStatus(OnlineStatus.DoNotDisturb).subscribe();
         const req = ctrl.expectOne('https://api.test.example/api/v1/social/profiles/me/status');
         req.flush({
-            id: 'p1', userId: 'u1', userName: 'me', bio: undefined, avatarUrl: undefined,
-            bannerUrl: undefined, accentColor: null, font: ProfileFont.Default,
-            createdAt: new Date(), updatedAt: new Date(), onlineStatus: OnlineStatus.DoNotDisturb,
+            id: 'p1',
+            userId: 'u1',
+            userName: 'me',
+            bio: undefined,
+            avatarUrl: undefined,
+            bannerUrl: undefined,
+            accentColor: null,
+            font: ProfileFont.Default,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            onlineStatus: OnlineStatus.DoNotDisturb,
         });
         expect(service.ownProfile()?.onlineStatus).toBe(OnlineStatus.DoNotDisturb);
     });
@@ -450,9 +476,17 @@ describe('ProfileService.updateProfile', () => {
         expect(req.request.method).toBe('PATCH');
         expect(req.request.body).toEqual({bio: 'hi', accentColor: '#5865F2', font: 'Serif'});
         req.flush({
-            id: 'p1', userId: 'u1', userName: 'me', bio: 'hi', avatarUrl: undefined,
-            bannerUrl: undefined, accentColor: '#5865F2', font: ProfileFont.Serif,
-            createdAt: new Date(), updatedAt: new Date(), onlineStatus: OnlineStatus.Online,
+            id: 'p1',
+            userId: 'u1',
+            userName: 'me',
+            bio: 'hi',
+            avatarUrl: undefined,
+            bannerUrl: undefined,
+            accentColor: '#5865F2',
+            font: ProfileFont.Serif,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            onlineStatus: OnlineStatus.Online,
         });
     });
 
@@ -461,9 +495,17 @@ describe('ProfileService.updateProfile', () => {
         service.updateProfile({bio: 'hi'}).subscribe();
         const req = ctrl.expectOne('https://api.test.example/api/v1/social/profiles/me');
         req.flush({
-            id: 'p1', userId: 'u1', userName: 'me', bio: 'hi', avatarUrl: undefined,
-            bannerUrl: undefined, accentColor: null, font: ProfileFont.Default,
-            createdAt: new Date(), updatedAt: new Date(), onlineStatus: OnlineStatus.Online,
+            id: 'p1',
+            userId: 'u1',
+            userName: 'me',
+            bio: 'hi',
+            avatarUrl: undefined,
+            bannerUrl: undefined,
+            accentColor: null,
+            font: ProfileFont.Default,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            onlineStatus: OnlineStatus.Online,
         });
         expect(service.ownProfile()?.bio).toBe('hi');
     });
@@ -544,7 +586,7 @@ describe('ProfileService.uploadBanner', () => {
         const {service, ctrl} = setup();
         const file = new File(['x'], 'banner.png', {type: 'image/png'});
         let completed = false;
-        service.uploadBanner(file).subscribe({complete: () => completed = true});
+        service.uploadBanner(file).subscribe({complete: () => (completed = true)});
         expect(completed).toBe(true);
         ctrl.verify();
     });
@@ -552,9 +594,17 @@ describe('ProfileService.uploadBanner', () => {
     it('PATCHes /api/v1/social/profiles/{id}/banner with FormData, then refetches the profile via getSelf since the upload endpoint returns no body', () => {
         const {service, ctrl} = setup();
         service['ownProfile'].set({
-            id: 'p1', userId: 'u1', userName: 'me', bio: undefined, avatarUrl: undefined,
-            bannerUrl: undefined, accentColor: null, font: ProfileFont.Default,
-            createdAt: new Date(), updatedAt: new Date(), onlineStatus: OnlineStatus.Online,
+            id: 'p1',
+            userId: 'u1',
+            userName: 'me',
+            bio: undefined,
+            avatarUrl: undefined,
+            bannerUrl: undefined,
+            accentColor: null,
+            font: ProfileFont.Default,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            onlineStatus: OnlineStatus.Online,
         });
         const file = new File(['x'], 'banner.png', {type: 'image/png'});
         service.uploadBanner(file).subscribe();
@@ -570,9 +620,17 @@ describe('ProfileService.uploadBanner', () => {
         const getReq = ctrl.expectOne('https://api.test.example/api/v1/social/profiles/me');
         expect(getReq.request.method).toBe('GET');
         getReq.flush({
-            id: 'p1', userId: 'u1', userName: 'me', bio: undefined, avatarUrl: undefined,
-            bannerUrl: 'https://cdn.example/banner.png', accentColor: null, font: ProfileFont.Default,
-            createdAt: new Date(), updatedAt: new Date(), onlineStatus: OnlineStatus.Online,
+            id: 'p1',
+            userId: 'u1',
+            userName: 'me',
+            bio: undefined,
+            avatarUrl: undefined,
+            bannerUrl: 'https://cdn.example/banner.png',
+            accentColor: null,
+            font: ProfileFont.Default,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            onlineStatus: OnlineStatus.Online,
         });
         expect(service.ownProfile()?.bannerUrl).toBe('https://cdn.example/banner.png');
     });

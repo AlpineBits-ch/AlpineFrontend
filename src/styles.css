@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 /* Tell Tailwind that `dark:` fires whenever an ancestor carries the `.dark` class.
    <body class="dark"> is always present, so dark utilities are always active. */
@@ -7,31 +7,32 @@
 /* ── Mobile-native feel ─────────────────────────────────────────────────── */
 /* Remove blue tap flash on iOS/Android */
 * {
-  -webkit-tap-highlight-color: transparent;
+    -webkit-tap-highlight-color: transparent;
 }
 
 /* Base font size is controlled by the ThemeService at runtime via --base-font-size.
    All Tailwind rem utilities (text-sm, text-xs, etc.) scale with this. */
 html {
-  font-size: var(--base-font-size, 16px);
-  font-family: var(--font-sans);
+    font-size: var(--base-font-size, 16px);
+    font-family: var(--font-sans);
 }
 
 /* Prevent rubber-band scroll and font inflation.
    background-color fills iOS safe-area bars (status bar + home indicator). */
-html, body {
-  overscroll-behavior: none;
-  -webkit-text-size-adjust: 100%;
-  text-size-adjust: 100%;
-  background-color: transparent;
-  height: 100%;
-  overflow: hidden;
+html,
+body {
+    overscroll-behavior: none;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    background-color: transparent;
+    height: 100%;
+    overflow: hidden;
 }
 
 /* Reusable thin scrollbar -replace repeated inline scrollbar style= attributes */
 .thin-scrollbar {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
 }
 
 /* The header row, wherever one is drawn: channel titles, the wiki breadcrumb bar,
@@ -40,15 +41,15 @@ html, body {
    than the channel bar sitting right beside it. Safe-area padding is folded in here
    so no header has to repeat the calc to clear a notch. */
 .app-header {
-  padding-top: env(safe-area-inset-top);
-  min-height: calc(env(safe-area-inset-top) + var(--spacing-header));
+    padding-top: env(safe-area-inset-top);
+    min-height: calc(env(safe-area-inset-top) + var(--spacing-header));
 }
 
 /* Same row, for a header whose column already pads for the safe area itself
    (the sidebar wrapper does) -adding it twice would push that column's title
    below every other header's. */
 .app-header-nested {
-  min-height: var(--spacing-header);
+    min-height: var(--spacing-header);
 }
 
 /* ── Channel sidebar rows ────────────────────────────────────────────────────
@@ -61,34 +62,35 @@ html, body {
    the row label at 0.8125rem, and 0.625rem for badges. All rem, so the column
    still scales with --base-font-size. */
 .chan-row {
-  position: relative;
-  display: flex;
-  width: 100%;
-  align-items: center;
-  gap: 0.5rem;
-  height: var(--spacing-chan-row);
-  /* Left padding is the rail's gutter. Every row reserves it whether or not it
+    position: relative;
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 0.5rem;
+    height: var(--spacing-chan-row);
+    /* Left padding is the rail's gutter. Every row reserves it whether or not it
      is showing a rail, so a channel does not shift sideways when it goes unread. */
-  padding-left: 0.75rem;
-  padding-right: 0.5rem;
-  border: 0;
-  border-radius: 0.5rem;
-  background: transparent;
-  color: var(--color-text-secondary);
-  text-align: left;
-  cursor: pointer;
-  transition: background-color var(--duration-fast) var(--ease-brand),
-              color var(--duration-fast) var(--ease-brand);
+    padding-left: 0.75rem;
+    padding-right: 0.5rem;
+    border: 0;
+    border-radius: 0.5rem;
+    background: transparent;
+    color: var(--color-text-secondary);
+    text-align: left;
+    cursor: pointer;
+    transition:
+        background-color var(--duration-fast) var(--ease-brand),
+        color var(--duration-fast) var(--ease-brand);
 }
 
 .chan-row:hover {
-  background: rgb(255 255 255 / 0.045);
-  color: rgb(255 255 255 / 0.86);
+    background: rgb(255 255 255 / 0.045);
+    color: rgb(255 255 255 / 0.86);
 }
 
 .chan-row:focus-visible {
-  outline: 2px solid var(--color-brand);
-  outline-offset: -2px;
+    outline: 2px solid var(--color-brand);
+    outline-offset: -2px;
 }
 
 /* The rail. One device in one gutter carries every state this column can be in,
@@ -96,86 +98,87 @@ html, body {
    separate pill forum posts used to draw in a gutter of their own. Sized rather
    than shown/hidden so the state change is a height, which animates. */
 .chan-row::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 50%;
-  width: 3px;
-  height: 0;
-  transform: translateY(-50%);
-  border-radius: 0 3px 3px 0;
-  background: transparent;
-  transition: height var(--duration-base) var(--ease-brand),
-              background-color var(--duration-base) var(--ease-brand);
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    width: 3px;
+    height: 0;
+    transform: translateY(-50%);
+    border-radius: 0 3px 3px 0;
+    background: transparent;
+    transition:
+        height var(--duration-base) var(--ease-brand),
+        background-color var(--duration-base) var(--ease-brand);
 }
 
 .chan-row.is-unread::before {
-  height: 0.5rem;
-  background: rgb(255 255 255 / 0.85);
+    height: 0.5rem;
+    background: rgb(255 255 255 / 0.85);
 }
 
 /* Active outranks unread: the channel you are reading is by definition caught up,
    and if both ever land at once "where I am" is the more useful of the two. */
 .chan-row.is-active::before,
 .chan-row.is-joined::before {
-  height: 1rem;
+    height: 1rem;
 }
 
 .chan-row.is-active::before {
-  background: var(--color-brand);
+    background: var(--color-brand);
 }
 
 .chan-row.is-active {
-  background: color-mix(in srgb, var(--color-brand) 13%, transparent);
-  color: #fff;
+    background: color-mix(in srgb, var(--color-brand) 13%, transparent);
+    color: #fff;
 }
 
 .chan-row.is-active .chan-icon {
-  color: var(--color-brand-dim);
+    color: var(--color-brand-dim);
 }
 
 /* A voice channel you are connected to keeps its green identity, but as a rail
    rather than a full-row tint - a tinted row read as a second kind of "active"
    and competed with the channel actually open on the stage. */
 .chan-row.is-joined::before {
-  background: var(--color-online);
+    background: var(--color-online);
 }
 
 .chan-row.is-joined {
-  background: color-mix(in srgb, var(--color-online) 10%, transparent);
-  color: rgb(255 255 255 / 0.9);
+    background: color-mix(in srgb, var(--color-online) 10%, transparent);
+    color: rgb(255 255 255 / 0.9);
 }
 
 .chan-row.is-joined .chan-icon {
-  color: var(--color-online);
+    color: var(--color-online);
 }
 
 .chan-row.is-unread {
-  color: #fff;
+    color: #fff;
 }
 
 .chan-row.is-unread .chan-label {
-  font-weight: 600;
+    font-weight: 600;
 }
 
 /* Fixed slot, so a `#`, a pi-comments and a pi-volume-up all put their labels on
    the same x. The `#` is a text glyph rather than an icon font and needs its own
    size to sit at the same optical weight as one. */
 .chan-icon {
-  display: flex;
-  width: 1.125rem;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.8125rem;
-  color: rgb(255 255 255 / 0.32);
-  transition: color var(--duration-fast) var(--ease-brand);
+    display: flex;
+    width: 1.125rem;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8125rem;
+    color: rgb(255 255 255 / 0.32);
+    transition: color var(--duration-fast) var(--ease-brand);
 }
 
 .chan-icon-hash {
-  font-size: 1rem;
-  font-weight: 400;
-  line-height: 1;
+    font-size: 1rem;
+    font-weight: 400;
+    line-height: 1;
 }
 
 /* House, Wiki, Events and Channels & Roles are places the app provides, not channels
@@ -184,34 +187,35 @@ html, body {
    Colour alone could not carry it - an active channel is already tinted, so a tinted
    module would read as "open" rather than as a different kind of thing. */
 .chan-row-module .chan-icon {
-  height: 1.25rem;
-  width: 1.25rem;
-  border-radius: 0.375rem;
-  background: rgb(255 255 255 / 0.08);
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.07);
-  color: rgb(255 255 255 / 0.55);
-  transition: background-color var(--duration-fast) var(--ease-brand),
-              box-shadow var(--duration-fast) var(--ease-brand),
-              color var(--duration-fast) var(--ease-brand);
+    height: 1.25rem;
+    width: 1.25rem;
+    border-radius: 0.375rem;
+    background: rgb(255 255 255 / 0.08);
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.07);
+    color: rgb(255 255 255 / 0.55);
+    transition:
+        background-color var(--duration-fast) var(--ease-brand),
+        box-shadow var(--duration-fast) var(--ease-brand),
+        color var(--duration-fast) var(--ease-brand);
 }
 
 /* The chip is 0.125rem wider than a channel's icon slot, so module labels start a
    shade right of channel labels. That is deliberate: the two are different kinds of
    destination and do not belong on one text column. */
 .chan-row-module .chan-label {
-  margin-left: -0.125rem;
+    margin-left: -0.125rem;
 }
 
 .chan-row-module:hover .chan-icon {
-  background: rgb(255 255 255 / 0.13);
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.1);
-  color: rgb(255 255 255 / 0.8);
+    background: rgb(255 255 255 / 0.13);
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.1);
+    color: rgb(255 255 255 / 0.8);
 }
 
 .chan-row-module.is-active .chan-icon {
-  background: color-mix(in srgb, var(--color-brand) 32%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-brand) 45%, transparent);
-  color: var(--color-brand-dim);
+    background: color-mix(in srgb, var(--color-brand) 32%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-brand) 45%, transparent);
+    color: var(--color-brand-dim);
 }
 
 /* The line under the module block: app above, the guild's own content below. The block
@@ -221,28 +225,28 @@ html, body {
    gutter and ends where a category's rule ends, so the two rules in this column are
    plainly the same device at two levels rather than one rule and one border. */
 .chan-modules {
-  position: relative;
+    position: relative;
 }
 
 .chan-modules::after {
-  content: "";
-  position: absolute;
-  left: 1.25rem;
-  right: 1rem;
-  bottom: 0;
-  height: 1px;
-  background: rgb(255 255 255 / 0.07);
+    content: '';
+    position: absolute;
+    left: 1.25rem;
+    right: 1rem;
+    bottom: 0;
+    height: 1px;
+    background: rgb(255 255 255 / 0.07);
 }
 
 .chan-label {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  font-size: 0.8125rem;
-  font-weight: 500;
-  letter-spacing: -0.005em;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    letter-spacing: -0.005em;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 /* Category header. A real section label - uppercase, tracked, quiet - instead of
@@ -255,82 +259,82 @@ html, body {
    the inner one's click was not reliably dispatched and assistive tech was told
    the whole header was one control. */
 .chan-section {
-  display: flex;
-  width: 100%;
-  align-items: center;
-  gap: 0.375rem;
-  height: 1.75rem;
-  margin-top: 0.625rem;
-  padding-left: 0.75rem;
-  padding-right: 0.5rem;
-  color: rgb(255 255 255 / 0.34);
-  transition: color var(--duration-fast) var(--ease-brand);
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 0.375rem;
+    height: 1.75rem;
+    margin-top: 0.625rem;
+    padding-left: 0.75rem;
+    padding-right: 0.5rem;
+    color: rgb(255 255 255 / 0.34);
+    transition: color var(--duration-fast) var(--ease-brand);
 }
 
 .chan-section:hover {
-  color: rgb(255 255 255 / 0.62);
+    color: rgb(255 255 255 / 0.62);
 }
 
 .chan-section-toggle {
-  display: flex;
-  flex: 1;
-  min-width: 0;
-  height: 100%;
-  align-items: center;
-  gap: 0.375rem;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
 }
 
 .chan-section-toggle:focus-visible,
 .chan-section-add:focus-visible {
-  outline: 2px solid var(--color-brand);
-  outline-offset: 2px;
-  border-radius: 0.25rem;
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+    border-radius: 0.25rem;
 }
 
 .chan-section-add {
-  display: flex;
-  flex-shrink: 0;
-  width: 1.125rem;
-  height: 1.125rem;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  border: 0;
-  border-radius: 0.25rem;
-  background: transparent;
-  color: inherit;
-  font-size: 0.625rem;
-  opacity: 0;
-  cursor: pointer;
-  transition: opacity var(--duration-fast) var(--ease-brand);
+    display: flex;
+    flex-shrink: 0;
+    width: 1.125rem;
+    height: 1.125rem;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 0;
+    border-radius: 0.25rem;
+    background: transparent;
+    color: inherit;
+    font-size: 0.625rem;
+    opacity: 0;
+    cursor: pointer;
+    transition: opacity var(--duration-fast) var(--ease-brand);
 }
 
 .chan-section:hover .chan-section-add,
 .chan-section-add:focus-visible {
-  opacity: 1;
+    opacity: 1;
 }
 
 .chan-section-label {
-  overflow: hidden;
-  font-size: 0.6875rem;
-  font-weight: 600;
-  letter-spacing: 0.11em;
-  text-transform: uppercase;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+    overflow: hidden;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .chan-section-rule {
-  flex: 1;
-  height: 1px;
-  margin: 0 0.25rem;
-  background: rgb(255 255 255 / 0.07);
+    flex: 1;
+    height: 1px;
+    margin: 0 0.25rem;
+    background: rgb(255 255 255 / 0.07);
 }
 
 /* Nesting. One guide line for both voice members and forum posts - they used to
@@ -338,40 +342,40 @@ html, body {
    "belongs to the row above" relationship. It fades out downward so the group
    ends softly instead of on a cut. */
 .chan-nest {
-  position: relative;
-  /* 1.875 + the row's own 0.5 puts a nested label at 2.375rem, exactly under its
+    position: relative;
+    /* 1.875 + the row's own 0.5 puts a nested label at 2.375rem, exactly under its
      parent's label - the guide line shows the relationship, so the text does not
      also have to step right to prove it. */
-  padding-left: 1.875rem;
+    padding-left: 1.875rem;
 }
 
 /* Drops from the centre of the parent row's icon slot (0.75 gutter + half of the
    1.125 slot), so the line reads as coming out of the channel rather than out of
    the margin. */
 .chan-nest::before {
-  content: "";
-  position: absolute;
-  left: 1.3125rem;
-  top: 0;
-  bottom: 0.375rem;
-  width: 1px;
-  background: linear-gradient(rgb(255 255 255 / 0.22), rgb(255 255 255 / 0.07));
+    content: '';
+    position: absolute;
+    left: 1.3125rem;
+    top: 0;
+    bottom: 0.375rem;
+    width: 1px;
+    background: linear-gradient(rgb(255 255 255 / 0.22), rgb(255 255 255 / 0.07));
 }
 
 .chan-nest .chan-row {
-  height: var(--spacing-chan-row-nested);
-  padding-left: 0.5rem;
+    height: var(--spacing-chan-row-nested);
+    padding-left: 0.5rem;
 }
 
 /* The nested rail lands on the guide line rather than beside it, so an unread post
    thickens the line it already hangs from instead of adding a second mark. */
 .chan-nest .chan-row::before {
-  left: -0.5625rem;
+    left: -0.5625rem;
 }
 
 .chan-nest .chan-label {
-  font-size: 0.78125rem;
-  font-weight: 400;
+    font-size: 0.78125rem;
+    font-weight: 400;
 }
 
 /* A member's face, in the slot `.chan-icon` and `.invite-nudge-slot` use one level
@@ -388,15 +392,15 @@ html, body {
 .chan-avatar,
 .chan-avatar app-avatar,
 .chan-avatar p-avatar {
-  display: flex;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
 }
 
 .chan-avatar {
-  width: 1.125rem;
-  height: 1.125rem;
+    width: 1.125rem;
+    height: 1.125rem;
 }
 
 /* ── The invite nudge, under your own name ───────────────────────────────────
@@ -405,30 +409,30 @@ html, body {
    never pushed past where they land and then pulled back. The child owns the
    overflow, which is what a collapsing track needs to clip against. */
 @keyframes invite-nudge-in {
-  from {
-    grid-template-rows: 0fr;
-    opacity: 0;
-    /* Out of the guide line the nest hangs from, the same half-centimetre the
+    from {
+        grid-template-rows: 0fr;
+        opacity: 0;
+        /* Out of the guide line the nest hangs from, the same half-centimetre the
        invite panel travels out of the column. The row belongs to the channel
        above it, and coming from that edge is what says so. */
-    transform: translateX(-0.375rem);
-  }
-  to {
-    grid-template-rows: 1fr;
-    opacity: 1;
-    transform: translateX(0);
-  }
+        transform: translateX(-0.375rem);
+    }
+    to {
+        grid-template-rows: 1fr;
+        opacity: 1;
+        transform: translateX(0);
+    }
 }
 
 .invite-nudge {
-  display: grid;
-  grid-template-rows: 1fr;
-  animation: invite-nudge-in var(--duration-base) var(--ease-brand);
+    display: grid;
+    grid-template-rows: 1fr;
+    animation: invite-nudge-in var(--duration-base) var(--ease-brand);
 }
 
 .invite-nudge > * {
-  min-height: 0;
-  overflow: hidden;
+    min-height: 0;
+    overflow: hidden;
 }
 
 /* ── The invite panel's surface ──────────────────────────────────────────────
@@ -442,29 +446,29 @@ html, body {
    an overlay whose colour depends on a class it has to inherit through
    `appendTo="body"` is exactly the fragility worth removing here. */
 .channel-invite-popover.p-popover {
-  margin-block-start: 0.375rem;
-  /* The panel inside owns every pixel of the surface. Leaving it here as well would
+    margin-block-start: 0.375rem;
+    /* The panel inside owns every pixel of the surface. Leaving it here as well would
      put a second border a hair outside the one you can see, and would tie the panel's
      colour to an overlay token it has to inherit through `appendTo="body"`. */
-  background: transparent;
-  border: 0;
-  box-shadow: none;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
 }
 
 .channel-invite-popover.p-popover-flipped {
-  margin-block-start: 0;
-  margin-block-end: 0.375rem;
+    margin-block-start: 0;
+    margin-block-end: 0.375rem;
 }
 
 /* Both pseudo-elements, both orientations: the flipped rules re-colour the same
    two triangles rather than drawing new ones. */
 .channel-invite-popover.p-popover:after,
 .channel-invite-popover.p-popover:before {
-  display: none;
+    display: none;
 }
 
 .channel-invite-popover .p-popover-content {
-  padding: 0;
+    padding: 0;
 }
 
 /* Out of the column it belongs to, rather than in from nowhere: half a centimetre
@@ -473,18 +477,18 @@ html, body {
    which needs its animation events to finish the open and, more importantly, the
    close. */
 .channel-invite-panel {
-  animation: channel-invite-in var(--duration-base) var(--ease-brand);
+    animation: channel-invite-in var(--duration-base) var(--ease-brand);
 }
 
 @keyframes channel-invite-in {
-  from {
-    opacity: 0;
-    transform: translateX(-0.5rem);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
+    from {
+        opacity: 0;
+        transform: translateX(-0.5rem);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
 }
 
 /* The empty seat: an avatar-sized place where a person would be, on the same
@@ -497,21 +501,22 @@ html, body {
    out of the 1.125rem box - which is the one measurement holding this glyph on
    the same x as `.chan-icon` one level up and the avatars either side of it. */
 .invite-nudge-slot {
-  display: flex;
-  flex-shrink: 0;
-  width: 1.125rem;
-  height: 1.125rem;
-  align-items: center;
-  justify-content: center;
-  border-radius: 9999px;
-  /* The silhouette runs off the bottom edge and the ring cuts it - see below. */
-  overflow: hidden;
-  background: transparent;
-  color: var(--color-text-muted);
-  box-shadow: inset 0 0 0 2px rgb(255 255 255 / 0.3);
-  transition: box-shadow var(--duration-fast) var(--ease-brand),
-              background-color var(--duration-fast) var(--ease-brand),
-              color var(--duration-fast) var(--ease-brand);
+    display: flex;
+    flex-shrink: 0;
+    width: 1.125rem;
+    height: 1.125rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9999px;
+    /* The silhouette runs off the bottom edge and the ring cuts it - see below. */
+    overflow: hidden;
+    background: transparent;
+    color: var(--color-text-muted);
+    box-shadow: inset 0 0 0 2px rgb(255 255 255 / 0.3);
+    transition:
+        box-shadow var(--duration-fast) var(--ease-brand),
+        background-color var(--duration-fast) var(--ease-brand),
+        color var(--duration-fast) var(--ease-brand);
 }
 
 /* The silhouette fills the ring and is clipped by it, head and shoulders, the way
@@ -524,10 +529,10 @@ html, body {
    a glyph in a circle, not a face in an avatar. Shrinking it only made it smaller,
    never righter, which is what sent this to a drawn shape. */
 .invite-nudge-slot svg {
-  display: block;
-  width: 0.875rem;
-  height: 0.875rem;
-  margin-bottom: -0.1875rem;
+    display: block;
+    width: 0.875rem;
+    height: 0.875rem;
+    margin-bottom: -0.1875rem;
 }
 
 /* The seat fills in. That gesture is the row's whole meaning - the empty place
@@ -535,62 +540,62 @@ html, body {
    just brightens the way every other row's does, and nothing moves or grows. */
 .chan-row:hover .invite-nudge-slot,
 .chan-row:focus-visible .invite-nudge-slot {
-  box-shadow: inset 0 0 0 2px var(--color-brand-dim);
-  background: color-mix(in srgb, var(--color-brand) 45%, transparent);
-  color: #fff;
+    box-shadow: inset 0 0 0 2px var(--color-brand-dim);
+    background: color-mix(in srgb, var(--color-brand) 45%, transparent);
+    color: #fff;
 }
 
 /* Quieter than the names above it, at rest and on hover both. The row stands
    where a person is not, and reading at a real member's weight is what made it
    look like a member whose avatar had failed to load. */
 .invite-nudge .chan-label {
-  color: var(--color-text-muted);
+    color: var(--color-text-muted);
 }
 
 .invite-nudge .chan-row:hover .chan-label,
 .invite-nudge .chan-row:focus-visible .chan-label {
-  color: var(--color-text-secondary);
+    color: var(--color-text-secondary);
 }
 
 /* One badge shape, three tones. Before this the column carried four: a rose
    mention pill, a white/8 count pill, a green LIVE pill and a bare number. */
 .chan-badge {
-  display: flex;
-  flex-shrink: 0;
-  min-width: 1.125rem;
-  height: 1.125rem;
-  align-items: center;
-  justify-content: center;
-  padding: 0 0.3125rem;
-  border-radius: 9999px;
-  font-size: 0.625rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
+    display: flex;
+    flex-shrink: 0;
+    min-width: 1.125rem;
+    height: 1.125rem;
+    align-items: center;
+    justify-content: center;
+    padding: 0 0.3125rem;
+    border-radius: 9999px;
+    font-size: 0.625rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
 }
 
 .chan-badge-mention {
-  background: var(--color-offline);
-  color: #fff;
+    background: var(--color-offline);
+    color: #fff;
 }
 
 .chan-badge-count {
-  background: rgb(255 255 255 / 0.07);
-  color: rgb(255 255 255 / 0.5);
+    background: rgb(255 255 255 / 0.07);
+    color: rgb(255 255 255 / 0.5);
 }
 
 /* Not a badge: a bare figure for a fact nobody needs to act on, like how many
    people are in a voice channel you can already see listed underneath. */
 .chan-meta {
-  flex-shrink: 0;
-  font-size: 0.6875rem;
-  color: rgb(255 255 255 / 0.3);
-  font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+    font-size: 0.6875rem;
+    color: rgb(255 255 255 / 0.3);
+    font-variant-numeric: tabular-nums;
 }
 
 .chan-lock {
-  flex-shrink: 0;
-  font-size: 0.625rem;
-  color: rgb(255 255 255 / 0.28);
+    flex-shrink: 0;
+    font-size: 0.625rem;
+    color: rgb(255 255 255 / 0.28);
 }
 
 /* iOS keyboard fix: when a text input is focused, iOS scrolls the visual viewport
@@ -599,77 +604,95 @@ html, body {
    height on the visualViewport API and mirrors them here as --vv-top / --vv-height,
    so app-root always occupies exactly the visible area above the keyboard. */
 app-root {
-  position: fixed;
-  top: var(--vv-top, 0px);
-  left: 0;
-  right: 0;
-  height: var(--vv-height, 100dvh);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  border-radius: 10px;
-  background-color: #06090f;
+    position: fixed;
+    top: var(--vv-top, 0px);
+    left: 0;
+    right: 0;
+    height: var(--vv-height, 100dvh);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border-radius: 10px;
+    background-color: #06090f;
 }
 
 /* The window is transparent and undecorated, so this radius is the window's own shape. Flush
    against the screen edges there is nothing behind the corners but the desktop, and rounding them
    cuts four notches out of the app. Set by WindowChromeService on maximize and fullscreen. */
 html[data-window-flush] app-root {
-  border-radius: 0;
+    border-radius: 0;
 }
 
 /* In a browser there is no window for the radius to be the shape of. The corners round away from
    the page background instead of the desktop, which reads as a floating card that has been clipped
    rather than as a window. Set from main.ts before the first paint, so the corners are never
    rounded and then squared. */
-html[data-host="web"] app-root {
-  border-radius: 0;
+html[data-host='web'] app-root {
+    border-radius: 0;
 }
 
 /* Prevent double-tap zoom on all interactive elements without disabling gestures */
-button, a, [role="button"], input, select, textarea, label {
-  touch-action: manipulation;
+button,
+a,
+[role='button'],
+input,
+select,
+textarea,
+label {
+    touch-action: manipulation;
 }
 
 /* ── Toast -mobile fix ──────────────────────────────────────────────────── */
 /* Override PrimeNG's default top-center position on narrow screens.
    transform:none removes the translateX(-50%) that causes the "halfway" shift. */
 @media (max-width: 576px) {
-  .p-toast {
-    bottom: env(safe-area-inset-bottom, 0) !important;
-    top: auto !important;
-    left: 0 !important;
-    right: 0 !important;
-    width: 100% !important;
-    transform: none !important;
-  }
-  .p-toast .p-toast-message {
-    border-radius: 0 !important;
-    margin: 0 !important;
-  }
+    .p-toast {
+        bottom: env(safe-area-inset-bottom, 0) !important;
+        top: auto !important;
+        left: 0 !important;
+        right: 0 !important;
+        width: 100% !important;
+        transform: none !important;
+    }
+    .p-toast .p-toast-message {
+        border-radius: 0 !important;
+        margin: 0 !important;
+    }
 }
 
 @keyframes typing-bounce {
-  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
-  30% { transform: translateY(-3px); opacity: 1; }
+    0%,
+    60%,
+    100% {
+        transform: translateY(0);
+        opacity: 0.4;
+    }
+    30% {
+        transform: translateY(-3px);
+        opacity: 1;
+    }
 }
 
 .typing-dot {
-  display: inline-block;
-  width: 3px;
-  height: 3px;
-  border-radius: 50%;
-  background: currentColor;
-  animation: typing-bounce 1.2s infinite ease-in-out;
+    display: inline-block;
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: currentColor;
+    animation: typing-bounce 1.2s infinite ease-in-out;
 }
-.typing-dot:nth-child(2) { animation-delay: 0.2s; }
-.typing-dot:nth-child(3) { animation-delay: 0.4s; }
+.typing-dot:nth-child(2) {
+    animation-delay: 0.2s;
+}
+.typing-dot:nth-child(3) {
+    animation-delay: 0.4s;
+}
 
 .search-highlight {
-  background: color-mix(in srgb, var(--color-brand) 30%, transparent);
-  color: rgba(255, 255, 255, 0.92);
-  border-radius: 2px;
-  padding: 0 2px;
+    background: color-mix(in srgb, var(--color-brand) 30%, transparent);
+    color: rgba(255, 255, 255, 0.92);
+    border-radius: 2px;
+    padding: 0 2px;
 }
 
 /* ── Call / voice connection-state pulse ─────────────────────────────────────
@@ -680,76 +703,85 @@ button, a, [role="button"], input, select, textarea, label {
    Anything that pulses to report connection state uses `.status-pulse`. */
 
 @keyframes status-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
+    0%,
+    100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.3;
+    }
 }
 
 .status-pulse {
-  animation: status-pulse 1.2s ease-in-out infinite;
+    animation: status-pulse 1.2s ease-in-out infinite;
 }
 
 /* Faster, because it is reporting something worse. */
 .status-pulse--urgent {
-  animation-duration: 0.8s;
+    animation-duration: 0.8s;
 }
 
 @keyframes speaking-ring {
-  0%, 100% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-online) 35%, transparent); }
-  50% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-online) 60%, transparent); }
+    0%,
+    100% {
+        box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-online) 35%, transparent);
+    }
+    50% {
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-online) 60%, transparent);
+    }
 }
 
 /* Put this on the avatar element itself - a wrapper around an inline-level
    avatar is as tall as its line box, which makes the ring an oval. */
 .speaking-ring {
-  animation: speaking-ring 1.4s ease-in-out infinite;
+    animation: speaking-ring 1.4s ease-in-out infinite;
 }
 
 /* A share whose track closed and whose picture is expected back. The tile holds its last frame
    under a wash; this hairline on the top edge is the only thing that moves, and it is the whole
    signal that something is in progress rather than broken. */
 @keyframes tile-resuming-sweep {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(100%); }
+    0% {
+        transform: translateX(-100%);
+    }
+    100% {
+        transform: translateX(100%);
+    }
 }
 
 .tile-resuming-line {
-  overflow: hidden;
-  background: color-mix(in srgb, var(--color-brand-dim) 20%, transparent);
+    overflow: hidden;
+    background: color-mix(in srgb, var(--color-brand-dim) 20%, transparent);
 }
 
 .tile-resuming-line::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    var(--color-brand-dim),
-    transparent
-  );
-  animation: tile-resuming-sweep 1.6s ease-in-out infinite;
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, var(--color-brand-dim), transparent);
+    animation: tile-resuming-sweep 1.6s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .status-pulse,
+    .status-pulse,
   .speaking-ring,
   /* Both still appear - they just arrive where they are going instead of travelling to it. */
   .invite-nudge,
   .channel-invite-panel {
-    animation: none;
-  }
+        animation: none;
+    }
 
-  /* The ring is the only thing marking a speaker, so it stays - it just stops moving. */
-  .speaking-ring {
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-online) 55%, transparent);
-  }
+    /* The ring is the only thing marking a speaker, so it stays - it just stops moving. */
+    .speaking-ring {
+        box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-online) 55%, transparent);
+    }
 
-  /* The line stays - it is the only mark that a picture is coming back - and becomes a steady bar
+    /* The line stays - it is the only mark that a picture is coming back - and becomes a steady bar
      rather than disappearing, which would leave the frozen frame with no explanation at all. */
-  .tile-resuming-line::after {
-    animation: none;
-    background: color-mix(in srgb, var(--color-brand-dim) 40%, transparent);
-  }
+    .tile-resuming-line::after {
+        animation: none;
+        background: color-mix(in srgb, var(--color-brand-dim) 40%, transparent);
+    }
 }
 
 /* ── Call focus ring ─────────────────────────────────────────────────────────
@@ -758,8 +790,8 @@ button, a, [role="button"], input, select, textarea, label {
    unstyled but literally invisible. Pairs with `focus-within:opacity-100` on
    the hover-revealed groups. */
 .call-focusable:focus-visible {
-  outline: 2px solid var(--color-brand-dim);
-  outline-offset: 2px;
+    outline: 2px solid var(--color-brand-dim);
+    outline-offset: 2px;
 }
 
 /* ── Slashed icons ───────────────────────────────────────────────────────────
@@ -775,16 +807,16 @@ button, a, [role="button"], input, select, textarea, label {
    Put on a positioned wrapper around the <i>, not on the <i> itself: the icon's
    own ::before is the glyph. */
 .icon-slashed::after {
-  content: '';
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 1.25em;
-  height: 0.115em;
-  min-height: 1.5px;
-  border-radius: 1px;
-  background: currentColor;
-  transform: translate(-50%, -50%) rotate(-45deg);
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 1.25em;
+    height: 0.115em;
+    min-height: 1.5px;
+    border-radius: 1px;
+    background: currentColor;
+    transform: translate(-50%, -50%) rotate(-45deg);
 }
 
 /* ── Presence silhouettes ────────────────────────────────────────────────────
@@ -805,28 +837,28 @@ button, a, [role="button"], input, select, textarea, label {
 .status-shape-idle,
 .status-shape-dnd,
 .status-shape-invisible {
-  -webkit-mask-repeat: no-repeat;
-  mask-repeat: no-repeat;
-  -webkit-mask-size: 100% 100%;
-  mask-size: 100% 100%;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-size: 100% 100%;
+    mask-size: 100% 100%;
 }
 
 /* A circle bitten out of the upper left. */
 .status-shape-idle {
-  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cmask id='m'%3E%3Crect width='16' height='16' fill='%23fff'/%3E%3Ccircle cx='4.6' cy='4.6' r='5.4' fill='%23000'/%3E%3C/mask%3E%3Ccircle cx='8' cy='8' r='8' fill='%23fff' mask='url(%23m)'/%3E%3C/svg%3E");
-  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cmask id='m'%3E%3Crect width='16' height='16' fill='%23fff'/%3E%3Ccircle cx='4.6' cy='4.6' r='5.4' fill='%23000'/%3E%3C/mask%3E%3Ccircle cx='8' cy='8' r='8' fill='%23fff' mask='url(%23m)'/%3E%3C/svg%3E");
+    -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cmask id='m'%3E%3Crect width='16' height='16' fill='%23fff'/%3E%3Ccircle cx='4.6' cy='4.6' r='5.4' fill='%23000'/%3E%3C/mask%3E%3Ccircle cx='8' cy='8' r='8' fill='%23fff' mask='url(%23m)'/%3E%3C/svg%3E");
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cmask id='m'%3E%3Crect width='16' height='16' fill='%23fff'/%3E%3Ccircle cx='4.6' cy='4.6' r='5.4' fill='%23000'/%3E%3C/mask%3E%3Ccircle cx='8' cy='8' r='8' fill='%23fff' mask='url(%23m)'/%3E%3C/svg%3E");
 }
 
 /* A rounded bar straight through the middle. */
 .status-shape-dnd {
-  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cmask id='m'%3E%3Crect width='16' height='16' fill='%23fff'/%3E%3Crect x='2.6' y='6.6' width='10.8' height='2.8' rx='1.4' fill='%23000'/%3E%3C/mask%3E%3Ccircle cx='8' cy='8' r='8' fill='%23fff' mask='url(%23m)'/%3E%3C/svg%3E");
-  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cmask id='m'%3E%3Crect width='16' height='16' fill='%23fff'/%3E%3Crect x='2.6' y='6.6' width='10.8' height='2.8' rx='1.4' fill='%23000'/%3E%3C/mask%3E%3Ccircle cx='8' cy='8' r='8' fill='%23fff' mask='url(%23m)'/%3E%3C/svg%3E");
+    -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cmask id='m'%3E%3Crect width='16' height='16' fill='%23fff'/%3E%3Crect x='2.6' y='6.6' width='10.8' height='2.8' rx='1.4' fill='%23000'/%3E%3C/mask%3E%3Ccircle cx='8' cy='8' r='8' fill='%23fff' mask='url(%23m)'/%3E%3C/svg%3E");
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cmask id='m'%3E%3Crect width='16' height='16' fill='%23fff'/%3E%3Crect x='2.6' y='6.6' width='10.8' height='2.8' rx='1.4' fill='%23000'/%3E%3C/mask%3E%3Ccircle cx='8' cy='8' r='8' fill='%23fff' mask='url(%23m)'/%3E%3C/svg%3E");
 }
 
 /* A hollow ring - invisible, and offline for anyone else. */
 .status-shape-invisible {
-  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cmask id='m'%3E%3Crect width='16' height='16' fill='%23fff'/%3E%3Ccircle cx='8' cy='8' r='3.8' fill='%23000'/%3E%3C/mask%3E%3Ccircle cx='8' cy='8' r='8' fill='%23fff' mask='url(%23m)'/%3E%3C/svg%3E");
-  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cmask id='m'%3E%3Crect width='16' height='16' fill='%23fff'/%3E%3Ccircle cx='8' cy='8' r='3.8' fill='%23000'/%3E%3C/mask%3E%3Ccircle cx='8' cy='8' r='8' fill='%23fff' mask='url(%23m)'/%3E%3C/svg%3E");
+    -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cmask id='m'%3E%3Crect width='16' height='16' fill='%23fff'/%3E%3Ccircle cx='8' cy='8' r='3.8' fill='%23000'/%3E%3C/mask%3E%3Ccircle cx='8' cy='8' r='8' fill='%23fff' mask='url(%23m)'/%3E%3C/svg%3E");
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cmask id='m'%3E%3Crect width='16' height='16' fill='%23fff'/%3E%3Ccircle cx='8' cy='8' r='3.8' fill='%23000'/%3E%3C/mask%3E%3Ccircle cx='8' cy='8' r='8' fill='%23fff' mask='url(%23m)'/%3E%3C/svg%3E");
 }
 
 /**
@@ -855,39 +887,53 @@ button, a, [role="button"], input, select, textarea, label {
    ever enabled) is unaffected.
    ─────────────────────────────────────────────────────────────────────── */
 .dark .p-select {
-  background: rgba(255, 255, 255, 0.04);
-  border-color: rgba(255, 255, 255, 0.09) !important;
-  color: rgba(255, 255, 255, 0.85);
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.09) !important;
+    color: rgba(255, 255, 255, 0.85);
 }
-.dark .p-select:hover { border-color: rgba(255, 255, 255, 0.18) !important; }
-.dark .p-select.p-focus { border-color: var(--color-brand-dim) !important; }
+.dark .p-select:hover {
+    border-color: rgba(255, 255, 255, 0.18) !important;
+}
+.dark .p-select.p-focus {
+    border-color: var(--color-brand-dim) !important;
+}
 
-.dark .p-select-label { color: rgba(255, 255, 255, 0.80); }
-.dark .p-select-label.p-placeholder { color: rgba(255, 255, 255, 0.35) !important; }
-.dark .p-select-dropdown { color: rgba(255, 255, 255, 0.40); }
+.dark .p-select-label {
+    color: rgba(255, 255, 255, 0.8);
+}
+.dark .p-select-label.p-placeholder {
+    color: rgba(255, 255, 255, 0.35) !important;
+}
+.dark .p-select-dropdown {
+    color: rgba(255, 255, 255, 0.4);
+}
 
 .dark .p-select-overlay {
-  background: #161b27 !important;
-  border-color: rgba(255, 255, 255, 0.09) !important;
-  color: rgba(255, 255, 255, 0.85);
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.50) !important;
+    background: #161b27 !important;
+    border-color: rgba(255, 255, 255, 0.09) !important;
+    color: rgba(255, 255, 255, 0.85);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5) !important;
 }
-.dark .p-select-option { color: rgba(255, 255, 255, 0.75); }
+.dark .p-select-option {
+    color: rgba(255, 255, 255, 0.75);
+}
 .dark .p-select-option:not(.p-disabled):hover,
 .dark .p-select-option.p-focus {
-  background: rgba(255, 255, 255, 0.09) !important;
-  color: rgba(255, 255, 255, 0.95) !important;
+    background: rgba(255, 255, 255, 0.09) !important;
+    color: rgba(255, 255, 255, 0.95) !important;
 }
 .dark .p-select-option.p-select-option-selected {
-  background: color-mix(in srgb, var(--color-brand) 15%, transparent) !important;
-  color: var(--color-brand-dim) !important;
+    background: color-mix(in srgb, var(--color-brand) 15%, transparent) !important;
+    color: var(--color-brand-dim) !important;
 }
 .dark .p-select-option.p-select-option-selected:hover,
 .dark .p-select-option.p-select-option-selected.p-focus {
-  background: color-mix(in srgb, var(--color-brand) 22%, transparent) !important;
-  color: color-mix(in srgb, var(--color-brand-dim) 80%, white 20%) !important;
+    background: color-mix(in srgb, var(--color-brand) 22%, transparent) !important;
+    color: color-mix(in srgb, var(--color-brand-dim) 80%, white 20%) !important;
 }
-.dark .p-select-empty-message { color: rgba(255, 255, 255, 0.40); }
+.dark .p-select-empty-message {
+    color: rgba(255, 255, 255, 0.4);
+}
 
 /* ── PrimeNG MultiSelect -same treatment as Select ─────────────────────
    MultiSelect is not among the components overridden in alpine-preset.ts, so
@@ -896,54 +942,68 @@ button, a, [role="button"], input, select, textarea, label {
    .p-select rules above -any change there belongs here too.
    ─────────────────────────────────────────────────────────────────────── */
 .dark .p-multiselect {
-  background: rgba(255, 255, 255, 0.04);
-  border-color: rgba(255, 255, 255, 0.09) !important;
-  color: rgba(255, 255, 255, 0.85);
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.09) !important;
+    color: rgba(255, 255, 255, 0.85);
 }
-.dark .p-multiselect:not(.p-disabled):hover { border-color: rgba(255, 255, 255, 0.18) !important; }
-.dark .p-multiselect:not(.p-disabled).p-focus { border-color: var(--color-brand-dim) !important; }
+.dark .p-multiselect:not(.p-disabled):hover {
+    border-color: rgba(255, 255, 255, 0.18) !important;
+}
+.dark .p-multiselect:not(.p-disabled).p-focus {
+    border-color: var(--color-brand-dim) !important;
+}
 
-.dark .p-multiselect-label { color: rgba(255, 255, 255, 0.80); }
-.dark .p-multiselect-label.p-placeholder { color: rgba(255, 255, 255, 0.35) !important; }
-.dark .p-multiselect-dropdown { color: rgba(255, 255, 255, 0.40); }
+.dark .p-multiselect-label {
+    color: rgba(255, 255, 255, 0.8);
+}
+.dark .p-multiselect-label.p-placeholder {
+    color: rgba(255, 255, 255, 0.35) !important;
+}
+.dark .p-multiselect-dropdown {
+    color: rgba(255, 255, 255, 0.4);
+}
 
 .dark .p-multiselect-overlay {
-  background: #161b27 !important;
-  border-color: rgba(255, 255, 255, 0.09) !important;
-  color: rgba(255, 255, 255, 0.85);
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.50) !important;
+    background: #161b27 !important;
+    border-color: rgba(255, 255, 255, 0.09) !important;
+    color: rgba(255, 255, 255, 0.85);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5) !important;
 }
 .dark .p-multiselect-header {
-  background: transparent !important;
-  border-bottom-color: rgba(255, 255, 255, 0.09) !important;
+    background: transparent !important;
+    border-bottom-color: rgba(255, 255, 255, 0.09) !important;
 }
 /* The filter box is a plain input, not a pInputText, so it misses that override */
 .dark .p-multiselect-filter {
-  background: rgba(255, 255, 255, 0.04) !important;
-  border-color: rgba(255, 255, 255, 0.09) !important;
-  color: rgba(255, 255, 255, 0.85) !important;
+    background: rgba(255, 255, 255, 0.04) !important;
+    border-color: rgba(255, 255, 255, 0.09) !important;
+    color: rgba(255, 255, 255, 0.85) !important;
 }
-.dark .p-multiselect-option { color: rgba(255, 255, 255, 0.75); }
+.dark .p-multiselect-option {
+    color: rgba(255, 255, 255, 0.75);
+}
 .dark .p-multiselect-option:not(.p-disabled):hover,
 .dark .p-multiselect-option.p-focus {
-  background: rgba(255, 255, 255, 0.09) !important;
-  color: rgba(255, 255, 255, 0.95) !important;
+    background: rgba(255, 255, 255, 0.09) !important;
+    color: rgba(255, 255, 255, 0.95) !important;
 }
 .dark .p-multiselect-option.p-multiselect-option-selected {
-  background: color-mix(in srgb, var(--color-brand) 15%, transparent) !important;
-  color: var(--color-brand-dim) !important;
+    background: color-mix(in srgb, var(--color-brand) 15%, transparent) !important;
+    color: var(--color-brand-dim) !important;
 }
 .dark .p-multiselect-option.p-multiselect-option-selected:hover,
 .dark .p-multiselect-option.p-multiselect-option-selected.p-focus {
-  background: color-mix(in srgb, var(--color-brand) 22%, transparent) !important;
-  color: color-mix(in srgb, var(--color-brand-dim) 80%, white 20%) !important;
+    background: color-mix(in srgb, var(--color-brand) 22%, transparent) !important;
+    color: color-mix(in srgb, var(--color-brand-dim) 80%, white 20%) !important;
 }
-.dark .p-multiselect-empty-message { color: rgba(255, 255, 255, 0.40); }
+.dark .p-multiselect-empty-message {
+    color: rgba(255, 255, 255, 0.4);
+}
 
 /* Selected values render as chips in the trigger when display="chip" */
 .dark .p-multiselect-chip-item .p-chip {
-  background: rgba(255, 255, 255, 0.08) !important;
-  color: rgba(255, 255, 255, 0.85) !important;
+    background: rgba(255, 255, 255, 0.08) !important;
+    color: rgba(255, 255, 255, 0.85) !important;
 }
 
 /* The multiselect option/header checkbox override that used to live here is gone: it said
@@ -952,87 +1012,87 @@ button, a, [role="button"], input, select, textarea, label {
    the same colours, so a standalone p-checkbox is styled too. */
 
 @theme {
-  /* ── Typography ───────────────────────────────────────────
+    /* ── Typography ───────────────────────────────────────────
      'Inter Variable' is bundled locally via @fontsource-variable/inter
      (see angular.json `styles`) so no network font request is made. */
-  --font-sans: 'Inter Variable', 'Inter', system-ui, sans-serif;
+    --font-sans: 'Inter Variable', 'Inter', system-ui, sans-serif;
 
-  /* ── Surfaces ──────────────────────────────────────────── */
-  --color-login-bg: #06090f;   /* login page bg (slightly deeper than app-bg) */
-  --color-app-bg:  #0d1117;
-  --color-sidebar: #111520;
-  --color-card:    #161b27;
-  --color-hover:   #1d2333;
-  --color-border:  #252e42;
+    /* ── Surfaces ──────────────────────────────────────────── */
+    --color-login-bg: #06090f; /* login page bg (slightly deeper than app-bg) */
+    --color-app-bg: #0d1117;
+    --color-sidebar: #111520;
+    --color-card: #161b27;
+    --color-hover: #1d2333;
+    --color-border: #252e42;
 
-  /* ── Brand - must stay byte-identical to DEFAULT_THEME.colors in
+    /* ── Brand - must stay byte-identical to DEFAULT_THEME.colors in
      src/app/models/theme.model.ts, which ThemeService applies at runtime. ── */
-  --color-brand:       #4B5BC4;
-  --color-brand-hover: #3E4EAE;
-  --color-brand-dim:   #7E8AE0;
-  --color-brand-dark:  #333F8C;
+    --color-brand: #4b5bc4;
+    --color-brand-hover: #3e4eae;
+    --color-brand-dim: #7e8ae0;
+    --color-brand-dark: #333f8c;
 
-  /* ── Connection status ─────────────────────────────────── */
-  --color-online:      #34d399;
-  --color-connecting:  #fbbf24;
-  --color-offline:     #f43f5e;
+    /* ── Connection status ─────────────────────────────────── */
+    --color-online: #34d399;
+    --color-connecting: #fbbf24;
+    --color-offline: #f43f5e;
 
-  /* ── Call surface ────────────────────────────────────────
+    /* ── Call surface ────────────────────────────────────────
      Not part of ThemeColors, so not in ThemeService.applyTheme():
      `--color-stage` is derived from the app background and follows
      it automatically when a theme overrides that at runtime, and
      LIVE is a fixed signal red that should not drift with a user
      palette. Before this there were two reds on screen at once -
      `red-500` on the LIVE badges, `rose-*` everywhere else. */
-  --color-stage: color-mix(in srgb, var(--color-app-bg) 82%, #000);
-  --color-live:  #e5484d;
+    --color-stage: color-mix(in srgb, var(--color-app-bg) 82%, #000);
+    --color-live: #e5484d;
 
-  /* ── Text shorthands (use with opacity modifier) ────────── */
-  /* bg-white/[0.85] → text-primary feel; these aliases make intent clearer */
-  --color-text-primary:   rgba(255 255 255 / 0.88);
-  --color-text-secondary: rgba(255 255 255 / 0.62);
-  --color-text-muted:     rgba(255 255 255 / 0.42);
-  --color-text-faint:     rgba(255 255 255 / 0.24);
+    /* ── Text shorthands (use with opacity modifier) ────────── */
+    /* bg-white/[0.85] → text-primary feel; these aliases make intent clearer */
+    --color-text-primary: rgba(255 255 255 / 0.88);
+    --color-text-secondary: rgba(255 255 255 / 0.62);
+    --color-text-muted: rgba(255 255 255 / 0.42);
+    --color-text-faint: rgba(255 255 255 / 0.24);
 
-  /* ── Borders ────────────────────────────────────────────── */
-  --color-border-subtle:  rgba(255 255 255 / 0.10);
-  --color-border-default: rgba(255 255 255 / 0.16);
+    /* ── Borders ────────────────────────────────────────────── */
+    --color-border-subtle: rgba(255 255 255 / 0.1);
+    --color-border-default: rgba(255 255 255 / 0.16);
 
-  /* ── Motion - exactly two speeds, one curve, used everywhere ── */
-  --duration-fast: 100ms;  /* immediate feedback: buttons, presses */
-  --duration-base: 200ms;  /* everything else: hovers, panel/list transitions */
-  --ease-brand: cubic-bezier(0.2, 0, 0, 1);
+    /* ── Motion - exactly two speeds, one curve, used everywhere ── */
+    --duration-fast: 100ms; /* immediate feedback: buttons, presses */
+    --duration-base: 200ms; /* everything else: hovers, panel/list transitions */
+    --ease-brand: cubic-bezier(0.2, 0, 0, 1);
 
-  /* ── Icon/tile shape - uniform rounded-square, no morphing ──── */
-  --radius-icon: 12px;
+    /* ── Icon/tile shape - uniform rounded-square, no morphing ──── */
+    --radius-icon: 12px;
 
-  /* ── Chrome - the one height every header row is drawn at ─────
+    /* ── Chrome - the one height every header row is drawn at ─────
      Channel titles, the wiki breadcrumb bar, sidebar and side-panel
      headers all read it through `.app-header`, so their bottom rules
      land on the same line no matter which pane you are looking at. */
-  --spacing-header: 3.125rem;
+    --spacing-header: 3.125rem;
 
-  /* The room the floating call controls need at the bottom of a stage.
+    /* The room the floating call controls need at the bottom of a stage.
      Both call views reserve it with `pb-call-controls`. The DM panel used
      to hardcode `padding-bottom: 114px` and the screen-share layout
      reserved nothing at all, which is why the bar sat on top of the
      participant strip there. */
-  --spacing-call-controls: 7rem;
+    --spacing-call-controls: 7rem;
 
-  /* ── Channel sidebar - the two heights every row in it is drawn at ──
+    /* ── Channel sidebar - the two heights every row in it is drawn at ──
      A top-level row (channel, voice channel, House/Wiki/Events) and a
      row nested under one (voice member, forum post). Two heights, not
      five: the sidebar used to set py-[7px] here, py-1 there and a fixed
      26px on forum rows, which is why nothing in that column lined up. */
-  --spacing-chan-row: 1.875rem;
-  --spacing-chan-row-nested: 1.625rem;
+    --spacing-chan-row: 1.875rem;
+    --spacing-chan-row-nested: 1.625rem;
 }
 
 /* ── Wiki markdown content ───────────────────────────────────────────────────
    Applied to [innerHTML] output, so must live in global scope.              */
 .wiki-content {
-  line-height: 1.7;
-  color: rgba(255, 255, 255, 0.75);
+    line-height: 1.7;
+    color: rgba(255, 255, 255, 0.75);
 }
 .wiki-content h1,
 .wiki-content h2,
@@ -1040,200 +1100,310 @@ button, a, [role="button"], input, select, textarea, label {
 .wiki-content h4,
 .wiki-content h5,
 .wiki-content h6 {
-  color: rgba(255, 255, 255, 0.90);
-  font-weight: 700;
-  margin-top: 1.75rem;
-  margin-bottom: 0.5rem;
-  line-height: 1.3;
+    color: rgba(255, 255, 255, 0.9);
+    font-weight: 700;
+    margin-top: 1.75rem;
+    margin-bottom: 0.5rem;
+    line-height: 1.3;
 }
-.wiki-content h1 { font-size: 1.75rem; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 0.5rem; }
-.wiki-content h2 { font-size: 1.375rem; }
-.wiki-content h3 { font-size: 1.125rem; }
-.wiki-content h4 { font-size: 1rem; }
-.wiki-content p  { margin: 0.75rem 0; }
+.wiki-content h1 {
+    font-size: 1.75rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding-bottom: 0.5rem;
+}
+.wiki-content h2 {
+    font-size: 1.375rem;
+}
+.wiki-content h3 {
+    font-size: 1.125rem;
+}
+.wiki-content h4 {
+    font-size: 1rem;
+}
+.wiki-content p {
+    margin: 0.75rem 0;
+}
 .wiki-content ul,
-.wiki-content ol { padding-left: 1.5rem; margin: 0.75rem 0; }
-.wiki-content ul { list-style: disc; }
-.wiki-content ol { list-style: decimal; }
-.wiki-content li { margin: 0.3rem 0; }
-.wiki-content li.wiki-task-item { list-style: none; margin-left: -1.5rem; display: flex; align-items: baseline; gap: 0.5rem; }
-.wiki-content li.wiki-task-checked > :not(input) { opacity: 0.55; text-decoration: line-through; text-decoration-color: rgba(255,255,255,0.25); }
-.wiki-content input[type="checkbox"] {
-  appearance: none;
-  -webkit-appearance: none;
-  width: 0.875rem;
-  height: 0.875rem;
-  flex-shrink: 0;
-  position: relative;
-  top: 0.1rem;
-  border: 1.5px solid rgba(255, 255, 255, 0.25);
-  border-radius: 3px;
-  background: transparent;
-  cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+.wiki-content ol {
+    padding-left: 1.5rem;
+    margin: 0.75rem 0;
 }
-.wiki-content input[type="checkbox"]:checked {
-  background: var(--color-brand);
-  border-color: var(--color-brand);
+.wiki-content ul {
+    list-style: disc;
 }
-.wiki-content input[type="checkbox"]:checked::after {
-  content: '';
-  position: absolute;
-  left: 0.175rem;
-  top: 0.05rem;
-  width: 0.35rem;
-  height: 0.55rem;
-  border: 2px solid #fff;
-  border-top: none;
-  border-left: none;
-  transform: rotate(45deg);
+.wiki-content ol {
+    list-style: decimal;
 }
-.wiki-content input[type="checkbox"]:hover:not(:checked) { border-color: rgba(255, 255, 255, 0.45); }
-.wiki-content--saving input[type="checkbox"] { pointer-events: none; opacity: 0.6; }
-.wiki-content strong { color: rgba(255, 255, 255, 0.90); font-weight: 600; }
-.wiki-content em    { font-style: italic; }
+.wiki-content li {
+    margin: 0.3rem 0;
+}
+.wiki-content li.wiki-task-item {
+    list-style: none;
+    margin-left: -1.5rem;
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+}
+.wiki-content li.wiki-task-checked > :not(input) {
+    opacity: 0.55;
+    text-decoration: line-through;
+    text-decoration-color: rgba(255, 255, 255, 0.25);
+}
+.wiki-content input[type='checkbox'] {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 0.875rem;
+    height: 0.875rem;
+    flex-shrink: 0;
+    position: relative;
+    top: 0.1rem;
+    border: 1.5px solid rgba(255, 255, 255, 0.25);
+    border-radius: 3px;
+    background: transparent;
+    cursor: pointer;
+    transition:
+        background 0.15s,
+        border-color 0.15s;
+}
+.wiki-content input[type='checkbox']:checked {
+    background: var(--color-brand);
+    border-color: var(--color-brand);
+}
+.wiki-content input[type='checkbox']:checked::after {
+    content: '';
+    position: absolute;
+    left: 0.175rem;
+    top: 0.05rem;
+    width: 0.35rem;
+    height: 0.55rem;
+    border: 2px solid #fff;
+    border-top: none;
+    border-left: none;
+    transform: rotate(45deg);
+}
+.wiki-content input[type='checkbox']:hover:not(:checked) {
+    border-color: rgba(255, 255, 255, 0.45);
+}
+.wiki-content--saving input[type='checkbox'] {
+    pointer-events: none;
+    opacity: 0.6;
+}
+.wiki-content strong {
+    color: rgba(255, 255, 255, 0.9);
+    font-weight: 600;
+}
+.wiki-content em {
+    font-style: italic;
+}
 .wiki-content del,
-.wiki-content s     { text-decoration: line-through; color: rgba(255, 255, 255, 0.45); }
+.wiki-content s {
+    text-decoration: line-through;
+    color: rgba(255, 255, 255, 0.45);
+}
 .wiki-content code {
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 4px;
-  padding: 0.1rem 0.4rem;
-  font-family: 'Fira Code', 'Cascadia Code', 'Menlo', monospace;
-  font-size: 0.85em;
-  color: rgba(255, 255, 255, 0.85);
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 4px;
+    padding: 0.1rem 0.4rem;
+    font-family: 'Fira Code', 'Cascadia Code', 'Menlo', monospace;
+    font-size: 0.85em;
+    color: rgba(255, 255, 255, 0.85);
 }
 .wiki-content pre {
-  background: var(--color-card);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 10px;
-  padding: 1rem 1.25rem;
-  margin: 1rem 0;
-  overflow-x: auto;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
+    background: var(--color-card);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+    margin: 1rem 0;
+    overflow-x: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
 }
-.wiki-content pre code { background: none; padding: 0; font-size: 0.875rem; }
+.wiki-content pre code {
+    background: none;
+    padding: 0;
+    font-size: 0.875rem;
+}
 .wiki-content blockquote {
-  border-left: 3px solid var(--color-brand-dim);
-  padding-left: 1rem;
-  margin: 1rem 0;
-  color: rgba(255, 255, 255, 0.55);
-  font-style: italic;
+    border-left: 3px solid var(--color-brand-dim);
+    padding-left: 1rem;
+    margin: 1rem 0;
+    color: rgba(255, 255, 255, 0.55);
+    font-style: italic;
 }
 .wiki-content hr {
-  border: none;
-  border-top: 1px solid rgba(255, 255, 255, 0.10);
-  margin: 2rem 0;
+    border: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    margin: 2rem 0;
 }
-.wiki-content table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+.wiki-content table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1rem 0;
+    font-size: 0.9rem;
+}
 .wiki-content th {
-  background: rgba(255, 255, 255, 0.05);
-  color: rgba(255, 255, 255, 0.85);
-  font-weight: 600;
-  padding: 0.6rem 0.875rem;
-  text-align: left;
-  border: 1px solid rgba(255, 255, 255, 0.10);
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.85);
+    font-weight: 600;
+    padding: 0.6rem 0.875rem;
+    text-align: left;
+    border: 1px solid rgba(255, 255, 255, 0.1);
 }
 .wiki-content td {
-  color: rgba(255, 255, 255, 0.70);
-  padding: 0.5rem 0.875rem;
-  border: 1px solid rgba(255, 255, 255, 0.07);
+    color: rgba(255, 255, 255, 0.7);
+    padding: 0.5rem 0.875rem;
+    border: 1px solid rgba(255, 255, 255, 0.07);
 }
-.wiki-content tr:hover td { background: rgba(255, 255, 255, 0.02); }
-.wiki-content a { color: var(--color-brand-dim); text-decoration: underline; text-underline-offset: 2px; }
-.wiki-content a:hover { color: var(--color-brand); }
-.wiki-content img { max-width: 100%; border-radius: 8px; margin: 0.5rem 0; border: 1px solid rgba(255,255,255,0.08); }
+.wiki-content tr:hover td {
+    background: rgba(255, 255, 255, 0.02);
+}
+.wiki-content a {
+    color: var(--color-brand-dim);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+.wiki-content a:hover {
+    color: var(--color-brand);
+}
+.wiki-content img {
+    max-width: 100%;
+    border-radius: 8px;
+    margin: 0.5rem 0;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
 
 /* ── TipTap / ProseMirror WYSIWYG editor ─────────────────────────────────────
    Applied in the wiki editor; must live in global scope because ProseMirror
    creates its own DOM subtree that Angular encapsulation can't pierce.         */
 .wiki-wysiwyg .ProseMirror {
-  outline: none;
+    outline: none;
 }
 
 /* Only while editing: the tall click target is what lets you click under the last paragraph and
    land in the document. In read mode the same rule is just a block of dead space under a short
    page, and read and edit are now the same element. */
-.wiki-wysiwyg .ProseMirror[contenteditable="true"] {
-  min-height: 16rem;
+.wiki-wysiwyg .ProseMirror[contenteditable='true'] {
+    min-height: 16rem;
 }
 
 .wiki-wysiwyg .ProseMirror p.is-editor-empty:first-child::before {
-  content: attr(data-placeholder);
-  color: rgba(255, 255, 255, 0.20);
-  pointer-events: none;
-  float: left;
-  height: 0;
+    content: attr(data-placeholder);
+    color: rgba(255, 255, 255, 0.2);
+    pointer-events: none;
+    float: left;
+    height: 0;
 }
 
 /* Selected cell highlight in tables */
 .wiki-wysiwyg .ProseMirror .selectedCell {
-  background: color-mix(in srgb, var(--color-brand) 12%, transparent);
+    background: color-mix(in srgb, var(--color-brand) 12%, transparent);
 }
 
 /* Underline (not included in wiki-content defaults) */
-.wiki-wysiwyg u { text-decoration: underline; text-underline-offset: 2px; }
+.wiki-wysiwyg u {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
 
 /* Task list */
-.wiki-wysiwyg ul[data-type="taskList"] { list-style: none; padding-left: 0; }
-.wiki-wysiwyg li[data-type="taskItem"] { display: flex; align-items: baseline; gap: 0.5rem; margin: 0.3rem 0; }
-.wiki-wysiwyg li[data-type="taskItem"] > label {
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-  user-select: none;
+.wiki-wysiwyg ul[data-type='taskList'] {
+    list-style: none;
+    padding-left: 0;
 }
-.wiki-wysiwyg li[data-type="taskItem"] > label input[type="checkbox"] {
-  appearance: none;
-  width: 0.875rem;
-  height: 0.875rem;
-  border: 1.5px solid rgba(255, 255, 255, 0.25);
-  border-radius: 3px;
-  background: transparent;
-  cursor: pointer;
-  position: relative;
-  transition: background 0.15s, border-color 0.15s;
+.wiki-wysiwyg li[data-type='taskItem'] {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    margin: 0.3rem 0;
 }
-.wiki-wysiwyg li[data-type="taskItem"] > label input[type="checkbox"]:checked {
-  background: var(--color-brand);
-  border-color: var(--color-brand);
+.wiki-wysiwyg li[data-type='taskItem'] > label {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    user-select: none;
 }
-.wiki-wysiwyg li[data-type="taskItem"] > label input[type="checkbox"]:checked::after {
-  content: '';
-  position: absolute;
-  left: 0.175rem;
-  top: 0.05rem;
-  width: 0.35rem;
-  height: 0.55rem;
-  border: 2px solid #fff;
-  border-top: none;
-  border-left: none;
-  transform: rotate(45deg);
+.wiki-wysiwyg li[data-type='taskItem'] > label input[type='checkbox'] {
+    appearance: none;
+    width: 0.875rem;
+    height: 0.875rem;
+    border: 1.5px solid rgba(255, 255, 255, 0.25);
+    border-radius: 3px;
+    background: transparent;
+    cursor: pointer;
+    position: relative;
+    transition:
+        background 0.15s,
+        border-color 0.15s;
 }
-.wiki-wysiwyg li[data-type="taskItem"] > div { flex: 1; min-width: 0; }
-.wiki-wysiwyg li[data-type="taskItem"] > div > p { margin: 0; }
-.wiki-wysiwyg li[data-type="taskItem"][data-checked="true"] > div { opacity: 0.55; text-decoration: line-through; text-decoration-color: rgba(255,255,255,0.25); }
+.wiki-wysiwyg li[data-type='taskItem'] > label input[type='checkbox']:checked {
+    background: var(--color-brand);
+    border-color: var(--color-brand);
+}
+.wiki-wysiwyg li[data-type='taskItem'] > label input[type='checkbox']:checked::after {
+    content: '';
+    position: absolute;
+    left: 0.175rem;
+    top: 0.05rem;
+    width: 0.35rem;
+    height: 0.55rem;
+    border: 2px solid #fff;
+    border-top: none;
+    border-left: none;
+    transform: rotate(45deg);
+}
+.wiki-wysiwyg li[data-type='taskItem'] > div {
+    flex: 1;
+    min-width: 0;
+}
+.wiki-wysiwyg li[data-type='taskItem'] > div > p {
+    margin: 0;
+}
+.wiki-wysiwyg li[data-type='taskItem'][data-checked='true'] > div {
+    opacity: 0.55;
+    text-decoration: line-through;
+    text-decoration-color: rgba(255, 255, 255, 0.25);
+}
 
 /* Image uploading placeholder -blob: src = still uploading */
-.wiki-wysiwyg img[src^="blob:"] {
-  opacity: 0.4;
-  outline: 2px solid color-mix(in srgb, var(--color-brand-dim) 50%, transparent);
-  outline-offset: 2px;
-  animation: wiki-img-uploading 1.3s ease-in-out infinite;
+.wiki-wysiwyg img[src^='blob:'] {
+    opacity: 0.4;
+    outline: 2px solid color-mix(in srgb, var(--color-brand-dim) 50%, transparent);
+    outline-offset: 2px;
+    animation: wiki-img-uploading 1.3s ease-in-out infinite;
 }
 @keyframes wiki-img-uploading {
-  0%, 100% { opacity: 0.35; }
-  50%       { opacity: 0.75; }
+    0%,
+    100% {
+        opacity: 0.35;
+    }
+    50% {
+        opacity: 0.75;
+    }
 }
 
 @keyframes nest-blink {
-  0%  { background-color: color-mix(in srgb, var(--color-brand) 28%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-brand) 60%, transparent); }
-  18% { background-color: transparent; box-shadow: 0 0 0 1px transparent; }
-  36% { background-color: color-mix(in srgb, var(--color-brand) 28%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-brand) 60%, transparent); }
-  54% { background-color: transparent; box-shadow: 0 0 0 1px transparent; }
-  100% { background-color: color-mix(in srgb, var(--color-brand) 10%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-brand) 50%, transparent); }
+    0% {
+        background-color: color-mix(in srgb, var(--color-brand) 28%, transparent);
+        box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-brand) 60%, transparent);
+    }
+    18% {
+        background-color: transparent;
+        box-shadow: 0 0 0 1px transparent;
+    }
+    36% {
+        background-color: color-mix(in srgb, var(--color-brand) 28%, transparent);
+        box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-brand) 60%, transparent);
+    }
+    54% {
+        background-color: transparent;
+        box-shadow: 0 0 0 1px transparent;
+    }
+    100% {
+        background-color: color-mix(in srgb, var(--color-brand) 10%, transparent);
+        box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-brand) 50%, transparent);
+    }
 }
 
 .nest-blink {
-  animation: nest-blink 600ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    animation: nest-blink 600ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }

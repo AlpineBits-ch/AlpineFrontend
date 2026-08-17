@@ -34,7 +34,11 @@ interface AuditDay {
 }
 
 const USER_TARGET_ACTIONS = new Set([
-    'MemberBanned', 'MemberUnbanned', 'MemberKicked', 'MemberMuted', 'MemberUnmuted',
+    'MemberBanned',
+    'MemberUnbanned',
+    'MemberKicked',
+    'MemberMuted',
+    'MemberUnmuted',
 ]);
 
 /** Action type to translation-key stem; actions with a `_GENERIC` counterpart fall back to it when the target can't be resolved (e.g. a deleted role has no name left to print). Also the source of the filter dropdown, so options never drift from what the page can describe. */
@@ -63,7 +67,12 @@ const ACTION_KEYS: Record<string, string> = {
 
 /** Actions whose sentence never interpolates a target, so no `_GENERIC` variant exists. */
 const TARGETLESS_ACTIONS = new Set([
-    'MemberLeft', 'RolePositionsChanged', 'GuildUpdated', 'GuildDeleted', 'InviteCreated', 'InviteDeleted',
+    'MemberLeft',
+    'RolePositionsChanged',
+    'GuildUpdated',
+    'GuildDeleted',
+    'InviteCreated',
+    'InviteDeleted',
 ]);
 
 const ACTION_ICONS: Record<string, string> = {
@@ -91,18 +100,26 @@ const ACTION_ICONS: Record<string, string> = {
 
 /** Anything that takes something away, so it stands out from routine configuration noise. */
 const DESTRUCTIVE_ACTIONS = new Set([
-    'MemberBanned', 'MemberKicked', 'MemberMuted',
-    'RoleDeleted', 'ChannelDeleted', 'CategoryDeleted', 'GuildDeleted', 'InviteDeleted',
+    'MemberBanned',
+    'MemberKicked',
+    'MemberMuted',
+    'RoleDeleted',
+    'ChannelDeleted',
+    'CategoryDeleted',
+    'GuildDeleted',
+    'InviteDeleted',
 ]);
 
 const ADDITIVE_ACTIONS = new Set([
-    'MemberUnbanned', 'MemberUnmuted',
-    'RoleCreated', 'ChannelCreated', 'CategoryCreated', 'InviteCreated',
+    'MemberUnbanned',
+    'MemberUnmuted',
+    'RoleCreated',
+    'ChannelCreated',
+    'CategoryCreated',
+    'InviteCreated',
 ]);
 
-const EDIT_ACTIONS = new Set([
-    'RoleUpdated', 'ChannelUpdated', 'ChannelPermissionChanged', 'GuildUpdated',
-]);
+const EDIT_ACTIONS = new Set(['RoleUpdated', 'ChannelUpdated', 'ChannelPermissionChanged', 'GuildUpdated']);
 
 /** Metadata fields the server may carry the target's name in, newest wording first; the only way an entry about a deleted role or channel can still name it, since `targetLabel` resolves live names and this one is gone. */
 const NAME_METADATA_KEYS = ['name', 'targetName', 'roleName', 'channelName', 'categoryName', 'oldName'];
@@ -127,12 +144,14 @@ export class AuditLogSettingsComponent implements OnInit, OnDestroy {
     /** Ticks so `relativeTime` (a pure pipe) doesn't freeze at the timestamps it first rendered. */
     readonly now = signal(Date.now());
 
-    readonly actionOptions = computed(() => Object.entries(ACTION_KEYS)
-        .map(([type, stem]) => ({
-            value: type,
-            label: this.translate.instant(`GUILD_SETTINGS.AUDIT_LOG.TYPE.${stem}`) as string,
-        }))
-        .sort((a, b) => a.label.localeCompare(b.label)));
+    readonly actionOptions = computed(() =>
+        Object.entries(ACTION_KEYS)
+            .map(([type, stem]) => ({
+                value: type,
+                label: this.translate.instant(`GUILD_SETTINGS.AUDIT_LOG.TYPE.${stem}`) as string,
+            }))
+            .sort((a, b) => a.label.localeCompare(b.label)),
+    );
 
     readonly filtersActive = computed(() => !!this.actionFilter() || this.actorFilter().trim().length > 0);
 
@@ -224,9 +243,7 @@ export class AuditLogSettingsComponent implements OnInit, OnDestroy {
         if (TARGETLESS_ACTIONS.has(row.entry.actionType)) return this.translate.instant(base);
 
         const target = this.targetLabel(row);
-        return target
-            ? this.translate.instant(base, {target})
-            : this.translate.instant(`${base}_GENERIC`);
+        return target ? this.translate.instant(base, {target}) : this.translate.instant(`${base}_GENERIC`);
     }
 
     actionIcon(row: AuditRow): string {
@@ -278,10 +295,14 @@ export class AuditLogSettingsComponent implements OnInit, OnDestroy {
             case 'ChannelUpdated':
             case 'ChannelDeleted':
             case 'ChannelPermissionChanged':
-                return this.guild().channels.find(c => c.id === entry.targetId)?.name ?? this.metadataName(row);
+                return (
+                    this.guild().channels.find(c => c.id === entry.targetId)?.name ?? this.metadataName(row)
+                );
             case 'CategoryCreated':
             case 'CategoryDeleted':
-                return this.guild().categories.find(c => c.id === entry.targetId)?.name ?? this.metadataName(row);
+                return (
+                    this.guild().categories.find(c => c.id === entry.targetId)?.name ?? this.metadataName(row)
+                );
             case 'MemberBanned':
             case 'MemberUnbanned':
             case 'MemberKicked':
@@ -317,7 +338,10 @@ export class AuditLogSettingsComponent implements OnInit, OnDestroy {
             },
             error: err => {
                 this.settle();
-                this.toastService.httpError(this.translate.instant('GUILD_SETTINGS.AUDIT_LOG.LOAD_ERROR'), err);
+                this.toastService.httpError(
+                    this.translate.instant('GUILD_SETTINGS.AUDIT_LOG.LOAD_ERROR'),
+                    err,
+                );
             },
         });
     }
@@ -333,7 +357,8 @@ export class AuditLogSettingsComponent implements OnInit, OnDestroy {
         const ids = new Set<string>();
         for (const row of rows) {
             ids.add(row.entry.actorUserId);
-            if (row.entry.targetId && USER_TARGET_ACTIONS.has(row.entry.actionType)) ids.add(row.entry.targetId);
+            if (row.entry.targetId && USER_TARGET_ACTIONS.has(row.entry.actionType))
+                ids.add(row.entry.targetId);
         }
 
         for (const id of ids) {
@@ -377,7 +402,9 @@ export class AuditLogSettingsComponent implements OnInit, OnDestroy {
 
     private formatValue(value: unknown): string {
         if (typeof value === 'boolean') {
-            return this.translate.instant(value ? 'GUILD_SETTINGS.AUDIT_LOG.VALUE_YES' : 'GUILD_SETTINGS.AUDIT_LOG.VALUE_NO');
+            return this.translate.instant(
+                value ? 'GUILD_SETTINGS.AUDIT_LOG.VALUE_YES' : 'GUILD_SETTINGS.AUDIT_LOG.VALUE_NO',
+            );
         }
         if (Array.isArray(value)) return value.map(item => this.formatValue(item)).join(', ');
         if (typeof value === 'object') return JSON.stringify(value);

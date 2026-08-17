@@ -19,8 +19,8 @@ export class SteamService {
     private toast = inject(ToastService);
 
     /** Step 1 of linking: fetch the Steam OpenID redirect URL (bearer added by interceptor). */
-    public getLinkStartUrl(): Observable<{ redirectUrl: string }> {
-        return this.httpClient.get<{ redirectUrl: string }>(
+    public getLinkStartUrl(): Observable<{redirectUrl: string}> {
+        return this.httpClient.get<{redirectUrl: string}>(
             `${this.apiConfig.baseUrl()}/api/v1/identity/authentication/steam/link/start`,
         );
     }

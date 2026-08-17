@@ -47,9 +47,16 @@ describe('Permissions moderation bits', () => {
     });
 
     it('does not collide with any existing bit (0-31, 63)', () => {
-        const newBits: PermissionKey[] = ['KickMembers', 'BanMembers', 'ModerateMembers', 'ManageGuild', 'ViewAuditLog'];
-        const existingKeys = (Object.keys(Permissions) as PermissionKey[])
-            .filter(k => !newBits.includes(k) && k !== 'None');
+        const newBits: PermissionKey[] = [
+            'KickMembers',
+            'BanMembers',
+            'ModerateMembers',
+            'ManageGuild',
+            'ViewAuditLog',
+        ];
+        const existingKeys = (Object.keys(Permissions) as PermissionKey[]).filter(
+            k => !newBits.includes(k) && k !== 'None',
+        );
         for (const newKey of newBits) {
             for (const existingKey of existingKeys) {
                 expect(Permissions[newKey] & Permissions[existingKey]).toBe(0n);
@@ -69,8 +76,9 @@ describe('Permissions moderation bits', () => {
 // carries a bit it has no name for, so some payloads arrive as numbers despite the DTO type.
 describe('parsePermissions wire types', () => {
     it('accepts a JSON number mask', () => {
-        expect(parsePermissions(Number(Permissions.ManageGuild) as unknown as string))
-            .toBe(Permissions.ManageGuild);
+        expect(parsePermissions(Number(Permissions.ManageGuild) as unknown as string)).toBe(
+            Permissions.ManageGuild,
+        );
     });
 
     it('accepts a numeric mask carrying several bits', () => {
@@ -93,15 +101,17 @@ describe('parsePermissions wire types', () => {
 
     it('still reads a digit string and a name list', () => {
         expect(parsePermissions(Permissions.ManageGuild.toString())).toBe(Permissions.ManageGuild);
-        expect(parsePermissions('ViewChannel, SendMessages'))
-            .toBe(Permissions.ViewChannel | Permissions.SendMessages);
+        expect(parsePermissions('ViewChannel, SendMessages')).toBe(
+            Permissions.ViewChannel | Permissions.SendMessages,
+        );
     });
 });
 
 describe('PERM_GROUPS', () => {
     it('places every enforced PermissionKey in exactly one group', () => {
-        const allKeys = (Object.keys(Permissions) as PermissionKey[])
-            .filter(k => k !== 'None' && !INERT_PERMISSIONS.has(k));
+        const allKeys = (Object.keys(Permissions) as PermissionKey[]).filter(
+            k => k !== 'None' && !INERT_PERMISSIONS.has(k),
+        );
         const grouped = PERM_GROUPS.flatMap(g => g.perms);
 
         for (const key of allKeys) {
@@ -131,9 +141,19 @@ describe('CHANNEL_PERM_GROUPS', () => {
 
     // An overwrite is scoped to one channel; guild-wide authority cannot be granted through it.
     it('leaves guild-scoped authority out', () => {
-        const guildScoped: PermissionKey[] = ['Superadmin', 'ManageGuild', 'KickMembers', 'BanMembers',
-            'ModerateMembers', 'ViewAuditLog', 'ManageEmojis', 'ManageEvents', 'ManageRoles',
-            'ChangeNickname', 'ManageNicknames'];
+        const guildScoped: PermissionKey[] = [
+            'Superadmin',
+            'ManageGuild',
+            'KickMembers',
+            'BanMembers',
+            'ModerateMembers',
+            'ViewAuditLog',
+            'ManageEmojis',
+            'ManageEvents',
+            'ManageRoles',
+            'ChangeNickname',
+            'ManageNicknames',
+        ];
 
         for (const key of guildScoped) {
             expect(channelKeys, `${key} is not a channel-scoped grant`).not.toContain(key);
@@ -142,7 +162,12 @@ describe('CHANNEL_PERM_GROUPS', () => {
 
     // The old local copy in permission-override-editor omitted these, so they were unoverridable.
     it('offers the channel-scoped bits that were previously missing', () => {
-        for (const key of ['ReadMessageHistory', 'MentionEveryone', 'CreateInvite', 'ManageWebhooks'] as PermissionKey[]) {
+        for (const key of [
+            'ReadMessageHistory',
+            'MentionEveryone',
+            'CreateInvite',
+            'ManageWebhooks',
+        ] as PermissionKey[]) {
             expect(channelKeys).toContain(key);
         }
     });
@@ -180,10 +205,18 @@ describe('diffPermissions', () => {
 /** These twelve took the positions the wiki and household bits vacated. */
 describe('Discord parity bits', () => {
     const expected: [PermissionKey, number][] = [
-        ['ReadMessageHistory', 23], ['SendVoiceMessages', 24], ['SendPolls', 25],
-        ['UseExternalEmojis', 26], ['UseExternalStickers', 27], ['CreatePrivateThreads', 28],
-        ['UseApplicationCommands', 29], ['CreateExpressions', 30], ['ManageExpressions', 31],
-        ['PrioritySpeaker', 39], ['RequestToSpeak', 40], ['UseVoiceActivity', 41],
+        ['ReadMessageHistory', 23],
+        ['SendVoiceMessages', 24],
+        ['SendPolls', 25],
+        ['UseExternalEmojis', 26],
+        ['UseExternalStickers', 27],
+        ['CreatePrivateThreads', 28],
+        ['UseApplicationCommands', 29],
+        ['CreateExpressions', 30],
+        ['ManageExpressions', 31],
+        ['PrioritySpeaker', 39],
+        ['RequestToSpeak', 40],
+        ['UseVoiceActivity', 41],
     ];
 
     it.each(expected)('puts %s at bit %i', (key, bit) => {
@@ -221,11 +254,30 @@ describe('Discord parity bits', () => {
 // The core mask is chat and moderation now; no wiki or household name may reach this table.
 describe('the moved names', () => {
     const MOVED = [
-        'ViewWiki', 'CreateWikiPages', 'EditOwnWikiPages', 'EditAnyWikiPage', 'DeleteWikiPages',
-        'ManageWikiRevisions', 'ManageWikiStructure', 'ModerateWikiComments', 'PublishWikiPublicly',
-        'ManageLists', 'AddListItems', 'CheckOffListItems', 'ManageChores', 'CompleteChores',
-        'ManageLedger', 'AddExpenses', 'ManagePantry', 'CreateDecisions', 'VoteDecisions',
-        'ManageGuests', 'PlanMeals', 'ManageMeals', 'LogMaintenance', 'ManageMaintenance',
+        'ViewWiki',
+        'CreateWikiPages',
+        'EditOwnWikiPages',
+        'EditAnyWikiPage',
+        'DeleteWikiPages',
+        'ManageWikiRevisions',
+        'ManageWikiStructure',
+        'ModerateWikiComments',
+        'PublishWikiPublicly',
+        'ManageLists',
+        'AddListItems',
+        'CheckOffListItems',
+        'ManageChores',
+        'CompleteChores',
+        'ManageLedger',
+        'AddExpenses',
+        'ManagePantry',
+        'CreateDecisions',
+        'VoteDecisions',
+        'ManageGuests',
+        'PlanMeals',
+        'ManageMeals',
+        'LogMaintenance',
+        'ManageMaintenance',
     ];
 
     it.each(MOVED)('no longer defines %s', name => {
@@ -240,7 +292,17 @@ describe('the moved names', () => {
 
     it('leaves no module group behind in the core editor', () => {
         const labels = PERM_GROUPS.map(g => g.label);
-        for (const label of ['Wiki', 'Lists', 'Chores', 'Ledger', 'Pantry', 'Decisions', 'Guests', 'Meals', 'Maintenance']) {
+        for (const label of [
+            'Wiki',
+            'Lists',
+            'Chores',
+            'Ledger',
+            'Pantry',
+            'Decisions',
+            'Guests',
+            'Meals',
+            'Maintenance',
+        ]) {
             expect(labels).not.toContain(label);
         }
     });

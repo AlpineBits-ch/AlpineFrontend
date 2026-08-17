@@ -52,7 +52,9 @@ describe('GuildSafetyService', () => {
     it('carries prompt responses through accept', () => {
         service.acceptOnboarding('g1', [{promptId: 'onbp_1', optionIds: ['onbo_1', 'onbo_2']}]).subscribe();
         const req = http.expectOne(`${base}/guilds/g1/onboarding/accept`);
-        expect(req.request.body).toEqual({responses: [{promptId: 'onbp_1', optionIds: ['onbo_1', 'onbo_2']}]});
+        expect(req.request.body).toEqual({
+            responses: [{promptId: 'onbp_1', optionIds: ['onbo_1', 'onbo_2']}],
+        });
         req.flush({});
     });
 

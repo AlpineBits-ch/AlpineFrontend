@@ -12,11 +12,7 @@ import {HttpTestingController, provideHttpClientTesting} from '@angular/common/h
 import {OsInfo} from '../platform/ports/os-info.port';
 import {ApiConfigService} from './api-config.service';
 import {AuthService} from './auth.service';
-import {
-    DataExportSaveUnsupportedError,
-    DataExportService,
-    downloadErrorStatus,
-} from './data-export.service';
+import {DataExportSaveUnsupportedError, DataExportService, downloadErrorStatus} from './data-export.service';
 
 const BASE = 'https://api.test.example';
 
@@ -45,7 +41,10 @@ function setup(kind: OsInfo['kind'], isMobile = false) {
             provideHttpClient(),
             provideHttpClientTesting(),
             {provide: ApiConfigService, useValue: {baseUrl: () => BASE}},
-            {provide: AuthService, useValue: {ensureValidToken: async () => 'tok', refresh: async () => 'tok2'}},
+            {
+                provide: AuthService,
+                useValue: {ensureValidToken: async () => 'tok', refresh: async () => 'tok2'},
+            },
             {provide: OsInfo, useValue: new FakeOsInfo(kind, isMobile)},
         ],
     });
@@ -80,15 +79,17 @@ describe('DataExportService on a host without the native path', () => {
     it('refuses to write to disk with a typed error', async () => {
         const {service} = setup('web');
 
-        await expect(service.saveToDisk('e1', '/tmp/export.zip'))
-            .rejects.toBeInstanceOf(DataExportSaveUnsupportedError);
+        await expect(service.saveToDisk('e1', '/tmp/export.zip')).rejects.toBeInstanceOf(
+            DataExportSaveUnsupportedError,
+        );
     });
 
     it('refuses the picker flow the same way', async () => {
         const {service} = setup('web');
 
-        await expect(service.saveToDiskWithPicker('e1', 'export.zip'))
-            .rejects.toBeInstanceOf(DataExportSaveUnsupportedError);
+        await expect(service.saveToDiskWithPicker('e1', 'export.zip')).rejects.toBeInstanceOf(
+            DataExportSaveUnsupportedError,
+        );
     });
 
     /**
@@ -110,8 +111,9 @@ describe('DataExportService on a host without the native path', () => {
         const seen: Blob[] = [];
 
         service.download('e1').subscribe(blob => seen.push(blob));
-        http.expectOne(`${BASE}/api/v1/identity/data-exports/e1/download`)
-            .flush(new Blob(['zip bytes'], {type: 'application/zip'}));
+        http.expectOne(`${BASE}/api/v1/identity/data-exports/e1/download`).flush(
+            new Blob(['zip bytes'], {type: 'application/zip'}),
+        );
 
         expect(seen).toHaveLength(1);
         http.verify();

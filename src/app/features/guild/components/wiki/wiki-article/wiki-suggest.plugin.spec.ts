@@ -38,7 +38,9 @@ describe('matchTrigger', () => {
     it('captures the query typed after a double bracket, spaces included', () => {
         // Page titles contain spaces, so unlike the slash menu this query must not stop at one.
         expect(matchTrigger('see [[Getting star')).toEqual({
-            trigger: '[[', query: 'Getting star', from: 4,
+            trigger: '[[',
+            query: 'Getting star',
+            from: 4,
         });
     });
 

@@ -11,16 +11,18 @@ export class ScreenResumeTracker {
         /** Called with the key when nothing came back in time. Never called for an adopted resume. */
         private readonly onExpired: (key: string) => void,
         private readonly graceMs: number = SCREEN_RESUME_GRACE_MS,
-    ) {
-    }
+    ) {}
 
     /** Start, or restart, the window for `key`. It measures from the most recent loss. */
     hold(key: string): void {
         this.cancel(key);
-        this.timers.set(key, setTimeout(() => {
-            this.timers.delete(key);
-            this.onExpired(key);
-        }, this.graceMs));
+        this.timers.set(
+            key,
+            setTimeout(() => {
+                this.timers.delete(key);
+                this.onExpired(key);
+            }, this.graceMs),
+        );
     }
 
     /** Whether `key` is being held right now. */

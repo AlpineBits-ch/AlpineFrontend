@@ -1,4 +1,14 @@
-import {ChangeDetectionStrategy, Component, computed, effect, inject, input, model, output, signal} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    effect,
+    inject,
+    input,
+    model,
+    output,
+    signal,
+} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {Button} from 'primeng/button';
@@ -15,35 +25,68 @@ import {
     OnboardingPromptOption,
     OnboardingPromptType,
 } from '../../../../../../dtos/response/guild-safety.dto';
-import {hasPermission, parsePermissions, PermissionValue, Permissions} from '../../../../../../enums/permissions.enum';
-import {ModulePermissions, ModulePermissionValue, parseModulePermissions} from '../../../../../../enums/module-permissions.enum';
+import {
+    hasPermission,
+    parsePermissions,
+    PermissionValue,
+    Permissions,
+} from '../../../../../../enums/permissions.enum';
+import {
+    ModulePermissions,
+    ModulePermissionValue,
+    parseModulePermissions,
+} from '../../../../../../enums/module-permissions.enum';
 
 /** Roles the server refuses in a prompt option, since picking one is unmoderated self-service (guide §2.4); a client-side mirror so the picker can explain the refusal up front, but the server re-checks at save and at grant time and stays authoritative. */
 const PRIVILEGED_MASK: PermissionValue =
-    Permissions.Superadmin
-    | Permissions.ManageGuild | Permissions.ManageChannel | Permissions.ManagePermissions
-    | Permissions.ManageRoles | Permissions.ManageWebhooks
-    | Permissions.KickMembers | Permissions.BanMembers | Permissions.ModerateMembers
-    | Permissions.ViewAuditLog | Permissions.ManageEmojis | Permissions.ManageExpressions
-    | Permissions.EditAnyMessage | Permissions.DeleteAnyMessage | Permissions.PinMessages
-    | Permissions.ManageAnyThread;
+    Permissions.Superadmin |
+    Permissions.ManageGuild |
+    Permissions.ManageChannel |
+    Permissions.ManagePermissions |
+    Permissions.ManageRoles |
+    Permissions.ManageWebhooks |
+    Permissions.KickMembers |
+    Permissions.BanMembers |
+    Permissions.ModerateMembers |
+    Permissions.ViewAuditLog |
+    Permissions.ManageEmojis |
+    Permissions.ManageExpressions |
+    Permissions.EditAnyMessage |
+    Permissions.DeleteAnyMessage |
+    Permissions.PinMessages |
+    Permissions.ManageAnyThread;
 
 /** The wiki half, now that those bits live in their own space. */
 const PRIVILEGED_MODULE_MASK: ModulePermissionValue =
-    ModulePermissions.EditAnyWikiPage | ModulePermissions.DeleteWikiPages
-    | ModulePermissions.ManageWikiRevisions | ModulePermissions.ManageWikiStructure
-    | ModulePermissions.ModerateWikiComments | ModulePermissions.PublishWikiPublicly;
+    ModulePermissions.EditAnyWikiPage |
+    ModulePermissions.DeleteWikiPages |
+    ModulePermissions.ManageWikiRevisions |
+    ModulePermissions.ManageWikiStructure |
+    ModulePermissions.ModerateWikiComments |
+    ModulePermissions.PublishWikiPublicly;
 
 export function isPrivilegedRole(role: Pick<RoleDto, 'permissions' | 'modulePermissions'>): boolean {
-    return (parsePermissions(role.permissions) & PRIVILEGED_MASK) !== 0n
-        || (parseModulePermissions(role.modulePermissions) & PRIVILEGED_MODULE_MASK) !== 0n;
+    return (
+        (parsePermissions(role.permissions) & PRIVILEGED_MASK) !== 0n ||
+        (parseModulePermissions(role.modulePermissions) & PRIVILEGED_MODULE_MASK) !== 0n
+    );
 }
 
 /** Edits one prompt and its options in isolation, handing the finished object back to the settings page; the whole config is only ever written as a single PUT, so nothing here talks to the network. */
 @Component({
     selector: 'app-onboarding-prompt-editor',
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [FormsModule, TranslateModule, Button, InputText, Select, MultiSelect, ToggleSwitch, Dialog, PrimeTemplate],
+    imports: [
+        FormsModule,
+        TranslateModule,
+        Button,
+        InputText,
+        Select,
+        MultiSelect,
+        ToggleSwitch,
+        Dialog,
+        PrimeTemplate,
+    ],
     templateUrl: './onboarding-prompt-editor.component.html',
 })
 export class OnboardingPromptEditorComponent {
@@ -75,14 +118,20 @@ export class OnboardingPromptEditorComponent {
     private translate = inject(TranslateService);
 
     protected readonly typeOptions = computed(() => [
-        {label: this.translate.instant('ONBOARDING_EDIT.TYPE_CHOICE'), value: OnboardingPromptType.MultipleChoice},
-        {label: this.translate.instant('ONBOARDING_EDIT.TYPE_DROPDOWN'), value: OnboardingPromptType.Dropdown},
+        {
+            label: this.translate.instant('ONBOARDING_EDIT.TYPE_CHOICE'),
+            value: OnboardingPromptType.MultipleChoice,
+        },
+        {
+            label: this.translate.instant('ONBOARDING_EDIT.TYPE_DROPDOWN'),
+            value: OnboardingPromptType.Dropdown,
+        },
     ]);
 
     /** @everyone is excluded (everyone already has it) and privileged roles are shown but disabled, so an admin who expected a role to be here learns why instead of hunting for a missing entry. */
     protected readonly roleOptions = computed(() =>
-        this.guild().roles
-            .filter(r => r.type !== RoleType.Everyone)
+        this.guild()
+            .roles.filter(r => r.type !== RoleType.Everyone)
             .sort((a, b) => b.position - a.position)
             .map(r => {
                 const privileged = isPrivilegedRole(r);
@@ -93,15 +142,19 @@ export class OnboardingPromptEditorComponent {
                     value: r.id,
                     disabled: privileged,
                 };
-            }));
+            }),
+    );
 
     protected readonly channelOptions = computed(() =>
-        this.guild().channels
-            .filter(c => !c.parentChannelId && c.type !== ChannelType.Thread)
+        this.guild()
+            .channels.filter(c => !c.parentChannelId && c.type !== ChannelType.Thread)
             .sort((a, b) => a.position - b.position)
-            .map(c => ({label: c.name, value: c.id})));
+            .map(c => ({label: c.name, value: c.id})),
+    );
 
-    protected readonly atOptionCap = computed(() => this.draft().options.length >= this.limits.optionsPerPrompt);
+    protected readonly atOptionCap = computed(
+        () => this.draft().options.length >= this.limits.optionsPerPrompt,
+    );
 
     /** Mirrors the server's rules so the settings page never round-trips for a known 400. */
     protected readonly errors = computed(() => {
@@ -137,7 +190,7 @@ export class OnboardingPromptEditorComponent {
     protected patchOption(index: number, patch: Partial<OnboardingPromptOption>): void {
         this.draft.update(d => ({
             ...d,
-            options: d.options.map((o, i) => i === index ? {...o, ...patch} : o),
+            options: d.options.map((o, i) => (i === index ? {...o, ...patch} : o)),
         }));
     }
 
@@ -145,7 +198,17 @@ export class OnboardingPromptEditorComponent {
         if (this.atOptionCap()) return;
         this.draft.update(d => ({
             ...d,
-            options: [...d.options, {title: '', description: null, emoji: null, roleIds: [], channelIds: [], position: d.options.length}],
+            options: [
+                ...d.options,
+                {
+                    title: '',
+                    description: null,
+                    emoji: null,
+                    roleIds: [],
+                    channelIds: [],
+                    position: d.options.length,
+                },
+            ],
         }));
     }
 

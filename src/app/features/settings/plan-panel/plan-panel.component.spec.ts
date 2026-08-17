@@ -11,7 +11,11 @@ import {ProfileService} from '../../../services/profile.service';
 import {LinkOpener} from '../../../platform/ports/link-opener.port';
 import {FakeLinkOpener} from '../../../platform/testing/fake-link-opener';
 import {EntitlementStore, EntitlementSubjectRef, MY_ENTITLEMENTS} from '../../../stores/entitlement.store';
-import {EntitlementPlanDto, EntitlementSnapshotDto, GuildFeatureResolutionDto} from '../../../dtos/response/entitlement.dto';
+import {
+    EntitlementPlanDto,
+    EntitlementSnapshotDto,
+    GuildFeatureResolutionDto,
+} from '../../../dtos/response/entitlement.dto';
 
 function snapshot(over: Partial<EntitlementSnapshotDto> = {}): EntitlementSnapshotDto {
     return {
@@ -30,15 +34,16 @@ function snapshot(over: Partial<EntitlementSnapshotDto> = {}): EntitlementSnapsh
     };
 }
 
-function setup(opts: {
-    subject?: EntitlementSubjectRef;
-    plan?: EntitlementPlanDto;
-    snapshot?: EntitlementSnapshotDto | null;
-    features?: GuildFeatureResolutionDto;
-} = {}) {
-    const held = opts.snapshot === null
-        ? null
-        : opts.snapshot ?? snapshot(opts.plan ? {plan: opts.plan} : {});
+function setup(
+    opts: {
+        subject?: EntitlementSubjectRef;
+        plan?: EntitlementPlanDto;
+        snapshot?: EntitlementSnapshotDto | null;
+        features?: GuildFeatureResolutionDto;
+    } = {},
+) {
+    const held =
+        opts.snapshot === null ? null : (opts.snapshot ?? snapshot(opts.plan ? {plan: opts.plan} : {}));
 
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
@@ -182,7 +187,10 @@ describe('what a guild plan is withholding', () => {
         const fixture = setup({
             subject: {kind: 'guild', id: 'guild-1'},
             features: {
-                chosen: ['Events'], includedByPlan: ['Events'], withheldByPlan: [], effective: ['Events'],
+                chosen: ['Events'],
+                includedByPlan: ['Events'],
+                withheldByPlan: [],
+                effective: ['Events'],
             },
         });
 
@@ -193,7 +201,10 @@ describe('what a guild plan is withholding', () => {
     it('draws nothing of the sort on the account screen', () => {
         const fixture = setup({
             features: {
-                chosen: ['Forums'], includedByPlan: [], withheldByPlan: ['Forums'], effective: [],
+                chosen: ['Forums'],
+                includedByPlan: [],
+                withheldByPlan: ['Forums'],
+                effective: [],
             },
         });
 

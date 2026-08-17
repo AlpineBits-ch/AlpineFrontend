@@ -4,9 +4,7 @@ import {AudioSettings, AudioSettingsService} from './audio-settings.service';
 
 /** Which call surface the session belongs to. Mirrors the Rust `VoiceTarget`. */
 export type VoiceTarget =
-    | {kind: 'guild'; guildId: string; channelId: string}
-    | {kind: 'call'; callId: string}
-    | {kind: 'isle'};
+    {kind: 'guild'; guildId: string; channelId: string} | {kind: 'call'; callId: string} | {kind: 'isle'};
 
 /**
  * A running publication - one peer connection to one SFU session.

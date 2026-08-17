@@ -20,10 +20,12 @@ export class DmSidepanelComponent {
     private relationshipStore = inject(RelationshipStore);
     private profileService = inject(ProfileService);
 
-    protected readonly onlineFriendsCount = computed(() =>
-        this.relationshipStore.friends()
-            .filter(r => this.profileService.getOnlineStatus(r.other.userId) === OnlineStatus.Online)
-            .length
+    protected readonly onlineFriendsCount = computed(
+        () =>
+            this.relationshipStore
+                .friends()
+                .filter(r => this.profileService.getOnlineStatus(r.other.userId) === OnlineStatus.Online)
+                .length,
     );
 
     constructor() {

@@ -14,8 +14,7 @@ const CODE_BLOCK_RE = /```(\w*)\r?\n([\s\S]*?)```/g;
 
 @Pipe({name: 'markdown', standalone: true})
 export class MarkdownPipe implements PipeTransform {
-    constructor(private sanitizer: DomSanitizer) {
-    }
+    constructor(private sanitizer: DomSanitizer) {}
 
     transform(value: string | null | undefined): SafeHtml {
         if (!value) return '';
@@ -47,28 +46,25 @@ function renderMixed(text: string): string {
 }
 
 function renderInline(text: string): string {
-    return text
-        .split('\n')
-        // Leading/trailing whitespace on a line is never visually significant in chat
-        // messages, but a browser only collapses it away at the start/end of a block -
-        // not after a <br>. Left untrimmed, a stray leading space renders as a real
-        // one-space indent, throwing off alignment between lines.
-        .map(line => marked.parseInline(line.trim()) as string)
-        .join('<br>');
+    return (
+        text
+            .split('\n')
+            // Leading/trailing whitespace on a line is never visually significant in chat
+            // messages, but a browser only collapses it away at the start/end of a block -
+            // not after a <br>. Left untrimmed, a stray leading space renders as a real
+            // one-space indent, throwing off alignment between lines.
+            .map(line => marked.parseInline(line.trim()) as string)
+            .join('<br>')
+    );
 }
 
 function renderCodeBlock(code: string, lang: string | undefined): string {
     const language = lang && hljs.getLanguage(lang) ? lang : undefined;
-    const highlighted = language
-        ? hljs.highlight(code, {language}).value
-        : escapeHtml(code);
+    const highlighted = language ? hljs.highlight(code, {language}).value : escapeHtml(code);
     const langAttr = language ? ` data-lang="${language}"` : '';
     return `<pre${langAttr}><code class="hljs">${highlighted}</code></pre>`;
 }
 
 function escapeHtml(text: string): string {
-    return text
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
+    return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }

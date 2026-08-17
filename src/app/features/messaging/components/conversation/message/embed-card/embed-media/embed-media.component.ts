@@ -31,7 +31,7 @@ export class EmbedMediaComponent {
     });
 
     /** The space to reserve, or null when the server measured nothing and there is none to reserve. */
-    protected readonly box = computed<{ width: number; height: number } | null>(() => {
+    protected readonly box = computed<{width: number; height: number} | null>(() => {
         const {width, height} = this.media();
         if (!width || !height) return null;
         const scale = Math.min(this.maxWidth() / width, this.maxHeight() / height, 1);

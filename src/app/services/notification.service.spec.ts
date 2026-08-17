@@ -106,7 +106,12 @@ it('routes an activation back onto action$ with its extra intact', async () => {
 it('applies the category filters before touching the port', async () => {
     const {service, notifier} = setup({settings: {dm: false}});
 
-    await service.createNotification({title: 'Ada', message: 'ping', sound: NotificationSound.None, category: 'dm'});
+    await service.createNotification({
+        title: 'Ada',
+        message: 'ping',
+        sound: NotificationSound.None,
+        category: 'dm',
+    });
 
     expect(notifier.notifications).toHaveLength(0);
     expect(notifier.permissionRequests).toBe(0);

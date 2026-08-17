@@ -15,8 +15,9 @@ export class ChannelFollowService {
 
     /** Initiated from the receiving side. 409 means that exact source-to-target pairing already exists. */
     follow(sourceChannelId: string, targetChannelId: string): Observable<CreatedChannelFollowDto> {
-        return this.http.post<CreatedChannelFollowDto>(
-            `${this.base}/channels/${sourceChannelId}/followers`, {targetChannelId});
+        return this.http.post<CreatedChannelFollowDto>(`${this.base}/channels/${sourceChannelId}/followers`, {
+            targetChannelId,
+        });
     }
 
     /** Source-side admin view ("who is subscribed to us"): needs ManageChannel on the source. */

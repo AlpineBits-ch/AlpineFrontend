@@ -1,53 +1,76 @@
 @if (open()) {
     <div (click)="closed.emit()" class="fixed inset-0 z-50 bg-black/60">
-        <div (click)="$event.stopPropagation()" (keydown)="onKeydown($event)"
-             class="mx-auto mt-[12vh] w-full max-w-xl overflow-hidden rounded-2xl border
-                    border-border bg-card shadow-2xl">
-
+        <div
+            (click)="$event.stopPropagation()"
+            (keydown)="onKeydown($event)"
+            class="mx-auto mt-[12vh] w-full max-w-xl overflow-hidden rounded-2xl border border-border bg-card shadow-2xl"
+        >
             <!-- Query -->
             <div class="flex items-center gap-3 border-b border-white/[0.08] px-4 py-3">
                 <i class="pi pi-search text-sm text-white/30"></i>
-                <input #queryInput
-                       (ngModelChange)="query.set($event)"
-                       [ngModel]="query()"
-                       class="flex-1 border-0 bg-transparent text-[0.9375rem] text-white/85
-                              outline-none placeholder-white/25"
-                       [placeholder]="'WIKI.SEARCH.PLACEHOLDER' | translate"/>
-                <button (click)="filtersOpen.set(!filtersOpen())"
-                        [class.text-brand-dim]="filtersOpen() || activeFilterCount() > 0"
-                        [class.text-white/30]="!filtersOpen() && activeFilterCount() === 0"
-                        class="flex shrink-0 cursor-pointer items-center gap-1 rounded border-0
-                               bg-transparent px-1.5 py-1 hover:bg-hover"
-                        [attr.aria-label]="'WIKI.SEARCH.FILTERS' | translate">
+                <input
+                    #queryInput
+                    (ngModelChange)="query.set($event)"
+                    [ngModel]="query()"
+                    class="flex-1 border-0 bg-transparent text-[0.9375rem] text-white/85 outline-none placeholder-white/25"
+                    [placeholder]="'WIKI.SEARCH.PLACEHOLDER' | translate"
+                />
+                <button
+                    (click)="filtersOpen.set(!filtersOpen())"
+                    [class.text-brand-dim]="filtersOpen() || activeFilterCount() > 0"
+                    [class.text-white/30]="!filtersOpen() && activeFilterCount() === 0"
+                    class="flex shrink-0 cursor-pointer items-center gap-1 rounded border-0 bg-transparent px-1.5 py-1 hover:bg-hover"
+                    [attr.aria-label]="'WIKI.SEARCH.FILTERS' | translate"
+                >
                     <i class="pi pi-filter text-[0.75rem]"></i>
                     @if (activeFilterCount() > 0) {
                         <span class="text-[0.625rem]">{{ activeFilterCount() }}</span>
                     }
                 </button>
-                <kbd class="rounded border border-border px-1.5 py-0.5 text-[0.625rem] text-white/30">
-                    esc
-                </kbd>
+                <kbd class="rounded border border-border px-1.5 py-0.5 text-[0.625rem] text-white/30"> esc </kbd>
             </div>
 
             <!-- Filters. Hidden until asked for: three dropdowns above every search would make the common case look like a form. -->
             @if (filtersOpen()) {
                 <div class="flex items-center gap-2 border-b border-white/[0.08] bg-white/[0.02] px-4 py-2">
-                    <p-select (ngModelChange)="tagFilter.set($event)" [ngModel]="tagFilter()"
-                              [options]="tagOptions()" [showClear]="true" optionLabel="label"
-                              optionValue="value" size="small" styleClass="flex-1 min-w-0"
-                              [placeholder]="'WIKI.TAGS' | translate"/>
-                    <p-select (ngModelChange)="categoryFilter.set($event)" [ngModel]="categoryFilter()"
-                              [options]="categoryOptions()" [showClear]="true" optionLabel="label"
-                              optionValue="value" size="small" styleClass="flex-1 min-w-0"
-                              [placeholder]="'WIKI.CATEGORY' | translate"/>
-                    <p-select (ngModelChange)="authorFilter.set($event)" [ngModel]="authorFilter()"
-                              [options]="authorOptions()" [showClear]="true" optionLabel="label"
-                              optionValue="value" size="small" styleClass="flex-1 min-w-0"
-                              [placeholder]="'WIKI.SEARCH.AUTHOR' | translate"/>
+                    <p-select
+                        (ngModelChange)="tagFilter.set($event)"
+                        [ngModel]="tagFilter()"
+                        [options]="tagOptions()"
+                        [showClear]="true"
+                        optionLabel="label"
+                        optionValue="value"
+                        size="small"
+                        styleClass="flex-1 min-w-0"
+                        [placeholder]="'WIKI.TAGS' | translate"
+                    />
+                    <p-select
+                        (ngModelChange)="categoryFilter.set($event)"
+                        [ngModel]="categoryFilter()"
+                        [options]="categoryOptions()"
+                        [showClear]="true"
+                        optionLabel="label"
+                        optionValue="value"
+                        size="small"
+                        styleClass="flex-1 min-w-0"
+                        [placeholder]="'WIKI.CATEGORY' | translate"
+                    />
+                    <p-select
+                        (ngModelChange)="authorFilter.set($event)"
+                        [ngModel]="authorFilter()"
+                        [options]="authorOptions()"
+                        [showClear]="true"
+                        optionLabel="label"
+                        optionValue="value"
+                        size="small"
+                        styleClass="flex-1 min-w-0"
+                        [placeholder]="'WIKI.SEARCH.AUTHOR' | translate"
+                    />
                     @if (activeFilterCount() > 0) {
-                        <button (click)="clearFilters()"
-                                class="shrink-0 cursor-pointer rounded border-0 bg-transparent px-1.5
-                                       py-1 text-[0.75rem] text-white/40 hover:bg-hover hover:text-white/70">
+                        <button
+                            (click)="clearFilters()"
+                            class="shrink-0 cursor-pointer rounded border-0 bg-transparent px-1.5 py-1 text-[0.75rem] text-white/40 hover:bg-hover hover:text-white/70"
+                        >
                             {{ 'WIKI.SEARCH.CLEAR_FILTERS' | translate }}
                         </button>
                     }
@@ -61,19 +84,21 @@
                         <span class="text-[0.625rem] font-semibold uppercase tracking-widest text-white/25">
                             {{ 'WIKI.SEARCH.RECENT' | translate }}
                         </span>
-                        <button (click)="recents.clear()"
-                                class="cursor-pointer border-0 bg-transparent text-[0.6875rem]
-                                       text-white/25 hover:text-white/60">
+                        <button
+                            (click)="recents.clear()"
+                            class="cursor-pointer border-0 bg-transparent text-[0.6875rem] text-white/25 hover:text-white/60"
+                        >
                             {{ 'WIKI.SEARCH.CLEAR_RECENT' | translate }}
                         </button>
                     </div>
                 }
 
                 @for (row of rows(); track $index; let i = $index) {
-                    <button (click)="activate(row)"
-                            [class.bg-hover]="i === activeIndex()"
-                            class="flex w-full cursor-pointer flex-col items-start gap-0.5 border-0
-                                   bg-transparent px-4 py-2.5 text-left hover:bg-hover">
+                    <button
+                        (click)="activate(row)"
+                        [class.bg-hover]="i === activeIndex()"
+                        class="flex w-full cursor-pointer flex-col items-start gap-0.5 border-0 bg-transparent px-4 py-2.5 text-left hover:bg-hover"
+                    >
                         <!-- `@if` rather than `@switch`, so the union narrows for the template type checker on every branch. -->
                         @if (row.kind === 'page') {
                             <span class="flex w-full items-center gap-2">
@@ -82,8 +107,7 @@
                                     {{ row.page.title }}
                                 </span>
                                 @if (row.hit.matchedIn === 'tag') {
-                                    <span class="shrink-0 rounded bg-white/[0.06] px-1.5 py-0.5
-                                                 text-[0.625rem] text-white/40">
+                                    <span class="shrink-0 rounded bg-white/[0.06] px-1.5 py-0.5 text-[0.625rem] text-white/40">
                                         {{ 'WIKI.SEARCH.MATCHED_TAG' | translate }}
                                     </span>
                                 }
@@ -130,17 +154,17 @@
             </div>
 
             <!-- Coverage. States what was actually searched rather than implying full text. -->
-            <div class="flex items-center justify-between gap-3 border-t border-white/[0.08]
-                        px-4 py-2">
+            <div class="flex items-center justify-between gap-3 border-t border-white/[0.08] px-4 py-2">
                 @if (cache.warming()) {
                     <span class="text-[0.75rem] text-white/35">{{ 'WIKI.SEARCH.LOADING_CONTENTS' | translate }}</span>
                 } @else if (cache.failed()) {
                     <span class="text-[0.75rem] text-white/45">
                         {{ 'WIKI.SEARCH.LOAD_FAILED' | translate }}
                     </span>
-                    <button (click)="searchContents()"
-                            class="shrink-0 cursor-pointer rounded border-0 bg-white/[0.06] px-2
-                                   py-1 text-[0.75rem] text-white/70 hover:bg-hover">
+                    <button
+                        (click)="searchContents()"
+                        class="shrink-0 cursor-pointer rounded border-0 bg-white/[0.06] px-2 py-1 text-[0.75rem] text-white/70 hover:bg-hover"
+                    >
                         {{ 'WIKI.SEARCH.RETRY' | translate }}
                     </button>
                 } @else if (cache.warmed()) {
@@ -149,9 +173,10 @@
                     </span>
                 } @else {
                     <span class="text-[0.75rem] text-white/35">{{ 'WIKI.SEARCH.SCOPE_TITLES' | translate }}</span>
-                    <button (click)="searchContents()"
-                            class="shrink-0 cursor-pointer rounded border-0 bg-white/[0.06] px-2
-                                   py-1 text-[0.75rem] text-white/70 hover:bg-hover">
+                    <button
+                        (click)="searchContents()"
+                        class="shrink-0 cursor-pointer rounded border-0 bg-white/[0.06] px-2 py-1 text-[0.75rem] text-white/70 hover:bg-hover"
+                    >
                         {{ 'WIKI.SEARCH.SEARCH_CONTENTS' | translate }}
                     </button>
                 }

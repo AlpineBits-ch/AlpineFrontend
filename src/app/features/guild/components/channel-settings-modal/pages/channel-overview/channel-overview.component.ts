@@ -42,10 +42,10 @@ export class ChannelOverviewComponent implements OnInit {
         const c = this.channel();
         this.dirty.set(
             this.name() !== c.name ||
-            this.description() !== (c.description ?? '') ||
-            this.isPrivate() !== c.isPrivate ||
-            this.isAgeRestricted() !== c.isAgeRestricted ||
-            this.slowModeSeconds() !== c.slowModeSeconds
+                this.description() !== (c.description ?? '') ||
+                this.isPrivate() !== c.isPrivate ||
+                this.isAgeRestricted() !== c.isAgeRestricted ||
+                this.slowModeSeconds() !== c.slowModeSeconds,
         );
     }
 

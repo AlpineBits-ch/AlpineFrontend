@@ -2,7 +2,7 @@
 
 type MermaidModule = {
     initialize: (config: Record<string, unknown>) => void;
-    render: (id: string, source: string) => Promise<{ svg: string }>;
+    render: (id: string, source: string) => Promise<{svg: string}>;
 };
 
 let loading: Promise<MermaidModule> | null = null;
@@ -36,23 +36,25 @@ function themeVariables(): Record<string, string> {
 }
 
 function load(): Promise<MermaidModule> {
-    loading ??= import('mermaid').then(module => {
-        const mermaid = module.default as unknown as MermaidModule;
-        mermaid.initialize({
-            startOnLoad: false,
-            // Wiki content is written by other guild members, so labels are never trusted to contain markup; strict is the level that actually sanitises them.
-            securityLevel: 'strict',
-            theme: 'base',
-            themeVariables: themeVariables(),
-            flowchart: {htmlLabels: false, curve: 'basis'},
-            fontFamily: 'Inter Variable, Inter, system-ui, sans-serif',
+    loading ??= import('mermaid')
+        .then(module => {
+            const mermaid = module.default as unknown as MermaidModule;
+            mermaid.initialize({
+                startOnLoad: false,
+                // Wiki content is written by other guild members, so labels are never trusted to contain markup; strict is the level that actually sanitises them.
+                securityLevel: 'strict',
+                theme: 'base',
+                themeVariables: themeVariables(),
+                flowchart: {htmlLabels: false, curve: 'basis'},
+                fontFamily: 'Inter Variable, Inter, system-ui, sans-serif',
+            });
+            return mermaid;
+        })
+        .catch(error => {
+            // A failed chunk load must not poison every later attempt.
+            loading = null;
+            throw error;
         });
-        return mermaid;
-    }).catch(error => {
-        // A failed chunk load must not poison every later attempt.
-        loading = null;
-        throw error;
-    });
     return loading;
 }
 

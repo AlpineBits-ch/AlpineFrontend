@@ -40,8 +40,7 @@ export class CreditPanelComponent {
     /** The section 8.1 sentence, preferring the server's key only where this build has the string. */
     protected readonly disclaimer = computed(() => {
         const wallet = this.wallet();
-        return creditDisclaimerCopy(
-            wallet?.disclaimer, wallet?.disclaimerKey, key => this.resolves(key));
+        return creditDisclaimerCopy(wallet?.disclaimer, wallet?.disclaimerKey, key => this.resolves(key));
     });
 
     /** The personal ledger belongs on the reader's own screen, not on a server they administer. */

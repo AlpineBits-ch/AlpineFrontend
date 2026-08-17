@@ -9,18 +9,12 @@ import {AppInfoService} from './app-info.service';
 /** Lets both constructor promises settle before the signals are read. */
 const settle = () => new Promise(resolve => setTimeout(resolve, 0));
 
-function setup(
-    configure: (os: FakeOsInfo) => void = () => undefined,
-    os: FakeOsInfo = new FakeOsInfo(),
-) {
+function setup(configure: (os: FakeOsInfo) => void = () => undefined, os: FakeOsInfo = new FakeOsInfo()) {
     configure(os);
 
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
-        providers: [
-            provideZonelessChangeDetection(),
-            {provide: OsInfo, useValue: os},
-        ],
+        providers: [provideZonelessChangeDetection(), {provide: OsInfo, useValue: os}],
     });
     return {service: TestBed.inject(AppInfoService), os};
 }

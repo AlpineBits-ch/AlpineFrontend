@@ -28,26 +28,37 @@ export class ForumStateService {
 
     constructor() {
         this.ws.forumTagCreatedObservable.subscribe(e =>
-            this.replaceTags(e.channelId, list => this.sorted([...list.filter(t => t.id !== e.tag.id), e.tag])));
+            this.replaceTags(e.channelId, list =>
+                this.sorted([...list.filter(t => t.id !== e.tag.id), e.tag]),
+            ),
+        );
 
         this.ws.forumTagUpdatedObservable.subscribe(e =>
-            this.replaceTags(e.channelId, list => this.sorted(list.map(t => t.id === e.tag.id ? e.tag : t))));
+            this.replaceTags(e.channelId, list =>
+                this.sorted(list.map(t => (t.id === e.tag.id ? e.tag : t))),
+            ),
+        );
 
         this.ws.forumTagDeletedObservable.subscribe(e =>
-            this.replaceTags(e.channelId, list => list.filter(t => t.id !== e.tagId)));
+            this.replaceTags(e.channelId, list => list.filter(t => t.id !== e.tagId)),
+        );
 
         // The event carries the full ordered list, so positions are re-derived from
         // the array index rather than trusting whatever each cached tag last held.
         this.ws.forumTagsReorderedObservable.subscribe(e =>
-            this.replaceTags(e.channelId, list => e.tagIds
-                .map((id, position) => {
-                    const tag = list.find(t => t.id === id);
-                    return tag ? {...tag, position} : null;
-                })
-                .filter((t): t is ForumTag => t !== null)));
+            this.replaceTags(e.channelId, list =>
+                e.tagIds
+                    .map((id, position) => {
+                        const tag = list.find(t => t.id === id);
+                        return tag ? {...tag, position} : null;
+                    })
+                    .filter((t): t is ForumTag => t !== null),
+            ),
+        );
 
         this.ws.forumConfigUpdatedObservable.subscribe(e =>
-            this.configByForum.update(m => ({...m, [e.channelId]: e.config})));
+            this.configByForum.update(m => ({...m, [e.channelId]: e.config})),
+        );
     }
 
     tagsFor(forumId: string): ForumTag[] {
@@ -67,7 +78,11 @@ export class ForumStateService {
     }
 
     sortFor(forumId: string): ForumSortOrder {
-        return this.sortByForum()[forumId] ?? this.configFor(forumId)?.defaultSortOrder ?? ForumSortOrder.LatestActivity;
+        return (
+            this.sortByForum()[forumId] ??
+            this.configFor(forumId)?.defaultSortOrder ??
+            ForumSortOrder.LatestActivity
+        );
     }
 
     setLayout(forumId: string, layout: ForumLayout): void {

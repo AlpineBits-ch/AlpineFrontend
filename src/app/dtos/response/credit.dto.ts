@@ -6,13 +6,7 @@
 import {BillingSubjectKind} from './billing.dto';
 
 /** What one ledger line did, as the server's own enum name. PascalCase on the wire, and open. */
-export type CreditEntryKind =
-    | 'Issue'
-    | 'Spend'
-    | 'Expiry'
-    | 'Reversal'
-    | 'Adjustment'
-    | (string & {});
+export type CreditEntryKind = 'Issue' | 'Spend' | 'Expiry' | 'Reversal' | 'Adjustment' | (string & {});
 
 /** One parcel of credit and the date it lapses. Spending consumes the earliest-expiring lot first. */
 export interface CreditLotDto {

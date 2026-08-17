@@ -35,7 +35,7 @@ export class EmojiPickerButtonComponent implements OnDestroy {
                 theme: 'dark',
                 previewPosition: 'none',
                 skinTonePosition: 'none',
-                onEmojiSelect: (emoji: { native: string }) => {
+                onEmojiSelect: (emoji: {native: string}) => {
                     this.emojiSelected.emit(emoji.native);
                     this.close();
                 },

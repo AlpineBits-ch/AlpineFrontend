@@ -34,7 +34,7 @@ export class FakeMlsLocalStoreFactory extends MlsLocalStoreFactory {
 }
 
 class FakeMlsLocalStore implements MlsLocalStore {
-    constructor(private readonly values: Map<string, unknown>) { }
+    constructor(private readonly values: Map<string, unknown>) {}
 
     async get<T>(key: string): Promise<T | undefined> {
         return this.values.get(key) as T | undefined;

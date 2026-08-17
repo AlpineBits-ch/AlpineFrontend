@@ -1,93 +1,104 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <title>Venta</title>
-    <style>
-      html, body {
-        margin: 0;
-        height: 100%;
-        overflow: hidden;
-        background: transparent;
-        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-        user-select: none;
-        cursor: default;
-      }
-      .shell {
-        height: 100%;
-        box-sizing: border-box;
-        border-radius: 12px;
-        background: #06090f;
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 22px;
-      }
-      .ring {
-        width: 44px;
-        height: 44px;
-        border-radius: 50%;
-        border: 2.5px solid rgba(75, 91, 196, 0.18);
-        border-top-color: #4b5bc4;
-        border-right-color: rgba(75, 91, 196, 0.55);
-        animation: spin 0.85s linear infinite;
-      }
-      @keyframes spin { to { transform: rotate(360deg); } }
-      .label {
-        color: rgba(255, 255, 255, 0.6);
-        font-size: 0.8125rem;
-        letter-spacing: 0.01em;
-      }
-      .track {
-        width: 180px;
-        height: 3px;
-        border-radius: 999px;
-        background: rgba(255, 255, 255, 0.08);
-        overflow: hidden;
-      }
-      .bar {
-        height: 100%;
-        width: 0%;
-        border-radius: 999px;
-        background: #4b5bc4;
-        transition: width 0.2s ease;
-      }
-      .track[hidden] { display: none; }
-    </style>
-  </head>
-  <body>
-    <div class="shell">
-      <div class="ring"></div>
-      <div class="label" id="label">Checking for updates…</div>
-      <div class="track" id="track" hidden><div class="bar" id="bar"></div></div>
-    </div>
-    <script>
-      const LABELS = {
-        checking: 'Checking for updates…',
-        downloading: 'Downloading update…',
-        installing: 'Installing update…',
-      };
-      const label = document.getElementById('label');
-      const track = document.getElementById('track');
-      const bar = document.getElementById('bar');
+    <head>
+        <meta charset="utf-8" />
+        <title>Venta</title>
+        <style>
+            html,
+            body {
+                margin: 0;
+                height: 100%;
+                overflow: hidden;
+                background: transparent;
+                font-family:
+                    system-ui,
+                    -apple-system,
+                    'Segoe UI',
+                    sans-serif;
+                user-select: none;
+                cursor: default;
+            }
+            .shell {
+                height: 100%;
+                box-sizing: border-box;
+                border-radius: 12px;
+                background: #06090f;
+                border: 1px solid rgba(255, 255, 255, 0.08);
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                gap: 22px;
+            }
+            .ring {
+                width: 44px;
+                height: 44px;
+                border-radius: 50%;
+                border: 2.5px solid rgba(75, 91, 196, 0.18);
+                border-top-color: #4b5bc4;
+                border-right-color: rgba(75, 91, 196, 0.55);
+                animation: spin 0.85s linear infinite;
+            }
+            @keyframes spin {
+                to {
+                    transform: rotate(360deg);
+                }
+            }
+            .label {
+                color: rgba(255, 255, 255, 0.6);
+                font-size: 0.8125rem;
+                letter-spacing: 0.01em;
+            }
+            .track {
+                width: 180px;
+                height: 3px;
+                border-radius: 999px;
+                background: rgba(255, 255, 255, 0.08);
+                overflow: hidden;
+            }
+            .bar {
+                height: 100%;
+                width: 0%;
+                border-radius: 999px;
+                background: #4b5bc4;
+                transition: width 0.2s ease;
+            }
+            .track[hidden] {
+                display: none;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="shell">
+            <div class="ring"></div>
+            <div class="label" id="label">Checking for updates…</div>
+            <div class="track" id="track" hidden><div class="bar" id="bar"></div></div>
+        </div>
+        <script>
+            const LABELS = {
+                checking: 'Checking for updates…',
+                downloading: 'Downloading update…',
+                installing: 'Installing update…',
+            };
+            const label = document.getElementById('label');
+            const track = document.getElementById('track');
+            const bar = document.getElementById('bar');
 
-      // The splash is a plain page outside the Angular bundle, so it has no
-      // bundler and cannot resolve the '@tauri-apps/api' bare specifier.
-      // Rust drives it through WebviewWindow::eval instead, calling this hook
-      // directly - which also needs no capability grant and cannot race a
-      // splash that has not finished parsing. A dropped tick is cosmetic.
-      window.__VENTA_SPLASH__ = (payload) => {
-        const { phase, percent } = payload;
-        label.textContent = LABELS[phase] ?? LABELS.checking;
-        if (typeof percent === 'number') {
-          track.hidden = false;
-          bar.style.width = Math.max(0, Math.min(100, percent)) + '%';
-        } else {
-          track.hidden = true;
-        }
-      };
-    </script>
-  </body>
+            // The splash is a plain page outside the Angular bundle, so it has no
+            // bundler and cannot resolve the '@tauri-apps/api' bare specifier.
+            // Rust drives it through WebviewWindow::eval instead, calling this hook
+            // directly - which also needs no capability grant and cannot race a
+            // splash that has not finished parsing. A dropped tick is cosmetic.
+            window.__VENTA_SPLASH__ = payload => {
+                const {phase, percent} = payload;
+                label.textContent = LABELS[phase] ?? LABELS.checking;
+                if (typeof percent === 'number') {
+                    track.hidden = false;
+                    bar.style.width = Math.max(0, Math.min(100, percent)) + '%';
+                } else {
+                    track.hidden = true;
+                }
+            };
+        </script>
+    </body>
 </html>

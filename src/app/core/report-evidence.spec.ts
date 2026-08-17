@@ -90,12 +90,14 @@ describe('buildReportEvidence', () => {
         const withFile = msg({
             id: 'x',
             minute: 1,
-            attachments: [{
-                id: 'a1',
-                fileName: 'proof.png',
-                contentType: 'image/png',
-                thumbnailUrl: 'https://cdn/x',
-            }],
+            attachments: [
+                {
+                    id: 'a1',
+                    fileName: 'proof.png',
+                    contentType: 'image/png',
+                    thumbnailUrl: 'https://cdn/x',
+                },
+            ],
         });
 
         const evidence = buildReportEvidence({
@@ -109,7 +111,12 @@ describe('buildReportEvidence', () => {
     });
 
     it('does not leak a body this device could not verify', () => {
-        const undecryptable = msg({id: 'x', minute: 1, undecryptable: true, content: encode('never rendered')});
+        const undecryptable = msg({
+            id: 'x',
+            minute: 1,
+            undecryptable: true,
+            content: encode('never rendered'),
+        });
 
         const evidence = buildReportEvidence({
             messages: [undecryptable],
@@ -123,10 +130,17 @@ describe('buildReportEvidence', () => {
     it('sets encrypted honestly from the reported message', () => {
         const plain = msg({id: 'x', minute: 1, encryptionState: MessageEncryptionState.Plain});
 
-        expect(buildReportEvidence({messages: [plain], reportedMessageId: 'x', capturedAt: CAPTURED_AT})!.encrypted)
-            .toBe(false);
-        expect(buildReportEvidence({messages: conversation(3), reportedMessageId: 'm1', capturedAt: CAPTURED_AT})!.encrypted)
-            .toBe(true);
+        expect(
+            buildReportEvidence({messages: [plain], reportedMessageId: 'x', capturedAt: CAPTURED_AT})!
+                .encrypted,
+        ).toBe(false);
+        expect(
+            buildReportEvidence({
+                messages: conversation(3),
+                reportedMessageId: 'm1',
+                capturedAt: CAPTURED_AT,
+            })!.encrypted,
+        ).toBe(true);
     });
 
     it('leaves out pending and ephemeral entries, which have no server-side row', () => {
@@ -141,12 +155,13 @@ describe('buildReportEvidence', () => {
         expect(evidence.messages.map(m => m.id)).toEqual(['real']);
     });
 
-    it('never pulls in another conversation, however the caller\'s store is shaped', () => {
+    it("never pulls in another conversation, however the caller's store is shaped", () => {
         // A signal store of entities holds every message this client has: without scoping, the
         // "context" window would splice in whoever else was talking at the same minute.
         const mine = conversation(6);
         const somebodyElses = Array.from({length: 6}, (_, i) =>
-            msg({id: `other${i}`, minute: i, conversationId: 'conv_other', authorId: 'user_stranger'}));
+            msg({id: `other${i}`, minute: i, conversationId: 'conv_other', authorId: 'user_stranger'}),
+        );
 
         const evidence = buildReportEvidence({
             messages: [...mine, ...somebodyElses],
@@ -161,9 +176,11 @@ describe('buildReportEvidence', () => {
 
     it('scopes a channel report to that channel', () => {
         const here = Array.from({length: 4}, (_, i) =>
-            msg({id: `h${i}`, minute: i, conversationId: undefined, channelId: 'chan_1'}));
+            msg({id: `h${i}`, minute: i, conversationId: undefined, channelId: 'chan_1'}),
+        );
         const elsewhere = Array.from({length: 4}, (_, i) =>
-            msg({id: `e${i}`, minute: i, conversationId: undefined, channelId: 'chan_2'}));
+            msg({id: `e${i}`, minute: i, conversationId: undefined, channelId: 'chan_2'}),
+        );
 
         const evidence = buildReportEvidence({
             messages: [...here, ...elsewhere],
@@ -176,11 +193,13 @@ describe('buildReportEvidence', () => {
     });
 
     it('returns null when the reported message is not among those held', () => {
-        expect(buildReportEvidence({
-            messages: conversation(5),
-            reportedMessageId: 'not-loaded',
-            capturedAt: CAPTURED_AT,
-        })).toBeNull();
+        expect(
+            buildReportEvidence({
+                messages: conversation(5),
+                reportedMessageId: 'not-loaded',
+                capturedAt: CAPTURED_AT,
+            }),
+        ).toBeNull();
     });
 
     describe('the 16 KB ceiling the server refuses past', () => {

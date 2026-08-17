@@ -79,8 +79,8 @@ export class IsleVoiceApiService {
 
     // ── Cloudflare Calls signalling relay ─────────────────────────────────────
 
-    createSession(): Observable<{ cfSessionId: string }> {
-        return this.client.post<{ cfSessionId: string }>(`${this.base()}/cf/session`, {});
+    createSession(): Observable<{cfSessionId: string}> {
+        return this.client.post<{cfSessionId: string}>(`${this.base()}/cf/session`, {});
     }
 
     tracksNew(body: CfIsleTracksNewRequest): Observable<CfIsleTracksNewResponse> {
@@ -91,17 +91,14 @@ export class IsleVoiceApiService {
         cfSessionId: string,
         sessionDescription: RTCSessionDescriptionInit,
     ): Observable<CfIsleRenegotiateResponse> {
-        return this.client.put<CfIsleRenegotiateResponse>(
-            `${this.base()}/cf/renegotiate`,
-            {cfSessionId, sessionDescription},
-        );
+        return this.client.put<CfIsleRenegotiateResponse>(`${this.base()}/cf/renegotiate`, {
+            cfSessionId,
+            sessionDescription,
+        });
     }
 
     closeTracks(cfSessionId: string, trackNames: string[]): Observable<void> {
-        return this.client.put<void>(
-            `${this.base()}/cf/tracks/close`,
-            {cfSessionId, trackNames},
-        );
+        return this.client.put<void>(`${this.base()}/cf/tracks/close`, {cfSessionId, trackNames});
     }
 
     private base(): string {

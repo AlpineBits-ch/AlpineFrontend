@@ -243,10 +243,10 @@ describe('platform boundary', () => {
         expect(
             offences,
             `${offendingFiles.size} file(s) outside src/app/platform/ still import a native host ` +
-            'module.\nEach one is a port migration that has not happened yet; the fix is to depend ' +
-            'on a port\nin src/app/platform/ports/ instead. See\n' +
-            'docs/superpowers/specs/2026-08-11-browser-only-build-design.md.\n\n' +
-            `${offences.map(line => `  ${line}`).join('\n')}\n`,
+                'module.\nEach one is a port migration that has not happened yet; the fix is to depend ' +
+                'on a port\nin src/app/platform/ports/ instead. See\n' +
+                'docs/superpowers/specs/2026-08-11-browser-only-build-design.md.\n\n' +
+                `${offences.map(line => `  ${line}`).join('\n')}\n`,
         ).toEqual([]);
     });
 
@@ -266,10 +266,10 @@ describe('platform boundary', () => {
         expect(
             offences,
             'A file outside src/app/platform/ reads a global the Tauri runtime injects.\n' +
-            'This is the same breach as importing a plugin, only invisible to the import check -\n' +
-            'ask a port instead. `detectHost()` answers "which host is this"; PlatformCapabilities\n' +
-            'answers "can this host do X", which is almost always the real question.\n\n' +
-            `${offences.map(line => `  ${line}`).join('\n')}\n`,
+                'This is the same breach as importing a plugin, only invisible to the import check -\n' +
+                'ask a port instead. `detectHost()` answers "which host is this"; PlatformCapabilities\n' +
+                'answers "can this host do X", which is almost always the real question.\n\n' +
+                `${offences.map(line => `  ${line}`).join('\n')}\n`,
         ).toEqual([]);
     });
 

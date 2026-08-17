@@ -8,16 +8,26 @@ function steps(overrides: Partial<SignOutSteps> = {}) {
             calls.push('deviceId');
             return 'device-a';
         },
-        clearActivity: () => { calls.push('clearActivity'); },
-        wipeAccount: async id => { calls.push(`wipeAccount:${id}`); },
-        clearGuildCache: () => { calls.push('clearGuildCache'); },
-        dropTokens: () => { calls.push('dropTokens'); },
-        goToLogin: () => { calls.push('goToLogin'); },
+        clearActivity: () => {
+            calls.push('clearActivity');
+        },
+        wipeAccount: async id => {
+            calls.push(`wipeAccount:${id}`);
+        },
+        clearGuildCache: () => {
+            calls.push('clearGuildCache');
+        },
+        dropTokens: () => {
+            calls.push('dropTokens');
+        },
+        goToLogin: () => {
+            calls.push('goToLogin');
+        },
     };
     return {calls, steps: {...base, ...overrides}};
 }
 
-beforeEach(() => vi.spyOn(console, 'error').mockImplementation(() => { }));
+beforeEach(() => vi.spyOn(console, 'error').mockImplementation(() => {}));
 afterEach(() => vi.restoreAllMocks());
 
 it('wipes this device key material before leaving', async () => {
@@ -26,7 +36,12 @@ it('wipes this device key material before leaving', async () => {
     const outcome = await runSignOut(s);
 
     expect(calls).toEqual([
-        'clearActivity', 'deviceId', 'wipeAccount:device-a', 'clearGuildCache', 'dropTokens', 'goToLogin',
+        'clearActivity',
+        'deviceId',
+        'wipeAccount:device-a',
+        'clearGuildCache',
+        'dropTokens',
+        'goToLogin',
     ]);
     expect(outcome.wiped).toBe(true);
 });
@@ -46,7 +61,9 @@ it('forgets the cached guild layout on the way out', async () => {
 
 it('forgets the cached guild layout even when the MLS wipe throws', async () => {
     const {calls, steps: s} = steps({
-        wipeAccount: async () => { throw new Error('keychain locked'); },
+        wipeAccount: async () => {
+            throw new Error('keychain locked');
+        },
     });
 
     await runSignOut(s);
@@ -67,7 +84,9 @@ it('clears rich presence before dropping the tokens that write needs', async () 
 
 it('clears rich presence even when the wipe throws', async () => {
     const {calls, steps: s} = steps({
-        wipeAccount: async () => { throw new Error('keychain locked'); },
+        wipeAccount: async () => {
+            throw new Error('keychain locked');
+        },
     });
 
     await runSignOut(s);
@@ -89,7 +108,9 @@ it('wipes before dropping the tokens the wipe needs', async () => {
 
 it('still signs out when the wipe fails, and says it did not happen', async () => {
     const {calls, steps: s} = steps({
-        wipeAccount: async () => { throw new Error('keychain locked'); },
+        wipeAccount: async () => {
+            throw new Error('keychain locked');
+        },
     });
 
     const outcome = await runSignOut(s);
@@ -102,7 +123,9 @@ it('still signs out when the wipe fails, and says it did not happen', async () =
 
 it('still signs out when the device id cannot be resolved', async () => {
     const {calls, steps: s} = steps({
-        deviceId: async () => { throw new Error('store unavailable'); },
+        deviceId: async () => {
+            throw new Error('store unavailable');
+        },
     });
 
     const outcome = await runSignOut(s);

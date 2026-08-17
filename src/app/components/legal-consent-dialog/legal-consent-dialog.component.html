@@ -1,15 +1,16 @@
 @if (visible()) {
     <p-dialog
-            [visible]="true"
-            [breakpoints]="{ '480px': '95vw' }"
-            [closable]="false"
-            [closeOnEscape]="false"
-            [dismissableMask]="false"
-            [draggable]="false"
-            [modal]="true"
-            [resizable]="false"
-            [showHeader]="false"
-            [style]="{ width: '440px' }">
+        [visible]="true"
+        [breakpoints]="{'480px': '95vw'}"
+        [closable]="false"
+        [closeOnEscape]="false"
+        [dismissableMask]="false"
+        [draggable]="false"
+        [modal]="true"
+        [resizable]="false"
+        [showHeader]="false"
+        [style]="{width: '440px'}"
+    >
         <div class="flex flex-col gap-5 p-6" data-testid="legal-consent">
             <div class="flex flex-col gap-2">
                 <h2 class="text-lg font-semibold text-white/85">{{ 'LEGAL.CONSENT_REQUIRED_TITLE' | translate }}</h2>
@@ -23,21 +24,27 @@
                             <p class="text-sm text-white/60">{{ documentLabelKey(requirement.documentType) | translate }}</p>
                             <p class="text-xs text-white/25 mt-0.5">{{ requirement.version }}</p>
                         </div>
-                        <p-button [label]="'LEGAL.READ_DOCUMENT' | translate"
-                                  severity="secondary" size="small" [text]="true"
-                                  (onClick)="read(requirement)"/>
+                        <p-button
+                            [label]="'LEGAL.READ_DOCUMENT' | translate"
+                            severity="secondary"
+                            size="small"
+                            [text]="true"
+                            (onClick)="read(requirement)"
+                        />
                     </div>
                 }
             </div>
 
             <p class="text-xs text-white/25">{{ 'LEGAL.WITHDRAW_NOTE' | translate }}</p>
 
-            <p-button [label]="'LEGAL.ACCEPT' | translate"
-                      data-testid="legal-consent-accept"
-                      severity="primary"
-                      styleClass="w-full justify-center"
-                      [loading]="accepting()"
-                      (onClick)="acceptAll()"/>
+            <p-button
+                [label]="'LEGAL.ACCEPT' | translate"
+                data-testid="legal-consent-accept"
+                severity="primary"
+                styleClass="w-full justify-center"
+                [loading]="accepting()"
+                (onClick)="acceptAll()"
+            />
         </div>
     </p-dialog>
 }

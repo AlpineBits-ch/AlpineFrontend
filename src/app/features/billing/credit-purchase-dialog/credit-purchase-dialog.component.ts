@@ -81,31 +81,33 @@ export class CreditPurchaseDialogComponent {
         this.errorKey.set(null);
         this.errorText.set(null);
 
-        this.credit.purchase({
-            sku: this.sku().code,
-            targetId: this.targetId(),
-            idempotencyKey: this.idempotencyKey,
-        }).subscribe({
-            next: purchase => {
-                this.result.set(purchase);
-                this.step.set('done');
+        this.credit
+            .purchase({
+                sku: this.sku().code,
+                targetId: this.targetId(),
+                idempotencyKey: this.idempotencyKey,
+            })
+            .subscribe({
+                next: purchase => {
+                    this.result.set(purchase);
+                    this.step.set('done');
 
-                // Even a queued grant moves the subject's grant set, and the server announces it.
-                // Dropping the snapshot is what stops the ceilings screen answering from a set
-                // fetched before the purchase for the whole of its TTL.
-                const subject = this.subject();
-                this.entitlements.invalidate(subject);
-                this.entitlements.ensureLoaded(subject);
+                    // Even a queued grant moves the subject's grant set, and the server announces it.
+                    // Dropping the snapshot is what stops the ceilings screen answering from a set
+                    // fetched before the purchase for the whole of its TTL.
+                    const subject = this.subject();
+                    this.entitlements.invalidate(subject);
+                    this.entitlements.ensureLoaded(subject);
 
-                this.purchased.emit(purchase);
-            },
-            error: err => {
-                const copy = creditErrorCopy(err);
-                this.errorKey.set(copy.key);
-                this.errorText.set(copy.text);
-                this.step.set('refused');
-            },
-        });
+                    this.purchased.emit(purchase);
+                },
+                error: err => {
+                    const copy = creditErrorCopy(err);
+                    this.errorKey.set(copy.key);
+                    this.errorText.set(copy.text);
+                    this.step.set('refused');
+                },
+            });
     }
 
     /** Closes, unless a spend is in flight. Leaving mid-request is how a purchase goes unreported. */

@@ -79,12 +79,20 @@ describe('CallShareTileComponent preview claim', () => {
     });
 
     it('claims nothing for a remote share', () => {
-        const {fakes} = setup(share({isLocal: false, userId: 'user-b', previewSrc: null, localRender: false, stream: {} as MediaStream}));
+        const {fakes} = setup(
+            share({
+                isLocal: false,
+                userId: 'user-b',
+                previewSrc: null,
+                localRender: false,
+                stream: {} as MediaStream,
+            }),
+        );
 
         expect(fakes.claimPreviewRender).not.toHaveBeenCalled();
     });
 
-    it('claims nothing for a local share with a real MediaStream - the browser path, not RustMediaService\'s preview', () => {
+    it("claims nothing for a local share with a real MediaStream - the browser path, not RustMediaService's preview", () => {
         // A browser publish keeps its own `getDisplayMedia` track in the webview. Nothing there is
         // rendered on the service's behalf, so the projection marks `localRender` false and there
         // is nothing for the pause to apply to - which is what separates it from the decoded
@@ -136,8 +144,9 @@ describe('CallShareTileComponent paused preview card', () => {
         fakes.previewPaused.set(true);
         fixture.detectChanges();
 
-        const resumeButton = [...(fixture.nativeElement as HTMLElement).querySelectorAll('button')]
-            .find(b => b.textContent?.includes('CALL.RESUME_PREVIEW')) as HTMLButtonElement;
+        const resumeButton = [...(fixture.nativeElement as HTMLElement).querySelectorAll('button')].find(b =>
+            b.textContent?.includes('CALL.RESUME_PREVIEW'),
+        ) as HTMLButtonElement;
         resumeButton.click();
 
         expect(fakes.resumePreview).toHaveBeenCalledTimes(1);
@@ -159,7 +168,15 @@ describe('CallShareTileComponent paused preview card', () => {
     });
 
     it('never shows the paused card for a remote share, even if the flag is somehow true', () => {
-        const {fixture, fakes} = setup(share({isLocal: false, userId: 'user-b', previewSrc: null, localRender: false, stream: {} as MediaStream}));
+        const {fixture, fakes} = setup(
+            share({
+                isLocal: false,
+                userId: 'user-b',
+                previewSrc: null,
+                localRender: false,
+                stream: {} as MediaStream,
+            }),
+        );
 
         fakes.previewPaused.set(true);
         fixture.detectChanges();

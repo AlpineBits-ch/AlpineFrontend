@@ -12,8 +12,9 @@ import {
 
 describe('normalizeHandleValue', () => {
     it('compacts and upper-cases an IBAN', () => {
-        expect(normalizeHandleValue(PaymentHandleKind.Iban, ' ch44 3199 9123 0008 8901 2 '))
-            .toBe('CH4431999123000889012');
+        expect(normalizeHandleValue(PaymentHandleKind.Iban, ' ch44 3199 9123 0008 8901 2 ')).toBe(
+            'CH4431999123000889012',
+        );
     });
 
     it('strips the @ every one of these providers displays a handle with', () => {
@@ -24,17 +25,17 @@ describe('normalizeHandleValue', () => {
     it('reduces a pasted profile link to the handle', () => {
         // What people copy is the URL, not the handle. Refusing it teaches them to hand-edit the
         // field, which is where the typos come from.
-        expect(normalizeHandleValue(PaymentHandleKind.PayPal, 'https://paypal.me/annamuster'))
-            .toBe('annamuster');
-        expect(normalizeHandleValue(PaymentHandleKind.Revolut, 'revolut.me/annamuster'))
-            .toBe('annamuster');
-        expect(normalizeHandleValue(PaymentHandleKind.Wise, 'https://wise.com/pay/me/@anna1234'))
-            .toBe('anna1234');
+        expect(normalizeHandleValue(PaymentHandleKind.PayPal, 'https://paypal.me/annamuster')).toBe(
+            'annamuster',
+        );
+        expect(normalizeHandleValue(PaymentHandleKind.Revolut, 'revolut.me/annamuster')).toBe('annamuster');
+        expect(normalizeHandleValue(PaymentHandleKind.Wise, 'https://wise.com/pay/me/@anna1234')).toBe(
+            'anna1234',
+        );
     });
 
     it('drops a query string rather than storing it as part of the handle', () => {
-        expect(normalizeHandleValue(PaymentHandleKind.PayPal, 'paypal.me/anna?locale=de'))
-            .toBe('anna');
+        expect(normalizeHandleValue(PaymentHandleKind.PayPal, 'paypal.me/anna?locale=de')).toBe('anna');
     });
 
     it('is idempotent for every kind, so normalising on blur cannot drift the value', () => {
@@ -45,22 +46,27 @@ describe('normalizeHandleValue', () => {
     });
 
     it('leaves free text alone apart from trimming it', () => {
-        expect(normalizeHandleValue(PaymentHandleKind.Other, '  Ask me in person  '))
-            .toBe('Ask me in person');
+        expect(normalizeHandleValue(PaymentHandleKind.Other, '  Ask me in person  ')).toBe(
+            'Ask me in person',
+        );
     });
 });
 
 describe('checkHandleValue', () => {
     it('accepts a valid IBAN and reports the compact form', () => {
-        expect(checkHandleValue(PaymentHandleKind.Iban, 'CH44 3199 9123 0008 8901 2'))
-            .toMatchObject({valid: true, normalized: 'CH4431999123000889012'});
+        expect(checkHandleValue(PaymentHandleKind.Iban, 'CH44 3199 9123 0008 8901 2')).toMatchObject({
+            valid: true,
+            normalized: 'CH4431999123000889012',
+        });
     });
 
     it('surfaces the IBAN problem specifically rather than a generic refusal', () => {
-        expect(checkHandleValue(PaymentHandleKind.Iban, 'CH4431999123000889013').problem)
-            .toBe('iban-checksum');
-        expect(checkHandleValue(PaymentHandleKind.Iban, 'CH443199912300088901').problem)
-            .toBe('iban-country-length');
+        expect(checkHandleValue(PaymentHandleKind.Iban, 'CH4431999123000889013').problem).toBe(
+            'iban-checksum',
+        );
+        expect(checkHandleValue(PaymentHandleKind.Iban, 'CH443199912300088901').problem).toBe(
+            'iban-country-length',
+        );
     });
 
     it('accepts realistic provider handles', () => {
@@ -94,7 +100,9 @@ describe('capabilitiesOf', () => {
     it('says PayPal is the only kind that carries both an amount and a currency', () => {
         const paypal = capabilitiesOf(PaymentHandleKind.PayPal);
         expect(paypal).toMatchObject({
-            linkable: true, canPrefillAmount: true, canPrefillCurrency: true,
+            linkable: true,
+            canPrefillAmount: true,
+            canPrefillCurrency: true,
         });
 
         for (const kind of Object.values(PaymentHandleKind)) {
@@ -106,8 +114,10 @@ describe('capabilitiesOf', () => {
     it('says Revolut is linkable but cannot carry an amount', () => {
         // An amount-bearing Revolut link is minted by the recipient in-app, per request. There is
         // no query parameter, and a UI that showed an amount on this link would be lying.
-        expect(capabilitiesOf(PaymentHandleKind.Revolut))
-            .toMatchObject({linkable: true, canPrefillAmount: false});
+        expect(capabilitiesOf(PaymentHandleKind.Revolut)).toMatchObject({
+            linkable: true,
+            canPrefillAmount: false,
+        });
     });
 
     it('says Wise and Venmo are not linkable at all', () => {
@@ -128,13 +138,19 @@ describe('capabilitiesOf', () => {
 
 describe('displayHandleValue', () => {
     it('groups an IBAN in fours and leaves everything else verbatim', () => {
-        expect(displayHandleValue({
-            kind: PaymentHandleKind.Iban, value: 'CH4431999123000889012',
-        })).toBe('CH44 3199 9123 0008 8901 2');
+        expect(
+            displayHandleValue({
+                kind: PaymentHandleKind.Iban,
+                value: 'CH4431999123000889012',
+            }),
+        ).toBe('CH44 3199 9123 0008 8901 2');
 
-        expect(displayHandleValue({
-            kind: PaymentHandleKind.PayPal, value: 'annamuster',
-        })).toBe('annamuster');
+        expect(
+            displayHandleValue({
+                kind: PaymentHandleKind.PayPal,
+                value: 'annamuster',
+            }),
+        ).toBe('annamuster');
     });
 });
 
@@ -147,8 +163,12 @@ describe('serializePayload and parsePayload', () => {
                 {kind: PaymentHandleKind.PayPal, value: 'annamuster'},
             ],
             creditor: {
-                name: 'Anna Muster', street: 'Bahnhofstrasse', buildingNumber: '12',
-                postCode: '8001', town: 'Zuerich', country: 'CH',
+                name: 'Anna Muster',
+                street: 'Bahnhofstrasse',
+                buildingNumber: '12',
+                postCode: '8001',
+                town: 'Zuerich',
+                country: 'CH',
             },
         };
 
@@ -157,7 +177,8 @@ describe('serializePayload and parsePayload', () => {
 
     it('omits an absent label rather than writing null', () => {
         const json = serializePayload({
-            version: 1, handles: [{kind: PaymentHandleKind.PayPal, value: 'anna'}],
+            version: 1,
+            handles: [{kind: PaymentHandleKind.PayPal, value: 'anna'}],
         });
         expect(JSON.parse(json).handles[0]).not.toHaveProperty('label');
     });
@@ -165,13 +186,15 @@ describe('serializePayload and parsePayload', () => {
     it('drops a kind this build has never heard of instead of failing the whole payload', () => {
         // A newer Alpine may have sealed a kind we do not know. Failing here would tell the user
         // their flatmate has shared nothing, which is worse than showing one row fewer.
-        const parsed = parsePayload(JSON.stringify({
-            version: 1,
-            handles: [
-                {kind: 'Swish', value: '46701234567'},
-                {kind: 'PayPal', value: 'anna'},
-            ],
-        }));
+        const parsed = parsePayload(
+            JSON.stringify({
+                version: 1,
+                handles: [
+                    {kind: 'Swish', value: '46701234567'},
+                    {kind: 'PayPal', value: 'anna'},
+                ],
+            }),
+        );
 
         expect(parsed.handles.map(h => h.kind)).toEqual([PaymentHandleKind.PayPal]);
     });
@@ -181,18 +204,22 @@ describe('serializePayload and parsePayload', () => {
     });
 
     it('caps the handle list rather than trusting whatever was sealed', () => {
-        const parsed = parsePayload(JSON.stringify({
-            version: 1,
-            handles: Array.from({length: 50}, () => ({kind: 'PayPal', value: 'anna'})),
-        }));
+        const parsed = parsePayload(
+            JSON.stringify({
+                version: 1,
+                handles: Array.from({length: 50}, () => ({kind: 'PayPal', value: 'anna'})),
+            }),
+        );
         expect(parsed.handles).toHaveLength(HANDLE_LIMITS.maxHandles);
     });
 
     it('truncates an over-long label rather than refusing the row', () => {
-        const parsed = parsePayload(JSON.stringify({
-            version: 1,
-            handles: [{kind: 'PayPal', value: 'anna', label: 'x'.repeat(200)}],
-        }));
+        const parsed = parsePayload(
+            JSON.stringify({
+                version: 1,
+                handles: [{kind: 'PayPal', value: 'anna', label: 'x'.repeat(200)}],
+            }),
+        );
         expect(parsed.handles[0].label).toHaveLength(HANDLE_LIMITS.maxLabelLength);
     });
 });

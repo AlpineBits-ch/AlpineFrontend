@@ -29,9 +29,13 @@ export function selectNestedPosts(
         if (post.isArchived) continue;
 
         const state = readStateOf(post.id);
-        const priority = state.mentionCount > 0 ? Priority.Mentioned
-            : state.isUnread ? Priority.Unread
-                : visited.has(post.id) ? Priority.Visited
+        const priority =
+            state.mentionCount > 0
+                ? Priority.Mentioned
+                : state.isUnread
+                  ? Priority.Unread
+                  : visited.has(post.id)
+                    ? Priority.Visited
                     : null;
         if (priority === null) continue;
 

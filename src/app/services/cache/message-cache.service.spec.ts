@@ -9,21 +9,39 @@ import {MessageCacheService, messageContextKey} from './message-cache.service';
 
 function message(id: string, state: MessageEncryptionState, content: string): MessageDto {
     return {
-        id, conversationId: 'c1', channelId: undefined,
-        authorId: 'u1', content, encryptionState: state,
-        createdAt: new Date(0), updatedAt: new Date(0),
-        attachments: [], reactions: [],
+        id,
+        conversationId: 'c1',
+        channelId: undefined,
+        authorId: 'u1',
+        content,
+        encryptionState: state,
+        createdAt: new Date(0),
+        updatedAt: new Date(0),
+        attachments: [],
+        reactions: [],
     } as unknown as MessageDto;
 }
 
 class FakeCacheStore {
     readonly entries = new Map<string, unknown>();
-    async get(_d: string, key: string) { return this.entries.get(key); }
-    async set(_d: string, key: string, value: unknown) { this.entries.set(key, value); }
-    async delete(_d: string, key: string) { this.entries.delete(key); }
-    async all<T>() { return [...this.entries.entries()] as [string, T][]; }
-    async clear() { this.entries.clear(); }
-    sizeOf() { return 0; }
+    async get(_d: string, key: string) {
+        return this.entries.get(key);
+    }
+    async set(_d: string, key: string, value: unknown) {
+        this.entries.set(key, value);
+    }
+    async delete(_d: string, key: string) {
+        this.entries.delete(key);
+    }
+    async all<T>() {
+        return [...this.entries.entries()] as [string, T][];
+    }
+    async clear() {
+        this.entries.clear();
+    }
+    sizeOf() {
+        return 0;
+    }
 }
 
 let cache: FakeCacheStore;
@@ -41,10 +59,15 @@ describe('MessageCacheService', () => {
         opened = [];
         TestBed.configureTestingModule({
             providers: [
-                {provide: CacheStoreFactory, useValue: {open: (id: string) => {
-                    opened.push(id);
-                    return cache;
-                }}},
+                {
+                    provide: CacheStoreFactory,
+                    useValue: {
+                        open: (id: string) => {
+                            opened.push(id);
+                            return cache;
+                        },
+                    },
+                },
                 {provide: DeviceIdentityService, useValue: {deviceId: async () => deviceId}},
             ],
         });
@@ -52,13 +75,11 @@ describe('MessageCacheService', () => {
     });
 
     it('builds distinct keys for a conversation and a channel', () => {
-        expect(messageContextKey({conversationId: 'x'}))
-            .not.toBe(messageContextKey({channelId: 'x'}));
+        expect(messageContextKey({conversationId: 'x'})).not.toBe(messageContextKey({channelId: 'x'}));
     });
 
     it('round-trips an unencrypted message with its body intact', async () => {
-        await subject.remember('conv:c1',
-            [message('m1', MessageEncryptionState.Plain, 'hello')]);
+        await subject.remember('conv:c1', [message('m1', MessageEncryptionState.Plain, 'hello')]);
 
         const [recalled] = await subject.recall('conv:c1');
         expect(recalled.content).toBe('hello');
@@ -67,8 +88,7 @@ describe('MessageCacheService', () => {
     it('drops the body of an encrypted message', async () => {
         // The plaintext already lives in the MLS cache, sealed and inside the backup envelope.
         // A second copy here would double it at rest for no gain.
-        await subject.remember('conv:c1',
-            [message('m1', MessageEncryptionState.Encrypted, 'Y2lwaGVy')]);
+        await subject.remember('conv:c1', [message('m1', MessageEncryptionState.Encrypted, 'Y2lwaGVy')]);
 
         const [recalled] = await subject.recall('conv:c1');
         expect(recalled.content).toBe('');
@@ -77,10 +97,8 @@ describe('MessageCacheService', () => {
     });
 
     it('revives dates', async () => {
-        await subject.remember('conv:c1',
-            [message('m1', MessageEncryptionState.Plain, 'hello')]);
-        cache.entries.set('conv:c1',
-            JSON.parse(JSON.stringify(cache.entries.get('conv:c1'))));
+        await subject.remember('conv:c1', [message('m1', MessageEncryptionState.Plain, 'hello')]);
+        cache.entries.set('conv:c1', JSON.parse(JSON.stringify(cache.entries.get('conv:c1'))));
 
         const [recalled] = await subject.recall('conv:c1');
         expect(recalled.createdAt).toBeInstanceOf(Date);
@@ -115,8 +133,7 @@ describe('MessageCacheService', () => {
     });
 
     it('forget drops the context', async () => {
-        await subject.remember('conv:c1',
-            [message('m1', MessageEncryptionState.Plain, 'hello')]);
+        await subject.remember('conv:c1', [message('m1', MessageEncryptionState.Plain, 'hello')]);
         await subject.forget('conv:c1');
 
         expect(await subject.recall('conv:c1')).toEqual([]);

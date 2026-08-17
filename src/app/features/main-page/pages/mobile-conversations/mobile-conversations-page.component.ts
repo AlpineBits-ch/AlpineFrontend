@@ -3,9 +3,7 @@ import {Button} from 'primeng/button';
 import {ConversationListComponent} from '../../../messaging/components/conversation-list/conversation-list.component';
 import {NavigationService} from '../../navigation.service';
 import {ConversationDto} from '../../../../dtos/response/conversation.dto';
-import {
-    NewConversationDialogComponent
-} from '../../components/dm-sidepanel/new-conversation-dialog/new-conversation-dialog.component';
+import {NewConversationDialogComponent} from '../../components/dm-sidepanel/new-conversation-dialog/new-conversation-dialog.component';
 import {RelationshipStore} from '../../../../stores/relationship.store';
 import {ProfileService} from '../../../../services/profile.service';
 import {OnlineStatus} from '../../../../dtos/response/profile.dto';
@@ -22,10 +20,12 @@ export class MobileConversationsPageComponent {
     private relationshipStore = inject(RelationshipStore);
     private profileService = inject(ProfileService);
 
-    protected readonly onlineFriendsCount = computed(() =>
-        this.relationshipStore.friends()
-            .filter(r => this.profileService.getOnlineStatus(r.other.userId) === OnlineStatus.Online)
-            .length
+    protected readonly onlineFriendsCount = computed(
+        () =>
+            this.relationshipStore
+                .friends()
+                .filter(r => this.profileService.getOnlineStatus(r.other.userId) === OnlineStatus.Online)
+                .length,
     );
 
     constructor() {

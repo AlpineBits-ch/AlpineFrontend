@@ -13,14 +13,13 @@ export interface ActivationResult {
 }
 
 /** The backoff: roughly thirty seconds across nine reads, front-loaded. */
-export const ACTIVATION_BACKOFF_MS: readonly number[] =
-    [400, 800, 1200, 2000, 3000, 4000, 5000, 6000, 8000];
+export const ACTIVATION_BACKOFF_MS: readonly number[] = [400, 800, 1200, 2000, 3000, 4000, 5000, 6000, 8000];
 
 /** The backoff a screen polls with, as a seam. Overridden by tests and by nothing else. */
-export const ACTIVATION_POLL_BACKOFF = new InjectionToken<readonly number[]>(
-    'ACTIVATION_POLL_BACKOFF',
-    {providedIn: 'root', factory: () => ACTIVATION_BACKOFF_MS},
-);
+export const ACTIVATION_POLL_BACKOFF = new InjectionToken<readonly number[]>('ACTIVATION_POLL_BACKOFF', {
+    providedIn: 'root',
+    factory: () => ACTIVATION_BACKOFF_MS,
+});
 
 export interface ActivationPollOptions {
     /** Overridden in tests, and by nothing else. */

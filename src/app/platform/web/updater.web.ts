@@ -29,8 +29,10 @@ export class WebUpdater extends Updater {
 }
 
 function unsupported(operation: string): Promise<never> {
-    return Promise.reject(new Error(
-        `Updater.${operation}() is desktop-only; a web client updates by being reloaded. ` +
-        'Gate on Updater.supported or PlatformCapabilities.selfUpdate.',
-    ));
+    return Promise.reject(
+        new Error(
+            `Updater.${operation}() is desktop-only; a web client updates by being reloaded. ` +
+                'Gate on Updater.supported or PlatformCapabilities.selfUpdate.',
+        ),
+    );
 }

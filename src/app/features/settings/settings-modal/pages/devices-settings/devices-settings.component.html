@@ -1,16 +1,10 @@
 <div class="flex flex-col gap-8 max-w-2xl">
-
     <section class="flex flex-col gap-4">
         <div class="flex items-center justify-between gap-4 border-b border-border pb-3">
             <h3 class="text-xs font-semibold text-text-muted uppercase tracking-widest">
                 {{ 'SETTINGS.DEVICES.SECTION' | translate }}
             </h3>
-            <p-button (onClick)="load()"
-                      [disabled]="loading()"
-                      [text]="true"
-                      icon="pi pi-refresh"
-                      severity="secondary"
-                      size="small"/>
+            <p-button (onClick)="load()" [disabled]="loading()" [text]="true" icon="pi pi-refresh" severity="secondary" size="small" />
         </div>
 
         <p class="text-[0.8125rem] text-text-secondary">
@@ -28,10 +22,7 @@
                     <i class="pi pi-exclamation-circle text-offline"></i>
                     {{ 'SETTINGS.DEVICES.LOAD_FAILED' | translate }}
                 </span>
-                <p-button (onClick)="load()"
-                          [label]="'SETTINGS.DEVICES.RETRY' | translate"
-                          severity="secondary"
-                          size="small"/>
+                <p-button (onClick)="load()" [label]="'SETTINGS.DEVICES.RETRY' | translate" severity="secondary" size="small" />
             </div>
         } @else if (!ordered().length) {
             <p class="text-[0.8125rem] text-text-muted py-4">{{ 'SETTINGS.DEVICES.EMPTY' | translate }}</p>
@@ -45,14 +36,18 @@
                             <div class="flex items-center gap-2 min-w-0">
                                 <span class="text-[0.8125rem] text-text-primary truncate">{{ session.deviceName }}</span>
                                 @if (isThisDevice(session)) {
-                                    <span class="shrink-0 text-[0.625rem] font-semibold uppercase tracking-wide text-online bg-online/10 border border-online/25 rounded-full px-2 py-0.5">
+                                    <span
+                                        class="shrink-0 text-[0.625rem] font-semibold uppercase tracking-wide text-online bg-online/10 border border-online/25 rounded-full px-2 py-0.5"
+                                    >
                                         {{ 'SETTINGS.DEVICES.THIS_DEVICE' | translate }}
                                     </span>
                                 }
                             </div>
-                            <span [pTooltip]="absolute(session.lastUsedAt)"
-                                  class="text-[0.6875rem] text-text-muted truncate"
-                                  tooltipPosition="bottom">
+                            <span
+                                [pTooltip]="absolute(session.lastUsedAt)"
+                                class="text-[0.6875rem] text-text-muted truncate"
+                                tooltipPosition="bottom"
+                            >
                                 {{ 'SETTINGS.DEVICES.LAST_ACTIVE' | translate }} {{ relative(session.lastUsedAt) }}
                                 @if (session.ipAddress) {
                                     · {{ session.ipAddress }}
@@ -63,41 +58,39 @@
                         @if (session.isCurrent) {
                             <!-- Revoking the session you are using would leave the app holding a token
                                  it can no longer refresh; Log Out is the coherent way to end it. -->
-                            <span [pTooltip]="'SETTINGS.DEVICES.CURRENT_HINT' | translate"
-                                  class="shrink-0"
-                                  tooltipPosition="left">
-                                <p-button [disabled]="true"
-                                          [text]="true"
-                                          icon="pi pi-sign-out"
-                                          severity="secondary"
-                                          size="small"/>
+                            <span [pTooltip]="'SETTINGS.DEVICES.CURRENT_HINT' | translate" class="shrink-0" tooltipPosition="left">
+                                <p-button [disabled]="true" [text]="true" icon="pi pi-sign-out" severity="secondary" size="small" />
                             </span>
                         } @else {
-                            <p-button (onClick)="confirmRevoke(session)"
-                                      [ariaLabel]="'SETTINGS.DEVICES.REVOKE' | translate"
-                                      [loading]="revoking() === session.id"
-                                      [pTooltip]="'SETTINGS.DEVICES.REVOKE' | translate"
-                                      [text]="true"
-                                      icon="pi pi-sign-out"
-                                      severity="danger"
-                                      size="small"
-                                      styleClass="shrink-0"
-                                      tooltipPosition="left"/>
+                            <p-button
+                                (onClick)="confirmRevoke(session)"
+                                [ariaLabel]="'SETTINGS.DEVICES.REVOKE' | translate"
+                                [loading]="revoking() === session.id"
+                                [pTooltip]="'SETTINGS.DEVICES.REVOKE' | translate"
+                                [text]="true"
+                                icon="pi pi-sign-out"
+                                severity="danger"
+                                size="small"
+                                styleClass="shrink-0"
+                                tooltipPosition="left"
+                            />
                         }
 
                         <!-- Signing a device out ends its session; forgetting it removes the
                              device itself, along with its encryption keys and backup. -->
                         @if (session.clientDeviceId) {
-                            <p-button (onClick)="confirmForget(session)"
-                                      [ariaLabel]="'SETTINGS.DEVICES.FORGET' | translate"
-                                      [loading]="forgetting() === session.clientDeviceId"
-                                      [pTooltip]="'SETTINGS.DEVICES.FORGET' | translate"
-                                      [text]="true"
-                                      icon="pi pi-trash"
-                                      severity="danger"
-                                      size="small"
-                                      styleClass="shrink-0"
-                                      tooltipPosition="left"/>
+                            <p-button
+                                (onClick)="confirmForget(session)"
+                                [ariaLabel]="'SETTINGS.DEVICES.FORGET' | translate"
+                                [loading]="forgetting() === session.clientDeviceId"
+                                [pTooltip]="'SETTINGS.DEVICES.FORGET' | translate"
+                                [text]="true"
+                                icon="pi pi-trash"
+                                severity="danger"
+                                size="small"
+                                styleClass="shrink-0"
+                                tooltipPosition="left"
+                            />
                         }
                     </li>
                 }
@@ -108,26 +101,25 @@
     <!-- The other half of the logout export. -->
     <section class="flex flex-col gap-4">
         <div class="border-b border-border pb-3">
-            <h3 class="text-xs font-semibold text-text-muted uppercase tracking-widest">
-                Encryption keys
-            </h3>
+            <h3 class="text-xs font-semibold text-text-muted uppercase tracking-widest">Encryption keys</h3>
         </div>
-        <app-key-backup-restore/>
+        <app-key-backup-restore />
     </section>
-
 </div>
 
 <!-- Revoke confirm -->
-<p-dialog [header]="'SETTINGS.DEVICES.REVOKE_TITLE' | translate"
-          [closable]="!revoking()"
-          [dismissableMask]="!revoking()"
-          [draggable]="false"
-          [modal]="true"
-          [resizable]="false"
-          [style]="{width: '400px'}"
-          [visible]="!!pendingRevoke()"
-          (visibleChange)="$event || pendingRevoke.set(null)"
-          appendTo="body">
+<p-dialog
+    [header]="'SETTINGS.DEVICES.REVOKE_TITLE' | translate"
+    [closable]="!revoking()"
+    [dismissableMask]="!revoking()"
+    [draggable]="false"
+    [modal]="true"
+    [resizable]="false"
+    [style]="{width: '400px'}"
+    [visible]="!!pendingRevoke()"
+    (visibleChange)="$event || pendingRevoke.set(null)"
+    appendTo="body"
+>
     @if (pendingRevoke(); as session) {
         <div class="flex flex-col gap-4 pt-1">
             <p class="text-[0.8125rem] text-text-secondary">
@@ -142,32 +134,38 @@
             </div>
 
             <div class="flex gap-3 justify-end">
-                <p-button (onClick)="pendingRevoke.set(null)"
-                          [disabled]="!!revoking()"
-                          [label]="'SETTINGS.DEVICES.CANCEL' | translate"
-                          severity="secondary"
-                          size="small"/>
-                <p-button (onClick)="revoke()"
-                          [label]="'SETTINGS.DEVICES.REVOKE_CONFIRM' | translate"
-                          [loading]="!!revoking()"
-                          severity="danger"
-                          size="small"/>
+                <p-button
+                    (onClick)="pendingRevoke.set(null)"
+                    [disabled]="!!revoking()"
+                    [label]="'SETTINGS.DEVICES.CANCEL' | translate"
+                    severity="secondary"
+                    size="small"
+                />
+                <p-button
+                    (onClick)="revoke()"
+                    [label]="'SETTINGS.DEVICES.REVOKE_CONFIRM' | translate"
+                    [loading]="!!revoking()"
+                    severity="danger"
+                    size="small"
+                />
             </div>
         </div>
     }
 </p-dialog>
 
 <!-- Forget confirm -->
-<p-dialog [header]="'SETTINGS.DEVICES.FORGET_TITLE' | translate"
-          [closable]="!forgetting()"
-          [dismissableMask]="!forgetting()"
-          [draggable]="false"
-          [modal]="true"
-          [resizable]="false"
-          [style]="{width: '400px'}"
-          [visible]="!!pendingForget()"
-          (visibleChange)="$event || pendingForget.set(null)"
-          appendTo="body">
+<p-dialog
+    [header]="'SETTINGS.DEVICES.FORGET_TITLE' | translate"
+    [closable]="!forgetting()"
+    [dismissableMask]="!forgetting()"
+    [draggable]="false"
+    [modal]="true"
+    [resizable]="false"
+    [style]="{width: '400px'}"
+    [visible]="!!pendingForget()"
+    (visibleChange)="$event || pendingForget.set(null)"
+    appendTo="body"
+>
     @if (pendingForget(); as session) {
         <div class="flex flex-col gap-4 pt-1">
             <p class="text-[0.8125rem] text-text-secondary">
@@ -182,16 +180,20 @@
             </div>
 
             <div class="flex gap-3 justify-end">
-                <p-button (onClick)="pendingForget.set(null)"
-                          [disabled]="!!forgetting()"
-                          [label]="'SETTINGS.DEVICES.CANCEL' | translate"
-                          severity="secondary"
-                          size="small"/>
-                <p-button (onClick)="forget()"
-                          [label]="'SETTINGS.DEVICES.FORGET_CONFIRM' | translate"
-                          [loading]="!!forgetting()"
-                          severity="danger"
-                          size="small"/>
+                <p-button
+                    (onClick)="pendingForget.set(null)"
+                    [disabled]="!!forgetting()"
+                    [label]="'SETTINGS.DEVICES.CANCEL' | translate"
+                    severity="secondary"
+                    size="small"
+                />
+                <p-button
+                    (onClick)="forget()"
+                    [label]="'SETTINGS.DEVICES.FORGET_CONFIRM' | translate"
+                    [loading]="!!forgetting()"
+                    severity="danger"
+                    size="small"
+                />
             </div>
         </div>
     }

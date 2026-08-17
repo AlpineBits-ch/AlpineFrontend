@@ -1,6 +1,5 @@
 <header class="app-header flex shrink-0 items-center gap-3 border-b border-white/[0.08] px-6">
-    <p-button (onClick)="back.emit()" [text]="true" icon="pi pi-arrow-left" severity="secondary"
-              size="small"/>
+    <p-button (onClick)="back.emit()" [text]="true" icon="pi pi-arrow-left" severity="secondary" size="small" />
     <div class="min-w-0">
         <p class="text-sm font-semibold text-white/80">{{ 'WIKI.GRAPH.TITLE' | translate }}</p>
         <p class="truncate text-xs text-white/35">
@@ -13,45 +12,65 @@
 
     <div class="ml-auto flex items-center gap-1">
         @if (!listMode() && !unavailable()) {
-            <p-button (onClick)="zoomBy(0.8)" [pTooltip]="'WIKI.GRAPH.ZOOM_OUT' | translate"
-                      [text]="true" icon="pi pi-search-minus" severity="secondary" size="small"
-                      tooltipPosition="bottom"/>
-            <p-button (onClick)="zoomBy(1.25)" [pTooltip]="'WIKI.GRAPH.ZOOM_IN' | translate"
-                      [text]="true" icon="pi pi-search-plus" severity="secondary" size="small"
-                      tooltipPosition="bottom"/>
-            <p-button (onClick)="resetView()" [pTooltip]="'WIKI.GRAPH.RESET_VIEW' | translate"
-                      [text]="true" icon="pi pi-expand" severity="secondary" size="small"
-                      tooltipPosition="bottom"/>
+            <p-button
+                (onClick)="zoomBy(0.8)"
+                [pTooltip]="'WIKI.GRAPH.ZOOM_OUT' | translate"
+                [text]="true"
+                icon="pi pi-search-minus"
+                severity="secondary"
+                size="small"
+                tooltipPosition="bottom"
+            />
+            <p-button
+                (onClick)="zoomBy(1.25)"
+                [pTooltip]="'WIKI.GRAPH.ZOOM_IN' | translate"
+                [text]="true"
+                icon="pi pi-search-plus"
+                severity="secondary"
+                size="small"
+                tooltipPosition="bottom"
+            />
+            <p-button
+                (onClick)="resetView()"
+                [pTooltip]="'WIKI.GRAPH.RESET_VIEW' | translate"
+                [text]="true"
+                icon="pi pi-expand"
+                severity="secondary"
+                size="small"
+                tooltipPosition="bottom"
+            />
         }
         @if (!unavailable()) {
-            <p-button (onClick)="toggleList()"
-                      [icon]="listMode() ? 'pi pi-share-alt' : 'pi pi-list'"
-                      [pTooltip]="(listMode() ? 'WIKI.GRAPH.SHOW_GRAPH' : 'WIKI.GRAPH.SHOW_LIST') | translate"
-                      [text]="true" severity="secondary" size="small" tooltipPosition="bottom"/>
+            <p-button
+                (onClick)="toggleList()"
+                [icon]="listMode() ? 'pi pi-share-alt' : 'pi pi-list'"
+                [pTooltip]="(listMode() ? 'WIKI.GRAPH.SHOW_GRAPH' : 'WIKI.GRAPH.SHOW_LIST') | translate"
+                [text]="true"
+                severity="secondary"
+                size="small"
+                tooltipPosition="bottom"
+            />
         }
     </div>
 </header>
 
 <div class="relative min-h-0 flex-1">
-
     @if (unavailable() || listMode()) {
         <!-- Every page the graph knows about, most-linked first. The keyboard route in, and what is left when a canvas is not available at all. -->
         <div class="thin-scrollbar h-full overflow-y-auto px-6 py-5">
             <div class="mx-auto max-w-2xl">
                 @if (unavailable()) {
-                    <p class="mb-4 rounded-lg border border-white/[0.08] bg-card px-3 py-2
-                              text-[0.75rem] text-white/45">
+                    <p class="mb-4 rounded-lg border border-white/[0.08] bg-card px-3 py-2 text-[0.75rem] text-white/45">
                         {{ 'WIKI.GRAPH.UNAVAILABLE' | translate }}
                     </p>
                 }
                 <div class="flex flex-col gap-0.5">
                     @for (row of listPages(); track row.node.id) {
-                        <button (click)="open(row.node.id)"
-                                class="group/row flex w-full cursor-pointer items-center gap-3
-                                       rounded-lg border-0 bg-transparent px-3 py-2 text-left
-                                       hover:bg-white/[0.04]">
-                            <span [style.background]="row.color"
-                                  class="h-2.5 w-2.5 shrink-0 rounded-full"></span>
+                        <button
+                            (click)="open(row.node.id)"
+                            class="group/row flex w-full cursor-pointer items-center gap-3 rounded-lg border-0 bg-transparent px-3 py-2 text-left hover:bg-white/[0.04]"
+                        >
+                            <span [style.background]="row.color" class="h-2.5 w-2.5 shrink-0 rounded-full"></span>
                             <span class="flex-1 truncate text-sm text-white/75 group-hover/row:text-white/95">
                                 {{ row.page.title }}
                             </span>
@@ -68,40 +87,40 @@
             </div>
         </div>
     } @else {
-        <canvas #canvas
-                (pointercancel)="onPointerUp($event)"
-                (pointerdown)="onPointerDown($event)"
-                (pointerleave)="onPointerLeave()"
-                (pointermove)="onPointerMove($event)"
-                (pointerup)="onPointerUp($event)"
-                (wheel)="onWheel($event)"
-                [class.wiki-graph-grabbing]="dragging()"
-                [class.wiki-graph-pointing]="!dragging() && !!hovered()"
-                class="wiki-graph-canvas absolute inset-0 h-full w-full"></canvas>
+        <canvas
+            #canvas
+            (pointercancel)="onPointerUp($event)"
+            (pointerdown)="onPointerDown($event)"
+            (pointerleave)="onPointerLeave()"
+            (pointermove)="onPointerMove($event)"
+            (pointerup)="onPointerUp($event)"
+            (wheel)="onWheel($event)"
+            [class.wiki-graph-grabbing]="dragging()"
+            [class.wiki-graph-pointing]="!dragging() && !!hovered()"
+            class="wiki-graph-canvas absolute inset-0 h-full w-full"
+        ></canvas>
 
         <!-- Coverage. Edges need page bodies, and the bodies arrive in one request after the view opens, so an empty graph in the first second is loading, not an empty wiki. -->
         @if (cache.warming()) {
-            <div class="pointer-events-none absolute left-1/2 top-4 flex -translate-x-1/2
-                        items-center gap-2 rounded-full border border-white/[0.08] bg-card/90
-                        px-3 py-1.5 text-[0.6875rem] text-white/50 backdrop-blur">
+            <div
+                class="pointer-events-none absolute left-1/2 top-4 flex -translate-x-1/2 items-center gap-2 rounded-full border border-white/[0.08] bg-card/90 px-3 py-1.5 text-[0.6875rem] text-white/50 backdrop-blur"
+            >
                 <i class="pi pi-spin pi-spinner text-[0.6875rem]"></i>
                 <span>{{ 'WIKI.GRAPH.INDEXING' | translate: {loaded: coverage().loaded, total: coverage().total} }}</span>
             </div>
         } @else if (cache.failed()) {
-            <div class="absolute left-1/2 top-4 flex -translate-x-1/2 items-center gap-2 rounded-full
-                        border border-white/[0.08] bg-card/90 px-3 py-1.5 text-[0.6875rem]
-                        text-white/50 backdrop-blur">
+            <div
+                class="absolute left-1/2 top-4 flex -translate-x-1/2 items-center gap-2 rounded-full border border-white/[0.08] bg-card/90 px-3 py-1.5 text-[0.6875rem] text-white/50 backdrop-blur"
+            >
                 <span>{{ 'WIKI.GRAPH.LINKS_UNAVAILABLE' | translate }}</span>
-                <button (click)="retryWarm()"
-                        class="cursor-pointer border-0 bg-transparent p-0 text-brand-dim hover:underline">
+                <button (click)="retryWarm()" class="cursor-pointer border-0 bg-transparent p-0 text-brand-dim hover:underline">
                     {{ 'WIKI.SEARCH.RETRY' | translate }}
                 </button>
             </div>
         }
 
         @if (!nodeCount()) {
-            <div class="pointer-events-none absolute inset-0 flex flex-col items-center
-                        justify-center gap-2 text-white/25">
+            <div class="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 text-white/25">
                 <i class="pi pi-share-alt text-3xl"></i>
                 <p class="text-sm">{{ 'WIKI.GRAPH.EMPTY' | translate }}</p>
             </div>
@@ -109,17 +128,16 @@
 
         <!-- Legend -->
         @if (legend().length) {
-            <div class="thin-scrollbar pointer-events-none absolute bottom-4 left-4 max-h-[45%]
-                        max-w-[13rem] overflow-y-auto rounded-xl border border-white/[0.08]
-                        bg-card/80 p-3 backdrop-blur">
+            <div
+                class="thin-scrollbar pointer-events-none absolute bottom-4 left-4 max-h-[45%] max-w-[13rem] overflow-y-auto rounded-xl border border-white/[0.08] bg-card/80 p-3 backdrop-blur"
+            >
                 <p class="mb-2 text-[0.625rem] font-semibold uppercase tracking-widest text-white/30">
                     {{ 'WIKI.CATEGORIES' | translate }}
                 </p>
                 <div class="flex flex-col gap-1.5">
                     @for (entry of legend(); track entry.id) {
                         <div class="flex items-center gap-2">
-                            <span [style.background]="entry.color"
-                                  class="h-2 w-2 shrink-0 rounded-full"></span>
+                            <span [style.background]="entry.color" class="h-2 w-2 shrink-0 rounded-full"></span>
                             <span class="truncate text-[0.75rem] text-white/55">{{ entry.name }}</span>
                         </div>
                     }
@@ -129,8 +147,9 @@
 
         <!-- Hovered page -->
         @if (hovered(); as node) {
-            <div class="pointer-events-none absolute bottom-4 right-4 max-w-[15rem] rounded-xl
-                        border border-white/[0.10] bg-card/90 p-3 backdrop-blur">
+            <div
+                class="pointer-events-none absolute bottom-4 right-4 max-w-[15rem] rounded-xl border border-white/[0.10] bg-card/90 p-3 backdrop-blur"
+            >
                 <p class="truncate text-sm font-semibold text-white/85">{{ node.title }}</p>
                 <p class="mt-0.5 text-[0.6875rem] text-white/40">
                     @if (hoveredCategory(); as category) {

@@ -74,14 +74,17 @@ export class LogoutDialogComponent {
         this.errorMsg.set('');
         this.step.set('processing');
 
-        this.userService.verifyPassword(this.password()).pipe(take(1)).subscribe(valid => {
-            if (!valid) {
-                this.errorMsg.set('Incorrect password. Please try again.');
-                this.step.set('password');
-                return;
-            }
-            this.exportThenLogout();
-        });
+        this.userService
+            .verifyPassword(this.password())
+            .pipe(take(1))
+            .subscribe(valid => {
+                if (!valid) {
+                    this.errorMsg.set('Incorrect password. Please try again.');
+                    this.step.set('password');
+                    return;
+                }
+                this.exportThenLogout();
+            });
     }
 
     /** Sign out knowing no backup was written. */
@@ -96,41 +99,46 @@ export class LogoutDialogComponent {
     }
 
     private exportThenLogout(): void {
-        this.userService.getSelf().pipe(
-            take(1),
-            switchMap(user => {
-                if (!user.encryptedMasterKey) throw new Error('no-key');
-                // The password is only proof of ownership here; the blob is sealed under the
-                // passphrase-derived key inside the Rust command, not under the master key.
-                return from(this.masterKeyService.decryptMasterKey(user.encryptedMasterKey, this.password()))
-                    .pipe(switchMap(() => from(this.exportBackup(user.id))));
-            }),
-        ).subscribe({
-            next: blob => {
-                // Must be the full §D envelope, not `exportState`: that covers the openmls provider
-                // store alone, omitting the signing keypair, device id, group registry and cache.
-                const a = document.createElement('a');
-                a.href = `data:application/octet-stream;base64,${btoa(blob)}`;
-                a.download = `venta-keys-${new Date().toISOString().slice(0, 10)}.venta-keys`;
-                a.click();
-                this.clearMlsAndLogout();
-            },
-            error: (err: unknown) => {
-                // A feature this build does not define is not a failure to retry. Sending the user
-                // back to the password step told them to try again at something that can never
-                // succeed, and the export path is the only way out of this dialog other than
-                // discarding the keys - so it trapped them.
-                if (err instanceof MlsFeatureUnavailableError) {
-                    this.step.set('export-unavailable');
-                    return;
-                }
-                const msg = err instanceof Error && err.message === 'no-key'
-                    ? 'No encryption keys found on this account.'
-                    : 'Export failed. Please try again.';
-                this.errorMsg.set(msg);
-                this.step.set('password');
-            },
-        });
+        this.userService
+            .getSelf()
+            .pipe(
+                take(1),
+                switchMap(user => {
+                    if (!user.encryptedMasterKey) throw new Error('no-key');
+                    // The password is only proof of ownership here; the blob is sealed under the
+                    // passphrase-derived key inside the Rust command, not under the master key.
+                    return from(
+                        this.masterKeyService.decryptMasterKey(user.encryptedMasterKey, this.password()),
+                    ).pipe(switchMap(() => from(this.exportBackup(user.id))));
+                }),
+            )
+            .subscribe({
+                next: blob => {
+                    // Must be the full §D envelope, not `exportState`: that covers the openmls provider
+                    // store alone, omitting the signing keypair, device id, group registry and cache.
+                    const a = document.createElement('a');
+                    a.href = `data:application/octet-stream;base64,${btoa(blob)}`;
+                    a.download = `venta-keys-${new Date().toISOString().slice(0, 10)}.venta-keys`;
+                    a.click();
+                    this.clearMlsAndLogout();
+                },
+                error: (err: unknown) => {
+                    // A feature this build does not define is not a failure to retry. Sending the user
+                    // back to the password step told them to try again at something that can never
+                    // succeed, and the export path is the only way out of this dialog other than
+                    // discarding the keys - so it trapped them.
+                    if (err instanceof MlsFeatureUnavailableError) {
+                        this.step.set('export-unavailable');
+                        return;
+                    }
+                    const msg =
+                        err instanceof Error && err.message === 'no-key'
+                            ? 'No encryption keys found on this account.'
+                            : 'Export failed. Please try again.';
+                    this.errorMsg.set(msg);
+                    this.step.set('password');
+                },
+            });
     }
 
     /**

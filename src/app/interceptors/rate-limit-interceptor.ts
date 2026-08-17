@@ -32,7 +32,7 @@ export function _resetRateLimitState(): void {
 export function parseRetryAfter(err: HttpErrorResponse): number | null {
     if (err.status !== 429) return null;
 
-    const body = err.error as { retry_after?: unknown } | null;
+    const body = err.error as {retry_after?: unknown} | null;
     const fromBody = body && typeof body === 'object' ? Number(body.retry_after) : NaN;
     if (Number.isFinite(fromBody) && fromBody >= 0) return clampWait(fromBody * 1000);
 
@@ -49,7 +49,7 @@ export function parseRetryAfter(err: HttpErrorResponse): number | null {
 
 /** Whether this 429 speaks for the whole bucket rather than one route. Absent means yes. */
 function isGlobal(err: HttpErrorResponse): boolean {
-    const body = err.error as { global?: unknown } | null;
+    const body = err.error as {global?: unknown} | null;
     if (!body || typeof body !== 'object') return true;
     return body.global !== false;
 }

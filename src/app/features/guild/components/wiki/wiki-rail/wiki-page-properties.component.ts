@@ -49,8 +49,7 @@ export class WikiPagePropertiesComponent {
 
     protected readonly tags = computed(() => this.pending().tags ?? this.page()?.tags ?? []);
 
-    protected readonly pinned = computed(() =>
-        this.pending().isPinned ?? this.page()?.isPinned ?? false);
+    protected readonly pinned = computed(() => this.pending().isPinned ?? this.page()?.isPinned ?? false);
 
     protected readonly categoryValue = computed(() => {
         const pending = this.pending();
@@ -70,8 +69,9 @@ export class WikiPagePropertiesComponent {
     });
 
     /** Where a page sits is the wiki's shape, so someone who manages the structure may move a page they could not otherwise edit. Both branches deny while abilities are still loading, matching the fail-closed rule the rest of the wiki follows. */
-    protected readonly canMovePage = computed(() =>
-        this.canEditMetadata() || this.state.abilities().canManageStructure);
+    protected readonly canMovePage = computed(
+        () => this.canEditMetadata() || this.state.abilities().canManageStructure,
+    );
 
     protected readonly categoryOptions = computed(() => [
         {label: this.translate.instant('WIKI.RAIL.NO_CATEGORY'), value: NONE},
@@ -115,19 +115,24 @@ export class WikiPagePropertiesComponent {
             .map(entry => entry.label);
     });
 
-    protected readonly canAddTag = computed(() =>
-        this.canEditMetadata() && this.tags().length < TAG_MAX_COUNT);
+    protected readonly canAddTag = computed(
+        () => this.canEditMetadata() && this.tags().length < TAG_MAX_COUNT,
+    );
 
     protected readonly tagMaxLength = TAG_MAX_LENGTH;
 
     /** What the select would be showing, for the read-only rendering that replaces it. */
-    protected readonly categoryLabel = computed(() =>
-        this.categoryOptions().find(option => option.value === this.categoryValue())?.label
-        ?? this.translate.instant('WIKI.RAIL.NO_CATEGORY'));
+    protected readonly categoryLabel = computed(
+        () =>
+            this.categoryOptions().find(option => option.value === this.categoryValue())?.label ??
+            this.translate.instant('WIKI.RAIL.NO_CATEGORY'),
+    );
 
-    protected readonly parentLabel = computed(() =>
-        this.parentOptions().find(option => option.value === this.parentValue())?.label
-        ?? this.translate.instant('WIKI.RAIL.NO_PARENT'));
+    protected readonly parentLabel = computed(
+        () =>
+            this.parentOptions().find(option => option.value === this.parentValue())?.label ??
+            this.translate.instant('WIKI.RAIL.NO_PARENT'),
+    );
 
     constructor() {
         // Keyed on the id, not the object: the wiki listing replaces the page object on every refresh, and resetting on that would drop a write still in flight.

@@ -40,9 +40,10 @@ export function decodeNotificationTag(tag: string | undefined | null): Notificat
 
     const record = parsed as {actionTypeId?: unknown; extra?: unknown};
     return {
-        actionTypeId: typeof record.actionTypeId === 'string' && record.actionTypeId
-            ? record.actionTypeId
-            : DEFAULT_ACTION_TYPE_ID,
+        actionTypeId:
+            typeof record.actionTypeId === 'string' && record.actionTypeId
+                ? record.actionTypeId
+                : DEFAULT_ACTION_TYPE_ID,
         extra: stringValues(record.extra),
     };
 }

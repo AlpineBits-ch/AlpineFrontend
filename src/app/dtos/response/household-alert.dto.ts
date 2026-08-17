@@ -43,7 +43,7 @@ export const HouseholdAlertKind = {
     MaintenanceBroken: 'maintenance.broken',
 } as const;
 
-export type HouseholdAlertKind = typeof HouseholdAlertKind[keyof typeof HouseholdAlertKind];
+export type HouseholdAlertKind = (typeof HouseholdAlertKind)[keyof typeof HouseholdAlertKind];
 
 export interface HouseholdAlert {
     guildId: string;
@@ -64,9 +64,14 @@ export interface HouseholdAlert {
 export function isHouseholdAlert(raw: unknown): raw is HouseholdAlert {
     if (!raw || typeof raw !== 'object') return false;
     const candidate = raw as Partial<HouseholdAlert>;
-    return typeof candidate.kind === 'string' && !!candidate.kind
-        && typeof candidate.targetId === 'string' && !!candidate.targetId
-        && typeof candidate.title === 'string' && !!candidate.title;
+    return (
+        typeof candidate.kind === 'string' &&
+        !!candidate.kind &&
+        typeof candidate.targetId === 'string' &&
+        !!candidate.targetId &&
+        typeof candidate.title === 'string' &&
+        !!candidate.title
+    );
 }
 
 /** Identity of an alert, for dedupe across a reconnect. Kind and target; `targetId` alone is not enough. */
@@ -76,8 +81,15 @@ export function householdAlertKey(alert: HouseholdAlert): string {
 
 /** What kind of thing an alert's `targetId` names. */
 export type HouseholdAlertTarget =
-    | 'chore-occurrence' | 'expense' | 'settlement' | 'decision' | 'list-item'
-    | 'bill' | 'meal-plan-entry' | 'maintenance-asset' | 'pantry-item'
+    | 'chore-occurrence'
+    | 'expense'
+    | 'settlement'
+    | 'decision'
+    | 'list-item'
+    | 'bill'
+    | 'meal-plan-entry'
+    | 'maintenance-asset'
+    | 'pantry-item'
     /** The target is the channel, or the kind is one this build does not know. */
     | 'channel';
 

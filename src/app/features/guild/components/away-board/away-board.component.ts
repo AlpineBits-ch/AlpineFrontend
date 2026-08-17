@@ -1,4 +1,13 @@
-import {ChangeDetectionStrategy, Component, computed, effect, inject, input, signal, untracked} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    effect,
+    inject,
+    input,
+    signal,
+    untracked,
+} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {Button} from 'primeng/button';
@@ -6,7 +15,13 @@ import {Dialog} from 'primeng/dialog';
 import {InputText} from 'primeng/inputtext';
 import {DatePicker} from 'primeng/datepicker';
 import {PrimeTemplate} from 'primeng/api';
-import {Absence, ABSENCE_LIMITS, absenceDraftError, absenceState, AbsenceState} from '../../../../dtos/response/absence.dto';
+import {
+    Absence,
+    ABSENCE_LIMITS,
+    absenceDraftError,
+    absenceState,
+    AbsenceState,
+} from '../../../../dtos/response/absence.dto';
 import {GuildMemberDto} from '../../../../dtos/response/member.dto';
 import {AbsenceService} from '../../../../services/absence.service';
 import {GuildService} from '../../../../services/guild.service';
@@ -49,8 +64,9 @@ export class AwayBoardComponent {
 
     protected readonly ownUserId = computed(() => this.profileService.ownProfile()?.userId ?? null);
 
-    private readonly guild = computed(() =>
-        this.guildService.guilds().find(g => g.id === this.guildId()) ?? null);
+    private readonly guild = computed(
+        () => this.guildService.guilds().find(g => g.id === this.guildId()) ?? null,
+    );
 
     /** Absences are gated on Presence, like the home-status board; a guild that hasn't resolved yet counts as enabled so the panel doesn't flash on load. */
     protected readonly hidden = computed(() => {
@@ -64,17 +80,22 @@ export class AwayBoardComponent {
     protected readonly rows = computed<AwayRow[]>(() => {
         const now = Date.now();
         const ownUserId = this.ownUserId();
-        return this.state().absences
-            .map(absence => ({
-                absence,
-                name: this.nameOf(absence.userId),
-                state: absenceState(absence, now),
-                range: this.rangeLabel(absence),
-                isSelf: absence.userId === ownUserId,
-            }))
-            // Past absences last but not dropped: they explain a chore balance somebody might argue with, and the balance window reaches back further than today.
-            .sort((a, b) => this.stateRank(a.state) - this.stateRank(b.state)
-                || a.absence.startAt.localeCompare(b.absence.startAt));
+        return (
+            this.state()
+                .absences.map(absence => ({
+                    absence,
+                    name: this.nameOf(absence.userId),
+                    state: absenceState(absence, now),
+                    range: this.rangeLabel(absence),
+                    isSelf: absence.userId === ownUserId,
+                }))
+                // Past absences last but not dropped: they explain a chore balance somebody might argue with, and the balance window reaches back further than today.
+                .sort(
+                    (a, b) =>
+                        this.stateRank(a.state) - this.stateRank(b.state) ||
+                        a.absence.startAt.localeCompare(b.absence.startAt),
+                )
+        );
     });
 
     protected readonly liveRows = computed(() => this.rows().filter(r => r.state === 'current'));
@@ -144,16 +165,16 @@ export class AwayBoardComponent {
 
         const request$ = editingId
             ? this.absences.update(this.guildId(), editingId, {
-                startAt: start.toISOString(),
-                endAt: end.toISOString(),
-                // The same flag rule as everywhere else: a bare null would read as "leave it alone".
-                ...(note ? {note} : {clearNote: true}),
-            })
+                  startAt: start.toISOString(),
+                  endAt: end.toISOString(),
+                  // The same flag rule as everywhere else: a bare null would read as "leave it alone".
+                  ...(note ? {note} : {clearNote: true}),
+              })
             : this.absences.create(this.guildId(), {
-                startAt: start.toISOString(),
-                endAt: end.toISOString(),
-                ...(note ? {note} : {}),
-            });
+                  startAt: start.toISOString(),
+                  endAt: end.toISOString(),
+                  ...(note ? {note} : {}),
+              });
 
         request$.subscribe({
             next: saved => {
@@ -161,8 +182,9 @@ export class AwayBoardComponent {
                 this.showEditor.set(false);
                 // The consequence on other people's boards, said out loud, so nobody discovers it from a chore they didn't expect to have.
                 if (saved.choresReassigned > 0) {
-                    this.toast.success(this.translate.instant(
-                        'AWAY.CHORES_REASSIGNED', {count: saved.choresReassigned}));
+                    this.toast.success(
+                        this.translate.instant('AWAY.CHORES_REASSIGNED', {count: saved.choresReassigned}),
+                    );
                 }
             },
             error: err => {

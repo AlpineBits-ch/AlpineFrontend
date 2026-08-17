@@ -23,7 +23,7 @@ const flush = () => new Promise(resolve => setTimeout(resolve, 0));
 
 function setup(options: {keyHandle?: string | null} = {}) {
     // `?? 'handle'` would defeat the point: `null` is the state under test.
-    const keyHandle = 'keyHandle' in options ? options.keyHandle ?? null : 'handle';
+    const keyHandle = 'keyHandle' in options ? (options.keyHandle ?? null) : 'handle';
     const handlers = new Map<string, (payload: never) => void>();
     const registered: string[] = [];
 
@@ -38,7 +38,8 @@ function setup(options: {keyHandle?: string | null} = {}) {
         providers: [
             IdentityWebsocketService,
             {
-                provide: RealtimeConnectionService, useValue: {
+                provide: RealtimeConnectionService,
+                useValue: {
                     on: vi.fn((event: string, handler: (payload: never) => void) => {
                         registered.push(event);
                         handlers.set(event, handler);
@@ -107,8 +108,11 @@ describe('identity.DeviceRegistered', () => {
         let changes = 0;
         service.deviceRosterChanged$.subscribe(() => changes++);
 
-        await fire('identity.DeviceRegistered',
-            {deviceId: OTHER_DEVICE, deviceName: 'Laptop', identityRotated: false});
+        await fire('identity.DeviceRegistered', {
+            deviceId: OTHER_DEVICE,
+            deviceName: 'Laptop',
+            identityRotated: false,
+        });
 
         expect(changes).toBe(1);
         expect(service.deviceRosterRevision()).toBe(1);
@@ -118,8 +122,11 @@ describe('identity.DeviceRegistered', () => {
     it('warns, stickily and in its own words, when a device re-registered under a new key', async () => {
         const {service, toast, fire} = setup();
 
-        await fire('identity.DeviceRegistered',
-            {deviceId: OTHER_DEVICE, deviceName: 'Laptop', identityRotated: true});
+        await fire('identity.DeviceRegistered', {
+            deviceId: OTHER_DEVICE,
+            deviceName: 'Laptop',
+            identityRotated: true,
+        });
 
         expect(toast.warn).toHaveBeenCalledWith(
             'IDENTITY.SECURITY.DEVICE_IDENTITY_ROTATED',
@@ -135,30 +142,40 @@ describe('identity.DeviceRegistered', () => {
     it('does not borrow the account-key wording for a device key', async () => {
         const {toast, fire} = setup();
 
-        await fire('identity.DeviceRegistered',
-            {deviceId: OTHER_DEVICE, deviceName: 'Laptop', identityRotated: true});
+        await fire('identity.DeviceRegistered', {
+            deviceId: OTHER_DEVICE,
+            deviceName: 'Laptop',
+            identityRotated: true,
+        });
 
         // Different keys, different endpoints, different remedies.
         expect(toast.warn).not.toHaveBeenCalledWith(
-            'IDENTITY.SECURITY.IDENTITY_KEY_ROTATED', expect.anything());
+            'IDENTITY.SECURITY.IDENTITY_KEY_ROTATED',
+            expect.anything(),
+        );
     });
 
-    it('leaves the account identity key alone - that is a different key on a different endpoint',
-        async () => {
-            const {service, fire} = setup();
+    it('leaves the account identity key alone - that is a different key on a different endpoint', async () => {
+        const {service, fire} = setup();
 
-            await fire('identity.DeviceRegistered',
-                {deviceId: OTHER_DEVICE, deviceName: 'Laptop', identityRotated: true});
-
-            // `identityKeyStale` cannot be cleared, so setting it here is a permanent false alarm.
-            expect(service.identityKeyStale()).toBe(false);
+        await fire('identity.DeviceRegistered', {
+            deviceId: OTHER_DEVICE,
+            deviceName: 'Laptop',
+            identityRotated: true,
         });
+
+        // `identityKeyStale` cannot be cleared, so setting it here is a permanent false alarm.
+        expect(service.identityKeyStale()).toBe(false);
+    });
 
     it('stays quiet when the re-registration was this installation', async () => {
         const {service, toast, fire} = setup();
 
-        await fire('identity.DeviceRegistered',
-            {deviceId: OWN_DEVICE, deviceName: 'This', identityRotated: true});
+        await fire('identity.DeviceRegistered', {
+            deviceId: OWN_DEVICE,
+            deviceName: 'This',
+            identityRotated: true,
+        });
 
         // Recorded, not shouted: the user is on the screen that caused it.
         expect(toast.warn).not.toHaveBeenCalled();
@@ -177,22 +194,31 @@ describe('identity.DeviceRegistered', () => {
     it('says nothing about an ordinary registration', async () => {
         const {service, toast, fire} = setup();
 
-        await fire('identity.DeviceRegistered',
-            {deviceId: OTHER_DEVICE, deviceName: 'Laptop', identityRotated: false});
+        await fire('identity.DeviceRegistered', {
+            deviceId: OTHER_DEVICE,
+            deviceName: 'Laptop',
+            identityRotated: false,
+        });
 
         expect(toast.warn).not.toHaveBeenCalled();
         expect(service.deviceIdentityRotations().length).toBe(0);
     });
 
-    it('knows its own registration from another machine\'s', async () => {
+    it("knows its own registration from another machine's", async () => {
         const {service, fire} = setup();
         const seen: boolean[] = [];
         service.deviceRegistered$.subscribe(e => seen.push(e.isOwnDevice));
 
-        await fire('identity.DeviceRegistered',
-            {deviceId: OWN_DEVICE, deviceName: 'This', identityRotated: false});
-        await fire('identity.DeviceRegistered',
-            {deviceId: OTHER_DEVICE, deviceName: 'That', identityRotated: false});
+        await fire('identity.DeviceRegistered', {
+            deviceId: OWN_DEVICE,
+            deviceName: 'This',
+            identityRotated: false,
+        });
+        await fire('identity.DeviceRegistered', {
+            deviceId: OTHER_DEVICE,
+            deviceName: 'That',
+            identityRotated: false,
+        });
 
         expect(seen).toEqual([true, false]);
     });
@@ -229,15 +255,18 @@ describe('identity.DeviceAdmitted', () => {
         expect(sync.processPendingWelcomes).toHaveBeenCalled();
         expect(sync.syncContext).toHaveBeenCalledWith(CTX, false);
         // Order is load-bearing: without the Welcome this device holds no group to catch up.
-        expect(sync.processPendingWelcomes.mock.invocationCallOrder[0])
-            .toBeLessThan(sync.syncContext.mock.invocationCallOrder[0]);
+        expect(sync.processPendingWelcomes.mock.invocationCallOrder[0]).toBeLessThan(
+            sync.syncContext.mock.invocationCallOrder[0],
+        );
     });
 
     it('takes the context kind from which id came with it', async () => {
         const {sync, fire} = setup();
 
-        await fire('identity.DeviceAdmitted',
-            admitted({contextId: 'chan-1', conversationId: null, channelId: 'chan-1'}));
+        await fire(
+            'identity.DeviceAdmitted',
+            admitted({contextId: 'chan-1', conversationId: null, channelId: 'chan-1'}),
+        );
 
         expect(sync.syncContext).toHaveBeenCalledWith('chan-1', true);
     });
@@ -333,8 +362,10 @@ describe('identity.AccountIdentityKeyRotated', () => {
         const {service, toast, fire} = setup();
 
         // v0 -> v1 with no rotation signature is what the wire carries for a first publication.
-        await fire('identity.AccountIdentityKeyRotated',
-            rotated({previousVersion: 0, version: 1, signedByOutgoingKey: false}));
+        await fire(
+            'identity.AccountIdentityKeyRotated',
+            rotated({previousVersion: 0, version: 1, signedByOutgoingKey: false}),
+        );
 
         expect(service.lastIdentityKeyRotation()?.isFirstPublication).toBe(true);
         expect(toast.warn).toHaveBeenCalledWith(
@@ -346,11 +377,13 @@ describe('identity.AccountIdentityKeyRotated', () => {
         );
     });
 
-    it('prefers the server\'s own isFirstPublication once it sends one', async () => {
+    it("prefers the server's own isFirstPublication once it sends one", async () => {
         const {service, fire} = setup();
 
-        await fire('identity.AccountIdentityKeyRotated',
-            rotated({previousVersion: 0, version: 1, isFirstPublication: false}));
+        await fire(
+            'identity.AccountIdentityKeyRotated',
+            rotated({previousVersion: 0, version: 1, isFirstPublication: false}),
+        );
 
         expect(service.lastIdentityKeyRotation()?.isFirstPublication).toBe(false);
     });
@@ -382,8 +415,10 @@ describe('identity.ProtectionLevelChanged', () => {
     it('warns on a downgrade', async () => {
         const {toast, fire} = setup();
 
-        await fire('identity.ProtectionLevelChanged',
-            changed({previousLevel: 'Enhanced', level: 'Standard', isDowngrade: true}));
+        await fire(
+            'identity.ProtectionLevelChanged',
+            changed({previousLevel: 'Enhanced', level: 'Standard', isDowngrade: true}),
+        );
 
         expect(toast.warn).toHaveBeenCalledWith(
             'IDENTITY.SECURITY.PROTECTION_DOWNGRADED',

@@ -44,7 +44,9 @@ describe('parseInstallBotLink', () => {
     });
 
     it('decodes a URL-encoded redirect_uri', () => {
-        const result = parseInstallBotLink('venta://install-bot?client_id=abc&redirect_uri=https%3A%2F%2Fexample.com%2Fcallback%3Fx%3D1');
+        const result = parseInstallBotLink(
+            'venta://install-bot?client_id=abc&redirect_uri=https%3A%2F%2Fexample.com%2Fcallback%3Fx%3D1',
+        );
         expect(result?.redirectUri).toBe('https://example.com/callback?x=1');
     });
 
@@ -55,7 +57,7 @@ describe('parseInstallBotLink', () => {
 
     it('parses all params together', () => {
         const result = parseInstallBotLink(
-            'venta://install-bot?client_id=user_2c9f&permissions=513&guild_id=g1&redirect_uri=https%3A%2F%2Fexample.com&state=xyz'
+            'venta://install-bot?client_id=user_2c9f&permissions=513&guild_id=g1&redirect_uri=https%3A%2F%2Fexample.com&state=xyz',
         );
         expect(result).toEqual({
             clientId: 'user_2c9f',

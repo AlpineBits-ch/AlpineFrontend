@@ -20,8 +20,7 @@ export class StreamSrcDirective implements OnDestroy {
         el.srcObject = this.stream;
         // Skip the play() call outright while hidden.
         if (this.stream && el instanceof HTMLVideoElement && !document.hidden) {
-            void el.play().catch(() => {
-            });
+            void el.play().catch(() => {});
         }
     }
 
@@ -37,7 +36,6 @@ export class StreamSrcDirective implements OnDestroy {
         if (el.ownerDocument !== document) return;
 
         if (document.hidden) el.pause();
-        else void el.play().catch(() => {
-        });
+        else void el.play().catch(() => {});
     }
 }

@@ -1,10 +1,6 @@
 import {computed, inject, Injectable, signal} from '@angular/core';
 import {Subject} from 'rxjs';
-import {
-    describeEntitlementLimit,
-    entitlementDenialOf,
-    EntitlementNotice,
-} from '../core/entitlement-message';
+import {describeEntitlementLimit, entitlementDenialOf, EntitlementNotice} from '../core/entitlement-message';
 import {
     grantedRungName,
     isAudioOnlyRung,
@@ -16,11 +12,7 @@ import {
     videoPublishBlock,
     voiceSurfaceKey,
 } from '../core/voice-limits';
-import {
-    degradationsOf,
-    EntitlementValueDto,
-    VoiceRoomLimitsDto,
-} from '../dtos/response/entitlement.dto';
+import {degradationsOf, EntitlementValueDto, VoiceRoomLimitsDto} from '../dtos/response/entitlement.dto';
 import {VideoCeiling} from '../models/stream-preset';
 import {VoiceRoomSnapshot} from '../models/voice-room';
 import {EntitlementStore, MY_ENTITLEMENTS} from '../stores/entitlement.store';
@@ -94,7 +86,8 @@ export class VoiceLimitsService {
      * would be guessing at a pricing decision.</p>
      */
     readonly videoCeiling = computed<VideoCeiling | null>(() =>
-        videoCeilingOf(this.limitsSignal(), this.entitlements.ladder(VIDEO_LADDER, this.guildId())));
+        videoCeilingOf(this.limitsSignal(), this.entitlements.ladder(VIDEO_LADDER, this.guildId())),
+    );
 
     /**
      * Whether this room carries no video at all.
@@ -203,8 +196,12 @@ export class VoiceLimitsService {
 
         const next = {...this.noticesByKey()};
         for (const degradation of degradations) {
-            next[degradation.key] = this.toNotice(degradation.key, degradation.granted,
-                describeEntitlementLimit(degradation), false);
+            next[degradation.key] = this.toNotice(
+                degradation.key,
+                degradation.granted,
+                describeEntitlementLimit(degradation),
+                false,
+            );
         }
         this.noticesByKey.set(next);
     }
@@ -220,8 +217,12 @@ export class VoiceLimitsService {
         const denial = entitlementDenialOf(err);
         if (!denial) return null;
 
-        const notice = this.toNotice(denial.key, denial.granted ?? null,
-            describeEntitlementLimit(denial), true);
+        const notice = this.toNotice(
+            denial.key,
+            denial.granted ?? null,
+            describeEntitlementLimit(denial),
+            true,
+        );
         this.noticesByKey.set({...this.noticesByKey(), [denial.key]: notice});
         this.refused$.next(notice);
         return notice;

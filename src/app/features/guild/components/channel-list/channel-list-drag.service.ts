@@ -92,11 +92,16 @@ export class ChannelListDragService {
             const categoryChanged = dragging.sourceCategoryId !== targetCategoryId;
             if (categoryChanged) {
                 this.localChannels.update(chs =>
-                    chs.map(c => c.id === dragging.id ? {...c, categoryId: targetCategoryId ?? undefined} : c)
+                    chs.map(c =>
+                        c.id === dragging.id ? {...c, categoryId: targetCategoryId ?? undefined} : c,
+                    ),
                 );
             }
             this.reorderChannelsInSection(
-                dragging.id, targetCategoryId, targetChannel.id, pos,
+                dragging.id,
+                targetCategoryId,
+                targetChannel.id,
+                pos,
                 categoryChanged ? targetCategoryId : undefined,
             );
             return;
@@ -112,14 +117,14 @@ export class ChannelListDragService {
                 // Line before a category header = move channel to uncategorized section
                 if (dragging.sourceCategoryId !== null) {
                     this.localChannels.update(chs =>
-                        chs.map(c => c.id === dragging.id ? {...c, categoryId: undefined} : c)
+                        chs.map(c => (c.id === dragging.id ? {...c, categoryId: undefined} : c)),
                     );
                     this.appendChannelToSection(dragging.id, null, null);
                 }
             } else if (dragging.sourceCategoryId !== targetCategory.id) {
                 // Line after/on a category header = move channel into that category
                 this.localChannels.update(chs =>
-                    chs.map(c => c.id === dragging.id ? {...c, categoryId: targetCategory.id} : c)
+                    chs.map(c => (c.id === dragging.id ? {...c, categoryId: targetCategory.id} : c)),
                 );
                 this.appendChannelToSection(dragging.id, targetCategory.id, targetCategory.id);
             }
@@ -151,39 +156,40 @@ export class ChannelListDragService {
         pos: 'before' | 'after',
         newCategoryId?: string | null,
     ): void {
-        const sectionChannels = categoryId
-            ? this.categoryChannels(categoryId)
-            : this.uncategorizedChannels();
+        const sectionChannels = categoryId ? this.categoryChannels(categoryId) : this.uncategorizedChannels();
 
         const dragged = this.localChannels().find(c => c.id === draggedId);
         if (!dragged) return;
 
         const sorted = sectionChannels.filter(c => c.id !== draggedId);
         const targetIndex = sorted.findIndex(c => c.id === targetId);
-        const insertAt = targetIndex === -1
-            ? sorted.length
-            : pos === 'before' ? targetIndex : targetIndex + 1;
+        const insertAt =
+            targetIndex === -1 ? sorted.length : pos === 'before' ? targetIndex : targetIndex + 1;
         sorted.splice(insertAt, 0, dragged);
 
         const newPositions = new Map(sorted.map((c, i) => [c.id, i]));
         this.localChannels.update(chs =>
-            chs.map(c => newPositions.has(c.id) ? {...c, position: newPositions.get(c.id)!} : c)
+            chs.map(c => (newPositions.has(c.id) ? {...c, position: newPositions.get(c.id)!} : c)),
         );
 
-        this.guildService.reorderChannels(this.guildId(), {
-            categories: [],
-            channels: sorted.map((c, i) => ({
-                channelId: c.id,
-                position: i,
-                ...(c.id === draggedId && newCategoryId !== undefined ? {categoryId: newCategoryId} : {}),
-            })),
-        }).subscribe();
+        this.guildService
+            .reorderChannels(this.guildId(), {
+                categories: [],
+                channels: sorted.map((c, i) => ({
+                    channelId: c.id,
+                    position: i,
+                    ...(c.id === draggedId && newCategoryId !== undefined ? {categoryId: newCategoryId} : {}),
+                })),
+            })
+            .subscribe();
     }
 
-    private appendChannelToSection(channelId: string, categoryId: string | null, newCategoryId?: string | null): void {
-        const sectionChannels = categoryId
-            ? this.categoryChannels(categoryId)
-            : this.uncategorizedChannels();
+    private appendChannelToSection(
+        channelId: string,
+        categoryId: string | null,
+        newCategoryId?: string | null,
+    ): void {
+        const sectionChannels = categoryId ? this.categoryChannels(categoryId) : this.uncategorizedChannels();
 
         const dragged = this.localChannels().find(c => c.id === channelId);
         if (!dragged) return;
@@ -191,17 +197,19 @@ export class ChannelListDragService {
         const sorted = [...sectionChannels.filter(c => c.id !== channelId), dragged];
         const newPositions = new Map(sorted.map((c, i) => [c.id, i]));
         this.localChannels.update(chs =>
-            chs.map(c => newPositions.has(c.id) ? {...c, position: newPositions.get(c.id)!} : c)
+            chs.map(c => (newPositions.has(c.id) ? {...c, position: newPositions.get(c.id)!} : c)),
         );
 
-        this.guildService.reorderChannels(this.guildId(), {
-            categories: [],
-            channels: sorted.map((c, i) => ({
-                channelId: c.id,
-                position: i,
-                ...(c.id === channelId && newCategoryId !== undefined ? {categoryId: newCategoryId} : {}),
-            })),
-        }).subscribe();
+        this.guildService
+            .reorderChannels(this.guildId(), {
+                categories: [],
+                channels: sorted.map((c, i) => ({
+                    channelId: c.id,
+                    position: i,
+                    ...(c.id === channelId && newCategoryId !== undefined ? {categoryId: newCategoryId} : {}),
+                })),
+            })
+            .subscribe();
     }
 
     private reorderCategoryAfterDrop(draggedId: string, targetId: string, pos: 'before' | 'after'): void {
@@ -217,13 +225,15 @@ export class ChannelListDragService {
 
         const newPositions = new Map(sorted.map((c, i) => [c.id, i]));
         this.localCategories.update(cats =>
-            cats.map(c => newPositions.has(c.id) ? {...c, position: newPositions.get(c.id)!} : c)
+            cats.map(c => (newPositions.has(c.id) ? {...c, position: newPositions.get(c.id)!} : c)),
         );
 
-        this.guildService.reorderChannels(this.guildId(), {
-            categories: sorted.map((c, i) => ({categoryId: c.id, position: i})),
-            channels: [],
-        }).subscribe();
+        this.guildService
+            .reorderChannels(this.guildId(), {
+                categories: sorted.map((c, i) => ({categoryId: c.id, position: i})),
+                channels: [],
+            })
+            .subscribe();
     }
 
     private clearDragState(): void {

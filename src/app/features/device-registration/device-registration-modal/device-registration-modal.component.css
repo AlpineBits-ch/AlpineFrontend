@@ -91,8 +91,9 @@
     justify-content: center;
     background: color-mix(in srgb, var(--color-brand-dark) 28%, transparent);
     border: 1px solid color-mix(in srgb, var(--color-brand) 32%, transparent);
-    box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-brand) 10%, transparent),
-    0 0 24px color-mix(in srgb, var(--color-brand) 18%, transparent);
+    box-shadow:
+        0 0 0 4px color-mix(in srgb, var(--color-brand) 10%, transparent),
+        0 0 24px color-mix(in srgb, var(--color-brand) 18%, transparent);
 }
 
 .dr-spinner-ring {
@@ -115,8 +116,9 @@
     justify-content: center;
     background: color-mix(in srgb, var(--color-online) 15%, transparent);
     border: 1px solid color-mix(in srgb, var(--color-online) 30%, transparent);
-    box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-online) 8%, transparent),
-    0 0 20px color-mix(in srgb, var(--color-online) 20%, transparent);
+    box-shadow:
+        0 0 0 4px color-mix(in srgb, var(--color-online) 8%, transparent),
+        0 0 20px color-mix(in srgb, var(--color-online) 20%, transparent);
     animation: check-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 

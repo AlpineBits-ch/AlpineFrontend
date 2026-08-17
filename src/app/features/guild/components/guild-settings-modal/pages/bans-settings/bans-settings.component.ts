@@ -58,16 +58,17 @@ export class BansSettingsComponent implements OnInit {
     readonly filteredBans = computed(() => {
         const q = this.filter().trim().toLowerCase();
         if (!q) return this.bans();
-        return this.bans().filter(row =>
-            this.displayName(row).toLowerCase().includes(q)
-            || (row.ban.reason ?? '').toLowerCase().includes(q)
-            || row.ban.userId.toLowerCase().includes(q)
+        return this.bans().filter(
+            row =>
+                this.displayName(row).toLowerCase().includes(q) ||
+                (row.ban.reason ?? '').toLowerCase().includes(q) ||
+                row.ban.userId.toLowerCase().includes(q),
         );
     });
 
     /** Whichever of the two paths is active resolves to the one id that gets banned. */
     protected readonly banTargetUserId = computed(() =>
-        this.banMode() === 'id' ? this.banUserId().trim() : this.banTarget()?.userId ?? ''
+        this.banMode() === 'id' ? this.banUserId().trim() : (this.banTarget()?.userId ?? ''),
     );
 
     protected readonly canBan = computed(() => this.banTargetUserId().length > 0);
@@ -101,10 +102,12 @@ export class BansSettingsComponent implements OnInit {
         this.guildService.getBans(this.guild().id).subscribe({
             next: bans => {
                 // Rows the profile cache already knows about paint with a name straight away and never reach the wire at all.
-                this.bans.set(bans.map(ban => ({
-                    ban,
-                    profile: this.profileService.getCachedByUserId(ban.userId) ?? null,
-                })));
+                this.bans.set(
+                    bans.map(ban => ({
+                        ban,
+                        profile: this.profileService.getCachedByUserId(ban.userId) ?? null,
+                    })),
+                );
                 this.loading.set(false);
                 this.resolveMissingProfiles(bans);
             },
@@ -173,9 +176,11 @@ export class BansSettingsComponent implements OnInit {
     }
 
     memberName(member: GuildMemberDto): string {
-        return member.profile?.userName
-            ?? member.nickname
-            ?? this.translate.instant('GUILD_SETTINGS.BANS.UNKNOWN_MEMBER');
+        return (
+            member.profile?.userName ??
+            member.nickname ??
+            this.translate.instant('GUILD_SETTINGS.BANS.UNKNOWN_MEMBER')
+        );
     }
 
     memberAvatarUrl(member: GuildMemberDto): string | undefined {
@@ -186,20 +191,22 @@ export class BansSettingsComponent implements OnInit {
         const userId = this.banTargetUserId();
         if (!userId || this.banning()) return;
         this.banning.set(true);
-        this.guildService.banMember(this.guild().id, {userId, reason: this.banReason().trim() || undefined}).subscribe({
-            next: () => {
-                this.showBanDialog.set(false);
-                this.banning.set(false);
-                this.banTarget.set(null);
-                this.banUserId.set('');
-                this.toastService.success(this.translate.instant('GUILD_SETTINGS.BANS.BAN_SUCCESS'));
-                this.load();
-            },
-            error: err => {
-                this.banning.set(false);
-                this.toastService.httpError(this.translate.instant('GUILD_SETTINGS.BANS.BAN_ERROR'), err);
-            },
-        });
+        this.guildService
+            .banMember(this.guild().id, {userId, reason: this.banReason().trim() || undefined})
+            .subscribe({
+                next: () => {
+                    this.showBanDialog.set(false);
+                    this.banning.set(false);
+                    this.banTarget.set(null);
+                    this.banUserId.set('');
+                    this.toastService.success(this.translate.instant('GUILD_SETTINGS.BANS.BAN_SUCCESS'));
+                    this.load();
+                },
+                error: err => {
+                    this.banning.set(false);
+                    this.toastService.httpError(this.translate.instant('GUILD_SETTINGS.BANS.BAN_ERROR'), err);
+                },
+            });
     }
 
     // ── Unban ────────────────────────────────────────────────────────────────
@@ -241,19 +248,22 @@ export class BansSettingsComponent implements OnInit {
         const missing = bans.filter(ban => !this.profileService.getCachedByUserId(ban.userId));
         if (missing.length === 0) return;
 
-        this.profileFetches = from(missing).pipe(
-            mergeMap(
-                ban => this.profileService.fetchByUserId(ban.userId).pipe(
-                    map(profile => ({ban, profile})),
-                    // One dead or deleted user id must not stop the rest of the queue.
-                    catchError(() => EMPTY),
+        this.profileFetches = from(missing)
+            .pipe(
+                mergeMap(
+                    ban =>
+                        this.profileService.fetchByUserId(ban.userId).pipe(
+                            map(profile => ({ban, profile})),
+                            // One dead or deleted user id must not stop the rest of the queue.
+                            catchError(() => EMPTY),
+                        ),
+                    BansSettingsComponent.PROFILE_CONCURRENCY,
                 ),
-                BansSettingsComponent.PROFILE_CONCURRENCY,
-            ),
-        ).subscribe(({ban, profile}) => {
-            // Matched back by ban id, not list index, since an unban landing mid-flight can shift the array and staple the profile onto the wrong row.
-            this.bans.update(list => list.map(r => r.ban.id === ban.id ? {...r, profile} : r));
-        });
+            )
+            .subscribe(({ban, profile}) => {
+                // Matched back by ban id, not list index, since an unban landing mid-flight can shift the array and staple the profile onto the wrong row.
+                this.bans.update(list => list.map(r => (r.ban.id === ban.id ? {...r, profile} : r)));
+            });
     }
 
     /** Someone already on the ban list is not a candidate to ban again. */

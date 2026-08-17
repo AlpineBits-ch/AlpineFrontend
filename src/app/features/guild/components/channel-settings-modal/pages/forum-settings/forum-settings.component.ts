@@ -1,4 +1,13 @@
-import {ChangeDetectionStrategy, Component, computed, effect, inject, input, signal, untracked} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    effect,
+    inject,
+    input,
+    signal,
+    untracked,
+} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {Button} from 'primeng/button';
@@ -40,7 +49,15 @@ const DEFAULT_TAG_COLOR = '#5865f2';
     selector: 'app-forum-settings',
     changeDetection: ChangeDetectionStrategy.OnPush,
     imports: [
-        FormsModule, TranslateModule, Button, InputText, Select, ToggleSwitch, Dialog, Tooltip, PrimeTemplate,
+        FormsModule,
+        TranslateModule,
+        Button,
+        InputText,
+        Select,
+        ToggleSwitch,
+        Dialog,
+        Tooltip,
+        PrimeTemplate,
         ForumTagChipComponent,
     ],
     templateUrl: './forum-settings.component.html',
@@ -196,7 +213,8 @@ export class ForumSettingsComponent {
     });
 
     protected readonly draftPreviewEmojiUrl = computed(() =>
-        this.draft().emojiId ? this.emojiUrls()[this.draft().emojiId] ?? null : null);
+        this.draft().emojiId ? (this.emojiUrls()[this.draft().emojiId] ?? null) : null,
+    );
 
     protected saveTag(): void {
         const d = this.draft();
@@ -229,7 +247,7 @@ export class ForumSettingsComponent {
                 emojiId: d.emojiId || '',
             };
             this.forumService.updateTag(d.id, dto).subscribe({
-                next: tag => done(this.tags().map(t => t.id === tag.id ? tag : t)),
+                next: tag => done(this.tags().map(t => (t.id === tag.id ? tag : t))),
                 error: fail,
             });
         } else {
@@ -260,7 +278,10 @@ export class ForumSettingsComponent {
 
         this.forumService.deleteTag(tag.id).subscribe({
             next: () => {
-                this.forumState.putTags(this.channel().id, this.tags().filter(t => t.id !== tag.id));
+                this.forumState.putTags(
+                    this.channel().id,
+                    this.tags().filter(t => t.id !== tag.id),
+                );
                 this.deleting.set(false);
                 this.showDeleteDialog.set(false);
             },
@@ -316,7 +337,7 @@ export class ForumSettingsComponent {
     }
 
     protected emojiUrlFor(tag: ForumTag): string | null {
-        return tag.emojiId ? this.emojiUrls()[tag.emojiId] ?? null : null;
+        return tag.emojiId ? (this.emojiUrls()[tag.emojiId] ?? null) : null;
     }
 
     private emptyDraft(): TagDraft {

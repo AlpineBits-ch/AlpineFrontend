@@ -1,9 +1,14 @@
 <div class="flex flex-col h-full bg-app-bg overflow-hidden">
-
     <!-- Same header height and safe-area treatment as every channel view, so the shell doesn't jump when stepping between the house and a board. -->
     <header class="app-header flex items-center gap-2 px-3 sm:px-5 border-b border-border-subtle shrink-0 bg-app-bg">
-        <p-button (onClick)="navService.mobileNavOpen.set(true)" [text]="true" class="lg:hidden" icon="pi pi-bars"
-                  severity="secondary" size="small"/>
+        <p-button
+            (onClick)="navService.mobileNavOpen.set(true)"
+            [text]="true"
+            class="lg:hidden"
+            icon="pi pi-bars"
+            severity="secondary"
+            size="small"
+        />
 
         <div class="flex items-center gap-2 sm:gap-3 min-w-0">
             <i class="pi pi-home text-text-muted shrink-0"></i>
@@ -16,14 +21,19 @@
         </div>
 
         <div class="flex items-center gap-1 ml-auto shrink-0">
-            <p-button (onClick)="refresh()" [disabled]="state().loading" [text]="true" icon="pi pi-refresh"
-                      severity="secondary" size="small"/>
+            <p-button
+                (onClick)="refresh()"
+                [disabled]="state().loading"
+                [text]="true"
+                icon="pi pi-refresh"
+                severity="secondary"
+                size="small"
+            />
         </div>
     </header>
 
     <div class="flex-1 min-h-0 overflow-y-auto thin-scrollbar px-3 sm:px-5 py-4">
         <div class="mx-auto w-full max-w-3xl flex flex-col gap-3">
-
             @if (state().error) {
                 <!-- Sits above whatever was already drawn rather than replacing it: a house from a minute ago is a better answer than an empty one, as long as it says so. -->
                 <div class="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3">
@@ -32,8 +42,7 @@
                         {{ (state().forbidden ? 'HOUSE_HOME.FORBIDDEN' : 'HOUSE_HOME.ERROR') | translate }}
                     </p>
                     @if (!state().forbidden) {
-                        <p-button (onClick)="refresh()" [label]="'HOUSE_HOME.RETRY' | translate" severity="secondary"
-                                  size="small"/>
+                        <p-button (onClick)="refresh()" [label]="'HOUSE_HOME.RETRY' | translate" severity="secondary" size="small" />
                     }
                 </div>
             }
@@ -82,15 +91,17 @@
                         </p>
                     } @else {
                         @for (occurrence of ch.mine; track trackOccurrence($index, occurrence)) {
-                            <button (click)="openChannel(occurrence.channelId)"
-                                    class="w-full flex items-center gap-3 px-4 py-2.5 text-left border-0 bg-transparent
-                                           cursor-pointer hover:bg-hover transition-colors">
+                            <button
+                                (click)="openChannel(occurrence.channelId)"
+                                class="w-full flex items-center gap-3 px-4 py-2.5 text-left border-0 bg-transparent cursor-pointer hover:bg-hover transition-colors"
+                            >
                                 <span class="text-[0.8125rem] text-text-primary truncate flex-1">
                                     {{ occurrence.title }}
                                 </span>
                                 @if (occurrence.isOverdue) {
-                                    <span class="shrink-0 rounded-full bg-offline/15 px-2 py-0.5 text-[0.625rem]
-                                                 font-semibold uppercase tracking-wide text-offline">
+                                    <span
+                                        class="shrink-0 rounded-full bg-offline/15 px-2 py-0.5 text-[0.625rem] font-semibold uppercase tracking-wide text-offline"
+                                    >
                                         {{ 'HOUSE_HOME.OVERDUE' | translate }}
                                     </span>
                                 } @else {
@@ -108,9 +119,10 @@
             @if (lists(); as listSections) {
                 @for (list of listSections; track trackList($index, list)) {
                     <section class="rounded-xl border border-border bg-card overflow-hidden">
-                        <button (click)="openChannel(list.channelId)"
-                                class="w-full flex items-center gap-2 px-4 py-2.5 border-0 bg-transparent text-left
-                                       cursor-pointer hover:bg-hover transition-colors border-b border-border-subtle">
+                        <button
+                            (click)="openChannel(list.channelId)"
+                            class="w-full flex items-center gap-2 px-4 py-2.5 border-0 bg-transparent text-left cursor-pointer hover:bg-hover transition-colors border-b border-border-subtle"
+                        >
                             <i class="pi pi-check-square text-text-muted text-xs"></i>
                             <span class="text-[0.8125rem] font-semibold text-text-primary truncate">
                                 {{ list.channelName }}
@@ -152,9 +164,10 @@
                     </div>
 
                     @for (item of p.soonest; track trackPantryItem($index, item)) {
-                        <button (click)="openChannel(item.channelId)"
-                                class="w-full flex items-center gap-3 px-4 py-2 text-left border-0 bg-transparent
-                                       cursor-pointer hover:bg-hover transition-colors">
+                        <button
+                            (click)="openChannel(item.channelId)"
+                            class="w-full flex items-center gap-3 px-4 py-2 text-left border-0 bg-transparent cursor-pointer hover:bg-hover transition-colors"
+                        >
                             <span class="text-[0.8125rem] text-text-primary truncate flex-1">{{ item.name }}</span>
                             <span class="shrink-0 text-[0.6875rem] text-text-muted">{{ timeLabel(item.expiresAt) }}</span>
                         </button>
@@ -173,9 +186,10 @@
                     </div>
 
                     @for (row of ledgerRows(); track row.entry.channelId) {
-                        <button (click)="openChannel(row.entry.channelId)"
-                                class="w-full flex items-center gap-3 px-4 py-2.5 text-left border-0 bg-transparent
-                                       cursor-pointer hover:bg-hover transition-colors">
+                        <button
+                            (click)="openChannel(row.entry.channelId)"
+                            class="w-full flex items-center gap-3 px-4 py-2.5 text-left border-0 bg-transparent cursor-pointer hover:bg-hover transition-colors"
+                        >
                             <span class="text-[0.8125rem] text-text-primary truncate flex-1">
                                 {{ row.entry.channelName }}
                             </span>
@@ -184,11 +198,13 @@
                                     {{ 'HOUSE_HOME.LEDGER_SETTLED' | translate }}
                                 </span>
                             } @else {
-                                <span [class]="row.direction === 'owed' ? 'text-online' : 'text-connecting'"
-                                      class="shrink-0 text-[0.8125rem] font-semibold">{{ row.amount }}</span>
+                                <span
+                                    [class]="row.direction === 'owed' ? 'text-online' : 'text-connecting'"
+                                    class="shrink-0 text-[0.8125rem] font-semibold"
+                                    >{{ row.amount }}</span
+                                >
                                 <span class="shrink-0 text-[0.6875rem] text-text-muted">
-                                    {{ (row.direction === 'owed' ? 'HOUSE_HOME.LEDGER_OWED' : 'HOUSE_HOME.LEDGER_OWES')
-                                    | translate }}
+                                    {{ (row.direction === 'owed' ? 'HOUSE_HOME.LEDGER_OWED' : 'HOUSE_HOME.LEDGER_OWES') | translate }}
                                 </span>
                             }
                         </button>
@@ -215,9 +231,10 @@
                         </p>
                     } @else {
                         @for (decision of d.awaitingMyVote; track trackDecision($index, decision)) {
-                            <button (click)="openChannel(decision.channelId)"
-                                    class="w-full flex items-center gap-3 px-4 py-2.5 text-left border-0 bg-transparent
-                                           cursor-pointer hover:bg-hover transition-colors">
+                            <button
+                                (click)="openChannel(decision.channelId)"
+                                class="w-full flex items-center gap-3 px-4 py-2.5 text-left border-0 bg-transparent cursor-pointer hover:bg-hover transition-colors"
+                            >
                                 <span class="text-[0.8125rem] text-text-primary truncate flex-1">
                                     {{ decision.title }}
                                 </span>
@@ -255,9 +272,10 @@
                     }
 
                     @for (row of billRows(); track trackBill($index, row)) {
-                        <button (click)="openChannel(row.bill.channelId)"
-                                class="w-full flex items-center gap-3 px-4 py-2.5 text-left border-0 bg-transparent
-                                       cursor-pointer hover:bg-hover transition-colors">
+                        <button
+                            (click)="openChannel(row.bill.channelId)"
+                            class="w-full flex items-center gap-3 px-4 py-2.5 text-left border-0 bg-transparent cursor-pointer hover:bg-hover transition-colors"
+                        >
                             <span class="text-[0.8125rem] text-text-primary truncate flex-1">{{ row.bill.description }}</span>
                             <span class="shrink-0 text-[0.6875rem] text-text-muted">{{ row.dueLabel }}</span>
                             @if (row.myShare) {
@@ -295,9 +313,10 @@
                         </p>
                     } @else {
                         @for (meal of m.today; track trackMeal($index, meal)) {
-                            <button (click)="openChannel(meal.channelId)"
-                                    class="w-full flex items-center gap-3 px-4 py-2 text-left border-0 bg-transparent
-                                           cursor-pointer hover:bg-hover transition-colors">
+                            <button
+                                (click)="openChannel(meal.channelId)"
+                                class="w-full flex items-center gap-3 px-4 py-2 text-left border-0 bg-transparent cursor-pointer hover:bg-hover transition-colors"
+                            >
                                 <span class="shrink-0 text-[0.5625rem] uppercase tracking-wide text-text-muted w-16">
                                     {{ mealSlotKey(meal) | translate }}
                                 </span>
@@ -341,9 +360,10 @@
                     </div>
 
                     @for (asset of mt.attention; track trackAsset($index, asset)) {
-                        <button (click)="openChannel(asset.channelId)"
-                                class="w-full flex items-center gap-3 px-4 py-2 text-left border-0 bg-transparent
-                                       cursor-pointer hover:bg-hover transition-colors">
+                        <button
+                            (click)="openChannel(asset.channelId)"
+                            class="w-full flex items-center gap-3 px-4 py-2 text-left border-0 bg-transparent cursor-pointer hover:bg-hover transition-colors"
+                        >
                             <span class="text-[0.8125rem] text-text-primary truncate flex-1">{{ asset.name }}</span>
                             <span class="shrink-0 text-[0.6875rem] text-text-muted">{{ assetReasonKey(asset) | translate }}</span>
                         </button>
@@ -381,7 +401,7 @@
 
             <!-- The editable board gates itself on the Presence module and renders nothing when the house doesn't have it. -->
             @if (awayBoardVisible()) {
-                <app-away-board [guildId]="guildId()"/>
+                <app-away-board [guildId]="guildId()" />
             }
 
             <!-- ── Who's home ── Asserted, not derived, and it expires, which is why no live status means simply absent, not "unknown"; not connection presence. -->
@@ -401,8 +421,7 @@
                     } @else {
                         @for (status of statuses; track trackStatus($index, status)) {
                             <div class="flex items-center gap-3 px-4 py-2">
-                                <i [class]="statusMeta(status).icon + ' ' + statusMeta(status).tone"
-                                   class="text-xs shrink-0"></i>
+                                <i [class]="statusMeta(status).icon + ' ' + statusMeta(status).tone" class="text-xs shrink-0"></i>
                                 <span class="text-[0.8125rem] text-text-primary truncate">
                                     {{ displayName(status.userId) }}
                                 </span>
@@ -420,7 +439,6 @@
                     }
                 </section>
             }
-
         </div>
     </div>
 </div>

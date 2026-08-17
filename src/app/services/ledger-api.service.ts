@@ -11,11 +11,7 @@ import {
     Settlement,
     TransferSuggestion,
 } from '../dtos/response/ledger.dto';
-import {
-    ExpenseReceipt,
-    LedgerSummary,
-    LedgerSummaryGroupBy,
-} from '../dtos/response/ledger-insight.dto';
+import {ExpenseReceipt, LedgerSummary, LedgerSummaryGroupBy} from '../dtos/response/ledger-insight.dto';
 import {
     CreateExpenseDto,
     RecordSettlementDto,
@@ -81,7 +77,9 @@ export class LedgerApiService {
 
     /** At most n-1 transfers that clear the board. A plan; nothing is recorded by asking for it. */
     settleSuggestion(channelId: string): Observable<TransferSuggestion[]> {
-        return this.http.get<TransferSuggestion[]>(`${this.base}/channels/${channelId}/ledger/settle-suggestion`);
+        return this.http.get<TransferSuggestion[]>(
+            `${this.base}/channels/${channelId}/ledger/settle-suggestion`,
+        );
     }
 
     /** Records that someone paid someone else; it moves no money. Your own needs `AddExpenses`, one between two other people needs `ManageLedger`. */

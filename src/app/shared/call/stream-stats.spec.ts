@@ -95,7 +95,9 @@ describe('inboundStatsFor', () => {
 
     it('resolves the codec through the stat codecId', () => {
         const codec = {
-            type: 'codec', id: 'codec-1', mimeType: 'video/H264',
+            type: 'codec',
+            id: 'codec-1',
+            mimeType: 'video/H264',
             sdpFmtpLine: 'level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01f',
         } as unknown as RTCStats;
 
@@ -107,11 +109,21 @@ describe('inboundStatsFor', () => {
 
     it('reads the succeeded candidate pair for the transport row', () => {
         const pair = {
-            type: 'candidate-pair', id: 'pair-1', state: 'succeeded', nominated: true,
-            currentRoundTripTime: 0.018, localCandidateId: 'lc', remoteCandidateId: 'rc',
+            type: 'candidate-pair',
+            id: 'pair-1',
+            state: 'succeeded',
+            nominated: true,
+            currentRoundTripTime: 0.018,
+            localCandidateId: 'lc',
+            remoteCandidateId: 'rc',
             availableOutgoingBitrate: 2_500_000,
         } as unknown as RTCStats;
-        const local = {type: 'local-candidate', id: 'lc', candidateType: 'srflx', protocol: 'udp'} as unknown as RTCStats;
+        const local = {
+            type: 'local-candidate',
+            id: 'lc',
+            candidateType: 'srflx',
+            protocol: 'udp',
+        } as unknown as RTCStats;
         const remote = {type: 'remote-candidate', id: 'rc', candidateType: 'relay'} as unknown as RTCStats;
 
         const snapshot = inboundStatsFor(report([inboundRtp('3'), pair, local, remote]), '3');
@@ -148,7 +160,10 @@ describe('inboundStatsFor', () => {
     it('ignores a candidate pair that is not the succeeded one', () => {
         // A connection keeps failed and in-progress pairs in the report for its whole life.
         const failed = {
-            type: 'candidate-pair', id: 'pair-1', state: 'failed', currentRoundTripTime: 9,
+            type: 'candidate-pair',
+            id: 'pair-1',
+            state: 'failed',
+            currentRoundTripTime: 9,
         } as unknown as RTCStats;
 
         const snapshot = inboundStatsFor(report([inboundRtp('3'), failed]), '3');
@@ -159,7 +174,11 @@ describe('inboundStatsFor', () => {
 
 function outboundRtp(mid: string, extra: Record<string, unknown> = {}): RTCStats {
     return {
-        type: 'outbound-rtp', kind: 'video', mid, id: `out-${mid}-${extra['rid'] ?? 'solo'}`, ...extra,
+        type: 'outbound-rtp',
+        kind: 'video',
+        mid,
+        id: `out-${mid}-${extra['rid'] ?? 'solo'}`,
+        ...extra,
     } as unknown as RTCStats;
 }
 
@@ -174,7 +193,7 @@ describe('outboundStatsFromReport', () => {
         );
 
         expect(snapshot?.direction).toBe('outbound');
-        expect(snapshot?.layers.map((l: typeof snapshot['layers'][number]) => l.rid)).toEqual(['a', 'b']);
+        expect(snapshot?.layers.map((l: (typeof snapshot)['layers'][number]) => l.rid)).toEqual(['a', 'b']);
         expect(snapshot?.layers[0].width).toBe(1920);
     });
 
@@ -189,17 +208,30 @@ describe('outboundStatsFromReport', () => {
         const snapshot = outboundStatsFromReport(
             report([
                 outboundRtp('1', {
-                    ssrc: 1, framesPerSecond: 30, framesEncoded: 900, keyFramesEncoded: 4,
-                    packetsSent: 5000, nackCount: 2, pliCount: 1, firCount: 0,
-                    qpSum: 27_000, encoderImplementation: 'OpenH264',
+                    ssrc: 1,
+                    framesPerSecond: 30,
+                    framesEncoded: 900,
+                    keyFramesEncoded: 4,
+                    packetsSent: 5000,
+                    nackCount: 2,
+                    pliCount: 1,
+                    firCount: 0,
+                    qpSum: 27_000,
+                    encoderImplementation: 'OpenH264',
                 }),
             ]),
             '1',
         );
 
         expect(snapshot?.layers[0]).toMatchObject({
-            fps: 30, framesEncoded: 900, keyFrames: 4, packets: 5000,
-            nackCount: 2, pliCount: 1, firCount: 0, encoder: 'OpenH264',
+            fps: 30,
+            framesEncoded: 900,
+            keyFrames: 4,
+            packets: 5000,
+            nackCount: 2,
+            pliCount: 1,
+            firCount: 0,
+            encoder: 'OpenH264',
         });
         // qpSum is cumulative over framesEncoded; the panel wants the average.
         expect(snapshot?.layers[0].qp).toBe(30);
@@ -207,7 +239,8 @@ describe('outboundStatsFromReport', () => {
 
     it('omits qp when there are no encoded frames to average over', () => {
         const snapshot = outboundStatsFromReport(
-            report([outboundRtp('1', {qpSum: 0, framesEncoded: 0})]), '1',
+            report([outboundRtp('1', {qpSum: 0, framesEncoded: 0})]),
+            '1',
         );
 
         expect(snapshot?.layers[0].qp).toBeUndefined();
@@ -216,8 +249,12 @@ describe('outboundStatsFromReport', () => {
     it('folds the remote inbound report into packets lost for the matching ssrc', () => {
         // The only view a sender has of what the receiver actually got.
         const remote = {
-            type: 'remote-inbound-rtp', id: 'ri-1', kind: 'video', ssrc: 1,
-            packetsLost: 12, roundTripTime: 0.021,
+            type: 'remote-inbound-rtp',
+            id: 'ri-1',
+            kind: 'video',
+            ssrc: 1,
+            packetsLost: 12,
+            roundTripTime: 0.021,
         } as unknown as RTCStats;
 
         const snapshot = outboundStatsFromReport(report([outboundRtp('1', {ssrc: 1}), remote]), '1');

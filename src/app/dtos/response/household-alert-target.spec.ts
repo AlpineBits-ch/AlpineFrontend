@@ -20,8 +20,9 @@ describe('householdAlertTarget', () => {
      */
     it('routes ledger.bill_posted to the expense, unlike its sibling bill kinds', () => {
         expect(householdAlertTarget(HouseholdAlertKind.LedgerBillPosted)).toBe('expense');
-        expect(householdAlertTarget(HouseholdAlertKind.LedgerBillPosted))
-            .not.toBe(householdAlertTarget(HouseholdAlertKind.LedgerBillDue));
+        expect(householdAlertTarget(HouseholdAlertKind.LedgerBillPosted)).not.toBe(
+            householdAlertTarget(HouseholdAlertKind.LedgerBillDue),
+        );
     });
 
     it('routes the maintenance kinds to an asset', () => {

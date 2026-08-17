@@ -58,7 +58,9 @@ export class TitlebarComponent implements OnInit, OnDestroy {
     private chrome = inject(WindowChrome);
 
     /** Must use `stream`, not `translate.instant`: this component is built before the language file loads. */
-    private readonly keybindsLabel = toSignal(this.translate.stream('TITLEBAR.HELP_KEYBINDS'), {initialValue: ''});
+    private readonly keybindsLabel = toSignal(this.translate.stream('TITLEBAR.HELP_KEYBINDS'), {
+        initialValue: '',
+    });
     private readonly aboutLabel = toSignal(this.translate.stream('TITLEBAR.HELP_ABOUT'), {initialValue: ''});
 
     @ViewChild('inboxPopover') private inboxPopover?: Popover;
@@ -79,8 +81,8 @@ export class TitlebarComponent implements OnInit, OnDestroy {
                 ...(view.type === 'channel'
                     ? {detail: `${TitlebarComponent.channelPrefix(view.channel.type)}${view.channel.name}`}
                     : view.type === 'wiki'
-                        ? {detailKey: 'TITLEBAR.WIKI'}
-                        : {}),
+                      ? {detailKey: 'TITLEBAR.WIKI'}
+                      : {}),
             };
         }
 
@@ -136,10 +138,12 @@ export class TitlebarComponent implements OnInit, OnDestroy {
 
     constructor() {
         this.inAppShell.set(this.router.url.startsWith('/overview'));
-        this.router.events.pipe(
-            filter((e): e is NavigationEnd => e instanceof NavigationEnd),
-            takeUntilDestroyed(),
-        ).subscribe(e => this.inAppShell.set(e.urlAfterRedirects.startsWith('/overview')));
+        this.router.events
+            .pipe(
+                filter((e): e is NavigationEnd => e instanceof NavigationEnd),
+                takeUntilDestroyed(),
+            )
+            .subscribe(e => this.inAppShell.set(e.urlAfterRedirects.startsWith('/overview')));
     }
 
     async ngOnInit(): Promise<void> {

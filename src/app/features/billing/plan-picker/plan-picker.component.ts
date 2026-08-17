@@ -75,9 +75,8 @@ export class PlanPickerComponent {
             .filter(plan => sameSubjectKind(plan.subjectKind, subject.kind))
             .map(plan => ({
                 plan,
-                price: plan.priceMinorUnits === null
-                    ? null
-                    : formatMinor(plan.priceMinorUnits, plan.currency),
+                price:
+                    plan.priceMinorUnits === null ? null : formatMinor(plan.priceMinorUnits, plan.currency),
                 intervalKey: plan.interval === 'year' ? 'BILLING.INTERVAL.YEAR' : 'BILLING.INTERVAL.MONTH',
                 current: current !== null && plan.name === current,
                 buyable: sellable && plan.purchasable && plan.name !== current,

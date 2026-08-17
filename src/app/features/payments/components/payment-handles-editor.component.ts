@@ -1,4 +1,13 @@
-import {ChangeDetectionStrategy, Component, computed, effect, inject, input, signal, untracked} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    effect,
+    inject,
+    input,
+    signal,
+    untracked,
+} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {Button} from 'primeng/button';
@@ -33,7 +42,12 @@ interface KindOption {
     selector: 'app-payment-handles-editor',
     changeDetection: ChangeDetectionStrategy.OnPush,
     imports: [
-        Button, InputText, Select, ToggleSwitch, FormsModule, TranslateModule,
+        Button,
+        InputText,
+        Select,
+        ToggleSwitch,
+        FormsModule,
+        TranslateModule,
         RecipientTrustReviewComponent,
     ],
     template: `
@@ -64,50 +78,78 @@ interface KindOption {
                 </div>
 
                 @for (row of rows(); track row.index) {
-                    <div class="rounded-lg border border-white/[0.08] p-3 flex flex-col gap-2"
-                         [attr.data-testid]="'handle-row-' + row.index">
+                    <div
+                        class="rounded-lg border border-white/[0.08] p-3 flex flex-col gap-2"
+                        [attr.data-testid]="'handle-row-' + row.index"
+                    >
                         <div class="flex gap-2 items-start">
-                            <p-select [options]="kindOptions()" optionLabel="label"
-                                      optionValue="value" [ngModel]="row.handle.kind"
-                                      (ngModelChange)="setKind(row.index, $event)"
-                                      styleClass="w-40" [ariaLabel]="'PAY.EDITOR.KIND' | translate"/>
+                            <p-select
+                                [options]="kindOptions()"
+                                optionLabel="label"
+                                optionValue="value"
+                                [ngModel]="row.handle.kind"
+                                (ngModelChange)="setKind(row.index, $event)"
+                                styleClass="w-40"
+                                [ariaLabel]="'PAY.EDITOR.KIND' | translate"
+                            />
 
                             <div class="flex-1 min-w-0">
-                                <input pInputText class="w-full" [ngModel]="row.raw"
-                                       (ngModelChange)="setValue(row.index, $event)"
-                                       (blur)="normalize(row.index)"
-                                       [placeholder]="row.placeholderKey | translate"
-                                       [attr.aria-invalid]="!!row.problemKey"/>
+                                <input
+                                    pInputText
+                                    class="w-full"
+                                    [ngModel]="row.raw"
+                                    (ngModelChange)="setValue(row.index, $event)"
+                                    (blur)="normalize(row.index)"
+                                    [placeholder]="row.placeholderKey | translate"
+                                    [attr.aria-invalid]="!!row.problemKey"
+                                />
                                 @if (row.problemKey) {
-                                    <p class="m-0 mt-1 text-xs text-red-300"
-                                       [attr.data-testid]="'handle-problem-' + row.index">
+                                    <p
+                                        class="m-0 mt-1 text-xs text-red-300"
+                                        [attr.data-testid]="'handle-problem-' + row.index"
+                                    >
                                         {{ row.problemKey | translate }}
                                     </p>
                                 }
                             </div>
 
-                            <p-button (onClick)="removeRow(row.index)" [text]="true" size="small"
-                                      severity="danger" icon="pi pi-times"
-                                      [ariaLabel]="'PAY.EDITOR.REMOVE' | translate"/>
+                            <p-button
+                                (onClick)="removeRow(row.index)"
+                                [text]="true"
+                                size="small"
+                                severity="danger"
+                                icon="pi pi-times"
+                                [ariaLabel]="'PAY.EDITOR.REMOVE' | translate"
+                            />
                         </div>
 
-                        <input pInputText class="w-full" [ngModel]="row.handle.label ?? ''"
-                               (ngModelChange)="setLabel(row.index, $event)"
-                               [maxlength]="labelMaxLength"
-                               [placeholder]="'PAY.EDITOR.LABEL_PLACEHOLDER' | translate"/>
+                        <input
+                            pInputText
+                            class="w-full"
+                            [ngModel]="row.handle.label ?? ''"
+                            (ngModelChange)="setLabel(row.index, $event)"
+                            [maxlength]="labelMaxLength"
+                            [placeholder]="'PAY.EDITOR.LABEL_PLACEHOLDER' | translate"
+                        />
                     </div>
                 }
 
                 <div>
-                    <p-button (onClick)="addRow()" [text]="true" size="small"
-                              [disabled]="rows().length >= maxHandles"
-                              icon="pi pi-plus"
-                              [label]="'PAY.EDITOR.ADD' | translate"/>
+                    <p-button
+                        (onClick)="addRow()"
+                        [text]="true"
+                        size="small"
+                        [disabled]="rows().length >= maxHandles"
+                        icon="pi pi-plus"
+                        [label]="'PAY.EDITOR.ADD' | translate"
+                    />
                 </div>
 
                 @if (needsAddress()) {
-                    <div class="rounded-lg border border-white/[0.08] p-3 flex flex-col gap-2"
-                         data-testid="creditor-address">
+                    <div
+                        class="rounded-lg border border-white/[0.08] p-3 flex flex-col gap-2"
+                        data-testid="creditor-address"
+                    >
                         <p class="m-0 text-[0.8125rem] font-medium text-text-primary">
                             {{ 'PAY.EDITOR.ADDRESS_TITLE' | translate }}
                         </p>
@@ -115,27 +157,50 @@ interface KindOption {
                             {{ 'PAY.EDITOR.ADDRESS_WHY' | translate }}
                         </p>
 
-                        <input pInputText [ngModel]="address().name"
-                               (ngModelChange)="setAddress('name', $event)"
-                               [placeholder]="'PAY.EDITOR.ADDRESS_NAME' | translate"/>
+                        <input
+                            pInputText
+                            [ngModel]="address().name"
+                            (ngModelChange)="setAddress('name', $event)"
+                            [placeholder]="'PAY.EDITOR.ADDRESS_NAME' | translate"
+                        />
                         <div class="flex gap-2">
-                            <input pInputText class="flex-1" [ngModel]="address().street ?? ''"
-                                   (ngModelChange)="setAddress('street', $event)"
-                                   [placeholder]="'PAY.EDITOR.ADDRESS_STREET' | translate"/>
-                            <input pInputText class="w-24" [ngModel]="address().buildingNumber ?? ''"
-                                   (ngModelChange)="setAddress('buildingNumber', $event)"
-                                   [placeholder]="'PAY.EDITOR.ADDRESS_NUMBER' | translate"/>
+                            <input
+                                pInputText
+                                class="flex-1"
+                                [ngModel]="address().street ?? ''"
+                                (ngModelChange)="setAddress('street', $event)"
+                                [placeholder]="'PAY.EDITOR.ADDRESS_STREET' | translate"
+                            />
+                            <input
+                                pInputText
+                                class="w-24"
+                                [ngModel]="address().buildingNumber ?? ''"
+                                (ngModelChange)="setAddress('buildingNumber', $event)"
+                                [placeholder]="'PAY.EDITOR.ADDRESS_NUMBER' | translate"
+                            />
                         </div>
                         <div class="flex gap-2">
-                            <input pInputText class="w-28" [ngModel]="address().postCode"
-                                   (ngModelChange)="setAddress('postCode', $event)"
-                                   [placeholder]="'PAY.EDITOR.ADDRESS_POSTCODE' | translate"/>
-                            <input pInputText class="flex-1" [ngModel]="address().town"
-                                   (ngModelChange)="setAddress('town', $event)"
-                                   [placeholder]="'PAY.EDITOR.ADDRESS_TOWN' | translate"/>
-                            <input pInputText class="w-20" [ngModel]="address().country"
-                                   (ngModelChange)="setAddress('country', $event)"
-                                   [placeholder]="'PAY.EDITOR.ADDRESS_COUNTRY' | translate"/>
+                            <input
+                                pInputText
+                                class="w-28"
+                                [ngModel]="address().postCode"
+                                (ngModelChange)="setAddress('postCode', $event)"
+                                [placeholder]="'PAY.EDITOR.ADDRESS_POSTCODE' | translate"
+                            />
+                            <input
+                                pInputText
+                                class="flex-1"
+                                [ngModel]="address().town"
+                                (ngModelChange)="setAddress('town', $event)"
+                                [placeholder]="'PAY.EDITOR.ADDRESS_TOWN' | translate"
+                            />
+                            <input
+                                pInputText
+                                class="w-20"
+                                [ngModel]="address().country"
+                                (ngModelChange)="setAddress('country', $event)"
+                                [placeholder]="'PAY.EDITOR.ADDRESS_COUNTRY' | translate"
+                            />
                         </div>
                         @if (addressIncomplete()) {
                             <p class="m-0 text-xs text-amber-300" data-testid="address-incomplete">
@@ -174,8 +239,11 @@ interface KindOption {
               number itself is the other way round - one value on the account, edited in profile
               settings, which is where the link below points.
             -->
-            <div class="rounded-lg border border-amber-500/25 bg-amber-500/[0.04] p-3
-                        flex flex-col gap-2" data-testid="phone-sharing">
+            <div
+                class="rounded-lg border border-amber-500/25 bg-amber-500/[0.04] p-3
+                        flex flex-col gap-2"
+                data-testid="phone-sharing"
+            >
                 <div class="flex items-start justify-between gap-3">
                     <div class="min-w-0">
                         <p class="m-0 text-[0.8125rem] font-medium text-text-primary">
@@ -185,9 +253,12 @@ interface KindOption {
                             {{ 'PAY.PHONE.SUBTITLE' | translate }}
                         </p>
                     </div>
-                    <p-toggleswitch (ngModelChange)="setPhoneSharing($event)"
-                                    [ariaLabel]="'PAY.PHONE.TITLE' | translate"
-                                    [disabled]="phoneBusy()" [ngModel]="sharingPhone()"/>
+                    <p-toggleswitch
+                        (ngModelChange)="setPhoneSharing($event)"
+                        [ariaLabel]="'PAY.PHONE.TITLE' | translate"
+                        [disabled]="phoneBusy()"
+                        [ngModel]="sharingPhone()"
+                    />
                 </div>
 
                 <!-- The distinction this card exists to make. -->
@@ -208,8 +279,7 @@ interface KindOption {
                               something is being given. It is also the number the payer will type
                               into TWINT, so seeing it here is the last chance to spot a typo.
                             -->
-                            <p class="m-0 text-xs text-text-muted"
-                               data-testid="phone-shared-value">
+                            <p class="m-0 text-xs text-text-muted" data-testid="phone-shared-value">
                                 {{ 'PAY.PHONE.SHARED_NOW' | translate: {number: number} }}
                             </p>
                         }
@@ -224,15 +294,18 @@ interface KindOption {
                           remains indistinguishable from a housemate who opted out; the only
                           account we may make a statement about is our own.
                         -->
-                        <div class="flex flex-col gap-1.5 items-start"
-                             data-testid="phone-no-account-number">
+                        <div class="flex flex-col gap-1.5 items-start" data-testid="phone-no-account-number">
                             <p class="m-0 text-xs text-amber-300">
                                 {{ 'PAY.PHONE.ACCOUNT_HAS_NONE' | translate }}
                             </p>
-                            <p-button (onClick)="openAccountPhoneSettings()" [text]="true"
-                                      size="small" icon="pi pi-arrow-up-right"
-                                      data-testid="phone-account-link"
-                                      [label]="'PAY.PHONE.ACCOUNT_LINK' | translate"/>
+                            <p-button
+                                (onClick)="openAccountPhoneSettings()"
+                                [text]="true"
+                                size="small"
+                                icon="pi pi-arrow-up-right"
+                                data-testid="phone-account-link"
+                                [label]="'PAY.PHONE.ACCOUNT_LINK' | translate"
+                            />
                         </div>
                     }
                 }
@@ -240,7 +313,7 @@ interface KindOption {
 
             @if (available()) {
                 @if (plan(); as sealPlan) {
-                    <app-recipient-trust-review [plan]="sealPlan" [(confirmed)]="confirmedDevices"/>
+                    <app-recipient-trust-review [plan]="sealPlan" [(confirmed)]="confirmedDevices" />
                 }
 
                 @if (blockedRemaining() > 0) {
@@ -250,13 +323,21 @@ interface KindOption {
                 }
 
                 <div class="flex gap-2 items-center" data-testid="seal-actions">
-                    <p-button (onClick)="save()" [disabled]="!canSave()" [loading]="busy()"
-                              [label]="(plan() ? 'PAY.EDITOR.SEAL' : 'PAY.EDITOR.REVIEW') | translate"/>
+                    <p-button
+                        (onClick)="save()"
+                        [disabled]="!canSave()"
+                        [loading]="busy()"
+                        [label]="(plan() ? 'PAY.EDITOR.SEAL' : 'PAY.EDITOR.REVIEW') | translate"
+                    />
 
                     @if (hasStored()) {
-                        <p-button (onClick)="remove()" [text]="true" severity="danger"
-                                  [disabled]="busy()"
-                                  [label]="'PAY.EDITOR.DELETE' | translate"/>
+                        <p-button
+                            (onClick)="remove()"
+                            [text]="true"
+                            severity="danger"
+                            [disabled]="busy()"
+                            [label]="'PAY.EDITOR.DELETE' | translate"
+                        />
                     }
                 </div>
 
@@ -294,12 +375,10 @@ export class PaymentHandlesEditorComponent {
 
     /** The phone opt-in, held separately from {@link busy} so a slow toggle does not disable Save. */
     protected readonly phoneBusy = signal(false);
-    protected readonly sharingPhone = computed(() =>
-        this.handles.isSharingPhoneNumber(this.guildId()));
+    protected readonly sharingPhone = computed(() => this.handles.isSharingPhoneNumber(this.guildId()));
 
     /** The number on the caller's own account, or null when there is none. */
-    protected readonly accountPhoneNumber = computed(() =>
-        this.users.self()?.phoneNumber || null);
+    protected readonly accountPhoneNumber = computed(() => this.users.self()?.phoneNumber || null);
 
     /** False until the self record has arrived, so nothing below asserts an absence it cannot see. */
     protected readonly accountLoaded = computed(() => this.users.self() !== null);
@@ -308,36 +387,43 @@ export class PaymentHandlesEditorComponent {
     protected readonly plan = signal<SealPlan | null>(null);
     protected readonly confirmedDevices = signal<ReadonlySet<string>>(new Set<string>());
 
-    protected readonly kindOptions = computed<KindOption[]>(() => PAYMENT_HANDLE_KINDS.map(kind => ({
-        value: kind,
-        label: this.translate.instant(`PAY.KIND.${kind.toUpperCase()}`),
-    })));
+    protected readonly kindOptions = computed<KindOption[]>(() =>
+        PAYMENT_HANDLE_KINDS.map(kind => ({
+            value: kind,
+            label: this.translate.instant(`PAY.KIND.${kind.toUpperCase()}`),
+        })),
+    );
 
-    protected readonly rows = computed(() => this.draft().map((entry, index) => {
-        const check = checkHandleValue(entry.handle.kind, entry.raw);
-        return {
-            index,
-            handle: entry.handle,
-            raw: entry.raw,
-            placeholderKey: `PAY.EDITOR.PLACEHOLDER_${entry.handle.kind.toUpperCase()}`,
-            // An empty row is not yet wrong; it just cannot be saved.
-            problemKey: entry.raw.trim() && check.problem
-                ? `PAY.PROBLEM.${check.problem.toUpperCase().replace(/-/g, '_')}`
-                : null,
-        };
-    }));
+    protected readonly rows = computed(() =>
+        this.draft().map((entry, index) => {
+            const check = checkHandleValue(entry.handle.kind, entry.raw);
+            return {
+                index,
+                handle: entry.handle,
+                raw: entry.raw,
+                placeholderKey: `PAY.EDITOR.PLACEHOLDER_${entry.handle.kind.toUpperCase()}`,
+                // An empty row is not yet wrong; it just cannot be saved.
+                problemKey:
+                    entry.raw.trim() && check.problem
+                        ? `PAY.PROBLEM.${check.problem.toUpperCase().replace(/-/g, '_')}`
+                        : null,
+            };
+        }),
+    );
 
     protected readonly address = computed(() => this.creditor());
 
     /** An IBAN is the only kind that needs a structured address, and it needs all of it. */
     protected readonly needsAddress = computed(() =>
-        this.draft().some(entry => entry.handle.kind === PaymentHandleKind.Iban));
+        this.draft().some(entry => entry.handle.kind === PaymentHandleKind.Iban),
+    );
 
     protected readonly addressIncomplete = computed(() => {
         if (!this.needsAddress()) return false;
         const a = this.creditor();
-        return !a.name.trim() || !a.postCode.trim() || !a.town.trim()
-            || !/^[A-Za-z]{2}$/.test(a.country.trim());
+        return (
+            !a.name.trim() || !a.postCode.trim() || !a.town.trim() || !/^[A-Za-z]{2}$/.test(a.country.trim())
+        );
     });
 
     /** Devices still held back after everything the user has confirmed. */
@@ -345,9 +431,7 @@ export class PaymentHandlesEditorComponent {
         const current = this.plan();
         if (!current) return 0;
         const confirmed = this.confirmedDevices();
-        return current.blocked
-            .filter(t => !confirmed.has(t.attestation.deviceId))
-            .length;
+        return current.blocked.filter(t => !confirmed.has(t.attestation.deviceId)).length;
     });
 
     protected readonly canSave = computed(() => {
@@ -383,10 +467,13 @@ export class PaymentHandlesEditorComponent {
     protected addRow(): void {
         if (this.draft().length >= HANDLE_LIMITS.maxHandles) return;
         this.invalidatePlan();
-        this.draft.update(rows => [...rows, {
-            handle: {kind: PaymentHandleKind.Iban, value: ''},
-            raw: '',
-        }]);
+        this.draft.update(rows => [
+            ...rows,
+            {
+                handle: {kind: PaymentHandleKind.Iban, value: ''},
+                raw: '',
+            },
+        ]);
     }
 
     protected removeRow(index: number): void {
@@ -396,32 +483,42 @@ export class PaymentHandlesEditorComponent {
 
     protected setKind(index: number, kind: PaymentHandleKind): void {
         this.invalidatePlan();
-        this.draft.update(rows => rows.map((row, i) => i === index
-            // The raw text is kept: switching kind after pasting is common, and clearing the box
-            // would make the person retype something they had already got right.
-            ? {...row, handle: {...row.handle, kind}}
-            : row));
+        this.draft.update(rows =>
+            rows.map((row, i) =>
+                i === index
+                    ? // The raw text is kept: switching kind after pasting is common, and clearing the box
+                      // would make the person retype something they had already got right.
+                      {...row, handle: {...row.handle, kind}}
+                    : row,
+            ),
+        );
     }
 
     protected setValue(index: number, raw: string): void {
         this.invalidatePlan();
-        this.draft.update(rows => rows.map((row, i) => i === index ? {...row, raw} : row));
+        this.draft.update(rows => rows.map((row, i) => (i === index ? {...row, raw} : row)));
     }
 
     /** On blur, so the value settles into its stored form without fighting the caret mid-type. */
     protected normalize(index: number): void {
-        this.draft.update(rows => rows.map((row, i) => {
-            if (i !== index) return row;
-            const value = normalizeHandleValue(row.handle.kind, row.raw);
-            return {raw: value, handle: {...row.handle, value}};
-        }));
+        this.draft.update(rows =>
+            rows.map((row, i) => {
+                if (i !== index) return row;
+                const value = normalizeHandleValue(row.handle.kind, row.raw);
+                return {raw: value, handle: {...row.handle, value}};
+            }),
+        );
     }
 
     protected setLabel(index: number, label: string): void {
         this.invalidatePlan();
-        this.draft.update(rows => rows.map((row, i) => i === index
-            ? {...row, handle: {...row.handle, label: label.slice(0, HANDLE_LIMITS.maxLabelLength)}}
-            : row));
+        this.draft.update(rows =>
+            rows.map((row, i) =>
+                i === index
+                    ? {...row, handle: {...row.handle, label: label.slice(0, HANDLE_LIMITS.maxLabelLength)}}
+                    : row,
+            ),
+        );
     }
 
     protected setAddress(field: keyof CreditorAddress, value: string): void {
@@ -515,10 +612,12 @@ export class PaymentHandlesEditorComponent {
         if (!stored) return;
 
         this.hasStored.set(true);
-        this.draft.set(stored.handles.map(handle => ({
-            handle,
-            raw: displayHandleValue(handle),
-        })));
+        this.draft.set(
+            stored.handles.map(handle => ({
+                handle,
+                raw: displayHandleValue(handle),
+            })),
+        );
         if (stored.creditor) this.creditor.set(stored.creditor);
     }
 }

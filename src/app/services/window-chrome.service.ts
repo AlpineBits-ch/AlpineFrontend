@@ -84,8 +84,9 @@ export class WindowChromeService {
         if (!this.isOverlaySurface(target)) return;
 
         event.preventDefault();
-        void this.chrome.startDragging().catch(err =>
-            console.error('Could not start dragging the window', err));
+        void this.chrome
+            .startDragging()
+            .catch(err => console.error('Could not start dragging the window', err));
     };
 
     /**

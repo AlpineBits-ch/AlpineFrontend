@@ -155,7 +155,7 @@ export interface WsCallAlone {
  */
 const CALL_STATUS_NAMES = ['Pending', 'Ringing', 'Rejected', 'Connected', 'Completed', 'Left'] as const;
 
-export type CallStatusName = typeof CALL_STATUS_NAMES[number];
+export type CallStatusName = (typeof CALL_STATUS_NAMES)[number];
 
 /** Normalises either wire shape, `"Ringing"` or `1` (or `"1"`), to the name. */
 export function callStatusName(raw: string | number | null | undefined): CallStatusName | undefined {
@@ -277,23 +277,41 @@ export class VoiceWebsocketService {
         });
 
         // ── WebRTC signaling ────────────────────────────────────────────────────
-        this.realtime.on('call.ParticipantJoined', (d: WsParticipantJoined) => this.participantJoinedObservable.next(d));
-        this.realtime.on('call.TrackPublished', (d: WsTrackPublished) => this.trackPublishedObservable.next(d));
+        this.realtime.on('call.ParticipantJoined', (d: WsParticipantJoined) =>
+            this.participantJoinedObservable.next(d),
+        );
+        this.realtime.on('call.TrackPublished', (d: WsTrackPublished) =>
+            this.trackPublishedObservable.next(d),
+        );
         this.realtime.on('call.TrackClosed', (d: WsTrackClosed) => this.trackClosedObservable.next(d));
-        this.realtime.on('call.SpeakingChanged', (d: WsSpeakingChanged) => this.speakingChangedObservable.next(d));
+        this.realtime.on('call.SpeakingChanged', (d: WsSpeakingChanged) =>
+            this.speakingChangedObservable.next(d),
+        );
         this.realtime.on('call.MuteChanged', (d: WsMuteChanged) => this.muteChangedObservable.next(d));
         this.realtime.on('call.CameraChanged', (d: WsCameraChanged) => this.cameraChangedObservable.next(d));
-        this.realtime.on('call.ScreenShareStarted', (d: WsScreenShareStarted) => this.screenShareStartedObservable.next(d));
-        this.realtime.on('call.ScreenShareStopped', (d: WsScreenShareStopped) => this.screenShareStoppedObservable.next(d));
+        this.realtime.on('call.ScreenShareStarted', (d: WsScreenShareStarted) =>
+            this.screenShareStartedObservable.next(d),
+        );
+        this.realtime.on('call.ScreenShareStopped', (d: WsScreenShareStopped) =>
+            this.screenShareStoppedObservable.next(d),
+        );
         this.realtime.on('call.CallEnded', (d: WsCallEnded) => this.callEndedObservable.next(d));
 
         // ── Per-device call events ──────────────────────────────────────────────
         this.realtime.on('call.CallAccepted', (d: WsCallAccepted) => this.callAcceptedObservable.next(d));
         this.realtime.on('call.CallDeclined', (d: CallDto) => this.callDeclinedObservable.next(d));
-        this.realtime.on('call.ShareViewersChanged', (d: ShareViewersDto) => this.shareViewersChangedObservable.next(d));
-        this.realtime.on('call.CallDeviceDismissed', (d: WsCallDeviceDismissed) => this.callDeviceDismissedObservable.next(d));
-        this.realtime.on('call.CallDeviceTakeover', (d: WsCallDeviceTakeover) => this.callDeviceTakeoverObservable.next(d));
-        this.realtime.on('call.CallParticipantLeft', (d: WsCallParticipantLeft) => this.callParticipantLeftObservable.next(d));
+        this.realtime.on('call.ShareViewersChanged', (d: ShareViewersDto) =>
+            this.shareViewersChangedObservable.next(d),
+        );
+        this.realtime.on('call.CallDeviceDismissed', (d: WsCallDeviceDismissed) =>
+            this.callDeviceDismissedObservable.next(d),
+        );
+        this.realtime.on('call.CallDeviceTakeover', (d: WsCallDeviceTakeover) =>
+            this.callDeviceTakeoverObservable.next(d),
+        );
+        this.realtime.on('call.CallParticipantLeft', (d: WsCallParticipantLeft) =>
+            this.callParticipantLeftObservable.next(d),
+        );
         this.realtime.on('call.CallAlone', (d: WsCallAlone) => this.callAloneObservable.next(d));
 
         // ── Recovery ────────────────────────────────────────────────────────────

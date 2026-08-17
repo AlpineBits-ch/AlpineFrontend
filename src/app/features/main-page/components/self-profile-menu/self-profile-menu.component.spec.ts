@@ -29,7 +29,10 @@ function setup(options: {userType?: UserType; slots?: {id: string}[]} = {}) {
         providers: [
             provideZonelessChangeDetection(),
             {provide: ProfileService, useValue: {ownProfile: signal(OWN), setSelfStatus}},
-            {provide: UserService, useValue: {self: signal({userType: options.userType ?? UserType.Standard})}},
+            {
+                provide: UserService,
+                useValue: {self: signal({userType: options.userType ?? UserType.Standard})},
+            },
             {
                 provide: AccountRegistryService,
                 useValue: {slots, activeSlotIdSnapshot: () => 'active', list: vi.fn()},
@@ -40,7 +43,8 @@ function setup(options: {userType?: UserType; slots?: {id: string}[]} = {}) {
         ],
     });
 
-    const fixture: ComponentFixture<SelfProfileMenuComponent> = TestBed.createComponent(SelfProfileMenuComponent);
+    const fixture: ComponentFixture<SelfProfileMenuComponent> =
+        TestBed.createComponent(SelfProfileMenuComponent);
     fixture.detectChanges();
     return {fixture, setSelfStatus};
 }
@@ -121,8 +125,9 @@ describe('SelfProfileMenuComponent', () => {
         const {fixture, setSelfStatus} = setup();
         show(fixture, 'status');
 
-        (fixture.componentInstance as unknown as {chooseStatus: (s: OnlineStatus) => void})
-            .chooseStatus(OnlineStatus.Idle);
+        (fixture.componentInstance as unknown as {chooseStatus: (s: OnlineStatus) => void}).chooseStatus(
+            OnlineStatus.Idle,
+        );
         fixture.detectChanges();
 
         expect(setSelfStatus).toHaveBeenCalledWith(OnlineStatus.Idle);

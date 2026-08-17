@@ -19,5 +19,7 @@ export class VoiceChannelLobbyComponent {
     /** Join, then focus this user's stream: the lobby's answer to "I can see someone is live". */
     joinAndWatch = output<string>();
 
-    protected readonly liveStreamer = computed(() => this.participants().find(p => p.isScreenSharing) ?? null);
+    protected readonly liveStreamer = computed(
+        () => this.participants().find(p => p.isScreenSharing) ?? null,
+    );
 }

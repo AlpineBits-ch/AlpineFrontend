@@ -29,9 +29,9 @@ let store: CacheStore;
 const BULK_HEADROOM_BYTES = 1000;
 
 function makeStore(): CacheStore {
-    return new CacheStore(
-        'device-a', PLAIN as never,
-        () => openStore('alpine-cache-test', 'entries', {factory}));
+    return new CacheStore('device-a', PLAIN as never, () =>
+        openStore('alpine-cache-test', 'entries', {factory}),
+    );
 }
 
 /**
@@ -85,12 +85,12 @@ describe('CacheStore', () => {
         expect(await makeStore().get('profile', 'u1')).toEqual({userName: 'ada'});
     });
 
-    it('never lets one account read another account\'s entries', async () => {
+    it("never lets one account read another account's entries", async () => {
         await store.set('profile', 'u1', {userName: 'ada'});
 
-        const other = new CacheStore(
-            'device-b', PLAIN as never,
-            () => openStore('alpine-cache-test', 'entries', {factory}));
+        const other = new CacheStore('device-b', PLAIN as never, () =>
+            openStore('alpine-cache-test', 'entries', {factory}),
+        );
 
         expect(await other.get('profile', 'u1')).toBeUndefined();
     });
@@ -118,7 +118,7 @@ describe('CacheStore', () => {
         const bulk = 'x'.repeat(Math.floor(DOMAIN_RESERVES.profile / 10) - BULK_HEADROOM_BYTES);
         for (let i = 0; i < 10; i++) await store.set('profile', `u${i}`, {bulk});
 
-        await store.get('profile', 'u0');       // u0 is now the most recently used
+        await store.get('profile', 'u0'); // u0 is now the most recently used
         await store.set('profile', 'u10', {bulk});
 
         expect(await store.get('profile', 'u0')).toEqual({bulk});
@@ -143,8 +143,7 @@ describe('CacheStore', () => {
      */
     it('does not rewrite the whole index once per set', async () => {
         const indexWrites: string[] = [];
-        const batching = new CacheStore(
-            'device-a', PLAIN as never, () => countingStore(indexWrites));
+        const batching = new CacheStore('device-a', PLAIN as never, () => countingStore(indexWrites));
 
         for (let i = 0; i < 10; i++) await batching.set('profile', `u${i}`, {userName: `u${i}`});
 
@@ -162,8 +161,7 @@ describe('CacheStore', () => {
 
     it('clear persists the index immediately rather than joining a batch', async () => {
         const indexWrites: string[] = [];
-        const batching = new CacheStore(
-            'device-a', PLAIN as never, () => countingStore(indexWrites));
+        const batching = new CacheStore('device-a', PLAIN as never, () => countingStore(indexWrites));
         for (let i = 0; i < 5; i++) await batching.set('profile', `u${i}`, {userName: `u${i}`});
         const before = indexWrites.length;
 
@@ -230,10 +228,10 @@ describe('CacheStore', () => {
      * `device-a::`, and neither bookkeeping key of either device does - both put the device id
      * after a `__index::` / `__rev::` prefix rather than in front of it.
      */
-    it('the prefix sweep touches neither another device\'s rows nor anyone\'s bookkeeping keys', async () => {
-        const other = new CacheStore(
-            'device-b', PLAIN as never,
-            () => openStore('alpine-cache-test', 'entries', {factory}));
+    it("the prefix sweep touches neither another device's rows nor anyone's bookkeeping keys", async () => {
+        const other = new CacheStore('device-b', PLAIN as never, () =>
+            openStore('alpine-cache-test', 'entries', {factory}),
+        );
         const raw = await openStore('alpine-cache-test', 'entries', {factory});
 
         await store.set('profile', 'u1', {userName: 'ada'});
@@ -246,7 +244,9 @@ describe('CacheStore', () => {
 
         expect((await raw.keys()).filter(k => k.startsWith('device-a::'))).toEqual([]);
         expect((await raw.keys()).filter(k => k.startsWith('device-b::')).sort()).toEqual([
-            'device-b::message::c9', 'device-b::profile::u2', 'device-b::profile::u3',
+            'device-b::message::c9',
+            'device-b::profile::u2',
+            'device-b::profile::u3',
         ]);
         // Deleting device-b's marker would silently unsync that account's other tabs.
         expect(await raw.get('__rev::device-b')).toBeDefined();
@@ -255,9 +255,9 @@ describe('CacheStore', () => {
     });
 
     it('clear empties this device and leaves another device alone', async () => {
-        const other = new CacheStore(
-            'device-b', PLAIN as never,
-            () => openStore('alpine-cache-test', 'entries', {factory}));
+        const other = new CacheStore('device-b', PLAIN as never, () =>
+            openStore('alpine-cache-test', 'entries', {factory}),
+        );
 
         await store.set('profile', 'u1', {userName: 'ada'});
         await other.set('profile', 'u2', {userName: 'grace'});
@@ -289,10 +289,13 @@ describe('CacheStore across two tabs of one account', () => {
     /** One tab of this profile: the profile's database and lock manager, its own memory. */
     function openTab(windowMs = 0): CacheStore {
         return new CacheStore(
-            'device-a', PLAIN as never,
+            'device-a',
+            PLAIN as never,
             () => openStore('alpine-cache-test', 'entries', {factory}),
             // Unbatched by default: what is under test is revalidation, not the write window.
-            windowMs, profile);
+            windowMs,
+            profile,
+        );
     }
 
     beforeEach(() => {
@@ -306,7 +309,7 @@ describe('CacheStore across two tabs of one account', () => {
         expect(profile.requested).toContain('venta:cache-store::device-a');
     });
 
-    it('a tab that has already read the index cannot erase another tab\'s entries', async () => {
+    it("a tab that has already read the index cannot erase another tab's entries", async () => {
         const tabA = openTab();
         const tabB = openTab();
         // B looks at the cache before A writes, so the copy it holds is the empty one. A tab that
@@ -321,7 +324,7 @@ describe('CacheStore across two tabs of one account', () => {
         expect(listed).toEqual(['u1', 'u2', 'u3', 'u4']);
     });
 
-    it('a wipe leaves no payload row behind, including the other tab\'s', async () => {
+    it("a wipe leaves no payload row behind, including the other tab's", async () => {
         const tabA = openTab();
         await tabA.set('profile', 'u1', {userName: 'ada'});
 
@@ -343,11 +346,11 @@ describe('CacheStore across two tabs of one account', () => {
      */
     it('does not lose a batched entry to another tab writing mid-window', async () => {
         const tabA = openTab(10_000);
-        await tabA.set('profile', 'u1', {userName: 'ada'});      // written through
-        await tabA.set('profile', 'u2', {userName: 'grace'});    // batched, only in memory
+        await tabA.set('profile', 'u1', {userName: 'ada'}); // written through
+        await tabA.set('profile', 'u2', {userName: 'grace'}); // batched, only in memory
 
         const tabB = openTab();
-        await tabB.set('profile', 'u3', {userName: 'hopper'});   // publishes an index without u2
+        await tabB.set('profile', 'u3', {userName: 'hopper'}); // publishes an index without u2
 
         // delete() is never batched, so this forces tab A to revalidate and publish.
         await tabA.delete('profile', 'u1');

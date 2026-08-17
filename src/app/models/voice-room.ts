@@ -64,8 +64,7 @@ export interface VoiceEventEnvelope {
 }
 
 /** Why the server is telling this client to refetch. Every reason is an instruction, never a delta. */
-export type VoiceResyncReason =
-    'roomGone' | 'participantLeft' | 'peerPublishChanged' | 'participantsEvicted';
+export type VoiceResyncReason = 'roomGone' | 'participantLeft' | 'peerPublishChanged' | 'participantsEvicted';
 
 /** "Refetch, you are behind." Never carries a delta. */
 export interface VoiceResyncEvent extends VoiceEventEnvelope {
@@ -254,7 +253,10 @@ export function subscriptionSetOf(raw: unknown): VoiceSubscriptionSet | null {
     if (raw === null || typeof raw !== 'object') return null;
 
     const block = raw as {
-        mode?: unknown; revision?: unknown; activeSpeakers?: unknown; tracks?: unknown;
+        mode?: unknown;
+        revision?: unknown;
+        activeSpeakers?: unknown;
+        tracks?: unknown;
     };
 
     // The whole distinction, in one branch. Absent or null is "no set"; `[]` falls through as a set.
@@ -300,20 +302,26 @@ function subscriptionTrackOf(raw: unknown): VoiceSubscriptionTrack | null {
     if (raw === null || typeof raw !== 'object') return null;
 
     const entry = raw as {
-        userId?: unknown; mediaSessionId?: unknown; trackName?: unknown;
-        kind?: unknown; shareId?: unknown; layer?: unknown;
+        userId?: unknown;
+        mediaSessionId?: unknown;
+        trackName?: unknown;
+        kind?: unknown;
+        shareId?: unknown;
+        layer?: unknown;
     };
     const {userId, trackName} = entry;
     if (typeof userId !== 'string' || userId === '') return null;
     if (typeof trackName !== 'string' || trackName === '') return null;
 
     const described = describeTrack(trackName);
-    const kind = typeof entry.kind === 'string' && TRACK_KINDS.includes(entry.kind)
-        ? entry.kind as VoiceTrackKind
-        : described.kind;
-    const layer = typeof entry.layer === 'string' && SUBSCRIPTION_LAYERS.includes(entry.layer)
-        ? entry.layer as VoiceSubscriptionLayer
-        : null;
+    const kind =
+        typeof entry.kind === 'string' && TRACK_KINDS.includes(entry.kind)
+            ? (entry.kind as VoiceTrackKind)
+            : described.kind;
+    const layer =
+        typeof entry.layer === 'string' && SUBSCRIPTION_LAYERS.includes(entry.layer)
+            ? (entry.layer as VoiceSubscriptionLayer)
+            : null;
 
     return {
         userId,
@@ -335,7 +343,7 @@ export type VoiceEventDecision = 'apply' | 'ignore' | 'refetch';
  * Equal versions apply rather than being dropped, so handlers must be idempotent.
  */
 export class VoiceRoomTracker {
-    private held: { instanceId: string; version: number } | null = null;
+    private held: {instanceId: string; version: number} | null = null;
 
     /** The state to assert on the next heartbeat. Nulls before the first snapshot. */
     get instanceId(): string | null {

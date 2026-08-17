@@ -73,12 +73,17 @@ export class ChoreApiService {
      * <p>Asked for around *now* rather than unbounded: a weekly chore anchored a year ago has
      * fifty-odd occurrences behind it, none of which anyone is going to act on.</p>
      */
-    listOccurrences(channelId: string, from?: string | null, to?: string | null): Observable<ChoreOccurrence[]> {
+    listOccurrences(
+        channelId: string,
+        from?: string | null,
+        to?: string | null,
+    ): Observable<ChoreOccurrence[]> {
         let params = new HttpParams();
         if (from) params = params.set('from', from);
         if (to) params = params.set('to', to);
-        return this.http.get<ChoreOccurrence[]>(
-            `${this.base}/channels/${channelId}/chores/occurrences`, {params});
+        return this.http.get<ChoreOccurrence[]>(`${this.base}/channels/${channelId}/chores/occurrences`, {
+            params,
+        });
     }
 
     /**
@@ -94,13 +99,16 @@ export class ChoreApiService {
      */
     complete(occurrenceId: string): Observable<ChoreOccurrence | null> {
         return this.http.post<ChoreOccurrence | null>(
-            `${this.base}/chore-occurrences/${occurrenceId}/complete`, null);
+            `${this.base}/chore-occurrences/${occurrenceId}/complete`,
+            null,
+        );
     }
 
     /** Un-completes it - the undo for a mis-tap. Same permission, and the credit is withdrawn. */
     unComplete(occurrenceId: string): Observable<ChoreOccurrence | null> {
         return this.http.delete<ChoreOccurrence | null>(
-            `${this.base}/chore-occurrences/${occurrenceId}/complete`);
+            `${this.base}/chore-occurrences/${occurrenceId}/complete`,
+        );
     }
 
     /**
@@ -113,7 +121,9 @@ export class ChoreApiService {
      */
     skip(occurrenceId: string): Observable<ChoreOccurrence | null> {
         return this.http.post<ChoreOccurrence | null>(
-            `${this.base}/chore-occurrences/${occurrenceId}/skip`, null);
+            `${this.base}/chore-occurrences/${occurrenceId}/skip`,
+            null,
+        );
     }
 
     /**
@@ -125,7 +135,9 @@ export class ChoreApiService {
      */
     swap(occurrenceId: string): Observable<ChoreOccurrence | null> {
         return this.http.post<ChoreOccurrence | null>(
-            `${this.base}/chore-occurrences/${occurrenceId}/swap`, null);
+            `${this.base}/chore-occurrences/${occurrenceId}/swap`,
+            null,
+        );
     }
 
     /**
@@ -149,8 +161,7 @@ export class ChoreApiService {
      * </ul>
      */
     nudge(occurrenceId: string): Observable<ChoreNudgeResult> {
-        return this.http.post<ChoreNudgeResult>(
-            `${this.base}/chore-occurrences/${occurrenceId}/nudge`, null);
+        return this.http.post<ChoreNudgeResult>(`${this.base}/chore-occurrences/${occurrenceId}/nudge`, null);
     }
 
     // ── Balance ─────────────────────────────────────────────────────────────
@@ -162,9 +173,8 @@ export class ChoreApiService {
      * a rounded-up "month".</p>
      */
     balance(channelId: string, days = 30): Observable<ChoreBalanceEntry[]> {
-        return this.http.get<ChoreBalanceEntry[]>(
-            `${this.base}/channels/${channelId}/chores/balance`,
-            {params: new HttpParams().set('days', days)},
-        );
+        return this.http.get<ChoreBalanceEntry[]>(`${this.base}/channels/${channelId}/chores/balance`, {
+            params: new HttpParams().set('days', days),
+        });
     }
 }

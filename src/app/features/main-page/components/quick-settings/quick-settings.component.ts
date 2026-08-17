@@ -1,24 +1,24 @@
 ﻿import {Component, computed, effect, inject, signal, ViewChild} from '@angular/core';
-import {ProfileService} from "../../../../services/profile.service";
-import {AppAvatarComponent} from "../../../../components/avatar/avatar.component";
-import {Button} from "primeng/button";
-import {ConnectionState, MessagingWebsocketService} from "../../../../services/messaging-websocket.service";
-import {ConnectionStatusComponent} from "../connection-status/connection-status.component";
-import {SettingsModalComponent} from "../../../../features/settings/settings-modal/settings-modal.component";
-import {VoiceChannelService} from "../../../../services/voice-channel.service";
-import {VoiceControlsService} from "../../../../services/voice-controls.service";
+import {ProfileService} from '../../../../services/profile.service';
+import {AppAvatarComponent} from '../../../../components/avatar/avatar.component';
+import {Button} from 'primeng/button';
+import {ConnectionState, MessagingWebsocketService} from '../../../../services/messaging-websocket.service';
+import {ConnectionStatusComponent} from '../connection-status/connection-status.component';
+import {SettingsModalComponent} from '../../../../features/settings/settings-modal/settings-modal.component';
+import {VoiceChannelService} from '../../../../services/voice-channel.service';
+import {VoiceControlsService} from '../../../../services/voice-controls.service';
 import {TranslateModule} from '@ngx-translate/core';
-import {UserService} from "../../../../services/user.service";
-import {AdminModalComponent} from "../../../../features/admin/admin-modal/admin-modal.component";
-import {SelfProfilePopoverComponent} from "../self-profile-popover/self-profile-popover.component";
-import {SettingsUiService} from "../../../../services/settings-ui.service";
-import {AccountSwitchService} from "../../../../services/account-switch.service";
-import {statusLabelKey as labelKeyForStatus} from "../../../../models/online-status.model";
-import {UserStatusDotComponent} from "../../../../components/user-status-dot/user-status-dot.component";
-import {SelfActivityCardComponent} from "../self-activity-card/self-activity-card.component";
-import {VoiceToggleComponent} from "../voice-toggle/voice-toggle.component";
-import {MediaDeviceCatalogService} from "../../../../services/media-device-catalog.service";
-import {AudioSettingsService} from "../../../../services/audio-settings.service";
+import {UserService} from '../../../../services/user.service';
+import {AdminModalComponent} from '../../../../features/admin/admin-modal/admin-modal.component';
+import {SelfProfilePopoverComponent} from '../self-profile-popover/self-profile-popover.component';
+import {SettingsUiService} from '../../../../services/settings-ui.service';
+import {AccountSwitchService} from '../../../../services/account-switch.service';
+import {statusLabelKey as labelKeyForStatus} from '../../../../models/online-status.model';
+import {UserStatusDotComponent} from '../../../../components/user-status-dot/user-status-dot.component';
+import {SelfActivityCardComponent} from '../self-activity-card/self-activity-card.component';
+import {VoiceToggleComponent} from '../voice-toggle/voice-toggle.component';
+import {MediaDeviceCatalogService} from '../../../../services/media-device-catalog.service';
+import {AudioSettingsService} from '../../../../services/audio-settings.service';
 
 @Component({
     selector: 'app-quick-settings',
@@ -51,12 +51,12 @@ export class QuickSettingsComponent {
 
     /** What to call the status the user has put themselves in. */
     protected readonly statusLabelKey = computed(() =>
-        labelKeyForStatus(this.profileService.ownProfile()?.onlineStatus)
+        labelKeyForStatus(this.profileService.ownProfile()?.onlineStatus),
     );
 
     /** Whether the socket, rather than the status, owns the line under the name. */
-    protected readonly showConnectionTrouble = computed(() =>
-        this.websocketService.connectionState() !== ConnectionState.Connected
+    protected readonly showConnectionTrouble = computed(
+        () => this.websocketService.connectionState() !== ConnectionState.Connected,
     );
 
     private settingsUi = inject(SettingsUiService);
@@ -103,4 +103,3 @@ export class QuickSettingsComponent {
         this.switcher.beginAddAccount();
     }
 }
-

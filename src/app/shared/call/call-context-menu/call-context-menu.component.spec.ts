@@ -32,7 +32,8 @@ function setup(menu: CallParticipantMenuData) {
         imports: [CallContextMenuComponent, TranslateModule.forRoot()],
     });
 
-    const fixture: ComponentFixture<CallContextMenuComponent> = TestBed.createComponent(CallContextMenuComponent);
+    const fixture: ComponentFixture<CallContextMenuComponent> =
+        TestBed.createComponent(CallContextMenuComponent);
     fixture.componentRef.setInput('menu', menu);
     fixture.detectChanges();
     return fixture;
@@ -78,7 +79,7 @@ describe('CallContextMenuComponent stream volume slider', () => {
     it('emits streamVolumeChange with the slider value on input', () => {
         const fixture = setup(menuData({streamVolume: 40}));
         let emitted: number | undefined;
-        fixture.componentInstance.streamVolumeChange.subscribe((v: number) => emitted = v);
+        fixture.componentInstance.streamVolumeChange.subscribe((v: number) => (emitted = v));
 
         const slider: HTMLInputElement = fixture.nativeElement.querySelector('#call-stream-volume');
         slider.value = '65';
@@ -90,7 +91,7 @@ describe('CallContextMenuComponent stream volume slider', () => {
     it('leaves the voice volumeChange output untouched by the new slider', () => {
         const fixture = setup(menuData({streamVolume: 40}));
         let emitted: number | undefined;
-        fixture.componentInstance.volumeChange.subscribe((v: number) => emitted = v);
+        fixture.componentInstance.volumeChange.subscribe((v: number) => (emitted = v));
 
         const slider: HTMLInputElement = fixture.nativeElement.querySelector('#call-volume');
         slider.value = '30';

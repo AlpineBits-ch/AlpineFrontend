@@ -24,8 +24,7 @@ export class AccountSwitcherComponent implements OnInit {
     /** Set while a switch is in flight, so the row cannot be clicked twice into two reloads. */
     protected readonly busy = signal(false);
 
-    protected readonly others = computed(() =>
-        this.slots().filter(s => s.id !== this.activeSlotId()));
+    protected readonly others = computed(() => this.slots().filter(s => s.id !== this.activeSlotId()));
 
     ngOnInit(): void {
         // The default is "no call", which is the safe answer for the check and the wrong one to
@@ -44,7 +43,7 @@ export class AccountSwitcherComponent implements OnInit {
         this.busy.set(true);
         // Left set on the way out: a successful switch reloads, so nothing here runs again. Only a
         // refused one comes back, and that is the case that has to be clickable again.
-        if (!await this.switcher.switchTo(slot.id)) this.busy.set(false);
+        if (!(await this.switcher.switchTo(slot.id))) this.busy.set(false);
     }
 
     protected onAdd(): void {

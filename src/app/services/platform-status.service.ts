@@ -67,8 +67,7 @@ export class PlatformStatusService {
     readonly banner = computed<StatusBannerDto | null>(() => this.summary()?.banner ?? null);
 
     /** True once the server has stopped answering the one endpoint that always should. */
-    readonly unverified = computed(() =>
-        this.consecutiveFailures() >= UNVERIFIED_AFTER_FAILURES);
+    readonly unverified = computed(() => this.consecutiveFailures() >= UNVERIFIED_AFTER_FAILURES);
 
     private readonly consecutiveFailures = signal(0);
     private readonly dismissed = signal<Dismissal | null>(readDismissal());
@@ -122,10 +121,7 @@ export class PlatformStatusService {
         const reference = this.banner()?.incidentReference;
         if (!reference) return '';
         const incident = this.findIncident(reference);
-        return incident?.updates?.[0]?.postedAt
-            ?? incident?.startedAt
-            ?? incident?.scheduledFor
-            ?? '';
+        return incident?.updates?.[0]?.postedAt ?? incident?.startedAt ?? incident?.scheduledFor ?? '';
     });
 
     /** Starts foreground polling. Idempotent; safe to call from app bootstrap. */
@@ -233,8 +229,7 @@ export class PlatformStatusService {
         }
 
         const lists = ['incidents', 'maintenance', 'recent'] as const;
-        const listKey = lists.find(key =>
-            current[key].some(i => i.reference === incident.reference));
+        const listKey = lists.find(key => current[key].some(i => i.reference === incident.reference));
         if (!listKey) {
             this.refresh();
             return;
@@ -242,8 +237,7 @@ export class PlatformStatusService {
 
         this.summary.set({
             ...current,
-            [listKey]: current[listKey].map(i =>
-                i.reference === incident.reference ? incident : i),
+            [listKey]: current[listKey].map(i => (i.reference === incident.reference ? incident : i)),
         });
     }
 

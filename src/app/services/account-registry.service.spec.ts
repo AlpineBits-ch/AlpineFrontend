@@ -51,8 +51,9 @@ describe('AccountRegistryService', () => {
         const slot = await isolated.ensureSlot({userId: 'user-1', serverUrl: 'https://a.example'});
 
         expect(only.opened).toContain('settings.json');
-        expect(only.peek<{slots: {id: string}[]}>('settings.json', 'accounts')?.slots)
-            .toEqual([expect.objectContaining({id: slot.id})]);
+        expect(only.peek<{slots: {id: string}[]}>('settings.json', 'accounts')?.slots).toEqual([
+            expect.objectContaining({id: slot.id}),
+        ]);
         // And nothing leaked to the backend this test did not provide.
         expect(settings.opened).toEqual([]);
     });
@@ -89,10 +90,14 @@ describe('AccountRegistryService', () => {
 
     it('matches on the user id, not the username, so a rename keeps the slot', async () => {
         const before = await service.ensureSlot({
-            userId: 'user-1', serverUrl: 'https://a.example', username: 'old',
+            userId: 'user-1',
+            serverUrl: 'https://a.example',
+            username: 'old',
         });
         const after = await service.ensureSlot({
-            userId: 'user-1', serverUrl: 'https://a.example', username: 'new',
+            userId: 'user-1',
+            serverUrl: 'https://a.example',
+            username: 'new',
         });
 
         expect(after.id).toBe(before.id);
@@ -101,7 +106,9 @@ describe('AccountRegistryService', () => {
 
     it('does not blank a known username when a later sign-in carries none', async () => {
         await service.ensureSlot({
-            userId: 'user-1', serverUrl: 'https://a.example', username: 'named',
+            userId: 'user-1',
+            serverUrl: 'https://a.example',
+            username: 'named',
         });
         const again = await service.ensureSlot({userId: 'user-1', serverUrl: 'https://a.example'});
 
@@ -120,7 +127,9 @@ describe('AccountRegistryService', () => {
 
     it('clears an avatar when the patch says null, and leaves it alone when it says nothing', async () => {
         const slot = await service.ensureSlot({
-            userId: 'user-1', serverUrl: 'https://a.example', avatarUrl: 'https://img/a.png',
+            userId: 'user-1',
+            serverUrl: 'https://a.example',
+            avatarUrl: 'https://img/a.png',
         });
 
         await service.updateProfile(slot.id, {username: 'ada'});
@@ -174,7 +183,9 @@ describe('AccountRegistryService', () => {
 
     it('survives a restart - persisted state, not the in-memory signal, is the source of truth', async () => {
         const slot = await service.ensureSlot({
-            userId: 'user-1', serverUrl: 'https://a.example', username: 'ada',
+            userId: 'user-1',
+            serverUrl: 'https://a.example',
+            username: 'ada',
         });
 
         const restarted = freshService();
@@ -236,7 +247,9 @@ describe('AccountRegistryService', () => {
 
         it('survives a restart, so the slot keeps its device id and MLS state', async () => {
             const slot = await browser().ensureSlot({
-                userId: 'user-1', serverUrl: 'https://a.example', username: 'ada',
+                userId: 'user-1',
+                serverUrl: 'https://a.example',
+                username: 'ada',
             });
 
             const restarted = browser();

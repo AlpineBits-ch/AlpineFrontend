@@ -25,10 +25,10 @@ interface RelationshipState {
  * -shaped and keep both sides, so who the other party is gets resolved on read. That also
  * means the list corrects itself the moment `/profiles/me` lands, without a refetch.
  */
-type RelationshipEntity = { id: string; status: RelationshipStatus } & (
-    | { other: MinimalProfileId; owner?: never; target?: never }
-    | { other?: never; owner: MinimalProfileId; target: MinimalProfileId }
-    );
+type RelationshipEntity = {id: string; status: RelationshipStatus} & (
+    | {other: MinimalProfileId; owner?: never; target?: never}
+    | {other?: never; owner: MinimalProfileId; target: MinimalProfileId}
+);
 
 function otherParty(e: RelationshipEntity, ownUserId: string | undefined): MinimalProfileId {
     if (e.other) return e.other;
@@ -84,9 +84,16 @@ export const RelationshipStore = signalStore(
             incoming: withStatus(RelationshipStatus.PendingIncoming),
             outgoing: withStatus(RelationshipStatus.PendingOutgoing),
             blocked: withStatus(RelationshipStatus.Blocked),
-            pendingCount: computed(() => store.entities().filter(e =>
-                e.status === RelationshipStatus.PendingIncoming || e.status === RelationshipStatus.PendingOutgoing,
-            ).length),
+            pendingCount: computed(
+                () =>
+                    store
+                        .entities()
+                        .filter(
+                            e =>
+                                e.status === RelationshipStatus.PendingIncoming ||
+                                e.status === RelationshipStatus.PendingOutgoing,
+                        ).length,
+            ),
         };
     }),
 
@@ -94,11 +101,12 @@ export const RelationshipStore = signalStore(
         function fetchList(): void {
             patchState(store, {loading: true});
             relationshipService.getRelationships().subscribe({
-                next: rels => patchState(store, setAllEntities(rels.map(fromRest)), {
-                    loading: false,
-                    loaded: true,
-                    error: false,
-                }),
+                next: rels =>
+                    patchState(store, setAllEntities(rels.map(fromRest)), {
+                        loading: false,
+                        loaded: true,
+                        error: false,
+                    }),
                 // `loaded` stays false so the next caller retries; the error flag lets the UI
                 // tell "no friends yet" apart from "the fetch failed".
                 error: () => patchState(store, {loading: false, loaded: false, error: true}),
@@ -119,9 +127,9 @@ export const RelationshipStore = signalStore(
             },
 
             sendRequest(username: string): Observable<RelationshipModel> {
-                return relationshipService.createFriendRequest(username).pipe(
-                    tap(rel => patchState(store, upsertEntity(fromRest(rel)))),
-                );
+                return relationshipService
+                    .createFriendRequest(username)
+                    .pipe(tap(rel => patchState(store, upsertEntity(fromRest(rel)))));
             },
 
             // accept/reject/revoke apply the change locally on success as well as through
@@ -129,24 +137,29 @@ export const RelationshipStore = signalStore(
             // second is a no-op - and the UI still responds if the socket happens to be down.
             accept(id: string): Observable<RelationshipModel> {
                 return relationshipService.acceptFriendRequest(id).pipe(
-                    tap(() => patchState(store, updateEntity({
-                        id,
-                        changes: {status: RelationshipStatus.Friends},
-                    }))),
+                    tap(() =>
+                        patchState(
+                            store,
+                            updateEntity({
+                                id,
+                                changes: {status: RelationshipStatus.Friends},
+                            }),
+                        ),
+                    ),
                 );
             },
 
             reject(id: string): Observable<RelationshipModel> {
-                return relationshipService.rejectFriendRequest(id).pipe(
-                    tap(() => patchState(store, removeEntity(id))),
-                );
+                return relationshipService
+                    .rejectFriendRequest(id)
+                    .pipe(tap(() => patchState(store, removeEntity(id))));
             },
 
             /** Unfriend, or cancel an outgoing request you sent. */
             revoke(id: string): Observable<RelationshipModel> {
-                return relationshipService.revokeFriendRequest(id).pipe(
-                    tap(() => patchState(store, removeEntity(id))),
-                );
+                return relationshipService
+                    .revokeFriendRequest(id)
+                    .pipe(tap(() => patchState(store, removeEntity(id))));
             },
 
             /**
@@ -159,16 +172,12 @@ export const RelationshipStore = signalStore(
              * deleted would be guessing at its rules.</p>
              */
             block(userId: string): Observable<void> {
-                return relationshipService.blockUser(userId).pipe(
-                    tap(() => fetchList()),
-                );
+                return relationshipService.blockUser(userId).pipe(tap(() => fetchList()));
             },
 
             /** Lifts a block. Idempotent server-side. */
             unblock(userId: string): Observable<void> {
-                return relationshipService.unblockUser(userId).pipe(
-                    tap(() => fetchList()),
-                );
+                return relationshipService.unblockUser(userId).pipe(tap(() => fetchList()));
             },
 
             applyRealtime(e: RelationshipEvent): void {
@@ -188,12 +197,13 @@ export const RelationshipStore = signalStore(
             const profileService = inject(ProfileService);
 
             const notify = (title: string, message: string): void => {
-                void notificationService.createNotification({
-                    title,
-                    message,
-                    sound: NotificationSound.NewMessage,
-                }).catch(() => {
-                });
+                void notificationService
+                    .createNotification({
+                        title,
+                        message,
+                        sound: NotificationSound.NewMessage,
+                    })
+                    .catch(() => {});
             };
 
             socialWs.friendRequestCreatedObservable.subscribe(e => {
@@ -209,9 +219,11 @@ export const RelationshipStore = signalStore(
                 // Both parties see Friends, so the payload alone can't say who accepted. The
                 // previous local status can: the requester's row was PendingOutgoing, while
                 // the accepter's - on every one of their devices - was PendingIncoming.
-                const notifiable = store.entityMap()[e.relationshipId]?.status === RelationshipStatus.PendingOutgoing;
+                const notifiable =
+                    store.entityMap()[e.relationshipId]?.status === RelationshipStatus.PendingOutgoing;
                 store.applyRealtime(e);
-                if (notifiable) notify('Friend request accepted', `${e.userName} accepted your friend request`);
+                if (notifiable)
+                    notify('Friend request accepted', `${e.userName} accepted your friend request`);
             });
 
             // Rejections and removals update the list silently.

@@ -1,13 +1,18 @@
 <div class="flex flex-col gap-4 max-w-md">
-
     <p class="text-[0.6875rem] text-text-muted m-0">{{ 'PANTRY.SCAN_HINT' | translate }}</p>
 
     <div class="flex flex-col gap-1.5">
         <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'PANTRY.BARCODE' | translate }}</label>
         <!-- Autofocused and submitting on Enter: a hardware scanner types a code and presses Enter, and so does a person who has done this twice. -->
-        <input (keydown.enter)="submit()" (ngModelChange)="barcode.set($event)" [ngModel]="barcode()"
-               [placeholder]="'PANTRY.BARCODE_PLACEHOLDER' | translate" inputmode="numeric"
-               pInputText type="text"/>
+        <input
+            (keydown.enter)="submit()"
+            (ngModelChange)="barcode.set($event)"
+            [ngModel]="barcode()"
+            [placeholder]="'PANTRY.BARCODE_PLACEHOLDER' | translate"
+            inputmode="numeric"
+            pInputText
+            type="text"
+        />
         @if (knownAs(); as known) {
             <span class="text-[0.625rem] text-text-muted">
                 {{ 'PANTRY.BARCODE_KNOWN' | translate: {name: known.name} }}
@@ -17,9 +22,15 @@
 
     <div class="flex flex-col gap-1.5">
         <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'PANTRY.SCAN_QUANTITY' | translate }}</label>
-        <input (keydown.enter)="submit()" (ngModelChange)="quantity.set($event)" [ngModel]="quantity()"
-               [placeholder]="'PANTRY.SCAN_QUANTITY_PLACEHOLDER' | translate" inputmode="decimal"
-               pInputText type="text"/>
+        <input
+            (keydown.enter)="submit()"
+            (ngModelChange)="quantity.set($event)"
+            [ngModel]="quantity()"
+            [placeholder]="'PANTRY.SCAN_QUANTITY_PLACEHOLDER' | translate"
+            inputmode="decimal"
+            pInputText
+            type="text"
+        />
         <span class="text-[0.625rem] text-text-muted">{{ 'PANTRY.SCAN_QUANTITY_HINT' | translate }}</span>
     </div>
 
@@ -30,20 +41,40 @@
 
             <div class="flex flex-col gap-1.5">
                 <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'PANTRY.FIELD_NAME' | translate }}</label>
-                <input (keydown.enter)="submit()" (ngModelChange)="name.set($event)" [ngModel]="name()"
-                       [placeholder]="'PANTRY.FIELD_NAME_PLACEHOLDER' | translate" pInputText type="text"/>
+                <input
+                    (keydown.enter)="submit()"
+                    (ngModelChange)="name.set($event)"
+                    [ngModel]="name()"
+                    [placeholder]="'PANTRY.FIELD_NAME_PLACEHOLDER' | translate"
+                    pInputText
+                    type="text"
+                />
             </div>
 
             <div class="flex flex-col gap-1.5">
                 <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'PANTRY.FIELD_UNIT' | translate }}</label>
-                <input (keydown.enter)="submit()" (ngModelChange)="unit.set($event)" [ngModel]="unit()"
-                       [placeholder]="'PANTRY.FIELD_UNIT_PLACEHOLDER' | translate" pInputText type="text"/>
+                <input
+                    (keydown.enter)="submit()"
+                    (ngModelChange)="unit.set($event)"
+                    [ngModel]="unit()"
+                    [placeholder]="'PANTRY.FIELD_UNIT_PLACEHOLDER' | translate"
+                    pInputText
+                    type="text"
+                />
             </div>
         </div>
     }
 
-    <p-button (onClick)="submit()" [disabled]="!canSubmit()" [label]="'PANTRY.SCAN_SUBMIT' | translate"
-              [loading]="saving()" class="self-start" icon="pi pi-plus" severity="primary" size="small"/>
+    <p-button
+        (onClick)="submit()"
+        [disabled]="!canSubmit()"
+        [label]="'PANTRY.SCAN_SUBMIT' | translate"
+        [loading]="saving()"
+        class="self-start"
+        icon="pi pi-plus"
+        severity="primary"
+        size="small"
+    />
 
     <!-- The learned set, as a shortcut for anybody typing a code by hand. -->
     @if (suggestions().length > 0) {
@@ -51,9 +82,11 @@
             <p class="text-[0.6875rem] uppercase tracking-widest text-text-muted m-0">{{ 'PANTRY.KNOWN_CODES' | translate }}</p>
             <div class="rounded-xl border border-border-subtle divide-y divide-white/[0.04] max-h-56 overflow-y-auto thin-scrollbar">
                 @for (barcode of suggestions(); track barcode.barcode) {
-                    <button (click)="pick(barcode)"
-                            class="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-hover transition-colors"
-                            type="button">
+                    <button
+                        (click)="pick(barcode)"
+                        class="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-hover transition-colors"
+                        type="button"
+                    >
                         <span class="text-[0.8125rem] text-text-primary truncate">{{ barcode.name }}</span>
                         <span class="text-[0.625rem] text-text-muted truncate">{{ barcode.barcode }}</span>
                         <span class="ml-auto text-[0.5625rem] text-text-muted shrink-0">

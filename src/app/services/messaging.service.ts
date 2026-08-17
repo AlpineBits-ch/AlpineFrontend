@@ -1,13 +1,13 @@
 import {inject, Injectable} from '@angular/core';
-import {HttpClient, HttpParams} from "@angular/common/http";
-import {Observable, Subject} from "rxjs";
-import {environment} from "../../environments/environment";
-import {CreateMessageDto} from "../dtos/request/create-message.dto";
-import {EmbedSuppressionResponse, MessageDto, PinMessageResponse} from "../dtos/response/message.dto";
-import {CreateReactionDto} from "../dtos/request/create-reaction.dto";
-import {RemoveReactionDto} from "../dtos/request/remove-reaction.dto";
-import {ApiConfigService} from "./api-config.service";
-import {PublishResponse} from "../dtos/response/channel-follow.dto";
+import {HttpClient, HttpParams} from '@angular/common/http';
+import {Observable, Subject} from 'rxjs';
+import {environment} from '../../environments/environment';
+import {CreateMessageDto} from '../dtos/request/create-message.dto';
+import {EmbedSuppressionResponse, MessageDto, PinMessageResponse} from '../dtos/response/message.dto';
+import {CreateReactionDto} from '../dtos/request/create-reaction.dto';
+import {RemoveReactionDto} from '../dtos/request/remove-reaction.dto';
+import {ApiConfigService} from './api-config.service';
+import {PublishResponse} from '../dtos/response/channel-follow.dto';
 
 /** Server caps this at 50 and silently falls back to 25 for anything out of range. */
 const SEARCH_LIMIT = 50;
@@ -23,23 +23,51 @@ export class MessagingService {
     private baseUrl = this.apiConfig.baseUrl();
 
     public createMessage(createConversationDto: CreateMessageDto): Observable<MessageDto> {
-        return this.httpClient.post<MessageDto>(this.apiConfig.baseUrl() + '/api/v1/messaging/messaging', createConversationDto);
+        return this.httpClient.post<MessageDto>(
+            this.apiConfig.baseUrl() + '/api/v1/messaging/messaging',
+            createConversationDto,
+        );
     }
 
-    public getMessagesForConversation(conversationId: string, offset: number, limit: number): Observable<MessageDto[]> {
-        return this.httpClient.get<MessageDto[]>(this.apiConfig.baseUrl() + '/api/v1/messaging/messaging/conversations/' + conversationId + '/messages?offset=' + offset + '&limit=' + limit);
+    public getMessagesForConversation(
+        conversationId: string,
+        offset: number,
+        limit: number,
+    ): Observable<MessageDto[]> {
+        return this.httpClient.get<MessageDto[]>(
+            this.apiConfig.baseUrl() +
+                '/api/v1/messaging/messaging/conversations/' +
+                conversationId +
+                '/messages?offset=' +
+                offset +
+                '&limit=' +
+                limit,
+        );
     }
 
     public getMessagesForChannel(channelId: string, offset: number, limit: number): Observable<MessageDto[]> {
-        return this.httpClient.get<MessageDto[]>(this.apiConfig.baseUrl() + '/api/v1/messaging/messaging/channels/' + channelId + '/messages?offset=' + offset + '&limit=' + limit);
+        return this.httpClient.get<MessageDto[]>(
+            this.apiConfig.baseUrl() +
+                '/api/v1/messaging/messaging/channels/' +
+                channelId +
+                '/messages?offset=' +
+                offset +
+                '&limit=' +
+                limit,
+        );
     }
 
     public deleteMessage(messageId: string): Observable<void> {
-        return this.httpClient.delete<void>(this.apiConfig.baseUrl() + '/api/v1/messaging/messaging/' + messageId);
+        return this.httpClient.delete<void>(
+            this.apiConfig.baseUrl() + '/api/v1/messaging/messaging/' + messageId,
+        );
     }
 
     public updateMessage(messageId: string, content: string): Observable<MessageDto> {
-        return this.httpClient.put<MessageDto>(this.apiConfig.baseUrl() + '/api/v1/messaging/messaging/' + messageId, {content});
+        return this.httpClient.put<MessageDto>(
+            this.apiConfig.baseUrl() + '/api/v1/messaging/messaging/' + messageId,
+            {content},
+        );
     }
 
     /**
@@ -50,52 +78,80 @@ export class MessagingService {
     public searchMessagesForChannel(channelId: string, query: string): Observable<MessageDto[]> {
         return this.httpClient.get<MessageDto[]>(
             `${this.apiConfig.baseUrl()}/api/v1/messaging/messaging/search`,
-            {params: new HttpParams().set('query', query).set('channelId', channelId).set('limit', SEARCH_LIMIT)}
+            {
+                params: new HttpParams()
+                    .set('query', query)
+                    .set('channelId', channelId)
+                    .set('limit', SEARCH_LIMIT),
+            },
         );
     }
 
     public searchMessagesForConversation(conversationId: string, query: string): Observable<MessageDto[]> {
         return this.httpClient.get<MessageDto[]>(
             `${this.apiConfig.baseUrl()}/api/v1/messaging/messaging/search`,
-            {params: new HttpParams().set('query', query).set('conversationId', conversationId).set('limit', SEARCH_LIMIT)}
+            {
+                params: new HttpParams()
+                    .set('query', query)
+                    .set('conversationId', conversationId)
+                    .set('limit', SEARCH_LIMIT),
+            },
         );
     }
 
     public getMessageById(params: {
         messageId: string;
         conversationId?: string;
-        channelId?: string
+        channelId?: string;
     }): Observable<MessageDto> {
         const {messageId, conversationId, channelId} = params;
         if (conversationId) {
             return this.httpClient.get<MessageDto>(
-                `${this.apiConfig.baseUrl()}/api/v1/messaging/messaging/conversations/${conversationId}/messages/${messageId}`
+                `${this.apiConfig.baseUrl()}/api/v1/messaging/messaging/conversations/${conversationId}/messages/${messageId}`,
             );
         }
         return this.httpClient.get<MessageDto>(
-            `${this.apiConfig.baseUrl()}/api/v1/messaging/messaging/channels/${channelId}/messages/${messageId}`
+            `${this.apiConfig.baseUrl()}/api/v1/messaging/messaging/channels/${channelId}/messages/${messageId}`,
         );
     }
 
     public addReaction(messageId: string, dto: CreateReactionDto): Observable<void> {
-        return this.httpClient.post<void>(`${this.apiConfig.baseUrl()}/api/v1/messaging/messages/${messageId}/reactions`, dto);
+        return this.httpClient.post<void>(
+            `${this.apiConfig.baseUrl()}/api/v1/messaging/messages/${messageId}/reactions`,
+            dto,
+        );
     }
 
     public removeReaction(messageId: string, dto: RemoveReactionDto): Observable<void> {
-        return this.httpClient.delete<void>(`${this.apiConfig.baseUrl()}/api/v1/messaging/messages/${messageId}/reactions`, {body: dto});
+        return this.httpClient.delete<void>(
+            `${this.apiConfig.baseUrl()}/api/v1/messaging/messages/${messageId}/reactions`,
+            {body: dto},
+        );
     }
 
     public pinMessage(messageId: string): Observable<PinMessageResponse> {
-        return this.httpClient.post<PinMessageResponse>(`${this.apiConfig.baseUrl()}/api/v1/messaging/messaging/${messageId}/pin`, null);
+        return this.httpClient.post<PinMessageResponse>(
+            `${this.apiConfig.baseUrl()}/api/v1/messaging/messaging/${messageId}/pin`,
+            null,
+        );
     }
 
     public unpinMessage(messageId: string): Observable<PinMessageResponse> {
-        return this.httpClient.delete<PinMessageResponse>(`${this.apiConfig.baseUrl()}/api/v1/messaging/messaging/${messageId}/pin`);
+        return this.httpClient.delete<PinMessageResponse>(
+            `${this.apiConfig.baseUrl()}/api/v1/messaging/messaging/${messageId}/pin`,
+        );
     }
 
-    public getPinnedMessages(params: { channelId?: string; conversationId?: string }): Observable<MessageDto[]> {
-        const query = params.channelId ? `channelId=${params.channelId}` : `conversationId=${params.conversationId}`;
-        return this.httpClient.get<MessageDto[]>(`${this.apiConfig.baseUrl()}/api/v1/messaging/messaging/pins?${query}`);
+    public getPinnedMessages(params: {
+        channelId?: string;
+        conversationId?: string;
+    }): Observable<MessageDto[]> {
+        const query = params.channelId
+            ? `channelId=${params.channelId}`
+            : `conversationId=${params.conversationId}`;
+        return this.httpClient.get<MessageDto[]>(
+            `${this.apiConfig.baseUrl()}/api/v1/messaging/messaging/pins?${query}`,
+        );
     }
 
     /**
@@ -106,7 +162,9 @@ export class MessagingService {
      */
     public publishMessage(messageId: string): Observable<PublishResponse> {
         return this.httpClient.post<PublishResponse>(
-            `${this.apiConfig.baseUrl()}/api/v1/messaging/messaging/${messageId}/publish`, null);
+            `${this.apiConfig.baseUrl()}/api/v1/messaging/messaging/${messageId}/publish`,
+            null,
+        );
     }
 
     /**
@@ -121,6 +179,8 @@ export class MessagingService {
      */
     public setEmbedSuppression(messageId: string, suppress: boolean): Observable<EmbedSuppressionResponse> {
         return this.httpClient.patch<EmbedSuppressionResponse>(
-            `${this.apiConfig.baseUrl()}/api/v1/messaging/messaging/${messageId}/embeds`, {suppress});
+            `${this.apiConfig.baseUrl()}/api/v1/messaging/messaging/${messageId}/embeds`,
+            {suppress},
+        );
     }
 }

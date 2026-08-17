@@ -139,7 +139,8 @@ describe('reconcileGuilds identity preservation', () => {
         const current = [guild('g1', [channel('c1')])];
         const incoming = clone(current) as unknown as GuildDto[];
         // `clone` already produced ISO strings; make sure the offset-carrying .NET form matches too.
-        (incoming[0] as unknown as Record<string, unknown>)['createdAt'] = '2026-08-13T09:41:22.1230000+00:00';
+        (incoming[0] as unknown as Record<string, unknown>)['createdAt'] =
+            '2026-08-13T09:41:22.1230000+00:00';
 
         expect(reconcileGuilds(current, incoming)).toBe(current);
     });

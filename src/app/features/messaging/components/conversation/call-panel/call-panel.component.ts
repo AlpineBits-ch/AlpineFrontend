@@ -3,7 +3,11 @@ import {CallSessionService} from '../../../../../services/call-session.service';
 import {CallWebRtcService} from '../../../../../services/call-webrtc.service';
 import {RustMediaService} from '../../../../../services/rust-media.service';
 import {StreamPreset} from '../../../../../models/stream-preset';
-import {CallParticipant, CallParticipantMenuData, CallScreenShare} from '../../../../../shared/call/call.types';
+import {
+    CallParticipant,
+    CallParticipantMenuData,
+    CallScreenShare,
+} from '../../../../../shared/call/call.types';
 import type {StreamStatsSnapshot} from '../../../../../shared/call/stream-stats';
 import {trackAudioWait} from '../../../../../shared/call/audio-wait';
 import {CallControlsBarComponent} from '../../../../../shared/call/call-controls-bar/call-controls-bar.component';
@@ -22,8 +26,9 @@ const MIN_HEIGHT = 200;
 const MAX_HEIGHT = 900;
 const DEFAULT_HEIGHT = 420;
 
-const CHIP_BASE = 'call-focusable flex size-[1.375rem] shrink-0 cursor-pointer items-center justify-center'
-    + ' rounded border-0 bg-transparent transition-colors';
+const CHIP_BASE =
+    'call-focusable flex size-[1.375rem] shrink-0 cursor-pointer items-center justify-center' +
+    ' rounded border-0 bg-transparent transition-colors';
 
 @Component({
     selector: 'app-call-panel',
@@ -56,11 +61,13 @@ export class CallPanelComponent implements OnInit, OnDestroy {
     private callSession = inject(CallSessionService);
     private callWebRtc = inject(CallWebRtcService);
     private translate = inject(TranslateService);
-    protected readonly callParticipants = computed((): CallParticipant[] => this.session()?.participants ?? []);
+    protected readonly callParticipants = computed(
+        (): CallParticipant[] => this.session()?.participants ?? [],
+    );
     /** See {@link dmScreenShares} - the mapping is shared with the app-level mini-player. */
-    protected readonly callScreenShares = computed((): CallScreenShare[] => dmScreenShares(
-        this.callSession, this.callWebRtc, this.rustMedia, this.session()?.screenShares ?? [],
-    ));
+    protected readonly callScreenShares = computed((): CallScreenShare[] =>
+        dmScreenShares(this.callSession, this.callWebRtc, this.rustMedia, this.session()?.screenShares ?? []),
+    );
     protected session = this.callSession.session;
     /** Where these shares live, so watching them can be announced - see ShareWatchService. */
     protected readonly watchScope = computed((): WatchScope | null => {
@@ -77,8 +84,8 @@ export class CallPanelComponent implements OnInit, OnDestroy {
      * user id, which is an internal identifier with no business appearing in a user-facing popover.
      */
     protected readonly resolveParticipantName = (userId: string): string =>
-        this.callParticipants().find(p => p.userId === userId)?.displayName
-        ?? this.translate.instant('CALL.UNKNOWN_VIEWER');
+        this.callParticipants().find(p => p.userId === userId)?.displayName ??
+        this.translate.instant('CALL.UNKNOWN_VIEWER');
 
     /** Inbound statistics for a share on this surface, keyed by share id - see the service doc. */
     protected readonly inboundStatsOf = (share: CallScreenShare): StreamStatsSnapshot | null =>
@@ -107,7 +114,6 @@ export class CallPanelComponent implements OnInit, OnDestroy {
         this.callWebRtc.toggleScreenAudioMute(userId);
     }
 
-
     private resizeStartY = 0;
     private resizeStartHeight = 0;
     private presence = inject(CallStagePresenceService);
@@ -116,10 +122,12 @@ export class CallPanelComponent implements OnInit, OnDestroy {
         // Tells the app-level mini-player that this call's full stage is on screen, so it can stand
         // down - see CallStagePresenceService. Keyed by the call, so leaving the conversation (which
         // tears this panel down without ending the call) hands the picture over to the mini-player.
-        this.presence.track(computed(() => {
-            const scope = this.watchScope();
-            return scope ? scopeKey(scope) : null;
-        }));
+        this.presence.track(
+            computed(() => {
+                const scope = this.watchScope();
+                return scope ? scopeKey(scope) : null;
+            }),
+        );
     }
 
     ngOnInit(): void {
@@ -127,7 +135,9 @@ export class CallPanelComponent implements OnInit, OnDestroy {
             const s = this.callSession.session();
             if (!s) return;
             const elapsed = Math.floor((Date.now() - new Date(s.startedAt).getTime()) / 1000);
-            const m = Math.floor(elapsed / 60).toString().padStart(2, '0');
+            const m = Math.floor(elapsed / 60)
+                .toString()
+                .padStart(2, '0');
             const sec = (elapsed % 60).toString().padStart(2, '0');
             this.duration.set(`${m}:${sec}`);
         }, 1000);
@@ -153,7 +163,12 @@ export class CallPanelComponent implements OnInit, OnDestroy {
     @HostListener('document:mousemove', ['$event'])
     protected onMouseMove(event: MouseEvent): void {
         if (!this.isResizing()) return;
-        this.panelHeight.set(Math.max(MIN_HEIGHT, Math.min(MAX_HEIGHT, this.resizeStartHeight + (event.clientY - this.resizeStartY))));
+        this.panelHeight.set(
+            Math.max(
+                MIN_HEIGHT,
+                Math.min(MAX_HEIGHT, this.resizeStartHeight + (event.clientY - this.resizeStartY)),
+            ),
+        );
     }
 
     @HostListener('document:mouseup')
@@ -229,10 +244,18 @@ export class CallPanelComponent implements OnInit, OnDestroy {
         // undefined when not sharing - that is what the menu template reads to decide whether the
         // second slider has anything to control.
         const isSharing = (this.session()?.screenShares ?? []).some(sh => sh.userId === p.userId);
-        const streamVolume = isSharing ? Math.round(this.callWebRtc.getScreenVolume(p.userId) * 100) : undefined;
+        const streamVolume = isSharing
+            ? Math.round(this.callWebRtc.getScreenVolume(p.userId) * 100)
+            : undefined;
         const x = Math.min(event.clientX, window.innerWidth - 236);
         const y = Math.min(event.clientY, window.innerHeight - 200);
-        this.participantMenu.set({x: Math.max(0, x), y: Math.max(0, y), participant: p, volume, streamVolume});
+        this.participantMenu.set({
+            x: Math.max(0, x),
+            y: Math.max(0, y),
+            participant: p,
+            volume,
+            streamVolume,
+        });
     }
 
     protected onVolumeChange(value: number): void {

@@ -125,9 +125,10 @@ export class VoiceLivenessService implements OnDestroy {
     }
 
     private assert(scope: WatchScope): void {
-        const request = scope.kind === 'channel'
-            ? this.guildVoice.alive(scope.guildId, scope.channelId)
-            : this.voiceService.alive(scope.callId);
+        const request =
+            scope.kind === 'channel'
+                ? this.guildVoice.alive(scope.guildId, scope.channelId)
+                : this.voiceService.alive(scope.callId);
 
         request.subscribe({
             next: () => void 0,

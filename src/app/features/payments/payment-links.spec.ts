@@ -9,8 +9,7 @@ function handle(kind: PaymentHandleKind, value: string): PaymentHandle {
 describe('payPalLink', () => {
     it('puts the amount and the ISO code in the path with no separator', () => {
         // PayPal's own help centre publishes this form: paypal.me/DiaRusso/25AUD.
-        expect(payPalLink('annamuster', 4250, 'CHF').url)
-            .toBe('https://paypal.me/annamuster/42.50CHF');
+        expect(payPalLink('annamuster', 4250, 'CHF').url).toBe('https://paypal.me/annamuster/42.50CHF');
     });
 
     it('always appends the currency, because omitting it silently changes the number', () => {
@@ -55,13 +54,11 @@ describe('payPalLink', () => {
     });
 
     it('respects a zero-decimal currency rather than inventing cents', () => {
-        expect(payPalLink('annamuster', 2500, 'JPY').url)
-            .toBe('https://paypal.me/annamuster/2500JPY');
+        expect(payPalLink('annamuster', 2500, 'JPY').url).toBe('https://paypal.me/annamuster/2500JPY');
     });
 
     it('escapes a handle rather than letting it alter the path', () => {
-        expect(payPalLink('anna/../ben', null, 'CHF').url)
-            .toBe('https://paypal.me/anna%2F..%2Fben');
+        expect(payPalLink('anna/../ben', null, 'CHF').url).toBe('https://paypal.me/anna%2F..%2Fben');
     });
 });
 
@@ -85,8 +82,12 @@ describe('buildPaymentLink', () => {
     it('builds none for the kinds that have no constructible link', () => {
         // Not a failure. An IBAN is paid by scanning its QR-bill or typing it into a bank; Wise
         // and Venmo have nothing a third party can construct. All three route to copyable text.
-        for (const kind of [PaymentHandleKind.Iban, PaymentHandleKind.Wise,
-            PaymentHandleKind.Venmo, PaymentHandleKind.Other]) {
+        for (const kind of [
+            PaymentHandleKind.Iban,
+            PaymentHandleKind.Wise,
+            PaymentHandleKind.Venmo,
+            PaymentHandleKind.Other,
+        ]) {
             expect(buildPaymentLink(handle(kind, 'anna'), 100, 'CHF')).toBeNull();
             expect(isLinkable(handle(kind, 'anna'))).toBe(false);
         }

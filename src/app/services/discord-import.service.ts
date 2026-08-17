@@ -30,7 +30,10 @@ export class DiscordImportService {
         return this.http.get<GuildLinkDto[]>(`${this.base()}/links`, {params: {guildId}});
     }
 
-    setLinkStatus(linkId: string, status: Extract<GuildLinkStatus, 'Active' | 'Paused'>): Observable<GuildLinkDto> {
+    setLinkStatus(
+        linkId: string,
+        status: Extract<GuildLinkStatus, 'Active' | 'Paused'>,
+    ): Observable<GuildLinkDto> {
         return this.http.patch<GuildLinkDto>(`${this.base()}/links/${encodeURIComponent(linkId)}`, {status});
     }
 

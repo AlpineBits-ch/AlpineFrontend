@@ -54,10 +54,13 @@ describe('DevicePinStore', () => {
     });
 
     it('reads a mixture of old and new entries', () => {
-        localStorage.setItem(KEY, JSON.stringify({
-            dev_old: 'legacy-key',
-            dev_new: {publicKey: 'k', identityKeyVersion: 2},
-        }));
+        localStorage.setItem(
+            KEY,
+            JSON.stringify({
+                dev_old: 'legacy-key',
+                dev_new: {publicKey: 'k', identityKeyVersion: 2},
+            }),
+        );
 
         expect(store.read(USER, GUILD)).toEqual({
             dev_old: {publicKey: 'legacy-key'},
@@ -68,12 +71,15 @@ describe('DevicePinStore', () => {
     it('drops a malformed entry instead of pinning something unusable', () => {
         // Degrading to "we have not seen this device" prompts, which is right. A pin of `undefined`
         // would compare unequal to every real key and cry attack on all of them.
-        localStorage.setItem(KEY, JSON.stringify({
-            dev_bad: {identityKeyVersion: 1},
-            dev_empty: '',
-            dev_null: null,
-            dev_ok: {publicKey: 'k'},
-        }));
+        localStorage.setItem(
+            KEY,
+            JSON.stringify({
+                dev_bad: {identityKeyVersion: 1},
+                dev_empty: '',
+                dev_null: null,
+                dev_ok: {publicKey: 'k'},
+            }),
+        );
 
         expect(store.read(USER, GUILD)).toEqual({dev_ok: {publicKey: 'k'}});
     });

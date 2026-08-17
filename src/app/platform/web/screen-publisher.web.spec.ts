@@ -45,8 +45,7 @@ function fakeTrack(kind: 'video' | 'audio'): FakeTrack {
         stop: vi.fn(() => {
             track.readyState = 'ended';
         }),
-        applyConstraints: vi.fn(async () => {
-        }),
+        applyConstraints: vi.fn(async () => {}),
     };
     return track;
 }
@@ -77,8 +76,7 @@ const OFFER_SDP = ['v=0', 'm=video 9 UDP/TLS/RTP/SAVPF 96', 'a=rtpmap:96 VP9/900
 class FakeSender {
     params: RTCRtpSendParameters = {encodings: [{}]} as RTCRtpSendParameters;
 
-    constructor(readonly track: FakeTrack) {
-    }
+    constructor(readonly track: FakeTrack) {}
 
     getParameters(): RTCRtpSendParameters {
         return this.params;
@@ -202,20 +200,24 @@ beforeEach(() => {
             return displayResult(constraints);
         }),
     });
-    define(globalThis, 'fetch', vi.fn(async (url: string, init: RequestInit) => {
-        const body = JSON.parse(String(init.body)) as Record<string, unknown>;
-        posted.push({
-            method: String(init.method),
-            url,
-            body,
-            headers: init.headers as Record<string, string>,
-        });
-        return {
-            ok: true,
-            status: 200,
-            text: async () => JSON.stringify(respond(url, body)),
-        } as Response;
-    }));
+    define(
+        globalThis,
+        'fetch',
+        vi.fn(async (url: string, init: RequestInit) => {
+            const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+            posted.push({
+                method: String(init.method),
+                url,
+                body,
+                headers: init.headers as Record<string, string>,
+            });
+            return {
+                ok: true,
+                status: 200,
+                text: async () => JSON.stringify(respond(url, body)),
+            } as Response;
+        }),
+    );
 });
 
 afterEach(() => {
@@ -280,7 +282,9 @@ describe('WebScreenPublisher: what it publishes', () => {
         await new WebScreenPublisher().start(options());
 
         const session = posted[0];
-        expect(session.url).toBe('https://api.test/api/v1/guild/guilds/guild-1/channels/chan-1/voice/session?primary=false');
+        expect(session.url).toBe(
+            'https://api.test/api/v1/guild/guilds/guild-1/channels/chan-1/voice/session?primary=false',
+        );
         expect(session.headers['X-Device-Id']).toBe('dev-1');
         expect(session.headers['Authorization']).toBe('Bearer tok');
     });
@@ -288,9 +292,12 @@ describe('WebScreenPublisher: what it publishes', () => {
     /** The DM route needs its `messaging/` segment or it 404s at the gateway rather than the service. */
     it('publishes a DM call on the messaging route', async () => {
         await new WebScreenPublisher().start(
-            options({guildId: undefined, channelId: undefined, callId: 'call-9'}));
+            options({guildId: undefined, channelId: undefined, callId: 'call-9'}),
+        );
 
-        expect(posted[0].url).toBe('https://api.test/api/v1/messaging/voice/calls/call-9/session?primary=false');
+        expect(posted[0].url).toBe(
+            'https://api.test/api/v1/messaging/voice/calls/call-9/session?primary=false',
+        );
     });
 
     /** The ramp fix: without a start bitrate the first half-minute of every share is mush. */
@@ -354,8 +361,7 @@ describe('WebScreenPublisher: audio that was asked for and did not arrive', () =
      * audio is Chromium-only and tab/window-scoped, so this is the common case, not the edge one.
      */
     it('proceeds video-only, publishes no audio track, and says so', async () => {
-        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {
-        });
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
         displayResult = async () => new FakeMediaStream([fakeTrack('video')]);
 
         const result = await new WebScreenPublisher().start(options({shareAudio: true}));
@@ -363,7 +369,8 @@ describe('WebScreenPublisher: audio that was asked for and did not arrive', () =
         expect(result.audioTrackName).toBeNull();
         expect(publishedTracks().map(t => t.trackName)).toEqual(['screen-abc']);
         expect(warn).toHaveBeenCalledWith(
-            expect.stringContaining('audio was requested but this host published none'));
+            expect.stringContaining('audio was requested but this host published none'),
+        );
     });
 
     /**
@@ -371,8 +378,7 @@ describe('WebScreenPublisher: audio that was asked for and did not arrive', () =
      * unavailable, and reject the whole call. A video-only share beats no share.
      */
     it('retries video-only when the host refuses the audio constraint', async () => {
-        vi.spyOn(console, 'warn').mockImplementation(() => {
-        });
+        vi.spyOn(console, 'warn').mockImplementation(() => {});
         let attempt = 0;
         displayResult = async () => {
             if (attempt++ === 0) throw new TypeError('audio is not supported');
@@ -399,16 +405,17 @@ describe('WebScreenPublisher: audio that was asked for and did not arrive', () =
 
     /** The SFU can refuse the audio half on its own; the video share still stands, without it. */
     it('reports no audio when the SFU refuses that track alone', async () => {
-        vi.spyOn(console, 'warn').mockImplementation(() => {
-        });
+        vi.spyOn(console, 'warn').mockImplementation(() => {});
         respond = (url, body) => {
             if (url.endsWith('/session?primary=false')) return {mediaSessionId: 'cf-session-1'};
-            const tracks = (body['tracks'] as {trackName: string; mid: string}[]);
+            const tracks = body['tracks'] as {trackName: string; mid: string}[];
             return {
                 sessionDescription: {type: 'answer', sdp: 'answer-sdp'},
-                tracks: tracks.map(t => t.trackName.startsWith('screen-audio-')
-                    ? {...t, errorCode: 'audio_rejected', errorDescription: 'nope'}
-                    : t),
+                tracks: tracks.map(t =>
+                    t.trackName.startsWith('screen-audio-')
+                        ? {...t, errorCode: 'audio_rejected', errorDescription: 'nope'}
+                        : t,
+                ),
                 requiresImmediateRenegotiation: false,
             };
         };
@@ -509,10 +516,8 @@ describe('WebScreenPublisher: share ids', () => {
 
         await adapter.setSpec('live', {width: 1280, height: 720, kbps: 2500, content: 'text'});
 
-        expect(video.applyConstraints)
-            .toHaveBeenCalledWith({width: {max: 1280}, height: {max: 720}});
-        expect(FakePeerConnection.instances[0].senders[0].params.encodings?.[0].maxBitrate)
-            .toBe(2_500_000);
+        expect(video.applyConstraints).toHaveBeenCalledWith({width: {max: 1280}, height: {max: 720}});
+        expect(FakePeerConnection.instances[0].senders[0].params.encodings?.[0].maxBitrate).toBe(2_500_000);
         expect(posted.length).toBe(before);
     });
 
@@ -597,8 +602,16 @@ describe('geometry parity between the two adapters', () => {
     };
 
     function solved(): ScreenPublishOptions {
-        return publishOptions(choice, 'share-1', 'https://api.test', 'tok', 'dev-1',
-            {guildId: 'g', channelId: 'c'}, null, {url: 'wss://sfu.test', token: 'lk-tok'});
+        return publishOptions(
+            choice,
+            'share-1',
+            'https://api.test',
+            'tok',
+            'dev-1',
+            {guildId: 'g', channelId: 'c'},
+            null,
+            {url: 'wss://sfu.test', token: 'lk-tok'},
+        );
     }
 
     it('asks the browser for exactly the geometry the solver produced', async () => {
@@ -621,15 +634,21 @@ describe('geometry parity between the two adapters', () => {
         const invoke = vi.fn(async (_command: string, args?: Record<string, unknown>) => {
             void args;
             return {
-                mediaSessionId: 'cf-1', trackName: 'screen-share-1', audioTrackName: null, encoder: 'openh264',
+                mediaSessionId: 'cf-1',
+                trackName: 'screen-share-1',
+                audioTrackName: null,
+                encoder: 'openh264',
             };
         });
-        const tauri = new TauriScreenPublisher(async () => ({
-            invoke,
-            Channel: class {
-                onmessage: unknown = null;
-            },
-        }) as never);
+        const tauri = new TauriScreenPublisher(
+            async () =>
+                ({
+                    invoke,
+                    Channel: class {
+                        onmessage: unknown = null;
+                    },
+                }) as never,
+        );
 
         await tauri.start(o);
         await new WebScreenPublisher().start(o);

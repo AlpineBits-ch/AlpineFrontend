@@ -11,16 +11,18 @@ function card(over: Partial<PaymentMethodDto> = {}): PaymentMethodDto {
     return {id: 'pm_1', brand: 'visa', last4: '4242', expMonth: 12, expYear: 2030, isDefault: true, ...over};
 }
 
-function setup(opts: {
-    cards?: PaymentMethodDto[];
-    listError?: unknown;
-    detachError?: unknown;
-    /** A detach that never answers, for the double-submit case. */
-    detachInFlight?: Subject<void>;
-} = {}) {
-    const list = vi.fn<() => Observable<PaymentMethodDto[]>>(() => opts.listError
-        ? throwError(() => opts.listError)
-        : of(opts.cards ?? [card()]));
+function setup(
+    opts: {
+        cards?: PaymentMethodDto[];
+        listError?: unknown;
+        detachError?: unknown;
+        /** A detach that never answers, for the double-submit case. */
+        detachInFlight?: Subject<void>;
+    } = {},
+) {
+    const list = vi.fn<() => Observable<PaymentMethodDto[]>>(() =>
+        opts.listError ? throwError(() => opts.listError) : of(opts.cards ?? [card()]),
+    );
     const setDefault = vi.fn<(id: string) => Observable<void>>(() => of(undefined));
     const remove = vi.fn<(id: string) => Observable<void>>(() => {
         if (opts.detachInFlight) return opts.detachInFlight.asObservable();
@@ -61,8 +63,9 @@ function dialogText(): string {
 }
 
 function buttons(label: string): HTMLButtonElement[] {
-    return Array.from(document.body.querySelectorAll('button'))
-        .filter(el => ((el as HTMLElement).textContent ?? '').includes(label)) as HTMLButtonElement[];
+    return Array.from(document.body.querySelectorAll('button')).filter(el =>
+        ((el as HTMLElement).textContent ?? '').includes(label),
+    ) as HTMLButtonElement[];
 }
 
 function button(_fixture: ComponentFixture<PaymentMethodsComponent>, label: string): HTMLElement {
@@ -197,10 +200,7 @@ describe('confirming a removal', () => {
     /** "Remove this card?" over a dialog naming none of them is a coin toss on an account with three. */
     it('names the card it is about, not merely a card', () => {
         const {fixture} = setup({
-            cards: [
-                card(),
-                card({id: 'pm_2', brand: 'cartes_bancaires', last4: '5454', isDefault: false}),
-            ],
+            cards: [card(), card({id: 'pm_2', brand: 'cartes_bancaires', last4: '5454', isDefault: false})],
         });
 
         buttons('BILLING.CARD.REMOVE')[1].click();

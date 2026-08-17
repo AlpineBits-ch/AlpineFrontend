@@ -6,7 +6,7 @@ import {
     inject,
     OnInit,
     signal,
-    ViewChild
+    ViewChild,
 } from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {switchMap} from 'rxjs';
@@ -34,7 +34,13 @@ import {memberCanManageGuild} from '../../guild-permissions';
 
 @Component({
     selector: 'app-server-taskbar',
-    imports: [ServerIconComponent, CreateGuildModalComponent, NgClass, ContextMenu, GuildSettingsModalComponent],
+    imports: [
+        ServerIconComponent,
+        CreateGuildModalComponent,
+        NgClass,
+        ContextMenu,
+        GuildSettingsModalComponent,
+    ],
     templateUrl: './server-taskbar.component.html',
     styleUrl: './server-taskbar.component.css',
     changeDetection: ChangeDetectionStrategy.OnPush,
@@ -60,7 +66,8 @@ export class ServerTaskbarComponent implements OnInit {
         const voice = this.voiceActivity.presence();
         return this.guilds().map(g => {
             const totalMentions = g.channels.reduce(
-                (sum, c) => sum + (readStates[c.id]?.mentionCount ?? 0), 0
+                (sum, c) => sum + (readStates[c.id]?.mentionCount ?? 0),
+                0,
             );
             return {
                 id: g.id,
@@ -98,14 +105,16 @@ export class ServerTaskbarComponent implements OnInit {
             this.reconcileRestoredWorkspace(guilds);
         });
 
-        this.guildService.guildJoined$.pipe(
-            takeUntilDestroyed(this.destroyRef),
-            switchMap(() => this.guildService.getGuilds()),
-        ).subscribe();
+        this.guildService.guildJoined$
+            .pipe(
+                takeUntilDestroyed(this.destroyRef),
+                switchMap(() => this.guildService.getGuilds()),
+            )
+            .subscribe();
 
-        this.guildService.guildUpdated$.pipe(
-            takeUntilDestroyed(this.destroyRef),
-        ).subscribe(updated => this.guildService.upsertGuild(updated));
+        this.guildService.guildUpdated$
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe(updated => this.guildService.upsertGuild(updated));
 
         // A guild appeared without this window doing anything (created on another device, or accepted elsewhere): `guildJoined$` only fires for a join this client performed. Not navigated to, unlike `onGuildCreated`: yanking the workspace because another device did something would be wrong here.
         this.guildWsService.guildCreatedObservable
@@ -117,16 +126,14 @@ export class ServerTaskbarComponent implements OnInit {
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe(e => this.onGuildDeleted(e.guildId));
 
-        this.guildWsService.guildUpdatedObservable
-            .pipe(takeUntilDestroyed(this.destroyRef))
-            .subscribe(e => {
-                this.guildService.getGuild(e.guildId).subscribe(updated => {
-                    // Through the service so the reconciliation runs; this event fires for changes nothing on screen cares about.
-                    this.guildService.upsertGuild(updated);
-                    const current = this.guildService.guilds().find(g => g.id === e.guildId);
-                    if (current) this.navService.updateCurrentGuild(current);
-                });
+        this.guildWsService.guildUpdatedObservable.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(e => {
+            this.guildService.getGuild(e.guildId).subscribe(updated => {
+                // Through the service so the reconciliation runs; this event fires for changes nothing on screen cares about.
+                this.guildService.upsertGuild(updated);
+                const current = this.guildService.guilds().find(g => g.id === e.guildId);
+                if (current) this.navService.updateCurrentGuild(current);
             });
+        });
     }
 
     /** Only reachable on a warm start, for the guild currently open. If the guild is gone (left on another device), falls back to DMs instead of restoring into a workspace that would 403 on every request. */
@@ -234,11 +241,15 @@ export class ServerTaskbarComponent implements OnInit {
                 },
             },
             {separator: true},
-            ...(this.canManageGuild(guild) ? [{
-                label: 'Server Settings',
-                icon: 'pi pi-cog',
-                command: () => this.showGuildSettings.set(true),
-            }] : []),
+            ...(this.canManageGuild(guild)
+                ? [
+                      {
+                          label: 'Server Settings',
+                          icon: 'pi pi-cog',
+                          command: () => this.showGuildSettings.set(true),
+                      },
+                  ]
+                : []),
             {
                 label: 'Copy Server ID',
                 icon: 'pi pi-copy',
@@ -340,7 +351,9 @@ export class ServerTaskbarComponent implements OnInit {
             },
             error: err => {
                 if (err.status === 400) {
-                    this.toastService.error('You must delete the server instead of leaving, since you own it.');
+                    this.toastService.error(
+                        'You must delete the server instead of leaving, since you own it.',
+                    );
                 } else {
                     this.toastService.httpError('Failed to leave server', err);
                 }

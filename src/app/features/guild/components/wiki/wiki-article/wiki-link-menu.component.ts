@@ -10,15 +10,24 @@ import {searchWiki} from '../wiki-search';
     imports: [NgClass, TranslateModule],
     template: `
         @if (open()) {
-            <div [style.left.px]="position().left" [style.top.px]="position().top"
-                 class="fixed z-50 w-64 overflow-hidden rounded-xl border border-border bg-card
-                        py-1 shadow-xl">
+            <div
+                [style.left.px]="position().left"
+                [style.top.px]="position().top"
+                class="fixed z-50 w-64 overflow-hidden rounded-xl border border-border bg-card
+                        py-1 shadow-xl"
+            >
                 @for (page of matches(); track page.id; let i = $index) {
-                    <button (click)="selected.emit(page)"
-                            [ngClass]="i === activeIndex() ? 'bg-brand/25 ring-1 ring-inset ring-brand/40' : 'hover:bg-hover'"
-                            class="flex w-full cursor-pointer items-center gap-2.5 border-0
+                    <button
+                        (click)="selected.emit(page)"
+                        [ngClass]="
+                            i === activeIndex()
+                                ? 'bg-brand/25 ring-1 ring-inset ring-brand/40'
+                                : 'hover:bg-hover'
+                        "
+                        class="flex w-full cursor-pointer items-center gap-2.5 border-0
                                    bg-transparent px-3 py-2 text-left text-[0.8125rem]
-                                   text-white/75">
+                                   text-white/75"
+                    >
                         <i class="pi pi-file text-[0.75rem] text-white/40"></i>
                         <span class="truncate">{{ page.title }}</span>
                     </button>
@@ -35,7 +44,7 @@ import {searchWiki} from '../wiki-search';
 export class WikiLinkMenuComponent {
     readonly open = input(false);
     readonly query = input('');
-    readonly position = input<{ top: number; left: number }>({top: 0, left: 0});
+    readonly position = input<{top: number; left: number}>({top: 0, left: 0});
     readonly pages = input<readonly WikiPageSummaryDto[]>([]);
 
     readonly selected = output<WikiPageSummaryDto>();
@@ -48,7 +57,11 @@ export class WikiLinkMenuComponent {
         const query = this.query();
         if (!query.trim()) return [...pages].slice(0, 8);
         const byId = new Map(pages.map(p => [p.id, p]));
-        return searchWiki(pages.map(p => ({id: p.id, title: p.title, tags: p.tags})), query, 8)
+        return searchWiki(
+            pages.map(p => ({id: p.id, title: p.title, tags: p.tags})),
+            query,
+            8,
+        )
             .map(hit => byId.get(hit.id))
             .filter((p): p is WikiPageSummaryDto => !!p);
     });

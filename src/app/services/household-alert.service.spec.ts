@@ -13,7 +13,7 @@ function fire(event: string, payload: unknown): void {
 }
 
 /** Every OS notification the service raised, newest last. */
-const notifications: { title: string; message: string; extra?: Record<string, string> }[] = [];
+const notifications: {title: string; message: string; extra?: Record<string, string>}[] = [];
 
 function alert(overrides: Partial<HouseholdAlert> = {}): HouseholdAlert {
     return {

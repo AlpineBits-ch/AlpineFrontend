@@ -20,8 +20,13 @@ export const DECISION_LIMITS = {
  * ordinary mistake, and a bare `400` next to a date picker does not say which field it meant.</p>
  */
 export type CreateDecisionProblem =
-    'title-required' | 'title-too-long' | 'too-few-options' | 'too-many-options'
-    | 'quorum-too-low' | 'closes-at-past' | null;
+    | 'title-required'
+    | 'title-too-long'
+    | 'too-few-options'
+    | 'too-many-options'
+    | 'quorum-too-low'
+    | 'closes-at-past'
+    | null;
 
 export function createDecisionProblem(body: CreateDecisionDto, now = Date.now()): CreateDecisionProblem {
     const title = body.title.trim();

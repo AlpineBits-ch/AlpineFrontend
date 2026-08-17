@@ -12,11 +12,14 @@
                 <p class="text-sm text-white/60">{{ 'SETTINGS.PRIVACY.EXPORT_REQUEST' | translate }}</p>
                 <p class="text-xs text-white/25 mt-0.5">{{ 'SETTINGS.PRIVACY.EXPORT_REQUEST_DESC' | translate }}</p>
             </div>
-            <p-button [label]="'SETTINGS.PRIVACY.EXPORT_REQUEST_ACTION' | translate"
-                      severity="primary" size="small"
-                      [disabled]="inFlight()"
-                      [loading]="requesting()"
-                      (onClick)="request()"/>
+            <p-button
+                [label]="'SETTINGS.PRIVACY.EXPORT_REQUEST_ACTION' | translate"
+                severity="primary"
+                size="small"
+                [disabled]="inFlight()"
+                [loading]="requesting()"
+                (onClick)="request()"
+            />
         </div>
 
         @if (inFlight()) {
@@ -30,25 +33,27 @@
                         <p class="text-sm text-white/60">{{ statusKey(item.status) | translate }}</p>
                         <p class="text-xs text-white/25 mt-0.5">
                             {{ 'SETTINGS.PRIVACY.EXPORT_REQUESTED_AT' | translate }}
-                            {{ item.requestedAt | date:'medium' }}
+                            {{ item.requestedAt | date: 'medium' }}
                             @if (item.expiresAt && isDownloadable(item.status)) {
-                                · {{ 'SETTINGS.PRIVACY.EXPORT_EXPIRES' | translate }} {{ item.expiresAt | date:'medium' }}
+                                · {{ 'SETTINGS.PRIVACY.EXPORT_EXPIRES' | translate }} {{ item.expiresAt | date: 'medium' }}
                             }
                         </p>
                     </div>
                     @if (isDownloadable(item.status) && !downloadBlocked) {
-                        <p-button [label]="'SETTINGS.PRIVACY.EXPORT_DOWNLOAD' | translate"
-                                  severity="secondary" size="small"
-                                  [loading]="downloading() === item.exportId"
-                                  (onClick)="download(item)"/>
+                        <p-button
+                            [label]="'SETTINGS.PRIVACY.EXPORT_DOWNLOAD' | translate"
+                            severity="secondary"
+                            size="small"
+                            [loading]="downloading() === item.exportId"
+                            (onClick)="download(item)"
+                        />
                     }
                 </div>
 
                 <!-- The artifact exists and is ready; it is the fetch that cannot happen here. Said
                      rather than offered, because the button would fail every single time. -->
                 @if (isDownloadable(item.status) && downloadBlocked) {
-                    <p class="text-xs text-white/35 mt-2 border-t border-white/[0.06] pt-2"
-                       data-testid="export-download-unsupported">
+                    <p class="text-xs text-white/35 mt-2 border-t border-white/[0.06] pt-2" data-testid="export-download-unsupported">
                         {{ 'SETTINGS.PRIVACY.EXPORT_DOWNLOAD_UNSUPPORTED' | translate }}
                     </p>
                 }

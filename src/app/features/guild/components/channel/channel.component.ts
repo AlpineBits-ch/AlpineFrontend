@@ -1,16 +1,16 @@
 import {
-  afterEveryRender,
-  AfterViewInit,
-  Component,
-  computed,
-  DestroyRef,
-  effect,
-  ElementRef,
-  inject,
-  input,
-  output,
-  signal,
-  ViewChild,
+    afterEveryRender,
+    AfterViewInit,
+    Component,
+    computed,
+    DestroyRef,
+    effect,
+    ElementRef,
+    inject,
+    input,
+    output,
+    signal,
+    ViewChild,
 } from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {DatePipe} from '@angular/common';
@@ -82,11 +82,23 @@ function decodeContent(encoded: string): string {
 @Component({
     selector: 'app-channel',
     imports: [
-        ComposerComponent, MessageComponent, SystemMessageComponent, Button,
-        DatePipe, HighlightPipe, TypingDotsComponent, ThreadPanelComponent,
-        PinnedMessagesPanelComponent, FollowChannelDialogComponent, TranslateModule,
-        ChannelAccessBannerComponent, MlsUnreadableBannerComponent,
-        ForumTagChipComponent, ForumTagPickerComponent, Dialog, PrimeTemplate,
+        ComposerComponent,
+        MessageComponent,
+        SystemMessageComponent,
+        Button,
+        DatePipe,
+        HighlightPipe,
+        TypingDotsComponent,
+        ThreadPanelComponent,
+        PinnedMessagesPanelComponent,
+        FollowChannelDialogComponent,
+        TranslateModule,
+        ChannelAccessBannerComponent,
+        MlsUnreadableBannerComponent,
+        ForumTagChipComponent,
+        ForumTagPickerComponent,
+        Dialog,
+        PrimeTemplate,
     ],
     templateUrl: './channel.component.html',
     styleUrl: './channel.component.css',
@@ -150,7 +162,9 @@ export class ChannelComponent implements AfterViewInit {
 
     protected readonly appliedTags = computed(() => {
         const byId = new Map(this.forumTags().map(t => [t.id, t]));
-        return this.postTagIds().map(id => byId.get(id)).filter((t): t is ForumTag => !!t);
+        return this.postTagIds()
+            .map(id => byId.get(id))
+            .filter((t): t is ForumTag => !!t);
     });
 
     protected readonly forumEmojiUrls = computed(() => {
@@ -167,15 +181,15 @@ export class ChannelComponent implements AfterViewInit {
     protected readonly msgResults = computed(() => {
         const q = this.searchQuery().trim().toLowerCase();
         if (!q) return [];
-        return (this.searchEntry()?.results ?? []).filter(m =>
-            !m.undecryptable && decodeContent(m.content).toLowerCase().includes(q)
+        return (this.searchEntry()?.results ?? []).filter(
+            m => !m.undecryptable && decodeContent(m.content).toLowerCase().includes(q),
         );
     });
     protected readonly attResults = computed(() => {
         const q = this.searchQuery().trim().toLowerCase();
         if (!q) return [];
-        const out: { message: MessageDto; attachment: MessageAttachment }[] = [];
-        for (const m of (this.searchEntry()?.results ?? [])) {
+        const out: {message: MessageDto; attachment: MessageAttachment}[] = [];
+        for (const m of this.searchEntry()?.results ?? []) {
             for (const a of m.attachments) {
                 if (a.fileName.toLowerCase().includes(q)) out.push({message: m, attachment: a});
             }
@@ -192,9 +206,11 @@ export class ChannelComponent implements AfterViewInit {
     });
 
     /** Lets a moderator dismiss a link preview on someone else's message. */
-    protected readonly canDeleteAnyMessage = computed(() =>
-        hasPermission(this.threadPermissions(), Permissions.Superadmin)
-        || hasPermission(this.threadPermissions(), Permissions.DeleteAnyMessage));
+    protected readonly canDeleteAnyMessage = computed(
+        () =>
+            hasPermission(this.threadPermissions(), Permissions.Superadmin) ||
+            hasPermission(this.threadPermissions(), Permissions.DeleteAnyMessage),
+    );
 
     private readonly threadPermissions = computed(() => {
         const member = this.ownMember();
@@ -202,9 +218,11 @@ export class ChannelComponent implements AfterViewInit {
         return unionMemberPermissions(member);
     });
 
-    protected readonly canManageAnyThread = computed(() =>
-        hasPermission(this.threadPermissions(), Permissions.Superadmin)
-        || hasPermission(this.threadPermissions(), Permissions.ManageAnyThread));
+    protected readonly canManageAnyThread = computed(
+        () =>
+            hasPermission(this.threadPermissions(), Permissions.Superadmin) ||
+            hasPermission(this.threadPermissions(), Permissions.ManageAnyThread),
+    );
 
     /** Some thread payloads omit createdByUserId; when missing, falls back to the moderator bit rather than offering an edit that would 403. */
     protected readonly canEditTags = computed(() => {
@@ -214,14 +232,15 @@ export class ChannelComponent implements AfterViewInit {
         return !!creatorId && creatorId === this.profileService.ownProfile()?.userId;
     });
 
-    protected readonly canUseModeratedTags = computed(() =>
-        this.canManageAnyThread() || hasPermission(this.threadPermissions(), Permissions.ManageChannel));
+    protected readonly canUseModeratedTags = computed(
+        () => this.canManageAnyThread() || hasPermission(this.threadPermissions(), Permissions.ManageChannel),
+    );
 
     protected readonly messages = computed(() =>
         this.messageStore
             .entities()
             .filter(m => m.channelId === this.channel().id)
-            .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+            .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()),
     );
     protected readonly messageRows = computed(() => {
         const msgs = this.messages();
@@ -232,17 +251,17 @@ export class ChannelComponent implements AfterViewInit {
     });
 
     // ── Messages ─────────────────────────────────────────────────────────────
-    protected readonly hasMore = computed(() =>
-        this.messageStore.channelMeta()[this.channel().id]?.hasMore ?? false
+    protected readonly hasMore = computed(
+        () => this.messageStore.channelMeta()[this.channel().id]?.hasMore ?? false,
     );
-    protected readonly loadingMore = computed(() =>
-        this.messageStore.channelMeta()[this.channel().id]?.loadingMore ?? false
+    protected readonly loadingMore = computed(
+        () => this.messageStore.channelMeta()[this.channel().id]?.loadingMore ?? false,
     );
-    protected readonly loadError = computed(() =>
-        this.messageStore.channelMeta()[this.channel().id]?.error ?? null
+    protected readonly loadError = computed(
+        () => this.messageStore.channelMeta()[this.channel().id]?.error ?? null,
     );
-    protected readonly searchEntry = computed(() =>
-        this.messageStore.channelSearchEntries()[this.channel().id] ?? null
+    protected readonly searchEntry = computed(
+        () => this.messageStore.channelSearchEntries()[this.channel().id] ?? null,
     );
 
     // ── Search ───────────────────────────────────────────────────────────────
@@ -317,15 +336,12 @@ export class ChannelComponent implements AfterViewInit {
             }
         });
 
-        this.guildWs.threadUpdatedObservable
-            .pipe(takeUntilDestroyed(inject(DestroyRef)))
-            .subscribe(e => {
-                if (e.channelId !== this.channel().id) return;
-                // Full current state, not a patch: each present field replaces.
-                if (e.isLocked !== undefined) this.localIsLocked.set(e.isLocked);
-                if (e.tagIds !== undefined) this.localTagIds.set(e.tagIds);
-            });
-
+        this.guildWs.threadUpdatedObservable.pipe(takeUntilDestroyed(inject(DestroyRef))).subscribe(e => {
+            if (e.channelId !== this.channel().id) return;
+            // Full current state, not a patch: each present field replaces.
+            if (e.isLocked !== undefined) this.localIsLocked.set(e.isLocked);
+            if (e.tagIds !== undefined) this.localTagIds.set(e.tagIds);
+        });
 
         effect(() => {
             const channelId = this.channel().id;
@@ -390,10 +406,7 @@ export class ChannelComponent implements AfterViewInit {
             this.readStateService.markChannelRead(channelId);
         });
 
-        this.searchSubject.pipe(
-            debounceTime(300),
-            takeUntilDestroyed(),
-        ).subscribe(query => {
+        this.searchSubject.pipe(debounceTime(300), takeUntilDestroyed()).subscribe(query => {
             if (query.trim()) {
                 this.messageStore.searchInChannel(this.channel().id, query);
             } else {
@@ -405,7 +418,7 @@ export class ChannelComponent implements AfterViewInit {
     // ── Forum post tags ──────────────────────────────────────────────────────
 
     protected forumEmojiUrlFor(tag: ForumTag): string | null {
-        return tag.emojiId ? this.forumEmojiUrls()[tag.emojiId] ?? null : null;
+        return tag.emojiId ? (this.forumEmojiUrls()[tag.emojiId] ?? null) : null;
     }
 
     protected openTagDialog(): void {
@@ -446,7 +459,8 @@ export class ChannelComponent implements AfterViewInit {
         mentionsEveryone: boolean;
         mentionsHere: boolean;
     }): void {
-        const {content, attachments, inReplyTo, mentions, roleMentions, mentionsEveryone, mentionsHere} = event;
+        const {content, attachments, inReplyTo, mentions, roleMentions, mentionsEveryone, mentionsHere} =
+            event;
         const tempId = crypto.randomUUID();
         const now = new Date();
         const channelId = this.channel().id;
@@ -480,34 +494,47 @@ export class ChannelComponent implements AfterViewInit {
 
         this.messageStore.addMessage(optimistic);
 
-        from(this.send(channelId, content, b64Content, {
-            attachments, inReplyTo, mentions, roleMentions, mentionsEveryone, mentionsHere,
-        })).pipe(
-            tap(({confirmed, generation}) => {
-                // Encrypted send returns ciphertext; MLS ratchets forward only, so this is the one moment the plaintext can still be cached.
-                if (confirmed.encryptionState === MessageEncryptionState.Encrypted) {
-                    // Keyed on the generation this device sealed with, not the server's id: keying on the server's choice alone would let it replay one context's plaintext into another.
-                    void this.mlsService.cacheMessage(
-                        channelId, generation, confirmed.id, b64Content,
-                        this.profileService.ownProfile()?.userId);
-                    const shown = {...confirmed, content: b64Content};
-                    this.messageStore.confirmMessage(tempId, shown);
-                    this.messagingService.messageSentObservable.next(shown);
-                    return;
-                }
-                this.messageStore.confirmMessage(tempId, confirmed);
-                this.messagingService.messageSentObservable.next(confirmed);
+        from(
+            this.send(channelId, content, b64Content, {
+                attachments,
+                inReplyTo,
+                mentions,
+                roleMentions,
+                mentionsEveryone,
+                mentionsHere,
             }),
-            catchError((err: HttpErrorResponse) => {
-                this.messageStore.failMessage(tempId);
-                const autoModReason = classifyAutoModError(err);
-                if (autoModReason) {
-                    this.autoModError.set(autoModReason);
-                    this.messageStore.removeMessage(tempId);
-                }
-                return EMPTY;
-            }),
-        ).subscribe();
+        )
+            .pipe(
+                tap(({confirmed, generation}) => {
+                    // Encrypted send returns ciphertext; MLS ratchets forward only, so this is the one moment the plaintext can still be cached.
+                    if (confirmed.encryptionState === MessageEncryptionState.Encrypted) {
+                        // Keyed on the generation this device sealed with, not the server's id: keying on the server's choice alone would let it replay one context's plaintext into another.
+                        void this.mlsService.cacheMessage(
+                            channelId,
+                            generation,
+                            confirmed.id,
+                            b64Content,
+                            this.profileService.ownProfile()?.userId,
+                        );
+                        const shown = {...confirmed, content: b64Content};
+                        this.messageStore.confirmMessage(tempId, shown);
+                        this.messagingService.messageSentObservable.next(shown);
+                        return;
+                    }
+                    this.messageStore.confirmMessage(tempId, confirmed);
+                    this.messagingService.messageSentObservable.next(confirmed);
+                }),
+                catchError((err: HttpErrorResponse) => {
+                    this.messageStore.failMessage(tempId);
+                    const autoModReason = classifyAutoModError(err);
+                    if (autoModReason) {
+                        this.autoModError.set(autoModReason);
+                        this.messageStore.removeMessage(tempId);
+                    }
+                    return EMPTY;
+                }),
+            )
+            .subscribe();
     }
 
     /** Tries to get this device readable again, from the banner; {@link MlsJoinRequestService.relink} does the retry and, if needed, asks a member to admit this device. Deliberately never mints a new signing key: that would orphan the device from every group it belongs to. */
@@ -528,7 +555,7 @@ export class ChannelComponent implements AfterViewInit {
 
             if (!state.encrypted) {
                 // Never 'plain' above the floor: this device having held a group for the channel is local proof that state.encrypted being false is stale or wrong, not a real downgrade.
-                if (await this.mlsService.getEncryptionFloor(channelId) !== null) {
+                if ((await this.mlsService.getEncryptionFloor(channelId)) !== null) {
                     this.encryptionState.set('downgraded');
                     return;
                 }
@@ -551,12 +578,16 @@ export class ChannelComponent implements AfterViewInit {
         content: string,
         b64Content: string,
         rest: {
-            attachments: string[]; inReplyTo: string | undefined; mentions: string[];
-            roleMentions: string[]; mentionsEveryone: boolean; mentionsHere: boolean;
+            attachments: string[];
+            inReplyTo: string | undefined;
+            mentions: string[];
+            roleMentions: string[];
+            mentionsEveryone: boolean;
+            mentionsHere: boolean;
         },
-    ): Promise<{ confirmed: MessageDto; generation: number | null }> {
+    ): Promise<{confirmed: MessageDto; generation: number | null}> {
         // The generation travels back out with the confirmation: the plaintext cache is keyed on it, since this device is the only trustworthy source for which generation sealed the message.
-        const attempt = async (): Promise<{ confirmed: MessageDto; generation: number | null }> => {
+        const attempt = async (): Promise<{confirmed: MessageDto; generation: number | null}> => {
             const generation = await this.mlsService.getKnownGeneration(channelId);
             const floor = await this.mlsService.getEncryptionFloor(channelId);
 
@@ -564,15 +595,18 @@ export class ChannelComponent implements AfterViewInit {
                 // Refused here rather than by the server: the server's rejection only arrives after the plaintext has already left this machine, which can't be undone. See `mayPostCleartext` for why the three conditions differ.
                 if (!mayPostCleartext(generation, this.encryptionState(), floor)) {
                     throw new Error(
-                        `Channel ${channelId} is encrypted and this device holds no group for it`);
+                        `Channel ${channelId} is encrypted and this device holds no group for it`,
+                    );
                 }
 
-                const confirmed = await firstValueFrom(this.messagingService.createMessage({
-                    content,
-                    channelId,
-                    conversationId: undefined,
-                    ...rest,
-                }));
+                const confirmed = await firstValueFrom(
+                    this.messagingService.createMessage({
+                        content,
+                        channelId,
+                        conversationId: undefined,
+                        ...rest,
+                    }),
+                );
                 return {confirmed, generation: null};
             }
 
@@ -586,16 +620,18 @@ export class ChannelComponent implements AfterViewInit {
                 this.mlsService.sendMessage(groupId, keyHandle, b64Content),
             );
 
-            const confirmed = await firstValueFrom(this.messagingService.createMessage({
-                content: ciphertext,
-                channelId,
-                conversationId: undefined,
-                ...rest,
-                encryptionState: MessageEncryptionState.Encrypted,
-                mlsEpoch: epoch,
-                mlsGeneration: generation,
-                senderDeviceId: await this.mlsService.getOrCreateDeviceIdentifier(),
-            }));
+            const confirmed = await firstValueFrom(
+                this.messagingService.createMessage({
+                    content: ciphertext,
+                    channelId,
+                    conversationId: undefined,
+                    ...rest,
+                    encryptionState: MessageEncryptionState.Encrypted,
+                    mlsEpoch: epoch,
+                    mlsGeneration: generation,
+                    senderDeviceId: await this.mlsService.getOrCreateDeviceIdentifier(),
+                }),
+            );
             return {confirmed, generation};
         };
 

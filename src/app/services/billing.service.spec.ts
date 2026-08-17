@@ -3,12 +3,7 @@ import {TestBed} from '@angular/core/testing';
 import {HttpErrorResponse, provideHttpClient} from '@angular/common/http';
 import {HttpTestingController, provideHttpClientTesting} from '@angular/common/http/testing';
 import {ApiConfigService} from './api-config.service';
-import {
-    BILLING_ERROR_CODES,
-    BillingService,
-    billingErrorCode,
-    describeBillingError,
-} from './billing.service';
+import {BILLING_ERROR_CODES, BillingService, billingErrorCode, describeBillingError} from './billing.service';
 import {SubscriptionDto} from '../dtos/response/billing.dto';
 
 const BASE = 'https://api.test.example';
@@ -36,7 +31,7 @@ describe('BillingService - the catalogue', () => {
     it('GETs /billing/catalogue', () => {
         const {service, ctrl} = setup();
         let received: unknown = null;
-        service.getCatalogue().subscribe(c => received = c);
+        service.getCatalogue().subscribe(c => (received = c));
 
         const req = ctrl.expectOne(`${BILLING}/catalogue`);
         expect(req.request.method).toBe('GET');
@@ -63,11 +58,11 @@ describe('BillingService - subscriptions', () => {
     it('passes a null clientSecret through as null rather than as a failure', () => {
         const {service, ctrl} = setup();
         let secret: string | null | undefined;
-        service.createSubscription({planName: 'pro', subjectKind: 'User', subjectId: 'usr_1'})
-            .subscribe(r => secret = r.clientSecret);
+        service
+            .createSubscription({planName: 'pro', subjectKind: 'User', subjectId: 'usr_1'})
+            .subscribe(r => (secret = r.clientSecret));
 
-        ctrl.expectOne(`${BILLING}/subscriptions`)
-            .flush({subscription: SUBSCRIPTION, clientSecret: null});
+        ctrl.expectOne(`${BILLING}/subscriptions`).flush({subscription: SUBSCRIPTION, clientSecret: null});
 
         expect(secret).toBeNull();
         ctrl.verify();
@@ -141,7 +136,7 @@ describe('BillingService - payment methods and invoices', () => {
     it('POSTs for a setup intent', () => {
         const {service, ctrl} = setup();
         let secret: string | undefined;
-        service.createSetupIntent().subscribe(r => secret = r.clientSecret);
+        service.createSetupIntent().subscribe(r => (secret = r.clientSecret));
 
         const req = ctrl.expectOne(`${BILLING}/payment-methods/setup-intent`);
         expect(req.request.method).toBe('POST');
@@ -191,12 +186,19 @@ describe('BillingService - the base URL is read per call', () => {
         const ctrl = TestBed.inject(HttpTestingController);
 
         service.getCatalogue().subscribe();
-        ctrl.expectOne(`${BASE}/api/v1/billing/catalogue`).flush({enabled: false, currency: 'usd', plans: []});
+        ctrl.expectOne(`${BASE}/api/v1/billing/catalogue`).flush({
+            enabled: false,
+            currency: 'usd',
+            plans: [],
+        });
 
         base = 'https://other.example';
         service.getCatalogue().subscribe();
-        ctrl.expectOne('https://other.example/api/v1/billing/catalogue')
-            .flush({enabled: false, currency: 'usd', plans: []});
+        ctrl.expectOne('https://other.example/api/v1/billing/catalogue').flush({
+            enabled: false,
+            currency: 'usd',
+            plans: [],
+        });
 
         ctrl.verify();
     });
@@ -206,8 +208,9 @@ describe('describeBillingError', () => {
     it('reads the code off a flat problem+json 409, and keeps the response', () => {
         const {service, ctrl} = setup();
         let err: unknown = null;
-        service.createSubscription({planName: 'pro', subjectKind: 'Guild', subjectId: 'gld_1'})
-            .subscribe({error: e => err = e});
+        service
+            .createSubscription({planName: 'pro', subjectKind: 'Guild', subjectId: 'gld_1'})
+            .subscribe({error: e => (err = e)});
 
         ctrl.expectOne(`${BILLING}/subscriptions`).flush(
             {
@@ -242,10 +245,12 @@ describe('describeBillingError', () => {
     it('reports a null code and a real status for a 500 that is not problem+json', () => {
         const {service, ctrl} = setup();
         let err: unknown = null;
-        service.listInvoices().subscribe({error: e => err = e});
+        service.listInvoices().subscribe({error: e => (err = e)});
 
-        ctrl.expectOne(`${BILLING}/invoices`)
-            .flush('<html>502 Bad Gateway</html>', {status: 500, statusText: 'Server Error'});
+        ctrl.expectOne(`${BILLING}/invoices`).flush('<html>502 Bad Gateway</html>', {
+            status: 500,
+            statusText: 'Server Error',
+        });
 
         const failure = describeBillingError(err);
         expect(failure).not.toBeNull();

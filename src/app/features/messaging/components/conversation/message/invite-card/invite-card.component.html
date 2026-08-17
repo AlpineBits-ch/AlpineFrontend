@@ -2,13 +2,15 @@
   Everything below renders from the embed, so there is no loading state: the card is complete the moment the message is.
 -->
 @if (venta(); as v) {
-    <div (mouseenter)="refresh()"
-         class="inline-flex items-center gap-3 bg-card border border-border-default rounded-xl px-4 py-3 mt-1 max-w-sm w-full">
-
-        <div class="shrink-0 w-10 h-10 rounded-full overflow-hidden bg-brand/20 flex items-center justify-center text-brand-dim font-bold text-sm">
+    <div
+        (mouseenter)="refresh()"
+        class="inline-flex items-center gap-3 bg-card border border-border-default rounded-xl px-4 py-3 mt-1 max-w-sm w-full"
+    >
+        <div
+            class="shrink-0 w-10 h-10 rounded-full overflow-hidden bg-brand/20 flex items-center justify-center text-brand-dim font-bold text-sm"
+        >
             @if (guildIconUrl() && !iconFailed()) {
-                <img (error)="iconFailed.set(true)" [alt]="title()" [src]="guildIconUrl()"
-                     class="w-full h-full object-cover"/>
+                <img (error)="iconFailed.set(true)" [alt]="title()" [src]="guildIconUrl()" class="w-full h-full object-cover" />
             } @else {
                 {{ guildInitials() }}
             }
@@ -41,11 +43,12 @@
                     {{ 'INVITE.JOINED' | translate }}
                 </div>
             } @else {
-                <button (click)="join()" [disabled]="joinState() === 'joining'"
-                        class="shrink-0 px-3 py-1.5 rounded-lg bg-brand hover:bg-brand-hover disabled:opacity-50
-                 text-white text-xs font-medium cursor-pointer border-0 transition-colors
-                 flex items-center gap-1.5"
-                        type="button">
+                <button
+                    (click)="join()"
+                    [disabled]="joinState() === 'joining'"
+                    class="shrink-0 px-3 py-1.5 rounded-lg bg-brand hover:bg-brand-hover disabled:opacity-50 text-white text-xs font-medium cursor-pointer border-0 transition-colors flex items-center gap-1.5"
+                    type="button"
+                >
                     @if (joinState() === 'joining') {
                         <i class="pi pi-spin pi-spinner text-[10px]"></i>
                     }

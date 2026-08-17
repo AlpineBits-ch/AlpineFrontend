@@ -23,7 +23,13 @@ export class FederationInstancesComponent implements OnInit {
     readonly activeFilter = signal<FilterTab>('All');
     readonly error = signal<string | null>(null);
 
-    readonly filters: FilterTab[] = ['All', FederationStatus.Pending, FederationStatus.Active, FederationStatus.Blocked, FederationStatus.Defederated];
+    readonly filters: FilterTab[] = [
+        'All',
+        FederationStatus.Pending,
+        FederationStatus.Active,
+        FederationStatus.Blocked,
+        FederationStatus.Defederated,
+    ];
 
     get filtered(): FederationInstance[] {
         const f = this.activeFilter();
@@ -83,17 +89,19 @@ export class FederationInstancesComponent implements OnInit {
     }
 
     private updateStatus(id: string, status: FederationStatus): void {
-        this.instances.update(list =>
-            list.map(i => i.id === id ? {...i, status} : i)
-        );
+        this.instances.update(list => list.map(i => (i.id === id ? {...i, status} : i)));
     }
 
     statusClass(status: FederationStatus): string {
         switch (status) {
-            case FederationStatus.Active: return 'text-emerald-400 bg-emerald-400/10 border border-emerald-400/20';
-            case FederationStatus.Pending: return 'text-amber-400 bg-amber-400/10 border border-amber-400/20';
-            case FederationStatus.Blocked: return 'text-rose-400 bg-rose-400/10 border border-rose-400/20';
-            case FederationStatus.Defederated: return 'text-white/30 bg-white/[0.04] border border-white/[0.08]';
+            case FederationStatus.Active:
+                return 'text-emerald-400 bg-emerald-400/10 border border-emerald-400/20';
+            case FederationStatus.Pending:
+                return 'text-amber-400 bg-amber-400/10 border border-amber-400/20';
+            case FederationStatus.Blocked:
+                return 'text-rose-400 bg-rose-400/10 border border-rose-400/20';
+            case FederationStatus.Defederated:
+                return 'text-white/30 bg-white/[0.04] border border-white/[0.08]';
         }
     }
 

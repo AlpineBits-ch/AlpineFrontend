@@ -74,16 +74,14 @@ export function buildGraph(
     for (const page of pages) {
         const body = contentByPageId.get(page.id);
         // A link to a page that no longer exists is not an edge: it has no other end.
-        const written = body
-            ? extractLinkedPageIds(body).filter(id => id !== page.id && known.has(id))
-            : [];
+        const written = body ? extractLinkedPageIds(body).filter(id => id !== page.id && known.has(id)) : [];
 
         // A page's parent counts as an edge too, not just its written `wiki:` links, so a filed-under page with no body links still shows as connected.
         const parent = page.parentPageId;
         // Deduped: a page filed under another and also linking to it in its body counts once, since `degree` sizes the node and decides what survives the node cap.
-        const targets = [...new Set(
-            parent && parent !== page.id && known.has(parent) ? [...written, parent] : written,
-        )];
+        const targets = [
+            ...new Set(parent && parent !== page.id && known.has(parent) ? [...written, parent] : written),
+        ];
         if (!targets.length) continue;
 
         linksBySource.set(page.id, targets);
@@ -91,10 +89,12 @@ export function buildGraph(
         for (const target of targets) degree.set(target, (degree.get(target) ?? 0) + 1);
     }
 
-    const ranked = [...pages].sort((a, b) =>
-        (degree.get(b.id) ?? 0) - (degree.get(a.id) ?? 0)
-        || epoch(b.updatedAt) - epoch(a.updatedAt)
-        || a.id.localeCompare(b.id));
+    const ranked = [...pages].sort(
+        (a, b) =>
+            (degree.get(b.id) ?? 0) - (degree.get(a.id) ?? 0) ||
+            epoch(b.updatedAt) - epoch(a.updatedAt) ||
+            a.id.localeCompare(b.id),
+    );
     const kept = ranked.slice(0, GRAPH_NODE_LIMIT);
     const omitted = pages.length - kept.length;
 
@@ -111,7 +111,7 @@ export function buildGraph(
             id: page.id,
             title: page.title,
             categoryId: page.categoryId,
-            colorIndex: page.categoryId ? colorIndexByCategory.get(page.categoryId) ?? -1 : -1,
+            colorIndex: page.categoryId ? (colorIndexByCategory.get(page.categoryId) ?? -1) : -1,
             degree: degree.get(page.id) ?? 0,
             x: seed.x,
             y: seed.y,

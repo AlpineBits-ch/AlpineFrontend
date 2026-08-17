@@ -72,7 +72,10 @@ export interface SwissQrBillInput {
 
 /** A refusal to build a payload, always naming the field. Never rendered as a generic failure. */
 export class SwissQrBillError extends Error {
-    constructor(readonly field: string, message: string) {
+    constructor(
+        readonly field: string,
+        message: string,
+    ) {
         super(message);
         this.name = 'SwissQrBillError';
     }
@@ -86,41 +89,55 @@ export function buildSwissQrBillPayload(input: SwissQrBillInput): string {
     const message = validateMessage(input.message ?? '');
 
     const lines: string[] = [
-        QR_TYPE,                        // 1
-        VERSION,                        // 2
-        CODING_TYPE,                    // 3
-        creditor.iban,                  // 4
-        ADDRESS_TYPE_STRUCTURED,        // 5
-        creditor.name,                  // 6
-        creditor.street,                // 7
-        creditor.buildingNumber,        // 8
-        creditor.postCode,              // 9
-        creditor.town,                  // 10
-        creditor.country,               // 11
+        QR_TYPE, // 1
+        VERSION, // 2
+        CODING_TYPE, // 3
+        creditor.iban, // 4
+        ADDRESS_TYPE_STRUCTURED, // 5
+        creditor.name, // 6
+        creditor.street, // 7
+        creditor.buildingNumber, // 8
+        creditor.postCode, // 9
+        creditor.town, // 10
+        creditor.country, // 11
 
         // 12-18, the ultimate creditor: address type plus six address fields, all empty. Seven
         // lines, not six. This is the block the brief's ASCII snippets get wrong, and getting it
         // wrong shifts the amount and the currency onto the wrong lines.
-        '', '', '', '', '', '', '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
 
-        amount,                         // 19
-        currency,                       // 20
+        amount, // 19
+        currency, // 20
 
         // 21-27, the ultimate debtor. Left empty: naming the payer would put a second person's
         // address in a QR code that gets shared, and the field buys nothing for a settle-up.
-        '', '', '', '', '', '', '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
 
-        REFERENCE_TYPE_NONE,            // 28
-        '',                             // 29 - must be empty when the type is NON
-        message,                        // 30
-        TRAILER,                        // 31
+        REFERENCE_TYPE_NONE, // 28
+        '', // 29 - must be empty when the type is NON
+        message, // 30
+        TRAILER, // 31
     ];
 
     if (lines.length !== SPC_TRAILER_LINE) {
         // Unreachable, and deliberately loud if it ever is not: an off-by-one in the blank blocks
         // above is the single most likely way to break this file, and it is invisible in review.
         throw new SwissQrBillError(
-            'structure', `The payload has ${lines.length} lines rather than ${SPC_TRAILER_LINE}`);
+            'structure',
+            `The payload has ${lines.length} lines rather than ${SPC_TRAILER_LINE}`,
+        );
     }
 
     // LF, never CRLF. Every implementation checked emits LF, and scanner tolerance of CRLF is not
@@ -130,7 +147,8 @@ export function buildSwissQrBillPayload(input: SwissQrBillInput): string {
     if (payload.length > SPC_MAX_CHARACTERS) {
         throw new SwissQrBillError(
             'payload',
-            `The payload is ${payload.length} characters, over the ${SPC_MAX_CHARACTERS} limit`);
+            `The payload is ${payload.length} characters, over the ${SPC_MAX_CHARACTERS} limit`,
+        );
     }
 
     return payload;
@@ -157,7 +175,9 @@ function validateCreditor(creditor: SwissQrCreditor): Required<SwissQrCreditor> 
     }
     if (iban.country !== 'CH' && iban.country !== 'LI') {
         throw new SwissQrBillError(
-            'iban', `A Swiss QR-bill needs a CH or LI IBAN; this one is ${iban.country}`);
+            'iban',
+            `A Swiss QR-bill needs a CH or LI IBAN; this one is ${iban.country}`,
+        );
     }
 
     const country = (creditor.country ?? '').trim().toUpperCase();
@@ -181,8 +201,7 @@ function validateCreditor(creditor: SwissQrCreditor): Required<SwissQrCreditor> 
 function validateCurrency(currency: string): SpcCurrency {
     const code = (currency ?? '').trim().toUpperCase();
     if (!(SPC_CURRENCIES as readonly string[]).includes(code)) {
-        throw new SwissQrBillError(
-            'currency', `A Swiss QR-bill carries CHF or EUR only, not ${currency}`);
+        throw new SwissQrBillError('currency', `A Swiss QR-bill carries CHF or EUR only, not ${currency}`);
     }
     return code as SpcCurrency;
 }
@@ -203,7 +222,8 @@ function formatAmount(amountMinor: number | null, currency: SpcCurrency): string
     if (amountMinor < SPC_MIN_AMOUNT_MINOR || amountMinor > SPC_MAX_AMOUNT_MINOR) {
         throw new SwissQrBillError(
             'amount',
-            `The amount must be between ${SPC_MIN_AMOUNT_MINOR} and ${SPC_MAX_AMOUNT_MINOR} minor units`);
+            `The amount must be between ${SPC_MIN_AMOUNT_MINOR} and ${SPC_MAX_AMOUNT_MINOR} minor units`,
+        );
     }
 
     return minorToInputString(amountMinor, currency);
@@ -217,12 +237,13 @@ function field(name: string, value: string, max: number, required: boolean): str
         throw new SwissQrBillError(name, `The creditor ${name} is required`);
     }
     if (CONTROL_CHARACTERS.test(trimmed)) {
-        throw new SwissQrBillError(
-            name, `The creditor ${name} contains a line break or control character`);
+        throw new SwissQrBillError(name, `The creditor ${name} contains a line break or control character`);
     }
     if (trimmed.length > max) {
         throw new SwissQrBillError(
-            name, `The creditor ${name} is ${trimmed.length} characters, over the ${max} limit`);
+            name,
+            `The creditor ${name} is ${trimmed.length} characters, over the ${max} limit`,
+        );
     }
 
     return trimmed;

@@ -53,14 +53,14 @@ export class AccountSwitchService {
      * @returns false when the switch did not happen - an unknown slot, or a declined call prompt.
      */
     async switchTo(slotId: string): Promise<boolean> {
-        if (slotId === await this.accounts.activeSlotId()) return true;
+        if (slotId === (await this.accounts.activeSlotId())) return true;
 
         if (this.environment.callIsLive() && !(await this.environment.confirmLeaveCall())) {
             return false;
         }
 
         // Commits the live slot as part of the write; nothing after the re-entry runs.
-        if (!await this.accounts.activate(slotId)) return false;
+        if (!(await this.accounts.activate(slotId))) return false;
 
         this.environment.reenter('overview');
         return true;
@@ -89,7 +89,7 @@ export class AccountSwitchService {
 
     /** Signs one account out and forgets it: the wipe runs first with that slot's own device id, so it destroys that account's key material and nothing else. */
     async signOutOf(slotId: string): Promise<void> {
-        const wasActive = slotId === await this.accounts.activeSlotId();
+        const wasActive = slotId === (await this.accounts.activeSlotId());
 
         // Only ever the live slot: the device id map is read through the active slot, so wiping a
         // background account would aim at an id resolved for the wrong account. Key material must

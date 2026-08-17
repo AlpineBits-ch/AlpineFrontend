@@ -174,7 +174,7 @@ describe('GuildService.getGuilds reconciliation', () => {
         const {service, ctrl} = setup();
 
         let emitted: GuildDto[] | undefined;
-        service.getGuilds().subscribe(g => emitted = g);
+        service.getGuilds().subscribe(g => (emitted = g));
         ctrl.expectOne(`${BASE}/guilds`).flush(wire([guild('g1')]));
 
         expect(emitted![0]).toBe(service.guilds()[0]);

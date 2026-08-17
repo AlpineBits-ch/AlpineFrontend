@@ -1,5 +1,10 @@
-<div (dragenter)="onDragEnter($event)" (dragleave)="onDragLeave()" (dragover)="onDragOver($event)"
-     (drop)="onDrop($event)" class="relative flex flex-col gap-4">
+<div
+    (dragenter)="onDragEnter($event)"
+    (dragleave)="onDragLeave()"
+    (dragover)="onDragOver($event)"
+    (drop)="onDrop($event)"
+    class="relative flex flex-col gap-4"
+>
     <div class="flex items-start justify-between gap-3">
         <div class="max-w-md">
             <p class="text-xs text-text-secondary m-0 leading-relaxed">
@@ -18,22 +23,36 @@
             }
         </div>
         @if (canManageEmojis()) {
-            <p-button (onClick)="openFilePicker()" [label]="'GUILD_SETTINGS.EMOJIS.UPLOAD' | translate"
-                      class="shrink-0" icon="pi pi-upload" severity="primary" size="small"/>
+            <p-button
+                (onClick)="openFilePicker()"
+                [label]="'GUILD_SETTINGS.EMOJIS.UPLOAD' | translate"
+                class="shrink-0"
+                icon="pi pi-upload"
+                severity="primary"
+                size="small"
+            />
         }
     </div>
 
-    <input #fileInput (change)="onFileSelected($event)" accept="image/png,image/jpeg,image/gif,image/webp"
-           class="hidden" multiple type="file"/>
+    <input
+        #fileInput
+        (change)="onFileSelected($event)"
+        accept="image/png,image/jpeg,image/gif,image/webp"
+        class="hidden"
+        multiple
+        type="file"
+    />
 
     @if (emojis().length > 0) {
         <div class="relative">
             <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-text-muted text-xs pointer-events-none"></i>
-            <input (ngModelChange)="filter.set($event)"
-                   [ngModel]="filter()"
-                   [placeholder]="'GUILD_SETTINGS.EMOJIS.SEARCH_PLACEHOLDER' | translate"
-                   class="w-full !pl-9 text-sm"
-                   pInputText/>
+            <input
+                (ngModelChange)="filter.set($event)"
+                [ngModel]="filter()"
+                [placeholder]="'GUILD_SETTINGS.EMOJIS.SEARCH_PLACEHOLDER' | translate"
+                class="w-full !pl-9 text-sm"
+                pInputText
+            />
         </div>
     }
 
@@ -53,17 +72,21 @@
         <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
             @for (emoji of filteredEmojis(); track emoji.id) {
                 <div class="flex items-center gap-2.5 bg-card/60 border border-white/[0.06] rounded-xl px-3 py-2.5">
-                    <img [alt]="emoji.name" [src]="emoji.imageUrl" class="w-7 h-7 rounded object-contain shrink-0"/>
+                    <img [alt]="emoji.name" [src]="emoji.imageUrl" class="w-7 h-7 rounded object-contain shrink-0" />
                     <span class="text-xs text-white/70 truncate flex-1">:{{ emoji.name }}:</span>
                     @if (canManageEmojis()) {
                         <!-- Always visible: hiding it until hover left it untappable on touch while still hittable by a blind tap. -->
-                        <p-button (onClick)="openDeleteDialog(emoji)"
-                                  [loading]="deletingId() === emoji.id"
-                                  [pTooltip]="'GUILD_SETTINGS.EMOJIS.DELETE' | translate"
-                                  [text]="true"
-                                  class="opacity-60 hover:opacity-100 focus-within:opacity-100 transition-opacity"
-                                  icon="pi pi-trash" severity="danger" size="small"
-                                  tooltipPosition="top"/>
+                        <p-button
+                            (onClick)="openDeleteDialog(emoji)"
+                            [loading]="deletingId() === emoji.id"
+                            [pTooltip]="'GUILD_SETTINGS.EMOJIS.DELETE' | translate"
+                            [text]="true"
+                            class="opacity-60 hover:opacity-100 focus-within:opacity-100 transition-opacity"
+                            icon="pi pi-trash"
+                            severity="danger"
+                            size="small"
+                            tooltipPosition="top"
+                        />
                     }
                 </div>
             }
@@ -71,7 +94,9 @@
     }
 
     @if (isDraggingOver()) {
-        <div class="absolute inset-0 rounded-xl bg-[color-mix(in_srgb,var(--color-brand)_10%,transparent)] border-2 border-dashed border-[color-mix(in_srgb,var(--color-brand)_40%,transparent)] flex items-center justify-center z-10 pointer-events-none">
+        <div
+            class="absolute inset-0 rounded-xl bg-[color-mix(in_srgb,var(--color-brand)_10%,transparent)] border-2 border-dashed border-[color-mix(in_srgb,var(--color-brand)_40%,transparent)] flex items-center justify-center z-10 pointer-events-none"
+        >
             <div class="flex flex-col items-center gap-1.5">
                 <i class="pi pi-upload text-brand-dim text-lg"></i>
                 <p class="text-xs text-brand-dim m-0">{{ 'GUILD_SETTINGS.EMOJIS.DROP_HERE' | translate }}</p>
@@ -81,8 +106,16 @@
 </div>
 
 <!-- Upload dialog: one pass for the whole batch, since a 20-emoji pack used to mean 20 dialogs -->
-<p-dialog (visibleChange)="onUploadVisibleChange($event)" [closable]="!uploading()" [draggable]="false" [modal]="true"
-          [resizable]="false" [style]="{width: '460px'}" [visible]="showUploadDialog()" appendTo="body">
+<p-dialog
+    (visibleChange)="onUploadVisibleChange($event)"
+    [closable]="!uploading()"
+    [draggable]="false"
+    [modal]="true"
+    [resizable]="false"
+    [style]="{width: '460px'}"
+    [visible]="showUploadDialog()"
+    appendTo="body"
+>
     <ng-template pTemplate="header">
         <div class="flex flex-col gap-0.5">
             <span class="text-sm font-semibold text-white/85">{{ 'GUILD_SETTINGS.EMOJIS.DIALOG_TITLE' | translate }}</span>
@@ -97,20 +130,25 @@
     </ng-template>
     <div class="flex flex-col gap-2 py-1 max-h-[22rem] overflow-y-auto thin-scrollbar">
         @for (row of queue(); track row.key) {
-            <div class="flex items-start gap-3 bg-card/60 border border-border-subtle rounded-lg px-3 py-2.5"
-                 [class.opacity-50]="row.status === 'done'">
-                <img [src]="row.previewUrl" alt="" class="w-10 h-10 rounded object-contain shrink-0 mt-0.5"/>
+            <div
+                class="flex items-start gap-3 bg-card/60 border border-border-subtle rounded-lg px-3 py-2.5"
+                [class.opacity-50]="row.status === 'done'"
+            >
+                <img [src]="row.previewUrl" alt="" class="w-10 h-10 rounded object-contain shrink-0 mt-0.5" />
                 <div class="flex-1 min-w-0">
                     <!-- confirmUpload re-checks every row's name against the pattern, the loaded emoji list and the rest of the batch, so Enter is inert while blocked. -->
-                    <input (keydown.enter)="confirmUpload()" (ngModelChange)="updateName(row.key, $event)"
-                           [attr.aria-invalid]="rowIssues().has(row.key)"
-                           [disabled]="uploading() || row.status === 'done'"
-                           [maxlength]="32"
-                           [ngModel]="row.name"
-                           [placeholder]="'GUILD_SETTINGS.EMOJIS.NAME_PLACEHOLDER' | translate"
-                           class="w-full !text-sm !py-1.5"
-                           pInputText
-                           type="text"/>
+                    <input
+                        (keydown.enter)="confirmUpload()"
+                        (ngModelChange)="updateName(row.key, $event)"
+                        [attr.aria-invalid]="rowIssues().has(row.key)"
+                        [disabled]="uploading() || row.status === 'done'"
+                        [maxlength]="32"
+                        [ngModel]="row.name"
+                        [placeholder]="'GUILD_SETTINGS.EMOJIS.NAME_PLACEHOLDER' | translate"
+                        class="w-full !text-sm !py-1.5"
+                        pInputText
+                        type="text"
+                    />
                     @if (rowIssues().get(row.key); as issue) {
                         <p class="text-[0.6875rem] text-rose-400 mt-1 m-0">{{ issue | translate }}</p>
                     } @else if (row.errorKey) {
@@ -134,13 +172,17 @@
                             <i class="pi pi-check text-online text-sm"></i>
                         }
                         @default {
-                            <p-button (onClick)="removeQueued(row.key)"
-                                      [disabled]="uploading()"
-                                      [pTooltip]="'GUILD_SETTINGS.EMOJIS.REMOVE_FILE' | translate"
-                                      [text]="true"
-                                      class="opacity-60 hover:opacity-100 focus-within:opacity-100 transition-opacity"
-                                      icon="pi pi-times" severity="secondary" size="small"
-                                      tooltipPosition="top"/>
+                            <p-button
+                                (onClick)="removeQueued(row.key)"
+                                [disabled]="uploading()"
+                                [pTooltip]="'GUILD_SETTINGS.EMOJIS.REMOVE_FILE' | translate"
+                                [text]="true"
+                                class="opacity-60 hover:opacity-100 focus-within:opacity-100 transition-opacity"
+                                icon="pi pi-times"
+                                severity="secondary"
+                                size="small"
+                                tooltipPosition="top"
+                            />
                         }
                     }
                 </div>
@@ -150,20 +192,31 @@
         <p class="text-[0.6875rem] text-text-secondary m-0">{{ 'GUILD_SETTINGS.EMOJIS.FORMAT_HINT' | translate }}</p>
     </div>
     <ng-template pTemplate="footer">
-        <p-button (onClick)="openFilePicker()" [disabled]="uploading()"
-                  [label]="'GUILD_SETTINGS.EMOJIS.ADD_MORE' | translate" [text]="true" icon="pi pi-plus"
-                  severity="secondary"/>
-        <p-button (onClick)="closeUploadDialog()" [disabled]="uploading()"
-                  [label]="'GUILD_SETTINGS.EMOJIS.CANCEL' | translate" [text]="true"/>
-        <p-button (onClick)="confirmUpload()" [disabled]="uploading() || hasBlockingIssue() || remainingCount() === 0"
-                  [label]="(failedCount() > 0 ? 'GUILD_SETTINGS.EMOJIS.RETRY_FAILED' : 'GUILD_SETTINGS.EMOJIS.UPLOAD_BTN') | translate"
-                  [loading]="uploading()"/>
+        <p-button
+            (onClick)="openFilePicker()"
+            [disabled]="uploading()"
+            [label]="'GUILD_SETTINGS.EMOJIS.ADD_MORE' | translate"
+            [text]="true"
+            icon="pi pi-plus"
+            severity="secondary"
+        />
+        <p-button
+            (onClick)="closeUploadDialog()"
+            [disabled]="uploading()"
+            [label]="'GUILD_SETTINGS.EMOJIS.CANCEL' | translate"
+            [text]="true"
+        />
+        <p-button
+            (onClick)="confirmUpload()"
+            [disabled]="uploading() || hasBlockingIssue() || remainingCount() === 0"
+            [label]="(failedCount() > 0 ? 'GUILD_SETTINGS.EMOJIS.RETRY_FAILED' : 'GUILD_SETTINGS.EMOJIS.UPLOAD_BTN') | translate"
+            [loading]="uploading()"
+        />
     </ng-template>
 </p-dialog>
 
 <!-- Delete confirm: removing an emoji also strips every reaction using it -->
-<p-dialog [(visible)]="showDeleteDialog" [draggable]="false" [modal]="true" [resizable]="false"
-          [style]="{width: '400px'}" appendTo="body">
+<p-dialog [(visible)]="showDeleteDialog" [draggable]="false" [modal]="true" [resizable]="false" [style]="{width: '400px'}" appendTo="body">
     <ng-template pTemplate="header">
         <span class="text-sm font-semibold text-white/85">{{ 'GUILD_SETTINGS.EMOJIS.DELETE_TITLE' | translate }}</span>
     </ng-template>
@@ -172,11 +225,21 @@
             {{ 'GUILD_SETTINGS.EMOJIS.DELETE_CONFIRM' | translate: {name: confirmDeleteEmoji()!.name} }}
         </p>
         <div class="flex gap-2 justify-end mt-4 pt-4 border-t border-white/[0.10]">
-            <p-button (onClick)="closeDeleteDialog()" [label]="'GUILD_SETTINGS.EMOJIS.CANCEL' | translate" [text]="true"
-                      severity="secondary" size="small"/>
-            <p-button (onClick)="deleteEmoji(confirmDeleteEmoji()!)" [label]="'GUILD_SETTINGS.EMOJIS.DELETE_BTN' | translate"
-                      [loading]="deletingId() === confirmDeleteEmoji()!.id" [outlined]="true"
-                      severity="danger" size="small"/>
+            <p-button
+                (onClick)="closeDeleteDialog()"
+                [label]="'GUILD_SETTINGS.EMOJIS.CANCEL' | translate"
+                [text]="true"
+                severity="secondary"
+                size="small"
+            />
+            <p-button
+                (onClick)="deleteEmoji(confirmDeleteEmoji()!)"
+                [label]="'GUILD_SETTINGS.EMOJIS.DELETE_BTN' | translate"
+                [loading]="deletingId() === confirmDeleteEmoji()!.id"
+                [outlined]="true"
+                severity="danger"
+                size="small"
+            />
         </div>
     }
 </p-dialog>

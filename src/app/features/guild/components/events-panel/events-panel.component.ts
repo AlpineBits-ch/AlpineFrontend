@@ -1,4 +1,13 @@
-import {ChangeDetectionStrategy, Component, computed, effect, inject, input, signal, untracked} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    effect,
+    inject,
+    input,
+    signal,
+    untracked,
+} from '@angular/core';
 import {DatePipe} from '@angular/common';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {Button} from 'primeng/button';
@@ -28,7 +37,15 @@ export interface EventDayGroup {
 @Component({
     selector: 'app-events-panel',
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [DatePipe, TranslateModule, Button, Tooltip, ConfirmDialog, EventEditorDialogComponent, EventCardComponent],
+    imports: [
+        DatePipe,
+        TranslateModule,
+        Button,
+        Tooltip,
+        ConfirmDialog,
+        EventEditorDialogComponent,
+        EventCardComponent,
+    ],
     providers: [ConfirmationService],
     templateUrl: './events-panel.component.html',
 })
@@ -48,7 +65,12 @@ export class EventsPanelComponent {
     protected readonly canManage = computed(() => {
         const ws = this.navService.workspace();
         const ownUserId = this.profileService.ownProfile()?.userId;
-        if (ws.type === 'server' && ws.guild.id === this.guildId() && ownUserId && ownUserId === ws.guild.ownerId) {
+        if (
+            ws.type === 'server' &&
+            ws.guild.id === this.guildId() &&
+            ownUserId &&
+            ownUserId === ws.guild.ownerId
+        ) {
             return true;
         }
         const perms = parsePermissions(this.memberPermissions());
@@ -65,14 +87,19 @@ export class EventsPanelComponent {
     protected readonly live = computed(() =>
         this.events()
             .filter(e => phaseOf(e, this.clock.now()) === 'live')
-            .sort((a, b) => startTime(b) - startTime(a)));
+            .sort((a, b) => startTime(b) - startTime(a)),
+    );
 
     // `events()` is already ascending by start, and filter preserves order.
     protected readonly upcoming = computed(() =>
-        this.events().filter(e => phaseOf(e, this.clock.now()) === 'upcoming'));
+        this.events().filter(e => phaseOf(e, this.clock.now()) === 'upcoming'),
+    );
 
     protected readonly past = computed(() =>
-        this.events().filter(e => phaseOf(e, this.clock.now()) === 'past').reverse());
+        this.events()
+            .filter(e => phaseOf(e, this.clock.now()) === 'past')
+            .reverse(),
+    );
 
     /** Upcoming events cut into day groups. Grouping consecutive runs is only correct because `upcoming()` is sorted ascending by start, which it is, from the store. */
     protected readonly upcomingGroups = computed<EventDayGroup[]>(() => {
@@ -94,11 +121,16 @@ export class EventsPanelComponent {
     // Load state, so the panel never claims "no upcoming events" while the request is still in flight or after it failed.
     protected readonly isLoading = computed(() => this.store.loading(this.guildId()));
     protected readonly showLoading = computed(() => this.isLoading() && this.events().length === 0);
-    protected readonly showError = computed(() =>
-        !this.isLoading() && this.store.loadError(this.guildId()) && this.events().length === 0);
-    protected readonly showEmpty = computed(() =>
-        !this.showLoading() && !this.showError()
-        && this.live().length === 0 && this.upcoming().length === 0);
+    protected readonly showError = computed(
+        () => !this.isLoading() && this.store.loadError(this.guildId()) && this.events().length === 0,
+    );
+    protected readonly showEmpty = computed(
+        () =>
+            !this.showLoading() &&
+            !this.showError() &&
+            this.live().length === 0 &&
+            this.upcoming().length === 0,
+    );
 
     protected readonly showPast = signal(false);
     protected readonly editorVisible = signal(false);
@@ -142,7 +174,8 @@ export class EventsPanelComponent {
             accept: () => {
                 this.store.cancel(event.id).subscribe({
                     next: () => this.toastService.success(this.translate.instant('EVENTS.CANCEL_SUCCESS')),
-                    error: err => this.toastService.httpError(this.translate.instant('EVENTS.CANCEL_ERROR'), err),
+                    error: err =>
+                        this.toastService.httpError(this.translate.instant('EVENTS.CANCEL_ERROR'), err),
                 });
             },
         });

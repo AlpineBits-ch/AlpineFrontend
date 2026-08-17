@@ -12,17 +12,21 @@ function describeRepairFailure(result: MasterKeyRepair, credential: string): str
         case 'not-stored':
             // A code the server did not store opens nothing. Showing it would report the account as
             // protected at the exact moment it is not.
-            return 'The server accepted the request but did not store the recovery code, so it '
-                + 'would not open anything. Nothing has changed - please try again or contact '
-                + 'support.';
+            return (
+                'The server accepted the request but did not store the recovery code, so it ' +
+                'would not open anything. Nothing has changed - please try again or contact ' +
+                'support.'
+            );
         case 'not-applicable':
             return 'This account has nothing to repair from. Reload and try again.';
         case 'engine-failed':
             // Named as a local fault, and logged in full. Retrying an argument-rejected command
             // never succeeds, so sending the user round the same loop is worse than saying so.
             console.error('Master-key repair could not run locally', result.detail);
-            return `Your ${credential} was not the problem - this device could not run the key `
-                + `operation. Details: ${result.detail}`;
+            return (
+                `Your ${credential} was not the problem - this device could not run the key ` +
+                `operation. Details: ${result.detail}`
+            );
         default:
             return 'Something went wrong. Please try again.';
     }
@@ -82,8 +86,7 @@ export class MasterKeyRecoveryDialogComponent {
         }
         this.busy.set(true);
         try {
-            const result = await this.state.rewrapUnderNewPassword(
-                this.recoveryCode(), this.newPassword());
+            const result = await this.state.rewrapUnderNewPassword(this.recoveryCode(), this.newPassword());
             if (result.outcome === 'ok') {
                 this.close();
                 return;

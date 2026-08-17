@@ -11,15 +11,15 @@ and what is still outstanding on our side.
 
 ## Where the implementation lives
 
-| Concern | File |
-|---|---|
-| Snapshot DTOs, track naming, `VoiceRoomTracker` | `src/app/models/voice-room.ts` |
-| Guild room state, gating, backfill, heartbeat | `src/app/services/voice-channel.service.ts` |
-| DM room state, same | `src/app/services/call-webrtc.service.ts` |
-| HTTP surfaces | `guild-voice.service.ts`, `voice.service.ts` |
-| SignalR surfaces | `guild-websocket.service.ts`, `voice-websocket.service.ts` |
-| Rust publisher signalling | `src-tauri/src/media/publisher/signalling.rs` |
-| Screen-share audio capture and encode | `src-tauri/src/media/publisher/audio.rs` |
+| Concern                                         | File                                                       |
+| ----------------------------------------------- | ---------------------------------------------------------- |
+| Snapshot DTOs, track naming, `VoiceRoomTracker` | `src/app/models/voice-room.ts`                             |
+| Guild room state, gating, backfill, heartbeat   | `src/app/services/voice-channel.service.ts`                |
+| DM room state, same                             | `src/app/services/call-webrtc.service.ts`                  |
+| HTTP surfaces                                   | `guild-voice.service.ts`, `voice.service.ts`               |
+| SignalR surfaces                                | `guild-websocket.service.ts`, `voice-websocket.service.ts` |
+| Rust publisher signalling                       | `src-tauri/src/media/publisher/signalling.rs`              |
+| Screen-share audio capture and encode           | `src-tauri/src/media/publisher/audio.rs`                   |
 
 ---
 
@@ -27,7 +27,7 @@ and what is still outstanding on our side.
 
 **1. The join snapshot lands before the transport exists.** Its `shares[]` cannot be subscribed to —
 there is no peer connection yet — so screen shares in it go on the floor. Both paths refetch
-`GET .../snapshot` after connect and subscribe from *that* copy. This is now §3 step 4 in the guide.
+`GET .../snapshot` after connect and subscribe from _that_ copy. This is now §3 step 4 in the guide.
 
 **2. Relay events must not advance the version.** `SpeakingChanged` and `CameraChanged` carry the
 current version without representing a change to it. Advancing on one lets it stand in for a state
@@ -75,14 +75,14 @@ Isle proximity voice drives `CloudflareService` directly, has no room model, and
 left on the old surface. So the Rust `Signalling` type speaks **two dialects**, and the difference is
 not incidental:
 
-| | Guild / call | Isle |
-|---|---|---|
-| Session field | `mediaSessionId` | `cfSessionId` |
-| Track direction | `direction: publish\|subscribe` | `location: local\|remote` |
-| Source of a pulled track | `mediaSessionId` | `sessionId` |
-| Publish / subscribe | `POST .../tracks` | `POST .../cf/tracks/new` |
-| Renegotiate | `PUT .../negotiate` | `PUT .../cf/renegotiate` |
-| Close | `POST .../tracks/close` | `PUT .../cf/tracks/close` |
+|                          | Guild / call                    | Isle                      |
+| ------------------------ | ------------------------------- | ------------------------- |
+| Session field            | `mediaSessionId`                | `cfSessionId`             |
+| Track direction          | `direction: publish\|subscribe` | `location: local\|remote` |
+| Source of a pulled track | `mediaSessionId`                | `sessionId`               |
+| Publish / subscribe      | `POST .../tracks`               | `POST .../cf/tracks/new`  |
+| Renegotiate              | `PUT .../negotiate`             | `PUT .../cf/renegotiate`  |
+| Close                    | `POST .../tracks/close`         | `PUT .../cf/tracks/close` |
 
 Note the close changes **verb** as well as path. `Dialect` in `signalling.rs` is the only thing that
 knows which, and both are pinned by tests.

@@ -1,13 +1,9 @@
 @if (showChrome()) {
     <!-- Do not add a `(dblclick)` handler: Tauri's drag script already toggles maximize on mousedown. -->
     <div class="titlebar" data-tauri-drag-region="deep">
-
         @if (isMac()) {
             <!-- macOS: traffic lights on the left -->
-            <div (mouseenter)="macHover = true"
-                 (mouseleave)="macHover = false"
-                 [class.mac-hover]="macHover"
-                 class="mac-controls">
+            <div (mouseenter)="macHover = true" (mouseleave)="macHover = false" [class.mac-hover]="macHover" class="mac-controls">
                 <button (click)="close()" [title]="'TITLEBAR.CLOSE' | translate" class="dot dot-close"></button>
                 <button (click)="minimize()" [title]="'TITLEBAR.MINIMIZE' | translate" class="dot dot-minimize"></button>
                 <button (click)="toggleMaximize()" [title]="'TITLEBAR.ZOOM' | translate" class="dot dot-maximize"></button>
@@ -16,7 +12,7 @@
 
         <!-- These must not carry their own `data-tauri-drag-region`, or the `deep` on the bar is never reached. -->
         <div class="identity">
-            <img alt="Venta" class="logo-mark" src="assets/branding/logo-mark.svg"/>
+            <img alt="Venta" class="logo-mark" src="assets/branding/logo-mark.svg" />
             @if (!inAppShell()) {
                 <span class="app-name">Venta</span>
             }
@@ -25,24 +21,38 @@
         @if (inAppShell()) {
             <!-- History arrows -->
             <div class="nav-arrows">
-                <button (click)="nav.back()"
-                        [attr.aria-label]="'TITLEBAR.BACK' | translate"
-                        [disabled]="!nav.canGoBack()"
-                        [title]="'TITLEBAR.BACK' | translate"
-                        class="chrome-btn">
+                <button
+                    (click)="nav.back()"
+                    [attr.aria-label]="'TITLEBAR.BACK' | translate"
+                    [disabled]="!nav.canGoBack()"
+                    [title]="'TITLEBAR.BACK' | translate"
+                    class="chrome-btn"
+                >
                     <svg fill="none" height="16" viewBox="0 0 14 14" width="16">
-                        <path d="M8.5 3L4.5 7L8.5 11" stroke="currentColor" stroke-linecap="round"
-                              stroke-linejoin="round" stroke-width="1.4"/>
+                        <path
+                            d="M8.5 3L4.5 7L8.5 11"
+                            stroke="currentColor"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="1.4"
+                        />
                     </svg>
                 </button>
-                <button (click)="nav.forward()"
-                        [attr.aria-label]="'TITLEBAR.FORWARD' | translate"
-                        [disabled]="!nav.canGoForward()"
-                        [title]="'TITLEBAR.FORWARD' | translate"
-                        class="chrome-btn">
+                <button
+                    (click)="nav.forward()"
+                    [attr.aria-label]="'TITLEBAR.FORWARD' | translate"
+                    [disabled]="!nav.canGoForward()"
+                    [title]="'TITLEBAR.FORWARD' | translate"
+                    class="chrome-btn"
+                >
                     <svg fill="none" height="16" viewBox="0 0 14 14" width="16">
-                        <path d="M5.5 3L9.5 7L5.5 11" stroke="currentColor" stroke-linecap="round"
-                              stroke-linejoin="round" stroke-width="1.4"/>
+                        <path
+                            d="M5.5 3L9.5 7L5.5 11"
+                            stroke="currentColor"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="1.4"
+                        />
                     </svg>
                 </button>
             </div>
@@ -55,7 +65,7 @@
             <!-- Absolutely positioned so it centres on the window, not on the space the button groups leave. -->
             <div class="context">
                 @if (ctx.iconUrl && !iconFailed()) {
-                    <img (error)="onIconError(ctx.iconUrl!)" [src]="ctx.iconUrl" alt="" class="context-icon"/>
+                    <img (error)="onIconError(ctx.iconUrl!)" [src]="ctx.iconUrl" alt="" class="context-icon" />
                 } @else if (ctx.iconUrl) {
                     <span class="context-initial">{{ ctx.initial }}</span>
                 } @else if (ctx.icon) {
@@ -71,29 +81,41 @@
 
         @if (inAppShell()) {
             <div class="actions">
-                <button (click)="toggleInbox($event)"
-                        [attr.aria-label]="'TITLEBAR.INBOX' | translate"
-                        [title]="'TITLEBAR.INBOX' | translate"
-                        class="chrome-btn">
+                <button
+                    (click)="toggleInbox($event)"
+                    [attr.aria-label]="'TITLEBAR.INBOX' | translate"
+                    [title]="'TITLEBAR.INBOX' | translate"
+                    class="chrome-btn"
+                >
                     <svg fill="none" height="17" viewBox="0 0 16 16" width="17">
-                        <path d="M2 9.5V4.2C2 3.5 2.5 3 3.2 3h9.6c.7 0 1.2.5 1.2 1.2v5.3M2 9.5h3.2l.9 1.6h3.8l.9-1.6H14M2 9.5v2.3c0 .7.5 1.2 1.2 1.2h9.6c.7 0 1.2-.5 1.2-1.2V9.5"
-                              stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
-                              stroke-width="1.15"/>
+                        <path
+                            d="M2 9.5V4.2C2 3.5 2.5 3 3.2 3h9.6c.7 0 1.2.5 1.2 1.2v5.3M2 9.5h3.2l.9 1.6h3.8l.9-1.6H14M2 9.5v2.3c0 .7.5 1.2 1.2 1.2h9.6c.7 0 1.2-.5 1.2-1.2V9.5"
+                            stroke="currentColor"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="1.15"
+                        />
                     </svg>
                     @if (inbox.badgeLabel(); as badge) {
                         <span class="chrome-badge">{{ badge }}</span>
                     }
                 </button>
 
-                <button (click)="helpMenu.toggle($event)"
-                        [attr.aria-label]="'TITLEBAR.HELP' | translate"
-                        [title]="'TITLEBAR.HELP' | translate"
-                        class="chrome-btn">
+                <button
+                    (click)="helpMenu.toggle($event)"
+                    [attr.aria-label]="'TITLEBAR.HELP' | translate"
+                    [title]="'TITLEBAR.HELP' | translate"
+                    class="chrome-btn"
+                >
                     <svg fill="none" height="17" viewBox="0 0 16 16" width="17">
-                        <circle cx="8" cy="8" r="6.2" stroke="currentColor" stroke-width="1.15"/>
-                        <path d="M6.3 6.2a1.75 1.75 0 1 1 2.4 1.62c-.45.18-.7.6-.7 1.08v.35"
-                              stroke="currentColor" stroke-linecap="round" stroke-width="1.15"/>
-                        <circle cx="8" cy="11.4" fill="currentColor" r="0.72"/>
+                        <circle cx="8" cy="8" r="6.2" stroke="currentColor" stroke-width="1.15" />
+                        <path
+                            d="M6.3 6.2a1.75 1.75 0 1 1 2.4 1.62c-.45.18-.7.6-.7 1.08v.35"
+                            stroke="currentColor"
+                            stroke-linecap="round"
+                            stroke-width="1.15"
+                        />
+                        <circle cx="8" cy="11.4" fill="currentColor" r="0.72" />
                     </svg>
                 </button>
             </div>
@@ -101,54 +123,55 @@
 
         @if (!isMac()) {
             <div class="win-controls">
-                <button (click)="minimize()"
-                        [attr.aria-label]="'TITLEBAR.MINIMIZE' | translate"
-                        [title]="'TITLEBAR.MINIMIZE' | translate"
-                        class="win-btn">
+                <button
+                    (click)="minimize()"
+                    [attr.aria-label]="'TITLEBAR.MINIMIZE' | translate"
+                    [title]="'TITLEBAR.MINIMIZE' | translate"
+                    class="win-btn"
+                >
                     <svg fill="none" height="1.1" viewBox="0 0 10 1" width="11">
-                        <rect fill="currentColor" height="1" rx="0.5" width="10"/>
+                        <rect fill="currentColor" height="1" rx="0.5" width="10" />
                     </svg>
                 </button>
                 @let maximizeLabel = (isMaximized() ? 'TITLEBAR.RESTORE' : 'TITLEBAR.MAXIMIZE') | translate;
-                <button (click)="toggleMaximize()"
-                        [attr.aria-label]="maximizeLabel"
-                        [title]="maximizeLabel"
-                        class="win-btn">
+                <button (click)="toggleMaximize()" [attr.aria-label]="maximizeLabel" [title]="maximizeLabel" class="win-btn">
                     @if (isMaximized()) {
                         <!-- Restore icon -->
                         <svg fill="none" height="11" viewBox="0 0 10 10" width="11">
-                            <rect height="6" rx="1.1" stroke="currentColor" stroke-width="1" width="6" x="1"
-                                  y="3"/>
-                            <path d="M3 1.5h4.4A1.1 1.1 0 0 1 8.5 2.6V7" stroke="currentColor"
-                                  stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+                            <rect height="6" rx="1.1" stroke="currentColor" stroke-width="1" width="6" x="1" y="3" />
+                            <path
+                                d="M3 1.5h4.4A1.1 1.1 0 0 1 8.5 2.6V7"
+                                stroke="currentColor"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="1"
+                            />
                         </svg>
                     } @else {
                         <!-- Maximize icon -->
                         <svg fill="none" height="11" viewBox="0 0 10 10" width="11">
-                            <rect height="9" rx="1.3" stroke="currentColor" stroke-width="1" width="9" x="0.5"
-                                  y="0.5"/>
+                            <rect height="9" rx="1.3" stroke="currentColor" stroke-width="1" width="9" x="0.5" y="0.5" />
                         </svg>
                     }
                 </button>
-                <button (click)="close()"
-                        [attr.aria-label]="'TITLEBAR.CLOSE' | translate"
-                        [title]="'TITLEBAR.CLOSE' | translate"
-                        class="win-btn win-close">
+                <button
+                    (click)="close()"
+                    [attr.aria-label]="'TITLEBAR.CLOSE' | translate"
+                    [title]="'TITLEBAR.CLOSE' | translate"
+                    class="win-btn win-close"
+                >
                     <svg fill="none" height="11" viewBox="0 0 10 10" width="11">
-                        <path d="M1.6 1.6L8.4 8.4M8.4 1.6L1.6 8.4" stroke="currentColor" stroke-linecap="round"
-                              stroke-width="1.1"/>
+                        <path d="M1.6 1.6L8.4 8.4M8.4 1.6L1.6 8.4" stroke="currentColor" stroke-linecap="round" stroke-width="1.1" />
                     </svg>
                 </button>
             </div>
         }
-
     </div>
 
     <!-- `onShow` rather than the toggle handler: `toggle` fires on dismiss too, which would refetch. -->
-    <p-popover #inboxPopover (onShow)="inbox.open()" [style]="{width: '420px', padding: '0'}"
-               appendTo="body" styleClass="titlebar-inbox">
-        <app-inbox-panel (navigated)="inboxPopover.hide()"/>
+    <p-popover #inboxPopover (onShow)="inbox.open()" [style]="{width: '420px', padding: '0'}" appendTo="body" styleClass="titlebar-inbox">
+        <app-inbox-panel (navigated)="inboxPopover.hide()" />
     </p-popover>
 
-    <p-menu #helpMenu [model]="helpItems()" [popup]="true" appendTo="body"/>
+    <p-menu #helpMenu [model]="helpItems()" [popup]="true" appendTo="body" />
 }

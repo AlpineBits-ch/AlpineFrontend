@@ -27,12 +27,14 @@ function view(overrides: Partial<MlsCoverageView> = {}): MlsCoverageView {
     };
 }
 
-function setup(options: {
-    coverage?: MlsCoverageView | null;
-    request?: MlsAccessRequestState;
-    isChannel?: boolean;
-    accessOfferedElsewhere?: boolean;
-} = {}): {
+function setup(
+    options: {
+        coverage?: MlsCoverageView | null;
+        request?: MlsAccessRequestState;
+        isChannel?: boolean;
+        accessOfferedElsewhere?: boolean;
+    } = {},
+): {
     fixture: ComponentFixture<MlsUnreadableBannerComponent>;
     health: MlsHealthService;
     text: () => string;
@@ -81,8 +83,8 @@ function setup(options: {
         health: TestBed.inject(MlsHealthService),
         text: () => host.textContent ?? '',
         notice: () => host.querySelector<HTMLElement>('[data-testid="coverage-notice"]'),
-        button: label => [...host.querySelectorAll('button')]
-            .find(b => (b.textContent ?? '').includes(label)),
+        button: label =>
+            [...host.querySelectorAll('button')].find(b => (b.textContent ?? '').includes(label)),
         status: value => {
             fixture.componentRef.setInput('status', value);
             fixture.detectChanges();
@@ -114,10 +116,12 @@ describe('MlsUnreadableBannerComponent', () => {
             health.recordFailure(CONTEXT, false, 'not-admitted');
             fixture.detectChanges();
 
-            status(describeRelinkOutcome({
-                state: 'failed',
-                message: "'device-a' is not one of your registered devices.",
-            }));
+            status(
+                describeRelinkOutcome({
+                    state: 'failed',
+                    message: "'device-a' is not one of your registered devices.",
+                }),
+            );
 
             expect(text()).toContain('Re-linking failed');
             expect(text()).toContain("'device-a' is not one of your registered devices.");
@@ -264,7 +268,7 @@ describe('MlsUnreadableBannerComponent', () => {
             expect(button('Request access')!.disabled).toBe(true);
         });
 
-        it('shows the server\'s own refusal rather than swallowing it', () => {
+        it("shows the server's own refusal rather than swallowing it", () => {
             const {text} = setup({
                 coverage: view({thisDeviceExcluded: true}),
                 request: {state: 'failed', message: "'device-here' is not a registered device."},
@@ -280,20 +284,22 @@ describe('device access copy', () => {
     const KEYS = Object.keys(strings).filter(k => k.startsWith('DEVICE_ACCESS.'));
 
     it('matches the contract word for word', () => {
-        expect(strings['DEVICE_ACCESS.THIS_DEVICE_TITLE'])
-            .toBe("This device can't read these messages");
-        expect(strings['DEVICE_ACCESS.THIS_DEVICE_BODY'])
-            .toBe("It wasn't set up for this conversation's encryption. "
-                + 'Older messages will stay unavailable here.');
+        expect(strings['DEVICE_ACCESS.THIS_DEVICE_TITLE']).toBe("This device can't read these messages");
+        expect(strings['DEVICE_ACCESS.THIS_DEVICE_BODY']).toBe(
+            "It wasn't set up for this conversation's encryption. " +
+                'Older messages will stay unavailable here.',
+        );
         expect(strings['DEVICE_ACCESS.REQUEST']).toBe('Request access');
         expect(strings['DEVICE_ACCESS.WAITING_TITLE']).toBe('Waiting to be let in');
-        expect(strings['DEVICE_ACCESS.WAITING_BODY'])
-            .toBe('Approve this from another of your devices, '
-                + 'or ask someone in this conversation to.');
-        expect(strings['DEVICE_ACCESS.OWN_DEVICE_BODY'])
-            .toBe('Open Venta on that device and it will ask to be let back in.');
-        expect(strings['DEVICE_ACCESS.PEER_DEVICE_BODY'])
-            .toBe("They'll be asked to let it in the next time they open Venta on it.");
+        expect(strings['DEVICE_ACCESS.WAITING_BODY']).toBe(
+            'Approve this from another of your devices, ' + 'or ask someone in this conversation to.',
+        );
+        expect(strings['DEVICE_ACCESS.OWN_DEVICE_BODY']).toBe(
+            'Open Venta on that device and it will ask to be let back in.',
+        );
+        expect(strings['DEVICE_ACCESS.PEER_DEVICE_BODY']).toBe(
+            "They'll be asked to let it in the next time they open Venta on it.",
+        );
         expect(strings['DEVICE_ACCESS.UNAVAILABLE']).toBe("Couldn't check right now");
     });
 

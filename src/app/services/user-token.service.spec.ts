@@ -72,10 +72,7 @@ beforeEach(() => {
     store.save.mockResolvedValue(undefined);
 });
 
-function setup(
-    configure?: (notifier: FakeNotifier) => void,
-    backend: SettingsStoreFactory = settings,
-) {
+function setup(configure?: (notifier: FakeNotifier) => void, backend: SettingsStoreFactory = settings) {
     const notifier = new FakeNotifier();
     configure?.(notifier);
 
@@ -323,10 +320,7 @@ describe('outside Tauri', () => {
     });
 
     it('deregisters a token persisted in localStorage, and clears it', async () => {
-        localStorage.setItem(
-            `${PREFIX}push_token`,
-            JSON.stringify({token: 'push-token-xyz', kind: 'Fcm'}),
-        );
+        localStorage.setItem(`${PREFIX}push_token`, JSON.stringify({token: 'push-token-xyz', kind: 'Fcm'}));
         const {service, ctrl} = browser();
 
         void service.deregisterToken();
@@ -349,8 +343,7 @@ describe('outside Tauri', () => {
 
         const done = service.deregisterToken();
         await tick();
-        ctrl.expectOne(r => r.method === 'DELETE')
-            .flush('nope', {status: 500, statusText: 'Server Error'});
+        ctrl.expectOne(r => r.method === 'DELETE').flush('nope', {status: 500, statusText: 'Server Error'});
 
         // Swallowed, so sign-out completes - but the token stays, because forgetting it locally
         // while the server still holds it is how an installation keeps ringing after sign-out.

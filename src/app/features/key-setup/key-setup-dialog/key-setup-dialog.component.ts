@@ -13,13 +13,7 @@ import {catchError, EMPTY, filter, from, switchMap, take, tap} from 'rxjs';
 import {TranslateModule} from '@ngx-translate/core';
 
 /** `recovery-code` and `confirm-code` sit between entropy collection and the upload deliberately. */
-type Step =
-    | 'password'
-    | 'entropy'
-    | 'recovery-code'
-    | 'confirm-code'
-    | 'processing'
-    | 'done';
+type Step = 'password' | 'entropy' | 'recovery-code' | 'confirm-code' | 'processing' | 'done';
 
 @Component({
     selector: 'app-key-setup-dialog',
@@ -53,9 +47,7 @@ export class KeySetupDialogComponent {
     private collectedEntropy: number[] = [];
 
     /** Whether to collect mouse-movement entropy before minting the recovery code. */
-    private readonly showEntropy =
-        !this.os.isMobile &&
-        window.matchMedia('(pointer: fine)').matches;
+    private readonly showEntropy = !this.os.isMobile && window.matchMedia('(pointer: fine)').matches;
 
     /** Backs out of a deferred prompt, leaving nothing behind. */
     protected dismiss(): void {
@@ -74,21 +66,24 @@ export class KeySetupDialogComponent {
             return;
         }
         this.errorMsg.set('');
-        this.userService.verifyPassword(this.password()).pipe(
-            take(1),
-            filter(valid => {
-                if (!valid) {
-                    this.errorMsg.set('Incorrect password. Please try again.');
+        this.userService
+            .verifyPassword(this.password())
+            .pipe(
+                take(1),
+                filter(valid => {
+                    if (!valid) {
+                        this.errorMsg.set('Incorrect password. Please try again.');
+                    }
+                    return valid;
+                }),
+            )
+            .subscribe(() => {
+                if (this.showEntropy) {
+                    this.step.set('entropy');
+                } else {
+                    void this.toRecoveryCode([]);
                 }
-                return valid;
-            }),
-        ).subscribe(() => {
-            if (this.showEntropy) {
-                this.step.set('entropy');
-            } else {
-                void this.toRecoveryCode([]);
-            }
-        });
+            });
     }
 
     protected onEntropyDone(entropy: number[]): void {
@@ -167,32 +162,36 @@ export class KeySetupDialogComponent {
     private execute(entropy: number[]): void {
         this.step.set('processing');
 
-        from(this.masterKeyService.setupDualWrapped(this.password(), this.recoveryCode(), entropy)).pipe(
-            switchMap(dual => this.backupService.putRecoveryKey({
-                // `toWrappingDto` carries `publicVerifier` through from the engine. Not optional on
-                // this key-establishing write: Echo hard-refuses it without the field. (§L.11)
-                ...toWrappingDto(dual.passwordWrapping),
-                version: dual.passwordWrapping.version,
-                password: this.password(),
-                recoveryCodeWrapping: toWrappingDto(dual.recoveryCodeWrapping),
-            })),
-            tap(() => {
-                this.step.set('done');
-                // Held only as long as it takes to confirm it; keeping it in memory afterwards
-                // serves nothing and it is the one credential a reset cannot replace.
-                this.recoveryCode.set('');
-                this.confirmation.set('');
-                setTimeout(() => this.setupComplete.emit(), 1600);
-            }),
-            catchError((err: unknown) => {
-                // Surfaced, not swallowed. The server's 400 says exactly what is wrong with the
-                // envelope, and collapsing every failure into one sentence is why a hard,
-                // permanent, every-account refusal was indistinguishable from a flaky network.
-                this.errorMsg.set(describeSetupFailure(err));
-                this.step.set('password');
-                return EMPTY;
-            }),
-        ).subscribe();
+        from(this.masterKeyService.setupDualWrapped(this.password(), this.recoveryCode(), entropy))
+            .pipe(
+                switchMap(dual =>
+                    this.backupService.putRecoveryKey({
+                        // `toWrappingDto` carries `publicVerifier` through from the engine. Not optional on
+                        // this key-establishing write: Echo hard-refuses it without the field. (§L.11)
+                        ...toWrappingDto(dual.passwordWrapping),
+                        version: dual.passwordWrapping.version,
+                        password: this.password(),
+                        recoveryCodeWrapping: toWrappingDto(dual.recoveryCodeWrapping),
+                    }),
+                ),
+                tap(() => {
+                    this.step.set('done');
+                    // Held only as long as it takes to confirm it; keeping it in memory afterwards
+                    // serves nothing and it is the one credential a reset cannot replace.
+                    this.recoveryCode.set('');
+                    this.confirmation.set('');
+                    setTimeout(() => this.setupComplete.emit(), 1600);
+                }),
+                catchError((err: unknown) => {
+                    // Surfaced, not swallowed. The server's 400 says exactly what is wrong with the
+                    // envelope, and collapsing every failure into one sentence is why a hard,
+                    // permanent, every-account refusal was indistinguishable from a flaky network.
+                    this.errorMsg.set(describeSetupFailure(err));
+                    this.step.set('password');
+                    return EMPTY;
+                }),
+            )
+            .subscribe();
     }
 }
 
@@ -204,10 +203,8 @@ function describeSetupFailure(err: unknown): string {
         return `This device could not prepare the keys. ${err.detail}`;
     }
     if (err instanceof HttpErrorResponse) {
-        const body = err.error as { detail?: string; title?: string; message?: string } | string | null;
-        const served = typeof body === 'string'
-            ? body
-            : body?.detail ?? body?.message ?? body?.title;
+        const body = err.error as {detail?: string; title?: string; message?: string} | string | null;
+        const served = typeof body === 'string' ? body : (body?.detail ?? body?.message ?? body?.title);
         if (served) return `The server refused the setup: ${served}`;
         return `The server refused the setup (HTTP ${err.status}). Please try again.`;
     }

@@ -95,7 +95,7 @@ export class UpdateService {
         this.updateInfo.set({
             version: '99.0.0',
             currentVersion: '0.1.0-alpha',
-            body: '## What\'s New\n- Redesigned update dialog with progress tracking\n- Improved performance across the board\n- Fixed several crash issues on startup\n- New keyboard shortcut support',
+            body: "## What's New\n- Redesigned update dialog with progress tracking\n- Improved performance across the board\n- Fixed several crash issues on startup\n- New keyboard shortcut support",
         });
         this.dialogVisible.set(true);
     }

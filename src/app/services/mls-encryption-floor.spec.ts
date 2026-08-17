@@ -61,10 +61,7 @@ class StaleReadStore implements MlsLocalStore {
         return this.stored.delete(key);
     }
 
-    async update<T>(
-        key: string,
-        next: (current: T | undefined) => T | undefined,
-    ): Promise<T | undefined> {
+    async update<T>(key: string, next: (current: T | undefined) => T | undefined): Promise<T | undefined> {
         const current = this.stored.get(key) as T | undefined;
         const value = next(current);
         if (value === current) return current;

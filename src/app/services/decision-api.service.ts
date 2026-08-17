@@ -30,13 +30,15 @@ export class DecisionApiService {
      * rather than translating the status straight into a permission message.</p>
      */
     list(channelId: string): Observable<Decision[]> {
-        return this.http.get<Decision[]>(`${this.base}/channels/${channelId}/decisions`)
+        return this.http
+            .get<Decision[]>(`${this.base}/channels/${channelId}/decisions`)
             .pipe(map(rows => (rows ?? []).map(normalizeDecision)));
     }
 
     /** Needs `CreateDecisions` on the channel. */
     create(channelId: string, dto: CreateDecisionDto): Observable<Decision> {
-        return this.http.post<Decision>(`${this.base}/channels/${channelId}/decisions`, dto)
+        return this.http
+            .post<Decision>(`${this.base}/channels/${channelId}/decisions`, dto)
             .pipe(map(normalizeDecision));
     }
 
@@ -48,7 +50,8 @@ export class DecisionApiService {
      * no `reason` - see `voteBodyProblem`, which the form checks first.</p>
      */
     vote(decisionId: string, dto: DecisionVoteDto): Observable<Decision> {
-        return this.http.put<Decision>(`${this.base}/decisions/${decisionId}/vote`, dto)
+        return this.http
+            .put<Decision>(`${this.base}/decisions/${decisionId}/vote`, dto)
             .pipe(map(normalizeDecision));
     }
 
@@ -59,7 +62,8 @@ export class DecisionApiService {
      * which was blocked yields `Blocked`, not a winner.</p>
      */
     close(decisionId: string): Observable<Decision> {
-        return this.http.post<Decision>(`${this.base}/decisions/${decisionId}/close`, null)
+        return this.http
+            .post<Decision>(`${this.base}/decisions/${decisionId}/close`, null)
             .pipe(map(normalizeDecision));
     }
 

@@ -6,9 +6,11 @@ export const FLATMATES_ROLE_NAME = 'Flatmates';
 
 /** The seeded Flatmates role, or undefined in a guild that has none (or renamed it). */
 export function findFlatmatesRole(guild: GuildDto | null | undefined): RoleDto | undefined {
-    return (guild?.roles ?? []).find(role =>
-        role.type !== RoleType.Everyone
-        && role.name.trim().toLowerCase() === FLATMATES_ROLE_NAME.toLowerCase());
+    return (guild?.roles ?? []).find(
+        role =>
+            role.type !== RoleType.Everyone &&
+            role.name.trim().toLowerCase() === FLATMATES_ROLE_NAME.toLowerCase(),
+    );
 }
 
 /** The role a new chore's rotation should default to; without it every new chore starts on an empty pool picker. */
@@ -17,7 +19,10 @@ export function defaultRotationRoleId(guild: GuildDto | null | undefined): strin
 }
 
 /** Whether this member holds Flatmates - "lives here", as opposed to a guest who joined by invite. */
-export function isFlatmate(guild: GuildDto | null | undefined, member: GuildMemberDto | null | undefined): boolean {
+export function isFlatmate(
+    guild: GuildDto | null | undefined,
+    member: GuildMemberDto | null | undefined,
+): boolean {
     const role = findFlatmatesRole(guild);
     if (!role || !member) return false;
     return (member.roleMembers ?? []).some(rm => rm.role.id === role.id);

@@ -1,6 +1,6 @@
-import { definePreset, palette } from '@primeuix/themes';
+import {definePreset, palette} from '@primeuix/themes';
 import Aura from '@primeuix/themes/aura';
-import { DEFAULT_THEME } from '../models/theme.model';
+import {DEFAULT_THEME} from '../models/theme.model';
 
 const BORDER_SUBTLE = 'rgba(255,255,255,0.10)';
 const BORDER_DEFAULT = 'rgba(255,255,255,0.16)';

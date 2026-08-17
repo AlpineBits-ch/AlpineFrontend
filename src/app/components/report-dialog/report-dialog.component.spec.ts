@@ -53,7 +53,9 @@ describe('ReportDialogComponent dismissal', () => {
         const {fixture, service} = await setup();
 
         // Clicking a reason leaves the dialog's own inputs unchanged, which is the state escape has to survive.
-        const reasonButton = fixture.nativeElement.querySelector('button[type="button"]') as HTMLButtonElement;
+        const reasonButton = fixture.nativeElement.querySelector(
+            'button[type="button"]',
+        ) as HTMLButtonElement;
         expect(reasonButton).toBeTruthy();
         reasonButton.click();
         fixture.detectChanges();

@@ -7,8 +7,14 @@
                 <!-- Says what an absence is, because the board next to it says something else. -->
                 <p class="text-[0.625rem] text-text-muted m-0 mt-0.5">{{ 'AWAY.SUBTITLE' | translate }}</p>
             </div>
-            <p-button (onClick)="openAdd()" [label]="'AWAY.ADD' | translate" class="ml-auto shrink-0"
-                      icon="pi pi-plus" severity="secondary" size="small"/>
+            <p-button
+                (onClick)="openAdd()"
+                [label]="'AWAY.ADD' | translate"
+                class="ml-auto shrink-0"
+                icon="pi pi-plus"
+                severity="secondary"
+                size="small"
+            />
         </div>
 
         @if (!hasAny()) {
@@ -16,15 +22,19 @@
         } @else {
             @for (row of rows(); track row.absence.id) {
                 <div class="flex items-center gap-3 px-4 py-2.5 border-b border-border-subtle last:border-b-0 group">
-                    <div class="w-7 h-7 rounded-full bg-hover grid place-items-center text-[0.6875rem] font-semibold text-text-secondary shrink-0">
+                    <div
+                        class="w-7 h-7 rounded-full bg-hover grid place-items-center text-[0.6875rem] font-semibold text-text-secondary shrink-0"
+                    >
                         {{ initialOf(row.absence.userId) }}
                     </div>
 
                     <div class="min-w-0 flex-1">
                         <p class="text-[0.8125rem] text-text-primary m-0 truncate">
                             {{ row.isSelf ? ('AWAY.YOU' | translate) : row.name }}
-                            <span [class]="stateClass(row.state)"
-                                  class="ml-1.5 rounded-md border px-1.5 py-0.5 text-[0.5625rem] uppercase tracking-wide">
+                            <span
+                                [class]="stateClass(row.state)"
+                                class="ml-1.5 rounded-md border px-1.5 py-0.5 text-[0.5625rem] uppercase tracking-wide"
+                            >
                                 {{ stateLabelKey(row.state) | translate }}
                             </span>
                         </p>
@@ -39,17 +49,33 @@
                     @if (canEdit(row.absence)) {
                         @if (confirmDeleteId() === row.absence.id) {
                             <div class="flex items-center shrink-0">
-                                <p-button (onClick)="remove(row.absence)" [label]="'AWAY.CONFIRM_DELETE' | translate"
-                                          [text]="true" severity="danger" size="small"/>
-                                <p-button (onClick)="confirmDeleteId.set(null)" [label]="'COMMON.CANCEL' | translate"
-                                          [text]="true" severity="secondary" size="small"/>
+                                <p-button
+                                    (onClick)="remove(row.absence)"
+                                    [label]="'AWAY.CONFIRM_DELETE' | translate"
+                                    [text]="true"
+                                    severity="danger"
+                                    size="small"
+                                />
+                                <p-button
+                                    (onClick)="confirmDeleteId.set(null)"
+                                    [label]="'COMMON.CANCEL' | translate"
+                                    [text]="true"
+                                    severity="secondary"
+                                    size="small"
+                                />
                             </div>
                         } @else {
-                            <div class="flex items-center shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-                                <p-button (onClick)="openEdit(row.absence)" [text]="true" icon="pi pi-pencil"
-                                          severity="secondary" size="small"/>
-                                <p-button (onClick)="remove(row.absence)" [text]="true" icon="pi pi-trash"
-                                          severity="danger" size="small"/>
+                            <div
+                                class="flex items-center shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity"
+                            >
+                                <p-button
+                                    (onClick)="openEdit(row.absence)"
+                                    [text]="true"
+                                    icon="pi pi-pencil"
+                                    severity="secondary"
+                                    size="small"
+                                />
+                                <p-button (onClick)="remove(row.absence)" [text]="true" icon="pi pi-trash" severity="danger" size="small" />
                             </div>
                         }
                     }
@@ -60,8 +86,15 @@
 }
 
 <!-- ── Declare or amend ────────────────────────────────────────────────────── -->
-<p-dialog (visibleChange)="showEditor.set($event)" [draggable]="false" [modal]="true" [resizable]="false"
-          [style]="{width: '460px'}" [visible]="showEditor()" appendTo="body">
+<p-dialog
+    (visibleChange)="showEditor.set($event)"
+    [draggable]="false"
+    [modal]="true"
+    [resizable]="false"
+    [style]="{width: '460px'}"
+    [visible]="showEditor()"
+    appendTo="body"
+>
     <ng-template pTemplate="header">
         <span class="text-sm font-semibold text-text-primary">
             {{ (editingId() ? 'AWAY.EDIT_TITLE' : 'AWAY.ADD_TITLE') | translate }}
@@ -72,13 +105,25 @@
         <div class="flex gap-3">
             <div class="flex flex-col gap-1.5 flex-1 min-w-0">
                 <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'AWAY.FROM' | translate }}</label>
-                <p-datepicker (ngModelChange)="draftStart.set($event)" [ngModel]="draftStart()"
-                              [showIcon]="true" appendTo="body" dateFormat="d M yy" styleClass="w-full"/>
+                <p-datepicker
+                    (ngModelChange)="draftStart.set($event)"
+                    [ngModel]="draftStart()"
+                    [showIcon]="true"
+                    appendTo="body"
+                    dateFormat="d M yy"
+                    styleClass="w-full"
+                />
             </div>
             <div class="flex flex-col gap-1.5 flex-1 min-w-0">
                 <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'AWAY.UNTIL' | translate }}</label>
-                <p-datepicker (ngModelChange)="draftEnd.set($event)" [ngModel]="draftEnd()"
-                              [showIcon]="true" appendTo="body" dateFormat="d M yy" styleClass="w-full"/>
+                <p-datepicker
+                    (ngModelChange)="draftEnd.set($event)"
+                    [ngModel]="draftEnd()"
+                    [showIcon]="true"
+                    appendTo="body"
+                    dateFormat="d M yy"
+                    styleClass="w-full"
+                />
             </div>
         </div>
 
@@ -90,8 +135,14 @@
 
         <div class="flex flex-col gap-1.5">
             <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'AWAY.NOTE' | translate }}</label>
-            <input (ngModelChange)="draftNote.set($event)" [maxlength]="noteMaxLength" [ngModel]="draftNote()"
-                   [placeholder]="'AWAY.NOTE_PLACEHOLDER' | translate" pInputText type="text"/>
+            <input
+                (ngModelChange)="draftNote.set($event)"
+                [maxlength]="noteMaxLength"
+                [ngModel]="draftNote()"
+                [placeholder]="'AWAY.NOTE_PLACEHOLDER' | translate"
+                pInputText
+                type="text"
+            />
         </div>
 
         <!-- Both consequences, in the order people meet them: the second is the one everybody assumes the opposite of. -->
@@ -104,9 +155,13 @@
     </div>
 
     <ng-template pTemplate="footer">
-        <p-button (onClick)="showEditor.set(false)" [label]="'COMMON.CANCEL' | translate" [text]="true"
-                  severity="secondary"/>
-        <p-button (onClick)="submit()" [disabled]="!draftValid()" [label]="'COMMON.SAVE' | translate"
-                  [loading]="saving()" severity="primary"/>
+        <p-button (onClick)="showEditor.set(false)" [label]="'COMMON.CANCEL' | translate" [text]="true" severity="secondary" />
+        <p-button
+            (onClick)="submit()"
+            [disabled]="!draftValid()"
+            [label]="'COMMON.SAVE' | translate"
+            [loading]="saving()"
+            severity="primary"
+        />
     </ng-template>
 </p-dialog>

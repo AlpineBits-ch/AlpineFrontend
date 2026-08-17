@@ -82,7 +82,8 @@ function setup(
         ],
     });
 
-    const fixture: ComponentFixture<CallScreenLayoutComponent> = TestBed.createComponent(CallScreenLayoutComponent);
+    const fixture: ComponentFixture<CallScreenLayoutComponent> =
+        TestBed.createComponent(CallScreenLayoutComponent);
     fixture.componentRef.setInput('screenShares', shares);
     fixture.componentRef.setInput('participants', participants);
     fixture.componentRef.setInput('participantsWithAudio', new Set<string>());

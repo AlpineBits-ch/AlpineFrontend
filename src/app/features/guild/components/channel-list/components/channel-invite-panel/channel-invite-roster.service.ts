@@ -29,9 +29,11 @@ export class ChannelInviteRosterService {
 
         // shareReplay rather than a stored value: two opens in the same tick share one pair of requests instead of racing to fill the same entry.
         const roster$ = forkJoin({
-            viewers: this.guildService.getChannelViewers(channelId)
+            viewers: this.guildService
+                .getChannelViewers(channelId)
                 .pipe(catchError(() => of([] as string[]))),
-            members: this.guildService.getMembers(guildId, 0, 200)
+            members: this.guildService
+                .getMembers(guildId, 0, 200)
                 .pipe(catchError(() => of([] as GuildMemberDto[]))),
         }).pipe(shareReplay({bufferSize: 1, refCount: false}));
 

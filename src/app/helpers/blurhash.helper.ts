@@ -78,7 +78,9 @@ export function decodeBlurHash(
     const pixels = new Uint8ClampedArray(new ArrayBuffer(width * height * 4));
     for (let y = 0; y < height; y++) {
         for (let x = 0; x < width; x++) {
-            let r = 0, g = 0, b = 0;
+            let r = 0,
+                g = 0,
+                b = 0;
             for (let j = 0; j < componentsY; j++) {
                 for (let i = 0; i < componentsX; i++) {
                     const basis = Math.cos((Math.PI * x * i) / width) * Math.cos((Math.PI * y * j) / height);

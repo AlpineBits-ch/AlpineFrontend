@@ -71,15 +71,15 @@ plus a `degradations` array.** Absent or empty means nothing was reduced.
   "degradations": [
     {
       "key": "voice.video_ceiling",
-      "requested": { "kind": "ladder", "rung": "1080p60", "rank": 4 },
-      "granted":   { "kind": "ladder", "rung": "720p30",  "rank": 2 },
+      "requested": {"kind": "ladder", "rung": "1080p60", "rank": 4},
+      "granted": {"kind": "ladder", "rung": "720p30", "rank": 2},
       "reason": "guild_plan_limit",
       "boundBy": "guild",
       "remedy": "upgrade_guild",
       "actorCanRemedy": false,
-      "subjectId": "guild-1"
-    }
-  ]
+      "subjectId": "guild-1",
+    },
+  ],
 }
 ```
 
@@ -124,12 +124,12 @@ is only possible if the wire carries a number.
 `PairedCeiling`, `OperatorCeiling`. That is **which side bound**, and it is not the same question as
 **who can fix it**, which is what decides the button.
 
-| Reason | Who can fix it | Button the client should draw |
-|---|---|---|
-| `guild_plan_limit` | the guild owner, or a member with `ManageGuild` | "Upgrade this server" if the viewer can, otherwise a sentence with no button |
-| `user_plan_limit` | the viewer themselves | "Upgrade your account" |
-| `paired_ceiling` | **depends on which side is lower**, and the payload does not say | undecidable today |
-| `operator_ceiling` | nobody | no button, ever - and the server's own comment says so |
+| Reason             | Who can fix it                                                   | Button the client should draw                                                |
+| ------------------ | ---------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `guild_plan_limit` | the guild owner, or a member with `ManageGuild`                  | "Upgrade this server" if the viewer can, otherwise a sentence with no button |
+| `user_plan_limit`  | the viewer themselves                                            | "Upgrade your account"                                                       |
+| `paired_ceiling`   | **depends on which side is lower**, and the payload does not say | undecidable today                                                            |
+| `operator_ceiling` | nobody                                                           | no button, ever - and the server's own comment says so                       |
 
 The client cannot derive the "who" column. It would have to re-evaluate `ManageGuild` for the viewer
 (`memberCanManageGuild` in `src/app/features/guild/guild-permissions.ts`, which needs a member fetch),
@@ -190,12 +190,12 @@ Whatever is chosen, the code field must have **one name**. `refusalCode()` in
 
 Not one mechanism. Three, with a clear rule for which:
 
-| Mechanism | Carries | Why |
-|---|---|---|
-| **Snapshot on connect** | the **user's own** resolved set, and the license mode | It is small, fixed-size (three user-scoped keys plus the paired ones), needed before the first upload picker opens, and needed to decide whether billing UI exists at all |
-| **Per-subject fetch** | one **guild's** resolved set | A user can be in hundreds of guilds. Pushing every guild's set on connect is a payload proportional to guild count for data that is read when a settings screen opens |
-| **Push on change** | an envelope, not the values | Rare event; the client refetches what it actually has open |
-| **Inline on the operation** | `degradations[]` | Section 3. This is the only one that is load-bearing for correctness |
+| Mechanism                   | Carries                                               | Why                                                                                                                                                                       |
+| --------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Snapshot on connect**     | the **user's own** resolved set, and the license mode | It is small, fixed-size (three user-scoped keys plus the paired ones), needed before the first upload picker opens, and needed to decide whether billing UI exists at all |
+| **Per-subject fetch**       | one **guild's** resolved set                          | A user can be in hundreds of guilds. Pushing every guild's set on connect is a payload proportional to guild count for data that is read when a settings screen opens     |
+| **Push on change**          | an envelope, not the values                           | Rare event; the client refetches what it actually has open                                                                                                                |
+| **Inline on the operation** | `degradations[]`                                      | Section 3. This is the only one that is load-bearing for correctness                                                                                                      |
 
 **The inline one is the one that matters.** The other three are conveniences that let the UI
 pre-empt a limit; the inline one is what makes a limit explicable after the fact. If WP-09 ships only
@@ -207,19 +207,19 @@ one thing, ship section 3.
 
 ```jsonc
 {
-  "licenseMode": "hosted",          // or "selfhost" - see 4.5
-  "subject": { "kind": "user", "id": "user-1" },
+  "licenseMode": "hosted", // or "selfhost" - see 4.5
+  "subject": {"kind": "user", "id": "user-1"},
   "resolvedAt": "2026-08-14T10:00:00Z",
   "version": 7,
   "ttlSeconds": 300,
   "entitlements": {
-    "user.upload_max_bytes": { "kind": "numeric", "value": 26214400, "unlimited": false },
-    "user.max_devices":      { "kind": "numeric", "value": 5,        "unlimited": false },
-    "voice.video_ceiling":   { "kind": "ladder",  "rung": "1080p30", "rank": 3 }
+    "user.upload_max_bytes": {"kind": "numeric", "value": 26214400, "unlimited": false},
+    "user.max_devices": {"kind": "numeric", "value": 5, "unlimited": false},
+    "voice.video_ceiling": {"kind": "ladder", "rung": "1080p30", "rank": 3},
   },
   "ladders": {
-    "video_quality": ["none", "480p30", "720p30", "1080p30", "1080p60"]
-  }
+    "video_quality": ["none", "480p30", "720p30", "1080p30", "1080p60"],
+  },
 }
 ```
 
@@ -248,13 +248,13 @@ to.
 
 The invalidation triggers the client will implement, and what the payload must support:
 
-| Trigger | Needs from the payload |
-|---|---|
-| `entitlements.Changed` push | the envelope (4.4) |
-| hub reconnect | nothing - refetch unconditionally |
+| Trigger                         | Needs from the payload                                |
+| ------------------------------- | ----------------------------------------------------- |
+| `entitlements.Changed` push     | the envelope (4.4)                                    |
+| hub reconnect                   | nothing - refetch unconditionally                     |
 | account switch, instance switch | `subject`, so a stale in-flight response is discarded |
-| app resume from background | `resolvedAt` + `ttlSeconds` |
-| opening a guild settings screen | per-subject fetch |
+| app resume from background      | `resolvedAt` + `ttlSeconds`                           |
+| opening a guild settings screen | per-subject fetch                                     |
 
 `ttlSeconds` must be **shorter than or equal to** the resolver's own Redis TTL backstop (WP-13). If
 the client caches longer than the server, a dropped invalidation event that the server self-heals from
@@ -263,7 +263,7 @@ stays broken on the client, and the backstop that WP-13 exists to provide is def
 **The client will never cache an entitlement set to disk.** A stale plan read from disk at cold start
 would show the wrong limits before the first fetch lands, and "your server was downgraded" is not a
 thing to say by accident. The guild layout cache (`guild-layout-cache.ts`) is the precedent for what
-*is* safe to persist; this is not that.
+_is_ safe to persist; this is not that.
 
 ### 4.4 The push event
 
@@ -314,7 +314,7 @@ Refresh-on-navigate is the default and is correct almost everywhere. Entitlement
 
 ### 5.1 Voice, and it must ride the existing version stream
 
-A voice room's effective limits can change *during* a call: a boost lapses, a grant expires, a plan
+A voice room's effective limits can change _during_ a call: a boost lapses, a grant expires, a plan
 downgrades at period end. The room is the one surface where the user is looking at it when it changes.
 
 **Do not add a second event for this.** The voice client already has snapshot versioning, gap
@@ -406,7 +406,7 @@ its own spec asserting every entry resolves. That is client work and needs nothi
    an unrecognised code has no rendering. Hence rule 3.
 5. **The server never writes user-facing copy for a degradation.** `EntitlementDegradation.Detail` is
    already documented as admin-console-only and must stay that way. Contrast the status page, where
-   the server *does* write the sentence (`status-frontend-guide.md` section 1) for a reason that does
+   the server _does_ write the sentence (`status-frontend-guide.md` section 1) for a reason that does
    not apply here: an outage notice must not be machine-translated, whereas "this server is on the
    free plan" must be.
 
@@ -498,22 +498,22 @@ than the bare count it renders today.
 
 Spec section 3.5, row by row, from the client's side.
 
-| Lever | Client status | What is missing |
-|---|---|---|
-| Voice room participants | No capacity concept exists. `ChannelDto` has no `userLimit`; the snapshot has no max; no "full" string exists in any locale file | Section 5.1's `limits` block |
-| Video / screenshare ceiling | **The ladders do not line up.** Server rungs are `none, 480p30, 720p30, 1080p30, 1080p60`. The client picker offers `720p / 1080p / 1440p / source` x `15 / 30 / 60` (`src/app/models/stream-preset.ts`) - twelve combinations, of which `1440p`, `source` and every 15 fps option have **no rung**, and `480p30` has no client option | The mapping from (resolution, framerate) to rung is **policy and must be the server's**. Either publish the mapping, or extend the ladder to cover what clients can actually produce. The client must not invent it: guessing that `1440p30` clamps to `1080p30` is a pricing decision |
-| Concurrent video publishers | No concept at all. The tile grid is unbounded above 10 | `publisherCount` alongside the cap (5.1) |
-| Upload size | One 8 MB check on guild icons; nothing anywhere else | Section 3 plus a shared bytes formatter (client work) |
-| Guild storage | **Nothing.** No usage, quota, or space-used UI anywhere in the app | Section 7's usage endpoint, and a new screen |
-| Message history retention | Nothing, correctly | The guide should **state explicitly that retention is unlimited on every tier and always will be**, so nobody builds a retention warning that then has to be un-built. This is a deliberate decision in the spec and it deserves to be written where a client author will read it |
-| Audit log window | Offset paged (`skip`/`take`, `TAKE = 50`), infinite scroll, **no date concept whatsoever**. `hasMore` is `entries.length === TAKE` | The client will page into the end of the window and render "no more entries", which reads as "your server has no history". The response needs a **`windowEndsAt`** and a distinct "this is the edge of your plan's window, not the edge of the data" signal. Without it the degradation is invisible and indistinguishable from an empty log |
-| Custom emoji | Bare count, with a code comment saying there is deliberately no denominator because no cap exists | Slots plus used (section 7) |
-| Bots installed | **There is no installed-bot list, integrations page, or applications screen in Alpine at all.** Install is a one-shot OAuth consent dialog | A count cannot be shown against a list that does not exist. This is a whole screen, and it is a prerequisite for the lever being visible |
-| Vanity invite / custom domain | No component, service, DTO or i18n key. `guild.vanity_url` defaults to `false` and the key's own comment says that means "the capability does not exist yet", not "not entitled" | The guide must say which of the two a `false` means at the time it ships, or the client renders a locked upsell for a feature nobody built |
-| Guild modules | Client-side table of **22** feature names (`src/app/features/guild/guild-features.ts`); the tier table names **two**. Two states only, present and absent - and disabled modules are **removed from the nav, not disabled**, by explicit house rule | Which of the 22 are in the "core set" is undefined. Needs a server-sent list of plan-included features and a **third** unusable-reason, which the module screens do not have - see 8.1. Today an out-of-plan toggle would flip, 403, and silently revert with a generic toast |
-| Venta Plus cosmetics (animated avatar, banner, badge) | Not in the key catalogue at all | Either add keys or say they are not entitlement-gated |
-| Venta Plus device count | `user.max_devices` exists as a key; the devices settings page shows no cap | Section 7 |
-| Boosts | No representation anywhere | Out of scope for WP-09, but the degradation `remedy` vocabulary should leave room for `"boost_guild"` rather than being closed at three values |
+| Lever                                                 | Client status                                                                                                                                                                                                                                                                                                                          | What is missing                                                                                                                                                                                                                                                                                                                              |
+| ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Voice room participants                               | No capacity concept exists. `ChannelDto` has no `userLimit`; the snapshot has no max; no "full" string exists in any locale file                                                                                                                                                                                                       | Section 5.1's `limits` block                                                                                                                                                                                                                                                                                                                 |
+| Video / screenshare ceiling                           | **The ladders do not line up.** Server rungs are `none, 480p30, 720p30, 1080p30, 1080p60`. The client picker offers `720p / 1080p / 1440p / source` x `15 / 30 / 60` (`src/app/models/stream-preset.ts`) - twelve combinations, of which `1440p`, `source` and every 15 fps option have **no rung**, and `480p30` has no client option | The mapping from (resolution, framerate) to rung is **policy and must be the server's**. Either publish the mapping, or extend the ladder to cover what clients can actually produce. The client must not invent it: guessing that `1440p30` clamps to `1080p30` is a pricing decision                                                       |
+| Concurrent video publishers                           | No concept at all. The tile grid is unbounded above 10                                                                                                                                                                                                                                                                                 | `publisherCount` alongside the cap (5.1)                                                                                                                                                                                                                                                                                                     |
+| Upload size                                           | One 8 MB check on guild icons; nothing anywhere else                                                                                                                                                                                                                                                                                   | Section 3 plus a shared bytes formatter (client work)                                                                                                                                                                                                                                                                                        |
+| Guild storage                                         | **Nothing.** No usage, quota, or space-used UI anywhere in the app                                                                                                                                                                                                                                                                     | Section 7's usage endpoint, and a new screen                                                                                                                                                                                                                                                                                                 |
+| Message history retention                             | Nothing, correctly                                                                                                                                                                                                                                                                                                                     | The guide should **state explicitly that retention is unlimited on every tier and always will be**, so nobody builds a retention warning that then has to be un-built. This is a deliberate decision in the spec and it deserves to be written where a client author will read it                                                            |
+| Audit log window                                      | Offset paged (`skip`/`take`, `TAKE = 50`), infinite scroll, **no date concept whatsoever**. `hasMore` is `entries.length === TAKE`                                                                                                                                                                                                     | The client will page into the end of the window and render "no more entries", which reads as "your server has no history". The response needs a **`windowEndsAt`** and a distinct "this is the edge of your plan's window, not the edge of the data" signal. Without it the degradation is invisible and indistinguishable from an empty log |
+| Custom emoji                                          | Bare count, with a code comment saying there is deliberately no denominator because no cap exists                                                                                                                                                                                                                                      | Slots plus used (section 7)                                                                                                                                                                                                                                                                                                                  |
+| Bots installed                                        | **There is no installed-bot list, integrations page, or applications screen in Alpine at all.** Install is a one-shot OAuth consent dialog                                                                                                                                                                                             | A count cannot be shown against a list that does not exist. This is a whole screen, and it is a prerequisite for the lever being visible                                                                                                                                                                                                     |
+| Vanity invite / custom domain                         | No component, service, DTO or i18n key. `guild.vanity_url` defaults to `false` and the key's own comment says that means "the capability does not exist yet", not "not entitled"                                                                                                                                                       | The guide must say which of the two a `false` means at the time it ships, or the client renders a locked upsell for a feature nobody built                                                                                                                                                                                                   |
+| Guild modules                                         | Client-side table of **22** feature names (`src/app/features/guild/guild-features.ts`); the tier table names **two**. Two states only, present and absent - and disabled modules are **removed from the nav, not disabled**, by explicit house rule                                                                                    | Which of the 22 are in the "core set" is undefined. Needs a server-sent list of plan-included features and a **third** unusable-reason, which the module screens do not have - see 8.1. Today an out-of-plan toggle would flip, 403, and silently revert with a generic toast                                                                |
+| Venta Plus cosmetics (animated avatar, banner, badge) | Not in the key catalogue at all                                                                                                                                                                                                                                                                                                        | Either add keys or say they are not entitlement-gated                                                                                                                                                                                                                                                                                        |
+| Venta Plus device count                               | `user.max_devices` exists as a key; the devices settings page shows no cap                                                                                                                                                                                                                                                             | Section 7                                                                                                                                                                                                                                                                                                                                    |
+| Boosts                                                | No representation anywhere                                                                                                                                                                                                                                                                                                             | Out of scope for WP-09, but the degradation `remedy` vocabulary should leave room for `"boost_guild"` rather than being closed at three values                                                                                                                                                                                               |
 
 ### 8.1 A module now has three reasons to be unusable, and the client only knows two
 
@@ -521,8 +521,8 @@ Every household and community module screen already renders two mutually exclusi
 the code comments are explicit that conflating them is the bug:
 
 ```html
-@if (!moduleEnabled()) { ... 'CHORES.MODULE_OFF_TITLE' / MODULE_OFF_BODY ... }
-@else if (forbidden())  { ... 'CHORES.FORBIDDEN_TITLE' / FORBIDDEN_BODY ... }
+@if (!moduleEnabled()) { ... 'CHORES.MODULE_OFF_TITLE' / MODULE_OFF_BODY ... } @else if (forbidden()) { ...
+'CHORES.FORBIDDEN_TITLE' / FORBIDDEN_BODY ... }
 ```
 
 `ChoreService` keeps `forbidden` as a field **separate from `error`** for exactly this reason
@@ -555,63 +555,63 @@ Where a limit will bite, and what happens there today. All paths relative to
 
 ### Voice
 
-| Hook | File | Today |
-|---|---|---|
-| Guild voice join | `src/app/services/voice-channel.service.ts:442` (`joinChannel`), HTTP in `src/app/services/guild-voice.service.ts` | `catch { console.error }`. **No toast, no rollback.** Joined-state signals are set at line 454, before the request, and are not cleared on failure |
-| Guild join callers | `channel-list.component.ts:463,478`, `voice-channel.component.ts:214,223,232`, `guild-member-list.component.ts:263`, `events-panel.component.ts:180`, `main-page.component.ts:416` | All fire-and-forget, none add handling |
-| DM call create | `src/app/services/call-state.service.ts:173` | Overlay clears, ringback stops, **no message** |
-| DM call accept / join ongoing | `call-state.service.ts:187,207` | Generic `"Could not join call - it may have ended"` |
-| Media session create | `voice-rtc.service.ts:342`, `call-webrtc.service.ts:349` | Guild: `console.error`. DM: **unguarded `await`, unhandled rejection** |
-| Camera publish | `voice-rtc.service.ts:871`, `call-session.service.ts:148` | `catch { return null }` / `catch { return }`, button springs back silently |
-| Screenshare publish | `voice-rtc.service.ts:923,1075`, `call-session.service.ts:281` | `console.error`, silent no-op |
-| Quality picker (pre-share) | `src/app/features/screen-picker/screen-picker.component.ts` | **Done.** Options still come from `RESOLUTION_LABELS` / `FRAMERATE_OPTIONS`, but each is disabled against `VoiceLimitsService.videoCeiling()`, and the restored preference is clamped as it is read |
-| Quality picker (in call) | `src/app/shared/call/call-controls-bar/call-controls-bar.component.ts` | **Done.** Same treatment, via the `videoCeiling` input |
-| Bitrate / resolution matrix | `src/app/models/stream-preset.ts:20,27,43` | `BITRATES`, `BOXES`, `DEFAULT_STREAM_PRESET = {1080p, 30}` |
-| Fixed encoder caps | `src/app/services/webrtc-encoding.ts:4,6,8,16` | `VOICE_AUDIO_KBPS 64`, `STREAM_AUDIO_KBPS 128`, `CAMERA_KBPS 2500`, `MIN_BITRATE_RATIO 0.6`. **No simulcast anywhere** |
-| Participant roster | `voice-channel-item.component.html:38`, `voice-channel.component.html:15`, `voice-channel-lobby.component.html:9` | Bare counts, no denominator |
-| Tile grid | `call-screen-layout.component.ts:225-231` | UI-only thresholds, unbounded above 10 |
-| Voice error vocabulary the client knows | `src/app/models/voice-room.ts:98-167` | `staleSubscription`, `sessionGone`, `session_error` only. Anything else falls to `console.error` |
-| The one good precedent | `src/app/services/isle-proximity.service.ts:144-195` | Maps status + `refusalCode()` to a specific message. **This is the shape an entitlement refusal should copy** |
+| Hook                                    | File                                                                                                                                                                               | Today                                                                                                                                                                                               |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guild voice join                        | `src/app/services/voice-channel.service.ts:442` (`joinChannel`), HTTP in `src/app/services/guild-voice.service.ts`                                                                 | `catch { console.error }`. **No toast, no rollback.** Joined-state signals are set at line 454, before the request, and are not cleared on failure                                                  |
+| Guild join callers                      | `channel-list.component.ts:463,478`, `voice-channel.component.ts:214,223,232`, `guild-member-list.component.ts:263`, `events-panel.component.ts:180`, `main-page.component.ts:416` | All fire-and-forget, none add handling                                                                                                                                                              |
+| DM call create                          | `src/app/services/call-state.service.ts:173`                                                                                                                                       | Overlay clears, ringback stops, **no message**                                                                                                                                                      |
+| DM call accept / join ongoing           | `call-state.service.ts:187,207`                                                                                                                                                    | Generic `"Could not join call - it may have ended"`                                                                                                                                                 |
+| Media session create                    | `voice-rtc.service.ts:342`, `call-webrtc.service.ts:349`                                                                                                                           | Guild: `console.error`. DM: **unguarded `await`, unhandled rejection**                                                                                                                              |
+| Camera publish                          | `voice-rtc.service.ts:871`, `call-session.service.ts:148`                                                                                                                          | `catch { return null }` / `catch { return }`, button springs back silently                                                                                                                          |
+| Screenshare publish                     | `voice-rtc.service.ts:923,1075`, `call-session.service.ts:281`                                                                                                                     | `console.error`, silent no-op                                                                                                                                                                       |
+| Quality picker (pre-share)              | `src/app/features/screen-picker/screen-picker.component.ts`                                                                                                                        | **Done.** Options still come from `RESOLUTION_LABELS` / `FRAMERATE_OPTIONS`, but each is disabled against `VoiceLimitsService.videoCeiling()`, and the restored preference is clamped as it is read |
+| Quality picker (in call)                | `src/app/shared/call/call-controls-bar/call-controls-bar.component.ts`                                                                                                             | **Done.** Same treatment, via the `videoCeiling` input                                                                                                                                              |
+| Bitrate / resolution matrix             | `src/app/models/stream-preset.ts:20,27,43`                                                                                                                                         | `BITRATES`, `BOXES`, `DEFAULT_STREAM_PRESET = {1080p, 30}`                                                                                                                                          |
+| Fixed encoder caps                      | `src/app/services/webrtc-encoding.ts:4,6,8,16`                                                                                                                                     | `VOICE_AUDIO_KBPS 64`, `STREAM_AUDIO_KBPS 128`, `CAMERA_KBPS 2500`, `MIN_BITRATE_RATIO 0.6`. **No simulcast anywhere**                                                                              |
+| Participant roster                      | `voice-channel-item.component.html:38`, `voice-channel.component.html:15`, `voice-channel-lobby.component.html:9`                                                                  | Bare counts, no denominator                                                                                                                                                                         |
+| Tile grid                               | `call-screen-layout.component.ts:225-231`                                                                                                                                          | UI-only thresholds, unbounded above 10                                                                                                                                                              |
+| Voice error vocabulary the client knows | `src/app/models/voice-room.ts:98-167`                                                                                                                                              | `staleSubscription`, `sessionGone`, `session_error` only. Anything else falls to `console.error`                                                                                                    |
+| The one good precedent                  | `src/app/services/isle-proximity.service.ts:144-195`                                                                                                                               | Maps status + `refusalCode()` to a specific message. **This is the shape an entitlement refusal should copy**                                                                                       |
 
 ### Uploads
 
-| Hook | File | Today |
-|---|---|---|
-| Message composer attach | `features/messaging/components/conversation/composer/composer.component.ts:276,280,397` -> `composer-attachments.service.ts:27` | **Zero validation** - no size, no type, no count. The `<input>` has no `accept` attribute |
-| Upload transport | `src/app/services/file.service.ts:47` | `POST /api/v1/messaging/attachments`, then polls. **No status-code branching**; a 413 or 402 becomes a generic RxJS error |
-| Composer failure UI | `attachment-previews.component.html`, `composer.component.ts:750` | Per-file error badge with no reason, plus one toast `COMPOSER.UPLOAD_FAILED` that cannot distinguish "too large" from "network died" |
-| Guild icon | `guild-settings-modal/pages/overview-settings/overview-settings.component.ts:87,162` | **The only pre-flight size guard in the app**: `8 * 1024 * 1024`, with `ICON_HINT` = "PNG, JPG, GIF up to 8 MB" duplicating the number in a locale string. Checked on the **pre**-crop file, while the cropper emits PNG and can grow a small JPEG |
-| User avatar / banner | `profile-settings.component.ts:184,248` -> `profile.service.ts:251,265` | No size check. Toast is a hardcoded English literal |
-| Shared cropper | `src/app/components/image-cropper/image-cropper.component.ts:169-175` | Always re-encodes to PNG at 400x400 (avatar) / 1200x400 (banner) |
-| Custom emoji | `emoji-settings.component.ts` -> `src/app/services/guild-emoji.service.ts:17` | MIME filter only, **no size cap, no slot cap**. Best-in-app rejection handling: `uploadErrorKey()` maps `409 -> NAME_TAKEN`, `413 -> TOO_LARGE`, else generic. A 402/403 falls to generic |
-| Ledger receipts | `receipt-gallery.component.ts:48,95` -> `ledger-api.service.ts:159` | Count capped at 4 (`MAX_RECEIPTS_PER_EXPENSE`, mirrored from the server), **bytes uncapped** |
-| Wiki article images | `wiki-article.component.ts:803,910` | Image-type check only. **Failure silently deletes the placeholder node with no feedback at all** |
-| Notification sound | `notification-settings.component.ts:96` | `5 * 1024 * 1024`, hardcoded English error, local-only (data URL, never uploaded) |
-| Storage used | nowhere | Does not exist |
-| Bytes formatter | nowhere shared | Two private duplicates: `update-dialog.component.ts:16`, `receipt-gallery.component.ts:76` |
+| Hook                    | File                                                                                                                            | Today                                                                                                                                                                                                                                              |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Message composer attach | `features/messaging/components/conversation/composer/composer.component.ts:276,280,397` -> `composer-attachments.service.ts:27` | **Zero validation** - no size, no type, no count. The `<input>` has no `accept` attribute                                                                                                                                                          |
+| Upload transport        | `src/app/services/file.service.ts:47`                                                                                           | `POST /api/v1/messaging/attachments`, then polls. **No status-code branching**; a 413 or 402 becomes a generic RxJS error                                                                                                                          |
+| Composer failure UI     | `attachment-previews.component.html`, `composer.component.ts:750`                                                               | Per-file error badge with no reason, plus one toast `COMPOSER.UPLOAD_FAILED` that cannot distinguish "too large" from "network died"                                                                                                               |
+| Guild icon              | `guild-settings-modal/pages/overview-settings/overview-settings.component.ts:87,162`                                            | **The only pre-flight size guard in the app**: `8 * 1024 * 1024`, with `ICON_HINT` = "PNG, JPG, GIF up to 8 MB" duplicating the number in a locale string. Checked on the **pre**-crop file, while the cropper emits PNG and can grow a small JPEG |
+| User avatar / banner    | `profile-settings.component.ts:184,248` -> `profile.service.ts:251,265`                                                         | No size check. Toast is a hardcoded English literal                                                                                                                                                                                                |
+| Shared cropper          | `src/app/components/image-cropper/image-cropper.component.ts:169-175`                                                           | Always re-encodes to PNG at 400x400 (avatar) / 1200x400 (banner)                                                                                                                                                                                   |
+| Custom emoji            | `emoji-settings.component.ts` -> `src/app/services/guild-emoji.service.ts:17`                                                   | MIME filter only, **no size cap, no slot cap**. Best-in-app rejection handling: `uploadErrorKey()` maps `409 -> NAME_TAKEN`, `413 -> TOO_LARGE`, else generic. A 402/403 falls to generic                                                          |
+| Ledger receipts         | `receipt-gallery.component.ts:48,95` -> `ledger-api.service.ts:159`                                                             | Count capped at 4 (`MAX_RECEIPTS_PER_EXPENSE`, mirrored from the server), **bytes uncapped**                                                                                                                                                       |
+| Wiki article images     | `wiki-article.component.ts:803,910`                                                                                             | Image-type check only. **Failure silently deletes the placeholder node with no feedback at all**                                                                                                                                                   |
+| Notification sound      | `notification-settings.component.ts:96`                                                                                         | `5 * 1024 * 1024`, hardcoded English error, local-only (data URL, never uploaded)                                                                                                                                                                  |
+| Storage used            | nowhere                                                                                                                         | Does not exist                                                                                                                                                                                                                                     |
+| Bytes formatter         | nowhere shared                                                                                                                  | Two private duplicates: `update-dialog.component.ts:16`, `receipt-gallery.component.ts:76`                                                                                                                                                         |
 
 ### Guild settings
 
-| Hook | File | Today |
-|---|---|---|
-| Settings shell / nav | `features/guild/components/guild-settings-modal/guild-settings-modal.component.ts:81` (`buildGuildNavGroups`), `:199` (`access`) | A **function**, not a constant, because the nav is already feature-dependent. This is the single funnel a plan gate would use. `access` is a three-state `'checking' \| 'granted' \| 'denied'` - a good precedent for an entitlement tri-state |
-| Emoji management | `pages/emoji-settings/`, `src/app/services/guild-emoji.service.ts`, `src/app/stores/guild-emoji.store.ts` | Count with no denominator, by explicit comment. Also calls both `ensureLoaded` and `getEmojis` on init - a redundant duplicate request |
-| Bot installs | `features/bot-install/*`, `src/app/services/bot-install.service.ts` | **No installed-bot list and no integrations page exist.** Failure toast is a hardcoded English literal |
-| Audit log | `pages/audit-log-settings/audit-log-settings.component.ts:179` -> `guild.service.ts:637` | `skip`/`take`, `TAKE = 50`, infinite scroll, no date range. Action and actor filters are **client-side over already-fetched pages only** |
-| Vanity URL | nowhere | Does not exist |
-| Modules toggles | `pages/modules-settings/`, `src/app/features/guild/guild-features.ts:10,49,64,215` | 22 client-side feature names, comma-separated on the wire in `GuildDto.features`. Toggle saves immediately and optimistically; failure reverts with a generic toast. Disabled modules are **removed from the nav, not disabled** |
-| Guild kind | `guild.dto.ts:135`, `guild-features.ts:164` | Presentation only, explicitly never gates anything |
-| Onboarding limits | `dtos/response/guild-safety.dto.ts:128` (`ONBOARDING_LIMITS`) | **The precedent for mirrored server caps**: 11 numbers, commented "server-enforced caps, mirrored", rendered as X-of-Y. This is the pattern that becomes server-driven |
-| Name / description caps | `overview-settings.component.ts:81`, `templates-settings.component.ts:37` | `100` / `300`, rendered `{{length}}/{{limit}}` |
-| Invite uses | `invites-settings.component.html:101` | Per-invite `maxUses`, not a guild quota |
-| Guild data pattern | `src/app/services/guild.service.ts:159` | **There is no `guild.store.ts`.** `GuildService` holds `guilds = signal<readonly GuildDto[]>`. Settings pages take `guild` as an `input()` and do their own HTTP. `GuildDto.features` already rides this path, which makes it the natural carrier for a plan field |
+| Hook                    | File                                                                                                                             | Today                                                                                                                                                                                                                                                              |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Settings shell / nav    | `features/guild/components/guild-settings-modal/guild-settings-modal.component.ts:81` (`buildGuildNavGroups`), `:199` (`access`) | A **function**, not a constant, because the nav is already feature-dependent. This is the single funnel a plan gate would use. `access` is a three-state `'checking' \| 'granted' \| 'denied'` - a good precedent for an entitlement tri-state                     |
+| Emoji management        | `pages/emoji-settings/`, `src/app/services/guild-emoji.service.ts`, `src/app/stores/guild-emoji.store.ts`                        | Count with no denominator, by explicit comment. Also calls both `ensureLoaded` and `getEmojis` on init - a redundant duplicate request                                                                                                                             |
+| Bot installs            | `features/bot-install/*`, `src/app/services/bot-install.service.ts`                                                              | **No installed-bot list and no integrations page exist.** Failure toast is a hardcoded English literal                                                                                                                                                             |
+| Audit log               | `pages/audit-log-settings/audit-log-settings.component.ts:179` -> `guild.service.ts:637`                                         | `skip`/`take`, `TAKE = 50`, infinite scroll, no date range. Action and actor filters are **client-side over already-fetched pages only**                                                                                                                           |
+| Vanity URL              | nowhere                                                                                                                          | Does not exist                                                                                                                                                                                                                                                     |
+| Modules toggles         | `pages/modules-settings/`, `src/app/features/guild/guild-features.ts:10,49,64,215`                                               | 22 client-side feature names, comma-separated on the wire in `GuildDto.features`. Toggle saves immediately and optimistically; failure reverts with a generic toast. Disabled modules are **removed from the nav, not disabled**                                   |
+| Guild kind              | `guild.dto.ts:135`, `guild-features.ts:164`                                                                                      | Presentation only, explicitly never gates anything                                                                                                                                                                                                                 |
+| Onboarding limits       | `dtos/response/guild-safety.dto.ts:128` (`ONBOARDING_LIMITS`)                                                                    | **The precedent for mirrored server caps**: 11 numbers, commented "server-enforced caps, mirrored", rendered as X-of-Y. This is the pattern that becomes server-driven                                                                                             |
+| Name / description caps | `overview-settings.component.ts:81`, `templates-settings.component.ts:37`                                                        | `100` / `300`, rendered `{{length}}/{{limit}}`                                                                                                                                                                                                                     |
+| Invite uses             | `invites-settings.component.html:101`                                                                                            | Per-invite `maxUses`, not a guild quota                                                                                                                                                                                                                            |
+| Guild data pattern      | `src/app/services/guild.service.ts:159`                                                                                          | **There is no `guild.store.ts`.** `GuildService` holds `guilds = signal<readonly GuildDto[]>`. Settings pages take `guild` as an `input()` and do their own HTTP. `GuildDto.features` already rides this path, which makes it the natural carrier for a plan field |
 
 ### Admin
 
-| Hook | File | Today |
-|---|---|---|
-| Admin modal | `features/admin/admin-modal/admin-modal.component.ts:32` (`ADMIN_NAV_GROUPS`) | One group, `ADMIN.NAV.FEDERATION`, two items. `labelKey` is a translation key by deliberate type design |
-| Its gate | `self-profile-menu.component.ts:64` | `userService.self()?.userType === UserType.Admin` - a **profile claim**, not a per-request staff-tier resolution. See section 10 |
+| Hook        | File                                                                          | Today                                                                                                                            |
+| ----------- | ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Admin modal | `features/admin/admin-modal/admin-modal.component.ts:32` (`ADMIN_NAV_GROUPS`) | One group, `ADMIN.NAV.FEDERATION`, two items. `labelKey` is a translation key by deliberate type design                          |
+| Its gate    | `self-profile-menu.component.ts:64`                                           | `userService.self()?.userType === UserType.Admin` - a **profile claim**, not a per-request staff-tier resolution. See section 10 |
 
 ---
 
@@ -625,7 +625,7 @@ where WP-12 already places them.
    holds. Spec section 6 and WP-12 require staff tier resolved **per request** through `StaffAccess`,
    explicitly "not from a JWT claim", and require Admin-only grants with Moderator read-only. The
    modal has no tier concept at all, and a client-side boolean is not an access control - it decides
-   what to *draw*, and the drawing is the only thing it can decide.
+   what to _draw_, and the drawing is the only thing it can decide.
 2. **The console already implements the split.** `Echo/wwwroot/admin/index.html` has
    `class="rail-item admin-only hidden"` on Federation, Product catalog and Audit log, with
    moderator-visible views alongside. It has an Accounts lookup, an audit log view, and host-gating at
@@ -637,7 +637,7 @@ where WP-12 already places them.
    service that does not exist, and the provenance screen - which shows Stripe subscription ids, grant
    reasons and staff ids - would be one `userType` bug away from a member.
 4. **The provenance screen needs arbitrary-subject lookup, and Alpine's data layer cannot do it.**
-   `GuildService.guilds` is *the caller's* guilds; `getOwnMember` is *the caller's* membership. Every
+   `GuildService.guilds` is _the caller's_ guilds; `getOwnMember` is _the caller's_ membership. Every
    store and cache in the app is scoped to "me and mine". "Show me every effective key for guild X and
    which source won it", for a guild the staff member is not in, is a different application sharing
    only a colour scheme.
@@ -658,7 +658,7 @@ Reported, not fixed, per the scope of this pass.
 
 1. **A failed voice join leaves the client believing it joined.**
    `src/app/services/voice-channel.service.ts` sets `joinedChannelId` and `joinedGuildId` at line 454,
-   *before* the request at 467. The `catch` at 513 only logs. The status bar, sidebar highlight and
+   _before_ the request at 467. The `catch` at 513 only logs. The status bar, sidebar highlight and
    mute controls all render as joined with no media and no way back except clicking another channel.
    This is pre-existing, and it is also the exact path an entitlement rejection will take, so it has
    to be fixed before WP-09 lands or the degradation will be invisible under a worse bug.

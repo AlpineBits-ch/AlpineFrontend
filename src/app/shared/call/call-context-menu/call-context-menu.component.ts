@@ -7,7 +7,7 @@ import {CallParticipantMenuData} from '../call.types';
     imports: [TranslateModule],
     templateUrl: './call-context-menu.component.html',
     styleUrl: './call-context-menu.component.css',
-    host: {'(click)': '$event.stopPropagation()'}
+    host: {'(click)': '$event.stopPropagation()'},
 })
 export class CallContextMenuComponent {
     readonly menu = input.required<CallParticipantMenuData>();

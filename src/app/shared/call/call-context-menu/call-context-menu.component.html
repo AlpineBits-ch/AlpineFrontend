@@ -1,20 +1,23 @@
-<div [style.left.px]="menu().x"
-     [style.top.px]="menu().y"
-     class="fixed z-[9999] flex min-w-[13.75rem] flex-col gap-0.5 rounded-[10px] border border-border bg-card p-2
-            shadow-[0_8px_28px_rgba(0,0,0,0.55),0_2px_8px_rgba(0,0,0,0.3)]">
-
+<div
+    [style.left.px]="menu().x"
+    [style.top.px]="menu().y"
+    class="fixed z-[9999] flex min-w-[13.75rem] flex-col gap-0.5 rounded-[10px] border border-border bg-card p-2 shadow-[0_8px_28px_rgba(0,0,0,0.55),0_2px_8px_rgba(0,0,0,0.3)]"
+>
     <!-- Header -->
     <div class="mb-1 flex items-center gap-2 border-b border-border-subtle px-2 pb-2.5 pt-1.5">
-        <div class="flex size-7 shrink-0 items-center justify-center rounded-full text-[0.6875rem] font-bold text-white"
-             style="background: linear-gradient(135deg, var(--color-brand-dim) 0%, var(--color-brand-dark) 100%)">
+        <div
+            class="flex size-7 shrink-0 items-center justify-center rounded-full text-[0.6875rem] font-bold text-white"
+            style="background: linear-gradient(135deg, var(--color-brand-dim) 0%, var(--color-brand-dark) 100%)"
+        >
             {{ menu().participant.avatarLabel }}
         </div>
         <span class="min-w-0 flex-1 truncate text-sm font-semibold text-white/85">
             {{ menu().participant.displayName }}
         </span>
         @if (menu().participant.isServerDeafened) {
-            <span class="shrink-0 rounded bg-offline/15 px-[0.3125rem] py-0.5 text-[0.5625rem] font-semibold uppercase
-                         tracking-wide text-offline">
+            <span
+                class="shrink-0 rounded bg-offline/15 px-[0.3125rem] py-0.5 text-[0.5625rem] font-semibold uppercase tracking-wide text-offline"
+            >
                 {{ 'CALL.SERVER_DEAFENED' | translate }}
             </span>
         }
@@ -22,24 +25,25 @@
 
     <!-- Volume -->
     <div class="px-2 pb-1.5 pt-1">
-        <label class="mb-2 flex items-center gap-[0.3125rem] text-[0.6875rem] font-semibold uppercase tracking-wide
-                      text-white/40"
-               for="call-volume">
+        <label
+            class="mb-2 flex items-center gap-[0.3125rem] text-[0.6875rem] font-semibold uppercase tracking-wide text-white/40"
+            for="call-volume"
+        >
             <svg aria-hidden="true" fill="currentColor" height="11" viewBox="0 0 24 24" width="11">
-                <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/>
+                <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02z" />
             </svg>
             {{ 'CALL.VOLUME' | translate }}
-            <span class="ml-auto font-normal normal-case tabular-nums tracking-normal text-white/60">
-                {{ menu().volume }}%
-            </span>
+            <span class="ml-auto font-normal normal-case tabular-nums tracking-normal text-white/60"> {{ menu().volume }}% </span>
         </label>
-        <input (input)="onVolumeInput($event)"
-               [value]="menu().volume"
-               class="vc-volume-slider call-focusable w-full"
-               id="call-volume"
-               max="100"
-               min="0"
-               type="range"/>
+        <input
+            (input)="onVolumeInput($event)"
+            [value]="menu().volume"
+            class="vc-volume-slider call-focusable w-full"
+            id="call-volume"
+            max="100"
+            min="0"
+            type="range"
+        />
     </div>
 
     <!-- Stream volume -only when this participant is actually sharing; there is nothing to attach
@@ -47,24 +51,27 @@
          loud game must not touch how audible the person talking over it is. -->
     @if (menu().streamVolume !== undefined) {
         <div class="px-2 pb-1.5 pt-1">
-            <label class="mb-2 flex items-center gap-[0.3125rem] text-[0.6875rem] font-semibold uppercase
-                          tracking-wide text-white/40"
-                   for="call-stream-volume">
+            <label
+                class="mb-2 flex items-center gap-[0.3125rem] text-[0.6875rem] font-semibold uppercase tracking-wide text-white/40"
+                for="call-stream-volume"
+            >
                 <svg aria-hidden="true" fill="currentColor" height="11" viewBox="0 0 24 24" width="11">
-                    <path d="M21 2H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h7v2H8v2h8v-2h-2v-2h7c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H3V4h18v12z"/>
+                    <path
+                        d="M21 2H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h7v2H8v2h8v-2h-2v-2h7c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H3V4h18v12z"
+                    />
                 </svg>
                 {{ 'CALL.STREAM_VOLUME' | translate }}
-                <span class="ml-auto font-normal normal-case tabular-nums tracking-normal text-white/60">
-                    {{ menu().streamVolume }}%
-                </span>
+                <span class="ml-auto font-normal normal-case tabular-nums tracking-normal text-white/60"> {{ menu().streamVolume }}% </span>
             </label>
-            <input (input)="onStreamVolumeInput($event)"
-                   [value]="menu().streamVolume"
-                   class="vc-volume-slider call-focusable w-full"
-                   id="call-stream-volume"
-                   max="100"
-                   min="0"
-                   type="range"/>
+            <input
+                (input)="onStreamVolumeInput($event)"
+                [value]="menu().streamVolume"
+                class="vc-volume-slider call-focusable w-full"
+                id="call-stream-volume"
+                max="100"
+                min="0"
+                type="range"
+            />
         </div>
     }
 
@@ -72,52 +79,56 @@
     @if (isSuperadmin()) {
         <div aria-hidden="true" class="my-1 h-px bg-border-subtle"></div>
 
-        <button (click)="serverDeafen.emit()"
-                class="call-focusable flex w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent
-                       px-2.5 py-[0.4375rem] text-left text-sm font-medium text-connecting transition-colors
-                       hover:bg-connecting/10"
-                type="button">
+        <button
+            (click)="serverDeafen.emit()"
+            class="call-focusable flex w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2.5 py-[0.4375rem] text-left text-sm font-medium text-connecting transition-colors hover:bg-connecting/10"
+            type="button"
+        >
             @if (menu().participant.isServerDeafened) {
                 <svg aria-hidden="true" fill="currentColor" height="13" viewBox="0 0 24 24" width="13">
-                    <path d="M12 3a9 9 0 0 0-9 9v3a3 3 0 0 0 3 3h1a1 1 0 0 0 1-1v-4a1 1 0 0 0-1-1H5v-1a7 7 0 0 1 14 0v1h-2a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h1a3 3 0 0 0 3-3v-3a9 9 0 0 0-9-9z"/>
+                    <path
+                        d="M12 3a9 9 0 0 0-9 9v3a3 3 0 0 0 3 3h1a1 1 0 0 0 1-1v-4a1 1 0 0 0-1-1H5v-1a7 7 0 0 1 14 0v1h-2a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h1a3 3 0 0 0 3-3v-3a9 9 0 0 0-9-9z"
+                    />
                 </svg>
                 {{ 'CALL.REMOVE_SERVER_DEAFEN' | translate }}
             } @else {
                 <svg aria-hidden="true" fill="currentColor" height="13" viewBox="0 0 24 24" width="13">
-                    <path d="M12 3a9 9 0 0 0-9 9v3a3 3 0 0 0 3 3h1a1 1 0 0 0 1-1v-4a1 1 0 0 0-1-1H5v-1a7 7 0 0 1 14 0v1h-2a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h1a3 3 0 0 0 3-3v-3a9 9 0 0 0-9-9z"
-                          opacity=".5"/>
-                    <line stroke="currentColor" stroke-linecap="round" stroke-width="1.8" x1="3" x2="21" y1="3"
-                          y2="21"/>
+                    <path
+                        d="M12 3a9 9 0 0 0-9 9v3a3 3 0 0 0 3 3h1a1 1 0 0 0 1-1v-4a1 1 0 0 0-1-1H5v-1a7 7 0 0 1 14 0v1h-2a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h1a3 3 0 0 0 3-3v-3a9 9 0 0 0-9-9z"
+                        opacity=".5"
+                    />
+                    <line stroke="currentColor" stroke-linecap="round" stroke-width="1.8" x1="3" x2="21" y1="3" y2="21" />
                 </svg>
                 {{ 'CALL.SERVER_DEAFEN' | translate }}
             }
         </button>
 
         @if (moderationEnabled()) {
-            <button (click)="kick.emit()"
-                    class="call-focusable flex w-full cursor-pointer items-center gap-2 rounded-md border-0
-                           bg-transparent px-2.5 py-[0.4375rem] text-left text-sm font-medium text-offline
-                           transition-colors hover:bg-offline/[0.12]"
-                    type="button">
+            <button
+                (click)="kick.emit()"
+                class="call-focusable flex w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2.5 py-[0.4375rem] text-left text-sm font-medium text-offline transition-colors hover:bg-offline/[0.12]"
+                type="button"
+            >
                 <svg aria-hidden="true" fill="currentColor" height="13" viewBox="0 0 24 24" width="13">
-                    <path d="M13 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
-                    <path d="M19.5 8.5l-1.5 1.5 1.5 1.5L22 9z" opacity=".6"/>
-                    <path d="M17 7l-1.5 1.5 3 3L20 10z" opacity=".6"/>
+                    <path d="M13 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+                    <path d="M19.5 8.5l-1.5 1.5 1.5 1.5L22 9z" opacity=".6" />
+                    <path d="M17 7l-1.5 1.5 3 3L20 10z" opacity=".6" />
                 </svg>
                 {{ 'CALL.KICK' | translate }}
             </button>
 
-            <button (click)="ban.emit()"
-                    class="call-focusable flex w-full cursor-pointer items-center gap-2 rounded-md border-0
-                           bg-transparent px-2.5 py-[0.4375rem] text-left text-sm font-medium text-offline
-                           transition-colors hover:bg-offline/[0.12]"
-                    type="button">
+            <button
+                (click)="ban.emit()"
+                class="call-focusable flex w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2.5 py-[0.4375rem] text-left text-sm font-medium text-offline transition-colors hover:bg-offline/[0.12]"
+                type="button"
+            >
                 <svg aria-hidden="true" fill="currentColor" height="13" viewBox="0 0 24 24" width="13">
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zM4 12c0-4.42 3.58-8 8-8 1.85 0 3.55.63 4.9 1.69L5.69 16.9A7.902 7.902 0 0 1 4 12zm8 8a7.9 7.9 0 0 1-4.9-1.69l11.21-11.21A7.9 7.9 0 0 1 20 12c0 4.42-3.58 8-8 8z"/>
+                    <path
+                        d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zM4 12c0-4.42 3.58-8 8-8 1.85 0 3.55.63 4.9 1.69L5.69 16.9A7.902 7.902 0 0 1 4 12zm8 8a7.9 7.9 0 0 1-4.9-1.69l11.21-11.21A7.9 7.9 0 0 1 20 12c0 4.42-3.58 8-8 8z"
+                    />
                 </svg>
                 {{ 'CALL.BAN' | translate }}
             </button>
         }
     }
-
 </div>

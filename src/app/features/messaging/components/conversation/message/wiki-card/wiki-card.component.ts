@@ -32,7 +32,8 @@ export class WikiCardComponent {
     protected readonly snippet = computed(() => wikiSnippet(this.preview()?.page.content ?? ''));
 
     protected readonly trail = computed(() =>
-        categoryPath(this.categories(), this.preview()?.page.categoryId));
+        categoryPath(this.categories(), this.preview()?.page.categoryId),
+    );
 
     /**
      * Who touched it last. `lastEditorId` is absent on a page nobody has edited since it was
@@ -46,8 +47,7 @@ export class WikiCardComponent {
     });
 
     /** Whether clicking could land anywhere: we are in that guild and its Wiki module is on. */
-    protected readonly reachable = computed(() =>
-        !!this.guildId() && this.deepLink.canOpen(this.guildId()));
+    protected readonly reachable = computed(() => !!this.guildId() && this.deepLink.canOpen(this.guildId()));
 
     private readonly previews = inject(WikiPagePreviewService);
     private readonly profileService = inject(ProfileService);
@@ -62,19 +62,21 @@ export class WikiCardComponent {
         forkJoin({
             preview: this.previews.preview(this.guildId(), this.pageId()),
             categories: this.previews.categoriesFor(this.guildId()),
-        }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-            // A refusal keeps the placeholder. `preview` is already null for any failure, which is
-            // the same outcome a 403 and a 404 must both have here.
-            next: ({preview, categories}) => {
-                if (!preview) return;
-                this.preview.set(preview);
-                this.categories.set(categories);
-                // Fills `editorName` on the next tick. Nothing waits on it: a card with no name yet
-                // simply omits the byline rather than holding the title back for it.
-                this.profileService.resolveByUserId(preview.page.lastEditorId ?? preview.page.authorId);
-            },
-            error: () => undefined,
-        });
+        })
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe({
+                // A refusal keeps the placeholder. `preview` is already null for any failure, which is
+                // the same outcome a 403 and a 404 must both have here.
+                next: ({preview, categories}) => {
+                    if (!preview) return;
+                    this.preview.set(preview);
+                    this.categories.set(categories);
+                    // Fills `editorName` on the next tick. Nothing waits on it: a card with no name yet
+                    // simply omits the byline rather than holding the title back for it.
+                    this.profileService.resolveByUserId(preview.page.lastEditorId ?? preview.page.authorId);
+                },
+                error: () => undefined,
+            });
     }
 
     protected open(): void {

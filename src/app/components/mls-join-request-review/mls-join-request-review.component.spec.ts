@@ -39,23 +39,18 @@ function pending(overrides: Partial<MlsJoinRequestDto> = {}): MlsJoinRequestDto 
     };
 }
 
-function setup(options: {
-    requests?: MlsJoinRequestDto[];
-    /** Null means this device holds no group for the context, so it can admit nobody. */
-    activeGroupId?: string | null;
-    listFails?: boolean;
-    approveRejects?: unknown;
-} = {}) {
-    const {
-        requests = [pending()],
-        activeGroupId = 'Z3JvdXA=',
-        listFails = false,
-        approveRejects,
-    } = options;
+function setup(
+    options: {
+        requests?: MlsJoinRequestDto[];
+        /** Null means this device holds no group for the context, so it can admit nobody. */
+        activeGroupId?: string | null;
+        listFails?: boolean;
+        approveRejects?: unknown;
+    } = {},
+) {
+    const {requests = [pending()], activeGroupId = 'Z3JvdXA=', listFails = false, approveRejects} = options;
 
-    const list = vi.fn(() => listFails
-        ? throwError(() => new Error('offline'))
-        : of(requests));
+    const list = vi.fn(() => (listFails ? throwError(() => new Error('offline')) : of(requests)));
     const approve = vi.fn(async () => {
         if (approveRejects) throw approveRejects;
         return true;
@@ -78,8 +73,9 @@ function setup(options: {
         ],
     });
 
-    const fixture: ComponentFixture<MlsJoinRequestReviewComponent> =
-        TestBed.createComponent(MlsJoinRequestReviewComponent);
+    const fixture: ComponentFixture<MlsJoinRequestReviewComponent> = TestBed.createComponent(
+        MlsJoinRequestReviewComponent,
+    );
     fixture.componentRef.setInput('contextId', CONTEXT);
     fixture.componentRef.setInput('participantNames', {[PEER_USER]: 'Bob'});
     fixture.detectChanges();
@@ -100,8 +96,9 @@ function setup(options: {
             fixture.detectChanges();
         },
         buttonLabelled: (label: string) =>
-            Array.from(element().querySelectorAll('button'))
-                .find(b => (b.textContent ?? '').includes(label)) ?? null,
+            Array.from(element().querySelectorAll('button')).find(b =>
+                (b.textContent ?? '').includes(label),
+            ) ?? null,
     };
 }
 
@@ -120,14 +117,15 @@ describe('MlsJoinRequestReviewComponent', () => {
         const {settle, text, fixture} = setup();
         await settle();
 
-        const fingerprint = (fixture.nativeElement as HTMLElement)
-            .querySelector('[data-testid="fingerprint"]');
+        const fingerprint = (fixture.nativeElement as HTMLElement).querySelector(
+            '[data-testid="fingerprint"]',
+        );
         expect(fingerprint?.textContent?.trim()).toBe(FINGERPRINT);
         // The hash changes on every request, so a human comparing it would be comparing noise.
         expect(text()).not.toContain('a-hash-that-changes-every-single-request');
     });
 
-    it('words another of your own devices as a different question from a correspondent\'s', async () => {
+    it("words another of your own devices as a different question from a correspondent's", async () => {
         const {settle, text} = setup({
             requests: [pending({requesterUserId: OWN_USER, requesterDeviceId: 'device-my-laptop'})],
         });
@@ -144,7 +142,7 @@ describe('MlsJoinRequestReviewComponent', () => {
         await settle();
 
         expect(text()).toContain('Check with Bob some other way');
-        expect(text()).toContain('do not take the server\'s word for it');
+        expect(text()).toContain("do not take the server's word for it");
     });
 
     it('offers nothing when this device holds no group and could not admit anyone', async () => {
@@ -190,15 +188,17 @@ describe('MlsJoinRequestReviewComponent', () => {
     it('says a key mismatch may be tampering rather than "something went wrong"', async () => {
         const {settle, text, buttonLabelled, fixture} = setup({
             approveRejects: new JoinRequestVerificationError(
-                'The identity key does not match the one that was reviewed. Nothing was added.'),
+                'The identity key does not match the one that was reviewed. Nothing was added.',
+            ),
         });
         await settle();
 
         buttonLabelled('Approve')!.click();
         await settle();
 
-        const block = (fixture.nativeElement as HTMLElement)
-            .querySelector('[data-testid="verification-error"]');
+        const block = (fixture.nativeElement as HTMLElement).querySelector(
+            '[data-testid="verification-error"]',
+        );
         expect(block).not.toBeNull();
         expect(block!.textContent).toContain('The identity key does not match');
         expect(block!.textContent).toContain('tampering');
@@ -214,8 +214,8 @@ describe('MlsJoinRequestReviewComponent', () => {
         buttonLabelled('Approve')!.click();
         await settle();
 
-        const warning = () => (fixture.nativeElement as HTMLElement)
-            .querySelector('[data-testid="verification-error"]');
+        const warning = () =>
+            (fixture.nativeElement as HTMLElement).querySelector('[data-testid="verification-error"]');
         expect(warning()).not.toBeNull();
 
         fixture.componentRef.setInput('contextId', 'conv-2');
@@ -235,8 +235,9 @@ describe('MlsJoinRequestReviewComponent', () => {
 
         const root = fixture.nativeElement as HTMLElement;
         expect(root.querySelector('[data-testid="verification-error"]')).toBeNull();
-        expect(root.querySelector('[data-testid="action-error"]')?.textContent)
-            .toContain('This request is no longer open.');
+        expect(root.querySelector('[data-testid="action-error"]')?.textContent).toContain(
+            'This request is no longer open.',
+        );
     });
 
     it('picks up a request that arrives while the conversation is open', async () => {
@@ -310,7 +311,8 @@ describe('MlsJoinRequestReviewComponent', () => {
         await settle();
 
         // A failed read is not "nobody is asking".
-        expect((fixture.nativeElement as HTMLElement).querySelector('[data-testid="load-error"]'))
-            .not.toBeNull();
+        expect(
+            (fixture.nativeElement as HTMLElement).querySelector('[data-testid="load-error"]'),
+        ).not.toBeNull();
     });
 });

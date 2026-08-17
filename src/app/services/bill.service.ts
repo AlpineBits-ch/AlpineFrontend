@@ -74,9 +74,15 @@ export class BillService {
         // Registered once, here, in a root singleton: `RealtimeConnectionService.on` does not
         // deduplicate, and a schedule applied twice is harmless while a bill list that grows a
         // duplicate row is somebody paying the rent twice.
-        this.realtime.on('guild.RecurringExpenseCreated', (d: RecurringExpenseCreated) => this.onScheduleUpserted(d));
-        this.realtime.on('guild.RecurringExpenseUpdated', (d: RecurringExpenseUpdated) => this.onScheduleUpserted(d));
-        this.realtime.on('guild.RecurringExpenseDeleted', (d: RecurringExpenseDeleted) => this.onScheduleDeleted(d));
+        this.realtime.on('guild.RecurringExpenseCreated', (d: RecurringExpenseCreated) =>
+            this.onScheduleUpserted(d),
+        );
+        this.realtime.on('guild.RecurringExpenseUpdated', (d: RecurringExpenseUpdated) =>
+            this.onScheduleUpserted(d),
+        );
+        this.realtime.on('guild.RecurringExpenseDeleted', (d: RecurringExpenseDeleted) =>
+            this.onScheduleDeleted(d),
+        );
         this.realtime.on('guild.BillOccurrenceCreated', (d: BillOccurrenceCreated) => this.onBillUpserted(d));
         this.realtime.on('guild.BillOccurrenceUpdated', (d: BillOccurrenceUpdated) => this.onBillUpserted(d));
     }
@@ -112,9 +118,11 @@ export class BillService {
             // Folded to null rather than allowed to collapse the pair: a schedule list that 500s
             // must not also blank the bills that did arrive, and vice versa - the upcoming board is
             // the useful half and it does not need the templates to render.
-            schedules: this.api.listSchedules(channelId)
+            schedules: this.api
+                .listSchedules(channelId)
                 .pipe(catchError((err: unknown) => this.swallow<RecurringExpense[]>(channelId, err))),
-            bills: this.api.listBills(channelId)
+            bills: this.api
+                .listBills(channelId)
                 .pipe(catchError((err: unknown) => this.swallow<BillOccurrence[]>(channelId, err))),
         }).subscribe(({schedules, bills}) => {
             this.patch(channelId, state => ({
@@ -131,7 +139,8 @@ export class BillService {
     // ── Writes ───────────────────────────────────────────────────────────────
 
     addSchedule(channelId: string, body: CreateRecurringExpenseDto): Observable<RecurringExpense> {
-        return this.api.createSchedule(channelId, body)
+        return this.api
+            .createSchedule(channelId, body)
             .pipe(tap(schedule => this.upsertSchedule(channelId, schedule)));
     }
 
@@ -140,25 +149,31 @@ export class BillService {
         templateId: string,
         body: UpdateRecurringExpenseDto,
     ): Observable<RecurringExpense> {
-        return this.api.updateSchedule(templateId, body).pipe(tap(schedule => {
-            this.upsertSchedule(channelId, schedule);
-            // The edit moved the pending periods rather than regenerating them, so their due dates
-            // and descriptions have changed underneath what is on screen. The individual moves
-            // arrive as BillOccurrenceUpdated, but a schedule whose interval shrank can also drop
-            // periods, and there is no event for that - so re-read the board.
-            this.refreshBills(channelId);
-        }));
+        return this.api.updateSchedule(templateId, body).pipe(
+            tap(schedule => {
+                this.upsertSchedule(channelId, schedule);
+                // The edit moved the pending periods rather than regenerating them, so their due dates
+                // and descriptions have changed underneath what is on screen. The individual moves
+                // arrive as BillOccurrenceUpdated, but a schedule whose interval shrank can also drop
+                // periods, and there is no event for that - so re-read the board.
+                this.refreshBills(channelId);
+            }),
+        );
     }
 
     removeSchedule(channelId: string, templateId: string): Observable<void> {
-        return this.api.deleteSchedule(templateId).pipe(tap(() => {
-            this.patchExisting(channelId, state => ({
-                ...state,
-                schedules: state.schedules.filter(s => s.id !== templateId),
-                // Pending periods go with the schedule. Posted ones are expenses now and stay.
-                bills: state.bills.filter(b => b.recurringExpenseId !== templateId || !isBillOutstanding(b)),
-            }));
-        }));
+        return this.api.deleteSchedule(templateId).pipe(
+            tap(() => {
+                this.patchExisting(channelId, state => ({
+                    ...state,
+                    schedules: state.schedules.filter(s => s.id !== templateId),
+                    // Pending periods go with the schedule. Posted ones are expenses now and stay.
+                    bills: state.bills.filter(
+                        b => b.recurringExpenseId !== templateId || !isBillOutstanding(b),
+                    ),
+                }));
+            }),
+        );
     }
 
     /**
@@ -170,10 +185,12 @@ export class BillService {
      * just been charged 850.</p>
      */
     postBill(channelId: string, billId: string, body: PostBillDto = {}): Observable<Expense> {
-        return this.api.postBill(billId, body).pipe(tap(() => {
-            this.refreshBills(channelId);
-            this.ledger.refresh(channelId);
-        }));
+        return this.api.postBill(billId, body).pipe(
+            tap(() => {
+                this.refreshBills(channelId);
+                this.ledger.refresh(channelId);
+            }),
+        );
     }
 
     skipBill(channelId: string, billId: string, body: SkipBillDto = {}): Observable<BillOccurrence> {
@@ -190,7 +207,9 @@ export class BillService {
         this.patchExisting(event.channelId, state => ({
             ...state,
             schedules: state.schedules.filter(s => s.id !== event.recurringExpenseId),
-            bills: state.bills.filter(b => b.recurringExpenseId !== event.recurringExpenseId || !isBillOutstanding(b)),
+            bills: state.bills.filter(
+                b => b.recurringExpenseId !== event.recurringExpenseId || !isBillOutstanding(b),
+            ),
         }));
     }
 
@@ -204,10 +223,12 @@ export class BillService {
         const schedule = normalizeRecurringExpense(raw);
         const apply = (state: BillChannelState): BillChannelState => ({
             ...state,
-            schedules: [...state.schedules.filter(s => s.id !== schedule.id), schedule]
-                .sort((a, b) => a.nextDueAt.localeCompare(b.nextDueAt) || a.id.localeCompare(b.id)),
+            schedules: [...state.schedules.filter(s => s.id !== schedule.id), schedule].sort(
+                (a, b) => a.nextDueAt.localeCompare(b.nextDueAt) || a.id.localeCompare(b.id),
+            ),
         });
-        if (existingOnly) this.patchExisting(channelId, apply); else this.patch(channelId, apply);
+        if (existingOnly) this.patchExisting(channelId, apply);
+        else this.patch(channelId, apply);
     }
 
     private upsertBill(channelId: string, raw: BillOccurrence, existingOnly = false): void {
@@ -216,17 +237,19 @@ export class BillService {
             ...state,
             bills: this.sorted([...state.bills.filter(b => b.id !== bill.id), bill]),
         });
-        if (existingOnly) this.patchExisting(channelId, apply); else this.patch(channelId, apply);
+        if (existingOnly) this.patchExisting(channelId, apply);
+        else this.patch(channelId, apply);
     }
 
     /** Re-reads the periods only. The schedules are unchanged by anything that calls this. */
     private refreshBills(channelId: string): void {
         if (!this.states()[channelId]) return;
         this.api.listBills(channelId).subscribe({
-            next: bills => this.patchExisting(channelId, state => ({
-                ...state,
-                bills: this.sorted(bills.map(normalizeBill)),
-            })),
+            next: bills =>
+                this.patchExisting(channelId, state => ({
+                    ...state,
+                    bills: this.sorted(bills.map(normalizeBill)),
+                })),
             error: () => undefined,
         });
     }
@@ -248,7 +271,7 @@ export class BillService {
 
     /** As {@link patch}, but silently drops events for channels nobody has opened. */
     private patchExisting(channelId: string, fn: (state: BillChannelState) => BillChannelState): void {
-        this.states.update(all => all[channelId] ? {...all, [channelId]: fn(all[channelId])} : all);
+        this.states.update(all => (all[channelId] ? {...all, [channelId]: fn(all[channelId])} : all));
     }
 
     private swallow<T>(channelId: string, err: unknown): Observable<T | null> {

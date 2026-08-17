@@ -8,16 +8,22 @@ const STATE_KEY_PREFIX = 'wiki-rail-section:';
     imports: [],
     template: `
         <section class="mb-5">
-            <button (click)="toggle()"
-                    [attr.aria-expanded]="open()"
-                    [title]="heading()"
-                    class="group flex w-full cursor-pointer items-center gap-1.5 border-0
-                           bg-transparent px-0 py-1 text-left">
-                <i [class.pi-angle-down]="open()"
-                   [class.pi-angle-right]="!open()"
-                   class="pi text-[0.625rem] text-white/25 group-hover:text-white/50"></i>
-                <h2 class="flex-1 truncate text-[0.625rem] font-semibold uppercase tracking-widest
-                           text-white/30 group-hover:text-white/45">
+            <button
+                (click)="toggle()"
+                [attr.aria-expanded]="open()"
+                [title]="heading()"
+                class="group flex w-full cursor-pointer items-center gap-1.5 border-0
+                           bg-transparent px-0 py-1 text-left"
+            >
+                <i
+                    [class.pi-angle-down]="open()"
+                    [class.pi-angle-right]="!open()"
+                    class="pi text-[0.625rem] text-white/25 group-hover:text-white/50"
+                ></i>
+                <h2
+                    class="flex-1 truncate text-[0.625rem] font-semibold uppercase tracking-widest
+                           text-white/30 group-hover:text-white/45"
+                >
                     {{ heading() }}
                 </h2>
                 @if (badge() !== null) {
@@ -28,7 +34,7 @@ const STATE_KEY_PREFIX = 'wiki-rail-section:';
             <!-- Left out of the document rather than hidden with a class, so a collapsed section takes no space and its controls are not tab-reachable. -->
             @if (open()) {
                 <div class="mt-1.5">
-                    <ng-content/>
+                    <ng-content />
                 </div>
             }
         </section>

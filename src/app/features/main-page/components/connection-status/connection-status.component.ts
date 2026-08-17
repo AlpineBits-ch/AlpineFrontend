@@ -1,6 +1,6 @@
 import {Component, inject} from '@angular/core';
 import {NgClass} from '@angular/common';
-import {ConnectionState, MessagingWebsocketService} from "../../../../services/messaging-websocket.service";
+import {ConnectionState, MessagingWebsocketService} from '../../../../services/messaging-websocket.service';
 import {TranslateModule} from '@ngx-translate/core';
 
 @Component({
@@ -11,7 +11,6 @@ import {TranslateModule} from '@ngx-translate/core';
 })
 export class ConnectionStatusComponent {
     public websocketService = inject(MessagingWebsocketService);
-
 
     protected readonly ConnectionState = ConnectionState;
 }

@@ -7,10 +7,13 @@ import {TWINT_CONFIRM_NAME_ADVICE} from './twint-assist';
 const COPY = en as Record<string, string>;
 
 /** Every string that talks about the phone number, wherever it lives. */
-const PHONE_KEYS = Object.keys(COPY).filter(key =>
-    key.startsWith('PAY.PHONE.') || key.startsWith('PAY.SHEET.PHONE_')
-    || key.startsWith('ACCOUNT.PHONE.')
-    || key === 'PAY.SHEET.TWINT_TITLE');
+const PHONE_KEYS = Object.keys(COPY).filter(
+    key =>
+        key.startsWith('PAY.PHONE.') ||
+        key.startsWith('PAY.SHEET.PHONE_') ||
+        key.startsWith('ACCOUNT.PHONE.') ||
+        key === 'PAY.SHEET.TWINT_TITLE',
+);
 
 /** The account field, which is the only one of the three that writes anything. */
 const ACCOUNT_KEYS = Object.keys(COPY).filter(key => key.startsWith('ACCOUNT.PHONE.'));
@@ -20,16 +23,32 @@ describe('phone-number copy', () => {
         // A missing key renders as the key itself, which on this card would be a raw
         // `PAY.PHONE.PLAINTEXT` where the sentence explaining the privacy difference should be.
         for (const key of [
-            'PAY.PHONE.TITLE', 'PAY.PHONE.SUBTITLE', 'PAY.PHONE.PLAINTEXT', 'PAY.PHONE.UNVERIFIED',
-            'PAY.PHONE.SHARED_NOW', 'PAY.PHONE.ACCOUNT_HAS_NONE', 'PAY.PHONE.ACCOUNT_LINK',
+            'PAY.PHONE.TITLE',
+            'PAY.PHONE.SUBTITLE',
+            'PAY.PHONE.PLAINTEXT',
+            'PAY.PHONE.UNVERIFIED',
+            'PAY.PHONE.SHARED_NOW',
+            'PAY.PHONE.ACCOUNT_HAS_NONE',
+            'PAY.PHONE.ACCOUNT_LINK',
             'PAY.PHONE.FAILED',
-            'PAY.SHEET.PHONE_TITLE', 'PAY.SHEET.PHONE_NOT_SWISS', 'PAY.SHEET.PHONE_PLAINTEXT',
+            'PAY.SHEET.PHONE_TITLE',
+            'PAY.SHEET.PHONE_NOT_SWISS',
+            'PAY.SHEET.PHONE_PLAINTEXT',
             'PAY.SHEET.PHONE_ENTERED',
-            'ACCOUNT.PHONE.TITLE', 'ACCOUNT.PHONE.DESC', 'ACCOUNT.PHONE.PLACEHOLDER',
-            'ACCOUNT.PHONE.FORMAT_HELP', 'ACCOUNT.PHONE.PLAINTEXT', 'ACCOUNT.PHONE.UNVERIFIED',
-            'ACCOUNT.PHONE.NONE', 'ACCOUNT.PHONE.SAVE', 'ACCOUNT.PHONE.SAVED',
-            'ACCOUNT.PHONE.SAVE_FAILED', 'ACCOUNT.PHONE.REMOVE', 'ACCOUNT.PHONE.REMOVE_NOTE',
-            'ACCOUNT.PHONE.REMOVED', 'ACCOUNT.PHONE.REMOVE_FAILED',
+            'ACCOUNT.PHONE.TITLE',
+            'ACCOUNT.PHONE.DESC',
+            'ACCOUNT.PHONE.PLACEHOLDER',
+            'ACCOUNT.PHONE.FORMAT_HELP',
+            'ACCOUNT.PHONE.PLAINTEXT',
+            'ACCOUNT.PHONE.UNVERIFIED',
+            'ACCOUNT.PHONE.NONE',
+            'ACCOUNT.PHONE.SAVE',
+            'ACCOUNT.PHONE.SAVED',
+            'ACCOUNT.PHONE.SAVE_FAILED',
+            'ACCOUNT.PHONE.REMOVE',
+            'ACCOUNT.PHONE.REMOVE_NOTE',
+            'ACCOUNT.PHONE.REMOVED',
+            'ACCOUNT.PHONE.REMOVE_FAILED',
         ]) {
             expect(COPY[key], key).toBeTruthy();
         }
@@ -37,8 +56,9 @@ describe('phone-number copy', () => {
 
     it('never calls a number verified, confirmed or checked', () => {
         for (const key of PHONE_KEYS) {
-            expect(COPY[key].toLowerCase(), key)
-                .not.toMatch(/\b(verified|confirmed|validated|authenticated)\b/);
+            expect(COPY[key].toLowerCase(), key).not.toMatch(
+                /\b(verified|confirmed|validated|authenticated)\b/,
+            );
         }
     });
 
@@ -46,8 +66,7 @@ describe('phone-number copy', () => {
         // The stems, because "we will verify this" and "pending verification" are the sentences a
         // future SMS feature would arrive with, and there is still no SMS step to back them.
         for (const key of PHONE_KEYS) {
-            expect(COPY[key].toLowerCase(), key)
-                .not.toMatch(/verif|confirmat|validat|authenticat/);
+            expect(COPY[key].toLowerCase(), key).not.toMatch(/verif|confirmat|validat|authenticat/);
         }
     });
 
@@ -150,11 +169,20 @@ describe('phone-number copy', () => {
         // creeps back in - the guards run over the keys, so an unlisted one is still swept, but the
         // sentence-level assertions are not.
         const accounted = new Set([
-            'ACCOUNT.PHONE.TITLE', 'ACCOUNT.PHONE.DESC', 'ACCOUNT.PHONE.PLACEHOLDER',
-            'ACCOUNT.PHONE.FORMAT_HELP', 'ACCOUNT.PHONE.PLAINTEXT', 'ACCOUNT.PHONE.UNVERIFIED',
-            'ACCOUNT.PHONE.NONE', 'ACCOUNT.PHONE.SAVE', 'ACCOUNT.PHONE.SAVED',
-            'ACCOUNT.PHONE.SAVE_FAILED', 'ACCOUNT.PHONE.REMOVE', 'ACCOUNT.PHONE.REMOVE_NOTE',
-            'ACCOUNT.PHONE.REMOVED', 'ACCOUNT.PHONE.REMOVE_FAILED',
+            'ACCOUNT.PHONE.TITLE',
+            'ACCOUNT.PHONE.DESC',
+            'ACCOUNT.PHONE.PLACEHOLDER',
+            'ACCOUNT.PHONE.FORMAT_HELP',
+            'ACCOUNT.PHONE.PLAINTEXT',
+            'ACCOUNT.PHONE.UNVERIFIED',
+            'ACCOUNT.PHONE.NONE',
+            'ACCOUNT.PHONE.SAVE',
+            'ACCOUNT.PHONE.SAVED',
+            'ACCOUNT.PHONE.SAVE_FAILED',
+            'ACCOUNT.PHONE.REMOVE',
+            'ACCOUNT.PHONE.REMOVE_NOTE',
+            'ACCOUNT.PHONE.REMOVED',
+            'ACCOUNT.PHONE.REMOVE_FAILED',
             ...E164_PROBLEMS.map(e164ProblemKey),
         ]);
 

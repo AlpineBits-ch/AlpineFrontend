@@ -25,8 +25,7 @@ describe('readableContent', () => {
     it('refuses to decode a body flagged undecryptable', () => {
         // The whole point. A caller that has been handed `undecryptable: true` must not be able to
         // get the bytes out by asking politely.
-        expect(readableContent({content: INJECTED, undecryptable: true}))
-            .toBe(UNDECRYPTABLE_PLACEHOLDER);
+        expect(readableContent({content: INJECTED, undecryptable: true})).toBe(UNDECRYPTABLE_PLACEHOLDER);
     });
 
     it('never leaks the body through the placeholder', () => {
@@ -36,8 +35,9 @@ describe('readableContent', () => {
     });
 
     it('uses the short form where a preview asks for it', () => {
-        expect(readableContent({content: INJECTED, undecryptable: true}, UNDECRYPTABLE_SHORT))
-            .toBe(UNDECRYPTABLE_SHORT);
+        expect(readableContent({content: INJECTED, undecryptable: true}, UNDECRYPTABLE_SHORT)).toBe(
+            UNDECRYPTABLE_SHORT,
+        );
     });
 
     it('is safe on a missing message', () => {
@@ -54,7 +54,8 @@ describe('decodeBody', () => {
     });
 
     it('round-trips utf-8', () => {
-        expect(decodeBody(btoa('héllo'.replace(/[-￿]/g, c =>
-            String.fromCharCode(c.charCodeAt(0)))))).toBeTruthy();
+        expect(
+            decodeBody(btoa('héllo'.replace(/[-￿]/g, c => String.fromCharCode(c.charCodeAt(0))))),
+        ).toBeTruthy();
     });
 });

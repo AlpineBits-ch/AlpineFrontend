@@ -1,24 +1,24 @@
-import {Component, DestroyRef, HostListener, inject, OnDestroy, OnInit} from "@angular/core";
+import {Component, DestroyRef, HostListener, inject, OnDestroy, OnInit} from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
-import {NavigationEnd, Router, RouterOutlet} from "@angular/router";
-import {ProfileService} from "./services/profile.service";
-import {AuthService} from "./services/auth.service";
-import {CallOverlayComponent} from "./features/call/call-overlay/call-overlay.component";
-import {CallMiniPlayerComponent} from "./features/call/call-mini-player/call-mini-player.component";
-import {TitlebarComponent} from "./titlebar/titlebar.component";
-import {ResizeHandlesComponent} from "./titlebar/resize-handles.component";
-import {CallWebRtcService} from "./services/call-webrtc.service";
-import {CallHotkeyService} from "./services/call-hotkey.service";
-import {UpdateDialogComponent} from "./features/update-dialog/update-dialog.component";
-import {UpdateService} from "./services/update.service";
-import {Toast} from "primeng/toast";
+import {NavigationEnd, Router, RouterOutlet} from '@angular/router';
+import {ProfileService} from './services/profile.service';
+import {AuthService} from './services/auth.service';
+import {CallOverlayComponent} from './features/call/call-overlay/call-overlay.component';
+import {CallMiniPlayerComponent} from './features/call/call-mini-player/call-mini-player.component';
+import {TitlebarComponent} from './titlebar/titlebar.component';
+import {ResizeHandlesComponent} from './titlebar/resize-handles.component';
+import {CallWebRtcService} from './services/call-webrtc.service';
+import {CallHotkeyService} from './services/call-hotkey.service';
+import {UpdateDialogComponent} from './features/update-dialog/update-dialog.component';
+import {UpdateService} from './services/update.service';
+import {Toast} from 'primeng/toast';
 import {ScreenPickerComponent} from './features/screen-picker/screen-picker.component';
 import {EmailVerificationDialogComponent} from './features/email-verification/email-verification-dialog.component';
 import {MfaChallengeDialogComponent} from './features/mfa-challenge/mfa-challenge-dialog.component';
 import {PasswordResetDialogComponent} from './features/password-reset/password-reset-dialog.component';
 import {InviteDialogComponent} from './features/invite-dialog/invite-dialog.component';
 import {InviteDialogService} from './features/invite-dialog/invite-dialog.service';
-import {environment} from "../environments/environment";
+import {environment} from '../environments/environment';
 import {AppReadyService} from './services/app-ready.service';
 import {WindowChromeService} from './services/window-chrome.service';
 import {filter} from 'rxjs';
@@ -41,10 +41,31 @@ import {VoiceRingCardComponent} from './shared/call/voice-ring-card/voice-ring-c
 import {VoiceRingStateService} from './services/voice-ring-state.service';
 
 @Component({
-    selector: "app-root",
-    imports: [RouterOutlet, CallOverlayComponent, CallMiniPlayerComponent, TitlebarComponent, ResizeHandlesComponent, UpdateDialogComponent, Toast, ScreenPickerComponent, EmailVerificationDialogComponent, MfaChallengeDialogComponent, PasswordResetDialogComponent, InviteDialogComponent, IsleProximityBarComponent, BotInstallDialogComponent, BotCommandDialogComponent, BotModalDialogComponent, DiscordImportProgressDialogComponent, LegalConsentDialogComponent, StatusBannerComponent, VoiceRingCardComponent],
-    templateUrl: "./app.component.html",
-    styleUrl: "./app.component.css",
+    selector: 'app-root',
+    imports: [
+        RouterOutlet,
+        CallOverlayComponent,
+        CallMiniPlayerComponent,
+        TitlebarComponent,
+        ResizeHandlesComponent,
+        UpdateDialogComponent,
+        Toast,
+        ScreenPickerComponent,
+        EmailVerificationDialogComponent,
+        MfaChallengeDialogComponent,
+        PasswordResetDialogComponent,
+        InviteDialogComponent,
+        IsleProximityBarComponent,
+        BotInstallDialogComponent,
+        BotCommandDialogComponent,
+        BotModalDialogComponent,
+        DiscordImportProgressDialogComponent,
+        LegalConsentDialogComponent,
+        StatusBannerComponent,
+        VoiceRingCardComponent,
+    ],
+    templateUrl: './app.component.html',
+    styleUrl: './app.component.css',
 })
 export class AppComponent implements OnInit, OnDestroy {
     protected readonly isPopup = window.location.pathname === '/toast-popup';
@@ -78,7 +99,7 @@ export class AppComponent implements OnInit, OnDestroy {
 
     // iOS: the visual viewport scrolls when the keyboard opens, shifting position:fixed elements.
 
-    public  ngOnInit(): void {
+    public ngOnInit(): void {
         if (this.isPopup) return;
 
         // Window shape and the drag fallback for overlays; both outlive the titlebar.
@@ -87,7 +108,7 @@ export class AppComponent implements OnInit, OnDestroy {
         // Started here rather than on the main page, so it also covers the login screen.
         this.platformStatus.start();
 
-        void this.deepLinks.onOpen((urls) => {
+        void this.deepLinks.onOpen(urls => {
             for (const url of urls) this.handleDeepLink(url);
         });
         // Cold start: the launch URL, which the live listener above misses entirely. Null on web.
@@ -97,14 +118,16 @@ export class AppComponent implements OnInit, OnDestroy {
 
         // Resumes an install-bot modal that was stashed because the user was logged out when
         // the deep link arrived (see BotInstallDialogService.requestOpen).
-        this.router.events.pipe(
-            filter(e => e instanceof NavigationEnd),
-            filter(() => this.router.url.startsWith('/overview')),
-            takeUntilDestroyed(this.destroyRef),
-        ).subscribe(() => {
-            this.botInstallDialogService.resumeIfPending();
-            this.discordImportProgressService.resumeIfPending();
-        });
+        this.router.events
+            .pipe(
+                filter(e => e instanceof NavigationEnd),
+                filter(() => this.router.url.startsWith('/overview')),
+                takeUntilDestroyed(this.destroyRef),
+            )
+            .subscribe(() => {
+                this.botInstallDialogService.resumeIfPending();
+                this.discordImportProgressService.resumeIfPending();
+            });
 
         window.visualViewport?.addEventListener('resize', this.viewportHandler);
         window.visualViewport?.addEventListener('scroll', this.viewportHandler);
@@ -119,9 +142,12 @@ export class AppComponent implements OnInit, OnDestroy {
         });
 
         // No check on launch: update_gate.rs already ran one before this window existed.
-        this.updateInterval = setInterval(() => {
-            void this.updateService.checkForUpdates();
-        }, 10 * 60 * 1000);
+        this.updateInterval = setInterval(
+            () => {
+                void this.updateService.checkForUpdates();
+            },
+            10 * 60 * 1000,
+        );
 
         // Keeps the splash up until routing settles, except on /overview where MainPageComponent owns it.
         this.appReady.revealWhenRouted();

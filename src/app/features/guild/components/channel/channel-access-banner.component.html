@@ -1,5 +1,4 @@
 <div class="flex flex-col gap-3 m-4 p-4 rounded-xl border border-border-default bg-card/60">
-
     <div class="flex items-start gap-3">
         <i class="pi pi-lock text-connecting mt-0.5"></i>
         <div class="min-w-0">
@@ -31,13 +30,22 @@
 
     <div class="flex items-center justify-end gap-2">
         @if (pending()) {
-            <p-button (onClick)="withdraw()" [disabled]="busy()" [text]="true"
-                      [label]="'CHANNEL_SETTINGS.ENCRYPTION.WITHDRAW_REQUEST' | translate"
-                      severity="secondary" size="small"/>
+            <p-button
+                (onClick)="withdraw()"
+                [disabled]="busy()"
+                [text]="true"
+                [label]="'CHANNEL_SETTINGS.ENCRYPTION.WITHDRAW_REQUEST' | translate"
+                severity="secondary"
+                size="small"
+            />
         } @else {
-            <p-button (onClick)="request()" [disabled]="busy()"
-                      [label]="'CHANNEL_SETTINGS.ENCRYPTION.REQUEST_ACCESS' | translate"
-                      severity="primary" size="small"/>
+            <p-button
+                (onClick)="request()"
+                [disabled]="busy()"
+                [label]="'CHANNEL_SETTINGS.ENCRYPTION.REQUEST_ACCESS' | translate"
+                severity="primary"
+                size="small"
+            />
         }
     </div>
 

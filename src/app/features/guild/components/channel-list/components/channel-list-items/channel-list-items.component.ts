@@ -15,7 +15,9 @@ import {VoiceChannelItemComponent} from '../voice-channel-item/voice-channel-ite
     selector: 'app-channel-list-items',
     host: {class: 'contents'},
     imports: [
-        ChannelDropIndicatorComponent, TextChannelItemComponent, VoiceChannelItemComponent,
+        ChannelDropIndicatorComponent,
+        TextChannelItemComponent,
+        VoiceChannelItemComponent,
         ForumPostRowsComponent,
     ],
     templateUrl: './channel-list-items.component.html',

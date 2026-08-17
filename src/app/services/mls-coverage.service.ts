@@ -77,7 +77,7 @@ export class MlsCoverageService {
     /** Fetches unless this device's view of the group is the one already answered for: compared against {@link MlsService.getKnownGeneration}, never a fetch count. */
     async ensure(contextId: string, isChannel: boolean): Promise<void> {
         const asked = this.asked.get(contextId);
-        if (asked && asked.localGeneration === await this.mls.getKnownGeneration(contextId)) return;
+        if (asked && asked.localGeneration === (await this.mls.getKnownGeneration(contextId))) return;
 
         await this.refresh(contextId, isChannel);
     }
@@ -198,17 +198,20 @@ export class MlsCoverageService {
     /** Records that the question could not be answered, without answering it: whatever was last known is kept and only flagged. */
     private markUnavailable(contextId: string, isChannel: boolean): void {
         const previous = this.coverageOf(contextId);
-        this.setView(contextId, previous
-            ? {...previous, unavailable: true}
-            : {
-                contextId,
-                isChannel,
-                encrypted: false,
-                generation: null,
-                thisDeviceExcluded: false,
-                otherOwnDevices: [],
-                peerDevices: [],
-                unavailable: true,
-            });
+        this.setView(
+            contextId,
+            previous
+                ? {...previous, unavailable: true}
+                : {
+                      contextId,
+                      isChannel,
+                      encrypted: false,
+                      generation: null,
+                      thisDeviceExcluded: false,
+                      otherOwnDevices: [],
+                      peerDevices: [],
+                      unavailable: true,
+                  },
+        );
     }
 }

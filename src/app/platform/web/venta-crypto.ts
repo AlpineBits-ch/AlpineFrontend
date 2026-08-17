@@ -62,7 +62,9 @@ async function importAndInit(): Promise<VentaCryptoModule> {
     // `<base href>` other than `/`) still resolves. Computed rather than a literal so the bundler
     // leaves it alone - this file is copied as an asset, not compiled into a chunk.
     const url = new URL(MODULE_PATH, document.baseURI).href;
-    const module = await (import(/* @vite-ignore */ /* webpackIgnore: true */ url) as Promise<VentaCryptoModule>);
+    const module = await (import(
+        /* @vite-ignore */ /* webpackIgnore: true */ url
+    ) as Promise<VentaCryptoModule>);
     await module.default();
     return module;
 }

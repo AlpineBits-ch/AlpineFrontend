@@ -57,9 +57,9 @@ export class AccountOnboardingComponent {
     }
 
     protected toggle(interest: UserInterest): void {
-        this.selected.update(current => current.includes(interest)
-            ? current.filter(i => i !== interest)
-            : [...current, interest]);
+        this.selected.update(current =>
+            current.includes(interest) ? current.filter(i => i !== interest) : [...current, interest],
+        );
     }
 
     protected toDone(): void {

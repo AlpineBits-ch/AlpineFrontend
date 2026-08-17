@@ -24,9 +24,10 @@ export class GuildDmOverridesComponent implements OnInit {
     protected readonly guilds = this.guildService.guilds;
     protected readonly pending = signal<ReadonlySet<string>>(new Set());
 
-    protected readonly applies = computed(() =>
-        this.privacy.isReady()
-        && this.privacy.settings().directMessagePolicy === DirectMessagePolicy.FriendsAndServerMembers,
+    protected readonly applies = computed(
+        () =>
+            this.privacy.isReady() &&
+            this.privacy.settings().directMessagePolicy === DirectMessagePolicy.FriendsAndServerMembers,
     );
 
     ngOnInit(): void {
@@ -56,7 +57,8 @@ export class GuildDmOverridesComponent implements OnInit {
 
     private markPending(guildId: string, active: boolean): void {
         const next = new Set(this.pending());
-        if (active) next.add(guildId); else next.delete(guildId);
+        if (active) next.add(guildId);
+        else next.delete(guildId);
         this.pending.set(next);
     }
 }

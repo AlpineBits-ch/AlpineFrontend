@@ -7,7 +7,7 @@ export interface CommandResult {
     text?: string;
     /** Side-effect action. Known local actions are handled by the composer;
      *  unknown ones are emitted to the parent via `commandAction` output. */
-    action?: { name: string; payload?: unknown };
+    action?: {name: string; payload?: unknown};
 }
 
 export interface CommandDef {
@@ -16,7 +16,7 @@ export interface CommandDef {
     /** `inline` -works anywhere mid-message, replaces the trigger text in-place.
      *  `global`, only available at the start of the editor; operates on the whole message. */
     scope: CommandScope;
-    params: { label: string; required: boolean }[];
+    params: {label: string; required: boolean}[];
     execute: (params: string) => CommandResult;
 }
 
@@ -25,9 +25,7 @@ export interface CommandDef {
  *  indexable list regardless of where a candidate command came from. `kind` (not `scope`) is the
  *  discriminant deliberately: `CommandDef.scope` ('inline'/'global') and `BotCommandDto.scope`
  *  ('global'/'guild') share a field name but mean different things. */
-export type ComposerCommandItem =
-    | { kind: 'local'; def: CommandDef }
-    | { kind: 'bot'; def: BotCommandDto };
+export type ComposerCommandItem = {kind: 'local'; def: CommandDef} | {kind: 'bot'; def: BotCommandDto};
 
 export const COMMANDS: CommandDef[] = [
     {
@@ -42,6 +40,6 @@ export const COMMANDS: CommandDef[] = [
         description: 'Search for a GIF',
         scope: 'global',
         params: [{label: 'search', required: true}],
-        execute: (query) => ({action: {name: 'open-gif-picker-with-search', payload: {query: query.trim()}}}),
+        execute: query => ({action: {name: 'open-gif-picker-with-search', payload: {query: query.trim()}}}),
     },
 ];

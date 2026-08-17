@@ -30,7 +30,7 @@ import {AudioState} from '../audio-wait';
             @case ('stalled') {
                 <span [class]="shellClass()" [attr.title]="'CALL.NO_AUDIO_PARTICIPANT' | translate">
                     <svg aria-hidden="true" fill="currentColor" height="8" viewBox="0 0 24 24" width="8">
-                        <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+                        <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z" />
                     </svg>
                     {{ 'CALL.NO_AUDIO' | translate }}
                 </span>
@@ -71,7 +71,9 @@ import {AudioState} from '../audio-wait';
         }
 
         @keyframes call-connecting-dot {
-            0%, 70%, 100% {
+            0%,
+            70%,
+            100% {
                 opacity: 0.3;
                 transform: translateY(0);
             }
@@ -96,15 +98,17 @@ export class CallAudioStatusComponent {
 
     protected readonly shellClass = computed(() => {
         const badge = this.variant() === 'badge';
-        const base = 'inline-flex items-center gap-1 text-[0.5625rem] font-medium leading-none'
-            + (badge ? ' px-1.5 py-0.5 rounded-full border' : '');
+        const base =
+            'inline-flex items-center gap-1 text-[0.5625rem] font-medium leading-none' +
+            (badge ? ' px-1.5 py-0.5 rounded-full border' : '');
         if (this.state() === 'stalled') {
-            return base + (badge
-                ? ' bg-connecting/15 border-connecting/35 text-connecting font-semibold'
-                : ' text-connecting font-semibold');
+            return (
+                base +
+                (badge
+                    ? ' bg-connecting/15 border-connecting/35 text-connecting font-semibold'
+                    : ' text-connecting font-semibold')
+            );
         }
-        return base + (badge
-            ? ' bg-white/[0.06] border-border-subtle text-white/45'
-            : ' text-white/40');
+        return base + (badge ? ' bg-white/[0.06] border-border-subtle text-white/45' : ' text-white/40');
     });
 }

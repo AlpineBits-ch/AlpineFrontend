@@ -43,8 +43,9 @@ function chanMsg(id: string, overrides: Partial<MessageDto> = {}): MessageDto {
 /** `reconcile` in isolation, imported from the store rather than redefined here, so the suite cannot pass against a copy. */
 describe('message cache reconciliation', () => {
     it('drops a cached message the server no longer returns', () => {
-        expect(reconcile([convMsg('deleted'), convMsg('kept')], [convMsg('kept')]).map(m => m.id))
-            .toEqual(['kept']);
+        expect(reconcile([convMsg('deleted'), convMsg('kept')], [convMsg('kept')]).map(m => m.id)).toEqual([
+            'kept',
+        ]);
     });
 
     it('prefers the server copy of a message present in both', () => {
@@ -87,10 +88,12 @@ function setup(cached: {conversation?: MessageDto[]; channel?: MessageDto[]} = {
     const conversationMessages$ = new Subject<MessageDto[]>();
     const channelMessages$ = new Subject<MessageDto[]>();
     const messaging = {
-        getMessagesForConversation: vi.fn<(id: string, offset: number, size: number) =>
-            Observable<MessageDto[]>>(() => conversationMessages$),
-        getMessagesForChannel: vi.fn<(id: string, offset: number, size: number) =>
-            Observable<MessageDto[]>>(() => channelMessages$),
+        getMessagesForConversation: vi.fn<
+            (id: string, offset: number, size: number) => Observable<MessageDto[]>
+        >(() => conversationMessages$),
+        getMessagesForChannel: vi.fn<(id: string, offset: number, size: number) => Observable<MessageDto[]>>(
+            () => channelMessages$,
+        ),
     };
 
     const messageCache = {
@@ -114,19 +117,28 @@ function setup(cached: {conversation?: MessageDto[]; channel?: MessageDto[]} = {
             MlsHealthService,
             {provide: MessageCacheService, useValue: messageCache},
             {
-                provide: MessagingWebsocketService, useValue: {
-                    messageObservable: wsMessage$, messageUpdatedObservable: new Subject(),
-                    messageDeletedObservable: new Subject(), conversationRemovedObservable: new Subject(),
-                    conversationMemberRemovedObservable: new Subject(), reactionAddedObservable: new Subject(),
-                    reactionRemovedObservable: new Subject(), messagePinnedObservable: new Subject(),
+                provide: MessagingWebsocketService,
+                useValue: {
+                    messageObservable: wsMessage$,
+                    messageUpdatedObservable: new Subject(),
+                    messageDeletedObservable: new Subject(),
+                    conversationRemovedObservable: new Subject(),
+                    conversationMemberRemovedObservable: new Subject(),
+                    reactionAddedObservable: new Subject(),
+                    reactionRemovedObservable: new Subject(),
+                    messagePinnedObservable: new Subject(),
                     messageUnpinnedObservable: new Subject(),
                 },
             },
             {
-                provide: GuildWebsocketService, useValue: {
-                    messageObservable: guildMessage$, reactionAddedObservable: new Subject(),
-                    reactionRemovedObservable: new Subject(), messagePinnedObservable: new Subject(),
-                    messageUnpinnedObservable: new Subject(), messageUpdatedObservable: new Subject(),
+                provide: GuildWebsocketService,
+                useValue: {
+                    messageObservable: guildMessage$,
+                    reactionAddedObservable: new Subject(),
+                    reactionRemovedObservable: new Subject(),
+                    messagePinnedObservable: new Subject(),
+                    messageUnpinnedObservable: new Subject(),
+                    messageUpdatedObservable: new Subject(),
                     messagesBulkDeletedObservable: new Subject(),
                     ephemeralMessageObservable: new Subject(),
                 },
@@ -173,34 +185,37 @@ describe('MessageStore cache gap-fill - conversation', () => {
         expect(store.conversationMeta()[CONVERSATION]?.offset).toBe(0);
     });
 
-    it('drops a cache-painted message the server does not confirm, but keeps a live ' +
-        'websocket arrival and a pending send', async () => {
-        const {store, conversationMessages$, wsMessage$} = setup({
-            conversation: [convMsg('stale'), convMsg('shared', {content: 'old'})],
-        });
+    it(
+        'drops a cache-painted message the server does not confirm, but keeps a live ' +
+            'websocket arrival and a pending send',
+        async () => {
+            const {store, conversationMessages$, wsMessage$} = setup({
+                conversation: [convMsg('stale'), convMsg('shared', {content: 'old'})],
+            });
 
-        store.loadForConversation(CONVERSATION);
-        await settle();
-        expect(store.entityMap()['stale']).toBeTruthy();
-        expect(store.entityMap()['shared'].content).toBe('old');
+            store.loadForConversation(CONVERSATION);
+            await settle();
+            expect(store.entityMap()['stale']).toBeTruthy();
+            expect(store.entityMap()['shared'].content).toBe('old');
 
-        // A message arrives over the socket while the fetch is still in flight.
-        wsMessage$.next(convMsg('live-ws'));
-        // An optimistic send the user made locally.
-        store.addMessage(convMsg('pending-send', {isPending: true}));
+            // A message arrives over the socket while the fetch is still in flight.
+            wsMessage$.next(convMsg('live-ws'));
+            // An optimistic send the user made locally.
+            store.addMessage(convMsg('pending-send', {isPending: true}));
 
-        conversationMessages$.next([convMsg('shared', {content: 'fresh'})]);
-        conversationMessages$.complete();
-        await settle();
+            conversationMessages$.next([convMsg('shared', {content: 'fresh'})]);
+            conversationMessages$.complete();
+            await settle();
 
-        // Confirmed by the server: kept, with the server's copy winning.
-        expect(store.entityMap()['shared'].content).toBe('fresh');
-        // Never confirmed, and only ever painted from the cache: dropped.
-        expect(store.entityMap()['stale']).toBeUndefined();
-        // Arrived by a route other than the cache paint: never an eviction candidate.
-        expect(store.entityMap()['live-ws']).toBeTruthy();
-        expect(store.entityMap()['pending-send']).toBeTruthy();
-    });
+            // Confirmed by the server: kept, with the server's copy winning.
+            expect(store.entityMap()['shared'].content).toBe('fresh');
+            // Never confirmed, and only ever painted from the cache: dropped.
+            expect(store.entityMap()['stale']).toBeUndefined();
+            // Arrived by a route other than the cache paint: never an eviction candidate.
+            expect(store.entityMap()['live-ws']).toBeTruthy();
+            expect(store.entityMap()['pending-send']).toBeTruthy();
+        },
+    );
 
     it('ignores a cache read that resolves after the network page already landed', async () => {
         const {store, messaging} = setup({conversation: [convMsg('should-not-appear')]});
@@ -215,30 +230,36 @@ describe('MessageStore cache gap-fill - conversation', () => {
     });
 
     /** `upsertEntities` shallow-merges, so it may only be applied to the ids this load painted from the cache: applied to the whole server page it clobbers a live update that landed mid-fetch. */
-    it('keeps a live pin that lands mid-fetch instead of letting the server\'s pre-mutation ' +
-        'copy clobber it', async () => {
-        const {store, conversationMessages$} = setup(); // Nothing cached: 'shared' is never painted.
+    it(
+        "keeps a live pin that lands mid-fetch instead of letting the server's pre-mutation " +
+            'copy clobber it',
+        async () => {
+            const {store, conversationMessages$} = setup(); // Nothing cached: 'shared' is never painted.
 
-        // Already in the store before the load starts - never painted from the cache.
-        store.addMessage(convMsg('shared', {isPinned: false}));
+            // Already in the store before the load starts - never painted from the cache.
+            store.addMessage(convMsg('shared', {isPinned: false}));
 
-        store.loadForConversation(CONVERSATION);
-        await settle();
+            store.loadForConversation(CONVERSATION);
+            await settle();
 
-        // A pin lands over the socket while the HTTP request is still in flight.
-        store.applyPinned({
-            messageId: 'shared', authorId: 'user-2', pinnedById: 'user-9',
-            pinnedAt: '2026-08-16T00:00:00Z', conversationId: CONVERSATION,
-        });
-        expect(store.entityMap()['shared'].isPinned).toBe(true);
+            // A pin lands over the socket while the HTTP request is still in flight.
+            store.applyPinned({
+                messageId: 'shared',
+                authorId: 'user-2',
+                pinnedById: 'user-9',
+                pinnedAt: '2026-08-16T00:00:00Z',
+                conversationId: CONVERSATION,
+            });
+            expect(store.entityMap()['shared'].isPinned).toBe(true);
 
-        // The server's page reflects a read from before that pin.
-        conversationMessages$.next([convMsg('shared', {isPinned: false})]);
-        conversationMessages$.complete();
-        await settle();
+            // The server's page reflects a read from before that pin.
+            conversationMessages$.next([convMsg('shared', {isPinned: false})]);
+            conversationMessages$.complete();
+            await settle();
 
-        expect(store.entityMap()['shared'].isPinned).toBe(true);
-    });
+            expect(store.entityMap()['shared'].isPinned).toBe(true);
+        },
+    );
 
     it('persists the arrived page to the cache', async () => {
         const {store, conversationMessages$, messageCache} = setup();
@@ -250,7 +271,9 @@ describe('MessageStore cache gap-fill - conversation', () => {
         await settle();
 
         expect(messageCache.remember).toHaveBeenCalledWith(
-            messageContextKey({conversationId: CONVERSATION}), page);
+            messageContextKey({conversationId: CONVERSATION}),
+            page,
+        );
     });
 });
 
@@ -273,50 +296,58 @@ describe('MessageStore cache gap-fill - channel', () => {
         expect(store.channelMeta()[CHANNEL]?.offset).toBe(0);
     });
 
-    it('drops a cache-painted message the server does not confirm, but keeps a live ' +
-        'websocket arrival', async () => {
-        const {store, channelMessages$, guildMessage$} = setup({
-            channel: [chanMsg('stale'), chanMsg('shared', {content: 'old'})],
-        });
+    it(
+        'drops a cache-painted message the server does not confirm, but keeps a live ' + 'websocket arrival',
+        async () => {
+            const {store, channelMessages$, guildMessage$} = setup({
+                channel: [chanMsg('stale'), chanMsg('shared', {content: 'old'})],
+            });
 
-        store.loadForChannel(CHANNEL);
-        await settle();
-        expect(store.entityMap()['stale']).toBeTruthy();
+            store.loadForChannel(CHANNEL);
+            await settle();
+            expect(store.entityMap()['stale']).toBeTruthy();
 
-        guildMessage$.next(chanMsg('live-ws'));
+            guildMessage$.next(chanMsg('live-ws'));
 
-        channelMessages$.next([chanMsg('shared', {content: 'fresh'})]);
-        channelMessages$.complete();
-        await settle();
+            channelMessages$.next([chanMsg('shared', {content: 'fresh'})]);
+            channelMessages$.complete();
+            await settle();
 
-        expect(store.entityMap()['shared'].content).toBe('fresh');
-        expect(store.entityMap()['stale']).toBeUndefined();
-        expect(store.entityMap()['live-ws']).toBeTruthy();
-    });
+            expect(store.entityMap()['shared'].content).toBe('fresh');
+            expect(store.entityMap()['stale']).toBeUndefined();
+            expect(store.entityMap()['live-ws']).toBeTruthy();
+        },
+    );
 
     /** Same race as the conversation path's equivalent test - see the comment there. */
-    it('keeps a live reaction that lands mid-fetch instead of letting the server\'s ' +
-        'pre-mutation copy clobber it', async () => {
-        const {store, channelMessages$} = setup(); // Nothing cached: 'shared' is never painted.
+    it(
+        "keeps a live reaction that lands mid-fetch instead of letting the server's " +
+            'pre-mutation copy clobber it',
+        async () => {
+            const {store, channelMessages$} = setup(); // Nothing cached: 'shared' is never painted.
 
-        store.addMessage(chanMsg('shared', {reactions: []}));
+            store.addMessage(chanMsg('shared', {reactions: []}));
 
-        store.loadForChannel(CHANNEL);
-        await settle();
+            store.loadForChannel(CHANNEL);
+            await settle();
 
-        // A reaction lands over the socket while the HTTP request is still in flight.
-        store.applyReactionAdded({
-            messageId: 'shared', userId: 'user-9', emoji: '👍', channelId: CHANNEL,
-        });
-        expect(store.entityMap()['shared'].reactions).toHaveLength(1);
+            // A reaction lands over the socket while the HTTP request is still in flight.
+            store.applyReactionAdded({
+                messageId: 'shared',
+                userId: 'user-9',
+                emoji: '👍',
+                channelId: CHANNEL,
+            });
+            expect(store.entityMap()['shared'].reactions).toHaveLength(1);
 
-        // The server's page reflects a read from before that reaction.
-        channelMessages$.next([chanMsg('shared', {reactions: []})]);
-        channelMessages$.complete();
-        await settle();
+            // The server's page reflects a read from before that reaction.
+            channelMessages$.next([chanMsg('shared', {reactions: []})]);
+            channelMessages$.complete();
+            await settle();
 
-        expect(store.entityMap()['shared'].reactions).toHaveLength(1);
-    });
+            expect(store.entityMap()['shared'].reactions).toHaveLength(1);
+        },
+    );
 
     it('persists the arrived page to the cache', async () => {
         const {store, channelMessages$, messageCache} = setup();
@@ -327,7 +358,6 @@ describe('MessageStore cache gap-fill - channel', () => {
         channelMessages$.complete();
         await settle();
 
-        expect(messageCache.remember).toHaveBeenCalledWith(
-            messageContextKey({channelId: CHANNEL}), page);
+        expect(messageCache.remember).toHaveBeenCalledWith(messageContextKey({channelId: CHANNEL}), page);
     });
 });

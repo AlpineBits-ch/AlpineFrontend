@@ -9,7 +9,10 @@
 import {decodeNotificationTag, encodeNotificationTag} from './notification-tag';
 
 it('round-trips the routing payload', () => {
-    const tag = encodeNotificationTag({actionTypeId: 'household', extra: {type: 'household', choreId: 'c-1'}});
+    const tag = encodeNotificationTag({
+        actionTypeId: 'household',
+        extra: {type: 'household', choreId: 'c-1'},
+    });
 
     expect(decodeNotificationTag(tag)).toEqual({
         actionTypeId: 'household',
@@ -44,8 +47,9 @@ it('survives JSON that is the wrong shape', () => {
 it('stringifies values a host round-tripped as numbers', () => {
     // WinRT toasts carry `extra` through Rust, so a number can come back where a string went in, and
     // the routing code reads strings.
-    expect(decodeNotificationTag('{"actionTypeId":"message","extra":{"unread":3,"muted":false}}').extra)
-        .toEqual({unread: '3', muted: 'false'});
+    expect(
+        decodeNotificationTag('{"actionTypeId":"message","extra":{"unread":3,"muted":false}}').extra,
+    ).toEqual({unread: '3', muted: 'false'});
 });
 
 it('drops nested values rather than stringifying them into [object Object]', () => {

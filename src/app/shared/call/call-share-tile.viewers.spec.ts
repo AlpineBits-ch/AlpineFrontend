@@ -15,13 +15,22 @@ function share(overrides: Partial<CallScreenShare> = {}): CallScreenShare {
     };
 }
 
-function setup(s: CallScreenShare, viewers = 0, viewerNames: string[] = []): ComponentFixture<CallShareTileComponent> {
+function setup(
+    s: CallScreenShare,
+    viewers = 0,
+    viewerNames: string[] = [],
+): ComponentFixture<CallShareTileComponent> {
     TestBed.configureTestingModule({
         imports: [CallShareTileComponent, TranslateModule.forRoot()],
         providers: [
             {
                 provide: RustMediaService,
-                useValue: {previewPaused: () => false, claimPreviewRender: vi.fn(), releasePreviewRender: vi.fn(), resumePreview: vi.fn()},
+                useValue: {
+                    previewPaused: () => false,
+                    claimPreviewRender: vi.fn(),
+                    releasePreviewRender: vi.fn(),
+                    resumePreview: vi.fn(),
+                },
             },
         ],
     });

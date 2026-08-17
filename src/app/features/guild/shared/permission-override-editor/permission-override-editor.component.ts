@@ -2,7 +2,12 @@ import {Component, computed, input, output} from '@angular/core';
 import {NgClass} from '@angular/common';
 import {Tooltip} from 'primeng/tooltip';
 import {TranslateModule} from '@ngx-translate/core';
-import {CHANNEL_PERM_GROUPS, PermissionKey, permissionLabel, Permissions} from '../../../../enums/permissions.enum';
+import {
+    CHANNEL_PERM_GROUPS,
+    PermissionKey,
+    permissionLabel,
+    Permissions,
+} from '../../../../enums/permissions.enum';
 import {
     MODULE_PERM_GROUPS,
     ModulePermissionKey,

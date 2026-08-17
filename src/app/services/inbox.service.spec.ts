@@ -128,7 +128,14 @@ function setup() {
                 provide: ProfileService,
                 useValue: {getCachedByUserId: () => undefined, getByUserId: () => of({})},
             },
-            {provide: NavigationService, useValue: {selectServer: () => undefined, openChannel: () => undefined, openConversation: () => undefined}},
+            {
+                provide: NavigationService,
+                useValue: {
+                    selectServer: () => undefined,
+                    openChannel: () => undefined,
+                    openConversation: () => undefined,
+                },
+            },
             {
                 provide: RealtimeConnectionService,
                 useValue: {
@@ -233,13 +240,11 @@ describe('InboxService', () => {
         it('sends the cursor from the previous mentions page', async () => {
             const {service, ctrl} = setup();
             const first = service.loadMoreMentions();
-            ctrl.expectOne(`${INBOX}/mentions?limit=25`)
-                .flush({mentions: [mention()], nextCursor: 'm1'});
+            ctrl.expectOne(`${INBOX}/mentions?limit=25`).flush({mentions: [mention()], nextCursor: 'm1'});
             await first;
 
             const second = service.loadMoreMentions();
-            ctrl.expectOne(`${INBOX}/mentions?limit=25&cursor=m1`)
-                .flush({mentions: [], nextCursor: null});
+            ctrl.expectOne(`${INBOX}/mentions?limit=25&cursor=m1`).flush({mentions: [], nextCursor: null});
             await second;
 
             expect(service.mentions().length).toBe(1);
@@ -254,8 +259,12 @@ describe('InboxService', () => {
             expect(service.unread().length).toBe(1);
 
             service.open();
-            ctrl.expectOne(`${INBOX}/summary`)
-                .flush({unreadChannelCount: 0, mentionCount: 0, taskCount: 0, capped: false});
+            ctrl.expectOne(`${INBOX}/summary`).flush({
+                unreadChannelCount: 0,
+                mentionCount: 0,
+                taskCount: 0,
+                capped: false,
+            });
             // No cursor: one held across a closed popout describes a list that has since reordered.
             ctrl.expectOne(`${INBOX}/unread?limit=10`).flush(page({groups: [group()]}));
             ctrl.expectOne(`${INBOX}/mentions?limit=25`).flush({mentions: [], nextCursor: null});
@@ -278,8 +287,10 @@ describe('InboxService', () => {
             expect(service.tasksTruncated()).toBe(true);
 
             const second = service.loadTasks();
-            ctrl.expectOne(`${INBOX}/tasks?limit=25`)
-                .flush({tasks: [task({targetId: 'deci_9', kind: 'DecisionVote'})], truncated: false});
+            ctrl.expectOne(`${INBOX}/tasks?limit=25`).flush({
+                tasks: [task({targetId: 'deci_9', kind: 'DecisionVote'})],
+                truncated: false,
+            });
             await second;
 
             // Doing a task removes it from the next answer, which makes appending flatly wrong.
@@ -321,8 +332,12 @@ describe('InboxService', () => {
                 body: 'Bins',
             });
 
-            ctrl.expectOne(`${INBOX}/summary`)
-                .flush({unreadChannelCount: 0, mentionCount: 0, taskCount: 1, capped: false});
+            ctrl.expectOne(`${INBOX}/summary`).flush({
+                unreadChannelCount: 0,
+                mentionCount: 0,
+                taskCount: 1,
+                capped: false,
+            });
             await settle();
 
             expect(service.badgeLabel()).toBe('1');
@@ -335,17 +350,18 @@ describe('InboxService', () => {
             const load = service.loadMoreMentions();
             // The index is keyed on the row's own timestamp; the message's would return 204 and delete nothing.
             ctrl.expectOne(`${INBOX}/mentions?limit=25`).flush({
-                mentions: [mention({
-                    createdAt: '2026-08-03T09:41:02.884Z',
-                    message: message({createdAt: '2026-08-03T09:41:02.000Z'}),
-                })],
+                mentions: [
+                    mention({
+                        createdAt: '2026-08-03T09:41:02.884Z',
+                        message: message({createdAt: '2026-08-03T09:41:02.000Z'}),
+                    }),
+                ],
                 nextCursor: null,
             });
             await load;
 
             const dismissed = service.dismissMention(service.mentions()[0]);
-            const req = ctrl.expectOne(
-                `${INBOX}/mentions/mesg_1?createdAt=2026-08-03T09:41:02.884Z`);
+            const req = ctrl.expectOne(`${INBOX}/mentions/mesg_1?createdAt=2026-08-03T09:41:02.884Z`);
             expect(req.request.method).toBe('DELETE');
             req.flush(null);
             await dismissed;
@@ -356,13 +372,14 @@ describe('InboxService', () => {
         it('restores the row when the delete fails', async () => {
             const {service, ctrl} = setup();
             const load = service.loadMoreMentions();
-            ctrl.expectOne(`${INBOX}/mentions?limit=25`)
-                .flush({mentions: [mention()], nextCursor: null});
+            ctrl.expectOne(`${INBOX}/mentions?limit=25`).flush({mentions: [mention()], nextCursor: null});
             await load;
 
             const dismissed = service.dismissMention(service.mentions()[0]);
-            ctrl.expectOne(r => r.url === `${INBOX}/mentions/mesg_1`)
-                .flush(null, {status: 500, statusText: 'Server Error'});
+            ctrl.expectOne(r => r.url === `${INBOX}/mentions/mesg_1`).flush(null, {
+                status: 500,
+                statusText: 'Server Error',
+            });
             await dismissed;
 
             expect(service.mentions().length).toBe(1);
@@ -389,8 +406,10 @@ describe('InboxService', () => {
             await loadUnread(service, ctrl, page({groups: [group()]}));
 
             const marked = service.markChannelRead('chan_1');
-            ctrl.expectOne(`${INBOX}/channels/chan_1/read`)
-                .flush(null, {status: 500, statusText: 'Server Error'});
+            ctrl.expectOne(`${INBOX}/channels/chan_1/read`).flush(null, {
+                status: 500,
+                statusText: 'Server Error',
+            });
             await marked;
 
             expect(service.unread().length).toBe(1);
@@ -453,8 +472,12 @@ describe('InboxService', () => {
             connectionState.set(ConnectionState.Connected);
             TestBed.tick();
 
-            ctrl.expectOne(`${INBOX}/summary`)
-                .flush({unreadChannelCount: 2, mentionCount: 1, taskCount: 0, capped: false});
+            ctrl.expectOne(`${INBOX}/summary`).flush({
+                unreadChannelCount: 2,
+                mentionCount: 1,
+                taskCount: 0,
+                capped: false,
+            });
             await settle();
 
             // The whole point: this is a cold start, and `open` was never called.
@@ -465,8 +488,12 @@ describe('InboxService', () => {
             const {service, ctrl} = setup();
             connectionState.set(ConnectionState.Connected);
             TestBed.tick();
-            ctrl.expectOne(`${INBOX}/summary`)
-                .flush({unreadChannelCount: 0, mentionCount: 0, taskCount: 0, capped: false});
+            ctrl.expectOne(`${INBOX}/summary`).flush({
+                unreadChannelCount: 0,
+                mentionCount: 0,
+                taskCount: 0,
+                capped: false,
+            });
             await settle();
 
             connectionState.set(ConnectionState.Connecting);
@@ -476,8 +503,12 @@ describe('InboxService', () => {
 
             connectionState.set(ConnectionState.Connected);
             TestBed.tick();
-            ctrl.expectOne(`${INBOX}/summary`)
-                .flush({unreadChannelCount: 0, mentionCount: 4, taskCount: 0, capped: false});
+            ctrl.expectOne(`${INBOX}/summary`).flush({
+                unreadChannelCount: 0,
+                mentionCount: 4,
+                taskCount: 0,
+                capped: false,
+            });
             await settle();
 
             expect(service.badgeLabel()).toBe('4');
@@ -487,8 +518,12 @@ describe('InboxService', () => {
             const {ctrl} = setup();
             connectionState.set(ConnectionState.Connected);
             TestBed.tick();
-            ctrl.expectOne(`${INBOX}/summary`)
-                .flush({unreadChannelCount: 0, mentionCount: 0, taskCount: 0, capped: false});
+            ctrl.expectOne(`${INBOX}/summary`).flush({
+                unreadChannelCount: 0,
+                mentionCount: 0,
+                taskCount: 0,
+                capped: false,
+            });
             await settle();
 
             connectionState.set(ConnectionState.Connected);
@@ -508,8 +543,12 @@ describe('InboxService', () => {
                 ctrl.expectNone(`${INBOX}/summary`);
 
                 await vi.advanceTimersByTimeAsync(2_000);
-                ctrl.expectOne(`${INBOX}/summary`)
-                    .flush({unreadChannelCount: 0, mentionCount: 4, taskCount: 0, capped: false});
+                ctrl.expectOne(`${INBOX}/summary`).flush({
+                    unreadChannelCount: 0,
+                    mentionCount: 4,
+                    taskCount: 0,
+                    capped: false,
+                });
                 await vi.advanceTimersByTimeAsync(0);
 
                 expect(service.badgeLabel()).toBe('4');
@@ -544,15 +583,22 @@ describe('InboxService', () => {
 
         it('drops just the acked channel on a per-channel read state change', async () => {
             const {service, ctrl} = setup();
-            await loadUnread(service, ctrl, page({
-                groups: [
-                    group(),
-                    group({breadcrumb: breadcrumb({channelId: 'chan_2', channelName: 'dev'})}),
-                ],
-            }));
+            await loadUnread(
+                service,
+                ctrl,
+                page({
+                    groups: [
+                        group(),
+                        group({breadcrumb: breadcrumb({channelId: 'chan_2', channelName: 'dev'})}),
+                    ],
+                }),
+            );
 
-            hubHandlers.get('inbox.ReadStateChanged')?.(
-                {channelId: 'chan_1', lastReadMessageId: 'mesg_1', mentionCount: 0});
+            hubHandlers.get('inbox.ReadStateChanged')?.({
+                channelId: 'chan_1',
+                lastReadMessageId: 'mesg_1',
+                mentionCount: 0,
+            });
 
             expect(service.unread().map(e => e.breadcrumb.channelId)).toEqual(['chan_2']);
         });
@@ -562,10 +608,14 @@ describe('InboxService', () => {
         it('renders groups and flags the tab when the message service is down', async () => {
             const {service, ctrl} = setup();
             // A 200, not an error: the counts and breadcrumbs are still correct.
-            await loadUnread(service, ctrl, page({
-                groups: [group({previews: []})],
-                previewsUnavailable: true,
-            }));
+            await loadUnread(
+                service,
+                ctrl,
+                page({
+                    groups: [group({previews: []})],
+                    previewsUnavailable: true,
+                }),
+            );
 
             expect(service.unread().length).toBe(1);
             expect(service.previewsUnavailable()).toBe(true);
@@ -582,8 +632,7 @@ describe('InboxService', () => {
         it('maps the inbox numeric message type rather than indexing the app enum', async () => {
             const {service, ctrl} = setup();
             // 2 is GuildMemberJoin on the wire; a naive ordinal read of the app enum lands on Invite.
-            await loadUnread(service, ctrl,
-                page({groups: [group({previews: [message({type: 2})]})]}));
+            await loadUnread(service, ctrl, page({groups: [group({previews: [message({type: 2})]})]}));
 
             expect(service.unread()[0].previews[0].message.type).toBe('GuildMemberJoin');
         });

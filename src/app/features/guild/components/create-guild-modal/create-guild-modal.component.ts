@@ -21,7 +21,15 @@ type CreateGuildStep = 'start' | 'kind' | 'details' | 'template';
 
 @Component({
     selector: 'app-create-guild-modal',
-    imports: [Dialog, Button, InputText, FormsModule, PrimeTemplate, TranslateModule, TemplatePreviewComponent],
+    imports: [
+        Dialog,
+        Button,
+        InputText,
+        FormsModule,
+        PrimeTemplate,
+        TranslateModule,
+        TemplatePreviewComponent,
+    ],
     templateUrl: './create-guild-modal.component.html',
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -48,7 +56,7 @@ export class CreateGuildModalComponent {
     readonly selectedKind = computed(() => guildKindMeta(this.kind()));
 
     /** Only the create path is a numbered journey; the template path is a single screen. */
-    readonly stepNumber = computed(() => this.step() === 'kind' ? 1 : this.step() === 'details' ? 2 : 0);
+    readonly stepNumber = computed(() => (this.step() === 'kind' ? 1 : this.step() === 'details' ? 2 : 0));
     readonly stepCount = 2;
     readonly stepIndicators = [1, 2];
 
@@ -141,17 +149,22 @@ export class CreateGuildModalComponent {
         }
 
         this.loading.set(true);
-        this.guildService.createGuild(trimmed, this.description().trim() || undefined, this.kind()).subscribe({
-            next: guild => {
-                this.loading.set(false);
-                this.guildCreated.emit(guild);
-                this.close();
-            },
-            error: err => {
-                this.loading.set(false);
-                this.toastService.httpError(this.translate.instant('CREATE_GUILD.CREATE_ERROR_TOAST'), err);
-            },
-        });
+        this.guildService
+            .createGuild(trimmed, this.description().trim() || undefined, this.kind())
+            .subscribe({
+                next: guild => {
+                    this.loading.set(false);
+                    this.guildCreated.emit(guild);
+                    this.close();
+                },
+                error: err => {
+                    this.loading.set(false);
+                    this.toastService.httpError(
+                        this.translate.instant('CREATE_GUILD.CREATE_ERROR_TOAST'),
+                        err,
+                    );
+                },
+            });
     }
 
     close(): void {
@@ -197,7 +210,10 @@ export class CreateGuildModalComponent {
                 if (err?.status === 404) {
                     this.templateNotFound.set(true);
                 } else {
-                    this.toastService.httpError(this.translate.instant('CREATE_GUILD.TEMPLATE.LOOKUP_ERROR_TOAST'), err);
+                    this.toastService.httpError(
+                        this.translate.instant('CREATE_GUILD.TEMPLATE.LOOKUP_ERROR_TOAST'),
+                        err,
+                    );
                 }
             },
         });
@@ -230,7 +246,10 @@ export class CreateGuildModalComponent {
                     error: err => {
                         this.creatingFromTemplate.set(false);
                         // The guild WAS created; only the follow-up fetch failed. Closing silently would look like nothing happened and invite the user to run the template again, creating a duplicate. Say so out loud.
-                        this.toastService.httpError(this.translate.instant('CREATE_GUILD.TEMPLATE.CREATE_ERROR_TOAST'), err);
+                        this.toastService.httpError(
+                            this.translate.instant('CREATE_GUILD.TEMPLATE.CREATE_ERROR_TOAST'),
+                            err,
+                        );
                         if (!this.visible() || this.step() !== 'template') return;
                         this.close();
                     },
@@ -238,7 +257,10 @@ export class CreateGuildModalComponent {
             },
             error: err => {
                 this.creatingFromTemplate.set(false);
-                this.toastService.httpError(this.translate.instant('CREATE_GUILD.TEMPLATE.CREATE_ERROR_TOAST'), err);
+                this.toastService.httpError(
+                    this.translate.instant('CREATE_GUILD.TEMPLATE.CREATE_ERROR_TOAST'),
+                    err,
+                );
             },
         });
     }
@@ -254,9 +276,11 @@ export class CreateGuildModalComponent {
 
     /** True if a lookup for `requestedId` is no longer relevant: the modal closed, the user left template mode, or the input has since changed to point at a different template. */
     private isTemplateLookupStale(requestedId: string): boolean {
-        return !this.visible()
-            || this.step() !== 'template'
-            || this.extractTemplateId(this.templateInput()) !== requestedId;
+        return (
+            !this.visible() ||
+            this.step() !== 'template' ||
+            this.extractTemplateId(this.templateInput()) !== requestedId
+        );
     }
 
     /** Accepts a bare template id or a pasted full URL, returning the trailing id segment. */

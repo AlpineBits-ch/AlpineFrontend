@@ -15,7 +15,5 @@
     "notifications:default",
     "secure-storage:default"
   ],
-  "windows": [
-    "login"
-  ]
+  "windows": ["login"]
 }

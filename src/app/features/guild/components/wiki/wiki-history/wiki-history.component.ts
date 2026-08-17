@@ -96,7 +96,7 @@ export class WikiHistoryComponent {
     }
 
     protected togglePreview(revId: string): void {
-        this.expandedRevId.update(id => id === revId ? null : revId);
+        this.expandedRevId.update(id => (id === revId ? null : revId));
     }
 
     protected isSelected(revId: string): boolean {
@@ -124,14 +124,14 @@ export class WikiHistoryComponent {
 
         const all = this.revisions();
         const index = all.findIndex(r => r.id === revision.id);
-        const before = mode === 'current' ? revision.content : all[index + 1]?.content ?? '';
+        const before = mode === 'current' ? revision.content : (all[index + 1]?.content ?? '');
         const after = mode === 'current' ? this.page().content : revision.content;
         const lines = diffLines(before ?? '', after ?? '');
         this.diffMemo.set(key, lines);
         return lines;
     }
 
-    protected statFor(revision: WikiRevisionDto): { added: number; removed: number } {
+    protected statFor(revision: WikiRevisionDto): {added: number; removed: number} {
         return diffStat(this.diffFor(revision));
     }
 

@@ -42,7 +42,8 @@ describe('relaunchOnSessionTakeover', () => {
     it('survives a launch that rejects, and still answers the next takeover', async () => {
         const takeovers = new Subject<void>();
         const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-        const relaunch = vi.fn()
+        const relaunch = vi
+            .fn()
             .mockRejectedValueOnce(new Error('the key store is locked'))
             .mockResolvedValueOnce(undefined);
         relaunchOnSessionTakeover({takeovers: () => takeovers, relaunch, log: () => undefined});

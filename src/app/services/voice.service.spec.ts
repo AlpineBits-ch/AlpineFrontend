@@ -46,7 +46,7 @@ describe('VoiceService', () => {
         it('POSTs the plural media route with primary on the query string', () => {
             const {service, ctrl} = setup();
             let got: VoiceConnectionDto | undefined;
-            service.connection(CALL).subscribe(c => got = c);
+            service.connection(CALL).subscribe(c => (got = c));
 
             const req = ctrl.expectOne(`${MEDIA}/connection?primary=true`);
             expect(req.request.method).toBe('POST');
@@ -99,10 +99,12 @@ describe('VoiceService', () => {
 
         it('declares the video intent in the same call as the tracks', () => {
             const {service, ctrl} = setup();
-            service.publish(CALL, {
-                trackNames: ['screen-abc', 'screen-audio-abc'],
-                video: {height: 1080, framerate: 60},
-            }).subscribe();
+            service
+                .publish(CALL, {
+                    trackNames: ['screen-abc', 'screen-audio-abc'],
+                    video: {height: 1080, framerate: 60},
+                })
+                .subscribe();
 
             const req = ctrl.expectOne(`${MEDIA}/publish`);
             expect(req.request.body).toEqual({
@@ -116,11 +118,16 @@ describe('VoiceService', () => {
         it('hands back the degradations on a clamped 200 so the caller re-encodes', () => {
             const {service, ctrl} = setup();
             let got: VoicePublishResponse | undefined;
-            service.publish(CALL, {trackNames: ['video'], video: {height: 1080, framerate: 60}})
-                .subscribe(r => got = r);
+            service
+                .publish(CALL, {trackNames: ['video'], video: {height: 1080, framerate: 60}})
+                .subscribe(r => (got = r));
 
             ctrl.expectOne(`${MEDIA}/publish`).flush({
-                identity: 'user-1', rung: '720p30', height: 720, framerate: 30, maxLayer: 'b',
+                identity: 'user-1',
+                rung: '720p30',
+                height: 720,
+                framerate: 30,
+                maxLayer: 'b',
                 degradations: [{key: 'voice.video_ceiling'}],
             });
 
@@ -133,12 +140,14 @@ describe('VoiceService', () => {
         it('surfaces a 403 rather than swallowing it - the token refuses it too', () => {
             const {service, ctrl} = setup();
             let status: number | undefined;
-            service.publish(CALL, {trackNames: ['video']})
-                .subscribe({error: (err: {status: number}) => status = err.status});
+            service
+                .publish(CALL, {trackNames: ['video']})
+                .subscribe({error: (err: {status: number}) => (status = err.status)});
 
-            ctrl.expectOne(`${MEDIA}/publish`)
-                .flush({code: 'user_plan_limit', key: 'voice.video_ceiling'},
-                    {status: 403, statusText: 'Forbidden'});
+            ctrl.expectOne(`${MEDIA}/publish`).flush(
+                {code: 'user_plan_limit', key: 'voice.video_ceiling'},
+                {status: 403, statusText: 'Forbidden'},
+            );
 
             expect(status).toBe(403);
             ctrl.verify();
@@ -162,8 +171,7 @@ describe('VoiceService', () => {
         it('PUTs the video route - a POST here 404s', () => {
             const {service, ctrl} = setup();
             let maxLayer: string | null | undefined;
-            service.declareVideo(CALL, {height: 1440, framerate: 60})
-                .subscribe(r => maxLayer = r.maxLayer);
+            service.declareVideo(CALL, {height: 1440, framerate: 60}).subscribe(r => (maxLayer = r.maxLayer));
 
             const req = ctrl.expectOne(`${MEDIA}/video`);
             expect(req.request.method).toBe('PUT');

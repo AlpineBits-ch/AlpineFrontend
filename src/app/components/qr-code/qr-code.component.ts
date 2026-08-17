@@ -4,8 +4,7 @@ import QRCode from 'qrcode';
 /** Renders arbitrary text as a QR code onto a canvas. Colors must stay fixed light-on-dark, never themed. */
 @Component({
     selector: 'app-qr-code',
-    template: `
-        <canvas #canvas class="rounded-lg bg-white p-2" [attr.aria-label]="ariaLabel()"></canvas>`,
+    template: ` <canvas #canvas class="rounded-lg bg-white p-2" [attr.aria-label]="ariaLabel()"></canvas>`,
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class QrCodeComponent {

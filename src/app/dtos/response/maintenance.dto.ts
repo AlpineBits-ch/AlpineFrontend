@@ -24,7 +24,10 @@ export enum AssetStatus {
 }
 
 const STATUS_BY_ORDINAL: readonly AssetStatus[] = [
-    AssetStatus.Ok, AssetStatus.NeedsAttention, AssetStatus.Broken, AssetStatus.OutOfService,
+    AssetStatus.Ok,
+    AssetStatus.NeedsAttention,
+    AssetStatus.Broken,
+    AssetStatus.OutOfService,
 ];
 
 /** In the order the status picker offers them, which is also increasing severity then withdrawal. */
@@ -105,19 +108,13 @@ export interface MaintenanceRecordPage {
  * first time either changed.</p>
  */
 export type AttentionReason =
-    | 'broken'
-    | 'service_overdue'
-    | 'needs_attention'
-    | 'warranty_expiring'
-    | (string & {});
+    'broken' | 'service_overdue' | 'needs_attention' | 'warranty_expiring' | (string & {});
 
 /**
  * Most urgent first. Broken beats a missed service beats a warning light beats a lapsing warranty:
  * only the first means the house has lost the use of something today.
  */
-const REASON_ORDER: readonly string[] = [
-    'broken', 'service_overdue', 'needs_attention', 'warranty_expiring',
-];
+const REASON_ORDER: readonly string[] = ['broken', 'service_overdue', 'needs_attention', 'warranty_expiring'];
 
 export interface MaintenanceAttentionEntry {
     asset: MaintenanceAsset;
@@ -194,12 +191,10 @@ export interface MaintenanceRecordDeleted {
  * `isServiceOverdue` and the attention board's own `reasons` are what actually drive urgency, and
  * this only decides a badge.</p>
  */
-export function normalizeAssetStatus(
-    value: AssetStatus | number | string | null | undefined,
-): AssetStatus {
+export function normalizeAssetStatus(value: AssetStatus | number | string | null | undefined): AssetStatus {
     if (typeof value === 'number') return STATUS_BY_ORDINAL[value] ?? AssetStatus.Ok;
     return (STATUS_BY_ORDINAL as readonly string[]).includes(value as string)
-        ? value as AssetStatus
+        ? (value as AssetStatus)
         : AssetStatus.Ok;
 }
 

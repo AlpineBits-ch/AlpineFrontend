@@ -31,11 +31,15 @@ export class CreateChannelModalComponent {
     protected readonly canAnnouncement = computed(() => this.guildFeatures().has(GuildFeature.Announcements));
     /** Only the household types whose module this guild actually has. */
     protected readonly householdTypes = computed(() =>
-        HOUSEHOLD_CHANNEL_META.filter(meta => meta.feature !== null && this.guildFeatures().has(meta.feature)));
+        HOUSEHOLD_CHANNEL_META.filter(
+            meta => meta.feature !== null && this.guildFeatures().has(meta.feature),
+        ),
+    );
     /** Drives the split into "Chat" / "Household" headings: no household types, no split. */
     protected readonly hasHouseholdTypes = computed(() => this.householdTypes().length > 0);
-    protected readonly hasTypeChoice = computed(() =>
-        this.canVoice() || this.canForum() || this.canAnnouncement() || this.hasHouseholdTypes());
+    protected readonly hasTypeChoice = computed(
+        () => this.canVoice() || this.canForum() || this.canAnnouncement() || this.hasHouseholdTypes(),
+    );
     /** The glyph inside the name field; the same table the sidebar row reads. */
     protected readonly selectedIcon = computed(() => channelIcon(this.type()));
     protected readonly name = signal('');
@@ -50,10 +54,11 @@ export class CreateChannelModalComponent {
         effect(() => {
             const type = this.type();
             const householdFeature = householdFeatureFor(type);
-            const stranded = (type === ChannelType.Voice && !this.canVoice())
-                || ((type === ChannelType.Forum || type === ChannelType.Media) && !this.canForum())
-                || (type === ChannelType.Announcement && !this.canAnnouncement())
-                || (householdFeature !== null && !this.guildFeatures().has(householdFeature));
+            const stranded =
+                (type === ChannelType.Voice && !this.canVoice()) ||
+                ((type === ChannelType.Forum || type === ChannelType.Media) && !this.canForum()) ||
+                (type === ChannelType.Announcement && !this.canAnnouncement()) ||
+                (householdFeature !== null && !this.guildFeatures().has(householdFeature));
             if (stranded) untracked(() => this.type.set(ChannelType.Text));
         });
     }
@@ -81,18 +86,20 @@ export class CreateChannelModalComponent {
     protected submit(): void {
         if (this.creating() || !this.name().trim()) return;
         this.creating.set(true);
-        this.guildService.createChannel({
-            guildId: this.guildId(),
-            name: this.name().trim(),
-            type: this.type(),
-            categoryId: this.categoryId(),
-            position: this.position(),
-        }).subscribe({
-            next: () => {
-                this.isVisible.set(false);
-                this.creating.set(false);
-            },
-            error: () => this.creating.set(false),
-        });
+        this.guildService
+            .createChannel({
+                guildId: this.guildId(),
+                name: this.name().trim(),
+                type: this.type(),
+                categoryId: this.categoryId(),
+                position: this.position(),
+            })
+            .subscribe({
+                next: () => {
+                    this.isVisible.set(false);
+                    this.creating.set(false);
+                },
+                error: () => this.creating.set(false),
+            });
     }
 }

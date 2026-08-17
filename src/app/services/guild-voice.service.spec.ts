@@ -44,7 +44,7 @@ describe('GuildVoiceService', () => {
         it('POSTs the connection route with primary on the query string', () => {
             const {service, ctrl} = setup();
             let got: VoiceConnectionDto | undefined;
-            service.connection(GUILD, CHANNEL).subscribe(c => got = c);
+            service.connection(GUILD, CHANNEL).subscribe(c => (got = c));
 
             const req = ctrl.expectOne(`${VOICE}/connection?primary=true`);
             expect(req.request.method).toBe('POST');
@@ -86,7 +86,7 @@ describe('GuildVoiceService', () => {
         it('reads canPublish* off the reply, since that is what the token grants', () => {
             const {service, ctrl} = setup();
             let got: VoiceConnectionDto | undefined;
-            service.connection(GUILD, CHANNEL).subscribe(c => got = c);
+            service.connection(GUILD, CHANNEL).subscribe(c => (got = c));
 
             ctrl.expectOne(`${VOICE}/connection?primary=true`).flush(CONNECTION);
             expect(got?.canPublishAudio).toBe(true);
@@ -109,10 +109,12 @@ describe('GuildVoiceService', () => {
 
         it('declares the video intent in the same call as the tracks', () => {
             const {service, ctrl} = setup();
-            service.publish(GUILD, CHANNEL, {
-                trackNames: ['screen-abc', 'screen-audio-abc'],
-                video: {height: 1080, framerate: 60},
-            }).subscribe();
+            service
+                .publish(GUILD, CHANNEL, {
+                    trackNames: ['screen-abc', 'screen-audio-abc'],
+                    video: {height: 1080, framerate: 60},
+                })
+                .subscribe();
 
             const req = ctrl.expectOne(`${VOICE}/publish`);
             expect(req.request.body).toEqual({
@@ -126,11 +128,16 @@ describe('GuildVoiceService', () => {
         it('hands back the degradations on a clamped 200 so the caller re-encodes', () => {
             const {service, ctrl} = setup();
             let got: VoicePublishResponse | undefined;
-            service.publish(GUILD, CHANNEL, {trackNames: ['video'], video: {height: 1080, framerate: 60}})
-                .subscribe(r => got = r);
+            service
+                .publish(GUILD, CHANNEL, {trackNames: ['video'], video: {height: 1080, framerate: 60}})
+                .subscribe(r => (got = r));
 
             ctrl.expectOne(`${VOICE}/publish`).flush({
-                identity: 'user-1', rung: '720p30', height: 720, framerate: 30, maxLayer: 'b',
+                identity: 'user-1',
+                rung: '720p30',
+                height: 720,
+                framerate: 30,
+                maxLayer: 'b',
                 degradations: [{key: 'voice.video_ceiling'}],
             });
 
@@ -145,12 +152,14 @@ describe('GuildVoiceService', () => {
         it('surfaces a 403 rather than swallowing it - the token refuses it too', () => {
             const {service, ctrl} = setup();
             let status: number | undefined;
-            service.publish(GUILD, CHANNEL, {trackNames: ['video']})
-                .subscribe({error: err => status = err.status});
+            service
+                .publish(GUILD, CHANNEL, {trackNames: ['video']})
+                .subscribe({error: err => (status = err.status)});
 
-            ctrl.expectOne(`${VOICE}/publish`)
-                .flush({code: 'guild_plan_limit', key: 'voice.video_ceiling'},
-                    {status: 403, statusText: 'Forbidden'});
+            ctrl.expectOne(`${VOICE}/publish`).flush(
+                {code: 'guild_plan_limit', key: 'voice.video_ceiling'},
+                {status: 403, statusText: 'Forbidden'},
+            );
 
             expect(status).toBe(403);
             ctrl.verify();
@@ -174,8 +183,9 @@ describe('GuildVoiceService', () => {
         it('PUTs the video route - a POST here 404s', () => {
             const {service, ctrl} = setup();
             let maxLayer: string | null | undefined;
-            service.declareVideo(GUILD, CHANNEL, {height: 1440, framerate: 60})
-                .subscribe(r => maxLayer = r.maxLayer);
+            service
+                .declareVideo(GUILD, CHANNEL, {height: 1440, framerate: 60})
+                .subscribe(r => (maxLayer = r.maxLayer));
 
             const req = ctrl.expectOne(`${VOICE}/video`);
             expect(req.request.method).toBe('PUT');

@@ -91,14 +91,16 @@ describe('ForumService', () => {
         });
 
         it('joins tag ids with commas and passes the rest through', () => {
-            service.getPosts('f1', {
-                tagIds: ['ftag_a', 'ftag_b'],
-                match: 'all',
-                sort: 'activity',
-                archived: 'all',
-                limit: 25,
-                cursor: 'opaque',
-            }).subscribe();
+            service
+                .getPosts('f1', {
+                    tagIds: ['ftag_a', 'ftag_b'],
+                    match: 'all',
+                    sort: 'activity',
+                    archived: 'all',
+                    limit: 25,
+                    cursor: 'opaque',
+                })
+                .subscribe();
 
             const req = http.expectOne(r => r.url === `${base}/channels/f1/posts`);
             expect(req.request.params.get('tagIds')).toBe('ftag_a,ftag_b');

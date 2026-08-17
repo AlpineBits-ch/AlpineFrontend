@@ -15,8 +15,8 @@ export class ThemeService {
     readonly themes = signal<AppTheme[]>(this.loadThemes());
     readonly activeThemeId = signal<string>(this.loadActiveId());
 
-    readonly activeTheme = computed(() =>
-        this.themes().find(t => t.id === this.activeThemeId()) ?? DEFAULT_THEME
+    readonly activeTheme = computed(
+        () => this.themes().find(t => t.id === this.activeThemeId()) ?? DEFAULT_THEME,
     );
 
     constructor() {
@@ -43,19 +43,17 @@ export class ThemeService {
     }
 
     updateActiveColors(partial: Partial<ThemeColors>): void {
-        this.themes.update(ts => ts.map(t =>
-            t.id === this.activeThemeId()
-                ? {...t, colors: {...t.colors, ...partial}}
-                : t
-        ));
+        this.themes.update(ts =>
+            ts.map(t => (t.id === this.activeThemeId() ? {...t, colors: {...t.colors, ...partial}} : t)),
+        );
         this.saveThemes();
     }
 
     updateActiveFontSize(size: number): void {
         const clamped = Math.min(FONT_MAX, Math.max(FONT_MIN, size));
-        this.themes.update(ts => ts.map(t =>
-            t.id === this.activeThemeId() ? {...t, baseFontSize: clamped} : t
-        ));
+        this.themes.update(ts =>
+            ts.map(t => (t.id === this.activeThemeId() ? {...t, baseFontSize: clamped} : t)),
+        );
         this.saveThemes();
     }
 
@@ -68,9 +66,7 @@ export class ThemeService {
 
     renameTheme(id: string, name: string): void {
         if (id === BUILT_IN_THEME_ID) return;
-        this.themes.update(ts => ts.map(t =>
-            t.id === id ? {...t, name: name.trim() || t.name} : t
-        ));
+        this.themes.update(ts => ts.map(t => (t.id === id ? {...t, name: name.trim() || t.name} : t)));
         this.saveThemes();
     }
 

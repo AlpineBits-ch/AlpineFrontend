@@ -120,7 +120,10 @@ export class PantryApiService {
      * user - be silent on every other one.</p>
      */
     scan(channelId: string, dto: ScanPantryItemDto): Observable<ScanPantryItemResult> {
-        return this.http.post<ScanPantryItemResult>(`${this.base}/channels/${channelId}/pantry-items/scan`, dto);
+        return this.http.post<ScanPantryItemResult>(
+            `${this.base}/channels/${channelId}/pantry-items/scan`,
+            dto,
+        );
     }
 
     /**

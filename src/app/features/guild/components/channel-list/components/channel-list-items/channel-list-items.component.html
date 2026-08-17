@@ -1,32 +1,34 @@
 @for (channel of channels(); track channel.id) {
     @if (drag.dropTargetId() === channel.id && drag.dropPos() === 'before') {
-        <app-channel-drop-indicator/>
+        <app-channel-drop-indicator />
     }
 
     @if (channel.type === ChannelType.Voice) {
         <app-voice-channel-item
-                (open)="openVoiceChannel.emit(channel)"
-                (openInvite)="openInvitePanel.emit({event: $event, channel})"
-                (openMenu)="openChannelMenu.emit({event: $event, channel})"
-                (openParticipantMenu)="openParticipantMenu.emit($event)"
-                (watch)="watchVoiceStream.emit({channel, userId: $event.userId})"
-                [canReorder]="canReorder()"
-                [channel]="channel"/>
+            (open)="openVoiceChannel.emit(channel)"
+            (openInvite)="openInvitePanel.emit({event: $event, channel})"
+            (openMenu)="openChannelMenu.emit({event: $event, channel})"
+            (openParticipantMenu)="openParticipantMenu.emit($event)"
+            (watch)="watchVoiceStream.emit({channel, userId: $event.userId})"
+            [canReorder]="canReorder()"
+            [channel]="channel"
+        />
     } @else {
         <app-text-channel-item
-                (open)="openTextChannel.emit(channel)"
-                (openMenu)="openChannelMenu.emit({event: $event, channel})"
-                [canReorder]="canReorder()"
-                [channel]="channel"/>
+            (open)="openTextChannel.emit(channel)"
+            (openMenu)="openChannelMenu.emit({event: $event, channel})"
+            [canReorder]="canReorder()"
+            [channel]="channel"
+        />
 
         <!-- A forum's recently-read and still-unread posts hang directly beneath it.
              Renders nothing for a forum with neither, and nothing for any other type. -->
         @if (isForumLike(channel.type)) {
-            <app-forum-post-rows [forum]="channel"/>
+            <app-forum-post-rows [forum]="channel" />
         }
     }
 
     @if (drag.dropTargetId() === channel.id && drag.dropPos() === 'after') {
-        <app-channel-drop-indicator/>
+        <app-channel-drop-indicator />
     }
 }

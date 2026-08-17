@@ -64,24 +64,25 @@ function ledger(over: Partial<CreditLedgerDto> = {}): CreditLedgerDto {
     };
 }
 
-function setup(opts: {
-    subject?: EntitlementSubjectRef;
-    wallet?: CreditWalletDto;
-    walletError?: unknown;
-    catalogue?: CreditCatalogueDto;
-    catalogueError?: unknown;
-    ledger?: CreditLedgerDto;
-} = {}) {
-    const getWallet = vi.fn<() => Observable<CreditWalletDto>>(() => opts.walletError
-        ? throwError(() => opts.walletError)
-        : of(opts.wallet ?? wallet()));
+function setup(
+    opts: {
+        subject?: EntitlementSubjectRef;
+        wallet?: CreditWalletDto;
+        walletError?: unknown;
+        catalogue?: CreditCatalogueDto;
+        catalogueError?: unknown;
+        ledger?: CreditLedgerDto;
+    } = {},
+) {
+    const getWallet = vi.fn<() => Observable<CreditWalletDto>>(() =>
+        opts.walletError ? throwError(() => opts.walletError) : of(opts.wallet ?? wallet()),
+    );
 
-    const getCatalogue = vi.fn<() => Observable<CreditCatalogueDto>>(() => opts.catalogueError
-        ? throwError(() => opts.catalogueError)
-        : of(opts.catalogue ?? catalogue()));
+    const getCatalogue = vi.fn<() => Observable<CreditCatalogueDto>>(() =>
+        opts.catalogueError ? throwError(() => opts.catalogueError) : of(opts.catalogue ?? catalogue()),
+    );
 
-    const getLedger = vi.fn<() => Observable<CreditLedgerDto>>(
-        () => of(opts.ledger ?? ledger()));
+    const getLedger = vi.fn<() => Observable<CreditLedgerDto>>(() => of(opts.ledger ?? ledger()));
 
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
@@ -93,8 +94,7 @@ function setup(opts: {
         ],
     });
 
-    const fixture: ComponentFixture<CreditPanelComponent> =
-        TestBed.createComponent(CreditPanelComponent);
+    const fixture: ComponentFixture<CreditPanelComponent> = TestBed.createComponent(CreditPanelComponent);
     fixture.componentRef.setInput('subject', opts.subject ?? MY_ENTITLEMENTS);
     fixture.detectChanges();
 
@@ -162,7 +162,10 @@ describe('the disclaimer', () => {
      */
     it('is beside the balance, and is never a raw key', () => {
         const {fixture} = setup({
-            wallet: wallet({disclaimer: 'Credits are promotional and expire.', disclaimerKey: 'credit.disclaimer'}),
+            wallet: wallet({
+                disclaimer: 'Credits are promotional and expire.',
+                disclaimerKey: 'credit.disclaimer',
+            }),
         });
 
         expect(text(fixture)).toContain('Credits are promotional and expire.');
@@ -208,8 +211,9 @@ describe('an instance with no credit at all', () => {
         expect(text(fixture)).toContain('BILLING.CREDIT.SECTION');
         expect(text(fixture)).toContain('BILLING.CREDIT.ERROR.GENERIC');
 
-        const retry = Array.from(fixture.nativeElement.querySelectorAll('button'))
-            .find(el => ((el as HTMLElement).textContent ?? '').includes('BILLING.CREDIT.RETRY'));
+        const retry = Array.from(fixture.nativeElement.querySelectorAll('button')).find(el =>
+            ((el as HTMLElement).textContent ?? '').includes('BILLING.CREDIT.RETRY'),
+        );
         (retry as HTMLElement).click();
         fixture.detectChanges();
 

@@ -1,4 +1,14 @@
-import {ChangeDetectionStrategy, Component, computed, DestroyRef, inject, input, OnInit, output, signal} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    DestroyRef,
+    inject,
+    input,
+    OnInit,
+    output,
+    signal,
+} from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {InputText} from 'primeng/inputtext';
 import {FormsModule} from '@angular/forms';
@@ -41,7 +51,8 @@ export class BotInstallGuildPickerComponent implements OnInit {
     fetchGuilds(): void {
         this.error.set(false);
         this.guilds.set(null);
-        this.botInstallService.getManageableGuilds(this.clientId())
+        this.botInstallService
+            .getManageableGuilds(this.clientId())
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe({
                 next: guilds => this.guilds.set(guilds),
@@ -66,6 +77,10 @@ export class BotInstallGuildPickerComponent implements OnInit {
     }
 
     initials(name: string): string {
-        return name.split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase() ?? '').join('');
+        return name
+            .split(/\s+/)
+            .slice(0, 2)
+            .map(w => w[0]?.toUpperCase() ?? '')
+            .join('');
     }
 }

@@ -76,9 +76,7 @@ export class ReportDialogComponent {
         return !!userId && this.relationships.blocked().some(r => r.other.userId === userId);
     });
 
-    protected readonly canSubmit = computed(() =>
-        this.reason() !== null && this.stage() === 'form'
-    );
+    protected readonly canSubmit = computed(() => this.reason() !== null && this.stage() === 'form');
 
     /** `Report message` / `Report user` and so on: one key per subject kind. */
     protected readonly titleKey = computed(() => {
@@ -141,9 +139,11 @@ export class ReportDialogComponent {
 
         this.relationships.block(subject.targetUserId).subscribe({
             next: () => {
-                this.toast.success(this.translate.instant('PROFILE.BLOCK_SUCCESS', {
-                    name: this.displayName(subject),
-                }));
+                this.toast.success(
+                    this.translate.instant('PROFILE.BLOCK_SUCCESS', {
+                        name: this.displayName(subject),
+                    }),
+                );
                 this.close();
             },
             error: () => this.toast.error(this.translate.instant('PROFILE.BLOCK_ERROR')),
@@ -151,9 +151,11 @@ export class ReportDialogComponent {
     }
 
     protected displayName(subject: ReportSubject): string {
-        return subject.targetName
-            ?? this.profiles.getCachedByUserId(subject.targetUserId)?.userName
-            ?? this.translate.instant('REPORT.THIS_USER');
+        return (
+            subject.targetName ??
+            this.profiles.getCachedByUserId(subject.targetUserId)?.userName ??
+            this.translate.instant('REPORT.THIS_USER')
+        );
     }
 
     private resetForm(): void {

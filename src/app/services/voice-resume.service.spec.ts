@@ -28,11 +28,13 @@ const CALL: OngoingCallDto = {
 
 const CHANNEL = {id: 'chan-1', guildId: 'guild-1', name: 'General'};
 
-function setup(options: {
-    seat?: VoiceStateDto | null;
-    call?: OngoingCallDto | null;
-    inVoice?: boolean;
-} = {}) {
+function setup(
+    options: {
+        seat?: VoiceStateDto | null;
+        call?: OngoingCallDto | null;
+        inVoice?: boolean;
+    } = {},
+) {
     const guildVoice = {
         getVoiceState: vi.fn(() => of(options.seat ?? null)),
         leave: vi.fn(() => of(undefined)),
@@ -68,13 +70,15 @@ describe('what to offer', () => {
 
     it('prefers the channel, which is the seat other people can see', () => {
         expect(toOffer(SEAT, CALL)).toEqual({
-            kind: 'channel', guildId: 'guild-1', channelId: 'chan-1', channelName: 'General',
+            kind: 'channel',
+            guildId: 'guild-1',
+            channelId: 'chan-1',
+            channelName: 'General',
         });
     });
 
     it('offers a call when there is no channel seat', () => {
-        expect(toOffer(null, CALL))
-            .toEqual({kind: 'call', callId: 'call-1', conversationId: 'conv-1'});
+        expect(toOffer(null, CALL)).toEqual({kind: 'call', callId: 'call-1', conversationId: 'conv-1'});
     });
 });
 
@@ -189,7 +193,7 @@ describe('answering the offer', () => {
 
     it('refuses a second reconnect while one is in flight', async () => {
         const {service, guilds} = setup({seat: SEAT});
-        const pending = new Subject<{id: string; name: string; channels: typeof CHANNEL[]}>();
+        const pending = new Subject<{id: string; name: string; channels: (typeof CHANNEL)[]}>();
         guilds.getGuild.mockReturnValue(pending);
         service.check();
 

@@ -100,8 +100,8 @@ export class WebHotkeys extends Hotkeys {
         const parsed = parseAccelerator(accelerator);
         if (!parsed) {
             console.warn(
-                `[hotkey] '${accelerator}' has no keyboard equivalent in a browser, so '${id}' is not `
-                + 'bound. Mouse buttons and raw virtual-key tokens only exist on the native hook.',
+                `[hotkey] '${accelerator}' has no keyboard equivalent in a browser, so '${id}' is not ` +
+                    'bound. Mouse buttons and raw virtual-key tokens only exist on the native hook.',
             );
             return false;
         }
@@ -251,9 +251,8 @@ export class WebHotkeys extends Hotkeys {
         if (!capture) return;
         this.capture = null;
 
-        const rebound = id !== undefined && accelerator !== undefined
-            ? this.rebind(id, accelerator)
-            : Promise.resolve();
+        const rebound =
+            id !== undefined && accelerator !== undefined ? this.rebind(id, accelerator) : Promise.resolve();
         void rebound.then(() => capture.resolve());
     }
 
@@ -303,10 +302,16 @@ function isTypingTarget(target: EventTarget | null): boolean {
 }
 
 function isModifierCode(code: string): boolean {
-    return code === 'ControlLeft' || code === 'ControlRight'
-        || code === 'AltLeft' || code === 'AltRight'
-        || code === 'ShiftLeft' || code === 'ShiftRight'
-        || code === 'MetaLeft' || code === 'MetaRight';
+    return (
+        code === 'ControlLeft' ||
+        code === 'ControlRight' ||
+        code === 'AltLeft' ||
+        code === 'AltRight' ||
+        code === 'ShiftLeft' ||
+        code === 'ShiftRight' ||
+        code === 'MetaLeft' ||
+        code === 'MetaRight'
+    );
 }
 
 /** The token a bare modifier is stored as, matching the native hook's `parse_token`. */

@@ -63,7 +63,11 @@ export class ChannelEncryptionService {
 
             if (invitees.length > 0) {
                 const commitOut = await firstValueFrom(
-                    this.mls.addMembers(groupIdB64, keyHandle, invitees.map(t => t.token)),
+                    this.mls.addMembers(
+                        groupIdB64,
+                        keyHandle,
+                        invitees.map(t => t.token),
+                    ),
                 );
                 // Merged straight away: this group exists nowhere but here until the enable call
                 // lands, so there is no other committer to lose an epoch race against.
@@ -79,8 +83,9 @@ export class ChannelEncryptionService {
                 // works here only because the merge above has already happened; taking it from the
                 // commit keeps this identical to the publish path, where the merge deliberately
                 // comes later and an export would be an epoch stale.
-                groupInfo = commitOut.groupInfo
-                    ?? await firstValueFrom(this.mls.exportGroupInfo(groupIdB64, keyHandle));
+                groupInfo =
+                    commitOut.groupInfo ??
+                    (await firstValueFrom(this.mls.exportGroupInfo(groupIdB64, keyHandle)));
             }
 
             const result: MlsToggleResultDto = await firstValueFrom(

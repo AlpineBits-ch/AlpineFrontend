@@ -36,8 +36,10 @@ function publisher(userId: string, over: Partial<VoiceParticipantSnapshot> = {})
         mediaSessionId: `sess-${userId}`,
         audioTrackName: 'audio',
         publishState: 'Publishing',
-        isSelfMuted: false, isSelfDeafened: false,
-        isServerMuted: false, isServerDeafened: false,
+        isSelfMuted: false,
+        isSelfDeafened: false,
+        isServerMuted: false,
+        isServerDeafened: false,
         isStreaming: false,
         shares: [],
         joinedAt: '2026-08-16T12:00:00Z',
@@ -50,32 +52,50 @@ function snapshot(roomId: string, participants: VoiceParticipantSnapshot[]): Voi
 }
 
 const VOICE_CHANNEL = {
-    id: 'chan-1', guildId: 'guild-1', name: 'General', type: ChannelType.Voice,
+    id: 'chan-1',
+    guildId: 'guild-1',
+    name: 'General',
+    type: ChannelType.Voice,
 } as ChannelDto;
 
 function setup(options: {inChannel?: boolean; ownProfileLoaded?: boolean} = {}) {
     const ws: Record<string, Subject<unknown>> = {};
     for (const name of [
-        'userJoinedVoiceObservable', 'userLeftVoiceObservable', 'guildParticipantJoinedObservable',
-        'guildTrackPublishedObservable', 'guildTrackClosedObservable', 'voiceMuteChangedObservable',
-        'voiceDeafenChangedObservable', 'voiceCameraChangedObservable',
-        'voiceScreenShareStartedObservable', 'voiceScreenShareStoppedObservable',
-        'movedToChannelObservable', 'kickedByOtherDeviceObservable',
-        'voiceSnapshotObservable', 'voiceResyncObservable',
-    ]) ws[name] = new Subject();
+        'userJoinedVoiceObservable',
+        'userLeftVoiceObservable',
+        'guildParticipantJoinedObservable',
+        'guildTrackPublishedObservable',
+        'guildTrackClosedObservable',
+        'voiceMuteChangedObservable',
+        'voiceDeafenChangedObservable',
+        'voiceCameraChangedObservable',
+        'voiceScreenShareStartedObservable',
+        'voiceScreenShareStoppedObservable',
+        'movedToChannelObservable',
+        'kickedByOtherDeviceObservable',
+        'voiceSnapshotObservable',
+        'voiceResyncObservable',
+    ])
+        ws[name] = new Subject();
 
     const wsCalls: Record<string, ReturnType<typeof vi.fn>> = {};
     for (const name of [
-        'invokeVoiceMuteChanged', 'invokeVoiceDeafenChanged', 'invokeVoiceCameraChanged',
-        'invokeVoiceScreenShareStarted', 'invokeVoiceScreenShareStopped', 'invokeVoiceHeartbeat',
-    ]) wsCalls[name] = vi.fn();
+        'invokeVoiceMuteChanged',
+        'invokeVoiceDeafenChanged',
+        'invokeVoiceCameraChanged',
+        'invokeVoiceScreenShareStarted',
+        'invokeVoiceScreenShareStopped',
+        'invokeVoiceHeartbeat',
+    ])
+        wsCalls[name] = vi.fn();
 
     // The profile cache as a signal, so a test can land a profile *after* the roster was built -
     // which is the whole shape of this bug.
     const profiles = signal<Record<string, CachedProfile>>({});
     const resolveByUserId = vi.fn();
     const ownProfile = signal<{userId: string; userName?: string} | undefined>(
-        options.ownProfileLoaded === false ? undefined : {userId: 'me'});
+        options.ownProfileLoaded === false ? undefined : {userId: 'me'},
+    );
 
     const guildVoice = {
         join: vi.fn((_g: string, channelId: string) => of(snapshot(channelId, []))),
@@ -129,7 +149,10 @@ function setup(options: {inChannel?: boolean; ownProfileLoaded?: boolean} = {}) 
                 provide: VoiceEngineService,
                 useValue: {speaking: () => false, remoteLevels: () => new Map(), setMute: vi.fn()},
             },
-            {provide: ToastService, useValue: {info: vi.fn(), success: vi.fn(), error: vi.fn(), httpError: vi.fn()}},
+            {
+                provide: ToastService,
+                useValue: {info: vi.fn(), success: vi.fn(), error: vi.fn(), httpError: vi.fn()},
+            },
             {provide: TranslateService, useValue: {instant: (key: string) => key}},
             {provide: EntitlementStore, useValue: {ladder: () => undefined, ensureLoaded: () => void 0}},
         ],

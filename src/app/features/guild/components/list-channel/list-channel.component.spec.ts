@@ -53,12 +53,14 @@ function itemFixture(id: string, overrides: Partial<ListItem> = {}): ListItem {
 
 type UpdateSpy = (channelId: string, itemId: string, dto: Record<string, unknown>) => Promise<boolean>;
 
-function setup(opts: {
-    features?: string;
-    items?: ListItem[];
-    rolePermissions?: string;
-    updateItem?: UpdateSpy;
-} = {}) {
+function setup(
+    opts: {
+        features?: string;
+        items?: ListItem[];
+        rolePermissions?: string;
+        updateItem?: UpdateSpy;
+    } = {},
+) {
     const guild = {
         id: 'g1',
         ownerId: 'someone-else',
@@ -73,10 +75,8 @@ function setup(opts: {
             loadFailed: false,
             forbidden: false,
         }),
-        ensureLoaded: () => {
-        },
-        reload: () => {
-        },
+        ensureLoaded: () => {},
+        reload: () => {},
         setChecked: () => Promise.resolve(true),
         addItem: () => Promise.resolve(true),
         updateItem: opts.updateItem ?? (() => Promise.resolve(true)),
@@ -99,12 +99,13 @@ function setup(opts: {
             {
                 provide: GuildService,
                 useValue: {
-                    getOwnMember: () => of({
-                        permissions: opts.rolePermissions ?? 'ViewChannel',
-                        // Both masks get the same names; each parser keeps only the ones it defines.
-                        modulePermissions: opts.rolePermissions ?? 'ViewChannel',
-                        roleMembers: [],
-                    }),
+                    getOwnMember: () =>
+                        of({
+                            permissions: opts.rolePermissions ?? 'ViewChannel',
+                            // Both masks get the same names; each parser keeps only the ones it defines.
+                            modulePermissions: opts.rolePermissions ?? 'ViewChannel',
+                            roleMembers: [],
+                        }),
                 },
             },
         ],
@@ -170,7 +171,7 @@ describe('ListChannelComponent', () => {
         const fixture = setup({rolePermissions: 'ViewChannel,ManageLists', items: [row], updateItem});
         const api = fixture.componentInstance as unknown as {
             startEdit(item: ListItem): void;
-            editQuantity: { set(v: string): void };
+            editQuantity: {set(v: string): void};
             saveEdit(item: ListItem): Promise<void>;
         };
 

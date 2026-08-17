@@ -7,9 +7,7 @@ import {EmbedCardComponent} from './embed-card.component';
 import {EmbedFlags, MessageEmbed} from '../../../../../../dtos/response/message.dto';
 import {LinkOpener} from '../../../../../../platform/ports/link-opener.port';
 import {ApiConfigService} from '../../../../../../services/api-config.service';
-import {
-    WikiDeepLinkService,
-} from '../../../../../guild/components/wiki/wiki-share/wiki-deep-link.service';
+import {WikiDeepLinkService} from '../../../../../guild/components/wiki/wiki-share/wiki-deep-link.service';
 import {ProfileService} from '../../../../../../services/profile.service';
 import {VoiceChannelService} from '../../../../../../services/voice-channel.service';
 import {VoiceRingStateService} from '../../../../../../services/voice-ring-state.service';

@@ -87,7 +87,8 @@ export class ListChannelComponent {
 
     /** The rows actually drawn, after the local hide-done filter. */
     protected readonly visibleItems = computed(() =>
-        this.hideChecked() ? this.items().filter(item => !item.isChecked) : this.items());
+        this.hideChecked() ? this.items().filter(item => !item.isChecked) : this.items(),
+    );
 
     /** Rows grouped by their free-text `section`, ungrouped first, then in first-appearance order (list order); grouping is presentation only, every index handed to a reorder is into the flat list. */
     protected readonly sections = computed<ListSection[]>(() => {
@@ -126,7 +127,9 @@ export class ListChannelComponent {
 
     private readonly ownUserId = computed(() => this.profileService.ownProfile()?.userId ?? null);
 
-    private readonly abilities = computed(() => guildAbilities(this.ownMember(), this.guild(), this.ownUserId()));
+    private readonly abilities = computed(() =>
+        guildAbilities(this.ownMember(), this.guild(), this.ownUserId()),
+    );
 
     private can = (permission: bigint): boolean => this.abilities().canModule(permission);
 
@@ -145,8 +148,11 @@ export class ListChannelComponent {
 
         effect(() => {
             const guildId = this.channel().guildId;
-            untracked(() => this.guildService.getOwnMember(guildId)
-                .subscribe({next: m => this.ownMember.set(m), error: () => this.ownMember.set(null)}));
+            untracked(() =>
+                this.guildService
+                    .getOwnMember(guildId)
+                    .subscribe({next: m => this.ownMember.set(m), error: () => this.ownMember.set(null)}),
+            );
         });
     }
 

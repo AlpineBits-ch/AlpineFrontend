@@ -12,16 +12,19 @@ function load(): AudioSettingsService {
 describe('AudioSettingsService migration', () => {
     let restoreStorage: () => void;
 
-    beforeEach(() => restoreStorage = installMemoryStorage());
+    beforeEach(() => (restoreStorage = installMemoryStorage()));
     afterEach(() => restoreStorage());
 
     it('drops the removed bitrate keys', () => {
-        localStorage.setItem(KEY, JSON.stringify({
-            audioBitrate: 320,
-            screenAudioBitrate: 510,
-            videoBitrate: 8000,
-            screenVideoBitrate: 15000,
-        }));
+        localStorage.setItem(
+            KEY,
+            JSON.stringify({
+                audioBitrate: 320,
+                screenAudioBitrate: 510,
+                videoBitrate: 8000,
+                screenVideoBitrate: 15000,
+            }),
+        );
         const settings = load().settings() as unknown as Record<string, unknown>;
         expect(settings['audioBitrate']).toBeUndefined();
         expect(settings['screenAudioBitrate']).toBeUndefined();
@@ -64,7 +67,10 @@ describe('AudioSettingsService migration', () => {
     });
 
     it('keeps unrelated settings intact', () => {
-        localStorage.setItem(KEY, JSON.stringify({micId: 'mic-1', inputMode: 'push-to-talk', vadStrength: 0.5}));
+        localStorage.setItem(
+            KEY,
+            JSON.stringify({micId: 'mic-1', inputMode: 'push-to-talk', vadStrength: 0.5}),
+        );
         const settings = load().settings();
         expect(settings.micId).toBe('mic-1');
         expect(settings.inputMode).toBe('push-to-talk');
@@ -90,7 +96,7 @@ describe('AudioSettingsService migration', () => {
 describe('AudioSettingsService.buildAudioConstraint', () => {
     let restoreStorage: () => void;
 
-    beforeEach(() => restoreStorage = installMemoryStorage());
+    beforeEach(() => (restoreStorage = installMemoryStorage()));
     afterEach(() => restoreStorage());
 
     it('enables the browser filter only in standard mode', async () => {

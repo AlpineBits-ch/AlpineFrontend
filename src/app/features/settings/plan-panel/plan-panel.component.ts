@@ -48,8 +48,10 @@ export class PlanPanelComponent {
     protected readonly withheldModules = computed(() => {
         const guildId = this.guildId();
         if (!guildId) return [];
-        return (this.entitlements.features(guildId)?.withheldByPlan ?? [])
-            .map(module => ({module, labelKey: guildFeatureLabelKey(module)}));
+        return (this.entitlements.features(guildId)?.withheldByPlan ?? []).map(module => ({
+            module,
+            labelKey: guildFeatureLabelKey(module),
+        }));
     });
 
     private readonly guildId = computed(() => {

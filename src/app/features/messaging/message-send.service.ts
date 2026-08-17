@@ -56,17 +56,19 @@ export class MessageSendService {
         if (generation === null) {
             // The monotonic floor outranks anything the server says: a context this device has ever
             // held a group for stays encrypted here, and the right answer is to send nothing.
-            if (await this.mls.getEncryptionFloor(contextId) !== null) {
+            if ((await this.mls.getEncryptionFloor(contextId)) !== null) {
                 throw new EncryptionUnavailableError(contextId);
             }
-            return firstValueFrom(this.messaging.createMessage({
-                content: text,
-                channelId: target.channelId,
-                conversationId: target.conversationId,
-                attachments: [],
-                inReplyTo: undefined,
-                mentions: [],
-            }));
+            return firstValueFrom(
+                this.messaging.createMessage({
+                    content: text,
+                    channelId: target.channelId,
+                    conversationId: target.conversationId,
+                    attachments: [],
+                    inReplyTo: undefined,
+                    mentions: [],
+                }),
+            );
         }
 
         const keyHandle = this.mls.keyHandle();
@@ -74,28 +76,35 @@ export class MessageSendService {
         if (!keyHandle || !groupId) throw new EncryptionUnavailableError(contextId);
 
         const {ciphertext, epoch} = await firstValueFrom(
-            this.mls.sendMessage(groupId, keyHandle, b64Content));
+            this.mls.sendMessage(groupId, keyHandle, b64Content),
+        );
 
-        const confirmed = await firstValueFrom(this.messaging.createMessage({
-            content: ciphertext,
-            channelId: target.channelId,
-            conversationId: target.conversationId,
-            attachments: [],
-            inReplyTo: undefined,
-            mentions: [],
-            encryptionState: MessageEncryptionState.Encrypted,
-            mlsEpoch: epoch,
-            mlsGeneration: generation,
-            senderDeviceId: await this.mls.getOrCreateDeviceIdentifier(),
-        }));
+        const confirmed = await firstValueFrom(
+            this.messaging.createMessage({
+                content: ciphertext,
+                channelId: target.channelId,
+                conversationId: target.conversationId,
+                attachments: [],
+                inReplyTo: undefined,
+                mentions: [],
+                encryptionState: MessageEncryptionState.Encrypted,
+                mlsEpoch: epoch,
+                mlsGeneration: generation,
+                senderDeviceId: await this.mls.getOrCreateDeviceIdentifier(),
+            }),
+        );
 
         // The one moment our own plaintext can still be kept - MLS ratchets forward only, so after
         // this the message we just sent is as unreadable to us as anybody else's. Keyed on the
         // generation this device sealed with rather than on anything the server echoed back. The
         // copy that arrives over the websocket a moment later is decrypted against this cache.
         await this.mls.cacheMessage(
-            contextId, generation, confirmed.id, b64Content,
-            this.profileService.ownProfile()?.userId);
+            contextId,
+            generation,
+            confirmed.id,
+            b64Content,
+            this.profileService.ownProfile()?.userId,
+        );
         return {...confirmed, content: b64Content};
     }
 }

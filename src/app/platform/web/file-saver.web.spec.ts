@@ -36,12 +36,13 @@ function watch() {
         const element = realCreate(tag as 'a');
         if (tag === 'a') {
             const anchor = element as HTMLAnchorElement;
-            anchor.click = () => clicked.push({
-                href: anchor.getAttribute('href') ?? '',
-                download: anchor.download,
-                rel: anchor.rel,
-                connectedAtClick: anchor.isConnected,
-            });
+            anchor.click = () =>
+                clicked.push({
+                    href: anchor.getAttribute('href') ?? '',
+                    download: anchor.download,
+                    rel: anchor.rel,
+                    connectedAtClick: anchor.isConnected,
+                });
         }
         return element;
     });
@@ -59,8 +60,9 @@ describe('WebFileSaver', () => {
         vi.useFakeTimers();
         const dom = watch();
 
-        expect(await new WebFileSaver().save('export.zip', new Uint8Array([1, 2, 3]), 'application/zip'))
-            .toBe(true);
+        expect(
+            await new WebFileSaver().save('export.zip', new Uint8Array([1, 2, 3]), 'application/zip'),
+        ).toBe(true);
 
         expect(dom.clicked).toHaveLength(1);
         expect(dom.clicked[0].download).toBe('export.zip');
@@ -85,7 +87,7 @@ describe('WebFileSaver', () => {
         expect(document.querySelectorAll('a[download]')).toHaveLength(0);
     });
 
-    it('stamps the caller\'s MIME type on the blob', async () => {
+    it("stamps the caller's MIME type on the blob", async () => {
         const dom = watch();
 
         await new WebFileSaver().save('theme.json', '{}', 'application/json');
@@ -145,8 +147,9 @@ describe('WebFileSaver', () => {
     it('offers nothing when the producer fails', async () => {
         const dom = watch();
 
-        await expect(new WebFileSaver().saveLazy('export.zip', () => Promise.reject(new Error('nope'))))
-            .rejects.toThrow('nope');
+        await expect(
+            new WebFileSaver().saveLazy('export.zip', () => Promise.reject(new Error('nope'))),
+        ).rejects.toThrow('nope');
 
         expect(dom.clicked).toEqual([]);
         expect(dom.createObjectURL).not.toHaveBeenCalled();

@@ -67,10 +67,12 @@ export class LegalService {
 
     /** Records acceptance of one document version. The server stamps the time and the IP. */
     accept(documentType: LegalDocumentType, version: string): Observable<void> {
-        return this.http.post<void>(`${this.base}/consents`, {documentType, version}).pipe(
-            tap(() => this.accepted.update(done =>
-                new Set(done).add(LegalService.key(documentType, version)),
-            )),
-        );
+        return this.http
+            .post<void>(`${this.base}/consents`, {documentType, version})
+            .pipe(
+                tap(() =>
+                    this.accepted.update(done => new Set(done).add(LegalService.key(documentType, version))),
+                ),
+            );
     }
 }

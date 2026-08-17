@@ -11,8 +11,9 @@ describe('checkE164', () => {
         expect(normalizeE164('+41 79 123 45 67')).toBe('+41791234567');
         expect(normalizeE164('+41-79-123-45-67')).toBe('+41791234567');
         expect(normalizeE164('+1 (555) 010.4477')).toBe('+15550104477');
-        expect(normalizeE164(`+41${String.fromCharCode(160)}79${String.fromCharCode(160)}1234567`))
-            .toBe('+41791234567');
+        expect(normalizeE164(`+41${String.fromCharCode(160)}79${String.fromCharCode(160)}1234567`)).toBe(
+            '+41791234567',
+        );
     });
 
     it('trims surrounding whitespace', () => {

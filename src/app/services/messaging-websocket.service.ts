@@ -1,20 +1,20 @@
 import {inject, Injectable} from '@angular/core';
-import {NotificationService, NotificationSound} from "./notification.service";
-import {catchError, concatMap, firstValueFrom, from, of, Subject, timeout} from "rxjs";
-import {MessageDto} from "../dtos/response/message.dto";
+import {NotificationService, NotificationSound} from './notification.service';
+import {catchError, concatMap, firstValueFrom, from, of, Subject, timeout} from 'rxjs';
+import {MessageDto} from '../dtos/response/message.dto';
 import {MessageEncryptionState} from '../enums/message-encryption-state.enum';
 import {MessageType} from '../enums/message-type.enum';
-import {AttachmentDto} from "./file.service";
+import {AttachmentDto} from './file.service';
 import {CallStateChangedEvent} from '../dtos/response/ongoing-call.dto';
 import {OnlineStatus} from '../dtos/response/profile.dto';
-import {ProfileService} from "./profile.service";
+import {ProfileService} from './profile.service';
 import {MlsService} from './mls.service';
 import {MlsSyncService} from './mls-sync.service';
 import {MlsHealthService} from './mls-health.service';
 import {ConversationService} from './conversation.service';
-import {fromBase64} from "../helpers/base64.helper";
-import {ConnectionState, RealtimeConnectionService} from "./realtime-connection.service";
-import {PrivacySettingsService} from "./privacy-settings.service";
+import {fromBase64} from '../helpers/base64.helper';
+import {ConnectionState, RealtimeConnectionService} from './realtime-connection.service';
+import {PrivacySettingsService} from './privacy-settings.service';
 
 // Re-exported for existing importers (connection-status, guild-websocket, …).
 export {ConnectionState};
@@ -46,7 +46,6 @@ export interface MessageDeletedEvent {
     conversationId: string | undefined;
     channelId: string | undefined;
 }
-
 
 export interface ConversationRemoved {
     conversationId: string;
@@ -170,9 +169,12 @@ interface MessageCreatedPayload {
 }
 
 /** Normalizes an MLS push. The kind comes from which id the payload carries, never from who is listening. */
-export function toContextEvent(
-    payload: { contextId?: string; conversationId?: string | null; channelId?: string | null; generation: number },
-): MlsContextEvent {
+export function toContextEvent(payload: {
+    contextId?: string;
+    conversationId?: string | null;
+    channelId?: string | null;
+    generation: number;
+}): MlsContextEvent {
     return {
         contextId: payload.contextId ?? payload.conversationId ?? payload.channelId ?? '',
         isChannel: !!payload.channelId,
@@ -197,28 +199,28 @@ export function toJoinRequestEvent(payload: MlsJoinRequestPushPayload): MlsJoinR
     providedIn: 'root',
 })
 export class MessagingWebsocketService {
-    public messageObservable = new Subject<MessageDto>()
-    public messageUpdatedObservable = new Subject<MessageUpdatedEvent>()
-    public messageDeletedObservable = new Subject<MessageDeletedEvent>()
-    public conversationRemovedObservable = new Subject<ConversationRemoved>()
-    public conversationMemberRemovedObservable = new Subject<ConversationMemberRemoved>()
-    public userTypingObservable = new Subject<UserTypingEvent>()
-    public userOnlineObservable = new Subject<string>()
-    public userOfflineObservable = new Subject<string>()
-    public conversationCreatedObservable = new Subject<string>()
+    public messageObservable = new Subject<MessageDto>();
+    public messageUpdatedObservable = new Subject<MessageUpdatedEvent>();
+    public messageDeletedObservable = new Subject<MessageDeletedEvent>();
+    public conversationRemovedObservable = new Subject<ConversationRemoved>();
+    public conversationMemberRemovedObservable = new Subject<ConversationMemberRemoved>();
+    public userTypingObservable = new Subject<UserTypingEvent>();
+    public userOnlineObservable = new Subject<string>();
+    public userOfflineObservable = new Subject<string>();
+    public conversationCreatedObservable = new Subject<string>();
     /** A call in one of our conversations started or ended. Addressed to every member, not just the roster. */
-    public conversationCallStateObservable = new Subject<CallStateChangedEvent>()
-    public welcomeObservable = new Subject<string>()
+    public conversationCallStateObservable = new Subject<CallStateChangedEvent>();
+    public welcomeObservable = new Subject<string>();
     /** A commit advanced a group we are in. Carries no commit bytes by design; see MlsSyncService. */
-    public mlsCommitObservable = new Subject<MlsContextEvent>()
+    public mlsCommitObservable = new Subject<MlsContextEvent>();
     /** Encryption was switched on or off for a context. */
-    public mlsStateChangedObservable = new Subject<MlsContextEvent>()
+    public mlsStateChangedObservable = new Subject<MlsContextEvent>();
     /** A device asked to be admitted to a context, and somebody has to review it. */
-    public mlsJoinRequestObservable = new Subject<MlsJoinRequestEvent>()
-    public reactionAddedObservable = new Subject<ReactionEvent>()
-    public reactionRemovedObservable = new Subject<ReactionEvent>()
-    public messagePinnedObservable = new Subject<MessagePinnedEvent>()
-    public messageUnpinnedObservable = new Subject<MessageUnpinnedEvent>()
+    public mlsJoinRequestObservable = new Subject<MlsJoinRequestEvent>();
+    public reactionAddedObservable = new Subject<ReactionEvent>();
+    public reactionRemovedObservable = new Subject<ReactionEvent>();
+    public messagePinnedObservable = new Subject<MessagePinnedEvent>();
+    public messageUnpinnedObservable = new Subject<MessageUnpinnedEvent>();
     private realtime = inject(RealtimeConnectionService);
     private privacy = inject(PrivacySettingsService);
     private notificationService = inject(NotificationService);
@@ -233,9 +235,7 @@ export class MessagingWebsocketService {
     private readonly notifiedMessageIds = new Set<string>();
 
     constructor() {
-        this._rawMessageCreated$.pipe(
-            concatMap(data => from(this.handleMessageCreated(data))),
-        ).subscribe();
+        this._rawMessageCreated$.pipe(concatMap(data => from(this.handleMessageCreated(data)))).subscribe();
     }
 
     /** Shared connection state: one connection backs every feature. */
@@ -266,35 +266,34 @@ export class MessagingWebsocketService {
         this.realtime.on('conversation.MessageUpdated', async (data: MessageUpdatedEvent) => {
             // Not logged: `content` is the edited body, plaintext, and this console ships in release builds.
             this.messageUpdatedObservable.next(data);
-        })
+        });
 
         this.realtime.on('conversation.MessageDeleted', async (data: MessageDeletedEvent) => {
             this.messageDeletedObservable.next(data);
-        })
+        });
 
         this.realtime.on('conversation.ConversationDeleted', async (data: ConversationRemoved) => {
             console.log('Conversation removed:', data);
             this.conversationRemovedObservable.next(data);
-        })
+        });
         this.realtime.on('conversation.MemberLeft', async (data: ConversationMemberRemoved) => {
             console.log('Conversation member removed:', data);
             this.conversationMemberRemovedObservable.next(data);
-        })
+        });
 
         this.realtime.on('conversation.UserTyping', (data: UserTypingEvent) => {
             this.userTypingObservable.next(data);
-        })
+        });
 
         this.realtime.on('presence.UserOnline', async (str: string) => {
             this.userOnlineObservable.next(str);
             this.profileService.setOnlineStatus(str, OnlineStatus.Online);
-        })
+        });
 
         this.realtime.on('presence.UserOffline', async (str: string) => {
             this.userOfflineObservable.next(str);
             this.profileService.setOnlineStatus(str, OnlineStatus.Offline);
-        })
-
+        });
 
         this.realtime.on('conversation.MessageCreated', (data: MessageCreatedPayload) => {
             this._rawMessageCreated$.next(data);
@@ -365,12 +364,18 @@ export class MessagingWebsocketService {
         const contextId = data.conversationId ?? data.channelId;
 
         // §L.9: a server field must not downgrade a context, so this is checked before the `Encrypted` branch.
-        if (encryptionState !== MessageEncryptionState.Encrypted && contextId
-            && await this.mlsService.getEncryptionFloor(contextId) !== null) {
+        if (
+            encryptionState !== MessageEncryptionState.Encrypted &&
+            contextId &&
+            (await this.mlsService.getEncryptionFloor(contextId)) !== null
+        ) {
             this.mlsHealth.recordFailure(
-                contextId, !!data.channelId, 'downgraded',
-                `message ${data.messageId} claims to be unencrypted in a context this device has `
-                + `encrypted`);
+                contextId,
+                !!data.channelId,
+                'downgraded',
+                `message ${data.messageId} claims to be unencrypted in a context this device has ` +
+                    `encrypted`,
+            );
             undecryptable = true;
         }
 
@@ -383,24 +388,28 @@ export class MessagingWebsocketService {
                 if (!ownUserId || data.authorId === ownUserId) return;
 
                 console.warn(
-                    'Dropping a live message the server labelled as sent by this device but '
-                    + 'attributed to another author - decrypting it instead',
-                    data.messageId, data.authorId);
+                    'Dropping a live message the server labelled as sent by this device but ' +
+                        'attributed to another author - decrypting it instead',
+                    data.messageId,
+                    data.authorId,
+                );
             }
 
             // Decrypt against the generation the message names; whichever group we hold gives silent garbage.
-            const generation = data.mlsGeneration ?? await this.mlsService.getKnownGeneration(contextId);
-            let groupId = generation === null || generation === undefined
-                ? null
-                : await this.mlsService.getGroupId(contextId, generation);
+            const generation = data.mlsGeneration ?? (await this.mlsService.getKnownGeneration(contextId));
+            let groupId =
+                generation === null || generation === undefined
+                    ? null
+                    : await this.mlsService.getGroupId(contextId, generation);
 
             // Not joined yet, most likely a context we were added to while online.
             if (!groupId && this.mlsService.keyHandle()) {
                 try {
                     await this.mlsSync.processPendingWelcomes();
-                    groupId = generation === null || generation === undefined
-                        ? await this.mlsService.getActiveGroupId(contextId)
-                        : await this.mlsService.getGroupId(contextId, generation);
+                    groupId =
+                        generation === null || generation === undefined
+                            ? await this.mlsService.getActiveGroupId(contextId)
+                            : await this.mlsService.getGroupId(contextId, generation);
                 } catch (err) {
                     console.error('Failed to join MLS group on welcome fetch', err);
                 }
@@ -412,7 +421,11 @@ export class MessagingWebsocketService {
             if (groupId) {
                 // Context, generation and the claimed author are part of the key: a bare `messageId` is replayable.
                 plaintext = await this.mlsService.getCachedMessage(
-                    contextId, generation ?? null, data.messageId, data.authorId);
+                    contextId,
+                    generation ?? null,
+                    data.messageId,
+                    data.authorId,
+                );
 
                 if (!plaintext) {
                     // Through the sync service so the decrypt takes the context queue and the roster check.
@@ -426,7 +439,12 @@ export class MessagingWebsocketService {
                     );
                     if (plaintext) {
                         void this.mlsService.cacheMessage(
-                            contextId, generation ?? null, data.messageId, plaintext, data.authorId);
+                            contextId,
+                            generation ?? null,
+                            data.messageId,
+                            plaintext,
+                            data.authorId,
+                        );
                     }
                 }
             } else {
@@ -488,7 +506,7 @@ export class MessagingWebsocketService {
             this.profileService.getByUserId(data.authorId).pipe(
                 timeout(5_000),
                 catchError(() => of(null)),
-            )
+            ),
         );
         await this.notificationService.createNotification({
             title: sender?.userName ?? 'New message',
@@ -510,5 +528,4 @@ export class MessagingWebsocketService {
         }
         return true;
     }
-
 }

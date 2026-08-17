@@ -1,10 +1,5 @@
 import {CryptoEngine} from '../ports/crypto-engine.port';
-import {
-    dispatchVentaCrypto,
-    loadVentaCrypto,
-    VentaCryptoLoader,
-    VentaCryptoModule,
-} from './venta-crypto';
+import {dispatchVentaCrypto, loadVentaCrypto, VentaCryptoLoader, VentaCryptoModule} from './venta-crypto';
 
 /**
  * {@link CryptoEngine} over the `venta-crypto` WASM module.

@@ -1,8 +1,8 @@
 import {inject, Injectable} from '@angular/core';
-import {Observable} from "rxjs";
+import {Observable} from 'rxjs';
 import {RelationshipModel} from '../models/relationship.model';
-import {HttpClient, HttpParams} from "@angular/common/http";
-import {ApiConfigService} from "./api-config.service";
+import {HttpClient, HttpParams} from '@angular/common/http';
+import {ApiConfigService} from './api-config.service';
 
 /**
  * One entry of the caller's block list.
@@ -32,7 +32,6 @@ export const BLOCKED_PAGE_MAX = 100;
     providedIn: 'root',
 })
 export class RelationshipService {
-
     private httpClient = inject(HttpClient);
     private apiConfig = inject(ApiConfigService);
 
@@ -51,7 +50,7 @@ export class RelationshipService {
 
     public createFriendRequest(username: string): Observable<RelationshipModel> {
         return this.httpClient.post<RelationshipModel>(this.base, {
-            username
+            username,
         });
     }
 

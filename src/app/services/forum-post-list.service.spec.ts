@@ -233,7 +233,10 @@ describe('ForumPostListService realtime', () => {
         const {service, ws} = setup();
 
         ws.threadUpdatedObservable.next({
-            guildId: 'g1', parentChannelId: 'never-opened', channelId: 'x', isPinned: true,
+            guildId: 'g1',
+            parentChannelId: 'never-opened',
+            channelId: 'x',
+            isPinned: true,
         });
 
         expect(service.stateFor('never-opened')).toEqual(emptyState);
@@ -269,7 +272,12 @@ describe('ForumPostListService realtime', () => {
 
         // Catching up is the mounting component's job, and only costs a request once.
         service.reloadIfStale('f2');
-        flushPosts(ctrl, [postFixture({id: 'p9', parentChannelId: 'f2'}), postFixture({id: 'new2'})], null, 'f2');
+        flushPosts(
+            ctrl,
+            [postFixture({id: 'p9', parentChannelId: 'f2'}), postFixture({id: 'new2'})],
+            null,
+            'f2',
+        );
         expect(service.stateFor('f2').posts.map(p => p.id)).toEqual(['p9', 'new2']);
         expect(service.stateFor('f2').stale).toBe(false);
 
@@ -309,7 +317,10 @@ describe('ForumPostListService realtime', () => {
         flushPosts(ctrl, [postFixture({id: 'p1'})]);
 
         ws.threadUpdatedObservable.next({
-            guildId: 'g1', parentChannelId: 'f1', channelId: 'p1', isArchived: true,
+            guildId: 'g1',
+            parentChannelId: 'f1',
+            channelId: 'p1',
+            isArchived: true,
         });
 
         expect(service.stateFor('f1').posts).toEqual([]);
@@ -327,7 +338,10 @@ describe('ForumPostListService realtime', () => {
         req.flush({posts: [postFixture({id: 'p1'})], nextCursor: null});
 
         ws.threadUpdatedObservable.next({
-            guildId: 'g1', parentChannelId: 'f1', channelId: 'p1', isArchived: true,
+            guildId: 'g1',
+            parentChannelId: 'f1',
+            channelId: 'p1',
+            isArchived: true,
         });
 
         expect(service.stateFor('f1').posts.map(p => p.id)).toEqual(['p1']);

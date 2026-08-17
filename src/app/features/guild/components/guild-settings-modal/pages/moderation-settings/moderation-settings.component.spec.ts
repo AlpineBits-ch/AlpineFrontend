@@ -49,7 +49,8 @@ function setup(guild: GuildDto = guildFixture()) {
         ],
     });
 
-    const fixture: ComponentFixture<ModerationSettingsComponent> = TestBed.createComponent(ModerationSettingsComponent);
+    const fixture: ComponentFixture<ModerationSettingsComponent> =
+        TestBed.createComponent(ModerationSettingsComponent);
     fixture.componentRef.setInput('guild', guild);
     const component = fixture.componentInstance;
     const ctrl = TestBed.inject(HttpTestingController);

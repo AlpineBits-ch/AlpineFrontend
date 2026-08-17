@@ -1,11 +1,16 @@
 <!-- The module gate comes first and wraps everything: a guild without Lists renders nothing at all, not an empty list and not a refusal. See §13.2. -->
 @if (moduleEnabled()) {
     <div class="flex flex-col h-full bg-app-bg overflow-hidden">
-
         <!-- Header. Same padding, height and safe-area treatment as every other channel view so the shell doesn't jump on navigation and the title clears a notch. -->
         <header class="app-header flex items-center gap-2 px-3 sm:px-5 border-b border-border-subtle shrink-0 bg-app-bg">
-            <p-button (onClick)="navService.mobileNavOpen.set(true)" [text]="true" class="lg:hidden"
-                      icon="pi pi-bars" severity="secondary" size="small"/>
+            <p-button
+                (onClick)="navService.mobileNavOpen.set(true)"
+                [text]="true"
+                class="lg:hidden"
+                icon="pi pi-bars"
+                severity="secondary"
+                size="small"
+            />
 
             <div class="flex items-center gap-2 sm:gap-3 min-w-0">
                 <i [class]="icon()" class="text-text-muted shrink-0"></i>
@@ -19,15 +24,26 @@
 
             <div class="flex items-center gap-1 ml-auto shrink-0">
                 @if (checkedCount() > 0) {
-                    <p-button (onClick)="hideChecked.set(!hideChecked())"
-                              [icon]="hideChecked() ? 'pi pi-eye' : 'pi pi-eye-slash'"
-                              [pTooltip]="(hideChecked() ? 'LIST.SHOW_DONE' : 'LIST.HIDE_DONE') | translate"
-                              [text]="true" severity="secondary" size="small" tooltipPosition="bottom"/>
+                    <p-button
+                        (onClick)="hideChecked.set(!hideChecked())"
+                        [icon]="hideChecked() ? 'pi pi-eye' : 'pi pi-eye-slash'"
+                        [pTooltip]="(hideChecked() ? 'LIST.SHOW_DONE' : 'LIST.HIDE_DONE') | translate"
+                        [text]="true"
+                        severity="secondary"
+                        size="small"
+                        tooltipPosition="bottom"
+                    />
                 }
                 @if (canManage() && checkedCount() > 0) {
-                    <p-button (onClick)="clearChecked()" [pTooltip]="'LIST.CLEAR_DONE' | translate"
-                              [text]="true" icon="pi pi-trash" severity="secondary" size="small"
-                              tooltipPosition="bottom"/>
+                    <p-button
+                        (onClick)="clearChecked()"
+                        [pTooltip]="'LIST.CLEAR_DONE' | translate"
+                        [text]="true"
+                        icon="pi pi-trash"
+                        severity="secondary"
+                        size="small"
+                        tooltipPosition="bottom"
+                    />
                 }
             </div>
         </header>
@@ -35,15 +51,33 @@
         <!-- Composer. Not a message composer: it appends a row, and there is no message history behind it. Hidden outright without AddListItems rather than disabled, so a member who may only tick things off isn't shown an input they can never use. -->
         @if (canAdd() && !forbidden()) {
             <div class="flex items-center gap-2 px-3 sm:px-5 py-2.5 border-b border-border-subtle shrink-0">
-                <input (keydown.enter)="add()" [(ngModel)]="draftText" [disabled]="atCapacity()"
-                       [maxlength]="maxTextLength" [placeholder]="'LIST.ADD_PLACEHOLDER' | translate"
-                       class="flex-1 min-w-0" pInputText type="text"/>
+                <input
+                    (keydown.enter)="add()"
+                    [(ngModel)]="draftText"
+                    [disabled]="atCapacity()"
+                    [maxlength]="maxTextLength"
+                    [placeholder]="'LIST.ADD_PLACEHOLDER' | translate"
+                    class="flex-1 min-w-0"
+                    pInputText
+                    type="text"
+                />
                 <!-- Free text, and sized for "2 packs" rather than for a number. -->
-                <input (keydown.enter)="add()" [(ngModel)]="draftQuantity" [disabled]="atCapacity()"
-                       [placeholder]="'LIST.QUANTITY_PLACEHOLDER' | translate"
-                       class="w-20 sm:w-28 shrink-0" pInputText type="text"/>
-                <p-button (onClick)="add()" [disabled]="!draftText().trim() || adding() || atCapacity()"
-                          icon="pi pi-plus" severity="primary" size="small"/>
+                <input
+                    (keydown.enter)="add()"
+                    [(ngModel)]="draftQuantity"
+                    [disabled]="atCapacity()"
+                    [placeholder]="'LIST.QUANTITY_PLACEHOLDER' | translate"
+                    class="w-20 sm:w-28 shrink-0"
+                    pInputText
+                    type="text"
+                />
+                <p-button
+                    (onClick)="add()"
+                    [disabled]="!draftText().trim() || adding() || atCapacity()"
+                    icon="pi pi-plus"
+                    severity="primary"
+                    size="small"
+                />
             </div>
 
             @if (atCapacity()) {
@@ -55,7 +89,6 @@
 
         <!-- Body -->
         <div class="flex-1 min-h-0 overflow-y-auto thin-scrollbar px-3 sm:px-5 py-3">
-
             @if (forbidden()) {
                 <!-- Only reachable once the module is known to be on, so this really is about roles. -->
                 <div class="flex flex-col items-center justify-center h-full gap-2 text-center">
@@ -65,8 +98,7 @@
             } @else if (loadFailed()) {
                 <div class="flex flex-col items-center justify-center h-full gap-3 text-center">
                     <p class="text-[0.8125rem] text-text-secondary m-0">{{ 'LIST.LOAD_ERROR' | translate }}</p>
-                    <p-button (onClick)="retry()" [label]="'LIST.RETRY' | translate" severity="secondary"
-                              size="small"/>
+                    <p-button (onClick)="retry()" [label]="'LIST.RETRY' | translate" severity="secondary" size="small" />
                 </div>
             } @else if (!hasLoaded() && loading()) {
                 <div class="flex items-center justify-center h-full">
@@ -91,55 +123,75 @@
                     }
 
                     @for (item of section.items; track item.id) {
-                        <div (dragend)="onDragEnd()"
-                             (dragover)="onDragOver($event, item)"
-                             (dragstart)="onDragStart(item)"
-                             (drop)="onDrop(item)"
-                             [attr.draggable]="canReorder() && editingId() !== item.id"
-                             [class.bg-hover]="dragOverIndex() === items().indexOf(item)"
-                             [class.opacity-40]="dragIndex() === items().indexOf(item)"
-                             class="group flex items-start gap-2.5 px-2 py-2 rounded-lg hover:bg-hover transition-colors">
-
+                        <div
+                            (dragend)="onDragEnd()"
+                            (dragover)="onDragOver($event, item)"
+                            (dragstart)="onDragStart(item)"
+                            (drop)="onDrop(item)"
+                            [attr.draggable]="canReorder() && editingId() !== item.id"
+                            [class.bg-hover]="dragOverIndex() === items().indexOf(item)"
+                            [class.opacity-40]="dragIndex() === items().indexOf(item)"
+                            class="group flex items-start gap-2.5 px-2 py-2 rounded-lg hover:bg-hover transition-colors"
+                        >
                             <!-- Absolute, not a toggle: the checkbox reports the state it now has and that value is sent, so the echo can't bounce the row back. -->
-                            <p-checkbox (ngModelChange)="setChecked(item, $event)" [binary]="true"
-                                        [disabled]="!canCheck()" [ngModel]="item.isChecked"
-                                        class="mt-0.5 shrink-0"/>
+                            <p-checkbox
+                                (ngModelChange)="setChecked(item, $event)"
+                                [binary]="true"
+                                [disabled]="!canCheck()"
+                                [ngModel]="item.isChecked"
+                                class="mt-0.5 shrink-0"
+                            />
 
                             @if (editingId() === item.id) {
                                 <div class="flex items-center gap-2 flex-1 min-w-0">
-                                    <input (keydown.enter)="saveEdit(item)" (keydown.escape)="cancelEdit()"
-                                           [(ngModel)]="editText" [maxlength]="maxTextLength"
-                                           class="flex-1 min-w-0" pInputText type="text"/>
-                                    <input (keydown.enter)="saveEdit(item)" (keydown.escape)="cancelEdit()"
-                                           [(ngModel)]="editQuantity"
-                                           [placeholder]="'LIST.QUANTITY_PLACEHOLDER' | translate"
-                                           class="w-20 sm:w-28 shrink-0" pInputText type="text"/>
-                                    <p-button (onClick)="saveEdit(item)" [text]="true" icon="pi pi-check"
-                                              severity="primary" size="small"/>
-                                    <p-button (onClick)="cancelEdit()" [text]="true" icon="pi pi-times"
-                                              severity="secondary" size="small"/>
+                                    <input
+                                        (keydown.enter)="saveEdit(item)"
+                                        (keydown.escape)="cancelEdit()"
+                                        [(ngModel)]="editText"
+                                        [maxlength]="maxTextLength"
+                                        class="flex-1 min-w-0"
+                                        pInputText
+                                        type="text"
+                                    />
+                                    <input
+                                        (keydown.enter)="saveEdit(item)"
+                                        (keydown.escape)="cancelEdit()"
+                                        [(ngModel)]="editQuantity"
+                                        [placeholder]="'LIST.QUANTITY_PLACEHOLDER' | translate"
+                                        class="w-20 sm:w-28 shrink-0"
+                                        pInputText
+                                        type="text"
+                                    />
+                                    <p-button (onClick)="saveEdit(item)" [text]="true" icon="pi pi-check" severity="primary" size="small" />
+                                    <p-button (onClick)="cancelEdit()" [text]="true" icon="pi pi-times" severity="secondary" size="small" />
                                 </div>
                             } @else {
                                 <div class="flex-1 min-w-0">
                                     <div class="flex items-center gap-2 flex-wrap">
-                                        <span [class.line-through]="item.isChecked"
-                                              [class.text-text-muted]="item.isChecked"
-                                              class="text-[0.8125rem] text-text-primary break-words">
+                                        <span
+                                            [class.line-through]="item.isChecked"
+                                            [class.text-text-muted]="item.isChecked"
+                                            class="text-[0.8125rem] text-text-primary break-words"
+                                        >
                                             {{ item.text }}
                                         </span>
 
                                         <!-- Rendered verbatim. Whatever was typed is what it says. -->
                                         @if (item.quantity) {
-                                            <span class="text-[0.6875rem] text-text-secondary px-1.5 py-0.5 rounded bg-card border border-border shrink-0">
+                                            <span
+                                                class="text-[0.6875rem] text-text-secondary px-1.5 py-0.5 rounded bg-card border border-border shrink-0"
+                                            >
                                                 {{ item.quantity }}
                                             </span>
                                         }
 
                                         <!-- Nobody put this on the list; the pantry's restock loop did, when the stock behind it ran low. -->
                                         @if (item.sourcePantryItemId) {
-                                            <span [pTooltip]="'LIST.FROM_PANTRY_TOOLTIP' | translate"
-                                                  class="inline-flex items-center gap-1 text-[0.625rem] font-medium text-brand-dim px-1.5 py-0.5 rounded bg-card border border-border shrink-0"
-                                                  tooltipPosition="top">
+                                            <span
+                                                [pTooltip]="'LIST.FROM_PANTRY_TOOLTIP' | translate"
+                                                class="inline-flex items-center gap-1 text-[0.625rem] font-medium text-brand-dim px-1.5 py-0.5 rounded bg-card border border-border shrink-0"
+                                                tooltipPosition="top"
+                                            >
                                                 <i class="pi pi-box text-[0.625rem]"></i>
                                                 {{ 'LIST.FROM_PANTRY' | translate }}
                                             </span>
@@ -151,14 +203,28 @@
                                     }
                                 </div>
 
-                                <div class="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                                <div
+                                    class="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity"
+                                >
                                     @if (canEdit(item)) {
-                                        <p-button (onClick)="startEdit(item)" [pTooltip]="'LIST.EDIT' | translate"
-                                                  [text]="true" icon="pi pi-pencil" severity="secondary"
-                                                  size="small" tooltipPosition="top"/>
-                                        <p-button (onClick)="remove(item)" [pTooltip]="'LIST.DELETE' | translate"
-                                                  [text]="true" icon="pi pi-trash" severity="secondary"
-                                                  size="small" tooltipPosition="top"/>
+                                        <p-button
+                                            (onClick)="startEdit(item)"
+                                            [pTooltip]="'LIST.EDIT' | translate"
+                                            [text]="true"
+                                            icon="pi pi-pencil"
+                                            severity="secondary"
+                                            size="small"
+                                            tooltipPosition="top"
+                                        />
+                                        <p-button
+                                            (onClick)="remove(item)"
+                                            [pTooltip]="'LIST.DELETE' | translate"
+                                            [text]="true"
+                                            icon="pi pi-trash"
+                                            severity="secondary"
+                                            size="small"
+                                            tooltipPosition="top"
+                                        />
                                     }
                                 </div>
                             }

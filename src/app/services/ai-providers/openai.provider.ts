@@ -36,22 +36,20 @@ const FAST_COMPLETE_MODEL = 'gpt-5-nano';
 export const openaiProvider: AiProvider = {
     ...AI_PROVIDER_META.openai,
 
-    async* draft(req: AiDraftRequest, apiKey: string, model: string, signal: AbortSignal) {
+    async *draft(req: AiDraftRequest, apiKey: string, model: string, signal: AbortSignal) {
         // See the note in anthropic.provider.ts: the user's own key, on the user's own machine.
         const client = new OpenAI({apiKey, dangerouslyAllowBrowser: true});
 
         yield* streamChat(client, model, AI_SYSTEM_PROMPT, buildDraftPrompt(req), signal);
     },
 
-    async* transform(req: AiTransformRequest, apiKey: string, model: string, signal: AbortSignal) {
+    async *transform(req: AiTransformRequest, apiKey: string, model: string, signal: AbortSignal) {
         const client = new OpenAI({apiKey, dangerouslyAllowBrowser: true});
 
-        yield* streamChat(
-            client, model, AI_TRANSFORM_SYSTEM_PROMPT, buildTransformPrompt(req), signal,
-        );
+        yield* streamChat(client, model, AI_TRANSFORM_SYSTEM_PROMPT, buildTransformPrompt(req), signal);
     },
 
-    async* ask(req: AiAskRequest, apiKey: string, model: string, signal: AbortSignal) {
+    async *ask(req: AiAskRequest, apiKey: string, model: string, signal: AbortSignal) {
         const client = new OpenAI({apiKey, dangerouslyAllowBrowser: true});
 
         yield* streamChat(client, model, AI_ASK_SYSTEM_PROMPT, buildAskPrompt(req), signal);
@@ -63,20 +61,23 @@ export const openaiProvider: AiProvider = {
         const client = new OpenAI({apiKey, dangerouslyAllowBrowser: true});
         const fast = pickFastModel(model, FAST_COMPLETE_MODEL);
 
-        const completion = await client.chat.completions.create({
-            model: fast,
-            // Generous for a one-sentence answer because on a reasoning model this budget covers
-            // the hidden reasoning tokens too - set it to the length of the suggestion and the
-            // model can spend the entire allowance thinking and return nothing. `reasoning_effort`
-            // keeps that short, and `sanitizeCompletion` enforces the length the user actually
-            // sees. `stop` is not used: the API rejects it on the newer reasoning models.
-            max_completion_tokens: 256,
-            ...(isReasoningModel(fast) ? {reasoning_effort: 'minimal' as const} : {}),
-            messages: [
-                {role: 'system', content: AI_COMPLETE_SYSTEM_PROMPT},
-                {role: 'user', content: buildCompletePrompt(req)},
-            ],
-        }, {signal});
+        const completion = await client.chat.completions.create(
+            {
+                model: fast,
+                // Generous for a one-sentence answer because on a reasoning model this budget covers
+                // the hidden reasoning tokens too - set it to the length of the suggestion and the
+                // model can spend the entire allowance thinking and return nothing. `reasoning_effort`
+                // keeps that short, and `sanitizeCompletion` enforces the length the user actually
+                // sees. `stop` is not used: the API rejects it on the newer reasoning models.
+                max_completion_tokens: 256,
+                ...(isReasoningModel(fast) ? {reasoning_effort: 'minimal' as const} : {}),
+                messages: [
+                    {role: 'system', content: AI_COMPLETE_SYSTEM_PROMPT},
+                    {role: 'user', content: buildCompletePrompt(req)},
+                ],
+            },
+            {signal},
+        );
 
         return sanitizeCompletion(req.before, completion.choices[0]?.message?.content ?? '');
     },
@@ -89,23 +90,26 @@ export const openaiProvider: AiProvider = {
     ): Promise<AiMetadata> {
         const client = new OpenAI({apiKey, dangerouslyAllowBrowser: true});
 
-        const completion = await client.chat.completions.create({
-            model,
-            // Strict structured output, not `json_object`: the schema is enforced server-side, so
-            // a missing field is a bug on our side rather than a coin flip on the model's.
-            response_format: {
-                type: 'json_schema',
-                json_schema: {
-                    name: 'wiki_page_metadata',
-                    strict: true,
-                    schema: AI_METADATA_SCHEMA,
+        const completion = await client.chat.completions.create(
+            {
+                model,
+                // Strict structured output, not `json_object`: the schema is enforced server-side, so
+                // a missing field is a bug on our side rather than a coin flip on the model's.
+                response_format: {
+                    type: 'json_schema',
+                    json_schema: {
+                        name: 'wiki_page_metadata',
+                        strict: true,
+                        schema: AI_METADATA_SCHEMA,
+                    },
                 },
+                messages: [
+                    {role: 'system', content: AI_METADATA_SYSTEM_PROMPT},
+                    {role: 'user', content: buildMetadataPrompt(req)},
+                ],
             },
-            messages: [
-                {role: 'system', content: AI_METADATA_SYSTEM_PROMPT},
-                {role: 'user', content: buildMetadataPrompt(req)},
-            ],
-        }, {signal});
+            {signal},
+        );
 
         // A refusal comes back in its own field with `content` null, which would otherwise reach
         // the parser as "no JSON object" and read like our bug.
@@ -131,14 +135,17 @@ async function* streamChat(
     user: string,
     signal: AbortSignal,
 ): AsyncIterable<string> {
-    const stream = await client.chat.completions.create({
-        model,
-        stream: true,
-        messages: [
-            {role: 'system', content: system},
-            {role: 'user', content: user},
-        ],
-    }, {signal});
+    const stream = await client.chat.completions.create(
+        {
+            model,
+            stream: true,
+            messages: [
+                {role: 'system', content: system},
+                {role: 'user', content: user},
+            ],
+        },
+        {signal},
+    );
 
     for await (const chunk of stream) {
         const text = chunk.choices[0]?.delta?.content;

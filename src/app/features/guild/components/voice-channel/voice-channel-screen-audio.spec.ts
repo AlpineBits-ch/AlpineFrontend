@@ -82,14 +82,23 @@ function render(options: Options = {}): ComponentFixture<VoiceChannelComponent> 
                     resumePreview: () => void 0,
                 },
             },
-            {provide: NavigationService, useValue: {mobileNavOpen: signal(false), workspace: signal({type: 'home'})}},
+            {
+                provide: NavigationService,
+                useValue: {mobileNavOpen: signal(false), workspace: signal({type: 'home'})},
+            },
             {provide: GuildService, useValue: {getOwnMember: () => of(null)}},
             {provide: OwnMemberRevisionService, useValue: {revision: signal(0)}},
             {provide: GuildVoiceService, useValue: {}},
             // app-call-screen-layout injects the real ShareWatchService unless overridden; its dependency chain (GuildWebsocketService/VoiceWebsocketService -> RealtimeConnectionService -> AuthService -> OAuthService) is otherwise unavailable in this test module.
             {
                 provide: ShareWatchService,
-                useValue: {setWatching: vi.fn(), refresh: vi.fn(), clear: vi.fn(), viewerCount: () => 0, viewersOf: () => []},
+                useValue: {
+                    setWatching: vi.fn(),
+                    refresh: vi.fn(),
+                    clear: vi.fn(),
+                    viewerCount: () => 0,
+                    viewersOf: () => [],
+                },
             },
         ],
     });

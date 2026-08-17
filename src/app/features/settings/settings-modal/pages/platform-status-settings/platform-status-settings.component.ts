@@ -40,8 +40,9 @@ export class PlatformStatusSettingsComponent {
     protected readonly unverified = this.status.unverified;
 
     /** True only once we have an answer and it is "everything is fine". */
-    protected readonly allClear = computed(() =>
-        this.status.summary() !== null && this.status.banner() === null);
+    protected readonly allClear = computed(
+        () => this.status.summary() !== null && this.status.banner() === null,
+    );
 
     /**
      * The status site for whichever server this account is on, derived the same way the support

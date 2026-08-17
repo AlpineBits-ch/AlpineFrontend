@@ -13,7 +13,7 @@ import {UserSettingsService} from '../../services/user-settings.service';
 import {SessionTeardownService} from '../../services/session-teardown.service';
 import {DeviceIdentityService} from '../../services/device-identity.service';
 import {PasswordResetDialogService} from '../password-reset/password-reset.service';
-import {PrimeTemplate} from "primeng/api";
+import {PrimeTemplate} from 'primeng/api';
 
 @Component({
     selector: 'app-email-verification-dialog',
@@ -63,28 +63,31 @@ export class EmailVerificationDialogComponent implements OnInit {
         if (!code || code.length < 6) return;
 
         this.loading.set(true);
-        this.verificationService.verifyCode(email, code).pipe(
-            tap(() => {
-                this.loading.set(false);
-                const credentials = this.verificationService.pendingCredentials();
-                this.verificationService.dismiss();
-                this.onVerified(email, credentials);
-            }),
-            catchError((err) => {
-                this.loading.set(false);
-                if (err?.status === 400) {
-                    // The one refusal this endpoint makes, and it covers wrong code, expired code,
-                    // too many wrong guesses, unknown address and already-verified account alike.
-                    // Nothing here may be narrowed into a statement about whether the address exists.
-                    this.toast.error(this.translate.instant('LOGIN.VERIFY.INVALID_CODE'), {
-                        detail: this.translate.instant('LOGIN.VERIFY.INVALID_CODE_DETAIL')
-                    });
-                } else {
-                    this.toast.httpError(this.translate.instant('LOGIN.VERIFY.FAILED'), err);
-                }
-                return EMPTY;
-            })
-        ).subscribe();
+        this.verificationService
+            .verifyCode(email, code)
+            .pipe(
+                tap(() => {
+                    this.loading.set(false);
+                    const credentials = this.verificationService.pendingCredentials();
+                    this.verificationService.dismiss();
+                    this.onVerified(email, credentials);
+                }),
+                catchError(err => {
+                    this.loading.set(false);
+                    if (err?.status === 400) {
+                        // The one refusal this endpoint makes, and it covers wrong code, expired code,
+                        // too many wrong guesses, unknown address and already-verified account alike.
+                        // Nothing here may be narrowed into a statement about whether the address exists.
+                        this.toast.error(this.translate.instant('LOGIN.VERIFY.INVALID_CODE'), {
+                            detail: this.translate.instant('LOGIN.VERIFY.INVALID_CODE_DETAIL'),
+                        });
+                    } else {
+                        this.toast.httpError(this.translate.instant('LOGIN.VERIFY.FAILED'), err);
+                    }
+                    return EMPTY;
+                }),
+            )
+            .subscribe();
     }
 
     protected resend(): void {
@@ -92,23 +95,26 @@ export class EmailVerificationDialogComponent implements OnInit {
         if (!email) return;
 
         this.resendLoading.set(true);
-        this.verificationService.resendCode(email).pipe(
-            tap(() => {
-                this.resendLoading.set(false);
-                this.toast.success(this.translate.instant('LOGIN.VERIFY.RESENT'), {
-                    detail: this.translate.instant('LOGIN.VERIFY.RESENT_DETAIL')
-                });
-                this.startResendCooldown();
-            }),
-            catchError((err) => {
-                // No status-specific branches: this endpoint answers 202 for every address, existing
-                // or not. Reading "already verified" out of a 400 here would hand back the account
-                // enumeration oracle the uniform response exists to remove.
-                this.resendLoading.set(false);
-                this.toast.httpError(this.translate.instant('LOGIN.VERIFY.RESEND_FAILED'), err);
-                return EMPTY;
-            })
-        ).subscribe();
+        this.verificationService
+            .resendCode(email)
+            .pipe(
+                tap(() => {
+                    this.resendLoading.set(false);
+                    this.toast.success(this.translate.instant('LOGIN.VERIFY.RESENT'), {
+                        detail: this.translate.instant('LOGIN.VERIFY.RESENT_DETAIL'),
+                    });
+                    this.startResendCooldown();
+                }),
+                catchError(err => {
+                    // No status-specific branches: this endpoint answers 202 for every address, existing
+                    // or not. Reading "already verified" out of a 400 here would hand back the account
+                    // enumeration oracle the uniform response exists to remove.
+                    this.resendLoading.set(false);
+                    this.toast.httpError(this.translate.instant('LOGIN.VERIFY.RESEND_FAILED'), err);
+                    return EMPTY;
+                }),
+            )
+            .subscribe();
     }
 
     /** For the user who turns out to already have an account: leave, and sign in instead. */
@@ -127,27 +133,30 @@ export class EmailVerificationDialogComponent implements OnInit {
 
     private onVerified(email: string, credentials: PendingCredentials | null): void {
         if (credentials) {
-            this.authService.login(credentials.loginId, credentials.password).pipe(
-                tap(() => {
-                    this.toast.success(this.translate.instant('LOGIN.VERIFY.VERIFIED'), {
-                        detail: this.translate.instant('LOGIN.VERIFY.VERIFIED_WELCOME')
-                    });
-                    this.userSettings.load();
-                    this.router.navigate(['/overview']);
-                }),
-                catchError(() => {
-                    this.toast.success(this.translate.instant('LOGIN.VERIFY.VERIFIED'), {
-                        detail: this.translate.instant('LOGIN.VERIFY.VERIFIED_SIGN_IN')
-                    });
-                    this.router.navigate(['/authentication']);
-                    return EMPTY;
-                })
-            ).subscribe();
+            this.authService
+                .login(credentials.loginId, credentials.password)
+                .pipe(
+                    tap(() => {
+                        this.toast.success(this.translate.instant('LOGIN.VERIFY.VERIFIED'), {
+                            detail: this.translate.instant('LOGIN.VERIFY.VERIFIED_WELCOME'),
+                        });
+                        this.userSettings.load();
+                        this.router.navigate(['/overview']);
+                    }),
+                    catchError(() => {
+                        this.toast.success(this.translate.instant('LOGIN.VERIFY.VERIFIED'), {
+                            detail: this.translate.instant('LOGIN.VERIFY.VERIFIED_SIGN_IN'),
+                        });
+                        this.router.navigate(['/authentication']);
+                        return EMPTY;
+                    }),
+                )
+                .subscribe();
             return;
         }
 
         this.toast.success(this.translate.instant('LOGIN.VERIFY.VERIFIED'), {
-            detail: this.translate.instant('LOGIN.VERIFY.VERIFIED_CONFIRMED')
+            detail: this.translate.instant('LOGIN.VERIFY.VERIFIED_CONFIRMED'),
         });
 
         if (this.verificationService.postVerifyAction() === 'navigate-login') {

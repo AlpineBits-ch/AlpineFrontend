@@ -27,10 +27,7 @@ beforeAll(() => {
 function render(host: PlatformHost): ComponentFixture<KeybindsSettingsComponent> {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
-        providers: [
-            provideTranslateService(),
-            provideFakePlatform({host}),
-        ],
+        providers: [provideTranslateService(), provideFakePlatform({host})],
     });
 
     const fixture = TestBed.createComponent(KeybindsSettingsComponent);
@@ -62,17 +59,18 @@ describe('KeybindsSettingsComponent global hotkeys', () => {
     it('drops the footnote claim that keys survive the game taking focus', () => {
         const fixture = render('web');
 
-        expect(fixture.nativeElement.textContent)
-            .not.toContain('keep working while the game is focused');
+        expect(fixture.nativeElement.textContent).not.toContain('keep working while the game is focused');
         // The rest of the footnote is host-independent and must survive.
-        expect(fixture.nativeElement.querySelector('[data-testid="keybinds-footnote-web"]')?.textContent)
-            .toContain('Voice Call keys are keyboard-only');
+        expect(
+            fixture.nativeElement.querySelector('[data-testid="keybinds-footnote-web"]')?.textContent,
+        ).toContain('Voice Call keys are keyboard-only');
     });
 
     it('still offers every binding, because a focused key is not a dead one', () => {
         // Nothing here is disabled: the page is useful in a browser for everything that is not
         // proximity voice, and the honest answer for that part is the substitute, not a dead row.
-        expect(render('web').nativeElement.querySelectorAll('button').length)
-            .toBe(render('tauri').nativeElement.querySelectorAll('button').length);
+        expect(render('web').nativeElement.querySelectorAll('button').length).toBe(
+            render('tauri').nativeElement.querySelectorAll('button').length,
+        );
     });
 });

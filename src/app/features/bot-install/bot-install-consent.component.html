@@ -1,5 +1,4 @@
 <div class="flex flex-col gap-4">
-
     @if (state() === 'loading') {
         <div class="flex items-center gap-3">
             <div class="w-14 h-14 rounded-2xl bg-white/[0.06] animate-pulse shrink-0"></div>
@@ -15,18 +14,22 @@
         </div>
     } @else if (state() === 'error') {
         <div class="flex flex-col items-center gap-3 py-8 text-center">
-            <div class="w-12 h-12 rounded-2xl flex items-center justify-center"
-                 style="background: color-mix(in srgb, var(--color-offline) 12%, transparent)">
+            <div
+                class="w-12 h-12 rounded-2xl flex items-center justify-center"
+                style="background: color-mix(in srgb, var(--color-offline) 12%, transparent)"
+            >
                 <i class="pi pi-exclamation-circle text-xl" style="color: var(--color-offline)"></i>
             </div>
             <p class="text-sm font-semibold m-0" style="color: var(--color-text-primary)">Couldn't load bot details</p>
         </div>
     } @else if (info(); as bot) {
         <div class="flex items-start gap-3">
-            <div class="w-14 h-14 rounded-2xl overflow-hidden flex items-center justify-center font-bold text-lg shrink-0"
-                 style="background: color-mix(in srgb, var(--color-brand) 20%, transparent); color: var(--color-brand-dim)">
+            <div
+                class="w-14 h-14 rounded-2xl overflow-hidden flex items-center justify-center font-bold text-lg shrink-0"
+                style="background: color-mix(in srgb, var(--color-brand) 20%, transparent); color: var(--color-brand-dim)"
+            >
                 @if (bot.iconUrl && !iconFailed()) {
-                    <img (error)="iconFailed.set(true)" [alt]="bot.name" [src]="bot.iconUrl" class="w-full h-full object-cover"/>
+                    <img (error)="iconFailed.set(true)" [alt]="bot.name" [src]="bot.iconUrl" class="w-full h-full object-cover" />
                 } @else {
                     {{ bot.name.slice(0, 2).toUpperCase() }}
                 }
@@ -43,7 +46,10 @@
         </div>
 
         @if (clampedAway().length > 0) {
-            <div class="flex items-start gap-2 px-3 py-2 rounded-xl" style="background: color-mix(in srgb, var(--color-connecting) 12%, transparent)">
+            <div
+                class="flex items-start gap-2 px-3 py-2 rounded-xl"
+                style="background: color-mix(in srgb, var(--color-connecting) 12%, transparent)"
+            >
                 <i class="pi pi-info-circle text-sm mt-0.5" style="color: var(--color-connecting)"></i>
                 <p class="text-xs m-0" style="color: var(--color-text-secondary)">
                     This bot also requested {{ clampedAway().length }} permission(s) you can't grant here:
@@ -68,5 +74,4 @@
             }
         </div>
     }
-
 </div>

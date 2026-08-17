@@ -19,8 +19,8 @@ export class RevalidationQueue {
         private readonly concurrency: number,
         private readonly minGapMs: number,
         private readonly now: () => number = () => Date.now(),
-        private readonly delay: (ms: number) => Promise<void> =
-            ms => new Promise(resolve => setTimeout(resolve, ms)),
+        private readonly delay: (ms: number) => Promise<void> = ms =>
+            new Promise(resolve => setTimeout(resolve, ms)),
     ) {}
 
     get pending(): number {

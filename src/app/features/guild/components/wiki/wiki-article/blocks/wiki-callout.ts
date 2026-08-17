@@ -15,10 +15,21 @@ const MARKERS: Record<CalloutVariant, string> = {
 
 /** Everything we are willing to read back, including the markers other tools emit. */
 const ALIASES: Record<string, CalloutVariant> = {
-    NOTE: 'info', INFO: 'info', ABSTRACT: 'info', SUMMARY: 'info',
-    TIP: 'tip', HINT: 'tip', IMPORTANT: 'tip', SUCCESS: 'tip',
-    WARNING: 'warning', ATTENTION: 'warning', ALERT: 'warning',
-    CAUTION: 'danger', DANGER: 'danger', ERROR: 'danger', BUG: 'danger',
+    NOTE: 'info',
+    INFO: 'info',
+    ABSTRACT: 'info',
+    SUMMARY: 'info',
+    TIP: 'tip',
+    HINT: 'tip',
+    IMPORTANT: 'tip',
+    SUCCESS: 'tip',
+    WARNING: 'warning',
+    ATTENTION: 'warning',
+    ALERT: 'warning',
+    CAUTION: 'danger',
+    DANGER: 'danger',
+    ERROR: 'danger',
+    BUG: 'danger',
 };
 
 const ICONS: Record<CalloutVariant, string> = {
@@ -47,15 +58,15 @@ export interface WikiCalloutOptions {
 declare module '@tiptap/core' {
     interface Commands<ReturnType> {
         wikiCallout: {
-            setCallout: (attributes?: { variant?: CalloutVariant }) => ReturnType;
-            toggleCallout: (attributes?: { variant?: CalloutVariant }) => ReturnType;
+            setCallout: (attributes?: {variant?: CalloutVariant}) => ReturnType;
+            toggleCallout: (attributes?: {variant?: CalloutVariant}) => ReturnType;
             unsetCallout: () => ReturnType;
         };
     }
 }
 
 function variantOf(value: unknown): CalloutVariant {
-    return CALLOUT_VARIANTS.includes(value as CalloutVariant) ? value as CalloutVariant : 'info';
+    return CALLOUT_VARIANTS.includes(value as CalloutVariant) ? (value as CalloutVariant) : 'info';
 }
 
 function labelFor(labels: WikiBlockLabels, variant: CalloutVariant): string {
@@ -144,11 +155,16 @@ export const WikiCallout = Node.create<WikiCalloutOptions>({
                 event.preventDefault();
                 const pos = getPos();
                 if (pos === undefined) return;
-                const next = CALLOUT_VARIANTS[(CALLOUT_VARIANTS.indexOf(variant) + 1) % CALLOUT_VARIANTS.length];
-                editor.chain().focus().command(({tr}) => {
-                    tr.setNodeAttribute(pos, 'variant', next);
-                    return true;
-                }).run();
+                const next =
+                    CALLOUT_VARIANTS[(CALLOUT_VARIANTS.indexOf(variant) + 1) % CALLOUT_VARIANTS.length];
+                editor
+                    .chain()
+                    .focus()
+                    .command(({tr}) => {
+                        tr.setNodeAttribute(pos, 'variant', next);
+                        return true;
+                    })
+                    .run();
             });
 
             return {
@@ -221,11 +237,18 @@ export const WikiCallout = Node.create<WikiCalloutOptions>({
 
     addCommands() {
         return {
-            setCallout: (attributes = {}) => ({commands}) =>
-                commands.wrapIn(this.name, {variant: variantOf(attributes.variant)}),
-            toggleCallout: (attributes = {}) => ({commands}) =>
-                commands.toggleWrap(this.name, {variant: variantOf(attributes.variant)}),
-            unsetCallout: () => ({commands}) => commands.lift(this.name),
+            setCallout:
+                (attributes = {}) =>
+                ({commands}) =>
+                    commands.wrapIn(this.name, {variant: variantOf(attributes.variant)}),
+            toggleCallout:
+                (attributes = {}) =>
+                ({commands}) =>
+                    commands.toggleWrap(this.name, {variant: variantOf(attributes.variant)}),
+            unsetCallout:
+                () =>
+                ({commands}) =>
+                    commands.lift(this.name),
         };
     },
 

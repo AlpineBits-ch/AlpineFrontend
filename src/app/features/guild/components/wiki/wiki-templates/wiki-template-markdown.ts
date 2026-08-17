@@ -35,10 +35,7 @@ function renderBlock(block: WikiTemplateBlock, t: TemplateTranslator): string {
     }
 }
 
-function renderTable(
-    block: Extract<WikiTemplateBlock, {kind: 'table'}>,
-    t: TemplateTranslator,
-): string {
+function renderTable(block: Extract<WikiTemplateBlock, {kind: 'table'}>, t: TemplateTranslator): string {
     const width = block.headerKeys.length;
     const header = row(block.headerKeys.map(key => cell(t(key))));
     const rule = row(Array(width).fill('---'));
@@ -56,5 +53,8 @@ function row(cells: readonly string[]): string {
 
 /** A pipe in translated prose ends the cell early and shifts every column after it; a newline ends the table outright. Both are things a translator can introduce without ever seeing a table. */
 function cell(text: string): string {
-    return text.replace(/\s*\n\s*/g, ' ').replace(/\|/g, '\\|').trim();
+    return text
+        .replace(/\s*\n\s*/g, ' ')
+        .replace(/\|/g, '\\|')
+        .trim();
 }

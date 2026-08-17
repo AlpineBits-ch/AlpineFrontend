@@ -73,19 +73,19 @@ const EDITOR_ACTION_LABELS: Record<WikiEditorKeybindId, string> = {
 };
 
 /** The formatting rows, read from whatever the actions are actually bound to right now: built rather than declared, since these are the user's to change. */
-export function wikiFormattingShortcuts(
-    binding: (id: WikiEditorKeybindId) => string | null,
-): WikiShortcut[] {
+export function wikiFormattingShortcuts(binding: (id: WikiEditorKeybindId) => string | null): WikiShortcut[] {
     return WIKI_EDITOR_KEYBINDS.flatMap(action => {
         const id = action.id as WikiEditorKeybindId;
         const token = binding(id);
         if (!token) return [];
-        return [{
-            keys: acceleratorChips(token),
-            labelKey: EDITOR_ACTION_LABELS[id],
-            group: 'formatting' as const,
-            editingOnly: id !== 'wiki-toggle-markdown',
-        }];
+        return [
+            {
+                keys: acceleratorChips(token),
+                labelKey: EDITOR_ACTION_LABELS[id],
+                group: 'formatting' as const,
+                editingOnly: id !== 'wiki-toggle-markdown',
+            },
+        ];
     });
 }
 

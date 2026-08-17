@@ -4,9 +4,10 @@
             <div class="flex items-center justify-between gap-2 mb-2 px-1">
                 <p class="text-[0.625rem] font-semibold text-text-muted uppercase tracking-widest">{{ group.labelKey | translate }}</p>
                 <button
-                        (click)="setGroup(group.perms, groupState(group.perms) !== 'all')"
-                        class="text-[0.625rem] font-medium text-text-muted hover:text-brand-dim transition-colors cursor-pointer border-0 bg-transparent"
-                        type="button">
+                    (click)="setGroup(group.perms, groupState(group.perms) !== 'all')"
+                    class="text-[0.625rem] font-medium text-text-muted hover:text-brand-dim transition-colors cursor-pointer border-0 bg-transparent"
+                    type="button"
+                >
                     {{ (groupState(group.perms) === 'all' ? 'PERM_TOGGLE.CLEAR_GROUP' : 'PERM_TOGGLE.SELECT_GROUP') | translate }}
                 </button>
             </div>
@@ -14,7 +15,7 @@
                 @for (key of group.perms; track key) {
                     <div class="flex items-center justify-between gap-3 px-3 py-2 rounded-xl bg-card/60 hover:bg-hover transition-colors">
                         <span class="text-sm text-text-secondary">{{ label(key) }}</span>
-                        <p-toggleswitch (ngModelChange)="toggle(key)" [ngModel]="has(key)"/>
+                        <p-toggleswitch (ngModelChange)="toggle(key)" [ngModel]="has(key)" />
                     </div>
                 }
             </div>

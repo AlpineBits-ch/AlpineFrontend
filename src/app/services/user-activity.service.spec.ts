@@ -5,7 +5,7 @@ import {ProfileService} from './profile.service';
 import {Activity} from '../models/activity.model';
 import {GuildMemberDto} from '../dtos/response/member.dto';
 
-const ownProfile = signal<{ userId: string } | undefined>(undefined);
+const ownProfile = signal<{userId: string} | undefined>(undefined);
 
 /**
  * Only `ownProfile` is used, and standing in for it avoids dragging `ApiConfigService` and the
@@ -14,10 +14,7 @@ const ownProfile = signal<{ userId: string } | undefined>(undefined);
 function setup(): UserActivityService {
     ownProfile.set({userId: 'usr_self'});
     TestBed.configureTestingModule({
-        providers: [
-            provideZonelessChangeDetection(),
-            {provide: ProfileService, useValue: {ownProfile}},
-        ],
+        providers: [provideZonelessChangeDetection(), {provide: ProfileService, useValue: {ownProfile}}],
     });
     const service = TestBed.inject(UserActivityService);
     // Flushes the sign-out effect's first run while a user is still present. Without it the

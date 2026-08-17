@@ -32,7 +32,7 @@ export class BlockedUsersComponent implements OnInit {
         this.failed.set(false);
         this.relationships.getBlockedUsers(cursor).subscribe({
             next: page => {
-                this.blocked.update(current => cursor ? [...current, ...page.blocked] : page.blocked);
+                this.blocked.update(current => (cursor ? [...current, ...page.blocked] : page.blocked));
                 this.nextCursor.set(page.nextCursor);
                 this.loading.set(false);
             },
@@ -76,7 +76,8 @@ export class BlockedUsersComponent implements OnInit {
 
     private markPending(userId: string, active: boolean): void {
         const next = new Set(this.pending());
-        if (active) next.add(userId); else next.delete(userId);
+        if (active) next.add(userId);
+        else next.delete(userId);
         this.pending.set(next);
     }
 }

@@ -46,9 +46,7 @@ export function pickInviteCandidates(input: InviteCandidateInput): InviteCandida
         }))
         .filter(c => c.isFriend || c.online);
 
-    return candidates
-        .sort(byPriority)
-        .slice(0, input.limit ?? INVITE_CANDIDATE_LIMIT);
+    return candidates.sort(byPriority).slice(0, input.limit ?? INVITE_CANDIDATE_LIMIT);
 }
 
 /** Present in some form. `Hidden` is somebody who asked to read as offline, and is taken at their word. */

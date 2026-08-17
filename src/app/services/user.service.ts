@@ -3,9 +3,9 @@ import {HttpClient, HttpErrorResponse} from '@angular/common/http';
 import {environment} from '../../environments/environment';
 import {catchError, finalize, firstValueFrom, from, map, Observable, of, shareReplay, tap} from 'rxjs';
 import {EncryptedMasterKey, UserDto} from '../dtos/response/UserDto';
-import {MlsService} from "./mls.service";
-import {switchMap} from "rxjs/operators";
-import {ApiConfigService} from "./api-config.service";
+import {MlsService} from './mls.service';
+import {switchMap} from 'rxjs/operators';
+import {ApiConfigService} from './api-config.service';
 
 @Injectable({providedIn: 'root'})
 export class UserService {
@@ -41,7 +41,7 @@ export class UserService {
         if (existing) return existing;
 
         const shared = this.requestSelf().pipe(
-            finalize(() => this.inFlightSelf = null),
+            finalize(() => (this.inFlightSelf = null)),
             shareReplay({bufferSize: 1, refCount: false}),
         );
         this.inFlightSelf = shared;
@@ -77,13 +77,14 @@ export class UserService {
      * exactly the case worth knowing about.</p>
      */
     setPhoneNumber(phoneNumber: string): Observable<string> {
-        return this.httpClient.put<{ phoneNumber: string }>(
-            `${this.apiConfig.baseUrl()}/api/v1/identity/users/self/phone`,
-            {phoneNumber}
-        ).pipe(
-            map(response => response.phoneNumber),
-            tap(stored => this.patchSelf({phoneNumber: stored})),
-        );
+        return this.httpClient
+            .put<{phoneNumber: string}>(`${this.apiConfig.baseUrl()}/api/v1/identity/users/self/phone`, {
+                phoneNumber,
+            })
+            .pipe(
+                map(response => response.phoneNumber),
+                tap(stored => this.patchSelf({phoneNumber: stored})),
+            );
     }
 
     /**
@@ -99,11 +100,9 @@ export class UserService {
      * something this call has to tidy up.</p>
      */
     removePhoneNumber(): Observable<void> {
-        return this.httpClient.delete<void>(
-            `${this.apiConfig.baseUrl()}/api/v1/identity/users/self/phone`
-        ).pipe(
-            tap(() => this.patchSelf({phoneNumber: null})),
-        );
+        return this.httpClient
+            .delete<void>(`${this.apiConfig.baseUrl()}/api/v1/identity/users/self/phone`)
+            .pipe(tap(() => this.patchSelf({phoneNumber: null})));
     }
 
     /**
@@ -114,73 +113,66 @@ export class UserService {
      * race any in-flight edit on another field.</p>
      */
     private patchSelf(patch: Partial<UserDto>): void {
-        this.self.update(current => current ? {...current, ...patch} : current);
+        this.self.update(current => (current ? {...current, ...patch} : current));
     }
 
     verifyPassword(password: string): Observable<boolean> {
-        return this.httpClient.post<unknown>(
-            `${this.apiConfig.baseUrl()}/api/v1/identity/authentication/verify`,
-            {password}
-        ).pipe(
-            map(() => true),
-            catchError(() => of(false))
-        );
+        return this.httpClient
+            .post<unknown>(`${this.apiConfig.baseUrl()}/api/v1/identity/authentication/verify`, {password})
+            .pipe(
+                map(() => true),
+                catchError(() => of(false)),
+            );
     }
 
     uploadEncryptedMasterKey(_payload: EncryptedMasterKey): Observable<void> {
-
         return this.httpClient.post<void>(
             `${this.apiConfig.baseUrl()}/api/v1/identity/users/master`,
-            _payload
+            _payload,
         );
-
     }
 
-    getToGenerateKeyCount(): Observable<{ count: number; needsLastResort: boolean }> {
+    getToGenerateKeyCount(): Observable<{count: number; needsLastResort: boolean}> {
         return from(this.mlsService.getOrCreateDeviceIdentifier()).pipe(
             switchMap(deviceId => {
                 return this.httpClient.get<{
                     count: number;
                     needsLastResort: boolean;
-                }>(`${this.apiConfig.baseUrl()}/api/v1/identity/devices/client/${deviceId}/generate`
-                )
-            })
-        )
+                }>(`${this.apiConfig.baseUrl()}/api/v1/identity/devices/client/${deviceId}/generate`);
+            }),
+        );
     }
 
-    changePassword(currentPassword: string, newPassword: string): Observable<{ code: number }> {
-        return this.httpClient.put(
-            `${this.apiConfig.baseUrl()}/api/v1/identity/users/self/password`,
-            {currentPassword, newPassword},
-            {observe: 'response'}
-        ).pipe(
-            map(res => ({code: res.status})),
-            catchError((err: HttpErrorResponse) => of({code: err.status ?? 500}))
-        );
+    changePassword(currentPassword: string, newPassword: string): Observable<{code: number}> {
+        return this.httpClient
+            .put(
+                `${this.apiConfig.baseUrl()}/api/v1/identity/users/self/password`,
+                {currentPassword, newPassword},
+                {observe: 'response'},
+            )
+            .pipe(
+                map(res => ({code: res.status})),
+                catchError((err: HttpErrorResponse) => of({code: err.status ?? 500})),
+            );
     }
 
     signOutAllOtherDevices(): Observable<void> {
         return this.httpClient.post<void>(
             `${this.apiConfig.baseUrl()}/api/v1/identity/sessions/revoke-others`,
-            {withinSeconds: 3600}
+            {withinSeconds: 3600},
         );
     }
 
     deleteAccount(): Observable<UserDto> {
-        return this.httpClient.delete<{ purgeScheduledAt: string }>(
-            `${this.apiConfig.baseUrl()}/api/v1/identity/users/self`
-        ).pipe(
-            switchMap(() => this.requestSelf())
-        );
+        return this.httpClient
+            .delete<{purgeScheduledAt: string}>(`${this.apiConfig.baseUrl()}/api/v1/identity/users/self`)
+            .pipe(switchMap(() => this.requestSelf()));
     }
 
     cancelDeletion(): Observable<UserDto> {
-        return this.httpClient.post<void>(
-            `${this.apiConfig.baseUrl()}/api/v1/identity/users/self/cancel-deletion`,
-            {}
-        ).pipe(
-            switchMap(() => this.requestSelf())
-        );
+        return this.httpClient
+            .post<void>(`${this.apiConfig.baseUrl()}/api/v1/identity/users/self/cancel-deletion`, {})
+            .pipe(switchMap(() => this.requestSelf()));
     }
 
     public replenishKeyCount(): Observable<void> {
@@ -195,7 +187,9 @@ export class UserService {
             switchMap(deviceId =>
                 this.getToGenerateKeyCount().pipe(
                     switchMap(response =>
-                        from(this.buildKeyPackageUpload(handle, response.count, response.needsLastResort)).pipe(
+                        from(
+                            this.buildKeyPackageUpload(handle, response.count, response.needsLastResort),
+                        ).pipe(
                             switchMap(keyPackages => {
                                 if (keyPackages.length === 0) return of(undefined);
                                 return this.httpClient.post<void>(
@@ -224,16 +218,20 @@ export class UserService {
         handle: string,
         count: number,
         needsLastResort: boolean,
-    ): Promise<{ keyPackage: string; isLastResort?: boolean }[]> {
-        const upload: { keyPackage: string; isLastResort?: boolean }[] = [];
+    ): Promise<{keyPackage: string; isLastResort?: boolean}[]> {
+        const upload: {keyPackage: string; isLastResort?: boolean}[] = [];
 
         if (count > 0) {
-            const packages = await firstValueFrom(this.mlsService.generateAdditionalKeyPackages(handle, count));
+            const packages = await firstValueFrom(
+                this.mlsService.generateAdditionalKeyPackages(handle, count),
+            );
             upload.push(...packages.map(p => ({keyPackage: p.keyPackage})));
         }
 
         if (needsLastResort) {
-            const [lastResort] = await firstValueFrom(this.mlsService.generateAdditionalKeyPackages(handle, 1));
+            const [lastResort] = await firstValueFrom(
+                this.mlsService.generateAdditionalKeyPackages(handle, 1),
+            );
             if (lastResort) upload.push({keyPackage: lastResort.keyPackage, isLastResort: true});
         }
 

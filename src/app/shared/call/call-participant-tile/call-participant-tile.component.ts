@@ -1,4 +1,12 @@
-import {ChangeDetectionStrategy, Component, computed, ElementRef, input, output, viewChild} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    ElementRef,
+    input,
+    output,
+    viewChild,
+} from '@angular/core';
 import {TranslateModule} from '@ngx-translate/core';
 import {CallParticipant, cameraTile} from '../call.types';
 import {WatchScope} from '../../../services/share-watch.service';
@@ -45,7 +53,7 @@ export class CallParticipantTileComponent {
             this.root,
             this.tileScope,
             computed(() => cameraTile(this.participant()).id),
-            computed(() => this.participant().isLocal ? null : this.participant().userId),
+            computed(() => (this.participant().isLocal ? null : this.participant().userId)),
         );
     }
 
@@ -59,7 +67,8 @@ export class CallParticipantTileComponent {
     protected togglePip(): void {
         const video = this.video()?.nativeElement;
         if (!video || !videoPipSupported()) return;
-        if (document.pictureInPictureElement === video) void document.exitPictureInPicture().catch(() => void 0);
+        if (document.pictureInPictureElement === video)
+            void document.exitPictureInPicture().catch(() => void 0);
         else void video.requestPictureInPicture().catch(() => void 0);
     }
 
@@ -71,6 +80,9 @@ export class CallParticipantTileComponent {
      */
     protected toggleFullscreen(): void {
         if (document.fullscreenElement) void document.exitFullscreen().catch(() => void 0);
-        else void this.root().nativeElement.requestFullscreen().catch(() => void 0);
+        else
+            void this.root()
+                .nativeElement.requestFullscreen()
+                .catch(() => void 0);
     }
 }

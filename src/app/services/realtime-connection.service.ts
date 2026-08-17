@@ -67,7 +67,7 @@ const KEEP_ALIVE_INTERVAL_MS = 30_000;
 export class RealtimeConnectionService {
     public readonly connectionState = signal(ConnectionState.Disconnected);
     private hubConnection: signalR.HubConnection | null = null;
-    private pendingHandlers: { event: string; handler: (...args: any[]) => void }[] = [];
+    private pendingHandlers: {event: string; handler: (...args: any[]) => void}[] = [];
     private readonly authService = inject(AuthService);
     private readonly apiConfig = inject(ApiConfigService);
     private readonly deviceIdentity = inject(DeviceIdentityService);

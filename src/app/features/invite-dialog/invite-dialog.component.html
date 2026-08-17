@@ -1,19 +1,21 @@
 <p-dialog
-        (visibleChange)="$event === false && dismiss()"
-        [breakpoints]="{'640px': '95vw'}"
-        [closable]="dialogState() !== 'joining'"
-        [dismissableMask]="dialogState() !== 'joining'"
-        [draggable]="false"
-        [modal]="true"
-        [resizable]="false"
-        [style]="{width: '400px'}"
-        [visible]="visible()"
-        appendTo="body">
-
+    (visibleChange)="$event === false && dismiss()"
+    [breakpoints]="{'640px': '95vw'}"
+    [closable]="dialogState() !== 'joining'"
+    [dismissableMask]="dialogState() !== 'joining'"
+    [draggable]="false"
+    [modal]="true"
+    [resizable]="false"
+    [style]="{width: '400px'}"
+    [visible]="visible()"
+    appendTo="body"
+>
     <ng-template pTemplate="header">
         <div class="flex items-center gap-3">
-            <div class="w-8 h-8 rounded-lg flex items-center justify-center"
-                 style="background: color-mix(in srgb, var(--color-brand) 12%, transparent)">
+            <div
+                class="w-8 h-8 rounded-lg flex items-center justify-center"
+                style="background: color-mix(in srgb, var(--color-brand) 12%, transparent)"
+            >
                 <i class="pi pi-users text-sm" style="color: var(--color-brand-dim)"></i>
             </div>
             <span class="text-base font-semibold" style="color: var(--color-text-primary)">Server Invite</span>
@@ -21,7 +23,6 @@
     </ng-template>
 
     <div class="flex flex-col items-center gap-4 py-2">
-
         @if (dialogState() === 'loading') {
             <div class="w-16 h-16 rounded-2xl bg-white/[0.06] animate-pulse"></div>
             <div class="flex flex-col items-center gap-2">
@@ -30,8 +31,10 @@
             </div>
         } @else if (dialogState() === 'rate-limited') {
             <!-- Not the invalid-invite state. -->
-            <div class="w-16 h-16 rounded-2xl flex items-center justify-center"
-                 style="background: color-mix(in srgb, var(--color-brand) 12%, transparent)">
+            <div
+                class="w-16 h-16 rounded-2xl flex items-center justify-center"
+                style="background: color-mix(in srgb, var(--color-brand) 12%, transparent)"
+            >
                 <i class="pi pi-clock text-2xl" style="color: var(--color-brand-dim)"></i>
             </div>
             <div class="flex flex-col items-center gap-1 text-center">
@@ -41,8 +44,10 @@
                 <p class="text-xs m-0" style="color: var(--color-text-muted)">{{ 'INVITE.RATE_LIMITED_BODY' | translate }}</p>
             </div>
         } @else if (dialogState() === 'error') {
-            <div class="w-16 h-16 rounded-2xl flex items-center justify-center"
-                 style="background: color-mix(in srgb, var(--color-offline) 12%, transparent)">
+            <div
+                class="w-16 h-16 rounded-2xl flex items-center justify-center"
+                style="background: color-mix(in srgb, var(--color-offline) 12%, transparent)"
+            >
                 <i class="pi pi-exclamation-circle text-2xl" style="color: var(--color-offline)"></i>
             </div>
             <div class="flex flex-col items-center gap-1 text-center">
@@ -51,11 +56,12 @@
             </div>
         } @else if (invite(); as inv) {
             <!-- Guild icon -->
-            <div class="w-16 h-16 rounded-2xl overflow-hidden flex items-center justify-center font-bold text-xl shrink-0"
-                 style="background: color-mix(in srgb, var(--color-brand) 20%, transparent); color: var(--color-brand-dim)">
+            <div
+                class="w-16 h-16 rounded-2xl overflow-hidden flex items-center justify-center font-bold text-xl shrink-0"
+                style="background: color-mix(in srgb, var(--color-brand) 20%, transparent); color: var(--color-brand-dim)"
+            >
                 @if (guildIconUrl() && !iconFailed()) {
-                    <img (error)="iconFailed.set(true)" [alt]="inv.guild!.name" [src]="guildIconUrl()"
-                         class="w-full h-full object-cover"/>
+                    <img (error)="iconFailed.set(true)" [alt]="inv.guild!.name" [src]="guildIconUrl()" class="w-full h-full object-cover" />
                 } @else {
                     {{ guildInitials() }}
                 }
@@ -85,7 +91,9 @@
                         <span class="text-[11px] mt-1" style="color: var(--color-offline)">{{ 'INVITE.EXPIRED' | translate }}</span>
                     }
                     @if (inv.temporary && !isExpired() && !isRevoked()) {
-                        <span class="text-[11px] mt-1" style="color: var(--color-text-muted)">{{ 'INVITE.TEMPORARY_WARNING' | translate }}</span>
+                        <span class="text-[11px] mt-1" style="color: var(--color-text-muted)">{{
+                            'INVITE.TEMPORARY_WARNING' | translate
+                        }}</span>
                     }
                 }
             </div>
@@ -129,46 +137,37 @@
                 </div>
             }
         }
-
     </div>
 
     <ng-template pTemplate="footer">
         <div class="flex gap-2 justify-end">
             <p-button
-                    (onClick)="dismiss()"
-                    [disabled]="dialogState() === 'joining'"
-                    [text]="true"
-                    [label]="'GUILD_SETTINGS.INVITES.CANCEL' | translate"
-                    severity="secondary"
-                    size="small"/>
+                (onClick)="dismiss()"
+                [disabled]="dialogState() === 'joining'"
+                [text]="true"
+                [label]="'GUILD_SETTINGS.INVITES.CANCEL' | translate"
+                severity="secondary"
+                size="small"
+            />
             @if (dialogState() === 'rate-limited') {
-                <p-button
-                        (onClick)="load()"
-                        [label]="'INVITE.RETRY' | translate"
-                        icon="pi pi-refresh"
-                        severity="primary"
-                        size="small"/>
+                <p-button (onClick)="load()" [label]="'INVITE.RETRY' | translate" icon="pi pi-refresh" severity="primary" size="small" />
             }
-            @if (dialogState() !== 'error' && dialogState() !== 'blocked'
-                && dialogState() !== 'rate-limited' && !isExpired() && !isRevoked()) {
+            @if (
+                dialogState() !== 'error' && dialogState() !== 'blocked' && dialogState() !== 'rate-limited' && !isExpired() && !isRevoked()
+            ) {
                 @if (dialogState() === 'joined') {
-                    <p-button
-                            [disabled]="true"
-                            [label]="'INVITE.JOINED' | translate"
-                            icon="pi pi-check"
-                            severity="success"
-                            size="small"/>
+                    <p-button [disabled]="true" [label]="'INVITE.JOINED' | translate" icon="pi pi-check" severity="success" size="small" />
                 } @else {
                     <p-button
-                            (onClick)="join()"
-                            [disabled]="dialogState() === 'loading'"
-                            [loading]="dialogState() === 'joining'"
-                            [label]="'INVITE.JOIN' | translate"
-                            severity="primary"
-                            size="small"/>
+                        (onClick)="join()"
+                        [disabled]="dialogState() === 'loading'"
+                        [loading]="dialogState() === 'joining'"
+                        [label]="'INVITE.JOIN' | translate"
+                        severity="primary"
+                        size="small"
+                    />
                 }
             }
         </div>
     </ng-template>
-
 </p-dialog>

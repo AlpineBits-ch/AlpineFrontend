@@ -72,7 +72,15 @@ function promptFixture(overrides: Partial<OnboardingPrompt> = {}): OnboardingPro
         inOnboarding: true,
         position: 0,
         options: [
-            {id: 'onbo_1', title: 'Gaming', description: null, emoji: null, roleIds: ['r1'], channelIds: [], position: 0},
+            {
+                id: 'onbo_1',
+                title: 'Gaming',
+                description: null,
+                emoji: null,
+                roleIds: ['r1'],
+                channelIds: [],
+                position: 0,
+            },
         ],
         ...overrides,
     };
@@ -90,7 +98,8 @@ function setup(guild: GuildDto = guildFixture()) {
         ],
     });
 
-    const fixture: ComponentFixture<OnboardingSettingsComponent> = TestBed.createComponent(OnboardingSettingsComponent);
+    const fixture: ComponentFixture<OnboardingSettingsComponent> =
+        TestBed.createComponent(OnboardingSettingsComponent);
     fixture.componentRef.setInput('guild', guild);
     const component = fixture.componentInstance;
     const ctrl = TestBed.inject(HttpTestingController);
@@ -104,7 +113,11 @@ function flushInitialLoad(ctrl: HttpTestingController, cfg: OnboardingConfig = o
     expect(configReq.request.method).toBe('GET');
     configReq.flush(cfg);
 
-    ctrl.expectOne(`${BASE}/guilds/g1/welcome-screen`).flush({enabled: false, description: null, channels: []});
+    ctrl.expectOne(`${BASE}/guilds/g1/welcome-screen`).flush({
+        enabled: false,
+        description: null,
+        channels: [],
+    });
     ctrl.expectOne(`${BASE}/guilds/g1/members/pending?limit=100&offset=0`).flush([]);
 }
 
@@ -113,12 +126,15 @@ describe('OnboardingSettingsComponent load', () => {
 
     it('populates fields from the loaded config', () => {
         const {component, ctrl} = setup();
-        flushInitialLoad(ctrl, onboardingFixture({
-            enabled: true,
-            rulesText: 'be nice',
-            defaultChannelIds: ['c1'],
-            prompts: [promptFixture()],
-        }));
+        flushInitialLoad(
+            ctrl,
+            onboardingFixture({
+                enabled: true,
+                rulesText: 'be nice',
+                defaultChannelIds: ['c1'],
+                prompts: [promptFixture()],
+            }),
+        );
 
         expect(component['enabled']()).toBe(true);
         expect(component['rulesText']()).toBe('be nice');
@@ -129,12 +145,15 @@ describe('OnboardingSettingsComponent load', () => {
 
     it('sorts prompts by position regardless of the order they arrive in', () => {
         const {component, ctrl} = setup();
-        flushInitialLoad(ctrl, onboardingFixture({
-            prompts: [
-                promptFixture({id: 'onbp_b', position: 1}),
-                promptFixture({id: 'onbp_a', position: 0}),
-            ],
-        }));
+        flushInitialLoad(
+            ctrl,
+            onboardingFixture({
+                prompts: [
+                    promptFixture({id: 'onbp_b', position: 1}),
+                    promptFixture({id: 'onbp_a', position: 0}),
+                ],
+            }),
+        );
 
         expect(component['prompts']().map(p => p.id)).toEqual(['onbp_a', 'onbp_b']);
     });
@@ -184,9 +203,21 @@ describe('OnboardingSettingsComponent save - client-side guard', () => {
         const {component, ctrl} = setup();
         flushInitialLoad(ctrl);
 
-        component['prompts'].set([promptFixture({
-            options: [{id: 'onbo_1', title: 'Nothing', description: null, emoji: null, roleIds: [], channelIds: [], position: 0}],
-        })]);
+        component['prompts'].set([
+            promptFixture({
+                options: [
+                    {
+                        id: 'onbo_1',
+                        title: 'Nothing',
+                        description: null,
+                        emoji: null,
+                        roleIds: [],
+                        channelIds: [],
+                        position: 0,
+                    },
+                ],
+            }),
+        ]);
         component['save']();
 
         expect(component['validationErrors']()).toContain('ONBOARDING_EDIT.ERR_OPTION_EMPTY');
@@ -292,9 +323,15 @@ describe('OnboardingSettingsComponent dirty tracking', () => {
 
     it('reports a prompt reorder and settles on save', () => {
         const {component, ctrl} = setup();
-        flushInitialLoad(ctrl, onboardingFixture({
-            prompts: [promptFixture({id: 'onbp_a', position: 0}), promptFixture({id: 'onbp_b', position: 1})],
-        }));
+        flushInitialLoad(
+            ctrl,
+            onboardingFixture({
+                prompts: [
+                    promptFixture({id: 'onbp_a', position: 0}),
+                    promptFixture({id: 'onbp_b', position: 1}),
+                ],
+            }),
+        );
 
         component['movePrompt'](0, 1);
         expect(component['configDirty']()).toBe(true);

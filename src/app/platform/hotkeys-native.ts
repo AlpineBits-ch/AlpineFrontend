@@ -52,8 +52,15 @@ export interface NativePttCapture {
 
 /** Method names that together mean "this adapter really is the native hook". */
 const HOOK_METHODS: readonly (keyof NativePttHook)[] = [
-    'pttSupported', 'pttSetBinding', 'pttArm', 'pttDisarm',
-    'pttBeginCapture', 'pttCancelCapture', 'pttLabel', 'onPttEdge', 'onPttCapture',
+    'pttSupported',
+    'pttSetBinding',
+    'pttArm',
+    'pttDisarm',
+    'pttBeginCapture',
+    'pttCancelCapture',
+    'pttLabel',
+    'onPttEdge',
+    'onPttCapture',
 ];
 
 /**

@@ -46,8 +46,8 @@ import {TranslateModule, TranslateService} from '@ngx-translate/core';
     ],
     templateUrl: './voice-channel.component.html',
     host: {
-        class: 'flex flex-col h-full overflow-hidden'
-    }
+        class: 'flex flex-col h-full overflow-hidden',
+    },
 })
 export class VoiceChannelComponent {
     readonly channel = input.required<ChannelDto>();
@@ -56,8 +56,8 @@ export class VoiceChannelComponent {
     protected navService = inject(NavigationService);
     protected rustMedia = inject(RustMediaService);
     private translate = inject(TranslateService);
-    protected readonly participants = computed(() =>
-        this.voiceSvc.channelParticipants().get(this.channel().id) ?? [],
+    protected readonly participants = computed(
+        () => this.voiceSvc.channelParticipants().get(this.channel().id) ?? [],
     );
     /** See {@link guildCallParticipants}: the mapping is shared with the app-level mini-player. */
     protected readonly callParticipants = computed((): CallParticipant[] =>
@@ -71,30 +71,28 @@ export class VoiceChannelComponent {
     );
 
     /** True only while this client is actively sharing, so a stale outcome from a finished share cannot leave the notice on screen. */
-    protected readonly screenAudioUnavailable = computed(() =>
-        this.voiceSvc.localState().isScreenSharing
-        && this.rustMedia.screenAudioOutcome() === 'unavailable',
+    protected readonly screenAudioUnavailable = computed(
+        () =>
+            this.voiceSvc.localState().isScreenSharing &&
+            this.rustMedia.screenAudioOutcome() === 'unavailable',
     );
-    protected readonly isJoined = computed(() =>
-        this.voiceSvc.joinedChannelId() === this.channel().id,
-    );
+    protected readonly isJoined = computed(() => this.voiceSvc.joinedChannelId() === this.channel().id);
 
     /** Scoped to this channel: a join running for a different room must not show a spinner on a button nobody pressed. */
-    protected readonly isJoining = computed(() =>
-        this.voiceSvc.pendingJoinId() === this.channel().id,
-    );
+    protected readonly isJoining = computed(() => this.voiceSvc.pendingJoinId() === this.channel().id);
 
     // ── Entitlements ───────────────────────────────────────────────────────────
 
-    protected readonly limitNotices = computed(() =>
-        this.isJoined() ? this.voiceSvc.limits.notices() : []);
+    protected readonly limitNotices = computed(() => (this.isJoined() ? this.voiceSvc.limits.notices() : []));
 
     /** Null while the camera is on regardless of room limits, so a live publish is never stranded behind a disabled stop button. */
     protected readonly cameraBlockedKey = computed(() =>
-        this.blockKey(this.voiceSvc.localState().isCameraOn));
+        this.blockKey(this.voiceSvc.localState().isCameraOn),
+    );
 
     protected readonly shareBlockedKey = computed(() =>
-        this.blockKey(this.voiceSvc.localState().isScreenSharing));
+        this.blockKey(this.voiceSvc.localState().isScreenSharing),
+    );
 
     protected readonly audioOnly = computed(() => this.isJoined() && this.voiceSvc.limits.audioOnly());
 
@@ -106,16 +104,19 @@ export class VoiceChannelComponent {
 
     /** Null when the room has no participant ceiling, so the header falls back to the bare count. */
     protected readonly participantSlots = computed(() =>
-        this.voiceSvc.limits.participantSlots(this.participants().length));
+        this.voiceSvc.limits.participantSlots(this.participants().length),
+    );
 
     private blockKey(alreadyPublishing: boolean): string | null {
         const block = this.voiceSvc.videoBlock(alreadyPublishing);
         return block ? VIDEO_BLOCK_KEYS[block] : null;
     }
     /** Null until joined: watching is a claim only a participant of the channel may make. */
-    protected readonly watchScope = computed((): WatchScope | null => this.isJoined()
-        ? {kind: 'channel', guildId: this.channel().guildId, channelId: this.channel().id}
-        : null);
+    protected readonly watchScope = computed((): WatchScope | null =>
+        this.isJoined()
+            ? {kind: 'channel', guildId: this.channel().guildId, channelId: this.channel().id}
+            : null,
+    );
 
     // ── Ring ────────────────────────────────────────────────────────────────
     protected readonly showRingPicker = signal(false);
@@ -128,8 +129,8 @@ export class VoiceChannelComponent {
 
     /** Falls back to a translated placeholder, never the raw user id: that's an internal identifier with no business in user-facing UI. */
     protected readonly resolveMemberName = (userId: string): string =>
-        this.participants().find(p => p.userId === userId)?.displayName
-        ?? this.translate.instant('CALL.UNKNOWN_VIEWER');
+        this.participants().find(p => p.userId === userId)?.displayName ??
+        this.translate.instant('CALL.UNKNOWN_VIEWER');
 
     /** Keyed by user: the guild `CallScreenShare[]` is one row per participant, so the user identifies the stream here. */
     protected readonly inboundStatsOf = (share: CallScreenShare): StreamStatsSnapshot | null =>
@@ -165,19 +166,23 @@ export class VoiceChannelComponent {
 
     constructor() {
         // Keyed by this channel (not "guild voice") so the mini-player stands down only for the channel actually on screen; see CallStagePresenceService.
-        this.presence.track(computed(() => scopeKey({
-            kind: 'channel',
-            guildId: this.channel().guildId,
-            channelId: this.channel().id,
-        })));
+        this.presence.track(
+            computed(() =>
+                scopeKey({
+                    kind: 'channel',
+                    guildId: this.channel().guildId,
+                    channelId: this.channel().id,
+                }),
+            ),
+        );
 
         effect(() => {
             const guildId = this.channel().guildId;
             // Re-runs when guild.MemberUpdated says our own roles changed; see ownMemberRevision.
             this.ownMemberRevision.revision();
             this.guildSvc.getOwnMember(guildId).subscribe({
-                next: m => this.ownMember.set(m), error: () => {
-                }
+                next: m => this.ownMember.set(m),
+                error: () => {},
             });
         });
     }
@@ -193,7 +198,13 @@ export class VoiceChannelComponent {
             : undefined;
         const x = Math.min(event.clientX, window.innerWidth - 236);
         const y = Math.min(event.clientY, window.innerHeight - 200);
-        this.participantMenu.set({x: Math.max(0, x), y: Math.max(0, y), participant: p, volume, streamVolume});
+        this.participantMenu.set({
+            x: Math.max(0, x),
+            y: Math.max(0, y),
+            participant: p,
+            volume,
+            streamVolume,
+        });
     }
 
     protected onVolumeChange(value: number): void {
@@ -215,9 +226,8 @@ export class VoiceChannelComponent {
         if (!menu) return;
         this.participantMenu.set(null);
         await firstValueFrom(
-            this.guildSvc.kickMemberByUserId(this.channel().guildId, menu.participant.userId)
-        ).catch(() => {
-        });
+            this.guildSvc.kickMemberByUserId(this.channel().guildId, menu.participant.userId),
+        ).catch(() => {});
     }
 
     protected async banParticipant(): Promise<void> {
@@ -225,9 +235,8 @@ export class VoiceChannelComponent {
         if (!menu) return;
         this.participantMenu.set(null);
         await firstValueFrom(
-            this.guildSvc.banMember(this.channel().guildId, {userId: menu.participant.userId})
-        ).catch(() => {
-        });
+            this.guildSvc.banMember(this.channel().guildId, {userId: menu.participant.userId}),
+        ).catch(() => {});
     }
 
     protected async toggleServerDeafen(): Promise<void> {
@@ -238,7 +247,7 @@ export class VoiceChannelComponent {
         this.participantMenu.set({...menu, participant: {...menu.participant, isServerDeafened: newState}});
         this.voiceSvc.setServerDeafened(userId, newState);
         await firstValueFrom(
-            this.guildVoice.serverDeafen(this.channel().guildId, this.channel().id, userId, newState)
+            this.guildVoice.serverDeafen(this.channel().guildId, this.channel().id, userId, newState),
         ).catch(() => {
             this.voiceSvc.setServerDeafened(userId, isServerDeafened ?? false);
         });
@@ -251,12 +260,11 @@ export class VoiceChannelComponent {
     }
 
     protected async joinAndWatch(userId: string): Promise<void> {
-        if (!await this.doJoinChannel()) return;
+        if (!(await this.doJoinChannel())) return;
         const channel = this.channel();
-        this.callFocus.request(
-            scopeKey({kind: 'channel', guildId: channel.guildId, channelId: channel.id}),
-            {userId},
-        );
+        this.callFocus.request(scopeKey({kind: 'channel', guildId: channel.guildId, channelId: channel.id}), {
+            userId,
+        });
     }
 
     private async doJoinChannel(): Promise<boolean> {

@@ -8,7 +8,7 @@ import {ChannelPermissionsComponent} from './pages/channel-permissions/channel-p
 import {ChannelEncryptionComponent} from './pages/channel-encryption/channel-encryption.component';
 import {ForumSettingsComponent} from './pages/forum-settings/forum-settings.component';
 import {GuildService} from '../../../../services/guild.service';
-import {PrimeTemplate} from "primeng/api";
+import {PrimeTemplate} from 'primeng/api';
 import {TranslateModule} from '@ngx-translate/core';
 
 interface NavItem {
@@ -19,7 +19,17 @@ interface NavItem {
 
 @Component({
     selector: 'app-channel-settings-modal',
-    imports: [NgClass, Dialog, Button, ChannelOverviewComponent, ChannelPermissionsComponent, ChannelEncryptionComponent, ForumSettingsComponent, PrimeTemplate, TranslateModule],
+    imports: [
+        NgClass,
+        Dialog,
+        Button,
+        ChannelOverviewComponent,
+        ChannelPermissionsComponent,
+        ChannelEncryptionComponent,
+        ForumSettingsComponent,
+        PrimeTemplate,
+        TranslateModule,
+    ],
     templateUrl: './channel-settings-modal.component.html',
 })
 export class ChannelSettingsModalComponent {

@@ -28,12 +28,14 @@ export class ForumPostRowsComponent {
         return ws.type === 'server' ? ws.guild.channels : [];
     });
 
-    protected readonly posts = computed(() => selectNestedPosts(
-        this.forum().id,
-        this.allChannels(),
-        this.visitedService.postsFor(this.forum().id),
-        id => this.readStateService.getChannelState(id),
-    ));
+    protected readonly posts = computed(() =>
+        selectNestedPosts(
+            this.forum().id,
+            this.allChannels(),
+            this.visitedService.postsFor(this.forum().id),
+            id => this.readStateService.getChannelState(id),
+        ),
+    );
 
     protected stateOf(postId: string) {
         return this.readStateService.getChannelState(postId);

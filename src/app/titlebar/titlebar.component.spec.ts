@@ -40,13 +40,26 @@ beforeAll(() => {
 });
 
 /** Everything the titlebar and the inbox panel it renders read off the service. */
-type InboxSurface = Pick<InboxService,
-    | 'badgeLabel' | 'open'
-    | 'summary' | 'unread' | 'mentions' | 'tasks' | 'channelGlyph'
-    | 'unreadLoading' | 'unreadHasMore' | 'unreadFailed'
-    | 'mentionsLoading' | 'mentionsHasMore' | 'mentionsFailed'
-    | 'tasksLoading' | 'tasksFailed' | 'tasksTruncated'
-    | 'previewsUnavailable'>;
+type InboxSurface = Pick<
+    InboxService,
+    | 'badgeLabel'
+    | 'open'
+    | 'summary'
+    | 'unread'
+    | 'mentions'
+    | 'tasks'
+    | 'channelGlyph'
+    | 'unreadLoading'
+    | 'unreadHasMore'
+    | 'unreadFailed'
+    | 'mentionsLoading'
+    | 'mentionsHasMore'
+    | 'mentionsFailed'
+    | 'tasksLoading'
+    | 'tasksFailed'
+    | 'tasksTruncated'
+    | 'previewsUnavailable'
+>;
 
 /** An inbox holding nothing. */
 function inboxStub(): InboxSurface {

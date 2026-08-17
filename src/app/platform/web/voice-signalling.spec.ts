@@ -36,7 +36,7 @@ const isle: VoiceTarget = {kind: 'isle'};
 const offer = {type: 'offer', sdp: 'v=0'};
 
 describe('dialects', () => {
-    it('puts guild channels and calls on the neutral surface and Isle on Cloudflare\'s', () => {
+    it("puts guild channels and calls on the neutral surface and Isle on Cloudflare's", () => {
         expect(dialectFor(guild)).toBe('neutral');
         expect(dialectFor(call)).toBe('neutral');
         expect(dialectFor(isle)).toBe('cloudflare');
@@ -46,16 +46,16 @@ describe('dialects', () => {
 describe('routes', () => {
     it('matches the guild route the rest of the app uses', () => {
         // Must stay identical to GuildVoiceService.base() and Signalling::voice_base.
-        expect(voiceBase(API, guild))
-            .toBe('https://api.example.test/api/v1/guild/guilds/g1/channels/c1/voice');
+        expect(voiceBase(API, guild)).toBe(
+            'https://api.example.test/api/v1/guild/guilds/g1/channels/c1/voice',
+        );
     });
 
     it('keeps the messaging segment on the call route', () => {
         // The *gateway* path. YARP strips `messaging/` before the request reaches the controller, so
         // deriving this from the controller's own route produces a URL no gateway route matches - which
         // is how the DM path once 404'd without ever reaching the service.
-        expect(voiceBase(API, call))
-            .toBe('https://api.example.test/api/v1/messaging/voice/calls/call-1');
+        expect(voiceBase(API, call)).toBe('https://api.example.test/api/v1/messaging/voice/calls/call-1');
     });
 
     it('does not double a trailing slash on the api base', () => {
@@ -131,8 +131,9 @@ describe('a publish', () => {
     });
 
     it('states the size it is about to encode', () => {
-        expect(publishBody('neutral', 'sess', offer, tracks, {height: 1080, framerate: 60})['video'])
-            .toEqual({height: 1080, framerate: 60});
+        expect(publishBody('neutral', 'sess', offer, tracks, {height: 1080, framerate: 60})['video']).toEqual(
+            {height: 1080, framerate: 60},
+        );
     });
 
     /** An audio-only publish. Nothing about audio is laddered, so there is nothing to state. */
@@ -145,8 +146,9 @@ describe('a publish', () => {
      * field it does not declare would be sent to an SFU rather than to Echo.
      */
     it('states nothing on the Cloudflare surface', () => {
-        expect('video' in publishBody('cloudflare', 'sess', offer, tracks, {height: 1080, framerate: 60}))
-            .toBe(false);
+        expect(
+            'video' in publishBody('cloudflare', 'sess', offer, tracks, {height: 1080, framerate: 60}),
+        ).toBe(false);
     });
 });
 
@@ -157,19 +159,22 @@ describe('a publish', () => {
  */
 describe('a renegotiation', () => {
     it('carries the session and the offer, and nothing else by default', () => {
-        expect(renegotiateBody('neutral', 'sess', offer))
-            .toEqual({mediaSessionId: 'sess', sessionDescription: offer});
-        expect(renegotiateBody('cloudflare', 'sess', offer))
-            .toEqual({cfSessionId: 'sess', sessionDescription: offer});
+        expect(renegotiateBody('neutral', 'sess', offer)).toEqual({
+            mediaSessionId: 'sess',
+            sessionDescription: offer,
+        });
+        expect(renegotiateBody('cloudflare', 'sess', offer)).toEqual({
+            cfSessionId: 'sess',
+            sessionDescription: offer,
+        });
     });
 
     it('re-declares the size when the renegotiation is what changed it', () => {
-        expect(renegotiateBody('neutral', 'sess', offer, {height: 720, framerate: 30}))
-            .toEqual({
-                mediaSessionId: 'sess',
-                sessionDescription: offer,
-                video: {height: 720, framerate: 30},
-            });
+        expect(renegotiateBody('neutral', 'sess', offer, {height: 720, framerate: 30})).toEqual({
+            mediaSessionId: 'sess',
+            sessionDescription: offer,
+            video: {height: 720, framerate: 30},
+        });
     });
 
     /**
@@ -177,15 +182,14 @@ describe('a renegotiation', () => {
      * server would cap a session against a size nothing is sending.
      */
     it('states nothing when an axis is unmeasured', () => {
-        expect('video' in renegotiateBody('neutral', 'sess', offer, {height: 0, framerate: 30}))
-            .toBe(false);
-        expect('video' in renegotiateBody('neutral', 'sess', offer, {height: 720, framerate: 0}))
-            .toBe(false);
+        expect('video' in renegotiateBody('neutral', 'sess', offer, {height: 0, framerate: 30})).toBe(false);
+        expect('video' in renegotiateBody('neutral', 'sess', offer, {height: 720, framerate: 0})).toBe(false);
     });
 
     it('states nothing on the Cloudflare surface', () => {
-        expect('video' in renegotiateBody('cloudflare', 'sess', offer, {height: 720, framerate: 30}))
-            .toBe(false);
+        expect('video' in renegotiateBody('cloudflare', 'sess', offer, {height: 720, framerate: 30})).toBe(
+            false,
+        );
     });
 });
 
@@ -220,10 +224,14 @@ describe('a subscribe', () => {
 
 describe('close tracks', () => {
     it('uses camel-case keys under whichever session name applies', () => {
-        expect(closeTracksBody('neutral', 'sess', ['audio']))
-            .toEqual({mediaSessionId: 'sess', trackNames: ['audio']});
-        expect(closeTracksBody('cloudflare', 'sess', ['audio']))
-            .toEqual({cfSessionId: 'sess', trackNames: ['audio']});
+        expect(closeTracksBody('neutral', 'sess', ['audio'])).toEqual({
+            mediaSessionId: 'sess',
+            trackNames: ['audio'],
+        });
+        expect(closeTracksBody('cloudflare', 'sess', ['audio'])).toEqual({
+            cfSessionId: 'sess',
+            trackNames: ['audio'],
+        });
     });
 });
 
@@ -232,7 +240,7 @@ describe('the session response', () => {
         expect(sessionIdFrom({mediaSessionId: 'abc', backend: 'cloudflare'})).toBe('abc');
     });
 
-    it('still reads Isle\'s', () => {
+    it("still reads Isle's", () => {
         // Isle answers `{cfSessionId}` and no backend. One alias is cheaper than two response types
         // for a field that means the same thing on both.
         expect(sessionIdFrom({cfSessionId: 'abc'})).toBe('abc');
@@ -247,8 +255,9 @@ describe('per-track failures', () => {
     it('finds one on a track that is not the first', () => {
         // A share with audio publishes two tracks at once, and a 200 whose *second* track failed is
         // exactly the shape that leaves a publisher inaudible while every layer reports success.
-        expect(trackError([{mid: '0'}, {errorCode: 'not_found_track_error'}]))
-            .toContain('not_found_track_error');
+        expect(trackError([{mid: '0'}, {errorCode: 'not_found_track_error'}])).toContain(
+            'not_found_track_error',
+        );
     });
 
     it('reads the error the Rust client reads, too', () => {

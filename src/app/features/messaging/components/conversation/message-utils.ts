@@ -14,7 +14,8 @@ export function fileIcon(contentType: string): string {
     if (contentType.startsWith('video/')) return 'pi-video';
     if (contentType.startsWith('audio/')) return 'pi-volume-up';
     if (contentType === 'application/pdf') return 'pi-file-pdf';
-    if (contentType.includes('zip') || contentType.includes('rar') || contentType.includes('tar')) return 'pi-folder';
+    if (contentType.includes('zip') || contentType.includes('rar') || contentType.includes('tar'))
+        return 'pi-folder';
     if (contentType.startsWith('text/')) return 'pi-file-edit';
     return 'pi-file';
 }
@@ -23,10 +24,12 @@ const GROUPING_WINDOW_MS = 20_000;
 
 /** Whether a message renders as centred system copy rather than an authored message. */
 export function isSystemMessageType(type: MessageType): boolean {
-    return type === MessageType.GuildMemberJoin
-        || type === MessageType.GuildMemberLeave
-        || type === MessageType.CallEnded
-        || type === MessageType.CallMissed;
+    return (
+        type === MessageType.GuildMemberJoin ||
+        type === MessageType.GuildMemberLeave ||
+        type === MessageType.CallEnded ||
+        type === MessageType.CallMissed
+    );
 }
 
 export function isGroupedWithPrevious(current: MessageDto, previous: MessageDto | undefined): boolean {

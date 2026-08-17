@@ -91,13 +91,13 @@ describe('the engine error strings this classifier matches on', () => {
         for (const file of files) {
             expect(
                 rustSource(file),
-                `crates/venta-crypto/src/${file} no longer contains:\n  ${literal}\n\n`
-                + `That string is a cross-language contract. MainPageComponent classifies an `
-                + `initStorage failure by matching on it, and only the "state is present and `
-                + `unreadable" class is allowed to wipe this device's MLS state. If the engine `
-                + `message was reworded deliberately, update mls-storage-init.ts *and* re-check the `
-                + `marker lists - a reworded message that stops matching falls through to "unknown", `
-                + `which does not wipe (safe) but leaves genuinely corrupt state unrepaired.`,
+                `crates/venta-crypto/src/${file} no longer contains:\n  ${literal}\n\n` +
+                    `That string is a cross-language contract. MainPageComponent classifies an ` +
+                    `initStorage failure by matching on it, and only the "state is present and ` +
+                    `unreadable" class is allowed to wipe this device's MLS state. If the engine ` +
+                    `message was reworded deliberately, update mls-storage-init.ts *and* re-check the ` +
+                    `marker lists - a reworded message that stops matching falls through to "unknown", ` +
+                    `which does not wipe (safe) but leaves genuinely corrupt state unrepaired.`,
             ).toContain(literal);
         }
     });
@@ -153,12 +153,12 @@ describe('classifyMlsStorageFault', () => {
         }
     });
 
-    it('classifies the wasm adapter\'s pass-through of that refusal the same way', () => {
+    it("classifies the wasm adapter's pass-through of that refusal the same way", () => {
         // `mls-engine.web.spec.ts` asserts this exact wording survives `WebMlsEngine.call`. This is
         // the other end of that assertion: it arrives here and it must not wipe.
         const fault = classifyMlsStorageFault(
-            'MlsError: no state key was supplied - mls_state.json cannot be written unsealed, so '
-            + 'encryption stays unavailable until the keychain produces one',
+            'MlsError: no state key was supplied - mls_state.json cannot be written unsealed, so ' +
+                'encryption stays unavailable until the keychain produces one',
         );
 
         expect(fault.mayWipe).toBe(false);
@@ -205,15 +205,17 @@ describe('classifyMlsStorageFault', () => {
         expect(fault.retryable).toBe(true);
     });
 
-    it('does not wipe for the web adapter\'s unreadable-blob refusal', () => {
+    it("does not wipe for the web adapter's unreadable-blob refusal", () => {
         // `MlsStateUnreadableError` is latched rather than thrown today, so this is defence in depth:
         // it means "this browser could not read the blob", which is the case where overwriting is
         // least recoverable, and it must never read as corruption.
-        const fault = classifyMlsStorageFault(new Error(
-            'This browser holds saved MLS state but could not read it, so no group operation will be '
-            + 'attempted - writing over it would destroy the only copy of this device\'s group keys. '
-            + 'Reload the page. (the connection is closing)',
-        ));
+        const fault = classifyMlsStorageFault(
+            new Error(
+                'This browser holds saved MLS state but could not read it, so no group operation will be ' +
+                    "attempted - writing over it would destroy the only copy of this device's group keys. " +
+                    'Reload the page. (the connection is closing)',
+            ),
+        );
 
         expect(fault.mayWipe).toBe(false);
     });
@@ -222,10 +224,10 @@ describe('classifyMlsStorageFault', () => {
         // Tauri rejects with the bare string, the wasm adapter throws the JsValue string, its own
         // failures are Errors, and MlsTypedError is a plain object.
         expect(classifyMlsStorageFault(MLS_NO_STATE_KEY_ERROR).kind).toBe('state-key-unavailable');
-        expect(classifyMlsStorageFault(new Error(MLS_NO_STATE_KEY_ERROR)).kind)
-            .toBe('state-key-unavailable');
-        expect(classifyMlsStorageFault({kind: 'MlsError', message: MLS_NO_STATE_KEY_ERROR}).kind)
-            .toBe('state-key-unavailable');
+        expect(classifyMlsStorageFault(new Error(MLS_NO_STATE_KEY_ERROR)).kind).toBe('state-key-unavailable');
+        expect(classifyMlsStorageFault({kind: 'MlsError', message: MLS_NO_STATE_KEY_ERROR}).kind).toBe(
+            'state-key-unavailable',
+        );
         expect(classifyMlsStorageFault(null).kind).toBe('unknown');
         expect(classifyMlsStorageFault(undefined).mayWipe).toBe(false);
     });

@@ -6,11 +6,7 @@ import {RelationshipService} from '../services/relationship.service';
 import {ProfileService} from '../services/profile.service';
 import {NotificationService} from '../services/notification.service';
 import {RelationshipEvent, SocialWebsocketService} from '../services/social-websocket.service';
-import {
-    MinimalProfileId,
-    RelationshipModel,
-    RelationshipStatus,
-} from '../models/relationship.model';
+import {MinimalProfileId, RelationshipModel, RelationshipStatus} from '../models/relationship.model';
 
 const OWN_USER_ID = 'usr_me';
 
@@ -18,7 +14,12 @@ function profile(name: string): MinimalProfileId {
     return {id: `prfl_${name}`, userId: `usr_${name}`, userName: name};
 }
 
-function relationship(id: string, owner: MinimalProfileId, target: MinimalProfileId, status: RelationshipStatus): RelationshipModel {
+function relationship(
+    id: string,
+    owner: MinimalProfileId,
+    target: MinimalProfileId,
+    status: RelationshipStatus,
+): RelationshipModel {
     return {id, ownerId: owner.userId, owner, targetId: target.userId, target, status};
 }
 
@@ -36,7 +37,12 @@ function event(overrides: Partial<RelationshipEvent> = {}): RelationshipEvent {
 /** Subject-backed so response timing is controlled and requests can be counted. */
 class FakeRelationshipService {
     listPending: Subject<RelationshipModel[]>[] = [];
-    createResult: RelationshipModel = relationship('rlsp_new', profile('me'), profile('bob'), RelationshipStatus.PendingOutgoing);
+    createResult: RelationshipModel = relationship(
+        'rlsp_new',
+        profile('me'),
+        profile('bob'),
+        RelationshipStatus.PendingOutgoing,
+    );
     accepted: string[] = [];
     rejected: string[] = [];
     revoked: string[] = [];
@@ -72,7 +78,7 @@ class FakeRelationshipService {
 }
 
 class FakeProfileService {
-    readonly ownProfile = signal<{ userId: string } | undefined>({userId: OWN_USER_ID});
+    readonly ownProfile = signal<{userId: string} | undefined>({userId: OWN_USER_ID});
     resolved: string[] = [];
 
     resolveByUserId(userId: string): void {
@@ -81,9 +87,9 @@ class FakeProfileService {
 }
 
 class FakeNotificationService {
-    created: { title: string; message: string }[] = [];
+    created: {title: string; message: string}[] = [];
 
-    createNotification(opts: { title: string; message: string }): Promise<void> {
+    createNotification(opts: {title: string; message: string}): Promise<void> {
         this.created.push({title: opts.title, message: opts.message});
         return Promise.resolve();
     }
@@ -180,7 +186,6 @@ describe('RelationshipStore', () => {
             store.load();
             expect(api.requestCount).toBe(2);
         });
-
     });
 
     describe('realtime events', () => {
@@ -195,7 +200,7 @@ describe('RelationshipStore', () => {
             ]);
         });
 
-        it('FriendRequestCreated stays silent for the initiator\'s own multi-device copy', () => {
+        it("FriendRequestCreated stays silent for the initiator's own multi-device copy", () => {
             const {ws, notifications, store} = setup();
 
             ws.friendRequestCreatedObservable.next(event({status: RelationshipStatus.PendingOutgoing}));
@@ -218,7 +223,7 @@ describe('RelationshipStore', () => {
             ]);
         });
 
-        it('FriendRequestAccepted stays silent on the accepter\'s other devices', () => {
+        it("FriendRequestAccepted stays silent on the accepter's other devices", () => {
             const {ws, notifications, store} = setup();
 
             // This device saw the request as incoming, so we are the one who accepted -
@@ -257,7 +262,7 @@ describe('RelationshipStore', () => {
             expect(notifications.created).toEqual([]);
         });
 
-        it('never refetches - the payload is the recipient\'s own view of the row', () => {
+        it("never refetches - the payload is the recipient's own view of the row", () => {
             const {api, ws, store} = setup();
 
             store.load();
@@ -295,12 +300,14 @@ describe('RelationshipStore', () => {
             const {api, ws, store} = setup();
 
             ws.friendRequestCreatedObservable.next(event({relationshipId: 'rlsp_1'}));
-            ws.friendRequestCreatedObservable.next(event({
-                relationshipId: 'rlsp_2',
-                status: RelationshipStatus.PendingOutgoing,
-                userName: 'bob',
-                userId: 'usr_bob',
-            }));
+            ws.friendRequestCreatedObservable.next(
+                event({
+                    relationshipId: 'rlsp_2',
+                    status: RelationshipStatus.PendingOutgoing,
+                    userName: 'bob',
+                    userId: 'usr_bob',
+                }),
+            );
 
             store.reject('rlsp_1').subscribe();
             store.revoke('rlsp_2').subscribe();
@@ -326,11 +333,15 @@ describe('RelationshipStore', () => {
         const {ws, store} = setup();
 
         ws.friendRequestCreatedObservable.next(event({relationshipId: 'rlsp_1'}));
-        ws.friendRequestCreatedObservable.next(event({
-            relationshipId: 'rlsp_2',
-            status: RelationshipStatus.PendingOutgoing,
-        }));
-        ws.friendRequestAcceptedObservable.next(event({relationshipId: 'rlsp_3', status: RelationshipStatus.Friends}));
+        ws.friendRequestCreatedObservable.next(
+            event({
+                relationshipId: 'rlsp_2',
+                status: RelationshipStatus.PendingOutgoing,
+            }),
+        );
+        ws.friendRequestAcceptedObservable.next(
+            event({relationshipId: 'rlsp_3', status: RelationshipStatus.Friends}),
+        );
 
         expect(store.pendingCount()).toBe(2);
     });

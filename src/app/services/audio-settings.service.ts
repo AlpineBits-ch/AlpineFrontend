@@ -158,9 +158,12 @@ function migrate(stored: Record<string, unknown>): AudioSettings {
     // Test the stored blob, not `next` - DEFAULTS always supplies a mode, so `next` is never
     // missing one and the legacy toggles would be ignored.
     if (stored['noiseSuppressionMode'] === undefined) {
-        next['noiseSuppressionMode'] = stored['enhancedNoiseSuppression'] === true
-            ? 'enhanced'
-            : stored['noiseSuppression'] === false ? 'none' : 'standard';
+        next['noiseSuppressionMode'] =
+            stored['enhancedNoiseSuppression'] === true
+                ? 'enhanced'
+                : stored['noiseSuppression'] === false
+                  ? 'none'
+                  : 'standard';
     }
 
     for (const key of DROPPED_KEYS) delete next[key];

@@ -56,7 +56,10 @@ export class TypingService {
             next.set(conversationId, users);
             return next;
         });
-        this.timeouts.set(key, setTimeout(() => this.clearTyping(conversationId, userId), 4000));
+        this.timeouts.set(
+            key,
+            setTimeout(() => this.clearTyping(conversationId, userId), 4000),
+        );
     }
 
     clearTyping(conversationId: string, userId: string): void {

@@ -1,4 +1,4 @@
 ﻿export enum ConversationEncryption {
     Plain = 'Plain',
-    Encrypted = 'Encrypted'
+    Encrypted = 'Encrypted',
 }

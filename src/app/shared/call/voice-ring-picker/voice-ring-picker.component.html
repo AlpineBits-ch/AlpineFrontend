@@ -1,13 +1,13 @@
 <p-dialog
-        (visibleChange)="visible.set($event)"
-        [breakpoints]="{'640px': '95vw'}"
-        [draggable]="false"
-        [modal]="true"
-        [resizable]="false"
-        [style]="{width: '420px'}"
-        [visible]="visible()"
-        appendTo="body">
-
+    (visibleChange)="visible.set($event)"
+    [breakpoints]="{'640px': '95vw'}"
+    [draggable]="false"
+    [modal]="true"
+    [resizable]="false"
+    [style]="{width: '420px'}"
+    [visible]="visible()"
+    appendTo="body"
+>
     <ng-template pTemplate="header">
         <span class="text-sm font-semibold text-white/85">{{ 'VOICE_RING.PICKER_TITLE' | translate }}</span>
     </ng-template>
@@ -26,8 +26,7 @@
                 <p class="text-xs text-white/70 m-0">{{ 'VOICE_RING.PENDING' | translate }}</p>
                 <p class="text-[11px] text-white/40 m-0">{{ 'VOICE_RING.EXPIRES_IN' | translate: {seconds: out.secondsLeft} }}</p>
             </div>
-            <p-button (onClick)="cancel()" [label]="'VOICE_RING.CANCEL' | translate" [text]="true"
-                      severity="secondary" size="small"/>
+            <p-button (onClick)="cancel()" [label]="'VOICE_RING.CANCEL' | translate" [text]="true" severity="secondary" size="small" />
         </div>
     }
 
@@ -37,12 +36,14 @@
         </div>
     }
 
-    <input [(ngModel)]="query"
-           [attr.aria-label]="'VOICE_RING.SEARCH' | translate"
-           [placeholder]="'VOICE_RING.SEARCH' | translate"
-           class="w-full mb-3"
-           pInputText
-           type="text"/>
+    <input
+        [(ngModel)]="query"
+        [attr.aria-label]="'VOICE_RING.SEARCH' | translate"
+        [placeholder]="'VOICE_RING.SEARCH' | translate"
+        class="w-full mb-3"
+        pInputText
+        type="text"
+    />
 
     @if (loading()) {
         <div class="flex items-center justify-center py-8">
@@ -58,13 +59,13 @@
                           not expire, and it is what somebody means by "invite them" almost every
                           time - so it is the whole width of the row rather than an icon.
                         -->
-                        <button (click)="invite(candidate)"
-                                [disabled]="!!inviting() || invited().has(candidate.userId)"
-                                class="flex flex-1 min-w-0 items-center gap-2.5 rounded-lg px-2 py-1.5 text-left
-                                       hover:bg-hover disabled:opacity-50 cursor-pointer border-0 bg-transparent"
-                                type="button">
-                            <app-avatar [label]="candidate.name.charAt(0).toUpperCase()"
-                                        [userId]="candidate.userId"/>
+                        <button
+                            (click)="invite(candidate)"
+                            [disabled]="!!inviting() || invited().has(candidate.userId)"
+                            class="flex flex-1 min-w-0 items-center gap-2.5 rounded-lg px-2 py-1.5 text-left hover:bg-hover disabled:opacity-50 cursor-pointer border-0 bg-transparent"
+                            type="button"
+                        >
+                            <app-avatar [label]="candidate.name.charAt(0).toUpperCase()" [userId]="candidate.userId" />
                             <span class="flex-1 text-sm text-white/80 truncate">{{ candidate.name }}</span>
 
                             @if (inviting() === candidate.userId) {
@@ -82,15 +83,14 @@
                           a phone and a decline locks you out for hours, so it should never be the
                           thing somebody hits by aiming at a name.
                         -->
-                        <button (click)="send(candidate)"
-                                [attr.aria-label]="'VOICE_RING.RING_THEM' | translate"
-                                [disabled]="ringState.sending() || !!pending()"
-                                [title]="'VOICE_RING.RING_THEM' | translate"
-                                class="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center
-                                       text-white/35 hover:text-brand-dim hover:bg-hover
-                                       disabled:opacity-30 disabled:cursor-default
-                                       cursor-pointer border-0 bg-transparent transition-colors"
-                                type="button">
+                        <button
+                            (click)="send(candidate)"
+                            [attr.aria-label]="'VOICE_RING.RING_THEM' | translate"
+                            [disabled]="ringState.sending() || !!pending()"
+                            [title]="'VOICE_RING.RING_THEM' | translate"
+                            class="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-white/35 hover:text-brand-dim hover:bg-hover disabled:opacity-30 disabled:cursor-default cursor-pointer border-0 bg-transparent transition-colors"
+                            type="button"
+                        >
                             <i class="pi pi-bell text-xs"></i>
                         </button>
                     </div>
@@ -108,7 +108,12 @@
     }
 
     <ng-template pTemplate="footer">
-        <p-button (onClick)="close()" [label]="'GUILD_SETTINGS.INVITES.CANCEL' | translate" [text]="true"
-                  severity="secondary" size="small"/>
+        <p-button
+            (onClick)="close()"
+            [label]="'GUILD_SETTINGS.INVITES.CANCEL' | translate"
+            [text]="true"
+            severity="secondary"
+            size="small"
+        />
     </ng-template>
 </p-dialog>

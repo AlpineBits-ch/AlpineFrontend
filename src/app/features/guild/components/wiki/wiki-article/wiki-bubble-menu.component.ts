@@ -31,7 +31,7 @@ interface SubmenuOption {
 /** English names for the languages we ship locales for: the picker shows the endonym, since that is what a person recognises, but the model is told the English name. Anything added to SUPPORTED_LANGUAGES without an entry here still works; it just sends its own label. */
 const LANGUAGE_NAMES: Record<string, string> = {en: 'English', de: 'German', fr: 'French'};
 
-const TONES: readonly { instruction: string; labelKey: string }[] = [
+const TONES: readonly {instruction: string; labelKey: string}[] = [
     {instruction: 'friendly', labelKey: 'WIKI.AI.TONE.FRIENDLY'},
     {instruction: 'formal', labelKey: 'WIKI.AI.TONE.FORMAL'},
     {instruction: 'concise', labelKey: 'WIKI.AI.TONE.CONCISE'},
@@ -44,19 +44,26 @@ const TONES: readonly { instruction: string; labelKey: string }[] = [
     template: `
         @if (visible()) {
             <!-- mousedown is swallowed for the whole bar: pressing a button otherwise blurs the editor and collapses the selection before the click handler runs. -->
-            <div (mousedown)="$event.preventDefault()"
-                 [style.left.px]="position().left" [style.top.px]="position().top"
-                 class="fixed z-50 -translate-x-1/2 -translate-y-full">
-                <div class="flex items-center gap-0.5 rounded-lg border border-border bg-card
-                            px-1 py-1 shadow-xl">
+            <div
+                (mousedown)="$event.preventDefault()"
+                [style.left.px]="position().left"
+                [style.top.px]="position().top"
+                class="fixed z-50 -translate-x-1/2 -translate-y-full"
+            >
+                <div
+                    class="flex items-center gap-0.5 rounded-lg border border-border bg-card
+                            px-1 py-1 shadow-xl"
+                >
                     @for (action of actions; track action.titleKey) {
-                        <button (click)="apply(action)"
-                                [class.text-brand-dim]="isActive(action)"
-                                [class]="action.className"
-                                [title]="action.titleKey | translate"
-                                class="flex h-7 min-w-7 cursor-pointer items-center justify-center
+                        <button
+                            (click)="apply(action)"
+                            [class.text-brand-dim]="isActive(action)"
+                            [class]="action.className"
+                            [title]="action.titleKey | translate"
+                            class="flex h-7 min-w-7 cursor-pointer items-center justify-center
                                        rounded-md border-0 bg-transparent px-1.5 text-white/55
-                                       transition-colors hover:bg-hover hover:text-white/90">
+                                       transition-colors hover:bg-hover hover:text-white/90"
+                        >
                             {{ action.label }}
                         </button>
                     }
@@ -64,12 +71,14 @@ const TONES: readonly { instruction: string; labelKey: string }[] = [
                     <!-- Divider between formatting ("change these characters") and AI ("ask a model to rewrite them"); different kinds of act. -->
                     <span class="mx-0.5 h-4 w-px bg-white/[0.12]"></span>
 
-                    <button (click)="toggleAiMenu()"
-                            [class.bg-hover]="aiMenuOpen()"
-                            [title]="'WIKI.AI.MENU_TITLE' | translate"
-                            class="flex h-7 cursor-pointer items-center gap-1 rounded-md border-0
+                    <button
+                        (click)="toggleAiMenu()"
+                        [class.bg-hover]="aiMenuOpen()"
+                        [title]="'WIKI.AI.MENU_TITLE' | translate"
+                        class="flex h-7 cursor-pointer items-center gap-1 rounded-md border-0
                                    bg-transparent px-1.5 text-brand-dim transition-colors
-                                   hover:bg-hover">
+                                   hover:bg-hover"
+                    >
                         <i class="pi pi-sparkles text-[0.75rem]"></i>
                         <i class="pi pi-angle-down text-[0.5rem] opacity-60"></i>
                     </button>
@@ -77,16 +86,20 @@ const TONES: readonly { instruction: string; labelKey: string }[] = [
 
                 @if (aiMenuOpen()) {
                     <!-- mousedown is swallowed so the editor never blurs: the selection this menu is about is the selection the action needs a moment later. -->
-                    <div (mousedown)="$event.preventDefault()"
-                         class="absolute left-1/2 top-full mt-1 w-56 -translate-x-1/2
+                    <div
+                        (mousedown)="$event.preventDefault()"
+                        class="absolute left-1/2 top-full mt-1 w-56 -translate-x-1/2
                                 overflow-hidden rounded-xl border border-border bg-card py-1
-                                shadow-xl">
+                                shadow-xl"
+                    >
                         @if (submenu() === null) {
                             @for (item of aiItems; track item.labelKey) {
-                                <button (click)="chooseAi(item)"
-                                        class="flex w-full cursor-pointer items-center gap-2.5
+                                <button
+                                    (click)="chooseAi(item)"
+                                    class="flex w-full cursor-pointer items-center gap-2.5
                                                border-0 bg-transparent px-3 py-2 text-left
-                                               text-[0.8125rem] text-white/75 hover:bg-hover">
+                                               text-[0.8125rem] text-white/75 hover:bg-hover"
+                                >
                                     <i [class]="item.icon" class="pi text-[0.75rem] text-white/40"></i>
                                     <span class="flex-1">{{ item.labelKey | translate }}</span>
                                     @if (item.submenu) {
@@ -95,19 +108,23 @@ const TONES: readonly { instruction: string; labelKey: string }[] = [
                                 </button>
                             }
                         } @else {
-                            <button (click)="submenu.set(null)"
-                                    class="flex w-full cursor-pointer items-center gap-2 border-0
+                            <button
+                                (click)="submenu.set(null)"
+                                class="flex w-full cursor-pointer items-center gap-2 border-0
                                            bg-transparent px-3 py-1.5 text-left text-[0.6875rem]
-                                           text-white/35 hover:text-white/70">
+                                           text-white/35 hover:text-white/70"
+                            >
                                 <i class="pi pi-angle-left text-[0.625rem]"></i>
                                 {{ 'COMMON.BACK' | translate }}
                             </button>
                             <div class="max-h-56 overflow-y-auto thin-scrollbar">
                                 @for (option of submenuItems(); track option.id) {
-                                    <button (click)="emit(option.action)"
-                                            class="flex w-full cursor-pointer items-center gap-2.5
+                                    <button
+                                        (click)="emit(option.action)"
+                                        class="flex w-full cursor-pointer items-center gap-2.5
                                                    border-0 bg-transparent px-3 py-2 text-left
-                                                   text-[0.8125rem] text-white/75 hover:bg-hover">
+                                                   text-[0.8125rem] text-white/75 hover:bg-hover"
+                                    >
                                         <span class="flex-1">
                                             {{ option.label ?? (option.labelKey | translate) }}
                                         </span>
@@ -133,15 +150,71 @@ export class WikiBubbleMenuComponent {
     protected readonly submenu = signal<'tone' | 'translate' | null>(null);
 
     protected readonly actions: BubbleAction[] = [
-        {label: 'B', titleKey: 'WIKI.FORMAT.BOLD', mark: 'bold', className: 'font-bold', run: e => e.chain().focus().toggleBold().run()},
-        {label: 'I', titleKey: 'WIKI.FORMAT.ITALIC', mark: 'italic', className: 'italic', run: e => e.chain().focus().toggleItalic().run()},
-        {label: 'U', titleKey: 'WIKI.FORMAT.UNDERLINE', mark: 'underline', className: 'underline', run: e => e.chain().focus().toggleUnderline().run()},
-        {label: 'S', titleKey: 'WIKI.FORMAT.STRIKETHROUGH', mark: 'strike', className: 'line-through', run: e => e.chain().focus().toggleStrike().run()},
-        {label: '<>', titleKey: 'WIKI.FORMAT.INLINE_CODE', mark: 'code', className: 'font-mono text-[0.6875rem]', run: e => e.chain().focus().toggleCode().run()},
-        {label: 'H1', titleKey: 'WIKI.BLOCK.HEADING_1', mark: 'heading', attrs: {level: 1}, className: 'text-[0.6875rem] font-bold', run: e => e.chain().focus().toggleHeading({level: 1}).run()},
-        {label: 'H2', titleKey: 'WIKI.BLOCK.HEADING_2', mark: 'heading', attrs: {level: 2}, className: 'text-[0.6875rem] font-bold', run: e => e.chain().focus().toggleHeading({level: 2}).run()},
-        {label: 'H3', titleKey: 'WIKI.BLOCK.HEADING_3', mark: 'heading', attrs: {level: 3}, className: 'text-[0.6875rem] font-bold', run: e => e.chain().focus().toggleHeading({level: 3}).run()},
-        {label: '❝', titleKey: 'WIKI.BLOCK.QUOTE', mark: 'blockquote', run: e => e.chain().focus().toggleBlockquote().run()},
+        {
+            label: 'B',
+            titleKey: 'WIKI.FORMAT.BOLD',
+            mark: 'bold',
+            className: 'font-bold',
+            run: e => e.chain().focus().toggleBold().run(),
+        },
+        {
+            label: 'I',
+            titleKey: 'WIKI.FORMAT.ITALIC',
+            mark: 'italic',
+            className: 'italic',
+            run: e => e.chain().focus().toggleItalic().run(),
+        },
+        {
+            label: 'U',
+            titleKey: 'WIKI.FORMAT.UNDERLINE',
+            mark: 'underline',
+            className: 'underline',
+            run: e => e.chain().focus().toggleUnderline().run(),
+        },
+        {
+            label: 'S',
+            titleKey: 'WIKI.FORMAT.STRIKETHROUGH',
+            mark: 'strike',
+            className: 'line-through',
+            run: e => e.chain().focus().toggleStrike().run(),
+        },
+        {
+            label: '<>',
+            titleKey: 'WIKI.FORMAT.INLINE_CODE',
+            mark: 'code',
+            className: 'font-mono text-[0.6875rem]',
+            run: e => e.chain().focus().toggleCode().run(),
+        },
+        {
+            label: 'H1',
+            titleKey: 'WIKI.BLOCK.HEADING_1',
+            mark: 'heading',
+            attrs: {level: 1},
+            className: 'text-[0.6875rem] font-bold',
+            run: e => e.chain().focus().toggleHeading({level: 1}).run(),
+        },
+        {
+            label: 'H2',
+            titleKey: 'WIKI.BLOCK.HEADING_2',
+            mark: 'heading',
+            attrs: {level: 2},
+            className: 'text-[0.6875rem] font-bold',
+            run: e => e.chain().focus().toggleHeading({level: 2}).run(),
+        },
+        {
+            label: 'H3',
+            titleKey: 'WIKI.BLOCK.HEADING_3',
+            mark: 'heading',
+            attrs: {level: 3},
+            className: 'text-[0.6875rem] font-bold',
+            run: e => e.chain().focus().toggleHeading({level: 3}).run(),
+        },
+        {
+            label: '❝',
+            titleKey: 'WIKI.BLOCK.QUOTE',
+            mark: 'blockquote',
+            run: e => e.chain().focus().toggleBlockquote().run(),
+        },
     ];
 
     protected readonly aiItems: AiItem[] = [

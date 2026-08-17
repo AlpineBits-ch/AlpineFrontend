@@ -110,24 +110,29 @@ describe('VoiceRoomTracker relay events', () => {
 
 describe('isStaleSubscription', () => {
     it('recognises the 409 the server answers', () => {
-        expect(isStaleSubscription({
-            status: 409,
-            error: {error: 'staleSubscription', action: 'refetchSnapshot'},
-        })).toBe(true);
+        expect(
+            isStaleSubscription({
+                status: 409,
+                error: {error: 'staleSubscription', action: 'refetchSnapshot'},
+            }),
+        ).toBe(true);
     });
 
     /** Some hosts hand the body back as text rather than parsed JSON. */
     it('recognises it when the body arrives as a string', () => {
-        expect(isStaleSubscription({
-            status: 409,
-            error: '{"error":"staleSubscription"}',
-        })).toBe(true);
+        expect(
+            isStaleSubscription({
+                status: 409,
+                error: '{"error":"staleSubscription"}',
+            }),
+        ).toBe(true);
     });
 
     /** The Rust engine subscribes on our behalf and can only return a string. */
     it('recognises the marker the Rust engine returns', () => {
-        expect(isStaleSubscription(
-            'staleSubscription: https://api/voice/tracks returned 409 Conflict: {...}')).toBe(true);
+        expect(
+            isStaleSubscription('staleSubscription: https://api/voice/tracks returned 409 Conflict: {...}'),
+        ).toBe(true);
     });
 
     it('does not match a 409 that means something else', () => {
@@ -146,22 +151,27 @@ describe('isStaleSubscription', () => {
 });
 
 describe('isDeadMediaSession', () => {
-    const sfuBody = '{"errorCode":"session_error","errorDescription":"Session appears to be '
-        + 'disconnected. Please check if the PeerConnection is connected."}';
+    const sfuBody =
+        '{"errorCode":"session_error","errorDescription":"Session appears to be ' +
+        'disconnected. Please check if the PeerConnection is connected."}';
 
     /** The server's own classification, and the one the guide documents. */
     it('recognises the 409 the server answers', () => {
-        expect(isDeadMediaSession({
-            status: 409,
-            error: {error: 'sessionGone', action: 'recreateSession'},
-        })).toBe(true);
+        expect(
+            isDeadMediaSession({
+                status: 409,
+                error: {error: 'sessionGone', action: 'recreateSession'},
+            }),
+        ).toBe(true);
     });
 
     it('recognises the 502 the gateway relays from the SFU', () => {
-        expect(isDeadMediaSession({
-            status: 502,
-            error: {operation: 'tracks/new', error: sfuBody},
-        })).toBe(true);
+        expect(
+            isDeadMediaSession({
+                status: 502,
+                error: {operation: 'tracks/new', error: sfuBody},
+            }),
+        ).toBe(true);
     });
 
     it('recognises it when the body arrives as a string', () => {
@@ -174,10 +184,12 @@ describe('isDeadMediaSession', () => {
     });
 
     it('does not match a stale subscription', () => {
-        expect(isDeadMediaSession({
-            status: 409,
-            error: {error: 'staleSubscription', action: 'refetchSnapshot'},
-        })).toBe(false);
+        expect(
+            isDeadMediaSession({
+                status: 409,
+                error: {error: 'staleSubscription', action: 'refetchSnapshot'},
+            }),
+        ).toBe(false);
     });
 
     it('is not confused with a stale subscription on the same status', () => {
@@ -189,10 +201,12 @@ describe('isDeadMediaSession', () => {
     });
 
     it('does not match a 502 that means something else', () => {
-        expect(isDeadMediaSession({
-            status: 502,
-            error: {operation: 'tracks/new', error: '{"errorCode":"not_found_track_error"}'},
-        })).toBe(false);
+        expect(
+            isDeadMediaSession({
+                status: 502,
+                error: {operation: 'tracks/new', error: '{"errorCode":"not_found_track_error"}'},
+            }),
+        ).toBe(false);
     });
 
     it('does not match arbitrary failures', () => {
@@ -205,13 +219,17 @@ describe('isDeadMediaSession', () => {
 describe('describeTrack', () => {
     it('reads screen audio as screen audio, not as the video of a share called audio-x', () => {
         expect(describeTrack('screen-audio-abc')).toEqual({
-            trackName: 'screen-audio-abc', kind: 'screenAudio', shareId: 'abc',
+            trackName: 'screen-audio-abc',
+            kind: 'screenAudio',
+            shareId: 'abc',
         });
     });
 
     it('reads screen video', () => {
         expect(describeTrack('screen-abc')).toEqual({
-            trackName: 'screen-abc', kind: 'screen', shareId: 'abc',
+            trackName: 'screen-abc',
+            kind: 'screen',
+            shareId: 'abc',
         });
     });
 
@@ -229,7 +247,10 @@ describe('describeTrack', () => {
 describe('subscriptionSetOf', () => {
     it('reads an empty tracks array as a real set that pulls nobody', () => {
         const set = subscriptionSetOf({
-            mode: 'activeSpeaker', revision: 12, activeSpeakers: [], tracks: [],
+            mode: 'activeSpeaker',
+            revision: 12,
+            activeSpeakers: [],
+            tracks: [],
         });
 
         expect(set).not.toBeNull();
@@ -260,12 +281,20 @@ describe('subscriptionSetOf', () => {
             activeSpeakers: ['u1'],
             tracks: [
                 {
-                    userId: 'u1', mediaSessionId: 'sess-1', trackName: 'audio',
-                    kind: 'audio', shareId: null, layer: null,
+                    userId: 'u1',
+                    mediaSessionId: 'sess-1',
+                    trackName: 'audio',
+                    kind: 'audio',
+                    shareId: null,
+                    layer: null,
                 },
                 {
-                    userId: 'u2', mediaSessionId: null, trackName: 'screen-abc',
-                    kind: 'screen', shareId: 'abc', layer: 'b',
+                    userId: 'u2',
+                    mediaSessionId: null,
+                    trackName: 'screen-abc',
+                    kind: 'screen',
+                    shareId: 'abc',
+                    layer: 'b',
                 },
             ],
         });
@@ -273,12 +302,20 @@ describe('subscriptionSetOf', () => {
         expect(set?.activeSpeakers).toEqual(['u1']);
         expect(set?.tracks).toEqual([
             {
-                userId: 'u1', mediaSessionId: 'sess-1', trackName: 'audio',
-                kind: 'audio', shareId: null, layer: null,
+                userId: 'u1',
+                mediaSessionId: 'sess-1',
+                trackName: 'audio',
+                kind: 'audio',
+                shareId: null,
+                layer: null,
             },
             {
-                userId: 'u2', mediaSessionId: null, trackName: 'screen-abc',
-                kind: 'screen', shareId: 'abc', layer: 'b',
+                userId: 'u2',
+                mediaSessionId: null,
+                trackName: 'screen-abc',
+                kind: 'screen',
+                shareId: 'abc',
+                layer: 'b',
             },
         ]);
     });
@@ -298,8 +335,12 @@ describe('subscriptionSetOf', () => {
         });
 
         expect(set?.tracks[0]).toEqual({
-            userId: 'u1', mediaSessionId: null, trackName: 'screen-audio-abc',
-            kind: 'screenAudio', shareId: 'abc', layer: null,
+            userId: 'u1',
+            mediaSessionId: null,
+            trackName: 'screen-audio-abc',
+            kind: 'screenAudio',
+            shareId: 'abc',
+            layer: null,
         });
     });
 
@@ -335,9 +376,11 @@ describe('subscriptionSetOfSnapshot / subscriptionSetOfEvent', () => {
     it('reads the set the snapshot nests', () => {
         const set = subscriptionSetOfSnapshot({
             roomId: 'chan-1',
-            subscriptions: {mode: 'activeSpeaker', revision: 12, tracks: [
-                {userId: 'u1', trackName: 'audio'},
-            ]},
+            subscriptions: {
+                mode: 'activeSpeaker',
+                revision: 12,
+                tracks: [{userId: 'u1', trackName: 'audio'}],
+            },
         });
 
         expect(set?.revision).toBe(12);
@@ -411,8 +454,13 @@ describe('subscriptionSetSupersedes', () => {
 describe('SubscriptionsChanged as a relay', () => {
     function changed(version: number): VoiceSubscriptionsChangedEvent {
         return {
-            channelId: 'chan-1', instanceId: 'inst-1', version,
-            mode: 'activeSpeaker', revision: 12, activeSpeakers: ['u1'], tracks: [],
+            channelId: 'chan-1',
+            instanceId: 'inst-1',
+            version,
+            mode: 'activeSpeaker',
+            revision: 12,
+            activeSpeakers: ['u1'],
+            tracks: [],
         };
     }
 
@@ -432,15 +480,16 @@ describe('SubscriptionsChanged as a relay', () => {
 
     /** A rebuilt room invalidates the held set along with everything else. */
     it('still refetches when the room was rebuilt', () => {
-        expect(tracking('inst-1', 5).receiveRelay({...changed(5), instanceId: 'inst-2'}))
-            .toBe('refetch');
+        expect(tracking('inst-1', 5).receiveRelay({...changed(5), instanceId: 'inst-2'})).toBe('refetch');
     });
 });
 
 describe('VoiceResyncReason', () => {
     it('names participantsEvicted, and it carries no delta', () => {
         const resync: VoiceResyncEvent = {
-            reason: 'participantsEvicted', instanceId: 'inst-1', version: 6,
+            reason: 'participantsEvicted',
+            instanceId: 'inst-1',
+            version: 6,
         };
 
         expect(resync.reason).toBe('participantsEvicted');

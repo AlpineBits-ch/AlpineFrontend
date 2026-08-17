@@ -1,10 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {
-    hasUnresolvedChores,
-    MoveOutOutstanding,
-    MoveOutSummary,
-    totalOutstandingMinor,
-} from './move-out.dto';
+import {hasUnresolvedChores, MoveOutOutstanding, MoveOutSummary, totalOutstandingMinor} from './move-out.dto';
 
 function summary(overrides: Partial<MoveOutSummary> = {}): MoveOutSummary {
     return {

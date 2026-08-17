@@ -27,9 +27,9 @@ export const deviceIdInterceptor: HttpInterceptorFn = (req, next) => {
                     // One retry, no recursion: `next(...)` is not routed back through this
                     // interceptor.
                     return from(identity.ensureRegistered()).pipe(
-                        switchMap(registered => registered
-                            ? next(withDeviceId(req, deviceId))
-                            : throwError(() => err)),
+                        switchMap(registered =>
+                            registered ? next(withDeviceId(req, deviceId)) : throwError(() => err),
+                        ),
                     );
                 }),
             );

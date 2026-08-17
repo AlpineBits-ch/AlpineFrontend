@@ -53,7 +53,10 @@ export interface LocalPublishSources {
  *
  * @param hostStream the local share's own track where the host has one, null on a native publish.
  */
-function localSharePicture(publish: LocalPublishSources, hostStream: MediaStream | null): {
+function localSharePicture(
+    publish: LocalPublishSources,
+    hostStream: MediaStream | null,
+): {
     stream: MediaStream | undefined;
     previewSrc: string | null;
     localRender: boolean;

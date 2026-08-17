@@ -67,15 +67,19 @@ export class SocialWebsocketService {
 
     private setupListeners(): void {
         this.realtime.on('social.FriendRequestCreated', (data: RelationshipEvent) =>
-            this.friendRequestCreatedObservable.next(data));
+            this.friendRequestCreatedObservable.next(data),
+        );
 
         this.realtime.on('social.FriendRequestAccepted', (data: RelationshipEvent) =>
-            this.friendRequestAcceptedObservable.next(data));
+            this.friendRequestAcceptedObservable.next(data),
+        );
 
         this.realtime.on('social.FriendRequestRejected', (data: RelationshipEvent) =>
-            this.friendRequestRejectedObservable.next(data));
+            this.friendRequestRejectedObservable.next(data),
+        );
 
         this.realtime.on('social.FriendRemoved', (data: RelationshipEvent) =>
-            this.friendRemovedObservable.next(data));
+            this.friendRemovedObservable.next(data),
+        );
     }
 }

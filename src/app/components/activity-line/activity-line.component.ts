@@ -7,21 +7,21 @@ import {Activity, ACTIVITY_TYPE_ICONS} from '../../models/activity.model';
     selector: 'app-activity-line',
     imports: [TranslateModule],
     template: `
-    @if (activity(); as a) {
-      <span [class]="'flex items-center gap-1 min-w-0 ' + sizeClass()">
-        @if (showIcon()) {
-          <i [class]="'pi ' + icon()" [style.font-size]="glyphSize()"></i>
+        @if (activity(); as a) {
+            <span [class]="'flex items-center gap-1 min-w-0 ' + sizeClass()">
+                @if (showIcon()) {
+                    <i [class]="'pi ' + icon()" [style.font-size]="glyphSize()"></i>
+                }
+                <span class="truncate">
+                    @if (a.type === 'Custom') {
+                        {{ a.name }}
+                    } @else {
+                        {{ 'ACTIVITY.LINE.' + a.type.toUpperCase() | translate: {name: a.name} }}
+                    }
+                </span>
+            </span>
         }
-        <span class="truncate">
-          @if (a.type === 'Custom') {
-            {{ a.name }}
-          } @else {
-            {{ 'ACTIVITY.LINE.' + a.type.toUpperCase() | translate: {name: a.name} }}
-          }
-        </span>
-      </span>
-    }
-  `,
+    `,
 })
 export class ActivityLineComponent {
     readonly activity = input<Activity | null | undefined>(null);
@@ -48,5 +48,5 @@ export class ActivityLineComponent {
     });
 
     /** Must stay inline px: PrimeIcons ship a `font-size` on `.pi` that a Tailwind class does not reliably beat. */
-    protected readonly glyphSize = computed(() => this.size() === 'md' ? '11px' : '9px');
+    protected readonly glyphSize = computed(() => (this.size() === 'md' ? '11px' : '9px'));
 }

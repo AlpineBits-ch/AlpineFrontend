@@ -1,19 +1,31 @@
 <div class="hidden lg:flex flex-col w-80 shrink-0 h-full bg-sidebar border-r border-white/[0.10]">
-
     <!-- Header -->
     <div class="app-header flex items-center gap-1.5 px-3 border-b border-white/[0.10] shrink-0">
-        <p-button (onClick)="navService.closeEventsPanel()" [pTooltip]="'COMMON.CLOSE' | translate" [text]="true"
-                  icon="pi pi-times" severity="secondary" size="small" tooltipPosition="bottom"/>
+        <p-button
+            (onClick)="navService.closeEventsPanel()"
+            [pTooltip]="'COMMON.CLOSE' | translate"
+            [text]="true"
+            icon="pi pi-times"
+            severity="secondary"
+            size="small"
+            tooltipPosition="bottom"
+        />
         <span class="flex-1 min-w-0 truncate text-sm font-semibold text-text-primary">{{ 'EVENTS.TITLE' | translate }}</span>
         @if (canManage()) {
-            <p-button (onClick)="openCreate()" [pTooltip]="'EVENTS.CREATE_TOOLTIP' | translate" [text]="true"
-                      icon="pi pi-plus" severity="secondary" size="small" tooltipPosition="bottom"/>
+            <p-button
+                (onClick)="openCreate()"
+                [pTooltip]="'EVENTS.CREATE_TOOLTIP' | translate"
+                [text]="true"
+                icon="pi pi-plus"
+                severity="secondary"
+                size="small"
+                tooltipPosition="bottom"
+            />
         }
     </div>
 
     <!-- Body -->
     <div class="flex-1 min-h-0 overflow-y-auto thin-scrollbar px-3 py-3">
-
         @if (showLoading()) {
             <p class="flex items-center justify-center gap-2 py-8 m-0 text-[0.8125rem] text-text-muted">
                 <i class="pi pi-spin pi-spinner text-[0.75rem]"></i>{{ 'COMMON.LOADING' | translate }}
@@ -21,8 +33,14 @@
         } @else if (showError()) {
             <div class="flex flex-col items-center gap-2 py-8">
                 <p class="m-0 text-center text-[0.8125rem] text-text-secondary">{{ 'EVENTS.LOAD_ERROR' | translate }}</p>
-                <p-button (onClick)="retry()" [label]="'COMMON.RETRY' | translate" [text]="true" icon="pi pi-refresh"
-                          severity="secondary" size="small"/>
+                <p-button
+                    (onClick)="retry()"
+                    [label]="'COMMON.RETRY' | translate"
+                    [text]="true"
+                    icon="pi pi-refresh"
+                    severity="secondary"
+                    size="small"
+                />
             </div>
         } @else if (showEmpty()) {
             <!-- An empty screen is an invitation to act, so the create button lives here too; the no-reminders note sits here rather than in a permanent footer bar. -->
@@ -35,28 +53,34 @@
                     <p class="m-0 mt-1 text-[0.8125rem] text-text-secondary">{{ 'EVENTS.EMPTY_SUBTITLE' | translate }}</p>
                 </div>
                 @if (canManage()) {
-                    <p-button (onClick)="openCreate()" [label]="'EVENTS.CREATE_FIRST' | translate" icon="pi pi-plus"
-                              severity="primary" size="small"/>
+                    <p-button
+                        (onClick)="openCreate()"
+                        [label]="'EVENTS.CREATE_FIRST' | translate"
+                        icon="pi pi-plus"
+                        severity="primary"
+                        size="small"
+                    />
                 }
                 <p class="m-0 mt-1 text-[0.6875rem] leading-relaxed text-text-muted">
                     {{ 'EVENTS.NO_REMINDERS_NOTE' | translate }}
                 </p>
             </div>
         } @else {
-
             @if (live().length > 0) {
                 <h3 class="mb-2 px-1 text-[0.6875rem] font-semibold uppercase tracking-widest text-text-muted">
                     {{ 'EVENTS.HAPPENING_NOW' | translate }}
                 </h3>
                 <div class="mb-5 space-y-2">
                     @for (event of live(); track event.id) {
-                        <app-event-card (cancel)="confirmCancel(event)"
-                                        (edit)="openEdit(event)"
-                                        (interest)="toggleInterest(event)"
-                                        (joinVoice)="joinVoice(event.voiceChannelId!)"
-                                        [canManage]="canManage()"
-                                        [event]="event"
-                                        phase="live"/>
+                        <app-event-card
+                            (cancel)="confirmCancel(event)"
+                            (edit)="openEdit(event)"
+                            (interest)="toggleInterest(event)"
+                            (joinVoice)="joinVoice(event.voiceChannelId!)"
+                            [canManage]="canManage()"
+                            [event]="event"
+                            phase="live"
+                        />
                     }
                 </div>
             }
@@ -72,19 +96,21 @@
                             {{ 'EVENTS.TOMORROW' | translate }}
                         }
                         @default {
-                            {{ group.events[0].startsAt | date:'EEE, MMM d' }}
+                            {{ group.events[0].startsAt | date: 'EEE, MMM d' }}
                         }
                     }
                 </h3>
                 <div class="mb-5 space-y-2">
                     @for (event of group.events; track event.id) {
-                        <app-event-card (cancel)="confirmCancel(event)"
-                                        (edit)="openEdit(event)"
-                                        (interest)="toggleInterest(event)"
-                                        (joinVoice)="joinVoice(event.voiceChannelId!)"
-                                        [canManage]="canManage()"
-                                        [event]="event"
-                                        phase="upcoming"/>
+                        <app-event-card
+                            (cancel)="confirmCancel(event)"
+                            (edit)="openEdit(event)"
+                            (interest)="toggleInterest(event)"
+                            (joinVoice)="joinVoice(event.voiceChannelId!)"
+                            [canManage]="canManage()"
+                            [event]="event"
+                            phase="upcoming"
+                        />
                     }
                 </div>
             }
@@ -92,19 +118,18 @@
 
         <!-- Past events -->
         @if (past().length > 0) {
-            <button (click)="showPast.set(!showPast())"
-                    class="flex items-center gap-1.5 border-0 bg-transparent px-1 py-1 cursor-pointer
-                           text-[0.6875rem] font-semibold uppercase tracking-widest text-text-muted
-                           hover:text-text-secondary transition-colors">
-                <i [class.pi-chevron-down]="showPast()" [class.pi-chevron-right]="!showPast()"
-                   class="pi text-[0.625rem]"></i>
+            <button
+                (click)="showPast.set(!showPast())"
+                class="flex items-center gap-1.5 border-0 bg-transparent px-1 py-1 cursor-pointer text-[0.6875rem] font-semibold uppercase tracking-widest text-text-muted hover:text-text-secondary transition-colors"
+            >
+                <i [class.pi-chevron-down]="showPast()" [class.pi-chevron-right]="!showPast()" class="pi text-[0.625rem]"></i>
                 {{ 'EVENTS.PAST' | translate }} ({{ past().length }})
             </button>
 
             @if (showPast()) {
                 <div class="mt-2 space-y-2 opacity-60">
                     @for (event of past(); track event.id) {
-                        <app-event-card [canManage]="false" [event]="event" phase="past"/>
+                        <app-event-card [canManage]="false" [event]="event" phase="past" />
                     }
                 </div>
             }
@@ -112,6 +137,6 @@
     </div>
 </div>
 
-<p-confirmdialog appendTo="body"/>
+<p-confirmdialog appendTo="body" />
 
-<app-event-editor-dialog [event]="editingEvent()" [guildId]="guildId()" [(visible)]="editorVisible"/>
+<app-event-editor-dialog [event]="editingEvent()" [guildId]="guildId()" [(visible)]="editorVisible" />

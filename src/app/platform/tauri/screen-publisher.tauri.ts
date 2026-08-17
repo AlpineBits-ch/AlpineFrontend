@@ -287,15 +287,13 @@ export class TauriScreenPublisher extends ScreenPublisher implements ScreenPubli
         await invoke('set_screen_capture_geometry', {
             width: geometry.width,
             height: geometry.height,
-        }).catch(() => {
-        });
+        }).catch(() => {});
         await invoke('start_screen_capture', {sourceId, fps, onFrame: channel});
     }
 
     async setNativeCaptureFps(fps: number): Promise<void> {
         const {invoke} = await this.tauri();
-        await invoke('set_screen_capture_fps', {fps: Math.round(fps)}).catch(() => {
-        });
+        await invoke('set_screen_capture_fps', {fps: Math.round(fps)}).catch(() => {});
     }
 
     async setNativeCaptureGeometry(geometry: CaptureGeometry): Promise<void> {
@@ -303,19 +301,16 @@ export class TauriScreenPublisher extends ScreenPublisher implements ScreenPubli
         await invoke('set_screen_capture_geometry', {
             width: geometry.width,
             height: geometry.height,
-        }).catch(() => {
-        });
+        }).catch(() => {});
     }
 
     async stopNativeScreenCapture(): Promise<void> {
         if (this.frameChannel) {
-            this.frameChannel.onmessage = () => {
-            };
+            this.frameChannel.onmessage = () => {};
             this.frameChannel = null;
         }
         const {invoke} = await this.tauri();
-        await invoke('stop_screen_capture').catch(() => {
-        });
+        await invoke('stop_screen_capture').catch(() => {});
     }
 
     async startNativeLoopbackCapture(onChunk: (chunk: AudioChunk) => void): Promise<void> {
@@ -328,13 +323,11 @@ export class TauriScreenPublisher extends ScreenPublisher implements ScreenPubli
 
     async stopNativeLoopbackCapture(): Promise<void> {
         if (this.loopbackChannel) {
-            this.loopbackChannel.onmessage = () => {
-            };
+            this.loopbackChannel.onmessage = () => {};
             this.loopbackChannel = null;
         }
         const {invoke} = await this.tauri();
-        await invoke('stop_loopback_capture').catch(() => {
-        });
+        await invoke('stop_loopback_capture').catch(() => {});
     }
 
     /** True on Linux, where WebKitGTK's `getUserMedia` is permission-denied and cannot be granted. */
@@ -362,13 +355,12 @@ export class TauriScreenPublisher extends ScreenPublisher implements ScreenPubli
     }
 
     /** Accepted and never called: Rust reports nothing when a shared window closes. */
-    onPublishEnded(_handler: () => void): void {
-    }
+    onPublishEnded(_handler: () => void): void {}
 
     // ── Internals ─────────────────────────────────────────────────────────────
 
     private tauri(): Promise<TauriCore> {
-        return this.core ??= this.load();
+        return (this.core ??= this.load());
     }
 
     /** Refuse a command aimed at a share that is not the running one. Throws, never no-ops. */
@@ -376,21 +368,19 @@ export class TauriScreenPublisher extends ScreenPublisher implements ScreenPubli
         if (this.liveShareId === shareId) return;
         throw new Error(
             `[screen] ${action}('${shareId}') refused: the live share is ` +
-            `${this.liveShareId === null ? 'none' : `'${this.liveShareId}'`}`,
+                `${this.liveShareId === null ? 'none' : `'${this.liveShareId}'`}`,
         );
     }
 
     private detachPreview(): void {
         if (!this.previewChannel) return;
-        this.previewChannel.onmessage = () => {
-        };
+        this.previewChannel.onmessage = () => {};
         this.previewChannel = null;
     }
 
     private detachChunks(): void {
         if (!this.chunkChannel) return;
-        this.chunkChannel.onmessage = () => {
-        };
+        this.chunkChannel.onmessage = () => {};
         this.chunkChannel = null;
     }
 }

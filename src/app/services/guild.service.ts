@@ -1,29 +1,41 @@
 import {inject, Injectable, signal} from '@angular/core';
 import {HttpClient} from '@angular/common/http';
-import {CategoryDto, ChannelDto, ChannelPermission, GuildDto, GuildKind, RoleDto,} from '../dtos/response/guild.dto';
+import {
+    CategoryDto,
+    ChannelDto,
+    ChannelPermission,
+    GuildDto,
+    GuildKind,
+    RoleDto,
+} from '../dtos/response/guild.dto';
 import {GuildVerificationLevel} from '../dtos/response/guild-safety.dto';
 import {GuildFeatureResolutionDto} from '../dtos/response/entitlement.dto';
 import {environment} from '../../environments/environment';
 import {catchError, finalize, map, Observable, of, shareReplay, Subject, tap, throwError} from 'rxjs';
-import {GuildMemberDto, MemberPermissionsDto, RoleMemberDto, SelfGuildMemberDto} from '../dtos/response/member.dto';
-import {InviteDto, RedeemInviteResultDto} from "../dtos/response/invite.dto";
-import {CreateInviteDto} from "../dtos/request/create-invite.dto";
-import {ReorderChannesDto} from "../dtos/request/reorder-channel.dto";
-import {ApiConfigService} from "./api-config.service";
-import {ProfileService} from "./profile.service";
-import {ProfileDto} from "../dtos/response/profile.dto";
-import {BanDto} from "../dtos/response/ban.dto";
-import {AuditLogEntryDto} from "../dtos/response/audit-log-entry.dto";
-import {ReorderRolesDto} from "../dtos/request/reorder-roles.dto";
-import {CreateThreadDto} from "../dtos/request/create-thread.dto";
-import {MoveOutSummary} from "../dtos/response/move-out.dto";
+import {
+    GuildMemberDto,
+    MemberPermissionsDto,
+    RoleMemberDto,
+    SelfGuildMemberDto,
+} from '../dtos/response/member.dto';
+import {InviteDto, RedeemInviteResultDto} from '../dtos/response/invite.dto';
+import {CreateInviteDto} from '../dtos/request/create-invite.dto';
+import {ReorderChannesDto} from '../dtos/request/reorder-channel.dto';
+import {ApiConfigService} from './api-config.service';
+import {ProfileService} from './profile.service';
+import {ProfileDto} from '../dtos/response/profile.dto';
+import {BanDto} from '../dtos/response/ban.dto';
+import {AuditLogEntryDto} from '../dtos/response/audit-log-entry.dto';
+import {ReorderRolesDto} from '../dtos/request/reorder-roles.dto';
+import {CreateThreadDto} from '../dtos/request/create-thread.dto';
+import {MoveOutSummary} from '../dtos/response/move-out.dto';
 import {
     clearGuildLayoutCache,
     readGuildLayoutCache,
     reviveGuildDates,
     writeGuildLayoutCache,
-} from "./guild-layout-cache";
-import {reconcileGuilds} from "./guild-reconcile";
+} from './guild-layout-cache';
+import {reconcileGuilds} from './guild-reconcile';
 
 export interface UpdateGuildDto {
     name?: string;
@@ -77,7 +89,7 @@ export interface CreateChannelDto {
     categoryId?: string;
     isPrivate?: boolean;
     isAgeRestricted?: boolean;
-    position: number
+    position: number;
 }
 
 export interface UpdateChannelDto {
@@ -112,7 +124,6 @@ export interface OverridePermissionsDto {
     allowPermissions: string;
     denyPermissions: string;
 }
-
 
 export interface GuildMemberWithProfileDto extends GuildMemberDto {
     username?: string;
@@ -219,9 +230,9 @@ export class GuildService {
      * landing in `workspace` is exactly the cascade {@link reconcileGuilds} exists to prevent.</p>
      */
     getGuilds(): Observable<GuildDto[]> {
-        return this.http.get<GuildDto[]>(`${this.base}/guilds`).pipe(
-            map(fresh => this.publish(reconcileGuilds(this.guilds(), fresh.map(reviveGuildDates)))),
-        );
+        return this.http
+            .get<GuildDto[]>(`${this.base}/guilds`)
+            .pipe(map(fresh => this.publish(reconcileGuilds(this.guilds(), fresh.map(reviveGuildDates)))));
     }
 
     getGuild(id: string): Observable<GuildDto> {
@@ -255,7 +266,7 @@ export class GuildService {
         const fresh = reviveGuildDates(guild);
         const current = this.guilds();
         const next = current.some(g => g.id === fresh.id)
-            ? current.map(g => g.id === fresh.id ? fresh : g)
+            ? current.map(g => (g.id === fresh.id ? fresh : g))
             : [...current, fresh];
         this.publish(reconcileGuilds(current, next));
     }
@@ -299,7 +310,6 @@ export class GuildService {
         return this.guilds() as GuildDto[];
     }
 
-
     reorderChannels(guildId: string, dto: ReorderChannesDto): Observable<void> {
         return this.http.patch<void>(`${this.base}/guilds/${guildId}/channels/reorder`, dto);
     }
@@ -307,12 +317,14 @@ export class GuildService {
     updateGuild(id: string, dto: UpdateGuildDto): Observable<GuildDto> {
         // `kind`/`features` re-seed the module set, and the resolved permission mask is clamped to
         // enabled modules - so this can strip bits from a member row whose roles never moved.
-        return this.http.patch<GuildDto>(`${this.base}/guilds/${id}`, dto)
+        return this.http
+            .patch<GuildDto>(`${this.base}/guilds/${id}`, dto)
             .pipe(tap(() => this.invalidateOwnMember(id)));
     }
 
     deleteGuild(id: string): Observable<void> {
-        return this.http.delete<void>(`${this.base}/guilds/${id}`)
+        return this.http
+            .delete<void>(`${this.base}/guilds/${id}`)
             .pipe(tap(() => this.invalidateOwnMember(id)));
     }
 
@@ -328,7 +340,6 @@ export class GuildService {
 
     // ── Members ─────────────────────────────────────────────────────────────
 
-
     /**
      * Sets the member's own guild-level allow mask - their overrides, not the sum of their roles.
      *
@@ -340,20 +351,27 @@ export class GuildService {
      * not stop it being ours and the cached row would keep the old mask if it were. Dropping it
      * costs one refetch; not dropping it costs a permission gate that disagrees with the server.</p>
      */
-    updateMemberPermissions(guildId: string, memberId: string, permissions: string): Observable<MemberPermissionsDto> {
-        return this.http.patch<MemberPermissionsDto>(
-            `${this.base}/guilds/${guildId}/members/${memberId}/permissions`,
-            {allowPermissions: permissions},
-        ).pipe(tap(() => this.invalidateOwnMember(guildId)));
+    updateMemberPermissions(
+        guildId: string,
+        memberId: string,
+        permissions: string,
+    ): Observable<MemberPermissionsDto> {
+        return this.http
+            .patch<MemberPermissionsDto>(`${this.base}/guilds/${guildId}/members/${memberId}/permissions`, {
+                allowPermissions: permissions,
+            })
+            .pipe(tap(() => this.invalidateOwnMember(guildId)));
     }
 
     kickMember(guildId: string, memberId: string): Observable<void> {
-        return this.http.delete<void>(`${this.base}/guilds/${guildId}/members/${memberId}`)
+        return this.http
+            .delete<void>(`${this.base}/guilds/${guildId}/members/${memberId}`)
             .pipe(tap(() => this.invalidateOwnMember(guildId)));
     }
 
     kickMemberByUserId(guildId: string, userId: string): Observable<void> {
-        return this.http.delete<void>(`${this.base}/guilds/${guildId}/members/by-user/${userId}`)
+        return this.http
+            .delete<void>(`${this.base}/guilds/${guildId}/members/by-user/${userId}`)
             .pipe(tap(() => this.invalidateOwnMember(guildId)));
     }
 
@@ -370,7 +388,9 @@ export class GuildService {
     }
 
     muteMember(guildId: string, memberId: string, durationMinutes: number): Observable<void> {
-        return this.http.post<void>(`${this.base}/guilds/${guildId}/members/${memberId}/mute`, {durationMinutes});
+        return this.http.post<void>(`${this.base}/guilds/${guildId}/members/${memberId}/mute`, {
+            durationMinutes,
+        });
     }
 
     unmuteMember(guildId: string, memberId: string): Observable<void> {
@@ -383,7 +403,8 @@ export class GuildService {
      * that just ended had.
      */
     leaveGuild(guildId: string): Observable<void> {
-        return this.http.delete<void>(`${this.base}/guilds/${guildId}/members/me`)
+        return this.http
+            .delete<void>(`${this.base}/guilds/${guildId}/members/me`)
             .pipe(tap(() => this.invalidateOwnMember(guildId)));
     }
 
@@ -401,10 +422,11 @@ export class GuildService {
      * it up front skips a decision that is not the client's to make.</p>
      */
     moveOutMember(guildId: string, userId: string, writeOffBalances = false): Observable<MoveOutSummary> {
-        return this.http.post<MoveOutSummary>(
-            `${this.base}/guilds/${guildId}/members/${userId}/move-out`,
-            {writeOffBalances},
-        ).pipe(tap(() => this.invalidateOwnMember(guildId)));
+        return this.http
+            .post<MoveOutSummary>(`${this.base}/guilds/${guildId}/members/${userId}/move-out`, {
+                writeOffBalances,
+            })
+            .pipe(tap(() => this.invalidateOwnMember(guildId)));
     }
 
     // ── Roles ────────────────────────────────────────────────────────────────
@@ -418,32 +440,36 @@ export class GuildService {
      * a loop - and the alternative is a role edit that leaves our own resolved permissions stale.
      */
     updateRole(id: string, dto: UpdateRoleDto): Observable<void> {
-        return this.http.patch<void>(`${this.base}/roles/${id}`, dto)
+        return this.http
+            .patch<void>(`${this.base}/roles/${id}`, dto)
             .pipe(tap(() => this.invalidateOwnMember()));
     }
 
     deleteRole(id: string): Observable<void> {
-        return this.http.delete<void>(`${this.base}/roles/${id}`)
-            .pipe(tap(() => this.invalidateOwnMember()));
+        return this.http.delete<void>(`${this.base}/roles/${id}`).pipe(tap(() => this.invalidateOwnMember()));
     }
 
     assignRoleToMember(roleId: string, memberId: string): Observable<void> {
-        return this.http.put<void>(`${this.base}/roles/${roleId}/members/${memberId}`, {})
+        return this.http
+            .put<void>(`${this.base}/roles/${roleId}/members/${memberId}`, {})
             .pipe(tap(() => this.invalidateOwnMember()));
     }
 
     getRoleMembers(roleId: string, skip: number, take: number): Observable<RoleMemberDto[]> {
-        return this.http.get<RoleMemberDto[]>(`${this.base}/roles/${roleId}/members?skip=${skip}&take=${take}`);
+        return this.http.get<RoleMemberDto[]>(
+            `${this.base}/roles/${roleId}/members?skip=${skip}&take=${take}`,
+        );
     }
 
     searchRoleMembers(roleId: string, search: string): Observable<RoleMemberDto[]> {
         return this.http.get<RoleMemberDto[]>(
-            `${this.base}/roles/${roleId}/members/search?search=${encodeURIComponent(search)}`
+            `${this.base}/roles/${roleId}/members/search?search=${encodeURIComponent(search)}`,
         );
     }
 
     removeRoleFromMember(roleId: string, memberId: string): Observable<void> {
-        return this.http.delete<void>(`${this.base}/roles/${roleId}/members/${memberId}`)
+        return this.http
+            .delete<void>(`${this.base}/roles/${roleId}/members/${memberId}`)
             .pipe(tap(() => this.invalidateOwnMember()));
     }
 
@@ -460,12 +486,26 @@ export class GuildService {
         return this.http.delete<void>(`${this.base}/channels/${id}`);
     }
 
-    upsertChannelRolePermission(channelId: string, roleId: string, dto: OverridePermissionsDto): Observable<ChannelPermission> {
-        return this.http.put<ChannelPermission>(`${this.base}/channels/${channelId}/permissions/roles/${roleId}`, dto);
+    upsertChannelRolePermission(
+        channelId: string,
+        roleId: string,
+        dto: OverridePermissionsDto,
+    ): Observable<ChannelPermission> {
+        return this.http.put<ChannelPermission>(
+            `${this.base}/channels/${channelId}/permissions/roles/${roleId}`,
+            dto,
+        );
     }
 
-    upsertChannelMemberPermission(channelId: string, memberId: string, dto: OverridePermissionsDto): Observable<ChannelPermission> {
-        return this.http.put<ChannelPermission>(`${this.base}/channels/${channelId}/permissions/members/${memberId}`, dto);
+    upsertChannelMemberPermission(
+        channelId: string,
+        memberId: string,
+        dto: OverridePermissionsDto,
+    ): Observable<ChannelPermission> {
+        return this.http.put<ChannelPermission>(
+            `${this.base}/channels/${channelId}/permissions/members/${memberId}`,
+            dto,
+        );
     }
 
     deleteChannelRolePermission(channelId: string, roleId: string): Observable<void> {
@@ -489,12 +529,26 @@ export class GuildService {
         return this.http.delete<void>(`${this.base}/categories/${id}`);
     }
 
-    upsertCategoryRolePermission(categoryId: string, roleId: string, dto: OverridePermissionsDto): Observable<ChannelPermission> {
-        return this.http.put<ChannelPermission>(`${this.base}/categories/${categoryId}/permissions/roles/${roleId}`, dto);
+    upsertCategoryRolePermission(
+        categoryId: string,
+        roleId: string,
+        dto: OverridePermissionsDto,
+    ): Observable<ChannelPermission> {
+        return this.http.put<ChannelPermission>(
+            `${this.base}/categories/${categoryId}/permissions/roles/${roleId}`,
+            dto,
+        );
     }
 
-    upsertCategoryMemberPermission(categoryId: string, memberId: string, dto: OverridePermissionsDto): Observable<ChannelPermission> {
-        return this.http.put<ChannelPermission>(`${this.base}/categories/${categoryId}/permissions/members/${memberId}`, dto);
+    upsertCategoryMemberPermission(
+        categoryId: string,
+        memberId: string,
+        dto: OverridePermissionsDto,
+    ): Observable<ChannelPermission> {
+        return this.http.put<ChannelPermission>(
+            `${this.base}/categories/${categoryId}/permissions/members/${memberId}`,
+            dto,
+        );
     }
 
     deleteCategoryRolePermission(categoryId: string, roleId: string): Observable<void> {
@@ -502,7 +556,9 @@ export class GuildService {
     }
 
     deleteCategoryMemberPermission(categoryId: string, memberId: string): Observable<void> {
-        return this.http.delete<void>(`${this.base}/categories/${categoryId}/permissions/members/${memberId}`);
+        return this.http.delete<void>(
+            `${this.base}/categories/${categoryId}/permissions/members/${memberId}`,
+        );
     }
 
     // ── Invites ──────────────────────────────────────────────────────────────
@@ -555,23 +611,27 @@ export class GuildService {
      */
     getChannelViewers(channelId: string): Observable<string[]> {
         return this.http
-            .get<{ channelId: string; userIds: string[] }>(
-                `${this.base}/channels/${encodeURIComponent(channelId)}/viewers`)
+            .get<{channelId: string; userIds: string[]}>(
+                `${this.base}/channels/${encodeURIComponent(channelId)}/viewers`,
+            )
             .pipe(map(r => r.userIds));
     }
 
     getMembers(guildId: string, skip: number, take: number): Observable<GuildMemberDto[]> {
-        return this.http.get<GuildMemberDto[]>(`${this.base}/guilds/${guildId}/members?skip=${skip}&take=${take}`)
+        return this.http
+            .get<GuildMemberDto[]>(`${this.base}/guilds/${guildId}/members?skip=${skip}&take=${take}`)
             .pipe(tap(members => this.seedProfiles(members)));
     }
 
     searchMembers(guildId: string, search: string): Observable<GuildMemberDto[]> {
-        return this.http.get<GuildMemberDto[]>(
-            `${this.base}/guilds/${guildId}/members/search?search=${encodeURIComponent(search)}`
-        ).pipe(
-            tap(members => this.seedProfiles(members)),
-            catchError(err => err.status === 404 ? of([]) : throwError(() => err))
-        );
+        return this.http
+            .get<GuildMemberDto[]>(
+                `${this.base}/guilds/${guildId}/members/search?search=${encodeURIComponent(search)}`,
+            )
+            .pipe(
+                tap(members => this.seedProfiles(members)),
+                catchError(err => (err.status === 404 ? of([]) : throwError(() => err))),
+            );
     }
 
     /**
@@ -630,7 +690,8 @@ export class GuildService {
                 // Identity-checked: an invalidation may already have replaced this entry with a
                 // newer request, and this one settling must not take that one down with it.
                 finalize(() => {
-                    if (this.ownMemberInFlight.get(guildId) === shared) this.ownMemberInFlight.delete(guildId);
+                    if (this.ownMemberInFlight.get(guildId) === shared)
+                        this.ownMemberInFlight.delete(guildId);
                 }),
                 // `refCount: false` on purpose. With ref counting, a host that is destroyed before
                 // the response lands - switching guilds quickly does exactly that - would tear the
@@ -694,7 +755,9 @@ export class GuildService {
 
     // ── Audit log ────────────────────────────────────────────────────────────
     getAuditLog(guildId: string, skip: number, take: number): Observable<AuditLogEntryDto[]> {
-        return this.http.get<AuditLogEntryDto[]>(`${this.base}/guilds/${guildId}/audit-log?skip=${skip}&take=${take}`);
+        return this.http.get<AuditLogEntryDto[]>(
+            `${this.base}/guilds/${guildId}/audit-log?skip=${skip}&take=${take}`,
+        );
     }
 
     reorderRoles(guildId: string, dto: ReorderRolesDto): Observable<void> {

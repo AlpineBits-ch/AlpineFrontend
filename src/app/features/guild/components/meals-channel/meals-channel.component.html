@@ -1,9 +1,14 @@
 <div class="flex flex-col h-full bg-app-bg overflow-hidden">
-
     <!-- Header. Drawn even when the module is off, so a phone still has its way back to the channel list; the body below is what disappears, not the shell. -->
     <header class="app-header flex items-center gap-2 px-3 sm:px-5 border-b border-border-subtle shrink-0 bg-app-bg">
-        <p-button (onClick)="navService.mobileNavOpen.set(true)" [text]="true" class="lg:hidden" icon="pi pi-bars"
-                  severity="secondary" size="small"/>
+        <p-button
+            (onClick)="navService.mobileNavOpen.set(true)"
+            [text]="true"
+            class="lg:hidden"
+            icon="pi pi-bars"
+            severity="secondary"
+            size="small"
+        />
 
         <div class="flex items-center gap-2 sm:gap-3 min-w-0">
             <i [class]="icon()" class="text-text-muted shrink-0"></i>
@@ -14,8 +19,13 @@
             <div class="ml-auto flex items-center gap-1">
                 @if (canPlan()) {
                     <!-- The highest-value action in the module, and the only one in the header. -->
-                    <p-button (onClick)="openShopping()" [label]="'MEALS.SHOPPING_LIST' | translate"
-                              icon="pi pi-shopping-cart" severity="primary" size="small"/>
+                    <p-button
+                        (onClick)="openShopping()"
+                        [label]="'MEALS.SHOPPING_LIST' | translate"
+                        icon="pi pi-shopping-cart"
+                        severity="primary"
+                        size="small"
+                    />
                 }
             </div>
         }
@@ -25,19 +35,28 @@
     @if (!hidden()) {
         <div class="px-3 sm:px-5 pt-3 shrink-0">
             <div class="flex items-center rounded-lg border border-border-subtle p-0.5 w-fit">
-                <button (click)="view.set('plan')"
-                        [class]="view() === 'plan' ? 'bg-hover text-text-primary' : 'text-text-muted hover:text-text-secondary'"
-                        class="px-3 py-1 rounded-md text-[0.6875rem] font-medium transition-colors" type="button">
+                <button
+                    (click)="view.set('plan')"
+                    [class]="view() === 'plan' ? 'bg-hover text-text-primary' : 'text-text-muted hover:text-text-secondary'"
+                    class="px-3 py-1 rounded-md text-[0.6875rem] font-medium transition-colors"
+                    type="button"
+                >
                     {{ 'MEALS.TAB_PLAN' | translate }}
                 </button>
-                <button (click)="view.set('recipes')"
-                        [class]="view() === 'recipes' ? 'bg-hover text-text-primary' : 'text-text-muted hover:text-text-secondary'"
-                        class="px-3 py-1 rounded-md text-[0.6875rem] font-medium transition-colors" type="button">
+                <button
+                    (click)="view.set('recipes')"
+                    [class]="view() === 'recipes' ? 'bg-hover text-text-primary' : 'text-text-muted hover:text-text-secondary'"
+                    class="px-3 py-1 rounded-md text-[0.6875rem] font-medium transition-colors"
+                    type="button"
+                >
                     {{ 'MEALS.TAB_RECIPES' | translate }}
                 </button>
-                <button (click)="showCookable()"
-                        [class]="view() === 'cookable' ? 'bg-hover text-text-primary' : 'text-text-muted hover:text-text-secondary'"
-                        class="px-3 py-1 rounded-md text-[0.6875rem] font-medium transition-colors" type="button">
+                <button
+                    (click)="showCookable()"
+                    [class]="view() === 'cookable' ? 'bg-hover text-text-primary' : 'text-text-muted hover:text-text-secondary'"
+                    class="px-3 py-1 rounded-md text-[0.6875rem] font-medium transition-colors"
+                    type="button"
+                >
                     {{ 'MEALS.TAB_COOKABLE' | translate }}
                 </button>
             </div>
@@ -45,25 +64,32 @@
 
         <div class="flex-1 min-h-0 overflow-y-auto thin-scrollbar">
             <div class="px-3 sm:px-5 py-4 flex flex-col gap-4 max-w-3xl mx-auto w-full">
-
                 @if (state().loading && !state().loaded) {
                     <div class="flex items-center justify-center py-16">
                         <i class="pi pi-spin pi-spinner text-xl text-text-muted"></i>
                     </div>
                 } @else if (view() === 'plan') {
-
                     <!-- ── The week ────────────────────────────────────────────── -->
                     <div class="flex items-center gap-2">
-                        <p-button (onClick)="shiftWeek(-1)" [text]="true" icon="pi pi-chevron-left"
-                                  severity="secondary" size="small"/>
+                        <p-button (onClick)="shiftWeek(-1)" [text]="true" icon="pi pi-chevron-left" severity="secondary" size="small" />
                         <span class="text-xs font-semibold text-text-secondary">{{ weekLabel() }}</span>
-                        <p-button (onClick)="shiftWeek(1)" [text]="true" icon="pi pi-chevron-right"
-                                  severity="secondary" size="small"/>
-                        <p-button (onClick)="thisWeek()" [label]="'MEALS.THIS_WEEK' | translate" [text]="true"
-                                  severity="secondary" size="small"/>
+                        <p-button (onClick)="shiftWeek(1)" [text]="true" icon="pi pi-chevron-right" severity="secondary" size="small" />
+                        <p-button
+                            (onClick)="thisWeek()"
+                            [label]="'MEALS.THIS_WEEK' | translate"
+                            [text]="true"
+                            severity="secondary"
+                            size="small"
+                        />
                         @if (canPlan()) {
-                            <p-button (onClick)="openAddEntry()" [label]="'MEALS.ADD_ENTRY' | translate"
-                                      class="ml-auto" icon="pi pi-plus" severity="secondary" size="small"/>
+                            <p-button
+                                (onClick)="openAddEntry()"
+                                [label]="'MEALS.ADD_ENTRY' | translate"
+                                class="ml-auto"
+                                icon="pi pi-plus"
+                                severity="secondary"
+                                size="small"
+                            />
                         }
                     </div>
 
@@ -72,8 +98,13 @@
                             <i class="pi pi-calendar text-3xl text-white/10"></i>
                             <p class="text-sm text-text-muted m-0">{{ 'MEALS.PLAN_EMPTY' | translate }}</p>
                             @if (canPlan()) {
-                                <p-button (onClick)="openAddEntry()" [label]="'MEALS.ADD_ENTRY' | translate"
-                                          [text]="true" severity="secondary" size="small"/>
+                                <p-button
+                                    (onClick)="openAddEntry()"
+                                    [label]="'MEALS.ADD_ENTRY' | translate"
+                                    [text]="true"
+                                    severity="secondary"
+                                    size="small"
+                                />
                             }
                         </div>
                     } @else {
@@ -81,15 +112,23 @@
                             @for (day of days(); track day.date) {
                                 <div class="border-b border-border-subtle last:border-b-0">
                                     <div class="px-4 py-2 flex items-center gap-2">
-                                        <span [class]="day.isToday ? 'text-brand' : 'text-text-secondary'"
-                                              class="text-[0.6875rem] font-semibold uppercase tracking-wide">
+                                        <span
+                                            [class]="day.isToday ? 'text-brand' : 'text-text-secondary'"
+                                            class="text-[0.6875rem] font-semibold uppercase tracking-wide"
+                                        >
                                             {{ day.label }}
                                         </span>
                                         @if (canPlan()) {
-                                            <p-button (onClick)="openAddEntry(day.date)" class="ml-auto"
-                                                      [pTooltip]="'MEALS.ADD_ENTRY' | translate" [text]="true"
-                                                      icon="pi pi-plus" severity="secondary" size="small"
-                                                      tooltipPosition="left"/>
+                                            <p-button
+                                                (onClick)="openAddEntry(day.date)"
+                                                class="ml-auto"
+                                                [pTooltip]="'MEALS.ADD_ENTRY' | translate"
+                                                [text]="true"
+                                                icon="pi pi-plus"
+                                                severity="secondary"
+                                                size="small"
+                                                tooltipPosition="left"
+                                            />
                                         }
                                     </div>
 
@@ -111,11 +150,23 @@
                                                         </span>
                                                     }
                                                     @if (canEditEntry(row.entry)) {
-                                                        <div class="ml-auto flex items-center shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-                                                            <p-button (onClick)="openEditEntry(row.entry)" [text]="true"
-                                                                      icon="pi pi-pencil" severity="secondary" size="small"/>
-                                                            <p-button (onClick)="removeEntry(row.entry)" [text]="true"
-                                                                      icon="pi pi-trash" severity="danger" size="small"/>
+                                                        <div
+                                                            class="ml-auto flex items-center shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity"
+                                                        >
+                                                            <p-button
+                                                                (onClick)="openEditEntry(row.entry)"
+                                                                [text]="true"
+                                                                icon="pi pi-pencil"
+                                                                severity="secondary"
+                                                                size="small"
+                                                            />
+                                                            <p-button
+                                                                (onClick)="removeEntry(row.entry)"
+                                                                [text]="true"
+                                                                icon="pi pi-trash"
+                                                                severity="danger"
+                                                                size="small"
+                                                            />
                                                         </div>
                                                     }
                                                 </div>
@@ -126,15 +177,19 @@
                             }
                         </section>
                     }
-
                 } @else if (view() === 'recipes') {
-
                     <!-- ── Recipes ─────────────────────────────────────────────── -->
                     <div class="flex items-center gap-2">
                         <span class="text-xs font-semibold text-text-secondary">{{ 'MEALS.RECIPES' | translate }}</span>
                         @if (canPlan()) {
-                            <p-button (onClick)="openAddRecipe()" [label]="'MEALS.ADD_RECIPE' | translate"
-                                      class="ml-auto" icon="pi pi-plus" severity="secondary" size="small"/>
+                            <p-button
+                                (onClick)="openAddRecipe()"
+                                [label]="'MEALS.ADD_RECIPE' | translate"
+                                class="ml-auto"
+                                icon="pi pi-plus"
+                                severity="secondary"
+                                size="small"
+                            />
                         }
                     </div>
 
@@ -152,28 +207,50 @@
                                         <p class="text-[0.6875rem] text-text-muted m-0 mt-0.5 truncate">
                                             {{ 'MEALS.SERVINGS' | translate: {count: recipe.servings} }}
                                             @if (recipe.prepMinutes) {
-                                                <span class="mx-1">·</span>{{ 'MEALS.PREP_MINUTES' | translate: {minutes: recipe.prepMinutes} }}
+                                                <span class="mx-1">·</span
+                                                >{{ 'MEALS.PREP_MINUTES' | translate: {minutes: recipe.prepMinutes} }}
                                             }
-                                            <span class="mx-1">·</span>{{ 'MEALS.INGREDIENT_COUNT' | translate: {count: recipe.ingredients.length} }}
+                                            <span class="mx-1">·</span
+                                            >{{ 'MEALS.INGREDIENT_COUNT' | translate: {count: recipe.ingredients.length} }}
                                         </p>
                                     </div>
 
                                     @if (canEditRecipe(recipe)) {
                                         @if (confirmDeleteRecipeId() === recipe.id) {
                                             <div class="flex items-center shrink-0">
-                                                <p-button (onClick)="removeRecipe(recipe)"
-                                                          [label]="'MEALS.CONFIRM_DELETE' | translate" [text]="true"
-                                                          severity="danger" size="small"/>
-                                                <p-button (onClick)="confirmDeleteRecipeId.set(null)"
-                                                          [label]="'COMMON.CANCEL' | translate" [text]="true"
-                                                          severity="secondary" size="small"/>
+                                                <p-button
+                                                    (onClick)="removeRecipe(recipe)"
+                                                    [label]="'MEALS.CONFIRM_DELETE' | translate"
+                                                    [text]="true"
+                                                    severity="danger"
+                                                    size="small"
+                                                />
+                                                <p-button
+                                                    (onClick)="confirmDeleteRecipeId.set(null)"
+                                                    [label]="'COMMON.CANCEL' | translate"
+                                                    [text]="true"
+                                                    severity="secondary"
+                                                    size="small"
+                                                />
                                             </div>
                                         } @else {
-                                            <div class="flex items-center shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-                                                <p-button (onClick)="openEditRecipe(recipe)" [text]="true"
-                                                          icon="pi pi-pencil" severity="secondary" size="small"/>
-                                                <p-button (onClick)="removeRecipe(recipe)" [text]="true"
-                                                          icon="pi pi-trash" severity="danger" size="small"/>
+                                            <div
+                                                class="flex items-center shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity"
+                                            >
+                                                <p-button
+                                                    (onClick)="openEditRecipe(recipe)"
+                                                    [text]="true"
+                                                    icon="pi pi-pencil"
+                                                    severity="secondary"
+                                                    size="small"
+                                                />
+                                                <p-button
+                                                    (onClick)="removeRecipe(recipe)"
+                                                    [text]="true"
+                                                    icon="pi pi-trash"
+                                                    severity="danger"
+                                                    size="small"
+                                                />
                                             </div>
                                         }
                                     }
@@ -183,14 +260,17 @@
 
                         @if (state().recipesCursor) {
                             <div class="flex justify-center">
-                                <p-button (onClick)="loadMoreRecipes()" [label]="'MEALS.LOAD_MORE' | translate"
-                                          [text]="true" severity="secondary" size="small"/>
+                                <p-button
+                                    (onClick)="loadMoreRecipes()"
+                                    [label]="'MEALS.LOAD_MORE' | translate"
+                                    [text]="true"
+                                    severity="secondary"
+                                    size="small"
+                                />
                             </div>
                         }
                     }
-
                 } @else {
-
                     <!-- ── Cookable: the food-waste payoff ────────────────────── -->
                     <div class="flex items-center gap-2">
                         <div class="min-w-0">
@@ -228,9 +308,13 @@
                                         }
                                     </div>
                                     @if (canPlan()) {
-                                        <p-button (onClick)="planTonight(item.recipe)"
-                                                  [label]="'MEALS.PLAN_TONIGHT' | translate" [text]="true"
-                                                  severity="secondary" size="small"/>
+                                        <p-button
+                                            (onClick)="planTonight(item.recipe)"
+                                            [label]="'MEALS.PLAN_TONIGHT' | translate"
+                                            [text]="true"
+                                            severity="secondary"
+                                            size="small"
+                                        />
                                     }
                                 </div>
                             }
@@ -247,8 +331,15 @@
 </div>
 
 <!-- ── Plan entry ──────────────────────────────────────────────────────────── -->
-<p-dialog (visibleChange)="showEntryDialog.set($event)" [draggable]="false" [modal]="true" [resizable]="false"
-          [style]="{width: '460px'}" [visible]="showEntryDialog()" appendTo="body">
+<p-dialog
+    (visibleChange)="showEntryDialog.set($event)"
+    [draggable]="false"
+    [modal]="true"
+    [resizable]="false"
+    [style]="{width: '460px'}"
+    [visible]="showEntryDialog()"
+    appendTo="body"
+>
     <ng-template pTemplate="header">
         <span class="text-sm font-semibold text-text-primary">
             {{ (editingEntryId() ? 'MEALS.EDIT_ENTRY' : 'MEALS.ADD_ENTRY') | translate }}
@@ -260,49 +351,86 @@
             <div class="flex flex-col gap-1.5 flex-1 min-w-0">
                 <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MEALS.DATE' | translate }}</label>
                 <!-- A plain date input, and the string it produces goes to the server unchanged: "Thursday dinner" is Thursday dinner wherever the phone is. -->
-                <input (ngModelChange)="entryDate.set($event)" [ngModel]="entryDate()" pInputText type="date"/>
+                <input (ngModelChange)="entryDate.set($event)" [ngModel]="entryDate()" pInputText type="date" />
             </div>
             <div class="flex flex-col gap-1.5 w-36">
                 <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MEALS.SLOT' | translate }}</label>
-                <p-select (ngModelChange)="entrySlot.set($event)" [ngModel]="entrySlot()"
-                          [options]="slotOptions()" optionLabel="label" optionValue="value"
-                          styleClass="w-full"/>
+                <p-select
+                    (ngModelChange)="entrySlot.set($event)"
+                    [ngModel]="entrySlot()"
+                    [options]="slotOptions()"
+                    optionLabel="label"
+                    optionValue="value"
+                    styleClass="w-full"
+                />
             </div>
         </div>
 
         <div class="flex flex-col gap-1.5">
             <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MEALS.RECIPE' | translate }}</label>
-            <p-select (ngModelChange)="entryRecipeId.set($event)" [filter]="true" [ngModel]="entryRecipeId()"
-                      [options]="recipeOptions()" [placeholder]="'MEALS.RECIPE_NONE' | translate"
-                      [showClear]="true" optionLabel="label" optionValue="value" styleClass="w-full"/>
+            <p-select
+                (ngModelChange)="entryRecipeId.set($event)"
+                [filter]="true"
+                [ngModel]="entryRecipeId()"
+                [options]="recipeOptions()"
+                [placeholder]="'MEALS.RECIPE_NONE' | translate"
+                [showClear]="true"
+                optionLabel="label"
+                optionValue="value"
+                styleClass="w-full"
+            />
         </div>
 
         <div class="flex flex-col gap-1.5">
             <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MEALS.FREE_TEXT' | translate }}</label>
             <!-- Most of a real week is "leftovers", so this is the common case, and it is why an entry needs only one of the two. -->
-            <input (ngModelChange)="entryFreeText.set($event)" [ngModel]="entryFreeText()"
-                   [placeholder]="'MEALS.FREE_TEXT_PLACEHOLDER' | translate" pInputText type="text"/>
+            <input
+                (ngModelChange)="entryFreeText.set($event)"
+                [ngModel]="entryFreeText()"
+                [placeholder]="'MEALS.FREE_TEXT_PLACEHOLDER' | translate"
+                pInputText
+                type="text"
+            />
         </div>
 
         <div class="flex flex-col gap-1.5">
             <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MEALS.COOK' | translate }}</label>
-            <p-select (ngModelChange)="entryCookUserId.set($event)" [filter]="true" [ngModel]="entryCookUserId()"
-                      [options]="memberOptions()" [placeholder]="'MEALS.COOK_NOBODY' | translate"
-                      [showClear]="true" optionLabel="label" optionValue="value" styleClass="w-full"/>
+            <p-select
+                (ngModelChange)="entryCookUserId.set($event)"
+                [filter]="true"
+                [ngModel]="entryCookUserId()"
+                [options]="memberOptions()"
+                [placeholder]="'MEALS.COOK_NOBODY' | translate"
+                [showClear]="true"
+                optionLabel="label"
+                optionValue="value"
+                styleClass="w-full"
+            />
         </div>
     </div>
 
     <ng-template pTemplate="footer">
-        <p-button (onClick)="showEntryDialog.set(false)" [label]="'COMMON.CANCEL' | translate" [text]="true"
-                  severity="secondary"/>
-        <p-button (onClick)="submitEntry()" [disabled]="!entryValid()" [label]="'COMMON.SAVE' | translate"
-                  [loading]="saving()" severity="primary"/>
+        <p-button (onClick)="showEntryDialog.set(false)" [label]="'COMMON.CANCEL' | translate" [text]="true" severity="secondary" />
+        <p-button
+            (onClick)="submitEntry()"
+            [disabled]="!entryValid()"
+            [label]="'COMMON.SAVE' | translate"
+            [loading]="saving()"
+            severity="primary"
+        />
     </ng-template>
 </p-dialog>
 
 <!-- ── Recipe ──────────────────────────────────────────────────────────────── -->
-<p-dialog (visibleChange)="showRecipeDialog.set($event)" [draggable]="false" [modal]="true" [resizable]="false"
-          [style]="{width: '520px'}" [visible]="showRecipeDialog()" appendTo="body">
+<p-dialog
+    (visibleChange)="showRecipeDialog.set($event)"
+    [draggable]="false"
+    [modal]="true"
+    [resizable]="false"
+    [style]="{width: '520px'}"
+    [visible]="showRecipeDialog()"
+    appendTo="body"
+>
     <ng-template pTemplate="header">
         <span class="text-sm font-semibold text-text-primary">
             {{ (editingRecipeId() ? 'MEALS.EDIT_RECIPE' : 'MEALS.ADD_RECIPE') | translate }}
@@ -312,35 +440,47 @@
     <div class="flex flex-col gap-4">
         <div class="flex flex-col gap-1.5">
             <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MEALS.TITLE' | translate }}</label>
-            <input (ngModelChange)="recipeTitle.set($event)" [maxlength]="titleMaxLength" [ngModel]="recipeTitle()"
-                   [placeholder]="'MEALS.TITLE_PLACEHOLDER' | translate" pInputText type="text"/>
+            <input
+                (ngModelChange)="recipeTitle.set($event)"
+                [maxlength]="titleMaxLength"
+                [ngModel]="recipeTitle()"
+                [placeholder]="'MEALS.TITLE_PLACEHOLDER' | translate"
+                pInputText
+                type="text"
+            />
         </div>
 
         <div class="flex gap-3">
             <div class="flex flex-col gap-1.5 w-28">
                 <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MEALS.SERVINGS_LABEL' | translate }}</label>
-                <input (ngModelChange)="recipeServings.set(+$event)" [ngModel]="recipeServings()" min="1"
-                       pInputText type="number"/>
+                <input (ngModelChange)="recipeServings.set(+$event)" [ngModel]="recipeServings()" min="1" pInputText type="number" />
             </div>
             <div class="flex flex-col gap-1.5 w-32">
                 <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MEALS.PREP_LABEL' | translate }}</label>
-                <input (ngModelChange)="recipePrepMinutes.set($event ? +$event : null)"
-                       [ngModel]="recipePrepMinutes()" min="1" pInputText type="number"/>
+                <input
+                    (ngModelChange)="recipePrepMinutes.set($event ? +$event : null)"
+                    [ngModel]="recipePrepMinutes()"
+                    min="1"
+                    pInputText
+                    type="number"
+                />
             </div>
             <div class="flex flex-col gap-1.5 flex-1 min-w-0">
                 <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MEALS.SOURCE_URL' | translate }}</label>
-                <input (ngModelChange)="recipeSourceUrl.set($event)" [ngModel]="recipeSourceUrl()"
-                       pInputText type="url"/>
+                <input (ngModelChange)="recipeSourceUrl.set($event)" [ngModel]="recipeSourceUrl()" pInputText type="url" />
             </div>
         </div>
 
         <div class="flex flex-col gap-1.5">
             <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MEALS.INGREDIENTS' | translate }}</label>
             <!-- One line each, as the cook would write them on a shopping list; edited as a block, which is also how the endpoint takes them. -->
-            <textarea (ngModelChange)="recipeIngredients.set($event)" [ngModel]="recipeIngredients()"
-                      [placeholder]="'MEALS.INGREDIENTS_PLACEHOLDER' | translate"
-                      class="w-full rounded-lg bg-card border border-border px-3 py-2 text-[0.8125rem] text-text-primary min-h-32 thin-scrollbar"
-                      rows="8"></textarea>
+            <textarea
+                (ngModelChange)="recipeIngredients.set($event)"
+                [ngModel]="recipeIngredients()"
+                [placeholder]="'MEALS.INGREDIENTS_PLACEHOLDER' | translate"
+                class="w-full rounded-lg bg-card border border-border px-3 py-2 text-[0.8125rem] text-text-primary min-h-32 thin-scrollbar"
+                rows="8"
+            ></textarea>
             <span class="text-[0.625rem] text-text-muted">
                 {{ 'MEALS.INGREDIENTS_HINT' | translate: {count: ingredientLines().length, max: ingredientsMax} }}
             </span>
@@ -348,16 +488,27 @@
     </div>
 
     <ng-template pTemplate="footer">
-        <p-button (onClick)="showRecipeDialog.set(false)" [label]="'COMMON.CANCEL' | translate" [text]="true"
-                  severity="secondary"/>
-        <p-button (onClick)="submitRecipe()" [disabled]="!recipeValid()" [label]="'COMMON.SAVE' | translate"
-                  [loading]="saving()" severity="primary"/>
+        <p-button (onClick)="showRecipeDialog.set(false)" [label]="'COMMON.CANCEL' | translate" [text]="true" severity="secondary" />
+        <p-button
+            (onClick)="submitRecipe()"
+            [disabled]="!recipeValid()"
+            [label]="'COMMON.SAVE' | translate"
+            [loading]="saving()"
+            severity="primary"
+        />
     </ng-template>
 </p-dialog>
 
 <!-- ── Plan to shopping list: the module's whole point ──────────────────────── -->
-<p-dialog (visibleChange)="showShoppingDialog.set($event)" [draggable]="false" [modal]="true" [resizable]="false"
-          [style]="{width: '520px'}" [visible]="showShoppingDialog()" appendTo="body">
+<p-dialog
+    (visibleChange)="showShoppingDialog.set($event)"
+    [draggable]="false"
+    [modal]="true"
+    [resizable]="false"
+    [style]="{width: '520px'}"
+    [visible]="showShoppingDialog()"
+    appendTo="body"
+>
     <ng-template pTemplate="header">
         <div class="flex flex-col gap-0.5">
             <span class="text-sm font-semibold text-text-primary">{{ 'MEALS.SHOPPING_LIST' | translate }}</span>
@@ -370,20 +521,35 @@
 
         <div class="flex flex-col gap-1.5">
             <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MEALS.SHOPPING_TARGET' | translate }}</label>
-            <p-select (ngModelChange)="shoppingListChannelId.set($event)" [ngModel]="shoppingListChannelId()"
-                      [options]="listChannelOptions()" [placeholder]="'MEALS.SHOPPING_TARGET_DEFAULT' | translate"
-                      [showClear]="true" optionLabel="label" optionValue="value" styleClass="w-full"/>
+            <p-select
+                (ngModelChange)="shoppingListChannelId.set($event)"
+                [ngModel]="shoppingListChannelId()"
+                [options]="listChannelOptions()"
+                [placeholder]="'MEALS.SHOPPING_TARGET_DEFAULT' | translate"
+                [showClear]="true"
+                optionLabel="label"
+                optionValue="value"
+                styleClass="w-full"
+            />
         </div>
 
         <label class="flex items-start gap-2 cursor-pointer">
-            <input (ngModelChange)="shoppingIncludeOptional.set($event)" [ngModel]="shoppingIncludeOptional()"
-                   class="mt-0.5 accent-brand" type="checkbox"/>
+            <input
+                (ngModelChange)="shoppingIncludeOptional.set($event)"
+                [ngModel]="shoppingIncludeOptional()"
+                class="mt-0.5 accent-brand"
+                type="checkbox"
+            />
             <span class="text-[0.8125rem] text-text-primary">{{ 'MEALS.INCLUDE_OPTIONAL' | translate }}</span>
         </label>
 
         <label class="flex items-start gap-2 cursor-pointer">
-            <input (ngModelChange)="shoppingSkipPantry.set($event)" [ngModel]="shoppingSkipPantry()"
-                   class="mt-0.5 accent-brand" type="checkbox"/>
+            <input
+                (ngModelChange)="shoppingSkipPantry.set($event)"
+                [ngModel]="shoppingSkipPantry()"
+                class="mt-0.5 accent-brand"
+                type="checkbox"
+            />
             <span class="min-w-0">
                 <span class="text-[0.8125rem] text-text-primary block">{{ 'MEALS.SKIP_PANTRY' | translate }}</span>
                 <span class="text-[0.625rem] text-text-muted block">{{ 'MEALS.SKIP_PANTRY_HINT' | translate }}</span>
@@ -416,9 +582,7 @@
     </div>
 
     <ng-template pTemplate="footer">
-        <p-button (onClick)="showShoppingDialog.set(false)" [label]="'COMMON.CLOSE' | translate" [text]="true"
-                  severity="secondary"/>
-        <p-button (onClick)="submitShopping()" [label]="'MEALS.SHOPPING_RUN' | translate"
-                  [loading]="shoppingBusy()" severity="primary"/>
+        <p-button (onClick)="showShoppingDialog.set(false)" [label]="'COMMON.CLOSE' | translate" [text]="true" severity="secondary" />
+        <p-button (onClick)="submitShopping()" [label]="'MEALS.SHOPPING_RUN' | translate" [loading]="shoppingBusy()" severity="primary" />
     </ng-template>
 </p-dialog>

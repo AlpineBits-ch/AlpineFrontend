@@ -115,7 +115,7 @@ export class WikiAiService {
         if (!this.available()) throw new NoAiProviderError();
     }
 
-    private async* stream(
+    private async *stream(
         call: (provider: AiProvider, key: string, model: string) => AsyncIterable<string>,
     ): AsyncIterable<string> {
         const {provider, key, model} = await this.resolve();

@@ -62,17 +62,21 @@ export class GuildVoiceActivityService {
         });
 
         this.guildWs.userJoinedVoiceObservable.subscribe(e =>
-            this.addMember(e.guildId, e.channelId, e.userId));
+            this.addMember(e.guildId, e.channelId, e.userId),
+        );
 
         this.guildWs.userLeftVoiceObservable.subscribe(e =>
-            this.removeMember(e.guildId, e.channelId, e.userId));
+            this.removeMember(e.guildId, e.channelId, e.userId),
+        );
 
         // Screen-share events carry no guildId; it is resolved from the roster this service holds.
         this.guildWs.voiceScreenShareStartedObservable.subscribe(e =>
-            this.addStreamer(e.channelId, e.userId, e.shareId));
+            this.addStreamer(e.channelId, e.userId, e.shareId),
+        );
 
         this.guildWs.voiceScreenShareStoppedObservable.subscribe(e =>
-            this.removeStreamerByShare(e.channelId, e.shareId));
+            this.removeStreamerByShare(e.channelId, e.shareId),
+        );
     }
 
     /** Anyone currently streaming in one channel. */
@@ -83,7 +87,8 @@ export class GuildVoiceActivityService {
     /** Whether this user is streaming anywhere this client has a roster for. */
     isStreaming(userId: string): boolean {
         return Object.values(this.streamers()).some(channels =>
-            Object.values(channels).some(ids => ids.includes(userId)));
+            Object.values(channels).some(ids => ids.includes(userId)),
+        );
     }
 
     /** Which channel of a guild this user is streaming in, or undefined. */

@@ -77,7 +77,9 @@ describe('MessagingService search', () => {
 
     it('scopes a channel search with query params on the flat search route', () => {
         service.searchMessagesForChannel('c1', 'hello world').subscribe();
-        const req = http.expectOne(r => r.url === 'https://api.test.example/api/v1/messaging/messaging/search');
+        const req = http.expectOne(
+            r => r.url === 'https://api.test.example/api/v1/messaging/messaging/search',
+        );
         expect(req.request.method).toBe('GET');
         expect(req.request.params.get('query')).toBe('hello world');
         expect(req.request.params.get('channelId')).toBe('c1');
@@ -87,7 +89,9 @@ describe('MessagingService search', () => {
 
     it('scopes a conversation search the same way', () => {
         service.searchMessagesForConversation('v1', 'test').subscribe();
-        const req = http.expectOne(r => r.url === 'https://api.test.example/api/v1/messaging/messaging/search');
+        const req = http.expectOne(
+            r => r.url === 'https://api.test.example/api/v1/messaging/messaging/search',
+        );
         expect(req.request.params.get('conversationId')).toBe('v1');
         expect(req.request.params.get('channelId')).toBeNull();
         req.flush([]);

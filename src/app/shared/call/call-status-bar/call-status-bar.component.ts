@@ -20,7 +20,6 @@ import {CallStatus, CallStatusTone, resolveCallStatus} from '../call-status';
     template: `
         @let s = status();
         <div [class]="rowClass()" aria-live="polite" role="status">
-
             <span [class]="dotClass()"></span>
 
             <span [class]="labelClass()">{{ s.labelKey | translate }}</span>
@@ -28,7 +27,7 @@ import {CallStatus, CallStatusTone, resolveCallStatus} from '../call-status';
             @if (s.detailKey; as detail) {
                 <span class="text-white/25" aria-hidden="true">·</span>
                 <span class="min-w-0 truncate text-white/60">
-                    {{ detail | translate: (s.detailParams ?? {}) }}
+                    {{ detail | translate: s.detailParams ?? {} }}
                 </span>
             } @else if (meta(); as m) {
                 <span class="text-white/25" aria-hidden="true">·</span>
@@ -37,7 +36,7 @@ import {CallStatus, CallStatusTone, resolveCallStatus} from '../call-status';
 
             <!-- Trailing controls: the stats toggle and the panel's maximise button. -->
             <div class="ml-auto flex shrink-0 items-center gap-1">
-                <ng-content/>
+                <ng-content />
             </div>
         </div>
     `,
@@ -56,31 +55,34 @@ export class CallStatusBarComponent {
      */
     readonly meta = input<string | null>(null);
 
-    protected readonly status = computed((): CallStatus => resolveCallStatus({
-        rtcState: this.rtcState(),
-        stalledAudio: this.stalledAudio(),
-        aloneUntil: this.aloneUntil(),
-    }));
+    protected readonly status = computed((): CallStatus =>
+        resolveCallStatus({
+            rtcState: this.rtcState(),
+            stalledAudio: this.stalledAudio(),
+            aloneUntil: this.aloneUntil(),
+        }),
+    );
 
     protected readonly rowClass = computed(() => {
         const tone = this.status().tone;
-        const tint = tone === 'error'
-            ? 'bg-offline/[0.10] border-offline/25'
-            : tone === 'warn'
-                ? 'bg-connecting/[0.08] border-connecting/25'
-                : 'border-border-subtle';
+        const tint =
+            tone === 'error'
+                ? 'bg-offline/[0.10] border-offline/25'
+                : tone === 'warn'
+                  ? 'bg-connecting/[0.08] border-connecting/25'
+                  : 'border-border-subtle';
 
         return `flex shrink-0 items-center gap-2 border-b px-4 py-2 text-xs ${tint}`;
     });
 
-    protected readonly labelClass = computed(() =>
-        `shrink-0 font-semibold uppercase tracking-wide ${textFor(this.status().tone)}`);
+    protected readonly labelClass = computed(
+        () => `shrink-0 font-semibold uppercase tracking-wide ${textFor(this.status().tone)}`,
+    );
 
     protected readonly dotClass = computed(() => {
         const tone = this.status().tone;
-        const pulse = tone === 'error'
-            ? 'status-pulse status-pulse--urgent'
-            : tone === 'warn' ? 'status-pulse' : '';
+        const pulse =
+            tone === 'error' ? 'status-pulse status-pulse--urgent' : tone === 'warn' ? 'status-pulse' : '';
 
         return `size-2 shrink-0 rounded-full ${bgFor(tone)} ${pulse}`;
     });

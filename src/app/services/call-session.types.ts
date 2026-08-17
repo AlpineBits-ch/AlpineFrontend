@@ -7,7 +7,7 @@ export interface CallParticipantUi {
     isMuted: boolean;
     isSpeaking: boolean;
     isCameraOn: boolean;
-    videoStream: MediaStream | undefined;   // local = getUserMedia; remote = WebRTC (set via onCameraChanged)
+    videoStream: MediaStream | undefined; // local = getUserMedia; remote = WebRTC (set via onCameraChanged)
     // WebRTC -add when implementing:
     // audioStream?: MediaStream;
 }
@@ -17,7 +17,7 @@ export interface ScreenShareUi {
     userId: string;
     displayName: string;
     isLocal: boolean;
-    stream: MediaStream | undefined;        // local = getDisplayMedia; remote = WebRTC (set via onScreenShareStarted)
+    stream: MediaStream | undefined; // local = getDisplayMedia; remote = WebRTC (set via onScreenShareStarted)
     /** Whether this share's picture is live or between tracks. Absent reads as live. */
     state?: 'live' | 'resuming';
 }

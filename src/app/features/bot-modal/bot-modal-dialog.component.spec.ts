@@ -14,7 +14,11 @@ import {
 } from './bot-modal-dialog.component';
 import {BotModalDialogService} from './bot-modal-dialog.service';
 import {ApiConfigService} from '../../services/api-config.service';
-import {BotComponentPayload, GuildWebsocketService, WsBotModalOpen} from '../../services/guild-websocket.service';
+import {
+    BotComponentPayload,
+    GuildWebsocketService,
+    WsBotModalOpen,
+} from '../../services/guild-websocket.service';
 import {NavigationService} from '../main-page/navigation.service';
 
 const SUBMIT_URL = 'https://api.test.example/api/v1/bots/guilds/gild_1/channels/chan_1/modal-submit';
@@ -70,16 +74,19 @@ function setup(request: WsBotModalOpen | null = modal()) {
 
 describe('modal payload reading', () => {
     it('reads the wire names the server actually sends, not the contract camelCase', () => {
-        const field = toModalField(textInput({
-            custom_id: 'summary',
-            label: 'What happened?',
-            placeholder: 'Describe it',
-            value: 'prefilled',
-            required: true,
-            min_length: 5,
-            max_length: 200,
-            style: 2,
-        }), 0);
+        const field = toModalField(
+            textInput({
+                custom_id: 'summary',
+                label: 'What happened?',
+                placeholder: 'Describe it',
+                value: 'prefilled',
+                required: true,
+                min_length: 5,
+                max_length: 200,
+                style: 2,
+            }),
+            0,
+        );
 
         expect(field).toEqual({
             key: '0:summary',
@@ -114,8 +121,9 @@ describe('modal payload reading', () => {
     });
 
     it('flattens action rows and stops following a self-nesting payload', () => {
-        expect(flattenModalRows([row(textInput({custom_id: 'a'})), row(textInput({custom_id: 'b'}))]))
-            .toEqual([textInput({custom_id: 'a'}), textInput({custom_id: 'b'})]);
+        expect(
+            flattenModalRows([row(textInput({custom_id: 'a'})), row(textInput({custom_id: 'b'}))]),
+        ).toEqual([textInput({custom_id: 'a'}), textInput({custom_id: 'b'})]);
 
         const cyclic: BotComponentPayload = {type: 1, components: []};
         cyclic.components = [cyclic];
@@ -125,8 +133,16 @@ describe('modal payload reading', () => {
 
 describe('modal field validation', () => {
     const field = (over: Partial<ModalField>): ModalField => ({
-        key: 'k', customId: 'c', label: 'L', placeholder: '', required: false,
-        minLength: null, maxLength: null, paragraph: false, initialValue: '', unsupported: false,
+        key: 'k',
+        customId: 'c',
+        label: 'L',
+        placeholder: '',
+        required: false,
+        minLength: null,
+        maxLength: null,
+        paragraph: false,
+        initialValue: '',
+        unsupported: false,
         ...over,
     });
 
@@ -185,7 +201,9 @@ describe('BotModalDialogComponent', () => {
     });
 
     it('re-seeds when a second modal replaces the first, so no answer leaks across', () => {
-        const {component, dialog} = setup(modal({components: [row(textInput({custom_id: 'a', value: 'one'}))]}));
+        const {component, dialog} = setup(
+            modal({components: [row(textInput({custom_id: 'a', value: 'one'}))]}),
+        );
         component['setValue']('0:a', 'typed');
 
         dialog.request.set(modal({components: [row(textInput({custom_id: 'b', value: 'two'}))]}));
@@ -194,9 +212,14 @@ describe('BotModalDialogComponent', () => {
     });
 
     it('POSTs the filled rows nested in action rows', () => {
-        const {component, ctrl} = setup(modal({
-            components: [row(textInput({custom_id: 'summary'})), row(textInput({custom_id: 'detail', style: 2}))],
-        }));
+        const {component, ctrl} = setup(
+            modal({
+                components: [
+                    row(textInput({custom_id: 'summary'})),
+                    row(textInput({custom_id: 'detail', style: 2})),
+                ],
+            }),
+        );
         component['setValue']('0:summary', 'It broke');
         component['setValue']('1:detail', 'Repeatedly');
         component['submit']();
@@ -267,8 +290,9 @@ describe('BotModalDialogComponent', () => {
         component['submit']();
         ctrl.expectOne(SUBMIT_URL).flush('', {status: 403, statusText: 'Forbidden'});
 
-        expect(component['form']().error)
-            .toBe('You do not have permission to send messages in this channel, so this form cannot be submitted.');
+        expect(component['form']().error).toBe(
+            'You do not have permission to send messages in this channel, so this form cannot be submitted.',
+        );
         expect(dialog.close).not.toHaveBeenCalled();
         expect(component['submitting']()).toBe(false);
     });
@@ -276,10 +300,14 @@ describe('BotModalDialogComponent', () => {
     it('explains a 404 as the bot being gone, not as a missing form', () => {
         const {component, ctrl} = setup();
         component['submit']();
-        ctrl.expectOne(SUBMIT_URL).flush('Bot is not installed in this guild.', {status: 404, statusText: 'Not Found'});
+        ctrl.expectOne(SUBMIT_URL).flush('Bot is not installed in this guild.', {
+            status: 404,
+            statusText: 'Not Found',
+        });
 
-        expect(component['form']().error)
-            .toBe('This bot is no longer available in this server, so it cannot receive this form.');
+        expect(component['form']().error).toBe(
+            'This bot is no longer available in this server, so it cannot receive this form.',
+        );
     });
 
     it('distinguishes never reaching the server from being refused by it', () => {
@@ -287,7 +315,9 @@ describe('BotModalDialogComponent', () => {
         component['submit']();
         ctrl.expectOne(SUBMIT_URL).error(new ProgressEvent('error'));
 
-        expect(component['form']().error).toBe('Could not reach the server. Check your connection and try again.');
+        expect(component['form']().error).toBe(
+            'Could not reach the server. Check your connection and try again.',
+        );
     });
 
     it('clears a previous failure when the user tries again', () => {

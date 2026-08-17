@@ -1,17 +1,17 @@
 @if (subject(); as target) {
     <!-- `visibleChange` must stay: it is the only signal for escape and mask dismissal that reaches an OnPush view. -->
     <p-dialog
-            (onHide)="close()"
-            (visibleChange)="$event === false && close()"
-            [breakpoints]="{ '480px': '95vw' }"
-            [dismissableMask]="stage() !== 'sending'"
-            [draggable]="false"
-            [modal]="true"
-            [resizable]="false"
-            [showHeader]="false"
-            [style]="{ width: '440px' }"
-            [visible]="visible()">
-
+        (onHide)="close()"
+        (visibleChange)="$event === false && close()"
+        [breakpoints]="{'480px': '95vw'}"
+        [dismissableMask]="stage() !== 'sending'"
+        [draggable]="false"
+        [modal]="true"
+        [resizable]="false"
+        [showHeader]="false"
+        [style]="{width: '440px'}"
+        [visible]="visible()"
+    >
         @if (stage() === 'sent') {
             <!-- Quiet: nothing here celebrates. -->
             <div class="flex flex-col gap-4 p-5">
@@ -30,25 +30,30 @@
                 <div class="flex gap-2">
                     <!-- Blocking works now and needs nobody, so the offer leads. -->
                     @if (!alreadyBlocked()) {
-                        <p-button (onClick)="blockThemToo()"
-                                  [label]="'REPORT.BLOCK_TOO' | translate:{name: displayName(target)}"
-                                  severity="danger" size="small"
-                                  styleClass="flex-1 justify-center"/>
+                        <p-button
+                            (onClick)="blockThemToo()"
+                            [label]="'REPORT.BLOCK_TOO' | translate: {name: displayName(target)}"
+                            severity="danger"
+                            size="small"
+                            styleClass="flex-1 justify-center"
+                        />
                     }
-                    <p-button (onClick)="close()"
-                              [label]="'REPORT.DONE' | translate"
-                              severity="secondary" size="small"
-                              [styleClass]="alreadyBlocked() ? 'flex-1 justify-center' : 'justify-center'"/>
+                    <p-button
+                        (onClick)="close()"
+                        [label]="'REPORT.DONE' | translate"
+                        severity="secondary"
+                        size="small"
+                        [styleClass]="alreadyBlocked() ? 'flex-1 justify-center' : 'justify-center'"
+                    />
                 </div>
             </div>
         } @else {
             <div class="flex flex-col gap-4 p-5">
-
                 <div class="flex flex-col gap-1">
                     <h3 class="text-base font-semibold text-white/80">{{ titleKey() | translate }}</h3>
                     @if (target.targetName) {
                         <p class="text-xs text-white/40">
-                            {{ 'REPORT.SUBTITLE' | translate:{name: target.targetName} }}
+                            {{ 'REPORT.SUBTITLE' | translate: {name: target.targetName} }}
                         </p>
                     }
                 </div>
@@ -60,18 +65,24 @@
                     </label>
                     <div class="flex flex-col gap-1 max-h-64 overflow-y-auto thin-scrollbar pr-1">
                         @for (option of reasons; track option.value) {
-                            <button (click)="reason.set(option.value)"
-                                    [class]="reason() === option.value
+                            <button
+                                (click)="reason.set(option.value)"
+                                [class]="
+                                    reason() === option.value
                                         ? 'bg-hover border-[color-mix(in_srgb,var(--color-brand)_45%,transparent)] text-white/85'
-                                        : 'border-transparent text-white/70'"
-                                    class="flex items-center gap-2.5 rounded-[10px] border px-3 py-2
-                                           text-left text-[0.8125rem] transition-colors
-                                           hover:bg-white/[0.05] cursor-pointer"
-                                    type="button">
-                                <span [class]="reason() === option.value
-                                          ? 'bg-[var(--color-brand)] border-[var(--color-brand)]'
-                                          : 'border-white/20'"
-                                      class="w-3.5 h-3.5 shrink-0 rounded-full border-2 transition-colors"></span>
+                                        : 'border-transparent text-white/70'
+                                "
+                                class="flex items-center gap-2.5 rounded-[10px] border px-3 py-2 text-left text-[0.8125rem] transition-colors hover:bg-white/[0.05] cursor-pointer"
+                                type="button"
+                            >
+                                <span
+                                    [class]="
+                                        reason() === option.value
+                                            ? 'bg-[var(--color-brand)] border-[var(--color-brand)]'
+                                            : 'border-white/20'
+                                    "
+                                    class="w-3.5 h-3.5 shrink-0 rounded-full border-2 transition-colors"
+                                ></span>
                                 {{ option.labelKey | translate }}
                             </button>
                         }
@@ -80,44 +91,40 @@
 
                 <!-- Details ───────────────────────────────────────────────────────── -->
                 <div class="flex flex-col gap-1.5">
-                    <label class="text-[0.6875rem] font-semibold uppercase tracking-[0.1em] text-white/40"
-                           for="report-details">
+                    <label class="text-[0.6875rem] font-semibold uppercase tracking-[0.1em] text-white/40" for="report-details">
                         {{ 'REPORT.DETAILS_LABEL' | translate }}
                     </label>
-                    <textarea [ngModel]="details()"
-                              (ngModelChange)="details.set($event)"
-                              [maxlength]="detailsMax"
-                              [placeholder]="'REPORT.DETAILS_PLACEHOLDER' | translate"
-                              class="w-full min-h-20 resize-y rounded-[10px] border border-white/[0.09]
-                                     bg-white/[0.04] px-3 py-2 text-[0.8125rem] text-white/75
-                                     outline-none placeholder:text-white/25
-                                     focus:border-[color-mix(in_srgb,var(--color-brand)_50%,transparent)]"
-                              id="report-details"></textarea>
-                    <span class="self-end text-[0.625rem] text-white/25">
-                        {{ details().length }} / {{ detailsMax }}
-                    </span>
+                    <textarea
+                        [ngModel]="details()"
+                        (ngModelChange)="details.set($event)"
+                        [maxlength]="detailsMax"
+                        [placeholder]="'REPORT.DETAILS_PLACEHOLDER' | translate"
+                        class="w-full min-h-20 resize-y rounded-[10px] border border-white/[0.09] bg-white/[0.04] px-3 py-2 text-[0.8125rem] text-white/75 outline-none placeholder:text-white/25 focus:border-[color-mix(in_srgb,var(--color-brand)_50%,transparent)]"
+                        id="report-details"
+                    ></textarea>
+                    <span class="self-end text-[0.625rem] text-white/25"> {{ details().length }} / {{ detailsMax }} </span>
                 </div>
 
                 <!-- Evidence: said out loud, with the exact payload one click away. -->
                 @if (evidence(); as snapshot) {
-                    <div class="flex flex-col gap-2 rounded-[10px] border border-white/[0.08]
-                                bg-white/[0.03] px-3 py-2.5">
+                    <div class="flex flex-col gap-2 rounded-[10px] border border-white/[0.08] bg-white/[0.03] px-3 py-2.5">
                         <div class="flex items-start gap-2">
                             <i class="pi pi-paperclip text-[0.6875rem] text-white/30 mt-0.5"></i>
                             <p class="flex-1 text-[0.75rem] leading-relaxed text-white/45">
-                                {{ 'REPORT.EVIDENCE_NOTICE' | translate:{count: snapshot.messages.length} }}
+                                {{ 'REPORT.EVIDENCE_NOTICE' | translate: {count: snapshot.messages.length} }}
                             </p>
                         </div>
-                        <button (click)="evidenceExpanded.set(!evidenceExpanded())"
-                                class="self-start text-[0.6875rem] text-[var(--color-brand-dim)]
-                                       hover:underline bg-transparent border-0 cursor-pointer px-0"
-                                type="button">
+                        <button
+                            (click)="evidenceExpanded.set(!evidenceExpanded())"
+                            class="self-start text-[0.6875rem] text-[var(--color-brand-dim)] hover:underline bg-transparent border-0 cursor-pointer px-0"
+                            type="button"
+                        >
                             {{ (evidenceExpanded() ? 'REPORT.EVIDENCE_HIDE' : 'REPORT.EVIDENCE_REVIEW') | translate }}
                         </button>
                         @if (evidenceExpanded()) {
-                            <pre class="max-h-56 overflow-auto thin-scrollbar rounded-md bg-black/30 p-2
-                                        text-[0.625rem] leading-relaxed text-white/50 whitespace-pre-wrap
-                                        break-words">{{ evidenceJson() }}</pre>
+                            <pre
+                                class="max-h-56 overflow-auto thin-scrollbar rounded-md bg-black/30 p-2 text-[0.625rem] leading-relaxed text-white/50 whitespace-pre-wrap break-words"
+                                >{{ evidenceJson() }}</pre>
                         }
                     </div>
                 } @else if (target.kind === 'Message') {
@@ -128,17 +135,22 @@
                 }
 
                 <div class="flex gap-2">
-                    <p-button (onClick)="close()"
-                              [disabled]="stage() === 'sending'"
-                              [label]="'SETTINGS.SECURITY.CANCEL' | translate"
-                              severity="secondary" size="small"
-                              styleClass="flex-1 justify-center"/>
-                    <p-button (onClick)="submit()"
-                              [disabled]="!canSubmit()"
-                              [label]="'REPORT.SUBMIT' | translate"
-                              [loading]="stage() === 'sending'"
-                              size="small"
-                              styleClass="flex-1 justify-center"/>
+                    <p-button
+                        (onClick)="close()"
+                        [disabled]="stage() === 'sending'"
+                        [label]="'SETTINGS.SECURITY.CANCEL' | translate"
+                        severity="secondary"
+                        size="small"
+                        styleClass="flex-1 justify-center"
+                    />
+                    <p-button
+                        (onClick)="submit()"
+                        [disabled]="!canSubmit()"
+                        [label]="'REPORT.SUBMIT' | translate"
+                        [loading]="stage() === 'sending'"
+                        size="small"
+                        styleClass="flex-1 justify-center"
+                    />
                 </div>
             </div>
         }

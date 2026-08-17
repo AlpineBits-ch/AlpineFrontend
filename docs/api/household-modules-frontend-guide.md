@@ -22,13 +22,13 @@ Nothing below works in a guild whose module is off.
 Five of the eight modules are **channel types**. A household guild's sidebar contains channels
 whose contents are structured rows instead of messages:
 
-| `channel.type` | Module | Holds |
-|---|---|---|
-| `List` | `Lists` | Shopping / todo items |
-| `Chores` | `Chores` | Chore definitions and their generated occurrences |
-| `Ledger` | `Ledger` | Expenses, shares, settlements |
-| `Pantry` | `Pantry` | Stock for one location (fridge, freezer, cellar) |
-| `Decisions` | `Decisions` | House decisions and votes |
+| `channel.type` | Module      | Holds                                             |
+| -------------- | ----------- | ------------------------------------------------- |
+| `List`         | `Lists`     | Shopping / todo items                             |
+| `Chores`       | `Chores`    | Chore definitions and their generated occurrences |
+| `Ledger`       | `Ledger`    | Expenses, shares, settlements                     |
+| `Pantry`       | `Pantry`    | Stock for one location (fridge, freezer, cellar)  |
+| `Decisions`    | `Decisions` | House decisions and votes                         |
 
 They come back from the normal channel endpoints alongside `Text` and `Voice`, so your sidebar
 already receives them — **it just needs to know not to open a message composer for them**. That's
@@ -74,19 +74,19 @@ at `# general`.
 Eleven values, all gated on their module — a Community guild returns `403` for every one of them
 regardless of roles, **including for the guild owner**.
 
-| Permission | Module | Allows | In `@everyone` |
-|---|---|---|---|
-| `AddListItems` | Lists | Add items; edit/delete your own | yes |
-| `CheckOffListItems` | Lists | Tick and untick | yes |
-| `ManageLists` | Lists | Clear a list, delete anyone's item | Flatmates |
-| `CompleteChores` | Chores | Complete, skip, swap an occurrence | yes |
-| `ManageChores` | Chores | Create/edit/delete chores, set effort weights | Flatmates |
-| `AddExpenses` | Ledger | Add an expense; edit/delete your own | yes |
-| `ManageLedger` | Ledger | Edit anyone's expense, record third-party settlements | Flatmates |
-| `ManagePantry` | Pantry | Add/edit/delete stock and thresholds | yes |
-| `CreateDecisions` | Decisions | Open and close decisions | yes |
-| `VoteDecisions` | Decisions | Support / abstain / block | yes |
-| `ManageGuests` | GuestAccess | Grant and revoke temporary roles | Flatmates |
+| Permission          | Module      | Allows                                                | In `@everyone` |
+| ------------------- | ----------- | ----------------------------------------------------- | -------------- |
+| `AddListItems`      | Lists       | Add items; edit/delete your own                       | yes            |
+| `CheckOffListItems` | Lists       | Tick and untick                                       | yes            |
+| `ManageLists`       | Lists       | Clear a list, delete anyone's item                    | Flatmates      |
+| `CompleteChores`    | Chores      | Complete, skip, swap an occurrence                    | yes            |
+| `ManageChores`      | Chores      | Create/edit/delete chores, set effort weights         | Flatmates      |
+| `AddExpenses`       | Ledger      | Add an expense; edit/delete your own                  | yes            |
+| `ManageLedger`      | Ledger      | Edit anyone's expense, record third-party settlements | Flatmates      |
+| `ManagePantry`      | Pantry      | Add/edit/delete stock and thresholds                  | yes            |
+| `CreateDecisions`   | Decisions   | Open and close decisions                              | yes            |
+| `VoteDecisions`     | Decisions   | Support / abstain / block                             | yes            |
+| `ManageGuests`      | GuestAccess | Grant and revoke temporary roles                      | Flatmates      |
 
 They resolve **per channel**, so a channel overwrite granting control of one list doesn't grant
 every list. Viewing any module's contents needs only `ViewChannel` on that channel.
@@ -135,16 +135,16 @@ interface ListItem {
   id: string;
   channelId: string;
   text: string;
-  quantity?: string | null;      // free text — "2", "2 packs", "a bunch"
+  quantity?: string | null; // free text — "2", "2 packs", "a bunch"
   note?: string | null;
-  section?: string | null;       // free-text grouping, e.g. "Dairy"
+  section?: string | null; // free-text grouping, e.g. "Dairy"
   assigneeUserId?: string | null;
   addedByUserId: string;
   isChecked: boolean;
   checkedAt?: string | null;
   checkedByUserId?: string | null;
   position: number;
-  sourcePantryItemId?: string | null;   // set when the pantry added this line (§5)
+  sourcePantryItemId?: string | null; // set when the pantry added this line (§5)
   createdAt: string;
 }
 ```
@@ -157,7 +157,7 @@ Ticking is always `CheckOffListItems` — checking things off is the collaborati
 
 Caps: 200 chars per `text`, 500 items per list (`400` beyond).
 
-**Reorder** takes a partial list. Ids you omit keep their relative order *after* the ones you sent,
+**Reorder** takes a partial list. Ids you omit keep their relative order _after_ the ones you sent,
 so a drag-and-drop payload of just the moved neighbourhood is fine.
 
 ### Realtime
@@ -188,24 +188,28 @@ GET      /api/v1/guild/channels/{channelId}/chores/balance?days=30
 
 ```ts
 interface Chore {
-  id: string; channelId: string;
-  title: string; description?: string | null;
-  intervalDays: number;          // 1-365
-  anchorAt: string;              // the first due date; the cadence steps from here
-  effortMinutes: number;         // 1-600 — the fairness weight
-  rotationRoleId?: string | null;   // the pool: whoever holds this role
+  id: string;
+  channelId: string;
+  title: string;
+  description?: string | null;
+  intervalDays: number; // 1-365
+  anchorAt: string; // the first due date; the cadence steps from here
+  effortMinutes: number; // 1-600 — the fairness weight
+  rotationRoleId?: string | null; // the pool: whoever holds this role
   fixedAssigneeUserId?: string | null;
-  graceHours: number;            // before it counts as overdue
+  graceHours: number; // before it counts as overdue
   isPaused: boolean;
   nextDueAt: string;
 }
 
 interface ChoreOccurrence {
-  id: string; choreId: string; channelId: string;
-  title: string;                 // denormalized for board rendering
+  id: string;
+  choreId: string;
+  channelId: string;
+  title: string; // denormalized for board rendering
   dueAt: string;
   assignedUserId: string;
-  effortMinutes: number;         // snapshot at generation time
+  effortMinutes: number; // snapshot at generation time
   completedAt?: string | null;
   completedByUserId?: string | null;
   skippedAt?: string | null;
@@ -223,7 +227,7 @@ the last 30 days. Worth surfacing in your UI copy, because it's the behaviour pe
 plain rota rewards skipping (your turn comes round again regardless), and weighting by
 `effortMinutes` stops "take the bins out" counting the same as "clean the bathroom".
 
-`/swap` reassigns to the lightest-loaded *other* member — the one-tap answer to "I can't do the
+`/swap` reassigns to the lightest-loaded _other_ member — the one-tap answer to "I can't do the
 bins tonight". `400` if nobody else is in the rotation.
 
 ### Balance
@@ -233,7 +237,7 @@ interface ChoreBalanceEntry {
   userId: string;
   completedMinutes: number;
   completedCount: number;
-  balanceMinutes: number;   // relative to the household average — negative = behind
+  balanceMinutes: number; // relative to the household average — negative = behind
 }
 ```
 
@@ -245,7 +249,7 @@ interface ChoreBalanceEntry {
 - **Skipping does not credit the balance.** A skipped chore stays unpaid work, which is exactly
   what makes the rotation land back on the same person. Don't show it as done.
 - **`completedByUserId` may differ from `assignedUserId`**, and the balance credits the
-  *assignee*. That's deliberate — crediting the doer would let one flatmate farm the ledger by
+  _assignee_. That's deliberate — crediting the doer would let one flatmate farm the ledger by
   doing everyone's easy chores. Show both ("Ben did Anna's washing-up").
 
 Occurrences are generated by the server (on creation, then on schedule, with a 5-minute reconcile
@@ -292,21 +296,22 @@ GET/PUT  /api/v1/guild/channels/{channelId}/pantry/config
 
 ```ts
 interface PantryItem {
-  id: string; channelId: string;
+  id: string;
+  channelId: string;
   name: string;
-  quantity: number;              // decimal here — it's compared against the threshold
+  quantity: number; // decimal here — it's compared against the threshold
   unit?: string | null;
-  lowThreshold?: number | null;  // null = restock tracking off for this item
+  lowThreshold?: number | null; // null = restock tracking off for this item
   expiresAt?: string | null;
   isLow: boolean;
-  restockedAt?: string | null;   // set while it's sitting on the shopping list
+  restockedAt?: string | null; // set while it's sitting on the shopping list
   addedByUserId: string;
 }
 
 interface PantryConfig {
   channelId: string;
-  restockListChannelId?: string | null;   // must be a List channel in this guild
-  expiryWarningDays: number;              // 1-90
+  restockListChannelId?: string | null; // must be a List channel in this guild
+  expiryWarningDays: number; // 1-90
 }
 ```
 
@@ -377,23 +382,24 @@ convert existing amounts — worth a confirmation dialog.
 
 ```ts
 interface Expense {
-  id: string; channelId: string;
-  payerUserId: string;           // who actually paid
+  id: string;
+  channelId: string;
+  payerUserId: string; // who actually paid
   description: string;
   amountMinor: number;
   currency: string;
   occurredAt: string;
   splitKind: 'Equal' | 'Shares' | 'Exact';
-  createdByUserId: string;       // who entered it — often not the payer
-  shares: { userId: string; shareValue: number; amountMinor: number }[];
+  createdByUserId: string; // who entered it — often not the payer
+  shares: {userId: string; shareValue: number; amountMinor: number}[];
 }
 ```
 
-| `splitKind` | `shareValue` means | Notes |
-|---|---|---|
-| `Equal` | ignored | **Empty `shares` = everyone in the guild.** The common case (rent, internet) |
-| `Shares` | a weight | "Anna counts double, she has the big room" |
-| `Exact` | that person's exact `amountMinor` | Must sum to the total, else `400` |
+| `splitKind` | `shareValue` means                | Notes                                                                        |
+| ----------- | --------------------------------- | ---------------------------------------------------------------------------- |
+| `Equal`     | ignored                           | **Empty `shares` = everyone in the guild.** The common case (rent, internet) |
+| `Shares`    | a weight                          | "Anna counts double, she has the big room"                                   |
+| `Exact`     | that person's exact `amountMinor` | Must sum to the total, else `400`                                            |
 
 Remainders are distributed server-side, deterministically: 1000 across 3 is 334/333/333. Never
 compute shares client-side and send them as `Exact` — you'll disagree with the server on rounding.
@@ -401,8 +407,15 @@ compute shares client-side and send them as `Exact` — you'll disagree with the
 ### Balances and settling
 
 ```ts
-interface LedgerBalance { userId: string; netMinor: number }   // + = the house owes them
-interface TransferSuggestion { fromUserId: string; toUserId: string; amountMinor: number }
+interface LedgerBalance {
+  userId: string;
+  netMinor: number;
+} // + = the house owes them
+interface TransferSuggestion {
+  fromUserId: string;
+  toUserId: string;
+  amountMinor: number;
+}
 ```
 
 Balances always sum to zero and members at zero are omitted — an empty array means the house is
@@ -459,15 +472,17 @@ live with the downside should be able to stop it, and everyone else should be ab
 
 ```ts
 interface Decision {
-  id: string; channelId: string;
-  title: string; description?: string | null;
+  id: string;
+  channelId: string;
+  title: string;
+  description?: string | null;
   createdByUserId: string;
   closesAt?: string | null;
-  quorum?: number | null;        // non-abstain votes needed
+  quorum?: number | null; // non-abstain votes needed
   status: 'Open' | 'Decided' | 'Blocked' | 'Cancelled' | 'Expired';
   outcomeOptionId?: string | null;
-  options: { id: string; title: string; position: number; supportCount: number; isBlocked: boolean }[];
-  blocks: { userId: string; optionId?: string | null; reason: string }[];
+  options: {id: string; title: string; position: number; supportCount: number; isBlocked: boolean}[];
+  blocks: {userId: string; optionId?: string | null; reason: string}[];
   myVoteOptionId?: string | null;
   myVoteKind?: 'Support' | 'Abstain' | 'Block' | null;
 }
@@ -475,17 +490,17 @@ interface Decision {
 
 Vote body: `{ kind, optionId?, reason? }`.
 
-| Rule | |
-|---|---|
-| `Block` **requires** a `reason` | `400` otherwise — a veto nobody can see the reasoning for is how a house ends up in a silent standoff |
-| `Support` requires an `optionId` | `400` otherwise |
-| `Block` with `optionId: null` | Objects to the whole decision, not one option |
-| One vote per member | Re-voting replaces; `PUT` is the upsert |
+| Rule                             |                                                                                                       |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `Block` **requires** a `reason`  | `400` otherwise — a veto nobody can see the reasoning for is how a house ends up in a silent standoff |
+| `Support` requires an `optionId` | `400` otherwise                                                                                       |
+| `Block` with `optionId: null`    | Objects to the whole decision, not one option                                                         |
+| One vote per member              | Re-voting replaces; `PUT` is the upsert                                                               |
 
 Render `blocks` as **objections to resolve**, prominently and with the reason — not as a tally row.
 `isBlocked` on an option means it cannot win no matter what `supportCount` says.
 
-**Statuses:** `Blocked` means every option was vetoed. It is deliberately *not* "the least-hated
+**Statuses:** `Blocked` means every option was vetoed. It is deliberately _not_ "the least-hated
 option wins" — "we couldn't agree" is a result. `Expired` means quorum was never reached
 (abstentions don't count toward it). Decisions with a `closesAt` are resolved automatically within
 5 minutes of it passing.
@@ -507,7 +522,7 @@ DELETE /api/v1/guild/guilds/{guildId}/home-status
 interface HomeStatus {
   userId: string;
   kind: 'Home' | 'Out' | 'Asleep' | 'DoNotDisturb' | 'OnMyWay';
-  note?: string | null;      // ≤100 chars
+  note?: string | null; // ≤100 chars
   expiresAt: string;
 }
 ```
@@ -540,9 +555,9 @@ PUT /api/v1/guild/guilds/{guildId}/quiet-hours     // ManageGuild
 ```ts
 interface QuietHours {
   enabled: boolean;
-  startMinuteLocal: number;   // 0-1439, minutes past local midnight
+  startMinuteLocal: number; // 0-1439, minutes past local midnight
   endMinuteLocal: number;
-  timeZoneId: string;         // IANA, e.g. "Europe/Zurich"
+  timeZoneId: string; // IANA, e.g. "Europe/Zurich"
 }
 ```
 
@@ -598,11 +613,11 @@ On success:
 ```ts
 interface MoveOutSummary {
   userId: string;
-  choresReassigned: number;    // unfinished occurrences handed to the next lightest member
-  choresDropped: number;       // deleted because the rota had nobody left
-  choresPaused: number;        // chores that named them as fixed assignee
+  choresReassigned: number; // unfinished occurrences handed to the next lightest member
+  choresDropped: number; // deleted because the rota had nobody left
+  choresPaused: number; // chores that named them as fixed assignee
   listItemsUnassigned: number;
-  balancesWrittenOff: { fromUserId: string; toUserId: string; amountMinor: number }[];
+  balancesWrittenOff: {fromUserId: string; toUserId: string; amountMinor: number}[];
 }
 ```
 
@@ -639,15 +654,15 @@ client needs no per-kind copy.
 **One event for every kind, deliberately.** Alert kinds keep being added, and a client that forgot
 to subscribe to `guild.SomethingNewAlert` would silently stop being told about it.
 
-| `kind` | Who gets it | `targetId` |
-|---|---|---|
-| `chore.due` | The assignee, once per occurrence, deferred past quiet hours | Occurrence id |
-| `ledger.expense` | Everyone with a share, and the payer if somebody else recorded it. Not the person who entered it | Expense id |
-| `ledger.settlement` | The counterparty; both parties when a third person recorded it | Settlement id |
-| `decision.opened` | Everyone who can see the channel, except the author | Decision id |
-| `decision.blocked` | The author and anyone who already voted, except the blocker | Decision id |
-| `pantry.restock` | Only members whose home status is `Out` or `OnMyWay` | List item id |
-| `pantry.expiring` | Everyone who can see that pantry, batched per pantry | **Channel** id |
+| `kind`              | Who gets it                                                                                      | `targetId`     |
+| ------------------- | ------------------------------------------------------------------------------------------------ | -------------- |
+| `chore.due`         | The assignee, once per occurrence, deferred past quiet hours                                     | Occurrence id  |
+| `ledger.expense`    | Everyone with a share, and the payer if somebody else recorded it. Not the person who entered it | Expense id     |
+| `ledger.settlement` | The counterparty; both parties when a third person recorded it                                   | Settlement id  |
+| `decision.opened`   | Everyone who can see the channel, except the author                                              | Decision id    |
+| `decision.blocked`  | The author and anyone who already voted, except the blocker                                      | Decision id    |
+| `pantry.restock`    | Only members whose home status is `Out` or `OnMyWay`                                             | List item id   |
+| `pantry.expiring`   | Everyone who can see that pantry, batched per pantry                                             | **Channel** id |
 
 Things worth knowing before you build against these:
 
@@ -676,16 +691,16 @@ replaces six.
 interface HouseholdDigest {
   guildId: string;
   chores?: {
-    mine: ChoreOccurrence[];      // due within a day or already past due, max 10
+    mine: ChoreOccurrence[]; // due within a day or already past due, max 10
     mineOverdueCount: number;
-    houseOverdueCount: number;    // everyone's, not just yours
+    houseOverdueCount: number; // everyone's, not just yours
   } | null;
-  lists?: { channelId: string; channelName: string; openCount: number; preview: ListItem[] }[] | null;
-  pantry?: { expiringCount: number; soonest: PantryItem[] } | null;
-  ledger?: { channelId: string; channelName: string; currency: string; myNetMinor: number }[] | null;
+  lists?: {channelId: string; channelName: string; openCount: number; preview: ListItem[]}[] | null;
+  pantry?: {expiringCount: number; soonest: PantryItem[]} | null;
+  ledger?: {channelId: string; channelName: string; currency: string; myNetMinor: number}[] | null;
   decisions?: {
     openCount: number;
-    awaitingMyVote: { id: string; channelId: string; title: string; closesAt?: string | null }[];
+    awaitingMyVote: {id: string; channelId: string; title: string; closesAt?: string | null}[];
   } | null;
   homeStatus?: HomeStatus[] | null;
 }
@@ -720,15 +735,18 @@ reminding about with no inbox presence at all.
 ```ts
 interface InboxTask {
   kind: 'ChoreDue' | 'DecisionVote' | 'ListAssignment';
-  targetId: string;               // occurrence / decision / list item
-  breadcrumb: InboxBreadcrumb;    // same shape the unread tab uses
+  targetId: string; // occurrence / decision / list item
+  breadcrumb: InboxBreadcrumb; // same shape the unread tab uses
   title: string;
   subtitle: string;
-  dueAt?: string | null;          // null for a list assignment
+  dueAt?: string | null; // null for a list assignment
   isOverdue: boolean;
 }
 
-interface InboxTaskPage { tasks: InboxTask[]; truncated: boolean }
+interface InboxTaskPage {
+  tasks: InboxTask[];
+  truncated: boolean;
+}
 ```
 
 - **Ordering:** anything with a deadline first, soonest at the top; undated items after, oldest
@@ -789,20 +807,20 @@ seven kinds, server-written copy. See §10.
 
 ### Changes that need client work
 
-| Change | Impact |
-|---|---|
-| `GET /expenses` returns `{ items, nextCursor }` | **Breaking.** A client reading a bare array gets nothing. |
-| `guild.ChoreOccurrenceUpdated` always sends `{ occurrence }` | Fixes a crash on skip; drop any `e.skipped` branch. |
-| `POST /chore-occurrences/{id}/skip` returns the occurrence | Was an empty `200`. Additive. |
-| Household events now respect `ViewChannel` | Restricted channels reach fewer clients. Correct, but visible. |
-| `@everyone` gained seven household bits | Members can suddenly do things. Re-fetch `/@me` permissions. |
-| `Flatmates` role seeded on new households | One extra role in the list; default `rotationRoleId`. |
-| `POST .../move-out` | New. Without it a household cannot remove anyone. |
-| `GET /pantry/expiring` honours per-pantry `expiryWarningDays` | Result set changes when `days` is omitted. |
-| Non-member payer / settlement party rejected | `400` where a typo used to be accepted silently. |
-| `PATCH /expenses` payer reassignment needs `ManageLedger` | `403` on a path that used to succeed. |
-| `guild.ChoreReminder` replaced by `guild.HouseholdAlert` | **Breaking, if you built against it.** Same content, unified envelope; `occurrenceId` moved to `targetId`, `choreId` / `dueAt` into `data`. See §10. |
-| Six more alert kinds + push | New. Route on `kind`; ignore unknown kinds. |
-| `GET /guilds/{id}/home` | New. One call instead of six; `ETag` / `If-None-Match` supported. See §11. |
-| `GET /inbox/tasks` | New. Household items waiting on the caller. See §12. |
-| `GET /inbox/summary` gained `taskCount` | Additive. Fold into the header badge. |
+| Change                                                        | Impact                                                                                                                                               |
+| ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /expenses` returns `{ items, nextCursor }`               | **Breaking.** A client reading a bare array gets nothing.                                                                                            |
+| `guild.ChoreOccurrenceUpdated` always sends `{ occurrence }`  | Fixes a crash on skip; drop any `e.skipped` branch.                                                                                                  |
+| `POST /chore-occurrences/{id}/skip` returns the occurrence    | Was an empty `200`. Additive.                                                                                                                        |
+| Household events now respect `ViewChannel`                    | Restricted channels reach fewer clients. Correct, but visible.                                                                                       |
+| `@everyone` gained seven household bits                       | Members can suddenly do things. Re-fetch `/@me` permissions.                                                                                         |
+| `Flatmates` role seeded on new households                     | One extra role in the list; default `rotationRoleId`.                                                                                                |
+| `POST .../move-out`                                           | New. Without it a household cannot remove anyone.                                                                                                    |
+| `GET /pantry/expiring` honours per-pantry `expiryWarningDays` | Result set changes when `days` is omitted.                                                                                                           |
+| Non-member payer / settlement party rejected                  | `400` where a typo used to be accepted silently.                                                                                                     |
+| `PATCH /expenses` payer reassignment needs `ManageLedger`     | `403` on a path that used to succeed.                                                                                                                |
+| `guild.ChoreReminder` replaced by `guild.HouseholdAlert`      | **Breaking, if you built against it.** Same content, unified envelope; `occurrenceId` moved to `targetId`, `choreId` / `dueAt` into `data`. See §10. |
+| Six more alert kinds + push                                   | New. Route on `kind`; ignore unknown kinds.                                                                                                          |
+| `GET /guilds/{id}/home`                                       | New. One call instead of six; `ETag` / `If-None-Match` supported. See §11.                                                                           |
+| `GET /inbox/tasks`                                            | New. Household items waiting on the caller. See §12.                                                                                                 |
+| `GET /inbox/summary` gained `taskCount`                       | Additive. Fold into the header badge.                                                                                                                |

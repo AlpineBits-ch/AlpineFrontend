@@ -3,7 +3,7 @@ import {CryptoEngine} from '../platform/ports/crypto-engine.port';
 
 export interface KeyPairEntry {
     keyId: string;
-    publicKey: string;  // Base64-encoded SPKI
+    publicKey: string; // Base64-encoded SPKI
     privateKey: string; // Base64-encoded PKCS8
 }
 
@@ -35,13 +35,27 @@ export class CryptoService {
         const entries = await this.engine.call<KeyPairEntry[]>('generate_key_pairs', {count});
 
         // Import each key into Web Crypto so decrypt() can use them
-        await Promise.all(entries.map(async entry => {
-            const [publicKey, privateKey] = await Promise.all([
-                crypto.subtle.importKey('spki', this.fromBase64(entry.publicKey), RSA_OAEP_PARAMS, false, ['encrypt']),
-                crypto.subtle.importKey('pkcs8', this.fromBase64(entry.privateKey), RSA_OAEP_PARAMS, false, ['decrypt']),
-            ]);
-            this.keyStore.set(entry.keyId, {publicKey, privateKey});
-        }));
+        await Promise.all(
+            entries.map(async entry => {
+                const [publicKey, privateKey] = await Promise.all([
+                    crypto.subtle.importKey(
+                        'spki',
+                        this.fromBase64(entry.publicKey),
+                        RSA_OAEP_PARAMS,
+                        false,
+                        ['encrypt'],
+                    ),
+                    crypto.subtle.importKey(
+                        'pkcs8',
+                        this.fromBase64(entry.privateKey),
+                        RSA_OAEP_PARAMS,
+                        false,
+                        ['decrypt'],
+                    ),
+                ]);
+                this.keyStore.set(entry.keyId, {publicKey, privateKey});
+            }),
+        );
 
         return entries;
     }
@@ -52,7 +66,7 @@ export class CryptoService {
             this.fromBase64(publicKeyBase64),
             {name: 'RSA-OAEP', hash: 'SHA-256'},
             false,
-            ['encrypt']
+            ['encrypt'],
         );
 
         const encoded = new TextEncoder().encode(plaintext);
@@ -67,7 +81,7 @@ export class CryptoService {
         const plainBuf = await crypto.subtle.decrypt(
             {name: 'RSA-OAEP'},
             pair.privateKey,
-            this.fromBase64(ciphertextBase64)
+            this.fromBase64(ciphertextBase64),
         );
 
         return new TextDecoder().decode(plainBuf);

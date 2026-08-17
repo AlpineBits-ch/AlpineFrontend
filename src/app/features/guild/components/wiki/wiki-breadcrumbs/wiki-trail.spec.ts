@@ -7,9 +7,18 @@ function wiki(over: Partial<WikiDto> = {}): WikiDto {
 
 const page = (id: string, title: string, extra: Record<string, unknown> = {}) =>
     ({
-        id, title, guildId: 'g', slug: id, authorId: 'u',
-        createdAt: new Date(), updatedAt: new Date(),
-        visibility: 'public', tags: [], isPinned: false, revisionCount: 0, ...extra,
+        id,
+        title,
+        guildId: 'g',
+        slug: id,
+        authorId: 'u',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        visibility: 'public',
+        tags: [],
+        isPinned: false,
+        revisionCount: 0,
+        ...extra,
     }) as never;
 
 describe('buildTrail', () => {

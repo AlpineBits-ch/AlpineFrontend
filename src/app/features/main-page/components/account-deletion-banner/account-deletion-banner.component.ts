@@ -12,6 +12,8 @@ export class AccountDeletionBannerComponent {
     protected userService = inject(UserService);
     @Output() manage = new EventEmitter<void>();
 
-    protected readonly visible = computed(() => this.userService.self()?.status === AccountStatus.PendingDeletion);
+    protected readonly visible = computed(
+        () => this.userService.self()?.status === AccountStatus.PendingDeletion,
+    );
     protected readonly purgeScheduledAt = computed(() => this.userService.self()?.purgeScheduledAt);
 }

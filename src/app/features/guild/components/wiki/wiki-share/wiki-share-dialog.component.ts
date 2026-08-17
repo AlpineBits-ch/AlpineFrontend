@@ -13,10 +13,7 @@ import {ConversationStore} from '../../../../../stores/conversation.store';
 import {ConversationUtilsService} from '../../../../../services/conversation-utils.service';
 import {ToastService} from '../../../../../services/toast.service';
 import {channelIcon as iconForType} from '../../../channel-types';
-import {
-    EncryptionUnavailableError,
-    MessageSendService,
-} from '../../../../messaging/message-send.service';
+import {EncryptionUnavailableError, MessageSendService} from '../../../../messaging/message-send.service';
 import {wikiShareLink} from '../../../../messaging/wiki-link';
 
 /** Somewhere a page can be posted. Channels and conversations are one list on purpose: the choice a person is making is "who sees this", and that question doesn't care which of the two it is. */
@@ -90,8 +87,9 @@ export class WikiShareDialogComponent {
         return (q ? all.filter(t => t.label.toLowerCase().includes(q)) : all).slice(0, 60);
     });
 
-    protected readonly selected = computed(() =>
-        this.targets().find(t => t.id === this.selectedId()) ?? null);
+    protected readonly selected = computed(
+        () => this.targets().find(t => t.id === this.selectedId()) ?? null,
+    );
 
     protected readonly canSend = computed(() => !!this.selected() && this.state() === 'idle');
 
@@ -143,9 +141,11 @@ export class WikiShareDialogComponent {
         } catch (err) {
             this.state.set('idle');
             // Named separately: "this device cannot encrypt for that channel" is a state somebody can act on (open it and let it catch up), and a generic failure is not.
-            this.toast.error(err instanceof EncryptionUnavailableError
-                ? this.translate.instant('WIKI.SHARE.ERROR_ENCRYPTED')
-                : this.translate.instant('WIKI.SHARE.ERROR'));
+            this.toast.error(
+                err instanceof EncryptionUnavailableError
+                    ? this.translate.instant('WIKI.SHARE.ERROR_ENCRYPTED')
+                    : this.translate.instant('WIKI.SHARE.ERROR'),
+            );
         }
     }
 }

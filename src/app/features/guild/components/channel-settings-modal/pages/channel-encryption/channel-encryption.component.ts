@@ -8,8 +8,12 @@ import {ChannelDto, GuildDto} from '../../../../../../dtos/response/guild.dto';
 import {ChannelEncryptionService} from '../../../../../../services/channel-encryption.service';
 import {GuildService} from '../../../../../../services/guild.service';
 import {MlsToggleConflictDto} from '../../../../../../dtos/mls.dto';
- import {JoinRequestVerificationError, MlsJoinRequestDto, MlsJoinRequestService} from '../../../../../../services/mls-join-request.service';
- import {ProfileService} from '../../../../../../services/profile.service';
+import {
+    JoinRequestVerificationError,
+    MlsJoinRequestDto,
+    MlsJoinRequestService,
+} from '../../../../../../services/mls-join-request.service';
+import {ProfileService} from '../../../../../../services/profile.service';
 import {MlsCoverageDevicesComponent} from '../../../../../../components/mls-coverage-devices/mls-coverage-devices.component';
 import {MlsCoverageService} from '../../../../../../services/mls-coverage.service';
 
@@ -38,7 +42,8 @@ export class ChannelEncryptionComponent {
     protected readonly confirmingDisable = signal(false);
 
     protected readonly statusLabel = computed(() =>
-        this.encrypted() ? 'CHANNEL_SETTINGS.ENCRYPTION.ON' : 'CHANNEL_SETTINGS.ENCRYPTION.OFF');
+        this.encrypted() ? 'CHANNEL_SETTINGS.ENCRYPTION.ON' : 'CHANNEL_SETTINGS.ENCRYPTION.OFF',
+    );
 
     /** People asking to be let in, awaiting review. */
     protected readonly joinRequests = signal<MlsJoinRequestDto[]>([]);
@@ -47,8 +52,7 @@ export class ChannelEncryptionComponent {
     protected readonly actingOn = signal<string | null>(null);
 
     /** Gates the slot, so the page's `gap-8` never opens up around an empty section. */
-    protected readonly hasDeviceReport = computed(
-        () => this.coverage.hasDeviceReport(this.channel().id));
+    protected readonly hasDeviceReport = computed(() => this.coverage.hasDeviceReport(this.channel().id));
 
     private readonly encryption = inject(ChannelEncryptionService);
     private readonly guildService = inject(GuildService);
@@ -83,7 +87,9 @@ export class ChannelEncryptionComponent {
             return;
         }
         try {
-            this.joinRequests.set(await firstValueFrom(this.joinRequestService.list(this.channel().id, true)));
+            this.joinRequests.set(
+                await firstValueFrom(this.joinRequestService.list(this.channel().id, true)),
+            );
         } catch {
             // A failed queue read must not blank out the toggle above it.
             this.joinRequests.set([]);

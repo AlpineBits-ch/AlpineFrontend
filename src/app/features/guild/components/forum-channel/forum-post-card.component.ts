@@ -42,8 +42,9 @@ export class ForumPostCardComponent {
         });
     }
 
-    protected readonly authorName = computed(() =>
-        this.profileService.getCachedByUserId(this.post().createdByUserId)?.userName ?? '');
+    protected readonly authorName = computed(
+        () => this.profileService.getCachedByUserId(this.post().createdByUserId)?.userName ?? '',
+    );
 
     /** Applied tags in the forum's own tag order; ids with no matching tag are dropped rather than rendered as blanks, that gap being the window between a ForumTagDeleted event and a post-list refetch. */
     protected readonly appliedTags = computed(() => {
@@ -55,7 +56,7 @@ export class ForumPostCardComponent {
     protected readonly activityAt = computed(() => this.post().lastActivityAt ?? this.post().createdAt);
 
     protected emojiUrlFor(tag: ForumTag): string | null {
-        return tag.emojiId ? this.emojiUrls()[tag.emojiId] ?? null : null;
+        return tag.emojiId ? (this.emojiUrls()[tag.emojiId] ?? null) : null;
     }
 
     protected emit(action: PostAction, event: Event): void {

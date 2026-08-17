@@ -21,7 +21,12 @@ function setup(s: CallScreenShare): ComponentFixture<CallShareTileComponent> {
         providers: [
             {
                 provide: RustMediaService,
-                useValue: {previewPaused: () => false, claimPreviewRender: vi.fn(), releasePreviewRender: vi.fn(), resumePreview: vi.fn()},
+                useValue: {
+                    previewPaused: () => false,
+                    claimPreviewRender: vi.fn(),
+                    releasePreviewRender: vi.fn(),
+                    resumePreview: vi.fn(),
+                },
             },
         ],
     });

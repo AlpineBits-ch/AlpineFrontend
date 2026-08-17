@@ -1,11 +1,11 @@
 import {HttpErrorResponse, HttpInterceptorFn} from '@angular/common/http';
-import {inject} from "@angular/core";
-import {OAuthService} from "angular-oauth2-oidc";
-import {Router} from "@angular/router";
-import {catchError, from, switchMap, throwError} from "rxjs";
-import {environment} from "../../environments/environment";
-import {ApiConfigService} from "../services/api-config.service";
-import {isAnonymousStatusUrl} from "../services/status-api.service";
+import {inject} from '@angular/core';
+import {OAuthService} from 'angular-oauth2-oidc';
+import {Router} from '@angular/router';
+import {catchError, from, switchMap, throwError} from 'rxjs';
+import {environment} from '../../environments/environment';
+import {ApiConfigService} from '../services/api-config.service';
+import {isAnonymousStatusUrl} from '../services/status-api.service';
 
 // Shared across all interceptor invocations: while a refresh is in flight every concurrent 401
 // waits on the same promise instead of triggering its own softLogout().
@@ -42,7 +42,7 @@ export const tokenInterceptor: HttpInterceptorFn = (req, next) => {
     }
 
     return next(request).pipe(
-        catchError((err) => {
+        catchError(err => {
             if (!(err instanceof HttpErrorResponse) || err.status !== 401) {
                 return throwError(() => err);
             }
@@ -57,7 +57,8 @@ export const tokenInterceptor: HttpInterceptorFn = (req, next) => {
 
             if (!isRefreshing) {
                 isRefreshing = true;
-                refreshPromise = oAuthService.refreshToken()
+                refreshPromise = oAuthService
+                    .refreshToken()
                     .then(() => {
                         isRefreshing = false;
                         refreshPromise = null;
@@ -77,7 +78,7 @@ export const tokenInterceptor: HttpInterceptorFn = (req, next) => {
                 switchMap(newToken => {
                     const retried = request.clone({setHeaders: {Authorization: `Bearer ${newToken}`}});
                     return next(retried).pipe(
-                        catchError((retryErr) => {
+                        catchError(retryErr => {
                             if (retryErr instanceof HttpErrorResponse && retryErr.status === 401) {
                                 softLogout(oAuthService, router);
                             }

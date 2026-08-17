@@ -45,8 +45,10 @@ export class WebPresence extends Presence {
 }
 
 function unsupported(operation: string): Promise<never> {
-    return Promise.reject(new Error(
-        `Presence.${operation}() is desktop-only; a browser cannot bind discord-ipc-0. ` +
-        'Gate on Presence.supported or PlatformCapabilities.richPresence.',
-    ));
+    return Promise.reject(
+        new Error(
+            `Presence.${operation}() is desktop-only; a browser cannot bind discord-ipc-0. ` +
+                'Gate on Presence.supported or PlatformCapabilities.richPresence.',
+        ),
+    );
 }

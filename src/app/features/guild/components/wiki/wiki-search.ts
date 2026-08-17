@@ -65,17 +65,22 @@ function snippetAround(content: string, at: number, queryLength: number): string
 function scoreOne(candidate: SearchCandidate, query: string): SearchHit | null {
     const title = candidate.title.toLowerCase();
 
-    if (title === query) return {id: candidate.id, score: SCORE_TITLE_EXACT, matchedIn: 'title', snippet: null};
-    if (title.startsWith(query)) return {id: candidate.id, score: SCORE_TITLE_PREFIX, matchedIn: 'title', snippet: null};
+    if (title === query)
+        return {id: candidate.id, score: SCORE_TITLE_EXACT, matchedIn: 'title', snippet: null};
+    if (title.startsWith(query))
+        return {id: candidate.id, score: SCORE_TITLE_PREFIX, matchedIn: 'title', snippet: null};
     if (title.split(/\s+/).some(word => word.startsWith(query))) {
         return {id: candidate.id, score: SCORE_TITLE_WORD_PREFIX, matchedIn: 'title', snippet: null};
     }
-    if (title.includes(query)) return {id: candidate.id, score: SCORE_TITLE_SUBSTRING, matchedIn: 'title', snippet: null};
+    if (title.includes(query))
+        return {id: candidate.id, score: SCORE_TITLE_SUBSTRING, matchedIn: 'title', snippet: null};
 
     for (const tag of candidate.tags) {
         const lower = tag.toLowerCase();
-        if (lower === query) return {id: candidate.id, score: SCORE_TAG_EXACT, matchedIn: 'tag', snippet: null};
-        if (lower.startsWith(query)) return {id: candidate.id, score: SCORE_TAG_PREFIX, matchedIn: 'tag', snippet: null};
+        if (lower === query)
+            return {id: candidate.id, score: SCORE_TAG_EXACT, matchedIn: 'tag', snippet: null};
+        if (lower.startsWith(query))
+            return {id: candidate.id, score: SCORE_TAG_PREFIX, matchedIn: 'tag', snippet: null};
     }
 
     if (isSubsequence(title, query)) {
@@ -102,7 +107,8 @@ export function hasActiveFilters(filters: SearchFilters): boolean {
 }
 
 export function matchesFilters(candidate: SearchCandidate, filters: SearchFilters): boolean {
-    if (filters.tag && !candidate.tags.some(t => t.toLowerCase() === filters.tag!.toLowerCase())) return false;
+    if (filters.tag && !candidate.tags.some(t => t.toLowerCase() === filters.tag!.toLowerCase()))
+        return false;
     if (filters.categoryId && candidate.categoryId !== filters.categoryId) return false;
     return !(filters.authorId && candidate.authorId !== filters.authorId);
 }

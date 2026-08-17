@@ -16,16 +16,16 @@
  * state path is touched, so it can never justify a wipe.
  */
 export const MLS_NO_STATE_KEY_ERROR =
-    'MlsError: no state key was supplied - mls_state.json cannot be written unsealed, so '
-    + 'encryption stays unavailable until the keychain produces one';
+    'MlsError: no state key was supplied - mls_state.json cannot be written unsealed, so ' +
+    'encryption stays unavailable until the keychain produces one';
 
 /**
  * A sealed state file was found and the key that opens it was not supplied. Classified transient: a
  * sealed file plus a missing keychain entry is the situation in which wiping is worst.
  */
 export const MLS_SEALED_NO_STATE_KEY_ERROR =
-    'MlsError: mls_state.json is sealed but no state key was supplied - the keychain entry '
-    + 'that opens it is missing';
+    'MlsError: mls_state.json is sealed but no state key was supplied - the keychain entry ' +
+    'that opens it is missing';
 
 /** The sealed state file did not authenticate under this device's state key. Native. */
 export const MLS_STATE_DID_NOT_OPEN_ERROR =
@@ -56,9 +56,7 @@ export const MLS_NOT_A_STATE_BLOB_ERROR = 'does not hold a state blob';
  * the stored state. Shortened to the invariant rather than the whole sentence, which venta-mobile
  * shares verbatim; the full sentences are pinned separately by the spec.
  */
-export const MLS_STATE_KEY_UNAVAILABLE_MARKERS: readonly string[] = [
-    'no state key was supplied',
-];
+export const MLS_STATE_KEY_UNAVAILABLE_MARKERS: readonly string[] = ['no state key was supplied'];
 
 /**
  * Substrings meaning "the stored state is present and cannot be read", the one case that may wipe.
@@ -146,9 +144,7 @@ export interface MlsStorageInitOutcome {
 }
 
 /** Initialises MLS storage, wiping only what may be wiped. */
-export async function runMlsStorageInit(
-    steps: MlsStorageInitSteps,
-): Promise<MlsStorageInitOutcome> {
+export async function runMlsStorageInit(steps: MlsStorageInitSteps): Promise<MlsStorageInitOutcome> {
     let restored: boolean;
     try {
         restored = await steps.initStorage();

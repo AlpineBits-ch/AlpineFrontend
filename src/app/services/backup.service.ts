@@ -102,11 +102,14 @@ export class BackupService {
      * The version must match: this re-wraps the existing key rather than rotating it, so every blob
      * already sealed under it stays readable.
      */
-    rewrapPassword(version: number, passwordWrapping: MasterKeyWrappingDto): Observable<{
+    rewrapPassword(
+        version: number,
+        passwordWrapping: MasterKeyWrappingDto,
+    ): Observable<{
         version: number;
         encryptedHistoryRecoverable: boolean;
     }> {
-        return this.http.post<{ version: number; encryptedHistoryRecoverable: boolean }>(
+        return this.http.post<{version: number; encryptedHistoryRecoverable: boolean}>(
             `${this.base}/recovery-key/rewrap-password`,
             {version, passwordWrapping},
         );

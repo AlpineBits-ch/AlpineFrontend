@@ -125,9 +125,15 @@ export class MealService {
         const to = toPlanDate(addPlanDays(new Date(weekStart + 'T00:00:00'), 6));
 
         forkJoin({
-            recipes: this.api.listRecipes(channelId)
-                .pipe(catchError((err: unknown) => this.swallow<{items: Recipe[]; nextCursor: string | null}>(channelId, err))),
-            plan: this.api.listPlan(channelId, weekStart, to)
+            recipes: this.api
+                .listRecipes(channelId)
+                .pipe(
+                    catchError((err: unknown) =>
+                        this.swallow<{items: Recipe[]; nextCursor: string | null}>(channelId, err),
+                    ),
+                ),
+            plan: this.api
+                .listPlan(channelId, weekStart, to)
                 .pipe(catchError((err: unknown) => this.swallow<MealPlanEntry[]>(channelId, err))),
         }).subscribe(({recipes, plan}) => {
             this.patch(channelId, state => ({
@@ -136,9 +142,7 @@ export class MealService {
                 recipesCursor: recipes?.nextCursor ?? null,
                 // Dropped if the week moved while this was in the air: applying it would draw last
                 // week's dinners under this week's dates.
-                plan: state.weekStart === weekStart
-                    ? (plan ?? []).map(normalizeMealPlanEntry)
-                    : state.plan,
+                plan: state.weekStart === weekStart ? (plan ?? []).map(normalizeMealPlanEntry) : state.plan,
                 loading: false,
                 loaded: true,
                 failed: !state.forbidden && recipes === null && plan === null,
@@ -174,15 +178,19 @@ export class MealService {
 
         const cursor = state.recipesCursor;
         this.api.listRecipes(channelId, undefined, cursor).subscribe({
-            next: page => this.patch(channelId, current => {
-                if (current.recipesCursor !== cursor) return current;
-                const held = new Set(current.recipes.map(r => r.id));
-                return {
-                    ...current,
-                    recipes: [...current.recipes, ...page.items.filter(r => !held.has(r.id)).map(normalizeRecipe)],
-                    recipesCursor: page.nextCursor ?? null,
-                };
-            }),
+            next: page =>
+                this.patch(channelId, current => {
+                    if (current.recipesCursor !== cursor) return current;
+                    const held = new Set(current.recipes.map(r => r.id));
+                    return {
+                        ...current,
+                        recipes: [
+                            ...current.recipes,
+                            ...page.items.filter(r => !held.has(r.id)).map(normalizeRecipe),
+                        ],
+                        recipesCursor: page.nextCursor ?? null,
+                    };
+                }),
             error: () => undefined,
         });
     }
@@ -190,12 +198,14 @@ export class MealService {
     // ── Writes ───────────────────────────────────────────────────────────────
 
     addRecipe(channelId: string, body: CreateRecipeDto): Observable<Recipe> {
-        return this.api.createRecipe(channelId, body)
+        return this.api
+            .createRecipe(channelId, body)
             .pipe(tap(recipe => this.upsertRecipe(channelId, recipe)));
     }
 
     editRecipe(channelId: string, recipeId: string, body: UpdateRecipeDto): Observable<Recipe> {
-        return this.api.updateRecipe(recipeId, body)
+        return this.api
+            .updateRecipe(recipeId, body)
             .pipe(tap(recipe => this.upsertRecipe(channelId, recipe)));
     }
 
@@ -204,13 +214,11 @@ export class MealService {
     }
 
     addEntry(channelId: string, body: CreateMealPlanEntryDto): Observable<MealPlanEntry> {
-        return this.api.createEntry(channelId, body)
-            .pipe(tap(entry => this.upsertEntry(channelId, entry)));
+        return this.api.createEntry(channelId, body).pipe(tap(entry => this.upsertEntry(channelId, entry)));
     }
 
     editEntry(channelId: string, entryId: string, body: UpdateMealPlanEntryDto): Observable<MealPlanEntry> {
-        return this.api.updateEntry(entryId, body)
-            .pipe(tap(entry => this.upsertEntry(channelId, entry)));
+        return this.api.updateEntry(entryId, body).pipe(tap(entry => this.upsertEntry(channelId, entry)));
     }
 
     removeEntry(channelId: string, entryId: string): Observable<void> {
@@ -226,19 +234,27 @@ export class MealService {
      * have to wait for their own socket echo to see that it worked.</p>
      */
     generateShoppingList(channelId: string, body: GenerateShoppingListDto): Observable<ShoppingListResult> {
-        return this.api.generateShoppingList(channelId, body).pipe(tap(result => {
-            const listChannelId = body.listChannelId ?? this.stateFor(channelId).config?.shoppingListChannelId;
-            if (listChannelId && result.added.length > 0) this.lists.reload(listChannelId);
-        }));
+        return this.api.generateShoppingList(channelId, body).pipe(
+            tap(result => {
+                const listChannelId =
+                    body.listChannelId ?? this.stateFor(channelId).config?.shoppingListChannelId;
+                if (listChannelId && result.added.length > 0) this.lists.reload(listChannelId);
+            }),
+        );
     }
 
     /** Uncached: the ranking moves every time anything in the pantry does. */
-    cookable(channelId: string, expiringDays?: number | null, limit?: number | null): Observable<CookableResult> {
+    cookable(
+        channelId: string,
+        expiringDays?: number | null,
+        limit?: number | null,
+    ): Observable<CookableResult> {
         return this.api.cookable(channelId, expiringDays, limit);
     }
 
     saveConfig(channelId: string, body: UpdateMealPlanConfigDto): Observable<MealPlanConfig> {
-        return this.api.putConfig(channelId, body)
+        return this.api
+            .putConfig(channelId, body)
             .pipe(tap(config => this.patch(channelId, state => ({...state, config}))));
     }
 
@@ -275,10 +291,12 @@ export class MealService {
         const recipe = normalizeRecipe(raw);
         const apply = (state: MealChannelState): MealChannelState => ({
             ...state,
-            recipes: [...state.recipes.filter(r => r.id !== recipe.id), recipe]
-                .sort((a, b) => a.title.localeCompare(b.title) || a.id.localeCompare(b.id)),
+            recipes: [...state.recipes.filter(r => r.id !== recipe.id), recipe].sort(
+                (a, b) => a.title.localeCompare(b.title) || a.id.localeCompare(b.id),
+            ),
         });
-        if (existingOnly) this.patchExisting(channelId, apply); else this.patch(channelId, apply);
+        if (existingOnly) this.patchExisting(channelId, apply);
+        else this.patch(channelId, apply);
     }
 
     private dropRecipe(channelId: string, recipeId: string): void {
@@ -306,7 +324,8 @@ export class MealService {
                 plan: inWeek ? this.sortedPlan([...rest, entry]) : rest,
             };
         };
-        if (existingOnly) this.patchExisting(channelId, apply); else this.patch(channelId, apply);
+        if (existingOnly) this.patchExisting(channelId, apply);
+        else this.patch(channelId, apply);
     }
 
     private dropEntry(channelId: string, entryId: string): void {
@@ -324,10 +343,9 @@ export class MealService {
 
     /** By date, then by the order a day runs, then by the position the user chose. */
     private sortedPlan(plan: MealPlanEntry[]): MealPlanEntry[] {
-        return [...plan].sort((a, b) =>
-            a.date.localeCompare(b.date)
-            || a.position - b.position
-            || a.id.localeCompare(b.id));
+        return [...plan].sort(
+            (a, b) => a.date.localeCompare(b.date) || a.position - b.position || a.id.localeCompare(b.id),
+        );
     }
 
     private patch(channelId: string, fn: (state: MealChannelState) => MealChannelState): void {
@@ -335,7 +353,7 @@ export class MealService {
     }
 
     private patchExisting(channelId: string, fn: (state: MealChannelState) => MealChannelState): void {
-        this.states.update(all => all[channelId] ? {...all, [channelId]: fn(all[channelId])} : all);
+        this.states.update(all => (all[channelId] ? {...all, [channelId]: fn(all[channelId])} : all));
     }
 
     private swallow<T>(channelId: string, err: unknown): Observable<T | null> {

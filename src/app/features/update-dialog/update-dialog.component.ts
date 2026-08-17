@@ -2,7 +2,7 @@ import {Component, inject} from '@angular/core';
 import {Dialog} from 'primeng/dialog';
 import {Button} from 'primeng/button';
 import {UpdateService} from '../../services/update.service';
-import {PrimeTemplate} from "primeng/api";
+import {PrimeTemplate} from 'primeng/api';
 import {TranslateModule} from '@ngx-translate/core';
 
 @Component({

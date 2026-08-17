@@ -8,8 +8,13 @@ import {
 
 describe('normalizeSwissPhoneNumber', () => {
     it('accepts the three ways a Swiss number gets written', () => {
-        for (const written of ['079 123 45 67', '+41 79 123 45 67', '0041 79 123 45 67',
-            '079/123 45 67', '+41791234567']) {
+        for (const written of [
+            '079 123 45 67',
+            '+41 79 123 45 67',
+            '0041 79 123 45 67',
+            '079/123 45 67',
+            '+41791234567',
+        ]) {
             expect(normalizeSwissPhoneNumber(written)).toBe('+41791234567');
         }
     });

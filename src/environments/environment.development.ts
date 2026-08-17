@@ -5,7 +5,8 @@ export const environment = {
     apiUrl: 'https://api.venta.gg',
     klipyApiKey: 'urPFHj6XtUHQIo9G5XD3nvudiXcyRIiad68WfDV0DV8WmJXSFfxFC4PGqcRTXuL5',
     /** Stripe's publishable key: a fallback only. The instance's own key from the entitlement snapshot wins. */
-    stripePublishableKey: 'pk_test_51TY1Am2c7cgnhryPhW1Ff1xuc9DQ5zmEUKtyhqCi3eKqGE0mEaPMAliiVnHFdtAU42c0D5pR0noi76ZQwDfYArGa007BZhMSoa',
+    stripePublishableKey:
+        'pk_test_51TY1Am2c7cgnhryPhW1Ff1xuc9DQ5zmEUKtyhqCi3eKqGE0mEaPMAliiVnHFdtAU42c0D5pR0noi76ZQwDfYArGa007BZhMSoa',
     iceServers: [
         {
             urls: [
@@ -16,7 +17,7 @@ export const environment = {
             ],
             username: 'xxxx',
             credential: 'yyyy',
-        }
+        },
     ],
     /** Dev-only tuning for Isle proximity (positional) voice. Consumed by {@link SpatialAudioService}. */
     isleVoice: {

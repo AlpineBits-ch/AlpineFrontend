@@ -48,7 +48,12 @@ describe('selectNestedPosts', () => {
     });
 
     it('includes a post because it was visited, because it is unread, or because it mentions you', () => {
-        const all = [post({id: 'visited'}), post({id: 'unread'}), post({id: 'mentioned'}), post({id: 'ignored'})];
+        const all = [
+            post({id: 'visited'}),
+            post({id: 'unread'}),
+            post({id: 'mentioned'}),
+            post({id: 'ignored'}),
+        ];
         const read = reader({unread: {isUnread: true}, mentioned: {mentionCount: 2}});
 
         const rows = selectNestedPosts('f1', all, ['visited'], read);
@@ -99,12 +104,19 @@ describe('selectNestedPosts', () => {
 
     it('caps the rows and drops the least interesting first', () => {
         const all = [
-            ...Array.from({length: 12}, (_, i) => post({id: `v${i}`, lastActivityAt: '2026-07-01T00:00:00Z'})),
+            ...Array.from({length: 12}, (_, i) =>
+                post({id: `v${i}`, lastActivityAt: '2026-07-01T00:00:00Z'}),
+            ),
             post({id: 'mentioned', lastActivityAt: '2026-06-01T00:00:00Z'}),
         ];
         const read = reader({mentioned: {mentionCount: 1}});
 
-        const rows = selectNestedPosts('f1', all, all.map(p => p.id), read);
+        const rows = selectNestedPosts(
+            'f1',
+            all,
+            all.map(p => p.id),
+            read,
+        );
 
         expect(rows.length).toBe(MAX_NESTED_POST_ROWS);
         // Oldest of the lot, but the only one that named the user; it must survive the cut.

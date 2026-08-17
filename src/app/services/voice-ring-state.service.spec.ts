@@ -128,9 +128,13 @@ describe('VoiceRingStateService incoming', () => {
         const {service, ws} = setup();
 
         ws.voiceRingIncomingObservable.next(ringEvent());
-        ws.voiceRingIncomingObservable.next(ringEvent({
-            ringId: 'ring_2', inviterId: 'user_bo', channelId: 'chan_2',
-        }));
+        ws.voiceRingIncomingObservable.next(
+            ringEvent({
+                ringId: 'ring_2',
+                inviterId: 'user_bo',
+                channelId: 'chan_2',
+            }),
+        );
 
         expect(service.incoming().map(i => i.ring.ringId)).toEqual(['ring_2', 'ring_1']);
     });
@@ -182,9 +186,15 @@ describe('VoiceRingStateService resolution', () => {
         ws.voiceRingIncomingObservable.next(ringEvent());
 
         ws.voiceRingResolvedObservable.next({
-            ringId: 'ring_1', guildId: 'g1', channelId: 'chan_1',
-            inviterId: 'user_ada', targetUserId: 'user_me',
-            status, reason, resolvedAt: '2026-08-15T12:00:14Z', resolvedByDeviceId: null,
+            ringId: 'ring_1',
+            guildId: 'g1',
+            channelId: 'chan_1',
+            inviterId: 'user_ada',
+            targetUserId: 'user_me',
+            status,
+            reason,
+            resolvedAt: '2026-08-15T12:00:14Z',
+            resolvedByDeviceId: null,
         });
 
         expect(service.hasIncoming()).toBe(false);
@@ -195,10 +205,15 @@ describe('VoiceRingStateService resolution', () => {
         ws.voiceRingIncomingObservable.next(ringEvent());
 
         ws.voiceRingResolvedObservable.next({
-            ringId: 'ring_1', guildId: 'g1', channelId: 'chan_1',
-            inviterId: 'user_ada', targetUserId: 'user_me',
-            status: 'Vaporised', reason: 'SunExploded',
-            resolvedAt: '2026-08-15T12:00:14Z', resolvedByDeviceId: null,
+            ringId: 'ring_1',
+            guildId: 'g1',
+            channelId: 'chan_1',
+            inviterId: 'user_ada',
+            targetUserId: 'user_me',
+            status: 'Vaporised',
+            reason: 'SunExploded',
+            resolvedAt: '2026-08-15T12:00:14Z',
+            resolvedByDeviceId: null,
         });
 
         expect(service.hasIncoming()).toBe(false);
@@ -212,10 +227,15 @@ describe('VoiceRingStateService resolution', () => {
 
         // Resolved by us: re-announcing would tell somebody they declined a second after they did.
         ws.voiceRingResolvedObservable.next({
-            ringId: 'ring_1', guildId: 'g1', channelId: 'chan_1',
-            inviterId: 'user_me', targetUserId: 'user_ada',
-            status: VoiceRingStatus.Declined, reason: null,
-            resolvedAt: '2026-08-15T12:00:14Z', resolvedByDeviceId: OWN_DEVICE,
+            ringId: 'ring_1',
+            guildId: 'g1',
+            channelId: 'chan_1',
+            inviterId: 'user_me',
+            targetUserId: 'user_ada',
+            status: VoiceRingStatus.Declined,
+            reason: null,
+            resolvedAt: '2026-08-15T12:00:14Z',
+            resolvedByDeviceId: OWN_DEVICE,
         });
 
         expect(toast.info).not.toHaveBeenCalled();
@@ -228,7 +248,10 @@ describe('VoiceRingStateService resolution', () => {
 
         // The ordinary multi-device outcome: the phone answered a second before the laptop.
         ws.voiceRingDismissedObservable.next({
-            ringId: 'ring_1', deviceId: OWN_DEVICE, status: VoiceRingStatus.Accepted, reason: null,
+            ringId: 'ring_1',
+            deviceId: OWN_DEVICE,
+            status: VoiceRingStatus.Accepted,
+            reason: null,
         });
 
         expect(service.hasIncoming()).toBe(false);
@@ -262,8 +285,9 @@ describe('VoiceRingStateService accept', () => {
     });
 
     it('says the channel is gone on a 410, and does not try to join it', () => {
-        const accept = vi.fn(() => throwError(() =>
-            new HttpErrorResponse({status: 410, error: {reason: 'ChannelGone'}})));
+        const accept = vi.fn(() =>
+            throwError(() => new HttpErrorResponse({status: 410, error: {reason: 'ChannelGone'}})),
+        );
         const {service, ws, toast, joinChannel} = setup({accept});
         ws.voiceRingIncomingObservable.next(ringEvent());
 
@@ -283,7 +307,7 @@ describe('VoiceRingStateService accept', () => {
         expect(service.hasIncoming()).toBe(false);
     });
 
-    it('dropping a card is not declining it, and carries none of a decline\'s weight', () => {
+    it("dropping a card is not declining it, and carries none of a decline's weight", () => {
         const {service, ws, rings} = setup();
         ws.voiceRingIncomingObservable.next(ringEvent());
 
@@ -322,8 +346,9 @@ describe('VoiceRingStateService sending', () => {
         [VoiceRingRefusalReason.InviterFlooding, 'VOICE_RING.REFUSED_TOO_MANY_SENT'],
         [VoiceRingRefusalReason.TargetSaturated, 'VOICE_RING.REFUSED_TARGET_SATURATED'],
     ] as const)('renders %s honestly', (reason, key) => {
-        const ring = vi.fn(() => throwError(() =>
-            new HttpErrorResponse({status: 429, error: {reason, retryAfterSeconds: 900}})));
+        const ring = vi.fn(() =>
+            throwError(() => new HttpErrorResponse({status: 429, error: {reason, retryAfterSeconds: 900}})),
+        );
         const {service} = setup({ring});
 
         service.send('g1', 'chan_1', 'user_ada');
@@ -345,9 +370,15 @@ describe('VoiceRingStateService sending', () => {
     });
 
     it('shows nothing at all when they walked into the channel first', () => {
-        const ring = vi.fn(() => throwError(() => new HttpErrorResponse({
-            status: 409, error: {reason: VoiceRingRefusalReason.TargetAlreadyInChannel, retryAfterSeconds: 0},
-        })));
+        const ring = vi.fn(() =>
+            throwError(
+                () =>
+                    new HttpErrorResponse({
+                        status: 409,
+                        error: {reason: VoiceRingRefusalReason.TargetAlreadyInChannel, retryAfterSeconds: 0},
+                    }),
+            ),
+        );
         const {service} = setup({ring});
 
         service.send('g1', 'chan_1', 'user_ada');
@@ -374,10 +405,15 @@ describe('VoiceRingStateService sending', () => {
     });
 
     it('carries the retry window so the button can hold itself shut', () => {
-        const ring = vi.fn(() => throwError(() => new HttpErrorResponse({
-            status: 429,
-            error: {reason: VoiceRingRefusalReason.InviterFlooding, retryAfterSeconds: 120},
-        })));
+        const ring = vi.fn(() =>
+            throwError(
+                () =>
+                    new HttpErrorResponse({
+                        status: 429,
+                        error: {reason: VoiceRingRefusalReason.InviterFlooding, retryAfterSeconds: 120},
+                    }),
+            ),
+        );
         const {service} = setup({ring});
 
         service.send('g1', 'chan_1', 'user_ada');

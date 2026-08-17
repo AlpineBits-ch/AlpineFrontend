@@ -42,7 +42,15 @@ describe('GuildEmojiService', () => {
         expect(body.get('name')).toBe('pepega');
         expect(body.get('animated')).toBe('false');
         expect(body.get('file')).toBe(file);
-        req.flush({id: 'e1', guildId: 'g1', name: 'pepega', animated: false, createdByUserId: 'u1', createdAt: '2026-07-30T00:00:00Z', imageUrl: 'https://x'});
+        req.flush({
+            id: 'e1',
+            guildId: 'g1',
+            name: 'pepega',
+            animated: false,
+            createdByUserId: 'u1',
+            createdAt: '2026-07-30T00:00:00Z',
+            imageUrl: 'https://x',
+        });
     });
 
     it('deleteEmoji DELETEs the emoji by id', () => {

@@ -29,9 +29,16 @@ const DEVICE_B = 'device-for-account-b';
 
 /** The device id is the account boundary, so it is the thing these tests vary. */
 class DeviceIdentityStub {
-    constructor(public id: string, public ownsLegacy = false) { }
-    async deviceId(): Promise<string> { return this.id; }
-    async ownsLegacyState(): Promise<boolean> { return this.ownsLegacy; }
+    constructor(
+        public id: string,
+        public ownsLegacy = false,
+    ) {}
+    async deviceId(): Promise<string> {
+        return this.id;
+    }
+    async ownsLegacyState(): Promise<boolean> {
+        return this.ownsLegacy;
+    }
 }
 
 let identity: DeviceIdentityStub;
@@ -193,8 +200,7 @@ describe('autoUnlock identity guard', () => {
         keychainHolding(DEVICE_A, 'user-a');
         invokeStub.mockResolvedValue('handle-1' as never);
 
-        await expect(firstValueFrom(service.autoUnlock(DEVICE_A, 'user-a')))
-            .resolves.toBe('handle-1');
+        await expect(firstValueFrom(service.autoUnlock(DEVICE_A, 'user-a'))).resolves.toBe('handle-1');
     });
 
     it('refuses to hand account B a signing key stored for account A', async () => {
@@ -213,8 +219,9 @@ describe('autoUnlock identity guard', () => {
         keychainHolding(DEVICE_A, 'user-a');
 
         // KeyNotFound routes to registration, which mints a fresh key and orphans the device from every group.
-        const err = await firstValueFrom(service.autoUnlock(DEVICE_A, 'user-b'))
-            .catch((e: MlsTypedError) => e);
+        const err = await firstValueFrom(service.autoUnlock(DEVICE_A, 'user-b')).catch(
+            (e: MlsTypedError) => e,
+        );
 
         expect((err as MlsTypedError).kind).not.toBe('KeyNotFound');
         expect((err as MlsTypedError).kind).toBe('IdentityMismatch');

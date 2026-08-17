@@ -219,9 +219,7 @@ describe('MediaDeviceCatalogService', () => {
     });
 
     it('reports withheld names when any entry is showing a stand-in', async () => {
-        host.micList = [
-            {id: 'a1b2', label: 'Microphone 1', isDefault: false, labelSource: 'placeholder'},
-        ];
+        host.micList = [{id: 'a1b2', label: 'Microphone 1', isDefault: false, labelSource: 'placeholder'}];
         const service = create(host);
         await service.refresh();
 
@@ -231,9 +229,7 @@ describe('MediaDeviceCatalogService', () => {
     });
 
     it('stops reporting withheld names once permission unblanks the labels', async () => {
-        host.micList = [
-            {id: 'a1b2', label: 'Microphone 1', isDefault: false, labelSource: 'placeholder'},
-        ];
+        host.micList = [{id: 'a1b2', label: 'Microphone 1', isDefault: false, labelSource: 'placeholder'}];
         const service = create(host);
         await service.refresh();
         expect(service.namesWithheld()).toBe(true);

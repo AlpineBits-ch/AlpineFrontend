@@ -1,5 +1,4 @@
-import {InviteTargetType, InviteType} from "../response/invite.dto";
-
+import {InviteTargetType, InviteType} from '../response/invite.dto';
 
 export interface CreateInviteDto {
     type: InviteType;

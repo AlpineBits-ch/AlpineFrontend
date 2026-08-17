@@ -205,8 +205,9 @@ export class IsleVoiceRtcService {
             // exists, which is the only window this can happen in: republish tears the session down
             // before rebuilding it, and an order can land in the gap.
             this.deferredOrders++;
-            console.warn('[isle-voice] no proximity publication yet - holding the order to hear a peer',
-                {userId});
+            console.warn('[isle-voice] no proximity publication yet - holding the order to hear a peer', {
+                userId,
+            });
             return;
         }
 
@@ -240,11 +241,14 @@ export class IsleVoiceRtcService {
         if (!session) return;
 
         const missing = [...this.directives].filter(
-            ([userId, directive]) => this.subscribedSessions.get(userId) !== directive.peerSessionId);
+            ([userId, directive]) => this.subscribedSessions.get(userId) !== directive.peerSessionId,
+        );
         if (!missing.length) return;
 
-        console.warn('[isle-voice] backfilling peers we were told to hear but are not pulling',
-            {count: missing.length, userIds: missing.map(([userId]) => userId)});
+        console.warn('[isle-voice] backfilling peers we were told to hear but are not pulling', {
+            count: missing.length,
+            userIds: missing.map(([userId]) => userId),
+        });
         await Promise.all(missing.map(([userId]) => this.driveSubscribe(session, userId)));
     }
 
@@ -268,7 +272,10 @@ export class IsleVoiceRtcService {
             .then(() => this.subscribeQueued(session, userId));
         // The chain is kept settled, or one rejected subscribe takes every later operation for that
         // peer with it.
-        this.peerOps.set(userId, next.catch(() => void 0));
+        this.peerOps.set(
+            userId,
+            next.catch(() => void 0),
+        );
         return next;
     }
 
@@ -295,8 +302,11 @@ export class IsleVoiceRtcService {
         if (previous === peerSessionId) return;
 
         if (previous !== undefined) {
-            console.warn('[isle-voice] peer republished on a new session, resubscribing',
-                {userId, from: previous, to: peerSessionId});
+            console.warn('[isle-voice] peer republished on a new session, resubscribing', {
+                userId,
+                from: previous,
+                to: peerSessionId,
+            });
             await this.engine.unsubscribe(session, userId).catch(() => void 0);
             this.subscribedSessions.delete(userId);
             this.peers.update(s => {
@@ -331,17 +341,26 @@ export class IsleVoiceRtcService {
             } catch (e) {
                 directive.lastError = String(e);
                 if (attempt < ISLE_SUBSCRIBE_RETRY_DELAYS_MS.length) {
-                    console.warn('[isle-voice] pulling a peer failed, retrying', {
-                        userId, attempt: attempt + 1, retryInMs: ISLE_SUBSCRIBE_RETRY_DELAYS_MS[attempt],
-                    }, e);
+                    console.warn(
+                        '[isle-voice] pulling a peer failed, retrying',
+                        {
+                            userId,
+                            attempt: attempt + 1,
+                            retryInMs: ISLE_SUBSCRIBE_RETRY_DELAYS_MS[attempt],
+                        },
+                        e,
+                    );
                     await new Promise(r => setTimeout(r, ISLE_SUBSCRIBE_RETRY_DELAYS_MS[attempt]));
                     continue;
                 }
                 // Loud, and it stays loud. The order is deliberately left standing rather than
                 // discarded: nothing has told us this peer is gone, so the next reconcile - a
                 // republish, a hub reconnect - gets to try again instead of treating them as handled.
-                console.error('[isle-voice] gave up pulling a peer; they will be silent and unplaced',
-                    {userId, peerSessionId, trackName, attempts: ISLE_SUBSCRIBE_RETRY_DELAYS_MS.length + 1}, e);
+                console.error(
+                    '[isle-voice] gave up pulling a peer; they will be silent and unplaced',
+                    {userId, peerSessionId, trackName, attempts: ISLE_SUBSCRIBE_RETRY_DELAYS_MS.length + 1},
+                    e,
+                );
                 return;
             }
         }

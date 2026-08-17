@@ -1,4 +1,14 @@
-import {ChangeDetectionStrategy, Component, computed, effect, inject, input, output, signal, untracked} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    effect,
+    inject,
+    input,
+    output,
+    signal,
+    untracked,
+} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {Button} from 'primeng/button';
@@ -77,8 +87,18 @@ interface SuggestionRow {
     selector: 'app-ledger-channel',
     changeDetection: ChangeDetectionStrategy.OnPush,
     imports: [
-        Button, Dialog, InputText, Select, Tooltip, FormsModule, PrimeTemplate, TranslateModule,
-        BillsPanelComponent, LedgerSummaryComponent, ReceiptGalleryComponent, PaySheetComponent,
+        Button,
+        Dialog,
+        InputText,
+        Select,
+        Tooltip,
+        FormsModule,
+        PrimeTemplate,
+        TranslateModule,
+        BillsPanelComponent,
+        LedgerSummaryComponent,
+        ReceiptGalleryComponent,
+        PaySheetComponent,
         PaymentHandlesEditorComponent,
     ],
     templateUrl: './ledger-channel.component.html',
@@ -123,32 +143,37 @@ export class LedgerChannelComponent {
     // ── Permissions (§2) ─────────────────────────────────────────────────────
 
     /** Owner first: SelfGuildMemberDto.permissions doesn't reliably carry Superadmin for them. */
-    private readonly abilities = computed(() => guildAbilities(this.ownMember(), this.guild(), this.ownUserId()));
+    private readonly abilities = computed(() =>
+        guildAbilities(this.ownMember(), this.guild(), this.ownUserId()),
+    );
 
     private can = (permission: bigint): boolean => this.abilities().canModule(permission);
 
     /** Edit anyone's expense, record a settlement between two other people, set the currency. */
     protected readonly canManageLedger = computed(() => this.can(ModulePermissions.ManageLedger));
     /** Add an expense you paid, and edit or delete the ones you entered. */
-    protected readonly canAddExpense = computed(() => this.can(ModulePermissions.AddExpenses) || this.canManageLedger());
+    protected readonly canAddExpense = computed(
+        () => this.can(ModulePermissions.AddExpenses) || this.canManageLedger(),
+    );
     /** Naming someone else as the payer is a third-party write, so it needs the manage bit. */
     protected readonly canNamePayer = computed(() => this.canManageLedger());
 
     // ── Derived view models ──────────────────────────────────────────────────
     private readonly memberById = computed(() => new Map(this.members().map(m => [m.userId, m])));
 
-    protected readonly memberOptions = computed<MemberOption[]>(() => this.members()
-        .map(m => ({value: m.userId, label: this.nameOf(m.userId)}))
-        .sort((a, b) => a.label.localeCompare(b.label)));
+    protected readonly memberOptions = computed<MemberOption[]>(() =>
+        this.members()
+            .map(m => ({value: m.userId, label: this.nameOf(m.userId)}))
+            .sort((a, b) => a.label.localeCompare(b.label)),
+    );
 
     protected readonly expenseRows = computed<ExpenseRow[]>(() => {
         const ownUserId = this.ownUserId();
         return this.state().expenses.map(expense => ({
             expense,
             payerName: this.nameOf(expense.payerUserId),
-            enteredByName: expense.createdByUserId === expense.payerUserId
-                ? null
-                : this.nameOf(expense.createdByUserId),
+            enteredByName:
+                expense.createdByUserId === expense.payerUserId ? null : this.nameOf(expense.createdByUserId),
             ownShareMinor: expense.shares.find(s => s.userId === ownUserId)?.amountMinor ?? null,
             splitLabelKey: `LEDGER.SPLIT_${expense.splitKind.toUpperCase()}`,
             categoryLabelKey: expenseCategoryLabelKey(expense.category ?? ExpenseCategory.Uncategorized),
@@ -166,10 +191,12 @@ export class LedgerChannelComponent {
 
     protected readonly categories = EXPENSE_CATEGORIES;
 
-    protected readonly categoryOptions = computed<MemberOption[]>(() => this.categories.map(category => ({
-        value: category,
-        label: this.translate.instant(expenseCategoryLabelKey(category)),
-    })));
+    protected readonly categoryOptions = computed<MemberOption[]>(() =>
+        this.categories.map(category => ({
+            value: category,
+            label: this.translate.instant(expenseCategoryLabelKey(category)),
+        })),
+    );
 
     /** The receipt gallery's expense, or null when it is closed. */
     protected readonly receiptsFor = signal<Expense | null>(null);
@@ -290,7 +317,8 @@ export class LedgerChannelComponent {
 
     /** The QR-bill message line: the channel name, not any one expense, since a settlement clears a running balance. */
     protected readonly settlementReference = computed(() =>
-        this.translate.instant('LEDGER.SETTLEMENT_REFERENCE', {channel: this.channel().name}));
+        this.translate.instant('LEDGER.SETTLEMENT_REFERENCE', {channel: this.channel().name}),
+    );
 
     // ── Currency dialog ──────────────────────────────────────────────────────
     protected readonly showCurrencyDialog = signal(false);
@@ -351,7 +379,9 @@ export class LedgerChannelComponent {
     protected day(iso: string): string {
         const date = new Date(iso);
         if (Number.isNaN(date.getTime())) return iso;
-        return new Intl.DateTimeFormat(undefined, {day: 'numeric', month: 'short', year: 'numeric'}).format(date);
+        return new Intl.DateTimeFormat(undefined, {day: 'numeric', month: 'short', year: 'numeric'}).format(
+            date,
+        );
     }
 
     protected nameOf(userId: string): string {
@@ -399,9 +429,9 @@ export class LedgerChannelComponent {
         this.formOccurredAt.set(expense.occurredAt.slice(0, 10));
         // Exact is readable but not writable here; an Exact expense opens as the equal split it would become, and the dialog says so instead of quietly rewriting it on save.
         this.editingWasExact.set(expense.splitKind === ExpenseSplitKind.Exact);
-        this.formSplitKind.set(expense.splitKind === ExpenseSplitKind.Shares
-            ? ExpenseSplitKind.Shares
-            : ExpenseSplitKind.Equal);
+        this.formSplitKind.set(
+            expense.splitKind === ExpenseSplitKind.Shares ? ExpenseSplitKind.Shares : ExpenseSplitKind.Equal,
+        );
         this.formSplitEveryone.set(expense.shares.length === 0);
         this.formParticipantIds.set(expense.shares.map(s => s.userId));
         this.formWeights.set(Object.fromEntries(expense.shares.map(s => [s.userId, s.shareValue || 1])));
@@ -420,7 +450,8 @@ export class LedgerChannelComponent {
 
     protected toggleParticipant(userId: string): void {
         this.formParticipantIds.update(ids =>
-            ids.includes(userId) ? ids.filter(id => id !== userId) : [...ids, userId]);
+            ids.includes(userId) ? ids.filter(id => id !== userId) : [...ids, userId],
+        );
     }
 
     protected isParticipant(userId: string): boolean {
@@ -515,7 +546,8 @@ export class LedgerChannelComponent {
     }
 
     protected readonly canRecordCurrentSettlement = computed(() =>
-        this.canRecordSettlementFrom(this.settleFromUserId()));
+        this.canRecordSettlementFrom(this.settleFromUserId()),
+    );
 
     protected submitSettlement(): void {
         const amountMinor = this.settleAmountMinor();
@@ -526,20 +558,22 @@ export class LedgerChannelComponent {
         if (amountMinor === null || !from || !to) return;
 
         this.saving.set(true);
-        this.ledger.recordSettlement(this.channel().id, {
-            fromUserId: from,
-            toUserId: to,
-            amountMinor,
-        }).subscribe({
-            next: () => {
-                this.saving.set(false);
-                this.showSettleDialog.set(false);
-            },
-            error: err => {
-                this.saving.set(false);
-                this.toast.httpError(this.translate.instant('LEDGER.SETTLE_FAILED'), err);
-            },
-        });
+        this.ledger
+            .recordSettlement(this.channel().id, {
+                fromUserId: from,
+                toUserId: to,
+                amountMinor,
+            })
+            .subscribe({
+                next: () => {
+                    this.saving.set(false);
+                    this.showSettleDialog.set(false);
+                },
+                error: err => {
+                    this.saving.set(false);
+                    this.toast.httpError(this.translate.instant('LEDGER.SETTLE_FAILED'), err);
+                },
+            });
     }
 
     // ── Currency ─────────────────────────────────────────────────────────────

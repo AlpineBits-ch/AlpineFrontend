@@ -79,8 +79,17 @@ interface BlockTarget {
     selector: 'app-decisions-channel',
     changeDetection: ChangeDetectionStrategy.OnPush,
     imports: [
-        Button, DatePicker, Dialog, InputText, Textarea, PrimeTemplate, FormsModule, TranslateModule,
-        AppAvatarComponent, RelativeTimePipe, ModuleNotInPlanComponent,
+        Button,
+        DatePicker,
+        Dialog,
+        InputText,
+        Textarea,
+        PrimeTemplate,
+        FormsModule,
+        TranslateModule,
+        AppAvatarComponent,
+        RelativeTimePipe,
+        ModuleNotInPlanComponent,
     ],
     templateUrl: './decisions-channel.component.html',
 })
@@ -121,7 +130,8 @@ export class DecisionsChannelComponent implements OnDestroy {
     // ── Module gate (§13.2) ─────────────────────────────────────────────────
 
     private readonly guild = computed(() =>
-        this.guildService.guilds().find(g => g.id === this.channel().guildId));
+        this.guildService.guilds().find(g => g.id === this.channel().guildId),
+    );
 
     /** A `403` here usually means the house doesn't do house votes, not that you aren't allowed; a guild that hasn't loaded yet is treated as enabled to avoid flashing "module off". */
     protected readonly moduleEnabled = computed(() => {
@@ -133,15 +143,17 @@ export class DecisionsChannelComponent implements OnDestroy {
     protected readonly guildId = computed(() => this.channel().guildId);
 
     /** Off because the guild's plan doesn't cover it; false until a resolution actually arrives, since absence is not evidence. */
-    protected readonly moduleWithheld = computed(() =>
-        this.entitlements.moduleStanding(this.guildId(), GuildFeature.Decisions) === 'withheld');
+    protected readonly moduleWithheld = computed(
+        () => this.entitlements.moduleStanding(this.guildId(), GuildFeature.Decisions) === 'withheld',
+    );
 
     // ── Permissions ─────────────────────────────────────────────────────────
 
-
     private readonly ownUserId = computed(() => this.profileService.ownProfile()?.userId ?? null);
 
-    private readonly abilities = computed(() => guildAbilities(this.ownMember(), this.guild(), this.ownUserId()));
+    private readonly abilities = computed(() =>
+        guildAbilities(this.ownMember(), this.guild(), this.ownUserId()),
+    );
 
     private can = (permission: bigint): boolean => this.abilities().canModule(permission);
 
@@ -166,11 +178,15 @@ export class DecisionsChannelComponent implements OnDestroy {
         description: this.draftDescription().trim() || null,
         closesAt: this.draftClosesAt()?.toISOString() ?? null,
         quorum: this.normalizedQuorum(),
-        options: this.draftOptions().map(o => o.trim()).filter(Boolean),
+        options: this.draftOptions()
+            .map(o => o.trim())
+            .filter(Boolean),
     }));
 
     /** Every `400` `CreateAsync` can answer with, evaluated up front: two options is the floor, a past `closesAt` is refused before sending, and the clock tick keeps a stale dialog invalid on its own. */
-    protected readonly createProblem = computed(() => createDecisionProblem(this.draftBody(), this.nowTick()));
+    protected readonly createProblem = computed(() =>
+        createDecisionProblem(this.draftBody(), this.nowTick()),
+    );
 
     protected readonly canSubmitCreate = computed(() => this.createProblem() === null);
 
@@ -183,11 +199,13 @@ export class DecisionsChannelComponent implements OnDestroy {
     protected readonly canSubmitBlock = computed(() => {
         const target = this.blockTarget();
         if (!target) return false;
-        return voteBodyProblem({
-            kind: DecisionVoteKind.Block,
-            optionId: target.optionId,
-            reason: this.blockReason(),
-        }) === null;
+        return (
+            voteBodyProblem({
+                kind: DecisionVoteKind.Block,
+                optionId: target.optionId,
+                reason: this.blockReason(),
+            }) === null
+        );
     });
 
     /** Which decision is mid-vote, so its buttons can spin without freezing the whole list. */
@@ -206,8 +224,11 @@ export class DecisionsChannelComponent implements OnDestroy {
 
         effect(() => {
             const guildId = this.channel().guildId;
-            untracked(() => this.guildService.getOwnMember(guildId)
-                .subscribe({next: m => this.ownMember.set(m), error: () => this.ownMember.set(null)}));
+            untracked(() =>
+                this.guildService
+                    .getOwnMember(guildId)
+                    .subscribe({next: m => this.ownMember.set(m), error: () => this.ownMember.set(null)}),
+            );
         });
 
         // Block authors are named in the objections panel; the profile cache is a signal, so filling it re-renders the rows waiting on it.
@@ -335,16 +356,17 @@ export class DecisionsChannelComponent implements OnDestroy {
     }
 
     protected setOption(index: number, value: string): void {
-        this.draftOptions.update(list => list.map((o, i) => i === index ? value : o));
+        this.draftOptions.update(list => list.map((o, i) => (i === index ? value : o)));
     }
 
     protected addOption(): void {
-        this.draftOptions.update(list => list.length >= MAX_OPTIONS ? list : [...list, '']);
+        this.draftOptions.update(list => (list.length >= MAX_OPTIONS ? list : [...list, '']));
     }
 
     protected removeOption(index: number): void {
         this.draftOptions.update(list =>
-            list.length <= MIN_OPTIONS ? list : list.filter((_, i) => i !== index));
+            list.length <= MIN_OPTIONS ? list : list.filter((_, i) => i !== index),
+        );
     }
 
     /** A whole number of votes, or null for "no threshold"; zero and negatives collapse to null since the server refuses a quorum below one. */

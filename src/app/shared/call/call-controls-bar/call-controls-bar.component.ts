@@ -14,11 +14,13 @@ import {
     VideoCeiling,
 } from '../../../models/stream-preset';
 
-const TOGGLE_BASE = 'call-focusable group flex size-12 cursor-pointer items-center justify-center rounded-xl'
-    + ' border-0 transition-all duration-150 active:scale-95';
+const TOGGLE_BASE =
+    'call-focusable group flex size-12 cursor-pointer items-center justify-center rounded-xl' +
+    ' border-0 transition-all duration-150 active:scale-95';
 
-const SEGMENT_BASE = 'call-focusable cursor-pointer rounded border-0 px-2 py-1 text-xs leading-none tabular-nums'
-    + ' transition-all active:scale-90';
+const SEGMENT_BASE =
+    'call-focusable cursor-pointer rounded border-0 px-2 py-1 text-xs leading-none tabular-nums' +
+    ' transition-all active:scale-90';
 
 @Component({
     selector: 'app-call-controls-bar',
@@ -57,13 +59,16 @@ export class CallControlsBarComponent {
     presetChange = output<StreamPreset>();
     disconnect = output<void>();
 
-    protected readonly resolutions = Object.entries(RESOLUTION_LABELS)
-        .map(([value, label]) => ({value: value as StreamResolution, label}));
+    protected readonly resolutions = Object.entries(RESOLUTION_LABELS).map(([value, label]) => ({
+        value: value as StreamResolution,
+        label,
+    }));
     /** Must stay a copy: holding the imported binding directly reads as undefined under the test bundler. */
     protected readonly framerates: readonly StreamFramerate[] = [...FRAMERATE_OPTIONS];
     /** Copied for the same reason as {@link framerates}, and paired with its label key. */
-    protected readonly contents: readonly {value: StreamContent; key: string}[] =
-        CONTENT_OPTIONS.map(value => ({value, key: `CALL.CONTENT_${value.toUpperCase()}`}));
+    protected readonly contents: readonly {value: StreamContent; key: string}[] = CONTENT_OPTIONS.map(
+        value => ({value, key: `CALL.CONTENT_${value.toUpperCase()}`}),
+    );
 
     /**
      * The look of one control-bar toggle. `danger` is for a restriction the user placed on themselves

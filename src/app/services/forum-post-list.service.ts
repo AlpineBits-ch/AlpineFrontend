@@ -94,7 +94,9 @@ export class ForumPostListService {
             this.reload(e.parentChannelId);
         });
 
-        this.ws.threadUpdatedObservable.subscribe(e => this.applyThreadUpdate(e.parentChannelId, e.channelId, e));
+        this.ws.threadUpdatedObservable.subscribe(e =>
+            this.applyThreadUpdate(e.parentChannelId, e.channelId, e),
+        );
 
         // A deleted tag isn't accompanied by per-post updates, so strip it locally.
         this.ws.forumTagDeletedObservable.subscribe(e => {
@@ -156,7 +158,11 @@ export class ForumPostListService {
         // thrown away, and its response will be dropped as stale, so nothing else would -
         // leaving the flag set would block loadMore, killing infinite scroll for good.
         this.patch(forumId, {loading: true, loadingMore: false, nextCursor: null, stale: false});
-        this.fetch(forumId, generation, undefined, (state, page) => ({...state, posts: page, loading: false}));
+        this.fetch(forumId, generation, undefined, (state, page) => ({
+            ...state,
+            posts: page,
+            loading: false,
+        }));
     }
 
     /** Catches a list up on the posts created while the user was elsewhere; free if it's current. */
@@ -188,7 +194,9 @@ export class ForumPostListService {
     // you come back to is simply the one you left. ────────────────────────────
     toggleTagFilter(forumId: string, tagId: string): void {
         const ids = this.stateFor(forumId).selectedTagIds;
-        this.patch(forumId, {selectedTagIds: ids.includes(tagId) ? ids.filter(id => id !== tagId) : [...ids, tagId]});
+        this.patch(forumId, {
+            selectedTagIds: ids.includes(tagId) ? ids.filter(id => id !== tagId) : [...ids, tagId],
+        });
         this.reload(forumId);
     }
 
@@ -206,11 +214,17 @@ export class ForumPostListService {
     // ── Post edits ───────────────────────────────────────────────────────────
     /** Optimistic local edit; every caller pairs it with a revert on failure. */
     patchPost(forumId: string, postId: string, patch: Partial<ForumPost>): void {
-        this.updateLoaded(forumId, s => ({...s, posts: s.posts.map(p => p.id === postId ? {...p, ...patch} : p)}));
+        this.updateLoaded(forumId, s => ({
+            ...s,
+            posts: s.posts.map(p => (p.id === postId ? {...p, ...patch} : p)),
+        }));
     }
 
     revertPost(forumId: string, original: ForumPost): void {
-        this.updateLoaded(forumId, s => ({...s, posts: s.posts.map(p => p.id === original.id ? original : p)}));
+        this.updateLoaded(forumId, s => ({
+            ...s,
+            posts: s.posts.map(p => (p.id === original.id ? original : p)),
+        }));
     }
 
     /**
@@ -230,30 +244,34 @@ export class ForumPostListService {
     ): void {
         const tagIds = this.stateFor(forumId).selectedTagIds;
 
-        this.forumService.getPosts(forumId, {
-            tagIds: tagIds.length ? tagIds : undefined,
-            // Multi-select reads as "narrow this down", which is `all`; with one tag the
-            // two modes are equivalent, so this is safe to send unconditionally.
-            match: tagIds.length > 1 ? 'all' : undefined,
-            sort: this.forumState.sortFor(forumId) === ForumSortOrder.CreationDate ? 'created' : 'activity',
-            archived: this.stateFor(forumId).showArchived ? 'all' : 'false',
-            limit: PAGE_SIZE,
-            cursor,
-        }).subscribe({
-            next: page => {
-                // A response for a list the user has already reloaded past must not
-                // overwrite the one they're now looking at.
-                if ((this.generationByForum.get(forumId) ?? 0) !== generation) return;
-                // hasLoaded flips here and only here: a response that arrived is the one
-                // thing that distinguishes an empty forum from an unfetched one.
-                this.updateLoaded(forumId, s =>
-                    apply({...s, nextCursor: page.nextCursor, hasLoaded: true}, page.posts ?? []));
-            },
-            error: err => {
-                this.patch(forumId, {loading: false, loadingMore: false});
-                this.toastService.httpError(this.translate.instant('FORUM.LOAD_ERROR'), err);
-            },
-        });
+        this.forumService
+            .getPosts(forumId, {
+                tagIds: tagIds.length ? tagIds : undefined,
+                // Multi-select reads as "narrow this down", which is `all`; with one tag the
+                // two modes are equivalent, so this is safe to send unconditionally.
+                match: tagIds.length > 1 ? 'all' : undefined,
+                sort:
+                    this.forumState.sortFor(forumId) === ForumSortOrder.CreationDate ? 'created' : 'activity',
+                archived: this.stateFor(forumId).showArchived ? 'all' : 'false',
+                limit: PAGE_SIZE,
+                cursor,
+            })
+            .subscribe({
+                next: page => {
+                    // A response for a list the user has already reloaded past must not
+                    // overwrite the one they're now looking at.
+                    if ((this.generationByForum.get(forumId) ?? 0) !== generation) return;
+                    // hasLoaded flips here and only here: a response that arrived is the one
+                    // thing that distinguishes an empty forum from an unfetched one.
+                    this.updateLoaded(forumId, s =>
+                        apply({...s, nextCursor: page.nextCursor, hasLoaded: true}, page.posts ?? []),
+                    );
+                },
+                error: err => {
+                    this.patch(forumId, {loading: false, loadingMore: false});
+                    this.toastService.httpError(this.translate.instant('FORUM.LOAD_ERROR'), err);
+                },
+            });
     }
 
     /** Creates the forum's entry if it has none - for the paths that mean "this forum is open". */
@@ -292,7 +310,7 @@ export class ForumPostListService {
 
         this.updateLoaded(forumId, s => {
             if (!s.posts.some(p => p.id === postId)) return s;
-            const next = s.posts.map(p => p.id === postId ? {...p, ...patch} : p);
+            const next = s.posts.map(p => (p.id === postId ? {...p, ...patch} : p));
             return {...s, posts: e.isArchived && !s.showArchived ? next.filter(p => p.id !== postId) : next};
         });
     }

@@ -76,9 +76,10 @@ export function subscriptionPriceCopy(
     interval: BillingInterval | null | undefined,
     locale?: string,
 ): SubscriptionPriceCopy {
-    const amount = typeof priceMinorUnits === 'number' && Number.isFinite(priceMinorUnits)
-        ? formatMinor(priceMinorUnits, currency ?? '', locale)
-        : null;
+    const amount =
+        typeof priceMinorUnits === 'number' && Number.isFinite(priceMinorUnits)
+            ? formatMinor(priceMinorUnits, currency ?? '', locale)
+            : null;
 
     return {amount, intervalKey: intervalLabelKey(interval)};
 }

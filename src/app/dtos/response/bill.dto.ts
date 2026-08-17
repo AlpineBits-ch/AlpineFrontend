@@ -14,7 +14,10 @@ export enum RecurrenceUnit {
 }
 
 const RECURRENCE_UNIT_BY_ORDINAL: readonly RecurrenceUnit[] = [
-    RecurrenceUnit.Day, RecurrenceUnit.Week, RecurrenceUnit.Month, RecurrenceUnit.Year,
+    RecurrenceUnit.Day,
+    RecurrenceUnit.Week,
+    RecurrenceUnit.Month,
+    RecurrenceUnit.Year,
 ];
 
 /** Where one generated instance has got to. */
@@ -28,7 +31,9 @@ export enum BillStatus {
 }
 
 const BILL_STATUS_BY_ORDINAL: readonly BillStatus[] = [
-    BillStatus.Pending, BillStatus.Posted, BillStatus.Skipped,
+    BillStatus.Pending,
+    BillStatus.Posted,
+    BillStatus.Skipped,
 ];
 
 export interface RecurringExpenseShare {
@@ -177,16 +182,14 @@ export function normalizeRecurrenceUnit(
 ): RecurrenceUnit {
     if (typeof value === 'number') return RECURRENCE_UNIT_BY_ORDINAL[value] ?? RecurrenceUnit.Month;
     return (RECURRENCE_UNIT_BY_ORDINAL as readonly string[]).includes(value as string)
-        ? value as RecurrenceUnit
+        ? (value as RecurrenceUnit)
         : RecurrenceUnit.Month;
 }
 
 /** `Pending` for anything unrecognised, which is the reading that keeps a bill on the upcoming board. */
-export function normalizeBillStatus(
-    value: BillStatus | number | string | null | undefined,
-): BillStatus {
+export function normalizeBillStatus(value: BillStatus | number | string | null | undefined): BillStatus {
     if (typeof value === 'number') return BILL_STATUS_BY_ORDINAL[value] ?? BillStatus.Pending;
     return (BILL_STATUS_BY_ORDINAL as readonly string[]).includes(value as string)
-        ? value as BillStatus
+        ? (value as BillStatus)
         : BillStatus.Pending;
 }

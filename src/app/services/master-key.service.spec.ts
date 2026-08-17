@@ -16,11 +16,7 @@
 import {TestBed} from '@angular/core/testing';
 import {CryptoEngine} from '../platform/ports/crypto-engine.port';
 import {FakeCryptoEngine} from '../platform/testing/fake-crypto-engine';
-import {
-    CredentialRejectedError,
-    MasterKeyEngineError,
-    MasterKeyService,
-} from './master-key.service';
+import {CredentialRejectedError, MasterKeyEngineError, MasterKeyService} from './master-key.service';
 import {EncryptedMasterKey} from '../dtos/response/UserDto';
 
 /**
@@ -73,9 +69,13 @@ describe('MasterKeyService', () => {
             expect(invokeStub.mock.calls[0]![0]).toBe('rewrap_master_key');
             // Exactly these five. `fromKind` and `toKind` are `CredentialKind` in Rust - no
             // `Default`, not `Option` - so omitting either fails the whole call at deserialization.
-            expect(Object.keys(args()).sort()).toEqual(
-                ['encrypted', 'fromCredential', 'fromKind', 'toCredential', 'toKind'],
-            );
+            expect(Object.keys(args()).sort()).toEqual([
+                'encrypted',
+                'fromCredential',
+                'fromKind',
+                'toCredential',
+                'toKind',
+            ]);
         });
 
         it('names the kinds rather than letting the engine infer them', async () => {
@@ -90,36 +90,41 @@ describe('MasterKeyService', () => {
         });
 
         it('reports a genuinely wrong credential as a credential rejection', async () => {
-            invokeStub.mockRejectedValue(
-                'Decryption failed: invalid password or corrupted data' as never);
+            invokeStub.mockRejectedValue('Decryption failed: invalid password or corrupted data' as never);
 
-            await expect(service.rewrap(WRAPPED, 'wrong', 'recoveryCode', 'pw', 'password'))
-                .rejects.toBeInstanceOf(CredentialRejectedError);
+            await expect(
+                service.rewrap(WRAPPED, 'wrong', 'recoveryCode', 'pw', 'password'),
+            ).rejects.toBeInstanceOf(CredentialRejectedError);
         });
 
         it('reports a malformed recovery code as a credential rejection', async () => {
             invokeStub.mockRejectedValue(
-                "InvalidRecoveryCode: 'Ł' is not a recovery-code character" as never);
+                "InvalidRecoveryCode: 'Ł' is not a recovery-code character" as never,
+            );
 
-            await expect(service.rewrap(WRAPPED, 'bad', 'recoveryCode', 'pw', 'password'))
-                .rejects.toBeInstanceOf(CredentialRejectedError);
+            await expect(
+                service.rewrap(WRAPPED, 'bad', 'recoveryCode', 'pw', 'password'),
+            ).rejects.toBeInstanceOf(CredentialRejectedError);
         });
 
         it('reports an argument rejection as an engine failure, not a bad credential', async () => {
             // The exact shape of C2. Telling someone their last surviving credential is wrong when
             // the command never ran is the failure this classification exists to prevent.
             invokeStub.mockRejectedValue(
-                'invalid args `fromKind` for command `rewrap_master_key`: missing field' as never);
+                'invalid args `fromKind` for command `rewrap_master_key`: missing field' as never,
+            );
 
-            await expect(service.rewrap(WRAPPED, 'correct', 'recoveryCode', 'pw', 'password'))
-                .rejects.toBeInstanceOf(MasterKeyEngineError);
+            await expect(
+                service.rewrap(WRAPPED, 'correct', 'recoveryCode', 'pw', 'password'),
+            ).rejects.toBeInstanceOf(MasterKeyEngineError);
         });
 
         it('reports an absent command as an engine failure', async () => {
             invokeStub.mockRejectedValue('Command rewrap_master_key not found' as never);
 
-            await expect(service.rewrap(WRAPPED, 'correct', 'recoveryCode', 'pw', 'password'))
-                .rejects.toBeInstanceOf(MasterKeyEngineError);
+            await expect(
+                service.rewrap(WRAPPED, 'correct', 'recoveryCode', 'pw', 'password'),
+            ).rejects.toBeInstanceOf(MasterKeyEngineError);
         });
 
         it('classifies anything unrecognised as an engine failure', async () => {
@@ -127,8 +132,9 @@ describe('MasterKeyService', () => {
             // rendered as "your code is wrong". The reverse default is what shipped.
             invokeStub.mockRejectedValue('something nobody anticipated' as never);
 
-            await expect(service.rewrap(WRAPPED, 'correct', 'recoveryCode', 'pw', 'password'))
-                .rejects.toBeInstanceOf(MasterKeyEngineError);
+            await expect(
+                service.rewrap(WRAPPED, 'correct', 'recoveryCode', 'pw', 'password'),
+            ).rejects.toBeInstanceOf(MasterKeyEngineError);
         });
     });
 
@@ -143,11 +149,11 @@ describe('MasterKeyService', () => {
         });
 
         it('surfaces an invalid code as a credential rejection', async () => {
-            invokeStub.mockRejectedValue(
-                'InvalidRecoveryCode: expected 32 characters, got 8' as never);
+            invokeStub.mockRejectedValue('InvalidRecoveryCode: expected 32 characters, got 8' as never);
 
-            await expect(service.normalizeRecoveryCode('too-short'))
-                .rejects.toBeInstanceOf(CredentialRejectedError);
+            await expect(service.normalizeRecoveryCode('too-short')).rejects.toBeInstanceOf(
+                CredentialRejectedError,
+            );
         });
     });
 
@@ -165,28 +171,30 @@ describe('MasterKeyService', () => {
 
         it('distinguishes a wrong password from an engine failure', async () => {
             invokeStub.mockRejectedValue('Decryption failed: invalid password' as never);
-            await expect(service.decryptMasterKey(WRAPPED, 'nope'))
-                .rejects.toBeInstanceOf(CredentialRejectedError);
+            await expect(service.decryptMasterKey(WRAPPED, 'nope')).rejects.toBeInstanceOf(
+                CredentialRejectedError,
+            );
 
             invokeStub.mockRejectedValue(
-                'InvalidMasterKeyEnvelope: refusing declared Argon2 parameters' as never);
-            await expect(service.decryptMasterKey(WRAPPED, 'nope'))
-                .rejects.toBeInstanceOf(MasterKeyEngineError);
+                'InvalidMasterKeyEnvelope: refusing declared Argon2 parameters' as never,
+            );
+            await expect(service.decryptMasterKey(WRAPPED, 'nope')).rejects.toBeInstanceOf(
+                MasterKeyEngineError,
+            );
         });
     });
 
     describe('setupDualWrapped', () => {
         it('generates and wraps in one call, with the entropy the caller collected', async () => {
             invokeStub.mockResolvedValue({
-                passwordWrapping: WRAPPED, recoveryCodeWrapping: WRAPPED,
+                passwordWrapping: WRAPPED,
+                recoveryCodeWrapping: WRAPPED,
             } as never);
 
             await service.setupDualWrapped('pw', 'CODE', [1, 2, 3]);
 
             expect(invokeStub.mock.calls[0]![0]).toBe('setup_master_key_dual');
-            expect(Object.keys(args()).sort()).toEqual(
-                ['password', 'recoveryCode', 'userEntropy'],
-            );
+            expect(Object.keys(args()).sort()).toEqual(['password', 'recoveryCode', 'userEntropy']);
             // One call rather than two, so the two wrappings cannot end up sealing different keys -
             // a mistake that looks fine until the day the recovery path is actually needed.
             expect(args()['userEntropy']).toEqual([1, 2, 3]);

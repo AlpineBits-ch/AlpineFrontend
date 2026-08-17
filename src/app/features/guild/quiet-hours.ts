@@ -40,9 +40,7 @@ export function isWithinQuietHours(config: QuietHoursDto | null | undefined, at:
 /** How long the window lasts, in minutes. Wrapped windows are measured the long way round. */
 export function windowLengthMinutes(startMinute: number, endMinute: number): number {
     if (startMinute === endMinute) return 0;
-    return startMinute < endMinute
-        ? endMinute - startMinute
-        : MINUTES_PER_DAY - startMinute + endMinute;
+    return startMinute < endMinute ? endMinute - startMinute : MINUTES_PER_DAY - startMinute + endMinute;
 }
 
 /** `1320` -> `"22:00"`, the value an `<input type="time">` wants. */
@@ -82,10 +80,7 @@ export function browserTimeZoneId(): string {
 }
 
 export type QuietHoursError =
-    | 'START_OUT_OF_RANGE'
-    | 'END_OUT_OF_RANGE'
-    | 'SAME_START_AND_END'
-    | 'UNKNOWN_TIME_ZONE';
+    'START_OUT_OF_RANGE' | 'END_OUT_OF_RANGE' | 'SAME_START_AND_END' | 'UNKNOWN_TIME_ZONE';
 
 /** The three things the server 400s for, checked before the round trip; order only affects which error is shown first, the checks are independent. */
 export function validateQuietHours(config: QuietHoursDto): QuietHoursError | null {

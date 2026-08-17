@@ -162,14 +162,19 @@ describe('statuses', () => {
     });
 
     it('Expired means quorum was never reached', () => {
-        expect(decisionResultKey(decision({status: DecisionStatus.Expired})))
-            .toBe('DECISIONS.RESULT.EXPIRED');
+        expect(decisionResultKey(decision({status: DecisionStatus.Expired}))).toBe(
+            'DECISIONS.RESULT.EXPIRED',
+        );
     });
 
     it('only Open takes votes', () => {
         expect(isDecisionOpen(decision({status: DecisionStatus.Open}))).toBe(true);
-        for (const status of [DecisionStatus.Decided, DecisionStatus.Blocked,
-            DecisionStatus.Cancelled, DecisionStatus.Expired]) {
+        for (const status of [
+            DecisionStatus.Decided,
+            DecisionStatus.Blocked,
+            DecisionStatus.Cancelled,
+            DecisionStatus.Expired,
+        ]) {
             expect(isDecisionResolved(decision({status}))).toBe(true);
         }
     });
@@ -194,7 +199,9 @@ describe('closesAt', () => {
 
     it('is false for a decision with no deadline, and for an already-resolved one', () => {
         expect(isAwaitingResolution(decision({closesAt: null}), now)).toBe(false);
-        expect(isAwaitingResolution(decision({closesAt: past, status: DecisionStatus.Expired}), now)).toBe(false);
+        expect(isAwaitingResolution(decision({closesAt: past, status: DecisionStatus.Expired}), now)).toBe(
+            false,
+        );
     });
 });
 
@@ -223,10 +230,12 @@ describe('normalizeDecision', () => {
     });
 
     it('leaves the string form alone', () => {
-        const normalized = normalizeDecision(decision({
-            status: DecisionStatus.Expired,
-            myVoteKind: DecisionVoteKind.Abstain,
-        }));
+        const normalized = normalizeDecision(
+            decision({
+                status: DecisionStatus.Expired,
+                myVoteKind: DecisionVoteKind.Abstain,
+            }),
+        );
         expect(normalized.status).toBe(DecisionStatus.Expired);
         expect(normalized.myVoteKind).toBe(DecisionVoteKind.Abstain);
     });

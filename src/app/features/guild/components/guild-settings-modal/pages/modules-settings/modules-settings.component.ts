@@ -51,13 +51,16 @@ export class ModulesSettingsComponent {
 
     protected readonly features = computed(() => guildFeatures(this.guild()));
     protected readonly kind = computed(() => guildKindOf(this.guild()));
-    protected readonly pendingKindLabel = computed(() => guildKindMeta(this.pendingKind() ?? undefined).labelKey);
+    protected readonly pendingKindLabel = computed(
+        () => guildKindMeta(this.pendingKind() ?? undefined).labelKey,
+    );
 
     /** Server truth with the in-flight intent laid over it. This is what the switches show. */
     protected readonly displayedFeatures = computed<ReadonlySet<string>>(() => {
         const shown = new Set(this.features());
         for (const [module, enabled] of this.optimistic()) {
-            if (enabled) shown.add(module); else shown.delete(module);
+            if (enabled) shown.add(module);
+            else shown.delete(module);
         }
         return shown;
     });
@@ -66,7 +69,9 @@ export class ModulesSettingsComponent {
     protected readonly tabbableKind = computed(() => this.focusedKind() ?? this.kind());
 
     /** Household modules only appear once the guild actually has one; togglable rows for features that do nothing would be a promise this build can't keep. Deliberately off `features()`, not `displayedFeatures()`: a row must not vanish from under a switch that is still saving, only once the server has agreed. */
-    protected readonly householdModules = computed(() => HOUSEHOLD_MODULES.filter(m => this.features().has(m)));
+    protected readonly householdModules = computed(() =>
+        HOUSEHOLD_MODULES.filter(m => this.features().has(m)),
+    );
 
     private host: ElementRef<HTMLElement> = inject(ElementRef);
     private guildService = inject(GuildService);
@@ -134,11 +139,14 @@ export class ModulesSettingsComponent {
         this.pendingKind.set(null);
         if (!kind) return;
         this.savingKind.set(true);
-        this.save({
-            kind,
-            // Sending the current set alongside the kind is what stops the server re-seeding it.
-            ...(usePreset ? {} : {features: serializeGuildFeatures(this.displayedFeatures())}),
-        }, () => this.savingKind.set(false));
+        this.save(
+            {
+                kind,
+                // Sending the current set alongside the kind is what stops the server re-seeding it.
+                ...(usePreset ? {} : {features: serializeGuildFeatures(this.displayedFeatures())}),
+            },
+            () => this.savingKind.set(false),
+        );
     }
 
     protected cancelKind(): void {
@@ -148,14 +156,17 @@ export class ModulesSettingsComponent {
     /** Roving focus over the kind options, which is what `role="radiogroup"` promises and five separate tab stops did not deliver. Focus moves, selection does not follow it: picking a kind opens a confirmation dialog, so arrowing down the list would fire one dialog per keypress. Space and Enter commit, which the underlying buttons already do for free. */
     protected onKindKeydown(event: KeyboardEvent): void {
         if (!KIND_NAV_KEYS.includes(event.key)) return;
-        const options = Array.from(this.host.nativeElement.querySelectorAll<HTMLElement>('[data-kind-option]'));
+        const options = Array.from(
+            this.host.nativeElement.querySelectorAll<HTMLElement>('[data-kind-option]'),
+        );
         if (!options.length) return;
         const current = options.indexOf(document.activeElement as HTMLElement);
         let next: number;
         if (event.key === 'Home') next = 0;
         else if (event.key === 'End') next = options.length - 1;
         else if (current === -1) next = 0;
-        else if (event.key === 'ArrowDown' || event.key === 'ArrowRight') next = (current + 1) % options.length;
+        else if (event.key === 'ArrowDown' || event.key === 'ArrowRight')
+            next = (current + 1) % options.length;
         else next = (current - 1 + options.length) % options.length;
         event.preventDefault();
         options[next]?.focus();

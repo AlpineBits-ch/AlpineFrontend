@@ -326,12 +326,14 @@ export class RichPresenceService {
             // that polling every 30 s does not restamp it and pin the elapsed timer at zero. The
             // server applies the same stickiness authoritatively; this only avoids fighting it.
             const existing = this._detected().find(a => a.name === game);
-            this.setLocal([{
-                type: 'Playing',
-                name: game,
-                source: 'ProcessScan',
-                startedAt: existing?.startedAt ?? Date.now(),
-            }]);
+            this.setLocal([
+                {
+                    type: 'Playing',
+                    name: game,
+                    source: 'ProcessScan',
+                    startedAt: existing?.startedAt ?? Date.now(),
+                },
+            ]);
         } catch (err) {
             console.warn('[RichPresence] scan_game_process failed', err);
         }
@@ -352,16 +354,14 @@ export class RichPresenceService {
         this.rpcApplied = enabled;
 
         try {
-            const status = enabled
-                ? await this.presence.rpcStart('proxy')
-                : await this.presence.rpcStop();
+            const status = enabled ? await this.presence.rpcStart('proxy') : await this.presence.rpcStop();
 
             this._rpcStatus.set(status);
 
             if (enabled && status.running && status.index !== 0) {
                 console.warn(
                     `[RichPresence] bound discord-ipc-${status.index}, not 0 - games stop at the ` +
-                    'first socket that answers, so nothing will reach us until we hold 0.',
+                        'first socket that answers, so nothing will reach us until we hold 0.',
                 );
             }
         } catch (err) {
@@ -446,14 +446,18 @@ export class RichPresenceService {
         this.lastPushAt = Date.now();
 
         this.http
-            .put<SetActivityResult>(`${this.apiConfig.baseUrl()}/api/v1/social/profiles/me/activity`, {activities})
-            .pipe(catchError(err => {
-                // Cleared so the next change retries rather than being deduplicated against a state
-                // the server never accepted.
-                this.lastPushed = null;
-                console.warn('[RichPresence] could not publish activity', err);
-                return of(null);
-            }))
+            .put<SetActivityResult>(`${this.apiConfig.baseUrl()}/api/v1/social/profiles/me/activity`, {
+                activities,
+            })
+            .pipe(
+                catchError(err => {
+                    // Cleared so the next change retries rather than being deduplicated against a state
+                    // the server never accepted.
+                    this.lastPushed = null;
+                    console.warn('[RichPresence] could not publish activity', err);
+                    return of(null);
+                }),
+            )
             .subscribe(result => this.adoptPublishedNames(result));
     }
 

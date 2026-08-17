@@ -127,7 +127,6 @@ export interface CategoryDto {
     position: number;
 }
 
-
 /**
  * What a guild *is*. Presentation only - it picks nomenclature ("House" vs "Server")
  * and which settings surfaces make sense. It never gates anything: that is what

@@ -25,9 +25,9 @@ function invoice(over: Partial<InvoiceDto> = {}): InvoiceDto {
 }
 
 function setup(opts: {invoices?: InvoiceDto[]; listError?: unknown} = {}) {
-    const list = vi.fn<() => Observable<InvoiceDto[]>>(() => opts.listError
-        ? throwError(() => opts.listError)
-        : of(opts.invoices ?? [invoice()]));
+    const list = vi.fn<() => Observable<InvoiceDto[]>>(() =>
+        opts.listError ? throwError(() => opts.listError) : of(opts.invoices ?? [invoice()]),
+    );
 
     const opener = new FakeLinkOpener();
 
@@ -42,8 +42,7 @@ function setup(opts: {invoices?: InvoiceDto[]; listError?: unknown} = {}) {
         ],
     });
 
-    const fixture: ComponentFixture<InvoiceListComponent> =
-        TestBed.createComponent(InvoiceListComponent);
+    const fixture: ComponentFixture<InvoiceListComponent> = TestBed.createComponent(InvoiceListComponent);
     fixture.detectChanges();
     return {fixture, list, opener};
 }
@@ -53,8 +52,9 @@ function text(fixture: ComponentFixture<InvoiceListComponent>): string {
 }
 
 function button(fixture: ComponentFixture<InvoiceListComponent>, label: string): HTMLElement {
-    const found = Array.from(fixture.nativeElement.querySelectorAll('button'))
-        .find(el => ((el as HTMLElement).textContent ?? '').includes(label));
+    const found = Array.from(fixture.nativeElement.querySelectorAll('button')).find(el =>
+        ((el as HTMLElement).textContent ?? '').includes(label),
+    );
     if (!found) throw new Error(`no button containing ${label}`);
     return found as HTMLElement;
 }

@@ -71,7 +71,10 @@ export class MlsTransportService {
         isChannel: boolean,
         dto: PublishMlsCommitDto,
     ): Observable<MlsCommitPublishedDto> {
-        return this.http.post<MlsCommitPublishedDto>(`${this.contextBase(contextId, isChannel)}/commits`, dto);
+        return this.http.post<MlsCommitPublishedDto>(
+            `${this.contextBase(contextId, isChannel)}/commits`,
+            dto,
+        );
     }
 
     // -------------------------------------------------------------------------
@@ -119,10 +122,9 @@ export class MlsTransportService {
      * afterwards fails, locking this device out of that context permanently.
      */
     getPendingWelcomes(deviceId: string): Observable<PendingWelcomeDto[]> {
-        return this.http.get<PendingWelcomeDto[]>(
-            `${this.base}/conversations/welcomes`,
-            {params: new HttpParams().set('deviceId', deviceId)},
-        );
+        return this.http.get<PendingWelcomeDto[]>(`${this.base}/conversations/welcomes`, {
+            params: new HttpParams().set('deviceId', deviceId),
+        });
     }
 
     /**
@@ -134,10 +136,10 @@ export class MlsTransportService {
      * to indicate why.
      */
     ackWelcomes(welcomeIds: string[], deviceId: string): Observable<AckWelcomesResultDto> {
-        return this.http.post<AckWelcomesResultDto>(
-            `${this.base}/conversations/welcomes/ack`,
-            {welcomeIds, deviceId},
-        );
+        return this.http.post<AckWelcomesResultDto>(`${this.base}/conversations/welcomes/ack`, {
+            welcomeIds,
+            deviceId,
+        });
     }
 
     // -------------------------------------------------------------------------
@@ -146,9 +148,6 @@ export class MlsTransportService {
 
     /** Consumes one key package per device of each listed user, to add them to a group. */
     consumeTokensForUsers(userIds: string[]): Observable<ConsumeTokensResultDto> {
-        return this.http.post<ConsumeTokensResultDto>(
-            `${this.base}/conversations/consume-tokens`,
-            {userIds},
-        );
+        return this.http.post<ConsumeTokensResultDto>(`${this.base}/conversations/consume-tokens`, {userIds});
     }
 }

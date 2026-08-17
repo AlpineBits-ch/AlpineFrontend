@@ -147,18 +147,20 @@ export interface HouseholdDigestResponse {
 /** Whether a digest has anything at all to draw. Distinct from "every section is null". */
 export function isDigestEmpty(digest: HouseholdDigest | null | undefined): boolean {
     if (!digest) return true;
-    return !digest.chores?.mine.length
-        && !digest.chores?.houseOverdueCount
-        && !digest.lists?.some(l => l.openCount > 0)
-        && !digest.pantry?.expiringCount
-        && !digest.ledger?.some(l => l.myNetMinor !== 0)
-        && !digest.decisions?.openCount
-        && !digest.homeStatus?.length
-        && !digest.bills?.dueSoon.length
-        && !digest.meals?.today.length
+    return (
+        !digest.chores?.mine.length &&
+        !digest.chores?.houseOverdueCount &&
+        !digest.lists?.some(l => l.openCount > 0) &&
+        !digest.pantry?.expiringCount &&
+        !digest.ledger?.some(l => l.myNetMinor !== 0) &&
+        !digest.decisions?.openCount &&
+        !digest.homeStatus?.length &&
+        !digest.bills?.dueSoon.length &&
+        !digest.meals?.today.length &&
         // The counts and not `attention.length`, which is capped.
-        && !digest.maintenance?.brokenCount
-        && !digest.maintenance?.serviceOverdueCount
-        && !digest.maintenance?.warrantyExpiringCount
-        && !digest.away?.length;
+        !digest.maintenance?.brokenCount &&
+        !digest.maintenance?.serviceOverdueCount &&
+        !digest.maintenance?.warrantyExpiringCount &&
+        !digest.away?.length
+    );
 }

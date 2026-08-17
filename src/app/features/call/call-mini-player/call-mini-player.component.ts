@@ -79,22 +79,29 @@ export class CallMiniPlayerComponent {
     });
 
     /** A session is running, its own stage is not on screen, and the user has not sent the tile away. */
-    protected readonly visible = computed(() => this.stageKey() !== null
-        && !this.presence.isMounted(this.stageKey())
-        && this.miniPlayer.dismissedKey() !== this.stageKey());
+    protected readonly visible = computed(
+        () =>
+            this.stageKey() !== null &&
+            !this.presence.isMounted(this.stageKey()) &&
+            this.miniPlayer.dismissedKey() !== this.stageKey(),
+    );
 
     private readonly guildRoster = computed(() => {
         const channelId = this.voiceSvc.joinedChannelId();
-        return channelId ? this.voiceSvc.channelParticipants().get(channelId) ?? [] : [];
+        return channelId ? (this.voiceSvc.channelParticipants().get(channelId) ?? []) : [];
     });
 
     /** The same projections the stages render from - see `call-projection.ts`. */
-    private readonly shares = computed((): CallScreenShare[] => this.isGuildVoice()
-        ? guildScreenShares(this.voiceSvc, this.rustMedia, this.guildRoster())
-        : dmScreenShares(
-            this.callSession, this.callWebRtc, this.rustMedia,
-            this.callSession.session()?.screenShares ?? [],
-        ));
+    private readonly shares = computed((): CallScreenShare[] =>
+        this.isGuildVoice()
+            ? guildScreenShares(this.voiceSvc, this.rustMedia, this.guildRoster())
+            : dmScreenShares(
+                  this.callSession,
+                  this.callWebRtc,
+                  this.rustMedia,
+                  this.callSession.session()?.screenShares ?? [],
+              ),
+    );
 
     /** The one stream this shows. */
     protected readonly focusedShare = computed(() => this.shares().find(share => !share.isLocal) ?? null);
@@ -108,36 +115,47 @@ export class CallMiniPlayerComponent {
         return this.visible() && !!share && share.isLocal && !!share.localRender;
     });
 
-    private readonly participants = computed((): CallParticipant[] => this.isGuildVoice()
-        ? guildCallParticipants(this.voiceSvc, this.guildRoster())
-        : this.callSession.session()?.participants ?? []);
+    private readonly participants = computed((): CallParticipant[] =>
+        this.isGuildVoice()
+            ? guildCallParticipants(this.voiceSvc, this.guildRoster())
+            : (this.callSession.session()?.participants ?? []),
+    );
 
     /** Faces to show when nobody is sharing. Capped - this is a thumbnail, not a roster. */
     protected readonly miniature = computed(() => this.participants().slice(0, MINIATURE_LIMIT));
     protected readonly overflowCount = computed(() =>
-        Math.max(0, this.participants().length - MINIATURE_LIMIT));
+        Math.max(0, this.participants().length - MINIATURE_LIMIT),
+    );
 
     /** Whose stream this is, or where the call is, when there is no stream. */
     protected readonly title = computed(() => {
         const share = this.focusedShare();
         if (share) return share.displayName;
         if (this.isGuildVoice()) return this.voiceSvc.joinedChannelName() ?? '';
-        return this.participants().filter(p => !p.isLocal).map(p => p.displayName).join(', ');
+        return this.participants()
+            .filter(p => !p.isLocal)
+            .map(p => p.displayName)
+            .join(', ');
     });
 
-    protected readonly isMuted = computed(() => this.isGuildVoice()
-        ? this.voiceSvc.localState().isMuted
-        : (this.callSession.session()?.local.isMuted ?? false));
-    protected readonly isDeafened = computed(() => this.isGuildVoice()
-        ? this.voiceSvc.localState().isDeafened
-        : (this.callSession.session()?.local.isDeafened ?? false));
+    protected readonly isMuted = computed(() =>
+        this.isGuildVoice()
+            ? this.voiceSvc.localState().isMuted
+            : (this.callSession.session()?.local.isMuted ?? false),
+    );
+    protected readonly isDeafened = computed(() =>
+        this.isGuildVoice()
+            ? this.voiceSvc.localState().isDeafened
+            : (this.callSession.session()?.local.isDeafened ?? false),
+    );
 
     /**
      * `VOICE_BAR.DISCONNECT` reads "Disconnect from voice channel" in German and French, which is
      * wrong for a DM call that has no channel - the same split the sidebar voice bar makes.
      */
     protected readonly disconnectLabelKey = computed(() =>
-        this.isGuildVoice() ? 'VOICE_BAR.DISCONNECT' : 'CALL.DISCONNECT');
+        this.isGuildVoice() ? 'VOICE_BAR.DISCONNECT' : 'CALL.DISCONNECT',
+    );
 
     /**
      * Where the tile sits, for this session only - nothing is persisted, because a floating tile
@@ -160,7 +178,7 @@ export class CallMiniPlayerComponent {
         // is the whole point of requirement 5.
         effect(() => {
             const scope = this.visible() ? this.scope() : null;
-            const shareId = this.visible() ? this.focusedShare()?.shareId ?? null : null;
+            const shareId = this.visible() ? (this.focusedShare()?.shareId ?? null) : null;
             untracked(() => this.applyClaim(scope, shareId));
         });
 
@@ -269,8 +287,9 @@ export class CallMiniPlayerComponent {
 
     /** Mute and deafen. Engaged reads as danger, the same way the in-call controls bar reads it. */
     protected toggleClass(active: boolean): string {
-        const base = 'call-focusable flex size-7 shrink-0 cursor-pointer items-center justify-center'
-            + ' rounded-lg border-0 transition-colors';
+        const base =
+            'call-focusable flex size-7 shrink-0 cursor-pointer items-center justify-center' +
+            ' rounded-lg border-0 transition-colors';
         return active
             ? `${base} bg-offline/15 text-offline hover:bg-offline/25`
             : `${base} bg-white/[0.06] text-white/70 hover:bg-white/[0.12]`;
@@ -322,9 +341,10 @@ export class CallMiniPlayerComponent {
         if (!channelId || !guildId) return;
 
         const workspace = this.navService.workspace();
-        const guild = workspace.type === 'server' && workspace.guild.id === guildId
-            ? workspace.guild
-            : this.guildService.guilds().find(g => g.id === guildId);
+        const guild =
+            workspace.type === 'server' && workspace.guild.id === guildId
+                ? workspace.guild
+                : this.guildService.guilds().find(g => g.id === guildId);
         if (!guild) return;
 
         // A no-op when that guild is already the workspace - see NavigationService.selectServer.

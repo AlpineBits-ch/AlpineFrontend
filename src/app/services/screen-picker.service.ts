@@ -55,7 +55,8 @@ export class ScreenPickerService {
     rememberPreset(preset: StreamPreset): void {
         try {
             localStorage.setItem(PRESET_KEY, JSON.stringify(preset));
-        } catch { /* storage unavailable */
+        } catch {
+            /* storage unavailable */
         }
     }
 
@@ -64,7 +65,7 @@ export class ScreenPickerService {
         try {
             const raw = localStorage.getItem(PRESET_KEY);
             return raw
-                ? {...DEFAULT_STREAM_PRESET, ...JSON.parse(raw) as Partial<StreamPreset>}
+                ? {...DEFAULT_STREAM_PRESET, ...(JSON.parse(raw) as Partial<StreamPreset>)}
                 : {...DEFAULT_STREAM_PRESET};
         } catch {
             return {...DEFAULT_STREAM_PRESET};
@@ -95,13 +96,16 @@ export class ScreenPickerService {
         this.preferredSourceId.set(null);
 
         // Load sources in background while overlay is visible
-        this.rustMedia.getScreenSources().then(list => {
-            this.sources.set(list);
-            if (wanted) this.preferredSourceId.set(bestSourceMatch(wanted, list));
-            this.loading.set(false);
-        }).catch(() => {
-            this.loading.set(false);
-        });
+        this.rustMedia
+            .getScreenSources()
+            .then(list => {
+                this.sources.set(list);
+                if (wanted) this.preferredSourceId.set(bestSourceMatch(wanted, list));
+                this.loading.set(false);
+            })
+            .catch(() => {
+                this.loading.set(false);
+            });
 
         return new Promise<ScreenPickerChoice | null>(resolve => {
             this.resolvePickerPromise = resolve;

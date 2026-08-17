@@ -41,15 +41,17 @@ export class HouseholdAlertService {
 
         this.alerts$.next(payload);
 
-        this.notifications.createNotification({
-            // Server-written, both of them, and rendered as given, so a kind added after this build
-            // still says something true on a lock screen.
-            title: payload.title,
-            message: payload.body ?? '',
-            sound: NotificationSound.NewMessage,
-            actionTypeId: 'message',
-            // The keys the household push carries, so a click has what a deep-link needs.
-            extra: householdAlertExtra(payload),
-        }).catch(() => undefined);
+        this.notifications
+            .createNotification({
+                // Server-written, both of them, and rendered as given, so a kind added after this build
+                // still says something true on a lock screen.
+                title: payload.title,
+                message: payload.body ?? '',
+                sound: NotificationSound.NewMessage,
+                actionTypeId: 'message',
+                // The keys the household push carries, so a click has what a deep-link needs.
+                extra: householdAlertExtra(payload),
+            })
+            .catch(() => undefined);
     }
 }

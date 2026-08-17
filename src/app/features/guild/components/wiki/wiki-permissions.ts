@@ -26,11 +26,7 @@ export function wikiAbilities(abilities: GuildAbilities): WikiAbilities {
 }
 
 /** A null `ownUserId` means "identity not loaded yet", not "not the author", and is denied; failing closed while loading is deliberate (see the note on `memberCanManageGuild`). */
-export function canEditPage(
-    abilities: WikiAbilities,
-    authorId: string,
-    ownUserId: string | null,
-): boolean {
+export function canEditPage(abilities: WikiAbilities, authorId: string, ownUserId: string | null): boolean {
     if (abilities.canEditAny) return true;
     return abilities.canEditOwn && ownUserId !== null && ownUserId === authorId;
 }

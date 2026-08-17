@@ -1,10 +1,10 @@
 <div class="flex flex-col gap-8 max-w-2xl">
-
     <!-- What this account uses Venta for. The escape hatch for anyone who picked wrong at
          signup, and the only place the deferred key setup can be reached on purpose. -->
     <section class="flex flex-col gap-4">
         <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">
-            {{ 'SETTINGS.ONBOARDING.HEADING' | translate }}</h2>
+            {{ 'SETTINGS.ONBOARDING.HEADING' | translate }}
+        </h2>
 
         @for (choice of interestChoices; track choice.interest) {
             <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
@@ -13,9 +13,10 @@
                     <p class="text-xs text-white/35 mt-0.5">{{ choice.taglineKey | translate }}</p>
                 </div>
                 <p-toggleswitch
-                        (ngModelChange)="toggleInterest(choice.interest, $event)"
-                        [disabled]="savingInterests()"
-                        [ngModel]="hasInterest(choice.interest)"/>
+                    (ngModelChange)="toggleInterest(choice.interest, $event)"
+                    [disabled]="savingInterests()"
+                    [ngModel]="hasInterest(choice.interest)"
+                />
             </div>
         }
 
@@ -25,20 +26,27 @@
     <!-- Language & Region -->
     <section class="flex flex-col gap-4">
         <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">
-            {{ 'SETTINGS.OTHER.SECTION_LANGUAGE' | translate }}</h2>
+            {{ 'SETTINGS.OTHER.SECTION_LANGUAGE' | translate }}
+        </h2>
 
         <div class="flex flex-col gap-1.5">
-            <label class="text-xs font-medium text-white/45 uppercase tracking-wide">
-                {{ 'SETTINGS.OTHER.LANGUAGE' | translate }}</label>
-            <p-select (ngModelChange)="language.setLanguage($event)" [ngModel]="language.current()"
-                      [options]="language.languages" optionLabel="label" optionValue="code" styleClass="w-full"/>
+            <label class="text-xs font-medium text-white/45 uppercase tracking-wide"> {{ 'SETTINGS.OTHER.LANGUAGE' | translate }}</label>
+            <p-select
+                (ngModelChange)="language.setLanguage($event)"
+                [ngModel]="language.current()"
+                [options]="language.languages"
+                optionLabel="label"
+                optionValue="code"
+                styleClass="w-full"
+            />
         </div>
     </section>
 
     <!-- System behaviour -->
     <section class="flex flex-col gap-4">
         <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">
-            {{ 'SETTINGS.OTHER.SECTION_SYSTEM' | translate }}</h2>
+            {{ 'SETTINGS.OTHER.SECTION_SYSTEM' | translate }}
+        </h2>
 
         <div class="flex flex-col gap-2 bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
             <div class="flex items-center justify-between">
@@ -47,9 +55,10 @@
                     <p class="text-xs text-white/35 mt-0.5">{{ 'SETTINGS.OTHER.AUTOSTART_DESC' | translate }}</p>
                 </div>
                 <p-toggleswitch
-                        (ngModelChange)="userSettings.updateAutostart($event)"
-                        [disabled]="!capabilities.autostart"
-                        [ngModel]="userSettings.autostartEnabled()"/>
+                    (ngModelChange)="userSettings.updateAutostart($event)"
+                    [disabled]="!capabilities.autostart"
+                    [ngModel]="userSettings.autostartEnabled()"
+                />
             </div>
 
             <!-- Disabled, not hidden: this is a setting people go looking for, so the row stays and
@@ -67,7 +76,7 @@
                     <p class="text-sm text-white/60">{{ toggle.label }}</p>
                     <p class="text-xs text-white/25 mt-0.5">{{ toggle.desc }}</p>
                 </div>
-                <p-toggleswitch [disabled]="true" [ngModel]="false"/>
+                <p-toggleswitch [disabled]="true" [ngModel]="false" />
             </div>
         }
     </section>
@@ -75,7 +84,8 @@
     <!-- Advanced -->
     <section class="flex flex-col gap-4">
         <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">
-            {{ 'SETTINGS.OTHER.SECTION_ADVANCED' | translate }}</h2>
+            {{ 'SETTINGS.OTHER.SECTION_ADVANCED' | translate }}
+        </h2>
 
         @for (toggle of advancedToggles; track toggle.label) {
             <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
@@ -83,7 +93,7 @@
                     <p class="text-sm text-white/60">{{ toggle.label }}</p>
                     <p class="text-xs text-white/25 mt-0.5">{{ toggle.desc }}</p>
                 </div>
-                <p-toggleswitch [disabled]="true" [ngModel]="false"/>
+                <p-toggleswitch [disabled]="true" [ngModel]="false" />
             </div>
         }
     </section>
@@ -91,18 +101,16 @@
     <!-- Payments -->
     <!-- Asked once because it cannot be detected. -->
     <section class="flex flex-col gap-4">
-        <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">
-            Payments</h2>
+        <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">Payments</h2>
 
         <div class="bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
-            <app-wallet-preference-setting/>
+            <app-wallet-preference-setting />
         </div>
     </section>
 
     <!-- Version -->
     <section class="flex flex-col gap-4">
-        <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">
-            Version</h2>
+        <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">Version</h2>
 
         <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
             <div>
@@ -116,5 +124,4 @@
             }
         </div>
     </section>
-
 </div>

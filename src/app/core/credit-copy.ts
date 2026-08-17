@@ -85,8 +85,10 @@ export function creditLotCopy(
                 partlySpent: lot.points < lot.originalPoints,
             };
         })
-        .sort((left, right) => (left.daysLeft ?? Number.MAX_SAFE_INTEGER)
-            - (right.daysLeft ?? Number.MAX_SAFE_INTEGER));
+        .sort(
+            (left, right) =>
+                (left.daysLeft ?? Number.MAX_SAFE_INTEGER) - (right.daysLeft ?? Number.MAX_SAFE_INTEGER),
+        );
 }
 
 /** What a completed purchase says, which is above all when it starts. */
@@ -102,10 +104,7 @@ export interface CreditPurchaseCopy {
 }
 
 /** How to describe what the credit just bought. A queued purchase never uses the active wording. */
-export function creditPurchaseCopy(
-    purchase: CreditPurchaseDto,
-    locale?: string,
-): CreditPurchaseCopy {
+export function creditPurchaseCopy(purchase: CreditPurchaseDto, locale?: string): CreditPurchaseCopy {
     const startsOn = formatBillingDate(purchase.startsAt, 'long', locale);
     const endsOn = formatBillingDate(purchase.expiresAt, 'long', locale);
 

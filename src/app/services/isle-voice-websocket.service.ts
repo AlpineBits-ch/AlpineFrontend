@@ -96,7 +96,9 @@ export class IsleVoiceWebsocketService {
 
     private setupListeners(): void {
         this.realtime.on('isle.PlayerJoined', (d: IslePlayerJoined) => this.playerJoined$.next(d));
-        this.realtime.on('isle.PlayerDisconnected', (d: IslePlayerDisconnected) => this.playerDisconnected$.next(d));
+        this.realtime.on('isle.PlayerDisconnected', (d: IslePlayerDisconnected) =>
+            this.playerDisconnected$.next(d),
+        );
         this.realtime.on('isle.SubscribeMutual', (d: IsleSubscribeMutual) => this.subscribeMutual$.next(d));
         this.realtime.on('isle.SelfPosition', (d: IsleSelfPosition) => this.selfPosition$.next(d));
         this.realtime.on('isle.PlayerPosition', (d: IslePlayerPosition) => this.playerPosition$.next(d));

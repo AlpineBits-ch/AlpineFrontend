@@ -71,8 +71,10 @@ describe('the nonce pipeline', () => {
 
         expect(targets.length).toBeGreaterThan(0);
         for (const target of targets) {
-            expect(html, `nginx.conf substitutes on ${target}, which index.html no longer contains`)
-                .toContain(target);
+            expect(
+                html,
+                `nginx.conf substitutes on ${target}, which index.html no longer contains`,
+            ).toContain(target);
         }
     });
 

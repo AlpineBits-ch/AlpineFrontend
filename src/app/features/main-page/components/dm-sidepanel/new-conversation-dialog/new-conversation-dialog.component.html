@@ -1,14 +1,14 @@
 <p-dialog
-        (onHide)="close()"
-        [(visible)]="visible"
-        [draggable]="false"
-        [modal]="true"
-        [resizable]="false"
-        [style]="{ width: '420px' }"
-        appendTo="body"
-        maskStyleClass="backdrop-blur-sm"
-        styleClass="!bg-card !border !border-white/[0.08] !rounded-2xl">
-
+    (onHide)="close()"
+    [(visible)]="visible"
+    [draggable]="false"
+    [modal]="true"
+    [resizable]="false"
+    [style]="{width: '420px'}"
+    appendTo="body"
+    maskStyleClass="backdrop-blur-sm"
+    styleClass="!bg-card !border !border-white/[0.08] !rounded-2xl"
+>
     <ng-template pTemplate="header">
         <span class="text-base font-semibold text-white/85">New Message</span>
     </ng-template>
@@ -17,11 +17,13 @@
     <div class="px-1 pb-3">
         <div class="relative">
             <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-white/30 text-sm pointer-events-none"></i>
-            <input (ngModelChange)="search.set($event)"
-                   [ngModel]="search()"
-                   class="w-full !pl-9 !bg-white/[0.04] !border-white/[0.08] placeholder:text-white/25 !rounded-xl !text-sm"
-                   pInputText
-                   placeholder="Search friends..."/>
+            <input
+                (ngModelChange)="search.set($event)"
+                [ngModel]="search()"
+                class="w-full !pl-9 !bg-white/[0.04] !border-white/[0.08] placeholder:text-white/25 !rounded-xl !text-sm"
+                pInputText
+                placeholder="Search friends..."
+            />
         </div>
     </div>
 
@@ -29,36 +31,36 @@
     @if (selectedFriends().length > 0) {
         <div class="flex flex-wrap gap-1.5 px-1 pb-3">
             @for (friend of selectedFriends(); track friend.userId) {
-                <span class="flex items-center gap-1.5 bg-brand/15 border border-brand/25 text-brand-dim rounded-lg px-2 py-1 text-xs font-medium">
-          {{ friend.userName }}
-                    <button (click)="toggleFriend(friend.userId)"
-                            class="text-brand-dim/60 hover:text-brand-dim cursor-pointer bg-transparent border-0 p-0 leading-none">
-            <i class="pi pi-times text-[10px]"></i>
-          </button>
-        </span>
+                <span
+                    class="flex items-center gap-1.5 bg-brand/15 border border-brand/25 text-brand-dim rounded-lg px-2 py-1 text-xs font-medium"
+                >
+                    {{ friend.userName }}
+                    <button
+                        (click)="toggleFriend(friend.userId)"
+                        class="text-brand-dim/60 hover:text-brand-dim cursor-pointer bg-transparent border-0 p-0 leading-none"
+                    >
+                        <i class="pi pi-times text-[10px]"></i>
+                    </button>
+                </span>
             }
         </div>
     }
 
     <!-- Friends list -->
-    <div class="max-h-56 overflow-y-auto -mx-1 px-1"
-         style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
+    <div class="max-h-56 overflow-y-auto -mx-1 px-1" style="scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.08) transparent">
         @if (filteredFriends().length === 0) {
             <p class="text-sm text-white/30 text-center py-6">No friends found</p>
         }
         @for (friend of filteredFriends(); track friend.userId) {
             <button
-                    (click)="toggleFriend(friend.userId)"
-                    [ngClass]="isSelected(friend.userId) ? 'bg-brand/10 hover:bg-brand/15' : 'bg-transparent hover:bg-white/[0.04]'"
-                    class="flex items-center gap-3 w-full px-3 py-2 rounded-xl transition-colors cursor-pointer border-0 text-left">
-                <p-avatar
-                        [label]="friend.userName[0].toUpperCase()"
-                        shape="circle"
-                        styleClass="shrink-0 !w-8 !h-8 !text-xs"/>
-                <span [ngClass]="isSelected(friend.userId) ? 'text-brand-dim' : 'text-white/75'"
-                      class="flex-1 text-sm font-medium">
-          {{ friend.userName }}
-        </span>
+                (click)="toggleFriend(friend.userId)"
+                [ngClass]="isSelected(friend.userId) ? 'bg-brand/10 hover:bg-brand/15' : 'bg-transparent hover:bg-white/[0.04]'"
+                class="flex items-center gap-3 w-full px-3 py-2 rounded-xl transition-colors cursor-pointer border-0 text-left"
+            >
+                <p-avatar [label]="friend.userName[0].toUpperCase()" shape="circle" styleClass="shrink-0 !w-8 !h-8 !text-xs" />
+                <span [ngClass]="isSelected(friend.userId) ? 'text-brand-dim' : 'text-white/75'" class="flex-1 text-sm font-medium">
+                    {{ friend.userName }}
+                </span>
                 @if (isSelected(friend.userId)) {
                     <i class="pi pi-check text-brand-dim text-xs shrink-0"></i>
                 }
@@ -69,14 +71,16 @@
     <!-- Group name (shown when 2+ selected) -->
     @if (isGroup()) {
         <div class="pt-3 px-1 border-t border-white/[0.06] mt-3">
-            <label class="text-[10.5px] font-semibold text-white/30 uppercase tracking-widest block mb-2">Group Name
-                (optional)</label>
+            <label class="text-[10.5px] font-semibold text-white/30 uppercase tracking-widest block mb-2">Group Name (optional)</label>
             <!-- Enter opens the conversation. -->
-            <input (keydown.enter)="create()" (ngModelChange)="groupName.set($event)"
-                   [ngModel]="groupName()"
-                   class="w-full !bg-white/[0.04] !border-white/[0.08] placeholder:text-white/25 !rounded-xl !text-sm"
-                   pInputText
-                   placeholder="e.g. Study group"/>
+            <input
+                (keydown.enter)="create()"
+                (ngModelChange)="groupName.set($event)"
+                [ngModel]="groupName()"
+                class="w-full !bg-white/[0.04] !border-white/[0.08] placeholder:text-white/25 !rounded-xl !text-sm"
+                pInputText
+                placeholder="e.g. Study group"
+            />
         </div>
     }
 
@@ -85,12 +89,11 @@
         <div class="flex items-center gap-2">
             <i [ngClass]="encrypted() ? 'text-brand-dim' : 'text-white/30'" class="pi pi-lock text-sm"></i>
             <div>
-                <p [ngClass]="encrypted() ? 'text-white/85' : 'text-white/55'" class="text-sm font-medium">End-to-end
-                    encryption</p>
+                <p [ngClass]="encrypted() ? 'text-white/85' : 'text-white/55'" class="text-sm font-medium">End-to-end encryption</p>
                 <p class="text-[11px] text-white/30 leading-tight">Requires MLS device registration</p>
             </div>
         </div>
-        <p-toggleswitch (ngModelChange)="encrypted.set($event)" [ngModel]="encrypted()"/>
+        <p-toggleswitch (ngModelChange)="encrypted.set($event)" [ngModel]="encrypted()" />
     </div>
 
     <!-- Creation stops here rather than reporting this after the fact. -->
@@ -98,8 +101,8 @@
         <div class="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3">
             <p class="text-sm font-medium text-amber-200">Some devices can't be included</p>
             <p class="mt-1 text-[11px] leading-snug text-white/60">
-                These devices have no encryption keys left on the server. They will not be able to
-                read anything sent in this conversation, now or later:
+                These devices have no encryption keys left on the server. They will not be able to read anything sent in this conversation,
+                now or later:
             </p>
             <ul class="mt-2 list-disc pl-5 text-[11px] text-white/70">
                 @for (name of unreachableDevices(); track name) {
@@ -107,10 +110,8 @@
                 }
             </ul>
             <div class="mt-3 flex items-center justify-end gap-2">
-                <p-button (onClick)="cancelUnreachable()" [text]="true" label="Cancel"
-                          severity="secondary" size="small"/>
-                <p-button (onClick)="createWithoutUnreachableDevices()" label="Create anyway"
-                          severity="warn" size="small"/>
+                <p-button (onClick)="cancelUnreachable()" [text]="true" label="Cancel" severity="secondary" size="small" />
+                <p-button (onClick)="createWithoutUnreachableDevices()" label="Create anyway" severity="warn" size="small" />
             </div>
         </div>
     }
@@ -121,8 +122,7 @@
             <p class="text-sm font-medium text-amber-200">Conversation created, with gaps</p>
             @if (warning.devices.length > 0) {
                 <p class="mt-1 text-[11px] leading-snug text-white/60">
-                    These devices registered too late to be included, and will not be able to read
-                    anything sent here:
+                    These devices registered too late to be included, and will not be able to read anything sent here:
                 </p>
                 <ul class="mt-2 list-disc pl-5 text-[11px] text-white/70">
                     @for (name of warning.devices; track name) {
@@ -132,28 +132,20 @@
             }
             @if (warning.lastResortCount > 0) {
                 <p class="mt-2 text-[11px] leading-snug text-white/60">
-                    {{ warning.lastResortCount }} device(s) joined using a reusable backup key. They
-                    can read this conversation, but that key seals more than one invitation, so
-                    their messages lose the usual forward secrecy.
+                    {{ warning.lastResortCount }} device(s) joined using a reusable backup key. They can read this conversation, but that
+                    key seals more than one invitation, so their messages lose the usual forward secrecy.
                 </p>
             }
             <div class="mt-3 flex justify-end">
-                <p-button (onClick)="close()" label="Got it" severity="secondary" size="small"/>
+                <p-button (onClick)="close()" label="Got it" severity="secondary" size="small" />
             </div>
         </div>
     }
 
     <ng-template pTemplate="footer">
         <div class="flex items-center justify-end gap-2 pt-1">
-            <p-button (onClick)="close()" [text]="true" label="Cancel" severity="secondary" size="small"/>
-            <p-button
-                    (onClick)="create()"
-                    [disabled]="!canCreate()"
-                    [loading]="creating()"
-                    label="Open"
-                    severity="primary"
-                    size="small"/>
+            <p-button (onClick)="close()" [text]="true" label="Cancel" severity="secondary" size="small" />
+            <p-button (onClick)="create()" [disabled]="!canCreate()" [loading]="creating()" label="Open" severity="primary" size="small" />
         </div>
     </ng-template>
-
 </p-dialog>

@@ -57,9 +57,8 @@ export async function runMlsLaunch(steps: MlsLaunchSteps): Promise<MlsLaunchOutc
             keyStoreIncomplete: kind === 'KeyStoreIncomplete',
             // Catch-all, so an unrecognised kind surfaces as a key-store fault rather than as a
             // prompt to register, which is the one response that cannot be taken back.
-            keyStoreUnreachable: kind !== 'KeyNotFound'
-                && kind !== 'IdentityMismatch'
-                && kind !== 'KeyStoreIncomplete',
+            keyStoreUnreachable:
+                kind !== 'KeyNotFound' && kind !== 'IdentityMismatch' && kind !== 'KeyStoreIncomplete',
             keyPackagesFailed: false,
             admissionSweepFailed: false,
         };
@@ -70,17 +69,24 @@ export async function runMlsLaunch(steps: MlsLaunchSteps): Promise<MlsLaunchOutc
     steps.checkMasterKey();
 
     const [replenished] = await Promise.all([
-        steps.replenish().then(() => true, () => false),
+        steps.replenish().then(
+            () => true,
+            () => false,
+        ),
         // An unreadable conversation is bad; a client that will not start is worse.
-        steps.processWelcomes().catch(err =>
-            console.error('Failed to process pending Welcomes at launch', err)),
+        steps
+            .processWelcomes()
+            .catch(err => console.error('Failed to process pending Welcomes at launch', err)),
     ]);
 
     // Last, and only after the two above have settled: it asks against the group state they leave.
-    const swept = await steps.sweepForAdmission().then(() => true, (err: unknown) => {
-        console.error('The MLS admission sweep did not complete', err);
-        return false;
-    });
+    const swept = await steps.sweepForAdmission().then(
+        () => true,
+        (err: unknown) => {
+            console.error('The MLS admission sweep did not complete', err);
+            return false;
+        },
+    );
 
     return {
         handle,

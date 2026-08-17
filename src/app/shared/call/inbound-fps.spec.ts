@@ -55,7 +55,12 @@ describe('inboundScreenFpsByUser', () => {
     it('ignores outbound and audio stats', () => {
         const tracks = new Map<string, InboundTrackOwner>([['1', {userId: 'user-a', kind: 'screen'}]]);
         const outbound = {type: 'outbound-rtp', kind: 'video', mid: '1'} as unknown as RTCStats;
-        const audio = {type: 'inbound-rtp', kind: 'audio', mid: '1', framesPerSecond: 30} as unknown as RTCStats;
+        const audio = {
+            type: 'inbound-rtp',
+            kind: 'audio',
+            mid: '1',
+            framesPerSecond: 30,
+        } as unknown as RTCStats;
 
         const fps = inboundScreenFpsByUser(report([outbound, audio]), tracks);
 

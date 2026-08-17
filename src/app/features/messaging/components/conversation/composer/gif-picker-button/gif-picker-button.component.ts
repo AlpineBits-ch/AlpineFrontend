@@ -1,4 +1,4 @@
-import {Component, ElementRef, inject, OnDestroy, output, signal, viewChild,} from '@angular/core';
+import {Component, ElementRef, inject, OnDestroy, output, signal, viewChild} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {Button} from 'primeng/button';
 import {GifResult, GifService} from '../../../../../../services/gif.service';
@@ -24,17 +24,19 @@ export class GifPickerButtonComponent implements OnDestroy {
     private outsideClickListener: ((e: MouseEvent) => void) | null = null;
 
     constructor() {
-        this.sub = this.searchSubject.pipe(
-            debounceTime(350),
-            distinctUntilChanged(),
-            switchMap(q => {
-                this.loading.set(true);
-                return q.trim() ? this.gifService.search(q) : this.gifService.trending();
-            }),
-        ).subscribe(results => {
-            this.gifs.set(results);
-            this.loading.set(false);
-        });
+        this.sub = this.searchSubject
+            .pipe(
+                debounceTime(350),
+                distinctUntilChanged(),
+                switchMap(q => {
+                    this.loading.set(true);
+                    return q.trim() ? this.gifService.search(q) : this.gifService.trending();
+                }),
+            )
+            .subscribe(results => {
+                this.gifs.set(results);
+                this.loading.set(false);
+            });
     }
 
     ngOnDestroy(): void {

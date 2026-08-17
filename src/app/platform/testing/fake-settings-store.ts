@@ -64,7 +64,7 @@ export class FakeSettingsStoreFactory extends SettingsStoreFactory {
 class FakeSettingsStore implements SettingsStore {
     saves = 0;
 
-    constructor(private readonly values: Map<string, unknown>) { }
+    constructor(private readonly values: Map<string, unknown>) {}
 
     async get<T>(key: string): Promise<T | undefined> {
         return this.values.get(key) as T | undefined;

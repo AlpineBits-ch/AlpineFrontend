@@ -154,10 +154,7 @@ class IdbMlsLocalStore implements MlsLocalStore {
         });
     }
 
-    async update<T>(
-        key: string,
-        next: (current: T | undefined) => T | undefined,
-    ): Promise<T | undefined> {
+    async update<T>(key: string, next: (current: T | undefined) => T | undefined): Promise<T | undefined> {
         return await this.locked(async () => {
             const map = await this.sync();
             const current = map.get(key) as T | undefined;

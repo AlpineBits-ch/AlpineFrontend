@@ -142,7 +142,8 @@ describe('planSeal', () => {
     it('includes trusted devices and holds back the rest', async () => {
         const good = await classify(attestation({deviceId: 'dev_good'}));
         const unattested = await classify(
-            attestation({deviceId: 'dev_unattested', hasValidCertificate: false}));
+            attestation({deviceId: 'dev_unattested', hasValidCertificate: false}),
+        );
 
         const plan = planSeal([good, unattested], new Set(), []);
 
@@ -152,7 +153,8 @@ describe('planSeal', () => {
 
     it('includes a flagged device once the user has confirmed that specific device', async () => {
         const unattested = await classify(
-            attestation({deviceId: 'dev_unattested', hasValidCertificate: false}));
+            attestation({deviceId: 'dev_unattested', hasValidCertificate: false}),
+        );
 
         const plan = planSeal([unattested], new Set(['dev_unattested']), []);
         expect(plan.included).toHaveLength(1);
@@ -162,7 +164,8 @@ describe('planSeal', () => {
     it('never includes an unusable key, even confirmed', async () => {
         // Agreeing to it would produce a wrap that cannot exist, not a risk the user accepted.
         const unusable = await classify(
-            attestation({deviceId: 'dev_broken', publicKey: toBase64(new Uint8Array(16))}));
+            attestation({deviceId: 'dev_broken', publicKey: toBase64(new Uint8Array(16))}),
+        );
 
         const plan = planSeal([unusable], new Set(['dev_broken']), []);
         expect(plan.included).toHaveLength(0);
@@ -180,8 +183,7 @@ describe('planSeal', () => {
 describe('pinsAfterSeal', () => {
     it('pins every device actually written to and leaves the blocked ones unpinned', async () => {
         const good = await classify(attestation({deviceId: 'dev_good'}));
-        const blocked = await classify(
-            attestation({deviceId: 'dev_blocked', hasValidCertificate: false}));
+        const blocked = await classify(attestation({deviceId: 'dev_blocked', hasValidCertificate: false}));
 
         const plan = planSeal([good, blocked], new Set(), []);
         const pins = pinsAfterSeal(plan, {});
@@ -199,14 +201,15 @@ describe('pinsAfterSeal', () => {
         const declined = pinsAfterSeal(planSeal([changed], new Set(), []), pin(previous));
         expect(declined[a.deviceId]?.publicKey).toBe(previous);
 
-        const accepted = pinsAfterSeal(
-            planSeal([changed], new Set([a.deviceId]), []), pin(previous));
+        const accepted = pinsAfterSeal(planSeal([changed], new Set([a.deviceId]), []), pin(previous));
         expect(accepted[a.deviceId]?.publicKey).toBe(a.publicKey);
     });
 
     it('keeps pins for devices that were not in this seal', () => {
         const pins = pinsAfterSeal(
-            {included: [], blocked: [], unresolvedMemberIds: []}, {dev_old: {publicKey: 'key'}});
+            {included: [], blocked: [], unresolvedMemberIds: []},
+            {dev_old: {publicKey: 'key'}},
+        );
         expect(pins['dev_old']?.publicKey).toBe('key');
     });
 });
@@ -224,7 +227,11 @@ describe('classifyRecipient - the server checked against itself', () => {
     it('flags a device described as certified with no certificate supplied', async () => {
         // Before the bytes were forwarded this was indistinguishable from an honest answer.
         const trust = await classify(
-            attestation({hasValidCertificate: true, certificate: null}), {}, null, NOW);
+            attestation({hasValidCertificate: true, certificate: null}),
+            {},
+            null,
+            NOW,
+        );
 
         expect(trust.level).toBe('attestation-inconsistent');
         expect(trust.inconsistencies).toContain('certificate-missing');
@@ -232,28 +239,43 @@ describe('classifyRecipient - the server checked against itself', () => {
     });
 
     it('flags a certificate whose own expiry has already passed', async () => {
-        const trust = await classify(attestation({
-            certificateExpiresAt: '2026-08-01T00:00:00Z',
-        }), {}, null, NOW);
+        const trust = await classify(
+            attestation({
+                certificateExpiresAt: '2026-08-01T00:00:00Z',
+            }),
+            {},
+            null,
+            NOW,
+        );
 
         expect(trust.inconsistencies).toContain('certificate-expired');
     });
 
     it('accepts a certificate that has not expired yet', async () => {
-        const trust = await classify(attestation({
-            certificateIssuedAt: '2026-01-01T00:00:00Z',
-            certificateExpiresAt: '2027-01-01T00:00:00Z',
-        }), {}, null, NOW);
+        const trust = await classify(
+            attestation({
+                certificateIssuedAt: '2026-01-01T00:00:00Z',
+                certificateExpiresAt: '2027-01-01T00:00:00Z',
+            }),
+            {},
+            null,
+            NOW,
+        );
 
         expect(trust.level).toBe('attested');
         expect(trust.inconsistencies).toEqual([]);
     });
 
     it('flags a certificate issued after it expires', async () => {
-        const trust = await classify(attestation({
-            certificateIssuedAt: '2027-01-01T00:00:00Z',
-            certificateExpiresAt: '2026-01-01T00:00:00Z',
-        }), {}, null, NOW);
+        const trust = await classify(
+            attestation({
+                certificateIssuedAt: '2027-01-01T00:00:00Z',
+                certificateExpiresAt: '2026-01-01T00:00:00Z',
+            }),
+            {},
+            null,
+            NOW,
+        );
 
         expect(trust.inconsistencies).toContain('certificate-dates-reversed');
     });
@@ -261,18 +283,23 @@ describe('classifyRecipient - the server checked against itself', () => {
     it('says nothing about dates on a device that never claimed a certificate', async () => {
         // An uncertificated device is `unattested`, which is an ordinary state. Piling consistency
         // complaints on top of it would make the honest common case read like an attack.
-        const trust = await classify(attestation({
-            hasValidCertificate: false, certificate: null,
-            certificateExpiresAt: '2020-01-01T00:00:00Z',
-        }), {}, null, NOW);
+        const trust = await classify(
+            attestation({
+                hasValidCertificate: false,
+                certificate: null,
+                certificateExpiresAt: '2020-01-01T00:00:00Z',
+            }),
+            {},
+            null,
+            NOW,
+        );
 
         expect(trust.level).toBe('unattested');
         expect(trust.inconsistencies).toEqual([]);
     });
 
     it('ignores an unparseable date rather than calling it a contradiction', async () => {
-        const trust = await classify(
-            attestation({certificateExpiresAt: 'not a date'}), {}, null, NOW);
+        const trust = await classify(attestation({certificateExpiresAt: 'not a date'}), {}, null, NOW);
         expect(trust.inconsistencies).toEqual([]);
     });
 

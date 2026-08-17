@@ -1,5 +1,4 @@
 <div class="flex flex-col gap-5 max-w-3xl">
-
     <div>
         <p class="text-[0.8125rem] text-text-primary">{{ 'GUEST_ACCESS.TITLE' | translate }}</p>
         <p class="text-xs text-text-secondary mt-0.5">{{ 'GUEST_ACCESS.DESC' | translate }}</p>
@@ -16,15 +15,17 @@
         <div class="flex flex-col gap-1.5">
             <div class="flex flex-wrap gap-1.5">
                 @for (role of assignableRoles(); track role.id) {
-                    <button (click)="selectRole(role)"
-                            [attr.aria-pressed]="selectedRoleId() === role.id"
-                            [class.bg-brand]="selectedRoleId() === role.id"
-                            [class.border-brand-dim]="selectedRoleId() === role.id"
-                            [class.font-semibold]="selectedRoleId() === role.id"
-                            [class.ring-brand-dark]="selectedRoleId() === role.id"
-                            [class.text-white]="selectedRoleId() === role.id"
-                            class="flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-[0.75rem] text-text-secondary ring-2 ring-transparent cursor-pointer transition-colors hover:bg-hover hover:text-text-primary"
-                            type="button">
+                    <button
+                        (click)="selectRole(role)"
+                        [attr.aria-pressed]="selectedRoleId() === role.id"
+                        [class.bg-brand]="selectedRoleId() === role.id"
+                        [class.border-brand-dim]="selectedRoleId() === role.id"
+                        [class.font-semibold]="selectedRoleId() === role.id"
+                        [class.ring-brand-dark]="selectedRoleId() === role.id"
+                        [class.text-white]="selectedRoleId() === role.id"
+                        class="flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-[0.75rem] text-text-secondary ring-2 ring-transparent cursor-pointer transition-colors hover:bg-hover hover:text-text-primary"
+                        type="button"
+                    >
                         <span class="w-2 h-2 rounded-full" [style.background]="role.color || '#4B5BC4'"></span>
                         {{ role.name }}
                         @if (selectedRoleId() === role.id) {
@@ -44,15 +45,22 @@
             @if (permsLoaded() && canManage()) {
                 <div class="flex items-center gap-2">
                     @if (selectedRole(); as role) {
-                        <span class="flex items-center gap-1.5 rounded-full border border-border-subtle bg-card px-2.5 py-1 text-[0.6875rem] text-text-secondary">
+                        <span
+                            class="flex items-center gap-1.5 rounded-full border border-border-subtle bg-card px-2.5 py-1 text-[0.6875rem] text-text-secondary"
+                        >
                             {{ 'GUEST_ACCESS.GRANTING_ROLE' | translate }}
                             <span class="w-2 h-2 rounded-full" [style.background]="role.color || '#4B5BC4'"></span>
                             <span class="font-medium text-text-primary">{{ role.name }}</span>
                         </span>
                     }
-                    <p-button (onClick)="openGrant()" [disabled]="!selectedRole()"
-                              [label]="'GUEST_ACCESS.GRANT' | translate" icon="pi pi-user-plus"
-                              severity="primary" size="small"/>
+                    <p-button
+                        (onClick)="openGrant()"
+                        [disabled]="!selectedRole()"
+                        [label]="'GUEST_ACCESS.GRANT' | translate"
+                        icon="pi pi-user-plus"
+                        severity="primary"
+                        size="small"
+                    />
                 </div>
             }
         </div>
@@ -71,27 +79,43 @@
                         <div class="flex items-center gap-2.5 bg-card/60 border border-white/[0.06] rounded-xl px-3 py-2">
                             <div class="w-7 h-7 rounded-full overflow-hidden bg-card flex items-center justify-center shrink-0">
                                 @if (avatarUrl(row); as url) {
-                                    <img (error)="onAvatarError(url)" [alt]="row.displayName" [src]="url"
-                                         class="w-full h-full object-cover"/>
+                                    <img
+                                        (error)="onAvatarError(url)"
+                                        [alt]="row.displayName"
+                                        [src]="url"
+                                        class="w-full h-full object-cover"
+                                    />
                                 } @else if (row.named) {
-                                    <span class="text-[0.625rem] font-semibold text-text-secondary">{{ row.displayName.charAt(0).toUpperCase() }}</span>
+                                    <span class="text-[0.625rem] font-semibold text-text-secondary">{{
+                                        row.displayName.charAt(0).toUpperCase()
+                                    }}</span>
                                 } @else {
                                     <i class="pi pi-user text-[0.625rem] text-text-secondary"></i>
                                 }
                             </div>
                             <div class="flex flex-col min-w-0 flex-1">
-                                <span class="text-[0.8125rem] truncate"
-                                      [class]="row.named ? 'text-text-primary' : 'text-text-secondary italic'">{{ row.displayName }}</span>
+                                <span
+                                    class="text-[0.8125rem] truncate"
+                                    [class]="row.named ? 'text-text-primary' : 'text-text-secondary italic'"
+                                    >{{ row.displayName }}</span
+                                >
                                 <!-- Leads with the time left: on a grant meant to run out, "in six hours" is the fact, and the exact moment is a hover away. -->
-                                <span [pTooltip]="'GUEST_ACCESS.UNTIL' | translate: {time: expiryLabel(row)}"
-                                      class="text-xs text-text-secondary w-fit">
+                                <span
+                                    [pTooltip]="'GUEST_ACCESS.UNTIL' | translate: {time: expiryLabel(row)}"
+                                    class="text-xs text-text-secondary w-fit"
+                                >
                                     {{ 'GUEST_ACCESS.EXPIRES_RELATIVE' | translate: {time: (row.expiresAt | relativeTime: now())} }}
                                 </span>
                             </div>
                             @if (canManage()) {
-                                <p-button (onClick)="revoke(row)" [loading]="revoking() === row.userId"
-                                          [label]="'GUEST_ACCESS.REVOKE' | translate" [text]="true"
-                                          severity="danger" size="small"/>
+                                <p-button
+                                    (onClick)="revoke(row)"
+                                    [loading]="revoking() === row.userId"
+                                    [label]="'GUEST_ACCESS.REVOKE' | translate"
+                                    [text]="true"
+                                    severity="danger"
+                                    size="small"
+                                />
                             }
                         </div>
                     }
@@ -109,25 +133,38 @@
                         <div class="flex items-center gap-2.5 border border-white/[0.04] rounded-xl px-3 py-2">
                             <div class="w-7 h-7 rounded-full overflow-hidden bg-card flex items-center justify-center shrink-0 opacity-60">
                                 @if (avatarUrl(row); as url) {
-                                    <img (error)="onAvatarError(url)" [alt]="row.displayName" [src]="url"
-                                         class="w-full h-full object-cover"/>
+                                    <img
+                                        (error)="onAvatarError(url)"
+                                        [alt]="row.displayName"
+                                        [src]="url"
+                                        class="w-full h-full object-cover"
+                                    />
                                 } @else if (row.named) {
-                                    <span class="text-[0.625rem] font-semibold text-text-secondary">{{ row.displayName.charAt(0).toUpperCase() }}</span>
+                                    <span class="text-[0.625rem] font-semibold text-text-secondary">{{
+                                        row.displayName.charAt(0).toUpperCase()
+                                    }}</span>
                                 } @else {
                                     <i class="pi pi-user text-[0.625rem] text-text-secondary"></i>
                                 }
                             </div>
                             <div class="flex flex-col min-w-0 flex-1">
                                 <span class="text-[0.8125rem] text-text-secondary truncate line-through">{{ row.displayName }}</span>
-                                <span [pTooltip]="'GUEST_ACCESS.ENDED_ON' | translate: {time: expiryLabel(row)}"
-                                      class="text-xs text-text-secondary w-fit">
+                                <span
+                                    [pTooltip]="'GUEST_ACCESS.ENDED_ON' | translate: {time: expiryLabel(row)}"
+                                    class="text-xs text-text-secondary w-fit"
+                                >
                                     {{ 'GUEST_ACCESS.ENDED_AT' | translate: {time: (row.expiresAt | relativeTime: now())} }}
                                 </span>
                             </div>
                             @if (canManage()) {
-                                <p-button (onClick)="revoke(row)" [loading]="revoking() === row.userId"
-                                          [label]="'GUEST_ACCESS.TIDY' | translate" [text]="true"
-                                          severity="secondary" size="small"/>
+                                <p-button
+                                    (onClick)="revoke(row)"
+                                    [loading]="revoking() === row.userId"
+                                    [label]="'GUEST_ACCESS.TIDY' | translate"
+                                    [text]="true"
+                                    severity="secondary"
+                                    size="small"
+                                />
                             }
                         </div>
                     }
@@ -159,45 +196,77 @@
             </p>
 
             <div class="flex flex-col gap-1.5">
-                <label class="text-[0.625rem] font-semibold text-text-secondary uppercase tracking-widest"
-                       for="guest-duration-confirm">
+                <label class="text-[0.625rem] font-semibold text-text-secondary uppercase tracking-widest" for="guest-duration-confirm">
                     {{ 'GUEST_ACCESS.DURATION_LABEL' | translate }}
                 </label>
-                <p-select (ngModelChange)="durationMs.set($event)" [ngModel]="durationMs()"
-                          [options]="durationOptions()" inputId="guest-duration-confirm"
-                          optionLabel="label" optionValue="ms" styleClass="w-full" size="small"/>
+                <p-select
+                    (ngModelChange)="durationMs.set($event)"
+                    [ngModel]="durationMs()"
+                    [options]="durationOptions()"
+                    inputId="guest-duration-confirm"
+                    optionLabel="label"
+                    optionValue="ms"
+                    styleClass="w-full"
+                    size="small"
+                />
             </div>
 
             <!-- The duration alone is what made a misclick expensive: the picker said "1 week" and nothing said which week. This is the moment that gets resolved to a date. -->
             <p class="rounded-lg border border-border-subtle bg-card px-3 py-2 text-xs text-text-secondary">
                 {{
-                    'GUEST_ACCESS.CONFIRM_ENDS' | translate: {
-                        time: grantEndsLabel(),
-                        relative: (grantEndsAt() | relativeTime: now())
-                    }
+                    'GUEST_ACCESS.CONFIRM_ENDS'
+                        | translate
+                            : {
+                                  time: grantEndsLabel(),
+                                  relative: (grantEndsAt() | relativeTime: now()),
+                              }
                 }}
             </p>
 
             <div class="flex justify-end gap-2">
-                <p-button (onClick)="cancelPendingGrant()" [label]="'GUEST_ACCESS.CONFIRM_BACK' | translate"
-                          [text]="true" icon="pi pi-arrow-left" severity="secondary" size="small"/>
-                <p-button (onClick)="confirmGrant()" [disabled]="!grantEndsAt()" [loading]="granting() !== null"
-                          [label]="'GUEST_ACCESS.CONFIRM_BTN' | translate" icon="pi pi-check"
-                          severity="primary" size="small"/>
+                <p-button
+                    (onClick)="cancelPendingGrant()"
+                    [label]="'GUEST_ACCESS.CONFIRM_BACK' | translate"
+                    [text]="true"
+                    icon="pi pi-arrow-left"
+                    severity="secondary"
+                    size="small"
+                />
+                <p-button
+                    (onClick)="confirmGrant()"
+                    [disabled]="!grantEndsAt()"
+                    [loading]="granting() !== null"
+                    [label]="'GUEST_ACCESS.CONFIRM_BTN' | translate"
+                    icon="pi pi-check"
+                    severity="primary"
+                    size="small"
+                />
             </div>
         } @else {
             <div class="flex flex-col gap-1.5">
-                <label class="text-[0.625rem] font-semibold text-text-secondary uppercase tracking-widest"
-                       for="guest-duration">
+                <label class="text-[0.625rem] font-semibold text-text-secondary uppercase tracking-widest" for="guest-duration">
                     {{ 'GUEST_ACCESS.DURATION_LABEL' | translate }}
                 </label>
-                <p-select (ngModelChange)="durationMs.set($event)" [ngModel]="durationMs()"
-                          [options]="durationOptions()" inputId="guest-duration"
-                          optionLabel="label" optionValue="ms" styleClass="w-full" size="small"/>
+                <p-select
+                    (ngModelChange)="durationMs.set($event)"
+                    [ngModel]="durationMs()"
+                    [options]="durationOptions()"
+                    inputId="guest-duration"
+                    optionLabel="label"
+                    optionValue="ms"
+                    styleClass="w-full"
+                    size="small"
+                />
             </div>
 
-            <input (ngModelChange)="onSearchChange($event)" [ngModel]="search()"
-                   [placeholder]="'GUEST_ACCESS.SEARCH_PLACEHOLDER' | translate" class="w-full" pInputText type="text"/>
+            <input
+                (ngModelChange)="onSearchChange($event)"
+                [ngModel]="search()"
+                [placeholder]="'GUEST_ACCESS.SEARCH_PLACEHOLDER' | translate"
+                class="w-full"
+                pInputText
+                type="text"
+            />
 
             <p class="text-xs text-text-secondary">{{ 'GUEST_ACCESS.PICK_HINT' | translate }}</p>
 
@@ -208,11 +277,15 @@
             } @else {
                 <div class="flex flex-col gap-1 max-h-64 overflow-y-auto thin-scrollbar">
                     @for (member of grantCandidates(); track member.id) {
-                        <button (click)="askGrant(member)"
-                                class="flex items-center gap-2 rounded-lg px-2 py-2 text-left bg-transparent border-0 cursor-pointer hover:bg-white/[0.06] transition-colors"
-                                type="button">
-                            <span class="flex-1 min-w-0 truncate text-[0.8125rem]"
-                                  [class]="member.profile?.userName ? 'text-text-primary' : 'text-text-secondary italic'">
+                        <button
+                            (click)="askGrant(member)"
+                            class="flex items-center gap-2 rounded-lg px-2 py-2 text-left bg-transparent border-0 cursor-pointer hover:bg-white/[0.06] transition-colors"
+                            type="button"
+                        >
+                            <span
+                                class="flex-1 min-w-0 truncate text-[0.8125rem]"
+                                [class]="member.profile?.userName ? 'text-text-primary' : 'text-text-secondary italic'"
+                            >
                                 {{ candidateName(member) }}
                             </span>
                             <i class="pi pi-chevron-right text-[0.625rem] text-text-secondary"></i>

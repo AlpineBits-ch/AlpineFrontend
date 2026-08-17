@@ -31,30 +31,39 @@ export class GuildPrivacyService {
     readonly loaded = this._loaded.asReadonly();
 
     /** The effective value for a guild: its override, or the permissive default. */
-    readonly allowsDirectMessages = computed(() => (guildId: string): boolean =>
-        this._overrides().get(guildId) ?? true,
+    readonly allowsDirectMessages = computed(
+        () =>
+            (guildId: string): boolean =>
+                this._overrides().get(guildId) ?? true,
     );
 
     load(): Observable<GuildDirectMessagePreference[]> {
         return this.http
-            .get<GuildDirectMessagePreference[]>(`${this.apiConfig.baseUrl()}/api/v1/guild/users/me/guild-privacy`)
-            .pipe(tap(prefs => {
-                this._overrides.set(new Map(prefs.map(p => [p.guildId, p.allowDirectMessages])));
-                this._loaded.set(true);
-            }));
+            .get<GuildDirectMessagePreference[]>(
+                `${this.apiConfig.baseUrl()}/api/v1/guild/users/me/guild-privacy`,
+            )
+            .pipe(
+                tap(prefs => {
+                    this._overrides.set(new Map(prefs.map(p => [p.guildId, p.allowDirectMessages])));
+                    this._loaded.set(true);
+                }),
+            );
     }
 
     setAllowDirectMessages(guildId: string, allowDirectMessages: boolean): Observable<void> {
         return this.http
-            .put<void>(
-                `${this.apiConfig.baseUrl()}/api/v1/guild/guilds/${guildId}/privacy`,
-                {allowDirectMessages},
-            )
-            .pipe(tap(() => this._overrides.update(map => {
-                const next = new Map(map);
-                next.set(guildId, allowDirectMessages);
-                return next;
-            })));
+            .put<void>(`${this.apiConfig.baseUrl()}/api/v1/guild/guilds/${guildId}/privacy`, {
+                allowDirectMessages,
+            })
+            .pipe(
+                tap(() =>
+                    this._overrides.update(map => {
+                        const next = new Map(map);
+                        next.set(guildId, allowDirectMessages);
+                        return next;
+                    }),
+                ),
+            );
     }
 
     reset(): void {

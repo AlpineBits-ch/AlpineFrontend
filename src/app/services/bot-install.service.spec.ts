@@ -34,11 +34,18 @@ describe('BotInstallService', () => {
     it('getAuthorizeInfo GETs /oauth2/authorize with clientId, permissions and guildId as query params', () => {
         const {service, ctrl} = setup();
         service.getAuthorizeInfo('client_1', 513n, 'guild_1').subscribe();
-        const req = ctrl.expectOne(`${BASE}/oauth2/authorize?clientId=client_1&permissions=513&guildId=guild_1`);
+        const req = ctrl.expectOne(
+            `${BASE}/oauth2/authorize?clientId=client_1&permissions=513&guildId=guild_1`,
+        );
         expect(req.request.method).toBe('GET');
         req.flush({
-            applicationId: 'client_1', name: 'Bot', iconUrl: '', description: '', guildId: 'guild_1',
-            requestedPermissions: '513', grantablePermissions: '513',
+            applicationId: 'client_1',
+            name: 'Bot',
+            iconUrl: '',
+            description: '',
+            guildId: 'guild_1',
+            requestedPermissions: '513',
+            grantablePermissions: '513',
         });
     });
 

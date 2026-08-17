@@ -10,11 +10,7 @@ import {PlatformHost} from '../../../../../platform/host';
 function render(host: PlatformHost): ComponentFixture<AboutSettingsComponent> {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
-        providers: [
-            provideHttpClient(),
-            provideHttpClientTesting(),
-            provideFakePlatform({host}),
-        ],
+        providers: [provideHttpClient(), provideHttpClientTesting(), provideFakePlatform({host})],
     });
 
     const fixture = TestBed.createComponent(AboutSettingsComponent);

@@ -9,8 +9,10 @@
 } @else {
     <div class="flex-1 min-h-0 flex flex-col gap-1 p-1.5 overflow-y-auto thin-scrollbar">
         @for (msg of pins(); track msg.id) {
-            <button (click)="messageSelected.emit(msg.id)"
-                    class="flex flex-col gap-1 px-2.5 py-2 rounded-lg hover:bg-white/[0.04] text-left border-0 bg-transparent cursor-pointer">
+            <button
+                (click)="messageSelected.emit(msg.id)"
+                class="flex flex-col gap-1 px-2.5 py-2 rounded-lg hover:bg-white/[0.04] text-left border-0 bg-transparent cursor-pointer"
+            >
                 <div class="flex items-center gap-1.5 text-[10px] text-white/30">
                     <i class="pi pi-thumbtack text-[9px]"></i>
                     <span>Pinned {{ msg.pinnedAt | date: 'MMM d, y' }}</span>

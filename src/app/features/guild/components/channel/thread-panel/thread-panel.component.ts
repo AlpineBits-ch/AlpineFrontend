@@ -8,7 +8,7 @@ import {ChannelDto} from '../../../../../dtos/response/guild.dto';
 import {GuildService} from '../../../../../services/guild.service';
 import {GuildWebsocketService} from '../../../../../services/guild-websocket.service';
 import {ToastService} from '../../../../../services/toast.service';
-import {PrimeTemplate} from "primeng/api";
+import {PrimeTemplate} from 'primeng/api';
 
 @Component({
     selector: 'app-thread-panel',
@@ -37,12 +37,10 @@ export class ThreadPanelComponent implements OnInit {
     }
 
     ngOnInit(): void {
-        this.guildWsService.threadCreatedObservable
-            .pipe(takeUntilDestroyed(this.destroyRef))
-            .subscribe(e => {
-                if (e.parentChannelId !== this.parentChannelId()) return;
-                this.load();
-            });
+        this.guildWsService.threadCreatedObservable.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(e => {
+            if (e.parentChannelId !== this.parentChannelId()) return;
+            this.load();
+        });
     }
 
     load(): void {

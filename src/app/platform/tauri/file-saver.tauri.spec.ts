@@ -38,8 +38,7 @@ describe('TauriFileSaver', () => {
         const saver = setup();
         save.mockResolvedValue('C:\\Users\\someone\\Pictures\\holiday.png');
 
-        expect(await saver.save('holiday.png', new TextEncoder().encode('bytes'), 'image/png'))
-            .toBe(true);
+        expect(await saver.save('holiday.png', new TextEncoder().encode('bytes'), 'image/png')).toBe(true);
 
         expect(save).toHaveBeenCalledWith(expect.objectContaining({defaultPath: 'holiday.png'}));
         const [dest, data] = writeFile.mock.calls[0] as unknown as [string, Uint8Array];
@@ -80,9 +79,11 @@ describe('TauriFileSaver', () => {
 
         await saver.save('notes.pdf', new Uint8Array([1]));
 
-        expect(save).toHaveBeenCalledWith(expect.objectContaining({
-            filters: [{name: 'PDF', extensions: ['pdf']}],
-        }));
+        expect(save).toHaveBeenCalledWith(
+            expect.objectContaining({
+                filters: [{name: 'PDF', extensions: ['pdf']}],
+            }),
+        );
     });
 
     it('offers no filter for a name without an extension', async () => {
@@ -124,15 +125,17 @@ describe('TauriFileSaver', () => {
     });
 
     /** The dialog is answered first, so its filter still comes from the name rather than the payload. */
-    it('offers the name\'s filter before producing anything', async () => {
+    it("offers the name's filter before producing anything", async () => {
         const saver = setup();
         save.mockResolvedValue('C:\\notes.pdf');
 
         await saver.saveLazy('notes.pdf', async () => new Uint8Array([1]));
 
-        expect(save).toHaveBeenCalledWith(expect.objectContaining({
-            filters: [{name: 'PDF', extensions: ['pdf']}],
-        }));
+        expect(save).toHaveBeenCalledWith(
+            expect.objectContaining({
+                filters: [{name: 'PDF', extensions: ['pdf']}],
+            }),
+        );
     });
 
     /** A producer that fails takes the save down with it, rather than writing an empty file. */
@@ -140,8 +143,9 @@ describe('TauriFileSaver', () => {
         const saver = setup();
         save.mockResolvedValue('C:\\holiday.png');
 
-        await expect(saver.saveLazy('holiday.png', () => Promise.reject(new Error('fetch failed'))))
-            .rejects.toThrow('fetch failed');
+        await expect(
+            saver.saveLazy('holiday.png', () => Promise.reject(new Error('fetch failed'))),
+        ).rejects.toThrow('fetch failed');
 
         expect(writeFile).not.toHaveBeenCalled();
     });

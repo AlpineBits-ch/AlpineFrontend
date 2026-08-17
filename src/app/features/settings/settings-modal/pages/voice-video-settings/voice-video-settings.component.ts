@@ -45,7 +45,17 @@ function clamp(value: number, low: number, high: number): number {
 
 @Component({
     selector: 'app-voice-video-settings',
-    imports: [FormsModule, NgClass, Select, ToggleSwitch, Slider, Button, RadioButton, TranslateModule, StreamSrcDirective],
+    imports: [
+        FormsModule,
+        NgClass,
+        Select,
+        ToggleSwitch,
+        Slider,
+        Button,
+        RadioButton,
+        TranslateModule,
+        StreamSrcDirective,
+    ],
     templateUrl: './voice-video-settings.component.html',
     styleUrl: './voice-video-settings.component.css',
     changeDetection: ChangeDetectionStrategy.OnPush,
@@ -70,9 +80,11 @@ export class VoiceVideoSettingsComponent implements OnDestroy {
      * chevrons can never disagree about what is plugged in.
      */
     readonly micOptions = computed<DeviceOption[]>(() =>
-        this.catalog.mics().length ? this.catalog.mics() : [{label: 'Default', value: 'default'}]);
+        this.catalog.mics().length ? this.catalog.mics() : [{label: 'Default', value: 'default'}],
+    );
     readonly speakerOptions = computed<DeviceOption[]>(() =>
-        this.catalog.speakers().length ? this.catalog.speakers() : [{label: 'Default', value: 'default'}]);
+        this.catalog.speakers().length ? this.catalog.speakers() : [{label: 'Default', value: 'default'}],
+    );
 
     /** Whether choosing an output device does anything on this host. */
     readonly outputSelectable = computed(() => this.catalog.outputSupport().selectable);
@@ -81,22 +93,31 @@ export class VoiceVideoSettingsComponent implements OnDestroy {
     readonly deviceNamesWithheld = computed(() => this.catalog.namesWithheld());
     readonly cameraOptions = signal<DeviceOption[]>([{label: 'None', value: ''}]);
     /** Mirrors Discord's None / Standard / Krisp. */
-    readonly noiseSuppressionOptions: { label: string; value: NoiseSuppressionMode }[] = [
+    readonly noiseSuppressionOptions: {label: string; value: NoiseSuppressionMode}[] = [
         {label: 'None', value: 'none'},
         {label: 'Standard', value: 'standard'},
         {label: 'Enhanced (RNNoise)', value: 'enhanced'},
     ];
     readonly inputModeOptions: {value: 'voice-activity' | 'push-to-talk'; label: string; desc: string}[] = [
-        {value: 'voice-activity', label: 'Voice Activity', desc: 'Transmit automatically when your mic level crosses the sensitivity threshold below'},
-        {value: 'push-to-talk', label: 'Push to Talk', desc: 'Only transmit while your bound key is held - bind it on the Keybinds page'},
+        {
+            value: 'voice-activity',
+            label: 'Voice Activity',
+            desc: 'Transmit automatically when your mic level crosses the sensitivity threshold below',
+        },
+        {
+            value: 'push-to-talk',
+            label: 'Push to Talk',
+            desc: 'Only transmit while your bound key is held - bind it on the Keybinds page',
+        },
     ];
 
     /** Whether push-to-talk can be chosen at all. */
     readonly canPushToTalk = this.capabilities.globalHotkeys;
 
     /** Whether voice activity is what actually keys the microphone. */
-    readonly voiceActivityInForce = computed(() =>
-        !this.canPushToTalk || this.inputMode === 'voice-activity');
+    readonly voiceActivityInForce = computed(
+        () => !this.canPushToTalk || this.inputMode === 'voice-activity',
+    );
     readonly micLevel = signal(0);
     readonly isMicActive = signal(false);
     readonly isCameraActive = signal(false);
@@ -265,10 +286,16 @@ export class VoiceVideoSettingsComponent implements OnDestroy {
 
     /** Arrow keys move the handle, so the control is not pointer-only. */
     onMeterKeyDown(event: KeyboardEvent): void {
-        const step = event.key === 'ArrowLeft' || event.key === 'ArrowDown' ? -5
-            : event.key === 'ArrowRight' || event.key === 'ArrowUp' ? 5
-                : event.key === 'Home' ? -100
-                    : event.key === 'End' ? 100 : 0;
+        const step =
+            event.key === 'ArrowLeft' || event.key === 'ArrowDown'
+                ? -5
+                : event.key === 'ArrowRight' || event.key === 'ArrowUp'
+                  ? 5
+                  : event.key === 'Home'
+                    ? -100
+                    : event.key === 'End'
+                      ? 100
+                      : 0;
         if (!step) return;
         this.voiceThreshold = this.voiceThreshold + step;
         event.preventDefault();
@@ -279,7 +306,7 @@ export class VoiceVideoSettingsComponent implements OnDestroy {
         if (!width) return;
         // The pointer lands on the meter's dB axis; the setting is the margin that puts the cutoff
         // there. Inverse of `cutoffPercent`, and the only place the mapping runs backwards.
-        const margin = (clamp((event.clientX - left) / width, 0, 1)) * METER_RANGE_DB;
+        const margin = clamp((event.clientX - left) / width, 0, 1) * METER_RANGE_DB;
         this.voiceThreshold = ((margin - MARGIN_MIN_DB) / (MARGIN_MAX_DB - MARGIN_MIN_DB)) * 100;
     }
 
@@ -419,7 +446,7 @@ export class VoiceVideoSettingsComponent implements OnDestroy {
 
     /** Best-effort: send the mic-test monitor to the selected speaker. */
     private async routeTestToSelectedSpeaker(ctx: AudioContext): Promise<void> {
-        const withSink = ctx as AudioContext & { setSinkId?: (id: string) => Promise<void> };
+        const withSink = ctx as AudioContext & {setSinkId?: (id: string) => Promise<void>};
         if (typeof withSink.setSinkId !== 'function') return;
 
         const sinkId = await this.audioSettings.resolveSpeakerSinkId();
@@ -472,7 +499,9 @@ export class VoiceVideoSettingsComponent implements OnDestroy {
 
     private stopCameraTest(): void {
         this.cameraTestGeneration++;
-        this.cameraStream()?.getTracks().forEach(t => t.stop());
+        this.cameraStream()
+            ?.getTracks()
+            .forEach(t => t.stop());
         this.cameraStream.set(null);
         this.isCameraActive.set(false);
     }

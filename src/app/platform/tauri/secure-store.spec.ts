@@ -187,9 +187,9 @@ describe('TauriSecureStore', () => {
     it('rejects when the keychain could not be read, rather than answering "no entry"', async () => {
         const store = setup();
         const failure = new Error(
-            'could not read keychain entry "tauri-storage_alpine_mls_device-7_statekey": '
-            + 'keyring::Error::NoStorageAccess: Couldn\'t access platform secure storage: '
-            + 'Windows ERROR_NO_SUCH_LOGON_SESSION',
+            'could not read keychain entry "tauri-storage_alpine_mls_device-7_statekey": ' +
+                "keyring::Error::NoStorageAccess: Couldn't access platform secure storage: " +
+                'Windows ERROR_NO_SUCH_LOGON_SESSION',
         );
         invoke.mockRejectedValue(failure);
 
@@ -263,17 +263,18 @@ describe('TauriSecureStore', () => {
     it.each([
         ['a stored state key', 'c3RvcmVkLWtleQ=='],
         ['an empty string, which nothing here can have written', ''],
-    ])('rejects when the plugin can read an entry the command called absent (%s)', async (
-        _label,
-        pluginValue,
-    ) => {
-        const store = setup();
-        invoke.mockResolvedValue(absent());
-        pluginGetItem.mockResolvedValue(pluginValue);
+    ])(
+        'rejects when the plugin can read an entry the command called absent (%s)',
+        async (_label, pluginValue) => {
+            const store = setup();
+            invoke.mockResolvedValue(absent());
+            pluginGetItem.mockResolvedValue(pluginValue);
 
-        await expect(store.getItem('alpine_mls_device-7_statekey'))
-            .rejects.toThrow(new RegExp(KEYCHAIN_ADDRESS_MISMATCH));
-    });
+            await expect(store.getItem('alpine_mls_device-7_statekey')).rejects.toThrow(
+                new RegExp(KEYCHAIN_ADDRESS_MISMATCH),
+            );
+        },
+    );
 
     /** Neither `null` nor the plugin's value: the two failures this rejection exists instead of. */
     it('neither mints over nor silently falls back to the entry the plugin can see', async () => {
@@ -301,8 +302,9 @@ describe('TauriSecureStore', () => {
         invoke.mockResolvedValue(absent());
         pluginGetItem.mockRejectedValue(new Error('secure-storage.get_item denied by capability'));
 
-        await expect(store.getItem('alpine_mls_device-7_statekey'))
-            .rejects.toThrow(new RegExp(KEYCHAIN_ABSENCE_UNCONFIRMED));
+        await expect(store.getItem('alpine_mls_device-7_statekey')).rejects.toThrow(
+            new RegExp(KEYCHAIN_ABSENCE_UNCONFIRMED),
+        );
     });
 
     /**
@@ -348,10 +350,13 @@ describe('TauriSecureStore', () => {
             // Worded as Tauri words a rejected permission, which is the realistic way to reach this
             // branch and the reason the cause is attached rather than pasted into the message: it
             // contains "not allowed", and that phrase must not reach `isCommandNotFound`.
-            () => pluginGetItem.mockRejectedValue(
-                new Error('secure-storage.get_item not allowed. Permissions associated with this '
-                    + 'command: secure-storage:allow-get-item'),
-            ),
+            () =>
+                pluginGetItem.mockRejectedValue(
+                    new Error(
+                        'secure-storage.get_item not allowed. Permissions associated with this ' +
+                            'command: secure-storage:allow-get-item',
+                    ),
+                ),
         ],
     ])('classifies as transient and stays readable as itself (%s)', async (_label, token, arrange) => {
         const store = setup();
@@ -390,7 +395,8 @@ describe('TauriSecureStore', () => {
      */
     it('keeps the capability its cross-check reads through', () => {
         const dir = capabilitiesDir();
-        const granting = fs.readdirSync(dir)
+        const granting = fs
+            .readdirSync(dir)
             .filter(name => name.endsWith('.json'))
             .map(name => ({name, permissions: permissionsIn(path.join(dir, name))}))
             .filter(({permissions}) => permissions.some(p => p.startsWith('secure-storage:')));
@@ -401,10 +407,10 @@ describe('TauriSecureStore', () => {
 
         for (const {name, permissions} of granting) {
             expect(
-                permissions.includes('secure-storage:default')
-                || permissions.includes('secure-storage:allow-get-item'),
-                `${name} grants secure-storage without read access, which breaks the absence `
-                + 'cross-check in platform/tauri/secure-store.ts and with it every fresh install',
+                permissions.includes('secure-storage:default') ||
+                    permissions.includes('secure-storage:allow-get-item'),
+                `${name} grants secure-storage without read access, which breaks the absence ` +
+                    'cross-check in platform/tauri/secure-store.ts and with it every fresh install',
             ).toBe(true);
         }
     });
@@ -426,16 +432,16 @@ describe('TauriSecureStore', () => {
         ['absent false with no data', {absent: false, data: null}],
         ['absent true carrying data', {absent: true, data: 'c3RvcmVkLWtleQ=='}],
         ['a non-string payload', {absent: false, data: 42}],
-        ['the plugin\'s old shape', {data: 'c3RvcmVkLWtleQ=='}],
-    ])('rejects an unrecognised command answer (%s) rather than reading it as absence', async (
-        _label,
-        answer,
-    ) => {
-        const store = setup();
-        invoke.mockResolvedValue(answer);
+        ["the plugin's old shape", {data: 'c3RvcmVkLWtleQ=='}],
+    ])(
+        'rejects an unrecognised command answer (%s) rather than reading it as absence',
+        async (_label, answer) => {
+            const store = setup();
+            invoke.mockResolvedValue(answer);
 
-        await expect(store.getItem('alpine_mls_device-7_statekey')).rejects.toThrow(/keychain_read/);
-    });
+            await expect(store.getItem('alpine_mls_device-7_statekey')).rejects.toThrow(/keychain_read/);
+        },
+    );
 
     /**
      * <b>The end of the wipe path, asserted rather than reasoned about.</b>
@@ -454,8 +460,8 @@ describe('TauriSecureStore', () => {
         [
             'a keyring failure relayed from the command',
             new Error(
-                'could not read keychain entry "tauri-storage_alpine_mls_device-7_statekey": '
-                + 'keyring::Error::BadEncoding: Data is not UTF-8 encoded',
+                'could not read keychain entry "tauri-storage_alpine_mls_device-7_statekey": ' +
+                    'keyring::Error::BadEncoding: Data is not UTF-8 encoded',
             ),
         ],
         ['an answer this adapter does not recognise', undefined],

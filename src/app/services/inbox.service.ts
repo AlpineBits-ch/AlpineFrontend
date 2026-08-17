@@ -164,10 +164,9 @@ export class InboxService {
 
         // Refetched, never decremented: the local read state and the server's unread set are built
         // from different inputs, so arithmetic across them drifts.
-        this.readState.channelRead$.pipe(
-            debounceTime(READ_RESYNC_DEBOUNCE_MS),
-            takeUntilDestroyed(),
-        ).subscribe(() => void this.refreshSummary());
+        this.readState.channelRead$
+            .pipe(debounceTime(READ_RESYNC_DEBOUNCE_MS), takeUntilDestroyed())
+            .subscribe(() => void this.refreshSummary());
 
         // The one event that fills the Waiting-on-you tab without a message arriving:
         // `inbox.MentionAdded` never fires for a chore or a decision.
@@ -217,8 +216,7 @@ export class InboxService {
             // Keeps going while the server hands back an empty page with a live cursor. Never stop
             // on `groups.length === 0`.
             while (hops++ < MAX_EMPTY_HOPS) {
-                const page = await firstValueFrom(
-                    this.api.unread(UNREAD_PAGE_SIZE, this.unreadCursor));
+                const page = await firstValueFrom(this.api.unread(UNREAD_PAGE_SIZE, this.unreadCursor));
                 this.unreadCursor = page.nextCursor;
                 this.unreadHasMore.set(page.nextCursor !== null);
                 this.previewsUnavailable.set(page.previewsUnavailable);
@@ -246,10 +244,12 @@ export class InboxService {
             let hops = 0;
             // Deleted messages are skipped, so a page can be short or empty while more pages exist.
             while (hops++ < MAX_EMPTY_HOPS) {
-                const page = await firstValueFrom(this.api.mentions({
-                    limit: MENTIONS_PAGE_SIZE,
-                    cursor: this.mentionsCursor,
-                }));
+                const page = await firstValueFrom(
+                    this.api.mentions({
+                        limit: MENTIONS_PAGE_SIZE,
+                        cursor: this.mentionsCursor,
+                    }),
+                );
                 this.mentionsCursor = page.nextCursor;
                 this.mentionsHasMore.set(page.nextCursor !== null);
 
@@ -324,8 +324,7 @@ export class InboxService {
         this.adjustSummary(0, -1);
 
         try {
-            await firstValueFrom(this.api.dismissMention(
-                entry.mention.messageId, entry.mention.createdAt));
+            await firstValueFrom(this.api.dismissMention(entry.mention.messageId, entry.mention.createdAt));
         } catch {
             this._mentions.set(before);
             this.adjustSummary(0, 1);
@@ -422,10 +421,12 @@ export class InboxService {
     private resolveChannel(breadcrumb: InboxBreadcrumb, guild?: GuildDto): ChannelDto | undefined {
         const g = guild ?? this.guildService.guilds().find(x => x.id === breadcrumb.guildId);
         if (!g) return undefined;
-        return g.channels.find(c => c.id === breadcrumb.channelId)
-            ?? (breadcrumb.parentChannelId
+        return (
+            g.channels.find(c => c.id === breadcrumb.channelId) ??
+            (breadcrumb.parentChannelId
                 ? g.channels.find(c => c.id === breadcrumb.parentChannelId)
-                : undefined);
+                : undefined)
+        );
     }
 
     private async toUnreadEntry(group: InboxUnreadGroup): Promise<InboxUnreadEntry> {
@@ -459,8 +460,7 @@ export class InboxService {
         conversationId: string | null,
     ): Promise<InboxPreview[]> {
         const mapped = messages.map(m => this.toMessageDto(m, channelId, conversationId));
-        const decrypted = await decryptMessages(
-            mapped, this.mlsService, this.mlsSync, this.mlsHealth);
+        const decrypted = await decryptMessages(mapped, this.mlsService, this.mlsSync, this.mlsHealth);
         this.primeAuthors(messages);
         return decrypted.map((message, i) => ({
             message,
@@ -474,9 +474,11 @@ export class InboxService {
      * and bots; the cache is a signal, so filling it re-renders the waiting rows.
      */
     private primeAuthors(messages: InboxMessage[]): void {
-        const pending = new Set(messages
-            .filter(m => !m.authorDisplayName && !this.profileService.getCachedByUserId(m.authorId))
-            .map(m => m.authorId));
+        const pending = new Set(
+            messages
+                .filter(m => !m.authorDisplayName && !this.profileService.getCachedByUserId(m.authorId))
+                .map(m => m.authorId),
+        );
         for (const userId of pending) {
             this.profileService.getByUserId(userId).subscribe({error: () => undefined});
         }
@@ -518,13 +520,17 @@ export class InboxService {
 
     /** Moves the badge by a delta. Clamped at zero, and left alone once `capped`. */
     private adjustSummary(channels: number, mentions: number): void {
-        this._summary.update(s => s.capped ? s : {
-            unreadChannelCount: Math.max(0, s.unreadChannelCount + channels),
-            mentionCount: Math.max(0, s.mentionCount + mentions),
-            // Untouched: nothing on the message side completes a chore or casts a vote.
-            taskCount: s.taskCount,
-            capped: false,
-        });
+        this._summary.update(s =>
+            s.capped
+                ? s
+                : {
+                      unreadChannelCount: Math.max(0, s.unreadChannelCount + channels),
+                      mentionCount: Math.max(0, s.mentionCount + mentions),
+                      // Untouched: nothing on the message side completes a chore or casts a vote.
+                      taskCount: s.taskCount,
+                      capped: false,
+                  },
+        );
     }
 
     private previewRetryScheduled = false;

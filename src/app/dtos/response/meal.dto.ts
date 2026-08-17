@@ -20,7 +20,10 @@ export enum MealSlot {
 }
 
 const SLOT_BY_ORDINAL: readonly MealSlot[] = [
-    MealSlot.Breakfast, MealSlot.Lunch, MealSlot.Dinner, MealSlot.Other,
+    MealSlot.Breakfast,
+    MealSlot.Lunch,
+    MealSlot.Dinner,
+    MealSlot.Other,
 ];
 
 /** In the order a day runs, which is also the order the board draws them within a date. */
@@ -222,7 +225,7 @@ export interface MealPlanEntryDeleted {
 export function normalizeMealSlot(value: MealSlot | number | string | null | undefined): MealSlot {
     if (typeof value === 'number') return SLOT_BY_ORDINAL[value] ?? MealSlot.Dinner;
     return (SLOT_BY_ORDINAL as readonly string[]).includes(value as string)
-        ? value as MealSlot
+        ? (value as MealSlot)
         : MealSlot.Dinner;
 }
 

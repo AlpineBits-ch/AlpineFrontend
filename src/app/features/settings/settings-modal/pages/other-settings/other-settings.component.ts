@@ -15,9 +15,7 @@ import {PlatformCapabilities} from '../../../../../platform/capabilities';
 
 @Component({
     selector: 'app-other-settings',
-    imports: [
-        ToggleSwitch, Select, FormsModule, TranslateModule, WalletPreferenceSettingComponent,
-    ],
+    imports: [ToggleSwitch, Select, FormsModule, TranslateModule, WalletPreferenceSettingComponent],
     templateUrl: './other-settings.component.html',
     styleUrl: './other-settings.component.css',
 })
@@ -68,13 +66,12 @@ export class OtherSettingsComponent {
         if (this.savingInterests()) return;
 
         const current = this.interests();
-        const next = enabled
-            ? [...new Set([...current, interest])]
-            : current.filter(i => i !== interest);
+        const next = enabled ? [...new Set([...current, interest])] : current.filter(i => i !== interest);
         if (next.length === 0) return;
 
         this.savingInterests.set(true);
-        void this.onboarding.submit(next)
+        void this.onboarding
+            .submit(next)
             .then(() => {
                 if (enabled && interest === UserInterest.Social && !this.socialGate.isSatisfied()) {
                     this.socialGate.promptNow();

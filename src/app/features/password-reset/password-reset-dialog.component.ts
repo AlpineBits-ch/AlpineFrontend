@@ -85,14 +85,17 @@ export class PasswordResetDialogComponent {
         if (!email || this.requestLoading()) return;
 
         this.requestLoading.set(true);
-        this.passwordResetService.requestReset(email).pipe(
-            catchError(() => of(undefined)),
-            tap(() => {
-                this.requestLoading.set(false);
-                this.stage.set('reset');
-                this.startResendCooldown();
-            })
-        ).subscribe();
+        this.passwordResetService
+            .requestReset(email)
+            .pipe(
+                catchError(() => of(undefined)),
+                tap(() => {
+                    this.requestLoading.set(false);
+                    this.stage.set('reset');
+                    this.startResendCooldown();
+                }),
+            )
+            .subscribe();
     }
 
     protected resend(): void {
@@ -100,14 +103,19 @@ export class PasswordResetDialogComponent {
         if (!email || this.resendLoading() || this.resendCooldown() > 0) return;
 
         this.resendLoading.set(true);
-        this.passwordResetService.requestReset(email).pipe(
-            catchError(() => of(undefined)),
-            tap(() => {
-                this.resendLoading.set(false);
-                this.toast.info('Code requested', {detail: 'If an account exists for this email, a new code has been sent.'});
-                this.startResendCooldown();
-            })
-        ).subscribe();
+        this.passwordResetService
+            .requestReset(email)
+            .pipe(
+                catchError(() => of(undefined)),
+                tap(() => {
+                    this.resendLoading.set(false);
+                    this.toast.info('Code requested', {
+                        detail: 'If an account exists for this email, a new code has been sent.',
+                    });
+                    this.startResendCooldown();
+                }),
+            )
+            .subscribe();
     }
 
     protected onNewPasswordChange(value: string): void {
@@ -143,27 +151,32 @@ export class PasswordResetDialogComponent {
         this.invalidCode.set(false);
         this.newPasswordErrors.set([]);
         this.resetLoading.set(true);
-        this.passwordResetService.resetPassword(email, code, newPassword).pipe(
-            tap(() => {
-                this.resetLoading.set(false);
-                this.toast.success('Password changed', {detail: 'You can now sign in with your new password.'});
-                this.dialogService.dismiss();
-            }),
-            catchError((err: unknown) => {
-                this.resetLoading.set(false);
-                if (err instanceof HttpErrorResponse && err.status === 400) {
-                    const validationErrors: string[] | undefined = err.error?.errors?.newPassword;
-                    if (Array.isArray(validationErrors) && validationErrors.length > 0) {
-                        this.newPasswordErrors.set(validationErrors);
+        this.passwordResetService
+            .resetPassword(email, code, newPassword)
+            .pipe(
+                tap(() => {
+                    this.resetLoading.set(false);
+                    this.toast.success('Password changed', {
+                        detail: 'You can now sign in with your new password.',
+                    });
+                    this.dialogService.dismiss();
+                }),
+                catchError((err: unknown) => {
+                    this.resetLoading.set(false);
+                    if (err instanceof HttpErrorResponse && err.status === 400) {
+                        const validationErrors: string[] | undefined = err.error?.errors?.newPassword;
+                        if (Array.isArray(validationErrors) && validationErrors.length > 0) {
+                            this.newPasswordErrors.set(validationErrors);
+                        } else {
+                            this.invalidCode.set(true);
+                        }
                     } else {
-                        this.invalidCode.set(true);
+                        this.toast.httpError('Password reset failed', err);
                     }
-                } else {
-                    this.toast.httpError('Password reset failed', err);
-                }
-                return EMPTY;
-            })
-        ).subscribe();
+                    return EMPTY;
+                }),
+            )
+            .subscribe();
     }
 
     private startResendCooldown(): void {

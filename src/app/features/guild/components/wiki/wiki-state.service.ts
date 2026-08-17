@@ -17,7 +17,7 @@ export class WikiStateService {
     readonly wikiView = signal<WikiView>('home');
     readonly selectedPage = signal<WikiPageDto | null>(null);
     readonly editingPage = signal<WikiPageDto | null>(null);
-    readonly editorDefaults = signal<{ categoryId?: string; parentPageId?: string } | null>(null);
+    readonly editorDefaults = signal<{categoryId?: string; parentPageId?: string} | null>(null);
     /** Raised by `openEditor` for a new page; the wiki shell renders the picker. */
     readonly templatePickerOpen = signal(false);
     readonly guildId = signal<string>('');
@@ -35,15 +35,16 @@ export class WikiStateService {
     /** The id the member fetch reported, as a fallback before the profile has loaded. */
     private readonly memberUserId = signal<string | null>(null);
 
-    private readonly guild = computed(() =>
-        this.guildService.guilds().find(g => g.id === this.guildId()) ?? null);
+    private readonly guild = computed(
+        () => this.guildService.guilds().find(g => g.id === this.guildId()) ?? null,
+    );
 
-    readonly ownUserId = computed(() =>
-        this.profileService.ownProfile()?.userId ?? this.memberUserId());
+    readonly ownUserId = computed(() => this.profileService.ownProfile()?.userId ?? this.memberUserId());
 
     /** What this member may do here; starts at nothing until the fetch answers (fail closed), and is derived, not snapshotted, since ownership and the member row arrive asynchronously. */
     readonly abilities: Signal<WikiAbilities> = computed(() =>
-        wikiAbilities(guildAbilities(this.ownMember(), this.guild(), this.ownUserId())));
+        wikiAbilities(guildAbilities(this.ownMember(), this.guild(), this.ownUserId())),
+    );
     private suppressNextPageRefresh = false;
 
     constructor() {
@@ -59,8 +60,8 @@ export class WikiStateService {
             this.contentCache.invalidate(e.pageId);
 
             // Consumed once, for both branches below.
-            const affectsOpenPage = this.selectedPage()?.id === e.pageId
-                || this.editingPage()?.id === e.pageId;
+            const affectsOpenPage =
+                this.selectedPage()?.id === e.pageId || this.editingPage()?.id === e.pageId;
             if (affectsOpenPage && this.suppressNextPageRefresh) {
                 this.suppressNextPageRefresh = false;
                 return;
@@ -80,8 +81,7 @@ export class WikiStateService {
             if (this.wikiView() === 'editor' && this.editingPage()?.id === e.pageId) {
                 this.wikiService.getPage(this.guildId(), e.pageId).subscribe({
                     next: page => this.pendingRemoteUpdate.set(page),
-                    error: () => {
-                    },
+                    error: () => {},
                 });
             }
         });
@@ -158,8 +158,8 @@ export class WikiStateService {
 
     openEditor(
         page?: WikiPageDto,
-        defaults?: { categoryId?: string; parentPageId?: string },
-        options?: { skipTemplatePicker?: boolean },
+        defaults?: {categoryId?: string; parentPageId?: string},
+        options?: {skipTemplatePicker?: boolean},
     ): void {
         this.editingPage.set(page ?? null);
         this.editorDefaults.set(page ? null : (defaults ?? null));
@@ -248,7 +248,6 @@ export class WikiStateService {
         });
     }
 
-
     private loadWiki(guildId: string, navigateTo?: WikiPageDto): void {
         this.wikiService.getWiki(guildId).subscribe(wiki => {
             this.wiki.set(wiki);
@@ -260,7 +259,7 @@ export class WikiStateService {
                 const current = this.selectedPage();
                 if (current) {
                     const summary = wiki.pages.find(p => p.id === current.id);
-                    if (summary) this.selectedPage.update(p => p ? mergeSummary(p, summary) : p);
+                    if (summary) this.selectedPage.update(p => (p ? mergeSummary(p, summary) : p));
                 }
             }
         });

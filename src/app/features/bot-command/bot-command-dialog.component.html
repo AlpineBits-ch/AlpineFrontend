@@ -1,25 +1,25 @@
 <p-dialog
-        (visibleChange)="$event === false && dismiss()"
-        [breakpoints]="{'640px': '95vw'}"
-        [closable]="true"
-        [dismissableMask]="true"
-        [draggable]="false"
-        [modal]="true"
-        [resizable]="false"
-        [style]="{width: '420px'}"
-        [visible]="visible()"
-        appendTo="body">
-
+    (visibleChange)="$event === false && dismiss()"
+    [breakpoints]="{'640px': '95vw'}"
+    [closable]="true"
+    [dismissableMask]="true"
+    [draggable]="false"
+    [modal]="true"
+    [resizable]="false"
+    [style]="{width: '420px'}"
+    [visible]="visible()"
+    appendTo="body"
+>
     <ng-template pTemplate="header">
         @if (dialogService.request(); as request) {
             <div class="flex items-center gap-3">
-                <div class="w-8 h-8 rounded-lg flex items-center justify-center"
-                     style="background: color-mix(in srgb, var(--color-brand) 12%, transparent)">
+                <div
+                    class="w-8 h-8 rounded-lg flex items-center justify-center"
+                    style="background: color-mix(in srgb, var(--color-brand) 12%, transparent)"
+                >
                     <i class="pi pi-bolt text-sm" style="color: var(--color-brand-dim)"></i>
                 </div>
-                <span class="text-base font-semibold" style="color: var(--color-text-primary)">
-                    /{{ request.command.name }}
-                </span>
+                <span class="text-base font-semibold" style="color: var(--color-text-primary)"> /{{ request.command.name }} </span>
             </div>
         }
     </ng-template>
@@ -40,18 +40,20 @@
                     }
                     @if (discordOptionInputKind(option.type) === 'boolean') {
                         <p-toggleswitch
-                                (ngModelChange)="setValue(option.name, $event)"
-                                [ngModel]="optionValues()[option.name]"
-                                [name]="'opt-' + option.name"/>
+                            (ngModelChange)="setValue(option.name, $event)"
+                            [ngModel]="optionValues()[option.name]"
+                            [name]="'opt-' + option.name"
+                        />
                     } @else {
                         <input
-                                (keydown.enter)="submit()"
-                                (ngModelChange)="setValue(option.name, $event)"
-                                [ngModel]="optionValues()[option.name]"
-                                [name]="'opt-' + option.name"
-                                [placeholder]="discordOptionPlaceholder(option.type)"
-                                [type]="discordOptionInputKind(option.type) === 'number' ? 'number' : 'text'"
-                                class="w-full px-3 py-2 rounded-lg bg-card border border-border text-sm text-white/85 outline-none focus:border-[var(--color-brand)]"/>
+                            (keydown.enter)="submit()"
+                            (ngModelChange)="setValue(option.name, $event)"
+                            [ngModel]="optionValues()[option.name]"
+                            [name]="'opt-' + option.name"
+                            [placeholder]="discordOptionPlaceholder(option.type)"
+                            [type]="discordOptionInputKind(option.type) === 'number' ? 'number' : 'text'"
+                            class="w-full px-3 py-2 rounded-lg bg-card border border-border text-sm text-white/85 outline-none focus:border-[var(--color-brand)]"
+                        />
                     }
                 </div>
             }
@@ -60,14 +62,8 @@
 
     <ng-template pTemplate="footer">
         <div class="flex gap-2 justify-end">
-            <p-button (onClick)="dismiss()" [text]="true" label="Cancel" severity="secondary" size="small"/>
-            <p-button
-                    (onClick)="submit()"
-                    [disabled]="!canSubmit()"
-                    label="Run"
-                    severity="primary"
-                    size="small"/>
+            <p-button (onClick)="dismiss()" [text]="true" label="Cancel" severity="secondary" size="small" />
+            <p-button (onClick)="submit()" [disabled]="!canSubmit()" label="Run" severity="primary" size="small" />
         </div>
     </ng-template>
-
 </p-dialog>

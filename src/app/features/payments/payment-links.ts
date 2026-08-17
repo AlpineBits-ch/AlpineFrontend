@@ -49,15 +49,12 @@ export function buildPaymentLink(
 }
 
 /** `https://paypal.me/{handle}/{amount}{CURRENCY}`. */
-export function payPalLink(
-    handle: string,
-    amountMinor: number | null,
-    currency: string,
-): PaymentLink {
+export function payPalLink(handle: string, amountMinor: number | null, currency: string): PaymentLink {
     const code = normalizeCurrency(currency);
-    const path = amountMinor !== null && amountMinor > 0
-        ? `/${minorToInputString(amountMinor, code ?? 'CHF')}${code ?? ''}`
-        : '';
+    const path =
+        amountMinor !== null && amountMinor > 0
+            ? `/${minorToInputString(amountMinor, code ?? 'CHF')}${code ?? ''}`
+            : '';
 
     const warnings: PaymentLinkWarning[] = [];
     if (amountMinor !== null && amountMinor > 0) {

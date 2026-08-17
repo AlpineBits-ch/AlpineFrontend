@@ -35,20 +35,22 @@ function catalogue(over: Partial<CreditCatalogueDto> = {}): CreditCatalogueDto {
     };
 }
 
-function setup(opts: {
-    subject?: EntitlementSubjectRef;
-    catalogue?: CreditCatalogueDto;
-    error?: unknown;
-    /**
-     * Loads the real English copy, so a test can read the interpolated sentence rather than the
-     * key. Off by default: every other assertion in this file reads against the key, which is what
-     * an unloaded locale renders.
-     */
-    translated?: boolean;
-} = {}) {
-    const getCatalogue = vi.fn<() => Observable<CreditCatalogueDto>>(() => opts.error
-        ? throwError(() => opts.error)
-        : of(opts.catalogue ?? catalogue()));
+function setup(
+    opts: {
+        subject?: EntitlementSubjectRef;
+        catalogue?: CreditCatalogueDto;
+        error?: unknown;
+        /**
+         * Loads the real English copy, so a test can read the interpolated sentence rather than the
+         * key. Off by default: every other assertion in this file reads against the key, which is what
+         * an unloaded locale renders.
+         */
+        translated?: boolean;
+    } = {},
+) {
+    const getCatalogue = vi.fn<() => Observable<CreditCatalogueDto>>(() =>
+        opts.error ? throwError(() => opts.error) : of(opts.catalogue ?? catalogue()),
+    );
 
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
@@ -79,8 +81,9 @@ function text(fixture: ComponentFixture<CreditCatalogueComponent>): string {
 }
 
 function hasButton(fixture: ComponentFixture<CreditCatalogueComponent>, label: string): boolean {
-    return Array.from(fixture.nativeElement.querySelectorAll('button'))
-        .some(el => ((el as HTMLElement).textContent ?? '').includes(label));
+    return Array.from(fixture.nativeElement.querySelectorAll('button')).some(el =>
+        ((el as HTMLElement).textContent ?? '').includes(label),
+    );
 }
 
 describe('what credit buys', () => {
@@ -126,8 +129,10 @@ describe('what credit buys', () => {
         const {fixture} = setup({
             subject: MY_ENTITLEMENTS,
             catalogue: catalogue({
-                skus: [sku({code: 'g', title: 'Server Pro', subject: 'Guild'}),
-                    sku({code: 'u', title: 'Venta Plus', subject: 'User'})],
+                skus: [
+                    sku({code: 'g', title: 'Server Pro', subject: 'Guild'}),
+                    sku({code: 'u', title: 'Venta Plus', subject: 'User'}),
+                ],
             }),
         });
 
@@ -175,8 +180,9 @@ describe('an instance with no credit', () => {
         expect(text(fixture)).toContain('BILLING.CREDIT.SPEND_SECTION');
         expect(text(fixture)).not.toContain('BILLING.CREDIT.NOTHING_TO_BUY');
 
-        const retry = Array.from(fixture.nativeElement.querySelectorAll('button'))
-            .find(el => ((el as HTMLElement).textContent ?? '').includes('BILLING.CREDIT.RETRY'));
+        const retry = Array.from(fixture.nativeElement.querySelectorAll('button')).find(el =>
+            ((el as HTMLElement).textContent ?? '').includes('BILLING.CREDIT.RETRY'),
+        );
         (retry as HTMLElement).click();
         fixture.detectChanges();
 

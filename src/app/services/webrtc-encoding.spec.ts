@@ -10,7 +10,7 @@ import {
     withStartBitrate,
 } from './webrtc-encoding';
 
-type FakeSender = RTCRtpSender & { setParameters: ReturnType<typeof vi.fn> };
+type FakeSender = RTCRtpSender & {setParameters: ReturnType<typeof vi.fn>};
 
 function fakeSender(): FakeSender {
     const params = {encodings: [{}]} as RTCRtpSendParameters;
@@ -57,10 +57,12 @@ describe('content mode', () => {
         const text = fakeSender();
         await applyScreenEncoding(games, {resolution: '1440p', framerate: 30, content: 'games'});
         await applyScreenEncoding(text, {resolution: '1440p', framerate: 30, content: 'text'});
-        expect(games.setParameters.mock.calls[0][0].encodings[0].maxBitrate)
-            .toBe(text.setParameters.mock.calls[0][0].encodings[0].maxBitrate);
-        expect(games.setParameters.mock.calls[0][0].encodings[0].minBitrate)
-            .toBe(text.setParameters.mock.calls[0][0].encodings[0].minBitrate);
+        expect(games.setParameters.mock.calls[0][0].encodings[0].maxBitrate).toBe(
+            text.setParameters.mock.calls[0][0].encodings[0].maxBitrate,
+        );
+        expect(games.setParameters.mock.calls[0][0].encodings[0].minBitrate).toBe(
+            text.setParameters.mock.calls[0][0].encodings[0].minBitrate,
+        );
     });
 });
 
@@ -95,7 +97,9 @@ describe('applyScreenEncoding', () => {
             },
             track: null,
         } as unknown as RTCRtpSender;
-        await expect(applyScreenEncoding(sender, {resolution: '720p', framerate: 30, content: 'text'})).resolves.toBeUndefined();
+        await expect(
+            applyScreenEncoding(sender, {resolution: '720p', framerate: 30, content: 'text'}),
+        ).resolves.toBeUndefined();
     });
 
     it('creates an encoding entry when the sender has none', async () => {
@@ -219,8 +223,9 @@ describe('encoding parameters on a simulcast sender', () => {
         const sender = ladderSender(['a', 'b', 'c']);
         await applySimpleBitrate(sender, CAMERA_KBPS);
         const encodings = sender.setParameters.mock.calls[0][0].encodings;
-        expect(encodings.map((e: RTCRtpEncodingParameters) => e.maxBitrate))
-            .toEqual([2_500_000, 800_000, 250_000]);
+        expect(encodings.map((e: RTCRtpEncodingParameters) => e.maxBitrate)).toEqual([
+            2_500_000, 800_000, 250_000,
+        ]);
     });
 
     it('treats an unnamed encoding as the top layer, so non-simulcast senders are unchanged', async () => {

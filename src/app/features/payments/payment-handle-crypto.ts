@@ -62,7 +62,12 @@ export async function sealPaymentHandles(
     const nonce = crypto.getRandomValues(new Uint8Array(GCM_NONCE_BYTES));
 
     const contentKey = await crypto.subtle.importKey(
-        'raw', toArrayBuffer(contentKeyBytes), 'AES-GCM', false, ['encrypt']);
+        'raw',
+        toArrayBuffer(contentKeyBytes),
+        'AES-GCM',
+        false,
+        ['encrypt'],
+    );
 
     const ciphertext = await crypto.subtle.encrypt(
         {
@@ -113,15 +118,19 @@ export async function openPaymentHandles(
     if (envelope.version !== PAYMENT_HANDLE_ENVELOPE_VERSION) {
         // A newer envelope is not a corrupt one, and the difference is worth keeping: the UI can
         // say "this was written by a newer version of the app" rather than implying tampering.
-        throw new PaymentCryptoError(
-            `Envelope version ${envelope.version} is not one this build can open`);
+        throw new PaymentCryptoError(`Envelope version ${envelope.version} is not one this build can open`);
     }
 
     const contentKeyBytes = await unwrapContentKey(wrappedKey, ownPrivateKey, ownDeviceId);
 
     try {
         const contentKey = await crypto.subtle.importKey(
-            'raw', toArrayBuffer(contentKeyBytes), 'AES-GCM', false, ['decrypt']);
+            'raw',
+            toArrayBuffer(contentKeyBytes),
+            'AES-GCM',
+            false,
+            ['decrypt'],
+        );
 
         const plaintext = await crypto.subtle.decrypt(
             {
@@ -142,30 +151,28 @@ export async function openPaymentHandles(
 
 // ── Wrapping ────────────────────────────────────────────────────────────────
 
-async function wrapContentKey(
-    contentKeyBytes: Uint8Array,
-    recipient: SealRecipient,
-): Promise<Uint8Array> {
+async function wrapContentKey(contentKeyBytes: Uint8Array, recipient: SealRecipient): Promise<Uint8Array> {
     const recipientX = toMontgomeryPublic(recipient.publicKey, recipient.deviceId);
 
     const ephemeralSecret = x25519.utils.randomSecretKey();
     const ephemeralPublic = x25519.getPublicKey(ephemeralSecret);
     const shared = agree(ephemeralSecret, recipientX);
 
-    const wrapKey = await deriveWrapKey(shared, ephemeralPublic, recipientX, recipient.deviceId,
-        ['encrypt']);
+    const wrapKey = await deriveWrapKey(shared, ephemeralPublic, recipientX, recipient.deviceId, ['encrypt']);
     const wrapNonce = crypto.getRandomValues(new Uint8Array(GCM_NONCE_BYTES));
 
-    const sealed = new Uint8Array(await crypto.subtle.encrypt(
-        {
-            name: 'AES-GCM',
-            iv: toArrayBuffer(wrapNonce),
-            additionalData: toArrayBuffer(new TextEncoder().encode(recipient.deviceId)),
-            tagLength: GCM_TAG_BITS,
-        },
-        wrapKey,
-        toArrayBuffer(contentKeyBytes),
-    ));
+    const sealed = new Uint8Array(
+        await crypto.subtle.encrypt(
+            {
+                name: 'AES-GCM',
+                iv: toArrayBuffer(wrapNonce),
+                additionalData: toArrayBuffer(new TextEncoder().encode(recipient.deviceId)),
+                tagLength: GCM_TAG_BITS,
+            },
+            wrapKey,
+            toArrayBuffer(contentKeyBytes),
+        ),
+    );
 
     const out = new Uint8Array(WRAP_BYTES);
     out[0] = PAYMENT_HANDLE_ENVELOPE_VERSION;
@@ -193,27 +200,28 @@ async function unwrapContentKey(
     if (seed.length !== 32) {
         // The keychain holds the raw Ed25519 seed. Anything else is a different key material
         // format, and guessing at it would derive a key that silently opens nothing.
-        throw new PaymentCryptoError('This device\'s identity key is not a 32-byte Ed25519 seed');
+        throw new PaymentCryptoError("This device's identity key is not a 32-byte Ed25519 seed");
     }
 
     const ownX = ed25519.utils.toMontgomerySecret(seed);
     const ownXPublic = x25519.getPublicKey(ownX);
     const shared = agree(ownX, ephemeralPublic);
 
-    const wrapKey = await deriveWrapKey(shared, ephemeralPublic, ownXPublic, ownDeviceId,
-        ['decrypt']);
+    const wrapKey = await deriveWrapKey(shared, ephemeralPublic, ownXPublic, ownDeviceId, ['decrypt']);
 
     try {
-        return new Uint8Array(await crypto.subtle.decrypt(
-            {
-                name: 'AES-GCM',
-                iv: toArrayBuffer(wrapNonce),
-                additionalData: toArrayBuffer(new TextEncoder().encode(ownDeviceId)),
-                tagLength: GCM_TAG_BITS,
-            },
-            wrapKey,
-            toArrayBuffer(sealed),
-        ));
+        return new Uint8Array(
+            await crypto.subtle.decrypt(
+                {
+                    name: 'AES-GCM',
+                    iv: toArrayBuffer(wrapNonce),
+                    additionalData: toArrayBuffer(new TextEncoder().encode(ownDeviceId)),
+                    tagLength: GCM_TAG_BITS,
+                },
+                wrapKey,
+                toArrayBuffer(sealed),
+            ),
+        );
     } catch {
         throw new PaymentCryptoError('The wrapped key is not addressed to this device');
     }
@@ -227,8 +235,9 @@ async function deriveWrapKey(
     deviceId: string,
     usages: KeyUsage[],
 ): Promise<CryptoKey> {
-    const material = await crypto.subtle.importKey(
-        'raw', toArrayBuffer(shared), 'HKDF', false, ['deriveKey']);
+    const material = await crypto.subtle.importKey('raw', toArrayBuffer(shared), 'HKDF', false, [
+        'deriveKey',
+    ]);
 
     const salt = new Uint8Array(ephemeralPublic.length + staticPublic.length);
     salt.set(ephemeralPublic, 0);
@@ -255,7 +264,8 @@ function agree(secret: Uint8Array, publicKey: Uint8Array): Uint8Array {
         shared = x25519.getSharedSecret(secret, publicKey);
     } catch (cause) {
         throw new PaymentCryptoError(
-            `The key exchange failed: ${cause instanceof Error ? cause.message : String(cause)}`);
+            `The key exchange failed: ${cause instanceof Error ? cause.message : String(cause)}`,
+        );
     }
 
     if (shared.every(byte => byte === 0)) {
@@ -275,15 +285,17 @@ function toMontgomeryPublic(publicKeyBase64: string, deviceId: string): Uint8Arr
 
     if (raw.length !== 32) {
         throw new PaymentCryptoError(
-            `Device ${deviceId} has a ${raw.length}-byte key, which is not an Ed25519 public key`);
+            `Device ${deviceId} has a ${raw.length}-byte key, which is not an Ed25519 public key`,
+        );
     }
 
     try {
         return ed25519.utils.toMontgomery(raw);
     } catch (cause) {
         throw new PaymentCryptoError(
-            `Device ${deviceId} has a key that is not a valid Ed25519 point: `
-            + `${cause instanceof Error ? cause.message : String(cause)}`);
+            `Device ${deviceId} has a key that is not a valid Ed25519 point: ` +
+                `${cause instanceof Error ? cause.message : String(cause)}`,
+        );
     }
 }
 

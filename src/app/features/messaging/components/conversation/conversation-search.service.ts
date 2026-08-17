@@ -16,15 +16,15 @@ export class ConversationSearchService {
     readonly msgResults = computed(() => {
         const q = this.searchQuery().trim().toLowerCase();
         if (!q) return [];
-        return (this.searchEntry()?.results ?? []).filter(m =>
-            !m.undecryptable && decodeContent(m.content).toLowerCase().includes(q)
+        return (this.searchEntry()?.results ?? []).filter(
+            m => !m.undecryptable && decodeContent(m.content).toLowerCase().includes(q),
         );
     });
     readonly attResults = computed(() => {
         const q = this.searchQuery().trim().toLowerCase();
         if (!q) return [];
-        const out: { message: MessageDto; attachment: MessageAttachment }[] = [];
-        for (const m of (this.searchEntry()?.results ?? [])) {
+        const out: {message: MessageDto; attachment: MessageAttachment}[] = [];
+        for (const m of this.searchEntry()?.results ?? []) {
             for (const a of m.attachments) {
                 if (a.fileName.toLowerCase().includes(q)) out.push({message: m, attachment: a});
             }
@@ -43,10 +43,7 @@ export class ConversationSearchService {
         });
 
         // Debounce keystrokes before dispatching to the store.
-        this.searchSubject.pipe(
-            debounceTime(300),
-            takeUntilDestroyed(),
-        ).subscribe(query => {
+        this.searchSubject.pipe(debounceTime(300), takeUntilDestroyed()).subscribe(query => {
             const id = this.conversationId();
             if (!id) return;
             if (query.trim()) {

@@ -1,19 +1,18 @@
 <div class="flex flex-col gap-3">
-
     <span class="relative">
         <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-xs" style="color: var(--color-text-muted)"></i>
         <input
-                [ngModel]="search()"
-                (ngModelChange)="search.set($event)"
-                pInputText
-                type="text"
-                placeholder="Find a server..."
-                class="w-full !pl-8"
-                autocomplete="off"/>
+            [ngModel]="search()"
+            (ngModelChange)="search.set($event)"
+            pInputText
+            type="text"
+            placeholder="Find a server..."
+            class="w-full !pl-8"
+            autocomplete="off"
+        />
     </span>
 
     <div class="max-h-[360px] overflow-y-auto thin-scrollbar flex flex-col gap-1">
-
         @if (guilds() === null && !error()) {
             @for (i of [1, 2, 3, 4]; track i) {
                 <div class="flex items-center gap-3 px-2 py-2">
@@ -24,17 +23,21 @@
             }
         } @else if (error()) {
             <div class="flex flex-col items-center gap-3 py-8 text-center">
-                <div class="w-12 h-12 rounded-2xl flex items-center justify-center"
-                     style="background: color-mix(in srgb, var(--color-offline) 12%, transparent)">
+                <div
+                    class="w-12 h-12 rounded-2xl flex items-center justify-center"
+                    style="background: color-mix(in srgb, var(--color-offline) 12%, transparent)"
+                >
                     <i class="pi pi-exclamation-circle text-xl" style="color: var(--color-offline)"></i>
                 </div>
                 <p class="text-sm font-semibold m-0" style="color: var(--color-text-primary)">Couldn't load your servers</p>
-                <p-button (onClick)="fetchGuilds()" [text]="true" label="Retry" severity="secondary" size="small"/>
+                <p-button (onClick)="fetchGuilds()" [text]="true" label="Retry" severity="secondary" size="small" />
             </div>
         } @else if (filteredGuilds().length === 0 && guilds()!.length === 0) {
             <div class="flex flex-col items-center gap-3 py-8 text-center">
-                <div class="w-12 h-12 rounded-2xl flex items-center justify-center"
-                     style="background: color-mix(in srgb, var(--color-brand) 12%, transparent)">
+                <div
+                    class="w-12 h-12 rounded-2xl flex items-center justify-center"
+                    style="background: color-mix(in srgb, var(--color-brand) 12%, transparent)"
+                >
                     <i class="pi pi-inbox text-xl" style="color: var(--color-brand-dim)"></i>
                 </div>
                 <p class="text-sm font-semibold m-0" style="color: var(--color-text-primary)">You don't manage any servers</p>
@@ -47,32 +50,44 @@
         } @else {
             @for (guild of filteredGuilds(); track guild.id) {
                 <button
-                        (click)="selectGuild(guild)"
-                        type="button"
-                        class="flex items-center gap-3 px-2 py-2 rounded-xl text-left transition-colors hover:bg-white/[0.04]"
-                        [class.opacity-70]="guild.installed">
-                    <div class="w-9 h-9 rounded-full overflow-hidden flex items-center justify-center font-semibold text-xs shrink-0"
-                         style="background: color-mix(in srgb, var(--color-brand) 20%, transparent); color: var(--color-brand-dim)">
+                    (click)="selectGuild(guild)"
+                    type="button"
+                    class="flex items-center gap-3 px-2 py-2 rounded-xl text-left transition-colors hover:bg-white/[0.04]"
+                    [class.opacity-70]="guild.installed"
+                >
+                    <div
+                        class="w-9 h-9 rounded-full overflow-hidden flex items-center justify-center font-semibold text-xs shrink-0"
+                        style="background: color-mix(in srgb, var(--color-brand) 20%, transparent); color: var(--color-brand-dim)"
+                    >
                         @if (!iconFailed(guild)) {
-                            <img (error)="onIconError(guild)" [alt]="guild.name" [src]="iconUrl(guild)" class="w-full h-full object-cover"/>
+                            <img
+                                (error)="onIconError(guild)"
+                                [alt]="guild.name"
+                                [src]="iconUrl(guild)"
+                                class="w-full h-full object-cover"
+                            />
                         } @else {
                             {{ initials(guild.name) }}
                         }
                     </div>
                     <span class="flex-1 text-sm truncate" style="color: var(--color-text-primary)">{{ guild.name }}</span>
                     @if (guild.installed) {
-                        <span class="flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-full shrink-0 bg-white/[0.06]" style="color: var(--color-text-muted)">
+                        <span
+                            class="flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-full shrink-0 bg-white/[0.06]"
+                            style="color: var(--color-text-muted)"
+                        >
                             <i class="pi pi-check text-[10px]"></i> Installed
                         </span>
                     } @else {
-                        <span class="text-[11px] font-medium px-2 py-1 rounded-full shrink-0"
-                              style="background: color-mix(in srgb, var(--color-brand) 15%, transparent); color: var(--color-brand-dim)">
+                        <span
+                            class="text-[11px] font-medium px-2 py-1 rounded-full shrink-0"
+                            style="background: color-mix(in srgb, var(--color-brand) 15%, transparent); color: var(--color-brand-dim)"
+                        >
                             Install
                         </span>
                     }
                 </button>
             }
         }
-
     </div>
 </div>

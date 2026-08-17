@@ -22,7 +22,7 @@ import {
     isInviteExpired,
     isInviteRevoked,
     isInviteUsable,
-} from "../../../../../../dtos/response/invite.dto";
+} from '../../../../../../dtos/response/invite.dto';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 
 export type ExpiryPresetId = '30m' | '1h' | '6h' | '12h' | '1d' | '7d' | 'never' | 'custom';
@@ -59,7 +59,19 @@ export function inviteOrigin(apiUrl: string): string {
 /** The guild's join links, `ManageGuild` territory (gated by `GuildSettingsModalComponent`, not locally). `state` is the server's answer and must never be re-derived here (e.g. a local `expiresAt < now` check); the server already computes it, including cases this page can't see. `expiresAt` is still read separately, for the countdown. */
 @Component({
     selector: 'app-invites-settings',
-    imports: [NgClass, Button, Checkbox, InputText, Select, Tooltip, Dialog, PrimeTemplate, TranslateModule, RelativeTimePipe, FormsModule],
+    imports: [
+        NgClass,
+        Button,
+        Checkbox,
+        InputText,
+        Select,
+        Tooltip,
+        Dialog,
+        PrimeTemplate,
+        TranslateModule,
+        RelativeTimePipe,
+        FormsModule,
+    ],
     templateUrl: './invites-settings.component.html',
 })
 export class InvitesSettingsComponent implements OnInit {
@@ -99,19 +111,27 @@ export class InvitesSettingsComponent implements OnInit {
     }
 
     protected readonly expiryPresetOptions = computed(() =>
-        EXPIRY_PRESETS.map(p => ({value: p.id, label: this.translate.instant(p.labelKey)})));
-    protected readonly maxUsesOptions = computed(() => MAX_USES_PRESETS.map(value => ({
-        value,
-        label: value === null
-            ? this.translate.instant('GUILD_SETTINGS.INVITES.MAX_USES_UNLIMITED')
-            : this.translate.instant('GUILD_SETTINGS.INVITES.MAX_USES_N', {count: value}),
-    })));
+        EXPIRY_PRESETS.map(p => ({value: p.id, label: this.translate.instant(p.labelKey)})),
+    );
+    protected readonly maxUsesOptions = computed(() =>
+        MAX_USES_PRESETS.map(value => ({
+            value,
+            label:
+                value === null
+                    ? this.translate.instant('GUILD_SETTINGS.INVITES.MAX_USES_UNLIMITED')
+                    : this.translate.instant('GUILD_SETTINGS.INVITES.MAX_USES_N', {count: value}),
+        })),
+    );
     /** Only channels a joiner can be landed on. A list or a chore board is not somewhere to arrive. */
     protected readonly channelOptions = computed(() => [
         {value: null, label: this.translate.instant('GUILD_SETTINGS.INVITES.CHANNEL_NONE')},
-        ...this.guild().channels
-            .filter(c => c.type === ChannelType.Text || c.type === ChannelType.Voice
-                || c.type === ChannelType.Announcement)
+        ...this.guild()
+            .channels.filter(
+                c =>
+                    c.type === ChannelType.Text ||
+                    c.type === ChannelType.Voice ||
+                    c.type === ChannelType.Announcement,
+            )
             .map(c => ({value: c.id, label: `#${c.name}`})),
     ]);
     /** `0` must be refused rather than falling through to "never expires", with the reason shown next to the field instead of a silent substitution. */
@@ -131,7 +151,8 @@ export class InvitesSettingsComponent implements OnInit {
     readonly createError = computed<string | null>(() => this.expiryError() ?? this.targetError());
     readonly expiredCount = computed(() => this.invites().filter(i => this.isExpired(i)).length);
     readonly visibleInvites = computed(() =>
-        this.hideExpired() ? this.invites().filter(i => !this.isExpired(i)) : this.invites());
+        this.hideExpired() ? this.invites().filter(i => !this.isExpired(i)) : this.invites(),
+    );
     private guildService = inject(GuildService);
     private profileService = inject(ProfileService);
     private toastService = inject(ToastService);
@@ -200,15 +221,20 @@ export class InvitesSettingsComponent implements OnInit {
         this.deletingId.set(invite.id);
         this.guildService.deleteInvite(invite.id).subscribe({
             next: revoked => {
-                this.invites.update(list => this.showRevoked()
-                    ? list.map(i => i.id === invite.id ? (revoked ?? {...i, state: 'Revoked'}) : i)
-                    : list.filter(i => i.id !== invite.id));
+                this.invites.update(list =>
+                    this.showRevoked()
+                        ? list.map(i => (i.id === invite.id ? (revoked ?? {...i, state: 'Revoked'}) : i))
+                        : list.filter(i => i.id !== invite.id),
+                );
                 this.deletingId.set(null);
                 this.closeRevokeDialog();
             },
             error: err => {
                 this.deletingId.set(null);
-                this.toastService.httpError(this.translate.instant('GUILD_SETTINGS.INVITES.REVOKE_ERROR'), err);
+                this.toastService.httpError(
+                    this.translate.instant('GUILD_SETTINGS.INVITES.REVOKE_ERROR'),
+                    err,
+                );
             },
         });
     }
@@ -261,7 +287,11 @@ export class InvitesSettingsComponent implements OnInit {
     /** The same moment with the time of day, for the hover title where "in 3 hours" isn't enough. */
     formatDateTime(d: Date | string): string {
         return new Date(d).toLocaleString(undefined, {
-            month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit',
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit',
         });
     }
 
@@ -269,37 +299,48 @@ export class InvitesSettingsComponent implements OnInit {
         if (this.creatingType() || this.createError()) return;
         this.creatingType.set(type);
         const hours = this.createExpiryHours();
-        const expiresAt = hours !== null
-            ? new Date(Date.now() + hours * 3600_000).toISOString()
-            : undefined;
+        const expiresAt = hours !== null ? new Date(Date.now() + hours * 3600_000).toISOString() : undefined;
         const targetType = this.createTargetType();
-        this.guildService.createInvite({
-            type,
-            expiresAt,
-            // Omitted rather than sent as null: `{}` is exactly today's behaviour, and 0 is refused.
-            maxUses: this.createMaxUses() ?? undefined,
-            channelId: this.createChannelId() ?? undefined,
-            temporary: this.createTemporary() || undefined,
-            targetType: targetType === InviteTargetType.None ? undefined : targetType,
-        }, this.guild().id).subscribe({
-            next: invite => {
-                this.invites.update(list => [invite, ...list]);
-                this.creatingType.set(null);
-                this.flagAsNew(invite);
-                // The point of the button is to get a link to send someone, so hand it over rather than making them find the new row and press Copy.
-                this.writeLink(invite).then(
-                    () => {
-                        this.markCopied(invite);
-                        this.toastService.success(this.translate.instant('GUILD_SETTINGS.INVITES.CREATED_COPIED'));
-                    },
-                    () => this.toastService.error(this.translate.instant('GUILD_SETTINGS.INVITES.CREATED_COPY_ERROR')),
-                );
-            },
-            error: err => {
-                this.creatingType.set(null);
-                this.toastService.httpError(this.translate.instant('GUILD_SETTINGS.INVITES.CREATE_ERROR'), err);
-            },
-        });
+        this.guildService
+            .createInvite(
+                {
+                    type,
+                    expiresAt,
+                    // Omitted rather than sent as null: `{}` is exactly today's behaviour, and 0 is refused.
+                    maxUses: this.createMaxUses() ?? undefined,
+                    channelId: this.createChannelId() ?? undefined,
+                    temporary: this.createTemporary() || undefined,
+                    targetType: targetType === InviteTargetType.None ? undefined : targetType,
+                },
+                this.guild().id,
+            )
+            .subscribe({
+                next: invite => {
+                    this.invites.update(list => [invite, ...list]);
+                    this.creatingType.set(null);
+                    this.flagAsNew(invite);
+                    // The point of the button is to get a link to send someone, so hand it over rather than making them find the new row and press Copy.
+                    this.writeLink(invite).then(
+                        () => {
+                            this.markCopied(invite);
+                            this.toastService.success(
+                                this.translate.instant('GUILD_SETTINGS.INVITES.CREATED_COPIED'),
+                            );
+                        },
+                        () =>
+                            this.toastService.error(
+                                this.translate.instant('GUILD_SETTINGS.INVITES.CREATED_COPY_ERROR'),
+                            ),
+                    );
+                },
+                error: err => {
+                    this.creatingType.set(null);
+                    this.toastService.httpError(
+                        this.translate.instant('GUILD_SETTINGS.INVITES.CREATE_ERROR'),
+                        err,
+                    );
+                },
+            });
     }
 
     private writeLink(invite: InviteDto): Promise<void> {

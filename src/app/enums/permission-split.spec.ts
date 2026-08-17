@@ -1,6 +1,10 @@
 import {describe, expect, it} from 'vitest';
 import {Permissions, parsePermissions, stringifyPermissions} from './permissions.enum';
-import {ModulePermissions, parseModulePermissions, stringifyModulePermissions} from './module-permissions.enum';
+import {
+    ModulePermissions,
+    parseModulePermissions,
+    stringifyModulePermissions,
+} from './module-permissions.enum';
 
 const coreNames = Object.keys(Permissions).filter(k => k !== 'None');
 const moduleNames = Object.keys(ModulePermissions).filter(k => k !== 'None');

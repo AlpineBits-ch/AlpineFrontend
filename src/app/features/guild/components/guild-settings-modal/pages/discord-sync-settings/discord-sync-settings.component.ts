@@ -52,7 +52,10 @@ export class DiscordSyncSettingsComponent implements OnInit {
             },
             error: err => {
                 this.loading.set(false);
-                this.toastService.httpError(this.translate.instant('GUILD_SETTINGS.DISCORD_SYNC.LOAD_ERROR'), err);
+                this.toastService.httpError(
+                    this.translate.instant('GUILD_SETTINGS.DISCORD_SYNC.LOAD_ERROR'),
+                    err,
+                );
             },
         });
     }
@@ -84,15 +87,22 @@ export class DiscordSyncSettingsComponent implements OnInit {
         this.discordImportService.setLinkStatus(link.id, next).subscribe({
             next: () => {
                 // The PATCH answers 204 with an empty body despite the typed Observable; the row must be patched from what we sent, since reading an id off the response throws and leaves the row stuck mid-request.
-                this.links.update(ls => ls.map(l => l.id === link.id ? {...l, status: next} : l));
+                this.links.update(ls => ls.map(l => (l.id === link.id ? {...l, status: next} : l)));
                 this.setBusy(link.id, false);
-                this.toastService.success(this.translate.instant(next === 'Paused'
-                    ? 'GUILD_SETTINGS.DISCORD_SYNC.PAUSE_SUCCESS'
-                    : 'GUILD_SETTINGS.DISCORD_SYNC.RESUME_SUCCESS'));
+                this.toastService.success(
+                    this.translate.instant(
+                        next === 'Paused'
+                            ? 'GUILD_SETTINGS.DISCORD_SYNC.PAUSE_SUCCESS'
+                            : 'GUILD_SETTINGS.DISCORD_SYNC.RESUME_SUCCESS',
+                    ),
+                );
             },
             error: err => {
                 this.setBusy(link.id, false);
-                this.toastService.httpError(this.translate.instant('GUILD_SETTINGS.DISCORD_SYNC.UPDATE_ERROR'), err);
+                this.toastService.httpError(
+                    this.translate.instant('GUILD_SETTINGS.DISCORD_SYNC.UPDATE_ERROR'),
+                    err,
+                );
             },
         });
     }
@@ -112,11 +122,16 @@ export class DiscordSyncSettingsComponent implements OnInit {
                 this.setBusy(link.id, false);
                 this.showUnlinkDialog.set(false);
                 this.unlinkTarget.set(null);
-                this.toastService.success(this.translate.instant('GUILD_SETTINGS.DISCORD_SYNC.UNLINK_SUCCESS'));
+                this.toastService.success(
+                    this.translate.instant('GUILD_SETTINGS.DISCORD_SYNC.UNLINK_SUCCESS'),
+                );
             },
             error: err => {
                 this.setBusy(link.id, false);
-                this.toastService.httpError(this.translate.instant('GUILD_SETTINGS.DISCORD_SYNC.UNLINK_ERROR'), err);
+                this.toastService.httpError(
+                    this.translate.instant('GUILD_SETTINGS.DISCORD_SYNC.UNLINK_ERROR'),
+                    err,
+                );
             },
         });
     }
@@ -129,11 +144,16 @@ export class DiscordSyncSettingsComponent implements OnInit {
             next: () => {
                 this.links.update(ls => ls.filter(l => l.id !== link.id));
                 this.setBusy(link.id, false);
-                this.toastService.success(this.translate.instant('GUILD_SETTINGS.DISCORD_SYNC.REMOVE_SUCCESS'));
+                this.toastService.success(
+                    this.translate.instant('GUILD_SETTINGS.DISCORD_SYNC.REMOVE_SUCCESS'),
+                );
             },
             error: err => {
                 this.setBusy(link.id, false);
-                this.toastService.httpError(this.translate.instant('GUILD_SETTINGS.DISCORD_SYNC.REMOVE_ERROR'), err);
+                this.toastService.httpError(
+                    this.translate.instant('GUILD_SETTINGS.DISCORD_SYNC.REMOVE_ERROR'),
+                    err,
+                );
             },
         });
     }

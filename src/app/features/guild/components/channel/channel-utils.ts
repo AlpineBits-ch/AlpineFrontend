@@ -2,9 +2,11 @@ import {HttpErrorResponse} from '@angular/common/http';
 import {ChannelDto, ChannelType, isForumLike} from '../../../../dtos/response/guild.dto';
 
 /** Classifies a send failure as an auto-mod refusal: only a 403 with body `{ error: 'automod_blocked', reason: ... }` counts; everything else (including other 403s) yields `null`. */
-export function classifyAutoModError(err: HttpErrorResponse | null | undefined): 'blocked_word' | 'rate_limited' | null {
+export function classifyAutoModError(
+    err: HttpErrorResponse | null | undefined,
+): 'blocked_word' | 'rate_limited' | null {
     if (!err || err.status !== 403) return null;
-    const body = err.error as { error?: string; reason?: string } | null;
+    const body = err.error as {error?: string; reason?: string} | null;
     if (body?.error !== 'automod_blocked') return null;
     return body.reason === 'rate_limited' ? 'rate_limited' : 'blocked_word';
 }
@@ -28,10 +30,7 @@ export function mayPostCleartext(
 }
 
 /** The forum a post belongs to, or null if this channel isn't a forum post; a dangling parentChannelId returns null rather than throwing, since both callers run during render of the main view. */
-export function forumParentOf(
-    channel: ChannelDto,
-    channels: readonly ChannelDto[],
-): ChannelDto | null {
+export function forumParentOf(channel: ChannelDto, channels: readonly ChannelDto[]): ChannelDto | null {
     if (channel.type !== ChannelType.Thread) return null;
     const parentId = channel.parentChannelId;
     if (!parentId) return null;

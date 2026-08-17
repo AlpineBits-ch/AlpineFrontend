@@ -54,8 +54,13 @@ describe('DiscordImportService', () => {
         expect(req.request.method).toBe('PATCH');
         expect(req.request.body).toEqual({status: 'Paused'});
         req.flush({
-            id: 'link1', guildId: 'g1', discordGuildId: 'd1', discordGuildName: 'D',
-            status: 'Paused', syncDirection: 'DiscordToVenta', createdAt: '2026-01-01T00:00:00Z',
+            id: 'link1',
+            guildId: 'g1',
+            discordGuildId: 'd1',
+            discordGuildName: 'D',
+            status: 'Paused',
+            syncDirection: 'DiscordToVenta',
+            createdAt: '2026-01-01T00:00:00Z',
         });
     });
 

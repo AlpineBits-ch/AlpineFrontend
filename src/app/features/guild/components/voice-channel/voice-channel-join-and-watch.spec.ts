@@ -52,7 +52,12 @@ function render(joinChannel: ReturnType<typeof vi.fn>): ComponentFixture<VoiceCh
                     channelParticipants: signal(new Map([[CHANNEL.id, [STREAMER]]])),
                     participantsWithAudio: signal(new Set<string>()),
                     rtcState: signal('idle'),
-                    localState: signal({isMuted: false, isDeafened: false, isCameraOn: false, isScreenSharing: false}),
+                    localState: signal({
+                        isMuted: false,
+                        isDeafened: false,
+                        isCameraOn: false,
+                        isScreenSharing: false,
+                    }),
                     localVideoStream: signal(null),
                     localScreenStream: signal(null),
                     localScreenHasAudio: signal(false),
@@ -98,7 +103,10 @@ function render(joinChannel: ReturnType<typeof vi.fn>): ComponentFixture<VoiceCh
             {provide: GuildService, useValue: {getOwnMember: () => of(null)}},
             {provide: OwnMemberRevisionService, useValue: {revision: signal(0)}},
             {provide: GuildVoiceService, useValue: {}},
-            {provide: ProfileService, useValue: {getCachedByUserId: () => undefined, resolveByUserId: () => void 0}},
+            {
+                provide: ProfileService,
+                useValue: {getCachedByUserId: () => undefined, resolveByUserId: () => void 0},
+            },
         ],
     });
 
@@ -109,8 +117,9 @@ function render(joinChannel: ReturnType<typeof vi.fn>): ComponentFixture<VoiceCh
 }
 
 function joinAndWatchButton(fixture: ComponentFixture<VoiceChannelComponent>): HTMLButtonElement {
-    return Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
-        .find(b => b.textContent?.includes('CALL.JOIN_AND_WATCH'))!;
+    return Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>).find(
+        b => b.textContent?.includes('CALL.JOIN_AND_WATCH'),
+    )!;
 }
 
 describe('VoiceChannelComponent join-and-watch', () => {
@@ -133,8 +142,9 @@ describe('VoiceChannelComponent join-and-watch', () => {
         const fixture = render(joinChannel);
         const requestSpy = vi.spyOn(TestBed.inject(CallFocusService), 'request');
 
-        const plainButton = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
-            .find(b => b.textContent?.includes('CALL.JOIN_VOICE'))!;
+        const plainButton = Array.from(
+            fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>,
+        ).find(b => b.textContent?.includes('CALL.JOIN_VOICE'))!;
         plainButton.click();
         await vi.waitFor(() => expect(joinChannel).toHaveBeenCalledWith(CHANNEL, 'My Guild'));
 

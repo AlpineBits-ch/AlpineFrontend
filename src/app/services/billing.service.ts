@@ -44,9 +44,7 @@ export const BILLING_ERROR_CODES = {
     stripeError: 'stripe_error',
 } as const;
 
-export type BillingErrorCode =
-    | typeof BILLING_ERROR_CODES[keyof typeof BILLING_ERROR_CODES]
-    | (string & {});
+export type BillingErrorCode = (typeof BILLING_ERROR_CODES)[keyof typeof BILLING_ERROR_CODES] | (string & {});
 
 /**
  * A billing refusal, read out of `application/problem+json` without losing the response it came in.
@@ -119,7 +117,7 @@ function problemBody(raw: unknown): ProblemBody | null {
             return null;
         }
     }
-    return raw && typeof raw === 'object' ? raw as ProblemBody : null;
+    return raw && typeof raw === 'object' ? (raw as ProblemBody) : null;
 }
 
 function firstString(...candidates: unknown[]): string | null {
@@ -154,8 +152,7 @@ export class BillingService {
 
     /** What is for sale, and whether anything is. Half of the two gates on any purchasing UI. */
     getCatalogue(): Observable<BillingCatalogueDto> {
-        return this.http.get<BillingCatalogueDto>(
-            `${this.apiConfig.baseUrl()}/api/v1/billing/catalogue`);
+        return this.http.get<BillingCatalogueDto>(`${this.apiConfig.baseUrl()}/api/v1/billing/catalogue`);
     }
 
     /**
@@ -166,19 +163,21 @@ export class BillingService {
      */
     createSubscription(request: CreateSubscriptionRequest): Observable<CreateSubscriptionResponseDto> {
         return this.http.post<CreateSubscriptionResponseDto>(
-            `${this.apiConfig.baseUrl()}/api/v1/billing/subscriptions`, request);
+            `${this.apiConfig.baseUrl()}/api/v1/billing/subscriptions`,
+            request,
+        );
     }
 
     /** Everything the caller pays for, plus everything on guilds where they hold `ManageGuild`. */
     listSubscriptions(): Observable<SubscriptionDto[]> {
-        return this.http.get<SubscriptionDto[]>(
-            `${this.apiConfig.baseUrl()}/api/v1/billing/subscriptions`);
+        return this.http.get<SubscriptionDto[]>(`${this.apiConfig.baseUrl()}/api/v1/billing/subscriptions`);
     }
 
     /** One subscription. This is also the poll after a confirmed payment. */
     getSubscription(subscriptionId: string): Observable<SubscriptionDto> {
         return this.http.get<SubscriptionDto>(
-            `${this.apiConfig.baseUrl()}/api/v1/billing/subscriptions/${subscriptionId}`);
+            `${this.apiConfig.baseUrl()}/api/v1/billing/subscriptions/${subscriptionId}`,
+        );
     }
 
     /**
@@ -190,13 +189,17 @@ export class BillingService {
      */
     cancelSubscription(subscriptionId: string): Observable<SubscriptionDto> {
         return this.http.post<SubscriptionDto>(
-            `${this.apiConfig.baseUrl()}/api/v1/billing/subscriptions/${subscriptionId}/cancel`, {});
+            `${this.apiConfig.baseUrl()}/api/v1/billing/subscriptions/${subscriptionId}/cancel`,
+            {},
+        );
     }
 
     /** Clears a pending cancellation. Valid only while the subscription has not yet lapsed. */
     resumeSubscription(subscriptionId: string): Observable<SubscriptionDto> {
         return this.http.post<SubscriptionDto>(
-            `${this.apiConfig.baseUrl()}/api/v1/billing/subscriptions/${subscriptionId}/resume`, {});
+            `${this.apiConfig.baseUrl()}/api/v1/billing/subscriptions/${subscriptionId}/resume`,
+            {},
+        );
     }
 
     /**
@@ -208,32 +211,38 @@ export class BillingService {
     previewChange(subscriptionId: string, request: ChangePlanRequest): Observable<ChangePreviewDto> {
         return this.http.post<ChangePreviewDto>(
             `${this.apiConfig.baseUrl()}/api/v1/billing/subscriptions/${subscriptionId}/preview-change`,
-            request);
+            request,
+        );
     }
 
     /** Applies the change previewed above, with the same body. */
     changePlan(subscriptionId: string, request: ChangePlanRequest): Observable<SubscriptionDto> {
         return this.http.post<SubscriptionDto>(
             `${this.apiConfig.baseUrl()}/api/v1/billing/subscriptions/${subscriptionId}/change`,
-            request);
+            request,
+        );
     }
 
     /** Brand, last four and expiry. That is the whole of the card data on our side. */
     listPaymentMethods(): Observable<PaymentMethodDto[]> {
         return this.http.get<PaymentMethodDto[]>(
-            `${this.apiConfig.baseUrl()}/api/v1/billing/payment-methods`);
+            `${this.apiConfig.baseUrl()}/api/v1/billing/payment-methods`,
+        );
     }
 
     /** The client secret for adding a card outside a purchase, via the same Payment Element. */
     createSetupIntent(): Observable<SetupIntentDto> {
         return this.http.post<SetupIntentDto>(
-            `${this.apiConfig.baseUrl()}/api/v1/billing/payment-methods/setup-intent`, {});
+            `${this.apiConfig.baseUrl()}/api/v1/billing/payment-methods/setup-intent`,
+            {},
+        );
     }
 
     setDefaultPaymentMethod(paymentMethodId: string): Observable<void> {
         return this.http.post<void>(
             `${this.apiConfig.baseUrl()}/api/v1/billing/payment-methods/${paymentMethodId}/default`,
-            {});
+            {},
+        );
     }
 
     /**
@@ -245,12 +254,12 @@ export class BillingService {
      */
     deletePaymentMethod(paymentMethodId: string): Observable<void> {
         return this.http.delete<void>(
-            `${this.apiConfig.baseUrl()}/api/v1/billing/payment-methods/${paymentMethodId}`);
+            `${this.apiConfig.baseUrl()}/api/v1/billing/payment-methods/${paymentMethodId}`,
+        );
     }
 
     /** Receipts. Both URLs on an invoice are opened externally; we do not render invoices. */
     listInvoices(): Observable<InvoiceDto[]> {
-        return this.http.get<InvoiceDto[]>(
-            `${this.apiConfig.baseUrl()}/api/v1/billing/invoices`);
+        return this.http.get<InvoiceDto[]>(`${this.apiConfig.baseUrl()}/api/v1/billing/invoices`);
     }
 }

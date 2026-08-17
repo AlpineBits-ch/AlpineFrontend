@@ -13,7 +13,12 @@ import {ChannelListDragService} from '../../channel-list-drag.service';
 import {ProfileService} from '../../../../../../services/profile.service';
 import {provideFakePlatform} from '../../../../../../platform/testing/provide-fake-platform';
 
-const CHANNEL = {id: 'chan-1', guildId: 'guild-1', name: 'General', type: ChannelType.Voice} as unknown as ChannelDto;
+const CHANNEL = {
+    id: 'chan-1',
+    guildId: 'guild-1',
+    name: 'General',
+    type: ChannelType.Voice,
+} as unknown as ChannelDto;
 
 function participant(overrides: Partial<VoiceChannelParticipant> = {}): VoiceChannelParticipant {
     return {
@@ -50,8 +55,18 @@ function render(
             {provide: ScheduledEventStore, useValue: {eventsForGuild: () => []}},
             {provide: MinuteClockService, useValue: {retain: () => void 0, now: () => new Date()}},
             // Drag/drop plumbing is irrelevant to watch forwarding; only its DI token needs satisfying, since the component injects it directly rather than through providers.
-            {provide: ChannelListDragService, useValue: {onDragEnd: () => void 0, onItemDragOver: () => void 0, onChannelDragStart: () => void 0}},
-            {provide: ProfileService, useValue: {getCachedByUserId: () => undefined, resolveByUserId: () => void 0}},
+            {
+                provide: ChannelListDragService,
+                useValue: {
+                    onDragEnd: () => void 0,
+                    onItemDragOver: () => void 0,
+                    onChannelDragStart: () => void 0,
+                },
+            },
+            {
+                provide: ProfileService,
+                useValue: {getCachedByUserId: () => undefined, resolveByUserId: () => void 0},
+            },
         ],
     });
     const fixture = TestBed.createComponent(VoiceChannelItemComponent);
@@ -65,7 +80,7 @@ describe('VoiceChannelItemComponent watch forwarding', () => {
     it('forwards the participant row watch click as {userId}', () => {
         const fixture = render([participant({userId: 'streamer-1'})]);
         let received: {userId: string} | null = null;
-        fixture.componentInstance.watch.subscribe(e => received = e);
+        fixture.componentInstance.watch.subscribe(e => (received = e));
 
         const badge = fixture.nativeElement.querySelector(
             '[data-testid="voice-participant"] button',
@@ -78,7 +93,7 @@ describe('VoiceChannelItemComponent watch forwarding', () => {
     it('does not also fire open when the watch badge is clicked', () => {
         const fixture = render([participant({userId: 'streamer-1'})]);
         let opened = false;
-        fixture.componentInstance.open.subscribe(() => opened = true);
+        fixture.componentInstance.open.subscribe(() => (opened = true));
 
         const badge = fixture.nativeElement.querySelector(
             '[data-testid="voice-participant"] button',

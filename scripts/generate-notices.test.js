@@ -46,20 +46,27 @@ test('AND keeps every conjunct, because both obligations are owed', () => {
 test('a wholly parenthesised expression still splits on AND', () => {
     // @bufbuild/protobuf declares `(Apache-2.0 AND BSD-3-Clause)`. Splitting before stripping the
     // outer parens left the AND at depth 1, so the whole string was taken for one licence id.
-    assert.deepStrictEqual(
-        parseExpression('(Apache-2.0 AND BSD-3-Clause)'), [['Apache-2.0'], ['BSD-3-Clause']]);
-    assert.deepStrictEqual(
-        resolveExpression('(Apache-2.0 AND BSD-3-Clause)'), ['Apache-2.0', 'BSD-3-Clause']);
+    assert.deepStrictEqual(parseExpression('(Apache-2.0 AND BSD-3-Clause)'), [
+        ['Apache-2.0'],
+        ['BSD-3-Clause'],
+    ]);
+    assert.deepStrictEqual(resolveExpression('(Apache-2.0 AND BSD-3-Clause)'), [
+        'Apache-2.0',
+        'BSD-3-Clause',
+    ]);
 });
 
 test('adjacent paren groups are not mistaken for one enclosing pair', () => {
     // `(...)` at both ends without being a single pair: stripping them blindly would splice the
     // two groups into one malformed alternative.
-    assert.deepStrictEqual(
-        parseExpression('(MIT OR Apache-2.0) AND (BSD-3-Clause OR ISC)'),
-        [['MIT', 'Apache-2.0'], ['BSD-3-Clause', 'ISC']]);
-    assert.deepStrictEqual(
-        resolveExpression('(MIT OR Apache-2.0) AND (BSD-3-Clause OR ISC)'), ['MIT', 'ISC']);
+    assert.deepStrictEqual(parseExpression('(MIT OR Apache-2.0) AND (BSD-3-Clause OR ISC)'), [
+        ['MIT', 'Apache-2.0'],
+        ['BSD-3-Clause', 'ISC'],
+    ]);
+    assert.deepStrictEqual(resolveExpression('(MIT OR Apache-2.0) AND (BSD-3-Clause OR ISC)'), [
+        'MIT',
+        'ISC',
+    ]);
     assert.deepStrictEqual(resolveExpression('(Zlib) OR (MIT)'), ['MIT']);
 });
 
@@ -76,7 +83,9 @@ test('an unrecognised sole licence is kept rather than dropped', () => {
 
 test('WITH exceptions resolve against the base licence', () => {
     assert.strictEqual(baseId('Apache-2.0 WITH LLVM-exception'), 'Apache-2.0');
-    assert.deepStrictEqual(resolveExpression('Apache-2.0 WITH LLVM-exception'), ['Apache-2.0 WITH LLVM-exception']);
+    assert.deepStrictEqual(resolveExpression('Apache-2.0 WITH LLVM-exception'), [
+        'Apache-2.0 WITH LLVM-exception',
+    ]);
 });
 
 // ── Canonical body matching ──────────────────────────────────────────────────
@@ -94,7 +103,8 @@ test('reflowed text still matches, since packages wrap licences differently', ()
 });
 
 test('an added clause is never dropped — it is kept or the file falls back to verbatim', () => {
-    const clause = 'ADDITIONAL TERM: you must also send the author a postcard from wherever you ' +
+    const clause =
+        'ADDITIONAL TERM: you must also send the author a postcard from wherever you ' +
         'deploy this, and may not use it in any product whose name begins with the letter Q.';
     const file = `Copyright (c) 2019 Some Person\n\n${INLINE_TEXTS.MIT}\n\n${clause}`;
 
@@ -106,8 +116,11 @@ test('an added clause is never dropped — it is kept or the file falls back to 
 });
 
 test('a wall of extra terms falls back to verbatim rather than to a reference', () => {
-    const wall = Array.from({length: 12}, (_, i) =>
-        `${i + 1}. A further condition of some length that the licensee is required to observe in full.`).join('\n');
+    const wall = Array.from(
+        {length: 12},
+        (_, i) =>
+            `${i + 1}. A further condition of some length that the licensee is required to observe in full.`,
+    ).join('\n');
     const file = `Copyright (c) 2019 Some Person\n\n${INLINE_TEXTS.MIT}\n\n${wall}`;
     assert.strictEqual(matchCanonicalBody(file, INLINE_TEXTS.MIT), null);
 });
@@ -136,13 +149,20 @@ test('headings demote outside fenced blocks but not inside them', () => {
     const input = ['# Title', '```', '# not a heading', '```', '## Sub'].join('\n');
     assert.strictEqual(
         demoteHeadings(input),
-        ['### Title', '```', '# not a heading', '```', '#### Sub'].join('\n'));
+        ['### Title', '```', '# not a heading', '```', '#### Sub'].join('\n'),
+    );
 });
 
 // ── Rust collection ──────────────────────────────────────────────────────────
 
 test('workspace members are not third parties, but what they pull in still is', () => {
-    const pkg = name => ({id: name, name, version: '1.0.0', license: 'MIT', manifest_path: `/${name}/Cargo.toml`});
+    const pkg = name => ({
+        id: name,
+        name,
+        version: '1.0.0',
+        license: 'MIT',
+        manifest_path: `/${name}/Cargo.toml`,
+    });
     const edge = pkg => ({pkg, dep_kinds: [{kind: null}]});
     const closure = rustClosure({
         workspace_members: ['app', 'own-crate'],
@@ -156,7 +176,10 @@ test('workspace members are not third parties, but what they pull in still is', 
             ],
         },
     });
-    assert.deepStrictEqual(closure.map(p => p.name), ['vendored']);
+    assert.deepStrictEqual(
+        closure.map(p => p.name),
+        ['vendored'],
+    );
 });
 
 // ── npm collection ───────────────────────────────────────────────────────────
@@ -203,10 +226,10 @@ test('distinct versions of one package are still listed separately', () => {
         {name: 'universalify', version: '0.1.2', dir: '/b/node_modules/universalify'},
         {name: 'universalify', version: '0.2.0', dir: '/c'},
     ]);
-    assert.deepStrictEqual(packages.map(p => `${p.name}@${p.version}`), [
-        'universalify@0.1.2',
-        'universalify@0.2.0',
-    ]);
+    assert.deepStrictEqual(
+        packages.map(p => `${p.name}@${p.version}`),
+        ['universalify@0.1.2', 'universalify@0.2.0'],
+    );
     assert.strictEqual(packages[0].dir, '/a', 'the first copy found wins');
 });
 
@@ -225,6 +248,13 @@ test('a package with no licence and no file is an error, not an omission', () =>
 });
 
 test('a licence with no available text is an error, not an omission', () => {
-    const entry = {name: 'mystery', version: '1.0.0', license: 'Nonexistent-9.9', authors: [], repository: '', files: []};
+    const entry = {
+        name: 'mystery',
+        version: '1.0.0',
+        license: 'Nonexistent-9.9',
+        authors: [],
+        repository: '',
+        files: [],
+    };
     assert.match(noticeFor(entry, {}, []).error, /no text available/);
 });

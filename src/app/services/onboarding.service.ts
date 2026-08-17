@@ -97,10 +97,12 @@ export class OnboardingService {
         this.submitting.set(true);
         this.error.set(false);
         try {
-            const state = await firstValueFrom(this.http.put<OnboardingStateDto>(
-                `${this.apiConfig.baseUrl()}/api/v1/identity/users/self/onboarding`,
-                {interests},
-            ));
+            const state = await firstValueFrom(
+                this.http.put<OnboardingStateDto>(
+                    `${this.apiConfig.baseUrl()}/api/v1/identity/users/self/onboarding`,
+                    {interests},
+                ),
+            );
             this.patchSelf(state);
             this.visible.set(false);
             if (fromPicker) this.pickerAnswered.next();

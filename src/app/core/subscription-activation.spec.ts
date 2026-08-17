@@ -41,7 +41,8 @@ describe('awaitActivation - the webhook lands', () => {
     });
 
     it('keeps polling through the pending state until the webhook arrives', async () => {
-        const read = vi.fn()
+        const read = vi
+            .fn()
             .mockResolvedValueOnce(subscription('incomplete'))
             .mockResolvedValueOnce(subscription('incomplete'))
             .mockResolvedValue(subscription('trialing'));
@@ -94,7 +95,8 @@ describe('awaitActivation - running out of patience', () => {
 
     /** A dropped connection says nothing about whether the money moved. It is not a failure. */
     it('retries a read that threw instead of calling the purchase off', async () => {
-        const read = vi.fn()
+        const read = vi
+            .fn()
             .mockRejectedValueOnce(new Error('offline'))
             .mockResolvedValue(subscription('active'));
 

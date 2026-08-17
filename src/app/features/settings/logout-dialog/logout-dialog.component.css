@@ -98,15 +98,17 @@
 .lo-icon-ring--brand {
     background: color-mix(in srgb, var(--color-brand-dark) 28%, transparent);
     border: 1px solid color-mix(in srgb, var(--color-brand) 32%, transparent);
-    box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-brand) 10%, transparent),
-    0 0 24px color-mix(in srgb, var(--color-brand) 18%, transparent);
+    box-shadow:
+        0 0 0 4px color-mix(in srgb, var(--color-brand) 10%, transparent),
+        0 0 24px color-mix(in srgb, var(--color-brand) 18%, transparent);
 }
 
 .lo-icon-ring--warn {
     background: color-mix(in srgb, var(--color-connecting) 15%, transparent);
     border: 1px solid color-mix(in srgb, var(--color-connecting) 30%, transparent);
-    box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-connecting) 8%, transparent),
-    0 0 24px color-mix(in srgb, var(--color-connecting) 18%, transparent);
+    box-shadow:
+        0 0 0 4px color-mix(in srgb, var(--color-connecting) 8%, transparent),
+        0 0 24px color-mix(in srgb, var(--color-connecting) 18%, transparent);
 }
 
 .lo-spinner-ring {

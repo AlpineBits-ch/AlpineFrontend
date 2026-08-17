@@ -98,8 +98,7 @@ describe('canPostWithoutAmount', () => {
 
 describe('recurringExpenseError', () => {
     it('refuses auto-post on a bill whose amount varies', () => {
-        expect(recurringExpenseError({amountMinor: null, autoPost: true}))
-            .toBe('auto-post-needs-amount');
+        expect(recurringExpenseError({amountMinor: null, autoPost: true})).toBe('auto-post-needs-amount');
     });
 
     it('allows auto-post with a fixed amount, and a varying bill that does not auto-post', () => {
@@ -155,12 +154,14 @@ describe('normalizeRecurringExpense', () => {
     });
 
     it('collapses ordinal enums and survives an absent shares array', () => {
-        const normalized = normalizeRecurringExpense(schedule({
-            splitKind: 1 as unknown as ExpenseSplitKind,
-            category: 2 as unknown as ExpenseCategory,
-            recurrenceUnit: 0 as unknown as RecurrenceUnit,
-            shares: undefined as unknown as [],
-        }));
+        const normalized = normalizeRecurringExpense(
+            schedule({
+                splitKind: 1 as unknown as ExpenseSplitKind,
+                category: 2 as unknown as ExpenseCategory,
+                recurrenceUnit: 0 as unknown as RecurrenceUnit,
+                shares: undefined as unknown as [],
+            }),
+        );
 
         expect(normalized.splitKind).toBe(ExpenseSplitKind.Shares);
         expect(normalized.category).toBe(ExpenseCategory.Rent);

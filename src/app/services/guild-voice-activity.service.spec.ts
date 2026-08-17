@@ -16,13 +16,15 @@ function activity(overrides: Partial<GuildVoiceActivityDto> = {}): GuildVoiceAct
         guildId: GUILD,
         participantCount: 1,
         hasStream: false,
-        channels: [{
-            channelId: CHANNEL,
-            participantCount: 1,
-            userIds: ['user-1'],
-            hasStream: false,
-            streamerIds: [],
-        }],
+        channels: [
+            {
+                channelId: CHANNEL,
+                participantCount: 1,
+                userIds: ['user-1'],
+                hasStream: false,
+                streamerIds: [],
+            },
+        ],
         ...overrides,
     };
 }
@@ -31,13 +33,17 @@ function setup(options: {snapshot?: GuildVoiceActivityDto[]; fails?: boolean} = 
     const ws = {
         userJoinedVoiceObservable: new Subject<{userId: string; channelId: string; guildId: string}>(),
         userLeftVoiceObservable: new Subject<{userId: string; channelId: string; guildId: string}>(),
-        voiceScreenShareStartedObservable: new Subject<{userId: string; shareId: string; channelId: string}>(),
+        voiceScreenShareStartedObservable: new Subject<{
+            userId: string;
+            shareId: string;
+            channelId: string;
+        }>(),
         voiceScreenShareStoppedObservable: new Subject<{shareId: string; channelId: string}>(),
     };
     const guildVoice = {
-        getVoiceActivity: vi.fn(() => options.fails
-            ? throwError(() => new Error('offline'))
-            : of(options.snapshot ?? [])),
+        getVoiceActivity: vi.fn(() =>
+            options.fails ? throwError(() => new Error('offline')) : of(options.snapshot ?? []),
+        ),
     };
     const connectionState = signal(ConnectionState.Disconnected);
 
@@ -79,12 +85,26 @@ describe('GuildVoiceActivityService', () => {
 
     it('sums participants across the channels of a guild', () => {
         const {service, connectionState} = setup({
-            snapshot: [activity({
-                channels: [
-                    {channelId: 'c1', participantCount: 2, userIds: ['a', 'b'], hasStream: false, streamerIds: []},
-                    {channelId: 'c2', participantCount: 1, userIds: ['c'], hasStream: false, streamerIds: []},
-                ],
-            })],
+            snapshot: [
+                activity({
+                    channels: [
+                        {
+                            channelId: 'c1',
+                            participantCount: 2,
+                            userIds: ['a', 'b'],
+                            hasStream: false,
+                            streamerIds: [],
+                        },
+                        {
+                            channelId: 'c2',
+                            participantCount: 1,
+                            userIds: ['c'],
+                            hasStream: false,
+                            streamerIds: [],
+                        },
+                    ],
+                }),
+            ],
         });
 
         connect(connectionState);
@@ -94,12 +114,19 @@ describe('GuildVoiceActivityService', () => {
 
     it('reports a live stream anywhere in the guild', () => {
         const {service, connectionState} = setup({
-            snapshot: [activity({
-                channels: [{
-                    channelId: CHANNEL, participantCount: 1, userIds: ['a'],
-                    hasStream: true, streamerIds: ['a'],
-                }],
-            })],
+            snapshot: [
+                activity({
+                    channels: [
+                        {
+                            channelId: CHANNEL,
+                            participantCount: 1,
+                            userIds: ['a'],
+                            hasStream: true,
+                            streamerIds: ['a'],
+                        },
+                    ],
+                }),
+            ],
         });
 
         connect(connectionState);
@@ -176,12 +203,19 @@ describe('GuildVoiceActivityService', () => {
     it('clears the marker when the streamer leaves without stopping', () => {
         // Closing the app mid-share produces a leave and no stop, so the marker must clear on the leave.
         const {service, ws, connectionState} = setup({
-            snapshot: [activity({
-                channels: [{
-                    channelId: CHANNEL, participantCount: 2, userIds: ['user-1', 'user-2'],
-                    hasStream: true, streamerIds: ['user-1'],
-                }],
-            })],
+            snapshot: [
+                activity({
+                    channels: [
+                        {
+                            channelId: CHANNEL,
+                            participantCount: 2,
+                            userIds: ['user-1', 'user-2'],
+                            hasStream: true,
+                            streamerIds: ['user-1'],
+                        },
+                    ],
+                }),
+            ],
         });
         connect(connectionState);
 
@@ -206,12 +240,19 @@ describe('GuildVoiceActivityService', () => {
 
     it('keeps the marker lit when one of two streamers in a channel stops', () => {
         const {service, ws, connectionState} = setup({
-            snapshot: [activity({
-                channels: [{
-                    channelId: CHANNEL, participantCount: 2, userIds: ['user-1', 'user-2'],
-                    hasStream: false, streamerIds: [],
-                }],
-            })],
+            snapshot: [
+                activity({
+                    channels: [
+                        {
+                            channelId: CHANNEL,
+                            participantCount: 2,
+                            userIds: ['user-1', 'user-2'],
+                            hasStream: false,
+                            streamerIds: [],
+                        },
+                    ],
+                }),
+            ],
         });
         connect(connectionState);
 
@@ -230,12 +271,19 @@ describe('GuildVoiceActivityService', () => {
 
     it('is a no-op for a stop naming a share nobody saw start', () => {
         const {service, ws, connectionState} = setup({
-            snapshot: [activity({
-                channels: [{
-                    channelId: CHANNEL, participantCount: 1, userIds: ['user-1'],
-                    hasStream: true, streamerIds: ['user-1'],
-                }],
-            })],
+            snapshot: [
+                activity({
+                    channels: [
+                        {
+                            channelId: CHANNEL,
+                            participantCount: 1,
+                            userIds: ['user-1'],
+                            hasStream: true,
+                            streamerIds: ['user-1'],
+                        },
+                    ],
+                }),
+            ],
         });
         connect(connectionState);
 
@@ -283,12 +331,19 @@ describe('GuildVoiceActivityService', () => {
 
         it('does not fire for a stream already live in the loaded snapshot', () => {
             const {service, connectionState} = setup({
-                snapshot: [activity({
-                    channels: [{
-                        channelId: CHANNEL, participantCount: 1, userIds: ['user-1'],
-                        hasStream: true, streamerIds: ['user-1'],
-                    }],
-                })],
+                snapshot: [
+                    activity({
+                        channels: [
+                            {
+                                channelId: CHANNEL,
+                                participantCount: 1,
+                                userIds: ['user-1'],
+                                hasStream: true,
+                                streamerIds: ['user-1'],
+                            },
+                        ],
+                    }),
+                ],
             });
 
             const seen: unknown[] = [];

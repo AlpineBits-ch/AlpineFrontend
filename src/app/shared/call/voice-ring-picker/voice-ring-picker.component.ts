@@ -85,11 +85,9 @@ export class VoiceRingPickerComponent {
     });
 
     /** The invitation currently out from this channel, if any - so the button shows its countdown. */
-    protected readonly pending = computed(() =>
-        this.ringState.outgoingFor(this.guildId(), this.channelId()));
+    protected readonly pending = computed(() => this.ringState.outgoingFor(this.guildId(), this.channelId()));
 
-    protected readonly refusal = computed(() =>
-        this.ringState.refusalFor(this.guildId(), this.channelId()));
+    protected readonly refusal = computed(() => this.ringState.refusalFor(this.guildId(), this.channelId()));
 
     private readonly guildService = inject(GuildService);
     private readonly profileService = inject(ProfileService);
@@ -123,7 +121,8 @@ export class VoiceRingPickerComponent {
         this.inviting.set(candidate.userId);
         this.inviteRefusal.set(null);
 
-        this.rings.invite(this.guildId(), this.channelId(), candidate.userId)
+        this.rings
+            .invite(this.guildId(), this.channelId(), candidate.userId)
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe({
                 next: () => {
@@ -136,9 +135,10 @@ export class VoiceRingPickerComponent {
                     // saying plainly. Anything else is ours to be vague about.
                     this.inviteRefusal.set({
                         userId: candidate.userId,
-                        messageKey: (err?.error as VoiceRingRefusalDto | null)?.reason === 'RecipientPolicy'
-                            ? 'VOICE_RING.INVITE_REFUSED'
-                            : 'VOICE_RING.INVITE_FAILED',
+                        messageKey:
+                            (err?.error as VoiceRingRefusalDto | null)?.reason === 'RecipientPolicy'
+                                ? 'VOICE_RING.INVITE_REFUSED'
+                                : 'VOICE_RING.INVITE_FAILED',
                     });
                 },
             });
@@ -169,21 +169,27 @@ export class VoiceRingPickerComponent {
         forkJoin({
             // A failed viewer read is not a reason to offer everybody: it collapses to an empty
             // list, which shows the empty state rather than a roster the server would refuse.
-            viewers: this.guildService.getChannelViewers(this.channelId())
+            viewers: this.guildService
+                .getChannelViewers(this.channelId())
                 .pipe(catchError(() => of([] as string[]))),
-            members: this.guildService.getMembers(this.guildId(), 0, 200)
+            members: this.guildService
+                .getMembers(this.guildId(), 0, 200)
                 .pipe(catchError(() => of([] as GuildMemberDto[]))),
-        }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe(({viewers, members}) => {
-            const canSee = new Set(viewers);
-            this.candidates.set(members
-                .filter(m => canSee.has(m.userId))
-                .map(m => ({
-                    userId: m.userId,
-                    name: m.nickname || m.profile?.userName || m.userId,
-                    member: m,
-                }))
-                .sort((a, b) => a.name.localeCompare(b.name)));
-            this.loading.set(false);
-        });
+        })
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe(({viewers, members}) => {
+                const canSee = new Set(viewers);
+                this.candidates.set(
+                    members
+                        .filter(m => canSee.has(m.userId))
+                        .map(m => ({
+                            userId: m.userId,
+                            name: m.nickname || m.profile?.userName || m.userId,
+                            member: m,
+                        }))
+                        .sort((a, b) => a.name.localeCompare(b.name)),
+                );
+                this.loading.set(false);
+            });
     }
 }

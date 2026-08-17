@@ -25,11 +25,17 @@ import {UserService} from '../../../services/user.service';
                 <div class="h-9 w-full bg-white/[0.06] rounded animate-pulse"></div>
             } @else {
                 <div class="flex flex-col gap-1.5">
-                    <input pInputText class="w-full" inputmode="tel" autocomplete="tel"
-                           [ngModel]="draft()" (ngModelChange)="draft.set($event)"
-                           [attr.aria-invalid]="!!problemKey()"
-                           [attr.aria-label]="'ACCOUNT.PHONE.TITLE' | translate"
-                           [placeholder]="'ACCOUNT.PHONE.PLACEHOLDER' | translate"/>
+                    <input
+                        pInputText
+                        class="w-full"
+                        inputmode="tel"
+                        autocomplete="tel"
+                        [ngModel]="draft()"
+                        (ngModelChange)="draft.set($event)"
+                        [attr.aria-invalid]="!!problemKey()"
+                        [attr.aria-label]="'ACCOUNT.PHONE.TITLE' | translate"
+                        [placeholder]="'ACCOUNT.PHONE.PLACEHOLDER' | translate"
+                    />
 
                     @if (problemKey(); as key) {
                         <p class="m-0 text-xs text-rose-300" data-testid="phone-problem">
@@ -56,19 +62,30 @@ import {UserService} from '../../../services/user.service';
                 <p class="m-0 text-xs text-white/35">{{ 'ACCOUNT.PHONE.UNVERIFIED' | translate }}</p>
 
                 <div class="flex items-center gap-2 flex-wrap">
-                    <p-button (onClick)="save()" [disabled]="!canSave()" [loading]="saving()"
-                              size="small" data-testid="phone-save"
-                              [label]="'ACCOUNT.PHONE.SAVE' | translate"/>
+                    <p-button
+                        (onClick)="save()"
+                        [disabled]="!canSave()"
+                        [loading]="saving()"
+                        size="small"
+                        data-testid="phone-save"
+                        [label]="'ACCOUNT.PHONE.SAVE' | translate"
+                    />
 
                     @if (stored()) {
                         <!--
                           A first-class action rather than a hidden one. Somebody who shared a number
                           and changed their mind needs the way out to be as visible as the way in.
                         -->
-                        <p-button (onClick)="remove()" [text]="true" severity="danger"
-                                  [disabled]="saving() || removing()" [loading]="removing()"
-                                  size="small" data-testid="phone-remove"
-                                  [label]="'ACCOUNT.PHONE.REMOVE' | translate"/>
+                        <p-button
+                            (onClick)="remove()"
+                            [text]="true"
+                            severity="danger"
+                            [disabled]="saving() || removing()"
+                            [loading]="removing()"
+                            size="small"
+                            data-testid="phone-remove"
+                            [label]="'ACCOUNT.PHONE.REMOVE' | translate"
+                        />
                     }
                 </div>
 
@@ -142,7 +159,9 @@ export class AccountPhoneComponent {
         this.saving.set(true);
         try {
             await new Promise<void>((resolve, reject) => {
-                this.users.setPhoneNumber(parsed).pipe(take(1))
+                this.users
+                    .setPhoneNumber(parsed)
+                    .pipe(take(1))
                     .subscribe({next: () => resolve(), error: reject});
             });
             this.toast.success(this.translate.instant('ACCOUNT.PHONE.SAVED'));
@@ -159,7 +178,9 @@ export class AccountPhoneComponent {
         this.removing.set(true);
         try {
             await new Promise<void>((resolve, reject) => {
-                this.users.removePhoneNumber().pipe(take(1))
+                this.users
+                    .removePhoneNumber()
+                    .pipe(take(1))
                     .subscribe({next: () => resolve(), error: reject});
             });
             this.toast.success(this.translate.instant('ACCOUNT.PHONE.REMOVED'));

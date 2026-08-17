@@ -21,40 +21,40 @@
  * command through cmd.exe, and that is the layer that has historically mangled
  * paths here.
  */
-import { spawnSync } from 'node:child_process';
+import {spawnSync} from 'node:child_process';
 
 const ORG = 'alpinebits-klg';
 const PROJECT = 'venta-frontend';
 const DIST = './dist';
 
 if (!process.env.SENTRY_AUTH_TOKEN) {
-  console.log(
-    'SENTRY_AUTH_TOKEN is not set - skipping sourcemap inject and upload. ' +
-      'The build output is unaffected; only Sentry symbolication for this build is.',
-  );
-  process.exit(0);
+    console.log(
+        'SENTRY_AUTH_TOKEN is not set - skipping sourcemap inject and upload. ' +
+            'The build output is unaffected; only Sentry symbolication for this build is.',
+    );
+    process.exit(0);
 }
 
 // Inject first, then upload. The inject step stamps a debug id into each bundle
 // and its map; uploading without it produces maps Sentry cannot match to a stack
 // frame, which fails silently at symbolication time rather than loudly here.
 const steps = [
-  ['sourcemaps', 'inject', '--org', ORG, '--project', PROJECT, DIST],
-  ['sourcemaps', 'upload', '--org', ORG, '--project', PROJECT, DIST],
+    ['sourcemaps', 'inject', '--org', ORG, '--project', PROJECT, DIST],
+    ['sourcemaps', 'upload', '--org', ORG, '--project', PROJECT, DIST],
 ];
 
 for (const args of steps) {
-  const result = spawnSync('sentry-cli', args, { stdio: 'inherit', shell: true });
+    const result = spawnSync('sentry-cli', args, {stdio: 'inherit', shell: true});
 
-  if (result.error) {
-    console.error(`Failed to run sentry-cli: ${result.error.message}`);
-    process.exitCode = 1;
-    break;
-  }
+    if (result.error) {
+        console.error(`Failed to run sentry-cli: ${result.error.message}`);
+        process.exitCode = 1;
+        break;
+    }
 
-  if (result.status !== 0) {
-    console.error(`sentry-cli ${args.join(' ')} exited with ${result.status}`);
-    process.exitCode = result.status ?? 1;
-    break;
-  }
+    if (result.status !== 0) {
+        console.error(`sentry-cli ${args.join(' ')} exited with ${result.status}`);
+        process.exitCode = result.status ?? 1;
+        break;
+    }
 }

@@ -4,27 +4,23 @@
 <!-- `w-0 min-w-full` is load-bearing, not a trick for its own sake. -->
 <!-- No top border and no background of its own. -->
 <div class="shrink-0 w-0 min-w-full bg-sidebar overflow-hidden p-2">
-
     <!-- One container holding both rows, not a card above a bare strip. -->
     <div class="rounded-xl bg-card overflow-hidden">
-
-        <app-self-activity-card/>
+        <app-self-activity-card />
 
         <!-- Slightly taller than the activity row above it. It carries two lines of text against a
              32px avatar, which fits in 33px and looked wedged in at the tighter padding. -->
         <div class="flex items-center gap-1 px-2 py-2.5 min-w-0">
-
             <!-- Avatar + name (clickable, opens self-profile popover). -->
             @if (profileService.ownProfile(); as own) {
-                <button (click)="openSelfProfilePopover($event)"
-                        class="flex items-center gap-1.5 flex-1 min-w-0 rounded-lg px-1 py-1 -mx-1 hover:bg-white/[0.06] transition-colors duration-[120ms] ease-out cursor-pointer border-0 text-left">
-
+                <button
+                    (click)="openSelfProfilePopover($event)"
+                    class="flex items-center gap-1.5 flex-1 min-w-0 rounded-lg px-1 py-1 -mx-1 hover:bg-white/[0.06] transition-colors duration-[120ms] ease-out cursor-pointer border-0 text-left"
+                >
                     <!-- Avatar + status dot. -->
                     <div class="relative shrink-0 mr-1">
-                        <app-avatar [userId]="own.userId"/>
-                        <app-user-status-dot [status]="own.onlineStatus"
-                                             borderColor="border-card"
-                                             size="md"/>
+                        <app-avatar [userId]="own.userId" />
+                        <app-user-status-dot [status]="own.onlineStatus" borderColor="border-card" size="md" />
                     </div>
 
                     <!-- Name, then either the status or - when the socket is in trouble - the socket. -->
@@ -36,7 +32,6 @@
                             <p class="text-[0.75rem] text-text-muted truncate leading-tight mt-0.5">{{ key | translate }}</p>
                         }
                     </div>
-
                 </button>
             } @else {
                 <!-- Nothing is known yet. A skeleton says so; an empty row implies the panel is
@@ -49,37 +44,49 @@
                     </div>
                 </div>
             }
-            <app-self-profile-popover (addAccount)="startAddAccount()" (editProfile)="openProfileSettings()"
-                                      (openAdmin)="isAdminOpen.set(true)"/>
+            <app-self-profile-popover
+                (addAccount)="startAddAccount()"
+                (editProfile)="openProfileSettings()"
+                (openAdmin)="isAdminOpen.set(true)"
+            />
 
             <!-- Always present, in a call or not. -->
             <app-voice-toggle
-                    [active]="voiceControls.isMuted()"
-                    icon="pi-microphone"
-                    [label]="voiceControls.isMuted() ? 'QUICK_SETTINGS.UNMUTE' : 'QUICK_SETTINGS.MUTE'"
-                    deviceLabel="QUICK_SETTINGS.INPUT_DEVICE"
-                    [devices]="catalog.mics()" [selected]="audio.settings().micId"
-                    (toggled)="voiceControls.toggleMute()"
-                    (deviceChosen)="audio.update({micId: $event})"
-                    [namesWithheld]="catalog.namesWithheld()"
-                    (openSettings)="openVoiceSettings()"/>
+                [active]="voiceControls.isMuted()"
+                icon="pi-microphone"
+                [label]="voiceControls.isMuted() ? 'QUICK_SETTINGS.UNMUTE' : 'QUICK_SETTINGS.MUTE'"
+                deviceLabel="QUICK_SETTINGS.INPUT_DEVICE"
+                [devices]="catalog.mics()"
+                [selected]="audio.settings().micId"
+                (toggled)="voiceControls.toggleMute()"
+                (deviceChosen)="audio.update({micId: $event})"
+                [namesWithheld]="catalog.namesWithheld()"
+                (openSettings)="openVoiceSettings()"
+            />
 
             <app-voice-toggle
-                    [active]="voiceControls.isDeafened()"
-                    icon="pi-headphones"
-                    [label]="voiceControls.isDeafened() ? 'QUICK_SETTINGS.UNDEAFEN' : 'QUICK_SETTINGS.DEAFEN'"
-                    deviceLabel="QUICK_SETTINGS.OUTPUT_DEVICE"
-                    [devices]="catalog.speakers()" [selected]="audio.settings().speakerId"
-                    (toggled)="voiceControls.toggleDeafen()"
-                    (deviceChosen)="audio.update({speakerId: $event})"
-                    [namesWithheld]="catalog.namesWithheld()"
-                    (openSettings)="openVoiceSettings()"/>
+                [active]="voiceControls.isDeafened()"
+                icon="pi-headphones"
+                [label]="voiceControls.isDeafened() ? 'QUICK_SETTINGS.UNDEAFEN' : 'QUICK_SETTINGS.DEAFEN'"
+                deviceLabel="QUICK_SETTINGS.OUTPUT_DEVICE"
+                [devices]="catalog.speakers()"
+                [selected]="audio.settings().speakerId"
+                (toggled)="voiceControls.toggleDeafen()"
+                (deviceChosen)="audio.update({speakerId: $event})"
+                [namesWithheld]="catalog.namesWithheld()"
+                (openSettings)="openVoiceSettings()"
+            />
 
             <!-- Three controls, not five. -->
-            <p-button (onClick)="isSettingsOpen.set(true)" [text]="true" data-testid="user-menu" icon="pi pi-cog"
-                      severity="secondary"
-                      size="small" styleClass="shrink-0"/>
-
+            <p-button
+                (onClick)="isSettingsOpen.set(true)"
+                [text]="true"
+                data-testid="user-menu"
+                icon="pi pi-cog"
+                severity="secondary"
+                size="small"
+                styleClass="shrink-0"
+            />
         </div>
     </div>
 </div>

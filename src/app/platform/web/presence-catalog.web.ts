@@ -24,8 +24,10 @@ export class WebPresenceCatalog extends PresenceCatalog {
 }
 
 function unsupported(operation: string): Promise<never> {
-    return Promise.reject(new Error(
-        `PresenceCatalog.${operation}() is desktop-only; there is no process matcher to feed. ` +
-        'Gate on PresenceCatalog.supported or PlatformCapabilities.gameDetection.',
-    ));
+    return Promise.reject(
+        new Error(
+            `PresenceCatalog.${operation}() is desktop-only; there is no process matcher to feed. ` +
+                'Gate on PresenceCatalog.supported or PlatformCapabilities.gameDetection.',
+        ),
+    );
 }

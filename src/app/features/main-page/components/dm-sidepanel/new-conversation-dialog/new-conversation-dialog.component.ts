@@ -21,7 +21,17 @@ import {TranslateModule} from '@ngx-translate/core';
 
 @Component({
     selector: 'app-new-conversation-dialog',
-    imports: [Dialog, Button, InputText, Avatar, FormsModule, PrimeTemplate, NgClass, ToggleSwitch, TranslateModule],
+    imports: [
+        Dialog,
+        Button,
+        InputText,
+        Avatar,
+        FormsModule,
+        PrimeTemplate,
+        NgClass,
+        ToggleSwitch,
+        TranslateModule,
+    ],
     templateUrl: './new-conversation-dialog.component.html',
 })
 export class NewConversationDialogComponent {
@@ -41,16 +51,12 @@ export class NewConversationDialogComponent {
      * Coverage problems the server reported *after* the conversation existed - devices it could not
      * reach, and devices admitted on a reusable last-resort key package.
      */
-    readonly createdWarning = signal<{ devices: string[]; lastResortCount: number } | null>(null);
+    readonly createdWarning = signal<{devices: string[]; lastResortCount: number} | null>(null);
     readonly filteredFriends = computed(() => {
         const q = this.search().toLowerCase();
-        return q
-            ? this.friends().filter(f => f.userName.toLowerCase().includes(q))
-            : this.friends();
+        return q ? this.friends().filter(f => f.userName.toLowerCase().includes(q)) : this.friends();
     });
-    readonly selectedFriends = computed(() =>
-        this.friends().filter(f => this.selectedIds().has(f.userId))
-    );
+    readonly selectedFriends = computed(() => this.friends().filter(f => this.selectedIds().has(f.userId)));
     readonly isGroup = computed(() => this.selectedIds().size >= 2);
     readonly canCreate = computed(() => this.selectedIds().size >= 1 && !this.creating());
     private conversationService = inject(ConversationService);
@@ -87,11 +93,16 @@ export class NewConversationDialogComponent {
             this.createEncrypted(members, name);
         } else {
             this.conversationService
-                .createConversation({name, members, encryption: ConversationEncryption.Plain, deviceWelcomes: []})
+                .createConversation({
+                    name,
+                    members,
+                    encryption: ConversationEncryption.Plain,
+                    deviceWelcomes: [],
+                })
                 .subscribe({
-                    next: conv => {
-                        this.conversationStore.addConversation(conv);
-                        this.navService.openConversation(conv);
+                    next: ({conversation}) => {
+                        this.conversationStore.addConversation(conversation);
+                        this.navService.openConversation(conversation);
                         this.close();
                     },
                     error: () => this.creating.set(false),
@@ -125,7 +136,7 @@ export class NewConversationDialogComponent {
         this.creating.set(false);
     }
 
-    private createEncrypted(members: { userId: string }[], name: string | undefined): void {
+    private createEncrypted(members: {userId: string}[], name: string | undefined): void {
         const ownId = this.profileService.ownProfile()?.userId;
         const keyHandle = this.mlsService.keyHandle();
 
@@ -139,7 +150,7 @@ export class NewConversationDialogComponent {
 
     /** Builds the MLS group locally, then creates the conversation carrying it. */
     private async buildAndCreate(
-        members: { userId: string }[],
+        members: {userId: string}[],
         name: string | undefined,
         ownId: string,
         keyHandle: string,
@@ -174,7 +185,11 @@ export class NewConversationDialogComponent {
 
             if (invitees.length > 0) {
                 const commitOut = await firstValueFrom(
-                    this.mlsService.addMembers(groupIdB64, keyHandle, invitees.map(t => t.token)),
+                    this.mlsService.addMembers(
+                        groupIdB64,
+                        keyHandle,
+                        invitees.map(t => t.token),
+                    ),
                 );
                 await firstValueFrom(this.mlsService.mergePendingCommit(groupIdB64));
 
@@ -188,23 +203,36 @@ export class NewConversationDialogComponent {
                 // one separately works here only because the merge above has already happened -
                 // taking it from the commit keeps this path identical to the publish path, where
                 // the merge deliberately comes later and an export would be an epoch stale.
-                mlsGroupInfo = commitOut.groupInfo
-                    ?? await firstValueFrom(this.mlsService.exportGroupInfo(groupIdB64, keyHandle));
+                mlsGroupInfo =
+                    commitOut.groupInfo ??
+                    (await firstValueFrom(this.mlsService.exportGroupInfo(groupIdB64, keyHandle)));
             }
 
-            const conv = await firstValueFrom(this.conversationService.createConversation({
-                name,
-                members,
-                encryption: ConversationEncryption.Encrypted,
-                deviceWelcomes,
-                mlsGroupId: groupIdB64,
-                mlsEpoch: epoch,
-                mlsGroupInfo,
-                // Explicit, per contract §E7: the server is permissive during the transition, so
-                // it would create either way. Sending the flag records that a human was shown the
-                // list and chose to go ahead.
-                allowPartialDeviceCoverage: unreachable.length > 0 ? true : undefined,
-            }));
+            const {conversation: conv, existing} = await firstValueFrom(
+                this.conversationService.createConversation({
+                    name,
+                    members,
+                    encryption: ConversationEncryption.Encrypted,
+                    deviceWelcomes,
+                    mlsGroupId: groupIdB64,
+                    mlsEpoch: epoch,
+                    mlsGroupInfo,
+                    // Explicit, per contract §E7: the server is permissive during the transition, so
+                    // it would create either way. Sending the flag records that a human was shown the
+                    // list and chose to go ahead.
+                    allowPartialDeviceCoverage: unreachable.length > 0 ? true : undefined,
+                }),
+            );
+
+            // Nothing was created, so the group built above is not the one this conversation speaks.
+            // Registering it would shadow the real group and leave this device unable to read a word.
+            if (existing) {
+                await firstValueFrom(this.mlsService.deleteGroup(groupIdB64)).catch(() => undefined);
+                this.conversationStore.addConversation(conv);
+                this.navService.openConversation(conv);
+                this.close();
+                return;
+            }
 
             // The server mints generation 1 for a conversation created encrypted.
             await this.mlsService.registerGroup(conv.id, 1, groupIdB64);

@@ -112,7 +112,9 @@ export interface InboxSummary {
 
 /** The kinds of task the server knows about today. Open: an unknown kind still renders. */
 export type InboxTaskKind =
-    | 'ChoreDue' | 'DecisionVote' | 'ListAssignment'
+    | 'ChoreDue'
+    | 'DecisionVote'
+    | 'ListAssignment'
     /** A bill is coming due. `targetId` is the bill occurrence. */
     | 'BillDue'
     /** You are down to cook today. `targetId` is the meal plan entry. */

@@ -8,14 +8,7 @@ export type IdbValue = string | Uint8Array | ArrayBuffer;
 
 /** What went wrong, in the terms a caller can actually act on. */
 export type IdbFailureKind =
-    | 'unavailable'
-    | 'blocked'
-    | 'version'
-    | 'quota'
-    | 'aborted'
-    | 'closed'
-    | 'corrupt'
-    | 'unknown';
+    'unavailable' | 'blocked' | 'version' | 'quota' | 'aborted' | 'closed' | 'corrupt' | 'unknown';
 
 /**
  * Base class for every failure this module raises. `name` must be assigned explicitly, not inferred
@@ -188,9 +181,8 @@ const errorName = (error: unknown): string | undefined => {
 
 const errorDetail = (error: unknown): string => {
     const name = errorName(error);
-    const message = typeof error === 'object' && error !== null
-        ? (error as {message?: unknown}).message
-        : undefined;
+    const message =
+        typeof error === 'object' && error !== null ? (error as {message?: unknown}).message : undefined;
     if (name !== undefined && typeof message === 'string' && message.length > 0) {
         return `${name}: ${message}`;
     }
@@ -218,7 +210,7 @@ export function classifyIdbError(
         case 'VersionError':
             return new IdbVersionError(
                 `${context}: the stored database is at a different version - another tab has ` +
-                `probably upgraded it, so this page needs to reload (${detail})`,
+                    `probably upgraded it, so this page needs to reload (${detail})`,
                 error,
             );
         case 'AbortError':
@@ -238,9 +230,7 @@ export function classifyIdbError(
 }
 
 const isFactory = (candidate: unknown): candidate is IDBFactory =>
-    candidate !== null
-    && candidate !== undefined
-    && typeof (candidate as IDBFactory).open === 'function';
+    candidate !== null && candidate !== undefined && typeof (candidate as IDBFactory).open === 'function';
 
 const resolveFactory = (explicit?: IDBFactory): IDBFactory | undefined => {
     // An explicitly supplied factory is validated too, or a bad stub fails later with a TypeError.
@@ -310,12 +300,9 @@ export function runRequest<T>(
         };
 
         transaction.oncomplete = () => resolve(result as T);
-        transaction.onerror = () => reject(
-            classifyIdbError(transaction.error ?? requestError, context),
-        );
-        transaction.onabort = () => reject(
-            classifyIdbError(transaction.error ?? requestError, context, 'aborted'),
-        );
+        transaction.onerror = () => reject(classifyIdbError(transaction.error ?? requestError, context));
+        transaction.onabort = () =>
+            reject(classifyIdbError(transaction.error ?? requestError, context, 'aborted'));
     });
 }
 
@@ -325,71 +312,76 @@ const openDatabase = (
     storeName: string,
     version: number | undefined,
     blockedTimeoutMs: number,
-): Promise<IDBDatabase> => new Promise<IDBDatabase>((resolve, reject) => {
-    const context = `opening database "${dbName}"`;
-    let request: IDBOpenDBRequest;
-    try {
-        request = version === undefined ? factory.open(dbName) : factory.open(dbName, version);
-    } catch (error) {
-        // Some private-browsing modes throw right here; that is unavailability, not a transient error.
-        reject(new IdbUnavailableError(
-            `${context} threw synchronously; IndexedDB is not usable in this context ` +
-            `(${errorDetail(error)})`,
-            error,
-        ));
-        return;
-    }
-
-    let blockedTimer: ReturnType<typeof setTimeout> | undefined;
-    let abandoned = false;
-    const clearBlockedTimer = () => {
-        if (blockedTimer !== undefined) {
-            clearTimeout(blockedTimer);
-            blockedTimer = undefined;
-        }
-    };
-
-    request.onblocked = () => {
-        if (blockedTimer !== undefined || abandoned) {
+): Promise<IDBDatabase> =>
+    new Promise<IDBDatabase>((resolve, reject) => {
+        const context = `opening database "${dbName}"`;
+        let request: IDBOpenDBRequest;
+        try {
+            request = version === undefined ? factory.open(dbName) : factory.open(dbName, version);
+        } catch (error) {
+            // Some private-browsing modes throw right here; that is unavailability, not a transient error.
+            reject(
+                new IdbUnavailableError(
+                    `${context} threw synchronously; IndexedDB is not usable in this context ` +
+                        `(${errorDetail(error)})`,
+                    error,
+                ),
+            );
             return;
         }
-        // The wait must stay bounded: the spec leaves the request pending until other tabs close.
-        blockedTimer = setTimeout(() => {
-            blockedTimer = undefined;
-            abandoned = true;
-            reject(new IdbBlockedError(
-                `${context}: upgrade to version ${version ?? '(current)'} is blocked by another ` +
-                `open connection - another tab is holding an older version of this database`,
-            ));
-        }, blockedTimeoutMs);
-    };
 
-    request.onupgradeneeded = () => {
-        const db = request.result;
-        if (!db.objectStoreNames.contains(storeName)) {
-            db.createObjectStore(storeName);
-        }
-    };
+        let blockedTimer: ReturnType<typeof setTimeout> | undefined;
+        let abandoned = false;
+        const clearBlockedTimer = () => {
+            if (blockedTimer !== undefined) {
+                clearTimeout(blockedTimer);
+                blockedTimer = undefined;
+            }
+        };
 
-    request.onsuccess = () => {
-        clearBlockedTimer();
-        const db = request.result;
-        if (abandoned) {
-            // Must close: a leaked connection here is what blocks the next tab.
-            db.close();
-            return;
-        }
-        resolve(db);
-    };
+        request.onblocked = () => {
+            if (blockedTimer !== undefined || abandoned) {
+                return;
+            }
+            // The wait must stay bounded: the spec leaves the request pending until other tabs close.
+            blockedTimer = setTimeout(() => {
+                blockedTimer = undefined;
+                abandoned = true;
+                reject(
+                    new IdbBlockedError(
+                        `${context}: upgrade to version ${version ?? '(current)'} is blocked by another ` +
+                            `open connection - another tab is holding an older version of this database`,
+                    ),
+                );
+            }, blockedTimeoutMs);
+        };
 
-    request.onerror = () => {
-        clearBlockedTimer();
-        if (abandoned) {
-            return;
-        }
-        reject(classifyIdbError(request.error, context));
-    };
-});
+        request.onupgradeneeded = () => {
+            const db = request.result;
+            if (!db.objectStoreNames.contains(storeName)) {
+                db.createObjectStore(storeName);
+            }
+        };
+
+        request.onsuccess = () => {
+            clearBlockedTimer();
+            const db = request.result;
+            if (abandoned) {
+                // Must close: a leaked connection here is what blocks the next tab.
+                db.close();
+                return;
+            }
+            resolve(db);
+        };
+
+        request.onerror = () => {
+            clearBlockedTimer();
+            if (abandoned) {
+                return;
+            }
+            reject(classifyIdbError(request.error, context));
+        };
+    });
 
 class IdbKeyValueStore implements IdbStore {
     private closedReason: string | undefined;
@@ -410,34 +402,34 @@ class IdbKeyValueStore implements IdbStore {
     }
 
     get(key: string): Promise<IdbValue | undefined> {
-        return this
-            .run<unknown>('readonly', store => store.get(key))
-            .then(value => {
-                if (value === undefined) {
-                    return undefined;
-                }
-                if (typeof value === 'string') {
-                    return value;
-                }
-                const binary = localizeBinary(value);
-                if (binary === undefined) {
-                    throw new IdbCorruptValueError(
-                        `"${this.dbName}"/"${this.storeName}" key "${key}" holds a ` +
+        return this.run<unknown>('readonly', store => store.get(key)).then(value => {
+            if (value === undefined) {
+                return undefined;
+            }
+            if (typeof value === 'string') {
+                return value;
+            }
+            const binary = localizeBinary(value);
+            if (binary === undefined) {
+                throw new IdbCorruptValueError(
+                    `"${this.dbName}"/"${this.storeName}" key "${key}" holds a ` +
                         `${describeType(value)}; this store only writes string, Uint8Array and ` +
                         `ArrayBuffer, so something else wrote it`,
-                    );
-                }
-                return binary;
-            });
+                );
+            }
+            return binary;
+        });
     }
 
     set(key: string, value: IdbValue): Promise<void> {
         if (!isIdbValue(value)) {
             // A rejection rather than a synchronous throw, so callers have one failure channel.
-            return Promise.reject(new TypeError(
-                `IdbStore.set("${key}"): value must be a string, Uint8Array or ArrayBuffer, got ` +
-                `${describeType(value)}`,
-            ));
+            return Promise.reject(
+                new TypeError(
+                    `IdbStore.set("${key}"): value must be a string, Uint8Array or ArrayBuffer, got ` +
+                        `${describeType(value)}`,
+                ),
+            );
         }
         // No await before the transaction is created: creation order is what orders concurrent sets.
         return this.run<unknown>('readwrite', store => store.put(value, key)).then(() => undefined);
@@ -453,7 +445,7 @@ class IdbKeyValueStore implements IdbStore {
             if (offender !== undefined) {
                 throw new IdbCorruptValueError(
                     `"${this.dbName}"/"${this.storeName}" contains a non-string key ` +
-                    `(${describeType(offender)}); this store only writes string keys`,
+                        `(${describeType(offender)}); this store only writes string keys`,
                 );
             }
             return keys as string[];
@@ -471,10 +463,12 @@ class IdbKeyValueStore implements IdbStore {
 
     private run<T>(mode: IDBTransactionMode, exec: (store: IDBObjectStore) => IDBRequest): Promise<T> {
         if (this.closedReason !== undefined) {
-            return Promise.reject(new IdbStoreClosedError(
-                `"${this.dbName}"/"${this.storeName}" is unusable: ${this.closedReason}. ` +
-                `Reopen the store.`,
-            ));
+            return Promise.reject(
+                new IdbStoreClosedError(
+                    `"${this.dbName}"/"${this.storeName}" is unusable: ${this.closedReason}. ` +
+                        `Reopen the store.`,
+                ),
+            );
         }
         return runRequest<T>(this.db, this.storeName, mode, exec);
     }
@@ -497,7 +491,7 @@ export async function openStore(
     if (factory === undefined) {
         throw new IdbUnavailableError(
             `cannot open "${dbName}"/"${storeName}": this context has no IndexedDB, so nothing ` +
-            `can be persisted. There is deliberately no localStorage fallback for key material.`,
+                `can be persisted. There is deliberately no localStorage fallback for key material.`,
         );
     }
 
@@ -509,7 +503,7 @@ export async function openStore(
             db.close();
             throw new IdbVersionError(
                 `"${dbName}" version ${options.version} has no object store "${storeName}", and ` +
-                `an explicit version was pinned so it cannot be added`,
+                    `an explicit version was pinned so it cannot be added`,
             );
         }
         // A sibling store created the database; adding an object store needs a version change.
@@ -521,7 +515,7 @@ export async function openStore(
             throw new IdbStoreError(
                 'unknown',
                 `"${dbName}" was upgraded to version ${nextVersion} but object store ` +
-                `"${storeName}" still does not exist`,
+                    `"${storeName}" still does not exist`,
             );
         }
     }

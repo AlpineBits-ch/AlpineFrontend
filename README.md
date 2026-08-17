@@ -5,15 +5,15 @@ WebRTC transport lives in Rust under `src-tauri/`.
 
 ## Prerequisites
 
-| Tool | Why | Install |
-|---|---|---|
-| [Rust](https://rustup.rs) (stable, MSVC toolchain) | The whole `src-tauri` crate | `rustup default stable-x86_64-pc-windows-msvc` |
-| [Bun](https://bun.sh) | Package manager and script runner | `powershell -c "irm bun.sh/install.ps1 \| iex"` |
-| Visual Studio Build Tools with **Desktop development with C++** | MSVC (`cl`, `link`), which Rust and the vendored C++ both need | [Build Tools installer](https://visualstudio.microsoft.com/visual-cpp-build-tools/) |
-| WebView2 runtime | The webview Tauri renders into | Preinstalled on Windows 11 |
-| Python 3 | Runs meson | [python.org](https://www.python.org/downloads/) or `winget install Python.Python.3.12` |
-| **meson** and **ninja** | Build echo cancellation from source — see below | `pip install meson ninja` |
-| CMake | libopus, vendored by `audiopus_sys` | `winget install Kitware.CMake` |
+| Tool                                                            | Why                                                            | Install                                                                                |
+| --------------------------------------------------------------- | -------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| [Rust](https://rustup.rs) (stable, MSVC toolchain)              | The whole `src-tauri` crate                                    | `rustup default stable-x86_64-pc-windows-msvc`                                         |
+| [Bun](https://bun.sh)                                           | Package manager and script runner                              | `powershell -c "irm bun.sh/install.ps1 \| iex"`                                        |
+| Visual Studio Build Tools with **Desktop development with C++** | MSVC (`cl`, `link`), which Rust and the vendored C++ both need | [Build Tools installer](https://visualstudio.microsoft.com/visual-cpp-build-tools/)    |
+| WebView2 runtime                                                | The webview Tauri renders into                                 | Preinstalled on Windows 11                                                             |
+| Python 3                                                        | Runs meson                                                     | [python.org](https://www.python.org/downloads/) or `winget install Python.Python.3.12` |
+| **meson** and **ninja**                                         | Build echo cancellation from source — see below                | `pip install meson ninja`                                                              |
+| CMake                                                           | libopus, vendored by `audiopus_sys`                            | `winget install Kitware.CMake`                                                         |
 
 CI installs exactly this set; the Windows job in `.github/workflows/build.yml` is the reference.
 
@@ -41,7 +41,7 @@ bun install
 bun run tauri dev          # debug build, Angular dev server, hot reload
 ```
 
-`tauri dev` is *not* the artifact CI produces. It is a debug build (no optimisations, debug
+`tauri dev` is _not_ the artifact CI produces. It is a debug build (no optimisations, debug
 assertions on, a console attached) running against `ng serve`. Timing-sensitive faults — anything
 involving WebRTC negotiation, device callbacks or thread scheduling — can appear in one and not the
 other, so a bug reproduced only in `dev` is not evidence about the shipped client, and vice versa.
@@ -58,11 +58,11 @@ bun run tauri:ci:run      # the same binary without the installer, launched with
 file is what to attach to a bug report.
 
 **Do not substitute `cargo build --release`.** It compiles, it produces `Venta.exe`, and the app it
-produces loads `http://localhost:1420` and shows *"localhost refused to connect"* unless `ng serve`
+produces loads `http://localhost:1420` and shows _"localhost refused to connect"_ unless `ng serve`
 happens to be up. Whether a build is a dev build or a production one has nothing to do with the
 cargo profile: `tauri`'s build script sets `dev = !custom-protocol`, and the `custom-protocol`
-feature is passed by the Tauri CLI, not by cargo. So `cargo build --release` is an *optimised dev
-build* — release profile, dev frontend wiring — which is a configuration CI never produces and
+feature is passed by the Tauri CLI, not by cargo. So `cargo build --release` is an _optimised dev
+build_ — release profile, dev frontend wiring — which is a configuration CI never produces and
 nothing should be diagnosed against. Always go through `tauri build` (or the scripts above).
 
 ### Reading a release build's output

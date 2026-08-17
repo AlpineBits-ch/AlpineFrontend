@@ -46,17 +46,22 @@ export class GoLiveNotificationService {
 
         const channel = guild.channels.find(c => c.id === channelId);
         // Falls back to the translated placeholder, never the raw id: an uncached streamer is the common case here.
-        const streamerName = this.profileService.getCachedByUserId(userId)?.userName
-            ?? this.translate.instant('CALL.UNKNOWN_VIEWER');
+        const streamerName =
+            this.profileService.getCachedByUserId(userId)?.userName ??
+            this.translate.instant('CALL.UNKNOWN_VIEWER');
 
-        void this.notifications.createNotification({
-            title: this.translate.instant('CALL.WENT_LIVE_TITLE', {name: streamerName}),
-            message: this.translate.instant('CALL.WENT_LIVE_BODY', {channel: channel?.name ?? guild.name}),
-            sound: NotificationSound.None,
-            actionTypeId: STREAM_LIVE_ACTION_TYPE,
-            // Routed by `main-page.component.ts` off `extra.type`. See {@link encodeNotificationTag}.
-            extra: {type: STREAM_LIVE_ACTION_TYPE, guildId, channelId, userId},
-        }).catch(() => undefined);
+        void this.notifications
+            .createNotification({
+                title: this.translate.instant('CALL.WENT_LIVE_TITLE', {name: streamerName}),
+                message: this.translate.instant('CALL.WENT_LIVE_BODY', {
+                    channel: channel?.name ?? guild.name,
+                }),
+                sound: NotificationSound.None,
+                actionTypeId: STREAM_LIVE_ACTION_TYPE,
+                // Routed by `main-page.component.ts` off `extra.type`. See {@link encodeNotificationTag}.
+                extra: {type: STREAM_LIVE_ACTION_TYPE, guildId, channelId, userId},
+            })
+            .catch(() => undefined);
     }
 
     /** Whether this guild, or this particular streamer, may notify. Two independent gates: `goLiveFriendsEnabled` and `goLiveGuildIds` never override each other. */

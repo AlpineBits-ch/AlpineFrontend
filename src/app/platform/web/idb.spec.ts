@@ -83,21 +83,22 @@ const rawOpen = (
     dbName: string,
     version: number,
     storeName?: string,
-): Promise<IDBDatabase> => new Promise<IDBDatabase>((resolve, reject) => {
-    const request = factory.open(dbName, version);
-    request.onupgradeneeded = () => {
-        const db = request.result;
-        if (storeName !== undefined && !db.objectStoreNames.contains(storeName)) {
-            db.createObjectStore(storeName);
-        }
-    };
-    request.onsuccess = () => {
-        openConnections.push(request.result);
-        resolve(request.result);
-    };
-    request.onerror = () => reject(request.error);
-    request.onblocked = () => reject(new Error(`raw open of "${dbName}" v${version} was blocked`));
-});
+): Promise<IDBDatabase> =>
+    new Promise<IDBDatabase>((resolve, reject) => {
+        const request = factory.open(dbName, version);
+        request.onupgradeneeded = () => {
+            const db = request.result;
+            if (storeName !== undefined && !db.objectStoreNames.contains(storeName)) {
+                db.createObjectStore(storeName);
+            }
+        };
+        request.onsuccess = () => {
+            openConnections.push(request.result);
+            resolve(request.result);
+        };
+        request.onerror = () => reject(request.error);
+        request.onblocked = () => reject(new Error(`raw open of "${dbName}" v${version} was blocked`));
+    });
 
 /** Fails loudly instead of letting the suite time out, so "it hung" reads as "it hung". */
 const withTimeout = <T>(promise: Promise<T>, ms: number, label: string): Promise<T> => {
@@ -139,7 +140,7 @@ describe('openStore - binary round trip', () => {
         expect((read as Uint8Array).byteLength).toBe(original.byteLength);
     });
 
-    it('stores a copy, so mutating the caller\'s array afterwards does not change what was stored', async () => {
+    it("stores a copy, so mutating the caller's array afterwards does not change what was stored", async () => {
         const store = await openTracked(newFactory());
         const source = new Uint8Array([1, 2, 3, 4]);
         await store.set('k', source);
@@ -169,7 +170,7 @@ describe('openStore - binary round trip', () => {
         expect(bytes(read)).toEqual(Array.from(blob));
     });
 
-    it('round-trips a Uint8Array view onto a larger buffer as just the view\'s bytes', async () => {
+    it("round-trips a Uint8Array view onto a larger buffer as just the view's bytes", async () => {
         const backing = new Uint8Array([0xaa, 0xbb, 0x01, 0x02, 0x03, 0xcc]);
         const view = backing.subarray(2, 5);
 
@@ -192,7 +193,7 @@ describe('openStore - binary round trip', () => {
         expect(Array.from(new Uint8Array(read as ArrayBuffer))).toEqual([0x00, 0xff, 0x10]);
     });
 
-    it('returns binary belonging to the caller\'s own realm, so instanceof holds', async () => {
+    it("returns binary belonging to the caller's own realm, so instanceof holds", async () => {
         // This harness's structured clone runs outside the jsdom realm, so a value read straight
         // out of IndexedDB here is a Uint8Array that fails `instanceof Uint8Array`. Passing that
         // through would make the declared return type a half-truth, and it is the same shape as a
@@ -366,8 +367,9 @@ describe('openStore - IndexedDB unavailable', () => {
     it('reports unavailable for an object that is not an IDBFactory', async () => {
         const notAFactory = {} as unknown as IDBFactory;
 
-        await expect(openStore('secure', 'kv', {factory: notAFactory}))
-            .rejects.toBeInstanceOf(IdbUnavailableError);
+        await expect(openStore('secure', 'kv', {factory: notAFactory})).rejects.toBeInstanceOf(
+            IdbUnavailableError,
+        );
     });
 
     it('reports unavailable when open() throws synchronously, as some private-browsing modes do', async () => {
@@ -432,7 +434,7 @@ describe('openStore - version and blocked upgrades', () => {
         expect(Date.now() - started).toBeLessThan(2_000);
     });
 
-    it('yields its own connection on versionchange so another tab\'s upgrade is not blocked', async () => {
+    it("yields its own connection on versionchange so another tab's upgrade is not blocked", async () => {
         const factory = newFactory();
         const store = await openTracked(factory);
         await store.set('k', 'v');
@@ -442,7 +444,7 @@ describe('openStore - version and blocked upgrades', () => {
         const upgraded = await withTimeout(
             rawOpen(factory, 'test-db', 99, 'kv'),
             2_000,
-            'another tab\'s upgrade',
+            "another tab's upgrade",
         );
         expect(upgraded.version).toBe(99);
 
@@ -484,8 +486,9 @@ describe('openStore - version and blocked upgrades', () => {
         const existing = await rawOpen(factory, 'pinned-db', 3, 'other');
         existing.close();
 
-        await expect(openStore('pinned-db', 'kv', {factory, version: 3}))
-            .rejects.toBeInstanceOf(IdbVersionError);
+        await expect(openStore('pinned-db', 'kv', {factory, version: 3})).rejects.toBeInstanceOf(
+            IdbVersionError,
+        );
     });
 });
 
@@ -571,11 +574,13 @@ describe('runRequest - transactions that abort rather than error', () => {
         const factory = newFactory();
         const db = await rawOpen(factory, 'abort-db', 1, 'kv');
 
-        await expect(withTimeout(
-            runRequest<unknown>(db, 'missing-store', 'readonly', store => store.get('k')),
-            2_000,
-            'missing store',
-        )).rejects.toThrow();
+        await expect(
+            withTimeout(
+                runRequest<unknown>(db, 'missing-store', 'readonly', store => store.get('k')),
+                2_000,
+                'missing store',
+            ),
+        ).rejects.toThrow();
     });
 });
 
@@ -583,11 +588,7 @@ describe('openStore - concurrency', () => {
     it('resolves concurrent set()s to the same key in call order, last write winning', async () => {
         const store = await openTracked(newFactory());
 
-        await Promise.all([
-            store.set('k', 'first'),
-            store.set('k', 'second'),
-            store.set('k', 'third'),
-        ]);
+        await Promise.all([store.set('k', 'first'), store.set('k', 'second'), store.set('k', 'third')]);
 
         expect(await store.get('k')).toBe('third');
         expect(await store.keys()).toEqual(['k']);
@@ -608,11 +609,7 @@ describe('openStore - concurrency', () => {
         const short = new Uint8Array([1, 2]);
         const long = new Uint8Array(1024).fill(0xab);
 
-        await Promise.all([
-            store.set('blob', short),
-            store.set('blob', long),
-            store.set('blob', short),
-        ]);
+        await Promise.all([store.set('blob', short), store.set('blob', long), store.set('blob', short)]);
 
         // The last write wins whole; a partially applied write would show up as some other length.
         expect(bytes(await store.get('blob'))).toEqual([1, 2]);
@@ -633,7 +630,9 @@ describe('openStore - concurrency', () => {
         const store = await openTracked(newFactory());
 
         await Promise.all(
-            Array.from({length: 25}, (_, i) => store.set(`key-${String(i).padStart(2, '0')}`, new Uint8Array([i]))),
+            Array.from({length: 25}, (_, i) =>
+                store.set(`key-${String(i).padStart(2, '0')}`, new Uint8Array([i])),
+            ),
         );
 
         const keys = await store.keys();

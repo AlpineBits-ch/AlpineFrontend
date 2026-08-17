@@ -1,29 +1,34 @@
 @if (!failed()) {
-    <div [class]="rounded()"
-         [class.cursor-zoom-in]="clickable()"
-         [style.height.px]="box()?.height"
-         [style.width.px]="box()?.width"
-         (click)="onClick()"
-         class="group/media relative overflow-hidden bg-white/[0.03] max-w-full">
-
+    <div
+        [class]="rounded()"
+        [class.cursor-zoom-in]="clickable()"
+        [style.height.px]="box()?.height"
+        [style.width.px]="box()?.width"
+        (click)="onClick()"
+        class="group/media relative overflow-hidden bg-white/[0.03] max-w-full"
+    >
         <!-- BlurHash, holding the frame until the real pixels decode -->
         @if (placeholder()) {
-            <img [src]="placeholder()"
-                 [class.opacity-0]="loaded()"
-                 alt=""
-                 aria-hidden="true"
-                 class="absolute inset-0 w-full h-full object-cover scale-110 transition-opacity duration-500"/>
+            <img
+                [src]="placeholder()"
+                [class.opacity-0]="loaded()"
+                alt=""
+                aria-hidden="true"
+                class="absolute inset-0 w-full h-full object-cover scale-110 transition-opacity duration-500"
+            />
         }
 
-        <img (error)="failed.set(true)"
-             (load)="loaded.set(true)"
-             [alt]="alt()"
-             [class.opacity-0]="!loaded()"
-             [class]="box() ? 'w-full h-full object-cover' : 'w-auto max-w-full'"
-             [src]="src()"
-             [style.max-height.px]="box() ? null : maxHeight()"
-             class="relative block transition-opacity duration-300"
-             loading="lazy"/>
+        <img
+            (error)="failed.set(true)"
+            (load)="loaded.set(true)"
+            [alt]="alt()"
+            [class.opacity-0]="!loaded()"
+            [class]="box() ? 'w-full h-full object-cover' : 'w-auto max-w-full'"
+            [src]="src()"
+            [style.max-height.px]="box() ? null : maxHeight()"
+            class="relative block transition-opacity duration-300"
+            loading="lazy"
+        />
 
         @if (clickable()) {
             <div class="absolute inset-0 bg-black/0 group-hover/media:bg-black/15 transition-colors pointer-events-none"></div>

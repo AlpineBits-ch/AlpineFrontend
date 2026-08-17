@@ -39,7 +39,10 @@ export class BillApiService {
 
     /** `ManageLedger`. A schedule is a standing arrangement, not a one-off anybody may add. */
     createSchedule(channelId: string, body: CreateRecurringExpenseDto): Observable<RecurringExpense> {
-        return this.http.post<RecurringExpense>(`${this.base}/channels/${channelId}/recurring-expenses`, body);
+        return this.http.post<RecurringExpense>(
+            `${this.base}/channels/${channelId}/recurring-expenses`,
+            body,
+        );
     }
 
     /**

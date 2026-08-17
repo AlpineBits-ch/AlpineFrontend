@@ -14,16 +14,21 @@ import {ChangeDetectionStrategy, Component, computed, input, output} from '@angu
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
         <button
-                (click)="trigger($event)"
-                [attr.aria-label]="label()"
-                [attr.aria-pressed]="pressed()"
-                [attr.title]="label()"
-                [class]="buttonClass()"
-                type="button">
+            (click)="trigger($event)"
+            [attr.aria-label]="label()"
+            [attr.aria-pressed]="pressed()"
+            [attr.title]="label()"
+            [class]="buttonClass()"
+            type="button"
+        >
             <i [class]="'pi ' + icon() + ' ' + iconSize()"></i>
         </button>
     `,
-    styles: `:host { display: inline-flex; }`,
+    styles: `
+        :host {
+            display: inline-flex;
+        }
+    `,
 })
 export class CallTileActionComponent {
     /** PrimeIcons class, e.g. `pi-external-link`. */
@@ -41,11 +46,13 @@ export class CallTileActionComponent {
     protected readonly buttonClass = computed(() => {
         const box = this.size() === 'sm' ? 'w-7 h-7' : 'w-8 h-8';
         const tint = this.tone() === 'danger' ? 'text-offline' : 'text-white/75 hover:text-white';
-        return `call-focusable ${box} ${tint} flex items-center justify-center rounded-lg border border-white/10`
-            + ' bg-black/45 hover:bg-black/70 transition-colors cursor-pointer';
+        return (
+            `call-focusable ${box} ${tint} flex items-center justify-center rounded-lg border border-white/10` +
+            ' bg-black/45 hover:bg-black/70 transition-colors cursor-pointer'
+        );
     });
 
-    protected readonly iconSize = computed(() => this.size() === 'sm' ? 'text-xs' : 'text-sm');
+    protected readonly iconSize = computed(() => (this.size() === 'sm' ? 'text-xs' : 'text-sm'));
 
     protected trigger(event: MouseEvent): void {
         // Tiles carry their own click and contextmenu handlers; a button on top of one is not a

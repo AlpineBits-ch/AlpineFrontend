@@ -65,8 +65,7 @@ describe('the word for an invoice status', () => {
 
 describe('the date in a sentence about money', () => {
     it('renders the day, month and year in the reader locale', () => {
-        expect(formatBillingDate('2026-09-14T10:12:00Z', 'long', 'en-GB'))
-            .toBe('14 September 2026');
+        expect(formatBillingDate('2026-09-14T10:12:00Z', 'long', 'en-GB')).toBe('14 September 2026');
     });
 
     /**
@@ -104,8 +103,7 @@ describe('what a subscription costs, said as a rate', () => {
     });
 
     it('says per year for an annual plan', () => {
-        expect(subscriptionPriceCopy(29000, 'usd', 'year').intervalKey)
-            .toBe('BILLING.INTERVAL.YEAR');
+        expect(subscriptionPriceCopy(29000, 'usd', 'year').intervalKey).toBe('BILLING.INTERVAL.YEAR');
     });
 
     /**
@@ -188,12 +186,15 @@ describe('what the customer is about to be charged, or given back', () => {
 
 describe('the proration lines', () => {
     it('keeps the sign, so a credit line reads as one without the colour having to say it', () => {
-        const lines = previewLineCopy(preview({
-            lines: [
-                {description: 'Unused time on Pro', amountMinorUnits: -1450},
-                {description: 'Remaining time on Plus', amountMinorUnits: 450},
-            ],
-        }), 'en-US');
+        const lines = previewLineCopy(
+            preview({
+                lines: [
+                    {description: 'Unused time on Pro', amountMinorUnits: -1450},
+                    {description: 'Remaining time on Plus', amountMinorUnits: 450},
+                ],
+            }),
+            'en-US',
+        );
 
         expect(lines[0].amount).toContain('14.50');
         expect(lines[0].amount).toContain('-');
@@ -203,12 +204,14 @@ describe('the proration lines', () => {
 
     /** Order is Stripe's reading of the change, and nothing here re-sums it into a total. */
     it('leaves the order and the descriptions exactly as sent', () => {
-        const lines = previewLineCopy(preview({
-            lines: [
-                {description: 'B', amountMinorUnits: 1},
-                {description: 'A', amountMinorUnits: 2},
-            ],
-        }));
+        const lines = previewLineCopy(
+            preview({
+                lines: [
+                    {description: 'B', amountMinorUnits: 1},
+                    {description: 'A', amountMinorUnits: 2},
+                ],
+            }),
+        );
 
         expect(lines.map(l => l.description)).toEqual(['B', 'A']);
     });
@@ -225,7 +228,6 @@ describe('the subscription keys', () => {
         const missing = BILLING_SUBSCRIPTION_TRANSLATION_KEYS.filter(key => !(key in strings));
 
         expect(BILLING_SUBSCRIPTION_TRANSLATION_KEYS.length).toBeGreaterThan(10);
-        expect(missing, `keys held in a table but absent from en.json:\n${missing.join('\n')}`)
-            .toEqual([]);
+        expect(missing, `keys held in a table but absent from en.json:\n${missing.join('\n')}`).toEqual([]);
     });
 });

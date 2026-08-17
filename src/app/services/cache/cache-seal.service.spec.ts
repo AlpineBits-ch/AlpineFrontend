@@ -14,15 +14,24 @@ class FakeSecureStore extends SecureStore {
     updateCalls = 0;
     /** Every name read, so a spec can prove the key was looked up under the right device id. */
     readonly names: string[] = [];
-    constructor(public value: string | null) { super(); }
+    constructor(public value: string | null) {
+        super();
+    }
     async getItem(name: string): Promise<string | null> {
         this.getItemCalls++;
         this.names.push(name);
         return this.value;
     }
-    async setItem(): Promise<void> { /* unused */ }
-    async removeItem(): Promise<void> { /* unused */ }
-    override async update(): Promise<string | null> { this.updateCalls++; return this.value; }
+    async setItem(): Promise<void> {
+        /* unused */
+    }
+    async removeItem(): Promise<void> {
+        /* unused */
+    }
+    override async update(): Promise<string | null> {
+        this.updateCalls++;
+        return this.value;
+    }
 }
 
 /** The device id the fake identity service answers with. Mutable, to model a sign-out. */
@@ -100,9 +109,7 @@ describe('CacheSealService', () => {
         deviceId = 'device-b';
         await seal.available();
 
-        expect(store.names).toEqual([
-            'alpine_mls_device-a_statekey', 'alpine_mls_device-b_statekey',
-        ]);
+        expect(store.names).toEqual(['alpine_mls_device-a_statekey', 'alpine_mls_device-b_statekey']);
     });
 
     it('returns null for a value sealed under a different key', async () => {

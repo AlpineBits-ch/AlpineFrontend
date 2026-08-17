@@ -97,7 +97,6 @@ describe('guild settings nav', () => {
 
     /** A caller that has read nothing yet must not draw a billing surface on the guess. */
     it('draws nothing before the instance has been asked', () => {
-        expect(buildGuildNavGroups(EVERY_FEATURE).flatMap(g => g.items.map(i => i.id)))
-            .not.toContain('plan');
+        expect(buildGuildNavGroups(EVERY_FEATURE).flatMap(g => g.items.map(i => i.id))).not.toContain('plan');
     });
 });

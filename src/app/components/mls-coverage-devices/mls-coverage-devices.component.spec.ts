@@ -22,10 +22,13 @@ function view(overrides: Partial<MlsCoverageView> = {}): MlsCoverageView {
 }
 
 /** Renders against the real `en.json`: this component picks between five near-identical strings. */
-function setup(coverageView: MlsCoverageView | null, options: {
-    ownerNames?: Record<string, string>;
-    isChannel?: boolean;
-} = {}): {
+function setup(
+    coverageView: MlsCoverageView | null,
+    options: {
+        ownerNames?: Record<string, string>;
+        isChannel?: boolean;
+    } = {},
+): {
     fixture: ComponentFixture<MlsCoverageDevicesComponent>;
     text: () => string;
     section: () => HTMLElement | null;
@@ -60,8 +63,10 @@ function setup(coverageView: MlsCoverageView | null, options: {
         fixture,
         text: () => (host.textContent ?? '').replace(/\s+/g, ' ').trim(),
         section: () => host.querySelector<HTMLElement>('[data-testid="coverage-devices"]'),
-        rows: () => [...host.querySelectorAll('[data-testid="coverage-devices"] > div')]
-            .map(el => el.textContent?.replace(/\s+/g, ' ').trim() ?? ''),
+        rows: () =>
+            [...host.querySelectorAll('[data-testid="coverage-devices"] > div')].map(
+                el => el.textContent?.replace(/\s+/g, ' ').trim() ?? '',
+            ),
         unavailable: () => host.querySelector<HTMLElement>('[data-testid="coverage-unavailable"]'),
         refresh,
         button: () => host.querySelector<HTMLButtonElement>('button'),
@@ -92,9 +97,11 @@ describe('MlsCoverageDevicesComponent', () => {
     });
 
     it('names another of your own devices, with no action', () => {
-        const {section, rows, button} = setup(view({
-            otherOwnDevices: [{deviceId: 'd', deviceName: 'Pixel 8', covered: false}],
-        }));
+        const {section, rows, button} = setup(
+            view({
+                otherOwnDevices: [{deviceId: 'd', deviceName: 'Pixel 8', covered: false}],
+            }),
+        );
 
         expect(section()).not.toBeNull();
         expect(rows()).toHaveLength(1);
@@ -106,29 +113,30 @@ describe('MlsCoverageDevicesComponent', () => {
 
     it('says channel rather than conversation in a channel', () => {
         const {rows} = setup(
-            view({isChannel: true, otherOwnDevices: [{deviceId: 'd', deviceName: 'Pixel 8', covered: false}]}),
+            view({
+                isChannel: true,
+                otherOwnDevices: [{deviceId: 'd', deviceName: 'Pixel 8', covered: false}],
+            }),
             {isChannel: true},
         );
 
         expect(rows()[0]).toContain("Pixel 8 can't read this channel");
     });
 
-    it('names a peer\'s device after its owner', () => {
+    it("names a peer's device after its owner", () => {
         const {rows} = setup(
             view({peerDevices: [{userId: 'usr-2', deviceId: 'p', deviceName: 'iPhone 15'}]}),
             {ownerNames: {'usr-2': 'Alex'}},
         );
 
         expect(rows()[0]).toContain("Alex's iPhone 15 can't read this conversation");
-        expect(rows()[0])
-            .toContain("They'll be asked to let it in the next time they open Venta on it.");
+        expect(rows()[0]).toContain("They'll be asked to let it in the next time they open Venta on it.");
     });
 
     it('drops to the owner alone when the device has no name', () => {
-        const {rows} = setup(
-            view({peerDevices: [{userId: 'usr-2', deviceId: 'p', deviceName: ''}]}),
-            {ownerNames: {'usr-2': 'Alex'}},
-        );
+        const {rows} = setup(view({peerDevices: [{userId: 'usr-2', deviceId: 'p', deviceName: ''}]}), {
+            ownerNames: {'usr-2': 'Alex'},
+        });
 
         expect(rows()[0]).toContain("Alex's device can't read this conversation");
     });
@@ -142,11 +150,14 @@ describe('MlsCoverageDevicesComponent', () => {
         expect(rows()[0]).toContain("usr-9's iPhone 15 can't read this conversation");
     });
 
-    it('lists your own devices before other people\'s', () => {
-        const {rows} = setup(view({
-            otherOwnDevices: [{deviceId: 'd', deviceName: 'Pixel 8', covered: false}],
-            peerDevices: [{userId: 'usr-2', deviceId: 'p', deviceName: 'iPhone 15'}],
-        }), {ownerNames: {'usr-2': 'Alex'}});
+    it("lists your own devices before other people's", () => {
+        const {rows} = setup(
+            view({
+                otherOwnDevices: [{deviceId: 'd', deviceName: 'Pixel 8', covered: false}],
+                peerDevices: [{userId: 'usr-2', deviceId: 'p', deviceName: 'iPhone 15'}],
+            }),
+            {ownerNames: {'usr-2': 'Alex'}},
+        );
 
         expect(rows()).toHaveLength(2);
         expect(rows()[0]).toContain('Pixel 8');
@@ -163,10 +174,13 @@ describe('MlsCoverageDevicesComponent', () => {
     });
 
     it('keeps showing what was last known alongside the could-not-check line', () => {
-        const {section, unavailable, rows} = setup(view({
-            unavailable: true,
-            peerDevices: [{userId: 'usr-2', deviceId: 'p', deviceName: 'iPhone 15'}],
-        }), {ownerNames: {'usr-2': 'Alex'}});
+        const {section, unavailable, rows} = setup(
+            view({
+                unavailable: true,
+                peerDevices: [{userId: 'usr-2', deviceId: 'p', deviceName: 'iPhone 15'}],
+            }),
+            {ownerNames: {'usr-2': 'Alex'}},
+        );
 
         expect(section()).not.toBeNull();
         expect(rows()).toHaveLength(1);

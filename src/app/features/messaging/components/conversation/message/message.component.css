@@ -86,7 +86,7 @@
 
 :host ::ng-deep .hljs-comment,
 :host ::ng-deep .hljs-quote {
-    color: rgba(255, 255, 255, 0.30);
+    color: rgba(255, 255, 255, 0.3);
     font-style: italic;
 }
 
@@ -134,7 +134,7 @@
 
 :host ::ng-deep .hljs-addition {
     color: #c3e88d;
-    background: rgba(195, 232, 141, 0.10);
+    background: rgba(195, 232, 141, 0.1);
 }
 
 :host ::ng-deep a {

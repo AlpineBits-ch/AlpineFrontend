@@ -1,4 +1,14 @@
-import {ChangeDetectionStrategy, Component, computed, effect, inject, input, OnInit, output, signal} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    effect,
+    inject,
+    input,
+    OnInit,
+    output,
+    signal,
+} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {HttpErrorResponse} from '@angular/common/http';
 import {Button} from 'primeng/button';
@@ -64,7 +74,8 @@ export class QuietHoursSettingsComponent implements OnInit {
     /** The zone list, with the current id folded in when the platform does not list it: a saved zone can be an alias this runtime resolves but never enumerates (`Asia/Calcutta` for `Asia/Kolkata`), and without this the picker would render blank over a valid value and the first click would silently change it. */
     protected readonly timeZoneOptions = computed(() => {
         const current = this.timeZoneId().trim();
-        if (!current || this.baseTimeZoneOptions.some(o => o.value === current)) return this.baseTimeZoneOptions;
+        if (!current || this.baseTimeZoneOptions.some(o => o.value === current))
+            return this.baseTimeZoneOptions;
         return [{label: current, value: current}, ...this.baseTimeZoneOptions];
     });
 
@@ -119,10 +130,12 @@ export class QuietHoursSettingsComponent implements OnInit {
         const saved = this.saved();
         if (!saved) return false;
         const d = this.draft();
-        return saved.enabled !== d.enabled
-            || saved.startMinuteLocal !== d.startMinuteLocal
-            || saved.endMinuteLocal !== d.endMinuteLocal
-            || saved.timeZoneId !== d.timeZoneId;
+        return (
+            saved.enabled !== d.enabled ||
+            saved.startMinuteLocal !== d.startMinuteLocal ||
+            saved.endMinuteLocal !== d.endMinuteLocal ||
+            saved.timeZoneId !== d.timeZoneId
+        );
     });
 
     constructor() {

@@ -28,11 +28,13 @@ export class PermissionToggleComponent {
         const features = this.features();
         const needle = this.query().trim().toLowerCase();
 
-        return this.catalog().groups
-            .filter(group => !features || !group.feature || features.has(group.feature))
+        return this.catalog()
+            .groups.filter(group => !features || !group.feature || features.has(group.feature))
             .map(group => ({
                 ...group,
-                perms: needle ? group.perms.filter(key => this.label(key).toLowerCase().includes(needle)) : group.perms,
+                perms: needle
+                    ? group.perms.filter(key => this.label(key).toLowerCase().includes(needle))
+                    : group.perms,
             }))
             .filter(group => group.perms.length > 0);
     });

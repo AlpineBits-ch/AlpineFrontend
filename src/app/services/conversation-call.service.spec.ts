@@ -45,9 +45,9 @@ interface SetupOptions {
 function setup(options: SetupOptions = {}) {
     const callState = new Subject<CallStateChangedEvent>();
     const voiceService = {
-        getConversationCall: vi.fn(() => options.fails
-            ? throwError(() => new Error('offline'))
-            : of(options.call ?? null)),
+        getConversationCall: vi.fn(() =>
+            options.fails ? throwError(() => new Error('offline')) : of(options.call ?? null),
+        ),
     };
     const connectionState = signal(ConnectionState.Connected);
 

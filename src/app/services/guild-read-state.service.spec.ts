@@ -38,9 +38,17 @@ function setup() {
 function group(channelId: string, mentionCount = 0) {
     return {
         breadcrumb: {
-            guildId: 'gild_1', guildName: 'Echo', guildIconUrl: '', guildIconThumbnailUrl: '',
-            categoryId: null, categoryName: null, channelId, channelName: 'general',
-            channelType: 0, parentChannelId: null, parentChannelName: null,
+            guildId: 'gild_1',
+            guildName: 'Echo',
+            guildIconUrl: '',
+            guildIconThumbnailUrl: '',
+            categoryId: null,
+            categoryName: null,
+            channelId,
+            channelName: 'general',
+            channelType: 0,
+            parentChannelId: null,
+            parentChannelName: null,
         },
         lastActivityAt: '2026-08-03T10:14:22.115Z',
         unreadCount: 3,
@@ -77,11 +85,13 @@ describe('GuildReadStateService.ensureSeeded', () => {
         const {service, ctrl} = setup();
         const done = service.ensureSeeded();
         // Muting and permission filtering happen after the page is taken, so this is not the end.
-        ctrl.expectOne(UNREAD)
-            .flush({groups: [], nextCursor: 'c1', previewsUnavailable: false});
+        ctrl.expectOne(UNREAD).flush({groups: [], nextCursor: 'c1', previewsUnavailable: false});
         await Promise.resolve();
-        ctrl.expectOne(`${UNREAD}&cursor=c1`)
-            .flush({groups: [group('c9', 4)], nextCursor: null, previewsUnavailable: false});
+        ctrl.expectOne(`${UNREAD}&cursor=c1`).flush({
+            groups: [group('c9', 4)],
+            nextCursor: null,
+            previewsUnavailable: false,
+        });
         await done;
 
         expect(service.getChannelState('c9').mentionCount).toBe(4);
@@ -90,8 +100,7 @@ describe('GuildReadStateService.ensureSeeded', () => {
     it('runs once across every guild rather than once per guild', async () => {
         const {service, ctrl} = setup();
         const done = service.ensureSeeded();
-        ctrl.expectOne(UNREAD)
-            .flush({groups: [], nextCursor: null, previewsUnavailable: false});
+        ctrl.expectOne(UNREAD).flush({groups: [], nextCursor: null, previewsUnavailable: false});
         await done;
 
         await service.ensureSeeded();
@@ -102,8 +111,11 @@ describe('GuildReadStateService.ensureSeeded', () => {
         const {service, ws, ctrl} = setup();
         const done = service.ensureSeeded();
         deliver(ws, 'c1', ['me']);
-        ctrl.expectOne(UNREAD)
-            .flush({groups: [group('c1', 0)], nextCursor: null, previewsUnavailable: false});
+        ctrl.expectOne(UNREAD).flush({
+            groups: [group('c1', 0)],
+            nextCursor: null,
+            previewsUnavailable: false,
+        });
         await done;
 
         // The websocket increment is fresher than the page it raced.
@@ -117,8 +129,11 @@ describe('GuildReadStateService.ensureSeeded', () => {
         await first;
 
         const second = service.ensureSeeded();
-        ctrl.expectOne(UNREAD)
-            .flush({groups: [group('c1', 1)], nextCursor: null, previewsUnavailable: false});
+        ctrl.expectOne(UNREAD).flush({
+            groups: [group('c1', 1)],
+            nextCursor: null,
+            previewsUnavailable: false,
+        });
         await second;
 
         expect(service.getChannelState('c1').mentionCount).toBe(1);

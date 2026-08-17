@@ -45,12 +45,18 @@ function setup(shares: CallScreenShare[], scope: WatchScope, setWatching = vi.fn
             },
             {
                 provide: RustMediaService,
-                useValue: {previewPaused: () => false, claimPreviewRender: vi.fn(), releasePreviewRender: vi.fn(), resumePreview: vi.fn()},
+                useValue: {
+                    previewPaused: () => false,
+                    claimPreviewRender: vi.fn(),
+                    releasePreviewRender: vi.fn(),
+                    resumePreview: vi.fn(),
+                },
             },
         ],
     });
 
-    const fixture: ComponentFixture<CallScreenLayoutComponent> = TestBed.createComponent(CallScreenLayoutComponent);
+    const fixture: ComponentFixture<CallScreenLayoutComponent> =
+        TestBed.createComponent(CallScreenLayoutComponent);
     fixture.componentRef.setInput('screenShares', shares);
     fixture.componentRef.setInput('participants', []);
     fixture.componentRef.setInput('participantsWithAudio', new Set<string>());

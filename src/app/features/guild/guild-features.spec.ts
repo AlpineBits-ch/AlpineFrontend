@@ -22,8 +22,11 @@ describe('parseGuildFeatures', () => {
     });
 
     it('tolerates missing spaces and stray whitespace', () => {
-        expect([...parseGuildFeatures('VoiceChannels,Threads ,  Wiki ')])
-            .toEqual(['VoiceChannels', 'Threads', 'Wiki']);
+        expect([...parseGuildFeatures('VoiceChannels,Threads ,  Wiki ')]).toEqual([
+            'VoiceChannels',
+            'Threads',
+            'Wiki',
+        ]);
     });
 
     it('treats "None" and empty as no modules', () => {
@@ -72,7 +75,7 @@ describe('withGuildFeature', () => {
 });
 
 describe('guildHasFeature', () => {
-    it('reads the guild\'s own set', () => {
+    it("reads the guild's own set", () => {
         expect(guildHasFeature(guild('Wiki'), GuildFeature.Wiki)).toBe(true);
         expect(guildHasFeature(guild('Wiki'), GuildFeature.Events)).toBe(false);
     });

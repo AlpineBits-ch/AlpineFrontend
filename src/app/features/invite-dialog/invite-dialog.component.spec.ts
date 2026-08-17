@@ -67,12 +67,24 @@ function guildWithVoiceChannel() {
     const guild = inviteFixture().guild!;
     return {
         ...guild,
-        channels: [{
-            id: 'chan_v', createdAt: new Date(), updatedAt: new Date(), name: 'Lounge',
-            description: '', type: ChannelType.Voice, guildId: 'g1', isAgeRestricted: false,
-            isPrivate: false, categoryId: undefined, permissions: [], position: 0,
-            slowModeSeconds: 0, parentChannelId: undefined,
-        }],
+        channels: [
+            {
+                id: 'chan_v',
+                createdAt: new Date(),
+                updatedAt: new Date(),
+                name: 'Lounge',
+                description: '',
+                type: ChannelType.Voice,
+                guildId: 'g1',
+                isAgeRestricted: false,
+                isPrivate: false,
+                categoryId: undefined,
+                permissions: [],
+                position: 0,
+                slowModeSeconds: 0,
+                parentChannelId: undefined,
+            },
+        ],
     };
 }
 
@@ -121,8 +133,10 @@ describe('InviteDialogComponent join rejection', () => {
         const {fixture, component, ctrl} = await joinReady();
 
         internal(component).join();
-        ctrl.expectOne(`${BASE}/invites/inv1/redeem`)
-            .flush({error: 'verification_level_not_met', requiredLevel: 'Medium'}, {status: 403, statusText: 'Forbidden'});
+        ctrl.expectOne(`${BASE}/invites/inv1/redeem`).flush(
+            {error: 'verification_level_not_met', requiredLevel: 'Medium'},
+            {status: 403, statusText: 'Forbidden'},
+        );
         fixture.detectChanges();
         await fixture.whenStable();
 
@@ -135,8 +149,10 @@ describe('InviteDialogComponent join rejection', () => {
         const {fixture, component, ctrl} = await joinReady();
 
         internal(component).join();
-        ctrl.expectOne(`${BASE}/invites/inv1/redeem`)
-            .flush({error: 'verification_level_not_met', requiredLevel: 'High'}, {status: 403, statusText: 'Forbidden'});
+        ctrl.expectOne(`${BASE}/invites/inv1/redeem`).flush(
+            {error: 'verification_level_not_met', requiredLevel: 'High'},
+            {status: 403, statusText: 'Forbidden'},
+        );
         fixture.detectChanges();
         await fixture.whenStable();
 
@@ -147,8 +163,10 @@ describe('InviteDialogComponent join rejection', () => {
         const {fixture, component, ctrl} = await joinReady();
 
         internal(component).join();
-        ctrl.expectOne(`${BASE}/invites/inv1/redeem`)
-            .flush({error: 'verification_level_not_met'}, {status: 403, statusText: 'Forbidden'});
+        ctrl.expectOne(`${BASE}/invites/inv1/redeem`).flush(
+            {error: 'verification_level_not_met'},
+            {status: 403, statusText: 'Forbidden'},
+        );
         fixture.detectChanges();
         await fixture.whenStable();
 
@@ -160,8 +178,10 @@ describe('InviteDialogComponent join rejection', () => {
         const {fixture, component, ctrl} = await joinReady();
 
         internal(component).join();
-        ctrl.expectOne(`${BASE}/invites/inv1/redeem`)
-            .flush('Forbidden', {status: 403, statusText: 'Forbidden'});
+        ctrl.expectOne(`${BASE}/invites/inv1/redeem`).flush('Forbidden', {
+            status: 403,
+            statusText: 'Forbidden',
+        });
         fixture.detectChanges();
         await fixture.whenStable();
 
@@ -173,8 +193,10 @@ describe('InviteDialogComponent join rejection', () => {
         const {fixture, component, ctrl} = await joinReady();
 
         internal(component).join();
-        ctrl.expectOne(`${BASE}/invites/inv1/redeem`)
-            .flush('Server error', {status: 500, statusText: 'Server Error'});
+        ctrl.expectOne(`${BASE}/invites/inv1/redeem`).flush('Server error', {
+            status: 500,
+            statusText: 'Server Error',
+        });
         fixture.detectChanges();
         await fixture.whenStable();
 
@@ -185,8 +207,10 @@ describe('InviteDialogComponent join rejection', () => {
         const {fixture, component, ctrl} = await joinReady();
 
         internal(component).join();
-        ctrl.expectOne(`${BASE}/invites/inv1/redeem`)
-            .flush({error: 'verification_level_not_met', requiredLevel: 'Low'}, {status: 403, statusText: 'Forbidden'});
+        ctrl.expectOne(`${BASE}/invites/inv1/redeem`).flush(
+            {error: 'verification_level_not_met', requiredLevel: 'Low'},
+            {status: 403, statusText: 'Forbidden'},
+        );
         fixture.detectChanges();
         await fixture.whenStable();
         fixture.detectChanges();
@@ -203,8 +227,10 @@ describe('InviteDialogComponent join rejection', () => {
         const {fixture, component, ctrl} = await joinReady();
 
         internal(component).join();
-        ctrl.expectOne(`${BASE}/invites/inv1/redeem`)
-            .flush({error: 'verification_level_not_met', requiredLevel: 'Low'}, {status: 403, statusText: 'Forbidden'});
+        ctrl.expectOne(`${BASE}/invites/inv1/redeem`).flush(
+            {error: 'verification_level_not_met', requiredLevel: 'Low'},
+            {status: 403, statusText: 'Forbidden'},
+        );
         fixture.detectChanges();
         await fixture.whenStable();
         fixture.detectChanges();
@@ -216,8 +242,10 @@ describe('InviteDialogComponent join rejection', () => {
         const {fixture, component, ctrl, inviteDialogService} = await joinReady();
 
         internal(component).join();
-        ctrl.expectOne(`${BASE}/invites/inv1/redeem`)
-            .flush({error: 'verification_level_not_met', requiredLevel: 'High'}, {status: 403, statusText: 'Forbidden'});
+        ctrl.expectOne(`${BASE}/invites/inv1/redeem`).flush(
+            {error: 'verification_level_not_met', requiredLevel: 'High'},
+            {status: 403, statusText: 'Forbidden'},
+        );
         fixture.detectChanges();
         await fixture.whenStable();
         expect(internal(component).requiredLevel()).toBe('High');
@@ -243,7 +271,8 @@ describe('InviteDialogComponent preview rate limiting', () => {
 
         ctrl.expectOne(`${BASE}/invites/inv1`).flush(
             {error: 'rate_limited', message: 'Too many invite lookups; try again shortly.'},
-            {status: 429, statusText: 'Too Many Requests'});
+            {status: 429, statusText: 'Too Many Requests'},
+        );
         fixture.detectChanges();
         await fixture.whenStable();
 
@@ -257,8 +286,10 @@ describe('InviteDialogComponent preview rate limiting', () => {
     it('retries once on demand, and settles when the retry succeeds', async () => {
         const {fixture, component, ctrl} = await setup();
 
-        ctrl.expectOne(`${BASE}/invites/inv1`)
-            .flush({error: 'rate_limited'}, {status: 429, statusText: 'Too Many Requests'});
+        ctrl.expectOne(`${BASE}/invites/inv1`).flush(
+            {error: 'rate_limited'},
+            {status: 429, statusText: 'Too Many Requests'},
+        );
         fixture.detectChanges();
         await fixture.whenStable();
 
@@ -289,9 +320,11 @@ describe('InviteDialogComponent invite state', () => {
 
         // Server-derived, and deliberately not re-derived: a lapsed `expiresAt` on an Active row
         // is the server's answer and is rendered as given.
-        ctrl.expectOne(`${BASE}/invites/inv1`).flush(inviteFixture({
-            expiresAt: new Date(Date.now() - 60_000).toISOString(),
-        }));
+        ctrl.expectOne(`${BASE}/invites/inv1`).flush(
+            inviteFixture({
+                expiresAt: new Date(Date.now() - 60_000).toISOString(),
+            }),
+        );
         fixture.detectChanges();
         await fixture.whenStable();
 
@@ -333,8 +366,10 @@ describe('InviteDialogComponent redeem result', () => {
         const {fixture, component, ctrl} = await joinReady();
 
         internal(component).join();
-        ctrl.expectOne(`${BASE}/invites/inv1/redeem`)
-            .flush({guildId: 'g1', temporaryMembership: true}, {status: 202, statusText: 'Accepted'});
+        ctrl.expectOne(`${BASE}/invites/inv1/redeem`).flush(
+            {guildId: 'g1', temporaryMembership: true},
+            {status: 202, statusText: 'Accepted'},
+        );
         fixture.detectChanges();
         await fixture.whenStable();
 
@@ -346,8 +381,10 @@ describe('InviteDialogComponent redeem result', () => {
         const {fixture, component, ctrl} = await joinReady();
 
         internal(component).join();
-        ctrl.expectOne(`${BASE}/invites/inv1/redeem`)
-            .flush({guildId: 'g1', onboardingRequired: true}, {status: 202, statusText: 'Accepted'});
+        ctrl.expectOne(`${BASE}/invites/inv1/redeem`).flush(
+            {guildId: 'g1', onboardingRequired: true},
+            {status: 202, statusText: 'Accepted'},
+        );
         fixture.detectChanges();
         await fixture.whenStable();
 
@@ -361,7 +398,8 @@ describe('InviteDialogComponent redeem result', () => {
         internal(component).join();
         ctrl.expectOne(`${BASE}/invites/inv1/redeem`).flush(
             {guildId: 'g1', channelId: 'chan_v', targetType: 'VoiceChannel', joinVoice: true},
-            {status: 202, statusText: 'Accepted'});
+            {status: 202, statusText: 'Accepted'},
+        );
         ctrl.expectOne(`${BASE}/guilds/g1`).flush(guildWithVoiceChannel());
         fixture.detectChanges();
         await fixture.whenStable();
@@ -379,7 +417,8 @@ describe('InviteDialogComponent redeem result', () => {
         internal(component).join();
         ctrl.expectOne(`${BASE}/invites/inv1/redeem`).flush(
             {guildId: 'g1', channelId: 'chan_v', targetType: 'VoiceChannel', joinVoice: false},
-            {status: 202, statusText: 'Accepted'});
+            {status: 202, statusText: 'Accepted'},
+        );
         fixture.detectChanges();
         await fixture.whenStable();
 

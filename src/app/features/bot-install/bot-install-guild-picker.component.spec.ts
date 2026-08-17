@@ -22,7 +22,9 @@ function setup() {
         ],
     });
 
-    const fixture: ComponentFixture<BotInstallGuildPickerComponent> = TestBed.createComponent(BotInstallGuildPickerComponent);
+    const fixture: ComponentFixture<BotInstallGuildPickerComponent> = TestBed.createComponent(
+        BotInstallGuildPickerComponent,
+    );
     fixture.componentRef.setInput('clientId', 'client_1');
     const component = fixture.componentInstance;
     const ctrl = TestBed.inject(HttpTestingController);
@@ -50,7 +52,10 @@ describe('BotInstallGuildPickerComponent', () => {
 
     it('sets error() true when the fetch fails', () => {
         const {component, ctrl, fixture} = setup();
-        ctrl.expectOne(`${BASE}/guilds/manageable?clientId=client_1`).flush('boom', {status: 500, statusText: 'Server Error'});
+        ctrl.expectOne(`${BASE}/guilds/manageable?clientId=client_1`).flush('boom', {
+            status: 500,
+            statusText: 'Server Error',
+        });
         fixture.detectChanges();
         expect(component.error()).toBe(true);
     });

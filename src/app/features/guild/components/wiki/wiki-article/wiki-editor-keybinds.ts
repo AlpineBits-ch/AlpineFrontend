@@ -66,9 +66,7 @@ export function wikiEditorKeybinds(options: WikiEditorKeybindOptions): Extension
                             if (isModifierOnly(event)) return false;
 
                             const pressed = acceleratorFromEvent(event);
-                            const id = ACTION_IDS.find(
-                                action => options.binding(action) === pressed,
-                            );
+                            const id = ACTION_IDS.find(action => options.binding(action) === pressed);
                             if (!id) return false;
                             if (!options.editable() && !READ_ONLY_ACTIONS.has(id)) return false;
 
@@ -85,6 +83,5 @@ export function wikiEditorKeybinds(options: WikiEditorKeybindOptions): Extension
 }
 
 function isModifierOnly(event: KeyboardEvent): boolean {
-    return event.key === 'Control' || event.key === 'Alt'
-        || event.key === 'Shift' || event.key === 'Meta';
+    return event.key === 'Control' || event.key === 'Alt' || event.key === 'Shift' || event.key === 'Meta';
 }

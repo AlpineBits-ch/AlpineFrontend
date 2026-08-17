@@ -9,9 +9,12 @@ import {WikiPageSummaryDto} from '../../../../../dtos/response/wiki.dto';
     imports: [DatePipe, TranslateModule],
     template: `
         @if (open() && page(); as _) {
-            <div [style.left.px]="position().left" [style.top.px]="position().top"
-                 class="pointer-events-none fixed z-50 w-72 rounded-xl border border-border
-                        bg-card p-3 shadow-xl">
+            <div
+                [style.left.px]="position().left"
+                [style.top.px]="position().top"
+                class="pointer-events-none fixed z-50 w-72 rounded-xl border border-border
+                        bg-card p-3 shadow-xl"
+            >
                 <p class="m-0 truncate text-[0.8125rem] font-semibold text-white/85">
                     {{ page()!.title }}
                 </p>
@@ -31,5 +34,5 @@ export class WikiLinkPreviewComponent {
     readonly open = input(false);
     readonly page = input<WikiPageSummaryDto | null>(null);
     readonly snippet = input('');
-    readonly position = input<{ top: number; left: number }>({top: 0, left: 0});
+    readonly position = input<{top: number; left: number}>({top: 0, left: 0});
 }

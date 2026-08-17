@@ -1,8 +1,8 @@
 import {inject, Injectable} from '@angular/core';
-import {EMPTY, expand, filter, Observable, switchMap, take, throwError, timer} from "rxjs";
-import {HttpClient} from "@angular/common/http";
-import {environment} from "../../environments/environment";
-import {ApiConfigService} from "./api-config.service";
+import {EMPTY, expand, filter, Observable, switchMap, take, throwError, timer} from 'rxjs';
+import {HttpClient} from '@angular/common/http';
+import {environment} from '../../environments/environment';
+import {ApiConfigService} from './api-config.service';
 
 /** No `url` field: the server does not send one. Use {@link FileService.attachmentDownloadUrl} with the id. */
 export interface AttachmentDto {
@@ -24,7 +24,7 @@ export enum AttachmentStatus {
     Pending = 'Pending',
     Processing = 'Processing',
     Complete = 'Complete',
-    Failed = 'Failed'
+    Failed = 'Failed',
 }
 
 interface UploadResponse {
@@ -36,7 +36,6 @@ interface UploadResponse {
     providedIn: 'root',
 })
 export class FileService {
-
     private httpClient = inject(HttpClient);
     private apiConfig = inject(ApiConfigService);
 
@@ -48,11 +47,11 @@ export class FileService {
         formData.append('files', file, file.name);
 
         return this.httpClient.post<UploadResponse[]>(url, formData).pipe(
-            switchMap((initialResponse) => {
+            switchMap(initialResponse => {
                 const fileId = initialResponse[0].attachmentId;
                 // 2. Start polling the status endpoint
                 return this.pollFileStatus(fileId);
-            })
+            }),
         );
     }
 
@@ -66,7 +65,9 @@ export class FileService {
     }
 
     public getAttachmentMetadataById(id: string): Observable<AttachmentDto> {
-        return this.httpClient.get<AttachmentDto>(`${this.apiConfig.baseUrl()}/api/v1/messaging/attachments/${id}`);
+        return this.httpClient.get<AttachmentDto>(
+            `${this.apiConfig.baseUrl()}/api/v1/messaging/attachments/${id}`,
+        );
     }
 
     private pollFileStatus(fileId: string): Observable<AttachmentDto> {
@@ -74,10 +75,13 @@ export class FileService {
 
         return this.httpClient.get<AttachmentDto>(pollUrl).pipe(
             // expand will recursively call this logic
-            expand((res) => {
-                const isFinished = res.state === AttachmentStatus.Complete || res.state === AttachmentStatus.Failed;
+            expand(res => {
+                const isFinished =
+                    res.state === AttachmentStatus.Complete || res.state === AttachmentStatus.Failed;
                 // If not finished, wait 2 seconds and call the API again
-                return isFinished ? EMPTY : timer(2000).pipe(switchMap(() => this.httpClient.get<any>(pollUrl)));
+                return isFinished
+                    ? EMPTY
+                    : timer(2000).pipe(switchMap(() => this.httpClient.get<any>(pollUrl)));
             }),
             // Filter so the component only gets the final result
             filter(res => res.state === AttachmentStatus.Complete || res.state === AttachmentStatus.Failed),
@@ -87,7 +91,7 @@ export class FileService {
                     return throwError(() => new Error('File processing failed at server.'));
                 }
                 return [res];
-            })
+            }),
         );
     }
 }

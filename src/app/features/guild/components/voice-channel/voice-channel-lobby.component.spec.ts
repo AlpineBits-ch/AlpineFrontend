@@ -7,7 +7,12 @@ import {ChannelDto, ChannelType} from '../../../../dtos/response/guild.dto';
 import {ProfileService} from '../../../../services/profile.service';
 import {provideFakePlatform} from '../../../../platform/testing/provide-fake-platform';
 
-const CHANNEL = {id: 'chan-1', guildId: 'guild-1', name: 'General', type: ChannelType.Voice} as unknown as ChannelDto;
+const CHANNEL = {
+    id: 'chan-1',
+    guildId: 'guild-1',
+    name: 'General',
+    type: ChannelType.Voice,
+} as unknown as ChannelDto;
 
 function participant(overrides: Partial<VoiceChannelParticipant> = {}): VoiceChannelParticipant {
     return {
@@ -32,7 +37,10 @@ function render(
         imports: [VoiceChannelLobbyComponent, TranslateModule.forRoot()],
         providers: [
             provideFakePlatform(),
-            {provide: ProfileService, useValue: {getCachedByUserId: () => undefined, resolveByUserId: () => void 0}},
+            {
+                provide: ProfileService,
+                useValue: {getCachedByUserId: () => undefined, resolveByUserId: () => void 0},
+            },
         ],
     });
     const fixture = TestBed.createComponent(VoiceChannelLobbyComponent);
@@ -44,13 +52,17 @@ function render(
 }
 
 function joinAndWatchButton(fixture: ComponentFixture<VoiceChannelLobbyComponent>): HTMLButtonElement | null {
-    return Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
-        .find(b => b.textContent?.includes('CALL.JOIN_AND_WATCH')) ?? null;
+    return (
+        Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>).find(
+            b => b.textContent?.includes('CALL.JOIN_AND_WATCH'),
+        ) ?? null
+    );
 }
 
 function joinButton(fixture: ComponentFixture<VoiceChannelLobbyComponent>): HTMLButtonElement {
-    return Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
-        .find(b => b.textContent?.includes('CALL.JOIN_VOICE') || b.textContent?.includes('CALL.JOINING'))!;
+    return Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>).find(
+        b => b.textContent?.includes('CALL.JOIN_VOICE') || b.textContent?.includes('CALL.JOINING'),
+    )!;
 }
 
 describe('VoiceChannelLobbyComponent live state', () => {
@@ -76,15 +88,15 @@ describe('VoiceChannelLobbyComponent live state', () => {
         expect(joinAndWatchButton(fixture)).not.toBeNull();
     });
 
-    it('emits joinAndWatch carrying the live streamer\'s userId, not a plain join', () => {
+    it("emits joinAndWatch carrying the live streamer's userId, not a plain join", () => {
         const fixture = render([
             participant({userId: 'user-1', isScreenSharing: false}),
             participant({userId: 'streamer-2', isScreenSharing: true}),
         ]);
         let watchedUserId: string | null = null;
         let plainJoined = false;
-        fixture.componentInstance.joinAndWatch.subscribe(id => watchedUserId = id);
-        fixture.componentInstance.joinVoice.subscribe(() => plainJoined = true);
+        fixture.componentInstance.joinAndWatch.subscribe(id => (watchedUserId = id));
+        fixture.componentInstance.joinVoice.subscribe(() => (plainJoined = true));
 
         joinAndWatchButton(fixture)!.click();
 
@@ -95,10 +107,11 @@ describe('VoiceChannelLobbyComponent live state', () => {
     it('still offers the plain join action alongside join-and-watch', () => {
         const fixture = render([participant({userId: 'user-2', isScreenSharing: true})]);
         let plainJoined = false;
-        fixture.componentInstance.joinVoice.subscribe(() => plainJoined = true);
+        fixture.componentInstance.joinVoice.subscribe(() => (plainJoined = true));
 
-        const plainButton = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
-            .find(b => b.textContent?.includes('CALL.JOIN_VOICE'));
+        const plainButton = Array.from(
+            fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>,
+        ).find(b => b.textContent?.includes('CALL.JOIN_VOICE'));
         plainButton!.click();
 
         expect(plainJoined).toBe(true);

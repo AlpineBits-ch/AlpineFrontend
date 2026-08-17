@@ -36,7 +36,11 @@ describe('runMlsLaunch', () => {
         const outcome = await runMlsLaunch(s);
 
         expect(calls).toEqual([
-            'unlock', 'checkMasterKey', 'replenish', 'processWelcomes', 'sweepForAdmission',
+            'unlock',
+            'checkMasterKey',
+            'replenish',
+            'processWelcomes',
+            'sweepForAdmission',
         ]);
         expect(outcome).toEqual({
             handle: 'handle',
@@ -127,8 +131,7 @@ describe('runMlsLaunch', () => {
 
         // Asking to be admitted to something a waiting Welcome was about to fix is a request
         // nobody needs to review.
-        expect(calls.indexOf('sweepForAdmission'))
-            .toBeGreaterThan(calls.indexOf('processWelcomes'));
+        expect(calls.indexOf('sweepForAdmission')).toBeGreaterThan(calls.indexOf('processWelcomes'));
     });
 
     it('reports a failed admission sweep without disturbing the steps before it', async () => {

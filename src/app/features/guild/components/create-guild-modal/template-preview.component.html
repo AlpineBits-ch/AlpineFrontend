@@ -1,11 +1,14 @@
 <div class="flex flex-col gap-3">
-
     <p class="text-xs text-text-secondary m-0">
-        {{ 'CREATE_GUILD.TEMPLATE.PREVIEW_SUMMARY' | translate: {
-        categories: categories().length,
-        channels: channelCount(),
-        roles: roles().length
-    } }}
+        {{
+            'CREATE_GUILD.TEMPLATE.PREVIEW_SUMMARY'
+                | translate
+                    : {
+                          categories: categories().length,
+                          channels: channelCount(),
+                          roles: roles().length,
+                      }
+        }}
     </p>
 
     <div class="max-h-40 overflow-y-auto thin-scrollbar rounded-xl bg-card border border-border p-3 space-y-2.5">
@@ -24,7 +27,9 @@
         }
         @if (uncategorizedChannels().length > 0) {
             <div>
-                <p class="text-[0.625rem] font-semibold text-text-muted uppercase tracking-widest mb-1">{{ 'CREATE_GUILD.TEMPLATE.UNCATEGORIZED' | translate }}</p>
+                <p class="text-[0.625rem] font-semibold text-text-muted uppercase tracking-widest mb-1">
+                    {{ 'CREATE_GUILD.TEMPLATE.UNCATEGORIZED' | translate }}
+                </p>
                 <div class="space-y-1 pl-2">
                     @for (channel of uncategorizedChannels(); track channel.name) {
                         <div class="flex items-center gap-2 text-xs text-text-secondary">
@@ -38,7 +43,9 @@
     </div>
 
     <div>
-        <p class="text-[0.625rem] font-semibold text-text-muted uppercase tracking-widest mb-1.5">{{ 'CREATE_GUILD.TEMPLATE.ROLES' | translate }}</p>
+        <p class="text-[0.625rem] font-semibold text-text-muted uppercase tracking-widest mb-1.5">
+            {{ 'CREATE_GUILD.TEMPLATE.ROLES' | translate }}
+        </p>
         <div class="flex flex-wrap gap-1.5">
             @for (role of roles(); track role.name) {
                 <span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-hover text-[0.6875rem] text-text-secondary">
@@ -51,5 +58,4 @@
             <i class="pi pi-info-circle text-[0.625rem] mr-1"></i>{{ 'CREATE_GUILD.TEMPLATE.REORDER_NOTE' | translate }}
         </p>
     </div>
-
 </div>

@@ -145,9 +145,10 @@ export function entitlementRemedyCopy(
     return {
         ctaKey,
         // Only for a server upgrade.
-        hintKey: ctaKey === null && remedy === ENTITLEMENT_REMEDY_CODES.upgradeGuild
-            ? ENTITLEMENT_ASK_OWNER_KEY
-            : null,
+        hintKey:
+            ctaKey === null && remedy === ENTITLEMENT_REMEDY_CODES.upgradeGuild
+                ? ENTITLEMENT_ASK_OWNER_KEY
+                : null,
     };
 }
 

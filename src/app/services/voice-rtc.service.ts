@@ -6,15 +6,10 @@ import {GuildVoiceService} from './guild-voice.service';
 import {AudioSettingsService} from './audio-settings.service';
 import {RustMediaService} from './rust-media.service';
 import {ScreenPickerService} from './screen-picker.service';
-import {ApiConfigService} from "./api-config.service";
-import {DeviceIdentityService} from "./device-identity.service";
+import {ApiConfigService} from './api-config.service';
+import {DeviceIdentityService} from './device-identity.service';
 import {OAuthService} from 'angular-oauth2-oidc';
-import {
-    bitrateFor,
-    clampPreset,
-    DEFAULT_STREAM_PRESET,
-    StreamPreset,
-} from '../models/stream-preset';
+import {bitrateFor, clampPreset, DEFAULT_STREAM_PRESET, StreamPreset} from '../models/stream-preset';
 import {VoiceLimitsService} from './voice-limits.service';
 import {solveGeometry} from '../models/capture-geometry';
 import {publishOptions} from './screen-publish';
@@ -145,12 +140,12 @@ export class VoiceRTCService {
     /** The Rust publication carrying this channel's audio. */
     private voiceSession: VoiceSession | null = null;
     /** What {@link connect} was called with. Cleared by {@link teardown}: a declaration firing after we left would announce a track into a channel this client is no longer in. */
-    private voiceTarget: { guildId: string; channelId: string } | null = null;
+    private voiceTarget: {guildId: string; channelId: string} | null = null;
     private setupDone = false;
     /** Said once per session rather than per call - see {@link RoomPublishing}. */
     private warnedMissingRoomSurface = false;
     /** The connection the microphone publishes on: the screen share must land on this same participant, and {@link teardown} clears it because a room lives on one node. */
-    private primaryConnection: { url: string; token: string } | null = null;
+    private primaryConnection: {url: string; token: string} | null = null;
 
     private localVideoTrack: MediaStreamTrack | null = null;
     private screenShareId: string | null = null;
@@ -187,12 +182,12 @@ export class VoiceRTCService {
     private readonly audioOps = new Map<string, Promise<unknown>>();
 
     /** Track name → whose video the roster says it is: an intent, not a record of what is subscribed, because an announcement is never repeated and its sid may not be knowable yet. */
-    private readonly wantedVideo = new Map<string, { userId: string; kind: 'video' | 'screen' }>();
+    private readonly wantedVideo = new Map<string, {userId: string; kind: 'video' | 'screen'}>();
 
     /** Quality of the running screen share, or null when not sharing. */
     readonly screenPreset = signal<StreamPreset | null>(null);
     /** Dimensions of the captured source: a mid-stream resolution change must re-solve from this, since re-solving from the current output geometry ratchets the picture down on every change. */
-    private screenSourceSize: { width: number; height: number } | null = null;
+    private screenSourceSize: {width: number; height: number} | null = null;
     /** True while the running share is owned by the screen publisher rather than by this service. */
     private rustPublishing = false;
     /** The picker choice behind the running publish, so a resolution change can rebuild it. */
@@ -206,11 +201,9 @@ export class VoiceRTCService {
     constructor() {
         // A share can end without anything in the app asking it to, so it is forwarded into the same subject a user-pressed stop unwinds through.
         // Guarded on `rustPublishing`: `RustMediaService` is a singleton shared with the 1:1 call path, so `publishEnded$` fires for whichever publish ended, not for ours.
-        this.rustMedia.publishEnded$
-            .pipe(takeUntilDestroyed())
-            .subscribe(() => {
-                if (this.rustPublishing) this.screenEnded$.next();
-            });
+        this.rustMedia.publishEnded$.pipe(takeUntilDestroyed()).subscribe(() => {
+            if (this.rustPublishing) this.screenEnded$.next();
+        });
 
         // Re-arms the poll when a stats panel opens or closes. Runs only when the connection is
         // already polling; there is nothing to re-arm otherwise.
@@ -278,7 +271,8 @@ export class VoiceRTCService {
     private async openViewRoom(guildId: string, channelId: string): Promise<void> {
         try {
             const connection = await firstValueFrom(
-                this.guildVoiceSvc.connection(guildId, channelId, false, VIEW_TAG));
+                this.guildVoiceSvc.connection(guildId, channelId, false, VIEW_TAG),
+            );
             // The camera publishes on this connection, so this is the reply that decides whether its button can do anything.
             this.canPublishVideo.set(connection.canPublishVideo);
             await this.livekit.connect({url: connection.url, token: connection.token});
@@ -294,7 +288,7 @@ export class VoiceRTCService {
     private startEngine(
         target: VoiceTarget,
         deviceId: string,
-        livekit: { url: string; token: string },
+        livekit: {url: string; token: string},
     ): Promise<VoiceSession> {
         // Called directly, never through a cast: a cast turns a forgotten connection from a compile error into a 404 three layers down inside Rust.
         return this.voiceEngine.start(
@@ -313,7 +307,7 @@ export class VoiceRTCService {
             this.warnedMissingRoomSurface = true;
             console.error(
                 '[voice] the room wrapper carries no publish/publications surface - ' +
-                'cameras cannot be published and roster rows cannot be resolved to track sids',
+                    'cameras cannot be published and roster rows cannot be resolved to track sids',
             );
         }
         return room;
@@ -357,8 +351,9 @@ export class VoiceRTCService {
             const mid = midOfReport(report);
             if (!mid) continue;
 
-            const owners: ReadonlyMap<string, InboundTrackOwner> =
-                new Map([[mid, {userId: track.userId, kind: 'screen' as const}]]);
+            const owners: ReadonlyMap<string, InboundTrackOwner> = new Map([
+                [mid, {userId: track.userId, kind: 'screen' as const}],
+            ]);
             Object.assign(fps, inboundScreenFpsByUser(report, owners));
             sample ??= detailedStatsFor(report, owners, inspectedUser);
         }
@@ -393,7 +388,7 @@ export class VoiceRTCService {
      * The Rust session and never this room's identity: the microphone lives on the Rust connection, and asserting this one hands peers a participant with no audio track.
      * Null means not publishing; an empty `mediaSessionId` does not, so publishing state is driven from `publishState` and never from whether this string is blank.
      */
-    get publishedMedia(): { mediaSessionId: string; audioTrackName: string } | null {
+    get publishedMedia(): {mediaSessionId: string; audioTrackName: string} | null {
         if (!this.voiceSession) return null;
         return {
             mediaSessionId: this.voiceSession.mediaSessionId,
@@ -513,7 +508,12 @@ export class VoiceRTCService {
      * Audio never arrives on this room: two transports playing the same participant is double playout, and the second copy is not muteable from any control the user can see.
      */
     async subscribeAudio(
-        targets: { userId: string; mediaSessionId: string; trackName: string; kind?: 'audio' | 'screenAudio' }[],
+        targets: {
+            userId: string;
+            mediaSessionId: string;
+            trackName: string;
+            kind?: 'audio' | 'screenAudio';
+        }[],
     ): Promise<void> {
         // Concurrently: sequentially, one participant losing the publish race would hold up everyone announced alongside them.
         await Promise.all(targets.map(target => this.subscribeOne(target)));
@@ -540,16 +540,20 @@ export class VoiceRTCService {
 
     /** Run one engine operation for a source, after every operation already queued for it. The chain is kept settled, or one rejected subscribe takes every later operation for that source with it. */
     private queueAudioOp<T>(id: string, op: () => Promise<T>): Promise<T> {
-        const next = (this.audioOps.get(id) ?? Promise.resolve()).catch(() => {
-        }).then(op);
-        this.audioOps.set(id, next.catch(() => {
-        }));
+        const next = (this.audioOps.get(id) ?? Promise.resolve()).catch(() => {}).then(op);
+        this.audioOps.set(
+            id,
+            next.catch(() => {}),
+        );
         return next;
     }
 
-    private async subscribeOne(
-        target: { userId: string; mediaSessionId: string; trackName: string; kind?: 'audio' | 'screenAudio' },
-    ): Promise<void> {
+    private async subscribeOne(target: {
+        userId: string;
+        mediaSessionId: string;
+        trackName: string;
+        kind?: 'audio' | 'screenAudio';
+    }): Promise<void> {
         // Captured once: the channel can be left mid-retry, and the loop below must not resubscribe onto a different channel's publication.
         // Waited for outside the queue: inside it, the first announcement's wait for a session would hold up every other announcement for the same source.
         const session = await this.awaitSession();
@@ -562,9 +566,7 @@ export class VoiceRTCService {
         const id = target.kind === 'screenAudio' ? target.trackName : target.userId;
 
         // An absent media session means "this user", and absent includes the empty string: the desktop client sends `''`, so `??` does not catch it and a truthiness test is required.
-        const resolved = target.mediaSessionId
-            ? target
-            : {...target, mediaSessionId: target.userId};
+        const resolved = target.mediaSessionId ? target : {...target, mediaSessionId: target.userId};
 
         return this.queueAudioOp(id, () => this.subscribeQueued(session, id, resolved));
     }
@@ -573,7 +575,7 @@ export class VoiceRTCService {
     private async subscribeQueued(
         session: VoiceSession,
         id: string,
-        target: { userId: string; mediaSessionId: string; trackName: string; kind?: 'audio' | 'screenAudio' },
+        target: {userId: string; mediaSessionId: string; trackName: string; kind?: 'audio' | 'screenAudio'},
     ): Promise<void> {
         // A participant is announced both live and out of the backfill, and the two do not always agree; acting on that difference is the only recovery path there is.
         const previous = this.subscribedAudioSessions.get(id);
@@ -581,7 +583,9 @@ export class VoiceRTCService {
         if (previous !== undefined) {
             // The old subscription points at a participant that is no longer publishing. Drop it, or the mixer keeps a dead source.
             console.warn('[voice] publishing identity changed, resubscribing', {
-                id, from: previous, to: target.mediaSessionId,
+                id,
+                from: previous,
+                to: target.mediaSessionId,
             });
             await this.voiceEngine.unsubscribe(session, id);
             this.subscribedAudioSessions.delete(id);
@@ -622,16 +626,28 @@ export class VoiceRTCService {
             } catch (e) {
                 if (attempt < SUBSCRIBE_RETRY_DELAYS_MS.length) {
                     // Expected, not exceptional: a roster announcement can beat the SFU's own `TrackPublished` to the Rust room, and an announcement is never repeated.
-                    console.warn('[voice] subscribe failed, retrying', {
-                        id, attempt: attempt + 1, retryInMs: SUBSCRIBE_RETRY_DELAYS_MS[attempt],
-                    }, e);
+                    console.warn(
+                        '[voice] subscribe failed, retrying',
+                        {
+                            id,
+                            attempt: attempt + 1,
+                            retryInMs: SUBSCRIBE_RETRY_DELAYS_MS[attempt],
+                        },
+                        e,
+                    );
                     await new Promise(r => setTimeout(r, SUBSCRIBE_RETRY_DELAYS_MS[attempt]));
                     continue;
                 }
                 // Loud, and it stays loud: the retries are exhausted, so this participant is unhearable until they republish.
-                console.error('[voice] subscribe failed', {
-                    id, ...target, attempts: SUBSCRIBE_RETRY_DELAYS_MS.length + 1,
-                }, e);
+                console.error(
+                    '[voice] subscribe failed',
+                    {
+                        id,
+                        ...target,
+                        attempts: SUBSCRIBE_RETRY_DELAYS_MS.length + 1,
+                    },
+                    e,
+                );
                 return;
             }
         }
@@ -694,16 +710,17 @@ export class VoiceRTCService {
         }
 
         // `unresolved` is the room not knowing the publication yet, `refused` is this room saying no, and pulling with nothing `held` is the SFU accepting a subscribe and forwarding nothing.
-        const held = [...this.livekit.remoteTracks().values()]
-            .map(t => `${t.userId}/${t.publication.trackName}`);
+        const held = [...this.livekit.remoteTracks().values()].map(
+            t => `${t.userId}/${t.publication.trackName}`,
+        );
         console.info(
-            `[voice] video reconcile: wanted ${this.wantedVideo.size}`
-            + `, pulling ${resolved.length}${resolved.length ? ` [${resolved.join(', ')}]` : ''}`
-            + (unresolved.length ? `, no sid yet [${unresolved.join(', ')}]` : '')
-            + (refused.length ? `, refused [${refused.join(', ')}]` : '')
-            + `, held ${held.length}${held.length ? ` [${held.join(', ')}]` : ''}`
-            // A drop takes a working picture away, so it is named rather than counted.
-            + (dropped.length ? `, DROPPED [${dropped.join(', ')}]` : ''),
+            `[voice] video reconcile: wanted ${this.wantedVideo.size}` +
+                `, pulling ${resolved.length}${resolved.length ? ` [${resolved.join(', ')}]` : ''}` +
+                (unresolved.length ? `, no sid yet [${unresolved.join(', ')}]` : '') +
+                (refused.length ? `, refused [${refused.join(', ')}]` : '') +
+                `, held ${held.length}${held.length ? ` [${held.join(', ')}]` : ''}` +
+                // A drop takes a working picture away, so it is named rather than counted.
+                (dropped.length ? `, DROPPED [${dropped.join(', ')}]` : ''),
         );
     }
 
@@ -768,11 +785,13 @@ export class VoiceRTCService {
             // The SDK owns the send-side encodings: the ladder, the codec preference and the start bitrate.
             await publishTrack(this.localVideoTrack, CAMERA_TRACK);
 
-            const granted = await firstValueFrom(this.guildVoiceSvc.publish(guildId, channelId, {
-                trackNames: [CAMERA_TRACK],
-                // What the camera actually opened at, not what was asked for: stating the request would have the server clamp against a resolution nothing is sending.
-                video: trackIntent(this.localVideoTrack),
-            }));
+            const granted = await firstValueFrom(
+                this.guildVoiceSvc.publish(guildId, channelId, {
+                    trackNames: [CAMERA_TRACK],
+                    // What the camera actually opened at, not what was asked for: stating the request would have the server clamp against a resolution nothing is sending.
+                    video: trackIntent(this.localVideoTrack),
+                }),
+            );
 
             // A clamped publish is a success carrying a note: nothing above this line rolls back on account of it.
             this.voiceLimits.noteDegradations(granted);
@@ -781,8 +800,7 @@ export class VoiceRTCService {
         } catch (err) {
             // A refusal is not a broken camera. The device is released either way, or the camera light stays on behind a publish that did not happen.
             this.voiceLimits.noteDenial(err);
-            await this.roomMedia.unpublishTrack?.(CAMERA_TRACK).catch(() => {
-            });
+            await this.roomMedia.unpublishTrack?.(CAMERA_TRACK).catch(() => {});
             this.releaseCameraTrack();
             return null;
         }
@@ -793,8 +811,9 @@ export class VoiceRTCService {
         const track = this.localVideoTrack;
         if (!track || height === null || framerate === null) return;
         if (typeof track.applyConstraints !== 'function') return;
-        await track.applyConstraints({height, frameRate: framerate}).catch(e =>
-            console.warn('[voice] could not re-encode the camera to the granted rung', e));
+        await track
+            .applyConstraints({height, frameRate: framerate})
+            .catch(e => console.warn('[voice] could not re-encode the camera to the granted rung', e));
     }
 
     /** Drop a camera capture that never became a publication. */
@@ -806,16 +825,15 @@ export class VoiceRTCService {
 
     async closeCamera(guildId: string, channelId: string): Promise<void> {
         if (!this.localVideoTrack) return;
-        await this.roomMedia.unpublishTrack?.(CAMERA_TRACK).catch(() => {
-        });
+        await this.roomMedia.unpublishTrack?.(CAMERA_TRACK).catch(() => {});
         this.releaseCameraTrack();
         // Best effort, and after the media has already stopped: the declaration is what makes peers drop the tile rather than waiting on a track that has ended.
-        await firstValueFrom(this.guildVoiceSvc.unpublish(guildId, channelId, [CAMERA_TRACK]))
-            .catch(() => {
-            });
+        await firstValueFrom(this.guildVoiceSvc.unpublish(guildId, channelId, [CAMERA_TRACK])).catch(
+            () => {},
+        );
     }
 
-    async publishScreen(guildId: string, channelId: string): Promise<{ shareId: string } | null> {
+    async publishScreen(guildId: string, channelId: string): Promise<{shareId: string} | null> {
         try {
             const choice = await this.screenPicker.show();
             if (!choice) return null;
@@ -833,7 +851,7 @@ export class VoiceRTCService {
         }
     }
 
-    async closeScreen(guildId: string, channelId: string): Promise<{ shareId: string } | null> {
+    async closeScreen(guildId: string, channelId: string): Promise<{shareId: string} | null> {
         if (!this.rustPublishing) return null;
 
         // The publisher stops its own tracks; what is left here is the declaration, which is what makes peers drop the tile.
@@ -851,9 +869,7 @@ export class VoiceRTCService {
         this.screenSourceSize = null;
         this.screenPreset.set(null);
 
-        await firstValueFrom(this.guildVoiceSvc.unpublish(guildId, channelId, trackNames))
-            .catch(() => {
-            });
+        await firstValueFrom(this.guildVoiceSvc.unpublish(guildId, channelId, trackNames)).catch(() => {});
         return {shareId};
     }
 
@@ -862,7 +878,7 @@ export class VoiceRTCService {
         guildId: string,
         channelId: string,
         choice: ScreenPickerChoice,
-    ): Promise<{ shareId: string } | null> {
+    ): Promise<{shareId: string} | null> {
         // The microphone's connection, so the share lands on the same participant rather than opening a third identity.
         const livekit = this.primaryConnection;
         if (!livekit) {
@@ -896,18 +912,19 @@ export class VoiceRTCService {
             const trackNames = [screenTrackName(shareId)];
             if (published.audioTrackName) trackNames.push(screenAudioTrackName(shareId));
 
-            const granted = await firstValueFrom(this.guildVoiceSvc.publish(guildId, channelId, {
-                trackNames,
-                video: this.screenIntent(choice),
-            }));
+            const granted = await firstValueFrom(
+                this.guildVoiceSvc.publish(guildId, channelId, {
+                    trackNames,
+                    video: this.screenIntent(choice),
+                }),
+            );
             this.voiceLimits.noteDegradations(granted);
             return {shareId};
         } catch (e) {
             console.error('[voice] screen publish failed', e);
             // A `403` on the declaration is a refusal the room could not degrade, so the media has to stop: nobody receives it whatever the client does.
             this.voiceLimits.noteDenial(e);
-            if (this.rustPublishing) await this.rustMedia.stopScreenPublish().catch(() => {
-            });
+            if (this.rustPublishing) await this.rustMedia.stopScreenPublish().catch(() => {});
             this.rustPublishing = false;
             this.rustChoice = null;
             this.rustAudioTrackName = null;
@@ -922,8 +939,11 @@ export class VoiceRTCService {
     /** What a share is about to send: the solved capture height, not the preset's nominal one, solved from the same inputs `publishOptions` uses so the two cannot drift. */
     private screenIntent(choice: ScreenPickerChoice): VideoPublishIntentDto | undefined {
         const geometry = solveGeometry(
-            choice.sourceWidth, choice.sourceHeight, choice.preset.resolution,
-            this.voiceLimits.videoCeiling());
+            choice.sourceWidth,
+            choice.sourceHeight,
+            choice.preset.resolution,
+            this.voiceLimits.videoCeiling(),
+        );
         if (geometry.height <= 0) return undefined;
         return {height: geometry.height, framerate: choice.preset.framerate};
     }
@@ -952,8 +972,7 @@ export class VoiceRTCService {
         const retype = preset.resolution !== previous.resolution || preset.content !== previous.content;
         if (retype && this.screenSourceSize) {
             const {width, height} = this.screenSourceSize;
-            const box = solveGeometry(
-                width, height, preset.resolution, this.voiceLimits.videoCeiling());
+            const box = solveGeometry(width, height, preset.resolution, this.voiceLimits.videoCeiling());
             await this.rustMedia.setPublishSpec({
                 width: box.width,
                 height: box.height,
@@ -976,10 +995,12 @@ export class VoiceRTCService {
         if (height === null) return;
         if (height === this.solvedScreenHeight(previous) && preset.framerate === previous.framerate) return;
 
-        await firstValueFrom(this.guildVoiceSvc.declareVideo(target.guildId, target.channelId, {
-            height,
-            framerate: preset.framerate,
-        })).catch(e => console.warn('[voice] could not declare the new share size', e));
+        await firstValueFrom(
+            this.guildVoiceSvc.declareVideo(target.guildId, target.channelId, {
+                height,
+                framerate: preset.framerate,
+            }),
+        ).catch(e => console.warn('[voice] could not declare the new share size', e));
     }
 
     /** What the running capture is solved to, or null when the source size is unknown. */
@@ -1029,7 +1050,8 @@ export class VoiceRTCService {
         const willMute = !this.screenAudioMutedSignal().has(userId);
         const shareId = this.remoteScreenAudioIds.get(userId);
         // Unmuting restores whatever volume was set, not unity: mute must not clobber the stored level.
-        if (shareId) void this.voiceEngine.setUserVolume(shareId, willMute ? 0 : this.getScreenVolume(userId));
+        if (shareId)
+            void this.voiceEngine.setUserVolume(shareId, willMute ? 0 : this.getScreenVolume(userId));
         this.screenAudioMutedSignal.update(s => {
             const n = new Set(s);
             willMute ? n.add(userId) : n.delete(userId);
@@ -1057,9 +1079,7 @@ export class VoiceRTCService {
     async closeAllTracks(guildId: string, channelId: string): Promise<void> {
         const trackNames = this.getActiveTrackNames();
         if (trackNames.length === 0) return;
-        await firstValueFrom(this.guildVoiceSvc.unpublish(guildId, channelId, trackNames))
-            .catch(() => {
-            });
+        await firstValueFrom(this.guildVoiceSvc.unpublish(guildId, channelId, trackNames)).catch(() => {});
     }
 
     /** Updates stream/audio state when a remote participant's track is closed by the server. */

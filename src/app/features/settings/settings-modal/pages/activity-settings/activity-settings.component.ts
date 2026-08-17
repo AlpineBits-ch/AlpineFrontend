@@ -41,11 +41,10 @@ export class ActivitySettingsComponent implements OnInit {
     protected readonly unavailable = computed(() => this.privacy.status() === 'unavailable');
 
     /** Whether this build can detect anything at all. */
-    protected readonly canDetect = computed(() =>
-        this.capabilities.gameDetection && !this.os.isMobile);
+    protected readonly canDetect = computed(() => this.capabilities.gameDetection && !this.os.isMobile);
 
-    protected readonly discordIntegration = computed(() =>
-        this.userSettings.activitySettings().discordIntegration
+    protected readonly discordIntegration = computed(
+        () => this.userSettings.activitySettings().discordIntegration,
     );
 
     /** Whether the integration is on but lost the race for `discord-ipc-0`. */

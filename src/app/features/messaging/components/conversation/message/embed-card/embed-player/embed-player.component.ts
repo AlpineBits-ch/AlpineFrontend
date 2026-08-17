@@ -44,7 +44,8 @@ export class EmbedPlayerComponent {
     protected readonly framable = computed(() => isFramablePlayerUrl(this.video().url));
 
     protected readonly frameSrc = computed(() =>
-        this.framable() ? this.sanitizer.bypassSecurityTrustResourceUrl(this.video().url) : null);
+        this.framable() ? this.sanitizer.bypassSecurityTrustResourceUrl(this.video().url) : null,
+    );
 
     /**
      * Real aspect ratio, from the measured player size - a Spotify embed is a short bar and a

@@ -63,28 +63,39 @@ const GROUP_ORDER: readonly SlashGroup[] = ['basic', 'lists', 'media', 'advanced
     imports: [NgClass, TranslateModule],
     template: `
         @if (open()) {
-            <div [style.left.px]="position().left" [style.top.px]="position().top"
-                 class="fixed z-50 flex w-80 flex-col overflow-hidden rounded-xl border
-                        border-border bg-card shadow-xl">
+            <div
+                [style.left.px]="position().left"
+                [style.top.px]="position().top"
+                class="fixed z-50 flex w-80 flex-col overflow-hidden rounded-xl border
+                        border-border bg-card shadow-xl"
+            >
                 <div class="thin-scrollbar max-h-80 overflow-y-auto py-1">
                     @for (group of groups(); track group.key) {
-                        <p class="px-3 pb-1 pt-2 text-[0.625rem] font-semibold uppercase
-                                  tracking-wider text-white/30">
+                        <p
+                            class="px-3 pb-1 pt-2 text-[0.625rem] font-semibold uppercase
+                                  tracking-wider text-white/30"
+                        >
                             {{ group.labelKey | translate }}
                         </p>
                         @for (entry of group.entries; track entry.item.labelKey) {
                             <!-- The keyboard selection must not be styled as mouse hover; the hover colour sits only two percent off the card behind it, so arrowing through the menu would look like nothing happened. -->
-                            <button #itemEl (click)="choose(entry.item)"
-                                    [ngClass]="entry.index === activeIndex()
+                            <button
+                                #itemEl
+                                (click)="choose(entry.item)"
+                                [ngClass]="
+                                    entry.index === activeIndex()
                                         ? 'bg-brand/25 ring-1 ring-inset ring-brand/40'
-                                        : 'hover:bg-hover'"
-                                    class="flex w-full cursor-pointer items-center gap-2.5 border-0
-                                           bg-transparent px-3 py-1.5 text-left">
-                                <span class="flex h-7 w-7 shrink-0 items-center justify-center
-                                             rounded-md border border-border-subtle bg-hover">
+                                        : 'hover:bg-hover'
+                                "
+                                class="flex w-full cursor-pointer items-center gap-2.5 border-0
+                                           bg-transparent px-3 py-1.5 text-left"
+                            >
+                                <span
+                                    class="flex h-7 w-7 shrink-0 items-center justify-center
+                                             rounded-md border border-border-subtle bg-hover"
+                                >
                                     <!-- Colour folded into the one binding: two competing text-* utilities on the same element resolve by stylesheet order, which Tailwind decides, not by which is written last here. -->
-                                    <i [class]="iconClass(entry.item)"
-                                       class="pi text-[0.75rem]"></i>
+                                    <i [class]="iconClass(entry.item)" class="pi text-[0.75rem]"></i>
                                 </span>
                                 <span class="min-w-0 flex-1">
                                     <span class="block truncate text-[0.8125rem] text-white/85">
@@ -114,7 +125,7 @@ export class WikiSlashMenuComponent {
     readonly editor = input<Editor | undefined>(undefined);
     readonly query = input('');
     readonly open = input(false);
-    readonly position = input<{ top: number; left: number }>({top: 0, left: 0});
+    readonly position = input<{top: number; left: number}>({top: 0, left: 0});
 
     readonly selected = output<SlashItem>();
 
@@ -122,32 +133,186 @@ export class WikiSlashMenuComponent {
 
     /** Declared in group order, which is also the order they are keyboard-traversed in: the flat filtered list below is what the arrow keys index, and the grouping is a view over it. */
     protected readonly items: SlashItem[] = [
-        {group: 'basic', labelKey: 'WIKI.BLOCK.TEXT', descriptionKey: 'WIKI.BLOCK.TEXT_DESC', icon: 'pi-align-left', keywords: 'text paragraph plain body p', run: e => e.chain().focus().setParagraph().run()},
-        {group: 'basic', labelKey: 'WIKI.BLOCK.HEADING_1', descriptionKey: 'WIKI.BLOCK.HEADING_1_DESC', icon: 'pi-hashtag', keywords: 'h1 title heading', run: e => e.chain().focus().toggleHeading({level: 1}).run()},
-        {group: 'basic', labelKey: 'WIKI.BLOCK.HEADING_2', descriptionKey: 'WIKI.BLOCK.HEADING_2_DESC', icon: 'pi-hashtag', keywords: 'h2 heading subtitle section', run: e => e.chain().focus().toggleHeading({level: 2}).run()},
-        {group: 'basic', labelKey: 'WIKI.BLOCK.HEADING_3', descriptionKey: 'WIKI.BLOCK.HEADING_3_DESC', icon: 'pi-hashtag', keywords: 'h3 heading subsection', run: e => e.chain().focus().toggleHeading({level: 3}).run()},
-        {group: 'basic', labelKey: 'WIKI.BLOCK.QUOTE', descriptionKey: 'WIKI.BLOCK.QUOTE_DESC', icon: 'pi-comment', keywords: 'quote blockquote callout cite', run: e => e.chain().focus().toggleBlockquote().run()},
-        {group: 'basic', labelKey: 'WIKI.BLOCK.DIVIDER', descriptionKey: 'WIKI.BLOCK.DIVIDER_DESC', icon: 'pi-minus', keywords: 'divider rule hr separator line', run: e => e.chain().focus().setHorizontalRule().run()},
+        {
+            group: 'basic',
+            labelKey: 'WIKI.BLOCK.TEXT',
+            descriptionKey: 'WIKI.BLOCK.TEXT_DESC',
+            icon: 'pi-align-left',
+            keywords: 'text paragraph plain body p',
+            run: e => e.chain().focus().setParagraph().run(),
+        },
+        {
+            group: 'basic',
+            labelKey: 'WIKI.BLOCK.HEADING_1',
+            descriptionKey: 'WIKI.BLOCK.HEADING_1_DESC',
+            icon: 'pi-hashtag',
+            keywords: 'h1 title heading',
+            run: e => e.chain().focus().toggleHeading({level: 1}).run(),
+        },
+        {
+            group: 'basic',
+            labelKey: 'WIKI.BLOCK.HEADING_2',
+            descriptionKey: 'WIKI.BLOCK.HEADING_2_DESC',
+            icon: 'pi-hashtag',
+            keywords: 'h2 heading subtitle section',
+            run: e => e.chain().focus().toggleHeading({level: 2}).run(),
+        },
+        {
+            group: 'basic',
+            labelKey: 'WIKI.BLOCK.HEADING_3',
+            descriptionKey: 'WIKI.BLOCK.HEADING_3_DESC',
+            icon: 'pi-hashtag',
+            keywords: 'h3 heading subsection',
+            run: e => e.chain().focus().toggleHeading({level: 3}).run(),
+        },
+        {
+            group: 'basic',
+            labelKey: 'WIKI.BLOCK.QUOTE',
+            descriptionKey: 'WIKI.BLOCK.QUOTE_DESC',
+            icon: 'pi-comment',
+            keywords: 'quote blockquote callout cite',
+            run: e => e.chain().focus().toggleBlockquote().run(),
+        },
+        {
+            group: 'basic',
+            labelKey: 'WIKI.BLOCK.DIVIDER',
+            descriptionKey: 'WIKI.BLOCK.DIVIDER_DESC',
+            icon: 'pi-minus',
+            keywords: 'divider rule hr separator line',
+            run: e => e.chain().focus().setHorizontalRule().run(),
+        },
 
-        {group: 'lists', labelKey: 'WIKI.BLOCK.BULLET_LIST', descriptionKey: 'WIKI.BLOCK.BULLET_LIST_DESC', icon: 'pi-list', keywords: 'bullet unordered list ul', run: e => e.chain().focus().toggleBulletList().run()},
-        {group: 'lists', labelKey: 'WIKI.BLOCK.NUMBERED_LIST', descriptionKey: 'WIKI.BLOCK.NUMBERED_LIST_DESC', icon: 'pi-sort-numeric-up-alt', keywords: 'numbered ordered list ol', run: e => e.chain().focus().toggleOrderedList().run()},
-        {group: 'lists', labelKey: 'WIKI.BLOCK.TASK_LIST', descriptionKey: 'WIKI.BLOCK.TASK_LIST_DESC', icon: 'pi-check-square', keywords: 'task todo checkbox checklist', run: e => e.chain().focus().toggleTaskList().run()},
+        {
+            group: 'lists',
+            labelKey: 'WIKI.BLOCK.BULLET_LIST',
+            descriptionKey: 'WIKI.BLOCK.BULLET_LIST_DESC',
+            icon: 'pi-list',
+            keywords: 'bullet unordered list ul',
+            run: e => e.chain().focus().toggleBulletList().run(),
+        },
+        {
+            group: 'lists',
+            labelKey: 'WIKI.BLOCK.NUMBERED_LIST',
+            descriptionKey: 'WIKI.BLOCK.NUMBERED_LIST_DESC',
+            icon: 'pi-sort-numeric-up-alt',
+            keywords: 'numbered ordered list ol',
+            run: e => e.chain().focus().toggleOrderedList().run(),
+        },
+        {
+            group: 'lists',
+            labelKey: 'WIKI.BLOCK.TASK_LIST',
+            descriptionKey: 'WIKI.BLOCK.TASK_LIST_DESC',
+            icon: 'pi-check-square',
+            keywords: 'task todo checkbox checklist',
+            run: e => e.chain().focus().toggleTaskList().run(),
+        },
 
-        {group: 'media', labelKey: 'WIKI.BLOCK.IMAGE', descriptionKey: 'WIKI.BLOCK.IMAGE_DESC', icon: 'pi-image', keywords: 'image picture photo upload file screenshot', hostAction: 'image'},
-        {group: 'media', labelKey: 'WIKI.BLOCK.TABLE', descriptionKey: 'WIKI.BLOCK.TABLE_DESC', icon: 'pi-table', keywords: 'table grid rows columns', run: e => e.chain().focus().insertTable({rows: 3, cols: 3, withHeaderRow: true}).run()},
+        {
+            group: 'media',
+            labelKey: 'WIKI.BLOCK.IMAGE',
+            descriptionKey: 'WIKI.BLOCK.IMAGE_DESC',
+            icon: 'pi-image',
+            keywords: 'image picture photo upload file screenshot',
+            hostAction: 'image',
+        },
+        {
+            group: 'media',
+            labelKey: 'WIKI.BLOCK.TABLE',
+            descriptionKey: 'WIKI.BLOCK.TABLE_DESC',
+            icon: 'pi-table',
+            keywords: 'table grid rows columns',
+            run: e => e.chain().focus().insertTable({rows: 3, cols: 3, withHeaderRow: true}).run(),
+        },
 
-        {group: 'advanced', labelKey: 'WIKI.BLOCK.CODE_BLOCK', descriptionKey: 'WIKI.BLOCK.CODE_BLOCK_DESC', icon: 'pi-code', keywords: 'code block pre snippet', run: e => e.chain().focus().toggleCodeBlock().run()},
-        {group: 'advanced', labelKey: 'WIKI.BLOCK.CALLOUT', descriptionKey: 'WIKI.BLOCK.CALLOUT_DESC', icon: 'pi-info-circle', keywords: 'callout note info tip warning danger admonition alert', run: e => e.chain().focus().setCallout({variant: 'info'}).run()},
-        {group: 'advanced', labelKey: 'WIKI.BLOCK.TOGGLE', descriptionKey: 'WIKI.BLOCK.TOGGLE_DESC', icon: 'pi-chevron-right', keywords: 'toggle details collapse accordion expand', run: e => e.chain().focus().setToggle().run()},
-        {group: 'advanced', labelKey: 'WIKI.BLOCK.DIAGRAM', descriptionKey: 'WIKI.BLOCK.DIAGRAM_DESC', icon: 'pi-sitemap', keywords: 'diagram mermaid flowchart graph sequence', run: e => e.chain().focus().toggleCodeBlock({language: 'mermaid'}).run()},
-        {group: 'advanced', labelKey: 'WIKI.BLOCK.PAGE_LINK', descriptionKey: 'WIKI.BLOCK.PAGE_LINK_DESC', icon: 'pi-link', keywords: 'link page wiki reference mention', hostAction: 'page-link'},
+        {
+            group: 'advanced',
+            labelKey: 'WIKI.BLOCK.CODE_BLOCK',
+            descriptionKey: 'WIKI.BLOCK.CODE_BLOCK_DESC',
+            icon: 'pi-code',
+            keywords: 'code block pre snippet',
+            run: e => e.chain().focus().toggleCodeBlock().run(),
+        },
+        {
+            group: 'advanced',
+            labelKey: 'WIKI.BLOCK.CALLOUT',
+            descriptionKey: 'WIKI.BLOCK.CALLOUT_DESC',
+            icon: 'pi-info-circle',
+            keywords: 'callout note info tip warning danger admonition alert',
+            run: e => e.chain().focus().setCallout({variant: 'info'}).run(),
+        },
+        {
+            group: 'advanced',
+            labelKey: 'WIKI.BLOCK.TOGGLE',
+            descriptionKey: 'WIKI.BLOCK.TOGGLE_DESC',
+            icon: 'pi-chevron-right',
+            keywords: 'toggle details collapse accordion expand',
+            run: e => e.chain().focus().setToggle().run(),
+        },
+        {
+            group: 'advanced',
+            labelKey: 'WIKI.BLOCK.DIAGRAM',
+            descriptionKey: 'WIKI.BLOCK.DIAGRAM_DESC',
+            icon: 'pi-sitemap',
+            keywords: 'diagram mermaid flowchart graph sequence',
+            run: e => e.chain().focus().toggleCodeBlock({language: 'mermaid'}).run(),
+        },
+        {
+            group: 'advanced',
+            labelKey: 'WIKI.BLOCK.PAGE_LINK',
+            descriptionKey: 'WIKI.BLOCK.PAGE_LINK_DESC',
+            icon: 'pi-link',
+            keywords: 'link page wiki reference mention',
+            hostAction: 'page-link',
+        },
 
-        {group: 'ai', labelKey: 'WIKI.SLASH_MENU.AI_WRITE', descriptionKey: 'WIKI.SLASH_MENU.AI_WRITE_DESC', icon: 'pi-sparkles', keywords: 'ai write generate draft prompt ask', aiGenerate: 'draft'},
-        {group: 'ai', labelKey: 'WIKI.SLASH_MENU.AI_CONTINUE', descriptionKey: 'WIKI.SLASH_MENU.AI_CONTINUE_DESC', icon: 'pi-angle-double-right', keywords: 'ai continue keep writing more', aiOp: 'continue'},
-        {group: 'ai', labelKey: 'WIKI.SLASH_MENU.AI_SUMMARIZE', descriptionKey: 'WIKI.SLASH_MENU.AI_SUMMARIZE_DESC', icon: 'pi-align-center', keywords: 'ai summarize summary tldr shorten', aiOp: 'summarize'},
-        {group: 'ai', labelKey: 'WIKI.SLASH_MENU.AI_EXPAND', descriptionKey: 'WIKI.SLASH_MENU.AI_EXPAND_DESC', icon: 'pi-arrows-h', keywords: 'ai expand longer elaborate detail', aiOp: 'expand'},
-        {group: 'ai', labelKey: 'WIKI.SLASH_MENU.AI_IMPROVE', descriptionKey: 'WIKI.SLASH_MENU.AI_IMPROVE_DESC', icon: 'pi-star', keywords: 'ai improve rewrite polish better', aiOp: 'improve'},
-        {group: 'ai', labelKey: 'WIKI.SLASH_MENU.AI_TABLE', descriptionKey: 'WIKI.SLASH_MENU.AI_TABLE_DESC', icon: 'pi-table', keywords: 'ai table-from table from description generate', aiGenerate: 'table'},
+        {
+            group: 'ai',
+            labelKey: 'WIKI.SLASH_MENU.AI_WRITE',
+            descriptionKey: 'WIKI.SLASH_MENU.AI_WRITE_DESC',
+            icon: 'pi-sparkles',
+            keywords: 'ai write generate draft prompt ask',
+            aiGenerate: 'draft',
+        },
+        {
+            group: 'ai',
+            labelKey: 'WIKI.SLASH_MENU.AI_CONTINUE',
+            descriptionKey: 'WIKI.SLASH_MENU.AI_CONTINUE_DESC',
+            icon: 'pi-angle-double-right',
+            keywords: 'ai continue keep writing more',
+            aiOp: 'continue',
+        },
+        {
+            group: 'ai',
+            labelKey: 'WIKI.SLASH_MENU.AI_SUMMARIZE',
+            descriptionKey: 'WIKI.SLASH_MENU.AI_SUMMARIZE_DESC',
+            icon: 'pi-align-center',
+            keywords: 'ai summarize summary tldr shorten',
+            aiOp: 'summarize',
+        },
+        {
+            group: 'ai',
+            labelKey: 'WIKI.SLASH_MENU.AI_EXPAND',
+            descriptionKey: 'WIKI.SLASH_MENU.AI_EXPAND_DESC',
+            icon: 'pi-arrows-h',
+            keywords: 'ai expand longer elaborate detail',
+            aiOp: 'expand',
+        },
+        {
+            group: 'ai',
+            labelKey: 'WIKI.SLASH_MENU.AI_IMPROVE',
+            descriptionKey: 'WIKI.SLASH_MENU.AI_IMPROVE_DESC',
+            icon: 'pi-star',
+            keywords: 'ai improve rewrite polish better',
+            aiOp: 'improve',
+        },
+        {
+            group: 'ai',
+            labelKey: 'WIKI.SLASH_MENU.AI_TABLE',
+            descriptionKey: 'WIKI.SLASH_MENU.AI_TABLE_DESC',
+            icon: 'pi-table',
+            keywords: 'ai table-from table from description generate',
+            aiGenerate: 'table',
+        },
     ];
 
     private readonly translate = inject(TranslateService);
@@ -166,15 +331,11 @@ export class WikiSlashMenuComponent {
     /** The rendered shape: sections in declaration order, each row carrying its index in the flat list so the highlight and the arrow keys agree without a second lookup. */
     protected readonly groups = computed(() => {
         const filtered = this.filtered();
-        return GROUP_ORDER
-            .map(key => ({
-                key,
-                labelKey: GROUP_LABELS[key],
-                entries: filtered
-                    .map((item, index) => ({item, index}))
-                    .filter(entry => entry.item.group === key),
-            }))
-            .filter(group => group.entries.length > 0);
+        return GROUP_ORDER.map(key => ({
+            key,
+            labelKey: GROUP_LABELS[key],
+            entries: filtered.map((item, index) => ({item, index})).filter(entry => entry.item.group === key),
+        })).filter(group => group.entries.length > 0);
     });
 
     constructor() {

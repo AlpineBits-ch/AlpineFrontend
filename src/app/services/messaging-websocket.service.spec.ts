@@ -49,9 +49,14 @@ function setup() {
         getKnownGeneration: vi.fn(async () => 1 as number | null),
         getGroupId: vi.fn(async () => GROUP as string | null),
         getActiveGroupId: vi.fn(async () => GROUP as string | null),
-        getCachedMessage: vi.fn<(
-            contextId: string, generation: number | null, messageId: string, author?: string,
-        ) => Promise<string | null>>(async () => null),
+        getCachedMessage: vi.fn<
+            (
+                contextId: string,
+                generation: number | null,
+                messageId: string,
+                author?: string,
+            ) => Promise<string | null>
+        >(async () => null),
         cacheMessage: vi.fn(async () => undefined),
         getEncryptionFloor: vi.fn<(contextId: string) => Promise<number | null>>(async () => null),
         keyHandle: () => 'handle',
@@ -67,22 +72,28 @@ function setup() {
             MlsHealthService,
             {provide: MlsService, useValue: mls},
             {provide: MlsSyncService, useValue: sync},
-            {provide: ProfileService, useValue: {
-                ownProfile: () => ({userId: OWN_USER}),
-                getByUserId: () => of(null),
-            }},
+            {
+                provide: ProfileService,
+                useValue: {
+                    ownProfile: () => ({userId: OWN_USER}),
+                    getByUserId: () => of(null),
+                },
+            },
             {provide: NotificationService, useValue: {createNotification: vi.fn(async () => undefined)}},
             {provide: ConversationService, useValue: {}},
             // Only the typing gate is read here (T2-18). Stubbed rather than real so this spec does
             // not have to stand up ApiConfigService and the OAuth stack behind it.
             {provide: PrivacySettingsService, useValue: {sendTypingIndicators: () => true}},
-            {provide: RealtimeConnectionService, useValue: {
-                on: vi.fn((event: string, handler: (payload: never) => void) => {
-                    handlers.set(event, handler);
-                }),
-                start: vi.fn(async () => undefined),
-                connectionState: () => ConnectionState.Connected,
-            }},
+            {
+                provide: RealtimeConnectionService,
+                useValue: {
+                    on: vi.fn((event: string, handler: (payload: never) => void) => {
+                        handlers.set(event, handler);
+                    }),
+                    start: vi.fn(async () => undefined),
+                    connectionState: () => ConnectionState.Connected,
+                },
+            },
         ],
     });
 
@@ -93,8 +104,7 @@ function setup() {
     // `handleMessageCreated` is private and driven by a private subject; the alternative is
     // reaching through a `realtime.on` handler that this double never invokes.
     const handle = (data: Record<string, unknown>) =>
-        (service as unknown as { handleMessageCreated(d: unknown): Promise<void> })
-            .handleMessageCreated(data);
+        (service as unknown as {handleMessageCreated(d: unknown): Promise<void>}).handleMessageCreated(data);
 
     return {service, mls, sync, emitted, handle, handlers, health: TestBed.inject(MlsHealthService)};
 }
@@ -155,7 +165,7 @@ describe('MessagingWebsocketService live messages', () => {
         expect(emitted).toHaveLength(0);
     });
 
-    it('does not let the device label suppress another author\'s message', async () => {
+    it("does not let the device label suppress another author's message", async () => {
         const {emitted, handle} = setup();
 
         // Unbounded, this was a suppression primitive: the server could hide *any* message from
@@ -201,16 +211,18 @@ describe('MessagingWebsocketService admission requests', () => {
             requiresManualApproval: false,
         } as never);
 
-        expect(seen).toEqual([{
-            contextId: CTX,
-            isChannel: false,
-            generation: 1,
-            requestId: 'mljr-1',
-            requesterUserId: OWN_USER,
-            requesterDeviceId: 'device-b',
-            requesterDeviceName: 'Desktop',
-            signatureKeyFingerprint: '517F4-D75A0-AD0A2-6BBCF',
-            requiresManualApproval: false,
-        }]);
+        expect(seen).toEqual([
+            {
+                contextId: CTX,
+                isChannel: false,
+                generation: 1,
+                requestId: 'mljr-1',
+                requesterUserId: OWN_USER,
+                requesterDeviceId: 'device-b',
+                requesterDeviceName: 'Desktop',
+                signatureKeyFingerprint: '517F4-D75A0-AD0A2-6BBCF',
+                requiresManualApproval: false,
+            },
+        ]);
     });
 });

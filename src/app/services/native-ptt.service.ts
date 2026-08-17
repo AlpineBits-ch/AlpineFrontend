@@ -41,7 +41,10 @@ export class NativePttService {
 
     /** Edges for one slot only - what most callers actually want. */
     edgesFor(slot: number): Observable<boolean> {
-        return this.transmit$.pipe(filter(e => e.slot === slot), map(e => e.down));
+        return this.transmit$.pipe(
+            filter(e => e.slot === slot),
+            map(e => e.down),
+        );
     }
 
     async setBinding(slot: number, token: string): Promise<void> {

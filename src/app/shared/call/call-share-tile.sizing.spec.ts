@@ -15,7 +15,7 @@ function share(overrides: Partial<CallScreenShare> = {}): CallScreenShare {
     };
 }
 
-function setup(s: CallScreenShare): ComponentFixture<CallShareTileComponent> {
+function setup(s: CallScreenShare, maximized = false): ComponentFixture<CallShareTileComponent> {
     TestBed.configureTestingModule({
         imports: [CallShareTileComponent, TranslateModule.forRoot()],
         providers: [
@@ -33,6 +33,7 @@ function setup(s: CallScreenShare): ComponentFixture<CallShareTileComponent> {
 
     const fixture = TestBed.createComponent(CallShareTileComponent);
     fixture.componentRef.setInput('share', s);
+    fixture.componentRef.setInput('maximized', maximized);
     fixture.detectChanges();
     return fixture;
 }
@@ -53,6 +54,8 @@ function root(fixture: ComponentFixture<CallShareTileComponent>): HTMLElement {
  * its intrinsic height is zero and the tile renders as nothing at all. That is exactly what
  * happened: starting a share in a guild voice channel emptied the stage, because the one tile on it
  * was the sharer's own and it collapsed to a 0px row.</p>
+ *
+ * <p>Maximised is the one exception: that row is `1fr`, so the tile takes its height from the row.</p>
  *
  * <p>Asserted on classes rather than a measured box because the test DOM does no layout at all -
  * every element measures 0 there, so a height assertion would pass against the broken tile too.</p>
@@ -75,5 +78,13 @@ describe('CallShareTileComponent sizing', () => {
         const el = root(setup(share({isLocal: true})));
 
         expect(el.className).toContain('aspect-video');
+    });
+
+    // Maximised the row is `1fr`, so an aspect-ratio height would exceed it and scroll the stage.
+    it('fills its row instead of declaring a ratio while maximised', () => {
+        const el = root(setup(share(), true));
+
+        expect(el.className).toContain('h-full');
+        expect(el.className).not.toContain('aspect-video');
     });
 });

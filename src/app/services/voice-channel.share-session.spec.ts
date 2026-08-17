@@ -29,8 +29,12 @@ const SHARE_SESSION = 'cf-screen-them';
 
 function emptySnapshot(roomId: string): VoiceRoomSnapshot {
     return {
-        roomId, kind: 'channel', guildId: 'guild-1',
-        instanceId: 'inst-1', version: 1, participants: [],
+        roomId,
+        kind: 'channel',
+        guildId: 'guild-1',
+        instanceId: 'inst-1',
+        version: 1,
+        participants: [],
     };
 }
 
@@ -44,8 +48,10 @@ function streamer(
         mediaSessionId: MIC_SESSION,
         audioTrackName: 'audio',
         publishState: 'Publishing',
-        isSelfMuted: false, isSelfDeafened: false,
-        isServerMuted: false, isServerDeafened: false,
+        isSelfMuted: false,
+        isSelfDeafened: false,
+        isServerMuted: false,
+        isServerDeafened: false,
         isStreaming: true,
         shares,
         joinedAt: '2026-08-07T12:00:00Z',
@@ -56,19 +62,33 @@ function streamer(
 function setup() {
     const ws: Record<string, Subject<unknown>> = {};
     for (const name of [
-        'userJoinedVoiceObservable', 'userLeftVoiceObservable', 'guildParticipantJoinedObservable',
-        'guildTrackPublishedObservable', 'guildTrackClosedObservable', 'voiceMuteChangedObservable',
-        'voiceDeafenChangedObservable', 'voiceCameraChangedObservable',
-        'voiceScreenShareStartedObservable', 'voiceScreenShareStoppedObservable',
-        'movedToChannelObservable', 'kickedByOtherDeviceObservable',
-        'voiceSnapshotObservable', 'voiceResyncObservable',
-    ]) ws[name] = new Subject();
+        'userJoinedVoiceObservable',
+        'userLeftVoiceObservable',
+        'guildParticipantJoinedObservable',
+        'guildTrackPublishedObservable',
+        'guildTrackClosedObservable',
+        'voiceMuteChangedObservable',
+        'voiceDeafenChangedObservable',
+        'voiceCameraChangedObservable',
+        'voiceScreenShareStartedObservable',
+        'voiceScreenShareStoppedObservable',
+        'movedToChannelObservable',
+        'kickedByOtherDeviceObservable',
+        'voiceSnapshotObservable',
+        'voiceResyncObservable',
+    ])
+        ws[name] = new Subject();
 
     const wsCalls: Record<string, ReturnType<typeof vi.fn>> = {};
     for (const name of [
-        'invokeVoiceMuteChanged', 'invokeVoiceDeafenChanged', 'invokeVoiceCameraChanged',
-        'invokeVoiceScreenShareStarted', 'invokeVoiceScreenShareStopped', 'invokeVoiceHeartbeat',
-    ]) wsCalls[name] = vi.fn();
+        'invokeVoiceMuteChanged',
+        'invokeVoiceDeafenChanged',
+        'invokeVoiceCameraChanged',
+        'invokeVoiceScreenShareStarted',
+        'invokeVoiceScreenShareStopped',
+        'invokeVoiceHeartbeat',
+    ])
+        wsCalls[name] = vi.fn();
 
     const guildVoice = {
         join: vi.fn((_g: string, channelId: string) => of(emptySnapshot(channelId))),
@@ -135,7 +155,10 @@ function setup() {
                     setMute: vi.fn(async () => undefined),
                 },
             },
-            {provide: ToastService, useValue: {info: vi.fn(), success: vi.fn(), error: vi.fn(), httpError: vi.fn()}},
+            {
+                provide: ToastService,
+                useValue: {info: vi.fn(), success: vi.fn(), error: vi.fn(), httpError: vi.fn()},
+            },
             {provide: TranslateService, useValue: {instant: (key: string) => key}},
             {provide: EntitlementStore, useValue: {ladder: () => undefined, ensureLoaded: () => void 0}},
         ],
@@ -154,11 +177,12 @@ function sessionsPulledFrom(rtc: ReturnType<typeof setup>['rtc']): string[] {
     // The stubs are declared without argument types, so their recorded calls are read positionally:
     // subscribeVideo(guildId, channelId, userId, mediaSessionId, trackName, kind).
     const videoCalls = rtc.subscribeVideo.mock.calls as unknown as string[][];
-    const fromVideo = videoCalls
-        .filter(call => call[4]?.startsWith('screen-'))
-        .map(call => call[3]);
+    const fromVideo = videoCalls.filter(call => call[4]?.startsWith('screen-')).map(call => call[3]);
 
-    interface AudioTarget {mediaSessionId: string; trackName: string}
+    interface AudioTarget {
+        mediaSessionId: string;
+        trackName: string;
+    }
     const audioCalls = rtc.subscribeAudio.mock.calls as unknown as AudioTarget[][][];
     const fromAudio = audioCalls
         .flatMap(call => call[0] ?? [])
@@ -169,7 +193,7 @@ function sessionsPulledFrom(rtc: ReturnType<typeof setup>['rtc']): string[] {
 }
 
 let restoreStorage: () => void;
-beforeEach(() => restoreStorage = installMemoryStorage());
+beforeEach(() => (restoreStorage = installMemoryStorage()));
 afterEach(() => restoreStorage());
 
 describe('which session a screen share is pulled from', () => {
@@ -179,32 +203,51 @@ describe('which session a screen share is pulled from', () => {
 
         ws['voiceSnapshotObservable'].next({
             ...emptySnapshot('chan-1'),
-            participants: [streamer([{
-                shareId: 'abc',
-                trackNames: ['screen-abc', 'screen-audio-abc'],
-                mediaSessionId: SHARE_SESSION,
-            }])],
+            participants: [
+                streamer([
+                    {
+                        shareId: 'abc',
+                        trackNames: ['screen-abc', 'screen-audio-abc'],
+                        mediaSessionId: SHARE_SESSION,
+                    },
+                ]),
+            ],
         });
         await tick();
 
         expect(rtc.subscribeVideo).toHaveBeenCalledWith(
-            'guild-1', 'chan-1', 'them', SHARE_SESSION, 'screen-abc', 'screen');
+            'guild-1',
+            'chan-1',
+            'them',
+            SHARE_SESSION,
+            'screen-abc',
+            'screen',
+        );
         expect(rtc.subscribeAudio).toHaveBeenCalledWith([
-            {userId: 'them', mediaSessionId: SHARE_SESSION, trackName: 'screen-audio-abc', kind: 'screenAudio'},
+            {
+                userId: 'them',
+                mediaSessionId: SHARE_SESSION,
+                trackName: 'screen-audio-abc',
+                kind: 'screenAudio',
+            },
         ]);
     });
 
     /** The microphone session must never be the answer for a share track, whatever the snapshot is missing. */
-    it('never pulls a share from the publisher\'s microphone session', async () => {
+    it("never pulls a share from the publisher's microphone session", async () => {
         const {ws, rtc} = setup();
 
         ws['voiceSnapshotObservable'].next({
             ...emptySnapshot('chan-1'),
-            participants: [streamer([{
-                shareId: 'abc',
-                trackNames: ['screen-abc', 'screen-audio-abc'],
-                mediaSessionId: SHARE_SESSION,
-            }])],
+            participants: [
+                streamer([
+                    {
+                        shareId: 'abc',
+                        trackNames: ['screen-abc', 'screen-audio-abc'],
+                        mediaSessionId: SHARE_SESSION,
+                    },
+                ]),
+            ],
         });
         await tick();
 
@@ -217,22 +260,34 @@ describe('which session a screen share is pulled from', () => {
 
         // Announced live, carrying the session the publish actually happened on.
         ws['guildTrackPublishedObservable'].next({
-            channelId: 'chan-1', userId: 'them', mediaSessionId: SHARE_SESSION,
-            trackName: 'screen-abc', kind: 'screen', shareId: 'abc',
+            channelId: 'chan-1',
+            userId: 'them',
+            mediaSessionId: SHARE_SESSION,
+            trackName: 'screen-abc',
+            kind: 'screen',
+            shareId: 'abc',
         });
         ws['guildTrackPublishedObservable'].next({
-            channelId: 'chan-1', userId: 'them', mediaSessionId: SHARE_SESSION,
-            trackName: 'screen-audio-abc', kind: 'screenAudio', shareId: 'abc',
+            channelId: 'chan-1',
+            userId: 'them',
+            mediaSessionId: SHARE_SESSION,
+            trackName: 'screen-audio-abc',
+            kind: 'screenAudio',
+            shareId: 'abc',
         });
         await tick();
 
         ws['voiceSnapshotObservable'].next({
             ...emptySnapshot('chan-1'),
-            participants: [streamer([{
-                shareId: 'abc',
-                trackNames: ['screen-abc', 'screen-audio-abc'],
-                mediaSessionId: null,
-            }])],
+            participants: [
+                streamer([
+                    {
+                        shareId: 'abc',
+                        trackNames: ['screen-abc', 'screen-audio-abc'],
+                        mediaSessionId: null,
+                    },
+                ]),
+            ],
         });
         await tick();
 

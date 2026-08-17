@@ -1,14 +1,14 @@
 import {
-  Component,
-  computed,
-  DestroyRef,
-  effect,
-  HostListener,
-  inject,
-  input,
-  signal,
-  untracked,
-  ViewChild
+    Component,
+    computed,
+    DestroyRef,
+    effect,
+    HostListener,
+    inject,
+    input,
+    signal,
+    untracked,
+    ViewChild,
 } from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {firstValueFrom} from 'rxjs';
@@ -20,7 +20,7 @@ import {Button} from 'primeng/button';
 import {Dialog} from 'primeng/dialog';
 import {InputText} from 'primeng/inputtext';
 import {MenuItem, PrimeTemplate} from 'primeng/api';
-import {CategoryDto, ChannelDto, ChannelType, GuildDto,} from '../../../../dtos/response/guild.dto';
+import {CategoryDto, ChannelDto, ChannelType, GuildDto} from '../../../../dtos/response/guild.dto';
 import {NavigationService} from '../../../main-page/navigation.service';
 import {GuildService} from '../../../../services/guild.service';
 import {OwnMemberRevisionService} from '../../../../services/own-member-revision.service';
@@ -31,9 +31,7 @@ import {CallContextMenuComponent} from '../../../../shared/call/call-context-men
 import {VoiceRingPickerComponent} from '../../../../shared/call/voice-ring-picker/voice-ring-picker.component';
 import {CallParticipantMenuData} from '../../../../shared/call/call.types';
 import {InviteNudgeService} from '../../../../services/invite-nudge.service';
-import {
-  ChannelInvitePanelComponent
-} from './components/channel-invite-panel/channel-invite-panel.component';
+import {ChannelInvitePanelComponent} from './components/channel-invite-panel/channel-invite-panel.component';
 import {ProfileService} from '../../../../services/profile.service';
 import {GuildReadStateService} from '../../../../services/guild-read-state.service';
 import {GuildSettingsModalComponent} from '../guild-settings-modal/guild-settings-modal.component';
@@ -46,13 +44,13 @@ import {hasPermission, parsePermissions, Permissions} from '../../../../enums/pe
 import {memberCanManageGuild, unionMemberPermissions} from '../../guild-permissions';
 import {GuildFeature, guildFeatures, hasHouseholdModule} from '../../guild-features';
 import {
-  GuildWebsocketService,
-  WsCategoryCreated,
-  WsCategoryDeleted,
-  WsCategoryUpdated,
-  WsChannelCreated,
-  WsChannelDeleted,
-  WsChannelUpdated
+    GuildWebsocketService,
+    WsCategoryCreated,
+    WsCategoryDeleted,
+    WsCategoryUpdated,
+    WsChannelCreated,
+    WsChannelDeleted,
+    WsChannelUpdated,
 } from '../../../../services/guild-websocket.service';
 import {GuildVoiceService} from '../../../../services/guild-voice.service';
 import {GuildUiActionsService} from '../../../../services/guild-ui-actions.service';
@@ -61,9 +59,7 @@ import {ChannelListDragService} from './channel-list-drag.service';
 import {CreateChannelModalComponent} from './components/create-channel-modal/create-channel-modal.component';
 import {CreateCategoryModalComponent} from './components/create-category-modal/create-category-modal.component';
 import {ChannelListItemsComponent} from './components/channel-list-items/channel-list-items.component';
-import {
-  ChannelDropIndicatorComponent
-} from './components/channel-drop-indicator/channel-drop-indicator.component';
+import {ChannelDropIndicatorComponent} from './components/channel-drop-indicator/channel-drop-indicator.component';
 import {ChannelsAndRolesModalComponent} from '../channels-and-roles/channels-and-roles-modal.component';
 import {GuildOnboardingStateService} from '../../../../services/guild-onboarding-state.service';
 import {ScheduledEventStore} from '../../../../stores/scheduled-event.store';
@@ -125,10 +121,10 @@ export class ChannelListComponent {
     protected readonly uncategorizedChannels = computed(() =>
         this.localChannels()
             .filter(c => !c.categoryId && !c.parentChannelId)
-            .sort((a, b) => a.position - b.position)
+            .sort((a, b) => a.position - b.position),
     );
     protected readonly sortedCategories = computed(() =>
-        [...this.localCategories()].sort((a, b) => a.position - b.position)
+        [...this.localCategories()].sort((a, b) => a.position - b.position),
     );
     protected readonly isWikiActive = computed(() => {
         const view = this.navService.mainView();
@@ -141,12 +137,16 @@ export class ChannelListComponent {
     // ── Events ────────────────────────────────────────────────────────────────
     private eventStore = inject(ScheduledEventStore);
     private minuteClock = inject(MinuteClockService);
-    protected readonly isEventsActive = computed(() => this.navService.eventsPanelGuildId() === this.guild().id);
+    protected readonly isEventsActive = computed(
+        () => this.navService.eventsPanelGuildId() === this.guild().id,
+    );
     private readonly guildEvents = computed(() => this.eventStore.eventsForGuild(this.guild().id));
     protected readonly hasLiveEvent = computed(() =>
-        this.guildEvents().some(e => phaseOf(e, this.minuteClock.now()) === 'live'));
-    protected readonly upcomingEventCount = computed(() =>
-        this.guildEvents().filter(e => phaseOf(e, this.minuteClock.now()) === 'upcoming').length);
+        this.guildEvents().some(e => phaseOf(e, this.minuteClock.now()) === 'live'),
+    );
+    protected readonly upcomingEventCount = computed(
+        () => this.guildEvents().filter(e => phaseOf(e, this.minuteClock.now()) === 'upcoming').length,
+    );
     // ── Modules ───────────────────────────────────────────────────────────────
     // Hidden, not disabled: an off module is absent from navigation, but existing channels of a disabled type stay put; switching Forums off blocks creating new ones, not removing existing ones.
     protected readonly features = computed(() => guildFeatures(this.guild()));
@@ -165,9 +165,11 @@ export class ChannelListComponent {
     private onboardingState = inject(GuildOnboardingStateService);
 
     /** True only when prompts with `inOnboarding: true` exist; prompts with `inOnboarding: false` never reach this status payload and won't show a link. */
-    protected readonly hasSelfServeRoles = computed(() =>
-        this.hasOnboarding()
-        && (this.onboardingState.statusFor(this.guild().id)?.prompts?.length ?? 0) > 0);
+    protected readonly hasSelfServeRoles = computed(
+        () =>
+            this.hasOnboarding() &&
+            (this.onboardingState.statusFor(this.guild().id)?.prompts?.length ?? 0) > 0,
+    );
     // ── Quick invite dialog ───────────────────────────────────────────────────
     protected readonly showInviteDialog = signal(false);
     protected readonly inviteLink = signal('');
@@ -190,11 +192,15 @@ export class ChannelListComponent {
     protected readonly guildMenuItems = computed<MenuItem[]>(() => [
         // Managing the server is the only entry here that needs elevated permission;
         // copying the ID, creating channels and inviting are checked by their own flows.
-        ...(this.canManageGuild() ? [{
-            label: 'Server Settings',
-            icon: 'pi pi-cog',
-            command: () => this.showGuildSettings.set(true),
-        }] : []),
+        ...(this.canManageGuild()
+            ? [
+                  {
+                      label: 'Server Settings',
+                      icon: 'pi pi-cog',
+                      command: () => this.showGuildSettings.set(true),
+                  },
+              ]
+            : []),
         {
             label: 'Copy Server ID',
             icon: 'pi pi-copy',
@@ -237,7 +243,9 @@ export class ChannelListComponent {
         const member = this.ownMember();
         if (!member) return false;
         const perms = this.getSelfPermissions();
-        return hasPermission(perms, Permissions.Superadmin) || hasPermission(perms, Permissions.ManageChannel);
+        return (
+            hasPermission(perms, Permissions.Superadmin) || hasPermission(perms, Permissions.ManageChannel)
+        );
     });
     protected readonly isSuperadmin = computed(() => {
         const ownUserId = this.profileService.ownProfile()?.userId;
@@ -246,11 +254,13 @@ export class ChannelListComponent {
         if (!m) return false;
         return hasPermission(parsePermissions(m.permissions), Permissions.Superadmin);
     });
-    protected readonly canManageGuild = computed(() => memberCanManageGuild(
-        this.ownMember(),
-        this.guild().ownerId,
-        this.profileService.ownProfile()?.userId,
-    ));
+    protected readonly canManageGuild = computed(() =>
+        memberCanManageGuild(
+            this.ownMember(),
+            this.guild().ownerId,
+            this.profileService.ownProfile()?.userId,
+        ),
+    );
     /** Set only between a move's `hide` and the `show` that follows it. @see openInvitePanel */
     private invitePanelMovingTo: ChannelDto | null = null;
     // ── Collapse state ────────────────────────────────────────────────────────
@@ -322,13 +332,13 @@ export class ChannelListComponent {
                 if (dto.channels.length > 0) {
                     const posMap = new Map(dto.channels.map(c => [c.channelId, c.position]));
                     this.localChannels.update(channels =>
-                        channels.map(c => posMap.has(c.id) ? {...c, position: posMap.get(c.id)!} : c)
+                        channels.map(c => (posMap.has(c.id) ? {...c, position: posMap.get(c.id)!} : c)),
                     );
                 }
                 if (dto.categories.length > 0) {
                     const catMap = new Map(dto.categories.map(c => [c.categoryId, c.position]));
                     this.localCategories.update(cats =>
-                        cats.map(c => catMap.has(c.id) ? {...c, position: catMap.get(c.id)!} : c)
+                        cats.map(c => (catMap.has(c.id) ? {...c, position: catMap.get(c.id)!} : c)),
                     );
                 }
             });
@@ -371,7 +381,7 @@ export class ChannelListComponent {
                 this.guildService.getGuild(e.guildId).subscribe(g => {
                     const ch = g.channels.find(c => c.id === e.channelId);
                     if (!ch) return;
-                    this.patchGuild({channels: this.guild().channels.map(c => c.id === ch.id ? ch : c)});
+                    this.patchGuild({channels: this.guild().channels.map(c => (c.id === ch.id ? ch : c))});
                 });
             });
 
@@ -398,7 +408,7 @@ export class ChannelListComponent {
                     const known = this.guild().categories.some(c => c.id === cat.id);
                     this.patchGuild({
                         categories: known
-                            ? this.guild().categories.map(c => c.id === cat.id ? cat : c)
+                            ? this.guild().categories.map(c => (c.id === cat.id ? cat : c))
                             : [...this.guild().categories, cat],
                     });
                 });
@@ -410,7 +420,9 @@ export class ChannelListComponent {
                 if (e.guildId !== this.guild().id) return;
                 this.patchGuild({
                     categories: this.guild().categories.filter(c => c.id !== e.categoryId),
-                    channels: this.guild().channels.map(c => c.categoryId === e.categoryId ? {...c, categoryId: undefined} : c),
+                    channels: this.guild().channels.map(c =>
+                        c.categoryId === e.categoryId ? {...c, categoryId: undefined} : c,
+                    ),
                 });
             });
 
@@ -433,11 +445,11 @@ export class ChannelListComponent {
     }
 
     protected onChannelUpdated(updated: ChannelDto): void {
-        this.patchGuild({channels: this.guild().channels.map(c => c.id === updated.id ? updated : c)});
+        this.patchGuild({channels: this.guild().channels.map(c => (c.id === updated.id ? updated : c))});
     }
 
     protected onCategoryUpdated(updated: CategoryDto): void {
-        this.patchGuild({categories: this.guild().categories.map(c => c.id === updated.id ? updated : c)});
+        this.patchGuild({categories: this.guild().categories.map(c => (c.id === updated.id ? updated : c))});
     }
 
     protected categoryChannels(categoryId: string): ChannelDto[] {
@@ -482,7 +494,7 @@ export class ChannelListComponent {
         if (this.voiceChannelSvc.joinedChannelId() !== event.channel.id) {
             // A refused join has already said so. Arming a focus request on top of it would point
             // the stage at a room this client is not in.
-            if (!await this.voiceChannelSvc.joinChannel(event.channel, this.guild().name)) return;
+            if (!(await this.voiceChannelSvc.joinChannel(event.channel, this.guild().name))) return;
         }
         this.callFocus.request(
             scopeKey({kind: 'channel', guildId: event.channel.guildId, channelId: event.channel.id}),
@@ -525,11 +537,15 @@ export class ChannelListComponent {
                 command: () => this.channelSettingsModal?.open(channel, this.guild()),
             },
             // Voice channels only: the endpoint behind it answers 400 for anything else. Carries no command since the item template opens its panel on hover instead.
-            ...(channel.type === ChannelType.Voice ? [{
-                id: 'invite',
-                label: 'Invite People',
-                icon: 'pi pi-user-plus',
-            }] : []),
+            ...(channel.type === ChannelType.Voice
+                ? [
+                      {
+                          id: 'invite',
+                          label: 'Invite People',
+                          icon: 'pi pi-user-plus',
+                      },
+                  ]
+                : []),
             {
                 label: 'Create Invite',
                 icon: 'pi pi-link',
@@ -670,7 +686,11 @@ export class ChannelListComponent {
         });
     }
 
-    protected onParticipantContextMenu(event: MouseEvent, p: VoiceChannelParticipant, channelId: string): void {
+    protected onParticipantContextMenu(
+        event: MouseEvent,
+        p: VoiceChannelParticipant,
+        channelId: string,
+    ): void {
         event.preventDefault();
         event.stopPropagation();
         if (p.isLocal) return;
@@ -682,7 +702,13 @@ export class ChannelListComponent {
         const x = Math.min(event.clientX, window.innerWidth - 236);
         const y = Math.min(event.clientY, window.innerHeight - 200);
         this.participantChannelId.set(channelId);
-        this.participantMenu.set({x: Math.max(0, x), y: Math.max(0, y), participant: p, volume, streamVolume});
+        this.participantMenu.set({
+            x: Math.max(0, x),
+            y: Math.max(0, y),
+            participant: p,
+            volume,
+            streamVolume,
+        });
     }
 
     protected onParticipantVolumeChange(value: number): void {
@@ -704,9 +730,8 @@ export class ChannelListComponent {
         if (!menu) return;
         this.participantMenu.set(null);
         await firstValueFrom(
-            this.guildService.kickMemberByUserId(this.guild().id, menu.participant.userId)
-        ).catch(() => {
-        });
+            this.guildService.kickMemberByUserId(this.guild().id, menu.participant.userId),
+        ).catch(() => {});
     }
 
     protected async banParticipant(): Promise<void> {
@@ -714,9 +739,8 @@ export class ChannelListComponent {
         if (!menu) return;
         this.participantMenu.set(null);
         await firstValueFrom(
-            this.guildService.banMember(this.guild().id, {userId: menu.participant.userId})
-        ).catch(() => {
-        });
+            this.guildService.banMember(this.guild().id, {userId: menu.participant.userId}),
+        ).catch(() => {});
     }
 
     protected async toggleParticipantServerDeafen(): Promise<void> {
@@ -728,7 +752,7 @@ export class ChannelListComponent {
         this.participantMenu.set({...menu, participant: {...menu.participant, isServerDeafened: newState}});
         this.voiceChannelSvc.setServerDeafened(userId, newState);
         await firstValueFrom(
-            this.guildVoiceSvc.serverDeafen(this.guild().id, channelId, userId, newState)
+            this.guildVoiceSvc.serverDeafen(this.guild().id, channelId, userId, newState),
         ).catch(() => {
             this.voiceChannelSvc.setServerDeafened(userId, isServerDeafened ?? false);
         });

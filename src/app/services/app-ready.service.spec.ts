@@ -14,8 +14,7 @@ import {CanMatchFn, provideRouter, Router} from '@angular/router';
 import {AppReadyService, SPLASH_SAFETY_NET_MS} from './app-ready.service';
 
 @Component({selector: 'app-route-stub', template: ''})
-class RouteStub {
-}
+class RouteStub {}
 
 /** Whether there is a session yet, controlled per test. */
 const gate = signal<Promise<boolean>>(Promise.resolve(true));
@@ -31,9 +30,11 @@ let release: (() => void) | null = null;
 
 /** A session answer that will not arrive until the test is over. */
 function pending(): void {
-    gate.set(new Promise<boolean>(resolve => {
-        release = () => resolve(false);
-    }));
+    gate.set(
+        new Promise<boolean>(resolve => {
+            release = () => resolve(false);
+        }),
+    );
 }
 
 /**

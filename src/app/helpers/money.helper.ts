@@ -18,8 +18,9 @@ export function minorUnitDigits(currency: string): number {
 
     let digits = DEFAULT_MINOR_DIGITS;
     try {
-        digits = new Intl.NumberFormat('en', {style: 'currency', currency: code})
-            .resolvedOptions().minimumFractionDigits ?? DEFAULT_MINOR_DIGITS;
+        digits =
+            new Intl.NumberFormat('en', {style: 'currency', currency: code}).resolvedOptions()
+                .minimumFractionDigits ?? DEFAULT_MINOR_DIGITS;
     } catch {
         // Not a shape Intl accepts as a currency code at all. Two digits, and move on.
     }
@@ -38,8 +39,7 @@ export function formatMinor(amountMinor: number, currency: string, locale?: stri
     const wholeDigits = raw.slice(0, raw.length - digits);
     const fraction = digits > 0 ? raw.slice(raw.length - digits) : '';
 
-    const grouped = new Intl.NumberFormat(locale, {maximumFractionDigits: 0})
-        .format(Number(wholeDigits));
+    const grouped = new Intl.NumberFormat(locale, {maximumFractionDigits: 0}).format(Number(wholeDigits));
 
     const template = currencyFormatter(currency, digits, locale);
     if (template) return assemble(template.formatToParts(negative ? -1 : 1), grouped, fraction);
@@ -84,7 +84,11 @@ export function parseMinor(input: string, currency: string, locale?: string): nu
     let fraction = decimalIndex >= 0 ? body.slice(decimalIndex + 1) : '';
 
     if (fraction.length > digits) {
-        if (separators.length === 1 && fraction.length === 3 && body[decimalIndex] === groupSeparatorFor(locale)) {
+        if (
+            separators.length === 1 &&
+            fraction.length === 3 &&
+            body[decimalIndex] === groupSeparatorFor(locale)
+        ) {
             decimalIndex = -1;
             fraction = '';
         } else {
@@ -145,8 +149,10 @@ function groupSeparatorFor(locale?: string): string | null {
     const cached = groupSeparatorByLocale.get(key);
     if (cached !== undefined) return cached;
 
-    const separator = new Intl.NumberFormat(locale, {useGrouping: true})
-        .formatToParts(1234567).find(p => p.type === 'group')?.value ?? null;
+    const separator =
+        new Intl.NumberFormat(locale, {useGrouping: true})
+            .formatToParts(1234567)
+            .find(p => p.type === 'group')?.value ?? null;
     groupSeparatorByLocale.set(key, separator);
     return separator;
 }

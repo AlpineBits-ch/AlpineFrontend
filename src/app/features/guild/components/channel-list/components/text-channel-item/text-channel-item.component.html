@@ -1,18 +1,21 @@
 @let rs = readState();
 
-<div (dragend)="drag.onDragEnd($event)"
-     (dragover)="drag.onItemDragOver($event, channel().id)"
-     (dragstart)="drag.onChannelDragStart($event, channel())"
-     data-testid="channel-list-item"
-     [attr.data-channel-id]="channel().id"
-     [attr.draggable]="canReorder() ? 'true' : null">
+<div
+    (dragend)="drag.onDragEnd($event)"
+    (dragover)="drag.onItemDragOver($event, channel().id)"
+    (dragstart)="drag.onChannelDragStart($event, channel())"
+    data-testid="channel-list-item"
+    [attr.data-channel-id]="channel().id"
+    [attr.draggable]="canReorder() ? 'true' : null"
+>
     <button
-            (click)="open.emit()"
-            (contextmenu)="openMenu.emit($event)"
-            [class.cursor-grab]="canReorder()"
-            [class.is-active]="isActive()"
-            [class.is-unread]="!isActive() && showsReadState() && rs.isUnread"
-            class="chan-row">
+        (click)="open.emit()"
+        (contextmenu)="openMenu.emit($event)"
+        [class.cursor-grab]="canReorder()"
+        [class.is-active]="isActive()"
+        [class.is-unread]="!isActive() && showsReadState() && rs.isUnread"
+        class="chan-row"
+    >
         <!-- The `#` is a text glyph where the others are icon-font characters, so it carries its own size to land at the same optical weight inside the shared slot. -->
         <span class="chan-icon pointer-events-none" [class.chan-icon-hash]="!icon()">
             @if (icon(); as iconClass) {

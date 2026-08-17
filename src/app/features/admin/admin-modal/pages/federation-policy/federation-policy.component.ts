@@ -3,7 +3,11 @@ import {FormsModule} from '@angular/forms';
 import {NgClass} from '@angular/common';
 import {Button} from 'primeng/button';
 import {InputText} from 'primeng/inputtext';
-import {AdminFederationService, AcceptancePolicy, HandshakeResponse} from '../../../../../services/admin-federation.service';
+import {
+    AdminFederationService,
+    AcceptancePolicy,
+    HandshakeResponse,
+} from '../../../../../services/admin-federation.service';
 
 @Component({
     selector: 'app-federation-policy',
@@ -18,8 +22,16 @@ export class FederationPolicyComponent implements OnInit {
     readonly policyError = signal<string | null>(null);
 
     readonly policyOptions: {value: AcceptancePolicy; label: string; desc: string}[] = [
-        {value: AcceptancePolicy.AutoAccept, label: 'Auto Accept', desc: 'Automatically approve all incoming federation requests.'},
-        {value: AcceptancePolicy.RequireApproval, label: 'Require Approval', desc: 'Queue incoming requests for manual review before activation.'},
+        {
+            value: AcceptancePolicy.AutoAccept,
+            label: 'Auto Accept',
+            desc: 'Automatically approve all incoming federation requests.',
+        },
+        {
+            value: AcceptancePolicy.RequireApproval,
+            label: 'Require Approval',
+            desc: 'Queue incoming requests for manual review before activation.',
+        },
     ];
 
     readonly targetHost = signal('');

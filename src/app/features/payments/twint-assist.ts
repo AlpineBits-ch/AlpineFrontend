@@ -5,9 +5,9 @@
 
 /** The one instruction that makes a TWINT hand-off safe, and the only claim we may make about it. */
 export const TWINT_CONFIRM_NAME_ADVICE =
-    'TWINT shows the recipient\'s name once you enter the number. Check that it is the person you '
-    + 'mean before you send anything - that check is what catches a mistyped number, and nothing '
-    + 'in this app has confirmed the number belongs to them.';
+    "TWINT shows the recipient's name once you enter the number. Check that it is the person you " +
+    'mean before you send anything - that check is what catches a mistyped number, and nothing ' +
+    'in this app has confirmed the number belongs to them.';
 
 /** Whether a TWINT assist can be offered at all. Purely "is there a number to show". */
 export function canOfferTwintAssist(phoneNumber: string | null | undefined): boolean {
@@ -19,11 +19,15 @@ export function normalizeSwissPhoneNumber(input: string): string | null {
     const digits = (input ?? '').replace(/[^\d+]/g, '');
     if (!digits) return null;
 
-    const national = digits.startsWith('+41') ? digits.slice(3)
-        : digits.startsWith('0041') ? digits.slice(4)
-            : digits.startsWith('41') && digits.length === 11 ? digits.slice(2)
-                : digits.startsWith('0') ? digits.slice(1)
-                    : null;
+    const national = digits.startsWith('+41')
+        ? digits.slice(3)
+        : digits.startsWith('0041')
+          ? digits.slice(4)
+          : digits.startsWith('41') && digits.length === 11
+            ? digits.slice(2)
+            : digits.startsWith('0')
+              ? digits.slice(1)
+              : null;
 
     // Swiss subscriber numbers are nine digits after the country code, and a mobile one starts 7.
     return national && /^\d{9}$/.test(national) ? `+41${national}` : null;

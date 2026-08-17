@@ -38,7 +38,7 @@ class FakeTranslate {
     }
 }
 
-function freshService(): { service: LanguageService, translate: FakeTranslate } {
+function freshService(): {service: LanguageService; translate: FakeTranslate} {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
         providers: [{provide: TranslateService, useClass: FakeTranslate}],

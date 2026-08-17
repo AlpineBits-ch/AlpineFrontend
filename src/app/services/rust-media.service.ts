@@ -106,7 +106,11 @@ export class RustMediaService {
     private decodingFrame = false;
 
     /** The browser display capture behind {@link startScreenCapture} on a host with no native pipeline. Both halves are held because one `getDisplayMedia` serves two separate calls. */
-    private displayCapture: {stream: MediaStream; video: MediaStreamTrack; audio: MediaStreamTrack | null} | null = null;
+    private displayCapture: {
+        stream: MediaStream;
+        video: MediaStreamTrack;
+        audio: MediaStreamTrack | null;
+    } | null = null;
 
     private readonly _captureFps = signal(15);
     /** Currently requested capture rate (set via startScreenCapture / setCaptureFps). */
@@ -210,7 +214,8 @@ export class RustMediaService {
             const paused = this.previewPaused();
             if (!this.localRenderer) return;
             if (paused) this.localRenderer.interrupt();
-            void this.host?.setLocalStreamEnabled(!paused)
+            void this.host
+                ?.setLocalStreamEnabled(!paused)
                 .catch(e => console.warn('[screen] toggling the local stream failed', e));
         });
 
@@ -228,7 +233,7 @@ export class RustMediaService {
 
     /** True where the microphone must be captured natively: Linux, where WebKitGTK answers `getUserMedia` with a permission denial no prompt can clear. */
     async shouldUseRustAudio(): Promise<boolean> {
-        return await this.host?.prefersNativeAudioCapture() ?? false;
+        return (await this.host?.prefersNativeAudioCapture()) ?? false;
     }
 
     // ── Screen sources ────────────────────────────────────────────────────────
@@ -246,7 +251,11 @@ export class RustMediaService {
     // ── Screen capture ────────────────────────────────────────────────────────
 
     /** Start screen capture for the given source at a fixed output size. The geometry must already be solved and is locked in for the life of the session. */
-    async startScreenCapture(sourceId: string, geometry: CaptureGeometry, fps = 30): Promise<MediaStreamTrack> {
+    async startScreenCapture(
+        sourceId: string,
+        geometry: CaptureGeometry,
+        fps = 30,
+    ): Promise<MediaStreamTrack> {
         await this.stopScreenCapture();
 
         this._captureFps.set(fps);
@@ -286,8 +295,7 @@ export class RustMediaService {
         // An opening value only: `applyScreenEncoding` sets the governing hint from the share's content mode on this same track once the sender exists.
         try {
             (track as {contentHint?: string}).contentHint = 'detail';
-        } catch {
-        }
+        } catch {}
         return track;
     }
 
@@ -376,13 +384,16 @@ export class RustMediaService {
         this.activeShareId = null;
         this.lastPublishOptions = null;
         if (shareId === null) return;
-        await this.publisher.stop(shareId).catch(e => console.warn('[screen] stopping the publish failed', e));
+        await this.publisher
+            .stop(shareId)
+            .catch(e => console.warn('[screen] stopping the publish failed', e));
     }
 
     /** Change the publisher's capture rate mid-stream. Lands within one frame. */
     async setPublishFps(fps: number): Promise<void> {
         if (this.activeShareId === null) return;
-        await this.publisher.setFps(this.activeShareId, fps)
+        await this.publisher
+            .setFps(this.activeShareId, fps)
             .catch(e => console.warn('[screen] setting the publish framerate failed', e));
     }
 
@@ -391,7 +402,8 @@ export class RustMediaService {
         const shareId = this.activeShareId;
         if (shareId === null) return;
 
-        await this.publisher.setSpec(shareId, spec)
+        await this.publisher
+            .setSpec(shareId, spec)
             .catch(e => console.warn('[screen] retyping the publish failed', e));
 
         // Only where one was open; the thumbnail carries its own dimensions per frame.
@@ -411,7 +423,8 @@ export class RustMediaService {
     /** Mute the running share's own sound. Stops packets rather than the capture device, so unmuting is instant. */
     async setScreenAudioMuted(muted: boolean): Promise<void> {
         if (this.activeShareId === null) return;
-        await this.publisher.setAudioMuted(this.activeShareId, muted)
+        await this.publisher
+            .setAudioMuted(this.activeShareId, muted)
             .catch(e => console.warn('[screen] muting the share audio failed', e));
     }
 
@@ -457,8 +470,7 @@ export class RustMediaService {
         this._captureFps.set(fps);
         if (!this.host?.nativeCapture) {
             const video = this.displayCapture?.video;
-            if (video) await retargetDisplayFps(video, Math.round(fps)).catch(() => {
-            });
+            if (video) await retargetDisplayFps(video, Math.round(fps)).catch(() => {});
             return;
         }
         await this.host.setNativeCaptureFps(fps);
@@ -474,8 +486,7 @@ export class RustMediaService {
         if (!this.host?.nativeCapture) {
             const video = this.displayCapture?.video;
             if (video) {
-                await retargetDisplayGeometry(video, geometry.width, geometry.height).catch(() => {
-                });
+                await retargetDisplayGeometry(video, geometry.width, geometry.height).catch(() => {});
             }
             return;
         }
@@ -545,8 +556,7 @@ export class RustMediaService {
         this.loopbackWorklet?.disconnect();
         this.loopbackWorklet = null;
         this.loopbackDest = null;
-        this.loopbackCtx?.close().catch(() => {
-        });
+        this.loopbackCtx?.close().catch(() => {});
         this.loopbackCtx = null;
 
         // The browser capture is deliberately not touched here: `stopScreenCapture` owns both halves, and `startLoopbackCapture` calls this first, so releasing it would stop the track that call is about to return.
@@ -681,7 +691,8 @@ export class RustMediaService {
         try {
             const raw = base64ToArrayBuffer(chunk.data);
             this.loopbackWorklet.port.postMessage({type: 'samples', buffer: raw}, [raw]);
-        } catch { /* ignore */
+        } catch {
+            /* ignore */
         }
     }
 }

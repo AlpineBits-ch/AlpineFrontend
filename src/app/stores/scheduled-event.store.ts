@@ -83,7 +83,7 @@ export const ScheduledEventStore = signalStore(
             const loadedAt = store.loadedAt()[guildId];
             // Fresh enough - nothing to do. Anything older than STALE_MS (or invalidated /
             // failed, both of which record 0) falls through to a refetch.
-            if (loadedAt !== undefined && loadedAt > 0 && (Date.now() - loadedAt) <= STALE_MS) return;
+            if (loadedAt !== undefined && loadedAt > 0 && Date.now() - loadedAt <= STALE_MS) return;
 
             if (store.loadingGuilds()[guildId]) {
                 // A request is already in flight. Back-to-back opens (loadedAt still
@@ -101,7 +101,8 @@ export const ScheduledEventStore = signalStore(
 
         return {
             eventsForGuild(guildId: string): ScheduledEventDto[] {
-                return store.entities()
+                return store
+                    .entities()
                     .filter(e => e.guildId === guildId)
                     .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
             },
@@ -118,15 +119,15 @@ export const ScheduledEventStore = signalStore(
             loadFor,
 
             create(guildId: string, dto: CreateScheduledEventDto): Observable<ScheduledEventDto> {
-                return scheduledEventService.create(guildId, dto).pipe(
-                    tap(created => patchState(store, upsertEntity(created))),
-                );
+                return scheduledEventService
+                    .create(guildId, dto)
+                    .pipe(tap(created => patchState(store, upsertEntity(created))));
             },
 
             update(eventId: string, dto: UpdateScheduledEventDto): Observable<ScheduledEventDto> {
-                return scheduledEventService.update(eventId, dto).pipe(
-                    tap(updated => patchState(store, upsertEntity(updated))),
-                );
+                return scheduledEventService
+                    .update(eventId, dto)
+                    .pipe(tap(updated => patchState(store, upsertEntity(updated))));
             },
 
             // Soft-cancelled server-side, but the list endpoint excludes cancelled events
@@ -136,9 +137,9 @@ export const ScheduledEventStore = signalStore(
             // once the caller subscribes, matching create/update so nothing mutates state
             // (or silently drops a failure) without the caller opting in.
             cancel(eventId: string): Observable<void> {
-                return scheduledEventService.cancel(eventId).pipe(
-                    tap(() => patchState(store, removeEntity(eventId))),
-                );
+                return scheduledEventService
+                    .cancel(eventId)
+                    .pipe(tap(() => patchState(store, removeEntity(eventId))));
             },
 
             // Cold Observable via defer(): the optimistic patch (and the request it guards)
@@ -155,10 +156,13 @@ export const ScheduledEventStore = signalStore(
                     const nextInterested = !wasInterested;
                     const nextCount = previousCount + (nextInterested ? 1 : -1);
 
-                    patchState(store, updateEntity({
-                        id: event.id,
-                        changes: {isInterested: nextInterested, interestedCount: nextCount},
-                    }));
+                    patchState(
+                        store,
+                        updateEntity({
+                            id: event.id,
+                            changes: {isInterested: nextInterested, interestedCount: nextCount},
+                        }),
+                    );
 
                     const request = nextInterested
                         ? scheduledEventService.markInterested(event.id)
@@ -166,10 +170,13 @@ export const ScheduledEventStore = signalStore(
 
                     return request.pipe(
                         catchError(err => {
-                            patchState(store, updateEntity({
-                                id: event.id,
-                                changes: {isInterested: wasInterested, interestedCount: previousCount},
-                            }));
+                            patchState(
+                                store,
+                                updateEntity({
+                                    id: event.id,
+                                    changes: {isInterested: wasInterested, interestedCount: previousCount},
+                                }),
+                            );
                             return throwError(() => err);
                         }),
                     );
@@ -200,13 +207,16 @@ export const ScheduledEventStore = signalStore(
             const guildWs = inject(GuildWebsocketService);
 
             guildWs.eventCreatedObservable.subscribe((e: WsEventCreated) =>
-                store.applyRealtimeCreatedOrUpdated(e.guildId));
+                store.applyRealtimeCreatedOrUpdated(e.guildId),
+            );
 
             guildWs.eventUpdatedObservable.subscribe((e: WsEventUpdated) =>
-                store.applyRealtimeCreatedOrUpdated(e.guildId));
+                store.applyRealtimeCreatedOrUpdated(e.guildId),
+            );
 
             guildWs.eventCancelledObservable.subscribe((e: WsEventCancelled) =>
-                store.applyRealtimeCancelled(e.eventId));
+                store.applyRealtimeCancelled(e.eventId),
+            );
         },
     }),
 );

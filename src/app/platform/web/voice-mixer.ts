@@ -34,8 +34,9 @@ export function smoothLevel(current: number, target: number, frames: number): nu
 
 /** Reject a model that would silence or corrupt the mix, rather than half-applying it. */
 export function validateSpatialModel(model: SpatialModel): SpatialModel | null {
-    const finite = [model.refDistance, model.rolloff, model.maxDistance, model.intensity]
-        .every(n => Number.isFinite(n));
+    const finite = [model.refDistance, model.rolloff, model.maxDistance, model.intensity].every(n =>
+        Number.isFinite(n),
+    );
     if (!finite || model.maxDistance <= 0 || model.refDistance < 0 || model.rolloff < 0) return null;
     return {
         // A reference distance at or past the audible edge leaves no gradient at all.
@@ -161,7 +162,14 @@ export class VoiceMixer {
         userGain.connect(analyser);
 
         const source: MixerSource = {
-            element, node, userGain, distance, dry, wet, panner, analyser,
+            element,
+            node,
+            userGain,
+            distance,
+            dry,
+            wet,
+            panner,
+            analyser,
             buffer: new Float32Array(analyser.fftSize),
             volume: 1,
             position: null,

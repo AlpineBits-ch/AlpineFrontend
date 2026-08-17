@@ -103,7 +103,11 @@ describe('ForumStateService realtime', () => {
         service.loadFor('f1');
         flushLoad(http, [tagFixture({id: 'a', position: 0})]);
 
-        ws.forumTagCreatedObservable.next({guildId: 'g1', channelId: 'f1', tag: tagFixture({id: 'b', position: 1})});
+        ws.forumTagCreatedObservable.next({
+            guildId: 'g1',
+            channelId: 'f1',
+            tag: tagFixture({id: 'b', position: 1}),
+        });
 
         expect(service.tagsFor('f1').map(t => t.id)).toEqual(['a', 'b']);
     });
@@ -114,7 +118,9 @@ describe('ForumStateService realtime', () => {
         flushLoad(http, [tagFixture({id: 'a', name: 'bug'})]);
 
         ws.forumTagUpdatedObservable.next({
-            guildId: 'g1', channelId: 'f1', tag: tagFixture({id: 'a', name: 'confirmed bug'}),
+            guildId: 'g1',
+            channelId: 'f1',
+            tag: tagFixture({id: 'a', name: 'confirmed bug'}),
         });
 
         expect(service.tagsFor('f1')[0].name).toBe('confirmed bug');

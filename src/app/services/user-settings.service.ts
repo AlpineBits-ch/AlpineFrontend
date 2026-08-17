@@ -53,8 +53,14 @@ interface SettingsPayload {
 
 const DEFAULTS: SettingsPayload = {
     notifications: {
-        enabled: true, dm: true, mentions: true, sounds: true,
-        cooldownEnabled: true, cooldownSeconds: 10, goLiveGuildIds: [], goLiveFriendsEnabled: true,
+        enabled: true,
+        dm: true,
+        mentions: true,
+        sounds: true,
+        cooldownEnabled: true,
+        cooldownSeconds: 10,
+        goLiveGuildIds: [],
+        goLiveFriendsEnabled: true,
     },
     autostart: false,
     activity: {hiddenGames: [], discordIntegration: false},
@@ -86,18 +92,19 @@ export class UserSettingsService {
         effect(() => {
             const enabled = this._settings().autostart;
             if (!this.autostart.supported) return;
-            void this.autostart.setEnabled(enabled).catch(err =>
-                console.warn('[UserSettings] could not apply the autostart setting', err));
+            void this.autostart
+                .setEnabled(enabled)
+                .catch(err => console.warn('[UserSettings] could not apply the autostart setting', err));
         });
 
-        this.save$.pipe(
-            debounceTime(600),
-            switchMap(() =>
-                this.authService.updateJsonSettings(this._settings()).pipe(
-                    catchError(() => of(null))
-                )
+        this.save$
+            .pipe(
+                debounceTime(600),
+                switchMap(() =>
+                    this.authService.updateJsonSettings(this._settings()).pipe(catchError(() => of(null))),
+                ),
             )
-        ).subscribe();
+            .subscribe();
     }
 
     /** Re-fetch settings from the server (call after login). */
@@ -144,11 +151,12 @@ export class UserSettingsService {
 
     private fetch(): void {
         this.lastFetch = Date.now();
-        this.authService.getJsonSettings().pipe(
-            catchError(() => of(null))
-        ).subscribe(raw => {
-            if (raw) this._settings.set(this.parse(raw));
-        });
+        this.authService
+            .getJsonSettings()
+            .pipe(catchError(() => of(null)))
+            .subscribe(raw => {
+                if (raw) this._settings.set(this.parse(raw));
+            });
     }
 
     /**

@@ -64,8 +64,11 @@ function item(overrides: Partial<PantryItem> = {}): PantryItem {
 function load(service: PantryService, ctrl: HttpTestingController, items: PantryItem[]) {
     service.loadFor(CHANNEL);
     ctrl.expectOne(`${GUILD}/channels/${CHANNEL}/pantry-items`).flush(items);
-    ctrl.expectOne(`${GUILD}/channels/${CHANNEL}/pantry/config`)
-        .flush({channelId: CHANNEL, restockListChannelId: 'chan_list', expiryWarningDays: 3});
+    ctrl.expectOne(`${GUILD}/channels/${CHANNEL}/pantry/config`).flush({
+        channelId: CHANNEL,
+        restockListChannelId: 'chan_list',
+        expiryWarningDays: 3,
+    });
 }
 
 function fire(event: string, payload: unknown) {
@@ -113,10 +116,14 @@ describe('PantryService', () => {
         it('keeps the pantry unloaded on a failed item fetch, so empty and refused stay distinct', () => {
             const {service, ctrl} = setup();
             service.loadFor(CHANNEL);
-            ctrl.expectOne(`${GUILD}/channels/${CHANNEL}/pantry-items`)
-                .flush('nope', {status: 403, statusText: 'Forbidden'});
-            ctrl.expectOne(`${GUILD}/channels/${CHANNEL}/pantry/config`)
-                .flush('nope', {status: 403, statusText: 'Forbidden'});
+            ctrl.expectOne(`${GUILD}/channels/${CHANNEL}/pantry-items`).flush('nope', {
+                status: 403,
+                statusText: 'Forbidden',
+            });
+            ctrl.expectOne(`${GUILD}/channels/${CHANNEL}/pantry/config`).flush('nope', {
+                status: 403,
+                statusText: 'Forbidden',
+            });
 
             expect(service.hasLoaded(CHANNEL)).toBe(false);
             expect(service.loadError(CHANNEL)).toBe(true);
@@ -127,8 +134,10 @@ describe('PantryService', () => {
             const {service, ctrl} = setup();
             service.loadFor(CHANNEL);
             ctrl.expectOne(`${GUILD}/channels/${CHANNEL}/pantry-items`).flush([item()]);
-            ctrl.expectOne(`${GUILD}/channels/${CHANNEL}/pantry/config`)
-                .flush('nope', {status: 500, statusText: 'Server Error'});
+            ctrl.expectOne(`${GUILD}/channels/${CHANNEL}/pantry/config`).flush('nope', {
+                status: 500,
+                statusText: 'Server Error',
+            });
 
             expect(service.itemsFor(CHANNEL).length).toBe(1);
             expect(service.configFor(CHANNEL)).toBeUndefined();
@@ -153,7 +162,11 @@ describe('PantryService', () => {
         it('treats a re-delivered create as an upsert rather than a duplicate row', () => {
             const {service, ctrl} = setup();
             load(service, ctrl, [item()]);
-            fire('guild.PantryItemCreated', {guildId: GUILD_ID, channelId: CHANNEL, item: item({quantity: 9})});
+            fire('guild.PantryItemCreated', {
+                guildId: GUILD_ID,
+                channelId: CHANNEL,
+                item: item({quantity: 9}),
+            });
             expect(service.itemsFor(CHANNEL).length).toBe(1);
             expect(service.itemsFor(CHANNEL)[0].quantity).toBe(9);
         });
@@ -161,7 +174,11 @@ describe('PantryService', () => {
         it('applies an update for a row it never saw created', () => {
             const {service, ctrl} = setup();
             load(service, ctrl, []);
-            fire('guild.PantryItemUpdated', {guildId: GUILD_ID, channelId: CHANNEL, item: item({id: 'late'})});
+            fire('guild.PantryItemUpdated', {
+                guildId: GUILD_ID,
+                channelId: CHANNEL,
+                item: item({id: 'late'}),
+            });
             expect(service.itemsFor(CHANNEL).map(i => i.id)).toEqual(['late']);
         });
 
@@ -184,14 +201,16 @@ describe('PantryService', () => {
             expect(read()).toBe('ok');
 
             fire('guild.PantryItemUpdated', {
-                guildId: GUILD_ID, channelId: CHANNEL,
+                guildId: GUILD_ID,
+                channelId: CHANNEL,
                 item: item({quantity: 1, isLow: true, restockedAt: '2026-08-03T10:00:00Z'}),
             });
             expect(read()).toBe('listed');
 
             // Bought and put away: the server releases the stamp on the same row.
             fire('guild.PantryItemUpdated', {
-                guildId: GUILD_ID, channelId: CHANNEL,
+                guildId: GUILD_ID,
+                channelId: CHANNEL,
                 item: item({quantity: 6, isLow: false, restockedAt: null}),
             });
             expect(read()).toBe('ok');
@@ -200,9 +219,12 @@ describe('PantryService', () => {
         it('re-enters listed on a second cycle', () => {
             const {service, ctrl} = setup();
             load(service, ctrl, [item({quantity: 4})]);
-            const push = (patch: Partial<PantryItem>) => fire('guild.PantryItemUpdated', {
-                guildId: GUILD_ID, channelId: CHANNEL, item: item(patch),
-            });
+            const push = (patch: Partial<PantryItem>) =>
+                fire('guild.PantryItemUpdated', {
+                    guildId: GUILD_ID,
+                    channelId: CHANNEL,
+                    item: item(patch),
+                });
 
             push({quantity: 1, restockedAt: '2026-08-01T10:00:00Z'});
             push({quantity: 6, restockedAt: null});
@@ -215,7 +237,9 @@ describe('PantryService', () => {
             const {service, ctrl} = setup();
             load(service, ctrl, [item({lowThreshold: 2})]);
             fire('guild.PantryItemUpdated', {
-                guildId: GUILD_ID, channelId: CHANNEL, item: item({lowThreshold: null, quantity: 0}),
+                guildId: GUILD_ID,
+                channelId: CHANNEL,
+                item: item({lowThreshold: null, quantity: 0}),
             });
             expect(service.itemsFor(CHANNEL)[0].lowThreshold).toBeNull();
             expect(pantryStockState(service.itemsFor(CHANNEL)[0])).toBe('untracked');
@@ -228,8 +252,9 @@ describe('PantryService', () => {
             load(service, ctrl, []);
 
             service.addItem(CHANNEL, {name: 'Rice', quantity: 2, lowThreshold: 0}).subscribe();
-            ctrl.expectOne(`${GUILD}/channels/${CHANNEL}/pantry-items`)
-                .flush(item({id: 'pitm_2', name: 'Rice', quantity: 2, lowThreshold: 0}));
+            ctrl.expectOne(`${GUILD}/channels/${CHANNEL}/pantry-items`).flush(
+                item({id: 'pitm_2', name: 'Rice', quantity: 2, lowThreshold: 0}),
+            );
 
             expect(service.itemsFor(CHANNEL).map(i => i.id)).toEqual(['pitm_2']);
         });
@@ -258,8 +283,11 @@ describe('PantryService', () => {
             const {service, ctrl} = setup();
             load(service, ctrl, []);
             service.saveConfig(CHANNEL, {clearRestockList: true, expiryWarningDays: 14}).subscribe();
-            ctrl.expectOne(`${GUILD}/channels/${CHANNEL}/pantry/config`)
-                .flush({channelId: CHANNEL, restockListChannelId: null, expiryWarningDays: 14});
+            ctrl.expectOne(`${GUILD}/channels/${CHANNEL}/pantry/config`).flush({
+                channelId: CHANNEL,
+                restockListChannelId: null,
+                expiryWarningDays: 14,
+            });
 
             expect(service.configFor(CHANNEL)?.restockListChannelId).toBeNull();
             expect(service.configFor(CHANNEL)?.expiryWarningDays).toBe(14);
@@ -313,7 +341,8 @@ describe('PantryService', () => {
             ctrl.expectOne(r => r.url === expiringUrl).flush([item({expiresAt: '2026-08-04T00:00:00Z'})]);
 
             fire('guild.PantryItemUpdated', {
-                guildId: GUILD_ID, channelId: CHANNEL,
+                guildId: GUILD_ID,
+                channelId: CHANNEL,
                 item: item({name: 'Oat milk', expiresAt: '2026-08-04T00:00:00Z'}),
             });
             expect(service.expiringFor(GUILD_ID)[0].name).toBe('Oat milk');

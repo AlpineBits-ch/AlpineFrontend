@@ -1,4 +1,13 @@
-import {AfterViewInit, Component, ElementRef, input, OnDestroy, output, signal, ViewChild,} from '@angular/core';
+import {
+    AfterViewInit,
+    Component,
+    ElementRef,
+    input,
+    OnDestroy,
+    output,
+    signal,
+    ViewChild,
+} from '@angular/core';
 import {Button} from 'primeng/button';
 
 @Component({

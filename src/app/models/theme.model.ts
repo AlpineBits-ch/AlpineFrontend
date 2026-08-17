@@ -60,7 +60,7 @@ export const COLOR_LABELS: Record<keyof ThemeColors, string> = {
     offline: 'Offline',
 };
 
-export const COLOR_GROUPS: { title: string; keys: (keyof ThemeColors)[] }[] = [
+export const COLOR_GROUPS: {title: string; keys: (keyof ThemeColors)[]}[] = [
     {title: 'Surfaces', keys: ['loginBg', 'appBg', 'sidebar', 'card', 'hover', 'border']},
     {title: 'Brand', keys: ['brand', 'brandHover', 'brandDim', 'brandDark']},
     {title: 'Status', keys: ['online', 'connecting', 'offline']},

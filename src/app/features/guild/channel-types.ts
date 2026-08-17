@@ -3,8 +3,16 @@ import {GuildFeature} from './guild-features';
 
 /** Resolved by {@link channelViewFor}, not a template `@switch`, so an unrecognised type is never drawn as a message. */
 export type ChannelView =
-    | 'voice' | 'forum' | 'message'
-    | 'list' | 'chores' | 'ledger' | 'pantry' | 'decisions' | 'meals' | 'maintenance'
+    | 'voice'
+    | 'forum'
+    | 'message'
+    | 'list'
+    | 'chores'
+    | 'ledger'
+    | 'pantry'
+    | 'decisions'
+    | 'meals'
+    | 'maintenance'
     | 'unsupported';
 
 export interface ChannelTypeMeta {
@@ -19,9 +27,13 @@ export interface ChannelTypeMeta {
 
 /** Types whose contents are structured rows, not messages; declared as raw strings so the table below can filter by it at module init. */
 const HOUSEHOLD_TYPE_SET: ReadonlySet<string> = new Set([
-    ChannelType.List, ChannelType.Chores, ChannelType.Ledger,
-    ChannelType.Pantry, ChannelType.Decisions,
-    ChannelType.Meals, ChannelType.Maintenance,
+    ChannelType.List,
+    ChannelType.Chores,
+    ChannelType.Ledger,
+    ChannelType.Pantry,
+    ChannelType.Decisions,
+    ChannelType.Meals,
+    ChannelType.Maintenance,
 ]);
 
 /** Every {@link HOUSEHOLD_TYPE_SET} member must appear here, or it silently falls through to `unsupported` instead of its shipped view; `channel-types.spec.ts` asserts the two agree. */
@@ -136,13 +148,11 @@ export const CHANNEL_META: readonly ChannelTypeMeta[] = [
 ];
 
 /** Keyed by the raw string so an off-enum value from a newer server simply misses. */
-const META_BY_TYPE = new Map<string, ChannelTypeMeta>(
-    CHANNEL_META.map(meta => [meta.type as string, meta]),
-);
+const META_BY_TYPE = new Map<string, ChannelTypeMeta>(CHANNEL_META.map(meta => [meta.type as string, meta]));
 
 /** The five whose contents are structured rows rather than messages. */
-export const HOUSEHOLD_CHANNEL_META: readonly ChannelTypeMeta[] = CHANNEL_META.filter(
-    meta => HOUSEHOLD_TYPE_SET.has(meta.type as string),
+export const HOUSEHOLD_CHANNEL_META: readonly ChannelTypeMeta[] = CHANNEL_META.filter(meta =>
+    HOUSEHOLD_TYPE_SET.has(meta.type as string),
 );
 
 /** The single icon lookup in the app; `null` means "no icon" (Text renders a literal `#`), and an unknown type gets whatever fallback the caller prefers. */
@@ -164,9 +174,7 @@ export function householdFeatureFor(type: ChannelType): GuildFeature | null {
 }
 
 /** The types this build can render as a message view - the only ones that get a composer. */
-const MESSAGE_TYPES: readonly string[] = [
-    ChannelType.Text, ChannelType.Announcement, ChannelType.Thread,
-];
+const MESSAGE_TYPES: readonly string[] = [ChannelType.Text, ChannelType.Announcement, ChannelType.Thread];
 
 /** Deliberately an allowlist: anything not named here (an unshipped household type, or a type from a newer server) is inert, never falls through to the message view. */
 export function channelViewFor(type: ChannelType): ChannelView {

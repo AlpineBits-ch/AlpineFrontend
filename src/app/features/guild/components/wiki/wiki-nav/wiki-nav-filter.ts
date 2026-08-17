@@ -57,9 +57,10 @@ export function narrowNav(
 
     const pageIds = new Set<string>();
     for (const page of pages) {
-        const self = contains(page.title, needle)
-            || (page.tags ?? []).some(tag => contains(tag, needle))
-            || (!!page.categoryId && withDescendantCategories.has(page.categoryId));
+        const self =
+            contains(page.title, needle) ||
+            (page.tags ?? []).some(tag => contains(tag, needle)) ||
+            (!!page.categoryId && withDescendantCategories.has(page.categoryId));
         if (!self) continue;
         pageIds.add(page.id);
         // Ancestors come along so a nested hit is still reachable from its root row.

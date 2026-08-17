@@ -1,16 +1,19 @@
-<div (dragend)="drag.onDragEnd($event)"
-     (dragover)="drag.onItemDragOver($event, channel().id)"
-     (dragstart)="drag.onChannelDragStart($event, channel())"
-     data-testid="voice-channel-item"
-     [attr.data-channel-id]="channel().id"
-     [attr.draggable]="canReorder() ? 'true' : null">
+<div
+    (dragend)="drag.onDragEnd($event)"
+    (dragover)="drag.onItemDragOver($event, channel().id)"
+    (dragstart)="drag.onChannelDragStart($event, channel())"
+    data-testid="voice-channel-item"
+    [attr.data-channel-id]="channel().id"
+    [attr.draggable]="canReorder() ? 'true' : null"
+>
     <button
-            (click)="open.emit()"
-            (contextmenu)="openMenu.emit($event)"
-            [class.cursor-grab]="canReorder()"
-            [class.is-active]="!isJoined() && isActive()"
-            [class.is-joined]="isJoined()"
-            class="chan-row">
+        (click)="open.emit()"
+        (contextmenu)="openMenu.emit($event)"
+        [class.cursor-grab]="canReorder()"
+        [class.is-active]="!isJoined() && isActive()"
+        [class.is-joined]="isJoined()"
+        class="chan-row"
+    >
         <!-- The speaker gives way to a spinner while this row's join is in flight, in the icon slot rather than beside it since the row has no spare width. -->
         <span class="chan-icon">
             <i [class]="isJoining() ? 'pi pi-spinner pi-spin' : 'pi pi-volume-up'"></i>
@@ -20,9 +23,7 @@
         @if (channel().isPrivate) {
             <i class="pi pi-lock chan-lock"></i>
         } @else if (liveEvent(); as event) {
-            <span [pTooltip]="event.title"
-                  class="shrink-0 flex items-center gap-1.5"
-                  tooltipPosition="right">
+            <span [pTooltip]="event.title" class="shrink-0 flex items-center gap-1.5" tooltipPosition="right">
                 <span class="relative flex size-1.5">
                     <span class="absolute inline-flex size-full animate-ping rounded-full bg-online opacity-60 motion-reduce:hidden"></span>
                     <span class="relative inline-flex size-full rounded-full bg-online"></span>
@@ -40,15 +41,16 @@
         <div class="chan-nest">
             @for (p of participants(); track p.userId) {
                 <app-voice-participant-row
-                        (open)="open.emit()"
-                        (openMenu)="onParticipantMenu($event, p)"
-                        (watch)="watch.emit({userId: p.userId})"
-                        [participant]="p"/>
+                    (open)="open.emit()"
+                    (openMenu)="onParticipantMenu($event, p)"
+                    (watch)="watch.emit({userId: p.userId})"
+                    [participant]="p"
+                />
             }
 
             <!-- Last, directly under your own name: only shows while you're the one person in here. -->
             @if (showInviteRow()) {
-                <app-invite-friends-row (open)="openInvite.emit($event)"/>
+                <app-invite-friends-row (open)="openInvite.emit($event)" />
             }
         </div>
     }

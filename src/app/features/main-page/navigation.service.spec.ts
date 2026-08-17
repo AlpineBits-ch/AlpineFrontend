@@ -50,7 +50,11 @@ function chan(id: string, type: ChannelType = ChannelType.Text): ChannelDto {
 const general = chan('general');
 const random = chan('random');
 const guild = {
-    id: 'g1', name: 'Guild One', channels: [general, random], categories: [], roles: [],
+    id: 'g1',
+    name: 'Guild One',
+    channels: [general, random],
+    categories: [],
+    roles: [],
 } as unknown as GuildDto;
 const conversation = {id: 'c1', name: 'Chat', members: []} as unknown as ConversationDto;
 

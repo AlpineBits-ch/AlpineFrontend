@@ -23,7 +23,7 @@ import {GuildDmOverridesComponent} from './guild-dm-overrides/guild-dm-overrides
 
 /** The boolean members of the record - the ones a toggle row can drive. */
 type BooleanKey = {
-    [K in keyof PrivacySettings]: PrivacySettings[K] extends boolean ? K : never
+    [K in keyof PrivacySettings]: PrivacySettings[K] extends boolean ? K : never;
 }[keyof PrivacySettings];
 
 interface ToggleRow {
@@ -39,7 +39,11 @@ interface ChoiceOption<T> {
 }
 
 interface VisibilityRow {
-    key: 'mutualServersVisibility' | 'mutualFriendsVisibility' | 'connectionsVisibility' | 'birthdayVisibility';
+    key:
+        | 'mutualServersVisibility'
+        | 'mutualFriendsVisibility'
+        | 'connectionsVisibility'
+        | 'birthdayVisibility';
     labelKey: string;
 }
 
@@ -249,9 +253,10 @@ export class PrivacySettingsComponent implements OnInit {
      * springs to its previous position; this says why.
      */
     private reportFailure(err: HttpErrorResponse): void {
-        const key = this.privacy.minorRestricted().size > 0 && err.status === 403
-            ? 'SETTINGS.PRIVACY.ERROR_MINOR_RESTRICTED'
-            : 'SETTINGS.PRIVACY.ERROR_SAVE';
+        const key =
+            this.privacy.minorRestricted().size > 0 && err.status === 403
+                ? 'SETTINGS.PRIVACY.ERROR_MINOR_RESTRICTED'
+                : 'SETTINGS.PRIVACY.ERROR_SAVE';
         this.toast.error(this.translate.instant(key));
     }
 }

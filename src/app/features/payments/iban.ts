@@ -6,19 +6,50 @@ const MAX_LENGTH = 34;
 
 /** Registered IBAN lengths, for the countries a European household plausibly banks in. */
 const LENGTH_BY_COUNTRY: Readonly<Record<string, number>> = {
-    AD: 24, AT: 20, BE: 16, BG: 22, CH: 21, CY: 28, CZ: 24, DE: 22, DK: 18, EE: 20,
-    ES: 24, FI: 18, FO: 18, FR: 27, GB: 22, GI: 23, GL: 18, GR: 27, HR: 21, HU: 28,
-    IE: 22, IS: 26, IT: 27, LI: 21, LT: 20, LU: 20, LV: 21, MC: 27, MT: 31, NL: 18,
-    NO: 15, PL: 28, PT: 25, RO: 24, SE: 24, SI: 19, SK: 24, SM: 27, TR: 26, VA: 22,
+    AD: 24,
+    AT: 20,
+    BE: 16,
+    BG: 22,
+    CH: 21,
+    CY: 28,
+    CZ: 24,
+    DE: 22,
+    DK: 18,
+    EE: 20,
+    ES: 24,
+    FI: 18,
+    FO: 18,
+    FR: 27,
+    GB: 22,
+    GI: 23,
+    GL: 18,
+    GR: 27,
+    HR: 21,
+    HU: 28,
+    IE: 22,
+    IS: 26,
+    IT: 27,
+    LI: 21,
+    LT: 20,
+    LU: 20,
+    LV: 21,
+    MC: 27,
+    MT: 31,
+    NL: 18,
+    NO: 15,
+    PL: 28,
+    PT: 25,
+    RO: 24,
+    SE: 24,
+    SI: 19,
+    SK: 24,
+    SM: 27,
+    TR: 26,
+    VA: 22,
 };
 
 /** Why an IBAN was refused. The UI says which - "that is not a valid IBAN" is not actionable. */
-export type IbanProblem =
-    | 'empty'
-    | 'charset'
-    | 'length'
-    | 'country-length'
-    | 'checksum';
+export type IbanProblem = 'empty' | 'charset' | 'length' | 'country-length' | 'checksum';
 
 export interface IbanCheck {
     valid: boolean;
@@ -83,9 +114,7 @@ function mod97(iban: string): number {
     let chunk = '';
 
     for (const char of rearranged) {
-        chunk += char >= 'A' && char <= 'Z'
-            ? String(char.charCodeAt(0) - 55)
-            : char;
+        chunk += char >= 'A' && char <= 'Z' ? String(char.charCodeAt(0) - 55) : char;
 
         if (chunk.length >= 9) {
             remainder = Number(String(remainder) + chunk) % 97;

@@ -46,16 +46,15 @@ export class FakeMlsEngine extends MlsEngine {
     async call<T>(command: string, args?: Record<string, unknown>): Promise<T> {
         this.calls.push({command, args});
 
-        if (this.handler) return await this.handler(command, args) as T;
+        if (this.handler) return (await this.handler(command, args)) as T;
         if (this.rejection !== undefined) throw this.rejection;
         return this.result as T;
     }
 
     /** The last call, or the last call to `command`. */
     lastCall(command?: string): RecordedEngineCall | undefined {
-        const matching = command === undefined
-            ? this.calls
-            : this.calls.filter(call => call.command === command);
+        const matching =
+            command === undefined ? this.calls : this.calls.filter(call => call.command === command);
         return matching.at(-1);
     }
 

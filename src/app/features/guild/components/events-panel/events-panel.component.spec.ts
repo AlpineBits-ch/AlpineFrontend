@@ -97,8 +97,7 @@ function setup(events: ScheduledEventDto[], memberPermissions = '') {
         live: () => ids(component['live']()),
         upcoming: () => ids(component['upcoming']()),
         past: () => ids(component['past']()),
-        groups: () => component['upcomingGroups']()
-            .map(g => [g.bucket, ids(g.events)] as [string, string[]]),
+        groups: () => component['upcomingGroups']().map(g => [g.bucket, ids(g.events)] as [string, string[]]),
     };
 }
 

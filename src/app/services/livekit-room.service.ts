@@ -1,6 +1,14 @@
 import {inject, Injectable, InjectionToken, signal} from '@angular/core';
 import type {RemoteParticipant, RoomEventCallbacks} from 'livekit-client';
-import {ConnectionState, RemoteTrackPublication, Room, RoomEvent, RoomOptions, Track, VideoQuality} from 'livekit-client';
+import {
+    ConnectionState,
+    RemoteTrackPublication,
+    Room,
+    RoomEvent,
+    RoomOptions,
+    Track,
+    VideoQuality,
+} from 'livekit-client';
 
 /** How the service obtains a room. Injected so specs can drive one without a server. */
 export type LiveKitRoomFactory = (options: RoomOptions) => Room;
@@ -177,7 +185,9 @@ export class LiveKitRoomService {
         this.on(room, RoomEvent.TrackSubscribed, (_track, publication, participant) =>
             this.remember(publication, participant),
         );
-        this.on(room, RoomEvent.TrackUnsubscribed, (_track, publication) => this.forget(publication.trackSid));
+        this.on(room, RoomEvent.TrackUnsubscribed, (_track, publication) =>
+            this.forget(publication.trackSid),
+        );
         this.on(room, RoomEvent.ConnectionStateChanged, state => this.state.set(state));
 
         // **What the room has learned about, as opposed to what it holds.** Subscribing is a
@@ -196,7 +206,11 @@ export class LiveKitRoomService {
     }
 
     /** Registers a handler and records how to take it off again. */
-    private on<E extends keyof RoomEventCallbacks>(room: Room, event: E, handler: RoomEventCallbacks[E]): void {
+    private on<E extends keyof RoomEventCallbacks>(
+        room: Room,
+        event: E,
+        handler: RoomEventCallbacks[E],
+    ): void {
         room.on(event, handler);
         this.listeners.push(() => room.off(event, handler));
     }
@@ -222,8 +236,8 @@ export class LiveKitRoomService {
         // took our subscribe" from "the SFU is sending". Asking for a track and receiving one are
         // different things, and only this says the second happened.
         console.info(
-            `[livekit] track arrived: ${publication.trackName} (${publication.kind}/${publication.source})`
-            + ` from ${participant.identity}, mediaStreamTrack=${!!publication.track?.mediaStreamTrack}`,
+            `[livekit] track arrived: ${publication.trackName} (${publication.kind}/${publication.source})` +
+                ` from ${participant.identity}, mediaStreamTrack=${!!publication.track?.mediaStreamTrack}`,
         );
     }
 
@@ -281,7 +295,9 @@ export class LiveKitRoomService {
         const quality = QUALITY_BY_LAYER[layer];
         if (quality === undefined) {
             this.unrecognisedLayers.update(count => count + 1);
-            console.warn(`[livekit] leaving the server's choice for ${trackSid}: unrecognised layer "${layer}"`);
+            console.warn(
+                `[livekit] leaving the server's choice for ${trackSid}: unrecognised layer "${layer}"`,
+            );
             return false;
         }
 
@@ -354,10 +370,10 @@ export class LiveKitRoomService {
         const source = trackName.startsWith('screen-audio-')
             ? Track.Source.ScreenShareAudio
             : trackName.startsWith('screen-')
-                ? Track.Source.ScreenShare
-                : track.kind === 'audio'
-                    ? Track.Source.Microphone
-                    : Track.Source.Camera;
+              ? Track.Source.ScreenShare
+              : track.kind === 'audio'
+                ? Track.Source.Microphone
+                : Track.Source.Camera;
 
         await room.localParticipant.publishTrack(track, {name: trackName, source});
     }

@@ -43,8 +43,10 @@ describe('wikiHref / parseWikiHref', () => {
 
 describe('parseWikiTarget', () => {
     it('round-trips a page and a section', () => {
-        expect(parseWikiTarget(wikiHref('abc', 'overview-2')))
-            .toEqual({pageId: 'abc', headingId: 'overview-2'});
+        expect(parseWikiTarget(wikiHref('abc', 'overview-2'))).toEqual({
+            pageId: 'abc',
+            headingId: 'overview-2',
+        });
     });
 
     it('reports no section for a plain page link', () => {
@@ -90,11 +92,13 @@ describe('extractLinkedPageIds', () => {
 
 describe('buildBacklinkIndex', () => {
     it('maps each target to the pages that link to it', () => {
-        const index = buildBacklinkIndex(new Map([
-            ['home', 'go to [Setup](wiki:setup)'],
-            ['guide', 'also [Setup](wiki:setup) and [API](wiki:api)'],
-            ['setup', 'no links here'],
-        ]));
+        const index = buildBacklinkIndex(
+            new Map([
+                ['home', 'go to [Setup](wiki:setup)'],
+                ['guide', 'also [Setup](wiki:setup) and [API](wiki:api)'],
+                ['setup', 'no links here'],
+            ]),
+        );
         expect(index.get('setup')?.sort()).toEqual(['guide', 'home']);
         expect(index.get('api')).toEqual(['guide']);
     });
@@ -203,18 +207,21 @@ describe('findUnlinkedMentions', () => {
     const target = {id: 'setup', title: 'Setup'};
 
     it('reports pages that name the title without linking it', () => {
-        const found = findUnlinkedMentions(target, new Map([
-            ['guide', 'run Setup before anything else'],
-            ['other', 'nothing relevant here'],
-        ]));
+        const found = findUnlinkedMentions(
+            target,
+            new Map([
+                ['guide', 'run Setup before anything else'],
+                ['other', 'nothing relevant here'],
+            ]),
+        );
         expect(found).toEqual([{sourceId: 'guide', index: 4, text: 'Setup', count: 1}]);
     });
 
     // Otherwise the same page is reported twice on the same rail, once under each heading.
     it('skips pages that already link the target', () => {
-        expect(findUnlinkedMentions(target, new Map([
-            ['guide', 'see [Setup](wiki:setup) and Setup again'],
-        ]))).toEqual([]);
+        expect(
+            findUnlinkedMentions(target, new Map([['guide', 'see [Setup](wiki:setup) and Setup again']])),
+        ).toEqual([]);
     });
 
     // A page naming its own title is not a link it forgot to make.
@@ -223,8 +230,7 @@ describe('findUnlinkedMentions', () => {
     });
 
     it('keeps the casing the source page actually used', () => {
-        expect(findUnlinkedMentions(target, new Map([['guide', 'the SETUP step']]))[0].text)
-            .toBe('SETUP');
+        expect(findUnlinkedMentions(target, new Map([['guide', 'the SETUP step']]))[0].text).toBe('SETUP');
     });
 
     it('counts repeated mentions on one page once, with a total', () => {
@@ -240,13 +246,13 @@ describe('findUnlinkedMentions', () => {
 
 describe('linkFirstMention', () => {
     it('links the first mention and leaves the rest of the body alone', () => {
-        expect(linkFirstMention('run Setup then Setup again', 'Setup', 'p1'))
-            .toBe('run [Setup](wiki:p1) then Setup again');
+        expect(linkFirstMention('run Setup then Setup again', 'Setup', 'p1')).toBe(
+            'run [Setup](wiki:p1) then Setup again',
+        );
     });
 
     it('keeps the casing that was there', () => {
-        expect(linkFirstMention('run SETUP now', 'Setup', 'p1'))
-            .toBe('run [SETUP](wiki:p1) now');
+        expect(linkFirstMention('run SETUP now', 'Setup', 'p1')).toBe('run [SETUP](wiki:p1) now');
     });
 
     it('skips a mention that only appears inside code', () => {

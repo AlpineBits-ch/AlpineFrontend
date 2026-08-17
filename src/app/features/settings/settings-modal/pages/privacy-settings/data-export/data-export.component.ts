@@ -20,11 +20,10 @@ const POLL_INTERVAL_MS = 5_000;
 
 /** How long until another export may be requested, rounded up to whole hours. */
 function retryAfterHours(err: HttpErrorResponse): number | null {
-    const body = err.error as { retryAfterSeconds?: unknown } | null;
+    const body = err.error as {retryAfterSeconds?: unknown} | null;
     const fromBody = body && typeof body === 'object' ? Number(body.retryAfterSeconds) : NaN;
-    const seconds = Number.isFinite(fromBody) && fromBody > 0
-        ? fromBody
-        : Number(err.headers.get('Retry-After'));
+    const seconds =
+        Number.isFinite(fromBody) && fromBody > 0 ? fromBody : Number(err.headers.get('Retry-After'));
     if (!Number.isFinite(seconds) || seconds <= 0) return null;
     return Math.max(1, Math.ceil(seconds / 3600));
 }
@@ -99,12 +98,14 @@ export class DataExportComponent implements OnInit, OnDestroy {
                 // it is a normal answer rather than a fault - and it carries how long to wait.
                 if (err.status === 429) {
                     const hours = retryAfterHours(err);
-                    this.toast.error(this.translate.instant(
-                        hours === null
-                            ? 'SETTINGS.PRIVACY.EXPORT_RATE_LIMITED'
-                            : 'SETTINGS.PRIVACY.EXPORT_RATE_LIMITED_IN',
-                        {hours},
-                    ));
+                    this.toast.error(
+                        this.translate.instant(
+                            hours === null
+                                ? 'SETTINGS.PRIVACY.EXPORT_RATE_LIMITED'
+                                : 'SETTINGS.PRIVACY.EXPORT_RATE_LIMITED_IN',
+                            {hours},
+                        ),
+                    );
                     return;
                 }
                 this.toast.error(this.translate.instant('SETTINGS.PRIVACY.EXPORT_REQUEST_ERROR'));
@@ -199,7 +200,8 @@ export class DataExportComponent implements OnInit, OnDestroy {
     }
 
     private syncPolling(): void {
-        if (this.inFlight()) this.startPolling(); else this.stopPolling();
+        if (this.inFlight()) this.startPolling();
+        else this.stopPolling();
     }
 
     private startPolling(): void {

@@ -86,8 +86,9 @@ function surface(fixture: ComponentFixture<CallShareTileComponent>): HTMLElement
 
 /** Presses the PiP control the way a user does, through the real DOM button. */
 async function pressPip(fixture: ComponentFixture<CallShareTileComponent>): Promise<void> {
-    const button = (fixture.nativeElement as HTMLElement)
-        .querySelector<HTMLButtonElement>('app-call-tile-action[icon="pi-external-link"] button');
+    const button = (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>(
+        'app-call-tile-action[icon="pi-external-link"] button',
+    );
     expect(button, 'the pop-out control should be rendered').not.toBeNull();
     button!.click();
     await fixture.whenStable();
@@ -256,8 +257,11 @@ describe('CallShareTileComponent pop-out', () => {
         fixture.componentRef.setInput('share', share({stream: undefined, previewSrc: null}));
         fixture.detectChanges();
 
-        expect((fixture.nativeElement as HTMLElement)
-            .querySelector('app-call-tile-action[icon="pi-external-link"]')).not.toBeNull();
+        expect(
+            (fixture.nativeElement as HTMLElement).querySelector(
+                'app-call-tile-action[icon="pi-external-link"]',
+            ),
+        ).not.toBeNull();
 
         await pressPip(fixture);
 
@@ -267,7 +271,10 @@ describe('CallShareTileComponent pop-out', () => {
 
     it('leaves the picture alone when the request is refused', async () => {
         const requestWindow = vi.fn(() => Promise.reject(new Error('denied')));
-        Object.defineProperty(window, 'documentPictureInPicture', {value: {requestWindow}, configurable: true});
+        Object.defineProperty(window, 'documentPictureInPicture', {
+            value: {requestWindow},
+            configurable: true,
+        });
         Object.defineProperty(document, 'pictureInPictureEnabled', {value: false, configurable: true});
         const fixture = setup(share({stream: {} as MediaStream}));
         const picture = surface(fixture);
@@ -316,7 +323,10 @@ describe('CallShareTileComponent PiP route selection', () => {
     it('prefers document PiP when both are available', async () => {
         const pip = fakePipWindow();
         const requestWindow = vi.fn(() => Promise.resolve(pip as unknown as Window));
-        Object.defineProperty(window, 'documentPictureInPicture', {value: {requestWindow}, configurable: true});
+        Object.defineProperty(window, 'documentPictureInPicture', {
+            value: {requestWindow},
+            configurable: true,
+        });
         Object.defineProperty(document, 'pictureInPictureEnabled', {value: true, configurable: true});
         const fixture = setup(share({stream: {} as MediaStream}));
 

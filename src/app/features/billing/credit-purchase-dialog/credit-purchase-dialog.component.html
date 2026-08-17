@@ -1,15 +1,15 @@
 <p-dialog
-        (visibleChange)="onVisibleChange($event)"
-        [breakpoints]="{ '640px': '100vw' }"
-        [closable]="!busy()"
-        [closeOnEscape]="!busy()"
-        [draggable]="false"
-        [modal]="true"
-        [resizable]="false"
-        [style]="{ width: '460px' }"
-        [visible]="visible()"
-        appendTo="body">
-
+    (visibleChange)="onVisibleChange($event)"
+    [breakpoints]="{'640px': '100vw'}"
+    [closable]="!busy()"
+    [closeOnEscape]="!busy()"
+    [draggable]="false"
+    [modal]="true"
+    [resizable]="false"
+    [style]="{width: '460px'}"
+    [visible]="visible()"
+    appendTo="body"
+>
     <ng-template pTemplate="header">
         <span class="text-sm font-semibold text-text-primary">
             {{ 'BILLING.CREDIT.PURCHASE.TITLE' | translate }}
@@ -17,30 +17,25 @@
     </ng-template>
 
     <div class="flex flex-col gap-5 pb-1">
-
         @if (outcome(); as done) {
-
             <!-- When it starts, before anything else. -->
             <div class="flex flex-col gap-1.5">
                 <p class="text-sm font-semibold text-text-primary m-0">
-                    {{ done.titleKey | translate:{title: sku().title, date: done.startsOn} }}
+                    {{ done.titleKey | translate: {title: sku().title, date: done.startsOn} }}
                 </p>
                 <p class="text-xs text-text-muted m-0 leading-relaxed">
-                    {{ done.bodyKey | translate:{date: done.startsOn, until: done.endsOn} }}
+                    {{ done.bodyKey | translate: {date: done.startsOn, until: done.endsOn} }}
                 </p>
             </div>
 
             @if (result(); as purchase) {
                 <p class="text-xs text-text-muted m-0 leading-relaxed border-t border-white/[0.06] pt-3">
-                    {{ 'BILLING.CREDIT.PURCHASE.SPENT' | translate:{points: purchase.spent, balance: purchase.balanceAfter} }}
+                    {{ 'BILLING.CREDIT.PURCHASE.SPENT' | translate: {points: purchase.spent, balance: purchase.balanceAfter} }}
                 </p>
             }
 
-            <p-button (onClick)="close()" [label]="'BILLING.CHECKOUT.CLOSE' | translate"
-                      severity="primary" styleClass="justify-center"/>
-
+            <p-button (onClick)="close()" [label]="'BILLING.CHECKOUT.CLOSE' | translate" severity="primary" styleClass="justify-center" />
         } @else {
-
             <div class="flex flex-col gap-1.5 rounded-xl border border-white/[0.10] bg-white/[0.03] px-4 py-3.5">
                 <p class="text-sm font-semibold text-text-primary m-0">{{ sku().title }}</p>
                 @if (sku().description; as description) {
@@ -51,11 +46,11 @@
                      credit is worth, and the cash price is the only thing that answers it. -->
                 <div class="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 border-t border-white/[0.06] pt-2.5">
                     <span class="text-base font-semibold text-text-primary tabular-nums">
-                        {{ 'BILLING.CREDIT.POINTS' | translate:{points: sku().pricePoints} }}
+                        {{ 'BILLING.CREDIT.POINTS' | translate: {points: sku().pricePoints} }}
                     </span>
                     @if (cash(); as price) {
                         <span class="text-xs text-text-muted">
-                            {{ 'BILLING.CREDIT.CASH_EQUIVALENT' | translate:{price: price} }}
+                            {{ 'BILLING.CREDIT.CASH_EQUIVALENT' | translate: {price: price} }}
                         </span>
                     }
                 </div>
@@ -64,7 +59,7 @@
             <!-- What is left afterwards, before the press rather than after it. -->
             @if (affordable()) {
                 <p class="text-xs text-text-secondary m-0 leading-relaxed">
-                    {{ 'BILLING.CREDIT.PURCHASE.LEAVES' | translate:{balance: balanceAfter()} }}
+                    {{ 'BILLING.CREDIT.PURCHASE.LEAVES' | translate: {balance: balanceAfter()} }}
                 </p>
             } @else {
                 <p class="text-xs text-[var(--color-offline)] m-0 leading-relaxed" role="alert">
@@ -77,8 +72,7 @@
             @if (errorText(); as text) {
                 <p class="text-xs text-[var(--color-offline)] m-0 leading-relaxed" role="alert">{{ text }}</p>
             } @else if (errorKey(); as key) {
-                <p class="text-xs text-[var(--color-offline)] m-0 leading-relaxed"
-                   role="alert">{{ key | translate }}</p>
+                <p class="text-xs text-[var(--color-offline)] m-0 leading-relaxed" role="alert">{{ key | translate }}</p>
             }
 
             @if (disclaimer(); as notice) {
@@ -92,26 +86,35 @@
             }
 
             <div class="flex flex-wrap items-center gap-2">
-                <p-button (onClick)="close()" [disabled]="busy()"
-                          [label]="'BILLING.CHECKOUT.CANCEL' | translate" [text]="true"
-                          severity="secondary" styleClass="flex-1 justify-center"/>
+                <p-button
+                    (onClick)="close()"
+                    [disabled]="busy()"
+                    [label]="'BILLING.CHECKOUT.CANCEL' | translate"
+                    [text]="true"
+                    severity="secondary"
+                    styleClass="flex-1 justify-center"
+                />
                 <!-- The retry after a refusal reuses this dialog's key. -->
                 @if (step() === 'refused') {
-                    <p-button (onClick)="confirm()"
-                              [disabled]="busy() || !affordable()"
-                              [label]="'BILLING.CREDIT.PURCHASE.RETRY' | translate"
-                              [loading]="busy()"
-                              severity="primary" styleClass="flex-1 justify-center"/>
+                    <p-button
+                        (onClick)="confirm()"
+                        [disabled]="busy() || !affordable()"
+                        [label]="'BILLING.CREDIT.PURCHASE.RETRY' | translate"
+                        [loading]="busy()"
+                        severity="primary"
+                        styleClass="flex-1 justify-center"
+                    />
                 } @else {
-                    <p-button (onClick)="confirm()"
-                              [disabled]="busy() || !affordable()"
-                              [label]="'BILLING.CREDIT.PURCHASE.CONFIRM' | translate"
-                              [loading]="busy()"
-                              severity="primary" styleClass="flex-1 justify-center"/>
+                    <p-button
+                        (onClick)="confirm()"
+                        [disabled]="busy() || !affordable()"
+                        [label]="'BILLING.CREDIT.PURCHASE.CONFIRM' | translate"
+                        [loading]="busy()"
+                        severity="primary"
+                        styleClass="flex-1 justify-center"
+                    />
                 }
             </div>
         }
-
     </div>
-
 </p-dialog>

@@ -15,15 +15,15 @@ import {CredentialRejectedError, MasterKeyService} from './master-key.service';
  */
 export type MasterKeyRepair =
     /** Done. `recoveryCode` is set on a retrofit, and must be shown exactly once. */
-    | { outcome: 'ok'; recoveryCode?: string }
+    | {outcome: 'ok'; recoveryCode?: string}
     /** The credential genuinely does not open the wrapping. The only "check your code" case. */
-    | { outcome: 'credential-rejected' }
+    | {outcome: 'credential-rejected'}
     /** Nothing to repair from - no envelope, or no recovery-code wrapping to unwrap. */
-    | { outcome: 'not-applicable' }
+    | {outcome: 'not-applicable'}
     /** The server answered 200 and stored nothing. Never show a code the server does not hold. */
-    | { outcome: 'not-stored' }
+    | {outcome: 'not-stored'}
     /** The local engine could not run the operation. Not the user's credential, and not their fault. */
-    | { outcome: 'engine-failed'; detail: string };
+    | {outcome: 'engine-failed'; detail: string};
 
 /** What, if anything, the account needs the user to do about its master key. */
 export type MasterKeyAction =
@@ -64,8 +64,9 @@ export class MasterKeyStateService {
     /** True when the user must act before backups mean anything. */
     readonly needsAttention = computed(() => {
         const action = this._action();
-        return action === 'rewrap-required' || action === 'unrecoverable'
-            || action === 'recovery-code-missing';
+        return (
+            action === 'rewrap-required' || action === 'unrecoverable' || action === 'recovery-code-missing'
+        );
     });
 
     /**
@@ -84,7 +85,7 @@ export class MasterKeyStateService {
             // 404 is "never set up", which is first-run rather than a fault. Anything else leaves
             // the previous verdict standing: guessing 'ok' on a failed lookup is how a real loss
             // goes unreported.
-            if ((err as { status?: number })?.status === 404) {
+            if ((err as {status?: number})?.status === 404) {
                 this._envelope.set(null);
                 this._action.set('not-set-up');
                 return 'not-set-up';
@@ -98,10 +99,10 @@ export class MasterKeyStateService {
         const action: MasterKeyAction = !envelope.encryptedHistoryRecoverable
             ? 'unrecoverable'
             : envelope.passwordWrappingInvalidatedAt
-                ? 'rewrap-required'
-                : envelope.recoveryCodeWrapping
-                    ? 'ok'
-                    : 'recovery-code-missing';
+              ? 'rewrap-required'
+              : envelope.recoveryCodeWrapping
+                ? 'ok'
+                : 'recovery-code-missing';
 
         this._action.set(action);
         return action;
@@ -179,26 +180,28 @@ export class MasterKeyStateService {
             return {outcome: 'engine-failed', detail: (err as Error)?.message ?? String(err)};
         }
 
-        await firstValueFrom(this.backup.putRecoveryKey({
-            // The password wrapping is re-sent unchanged: the endpoint writes the pair, and sending
-            // half of it would drop the wrapping that still works. Byte-identical too - a fresh IV
-            // would change the ciphertext and earn a 400 at the same version.
-            kdf: envelope.kdf,
-            iterations: envelope.iterations,
-            memoryKiB: envelope.memoryKiB,
-            parallelism: envelope.parallelism,
-            salt: envelope.salt,
-            iv: envelope.iv,
-            cipherText: envelope.cipherText,
-            // §L.11: the two wrappings of one key must carry the *same* verifier, and Echo rejects
-            // a mismatch. The stored password wrapping predates the field on every existing
-            // account, so the value the engine just derived is sent for both halves - it is derived
-            // from the master key alone, so it is correct for the wrapping already on the server.
-            publicVerifier: recoveryWrapping.publicVerifier ?? envelope.publicVerifier ?? null,
-            version: envelope.version,
-            password,
-            recoveryCodeWrapping: toWrappingDto(recoveryWrapping),
-        }));
+        await firstValueFrom(
+            this.backup.putRecoveryKey({
+                // The password wrapping is re-sent unchanged: the endpoint writes the pair, and sending
+                // half of it would drop the wrapping that still works. Byte-identical too - a fresh IV
+                // would change the ciphertext and earn a 400 at the same version.
+                kdf: envelope.kdf,
+                iterations: envelope.iterations,
+                memoryKiB: envelope.memoryKiB,
+                parallelism: envelope.parallelism,
+                salt: envelope.salt,
+                iv: envelope.iv,
+                cipherText: envelope.cipherText,
+                // §L.11: the two wrappings of one key must carry the *same* verifier, and Echo rejects
+                // a mismatch. The stored password wrapping predates the field on every existing
+                // account, so the value the engine just derived is sent for both halves - it is derived
+                // from the master key alone, so it is correct for the wrapping already on the server.
+                publicVerifier: recoveryWrapping.publicVerifier ?? envelope.publicVerifier ?? null,
+                version: envelope.version,
+                password,
+                recoveryCodeWrapping: toWrappingDto(recoveryWrapping),
+            }),
+        );
 
         // Verified, not assumed. A 200 here does not prove the second wrapping was stored - the
         // endpoint treats a same-version write as an idempotent re-post and returns Ok having

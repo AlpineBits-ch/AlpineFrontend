@@ -1,6 +1,6 @@
 @if (os.isMobile) {
     @if (sortedConversations().length === 0) {
-        <app-empty-state icon="pi-inbox" message="No messages yet"/>
+        <app-empty-state icon="pi-inbox" message="No messages yet" />
     }
     <!-- Was an <ion-list> of <ion-item-sliding> rows. -->
     <div class="flex flex-col">
@@ -9,31 +9,35 @@
             @let unread = getUnreadCount(conv.id);
 
             <div (contextmenu)="onConvContextMenu($event, conv)" class="relative">
-                <button (click)="conversationSelected.emit(conv)"
-                        [ngClass]="selectedId() === conv.id ? 'bg-white/[0.08]' : 'bg-transparent active:bg-white/[0.08]'"
-                        class="w-full flex items-center gap-2.5 px-2 py-2 my-0.5 rounded-xl transition-all cursor-pointer border-0 text-left">
-
+                <button
+                    (click)="conversationSelected.emit(conv)"
+                    [ngClass]="selectedId() === conv.id ? 'bg-white/[0.08]' : 'bg-transparent active:bg-white/[0.08]'"
+                    class="w-full flex items-center gap-2.5 px-2 py-2 my-0.5 rounded-xl transition-all cursor-pointer border-0 text-left"
+                >
                     <div class="relative shrink-0 self-center">
                         @let member = convUtils.getPartnerMember(conv);
-                        <app-avatar
-                                [label]="member?.cachedUserName?.[0]?.toUpperCase()"
-                                [userId]="member?.userId"
-                                size="normal"/>
-                        <app-user-status-dot [status]="convUtils.getPartnerStatus(conv)"/>
+                        <app-avatar [label]="member?.cachedUserName?.[0]?.toUpperCase()" [userId]="member?.userId" size="normal" />
+                        <app-user-status-dot [status]="convUtils.getPartnerStatus(conv)" />
                     </div>
 
                     <div class="flex-1 min-w-0 pr-7">
                         <div class="flex items-center justify-between gap-1">
-                            <span [ngClass]="selectedId() === conv.id ? 'text-white/90' : 'text-white/65'"
-                                  class="text-sm font-medium truncate">
+                            <span
+                                [ngClass]="selectedId() === conv.id ? 'text-white/90' : 'text-white/65'"
+                                class="text-sm font-medium truncate"
+                            >
                                 {{ convUtils.getChatTitle(conv) }}
                             </span>
                             <div class="flex items-center gap-1.5 shrink-0">
                                 @if (preview) {
-                                    <span class="text-[10px] text-white/25">{{ previewMessages().get(conv.id)?.[0]?.createdAt | date: 'shortTime' }}</span>
+                                    <span class="text-[10px] text-white/25">{{
+                                        previewMessages().get(conv.id)?.[0]?.createdAt | date: 'shortTime'
+                                    }}</span>
                                 }
                                 @if (unread > 0) {
-                                    <span class="min-w-[18px] h-[18px] px-1 rounded-full bg-brand text-white text-[10px] font-bold flex items-center justify-center">
+                                    <span
+                                        class="min-w-[18px] h-[18px] px-1 rounded-full bg-brand text-white text-[10px] font-bold flex items-center justify-center"
+                                    >
                                         {{ unread >= 30 ? '30+' : unread }}
                                     </span>
                                 }
@@ -42,12 +46,18 @@
 
                         @if (convUtils.getTypingLabel(conv); as typingLabel) {
                             <p class="text-[11px] truncate flex items-center gap-1 text-brand-dim italic mt-0.5 mb-0">
-                                <app-typing-dots/>
+                                <app-typing-dots />
                                 {{ typingLabel }}
                             </p>
+                        } @else if (convUtils.isGroup(conv)) {
+                            <p class="text-[11px] text-white/30 truncate mt-0.5 mb-0">
+                                {{ 'CONVERSATION.MEMBER_COUNT' | translate: {count: conv.members.length} }}
+                            </p>
                         } @else if (preview) {
-                            <p [ngClass]="unread > 0 ? 'text-white/50 font-medium' : 'text-white/30'"
-                               class="text-[11px] truncate mt-0.5 mb-0">
+                            <p
+                                [ngClass]="unread > 0 ? 'text-white/50 font-medium' : 'text-white/30'"
+                                class="text-[11px] truncate mt-0.5 mb-0"
+                            >
                                 <span class="text-white/45">{{ preview.sender }}:</span> {{ preview.text }}
                             </p>
                         } @else {
@@ -57,12 +67,12 @@
                 </button>
 
                 <!-- Always visible, unlike the desktop twin, which reveals on hover. -->
-                <button (click)="deleteConversation(conv, $event)"
-                        aria-label="Delete conversation"
-                        class="absolute top-1/2 -translate-y-1/2 right-1.5 w-7 h-7 rounded-lg flex items-center justify-center
-                               text-white/30 active:text-rose-400 active:bg-rose-500/10 border-0 bg-transparent
-                               transition-all cursor-pointer z-10"
-                        title="Delete conversation">
+                <button
+                    (click)="deleteConversation(conv, $event)"
+                    aria-label="Delete conversation"
+                    class="absolute top-1/2 -translate-y-1/2 right-1.5 w-7 h-7 rounded-lg flex items-center justify-center text-white/30 active:text-rose-400 active:bg-rose-500/10 border-0 bg-transparent transition-all cursor-pointer z-10"
+                    title="Delete conversation"
+                >
                     <i class="pi pi-trash text-[11px]"></i>
                 </button>
             </div>
@@ -79,7 +89,7 @@
     </div>
 } @else {
     @if (sortedConversations().length === 0) {
-        <app-empty-state icon="pi-inbox" message="No messages yet"/>
+        <app-empty-state icon="pi-inbox" message="No messages yet" />
     }
     <div [@convList]="sortKey()" class="flex flex-col gap-0.5">
         @for (conv of sortedConversations(); track conv.id) {
@@ -88,60 +98,64 @@
 
             <div (contextmenu)="onConvContextMenu($event, conv)" class="relative group/conv">
                 <button
-                        (click)="conversationSelected.emit(conv)"
-                        [ngClass]="selectedId() === conv.id ? 'bg-white/[0.08]' : 'bg-transparent hover:bg-white/[0.05]'"
-                        class="w-full flex items-center gap-2.5 px-2 py-2 rounded-xl transition-all cursor-pointer border-0 text-left">
-
+                    (click)="conversationSelected.emit(conv)"
+                    [ngClass]="selectedId() === conv.id ? 'bg-white/[0.08]' : 'bg-transparent hover:bg-white/[0.05]'"
+                    class="w-full flex items-center gap-2.5 px-2 py-2 rounded-xl transition-all cursor-pointer border-0 text-left"
+                >
                     <div class="relative shrink-0">
                         @let member = convUtils.getPartnerMember(conv);
-                        <app-avatar
-                                [label]="member?.cachedUserName?.[0]?.toUpperCase()"
-                                [userId]="member?.userId"
-                                size="normal"/>
-                        <app-user-status-dot [status]="convUtils.getPartnerStatus(conv)"/>
+                        <app-avatar [label]="member?.cachedUserName?.[0]?.toUpperCase()" [userId]="member?.userId" size="normal" />
+                        <app-user-status-dot [status]="convUtils.getPartnerStatus(conv)" />
                     </div>
 
                     <div class="flex-1 min-w-0">
                         <div class="flex items-center justify-between gap-1">
-          <span [ngClass]="selectedId() === conv.id ? 'text-white/90' : 'text-white/65'"
-                class="text-sm font-medium truncate">
-            {{ convUtils.getChatTitle(conv) }}
-          </span>
+                            <span
+                                [ngClass]="selectedId() === conv.id ? 'text-white/90' : 'text-white/65'"
+                                class="text-sm font-medium truncate"
+                            >
+                                {{ convUtils.getChatTitle(conv) }}
+                            </span>
                             <div class="flex items-center gap-1.5 shrink-0">
                                 @if (preview) {
-                                    <span class="text-[10px] text-white/25 group-hover/conv:opacity-0 transition-opacity">{{ previewMessages().get(conv.id)?.[0]?.createdAt | date: 'shortTime' }}</span>
+                                    <span class="text-[10px] text-white/25 group-hover/conv:opacity-0 transition-opacity">{{
+                                        previewMessages().get(conv.id)?.[0]?.createdAt | date: 'shortTime'
+                                    }}</span>
                                 }
                                 @if (unread > 0) {
-                                    <span class="min-w-[18px] h-[18px] px-1 rounded-full bg-brand text-white text-[10px] font-bold flex items-center justify-center">
-                {{ unread >= 30 ? '30+' : unread }}
-              </span>
+                                    <span
+                                        class="min-w-[18px] h-[18px] px-1 rounded-full bg-brand text-white text-[10px] font-bold flex items-center justify-center"
+                                    >
+                                        {{ unread >= 30 ? '30+' : unread }}
+                                    </span>
                                 }
                             </div>
                         </div>
 
                         @if (convUtils.getTypingLabel(conv); as typingLabel) {
                             <span class="text-[11px] truncate flex items-center gap-1 text-brand-dim italic">
-            <app-typing-dots/>
+                                <app-typing-dots />
                                 {{ typingLabel }}
-          </span>
+                            </span>
+                        } @else if (convUtils.isGroup(conv)) {
+                            <span class="text-[11px] text-white/30 truncate block">
+                                {{ 'CONVERSATION.MEMBER_COUNT' | translate: {count: conv.members.length} }}
+                            </span>
                         } @else if (preview) {
-                            <span [ngClass]="unread > 0 ? 'text-white/50 font-medium' : 'text-white/30'"
-                                  class="text-[11px] truncate block">
-            <span class="text-white/45">{{ preview.sender }}:</span> {{ preview.text }}
-          </span>
+                            <span [ngClass]="unread > 0 ? 'text-white/50 font-medium' : 'text-white/30'" class="text-[11px] truncate block">
+                                <span class="text-white/45">{{ preview.sender }}:</span> {{ preview.text }}
+                            </span>
                         } @else {
                             <span class="text-[11px] text-white/20 truncate block italic">No messages yet</span>
                         }
                     </div>
-
                 </button>
 
                 <button
-                        (click)="deleteConversation(conv, $event)"
-                        class="absolute top-1/2 -translate-y-1/2 right-1.5 w-5 h-5 rounded flex items-center justify-center
-             text-white/30 hover:text-rose-400 hover:bg-rose-500/10 border-0 bg-transparent
-             opacity-0 group-hover/conv:opacity-100 transition-all cursor-pointer z-10"
-                        title="Delete conversation">
+                    (click)="deleteConversation(conv, $event)"
+                    class="absolute top-1/2 -translate-y-1/2 right-1.5 w-5 h-5 rounded flex items-center justify-center text-white/30 hover:text-rose-400 hover:bg-rose-500/10 border-0 bg-transparent opacity-0 group-hover/conv:opacity-100 transition-all cursor-pointer z-10"
+                    title="Delete conversation"
+                >
                     <i class="pi pi-times text-[9px]"></i>
                 </button>
             </div>
@@ -149,8 +163,9 @@
 
         @if (conversationStore.hasMore()) {
             <button
-                    (click)="conversationStore.loadMore()"
-                    class="w-full text-center text-[11px] text-white/30 hover:text-white/55 py-2 cursor-pointer border-0 bg-transparent transition-colors">
+                (click)="conversationStore.loadMore()"
+                class="w-full text-center text-[11px] text-white/30 hover:text-white/55 py-2 cursor-pointer border-0 bg-transparent transition-colors"
+            >
                 @if (conversationStore.loading()) {
                     Loading…
                 } @else {
@@ -159,8 +174,7 @@
             </button>
         }
     </div>
-
 }
 
-<p-contextMenu #convMenu [model]="[]" appendTo="body"/>
-<p-confirmdialog appendTo="body"/>
+<p-contextMenu #convMenu [model]="[]" appendTo="body" />
+<p-confirmdialog appendTo="body" />

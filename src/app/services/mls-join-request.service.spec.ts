@@ -37,14 +37,16 @@ function pendingRequest(overrides: Partial<MlsJoinRequestDto> = {}): MlsJoinRequ
 }
 
 /** The two facts `relink` branches on: whether the server calls the context encrypted, and whether we hold a group. */
-function setup(options: {
-    encrypted?: boolean;
-    /** Group id this device holds *after* `refreshState` has run, or null for "no leaf". */
-    groupAfterRefresh?: string | null;
-    floor?: number | null;
-    refreshRejects?: unknown;
-    locked?: boolean;
-} = {}) {
+function setup(
+    options: {
+        encrypted?: boolean;
+        /** Group id this device holds *after* `refreshState` has run, or null for "no leaf". */
+        groupAfterRefresh?: string | null;
+        floor?: number | null;
+        refreshRejects?: unknown;
+        locked?: boolean;
+    } = {},
+) {
     const {
         encrypted = true,
         groupAfterRefresh = null,
@@ -62,14 +64,15 @@ function setup(options: {
         keyHandle: () => (locked ? undefined : 'handle'),
         getActiveGroupId: vi.fn(async () => groupAfterRefresh),
         getEncryptionFloor: vi.fn(async () => floor),
-        generateAdditionalKeyPackages: vi.fn(() =>
-            of([{keyPackage: 'a2V5', initPrivateKey: 'cHJpdg=='}])),
-        inspectKeyPackage: vi.fn(() => of({
-            identity: 'user-a',
-            signaturePublicKey: 'cHVi',
-            signatureKeyFingerprint: 'ABCDE-FGHIJ',
-            keyPackageHash: 'hash',
-        })),
+        generateAdditionalKeyPackages: vi.fn(() => of([{keyPackage: 'a2V5', initPrivateKey: 'cHJpdg=='}])),
+        inspectKeyPackage: vi.fn(() =>
+            of({
+                identity: 'user-a',
+                signaturePublicKey: 'cHVi',
+                signatureKeyFingerprint: 'ABCDE-FGHIJ',
+                keyPackageHash: 'hash',
+            }),
+        ),
     };
 
     TestBed.configureTestingModule({
@@ -167,7 +170,7 @@ describe('MlsJoinRequestService.relink', () => {
         expect(health.isBroken(CONVERSATION)).toBe(true);
     });
 
-    it('surfaces the server\'s refusal instead of swallowing it', async () => {
+    it("surfaces the server's refusal instead of swallowing it", async () => {
         const {service, ctrl} = setup({groupAfterRefresh: null});
 
         const outcome = service.relink(CONVERSATION, false);
@@ -212,8 +215,10 @@ describe('MlsJoinRequestService.relink', () => {
     it('reports a failed catch-up instead of pressing on to an admission request', async () => {
         const {service, ctrl} = setup({refreshRejects: new Error('offline')});
 
-        await expect(service.relink(CONVERSATION, false))
-            .resolves.toEqual({state: 'failed', message: 'offline'});
+        await expect(service.relink(CONVERSATION, false)).resolves.toEqual({
+            state: 'failed',
+            message: 'offline',
+        });
         ctrl.expectNone(() => true);
     });
 
@@ -231,11 +236,13 @@ describe('MlsJoinRequestService.relink', () => {
 describe('MlsJoinRequestService.sweepForAdmission', () => {
     afterEach(() => TestBed.inject(HttpTestingController).verify());
 
-    const conversation = (id: string, serverSaysEncrypted = true) =>
-        ({contextId: id, isChannel: false, serverSaysEncrypted});
+    const conversation = (id: string, serverSaysEncrypted = true) => ({
+        contextId: id,
+        isChannel: false,
+        serverSaysEncrypted,
+    });
 
-    const routeFor = (id: string) =>
-        `${ORIGIN}/api/v1/messaging/conversations/${id}/mls/join-requests`;
+    const routeFor = (id: string) => `${ORIGIN}/api/v1/messaging/conversations/${id}/mls/join-requests`;
 
     it('asks to be admitted to a conversation this device holds no group for', async () => {
         const {service, ctrl} = setup({groupAfterRefresh: null});
@@ -261,8 +268,11 @@ describe('MlsJoinRequestService.sweepForAdmission', () => {
     it('costs nothing at all when this device is in every group', async () => {
         const {service, ctrl, refreshState} = setup({groupAfterRefresh: 'Z3JvdXA='});
 
-        const outcome = await service.sweepForAdmission(
-            [conversation('c1'), conversation('c2'), conversation('c3')]);
+        const outcome = await service.sweepForAdmission([
+            conversation('c1'),
+            conversation('c2'),
+            conversation('c3'),
+        ]);
 
         expect(outcome.probed).toBe(0);
         expect(refreshState).not.toHaveBeenCalled();
@@ -279,7 +289,7 @@ describe('MlsJoinRequestService.sweepForAdmission', () => {
         ctrl.expectNone(() => true);
     });
 
-    it('still probes one the server calls plaintext below this device\'s floor', async () => {
+    it("still probes one the server calls plaintext below this device's floor", async () => {
         const {service, ctrl} = setup({groupAfterRefresh: null, encrypted: false, floor: 2});
 
         const sweep = service.sweepForAdmission([conversation(CONVERSATION, false)]);
@@ -348,8 +358,10 @@ describe('MlsJoinRequestService.sweepForAdmission', () => {
 
         const sweep = service.sweepForAdmission([conversation('c1'), conversation('c2')]);
 
-        (await waitForRequest(ctrl, routeFor('c1'), 'GET')).flush(
-            'nope', {status: 500, statusText: 'Server Error'});
+        (await waitForRequest(ctrl, routeFor('c1'), 'GET')).flush('nope', {
+            status: 500,
+            statusText: 'Server Error',
+        });
         (await waitForRequest(ctrl, routeFor('c2'), 'GET')).flush([]);
         (await waitForRequest(ctrl, routeFor('c2'), 'POST')).flush(pendingRequest());
 

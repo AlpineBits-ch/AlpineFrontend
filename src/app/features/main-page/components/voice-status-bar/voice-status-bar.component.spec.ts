@@ -63,10 +63,19 @@ interface Fakes {
     entities: WritableSignal<ConversationDto[]>;
 }
 
-function setup(): {fixture: ComponentFixture<VoiceStatusBarComponent>; component: VoiceStatusBarComponent; fakes: Fakes} {
+function setup(): {
+    fixture: ComponentFixture<VoiceStatusBarComponent>;
+    component: VoiceStatusBarComponent;
+    fakes: Fakes;
+} {
     const fakes: Fakes = {
         isInVoice: signal(false),
-        localState: signal<VoiceLocalState>({isMuted: false, isDeafened: false, isCameraOn: false, isScreenSharing: false}),
+        localState: signal<VoiceLocalState>({
+            isMuted: false,
+            isDeafened: false,
+            isCameraOn: false,
+            isScreenSharing: false,
+        }),
         voiceRtcState: signal('connected'),
         joinedChannelName: signal<string | null>(null),
         joinedGuildName: signal<string | null>(null),
@@ -139,7 +148,8 @@ function setup(): {fixture: ComponentFixture<VoiceStatusBarComponent>; component
         ],
     });
 
-    const fixture: ComponentFixture<VoiceStatusBarComponent> = TestBed.createComponent(VoiceStatusBarComponent);
+    const fixture: ComponentFixture<VoiceStatusBarComponent> =
+        TestBed.createComponent(VoiceStatusBarComponent);
     fixture.detectChanges();
 
     return {fixture, component: fixture.componentInstance, fakes};
@@ -213,7 +223,9 @@ describe('VoiceStatusBarComponent ordinary state', () => {
         fakes.isInVoice.set(true);
         fixture.detectChanges();
 
-        (fixture.nativeElement.querySelector('[aria-label="VOICE_BAR.DISCONNECT"]') as HTMLButtonElement).click();
+        (
+            fixture.nativeElement.querySelector('[aria-label="VOICE_BAR.DISCONNECT"]') as HTMLButtonElement
+        ).click();
 
         expect(fakes.leaveChannel).toHaveBeenCalledTimes(1);
         expect(fakes.end).not.toHaveBeenCalled();
@@ -284,7 +296,9 @@ describe('VoiceStatusBarComponent mini player restore', () => {
         miniPlayer.dismiss('channel:chan-1');
         fixture.detectChanges();
 
-        (fixture.nativeElement.querySelector('[aria-label="CALL.SHOW_MINI_PLAYER"]') as HTMLButtonElement).click();
+        (
+            fixture.nativeElement.querySelector('[aria-label="CALL.SHOW_MINI_PLAYER"]') as HTMLButtonElement
+        ).click();
         fixture.detectChanges();
 
         expect(miniPlayer.isDismissed()).toBe(false);
@@ -323,7 +337,9 @@ describe('VoiceStatusBarComponent live sharing state', () => {
         fakes.localState.set({isMuted: false, isDeafened: false, isCameraOn: false, isScreenSharing: true});
         fixture.detectChanges();
 
-        (fixture.nativeElement.querySelector('[aria-label="CALL.STOP_SHARING"]') as HTMLButtonElement).click();
+        (
+            fixture.nativeElement.querySelector('[aria-label="CALL.STOP_SHARING"]') as HTMLButtonElement
+        ).click();
 
         expect(fakes.guildToggleScreenShare).toHaveBeenCalledTimes(1);
         expect(fakes.dmToggleScreenShare).not.toHaveBeenCalled();
@@ -331,7 +347,9 @@ describe('VoiceStatusBarComponent live sharing state', () => {
 
     it('shows the live badge and stop button while sharing on a DM call', () => {
         const {fixture, fakes} = setup();
-        fakes.session.set(dmSession({local: {isMuted: false, isDeafened: false, isCameraOn: false, isSharing: true}}));
+        fakes.session.set(
+            dmSession({local: {isMuted: false, isDeafened: false, isCameraOn: false, isSharing: true}}),
+        );
         fixture.detectChanges();
 
         expect(fixture.nativeElement.querySelector('app-call-live-badge')).not.toBeNull();
@@ -340,10 +358,14 @@ describe('VoiceStatusBarComponent live sharing state', () => {
 
     it('stops a DM call share through CallSessionService.toggleScreenShare, not the guild path', () => {
         const {fixture, fakes} = setup();
-        fakes.session.set(dmSession({local: {isMuted: false, isDeafened: false, isCameraOn: false, isSharing: true}}));
+        fakes.session.set(
+            dmSession({local: {isMuted: false, isDeafened: false, isCameraOn: false, isSharing: true}}),
+        );
         fixture.detectChanges();
 
-        (fixture.nativeElement.querySelector('[aria-label="CALL.STOP_SHARING"]') as HTMLButtonElement).click();
+        (
+            fixture.nativeElement.querySelector('[aria-label="CALL.STOP_SHARING"]') as HTMLButtonElement
+        ).click();
 
         expect(fakes.dmToggleScreenShare).toHaveBeenCalledTimes(1);
         expect(fakes.guildToggleScreenShare).not.toHaveBeenCalled();
@@ -363,7 +385,9 @@ describe('VoiceStatusBarComponent live sharing state', () => {
         fakes.isInVoice.set(true);
         fixture.detectChanges();
 
-        (fixture.nativeElement.querySelector('[aria-label="CALL.SHARE_SCREEN"]') as HTMLButtonElement).click();
+        (
+            fixture.nativeElement.querySelector('[aria-label="CALL.SHARE_SCREEN"]') as HTMLButtonElement
+        ).click();
 
         expect(fakes.guildToggleScreenShare).toHaveBeenCalledTimes(1);
         expect(fakes.dmToggleScreenShare).not.toHaveBeenCalled();
@@ -383,7 +407,9 @@ describe('VoiceStatusBarComponent live sharing state', () => {
         fakes.session.set(dmSession());
         fixture.detectChanges();
 
-        (fixture.nativeElement.querySelector('[aria-label="CALL.SHARE_SCREEN"]') as HTMLButtonElement).click();
+        (
+            fixture.nativeElement.querySelector('[aria-label="CALL.SHARE_SCREEN"]') as HTMLButtonElement
+        ).click();
 
         expect(fakes.dmToggleScreenShare).toHaveBeenCalledTimes(1);
         expect(fakes.guildToggleScreenShare).not.toHaveBeenCalled();
@@ -404,7 +430,9 @@ describe('VoiceStatusBarComponent live sharing state', () => {
         // in the DOM for the DM branch specifically - a future edit giving DM its own boolean could
         // slip past a suite that only ever checked the guild case.
         const {fixture, fakes} = setup();
-        fakes.session.set(dmSession({local: {isMuted: false, isDeafened: false, isCameraOn: false, isSharing: true}}));
+        fakes.session.set(
+            dmSession({local: {isMuted: false, isDeafened: false, isCameraOn: false, isSharing: true}}),
+        );
         fixture.detectChanges();
 
         expect(fixture.nativeElement.querySelector('[aria-label="CALL.SHARE_SCREEN"]')).toBeNull();
@@ -502,7 +530,9 @@ describe('VoiceStatusBarComponent paused preview card', () => {
         fakes.previewPaused.set(true);
         fixture.detectChanges();
 
-        (fixture.nativeElement.querySelector('[aria-label="CALL.RESUME_PREVIEW"]') as HTMLButtonElement).click();
+        (
+            fixture.nativeElement.querySelector('[aria-label="CALL.RESUME_PREVIEW"]') as HTMLButtonElement
+        ).click();
 
         expect(fakes.resumePreview).toHaveBeenCalledTimes(1);
     });

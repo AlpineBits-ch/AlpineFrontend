@@ -53,12 +53,15 @@ describe('mergeSummary', () => {
     // The listing is authoritative for metadata; that is the entire reason for merging at all.
     it('takes refreshed metadata from the summary', () => {
         const later = new Date('2026-08-05T12:00:00Z');
-        const merged = mergeSummary(page(), summary({
-            title: 'Deployments',
-            isPinned: true,
-            revisionCount: 7,
-            updatedAt: later,
-        }));
+        const merged = mergeSummary(
+            page(),
+            summary({
+                title: 'Deployments',
+                isPinned: true,
+                revisionCount: 7,
+                updatedAt: later,
+            }),
+        );
         expect(merged.title).toBe('Deployments');
         expect(merged.isPinned).toBe(true);
         expect(merged.revisionCount).toBe(7);
@@ -77,7 +80,6 @@ describe('mergeSummary', () => {
 
     // A warmed listing does carry content, the same value the page already holds, so ignoring it costs nothing and keeps one rule rather than two.
     it('still prefers the loaded body when the summary was warmed with content', () => {
-        expect(mergeSummary(page(), summary({content: '## How we ship'})).content)
-            .toBe('## How we ship');
+        expect(mergeSummary(page(), summary({content: '## How we ship'})).content).toBe('## How we ship');
     });
 });

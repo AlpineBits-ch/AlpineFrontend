@@ -1,4 +1,13 @@
-import {ChangeDetectionStrategy, Component, computed, effect, inject, input, signal, untracked} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    effect,
+    inject,
+    input,
+    signal,
+    untracked,
+} from '@angular/core';
 import {Button} from 'primeng/button';
 import {TranslateModule} from '@ngx-translate/core';
 import {GuildOnboardingStateService} from '../../../../services/guild-onboarding-state.service';
@@ -63,7 +72,8 @@ export class OnboardingGateComponent {
     });
 
     protected readonly prompts = computed(() =>
-        [...(this.status()?.prompts ?? [])].sort((a, b) => a.position - b.position));
+        [...(this.status()?.prompts ?? [])].sort((a, b) => a.position - b.position),
+    );
 
     /** The welcome step is always present so the flow opens on the server's name rather than a wall of rules; every other step is conditional on there being content. */
     protected readonly steps = computed<Step[]>(() => {
@@ -83,14 +93,17 @@ export class OnboardingGateComponent {
         const total = this.prompts().length;
         if (total === 0) return null;
         const step = this.currentStep();
-        const answered = step?.kind === 'prompt' && step.prompt
-            ? this.prompts().findIndex(p => p.id === step.prompt!.id)
-            : this.isLastStep() ? total : 0;
+        const answered =
+            step?.kind === 'prompt' && step.prompt
+                ? this.prompts().findIndex(p => p.id === step.prompt!.id)
+                : this.isLastStep()
+                  ? total
+                  : 0;
         return {current: Math.max(0, answered), total};
     });
 
     protected selectedFor(promptId: string | undefined): string[] {
-        return promptId ? this.answers()[promptId] ?? [] : [];
+        return promptId ? (this.answers()[promptId] ?? []) : [];
     }
 
     /** A required prompt blocks Continue until it has an answer, mirroring the 400. */

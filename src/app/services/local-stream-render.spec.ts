@@ -82,7 +82,9 @@ beforeEach(() => {
     globals['VideoDecoder'] = FakeVideoDecoder;
     globals['EncodedVideoChunk'] = FakeEncodedVideoChunk;
     HTMLCanvasElement.prototype.getContext = vi.fn(() => ({
-        drawImage: vi.fn(), fillRect: vi.fn(), fillStyle: '',
+        drawImage: vi.fn(),
+        fillRect: vi.fn(),
+        fillStyle: '',
     })) as unknown as HTMLCanvasElement['getContext'];
     (HTMLCanvasElement.prototype as unknown as {captureStream: unknown}).captureStream = vi.fn(() => ({
         getTracks: () => [{stop: () => stoppedTracks++}],
@@ -95,7 +97,10 @@ afterEach(() => {
     delete globals['EncodedVideoChunk'];
 });
 
-function renderer(onFailure = vi.fn(), onFirstFrame = vi.fn()): {
+function renderer(
+    onFailure = vi.fn(),
+    onFirstFrame = vi.fn(),
+): {
     r: LocalStreamRenderer;
     onFailure: ReturnType<typeof vi.fn>;
     onFirstFrame: ReturnType<typeof vi.fn>;
@@ -107,7 +112,10 @@ function renderer(onFailure = vi.fn(), onFirstFrame = vi.fn()): {
     };
 }
 
-function chunk(keyframe: boolean, timestampUs = 0): {keyframe: boolean; timestampUs: number; data: Uint8Array} {
+function chunk(
+    keyframe: boolean,
+    timestampUs = 0,
+): {keyframe: boolean; timestampUs: number; data: Uint8Array} {
     return {keyframe, timestampUs, data: new Uint8Array([0, 0, 0, 1, keyframe ? 0x65 : 0x41])};
 }
 

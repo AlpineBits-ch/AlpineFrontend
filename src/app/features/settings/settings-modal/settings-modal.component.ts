@@ -1,25 +1,23 @@
 import {Component, computed, effect, inject, model, signal, untracked} from '@angular/core';
 import {NgClass} from '@angular/common';
-import {Dialog} from "primeng/dialog";
-import {Button} from "primeng/button";
-import {ProfileSettingsComponent} from "./pages/profile-settings/profile-settings.component";
-import {PrivacySettingsComponent} from "./pages/privacy-settings/privacy-settings.component";
-import {ActivitySettingsComponent} from "./pages/activity-settings/activity-settings.component";
-import {OtherSettingsComponent} from "./pages/other-settings/other-settings.component";
-import {NotificationSettingsComponent} from "./pages/notification-settings/notification-settings.component";
-import {VoiceVideoSettingsComponent} from "./pages/voice-video-settings/voice-video-settings.component";
-import {KeybindsSettingsComponent} from "./pages/keybinds-settings/keybinds-settings.component";
-import {AppearanceSettingsComponent} from "./pages/appearance-settings/appearance-settings.component";
-import {SecuritySettingsComponent} from "./pages/security-settings/security-settings.component";
-import {DevicesSettingsComponent} from "./pages/devices-settings/devices-settings.component";
-import {AboutSettingsComponent} from "./pages/about-settings/about-settings.component";
-import {SupportSettingsComponent} from "./pages/support-settings/support-settings.component";
-import {
-    PlatformStatusSettingsComponent,
-} from "./pages/platform-status-settings/platform-status-settings.component";
-import {AiSettingsComponent} from "./pages/ai-settings/ai-settings.component";
-import {LogoutDialogComponent} from "../logout-dialog/logout-dialog.component";
-import {PlanPanelComponent} from "../plan-panel/plan-panel.component";
+import {Dialog} from 'primeng/dialog';
+import {Button} from 'primeng/button';
+import {ProfileSettingsComponent} from './pages/profile-settings/profile-settings.component';
+import {PrivacySettingsComponent} from './pages/privacy-settings/privacy-settings.component';
+import {ActivitySettingsComponent} from './pages/activity-settings/activity-settings.component';
+import {OtherSettingsComponent} from './pages/other-settings/other-settings.component';
+import {NotificationSettingsComponent} from './pages/notification-settings/notification-settings.component';
+import {VoiceVideoSettingsComponent} from './pages/voice-video-settings/voice-video-settings.component';
+import {KeybindsSettingsComponent} from './pages/keybinds-settings/keybinds-settings.component';
+import {AppearanceSettingsComponent} from './pages/appearance-settings/appearance-settings.component';
+import {SecuritySettingsComponent} from './pages/security-settings/security-settings.component';
+import {DevicesSettingsComponent} from './pages/devices-settings/devices-settings.component';
+import {AboutSettingsComponent} from './pages/about-settings/about-settings.component';
+import {SupportSettingsComponent} from './pages/support-settings/support-settings.component';
+import {PlatformStatusSettingsComponent} from './pages/platform-status-settings/platform-status-settings.component';
+import {AiSettingsComponent} from './pages/ai-settings/ai-settings.component';
+import {LogoutDialogComponent} from '../logout-dialog/logout-dialog.component';
+import {PlanPanelComponent} from '../plan-panel/plan-panel.component';
 import {TranslateModule} from '@ngx-translate/core';
 import {EntitlementStore, MY_ENTITLEMENTS} from '../../../stores/entitlement.store';
 
@@ -71,9 +69,10 @@ const BILLING_PAGE_IDS: readonly string[] = ['billing'];
 export function visibleSettingsNavGroups(billingAvailable: boolean): SettingsNavGroup[] {
     if (billingAvailable) return SETTINGS_NAV_GROUPS as SettingsNavGroup[];
 
-    return SETTINGS_NAV_GROUPS
-        .map(group => ({...group, items: group.items.filter(item => !BILLING_PAGE_IDS.includes(item.id))}))
-        .filter(group => group.items.length > 0);
+    return SETTINGS_NAV_GROUPS.map(group => ({
+        ...group,
+        items: group.items.filter(item => !BILLING_PAGE_IDS.includes(item.id)),
+    })).filter(group => group.items.length > 0);
 }
 
 @Component({
@@ -114,8 +113,9 @@ export class SettingsModalComponent {
 
     private entitlements = inject(EntitlementStore);
 
-    public readonly navGroups = computed(
-        () => visibleSettingsNavGroups(this.entitlements.upgradesAvailable()));
+    public readonly navGroups = computed(() =>
+        visibleSettingsNavGroups(this.entitlements.upgradesAvailable()),
+    );
 
     constructor() {
         effect(() => {

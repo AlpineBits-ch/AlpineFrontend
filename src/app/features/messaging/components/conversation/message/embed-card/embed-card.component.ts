@@ -11,15 +11,26 @@ import {VoiceInviteCardComponent} from '../voice-invite-card/voice-invite-card.c
 
 /** How the card is laid out. Derived from `type`, then narrowed by what media actually arrived. */
 type EmbedMode =
-    'plain-image' | 'gifv' | 'player' | 'card'
-    | 'venta-invite' | 'venta-wiki' | 'venta-voice-invite' | 'none';
+    | 'plain-image'
+    | 'gifv'
+    | 'player'
+    | 'card'
+    | 'venta-invite'
+    | 'venta-wiki'
+    | 'venta-voice-invite'
+    | 'none';
 
 /** One embed under a message - a bot's `rich` card, or a preview the server generated from a link. */
 @Component({
     selector: 'app-embed-card',
     imports: [
-        MarkdownPipe, DatePipe, EmbedMediaComponent, EmbedPlayerComponent,
-        InviteCardComponent, WikiCardComponent, VoiceInviteCardComponent,
+        MarkdownPipe,
+        DatePipe,
+        EmbedMediaComponent,
+        EmbedPlayerComponent,
+        InviteCardComponent,
+        WikiCardComponent,
+        VoiceInviteCardComponent,
     ],
     templateUrl: './embed-card.component.html',
     changeDetection: ChangeDetectionStrategy.OnPush,
@@ -39,19 +50,18 @@ export class EmbedCardComponent {
 
     protected readonly type = computed(() => this.embed().type ?? 'rich');
 
-    protected readonly isGenerated = computed(() =>
-        ((this.embed().flags ?? 0) & EmbedFlags.Generated) !== 0);
+    protected readonly isGenerated = computed(() => ((this.embed().flags ?? 0) & EmbedFlags.Generated) !== 0);
 
     protected readonly allowMarkdown = computed(() => !this.isGenerated() && this.type() === 'rich');
 
     protected readonly accentColor = computed(() => this.embed().color || 'var(--color-brand-dim)');
 
     /** Fields and footers are bot-only; a generated card that somehow carried them is not to be trusted. */
-    protected readonly fields = computed(() =>
-        this.isGenerated() ? [] : (this.embed().fields ?? []));
+    protected readonly fields = computed(() => (this.isGenerated() ? [] : (this.embed().fields ?? [])));
 
     protected readonly footerText = computed(() =>
-        this.isGenerated() ? undefined : this.embed().footer?.text);
+        this.isGenerated() ? undefined : this.embed().footer?.text,
+    );
 
     /**
      * The player, but only if we are willing to frame its host. A whitelisted-looking URL we do not
@@ -126,8 +136,15 @@ export class EmbedCardComponent {
     /** True when the card has nothing but media - the text column is then dropped entirely. */
     protected readonly hasText = computed(() => {
         const embed = this.embed();
-        return !!(embed.title || embed.description || embed.author?.name || embed.provider?.name
-            || this.fields().length || this.footerText() || embed.timestamp);
+        return !!(
+            embed.title ||
+            embed.description ||
+            embed.author?.name ||
+            embed.provider?.name ||
+            this.fields().length ||
+            this.footerText() ||
+            embed.timestamp
+        );
     });
 
     protected readonly authorIcon = computed(() => {

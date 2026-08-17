@@ -1,10 +1,27 @@
-import {ChangeDetectionStrategy, Component, computed, DestroyRef, inject, input, OnInit, output, signal} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    DestroyRef,
+    inject,
+    input,
+    OnInit,
+    output,
+    signal,
+} from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {BotInstallService} from '../../services/bot-install.service';
 import {GuildService} from '../../services/guild.service';
 import {ToastService} from '../../services/toast.service';
 import {BotAuthorizeInfoDto, BotInstallResultDto} from '../../dtos/response/bot-install.dto';
-import {diffPermissions, hasPermission, parsePermissions, PERM_GROUPS, Permissions, permissionLabel} from '../../enums/permissions.enum';
+import {
+    diffPermissions,
+    hasPermission,
+    parsePermissions,
+    PERM_GROUPS,
+    Permissions,
+    permissionLabel,
+} from '../../enums/permissions.enum';
 
 type ConsentState = 'loading' | 'ready' | 'installing' | 'error';
 
@@ -41,20 +58,23 @@ export class BotInstallConsentComponent implements OnInit {
 
     readonly grantedGroups = computed(() => {
         const mask = this.grantableMask();
-        return PERM_GROUPS
-            .map(group => ({label: group.label, perms: group.perms.filter(key => hasPermission(mask, Permissions[key]))}))
-            .filter(group => group.perms.length > 0);
+        return PERM_GROUPS.map(group => ({
+            label: group.label,
+            perms: group.perms.filter(key => hasPermission(mask, Permissions[key])),
+        })).filter(group => group.perms.length > 0);
     });
 
     ngOnInit(): void {
         this.resolvedGuildName.set(this.guildName());
         if (this.guildName() === undefined) {
-            this.guildService.getGuild(this.guildId())
+            this.guildService
+                .getGuild(this.guildId())
                 .pipe(takeUntilDestroyed(this.destroyRef))
                 .subscribe(guild => this.resolvedGuildName.set(guild.name));
         }
 
-        this.botInstallService.getAuthorizeInfo(this.clientId(), this.permissions(), this.guildId())
+        this.botInstallService
+            .getAuthorizeInfo(this.clientId(), this.permissions(), this.guildId())
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe({
                 next: info => {
@@ -68,18 +88,21 @@ export class BotInstallConsentComponent implements OnInit {
     confirm(): void {
         if (this.state() !== 'ready') return;
         this.state.set('installing');
-        this.botInstallService.authorize({
-            clientId: this.clientId(),
-            guildId: this.guildId(),
-            permissions: this.permissions().toString(),
-            redirectUri: this.redirectUri(),
-        }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-            next: result => this.installed.emit(result),
-            error: err => {
-                this.toastService.httpError('Failed to install bot', err);
-                this.state.set('ready');
-            },
-        });
+        this.botInstallService
+            .authorize({
+                clientId: this.clientId(),
+                guildId: this.guildId(),
+                permissions: this.permissions().toString(),
+                redirectUri: this.redirectUri(),
+            })
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe({
+                next: result => this.installed.emit(result),
+                error: err => {
+                    this.toastService.httpError('Failed to install bot', err);
+                    this.state.set('ready');
+                },
+            });
     }
 
     protected readonly permissionLabel = permissionLabel;

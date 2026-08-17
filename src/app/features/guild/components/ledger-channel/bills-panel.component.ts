@@ -1,4 +1,13 @@
-import {ChangeDetectionStrategy, Component, computed, effect, inject, input, signal, untracked} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    effect,
+    inject,
+    input,
+    signal,
+    untracked,
+} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {Button} from 'primeng/button';
@@ -58,7 +67,17 @@ interface ScheduleRow {
 @Component({
     selector: 'app-bills-panel',
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [Button, Dialog, InputText, Select, ToggleSwitch, Tooltip, FormsModule, PrimeTemplate, TranslateModule],
+    imports: [
+        Button,
+        Dialog,
+        InputText,
+        Select,
+        ToggleSwitch,
+        Tooltip,
+        FormsModule,
+        PrimeTemplate,
+        TranslateModule,
+    ],
     templateUrl: './bills-panel.component.html',
 })
 export class BillsPanelComponent {
@@ -91,19 +110,26 @@ export class BillsPanelComponent {
             state: billState(bill),
             amount: bill.amountMinor == null ? null : formatMinor(bill.amountMinor, this.currency()),
             dueLabel: this.day(bill.dueAt),
-        })));
+        })),
+    );
 
-    protected readonly overdueCount = computed(() => this.upcoming().filter(r => r.state === 'overdue').length);
-    protected readonly needsAmountCount = computed(() => this.upcoming().filter(r => r.state === 'needs-amount').length);
+    protected readonly overdueCount = computed(
+        () => this.upcoming().filter(r => r.state === 'overdue').length,
+    );
+    protected readonly needsAmountCount = computed(
+        () => this.upcoming().filter(r => r.state === 'needs-amount').length,
+    );
 
-    protected readonly scheduleRows = computed<ScheduleRow[]>(() => this.state().schedules.map(schedule => ({
-        schedule,
-        amount: schedule.amountMinor == null ? null : formatMinor(schedule.amountMinor, this.currency()),
-        cadenceKey: `BILLS.CADENCE_${schedule.recurrenceUnit.toUpperCase()}`,
-        cadenceParams: {interval: schedule.recurrenceInterval},
-        payerName: this.nameOf()(schedule.payerUserId),
-        categoryKey: expenseCategoryLabelKey(schedule.category),
-    })));
+    protected readonly scheduleRows = computed<ScheduleRow[]>(() =>
+        this.state().schedules.map(schedule => ({
+            schedule,
+            amount: schedule.amountMinor == null ? null : formatMinor(schedule.amountMinor, this.currency()),
+            cadenceKey: `BILLS.CADENCE_${schedule.recurrenceUnit.toUpperCase()}`,
+            cadenceParams: {interval: schedule.recurrenceInterval},
+            payerName: this.nameOf()(schedule.payerUserId),
+            categoryKey: expenseCategoryLabelKey(schedule.category),
+        })),
+    );
 
     protected readonly showSchedules = signal(false);
 
@@ -128,7 +154,8 @@ export class BillsPanelComponent {
     protected readonly formPaused = signal(false);
 
     protected readonly formAmountMinor = computed(() =>
-        this.formHasFixedAmount() ? parseMinor(this.formAmount(), this.currency()) : null);
+        this.formHasFixedAmount() ? parseMinor(this.formAmount(), this.currency()) : null,
+    );
 
     protected readonly formAmountInvalid = computed(() => {
         if (!this.formHasFixedAmount()) return false;
@@ -139,11 +166,13 @@ export class BillsPanelComponent {
     });
 
     /** The one combination the server refuses outright, checked here so the switch can explain itself instead of collecting a `400` from an already-pressed Save. */
-    protected readonly autoPostBlocked = computed(() =>
-        recurringExpenseError({
-            amountMinor: this.formAmountMinor(),
-            autoPost: this.formAutoPost(),
-        }) === 'auto-post-needs-amount');
+    protected readonly autoPostBlocked = computed(
+        () =>
+            recurringExpenseError({
+                amountMinor: this.formAmountMinor(),
+                autoPost: this.formAutoPost(),
+            }) === 'auto-post-needs-amount',
+    );
 
     protected readonly formValid = computed(() => {
         const description = this.formDescription().trim();
@@ -163,12 +192,15 @@ export class BillsPanelComponent {
         [RecurrenceUnit.Day, RecurrenceUnit.Week, RecurrenceUnit.Month, RecurrenceUnit.Year].map(unit => ({
             value: unit,
             label: this.translate.instant(`BILLS.UNIT_${unit.toUpperCase()}`),
-        })));
+        })),
+    );
 
-    protected readonly categoryOptions = computed<Option[]>(() => this.categories.map(category => ({
-        value: category,
-        label: this.translate.instant(expenseCategoryLabelKey(category)),
-    })));
+    protected readonly categoryOptions = computed<Option[]>(() =>
+        this.categories.map(category => ({
+            value: category,
+            label: this.translate.instant(expenseCategoryLabelKey(category)),
+        })),
+    );
 
     // ── Post dialog ──────────────────────────────────────────────────────────
     protected readonly showPostDialog = signal(false);
@@ -261,9 +293,9 @@ export class BillsPanelComponent {
         this.editingId.set(schedule.id);
         this.formDescription.set(schedule.description);
         this.formHasFixedAmount.set(schedule.amountMinor != null);
-        this.formAmount.set(schedule.amountMinor == null
-            ? ''
-            : minorToInputString(schedule.amountMinor, this.currency()));
+        this.formAmount.set(
+            schedule.amountMinor == null ? '' : minorToInputString(schedule.amountMinor, this.currency()),
+        );
         this.formPayerUserId.set(schedule.payerUserId);
         this.formCategory.set(schedule.category);
         this.formUnit.set(schedule.recurrenceUnit);
@@ -293,32 +325,32 @@ export class BillsPanelComponent {
 
         const request$ = editingId
             ? this.bills.editSchedule(channelId, editingId, {
-                description,
-                // The pair that expresses "this bill's amount varies now"; a bare null would read as "leave the amount alone" instead.
-                ...(amountMinor == null ? {clearAmount: true} : {amountMinor}),
-                payerUserId: this.formPayerUserId() ?? undefined,
-                category: this.formCategory(),
-                recurrenceUnit: this.formUnit(),
-                recurrenceInterval: this.formInterval(),
-                anchorAt: this.anchorIso(),
-                leadDays: this.formLeadDays(),
-                autoPost: this.formAutoPost(),
-                isPaused: this.formPaused(),
-            } satisfies UpdateRecurringExpenseDto)
+                  description,
+                  // The pair that expresses "this bill's amount varies now"; a bare null would read as "leave the amount alone" instead.
+                  ...(amountMinor == null ? {clearAmount: true} : {amountMinor}),
+                  payerUserId: this.formPayerUserId() ?? undefined,
+                  category: this.formCategory(),
+                  recurrenceUnit: this.formUnit(),
+                  recurrenceInterval: this.formInterval(),
+                  anchorAt: this.anchorIso(),
+                  leadDays: this.formLeadDays(),
+                  autoPost: this.formAutoPost(),
+                  isPaused: this.formPaused(),
+              } satisfies UpdateRecurringExpenseDto)
             : this.bills.addSchedule(channelId, {
-                description,
-                ...(amountMinor == null ? {} : {amountMinor}),
-                payerUserId: this.formPayerUserId() ?? undefined,
-                // Equal over an empty shares array, which the server reads as everyone in the guild; the only split that stays correct when a flatmate moves in.
-                splitKind: ExpenseSplitKind.Equal,
-                shares: [] as RecurringExpenseShareDto[],
-                category: this.formCategory(),
-                recurrenceUnit: this.formUnit(),
-                recurrenceInterval: this.formInterval(),
-                anchorAt: this.anchorIso(),
-                leadDays: this.formLeadDays(),
-                autoPost: this.formAutoPost(),
-            } satisfies CreateRecurringExpenseDto);
+                  description,
+                  ...(amountMinor == null ? {} : {amountMinor}),
+                  payerUserId: this.formPayerUserId() ?? undefined,
+                  // Equal over an empty shares array, which the server reads as everyone in the guild; the only split that stays correct when a flatmate moves in.
+                  splitKind: ExpenseSplitKind.Equal,
+                  shares: [] as RecurringExpenseShareDto[],
+                  category: this.formCategory(),
+                  recurrenceUnit: this.formUnit(),
+                  recurrenceInterval: this.formInterval(),
+                  anchorAt: this.anchorIso(),
+                  leadDays: this.formLeadDays(),
+                  autoPost: this.formAutoPost(),
+              } satisfies CreateRecurringExpenseDto);
 
         request$.subscribe({
             next: () => {
@@ -349,9 +381,9 @@ export class BillsPanelComponent {
     protected openPost(bill: BillOccurrence): void {
         this.postingBill.set(bill);
         // Seeded with the schedule's figure when there is one, so the ordinary case is one tap.
-        this.postAmount.set(bill.amountMinor == null
-            ? ''
-            : minorToInputString(bill.amountMinor, this.currency()));
+        this.postAmount.set(
+            bill.amountMinor == null ? '' : minorToInputString(bill.amountMinor, this.currency()),
+        );
         this.showPostDialog.set(true);
     }
 
@@ -363,18 +395,20 @@ export class BillsPanelComponent {
         const amountMinor = typed ? this.postAmountMinor() : null;
 
         this.saving.set(true);
-        this.bills.postBill(this.channelId(), bill.id, {
-            ...(amountMinor == null ? {} : {amountMinor}),
-        }).subscribe({
-            next: () => {
-                this.saving.set(false);
-                this.showPostDialog.set(false);
-            },
-            error: err => {
-                this.saving.set(false);
-                this.toast.httpError(this.translate.instant('BILLS.POST_FAILED'), err);
-            },
-        });
+        this.bills
+            .postBill(this.channelId(), bill.id, {
+                ...(amountMinor == null ? {} : {amountMinor}),
+            })
+            .subscribe({
+                next: () => {
+                    this.saving.set(false);
+                    this.showPostDialog.set(false);
+                },
+                error: err => {
+                    this.saving.set(false);
+                    this.toast.httpError(this.translate.instant('BILLS.POST_FAILED'), err);
+                },
+            });
     }
 
     protected openSkip(bill: BillOccurrence): void {

@@ -48,15 +48,14 @@ export class DevicesSettingsComponent {
         this.load();
         // Marks the row belonging to this installation. `isCurrent` only identifies the token
         // that made the request; this identifies the machine, which is what the user recognises.
-        void this.deviceIdentity.deviceId()
+        void this.deviceIdentity
+            .deviceId()
             .then(id => this.ownDeviceId.set(id))
             .catch(() => this.ownDeviceId.set(null));
 
         // Re-read rather than patch: the push names one device and this list is sessions, so there
         // is no row to insert, and a stale list here is the worst possible thing to show.
-        this.identityEvents.deviceRosterChanged$
-            .pipe(takeUntilDestroyed())
-            .subscribe(() => this.load());
+        this.identityEvents.deviceRosterChanged$.pipe(takeUntilDestroyed()).subscribe(() => this.load());
     }
 
     protected load(): void {

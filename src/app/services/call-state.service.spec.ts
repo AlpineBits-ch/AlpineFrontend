@@ -62,9 +62,11 @@ function setup(options: SetupOptions = {}) {
     };
     const toast = {info: vi.fn(), httpError: vi.fn(), success: vi.fn()};
     const voiceService = {
-        getPendingCall: vi.fn(() => options.pendingCallFails
-            ? throwError(() => new Error('offline'))
-            : of(options.pendingCall ?? null)),
+        getPendingCall: vi.fn(() =>
+            options.pendingCallFails
+                ? throwError(() => new Error('offline'))
+                : of(options.pendingCall ?? null),
+        ),
         declineCall: vi.fn(() => of({})),
         acceptCall: vi.fn(() => of({})),
         createCall: vi.fn(() => of(options.createdCall ?? OUTGOING_CALL)),
@@ -314,7 +316,7 @@ it('keeps ringing when one of several invitees declines', () => {
     service.cancelOutgoing(); // stop the ringback timer re-arming past the test
 });
 
-it('ignores a decline for someone else\'s call', () => {
+it("ignores a decline for someone else's call", () => {
     const {service, ws} = setup({ringing: false});
     service.startCall('conv-1', ['callee'], 'Alice', 'A');
 
@@ -366,7 +368,7 @@ it('leaves the call running when the callee answers', () => {
     expect(service.outgoingCall()).toBeNull();
 });
 
-it('ignores an accept for someone else\'s call', () => {
+it("ignores an accept for someone else's call", () => {
     const {service, ws} = setup({ringing: false});
     service.startCall('conv-1', ['callee'], 'Alice', 'A');
 

@@ -34,53 +34,63 @@ function input(over: Partial<InviteCandidateInput> & {members: GuildMemberDto[]}
 
 describe('pickInviteCandidates', () => {
     it('puts friends above everybody else', () => {
-        const picked = pickInviteCandidates(input({
-            members: [member({userId: 'aaron'}), member({userId: 'zoe'})],
-            friendIds: new Set(['zoe']),
-        }));
+        const picked = pickInviteCandidates(
+            input({
+                members: [member({userId: 'aaron'}), member({userId: 'zoe'})],
+                friendIds: new Set(['zoe']),
+            }),
+        );
 
         expect(picked.map(c => c.userId)).toEqual(['zoe', 'aaron']);
     });
 
     it('offers an offline friend, and never an offline stranger', () => {
-        const picked = pickInviteCandidates(input({
-            members: [
-                member({userId: 'friend', status: OnlineStatus.Offline}),
-                member({userId: 'stranger', status: OnlineStatus.Offline}),
-            ],
-            friendIds: new Set(['friend']),
-        }));
+        const picked = pickInviteCandidates(
+            input({
+                members: [
+                    member({userId: 'friend', status: OnlineStatus.Offline}),
+                    member({userId: 'stranger', status: OnlineStatus.Offline}),
+                ],
+                friendIds: new Set(['friend']),
+            }),
+        );
 
         expect(picked.map(c => c.userId)).toEqual(['friend']);
     });
 
     it('reads Hidden as offline, because that is what it was chosen for', () => {
-        const picked = pickInviteCandidates(input({
-            members: [member({userId: 'lurker', status: OnlineStatus.Hidden})],
-        }));
+        const picked = pickInviteCandidates(
+            input({
+                members: [member({userId: 'lurker', status: OnlineStatus.Hidden})],
+            }),
+        );
 
         expect(picked).toEqual([]);
     });
 
     it('counts Idle and DoNotDisturb as around', () => {
-        const picked = pickInviteCandidates(input({
-            members: [
-                member({userId: 'idle', status: OnlineStatus.Idle}),
-                member({userId: 'busy', status: OnlineStatus.DoNotDisturb}),
-            ],
-        }));
+        const picked = pickInviteCandidates(
+            input({
+                members: [
+                    member({userId: 'idle', status: OnlineStatus.Idle}),
+                    member({userId: 'busy', status: OnlineStatus.DoNotDisturb}),
+                ],
+            }),
+        );
 
         expect(picked.map(c => c.userId)).toEqual(['busy', 'idle']);
     });
 
     it('orders an online friend above an offline one', () => {
-        const picked = pickInviteCandidates(input({
-            members: [
-                member({userId: 'away', status: OnlineStatus.Offline}),
-                member({userId: 'here', status: OnlineStatus.Online}),
-            ],
-            friendIds: new Set(['away', 'here']),
-        }));
+        const picked = pickInviteCandidates(
+            input({
+                members: [
+                    member({userId: 'away', status: OnlineStatus.Offline}),
+                    member({userId: 'here', status: OnlineStatus.Online}),
+                ],
+                friendIds: new Set(['away', 'here']),
+            }),
+        );
 
         expect(picked.map(c => c.userId)).toEqual(['here', 'away']);
     });
@@ -93,48 +103,55 @@ describe('pickInviteCandidates', () => {
             member({userId: 'ada'}),
         ];
 
-        const picked = pickInviteCandidates(input({
-            members,
-            viewers: ['me', 'inside', 'ada'],
-            alreadyIn: ['inside'],
-        }));
+        const picked = pickInviteCandidates(
+            input({
+                members,
+                viewers: ['me', 'inside', 'ada'],
+                alreadyIn: ['inside'],
+            }),
+        );
 
         expect(picked.map(c => c.userId)).toEqual(['ada']);
     });
 
     it('offers nobody when the viewer read came back empty', () => {
-        const picked = pickInviteCandidates(input({
-            members: [member({userId: 'ada'})],
-            viewers: [],
-        }));
+        const picked = pickInviteCandidates(
+            input({
+                members: [member({userId: 'ada'})],
+                viewers: [],
+            }),
+        );
 
         expect(picked).toEqual([]);
     });
 
     it('drops bots, which can neither sit in a channel nor read a message', () => {
-        const picked = pickInviteCandidates(input({
-            members: [member({userId: 'helper', type: MemberType.Bot})],
-            friendIds: new Set(['helper']),
-        }));
+        const picked = pickInviteCandidates(
+            input({
+                members: [member({userId: 'helper', type: MemberType.Bot})],
+                friendIds: new Set(['helper']),
+            }),
+        );
 
         expect(picked).toEqual([]);
     });
 
     it('stops at five', () => {
-        const picked = pickInviteCandidates(input({
-            members: Array.from({length: 9}, (_, i) => member({userId: `user${i}`})),
-        }));
+        const picked = pickInviteCandidates(
+            input({
+                members: Array.from({length: 9}, (_, i) => member({userId: `user${i}`})),
+            }),
+        );
 
         expect(picked.length).toBe(INVITE_CANDIDATE_LIMIT);
     });
 
     it('prefers the nickname, then the username', () => {
-        const picked = pickInviteCandidates(input({
-            members: [
-                member({userId: 'u1', nickname: 'Ada'}),
-                member({userId: 'u2', nickname: null}),
-            ],
-        }));
+        const picked = pickInviteCandidates(
+            input({
+                members: [member({userId: 'u1', nickname: 'Ada'}), member({userId: 'u2', nickname: null})],
+            }),
+        );
 
         expect(picked.map(c => c.name)).toEqual(['Ada', 'u2']);
     });

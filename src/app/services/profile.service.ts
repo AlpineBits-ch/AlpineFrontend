@@ -3,7 +3,7 @@ import {HttpClient} from '@angular/common/http';
 import {catchError, EMPTY, finalize, Observable, of, shareReplay, switchMap, tap} from 'rxjs';
 import {environment} from '../../environments/environment';
 import {OnlineStatus, ProfileDto, ProfileFont} from '../dtos/response/profile.dto';
-import {ApiConfigService} from "./api-config.service";
+import {ApiConfigService} from './api-config.service';
 import {BrokenImageService} from './broken-image.service';
 import {cacheBustedUrl} from '../models/profile-image.model';
 
@@ -133,7 +133,7 @@ export class ProfileService {
         if (existing) return existing;
 
         const shared = this.requestSelf().pipe(
-            finalize(() => this.inFlightSelf = null),
+            finalize(() => (this.inFlightSelf = null)),
             shareReplay({bufferSize: 1, refCount: false}),
         );
         this.inFlightSelf = shared;
@@ -151,30 +151,38 @@ export class ProfileService {
      * write" has to ask for itself.</p>
      */
     private requestSelf(): Observable<ProfileDto> {
-        return this.httpClient
-            .get<ProfileDto>(this.apiConfig.baseUrl() + '/api/v1/social/profiles/me')
-            .pipe(tap(p => {
+        return this.httpClient.get<ProfileDto>(this.apiConfig.baseUrl() + '/api/v1/social/profiles/me').pipe(
+            tap(p => {
                 this.ownProfile.set(p);
                 this.store(p);
-            }));
+            }),
+        );
     }
 
     public setSelfStatus(status: OnlineStatus): Observable<ProfileDto> {
         return this.httpClient
             .patch<ProfileDto>(`${this.apiConfig.baseUrl()}/api/v1/social/profiles/me/status`, {status})
-            .pipe(tap(p => {
-                this.ownProfile.set(p);
-                this.store(p);
-            }));
+            .pipe(
+                tap(p => {
+                    this.ownProfile.set(p);
+                    this.store(p);
+                }),
+            );
     }
 
-    public updateProfile(patch: { bio?: string; accentColor?: string; font?: ProfileFont }): Observable<ProfileDto> {
+    public updateProfile(patch: {
+        bio?: string;
+        accentColor?: string;
+        font?: ProfileFont;
+    }): Observable<ProfileDto> {
         return this.httpClient
             .patch<ProfileDto>(`${this.apiConfig.baseUrl()}/api/v1/social/profiles/me`, patch)
-            .pipe(tap(p => {
-                this.ownProfile.set(p);
-                this.store(p);
-            }));
+            .pipe(
+                tap(p => {
+                    this.ownProfile.set(p);
+                    this.store(p);
+                }),
+            );
     }
 
     public getCachedById(profileId: string): ProfileDto | undefined {
@@ -254,12 +262,13 @@ export class ProfileService {
         const form = new FormData();
         form.append('file', file, file.name);
         return this.httpClient
-            .patch(
-                `${this.apiConfig.baseUrl()}/api/v1/social/profiles/${current.id}/avatar`,
-                form,
-                {responseType: 'text'},
-            )
-            .pipe(switchMap(() => this.requestSelf()), tap(p => this.retryImages(p)));
+            .patch(`${this.apiConfig.baseUrl()}/api/v1/social/profiles/${current.id}/avatar`, form, {
+                responseType: 'text',
+            })
+            .pipe(
+                switchMap(() => this.requestSelf()),
+                tap(p => this.retryImages(p)),
+            );
     }
 
     public uploadBanner(file: File): Observable<ProfileDto> {
@@ -268,23 +277,26 @@ export class ProfileService {
         const form = new FormData();
         form.append('file', file, file.name);
         return this.httpClient
-            .patch(
-                `${this.apiConfig.baseUrl()}/api/v1/social/profiles/${current.id}/banner`,
-                form,
-                {responseType: 'text'},
-            )
-            .pipe(switchMap(() => this.requestSelf()), tap(p => this.retryImages(p)));
+            .patch(`${this.apiConfig.baseUrl()}/api/v1/social/profiles/${current.id}/banner`, form, {
+                responseType: 'text',
+            })
+            .pipe(
+                switchMap(() => this.requestSelf()),
+                tap(p => this.retryImages(p)),
+            );
     }
 
     public removeAvatar(): Observable<ProfileDto> {
         const current = this.ownProfile();
         if (!current) return EMPTY;
         return this.httpClient
-            .delete(
-                `${this.apiConfig.baseUrl()}/api/v1/social/profiles/${current.id}/avatar`,
-                {responseType: 'text'},
-            )
-            .pipe(switchMap(() => this.requestSelf()), tap(p => this.retryImages(p)));
+            .delete(`${this.apiConfig.baseUrl()}/api/v1/social/profiles/${current.id}/avatar`, {
+                responseType: 'text',
+            })
+            .pipe(
+                switchMap(() => this.requestSelf()),
+                tap(p => this.retryImages(p)),
+            );
     }
 
     /**
@@ -375,9 +387,7 @@ export class ProfileService {
         const existing = inFlight.get(key);
         if (existing) return existing;
 
-        const attempt = request().pipe(
-            tap({error: () => negative.set(key, Date.now())}),
-        );
+        const attempt = request().pipe(tap({error: () => negative.set(key, Date.now())}));
         const shared = this.protect(attempt).pipe(
             finalize(() => inFlight.delete(key)),
             shareReplay({bufferSize: 1, refCount: false}),
@@ -461,5 +471,4 @@ export class ProfileService {
         this.byProfileId.set(byProfileId);
         this.byUserId.set(byUserId);
     }
-
 }

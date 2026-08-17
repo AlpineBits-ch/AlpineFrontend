@@ -60,8 +60,10 @@ export class TauriOsInfo extends OsInfo {
  */
 function readOsType(): OsFamily | null {
     if (typeof window === 'undefined') return null;
-    const internals = (window as unknown as {
-        __TAURI_OS_PLUGIN_INTERNALS__?: TauriOsPluginInternals;
-    }).__TAURI_OS_PLUGIN_INTERNALS__;
+    const internals = (
+        window as unknown as {
+            __TAURI_OS_PLUGIN_INTERNALS__?: TauriOsPluginInternals;
+        }
+    ).__TAURI_OS_PLUGIN_INTERNALS__;
     return internals?.os_type ?? null;
 }

@@ -61,8 +61,18 @@ const MEMBER_PAGE = 200;
     selector: 'app-chores-channel',
     changeDetection: ChangeDetectionStrategy.OnPush,
     imports: [
-        DatePipe, FormsModule, TranslateModule,
-        Button, Dialog, InputText, Textarea, InputNumber, DatePicker, Select, ToggleSwitch, Tooltip,
+        DatePipe,
+        FormsModule,
+        TranslateModule,
+        Button,
+        Dialog,
+        InputText,
+        Textarea,
+        InputNumber,
+        DatePicker,
+        Select,
+        ToggleSwitch,
+        Tooltip,
         ModuleNotInPlanComponent,
     ],
     templateUrl: './chores-channel.component.html',
@@ -91,8 +101,9 @@ export class ChoresChannelComponent {
 
     protected readonly icon = computed(() => channelIcon(this.channel().type) ?? 'pi pi-sync');
 
-    private readonly guild = computed(() =>
-        this.guildService.guilds().find(g => g.id === this.channel().guildId) ?? null);
+    private readonly guild = computed(
+        () => this.guildService.guilds().find(g => g.id === this.channel().guildId) ?? null,
+    );
 
     /** The channel's own guild id, which is known before the guild list is. */
     protected readonly guildId = computed(() => this.channel().guildId);
@@ -101,11 +112,11 @@ export class ChoresChannelComponent {
     protected readonly moduleEnabled = computed(() => guildHasFeature(this.guild(), GuildFeature.Chores));
 
     /** False while no resolution is held ("not loaded" is not evidence); a different remedy from {@link moduleEnabled}, since nobody in-house can toggle a plan limit away. */
-    protected readonly moduleWithheld = computed(() =>
-        this.entitlements.moduleStanding(this.guildId(), GuildFeature.Chores) === 'withheld');
+    protected readonly moduleWithheld = computed(
+        () => this.entitlements.moduleStanding(this.guildId(), GuildFeature.Chores) === 'withheld',
+    );
 
     // ── Permissions ─────────────────────────────────────────────────────────
-
 
     protected readonly ownUserId = computed(() => this.profileService.ownProfile()?.userId ?? null);
 
@@ -113,14 +124,20 @@ export class ChoresChannelComponent {
     private readonly nowTick = computed(() => this.minuteClock.now());
 
     /** Owner checked first: SelfGuildMemberDto.permissions doesn't reliably carry Superadmin for them; the module gate above is separate and is never waived by this. */
-    private readonly abilities = computed(() => guildAbilities(this.ownMember(), this.guild(), this.ownUserId()));
+    private readonly abilities = computed(() =>
+        guildAbilities(this.ownMember(), this.guild(), this.ownUserId()),
+    );
 
     private can = (permission: bigint): boolean => this.abilities().canModule(permission);
 
     /** Create/edit/delete chores and set effort weights. */
-    protected readonly canManage = computed(() => this.moduleEnabled() && this.can(ModulePermissions.ManageChores));
+    protected readonly canManage = computed(
+        () => this.moduleEnabled() && this.can(ModulePermissions.ManageChores),
+    );
     /** Complete, skip and swap an occurrence: the collaborative half. */
-    protected readonly canComplete = computed(() => this.moduleEnabled() && this.can(ModulePermissions.CompleteChores));
+    protected readonly canComplete = computed(
+        () => this.moduleEnabled() && this.can(ModulePermissions.CompleteChores),
+    );
 
     // ── Board ───────────────────────────────────────────────────────────────
 
@@ -130,7 +147,8 @@ export class ChoresChannelComponent {
     protected readonly loadFailed = computed(() => this.state().error && !this.state().forbidden);
     protected readonly forbidden = computed(() => this.state().forbidden);
     protected readonly chores = computed(() =>
-        [...this.state().chores].sort((a, b) => a.title.localeCompare(b.title)));
+        [...this.state().chores].sort((a, b) => a.title.localeCompare(b.title)),
+    );
     protected readonly hasLoaded = computed(() => this.state().loadedAt > 0);
 
     private byDueAsc = (a: ChoreOccurrence, b: ChoreOccurrence) =>
@@ -171,25 +189,46 @@ export class ChoresChannelComponent {
     /** Only non-empty buckets, in the order they demand attention; Skipped stays its own section, never merged into Done. */
     protected readonly sections = computed(() => {
         const {overdue, upcoming, skipped, done} = this.buckets();
-        return ([
-            {key: 'overdue', titleKey: 'CHORES.SECTION_OVERDUE', hintKey: null, tone: 'overdue', items: overdue},
-            {key: 'upcoming', titleKey: 'CHORES.SECTION_UPCOMING', hintKey: null, tone: 'due', items: upcoming},
-            {key: 'skipped', titleKey: 'CHORES.SECTION_SKIPPED', hintKey: 'CHORES.SKIPPED_HINT', tone: 'skipped', items: skipped},
-            {key: 'done', titleKey: 'CHORES.SECTION_DONE', hintKey: null, tone: 'done', items: done},
-        ] as const).filter(section => section.items.length > 0);
+        return (
+            [
+                {
+                    key: 'overdue',
+                    titleKey: 'CHORES.SECTION_OVERDUE',
+                    hintKey: null,
+                    tone: 'overdue',
+                    items: overdue,
+                },
+                {
+                    key: 'upcoming',
+                    titleKey: 'CHORES.SECTION_UPCOMING',
+                    hintKey: null,
+                    tone: 'due',
+                    items: upcoming,
+                },
+                {
+                    key: 'skipped',
+                    titleKey: 'CHORES.SECTION_SKIPPED',
+                    hintKey: 'CHORES.SKIPPED_HINT',
+                    tone: 'skipped',
+                    items: skipped,
+                },
+                {key: 'done', titleKey: 'CHORES.SECTION_DONE', hintKey: null, tone: 'done', items: done},
+            ] as const
+        ).filter(section => section.items.length > 0);
     });
 
-    protected readonly boardEmpty = computed(() =>
-        this.hasLoaded() && this.state().chores.length === 0);
+    protected readonly boardEmpty = computed(() => this.hasLoaded() && this.state().chores.length === 0);
 
-    protected readonly noTurns = computed(() =>
-        this.hasLoaded() && this.state().chores.length > 0 && this.state().occurrences.length === 0);
+    protected readonly noTurns = computed(
+        () => this.hasLoaded() && this.state().chores.length > 0 && this.state().occurrences.length === 0,
+    );
 
     // ── Balance ─────────────────────────────────────────────────────────────
 
     /** Furthest behind their share first: that is the row the rota is about to act on. */
     protected readonly balance = computed(() =>
-        [...this.state().balance].sort((a, b) => a.balanceMinutes - b.balanceMinutes));
+        [...this.state().balance].sort((a, b) => a.balanceMinutes - b.balanceMinutes),
+    );
 
     protected standing = (entry: ChoreBalanceEntry) => balanceStanding(entry);
 
@@ -198,10 +237,11 @@ export class ChoresChannelComponent {
 
     /** Widest bar in the panel, so the bars compare members to each other and not to nothing. */
     private readonly balanceScale = computed(() =>
-        Math.max(1, ...this.balance().map(e => Math.abs(e.balanceMinutes))));
+        Math.max(1, ...this.balance().map(e => Math.abs(e.balanceMinutes))),
+    );
 
     protected balanceWidth = (entry: ChoreBalanceEntry): number =>
-        Math.round(Math.abs(entry.balanceMinutes) / this.balanceScale() * 100);
+        Math.round((Math.abs(entry.balanceMinutes) / this.balanceScale()) * 100);
 
     /** Null on a server that predates absences: the board then says less, rather than inventing a window. */
     protected presentDaysOf = (entry: ChoreBalanceEntry): number | null => entry.presentDays ?? null;
@@ -212,8 +252,9 @@ export class ChoresChannelComponent {
     }
 
     /** Somebody was away for part of it, so the weighting is worth explaining at all. */
-    protected readonly anyPartialPresence = computed(() => this.balance().some(entry =>
-        entry.presentDays != null && entry.presentDays < this.balanceWindowDays));
+    protected readonly anyPartialPresence = computed(() =>
+        this.balance().some(entry => entry.presentDays != null && entry.presentDays < this.balanceWindowDays),
+    );
 
     // ── Names ───────────────────────────────────────────────────────────────
 
@@ -229,15 +270,19 @@ export class ChoresChannelComponent {
     /** Falls back through the profile cache, then to a neutral noun; never to a raw id. */
     protected nameOf(userId: string | null | undefined): string {
         if (!userId) return this.translate.instant('CHORES.UNKNOWN_MEMBER');
-        return this.memberNames().get(userId)
-            ?? this.profileService.getCachedByUserId(userId)?.userName
-            ?? this.translate.instant('CHORES.UNKNOWN_MEMBER');
+        return (
+            this.memberNames().get(userId) ??
+            this.profileService.getCachedByUserId(userId)?.userName ??
+            this.translate.instant('CHORES.UNKNOWN_MEMBER')
+        );
     }
 
     protected roleNameOf(roleId: string | null | undefined): string {
         if (!roleId) return this.translate.instant('CHORES.UNKNOWN_ROLE');
-        return this.guild()?.roles.find(r => r.id === roleId)?.name
-            ?? this.translate.instant('CHORES.UNKNOWN_ROLE');
+        return (
+            this.guild()?.roles.find(r => r.id === roleId)?.name ??
+            this.translate.instant('CHORES.UNKNOWN_ROLE')
+        );
     }
 
     protected choreTitleFor(occurrence: ChoreOccurrence): string {
@@ -268,15 +313,19 @@ export class ChoresChannelComponent {
     protected readonly showValidation = signal(false);
 
     protected readonly roleOptions = computed(() =>
-        (this.guild()?.roles ?? []).map(r => ({label: r.name, value: r.id})));
+        (this.guild()?.roles ?? []).map(r => ({label: r.name, value: r.id})),
+    );
 
     protected readonly memberOptions = computed(() =>
-        this.members().map(m => ({label: this.nameOf(m.userId), value: m.userId})));
+        this.members().map(m => ({label: this.nameOf(m.userId), value: m.userId})),
+    );
 
     /** Only the field for the selected mode is populated; the "both set" case is still checked, since a future third mode could reintroduce it silently. */
-    private readonly draftAssignment = computed(() => this.formMode() === 'rotation'
-        ? {rotationRoleId: this.formRotationRoleId(), fixedAssigneeUserId: null}
-        : {rotationRoleId: null, fixedAssigneeUserId: this.formFixedAssigneeUserId()});
+    private readonly draftAssignment = computed(() =>
+        this.formMode() === 'rotation'
+            ? {rotationRoleId: this.formRotationRoleId(), fixedAssigneeUserId: null}
+            : {rotationRoleId: null, fixedAssigneeUserId: this.formFixedAssigneeUserId()},
+    );
 
     protected readonly assignmentError = computed(() => choreAssignmentError(this.draftAssignment()));
 
@@ -286,29 +335,40 @@ export class ChoresChannelComponent {
     });
     protected readonly intervalValid = computed(() => {
         const days = this.formIntervalDays();
-        return Number.isFinite(days)
-            && days >= CHORE_LIMITS.intervalDaysMin && days <= CHORE_LIMITS.intervalDaysMax;
+        return (
+            Number.isFinite(days) &&
+            days >= CHORE_LIMITS.intervalDaysMin &&
+            days <= CHORE_LIMITS.intervalDaysMax
+        );
     });
     protected readonly effortValid = computed(() => {
         const minutes = this.formEffortMinutes();
-        return Number.isFinite(minutes)
-            && minutes >= CHORE_LIMITS.effortMinutesMin && minutes <= CHORE_LIMITS.effortMinutesMax;
+        return (
+            Number.isFinite(minutes) &&
+            minutes >= CHORE_LIMITS.effortMinutesMin &&
+            minutes <= CHORE_LIMITS.effortMinutesMax
+        );
     });
     /** 0-336. The upper bound is the server's and is easy to blow past with a "grace of a month". */
     protected readonly graceValid = computed(() => {
         const hours = this.formGraceHours();
-        return Number.isFinite(hours)
-            && hours >= CHORE_LIMITS.graceHoursMin && hours <= CHORE_LIMITS.graceHoursMax;
+        return (
+            Number.isFinite(hours) &&
+            hours >= CHORE_LIMITS.graceHoursMin &&
+            hours <= CHORE_LIMITS.graceHoursMax
+        );
     });
 
     /** No anchor check: the server anchors an omitted `anchorAt` at *now*, so a cleared date picker means "starting today" rather than an incomplete draft. */
-    protected readonly canSave = computed(() =>
-        !this.saving()
-        && this.titleValid()
-        && this.intervalValid()
-        && this.effortValid()
-        && this.graceValid()
-        && this.assignmentError() === null);
+    protected readonly canSave = computed(
+        () =>
+            !this.saving() &&
+            this.titleValid() &&
+            this.intervalValid() &&
+            this.effortValid() &&
+            this.graceValid() &&
+            this.assignmentError() === null,
+    );
 
     // ── Delete confirmation ─────────────────────────────────────────────────
 
@@ -507,14 +567,16 @@ export class ChoresChannelComponent {
         };
 
         const request = existing
-            // No anchorAt: UpdateChoreDto has no such field server-side, so sending one is silently dropped, not refused; from the dialog it looks like a re-phase that worked.
-            ? this.choreService.updateChore(this.channel().id, existing.id,
-                {...common, isPaused: this.formPaused()} satisfies UpdateChoreDto)
-            // Omitted rather than null when the picker is empty: the server defaults to "now," and an explicit null would say less for the same effect.
-            : this.choreService.createChore(this.channel().id, {
-                ...common,
-                ...(anchorAt ? {anchorAt: anchorAt.toISOString()} : {}),
-            } satisfies CreateChoreDto);
+            ? // No anchorAt: UpdateChoreDto has no such field server-side, so sending one is silently dropped, not refused; from the dialog it looks like a re-phase that worked.
+              this.choreService.updateChore(this.channel().id, existing.id, {
+                  ...common,
+                  isPaused: this.formPaused(),
+              } satisfies UpdateChoreDto)
+            : // Omitted rather than null when the picker is empty: the server defaults to "now," and an explicit null would say less for the same effect.
+              this.choreService.createChore(this.channel().id, {
+                  ...common,
+                  ...(anchorAt ? {anchorAt: anchorAt.toISOString()} : {}),
+              } satisfies CreateChoreDto);
 
         request.subscribe({
             next: () => {

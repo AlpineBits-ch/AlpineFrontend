@@ -26,7 +26,7 @@ interface GhostState {
     pos: number;
 }
 
-type GhostMeta = { type: 'set'; text: string; pos: number } | { type: 'clear' };
+type GhostMeta = {type: 'set'; text: string; pos: number} | {type: 'clear'};
 
 export const wikiGhostTextKey = new PluginKey<GhostState | null>('wikiGhostText');
 
@@ -91,11 +91,13 @@ export function wikiGhostTextPlugin(options: WikiGhostTextOptions): Plugin {
                 if (view.state.selection.from !== pos || !view.state.selection.empty) return;
                 const text = firstLine(result);
                 if (!text) return;
-                view.dispatch(view.state.tr.setMeta(wikiGhostTextKey, {
-                    type: 'set',
-                    text,
-                    pos,
-                } satisfies GhostMeta));
+                view.dispatch(
+                    view.state.tr.setMeta(wikiGhostTextKey, {
+                        type: 'set',
+                        text,
+                        pos,
+                    } satisfies GhostMeta),
+                );
             })
             .catch(() => {
                 // A failed completion is silent on purpose: nothing was asked for out loud, so there is nothing to apologise for, and an error toast on a typing pause would be the most irritating error in the app.

@@ -23,7 +23,10 @@ export type CredentialKind = 'password' | 'recoveryCode';
  * The only condition under which a user may be told their password or recovery code is wrong.
  */
 export class CredentialRejectedError extends Error {
-    constructor(readonly kind: CredentialKind, readonly detail: string) {
+    constructor(
+        readonly kind: CredentialKind,
+        readonly detail: string,
+    ) {
         super(`The ${kind === 'password' ? 'password' : 'recovery code'} did not open the wrapping.`);
     }
 }
@@ -39,7 +42,10 @@ export class CredentialRejectedError extends Error {
  * infrastructure fault must never be rendered as a credential rejection, in either direction.</p>
  */
 export class MasterKeyEngineError extends Error {
-    constructor(readonly command: string, readonly detail: string) {
+    constructor(
+        readonly command: string,
+        readonly detail: string,
+    ) {
         super(`The local key engine could not run ${command}: ${detail}`);
     }
 }
@@ -53,9 +59,11 @@ export class MasterKeyEngineError extends Error {
  */
 function isCredentialRejection(err: unknown): boolean {
     const text = typeof err === 'string' ? err : err instanceof Error ? err.message : String(err);
-    return text.includes('Decryption failed')
-        || text.startsWith('InvalidRecoveryCode')
-        || text.includes('Unwrapped master key is not 32 bytes');
+    return (
+        text.includes('Decryption failed') ||
+        text.startsWith('InvalidRecoveryCode') ||
+        text.includes('Unwrapped master key is not 32 bytes')
+    );
 }
 
 /**

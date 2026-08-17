@@ -24,7 +24,7 @@ interface EncodingWithMinBitrate extends RTCRtpEncodingParameters {
  * asciibetically from the names alone, so q/h/f would silently degrade viewers upward.
  */
 export const VIDEO_LAYER_RIDS = ['a', 'b', 'c'] as const;
-export type VideoLayerRid = typeof VIDEO_LAYER_RIDS[number];
+export type VideoLayerRid = (typeof VIDEO_LAYER_RIDS)[number];
 
 /** How far each layer is scaled down from the captured picture. */
 const LAYER_SCALE: Record<VideoLayerRid, number> = {a: 1, b: 2, c: 4};
@@ -89,7 +89,8 @@ export async function applyScreenEncoding(sender: RTCRtpSender, preset: StreamPr
     if (sender.track) {
         try {
             sender.track.contentHint = policy.hint;
-        } catch { /* contentHint unsupported */
+        } catch {
+            /* contentHint unsupported */
         }
     }
     const kbps = bitrateFor(preset);
@@ -109,12 +110,16 @@ export async function applyScreenEncoding(sender: RTCRtpSender, preset: StreamPr
             if (layer === 'a') encoding.minBitrate = Math.round(layerKbps * MIN_BITRATE_RATIO) * 1000;
         }
         await sender.setParameters(params);
-    } catch { /* setParameters unsupported, or the call already ended */
+    } catch {
+        /* setParameters unsupported, or the call already ended */
     }
 }
 
 /** Cap a non-screen sender (mic, camera): `kbps` targets the top layer, lower rungs scale from it. */
-export async function applySimpleBitrate(sender: RTCRtpSender | null | undefined, kbps: number): Promise<void> {
+export async function applySimpleBitrate(
+    sender: RTCRtpSender | null | undefined,
+    kbps: number,
+): Promise<void> {
     if (!sender) return;
     try {
         const params = sender.getParameters();
@@ -123,7 +128,8 @@ export async function applySimpleBitrate(sender: RTCRtpSender | null | undefined
             encoding.maxBitrate = Math.round(kbps * LAYER_BITRATE_RATIO[layerOf(encoding)]) * 1000;
         }
         await sender.setParameters(params);
-    } catch { /* setParameters unsupported, or the call already ended */
+    } catch {
+        /* setParameters unsupported, or the call already ended */
     }
 }
 
@@ -138,7 +144,8 @@ export function preferVideoCodecs(transceiver: RTCRtpTransceiver, side: 'sender'
     ];
     try {
         transceiver.setCodecPreferences(ordered);
-    } catch { /* codec preferences unsupported */
+    } catch {
+        /* codec preferences unsupported */
     }
 }
 

@@ -28,23 +28,23 @@ interface Internals {
     moduleOff(): boolean;
     moduleWithheld(): boolean;
     restockLoopOn(): boolean;
-    listChannelOptions(): { label: string; value: string }[];
+    listChannelOptions(): {label: string; value: string}[];
     warningDays(): number;
-    cfgWarningDays: { set(v: number | null): void };
+    cfgWarningDays: {set(v: number | null): void};
     cfgWarningDaysValid(): boolean;
-    cfgListChannelId: { set(v: string | null): void; (): string | null };
-    draftTrackRestock: { set(v: boolean): void; (): boolean };
-    draftThreshold: { set(v: number | null): void; (): number | null };
-    draftExpiresAt: { set(v: Date | null): void; (): Date | null };
-    draftName: { set(v: string): void };
-    draftQuantity: { set(v: number | null): void };
-    draftUnit: { set(v: string): void };
+    cfgListChannelId: {set(v: string | null): void; (): string | null};
+    draftTrackRestock: {set(v: boolean): void; (): boolean};
+    draftThreshold: {set(v: number | null): void; (): number | null};
+    draftExpiresAt: {set(v: Date | null): void; (): Date | null};
+    draftName: {set(v: string): void};
+    draftQuantity: {set(v: number | null): void};
+    draftUnit: {set(v: string): void};
     openAdd(): void;
     openEdit(item: PantryItem): void;
     openConfig(): void;
     saveItem(): void;
     saveConfig(): void;
-    rows(): { item: PantryItem; state: string; expiry: string }[];
+    rows(): {item: PantryItem; state: string; expiry: string}[];
 }
 
 function channel(): ChannelDto {
@@ -87,15 +87,17 @@ function item(overrides: Partial<PantryItem> = {}): PantryItem {
     };
 }
 
-function setup(opts: {
-    guild?: GuildDto;
-    member?: SelfGuildMemberDto;
-    ownUserId?: string;
-    items?: PantryItem[];
-    config?: PantryConfig | null;
-    /** `withheld` is the module the owner chose and the plan does not cover. */
-    standing?: 'off' | 'withheld' | 'unknown';
-} = {}) {
+function setup(
+    opts: {
+        guild?: GuildDto;
+        member?: SelfGuildMemberDto;
+        ownUserId?: string;
+        items?: PantryItem[];
+        config?: PantryConfig | null;
+        /** `withheld` is the module the owner chose and the plan does not cover. */
+        standing?: 'off' | 'withheld' | 'unknown';
+    } = {},
+) {
     const guildDto = opts.guild ?? guild();
 
     TestBed.configureTestingModule({
@@ -142,9 +144,13 @@ function setup(opts: {
     if (opts.config === null) {
         configReq.flush('nope', {status: 404, statusText: 'Not Found'});
     } else {
-        configReq.flush(opts.config ?? {
-            channelId: CHANNEL_ID, restockListChannelId: 'chan_list', expiryWarningDays: 3,
-        });
+        configReq.flush(
+            opts.config ?? {
+                channelId: CHANNEL_ID,
+                restockListChannelId: 'chan_list',
+                expiryWarningDays: 3,
+            },
+        );
     }
     fixture.detectChanges();
 
@@ -218,7 +224,7 @@ describe('PantryChannelComponent', () => {
             expect(api.restockLoopOn()).toBe(true);
         });
 
-        it('is off with none, whatever the items\' thresholds say', () => {
+        it("is off with none, whatever the items' thresholds say", () => {
             const {api} = setup({
                 config: {channelId: CHANNEL_ID, restockListChannelId: null, expiryWarningDays: 3},
                 items: [item({lowThreshold: 2, quantity: 1})],
@@ -253,7 +259,11 @@ describe('PantryChannelComponent', () => {
 
             const req = ctrl.expectOne(`${GUILD_URL}/pantry-items/pitm_1`);
             expect(req.request.body).toEqual({
-                name: 'Milk', quantity: 4, unit: 'l', clearLowThreshold: true, clearExpiresAt: true,
+                name: 'Milk',
+                quantity: 4,
+                unit: 'l',
+                clearLowThreshold: true,
+                clearExpiresAt: true,
             });
             req.flush(item({lowThreshold: null}));
         });
@@ -315,7 +325,11 @@ describe('PantryChannelComponent', () => {
             const req = ctrl.expectOne(`${GUILD_URL}/channels/${CHANNEL_ID}/pantry-items`);
             expect(req.request.method).toBe('POST');
             expect(req.request.body).toEqual({
-                name: 'Rice', quantity: 2, unit: null, lowThreshold: null, expiresAt: null,
+                name: 'Rice',
+                quantity: 2,
+                unit: null,
+                lowThreshold: null,
+                expiresAt: null,
             });
             req.flush(item({id: 'pitm_2', name: 'Rice', quantity: 2, unit: null, lowThreshold: null}));
         });
@@ -343,7 +357,9 @@ describe('PantryChannelComponent', () => {
 
             // Nothing left the client while it was invalid.
             api.saveConfig();
-            TestBed.inject(HttpTestingController).expectNone(`${GUILD_URL}/channels/${CHANNEL_ID}/pantry/config`);
+            TestBed.inject(HttpTestingController).expectNone(
+                `${GUILD_URL}/channels/${CHANNEL_ID}/pantry/config`,
+            );
         });
 
         it('PUTs clearRestockList to switch the loop off - a null id would be ignored', () => {

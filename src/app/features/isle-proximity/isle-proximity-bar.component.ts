@@ -52,7 +52,9 @@ export class IsleProximityBarComponent implements OnInit, OnDestroy {
         const since = this.prox.connectedSince();
         if (!since) return '';
         const total = Math.max(0, Math.floor((this.now() - since) / 1000));
-        const m = Math.floor(total / 60).toString().padStart(2, '0');
+        const m = Math.floor(total / 60)
+            .toString()
+            .padStart(2, '0');
         const s = (total % 60).toString().padStart(2, '0');
         return `${m}:${s}`;
     });
@@ -124,17 +126,20 @@ export class IsleProximityBarComponent implements OnInit, OnDestroy {
     protected linkSteam(): void {
         if (this.linkingSteam()) return;
         this.linkingSteam.set(true);
-        this.steamService.getLinkStartUrl().pipe(take(1)).subscribe({
-            next: ({redirectUrl}) => {
-                // Steam login opens in the browser; the result returns via the
-                // venta://steam-auth deep link handled in AppComponent/SteamService.
-                void this.externalLink.openExternalLink(redirectUrl);
-                this.linkingSteam.set(false);
-            },
-            error: err => {
-                this.linkingSteam.set(false);
-                this.toast.httpError('Could not start Steam linking', err);
-            },
-        });
+        this.steamService
+            .getLinkStartUrl()
+            .pipe(take(1))
+            .subscribe({
+                next: ({redirectUrl}) => {
+                    // Steam login opens in the browser; the result returns via the
+                    // venta://steam-auth deep link handled in AppComponent/SteamService.
+                    void this.externalLink.openExternalLink(redirectUrl);
+                    this.linkingSteam.set(false);
+                },
+                error: err => {
+                    this.linkingSteam.set(false);
+                    this.toast.httpError('Could not start Steam linking', err);
+                },
+            });
     }
 }

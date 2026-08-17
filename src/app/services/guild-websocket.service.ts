@@ -1,32 +1,32 @@
 import {inject, Injectable} from '@angular/core';
-import {RealtimeConnectionService} from "./realtime-connection.service";
-import {ShareViewersDto} from "../dtos/response/share-viewers.dto";
+import {RealtimeConnectionService} from './realtime-connection.service';
+import {ShareViewersDto} from '../dtos/response/share-viewers.dto';
 import {
     MessagePinnedEvent,
     MessageUnpinnedEvent,
     MessageUpdatedEvent,
     MlsJoinRequestEvent,
-    ReactionEvent
-} from "./messaging-websocket.service";
+    ReactionEvent,
+} from './messaging-websocket.service';
 import {MlsService} from './mls.service';
 import {MlsHealthService} from './mls-health.service';
 import {decodeBody} from '../helpers/message-content.helper';
 import {toBase64} from '../helpers/base64.helper';
-import {NotificationService, NotificationSound} from "./notification.service";
-import {catchError, firstValueFrom, of, Subject, timeout} from "rxjs";
-import {MessageDto, MessageEmbed} from "../dtos/response/message.dto";
-import {GuildDto} from "../dtos/response/guild.dto";
+import {NotificationService, NotificationSound} from './notification.service';
+import {catchError, firstValueFrom, of, Subject, timeout} from 'rxjs';
+import {MessageDto, MessageEmbed} from '../dtos/response/message.dto';
+import {GuildDto} from '../dtos/response/guild.dto';
 import {MessageEncryptionState} from '../enums/message-encryption-state.enum';
 import {MessageType} from '../enums/message-type.enum';
-import {AttachmentDto} from "./file.service";
-import {ReorderChannesDto} from "../dtos/request/reorder-channel.dto";
-import {ReorderRolesDto} from "../dtos/request/reorder-roles.dto";
-import {ProfileService} from "./profile.service";
-import {OnlineStatus} from "../dtos/response/profile.dto";
-import {ForumConfig, ForumTag} from "../dtos/response/forum.dto";
-import {PrivacySettingsService} from "./privacy-settings.service";
-import {UserActivityService} from "./user-activity.service";
-import {Activity} from "../models/activity.model";
+import {AttachmentDto} from './file.service';
+import {ReorderChannesDto} from '../dtos/request/reorder-channel.dto';
+import {ReorderRolesDto} from '../dtos/request/reorder-roles.dto';
+import {ProfileService} from './profile.service';
+import {OnlineStatus} from '../dtos/response/profile.dto';
+import {ForumConfig, ForumTag} from '../dtos/response/forum.dto';
+import {PrivacySettingsService} from './privacy-settings.service';
+import {UserActivityService} from './user-activity.service';
+import {Activity} from '../models/activity.model';
 import {
     VoiceEventEnvelope,
     VoiceHeartbeatState,
@@ -879,47 +879,107 @@ export class GuildWebsocketService {
         });
 
         // ── Guild voice presence ────────────────────────────────────────────────
-        this.realtime.on('guild.voice.UserJoinedVoice', (d: WsUserJoinedVoice) => this.userJoinedVoiceObservable.next(d));
-        this.realtime.on('guild.voice.UserLeftVoice', (d: WsUserLeftVoice) => this.userLeftVoiceObservable.next(d));
-        this.realtime.on('guild.voice.ParticipantJoined', (d: WsGuildParticipantJoined) => this.guildParticipantJoinedObservable.next(d));
-        this.realtime.on('guild.voice.TrackPublished', (d: WsGuildTrackPublished) => this.guildTrackPublishedObservable.next(d));
-        this.realtime.on('guild.voice.TrackClosed', (d: WsGuildTrackClosed) => this.guildTrackClosedObservable.next(d));
-        this.realtime.on('guild.voice.MuteChanged', (d: WsVoiceMuteChanged) => this.voiceMuteChangedObservable.next(d));
-        this.realtime.on('guild.voice.DeafenChanged', (d: WsVoiceDeafenChanged) => this.voiceDeafenChangedObservable.next(d));
-        this.realtime.on('guild.voice.CameraChanged', (d: WsVoiceCameraChanged) => this.voiceCameraChangedObservable.next(d));
-        this.realtime.on('guild.voice.ScreenShareStarted', (d: WsVoiceScreenShareStarted) => this.voiceScreenShareStartedObservable.next(d));
-        this.realtime.on('guild.voice.ScreenShareStopped', (d: WsVoiceScreenShareStopped) => this.voiceScreenShareStoppedObservable.next(d));
-        this.realtime.on('guild.voice.ShareViewersChanged', (d: ShareViewersDto) => this.shareViewersChangedObservable.next(d));
-        this.realtime.on('guild.voice.MovedToChannel', (d: WsMovedToChannel) => this.movedToChannelObservable.next(d));
-        this.realtime.on('guild.voice.KickedByOtherDevice', (d: WsKickedByOtherDevice) => this.kickedByOtherDeviceObservable.next(d));
+        this.realtime.on('guild.voice.UserJoinedVoice', (d: WsUserJoinedVoice) =>
+            this.userJoinedVoiceObservable.next(d),
+        );
+        this.realtime.on('guild.voice.UserLeftVoice', (d: WsUserLeftVoice) =>
+            this.userLeftVoiceObservable.next(d),
+        );
+        this.realtime.on('guild.voice.ParticipantJoined', (d: WsGuildParticipantJoined) =>
+            this.guildParticipantJoinedObservable.next(d),
+        );
+        this.realtime.on('guild.voice.TrackPublished', (d: WsGuildTrackPublished) =>
+            this.guildTrackPublishedObservable.next(d),
+        );
+        this.realtime.on('guild.voice.TrackClosed', (d: WsGuildTrackClosed) =>
+            this.guildTrackClosedObservable.next(d),
+        );
+        this.realtime.on('guild.voice.MuteChanged', (d: WsVoiceMuteChanged) =>
+            this.voiceMuteChangedObservable.next(d),
+        );
+        this.realtime.on('guild.voice.DeafenChanged', (d: WsVoiceDeafenChanged) =>
+            this.voiceDeafenChangedObservable.next(d),
+        );
+        this.realtime.on('guild.voice.CameraChanged', (d: WsVoiceCameraChanged) =>
+            this.voiceCameraChangedObservable.next(d),
+        );
+        this.realtime.on('guild.voice.ScreenShareStarted', (d: WsVoiceScreenShareStarted) =>
+            this.voiceScreenShareStartedObservable.next(d),
+        );
+        this.realtime.on('guild.voice.ScreenShareStopped', (d: WsVoiceScreenShareStopped) =>
+            this.voiceScreenShareStoppedObservable.next(d),
+        );
+        this.realtime.on('guild.voice.ShareViewersChanged', (d: ShareViewersDto) =>
+            this.shareViewersChangedObservable.next(d),
+        );
+        this.realtime.on('guild.voice.MovedToChannel', (d: WsMovedToChannel) =>
+            this.movedToChannelObservable.next(d),
+        );
+        this.realtime.on('guild.voice.KickedByOtherDevice', (d: WsKickedByOtherDevice) =>
+            this.kickedByOtherDeviceObservable.next(d),
+        );
 
         // ── Voice rings ─────────────────────────────────────────────────────────
-        this.realtime.on('guild.VoiceRingIncoming', (d: WsVoiceRing) => this.voiceRingIncomingObservable.next(d));
+        this.realtime.on('guild.VoiceRingIncoming', (d: WsVoiceRing) =>
+            this.voiceRingIncomingObservable.next(d),
+        );
         this.realtime.on('guild.VoiceRingSent', (d: WsVoiceRing) => this.voiceRingSentObservable.next(d));
-        this.realtime.on('guild.VoiceRingResolved', (d: WsVoiceRingResolved) => this.voiceRingResolvedObservable.next(d));
-        this.realtime.on('guild.VoiceRingDismissed', (d: WsVoiceRingDismissed) => this.voiceRingDismissedObservable.next(d));
+        this.realtime.on('guild.VoiceRingResolved', (d: WsVoiceRingResolved) =>
+            this.voiceRingResolvedObservable.next(d),
+        );
+        this.realtime.on('guild.VoiceRingDismissed', (d: WsVoiceRingDismissed) =>
+            this.voiceRingDismissedObservable.next(d),
+        );
 
         // ── Recovery ────────────────────────────────────────────────────────────
         // Pushed on join, on publish, and whenever the server decides we are out of date. The
         // snapshot is authoritative and sufficient on its own - it is not a delta and must not be
         // merged with what is already held.
-        this.realtime.on('guild.voice.Snapshot', (d: VoiceRoomSnapshot) => this.voiceSnapshotObservable.next(d));
+        this.realtime.on('guild.voice.Snapshot', (d: VoiceRoomSnapshot) =>
+            this.voiceSnapshotObservable.next(d),
+        );
         this.realtime.on('guild.voice.Resync', (d: WsGuildVoiceResync) => this.voiceResyncObservable.next(d));
-        this.realtime.on('guild.ChannelCreated', (d: WsChannelCreated) => this.channelCreatedObservable.next(d));
-        this.realtime.on('guild.ChannelDeleted', (d: WsChannelDeleted) => this.channelDeletedObservable.next(d));
-        this.realtime.on('guild.ChannelMlsStateChanged', (d: WsChannelMlsStateChanged) => this.channelMlsStateChangedObservable.next(d));
-        this.realtime.on('guild.CategoryCreated', (d: WsCategoryCreated) => this.categoryCreatedObservable.next(d));
-        this.realtime.on('guild.CategoryUpdated', (d: WsCategoryUpdated) => this.categoryUpdatedObservable.next(d));
-        this.realtime.on('guild.CategoryDeleted', (d: WsCategoryDeleted) => this.categoryDeletedObservable.next(d));
-        this.realtime.on('guild.WikiPageCreated', (d: WsWikiPageCreated) => this.wikiPageCreatedObservable.next(d));
-        this.realtime.on('guild.WikiPageUpdated', (d: WsWikiPageUpdated) => this.wikiPageUpdatedObservable.next(d));
-        this.realtime.on('guild.WikiPageDeleted', (d: WsWikiPageDeleted) => this.wikiPageDeletedObservable.next(d));
-        this.realtime.on('guild.WikiCategoryCreated', (d: WsWikiCategoryCreated) => this.wikiCategoryCreatedObservable.next(d));
-        this.realtime.on('guild.WikiCategoryUpdated', (d: WsWikiCategoryUpdated) => this.wikiCategoryUpdatedObservable.next(d));
-        this.realtime.on('guild.WikiCategoryDeleted', (d: WsWikiCategoryDeleted) => this.wikiCategoryDeletedObservable.next(d));
+        this.realtime.on('guild.ChannelCreated', (d: WsChannelCreated) =>
+            this.channelCreatedObservable.next(d),
+        );
+        this.realtime.on('guild.ChannelDeleted', (d: WsChannelDeleted) =>
+            this.channelDeletedObservable.next(d),
+        );
+        this.realtime.on('guild.ChannelMlsStateChanged', (d: WsChannelMlsStateChanged) =>
+            this.channelMlsStateChangedObservable.next(d),
+        );
+        this.realtime.on('guild.CategoryCreated', (d: WsCategoryCreated) =>
+            this.categoryCreatedObservable.next(d),
+        );
+        this.realtime.on('guild.CategoryUpdated', (d: WsCategoryUpdated) =>
+            this.categoryUpdatedObservable.next(d),
+        );
+        this.realtime.on('guild.CategoryDeleted', (d: WsCategoryDeleted) =>
+            this.categoryDeletedObservable.next(d),
+        );
+        this.realtime.on('guild.WikiPageCreated', (d: WsWikiPageCreated) =>
+            this.wikiPageCreatedObservable.next(d),
+        );
+        this.realtime.on('guild.WikiPageUpdated', (d: WsWikiPageUpdated) =>
+            this.wikiPageUpdatedObservable.next(d),
+        );
+        this.realtime.on('guild.WikiPageDeleted', (d: WsWikiPageDeleted) =>
+            this.wikiPageDeletedObservable.next(d),
+        );
+        this.realtime.on('guild.WikiCategoryCreated', (d: WsWikiCategoryCreated) =>
+            this.wikiCategoryCreatedObservable.next(d),
+        );
+        this.realtime.on('guild.WikiCategoryUpdated', (d: WsWikiCategoryUpdated) =>
+            this.wikiCategoryUpdatedObservable.next(d),
+        );
+        this.realtime.on('guild.WikiCategoryDeleted', (d: WsWikiCategoryDeleted) =>
+            this.wikiCategoryDeletedObservable.next(d),
+        );
         this.realtime.on('guild.MemberBanned', (d: WsMemberBanned) => this.memberBannedObservable.next(d));
         this.realtime.on('guild.MemberKicked', (d: WsMemberKicked) => this.memberKickedObservable.next(d));
-        this.realtime.on('guild.MemberMovedOut', (d: WsMemberMovedOut) => this.memberMovedOutObservable.next(d));
+        this.realtime.on('guild.MemberMovedOut', (d: WsMemberMovedOut) =>
+            this.memberMovedOutObservable.next(d),
+        );
         this.realtime.on('guild.MemberMuted', (d: WsMemberMuted) => this.memberMutedObservable.next(d));
         this.realtime.on('guild.MemberUnmuted', (d: WsMemberUnmuted) => this.memberUnmutedObservable.next(d));
         this.realtime.on('guild.MemberLeft', (d: WsMemberLeft) => this.memberLeftObservable.next(d));
@@ -928,20 +988,36 @@ export class GuildWebsocketService {
         this.realtime.on('guild.GuildCreated', (d: GuildDto) => this.guildCreatedObservable.next(d));
         this.realtime.on('guild.GuildDeleted', (d: WsGuildDeleted) => this.guildDeletedObservable.next(d));
         this.realtime.on('guild.GuildUpdated', (d: WsGuildUpdated) => this.guildUpdatedObservable.next(d));
-        this.realtime.on('guild.RolesReordered', (d: ReorderRolesDto) => this.rolesReorderedObservable.next(d));
-        this.realtime.on('guild.ChannelUpdated', (d: WsChannelUpdated) => this.channelUpdatedObservable.next(d));
+        this.realtime.on('guild.RolesReordered', (d: ReorderRolesDto) =>
+            this.rolesReorderedObservable.next(d),
+        );
+        this.realtime.on('guild.ChannelUpdated', (d: WsChannelUpdated) =>
+            this.channelUpdatedObservable.next(d),
+        );
         this.realtime.on('guild.ThreadCreated', (d: WsThreadCreated) => this.threadCreatedObservable.next(d));
         this.realtime.on('guild.ThreadUpdated', (d: WsThreadUpdated) => this.threadUpdatedObservable.next(d));
-        this.realtime.on('guild.ForumTagCreated', (d: WsForumTagEvent) => this.forumTagCreatedObservable.next(d));
-        this.realtime.on('guild.ForumTagUpdated', (d: WsForumTagEvent) => this.forumTagUpdatedObservable.next(d));
-        this.realtime.on('guild.ForumTagDeleted', (d: WsForumTagDeleted) => this.forumTagDeletedObservable.next(d));
-        this.realtime.on('guild.ForumTagsReordered', (d: WsForumTagsReordered) => this.forumTagsReorderedObservable.next(d));
-        this.realtime.on('guild.ForumConfigUpdated', (d: WsForumConfigUpdated) => this.forumConfigUpdatedObservable.next(d));
+        this.realtime.on('guild.ForumTagCreated', (d: WsForumTagEvent) =>
+            this.forumTagCreatedObservable.next(d),
+        );
+        this.realtime.on('guild.ForumTagUpdated', (d: WsForumTagEvent) =>
+            this.forumTagUpdatedObservable.next(d),
+        );
+        this.realtime.on('guild.ForumTagDeleted', (d: WsForumTagDeleted) =>
+            this.forumTagDeletedObservable.next(d),
+        );
+        this.realtime.on('guild.ForumTagsReordered', (d: WsForumTagsReordered) =>
+            this.forumTagsReorderedObservable.next(d),
+        );
+        this.realtime.on('guild.ForumConfigUpdated', (d: WsForumConfigUpdated) =>
+            this.forumConfigUpdatedObservable.next(d),
+        );
         this.realtime.on('guild.EmojiCreated', (d: WsEmojiCreated) => this.emojiCreatedObservable.next(d));
         this.realtime.on('guild.EmojiDeleted', (d: WsEmojiDeleted) => this.emojiDeletedObservable.next(d));
         this.realtime.on('guild.EventCreated', (d: WsEventCreated) => this.eventCreatedObservable.next(d));
         this.realtime.on('guild.EventUpdated', (d: WsEventUpdated) => this.eventUpdatedObservable.next(d));
-        this.realtime.on('guild.EventCancelled', (d: WsEventCancelled) => this.eventCancelledObservable.next(d));
+        this.realtime.on('guild.EventCancelled', (d: WsEventCancelled) =>
+            this.eventCancelledObservable.next(d),
+        );
 
         this.realtime.on('guild.PresenceChanged', (d: WsPresenceChanged) => {
             this.presenceChangedObservable.next(d);
@@ -952,10 +1028,16 @@ export class GuildWebsocketService {
         });
 
         this.realtime.on('guild.ReactionCreated', (d: ReactionEvent) => this.reactionAddedObservable.next(d));
-        this.realtime.on('guild.ReactionRemoved', (d: ReactionEvent) => this.reactionRemovedObservable.next(d));
+        this.realtime.on('guild.ReactionRemoved', (d: ReactionEvent) =>
+            this.reactionRemovedObservable.next(d),
+        );
 
-        this.realtime.on('guild.MessagePinned', (d: MessagePinnedEvent) => this.messagePinnedObservable.next(d));
-        this.realtime.on('guild.MessageUnpinned', (d: MessageUnpinnedEvent) => this.messageUnpinnedObservable.next(d));
+        this.realtime.on('guild.MessagePinned', (d: MessagePinnedEvent) =>
+            this.messagePinnedObservable.next(d),
+        );
+        this.realtime.on('guild.MessageUnpinned', (d: MessageUnpinnedEvent) =>
+            this.messageUnpinnedObservable.next(d),
+        );
 
         // Not logged, for the same reason `conversation.MessageUpdated` is not: the payload carries
         // the edited body, which in a plaintext channel is the message itself, and this console
@@ -981,7 +1063,9 @@ export class GuildWebsocketService {
         });
 
         this.realtime.on('guild.BotInstalled', (d: WsBotInstalled) => this.botInstalledObservable.next(d));
-        this.realtime.on('guild.BotUninstalled', (d: WsBotUninstalled) => this.botUninstalledObservable.next(d));
+        this.realtime.on('guild.BotUninstalled', (d: WsBotUninstalled) =>
+            this.botUninstalledObservable.next(d),
+        );
 
         this.realtime.on('guild.MessageCreated', async (data: GuildMessageCreatedPayload) => {
             // Not logged. The payload carries `content`, so this printed every message body in a
@@ -996,11 +1080,14 @@ export class GuildWebsocketService {
             // than decrypted: wiring the decryptor into this path is a larger change, and refusing
             // to render is the safe half of it.
             const contextId = data.channelId ?? data.conversationId;
-            if (contextId && await this.mlsService.getEncryptionFloor(contextId) !== null) {
+            if (contextId && (await this.mlsService.getEncryptionFloor(contextId)) !== null) {
                 this.mlsHealth.recordFailure(
-                    contextId, !!data.channelId, 'downgraded',
-                    `message ${data.messageId} arrived on the guild socket as cleartext in a `
-                    + `context this device has encrypted`);
+                    contextId,
+                    !!data.channelId,
+                    'downgraded',
+                    `message ${data.messageId} arrived on the guild socket as cleartext in a ` +
+                        `context this device has encrypted`,
+                );
                 message = {...message, undecryptable: true};
             }
 
@@ -1019,7 +1106,7 @@ export class GuildWebsocketService {
                     this.profileService.getByUserId(data.authorId).pipe(
                         timeout(5_000),
                         catchError(() => of(null)),
-                    )
+                    ),
                 );
                 await this.notificationService.createNotification({
                     title: `${sender?.userName ?? 'Someone'} mentioned you`,

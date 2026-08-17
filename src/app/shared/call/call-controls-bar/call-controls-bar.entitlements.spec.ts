@@ -94,13 +94,15 @@ describe('the camera and share buttons', () => {
 
         const badge = fixture.nativeElement.querySelector('[data-testid="publisher-slots"]');
         expect(badge.textContent.trim()).toBe('2/2');
-        expect(button(fixture, 'share-toggle').getAttribute('title'))
-            .toBe('VOICE.DEGRADED.PUBLISHERS_FULL');
+        expect(button(fixture, 'share-toggle').getAttribute('title')).toBe('VOICE.DEGRADED.PUBLISHERS_FULL');
     });
 });
 
 describe('the quality picker', () => {
-    const SHARING = {isScreenSharing: true, preset: {resolution: '720p', framerate: 30, content: 'text'} as StreamPreset};
+    const SHARING = {
+        isScreenSharing: true,
+        preset: {resolution: '720p', framerate: 30, content: 'text'} as StreamPreset,
+    };
 
     it('offers everything when no rung has been resolved', () => {
         const fixture = render(SHARING);
@@ -132,13 +134,23 @@ describe('the quality picker', () => {
      */
     it('lights up 4K only where the rung reaches it', () => {
         const top = render({...SHARING, videoCeiling: {maxHeight: 2160, maxFramerate: 60}});
-        expect(segments(top, 'CALL.RESOLUTION').map(b => b.disabled))
-            .toEqual([false, false, false, false, false]);
+        expect(segments(top, 'CALL.RESOLUTION').map(b => b.disabled)).toEqual([
+            false,
+            false,
+            false,
+            false,
+            false,
+        ]);
 
         // The rung the shipped operator ceiling produces today, whatever the plan granted.
         const capped = render({...SHARING, videoCeiling: {maxHeight: 1080, maxFramerate: 60}});
-        expect(segments(capped, 'CALL.RESOLUTION').map(b => b.disabled))
-            .toEqual([false, false, true, true, false]);
+        expect(segments(capped, 'CALL.RESOLUTION').map(b => b.disabled)).toEqual([
+            false,
+            false,
+            true,
+            true,
+            false,
+        ]);
     });
 
     /**

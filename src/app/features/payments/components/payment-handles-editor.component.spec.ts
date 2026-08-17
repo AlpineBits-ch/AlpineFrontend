@@ -87,8 +87,7 @@ function setup(host: PlatformHost, options: {phoneNumber?: string | null} = {}):
     return {
         fixture,
         phoneCard: () => el.querySelector<HTMLElement>('[data-testid="phone-sharing"]'),
-        phoneSwitch: () =>
-            el.querySelector<HTMLElement>('[data-testid="phone-sharing"] p-toggleswitch'),
+        phoneSwitch: () => el.querySelector<HTMLElement>('[data-testid="phone-sharing"] p-toggleswitch'),
         sealActions: () => el.querySelector<HTMLElement>('[data-testid="seal-actions"]'),
         addButton: () => el.querySelector<HTMLElement>('p-button[icon="pi pi-plus"]'),
         unavailableNote: () => el.querySelector<HTMLElement>('[data-testid="unavailable"]'),
@@ -167,7 +166,7 @@ describe('PaymentHandleService on a host with no keychain', () => {
         return TestBed.inject(PaymentHandleService);
     }
 
-    it('reads the caller\'s own opt-in out of the directory', async () => {
+    it("reads the caller's own opt-in out of the directory", async () => {
         const handles = service('web', directory(true));
 
         await handles.load(GUILD);
@@ -180,15 +179,17 @@ describe('PaymentHandleService on a host with no keychain', () => {
         // and wrong statement from "we did not look".
         const handles = service('web', {
             ...directory(),
-            members: [{
-                userId: 'user_2',
-                ciphertext: 'AA==',
-                nonce: 'AA==',
-                version: 1,
-                memberRosterVersion: 3,
-                updatedAt: '2026-08-12T00:00:00Z',
-                wrappedKey: 'AA==',
-            }],
+            members: [
+                {
+                    userId: 'user_2',
+                    ciphertext: 'AA==',
+                    nonce: 'AA==',
+                    version: 1,
+                    memberRosterVersion: 3,
+                    updatedAt: '2026-08-12T00:00:00Z',
+                    wrappedKey: 'AA==',
+                },
+            ],
         });
 
         await handles.load(GUILD);

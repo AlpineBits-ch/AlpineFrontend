@@ -21,9 +21,11 @@ export class WebAutostart extends Autostart {
     }
 
     setEnabled(_enabled: boolean): Promise<void> {
-        return Promise.reject(new Error(
-            'Autostart.setEnabled() is desktop-only; a browser cannot launch with the OS. ' +
-            'Gate on Autostart.supported or PlatformCapabilities.autostart.',
-        ));
+        return Promise.reject(
+            new Error(
+                'Autostart.setEnabled() is desktop-only; a browser cannot launch with the OS. ' +
+                    'Gate on Autostart.supported or PlatformCapabilities.autostart.',
+            ),
+        );
     }
 }

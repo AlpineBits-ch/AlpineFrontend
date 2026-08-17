@@ -22,7 +22,10 @@ export type PrivacySettingsStatus = 'idle' | 'loading' | 'ready' | 'unavailable'
  */
 export function refusalCode(err: HttpErrorResponse): string | null {
     const body = err.error as {
-        error?: unknown; code?: unknown; errorCode?: unknown; detail?: unknown;
+        error?: unknown;
+        code?: unknown;
+        errorCode?: unknown;
+        detail?: unknown;
     } | null;
     if (!body || typeof body !== 'object') return null;
     for (const candidate of [body.error, body.code, body.errorCode, body.detail]) {

@@ -1,27 +1,26 @@
-<div [style.left.px]="x()"
-     [style.top.px]="y()"
-     class="fixed z-[9999] flex min-w-[11.25rem] flex-col gap-0.5 rounded-[10px] border border-border bg-card p-2
-            shadow-[0_8px_28px_rgba(0,0,0,0.55),0_2px_8px_rgba(0,0,0,0.3)]"
-     data-testid="stream-menu">
-
-    <button (click)="showStats.emit()"
-            class="call-focusable flex w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent
-                   px-2.5 py-[0.4375rem] text-left text-sm font-medium text-white/85 transition-colors
-                   hover:bg-hover"
-            data-testid="menu-stats"
-            type="button">
+<div
+    [style.left.px]="x()"
+    [style.top.px]="y()"
+    class="fixed z-[9999] flex min-w-[11.25rem] flex-col gap-0.5 rounded-[10px] border border-border bg-card p-2 shadow-[0_8px_28px_rgba(0,0,0,0.55),0_2px_8px_rgba(0,0,0,0.3)]"
+    data-testid="stream-menu"
+>
+    <button
+        (click)="showStats.emit()"
+        class="call-focusable flex w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2.5 py-[0.4375rem] text-left text-sm font-medium text-white/85 transition-colors hover:bg-hover"
+        data-testid="menu-stats"
+        type="button"
+    >
         <i aria-hidden="true" class="pi pi-chart-bar text-[0.6875rem] text-white/45"></i>
         {{ 'CALL.STATS_NERD.MENU' | translate }}
     </button>
 
-    <button (click)="copyStats.emit()"
-            class="call-focusable flex w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent
-                   px-2.5 py-[0.4375rem] text-left text-sm font-medium text-white/85 transition-colors
-                   hover:bg-hover"
-            data-testid="menu-copy"
-            type="button">
+    <button
+        (click)="copyStats.emit()"
+        class="call-focusable flex w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2.5 py-[0.4375rem] text-left text-sm font-medium text-white/85 transition-colors hover:bg-hover"
+        data-testid="menu-copy"
+        type="button"
+    >
         <i aria-hidden="true" class="pi pi-copy text-[0.6875rem] text-white/45"></i>
         {{ 'CALL.STATS_NERD.COPY' | translate }}
     </button>
-
 </div>

@@ -92,16 +92,14 @@ export function providePlatform(): EnvironmentProviders {
         // tauri: plugin-dialog + plugin-fs, web: a Blob and an `<a download>`.
         {
             provide: FileSaver,
-            useFactory: (): FileSaver =>
-                host === 'tauri' ? new TauriFileSaver() : new WebFileSaver(),
+            useFactory: (): FileSaver => (host === 'tauri' ? new TauriFileSaver() : new WebFileSaver()),
         },
 
         // ── LinkOpener ────────────────────────────────────────────────────────
         // tauri: plugin-opener (a navigation would replace the app), web: a new tab with `noopener`.
         {
             provide: LinkOpener,
-            useFactory: (): LinkOpener =>
-                host === 'tauri' ? new TauriLinkOpener() : new WebLinkOpener(),
+            useFactory: (): LinkOpener => (host === 'tauri' ? new TauriLinkOpener() : new WebLinkOpener()),
         },
 
         // ── OsInfo ────────────────────────────────────────────────────────────
@@ -116,8 +114,7 @@ export function providePlatform(): EnvironmentProviders {
         // tauri: plugin-deep-link, web: nothing to deliver, since the address bar is the launch URL.
         {
             provide: DeepLinks,
-            useFactory: (): DeepLinks =>
-                host === 'tauri' ? new TauriDeepLinks() : new WebDeepLinks(),
+            useFactory: (): DeepLinks => (host === 'tauri' ? new TauriDeepLinks() : new WebDeepLinks()),
         },
 
         // ── Notifier ──────────────────────────────────────────────────────────
@@ -162,8 +159,7 @@ export function providePlatform(): EnvironmentProviders {
         // blob in IndexedDB and holds an exclusive Web Lock per account scope. Desktop takes no lock.
         {
             provide: MlsEngine,
-            useFactory: (): MlsEngine =>
-                host === 'tauri' ? new TauriMlsEngine() : new WebMlsEngine(),
+            useFactory: (): MlsEngine => (host === 'tauri' ? new TauriMlsEngine() : new WebMlsEngine()),
         },
 
         // ── CryptoEngine ──────────────────────────────────────────────────────
@@ -181,9 +177,8 @@ export function providePlatform(): EnvironmentProviders {
         // port rather than `SettingsStoreFactory` because both files need enumeration.
         {
             provide: MlsLocalStoreFactory,
-            useFactory: (): MlsLocalStoreFactory => host === 'tauri'
-                ? new TauriMlsLocalStoreFactory()
-                : new WebMlsLocalStoreFactory(),
+            useFactory: (): MlsLocalStoreFactory =>
+                host === 'tauri' ? new TauriMlsLocalStoreFactory() : new WebMlsLocalStoreFactory(),
         },
 
         // ── WindowChrome ──────────────────────────────────────────────────────
@@ -214,6 +209,9 @@ export function providePlatform(): EnvironmentProviders {
 
         // ── Autostart ─────────────────────────────────────────────────────────
         // WIRED BY: desktop-only track (web: no-op, supported = false)
-        {provide: Autostart, useFactory: () => (host === 'tauri' ? new TauriAutostart() : new WebAutostart())},
+        {
+            provide: Autostart,
+            useFactory: () => (host === 'tauri' ? new TauriAutostart() : new WebAutostart()),
+        },
     ]);
 }

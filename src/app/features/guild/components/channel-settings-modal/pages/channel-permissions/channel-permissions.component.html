@@ -1,22 +1,23 @@
 <div class="space-y-4">
-
     <p class="text-xs text-text-muted max-w-prose">{{ 'PERM_OVERRIDE.INTRO' | translate }}</p>
 
     <div class="flex gap-1 p-1 bg-card rounded-xl w-fit" role="tablist">
         <button
-                (click)="switchTab('roles')"
-                [attr.aria-selected]="activeTab() === 'roles'"
-                [ngClass]="activeTab() === 'roles' ? 'bg-hover text-text-primary' : 'text-text-muted hover:text-text-secondary'"
-                class="px-4 py-1.5 rounded-lg text-sm font-medium transition-all cursor-pointer border-0"
-                role="tab">
+            (click)="switchTab('roles')"
+            [attr.aria-selected]="activeTab() === 'roles'"
+            [ngClass]="activeTab() === 'roles' ? 'bg-hover text-text-primary' : 'text-text-muted hover:text-text-secondary'"
+            class="px-4 py-1.5 rounded-lg text-sm font-medium transition-all cursor-pointer border-0"
+            role="tab"
+        >
             {{ 'PERM_OVERRIDE.ROLES' | translate }}
         </button>
         <button
-                (click)="switchTab('members')"
-                [attr.aria-selected]="activeTab() === 'members'"
-                [ngClass]="activeTab() === 'members' ? 'bg-hover text-text-primary' : 'text-text-muted hover:text-text-secondary'"
-                class="px-4 py-1.5 rounded-lg text-sm font-medium transition-all cursor-pointer border-0"
-                role="tab">
+            (click)="switchTab('members')"
+            [attr.aria-selected]="activeTab() === 'members'"
+            [ngClass]="activeTab() === 'members' ? 'bg-hover text-text-primary' : 'text-text-muted hover:text-text-secondary'"
+            class="px-4 py-1.5 rounded-lg text-sm font-medium transition-all cursor-pointer border-0"
+            role="tab"
+        >
             {{ 'PERM_OVERRIDE.MEMBERS' | translate }}
         </button>
     </div>
@@ -24,27 +25,29 @@
     <!-- Roles Tab -->
     @if (activeTab() === 'roles') {
         <app-permission-overrides-panel
-                (add)="onAddRoleOverride($event)"
-                (change)="onRoleOverrideChange($event.id, $event.override)"
-                (delete)="deleteRoleOverride($event)"
-                (save)="saveRoleOverride($event)"
-                [addable]="addableRoles()"
-                [channelType]="channel().type"
-                [entries]="roleEntries()"
-                kind="role"/>
+            (add)="onAddRoleOverride($event)"
+            (change)="onRoleOverrideChange($event.id, $event.override)"
+            (delete)="deleteRoleOverride($event)"
+            (save)="saveRoleOverride($event)"
+            [addable]="addableRoles()"
+            [channelType]="channel().type"
+            [entries]="roleEntries()"
+            kind="role"
+        />
     }
 
     <!-- Members Tab -->
     @if (activeTab() === 'members') {
         <app-permission-overrides-panel
-                (add)="onAddMemberOverride($event)"
-                (change)="onMemberOverrideChange($event.id, $event.override)"
-                (delete)="deleteMemberOverride($event)"
-                (save)="saveMemberOverride($event)"
-                [addable]="addableMembers()"
-                [channelType]="channel().type"
-                [entries]="memberEntries()"
-                [loading]="membersLoading()"
-                kind="member"/>
+            (add)="onAddMemberOverride($event)"
+            (change)="onMemberOverrideChange($event.id, $event.override)"
+            (delete)="deleteMemberOverride($event)"
+            (save)="saveMemberOverride($event)"
+            [addable]="addableMembers()"
+            [channelType]="channel().type"
+            [entries]="memberEntries()"
+            [loading]="membersLoading()"
+            kind="member"
+        />
     }
 </div>

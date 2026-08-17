@@ -193,10 +193,12 @@ export class VoiceSubscriberReportService implements OnDestroy {
         for (const [userId, height] of heights) tileHeights[userId] = height;
 
         const {scope} = room;
-        const request = scope.kind === 'channel'
-            ? this.injector.get(GuildVoiceService)
-                .updateSubscriber(scope.guildId, scope.channelId, {tileHeights})
-            : this.injector.get(VoiceService).updateSubscriber(scope.callId, {tileHeights});
+        const request =
+            scope.kind === 'channel'
+                ? this.injector
+                      .get(GuildVoiceService)
+                      .updateSubscriber(scope.guildId, scope.channelId, {tileHeights})
+                : this.injector.get(VoiceService).updateSubscriber(scope.callId, {tileHeights});
 
         // Recorded before the response, so a request in flight cannot be re-sent by a resize that
         // lands while it is out. A failure below rolls it back rather than leaving us convinced we

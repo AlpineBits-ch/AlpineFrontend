@@ -23,7 +23,7 @@ import {provideFakePlatform} from '../../../../platform/testing/provide-fake-pla
     imports: [CallPanelComponent],
     template: `
         @if (active()) {
-            <app-call-panel/>
+            <app-call-panel />
         }
         <!-- The exact binding conversation.component.html uses on the row that holds the message
              column, composer, and MLS banners. -->
@@ -59,7 +59,13 @@ function render(): ComponentFixture<FullViewHostComponent> {
             // has anything to do with.
             {
                 provide: ShareWatchService,
-                useValue: {setWatching: vi.fn(), refresh: vi.fn(), clear: vi.fn(), viewerCount: () => 0, viewersOf: () => []},
+                useValue: {
+                    setWatching: vi.fn(),
+                    refresh: vi.fn(),
+                    clear: vi.fn(),
+                    viewerCount: () => 0,
+                    viewersOf: () => [],
+                },
             },
             {
                 provide: CallSessionService,
@@ -71,8 +77,14 @@ function render(): ComponentFixture<FullViewHostComponent> {
                         local: {isMuted: false, isDeafened: false, isCameraOn: false, isSharing: false},
                         participants: [
                             {
-                                userId: 'me', displayName: 'Me', avatarLabel: 'M', isLocal: true,
-                                isMuted: false, isSpeaking: false, isCameraOn: false, videoStream: undefined,
+                                userId: 'me',
+                                displayName: 'Me',
+                                avatarLabel: 'M',
+                                isLocal: true,
+                                isMuted: false,
+                                isSpeaking: false,
+                                isCameraOn: false,
+                                videoStream: undefined,
                             },
                         ],
                         screenShares: [],

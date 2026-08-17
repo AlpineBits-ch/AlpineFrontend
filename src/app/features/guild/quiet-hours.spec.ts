@@ -22,7 +22,7 @@ function config(overrides: Partial<QuietHoursDto> = {}): QuietHoursDto {
 
 describe('isMinuteWithinWindow - same-day window', () => {
     const start = 13 * 60; // 13:00
-    const end = 15 * 60;   // 15:00
+    const end = 15 * 60; // 15:00
 
     it('includes the start minute and excludes the end minute', () => {
         expect(isMinuteWithinWindow(start, end, start)).toBe(true);
@@ -38,7 +38,7 @@ describe('isMinuteWithinWindow - same-day window', () => {
 
 describe('isMinuteWithinWindow - wrapped window (22:00 -> 07:00)', () => {
     const start = 22 * 60; // 1320
-    const end = 7 * 60;    // 420
+    const end = 7 * 60; // 420
 
     it('is true late in the evening, before midnight', () => {
         expect(isMinuteWithinWindow(start, end, 22 * 60)).toBe(true);
@@ -154,8 +154,9 @@ describe('validateQuietHours', () => {
     });
 
     it('rejects a zero-length window', () => {
-        expect(validateQuietHours(config({startMinuteLocal: 600, endMinuteLocal: 600})))
-            .toBe('SAME_START_AND_END');
+        expect(validateQuietHours(config({startMinuteLocal: 600, endMinuteLocal: 600}))).toBe(
+            'SAME_START_AND_END',
+        );
     });
 
     it('rejects an unknown IANA id', () => {

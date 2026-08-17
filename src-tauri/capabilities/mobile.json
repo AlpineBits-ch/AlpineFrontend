@@ -2,15 +2,7 @@
   "$schema": "../gen/schemas/mobile-schema.json",
   "description": "Mobile-only capabilities",
   "identifier": "mobile",
-  "platforms": [
-    "android",
-    "iOS"
-  ],
-  "permissions": [
-    "notifications:default",
-    "os:default"
-  ],
-  "windows": [
-    "main"
-  ]
+  "platforms": ["android", "iOS"],
+  "permissions": ["notifications:default", "os:default"],
+  "windows": ["main"]
 }

@@ -140,12 +140,15 @@ export class WikiAiAskComponent {
         this.running.set(true);
 
         try {
-            const stream = this.ai.ask({
-                // Earlier turns ride along inside the question: the request shape carries no
-                // history, and "what about the second one?" is meaningless without it.
-                question: buildAskQuestion(history, question),
-                sources: ranked,
-            }, controller.signal);
+            const stream = this.ai.ask(
+                {
+                    // Earlier turns ride along inside the question: the request shape carries no
+                    // history, and "what about the second one?" is meaningless without it.
+                    question: buildAskQuestion(history, question),
+                    sources: ranked,
+                },
+                controller.signal,
+            );
             for await (const chunk of stream) {
                 if (controller.signal.aborted) break;
                 this.appendToLast(chunk);

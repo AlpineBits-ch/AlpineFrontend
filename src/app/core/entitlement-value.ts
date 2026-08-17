@@ -21,8 +21,7 @@ export const ENTITLEMENT_VALUE_KEYS = {
 } as const;
 
 /** For the spec that proves every key above resolves in en.json. */
-export const ENTITLEMENT_VALUE_TRANSLATION_KEYS: readonly string[] =
-    Object.values(ENTITLEMENT_VALUE_KEYS);
+export const ENTITLEMENT_VALUE_TRANSLATION_KEYS: readonly string[] = Object.values(ENTITLEMENT_VALUE_KEYS);
 
 export interface EntitlementValueCopy {
     key: string;
@@ -79,9 +78,7 @@ export function entitlementValueCopy(
         }
         case 'flag':
             return {
-                key: value.granted
-                    ? ENTITLEMENT_VALUE_KEYS.included
-                    : ENTITLEMENT_VALUE_KEYS.notIncluded,
+                key: value.granted ? ENTITLEMENT_VALUE_KEYS.included : ENTITLEMENT_VALUE_KEYS.notIncluded,
                 params: {},
             };
         case 'ladder':

@@ -54,7 +54,13 @@ function render(): ComponentFixture<CallPanelComponent> {
             // module provides and none of which the resize/full-view behaviour under test touches.
             {
                 provide: ShareWatchService,
-                useValue: {setWatching: vi.fn(), refresh: vi.fn(), clear: vi.fn(), viewerCount: () => 0, viewersOf: () => []},
+                useValue: {
+                    setWatching: vi.fn(),
+                    refresh: vi.fn(),
+                    clear: vi.fn(),
+                    viewerCount: () => 0,
+                    viewersOf: () => [],
+                },
             },
             {
                 provide: CallSessionService,
@@ -66,8 +72,14 @@ function render(): ComponentFixture<CallPanelComponent> {
                         local: {isMuted: false, isDeafened: false, isCameraOn: false, isSharing: false},
                         participants: [
                             {
-                                userId: 'me', displayName: 'Me', avatarLabel: 'M', isLocal: true,
-                                isMuted: false, isSpeaking: false, isCameraOn: false, videoStream: undefined,
+                                userId: 'me',
+                                displayName: 'Me',
+                                avatarLabel: 'M',
+                                isLocal: true,
+                                isMuted: false,
+                                isSpeaking: false,
+                                isCameraOn: false,
+                                videoStream: undefined,
                             },
                         ],
                         screenShares: [],

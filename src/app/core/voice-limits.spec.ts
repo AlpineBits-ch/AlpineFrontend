@@ -73,20 +73,26 @@ describe('slot counts', () => {
 
     /** Edge: half a sentence is not a denominator, so a ceiling with no count draws nothing. */
     it('draws nothing when only one half arrived', () => {
-        expect(publisherSlotsOf({maxPublishers: {kind: 'numeric', value: 2, unlimited: false}}))
-            .toBeNull();
+        expect(publisherSlotsOf({maxPublishers: {kind: 'numeric', value: 2, unlimited: false}})).toBeNull();
         expect(publisherSlotsOf({publisherCount: 1})).toBeNull();
     });
 
     /** Negative: unlimited is not a number to put in a denominator. */
     it('draws nothing for an unlimited ceiling', () => {
-        expect(publisherSlotsOf({
-            maxPublishers: {kind: 'numeric', value: null, unlimited: true},
-            publisherCount: 4,
-        })).toBeNull();
-        expect(participantSlotsOf({
-            maxParticipants: {kind: 'numeric', value: null, unlimited: true},
-        }, 4)).toBeNull();
+        expect(
+            publisherSlotsOf({
+                maxPublishers: {kind: 'numeric', value: null, unlimited: true},
+                publisherCount: 4,
+            }),
+        ).toBeNull();
+        expect(
+            participantSlotsOf(
+                {
+                    maxParticipants: {kind: 'numeric', value: null, unlimited: true},
+                },
+                4,
+            ),
+        ).toBeNull();
     });
 
     /** A downgrade mid-call can leave more publishers in the room than the new plan allows. */
@@ -132,18 +138,20 @@ describe('whether video may start', () => {
 
 describe('the sentences', () => {
     it('names what was reduced, per catalogue key', () => {
-        expect(voiceSurfaceKey('voice.video_ceiling', {kind: 'ladder', rung: '720p30', rank: 2}))
-            .toBe('VOICE.DEGRADED.QUALITY_CAPPED');
-        expect(voiceSurfaceKey('voice.max_publishers', {kind: 'numeric', value: 2, unlimited: false}))
-            .toBe('VOICE.DEGRADED.PUBLISHERS_FULL');
-        expect(voiceSurfaceKey('voice.max_participants', null))
-            .toBe('VOICE.DEGRADED.ROOM_AT_LIMIT');
+        expect(voiceSurfaceKey('voice.video_ceiling', {kind: 'ladder', rung: '720p30', rank: 2})).toBe(
+            'VOICE.DEGRADED.QUALITY_CAPPED',
+        );
+        expect(voiceSurfaceKey('voice.max_publishers', {kind: 'numeric', value: 2, unlimited: false})).toBe(
+            'VOICE.DEGRADED.PUBLISHERS_FULL',
+        );
+        expect(voiceSurfaceKey('voice.max_participants', null)).toBe('VOICE.DEGRADED.ROOM_AT_LIMIT');
     });
 
     /** "Capped at none" would be the one place naming the rung is actively wrong. */
     it('says audio-only rather than capped when the rung granted is none', () => {
-        expect(voiceSurfaceKey('voice.video_ceiling', {kind: 'ladder', rung: AUDIO_ONLY_RUNG, rank: 0}))
-            .toBe(VIDEO_BLOCK_KEYS.audio_only);
+        expect(voiceSurfaceKey('voice.video_ceiling', {kind: 'ladder', rung: AUDIO_ONLY_RUNG, rank: 0})).toBe(
+            VIDEO_BLOCK_KEYS.audio_only,
+        );
     });
 
     /** A key this build has never heard of gets no sentence rather than a raw code. */

@@ -101,7 +101,10 @@ describe('start', () => {
         // the flag only after both id pairs have failed to match.
         vi.mocked(invoke).mockResolvedValue({slot: 'primary', mediaSessionId: 's', trackName: 'audio'});
         await publisher.start({
-            target: {kind: 'call', callId: 'call-1'}, apiBase: 'b', token: 't', deviceId: 'd',
+            target: {kind: 'call', callId: 'call-1'},
+            apiBase: 'b',
+            token: 't',
+            deviceId: 'd',
         });
         expect(payloadOf('voice_start')['callId']).toBe('call-1');
         expect(payloadOf('voice_start')['isle']).toBe(false);
@@ -119,7 +122,10 @@ describe('start', () => {
         const events: VoicePublisherEvent[] = [];
         vi.mocked(invoke).mockResolvedValueOnce({slot: 'primary', mediaSessionId: 's', trackName: 'audio'});
         await publisher.start({
-            target: {kind: 'isle'}, apiBase: 'b', token: 't', deviceId: 'd',
+            target: {kind: 'isle'},
+            apiBase: 'b',
+            token: 't',
+            deviceId: 'd',
             onEvent: e => events.push(e),
         });
 
@@ -161,8 +167,9 @@ describe('the settings push', () => {
         // The push while idle sends no command - the assertion above - so this is the only path by
         // which the user's chosen microphone reaches the engine at all.
         await started(processing({deviceId: 'Headset', sensitivity: 0.2}));
-        expect(payloadOf('voice_start')['settings'])
-            .toEqual(processing({deviceId: 'Headset', sensitivity: 0.2}));
+        expect(payloadOf('voice_start')['settings']).toEqual(
+            processing({deviceId: 'Headset', sensitivity: 0.2}),
+        );
     });
 });
 
@@ -174,8 +181,12 @@ describe('the per-call commands', () => {
         expect(payloadOf('voice_stop')).toEqual({slot: 'primary'});
 
         await publisher.subscribe(SESSION, 'user_a', 'their_sess', 'audio');
-        expect(payloadOf('voice_subscribe'))
-            .toEqual({slot: 'primary', id: 'user_a', mediaSessionId: 'their_sess', trackName: 'audio'});
+        expect(payloadOf('voice_subscribe')).toEqual({
+            slot: 'primary',
+            id: 'user_a',
+            mediaSessionId: 'their_sess',
+            trackName: 'audio',
+        });
 
         await publisher.unsubscribe(SESSION, 'user_a');
         expect(payloadOf('voice_unsubscribe')).toEqual({slot: 'primary', id: 'user_a'});
@@ -209,8 +220,12 @@ describe('the hardware commands', () => {
 describe('the spatial commands', () => {
     it('flattens the model into the four scalars the command takes', async () => {
         await publisher.setSpatialModel({refDistance: 2, rolloff: 1.6, maxDistance: 40, intensity: 0.8});
-        expect(payloadOf('voice_set_spatial_model'))
-            .toEqual({refDistance: 2, rolloff: 1.6, maxDistance: 40, intensity: 0.8});
+        expect(payloadOf('voice_set_spatial_model')).toEqual({
+            refDistance: 2,
+            rolloff: 1.6,
+            maxDistance: 40,
+            intensity: 0.8,
+        });
     });
 
     it('sends a position as three coordinates, and an un-place as three nulls', async () => {

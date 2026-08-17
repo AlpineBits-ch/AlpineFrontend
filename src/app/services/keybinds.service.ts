@@ -55,7 +55,8 @@ export class KeybindsService {
     setBinding(id: KeybindActionId, token: string | null): void {
         this.bindings.update(map => {
             const next = {...map};
-            if (token) next[id] = token; else delete next[id];
+            if (token) next[id] = token;
+            else delete next[id];
             localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
             return next;
         });
@@ -199,7 +200,7 @@ export class KeybindsService {
         let map: KeybindMap;
         try {
             const raw = localStorage.getItem(STORAGE_KEY);
-            map = raw ? JSON.parse(raw) as KeybindMap : this.migrateLegacyIsleBinding();
+            map = raw ? (JSON.parse(raw) as KeybindMap) : this.migrateLegacyIsleBinding();
         } catch {
             map = this.migrateLegacyIsleBinding();
         }
@@ -218,7 +219,7 @@ export class KeybindsService {
         try {
             const raw = localStorage.getItem(LEGACY_AUDIO_SETTINGS_KEY);
             if (!raw) return {};
-            const old = JSON.parse(raw) as { proximityPttKey?: string; proximityInputMode?: 'ptt' | 'toggle' };
+            const old = JSON.parse(raw) as {proximityPttKey?: string; proximityInputMode?: 'ptt' | 'toggle'};
             if (!old.proximityPttKey) return {};
             const id: KeybindActionId = old.proximityInputMode === 'toggle' ? 'isle-toggle-mute' : 'isle-ptt';
             return {[id]: old.proximityPttKey};
@@ -257,18 +258,28 @@ export class KeybindsService {
 // ── Keyboard-combo helpers, shared by both capture paths ───────────────────
 
 function isModifierCode(code: string): boolean {
-    return code === 'ControlLeft' || code === 'ControlRight'
-        || code === 'AltLeft' || code === 'AltRight'
-        || code === 'ShiftLeft' || code === 'ShiftRight'
-        || code === 'MetaLeft' || code === 'MetaRight';
+    return (
+        code === 'ControlLeft' ||
+        code === 'ControlRight' ||
+        code === 'AltLeft' ||
+        code === 'AltRight' ||
+        code === 'ShiftLeft' ||
+        code === 'ShiftRight' ||
+        code === 'MetaLeft' ||
+        code === 'MetaRight'
+    );
 }
 
 /** True for `KeyboardEvent.code` values the native `code_name_to_vk` can map. */
 function isBindableKeyCode(code: string): boolean {
-    return /^Key[A-Z]$/.test(code)
-        || /^Digit[0-9]$/.test(code)
-        || /^F([1-9]|1[0-9]|2[0-4])$/.test(code)
-        || code === 'Backquote' || code === 'Space' || code === 'Tab';
+    return (
+        /^Key[A-Z]$/.test(code) ||
+        /^Digit[0-9]$/.test(code) ||
+        /^F([1-9]|1[0-9]|2[0-4])$/.test(code) ||
+        code === 'Backquote' ||
+        code === 'Space' ||
+        code === 'Tab'
+    );
 }
 
 /** Bare-modifier token for the native hook (matches Rust `parse_token`). */

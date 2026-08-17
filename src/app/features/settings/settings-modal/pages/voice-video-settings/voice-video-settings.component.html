@@ -1,16 +1,18 @@
 <div class="flex flex-col gap-8 max-w-2xl">
-
     <!-- ── Microphone ────────────────────────────────────────────────────── -->
     <section class="flex flex-col gap-4">
-        <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">
-            Microphone
-        </h2>
+        <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">Microphone</h2>
 
         <div class="flex flex-col gap-1.5">
             <label class="text-xs font-medium text-white/45 uppercase tracking-wide">Input Device</label>
-            <p-select [(ngModel)]="selectedMicId" [options]="micOptions()" optionLabel="label"
-                      optionValue="value" placeholder="Select microphone"
-                      styleClass="w-full"/>
+            <p-select
+                [(ngModel)]="selectedMicId"
+                [options]="micOptions()"
+                optionLabel="label"
+                optionValue="value"
+                placeholder="Select microphone"
+                styleClass="w-full"
+            />
             <!-- Numbered stand-ins, not the real names. Actionable, so it is worth saying: starting
                  the mic test below grants the permission that reveals them. -->
             @if (deviceNamesWithheld()) {
@@ -25,12 +27,11 @@
                 <label class="text-xs font-medium text-white/45 uppercase tracking-wide">Input Volume</label>
                 <span class="text-xs text-white/40 tabular-nums">{{ inputVolume }}%</span>
             </div>
-            <p-slider [(ngModel)]="inputVolume" [max]="100" [min]="0" styleClass="w-full"/>
+            <p-slider [(ngModel)]="inputVolume" [max]="100" [min]="0" styleClass="w-full" />
         </div>
 
         <!-- Test card -->
         <div class="flex flex-col gap-4 bg-white/[0.03] border border-white/[0.10] rounded-xl p-4">
-
             <div class="flex items-center justify-between gap-4">
                 <div>
                     <p class="text-sm text-white/75">Input Level</p>
@@ -42,24 +43,27 @@
                         }
                     </p>
                 </div>
-                <button (click)="toggleMicTest()"
-                        [ngClass]="isMicActive()
-            ? 'bg-rose-500/15 border-rose-500/30 text-rose-400 hover:bg-rose-500/25'
-            : 'bg-[color-mix(in_srgb,var(--color-brand)_15%,transparent)] border-[color-mix(in_srgb,var(--color-brand)_30%,transparent)] text-[var(--color-brand-dim)] hover:bg-[color-mix(in_srgb,var(--color-brand)_25%,transparent)]'"
-                        class="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
-                 border cursor-pointer transition-all whitespace-nowrap">
+                <button
+                    (click)="toggleMicTest()"
+                    [ngClass]="
+                        isMicActive()
+                            ? 'bg-rose-500/15 border-rose-500/30 text-rose-400 hover:bg-rose-500/25'
+                            : 'bg-[color-mix(in_srgb,var(--color-brand)_15%,transparent)] border-[color-mix(in_srgb,var(--color-brand)_30%,transparent)] text-[var(--color-brand-dim)] hover:bg-[color-mix(in_srgb,var(--color-brand)_25%,transparent)]'
+                    "
+                    class="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border cursor-pointer transition-all whitespace-nowrap"
+                >
                     <i [class]="isMicActive() ? 'pi pi-stop-circle' : 'pi pi-microphone'" class="text-[11px]"></i>
                     {{ isMicActive() ? 'Stop' : 'Test Mic' }}
                 </button>
             </div>
 
             <!-- Volume meter -->
-            <div [class.opacity-30]="!isMicActive()"
-                 class="flex items-stretch gap-[3px] h-[18px] transition-opacity duration-300">
+            <div [class.opacity-30]="!isMicActive()" class="flex items-stretch gap-[3px] h-[18px] transition-opacity duration-300">
                 @for (bar of micBars; track $index; let i = $index) {
-                    <div [ngClass]="isMicBarActive(i) ? micBarClass(i) : 'bg-white/[0.08]'"
-                         class="flex-1 rounded-[2px] transition-colors duration-[60ms]">
-                    </div>
+                    <div
+                        [ngClass]="isMicBarActive(i) ? micBarClass(i) : 'bg-white/[0.08]'"
+                        class="flex-1 rounded-[2px] transition-colors duration-[60ms]"
+                    ></div>
                 }
             </div>
 
@@ -68,10 +72,9 @@
                 <div class="flex items-center justify-between pt-3 border-t border-white/[0.05]">
                     <div>
                         <p class="text-sm text-white/70">Hear yourself</p>
-                        <p class="text-xs text-white/30 mt-0.5">Routes your mic through the speakers -watch for
-                            feedback</p>
+                        <p class="text-xs text-white/30 mt-0.5">Routes your mic through the speakers -watch for feedback</p>
                     </div>
-                    <p-toggleswitch (ngModelChange)="onVoiceTestChange($event)" [ngModel]="isVoiceTesting()"/>
+                    <p-toggleswitch (ngModelChange)="onVoiceTestChange($event)" [ngModel]="isVoiceTesting()" />
                 </div>
             }
         </div>
@@ -86,25 +89,28 @@
 
     <!-- ── Input Mode ────────────────────────────────────────────────────── -->
     <section class="flex flex-col gap-3">
-        <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">
-            Input Mode
-        </h2>
+        <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">Input Mode</h2>
 
         <div class="flex flex-col gap-2">
             @for (opt of inputModeOptions; track opt.value) {
                 <!-- The push-to-talk row is disabled rather than dropped where no global hotkey exists:
                      it is the mode people arrive expecting, and the reason belongs next to it. -->
-                <label [class.opacity-50]="opt.value === 'push-to-talk' && !canPushToTalk"
-                       [class.cursor-pointer]="opt.value !== 'push-to-talk' || canPushToTalk"
-                       class="flex flex-col gap-1 bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
+                <label
+                    [class.opacity-50]="opt.value === 'push-to-talk' && !canPushToTalk"
+                    [class.cursor-pointer]="opt.value !== 'push-to-talk' || canPushToTalk"
+                    class="flex flex-col gap-1 bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3"
+                >
                     <div class="flex items-center justify-between">
                         <div>
                             <p class="text-sm text-white/75">{{ opt.label }}</p>
                             <p class="text-xs text-white/35 mt-0.5">{{ opt.desc }}</p>
                         </div>
-                        <p-radiobutton [(ngModel)]="inputMode"
-                                       [disabled]="opt.value === 'push-to-talk' && !canPushToTalk"
-                                       [value]="opt.value" name="inputMode"/>
+                        <p-radiobutton
+                            [(ngModel)]="inputMode"
+                            [disabled]="opt.value === 'push-to-talk' && !canPushToTalk"
+                            [value]="opt.value"
+                            name="inputMode"
+                        />
                     </div>
 
                     @if (opt.value === 'push-to-talk' && !canPushToTalk) {
@@ -120,16 +126,24 @@
             <div class="flex items-center justify-between gap-4 bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
                 <div>
                     <p class="text-sm text-white/75">Push-to-Talk Key</p>
-                    <p class="text-xs text-white/35 mt-0.5">Bind a key on the Keybinds page - if none is bound, the mic stays open the same as Voice Activity mode.</p>
+                    <p class="text-xs text-white/35 mt-0.5">
+                        Bind a key on the Keybinds page - if none is bound, the mic stays open the same as Voice Activity mode.
+                    </p>
                 </div>
-                <p-button (onClick)="openKeybinds.emit()" [text]="true" icon="pi pi-key" label="Open Keybinds" severity="secondary" size="small"/>
+                <p-button
+                    (onClick)="openKeybinds.emit()"
+                    [text]="true"
+                    icon="pi pi-key"
+                    label="Open Keybinds"
+                    severity="secondary"
+                    size="small"
+                />
             </div>
         }
 
         <!-- The browser gate's own sensitivity control. -->
         @if (capabilities.voiceActivityDetection && voiceActivityInForce()) {
-            <div class="flex flex-col gap-2 bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3"
-                 data-testid="vad-sensitivity">
+            <div class="flex flex-col gap-2 bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3" data-testid="vad-sensitivity">
                 <div class="flex items-center justify-between">
                     <p class="text-sm text-white/75">{{ 'SETTINGS.VOICE.VAD_SENSITIVITY' | translate }}</p>
                     <span class="text-xs text-white/40 tabular-nums">{{ voiceThreshold }}%</span>
@@ -138,18 +152,24 @@
 
                 <!-- Level and cutoff on one axis, both mapped through `vadMeterScale`. -->
                 <div class="relative mt-2 h-3 w-full rounded-full bg-white/[0.06]">
-                    <div [style.width.%]="vadAmberPercent()"
-                         class="absolute inset-y-0 left-0 rounded-full bg-amber-500/80 transition-[width] duration-75"></div>
-                    <div [style.left.%]="vadCutoffPercent()"
-                         [style.width.%]="vadGreenPercent()"
-                         class="absolute inset-y-0 rounded-full bg-emerald-400 transition-[width] duration-75"></div>
-                    <div [class.ring-emerald-400]="vadOpen()"
-                         [class.ring-white/20]="!vadOpen()"
-                         [style.left.%]="vadCutoffPercent()"
-                         class="absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow ring-2"></div>
+                    <div
+                        [style.width.%]="vadAmberPercent()"
+                        class="absolute inset-y-0 left-0 rounded-full bg-amber-500/80 transition-[width] duration-75"
+                    ></div>
+                    <div
+                        [style.left.%]="vadCutoffPercent()"
+                        [style.width.%]="vadGreenPercent()"
+                        class="absolute inset-y-0 rounded-full bg-emerald-400 transition-[width] duration-75"
+                    ></div>
+                    <div
+                        [class.ring-emerald-400]="vadOpen()"
+                        [class.ring-white/20]="!vadOpen()"
+                        [style.left.%]="vadCutoffPercent()"
+                        class="absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow ring-2"
+                    ></div>
                 </div>
 
-                <p-slider [(ngModel)]="voiceThreshold" [max]="100" [min]="0" styleClass="w-full mt-2"/>
+                <p-slider [(ngModel)]="voiceThreshold" [max]="100" [min]="0" styleClass="w-full mt-2" />
 
                 @if (!vadRunning()) {
                     <p class="text-[0.6875rem] text-white/25" data-testid="vad-idle">
@@ -167,36 +187,45 @@
                     <p class="text-sm text-white/75">Input Sensitivity</p>
                     <span class="text-xs text-white/40 tabular-nums">{{ voiceThreshold }}%</span>
                 </div>
-                <p class="text-xs text-white/35 -mt-1">The handle is where your voice cuts off. Talk normally: the
-                    bar turns green when you are being heard. Drag right if background noise gets through, left if
-                    your words get clipped.</p>
+                <p class="text-xs text-white/35 -mt-1">
+                    The handle is where your voice cuts off. Talk normally: the bar turns green when you are being heard. Drag right if
+                    background noise gets through, left if your words get clipped.
+                </p>
 
                 <!-- The handle sits on the same axis as the bar. -->
-                <div #meterTrack
-                     (keydown)="onMeterKeyDown($event)"
-                     (pointercancel)="onMeterPointerUp()"
-                     (pointerdown)="onMeterPointerDown($event, meterTrack)"
-                     (pointermove)="onMeterPointerMove($event, meterTrack)"
-                     (pointerup)="onMeterPointerUp()"
-                     [attr.aria-valuenow]="voiceThreshold"
-                     aria-label="Input sensitivity cutoff"
-                     aria-valuemax="100"
-                     aria-valuemin="0"
-                     class="relative mt-2 h-3 w-full cursor-pointer touch-none select-none rounded-full bg-white/[0.06]"
-                     role="slider"
-                     tabindex="0">
+                <div
+                    #meterTrack
+                    (keydown)="onMeterKeyDown($event)"
+                    (pointercancel)="onMeterPointerUp()"
+                    (pointerdown)="onMeterPointerDown($event, meterTrack)"
+                    (pointermove)="onMeterPointerMove($event, meterTrack)"
+                    (pointerup)="onMeterPointerUp()"
+                    [attr.aria-valuenow]="voiceThreshold"
+                    aria-label="Input sensitivity cutoff"
+                    aria-valuemax="100"
+                    aria-valuemin="0"
+                    class="relative mt-2 h-3 w-full cursor-pointer touch-none select-none rounded-full bg-white/[0.06]"
+                    role="slider"
+                    tabindex="0"
+                >
                     <!-- Below the cutoff: heard, but not transmitted. -->
-                    <div [style.width.%]="amberPercent()"
-                         class="absolute inset-y-0 left-0 rounded-full bg-amber-500/80 transition-[width] duration-75"></div>
+                    <div
+                        [style.width.%]="amberPercent()"
+                        class="absolute inset-y-0 left-0 rounded-full bg-amber-500/80 transition-[width] duration-75"
+                    ></div>
                     <!-- Past the cutoff: on air. -->
-                    <div [style.left.%]="cutoffPercent()"
-                         [style.width.%]="greenPercent()"
-                         class="absolute inset-y-0 rounded-full bg-emerald-400 transition-[width] duration-75"></div>
+                    <div
+                        [style.left.%]="cutoffPercent()"
+                        [style.width.%]="greenPercent()"
+                        class="absolute inset-y-0 rounded-full bg-emerald-400 transition-[width] duration-75"
+                    ></div>
 
-                    <div [class.ring-emerald-400]="overCutoff()"
-                         [class.ring-white/20]="!overCutoff()"
-                         [style.left.%]="cutoffPercent()"
-                         class="absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow ring-2"></div>
+                    <div
+                        [class.ring-emerald-400]="overCutoff()"
+                        [class.ring-white/20]="!overCutoff()"
+                        [style.left.%]="cutoffPercent()"
+                        class="absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow ring-2"
+                    ></div>
                 </div>
 
                 @if (!metering()) {
@@ -208,17 +237,20 @@
 
     <!-- ── Speaker ───────────────────────────────────────────────────────── -->
     <section class="flex flex-col gap-4">
-        <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">
-            Speaker
-        </h2>
+        <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">Speaker</h2>
 
         <!-- Gated on `outputSupport().selectable`, never on the list being empty. -->
         @if (outputSelectable()) {
             <div class="flex flex-col gap-1.5" data-testid="output-picker">
                 <label class="text-xs font-medium text-white/45 uppercase tracking-wide">Output Device</label>
-                <p-select [(ngModel)]="selectedSpeakerId" [options]="speakerOptions()" optionLabel="label"
-                          optionValue="value" placeholder="Select speaker"
-                          styleClass="w-full"/>
+                <p-select
+                    [(ngModel)]="selectedSpeakerId"
+                    [options]="speakerOptions()"
+                    optionLabel="label"
+                    optionValue="value"
+                    placeholder="Select speaker"
+                    styleClass="w-full"
+                />
                 @if (deviceNamesWithheld()) {
                     <p class="text-[0.6875rem] text-white/25">
                         {{ 'SETTINGS.VOICE.DEVICE_NAMES_WITHHELD' | translate }}
@@ -236,21 +268,24 @@
                 <label class="text-xs font-medium text-white/45 uppercase tracking-wide">Output Volume</label>
                 <span class="text-xs text-white/40 tabular-nums">{{ outputVolume }}%</span>
             </div>
-            <p-slider [(ngModel)]="outputVolume" [max]="100" [min]="0" styleClass="w-full"/>
+            <p-slider [(ngModel)]="outputVolume" [max]="100" [min]="0" styleClass="w-full" />
         </div>
     </section>
 
     <!-- ── Camera ────────────────────────────────────────────────────────── -->
     <section class="flex flex-col gap-4">
-        <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">
-            Camera
-        </h2>
+        <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">Camera</h2>
 
         <div class="flex flex-col gap-1.5">
             <label class="text-xs font-medium text-white/45 uppercase tracking-wide">Video Device</label>
-            <p-select [(ngModel)]="selectedCameraId" [options]="cameraOptions()" optionLabel="label"
-                      optionValue="value" placeholder="Select camera"
-                      styleClass="w-full"/>
+            <p-select
+                [(ngModel)]="selectedCameraId"
+                [options]="cameraOptions()"
+                optionLabel="label"
+                optionValue="value"
+                placeholder="Select camera"
+                styleClass="w-full"
+            />
         </div>
 
         <!-- Preview card -->
@@ -266,34 +301,39 @@
                         }
                     </p>
                 </div>
-                <button (click)="toggleCameraTest()"
-                        [ngClass]="isCameraActive()
-            ? 'bg-rose-500/15 border-rose-500/30 text-rose-400 hover:bg-rose-500/25'
-            : 'bg-[color-mix(in_srgb,var(--color-brand)_15%,transparent)] border-[color-mix(in_srgb,var(--color-brand)_30%,transparent)] text-[var(--color-brand-dim)] hover:bg-[color-mix(in_srgb,var(--color-brand)_25%,transparent)]'"
-                        class="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
-                 border cursor-pointer transition-all whitespace-nowrap">
+                <button
+                    (click)="toggleCameraTest()"
+                    [ngClass]="
+                        isCameraActive()
+                            ? 'bg-rose-500/15 border-rose-500/30 text-rose-400 hover:bg-rose-500/25'
+                            : 'bg-[color-mix(in_srgb,var(--color-brand)_15%,transparent)] border-[color-mix(in_srgb,var(--color-brand)_30%,transparent)] text-[var(--color-brand-dim)] hover:bg-[color-mix(in_srgb,var(--color-brand)_25%,transparent)]'
+                    "
+                    class="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border cursor-pointer transition-all whitespace-nowrap"
+                >
                     <i [class]="isCameraActive() ? 'pi pi-stop-circle' : 'pi pi-video'" class="text-[11px]"></i>
                     {{ isCameraActive() ? 'Stop' : 'Test Camera' }}
                 </button>
             </div>
 
             @if (isCameraActive() && cameraStream(); as stream) {
-                <video [streamSrc]="stream" autoplay class="w-full aspect-video rounded-lg bg-black object-cover"
-                       muted playsinline></video>
+                <video [streamSrc]="stream" autoplay class="w-full aspect-video rounded-lg bg-black object-cover" muted playsinline></video>
             }
         </div>
     </section>
 
     <!-- ── Voice Processing ──────────────────────────────────────────────── -->
     <section class="flex flex-col gap-3">
-        <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">
-            Voice Processing
-        </h2>
+        <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">Voice Processing</h2>
 
         <div class="flex flex-col gap-1.5">
             <label class="text-xs font-medium text-white/45 uppercase tracking-wide">Noise Suppression</label>
-            <p-select [(ngModel)]="noiseSuppressionMode" [options]="noiseSuppressionOptions" optionLabel="label"
-                      optionValue="value" styleClass="w-full"/>
+            <p-select
+                [(ngModel)]="noiseSuppressionMode"
+                [options]="noiseSuppressionOptions"
+                optionLabel="label"
+                optionValue="value"
+                styleClass="w-full"
+            />
             <p class="text-[0.6875rem] text-white/25">
                 Standard uses your browser's filter. Enhanced runs RNNoise in the desktop app for AI-grade denoising.
             </p>
@@ -304,16 +344,15 @@
                 <p class="text-sm text-white/75">Echo Cancellation</p>
                 <p class="text-xs text-white/35 mt-0.5">Prevent your speakers from feeding back into your mic</p>
             </div>
-            <p-toggleswitch [(ngModel)]="echoCancellation"/>
+            <p-toggleswitch [(ngModel)]="echoCancellation" />
         </div>
 
         <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
             <div>
                 <p class="text-sm text-white/75">Auto Gain Control</p>
-                <p class="text-xs text-white/35 mt-0.5">Automatically adjust mic sensitivity to keep a consistent
-                    level</p>
+                <p class="text-xs text-white/35 mt-0.5">Automatically adjust mic sensitivity to keep a consistent level</p>
             </div>
-            <p-toggleswitch [(ngModel)]="autoGainControl"/>
+            <p-toggleswitch [(ngModel)]="autoGainControl" />
         </div>
 
         @if (noiseSuppressionMode === 'enhanced') {
@@ -322,15 +361,14 @@
                     <p class="text-sm text-white/75">Voice Gate Strength</p>
                     <span class="text-xs text-white/40 tabular-nums">{{ vadStrength }}%</span>
                 </div>
-                <p class="text-xs text-white/35 -mt-1">Suppress audio frames below this voice activity threshold -
-                    raise to cut ambient sound between words</p>
-                <p-slider [(ngModel)]="vadStrength" [max]="100" [min]="0" [step]="5" styleClass="w-full mt-1"/>
+                <p class="text-xs text-white/35 -mt-1">
+                    Suppress audio frames below this voice activity threshold - raise to cut ambient sound between words
+                </p>
+                <p-slider [(ngModel)]="vadStrength" [max]="100" [min]="0" [step]="5" styleClass="w-full mt-1" />
             </div>
         }
 
-        <p class="text-[0.6875rem] text-white/25 pt-1">
-            Processing changes take effect the next time you start a mic test or join a call.
-        </p>
+        <p class="text-[0.6875rem] text-white/25 pt-1">Processing changes take effect the next time you start a mic test or join a call.</p>
     </section>
 
     <!-- ── Isle Proximity Voice ──────────────────────────────────────────── -->
@@ -341,15 +379,22 @@
 
         <!-- Keybinds pointer. -->
         @if (canPushToTalk) {
-            <div class="flex items-center justify-between gap-4 bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3"
-                 data-testid="isle-keybinds-link">
+            <div
+                class="flex items-center justify-between gap-4 bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3"
+                data-testid="isle-keybinds-link"
+            >
                 <div>
                     <p class="text-sm text-white/75">Push-to-Talk, Toggle Mute &amp; Push-to-Mute</p>
-                    <p class="text-xs text-white/35 mt-0.5">Bind these (and the same for regular voice calls) from the
-                        Keybinds page.</p>
+                    <p class="text-xs text-white/35 mt-0.5">Bind these (and the same for regular voice calls) from the Keybinds page.</p>
                 </div>
-                <p-button (onClick)="openKeybinds.emit()" [text]="true" icon="pi pi-key" label="Open Keybinds"
-                          severity="secondary" size="small"/>
+                <p-button
+                    (onClick)="openKeybinds.emit()"
+                    [text]="true"
+                    icon="pi pi-key"
+                    label="Open Keybinds"
+                    severity="secondary"
+                    size="small"
+                />
             </div>
         }
 
@@ -357,10 +402,9 @@
         <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
             <div>
                 <p class="text-sm text-white/75">Spatial Audio</p>
-                <p class="text-xs text-white/35 mt-0.5">Position voices in 3D by in-game location. Off = distance-only
-                    volume.</p>
+                <p class="text-xs text-white/35 mt-0.5">Position voices in 3D by in-game location. Off = distance-only volume.</p>
             </div>
-            <p-toggleswitch [(ngModel)]="proximitySpatial"/>
+            <p-toggleswitch [(ngModel)]="proximitySpatial" />
         </div>
 
         <!-- Proximity volume -->
@@ -369,21 +413,21 @@
                 <p class="text-sm text-white/75">Proximity Volume</p>
                 <span class="text-xs text-white/40 tabular-nums">{{ proximityVolume }}%</span>
             </div>
-            <p-slider [(ngModel)]="proximityVolume" [max]="100" [min]="0" styleClass="w-full mt-1"/>
+            <p-slider [(ngModel)]="proximityVolume" [max]="100" [min]="0" styleClass="w-full mt-1" />
         </div>
 
         <!-- Microphone boost -->
         <div class="flex flex-col gap-2 bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
             <div class="flex items-center justify-between">
                 <p class="text-sm text-white/75">Microphone Boost</p>
-                <span class="text-xs tabular-nums"
-                      [ngClass]="proximityMicBoost > 100 ? 'text-amber-400' : 'text-white/40'">
+                <span class="text-xs tabular-nums" [ngClass]="proximityMicBoost > 100 ? 'text-amber-400' : 'text-white/40'">
                     {{ proximityMicBoost }}%
                 </span>
             </div>
-            <p class="text-xs text-white/35 -mt-1">How loud others hear you. Above 100% amplifies your mic -
-                raise it if you're too quiet, but very high levels can clip.</p>
-            <p-slider [(ngModel)]="proximityMicBoost" [max]="200" [min]="0" [step]="5" styleClass="w-full mt-1"/>
+            <p class="text-xs text-white/35 -mt-1">
+                How loud others hear you. Above 100% amplifies your mic - raise it if you're too quiet, but very high levels can clip.
+            </p>
+            <p-slider [(ngModel)]="proximityMicBoost" [max]="200" [min]="0" [step]="5" styleClass="w-full mt-1" />
         </div>
 
         <!-- Said only on the host it is true of. -->
@@ -393,5 +437,4 @@
             </p>
         }
     </section>
-
 </div>

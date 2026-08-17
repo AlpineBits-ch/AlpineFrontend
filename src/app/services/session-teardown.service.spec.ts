@@ -41,8 +41,12 @@ function mlsStub() {
             calls.push('clearStorage');
             return of(undefined as void);
         },
-        clearGroupRegistry: async () => { calls.push('clearGroupRegistry'); },
-        clearMessageCache: async () => { calls.push('clearMessageCache'); },
+        clearGroupRegistry: async () => {
+            calls.push('clearGroupRegistry');
+        },
+        clearMessageCache: async () => {
+            calls.push('clearMessageCache');
+        },
     };
 }
 
@@ -50,9 +54,7 @@ function deviceStub() {
     return {
         resetKeyPackages: (deviceId: string) => {
             calls.push(`resetKeyPackages:${deviceId}`);
-            return resetFails
-                ? throwError(() => new Error('server unreachable'))
-                : of({deletedCount: 3});
+            return resetFails ? throwError(() => new Error('server unreachable')) : of({deletedCount: 3});
         },
     };
 }
@@ -83,7 +85,7 @@ beforeEach(() => {
     resetFails = false;
     unloadFails = false;
     profiles = {cachePersist: () => calls.push('persist')};
-    vi.spyOn(console, 'error').mockImplementation(() => { });
+    vi.spyOn(console, 'error').mockImplementation(() => {});
 });
 
 afterEach(() => vi.restoreAllMocks());
@@ -123,8 +125,9 @@ describe('wipeAccount', () => {
 
         await service.wipeAccount(DEVICE_ID);
 
-        expect(calls.indexOf('unloadSigningKey:handle-1'))
-            .toBeLessThan(calls.indexOf(`clearStoredSigningKey:${DEVICE_ID}`));
+        expect(calls.indexOf('unloadSigningKey:handle-1')).toBeLessThan(
+            calls.indexOf(`clearStoredSigningKey:${DEVICE_ID}`),
+        );
     });
 
     it('drops the session handle so nothing can keep acting as the wiped account', async () => {
@@ -182,7 +185,7 @@ describe('wipeAccount', () => {
      * the outgoing account's hook stays live: every profile the *next* account resolves would be
      * written through it, from the moment it signs in until its own hydration replaces it.
      */
-    it('uninstalls the write-behind hook, so it cannot write the next account\'s profiles', async () => {
+    it("uninstalls the write-behind hook, so it cannot write the next account's profiles", async () => {
         const service = build();
 
         await service.wipeAccount(DEVICE_ID);
@@ -236,8 +239,7 @@ describe('wipeEngineState', () => {
         const service = build();
         resetFails = true;
 
-        await expect(service.wipeEngineState(DEVICE_ID))
-            .resolves.toEqual({keyPackagesReset: false});
+        await expect(service.wipeEngineState(DEVICE_ID)).resolves.toEqual({keyPackagesReset: false});
     });
 
     /**

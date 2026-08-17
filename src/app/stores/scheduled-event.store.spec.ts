@@ -4,7 +4,12 @@ import {ScheduledEventStore} from './scheduled-event.store';
 import {ScheduledEventService} from '../services/scheduled-event.service';
 import {ScheduledEventDto, ScheduledEventStatus} from '../dtos/response/scheduled-event.dto';
 import {CreateScheduledEventDto, UpdateScheduledEventDto} from '../dtos/request/scheduled-event.dto';
-import {GuildWebsocketService, WsEventCancelled, WsEventCreated, WsEventUpdated} from '../services/guild-websocket.service';
+import {
+    GuildWebsocketService,
+    WsEventCancelled,
+    WsEventCreated,
+    WsEventUpdated,
+} from '../services/guild-websocket.service';
 
 function event(id: string, overrides: Partial<ScheduledEventDto> = {}): ScheduledEventDto {
     return {
@@ -176,7 +181,12 @@ describe('ScheduledEventStore', () => {
         expect(api.requestCount).toBe(1);
 
         // Someone creates an event while the original request is still in flight.
-        ws.eventCreatedObservable.next({guildId: 'g1', eventId: 'e2', title: 'New', startsAt: '2026-08-05T00:00:00Z'});
+        ws.eventCreatedObservable.next({
+            guildId: 'g1',
+            eventId: 'e2',
+            title: 'New',
+            startsAt: '2026-08-05T00:00:00Z',
+        });
 
         // The refetch is queued, not fired on top of the in-flight request.
         expect(api.requestCount).toBe(1);
@@ -196,7 +206,12 @@ describe('ScheduledEventStore', () => {
         const {api, ws, store} = setup();
 
         store.loadFor('g1');
-        ws.eventCreatedObservable.next({guildId: 'g1', eventId: 'e2', title: 'New', startsAt: '2026-08-05T00:00:00Z'});
+        ws.eventCreatedObservable.next({
+            guildId: 'g1',
+            eventId: 'e2',
+            title: 'New',
+            startsAt: '2026-08-05T00:00:00Z',
+        });
         api.listPending[0].error(new Error('boom'));
 
         expect(api.requestCount).toBe(2);
@@ -205,7 +220,12 @@ describe('ScheduledEventStore', () => {
     it('ignores realtime events for guilds that were never loaded', () => {
         const {api, ws, store} = setup();
 
-        ws.eventCreatedObservable.next({guildId: 'other', eventId: 'x', title: 'Elsewhere', startsAt: '2026-08-05T00:00:00Z'});
+        ws.eventCreatedObservable.next({
+            guildId: 'other',
+            eventId: 'x',
+            title: 'Elsewhere',
+            startsAt: '2026-08-05T00:00:00Z',
+        });
 
         // No GET for a guild nobody has opened, and no entities accumulated for it.
         expect(api.requestCount).toBe(0);
@@ -238,7 +258,11 @@ describe('ScheduledEventStore', () => {
 
         const ev = store.eventsForGuild('g1')[0];
         let caughtError: unknown;
-        store.toggleInterest(ev).subscribe({error: err => { caughtError = err; }});
+        store.toggleInterest(ev).subscribe({
+            error: err => {
+                caughtError = err;
+            },
+        });
 
         // Optimistic update is applied synchronously, before the request settles - but
         // only because the caller subscribed (toggleInterest is a cold Observable).
@@ -325,7 +349,11 @@ describe('ScheduledEventStore', () => {
         api.listPending[0].complete();
 
         let caughtError: unknown;
-        store.cancel('e1').subscribe({error: err => { caughtError = err; }});
+        store.cancel('e1').subscribe({
+            error: err => {
+                caughtError = err;
+            },
+        });
 
         expect(caughtError).toBeInstanceOf(Error);
         expect(store.eventsForGuild('g1').map(e => e.id)).toEqual(['e1', 'e2']);
@@ -359,7 +387,12 @@ describe('ScheduledEventStore', () => {
         api.listPending[0].complete();
         expect(api.requestCount).toBe(1);
 
-        ws.eventCreatedObservable.next({guildId: 'g1', eventId: 'e2', title: 'New event', startsAt: '2026-08-05T00:00:00Z'});
+        ws.eventCreatedObservable.next({
+            guildId: 'g1',
+            eventId: 'e2',
+            title: 'New event',
+            startsAt: '2026-08-05T00:00:00Z',
+        });
 
         // A refetch was triggered rather than synthesizing a partial entity from the
         // realtime payload (it lacks interestedCount/isInterested).

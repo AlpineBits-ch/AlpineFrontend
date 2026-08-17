@@ -98,9 +98,10 @@ export class PaymentElementComponent {
         const validation = await elements.submit();
         if (validation.error) return refusal(validation.error.message);
 
-        const result = intent === 'setup'
-            ? await stripe.confirmSetup({elements, redirect: 'if_required'})
-            : await stripe.confirmPayment({elements, redirect: 'if_required'});
+        const result =
+            intent === 'setup'
+                ? await stripe.confirmSetup({elements, redirect: 'if_required'})
+                : await stripe.confirmPayment({elements, redirect: 'if_required'});
 
         return result.error ? refusal(result.error.message) : null;
     }

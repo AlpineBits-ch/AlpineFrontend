@@ -38,24 +38,28 @@ function coverage(overrides: Partial<MlsCoverageDto> = {}): MlsCoverageDto {
     };
 }
 
-function setup(options: {
-    /**
-     * Which generations this device holds a group for. The cross-check asks for the one the
-     * server's answer was computed against, so holding generation 1 says nothing about 2.
-     */
-    groupsByGeneration?: Record<number, string>;
-    /** Fallback for an answer that names no generation at all. */
-    activeGroupId?: string | null;
-    /** The generation this device believes the context is on. */
-    knownGeneration?: number | null;
-} = {}) {
+function setup(
+    options: {
+        /**
+         * Which generations this device holds a group for. The cross-check asks for the one the
+         * server's answer was computed against, so holding generation 1 says nothing about 2.
+         */
+        groupsByGeneration?: Record<number, string>;
+        /** Fallback for an answer that names no generation at all. */
+        activeGroupId?: string | null;
+        /** The generation this device believes the context is on. */
+        knownGeneration?: number | null;
+    } = {},
+) {
     const {groupsByGeneration = {2: 'group-1'}, knownGeneration = 2} = options;
-    const activeGroupId = options.activeGroupId
-        ?? (knownGeneration === null ? null : groupsByGeneration[knownGeneration] ?? null);
+    const activeGroupId =
+        options.activeGroupId ??
+        (knownGeneration === null ? null : (groupsByGeneration[knownGeneration] ?? null));
 
     const getActiveGroupId = vi.fn(async () => activeGroupId);
-    const getGroupId = vi.fn(async (_contextId: string, generation: number) =>
-        groupsByGeneration[generation] ?? null);
+    const getGroupId = vi.fn(
+        async (_contextId: string, generation: number) => groupsByGeneration[generation] ?? null,
+    );
     const getKnownGeneration = vi.fn(async () => knownGeneration);
     const contextChanged = new Subject<{contextId: string; isChannel: boolean; selfRemoved: boolean}>();
 
@@ -89,19 +93,21 @@ function setup(options: {
 describe('MlsCoverageService', () => {
     beforeEach(() => TestBed.resetTestingModule());
 
-    describe('reading the server\'s answer', () => {
-        it('separates this device, the account\'s other devices and other people\'s', async () => {
+    describe("reading the server's answer", () => {
+        it("separates this device, the account's other devices and other people's", async () => {
             const {service, ctrl} = setup({groupsByGeneration: {}});
 
             const pending = service.refresh(CONVERSATION, false);
-            ctrl.expectOne(CONVERSATION_URL).flush(coverage({
-                ownDevices: [
-                    {deviceId: THIS_DEVICE, deviceName: 'This laptop', covered: false},
-                    {deviceId: OTHER_DEVICE, deviceName: 'Pixel 8', covered: false},
-                    {deviceId: 'device-fine', deviceName: 'iPad', covered: true},
-                ],
-                unreachableDevices: [{userId: 'usr-2', deviceId: 'device-peer', deviceName: 'iPhone 15'}],
-            }));
+            ctrl.expectOne(CONVERSATION_URL).flush(
+                coverage({
+                    ownDevices: [
+                        {deviceId: THIS_DEVICE, deviceName: 'This laptop', covered: false},
+                        {deviceId: OTHER_DEVICE, deviceName: 'Pixel 8', covered: false},
+                        {deviceId: 'device-fine', deviceName: 'iPad', covered: true},
+                    ],
+                    unreachableDevices: [{userId: 'usr-2', deviceId: 'device-peer', deviceName: 'iPhone 15'}],
+                }),
+            );
             await pending;
 
             const view = service.coverageOf(CONVERSATION)!;
@@ -161,9 +167,11 @@ describe('MlsCoverageService', () => {
             const {service, ctrl} = setup({groupsByGeneration: {2: 'group-1'}});
 
             const pending = service.refresh(CONVERSATION, false);
-            ctrl.expectOne(CONVERSATION_URL).flush(coverage({
-                ownDevices: [{deviceId: THIS_DEVICE, deviceName: 'This laptop', covered: false}],
-            }));
+            ctrl.expectOne(CONVERSATION_URL).flush(
+                coverage({
+                    ownDevices: [{deviceId: THIS_DEVICE, deviceName: 'This laptop', covered: false}],
+                }),
+            );
             await pending;
 
             expect(service.coverageOf(CONVERSATION)?.thisDeviceExcluded).toBe(false);
@@ -173,9 +181,11 @@ describe('MlsCoverageService', () => {
             const {service, ctrl} = setup({groupsByGeneration: {}});
 
             const pending = service.refresh(CONVERSATION, false);
-            ctrl.expectOne(CONVERSATION_URL).flush(coverage({
-                ownDevices: [{deviceId: THIS_DEVICE, deviceName: 'This laptop', covered: false}],
-            }));
+            ctrl.expectOne(CONVERSATION_URL).flush(
+                coverage({
+                    ownDevices: [{deviceId: THIS_DEVICE, deviceName: 'This laptop', covered: false}],
+                }),
+            );
             await pending;
 
             expect(service.coverageOf(CONVERSATION)?.thisDeviceExcluded).toBe(true);
@@ -190,10 +200,12 @@ describe('MlsCoverageService', () => {
             const {service, ctrl} = setup({groupsByGeneration: {1: 'group-old'}, knownGeneration: 1});
 
             const pending = service.refresh(CONVERSATION, false);
-            ctrl.expectOne(CONVERSATION_URL).flush(coverage({
-                generation: 2,
-                ownDevices: [{deviceId: THIS_DEVICE, deviceName: 'This laptop', covered: false}],
-            }));
+            ctrl.expectOne(CONVERSATION_URL).flush(
+                coverage({
+                    generation: 2,
+                    ownDevices: [{deviceId: THIS_DEVICE, deviceName: 'This laptop', covered: false}],
+                }),
+            );
             await pending;
 
             expect(service.coverageOf(CONVERSATION)?.thisDeviceExcluded).toBe(true);
@@ -206,10 +218,12 @@ describe('MlsCoverageService', () => {
             });
 
             const pending = service.refresh(CONVERSATION, false);
-            ctrl.expectOne(CONVERSATION_URL).flush(coverage({
-                generation: 2,
-                ownDevices: [{deviceId: THIS_DEVICE, deviceName: 'This laptop', covered: false}],
-            }));
+            ctrl.expectOne(CONVERSATION_URL).flush(
+                coverage({
+                    generation: 2,
+                    ownDevices: [{deviceId: THIS_DEVICE, deviceName: 'This laptop', covered: false}],
+                }),
+            );
             await pending;
 
             expect(service.coverageOf(CONVERSATION)?.thisDeviceExcluded).toBe(false);
@@ -220,10 +234,12 @@ describe('MlsCoverageService', () => {
             const {service, ctrl} = setup({groupsByGeneration: {2: 'group-now'}, knownGeneration: 2});
 
             const pending = service.refresh(CONVERSATION, false);
-            ctrl.expectOne(CONVERSATION_URL).flush(coverage({
-                generation: null,
-                ownDevices: [{deviceId: THIS_DEVICE, deviceName: 'This laptop', covered: false}],
-            }));
+            ctrl.expectOne(CONVERSATION_URL).flush(
+                coverage({
+                    generation: null,
+                    ownDevices: [{deviceId: THIS_DEVICE, deviceName: 'This laptop', covered: false}],
+                }),
+            );
             await pending;
 
             expect(service.coverageOf(CONVERSATION)?.thisDeviceExcluded).toBe(false);
@@ -237,14 +253,16 @@ describe('MlsCoverageService', () => {
             const {service, ctrl} = setup({groupsByGeneration: {}, knownGeneration: null});
 
             const pending = service.refresh(CONVERSATION, false);
-            ctrl.expectOne(CONVERSATION_URL).flush(coverage({
-                encrypted: false,
-                generation: null,
-                // Deliberately non-empty: even if the server sent verdicts, an unencrypted context
-                // has nothing anyone can be excluded from.
-                ownDevices: [{deviceId: THIS_DEVICE, deviceName: 'This laptop', covered: false}],
-                unreachableDevices: [{userId: 'usr-2', deviceId: 'd', deviceName: 'iPhone 15'}],
-            }));
+            ctrl.expectOne(CONVERSATION_URL).flush(
+                coverage({
+                    encrypted: false,
+                    generation: null,
+                    // Deliberately non-empty: even if the server sent verdicts, an unencrypted context
+                    // has nothing anyone can be excluded from.
+                    ownDevices: [{deviceId: THIS_DEVICE, deviceName: 'This laptop', covered: false}],
+                    unreachableDevices: [{userId: 'usr-2', deviceId: 'd', deviceName: 'iPhone 15'}],
+                }),
+            );
             await pending;
 
             const view = service.coverageOf(CONVERSATION)!;
@@ -261,18 +279,22 @@ describe('MlsCoverageService', () => {
             const {service, ctrl} = setup({groupsByGeneration: {}});
 
             const first = service.refresh(CONVERSATION, false);
-            ctrl.expectOne(CONVERSATION_URL).flush(coverage({
-                ownDevices: [{deviceId: THIS_DEVICE, deviceName: 'This laptop', covered: false}],
-                unreachableDevices: [{userId: 'usr-2', deviceId: 'd', deviceName: 'iPhone 15'}],
-            }));
+            ctrl.expectOne(CONVERSATION_URL).flush(
+                coverage({
+                    ownDevices: [{deviceId: THIS_DEVICE, deviceName: 'This laptop', covered: false}],
+                    unreachableDevices: [{userId: 'usr-2', deviceId: 'd', deviceName: 'iPhone 15'}],
+                }),
+            );
             await first;
 
             const second = service.refresh(CONVERSATION, false);
-            ctrl.expectOne(CONVERSATION_URL).flush(coverage({
-                coverageUnavailable: true,
-                ownDevices: [],
-                unreachableDevices: [],
-            }));
+            ctrl.expectOne(CONVERSATION_URL).flush(
+                coverage({
+                    coverageUnavailable: true,
+                    ownDevices: [],
+                    unreachableDevices: [],
+                }),
+            );
             await second;
 
             const view = service.coverageOf(CONVERSATION)!;
@@ -285,9 +307,13 @@ describe('MlsCoverageService', () => {
             const {service, ctrl} = setup();
 
             const pending = service.refresh(CONVERSATION, false);
-            ctrl.expectOne(CONVERSATION_URL).flush(coverage({
-                coverageUnavailable: true, ownDevices: [], unreachableDevices: [],
-            }));
+            ctrl.expectOne(CONVERSATION_URL).flush(
+                coverage({
+                    coverageUnavailable: true,
+                    ownDevices: [],
+                    unreachableDevices: [],
+                }),
+            );
             await pending;
 
             const view = service.coverageOf(CONVERSATION)!;
@@ -303,9 +329,11 @@ describe('MlsCoverageService', () => {
             vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
             const first = service.refresh(CONVERSATION, false);
-            ctrl.expectOne(CONVERSATION_URL).flush(coverage({
-                ownDevices: [{deviceId: THIS_DEVICE, deviceName: 'This laptop', covered: false}],
-            }));
+            ctrl.expectOne(CONVERSATION_URL).flush(
+                coverage({
+                    ownDevices: [{deviceId: THIS_DEVICE, deviceName: 'This laptop', covered: false}],
+                }),
+            );
             await first;
 
             const second = service.refresh(CONVERSATION, false);
@@ -322,9 +350,13 @@ describe('MlsCoverageService', () => {
             const {service, ctrl} = setup();
 
             const first = service.ensure(CONVERSATION, false);
-            ctrl.expectOne(CONVERSATION_URL).flush(coverage({
-                coverageUnavailable: true, ownDevices: [], unreachableDevices: [],
-            }));
+            ctrl.expectOne(CONVERSATION_URL).flush(
+                coverage({
+                    coverageUnavailable: true,
+                    ownDevices: [],
+                    unreachableDevices: [],
+                }),
+            );
             await first;
 
             const second = service.ensure(CONVERSATION, false);
@@ -452,12 +484,14 @@ describe('MlsCoverageService', () => {
             expect(joinRequests.requestAccess).toHaveBeenCalledTimes(1);
         });
 
-        it('reports the server\'s own refusal rather than a generic failure', async () => {
+        it("reports the server's own refusal rather than a generic failure", async () => {
             const {service, joinRequests} = setup();
-            joinRequests.requestAccess.mockRejectedValue(new HttpErrorResponse({
-                status: 400,
-                error: {detail: "'device-here' is not one of your registered devices."},
-            }));
+            joinRequests.requestAccess.mockRejectedValue(
+                new HttpErrorResponse({
+                    status: 400,
+                    error: {detail: "'device-here' is not one of your registered devices."},
+                }),
+            );
 
             await service.requestAccess(CONVERSATION, false);
 
@@ -471,7 +505,8 @@ describe('MlsCoverageService', () => {
             const {service, joinRequests} = setup();
             let release = () => undefined as void;
             joinRequests.requestAccess.mockImplementation(
-                () => new Promise(resolve => (release = () => resolve({id: 'req-1'}))));
+                () => new Promise(resolve => (release = () => resolve({id: 'req-1'}))),
+            );
 
             const first = service.requestAccess(CONVERSATION, false);
             await Promise.resolve();

@@ -1,4 +1,13 @@
-import {ChangeDetectionStrategy, Component, computed, effect, inject, input, model, signal} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    effect,
+    inject,
+    input,
+    model,
+    signal,
+} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {Dialog} from 'primeng/dialog';
@@ -18,7 +27,17 @@ import {ToastService} from '../../../../services/toast.service';
 @Component({
     selector: 'app-event-editor-dialog',
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [FormsModule, TranslateModule, Dialog, Button, InputText, Textarea, DatePicker, Select, PrimeTemplate],
+    imports: [
+        FormsModule,
+        TranslateModule,
+        Dialog,
+        Button,
+        InputText,
+        Textarea,
+        DatePicker,
+        Select,
+        PrimeTemplate,
+    ],
     templateUrl: './event-editor-dialog.component.html',
 })
 export class EventEditorDialogComponent {
@@ -50,7 +69,9 @@ export class EventEditorDialogComponent {
         if (!end) return true;
         return end.getTime() > start.getTime();
     });
-    protected readonly showDateError = computed(() => !!this.startsAt() && !!this.endsAt() && !this.dateValid());
+    protected readonly showDateError = computed(
+        () => !!this.startsAt() && !!this.endsAt() && !this.dateValid(),
+    );
     protected readonly canSave = computed(() => this.titleValid() && this.dateValid() && !this.saving());
 
     private readonly store = inject(ScheduledEventStore);

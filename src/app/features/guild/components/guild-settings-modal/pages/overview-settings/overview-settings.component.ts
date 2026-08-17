@@ -12,7 +12,7 @@ import {ImageCropperComponent} from '../../../../../../components/image-cropper/
 import {environment} from '../../../../../../../environments/environment';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {ToastService} from '../../../../../../services/toast.service';
-import {PrimeTemplate} from "primeng/api";
+import {PrimeTemplate} from 'primeng/api';
 
 /** The last-saved values `dirty` measures against. */
 interface Baseline {
@@ -23,14 +23,24 @@ interface Baseline {
 }
 
 /** The shared `UpdateGuildDto` types `systemChannelId` as `string | undefined`, so "clear it" has no representation there; the payload is widened locally to send an explicit `null`, since omitting the key swallows a cleared picker. */
-type UpdateGuildPayload = Omit<UpdateGuildDto, 'systemChannelId'> & { systemChannelId?: string | null };
+type UpdateGuildPayload = Omit<UpdateGuildDto, 'systemChannelId'> & {systemChannelId?: string | null};
 
 /** What happened to the icon before the settings PATCH went out, so a failure can say so. */
 type IconOutcome = 'none' | 'uploaded' | 'removed';
 
 @Component({
     selector: 'app-overview-settings',
-    imports: [FormsModule, Button, InputText, Textarea, Dialog, Select, ImageCropperComponent, TranslateModule, PrimeTemplate],
+    imports: [
+        FormsModule,
+        Button,
+        InputText,
+        Textarea,
+        Dialog,
+        Select,
+        ImageCropperComponent,
+        TranslateModule,
+        PrimeTemplate,
+    ],
     templateUrl: './overview-settings.component.html',
 })
 export class OverviewSettingsComponent implements OnInit, OnDestroy {
@@ -43,9 +53,9 @@ export class OverviewSettingsComponent implements OnInit, OnDestroy {
     readonly description = signal('');
     readonly systemChannelId = signal<string | null>(null);
     readonly channelOptions = computed(() =>
-        this.guild().channels
-            .filter(c => c.type === ChannelType.Text)
-            .map(c => ({label: c.name, value: c.id}))
+        this.guild()
+            .channels.filter(c => c.type === ChannelType.Text)
+            .map(c => ({label: c.name, value: c.id})),
     );
     readonly verificationLevel = signal<GuildVerificationLevel>(GuildVerificationLevel.None);
 
@@ -53,12 +63,16 @@ export class OverviewSettingsComponent implements OnInit, OnDestroy {
     readonly verificationOptions = [
         {label: 'None', value: GuildVerificationLevel.None, hint: 'GUILD_SETTINGS.OVERVIEW.VERIFY_NONE_HINT'},
         {label: 'Low', value: GuildVerificationLevel.Low, hint: 'GUILD_SETTINGS.OVERVIEW.VERIFY_LOW_HINT'},
-        {label: 'Medium', value: GuildVerificationLevel.Medium, hint: 'GUILD_SETTINGS.OVERVIEW.VERIFY_MEDIUM_HINT'},
+        {
+            label: 'Medium',
+            value: GuildVerificationLevel.Medium,
+            hint: 'GUILD_SETTINGS.OVERVIEW.VERIFY_MEDIUM_HINT',
+        },
         {label: 'High', value: GuildVerificationLevel.High, hint: 'GUILD_SETTINGS.OVERVIEW.VERIFY_HIGH_HINT'},
     ];
 
-    protected readonly verificationHint = computed(() =>
-        this.verificationOptions.find(o => o.value === this.verificationLevel())?.hint ?? ''
+    protected readonly verificationHint = computed(
+        () => this.verificationOptions.find(o => o.value === this.verificationLevel())?.hint ?? '',
     );
     readonly saving = signal(false);
     readonly iconPreview = signal<string | null>(null);
@@ -84,22 +98,29 @@ export class OverviewSettingsComponent implements OnInit, OnDestroy {
     private readonly maxIconBytes = this.maxIconMb * 1024 * 1024;
 
     /** Compared against a local baseline rather than `guild()`, because a successful save can't rely on the parent pushing a fresh guild back down this input. */
-    private readonly baseline = signal<Baseline>({name: '', description: '', systemChannelId: null, verificationLevel: GuildVerificationLevel.None});
+    private readonly baseline = signal<Baseline>({
+        name: '',
+        description: '',
+        systemChannelId: null,
+        verificationLevel: GuildVerificationLevel.None,
+    });
 
     /** Must account for the pending icon file and removal flag, not just the text fields, or Save can vanish while a file is still queued. */
     readonly dirty = computed(() => {
         const b = this.baseline();
-        return this.name() !== b.name
-            || this.description() !== b.description
-            || this.systemChannelId() !== b.systemChannelId
-            || this.verificationLevel() !== b.verificationLevel
-            || this.pendingIconFile() !== null
-            || this.iconRemoved();
+        return (
+            this.name() !== b.name ||
+            this.description() !== b.description ||
+            this.systemChannelId() !== b.systemChannelId ||
+            this.verificationLevel() !== b.verificationLevel ||
+            this.pendingIconFile() !== null ||
+            this.iconRemoved()
+        );
     });
 
     /** Delete is gated on retyping the name, the way the rest of the app gates nothing else this destructive. */
-    protected readonly deleteConfirmed = computed(() =>
-        this.deleteConfirmName().trim() === this.guild().name.trim()
+    protected readonly deleteConfirmed = computed(
+        () => this.deleteConfirmName().trim() === this.guild().name.trim(),
     );
 
     private guildService = inject(GuildService);
@@ -148,7 +169,9 @@ export class OverviewSettingsComponent implements OnInit, OnDestroy {
         if (!file) return;
         // Without this the whole file is read into a data URL and handed to the cropper, so a phone photo froze the dialog for seconds before the server would have refused it anyway.
         if (file.size > this.maxIconBytes) {
-            this.toastService.error(this.translate.instant('GUILD_SETTINGS.OVERVIEW.ICON_TOO_LARGE', {max: this.maxIconMb}));
+            this.toastService.error(
+                this.translate.instant('GUILD_SETTINGS.OVERVIEW.ICON_TOO_LARGE', {max: this.maxIconMb}),
+            );
             return;
         }
         const reader = new FileReader();
@@ -218,9 +241,15 @@ export class OverviewSettingsComponent implements OnInit, OnDestroy {
                     this.saving.set(false);
                     // The server ignores a null systemChannelId, so say so rather than let the clean form imply the channel was cleared.
                     if (clearingSystemChannel && updated.systemChannelId !== null) {
-                        this.toastService.warn(this.translate.instant('GUILD_SETTINGS.OVERVIEW.SYSTEM_CHANNEL_CLEAR_UNSUPPORTED'));
+                        this.toastService.warn(
+                            this.translate.instant(
+                                'GUILD_SETTINGS.OVERVIEW.SYSTEM_CHANNEL_CLEAR_UNSUPPORTED',
+                            ),
+                        );
                     } else {
-                        this.toastService.success(this.translate.instant('GUILD_SETTINGS.OVERVIEW.SAVE_SUCCESS'));
+                        this.toastService.success(
+                            this.translate.instant('GUILD_SETTINGS.OVERVIEW.SAVE_SUCCESS'),
+                        );
                     }
                 },
                 // A failure here can arrive after the icon already changed, so the message has to say which half landed.
@@ -239,7 +268,10 @@ export class OverviewSettingsComponent implements OnInit, OnDestroy {
                 },
                 error: err => {
                     this.saving.set(false);
-                    this.toastService.httpError(this.translate.instant('GUILD_SETTINGS.OVERVIEW.ICON_UPLOAD_ERROR'), err);
+                    this.toastService.httpError(
+                        this.translate.instant('GUILD_SETTINGS.OVERVIEW.ICON_UPLOAD_ERROR'),
+                        err,
+                    );
                 },
             });
         } else if (this.iconRemoved()) {
@@ -247,7 +279,10 @@ export class OverviewSettingsComponent implements OnInit, OnDestroy {
                 next: updated => doUpdate(updated, 'removed'),
                 error: err => {
                     this.saving.set(false);
-                    this.toastService.httpError(this.translate.instant('GUILD_SETTINGS.OVERVIEW.ICON_REMOVE_ERROR'), err);
+                    this.toastService.httpError(
+                        this.translate.instant('GUILD_SETTINGS.OVERVIEW.ICON_REMOVE_ERROR'),
+                        err,
+                    );
                 },
             });
         } else {
@@ -277,7 +312,10 @@ export class OverviewSettingsComponent implements OnInit, OnDestroy {
             },
             error: err => {
                 this.deleting.set(false);
-                this.toastService.httpError(this.translate.instant('GUILD_SETTINGS.OVERVIEW.DELETE_ERROR'), err);
+                this.toastService.httpError(
+                    this.translate.instant('GUILD_SETTINGS.OVERVIEW.DELETE_ERROR'),
+                    err,
+                );
             },
         });
     }

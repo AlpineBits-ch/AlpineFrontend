@@ -21,16 +21,36 @@ function guildFixture(overrides: Partial<GuildDto> = {}): GuildDto {
         categories: [],
         channels: [
             {
-                id: 'chan_1', createdAt: new Date(), updatedAt: new Date(), name: 'general',
-                description: '', type: ChannelType.Text, guildId: 'g1', isAgeRestricted: false,
-                isPrivate: false, categoryId: undefined, permissions: [], position: 0,
-                slowModeSeconds: 0, parentChannelId: undefined,
+                id: 'chan_1',
+                createdAt: new Date(),
+                updatedAt: new Date(),
+                name: 'general',
+                description: '',
+                type: ChannelType.Text,
+                guildId: 'g1',
+                isAgeRestricted: false,
+                isPrivate: false,
+                categoryId: undefined,
+                permissions: [],
+                position: 0,
+                slowModeSeconds: 0,
+                parentChannelId: undefined,
             },
             {
-                id: 'chan_2', createdAt: new Date(), updatedAt: new Date(), name: 'voice',
-                description: '', type: ChannelType.Voice, guildId: 'g1', isAgeRestricted: false,
-                isPrivate: false, categoryId: undefined, permissions: [], position: 1,
-                slowModeSeconds: 0, parentChannelId: undefined,
+                id: 'chan_2',
+                createdAt: new Date(),
+                updatedAt: new Date(),
+                name: 'voice',
+                description: '',
+                type: ChannelType.Voice,
+                guildId: 'g1',
+                isAgeRestricted: false,
+                isPrivate: false,
+                categoryId: undefined,
+                permissions: [],
+                position: 1,
+                slowModeSeconds: 0,
+                parentChannelId: undefined,
             },
         ],
         roles: [],
@@ -52,7 +72,8 @@ function setup(guild: GuildDto) {
         ],
     });
 
-    const fixture: ComponentFixture<OverviewSettingsComponent> = TestBed.createComponent(OverviewSettingsComponent);
+    const fixture: ComponentFixture<OverviewSettingsComponent> =
+        TestBed.createComponent(OverviewSettingsComponent);
     fixture.componentRef.setInput('guild', guild);
     const component = fixture.componentInstance;
     const ctrl = TestBed.inject(HttpTestingController);
@@ -146,7 +167,11 @@ describe('OverviewSettingsComponent verification level picker', () => {
 
         component.save();
         const req = ctrl.expectOne(`${BASE}/guilds/g1`);
-        expect(req.request.body).toEqual({name: 'Test Guild', description: '', verificationLevel: GuildVerificationLevel.High});
+        expect(req.request.body).toEqual({
+            name: 'Test Guild',
+            description: '',
+            verificationLevel: GuildVerificationLevel.High,
+        });
         req.flush(guildFixture({verificationLevel: GuildVerificationLevel.High}));
     });
 

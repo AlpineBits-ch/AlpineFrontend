@@ -51,14 +51,18 @@ describe('rungMetrics', () => {
     ];
 
     it('reads what the granted rung permits', () => {
-        expect(rungMetrics(ladder, {kind: 'ladder', rung: '720p30', rank: 2}))
-            .toEqual({maxHeight: 720, maxFramerate: 30});
+        expect(rungMetrics(ladder, {kind: 'ladder', rung: '720p30', rank: 2})).toEqual({
+            maxHeight: 720,
+            maxFramerate: 30,
+        });
     });
 
     /** `none` is a real rung and means audio-only, not an absence. */
     it('reads the audio-only rung as a real one', () => {
-        expect(rungMetrics(ladder, {kind: 'ladder', rung: 'none', rank: 0}))
-            .toEqual({maxHeight: 0, maxFramerate: 0});
+        expect(rungMetrics(ladder, {kind: 'ladder', rung: 'none', rank: 0})).toEqual({
+            maxHeight: 0,
+            maxFramerate: 0,
+        });
     });
 
     /**

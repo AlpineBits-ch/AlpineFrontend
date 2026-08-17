@@ -25,7 +25,7 @@ export class MfaChallengeDialogComponent {
     protected readonly useRecoveryCode = signal(false);
     protected readonly invalidCode = signal(false);
     protected readonly loading = signal(false);
-    protected readonly minCodeLength = computed(() => this.useRecoveryCode() ? 8 : 6);
+    protected readonly minCodeLength = computed(() => (this.useRecoveryCode() ? 8 : 6));
 
     private authService = inject(AuthService);
     private userSettings = inject(UserSettingsService);
@@ -64,24 +64,27 @@ export class MfaChallengeDialogComponent {
 
         this.loading.set(true);
         this.invalidCode.set(false);
-        this.authService.login(this.mfaChallenge.username(), this.mfaChallenge.password(), code).pipe(
-            tap(() => {
-                this.loading.set(false);
-                this.userSettings.load();
-                void this.router.navigate(['/overview']);
-                this.mfaChallenge.dismiss();
-            }),
-            catchError((err) => {
-                this.loading.set(false);
-                if (mfaErrorKind(err) === 'invalid') {
-                    this.invalidCode.set(true);
-                    this.code.set('');
-                } else {
-                    this.toast.httpError('Sign in failed', err);
+        this.authService
+            .login(this.mfaChallenge.username(), this.mfaChallenge.password(), code)
+            .pipe(
+                tap(() => {
+                    this.loading.set(false);
+                    this.userSettings.load();
+                    void this.router.navigate(['/overview']);
                     this.mfaChallenge.dismiss();
-                }
-                return EMPTY;
-            })
-        ).subscribe();
+                }),
+                catchError(err => {
+                    this.loading.set(false);
+                    if (mfaErrorKind(err) === 'invalid') {
+                        this.invalidCode.set(true);
+                        this.code.set('');
+                    } else {
+                        this.toast.httpError('Sign in failed', err);
+                        this.mfaChallenge.dismiss();
+                    }
+                    return EMPTY;
+                }),
+            )
+            .subscribe();
     }
 }

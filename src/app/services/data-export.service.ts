@@ -25,8 +25,7 @@ export interface DataExportDto {
 }
 
 /** Statuses that will not change again without a new request. */
-export const DATA_EXPORT_TERMINAL: readonly DataExportStatus[] =
-    ['Ready', 'Partial', 'Failed', 'Expired'];
+export const DATA_EXPORT_TERMINAL: readonly DataExportStatus[] = ['Ready', 'Partial', 'Failed', 'Expired'];
 
 /**
  * Statuses the server will actually serve an artifact for.
@@ -191,8 +190,10 @@ export class DataExportSaveUnsupportedError extends Error implements DataExportD
     readonly status = null;
 
     constructor(host: string) {
-        super(`Saving a data export straight to disk needs the desktop shell; this host is "${host}". `
-            + 'Check canSaveToDisk and use download() instead.');
+        super(
+            `Saving a data export straight to disk needs the desktop shell; this host is "${host}". ` +
+                'Check canSaveToDisk and use download() instead.',
+        );
     }
 }
 
@@ -204,6 +205,6 @@ export class DataExportSaveUnsupportedError extends Error implements DataExportD
  */
 export function downloadErrorStatus(err: unknown): number | null {
     if (typeof err !== 'object' || err === null) return null;
-    const status = (err as { status?: unknown }).status;
+    const status = (err as {status?: unknown}).status;
     return typeof status === 'number' && status > 0 ? status : null;
 }

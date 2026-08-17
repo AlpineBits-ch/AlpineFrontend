@@ -4,7 +4,11 @@ import {signal, WritableSignal} from '@angular/core';
 import {provideTranslateService} from '@ngx-translate/core';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {CallMiniPlayerComponent} from './call-mini-player.component';
-import {VoiceChannelParticipant, VoiceChannelService, VoiceLocalState} from '../../../services/voice-channel.service';
+import {
+    VoiceChannelParticipant,
+    VoiceChannelService,
+    VoiceLocalState,
+} from '../../../services/voice-channel.service';
 import {CallSessionService} from '../../../services/call-session.service';
 import {CallWebRtcService} from '../../../services/call-webrtc.service';
 import {RustMediaService} from '../../../services/rust-media.service';
@@ -96,7 +100,10 @@ function setup(): Harness {
         joinedChannelName: signal<string | null>('General Voice'),
         channelParticipants: signal(new Map<string, VoiceChannelParticipant[]>()),
         localState: signal<VoiceLocalState>({
-            isMuted: false, isDeafened: false, isCameraOn: false, isScreenSharing: false,
+            isMuted: false,
+            isDeafened: false,
+            isCameraOn: false,
+            isScreenSharing: false,
         }),
         session: signal<ActiveCallSession | null>(null),
         guildToggleMute: vi.fn(),
@@ -206,10 +213,11 @@ function joinGuildVoice(fakes: Fakes, sharing = false): void {
     fakes.isInVoice.set(true);
     fakes.joinedChannelId.set('chan-1');
     fakes.joinedGuildId.set('guild-1');
-    fakes.channelParticipants.set(new Map([[
-        'chan-1',
-        [rosterEntry({isScreenSharing: sharing, mediaSessionId: sharing ? 'share-1' : null})],
-    ]]));
+    fakes.channelParticipants.set(
+        new Map([
+            ['chan-1', [rosterEntry({isScreenSharing: sharing, mediaSessionId: sharing ? 'share-1' : null})]],
+        ]),
+    );
 }
 
 function tile(fixture: ComponentFixture<CallMiniPlayerComponent>): HTMLElement | null {
@@ -341,9 +349,17 @@ describe('CallMiniPlayerComponent watch claim', () => {
 
     it('claims the DM call scope for a DM share', () => {
         const {fixture, fakes} = setup();
-        fakes.session.set(dmSession([
-            {shareId: 'share-9', userId: 'u2', displayName: 'Ada Lovelace', isLocal: false, stream: undefined},
-        ]));
+        fakes.session.set(
+            dmSession([
+                {
+                    shareId: 'share-9',
+                    userId: 'u2',
+                    displayName: 'Ada Lovelace',
+                    isLocal: false,
+                    stream: undefined,
+                },
+            ]),
+        );
         fixture.detectChanges();
 
         expect(fakes.watchCalls).toEqual([{scope: CALL_SCOPE, shareIds: ['share-9']}]);
@@ -357,7 +373,7 @@ describe('CallMiniPlayerComponent watch claim', () => {
         expect(fakes.watchCalls).toEqual([]);
     });
 
-    it('claims nothing for this client\'s own share', () => {
+    it("claims nothing for this client's own share", () => {
         // Watching your own stream is not a thing to tell the server, and the sidebar voice bar is
         // what shows it back to you.
         const {fixture, fakes} = setup();
@@ -365,9 +381,9 @@ describe('CallMiniPlayerComponent watch claim', () => {
         fakes.joinedChannelId.set('chan-1');
         fakes.joinedGuildId.set('guild-1');
         fakes.localState.set({isMuted: false, isDeafened: false, isCameraOn: false, isScreenSharing: true});
-        fakes.channelParticipants.set(new Map([[
-            'chan-1', [rosterEntry({userId: 'me', displayName: 'You', isLocal: true})],
-        ]]));
+        fakes.channelParticipants.set(
+            new Map([['chan-1', [rosterEntry({userId: 'me', displayName: 'You', isLocal: true})]]]),
+        );
         fixture.detectChanges();
 
         expect(fakes.watchCalls).toEqual([]);

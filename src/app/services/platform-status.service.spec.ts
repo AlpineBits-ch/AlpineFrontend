@@ -19,12 +19,14 @@ const INCIDENT: IncidentDto = {
     resolvedAt: null,
     template: 'elevated_errors',
     url: 'https://status.venta.gg/incident?ref=VNT-4KQ7M2XB',
-    updates: [{
-        status: 'investigating',
-        body: 'Some people may not be able to sign in or create an account. We are investigating.',
-        template: 'elevated_errors',
-        postedAt: '2026-08-05T11:58:00Z',
-    }],
+    updates: [
+        {
+            status: 'investigating',
+            body: 'Some people may not be able to sign in or create an account. We are investigating.',
+            template: 'elevated_errors',
+            postedAt: '2026-08-05T11:58:00Z',
+        },
+    ],
 };
 
 function summary(overrides: Partial<StatusSummaryDto> = {}): StatusSummaryDto {
@@ -40,14 +42,16 @@ function summary(overrides: Partial<StatusSummaryDto> = {}): StatusSummaryDto {
             template: 'elevated_errors',
             componentKey: 'accounts',
         },
-        components: [{
-            key: 'accounts',
-            name: 'Sign-in and accounts',
-            description: 'Signing in, registration, sessions',
-            status: 'degraded_performance',
-            statusSince: '2026-08-05T11:58:00Z',
-            uptime90d: 0.9987,
-        }],
+        components: [
+            {
+                key: 'accounts',
+                name: 'Sign-in and accounts',
+                description: 'Signing in, registration, sessions',
+                status: 'degraded_performance',
+                statusSince: '2026-08-05T11:58:00Z',
+                uptime90d: 0.9987,
+            },
+        ],
         incidents: [INCIDENT],
         maintenance: [],
         recent: [],
@@ -212,18 +216,20 @@ describe('PlatformStatusService', () => {
 
     it('re-shows a dismissed incident once a newer update is posted', () => {
         const updated = summary({
-            incidents: [{
-                ...INCIDENT,
-                updates: [
-                    {
-                        status: 'identified',
-                        body: 'We have identified the cause.',
-                        template: null,
-                        postedAt: '2026-08-05T12:30:00Z',
-                    },
-                    ...INCIDENT.updates!,
-                ],
-            }],
+            incidents: [
+                {
+                    ...INCIDENT,
+                    updates: [
+                        {
+                            status: 'identified',
+                            body: 'We have identified the cause.',
+                            template: null,
+                            postedAt: '2026-08-05T12:30:00Z',
+                        },
+                        ...INCIDENT.updates!,
+                    ],
+                },
+            ],
         });
 
         const {service} = setup([of(summary()), of(updated)]);
@@ -240,8 +246,8 @@ describe('PlatformStatusService', () => {
         service.probe();
         service.dismiss();
 
-        service.probe();               // incident gone - dismissal is dropped
-        service.probe();               // it comes back, and so does the bar
+        service.probe(); // incident gone - dismissal is dropped
+        service.probe(); // it comes back, and so does the bar
         expect(service.bar()).toBe('incident');
     });
 
@@ -253,8 +259,7 @@ describe('PlatformStatusService', () => {
 
         service.dismiss();
         expect(service.bar()).toBeNull();
-        expect(localStorage.getItem('alpine.status.dismissed'))
-            .toContain(UNVERIFIED_REFERENCE);
+        expect(localStorage.getItem('alpine.status.dismissed')).toContain(UNVERIFIED_REFERENCE);
     });
 
     it('lets a real incident outrank "we could not check"', () => {

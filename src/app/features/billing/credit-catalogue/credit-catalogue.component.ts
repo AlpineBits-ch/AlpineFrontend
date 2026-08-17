@@ -48,8 +48,9 @@ export class CreditCatalogueComponent {
     /** The disclaimer, preferring the server's key only where this build has the string. */
     protected readonly disclaimer = computed(() => {
         const catalogue = this.catalogue();
-        return creditDisclaimerCopy(
-            catalogue?.disclaimer, catalogue?.disclaimerKey, key => this.resolves(key));
+        return creditDisclaimerCopy(catalogue?.disclaimer, catalogue?.disclaimerKey, key =>
+            this.resolves(key),
+        );
     });
 
     protected readonly rows = computed<SkuRow[]>(() => {
@@ -60,9 +61,10 @@ export class CreditCatalogueComponent {
             .filter(sku => sameSubjectKind(sku.subject, subject.kind))
             .map(sku => ({
                 sku,
-                cash: sku.cashPriceMinorUnits === null || sku.cashCurrency === null
-                    ? null
-                    : formatMinor(sku.cashPriceMinorUnits, sku.cashCurrency),
+                cash:
+                    sku.cashPriceMinorUnits === null || sku.cashCurrency === null
+                        ? null
+                        : formatMinor(sku.cashPriceMinorUnits, sku.cashCurrency),
                 affordable: balance >= sku.pricePoints,
             }));
     });

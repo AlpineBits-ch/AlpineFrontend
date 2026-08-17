@@ -1,21 +1,21 @@
 <!-- Full-screen takeover rather than a dialog, matching the guild join gate. -->
-<div class="fixed inset-0 z-[1200] bg-app-bg flex flex-col"
-     data-testid="onboarding"
-     style="padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom)">
-
+<div
+    class="fixed inset-0 z-[1200] bg-app-bg flex flex-col"
+    data-testid="onboarding"
+    style="padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom)"
+>
     <!-- The overlay covers the titlebar, so it has to carry its own drag region or the window
          becomes unmovable for as long as the picker is up. Matches .titlebar's 38px. -->
     <div class="shrink-0 h-[38px]" data-tauri-drag-region></div>
 
     <div class="flex-1 min-h-0 overflow-y-auto thin-scrollbar px-6 pb-8">
         <div class="mx-auto max-w-3xl flex flex-col gap-8">
-
             @switch (step()) {
-
                 @case ('pick') {
                     <div class="flex flex-col items-center text-center gap-3 pt-6">
-                        <div class="w-14 h-14 rounded-2xl bg-[color-mix(in_srgb,var(--color-brand)_18%,transparent)]
-                                    grid place-items-center">
+                        <div
+                            class="w-14 h-14 rounded-2xl bg-[color-mix(in_srgb,var(--color-brand)_18%,transparent)] grid place-items-center"
+                        >
                             <i class="pi pi-sparkles text-xl text-brand-dim"></i>
                         </div>
                         <h1 class="text-2xl font-semibold text-text-primary m-0">
@@ -28,27 +28,31 @@
 
                     <div class="grid gap-4 sm:grid-cols-2">
                         @for (choice of choices; track choice.interest) {
-                            <button (click)="toggle(choice.interest)"
-                                    [attr.aria-pressed]="isSelected(choice.interest)"
-                                    [attr.data-interest]="choice.interest"
-                                    data-testid="onboarding-choice"
-                                    [class]="isSelected(choice.interest)
+                            <button
+                                (click)="toggle(choice.interest)"
+                                [attr.aria-pressed]="isSelected(choice.interest)"
+                                [attr.data-interest]="choice.interest"
+                                data-testid="onboarding-choice"
+                                [class]="
+                                    isSelected(choice.interest)
                                         ? 'border-brand bg-[color-mix(in_srgb,var(--color-brand)_10%,transparent)]'
-                                        : 'border-border bg-card hover:bg-hover'"
-                                    class="relative flex flex-col gap-3 rounded-2xl border p-5 text-left
-                                           transition-colors"
-                                    type="button">
-
-                                <span [class]="isSelected(choice.interest)
-                                          ? 'border-brand bg-brand text-white'
-                                          : 'border-border text-transparent'"
-                                      class="absolute right-4 top-4 grid h-5 w-5 place-items-center
-                                             rounded-full border transition-colors">
+                                        : 'border-border bg-card hover:bg-hover'
+                                "
+                                class="relative flex flex-col gap-3 rounded-2xl border p-5 text-left transition-colors"
+                                type="button"
+                            >
+                                <span
+                                    [class]="
+                                        isSelected(choice.interest) ? 'border-brand bg-brand text-white' : 'border-border text-transparent'
+                                    "
+                                    class="absolute right-4 top-4 grid h-5 w-5 place-items-center rounded-full border transition-colors"
+                                >
                                     <i class="pi pi-check text-[0.625rem]"></i>
                                 </span>
 
-                                <span class="grid h-11 w-11 place-items-center rounded-xl
-                                             bg-[color-mix(in_srgb,var(--color-brand)_14%,transparent)]">
+                                <span
+                                    class="grid h-11 w-11 place-items-center rounded-xl bg-[color-mix(in_srgb,var(--color-brand)_14%,transparent)]"
+                                >
                                     <i [class]="'pi ' + choice.icon" class="text-lg text-brand-dim"></i>
                                 </span>
 
@@ -72,8 +76,9 @@
 
                 @case ('done') {
                     <div class="flex flex-col items-center text-center gap-3 pt-10">
-                        <div class="w-14 h-14 rounded-2xl bg-[color-mix(in_srgb,var(--color-online)_18%,transparent)]
-                                    grid place-items-center">
+                        <div
+                            class="w-14 h-14 rounded-2xl bg-[color-mix(in_srgb,var(--color-online)_18%,transparent)] grid place-items-center"
+                        >
                             <i class="pi pi-check text-xl text-online"></i>
                         </div>
                         <h1 class="text-2xl font-semibold text-text-primary m-0">
@@ -82,8 +87,7 @@
                         <p class="text-sm text-text-secondary m-0 max-w-md">
                             <!-- Says plainly what happens next, so the key-setup dialog that follows a
                                  social pick is expected rather than an ambush. -->
-                            {{ (pickedSocial() ? 'ACCOUNT_ONBOARDING.DONE_DESC_SOCIAL'
-                                               : 'ACCOUNT_ONBOARDING.DONE_DESC_ISLE') | translate }}
+                            {{ (pickedSocial() ? 'ACCOUNT_ONBOARDING.DONE_DESC_SOCIAL' : 'ACCOUNT_ONBOARDING.DONE_DESC_ISLE') | translate }}
                         </p>
                     </div>
 
@@ -94,27 +98,41 @@
                     }
                 }
             }
-
         </div>
     </div>
 
     <div class="shrink-0 border-t border-border-subtle px-6 py-4">
         <div class="mx-auto max-w-3xl flex items-center justify-between gap-3">
             @if (step() === 'done') {
-                <p-button (onClick)="back()" [disabled]="state.submitting()"
-                          [label]="'COMMON.BACK' | translate" [text]="true"
-                          icon="pi pi-arrow-left" severity="secondary" size="small"/>
-                <p-button (onClick)="finish()" [disabled]="state.submitting()"
-                          [label]="(state.submitting() ? 'ACCOUNT_ONBOARDING.SAVING'
-                                                       : 'ACCOUNT_ONBOARDING.GET_STARTED') | translate"
-                          data-testid="onboarding-finish"
-                          icon="pi pi-arrow-right" iconPos="right" size="small"/>
+                <p-button
+                    (onClick)="back()"
+                    [disabled]="state.submitting()"
+                    [label]="'COMMON.BACK' | translate"
+                    [text]="true"
+                    icon="pi pi-arrow-left"
+                    severity="secondary"
+                    size="small"
+                />
+                <p-button
+                    (onClick)="finish()"
+                    [disabled]="state.submitting()"
+                    [label]="(state.submitting() ? 'ACCOUNT_ONBOARDING.SAVING' : 'ACCOUNT_ONBOARDING.GET_STARTED') | translate"
+                    data-testid="onboarding-finish"
+                    icon="pi pi-arrow-right"
+                    iconPos="right"
+                    size="small"
+                />
             } @else {
                 <span></span>
-                <p-button (onClick)="toDone()" [disabled]="!canContinue()"
-                          [label]="'COMMON.CONTINUE' | translate"
-                          data-testid="onboarding-continue"
-                          icon="pi pi-arrow-right" iconPos="right" size="small"/>
+                <p-button
+                    (onClick)="toDone()"
+                    [disabled]="!canContinue()"
+                    [label]="'COMMON.CONTINUE' | translate"
+                    data-testid="onboarding-continue"
+                    icon="pi pi-arrow-right"
+                    iconPos="right"
+                    size="small"
+                />
             }
         </div>
     </div>

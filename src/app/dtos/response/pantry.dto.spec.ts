@@ -66,8 +66,9 @@ describe('pantryStockState', () => {
         });
 
         it('is not the same as no threshold at all', () => {
-            expect(pantryStockState(item({quantity: 0, lowThreshold: 0}))).not
-                .toBe(pantryStockState(item({quantity: 0, lowThreshold: null})));
+            expect(pantryStockState(item({quantity: 0, lowThreshold: 0}))).not.toBe(
+                pantryStockState(item({quantity: 0, lowThreshold: null})),
+            );
         });
     });
 

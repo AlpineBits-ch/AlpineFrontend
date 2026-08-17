@@ -243,6 +243,10 @@ export function provideFakePlatform(overrides: FakePlatformOverrides = {}): Prov
  * <p>The generic ties the override to the port token, so the type error for a mismatched pair is
  * reported at the {@link FakePlatformOverrides} key rather than inside this file.</p>
  */
-function port<T>(token: abstract new (...args: never[]) => T, override: T | undefined, make: () => T): Provider {
+function port<T>(
+    token: abstract new (...args: never[]) => T,
+    override: T | undefined,
+    make: () => T,
+): Provider {
     return {provide: token, useFactory: (): T => override ?? make()};
 }

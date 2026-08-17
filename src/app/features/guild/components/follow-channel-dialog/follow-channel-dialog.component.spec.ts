@@ -21,7 +21,9 @@ function setup() {
         ],
     }).compileComponents();
 
-    const fixture: ComponentFixture<FollowChannelDialogComponent> = TestBed.createComponent(FollowChannelDialogComponent);
+    const fixture: ComponentFixture<FollowChannelDialogComponent> = TestBed.createComponent(
+        FollowChannelDialogComponent,
+    );
     fixture.componentRef.setInput('sourceChannelId', 'src1');
     fixture.componentRef.setInput('sourceChannelName', 'announcements');
     fixture.componentRef.setInput('visible', true);
@@ -32,20 +34,24 @@ function setup() {
     ctrl.expectOne(r => r.url === `${BASE}/api/v1/guild/guilds`).flush([]);
 
     // Bypass the Select-driven guild/channel pickers and go straight to a submittable state, since these specs are only about what confirm() does with the HTTP response.
-    (component as unknown as {
-        selectedGuildId: { set(v: string): void };
-        selectedChannelId: { set(v: string): void };
-    }).selectedGuildId.set('g1');
-    (component as unknown as {
-        selectedGuildId: { set(v: string): void };
-        selectedChannelId: { set(v: string): void };
-    }).selectedChannelId.set('tgt1');
+    (
+        component as unknown as {
+            selectedGuildId: {set(v: string): void};
+            selectedChannelId: {set(v: string): void};
+        }
+    ).selectedGuildId.set('g1');
+    (
+        component as unknown as {
+            selectedGuildId: {set(v: string): void};
+            selectedChannelId: {set(v: string): void};
+        }
+    ).selectedChannelId.set('tgt1');
 
     return {fixture, component, ctrl};
 }
 
 function confirm(component: FollowChannelDialogComponent): void {
-    (component as unknown as { confirm(): void }).confirm();
+    (component as unknown as {confirm(): void}).confirm();
 }
 
 describe('FollowChannelDialogComponent confirm() error mapping', () => {
@@ -61,8 +67,9 @@ describe('FollowChannelDialogComponent confirm() error mapping', () => {
         confirm(component);
         ctrl.expectOne(FOLLOW_URL).flush('conflict', {status: 409, statusText: 'Conflict'});
 
-        expect((component as unknown as { inlineError: () => string | null }).inlineError())
-            .toBe('FOLLOW_CHANNEL.ALREADY_FOLLOWING');
+        expect((component as unknown as {inlineError: () => string | null}).inlineError()).toBe(
+            'FOLLOW_CHANNEL.ALREADY_FOLLOWING',
+        );
         expect(instantSpy).toHaveBeenCalledWith('FOLLOW_CHANNEL.ALREADY_FOLLOWING');
         expect(addSpy).not.toHaveBeenCalled();
     });
@@ -75,8 +82,9 @@ describe('FollowChannelDialogComponent confirm() error mapping', () => {
         confirm(component);
         ctrl.expectOne(FOLLOW_URL).flush('forbidden', {status: 403, statusText: 'Forbidden'});
 
-        expect((component as unknown as { inlineError: () => string | null }).inlineError())
-            .toBe('FOLLOW_CHANNEL.NEED_MANAGE_CHANNEL');
+        expect((component as unknown as {inlineError: () => string | null}).inlineError()).toBe(
+            'FOLLOW_CHANNEL.NEED_MANAGE_CHANNEL',
+        );
         expect(addSpy).not.toHaveBeenCalled();
     });
 
@@ -88,7 +96,7 @@ describe('FollowChannelDialogComponent confirm() error mapping', () => {
         confirm(component);
         ctrl.expectOne(FOLLOW_URL).flush('boom', {status: 500, statusText: 'Internal Server Error'});
 
-        expect((component as unknown as { inlineError: () => string | null }).inlineError()).toBeNull();
+        expect((component as unknown as {inlineError: () => string | null}).inlineError()).toBeNull();
         expect(addSpy).toHaveBeenCalledTimes(1);
         expect(addSpy.mock.calls[0][0]).toEqual(expect.objectContaining({severity: 'error'}));
     });
@@ -99,6 +107,6 @@ describe('FollowChannelDialogComponent confirm() error mapping', () => {
         confirm(component);
         ctrl.expectOne(FOLLOW_URL).flush('boom', {status: 500, statusText: 'Internal Server Error'});
 
-        expect((component as unknown as { submitting: () => boolean }).submitting()).toBe(false);
+        expect((component as unknown as {submitting: () => boolean}).submitting()).toBe(false);
     });
 });

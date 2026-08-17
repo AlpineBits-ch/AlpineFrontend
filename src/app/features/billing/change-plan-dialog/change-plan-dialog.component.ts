@@ -79,9 +79,8 @@ export class ChangePlanDialogComponent {
             .filter(plan => plan.purchasable && plan.name !== current.planName)
             .map(plan => ({
                 plan,
-                price: plan.priceMinorUnits === null
-                    ? null
-                    : formatMinor(plan.priceMinorUnits, plan.currency),
+                price:
+                    plan.priceMinorUnits === null ? null : formatMinor(plan.priceMinorUnits, plan.currency),
                 intervalKey: plan.interval === 'year' ? 'BILLING.INTERVAL.YEAR' : 'BILLING.INTERVAL.MONTH',
             }));
     });
@@ -89,9 +88,7 @@ export class ChangePlanDialogComponent {
     /** The amount that leaves or arrives the moment they confirm, in words as well as in figures. */
     protected readonly immediate = computed<ImmediateAmountCopy | null>(() => {
         const preview = this.preview();
-        return preview
-            ? immediateAmountCopy(preview.immediateChargeMinorUnits, preview.currency)
-            : null;
+        return preview ? immediateAmountCopy(preview.immediateChargeMinorUnits, preview.currency) : null;
     });
 
     protected readonly lines = computed<PreviewLineCopy[]>(() => {
@@ -107,8 +104,10 @@ export class ChangePlanDialogComponent {
     protected readonly nextInvoiceAt = computed(() => formatBillingDate(this.preview()?.nextInvoiceAt));
 
     /** Nothing is confirmable until a preview for this exact selection has been read back. */
-    protected readonly canConfirm = computed(() =>
-        this.selected() !== null && this.preview() !== null && !this.previewLoading() && !this.applying());
+    protected readonly canConfirm = computed(
+        () =>
+            this.selected() !== null && this.preview() !== null && !this.previewLoading() && !this.applying(),
+    );
 
     constructor() {
         // Opening loads the catalogue; closing resets, so reopening never shows the numbers from

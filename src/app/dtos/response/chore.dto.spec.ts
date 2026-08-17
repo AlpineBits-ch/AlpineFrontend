@@ -44,10 +44,14 @@ describe('occurrenceStatus', () => {
     });
 
     it('reports a completed turn as done', () => {
-        expect(occurrenceStatus(occurrence({
-            completedAt: '2026-08-03T19:12:00.000Z',
-            completedByUserId: 'user_anna',
-        }))).toBe('done');
+        expect(
+            occurrenceStatus(
+                occurrence({
+                    completedAt: '2026-08-03T19:12:00.000Z',
+                    completedByUserId: 'user_anna',
+                }),
+            ),
+        ).toBe('done');
     });
 
     it('reports a skipped turn as skipped, never as done', () => {
@@ -82,28 +86,40 @@ describe('occurrenceStatus', () => {
 
 describe('wasDoneByProxy', () => {
     it('is true when someone other than the assignee did it', () => {
-        expect(wasDoneByProxy(occurrence({
-            assignedUserId: 'user_anna',
-            completedByUserId: 'user_ben',
-            completedAt: '2026-08-03T19:12:00.000Z',
-        }))).toBe(true);
+        expect(
+            wasDoneByProxy(
+                occurrence({
+                    assignedUserId: 'user_anna',
+                    completedByUserId: 'user_ben',
+                    completedAt: '2026-08-03T19:12:00.000Z',
+                }),
+            ),
+        ).toBe(true);
     });
 
     it('is false when the assignee did their own turn', () => {
-        expect(wasDoneByProxy(occurrence({
-            assignedUserId: 'user_anna',
-            completedByUserId: 'user_anna',
-            completedAt: '2026-08-03T19:12:00.000Z',
-        }))).toBe(false);
+        expect(
+            wasDoneByProxy(
+                occurrence({
+                    assignedUserId: 'user_anna',
+                    completedByUserId: 'user_anna',
+                    completedAt: '2026-08-03T19:12:00.000Z',
+                }),
+            ),
+        ).toBe(false);
     });
 
     it('is false for a skipped turn even with a stale doer recorded', () => {
-        expect(wasDoneByProxy(occurrence({
-            assignedUserId: 'user_anna',
-            completedByUserId: 'user_ben',
-            completedAt: '2026-08-03T19:12:00.000Z',
-            skippedAt: '2026-08-03T19:30:00.000Z',
-        }))).toBe(false);
+        expect(
+            wasDoneByProxy(
+                occurrence({
+                    assignedUserId: 'user_anna',
+                    completedByUserId: 'user_ben',
+                    completedAt: '2026-08-03T19:12:00.000Z',
+                    skippedAt: '2026-08-03T19:30:00.000Z',
+                }),
+            ),
+        ).toBe(false);
     });
 });
 
@@ -143,7 +159,9 @@ describe('choreAssignmentError', () => {
     });
 
     it('rejects both', () => {
-        expect(choreAssignmentError({rotationRoleId: 'role_1', fixedAssigneeUserId: 'user_anna'})).toBe('both');
+        expect(choreAssignmentError({rotationRoleId: 'role_1', fixedAssigneeUserId: 'user_anna'})).toBe(
+            'both',
+        );
     });
 
     it('treats empty strings as unset rather than as a value', () => {

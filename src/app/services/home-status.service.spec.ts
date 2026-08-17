@@ -31,7 +31,8 @@ function setup() {
             {
                 provide: RealtimeConnectionService,
                 useValue: {
-                    on: (event: string, handler: (payload: unknown) => void) => hubHandlers.set(event, handler),
+                    on: (event: string, handler: (payload: unknown) => void) =>
+                        hubHandlers.set(event, handler),
                 },
             },
         ],
@@ -84,7 +85,10 @@ describe('HomeStatusService - the two payload shapes under one event name', () =
     it('applies the {guildId, status} shape as an upsert', () => {
         const {service} = setup();
 
-        fire({guildId: 'g1', status: {userId: 'u1', kind: 'Asleep', note: 'early start', expiresAt: isoIn(60)}});
+        fire({
+            guildId: 'g1',
+            status: {userId: 'u1', kind: 'Asleep', note: 'early start', expiresAt: isoIn(60)},
+        });
 
         expect(service.statuses('g1').map(s => s.userId)).toEqual(['u1']);
         expect(service.statuses('g1')[0].kind).toBe(HomeStatusKind.Asleep);

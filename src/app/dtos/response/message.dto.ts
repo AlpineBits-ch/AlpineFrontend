@@ -1,4 +1,4 @@
-import {MessageEncryptionState} from "../../enums/message-encryption-state.enum";
+import {MessageEncryptionState} from '../../enums/message-encryption-state.enum';
 import {MessageType} from '../../enums/message-type.enum';
 
 /** Has no `url`. Build the full-size address from the id with `FileService.attachmentDownloadUrl`. */
@@ -50,8 +50,15 @@ export interface MessageEmbedProvider {
  * `venta.*` type must be ignored outright, never fall back to the link layout.
  */
 export type MessageEmbedType =
-    'rich' | 'link' | 'article' | 'image' | 'video' | 'gifv'
-    | 'venta.invite' | 'venta.wiki_page' | 'venta.voice_invite';
+    | 'rich'
+    | 'link'
+    | 'article'
+    | 'image'
+    | 'video'
+    | 'gifv'
+    | 'venta.invite'
+    | 'venta.wiki_page'
+    | 'venta.voice_invite';
 
 /**
  * The identity of whatever an instance-local link points at. Identifiers only, never a URL to call.

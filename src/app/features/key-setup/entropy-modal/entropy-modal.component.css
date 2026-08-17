@@ -56,7 +56,10 @@
     background: color-mix(in srgb, var(--color-brand) 18%, transparent);
     color: var(--color-brand-dim);
     border: 1px solid color-mix(in srgb, var(--color-brand) 30%, transparent);
-    transition: background 0.3s, color 0.3s, border-color 0.3s;
+    transition:
+        background 0.3s,
+        color 0.3s,
+        border-color 0.3s;
 }
 
 .timer-badge.timer-urgent {

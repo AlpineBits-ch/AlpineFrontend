@@ -98,7 +98,10 @@ function put<T extends object>(target: T, key: keyof T, value: unknown): void {
 }
 
 function profileLevelIdOf(fmtp: string | undefined): string | undefined {
-    return fmtp?.split(';').find(p => p.startsWith('profile-level-id='))?.split('=')[1];
+    return fmtp
+        ?.split(';')
+        .find(p => p.startsWith('profile-level-id='))
+        ?.split('=')[1];
 }
 
 /** The one candidate pair actually carrying media, plus the two candidates it names. */
@@ -114,14 +117,18 @@ function transportOf(stats: Map<string, RTCStats>): StreamTransportStats | undef
     }
     if (!pair) return undefined;
 
-    const local = stats.get(pair['localCandidateId'] as string) as unknown as Record<string, unknown> | undefined;
-    const remote = stats.get(pair['remoteCandidateId'] as string) as unknown as Record<string, unknown> | undefined;
+    const local = stats.get(pair['localCandidateId'] as string) as unknown as
+        Record<string, unknown> | undefined;
+    const remote = stats.get(pair['remoteCandidateId'] as string) as unknown as
+        Record<string, unknown> | undefined;
 
     const transport: StreamTransportStats = {};
     const rtt = pair['currentRoundTripTime'];
     if (typeof rtt === 'number') transport.rttMs = Math.round(rtt * 1000);
-    if (typeof local?.['candidateType'] === 'string') transport.localCandidateType = local['candidateType'] as string;
-    if (typeof remote?.['candidateType'] === 'string') transport.remoteCandidateType = remote['candidateType'] as string;
+    if (typeof local?.['candidateType'] === 'string')
+        transport.localCandidateType = local['candidateType'] as string;
+    if (typeof remote?.['candidateType'] === 'string')
+        transport.remoteCandidateType = remote['candidateType'] as string;
     if (typeof local?.['protocol'] === 'string') transport.protocol = local['protocol'] as string;
     const outgoing = pair['availableOutgoingBitrate'];
     if (typeof outgoing === 'number') transport.availableOutgoingKbps = Math.round(outgoing / 1000);

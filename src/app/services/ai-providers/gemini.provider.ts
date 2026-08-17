@@ -36,17 +36,15 @@ const FAST_COMPLETE_MODEL = 'gemini-2.5-flash-lite';
 export const geminiProvider: AiProvider = {
     ...AI_PROVIDER_META.gemini,
 
-    async* draft(req: AiDraftRequest, apiKey: string, model: string, signal: AbortSignal) {
+    async *draft(req: AiDraftRequest, apiKey: string, model: string, signal: AbortSignal) {
         yield* streamText(apiKey, model, AI_SYSTEM_PROMPT, buildDraftPrompt(req), signal);
     },
 
-    async* transform(req: AiTransformRequest, apiKey: string, model: string, signal: AbortSignal) {
-        yield* streamText(
-            apiKey, model, AI_TRANSFORM_SYSTEM_PROMPT, buildTransformPrompt(req), signal,
-        );
+    async *transform(req: AiTransformRequest, apiKey: string, model: string, signal: AbortSignal) {
+        yield* streamText(apiKey, model, AI_TRANSFORM_SYSTEM_PROMPT, buildTransformPrompt(req), signal);
     },
 
-    async* ask(req: AiAskRequest, apiKey: string, model: string, signal: AbortSignal) {
+    async *ask(req: AiAskRequest, apiKey: string, model: string, signal: AbortSignal) {
         yield* streamText(apiKey, model, AI_ASK_SYSTEM_PROMPT, buildAskPrompt(req), signal);
     },
 

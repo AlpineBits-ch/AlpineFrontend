@@ -83,8 +83,7 @@ describe('StripeLoaderService - no key configured', () => {
 
 describe('StripeLoaderService - the load failing', () => {
     it('reports load_failed distinguishably when the script does not arrive', async () => {
-        const loader = vi.fn<StripeJsLoader>()
-            .mockRejectedValue(new Error('Failed to load Stripe.js'));
+        const loader = vi.fn<StripeJsLoader>().mockRejectedValue(new Error('Failed to load Stripe.js'));
         const {service} = setup('pk_live_instance', loader);
 
         const result = await service.load();
@@ -102,7 +101,8 @@ describe('StripeLoaderService - the load failing', () => {
     });
 
     it('does not memoise a failure, so a retry is a real retry', async () => {
-        const loader = vi.fn<StripeJsLoader>()
+        const loader = vi
+            .fn<StripeJsLoader>()
             .mockRejectedValueOnce(new Error('offline'))
             .mockResolvedValue(STRIPE);
         const {service} = setup('pk_live_instance', loader);

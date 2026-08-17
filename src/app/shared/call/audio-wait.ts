@@ -28,7 +28,9 @@ export function trackAudioWait(
     const pending = computed(() => {
         const audio = withAudio();
         return new Set(
-            participants().filter(p => !p.isLocal && !audio.has(p.userId)).map(p => p.userId),
+            participants()
+                .filter(p => !p.isLocal && !audio.has(p.userId))
+                .map(p => p.userId),
         );
     });
 
@@ -57,11 +59,14 @@ export function trackAudioWait(
 
         for (const userId of waiting) {
             if (timers.has(userId) || stalledIds.has(userId)) continue;
-            timers.set(userId, setTimeout(() => {
-                timers.delete(userId);
-                stalledIds.add(userId);
-                stalled.set(new Set(stalledIds));
-            }, AUDIO_GRACE_MS));
+            timers.set(
+                userId,
+                setTimeout(() => {
+                    timers.delete(userId);
+                    stalledIds.add(userId);
+                    stalled.set(new Set(stalledIds));
+                }, AUDIO_GRACE_MS),
+            );
         }
 
         if (changed) stalled.set(new Set(stalledIds));

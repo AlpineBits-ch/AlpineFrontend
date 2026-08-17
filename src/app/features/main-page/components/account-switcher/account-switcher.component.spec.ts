@@ -47,7 +47,9 @@ function build(): AccountSwitcherComponent {
                         switched.push(id);
                         return switchResult;
                     },
-                    beginAddAccount: () => { switched.push('add'); },
+                    beginAddAccount: () => {
+                        switched.push('add');
+                    },
                 },
             },
             {provide: CallSessionService, useValue: {session}},
@@ -75,7 +77,7 @@ beforeEach(() => {
     switched = [];
     switchResult = true;
     environment = {
-        reenter: () => { },
+        reenter: () => {},
         callIsLive: () => false,
         confirmLeaveCall: async () => true,
     };
@@ -84,7 +86,11 @@ beforeEach(() => {
 it('lists every account except the one that is live', () => {
     const component = build();
 
-    expect(inner(component).others().map(s => s.id)).toEqual(['b']);
+    expect(
+        inner(component)
+            .others()
+            .map(s => s.id),
+    ).toEqual(['b']);
 });
 
 it('lists nothing when this is the only account', () => {
@@ -150,15 +156,15 @@ describe('labels', () => {
     it('shows the host, so one username on two servers stays distinguishable', () => {
         const component = build();
 
-        expect(inner(component).serverLabel(slot({id: 'a', serverUrl: 'https://self.example:8443'})))
-            .toBe('self.example:8443');
+        expect(inner(component).serverLabel(slot({id: 'a', serverUrl: 'https://self.example:8443'}))).toBe(
+            'self.example:8443',
+        );
     });
 
     it('falls back to the raw value for a server url it cannot parse', () => {
         const component = build();
 
-        expect(inner(component).serverLabel(slot({id: 'a', serverUrl: 'not a url'})))
-            .toBe('not a url');
+        expect(inner(component).serverLabel(slot({id: 'a', serverUrl: 'not a url'}))).toBe('not a url');
     });
 
     it('uses the first letter for an account with no avatar', () => {

@@ -1,4 +1,15 @@
-import {Component, computed, effect, inject, input, model, output, signal, untracked, viewChild} from '@angular/core';
+import {
+    Component,
+    computed,
+    effect,
+    inject,
+    input,
+    model,
+    output,
+    signal,
+    untracked,
+    viewChild,
+} from '@angular/core';
 import {Dialog} from 'primeng/dialog';
 import {Button} from 'primeng/button';
 import {PrimeTemplate} from 'primeng/api';
@@ -56,13 +67,12 @@ export class CheckoutDialogComponent {
     /** The price, formatted from the plan's own currency. */
     protected readonly price = computed(() => {
         const plan = this.plan();
-        return plan.priceMinorUnits === null
-            ? null
-            : formatMinor(plan.priceMinorUnits, plan.currency);
+        return plan.priceMinorUnits === null ? null : formatMinor(plan.priceMinorUnits, plan.currency);
     });
 
-    protected readonly intervalKey = computed(
-        () => this.plan().interval === 'year' ? 'BILLING.INTERVAL.YEAR' : 'BILLING.INTERVAL.MONTH');
+    protected readonly intervalKey = computed(() =>
+        this.plan().interval === 'year' ? 'BILLING.INTERVAL.YEAR' : 'BILLING.INTERVAL.MONTH',
+    );
 
     /** True once there is something to confirm and nothing already in flight. */
     protected readonly canPay = computed(() => this.step() === 'collecting' && this.elementReady());
@@ -142,11 +152,13 @@ export class CheckoutDialogComponent {
 
         this.step.set('starting');
         try {
-            const response = await firstValueFrom(this.billing.createSubscription({
-                planName: plan.name,
-                subjectKind: this.subject().kind,
-                subjectId,
-            }));
+            const response = await firstValueFrom(
+                this.billing.createSubscription({
+                    planName: plan.name,
+                    subjectKind: this.subject().kind,
+                    subjectId,
+                }),
+            );
 
             this.subscriptionId = response.subscription.id;
 
@@ -161,7 +173,8 @@ export class CheckoutDialogComponent {
             this.step.set('collecting');
         } catch (err) {
             this.alreadySubscribed.set(
-                describeBillingError(err)?.code === BILLING_ERROR_CODES.alreadySubscribed);
+                describeBillingError(err)?.code === BILLING_ERROR_CODES.alreadySubscribed,
+            );
             const copy = billingErrorCopy(err);
             this.refuse(copy.key, copy.text);
         }
@@ -176,10 +189,9 @@ export class CheckoutDialogComponent {
         }
 
         this.step.set('activating');
-        const result = await awaitActivation(
-            () => firstValueFrom(this.billing.getSubscription(id)),
-            {backoffMs: this.backoff},
-        );
+        const result = await awaitActivation(() => firstValueFrom(this.billing.getSubscription(id)), {
+            backoffMs: this.backoff,
+        });
 
         if (result.outcome === 'ended') {
             this.refuse('BILLING.ERROR.NOT_ACTIVATED', null);
@@ -209,9 +221,7 @@ export class CheckoutDialogComponent {
     /** The guild, or this account. `me` is a routing shorthand and is not an id the server takes. */
     private subjectId(): string | null {
         const subject = this.subject();
-        return subject.kind === 'guild'
-            ? subject.id
-            : this.profile.ownProfile()?.userId ?? null;
+        return subject.kind === 'guild' ? subject.id : (this.profile.ownProfile()?.userId ?? null);
     }
 
     private reset(): void {

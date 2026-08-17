@@ -80,21 +80,19 @@ describe('MlsService.exportBackup', () => {
     it('refuses a locked session before reading anything', async () => {
         service.keyHandle.set(undefined);
 
-        await expect(service.exportBackup('pass', 'user-1', '3.0.165', true))
-            .rejects.toThrow(/locked/i);
+        await expect(service.exportBackup('pass', 'user-1', '3.0.165', true)).rejects.toThrow(/locked/i);
 
         // The signing key never crosses IPC, so without a handle there is nothing to export.
         expect(invokeStub).not.toHaveBeenCalled();
     });
 
     it('reports a build with no export engine as unavailable, not as a failure', async () => {
-        invokeStub.mockRejectedValue(
-            'Command mls_export_backup not found' as never,
-        );
+        invokeStub.mockRejectedValue('Command mls_export_backup not found' as never);
 
         // Reported as a failure it sends the user back to retry something that can never succeed.
-        await expect(service.exportBackup('pass', 'user-1', '3.0.165', false))
-            .rejects.toBeInstanceOf(MlsFeatureUnavailableError);
+        await expect(service.exportBackup('pass', 'user-1', '3.0.165', false)).rejects.toBeInstanceOf(
+            MlsFeatureUnavailableError,
+        );
     });
 
     describe('the message cache', () => {
@@ -118,9 +116,11 @@ describe('MlsService.exportBackup', () => {
 
         it('skips an entry this device can no longer open', async () => {
             await service.cacheMessage('ctx-1', 0, 'good', 'aGVsbG8=', 'user-1');
-            const store = await (service as unknown as {
-                cacheStore(): Promise<{set(k: string, v: unknown): Promise<void>}>
-            }).cacheStore();
+            const store = await (
+                service as unknown as {
+                    cacheStore(): Promise<{set(k: string, v: unknown): Promise<void>}>;
+                }
+            ).cacheStore();
             await store.set('ctx-1#0#broken', {v: 1, at: Date.now(), iv: 'AAAA', ct: 'bm90'});
 
             await service.exportBackup('pass', 'user-1', '3.0.165', true);
@@ -159,8 +159,7 @@ describe('MlsService.exportBackup', () => {
 
             await service.exportBackup('pass', 'user-1', '3.0.165', false);
 
-            expect(exportArgs()['accountIdentity'])
-                .toEqual({pub: 'YWNjLXB1Yg==', priv: 'YWNjLXByaXY='});
+            expect(exportArgs()['accountIdentity']).toEqual({pub: 'YWNjLXB1Yg==', priv: 'YWNjLXByaXY='});
         });
 
         it('is absent when this device holds none', async () => {
@@ -186,8 +185,9 @@ describe('MlsService.exportBackup', () => {
                 throw new Error('keychain locked');
             });
 
-            await expect(service.exportBackup('pass', 'user-1', '3.0.165', false))
-                .resolves.toBe('<envelope>');
+            await expect(service.exportBackup('pass', 'user-1', '3.0.165', false)).resolves.toBe(
+                '<envelope>',
+            );
 
             // This is the logout path; the alternative to a backup missing a field is no keys at all.
             expect(exportArgs()['accountIdentity']).toBeUndefined();

@@ -31,8 +31,7 @@ export class WikiAiDocStream {
     constructor(
         private readonly editor: Editor,
         private readonly restoreEditable: () => boolean,
-    ) {
-    }
+    ) {}
 
     get active(): boolean {
         return this.live;
@@ -71,7 +70,8 @@ export class WikiAiDocStream {
             return;
         }
         const before = this.editor.state.doc.content.size;
-        this.editor.chain()
+        this.editor
+            .chain()
             .setMeta('addToHistory', false)
             .insertContentAt({from: this.start, to: this.end}, text, {
                 contentType: 'markdown',
@@ -116,12 +116,14 @@ export class WikiAiDocStream {
         if (text) {
             const before = this.editor.state.doc.content.size;
             const chain = editable ? this.editor.chain().focus() : this.editor.chain();
-            chain.insertContentAt({from: this.start, to: this.end}, text, {
-                contentType: 'markdown',
-                updateSelection: true,
-                applyInputRules: false,
-                applyPasteRules: false,
-            }).run();
+            chain
+                .insertContentAt({from: this.start, to: this.end}, text, {
+                    contentType: 'markdown',
+                    updateSelection: true,
+                    applyInputRules: false,
+                    applyPasteRules: false,
+                })
+                .run();
             this.end += this.editor.state.doc.content.size - before;
         }
         this.finish();
@@ -135,10 +137,7 @@ export class WikiAiDocStream {
         if (!this.live) return;
         this.rewind();
         const editable = this.unlock();
-        const to = Math.min(
-            this.start + this.originalLength,
-            this.editor.state.doc.content.size,
-        );
+        const to = Math.min(this.start + this.originalLength, this.editor.state.doc.content.size);
         const chain = editable ? this.editor.chain().focus() : this.editor.chain();
         chain.setTextSelection({from: this.start, to}).run();
         this.finish();

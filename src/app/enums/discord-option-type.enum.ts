@@ -17,24 +17,38 @@ export function discordOptionInputKind(type: number): 'text' | 'number' | 'boole
 
 export function discordOptionPlaceholder(type: number): string {
     switch (type) {
-        case DiscordOptionType.User: return 'User ID';
-        case DiscordOptionType.Channel: return 'Channel ID';
-        case DiscordOptionType.Role: return 'Role ID';
-        case DiscordOptionType.Mentionable: return 'User or Role ID';
-        default: return '';
+        case DiscordOptionType.User:
+            return 'User ID';
+        case DiscordOptionType.Channel:
+            return 'Channel ID';
+        case DiscordOptionType.Role:
+            return 'Role ID';
+        case DiscordOptionType.Mentionable:
+            return 'User or Role ID';
+        default:
+            return '';
     }
 }
 
 export function discordOptionTypeLabel(type: number): string {
     switch (type) {
-        case DiscordOptionType.String: return 'text';
-        case DiscordOptionType.Integer: return 'integer';
-        case DiscordOptionType.Boolean: return 'boolean';
-        case DiscordOptionType.User: return 'user';
-        case DiscordOptionType.Channel: return 'channel';
-        case DiscordOptionType.Role: return 'role';
-        case DiscordOptionType.Mentionable: return 'mentionable';
-        case DiscordOptionType.Number: return 'number';
-        default: return 'value';
+        case DiscordOptionType.String:
+            return 'text';
+        case DiscordOptionType.Integer:
+            return 'integer';
+        case DiscordOptionType.Boolean:
+            return 'boolean';
+        case DiscordOptionType.User:
+            return 'user';
+        case DiscordOptionType.Channel:
+            return 'channel';
+        case DiscordOptionType.Role:
+            return 'role';
+        case DiscordOptionType.Mentionable:
+            return 'mentionable';
+        case DiscordOptionType.Number:
+            return 'number';
+        default:
+            return 'value';
     }
 }

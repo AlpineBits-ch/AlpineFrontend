@@ -79,7 +79,8 @@ export class IsleProximityService {
         // Rebind live: a key changed in the Keybinds settings page while
         // proximity voice is already connected.
         this.keybinds.rebind$.subscribe(id => {
-            const isOurs = id === PTT_ACTION.id || id === TOGGLE_MUTE_ACTION.id || id === PUSH_TO_MUTE_ACTION.id;
+            const isOurs =
+                id === PTT_ACTION.id || id === TOGGLE_MUTE_ACTION.id || id === PUSH_TO_MUTE_ACTION.id;
             if (isOurs && this.isVoiceActive()) {
                 void this.registerPtt();
             }
@@ -140,8 +141,11 @@ export class IsleProximityService {
                 await firstValueFrom(this.api.join());
             } catch (err) {
                 // The server enforces the same consent independently and is the authority; the local flag can be stale.
-                if (err instanceof HttpErrorResponse && err.status === 403
-                    && refusalCode(err) === PRIVACY_REFUSAL_CODES.positionalVoiceConsent) {
+                if (
+                    err instanceof HttpErrorResponse &&
+                    err.status === 403 &&
+                    refusalCode(err) === PRIVACY_REFUSAL_CODES.positionalVoiceConsent
+                ) {
                     this.toast.error('Positional voice capture is turned off in your privacy settings');
                 } else if (err instanceof HttpErrorResponse && err.status === 400) {
                     this.toast.error('Link your Steam account to use proximity chat');
@@ -230,12 +234,15 @@ export class IsleProximityService {
         });
 
         // Ungated on purpose: `isVoiceActive` is only set at the end of join, while the relay pushes one of these for every already-audible peer from inside the publish itself, so gating on it drops exactly the orders that matter. `IsleVoiceRtcService` queues an order it cannot act on yet.
-        this.ws.subscribeMutual$.subscribe(p =>
-            void this.rtc.subscribeToPeer(p.targetUserId, p.cfSessionId, p.trackName));
+        this.ws.subscribeMutual$.subscribe(
+            p => void this.rtc.subscribeToPeer(p.targetUserId, p.cfSessionId, p.trackName),
+        );
         this.ws.selfPosition$.subscribe(p =>
-            this.spatial.updateSelf(p.x, p.y, p.z, p.yaw, p.vx ?? 0, p.vy ?? 0, p.vz ?? 0));
+            this.spatial.updateSelf(p.x, p.y, p.z, p.yaw, p.vx ?? 0, p.vy ?? 0, p.vz ?? 0),
+        );
         this.ws.playerPosition$.subscribe(p =>
-            this.spatial.updatePeer(p.userId, p.x, p.y, p.z, p.vx ?? 0, p.vy ?? 0, p.vz ?? 0));
+            this.spatial.updatePeer(p.userId, p.x, p.y, p.z, p.vx ?? 0, p.vy ?? 0, p.vz ?? 0),
+        );
         this.ws.peerLeft$.subscribe(p => this.rtc.tearDownPeer(p.userId));
 
         // Isle restarted and forgot our published track. The hub socket never dropped, so the
@@ -297,7 +304,11 @@ export class IsleProximityService {
     }
 
     /** Arm one action's current binding, native hook first (bare modifiers, mouse buttons, and keeps working while a game has focus), falling back to the OS global-shortcut plugin. Returns whether some mechanism ended up armed. */
-    private async armAction(id: KeybindActionId, slot: number, onEdge: (down: boolean) => void): Promise<boolean> {
+    private async armAction(
+        id: KeybindActionId,
+        slot: number,
+        onEdge: (down: boolean) => void,
+    ): Promise<boolean> {
         const token = this.keybinds.getBinding(id);
         if (!token) return false;
 
@@ -330,10 +341,8 @@ export class IsleProximityService {
 
     /** Recompute the outgoing mic gate. Must stay synchronous: a signal effect would defer it past the hotkey edge, and the events arrive from outside Angular's zone. */
     private syncMic(): void {
-        const open = this.isVoiceActive()
-            && !this.isMuted()
-            && !this.pushMuteHeld
-            && (!this.pttBound || this.pttHeld);
+        const open =
+            this.isVoiceActive() && !this.isMuted() && !this.pushMuteHeld && (!this.pttBound || this.pttHeld);
         this.rtc.setMicEnabled(open);
         this.isTransmitting.set(open);
     }

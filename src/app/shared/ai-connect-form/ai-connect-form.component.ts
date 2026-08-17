@@ -18,7 +18,7 @@ import {AiPrivacyNoteComponent} from '../ai-privacy-note/ai-privacy-note.compone
     imports: [FormsModule, Button, TranslateModule, AiPrivacyNoteComponent],
     template: `
         <div class="flex flex-col gap-4">
-            <app-ai-privacy-note [showBilling]="showBilling()"/>
+            <app-ai-privacy-note [showBilling]="showBilling()" />
 
             <!-- Provider -->
             <div class="flex flex-col gap-2">
@@ -27,13 +27,15 @@ import {AiPrivacyNoteComponent} from '../ai-privacy-note/ai-privacy-note.compone
                 </label>
                 <div class="flex flex-wrap gap-2">
                     @for (id of providerIds; track id) {
-                        <button (click)="selectProvider(id)"
-                                [class.border-brand]="provider() === id"
-                                [class.text-white]="provider() === id"
-                                class="flex cursor-pointer items-center gap-2 rounded-lg border
+                        <button
+                            (click)="selectProvider(id)"
+                            [class.border-brand]="provider() === id"
+                            [class.text-white]="provider() === id"
+                            class="flex cursor-pointer items-center gap-2 rounded-lg border
                                        border-border bg-card px-3 py-2 text-[0.8125rem]
                                        text-white/60 transition-colors hover:bg-hover"
-                                type="button">
+                            type="button"
+                        >
                             {{ meta[id].label }}
                             @if (credentials.configured().has(id)) {
                                 <i class="pi pi-check-circle text-[0.6875rem] text-online"></i>
@@ -50,20 +52,30 @@ import {AiPrivacyNoteComponent} from '../ai-privacy-note/ai-privacy-note.compone
                     <label class="text-xs font-medium text-white/45">
                         {{ 'AI.CONNECT.KEY' | translate }}
                     </label>
-                    <a [href]="meta[provider()].keyUrl" class="text-[0.6875rem] text-brand-dim
-                              hover:underline" rel="noopener" target="_blank">
+                    <a
+                        [href]="meta[provider()].keyUrl"
+                        class="text-[0.6875rem] text-brand-dim
+                              hover:underline"
+                        rel="noopener"
+                        target="_blank"
+                    >
                         {{ 'AI.CONNECT.GET_KEY' | translate }}
                     </a>
                 </div>
-                <input [(ngModel)]="apiKey"
-                       [placeholder]="isConfigured()
+                <input
+                    [(ngModel)]="apiKey"
+                    [placeholder]="
+                        isConfigured()
                             ? ('AI.CONNECT.KEY_STORED' | translate)
-                            : ('AI.CONNECT.KEY_PLACEHOLDER' | translate)"
-                       autocomplete="off"
-                       class="w-full rounded-lg border border-border bg-card px-3 py-2 font-mono
+                            : ('AI.CONNECT.KEY_PLACEHOLDER' | translate)
+                    "
+                    autocomplete="off"
+                    class="w-full rounded-lg border border-border bg-card px-3 py-2 font-mono
                               text-[0.8125rem] text-white/80 outline-none placeholder-white/25
                               focus:border-brand-dim"
-                       spellcheck="false" type="password"/>
+                    spellcheck="false"
+                    type="password"
+                />
                 @if (isConfigured()) {
                     <p class="text-[0.6875rem] text-white/35">
                         {{ 'AI.CONNECT.KEY_REPLACE_HINT' | translate }}
@@ -76,11 +88,14 @@ import {AiPrivacyNoteComponent} from '../ai-privacy-note/ai-privacy-note.compone
                 <label class="text-xs font-medium text-white/45">
                     {{ 'AI.CONNECT.MODEL' | translate }}
                 </label>
-                <input [(ngModel)]="model"
-                       class="w-full rounded-lg border border-border bg-card px-3 py-2 font-mono
+                <input
+                    [(ngModel)]="model"
+                    class="w-full rounded-lg border border-border bg-card px-3 py-2 font-mono
                               text-[0.8125rem] text-white/80 outline-none placeholder-white/25
                               focus:border-brand-dim"
-                       spellcheck="false" type="text"/>
+                    spellcheck="false"
+                    type="text"
+                />
             </div>
 
             @if (error(); as messageKey) {
@@ -88,11 +103,21 @@ import {AiPrivacyNoteComponent} from '../ai-privacy-note/ai-privacy-note.compone
             }
 
             <div class="flex items-center gap-2">
-                <p-button (onClick)="save()" [label]="'AI.CONNECT.SAVE' | translate"
-                          [loading]="busy()" severity="primary" size="small"/>
+                <p-button
+                    (onClick)="save()"
+                    [label]="'AI.CONNECT.SAVE' | translate"
+                    [loading]="busy()"
+                    severity="primary"
+                    size="small"
+                />
                 @if (isConfigured()) {
-                    <p-button (onClick)="remove()" [label]="'AI.CONNECT.REMOVE' | translate"
-                              [loading]="busy()" severity="secondary" size="small"/>
+                    <p-button
+                        (onClick)="remove()"
+                        [label]="'AI.CONNECT.REMOVE' | translate"
+                        [loading]="busy()"
+                        severity="secondary"
+                        size="small"
+                    />
                 }
             </div>
         </div>
@@ -107,9 +132,7 @@ export class AiConnectFormComponent {
     protected readonly providerIds = AI_PROVIDER_IDS;
     protected readonly meta = AI_PROVIDER_META;
 
-    protected readonly provider = signal<AiProviderId>(
-        this.credentials.selectedProvider() ?? 'anthropic',
-    );
+    protected readonly provider = signal<AiProviderId>(this.credentials.selectedProvider() ?? 'anthropic');
     protected readonly busy = signal(false);
     /** A translation key, not a sentence - this component renders in three languages. */
     protected readonly error = signal<string | null>(null);

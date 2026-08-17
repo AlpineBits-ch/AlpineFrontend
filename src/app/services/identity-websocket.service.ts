@@ -355,8 +355,7 @@ export class IdentityWebsocketService {
     readonly backupReads = this._backupReads.asReadonly();
 
     /** Reads that were not performed by this installation - the ones worth explaining. */
-    readonly foreignBackupReads = computed(
-        () => this._backupReads().filter(read => !read.readByThisDevice));
+    readonly foreignBackupReads = computed(() => this._backupReads().filter(read => !read.readByThisDevice));
 
     /**
      * Devices seen re-registering under a new signing key this session, newest first.
@@ -388,20 +387,34 @@ export class IdentityWebsocketService {
     private ownDeviceId: Promise<string | null> | null = null;
 
     constructor() {
-        this.realtime.on('identity.DeviceRegistered', (d: DeviceRegisteredPayload) =>
-            void this.onDeviceRegistered(d).catch(logHandlerError('identity.DeviceRegistered')));
+        this.realtime.on(
+            'identity.DeviceRegistered',
+            (d: DeviceRegisteredPayload) =>
+                void this.onDeviceRegistered(d).catch(logHandlerError('identity.DeviceRegistered')),
+        );
 
-        this.realtime.on('identity.DeviceAdmitted', (d: DeviceAdmittedPayload) =>
-            void this.onDeviceAdmitted(d).catch(logHandlerError('identity.DeviceAdmitted')));
+        this.realtime.on(
+            'identity.DeviceAdmitted',
+            (d: DeviceAdmittedPayload) =>
+                void this.onDeviceAdmitted(d).catch(logHandlerError('identity.DeviceAdmitted')),
+        );
 
         this.realtime.on('identity.AccountIdentityKeyRotated', (d: AccountIdentityKeyRotatedPayload) =>
-            this.onAccountIdentityKeyRotated(d));
+            this.onAccountIdentityKeyRotated(d),
+        );
 
-        this.realtime.on('identity.ProtectionLevelChanged', (d: ProtectionLevelChangedPayload) =>
-            void this.onProtectionLevelChanged(d).catch(logHandlerError('identity.ProtectionLevelChanged')));
+        this.realtime.on(
+            'identity.ProtectionLevelChanged',
+            (d: ProtectionLevelChangedPayload) =>
+                void this.onProtectionLevelChanged(d).catch(
+                    logHandlerError('identity.ProtectionLevelChanged'),
+                ),
+        );
 
-        this.realtime.on('identity.BackupRead', (d: BackupReadPayload) =>
-            void this.onBackupRead(d).catch(logHandlerError('identity.BackupRead')));
+        this.realtime.on(
+            'identity.BackupRead',
+            (d: BackupReadPayload) => void this.onBackupRead(d).catch(logHandlerError('identity.BackupRead')),
+        );
     }
 
     // ── Handlers ────────────────────────────────────────────────────────────
@@ -432,14 +445,15 @@ export class IdentityWebsocketService {
             // Fails toward the alarming answer, like every other boolean here: a payload that lost
             // the flag must not turn a re-key into a routine registration.
             identityRotated: payload.identityRotated !== false,
-            isOwnDevice: payload.deviceId === await this.resolveOwnDeviceId(),
+            isOwnDevice: payload.deviceId === (await this.resolveOwnDeviceId()),
         };
 
         // Recorded before the fan-out so a subscriber that reads the signal sees the same account
         // state the event describes.
         if (event.identityRotated) {
-            this._deviceIdentityRotations.update(
-                rotations => [event, ...rotations].slice(0, MAX_RETAINED_SECURITY_EVENTS));
+            this._deviceIdentityRotations.update(rotations =>
+                [event, ...rotations].slice(0, MAX_RETAINED_SECURITY_EVENTS),
+            );
         }
 
         this.deviceRegistered$.next(event);
@@ -447,13 +461,12 @@ export class IdentityWebsocketService {
 
         if (!event.identityRotated || event.isOwnDevice) return;
 
-        this.toast.warn(
-            this.translate.instant('IDENTITY.SECURITY.DEVICE_IDENTITY_ROTATED'),
-            {
-                detail: this.translate.instant('IDENTITY.SECURITY.DEVICE_IDENTITY_ROTATED_DETAIL',
-                    {device: event.deviceName}),
-                sticky: true,
-            });
+        this.toast.warn(this.translate.instant('IDENTITY.SECURITY.DEVICE_IDENTITY_ROTATED'), {
+            detail: this.translate.instant('IDENTITY.SECURITY.DEVICE_IDENTITY_ROTATED_DETAIL', {
+                device: event.deviceName,
+            }),
+            sticky: true,
+        });
     }
 
     /**
@@ -481,7 +494,7 @@ export class IdentityWebsocketService {
             // server only ever sends when none did. Same rule as everywhere else: unstated is the
             // alarming answer.
             autoAdmitted: payload.autoAdmitted !== false,
-            isOwnDevice: payload.deviceId === await this.resolveOwnDeviceId(),
+            isOwnDevice: payload.deviceId === (await this.resolveOwnDeviceId()),
         };
 
         this.deviceAdmitted$.next(event);
@@ -500,8 +513,11 @@ export class IdentityWebsocketService {
             try {
                 await sync.processPendingWelcomes();
             } catch (err) {
-                console.error('Failed to take the Welcome for an admission of this device',
-                    event.contextId, err);
+                console.error(
+                    'Failed to take the Welcome for an admission of this device',
+                    event.contextId,
+                    err,
+                );
             }
         }
 
@@ -541,18 +557,20 @@ export class IdentityWebsocketService {
             this.translate.instant(
                 event.isFirstPublication
                     ? 'IDENTITY.SECURITY.IDENTITY_KEY_PUBLISHED'
-                    : 'IDENTITY.SECURITY.IDENTITY_KEY_ROTATED'),
+                    : 'IDENTITY.SECURITY.IDENTITY_KEY_ROTATED',
+            ),
             {
                 detail: this.translate.instant(
                     event.isFirstPublication
                         ? 'IDENTITY.SECURITY.IDENTITY_KEY_PUBLISHED_DETAIL'
                         : event.signedByOutgoingKey
-                            ? 'IDENTITY.SECURITY.IDENTITY_KEY_ROTATED_DETAIL'
-                            : 'IDENTITY.SECURITY.IDENTITY_KEY_ROTATED_UNSIGNED_DETAIL',
+                          ? 'IDENTITY.SECURITY.IDENTITY_KEY_ROTATED_DETAIL'
+                          : 'IDENTITY.SECURITY.IDENTITY_KEY_ROTATED_UNSIGNED_DETAIL',
                     {version: event.version},
                 ),
                 sticky: true,
-            });
+            },
+        );
     }
 
     /**
@@ -572,13 +590,13 @@ export class IdentityWebsocketService {
         this.protectionLevelChanged$.next(event);
 
         if (event.isDowngrade) {
-            this.toast.warn(
-                this.translate.instant('IDENTITY.SECURITY.PROTECTION_DOWNGRADED'),
-                {
-                    detail: this.translate.instant('IDENTITY.SECURITY.PROTECTION_DOWNGRADED_DETAIL',
-                        {previous: event.previousLevel, level: event.level}),
-                    sticky: true,
-                });
+            this.toast.warn(this.translate.instant('IDENTITY.SECURITY.PROTECTION_DOWNGRADED'), {
+                detail: this.translate.instant('IDENTITY.SECURITY.PROTECTION_DOWNGRADED_DETAIL', {
+                    previous: event.previousLevel,
+                    level: event.level,
+                }),
+                sticky: true,
+            });
         }
 
         try {
@@ -613,23 +631,20 @@ export class IdentityWebsocketService {
             readByThisDevice: !!own && payload.readByDeviceId === own,
         };
 
-        this._backupReads.update(
-            reads => [event, ...reads].slice(0, MAX_RETAINED_SECURITY_EVENTS));
+        this._backupReads.update(reads => [event, ...reads].slice(0, MAX_RETAINED_SECURITY_EVENTS));
         this.backupRead$.next(event);
 
         if (event.readByThisDevice) return;
 
-        this.toast.warn(
-            this.translate.instant('IDENTITY.SECURITY.BACKUP_READ'),
-            {
-                detail: this.translate.instant(
-                    event.readByDeviceId
-                        ? 'IDENTITY.SECURITY.BACKUP_READ_DETAIL'
-                        : 'IDENTITY.SECURITY.BACKUP_READ_UNATTRIBUTED_DETAIL',
-                    {device: event.deviceName},
-                ),
-                sticky: true,
-            });
+        this.toast.warn(this.translate.instant('IDENTITY.SECURITY.BACKUP_READ'), {
+            detail: this.translate.instant(
+                event.readByDeviceId
+                    ? 'IDENTITY.SECURITY.BACKUP_READ_DETAIL'
+                    : 'IDENTITY.SECURITY.BACKUP_READ_UNATTRIBUTED_DETAIL',
+                {device: event.deviceName},
+            ),
+            sticky: true,
+        });
     }
 
     // ── Internals ───────────────────────────────────────────────────────────
@@ -647,11 +662,11 @@ export class IdentityWebsocketService {
      * cheap and being permanently wrong in the quiet direction is not acceptable.</p>
      */
     private resolveOwnDeviceId(): Promise<string | null> {
-        return this.ownDeviceId ??= this.deviceIdentity.deviceId().catch((err: unknown) => {
+        return (this.ownDeviceId ??= this.deviceIdentity.deviceId().catch((err: unknown) => {
             console.error('Identity events: could not resolve this device id', err);
             this.ownDeviceId = null;
             return null;
-        });
+        }));
     }
 }
 

@@ -4,12 +4,11 @@ import {Component} from '@angular/core';
 @Component({
     selector: 'app-typing-dots',
     template: `
-    <span class="flex gap-0.5 items-end shrink-0">
-      <span class="typing-dot"></span>
-      <span class="typing-dot"></span>
-      <span class="typing-dot"></span>
-    </span>
-  `,
+        <span class="flex gap-0.5 items-end shrink-0">
+            <span class="typing-dot"></span>
+            <span class="typing-dot"></span>
+            <span class="typing-dot"></span>
+        </span>
+    `,
 })
-export class TypingDotsComponent {
-}
+export class TypingDotsComponent {}

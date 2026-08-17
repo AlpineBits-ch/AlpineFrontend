@@ -10,7 +10,10 @@ import {toContextEvent, toJoinRequestEvent} from './messaging-websocket.service'
 describe('toContextEvent', () => {
     it('reads a conversation commit as a conversation', () => {
         const event = toContextEvent({
-            contextId: 'conv-1', conversationId: 'conv-1', channelId: null, generation: 2,
+            contextId: 'conv-1',
+            conversationId: 'conv-1',
+            channelId: null,
+            generation: 2,
         });
         expect(event).toEqual({contextId: 'conv-1', isChannel: false, generation: 2});
     });
@@ -18,7 +21,10 @@ describe('toContextEvent', () => {
     it('reads a channel commit as a channel', () => {
         // The case that previously reached nobody at all.
         const event = toContextEvent({
-            contextId: 'chan-1', conversationId: null, channelId: 'chan-1', generation: 3,
+            contextId: 'chan-1',
+            conversationId: null,
+            channelId: 'chan-1',
+            generation: 3,
         });
         expect(event).toEqual({contextId: 'chan-1', isChannel: true, generation: 3});
     });
@@ -26,7 +32,10 @@ describe('toContextEvent', () => {
     it('prefers the explicit contextId over the id that names the kind', () => {
         // A thread carries its own context id while still being a channel.
         const event = toContextEvent({
-            contextId: 'thread-9', conversationId: null, channelId: 'chan-1', generation: 1,
+            contextId: 'thread-9',
+            conversationId: null,
+            channelId: 'chan-1',
+            generation: 1,
         });
         expect(event.contextId).toBe('thread-9');
         expect(event.isChannel).toBe(true);
@@ -45,19 +54,20 @@ describe('toContextEvent', () => {
 });
 
 describe('toJoinRequestEvent', () => {
-    const push = (overrides: Record<string, unknown> = {}) => toJoinRequestEvent({
-        contextId: 'conv-1',
-        conversationId: 'conv-1',
-        channelId: null,
-        generation: 1,
-        requestId: 'mljr-1',
-        requesterUserId: 'user-a',
-        requesterDeviceId: 'device-b',
-        requesterDeviceName: 'Desktop',
-        signatureKeyFingerprint: '517F4-D75A0-AD0A2-6BBCF',
-        requiresManualApproval: false,
-        ...overrides,
-    } as never);
+    const push = (overrides: Record<string, unknown> = {}) =>
+        toJoinRequestEvent({
+            contextId: 'conv-1',
+            conversationId: 'conv-1',
+            channelId: null,
+            generation: 1,
+            requestId: 'mljr-1',
+            requesterUserId: 'user-a',
+            requesterDeviceId: 'device-b',
+            requesterDeviceName: 'Desktop',
+            signatureKeyFingerprint: '517F4-D75A0-AD0A2-6BBCF',
+            requiresManualApproval: false,
+            ...overrides,
+        } as never);
 
     it('keeps the fingerprint, which is the only value a human can compare', () => {
         expect(push().signatureKeyFingerprint).toBe('517F4-D75A0-AD0A2-6BBCF');

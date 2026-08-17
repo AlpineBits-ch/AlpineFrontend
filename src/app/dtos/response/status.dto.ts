@@ -11,15 +11,17 @@
 
 /** Overall platform state. Anything other than `operational` means a banner. */
 export type StatusIndicator =
-    | 'operational' | 'degraded' | 'partial_outage' | 'major_outage' | 'maintenance'
-    | (string & {});
+    'operational' | 'degraded' | 'partial_outage' | 'major_outage' | 'maintenance' | (string & {});
 
 /** How loud the banner is allowed to be. */
 export type StatusSeverity = 'info' | 'warning' | 'critical' | (string & {});
 
 /** Per-component state, shown only on the platform status settings page. */
 export type ComponentStatus =
-    | 'operational' | 'degraded_performance' | 'partial_outage' | 'major_outage'
+    | 'operational'
+    | 'degraded_performance'
+    | 'partial_outage'
+    | 'major_outage'
     | 'under_maintenance'
     | (string & {});
 
@@ -29,14 +31,18 @@ export type IncidentImpact = 'none' | 'minor' | 'major' | 'critical' | (string &
 
 /** `investigating | identified | monitoring | resolved` for incidents, the scheduled set for maintenance. */
 export type IncidentStatus =
-    | 'investigating' | 'identified' | 'monitoring' | 'resolved'
-    | 'scheduled' | 'in_progress' | 'completed' | 'cancelled'
+    | 'investigating'
+    | 'identified'
+    | 'monitoring'
+    | 'resolved'
+    | 'scheduled'
+    | 'in_progress'
+    | 'completed'
+    | 'cancelled'
     | (string & {});
 
 /** Non-null when the incident came from the generated table; see `StatusBannerComponent`. */
-export type IncidentTemplate =
-    | 'elevated_errors' | 'unavailable' | 'recovered'
-    | (string & {});
+export type IncidentTemplate = 'elevated_errors' | 'unavailable' | 'recovered' | (string & {});
 
 /**
  * The copy to render, composed server-side.

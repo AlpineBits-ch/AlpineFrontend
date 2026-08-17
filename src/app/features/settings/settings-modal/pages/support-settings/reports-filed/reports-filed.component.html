@@ -7,8 +7,7 @@
     @if (failed()) {
         <div class="flex items-center justify-between bg-rose-400/[0.06] border border-rose-400/20 rounded-xl px-4 py-3">
             <p class="text-sm text-white/60">{{ 'SETTINGS.SUPPORT.REPORTS_LOAD_ERROR' | translate }}</p>
-            <p-button (onClick)="load()" [label]="'SETTINGS.PRIVACY.RETRY' | translate"
-                      severity="secondary" size="small"/>
+            <p-button (onClick)="load()" [label]="'SETTINGS.PRIVACY.RETRY' | translate" severity="secondary" size="small" />
         </div>
     } @else if (loading() && rows().length === 0) {
         <p class="text-sm text-white/35">{{ 'SETTINGS.SUPPORT.REPORTS_LOADING' | translate }}</p>
@@ -18,16 +17,13 @@
         @for (report of rows(); track report.id) {
             <div class="flex items-center justify-between gap-3 bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
                 <div class="min-w-0">
-                    <p class="text-sm text-white/60 truncate">
-                        {{ subjectKey(report) | translate }} · {{ reasonKey(report) | translate }}
-                    </p>
+                    <p class="text-sm text-white/60 truncate">{{ subjectKey(report) | translate }} · {{ reasonKey(report) | translate }}</p>
                     <p class="text-xs text-white/25 mt-0.5">
                         {{ 'SETTINGS.SUPPORT.REPORT_FILED_ON' | translate }}
-                        {{ report.createdAt | date:'mediumDate' }}
+                        {{ report.createdAt | date: 'mediumDate' }}
                     </p>
                 </div>
-                <span [class]="statusClass(report.status)"
-                      class="shrink-0 rounded-full border px-2.5 py-1 text-[0.6875rem] font-medium">
+                <span [class]="statusClass(report.status)" class="shrink-0 rounded-full border px-2.5 py-1 text-[0.6875rem] font-medium">
                     {{ statusKey(report.status) | translate }}
                 </span>
             </div>

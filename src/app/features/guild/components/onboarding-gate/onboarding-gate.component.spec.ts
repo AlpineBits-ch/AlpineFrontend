@@ -24,10 +24,20 @@ function guildFixture(): GuildDto {
         categories: [],
         channels: [
             {
-                id: 'chan_1', createdAt: new Date(), updatedAt: new Date(), name: 'welcome',
-                description: '', type: ChannelType.Text, guildId: 'g1', isAgeRestricted: false,
-                isPrivate: false, categoryId: undefined, permissions: [], position: 0,
-                slowModeSeconds: 0, parentChannelId: undefined,
+                id: 'chan_1',
+                createdAt: new Date(),
+                updatedAt: new Date(),
+                name: 'welcome',
+                description: '',
+                type: ChannelType.Text,
+                guildId: 'g1',
+                isAgeRestricted: false,
+                isPrivate: false,
+                categoryId: undefined,
+                permissions: [],
+                position: 0,
+                slowModeSeconds: 0,
+                parentChannelId: undefined,
             },
         ],
         roles: [],
@@ -64,7 +74,8 @@ async function setup(status: OnboardingStatus = statusFixture()) {
     const navService = TestBed.inject(NavigationService);
     navService.workspace.set({type: 'server', guild: guildFixture()});
 
-    const fixture: ComponentFixture<OnboardingGateComponent> = TestBed.createComponent(OnboardingGateComponent);
+    const fixture: ComponentFixture<OnboardingGateComponent> =
+        TestBed.createComponent(OnboardingGateComponent);
     fixture.componentRef.setInput('guildId', 'g1');
     const ctrl = TestBed.inject(HttpTestingController);
     fixture.detectChanges();
@@ -82,8 +93,9 @@ function textOf(fixture: ComponentFixture<OnboardingGateComponent>): string {
 }
 
 function clickButtonContaining(fixture: ComponentFixture<OnboardingGateComponent>, label: string): void {
-    const button = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('button'))
-        .find(btn => btn.textContent?.includes(label));
+    const button = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('button')).find(btn =>
+        btn.textContent?.includes(label),
+    );
     expect(button).toBeTruthy();
     button!.click();
     fixture.detectChanges();
@@ -109,14 +121,25 @@ describe('OnboardingGateComponent', () => {
     });
 
     it('skips the rules step entirely when the guild has none', async () => {
-        const {fixture, component} = await setup(statusFixture({
-            rulesText: null,
-            prompts: [{
-                id: 'onbp_1', title: 'Pick one', type: OnboardingPromptType.MultipleChoice,
-                singleSelect: true, required: false, inOnboarding: true, position: 0,
-                options: [{id: 'onbo_1', title: 'Gaming', roleIds: ['r1'], channelIds: [], position: 0}],
-            }],
-        }));
+        const {fixture, component} = await setup(
+            statusFixture({
+                rulesText: null,
+                prompts: [
+                    {
+                        id: 'onbp_1',
+                        title: 'Pick one',
+                        type: OnboardingPromptType.MultipleChoice,
+                        singleSelect: true,
+                        required: false,
+                        inOnboarding: true,
+                        position: 0,
+                        options: [
+                            {id: 'onbo_1', title: 'Gaming', roleIds: ['r1'], channelIds: [], position: 0},
+                        ],
+                    },
+                ],
+            }),
+        );
 
         expect(component['steps']().map(s => s.kind)).toEqual(['welcome', 'prompt', 'done']);
         expect(textOf(fixture)).not.toContain('ONBOARDING_GATE.RULES_HEADING');
@@ -124,14 +147,25 @@ describe('OnboardingGateComponent', () => {
 
     /** Mirrors the server's 400 rather than letting the member reach the end and fail there. */
     it('blocks Continue on an unanswered required prompt', async () => {
-        const {fixture, component} = await setup(statusFixture({
-            rulesText: null,
-            prompts: [{
-                id: 'onbp_1', title: 'Pick one', type: OnboardingPromptType.MultipleChoice,
-                singleSelect: true, required: true, inOnboarding: true, position: 0,
-                options: [{id: 'onbo_1', title: 'Gaming', roleIds: ['r1'], channelIds: [], position: 0}],
-            }],
-        }));
+        const {fixture, component} = await setup(
+            statusFixture({
+                rulesText: null,
+                prompts: [
+                    {
+                        id: 'onbp_1',
+                        title: 'Pick one',
+                        type: OnboardingPromptType.MultipleChoice,
+                        singleSelect: true,
+                        required: true,
+                        inOnboarding: true,
+                        position: 0,
+                        options: [
+                            {id: 'onbo_1', title: 'Gaming', roleIds: ['r1'], channelIds: [], position: 0},
+                        ],
+                    },
+                ],
+            }),
+        );
 
         clickButtonContaining(fixture, 'ONBOARDING_GATE.CONTINUE');
         expect(component['stepIndex']()).toBe(1);
@@ -148,14 +182,25 @@ describe('OnboardingGateComponent', () => {
     });
 
     it('submits the collected answers and re-reads the guild on accept', async () => {
-        const {fixture, ctrl, component} = await setup(statusFixture({
-            rulesText: null,
-            prompts: [{
-                id: 'onbp_1', title: 'Pick one', type: OnboardingPromptType.MultipleChoice,
-                singleSelect: false, required: false, inOnboarding: true, position: 0,
-                options: [{id: 'onbo_1', title: 'Gaming', roleIds: ['r1'], channelIds: [], position: 0}],
-            }],
-        }));
+        const {fixture, ctrl, component} = await setup(
+            statusFixture({
+                rulesText: null,
+                prompts: [
+                    {
+                        id: 'onbp_1',
+                        title: 'Pick one',
+                        type: OnboardingPromptType.MultipleChoice,
+                        singleSelect: false,
+                        required: false,
+                        inOnboarding: true,
+                        position: 0,
+                        options: [
+                            {id: 'onbo_1', title: 'Gaming', roleIds: ['r1'], channelIds: [], position: 0},
+                        ],
+                    },
+                ],
+            }),
+        );
 
         component['onSelectionChange']('onbp_1', ['onbo_1']);
         component['stepIndex'].set(2);

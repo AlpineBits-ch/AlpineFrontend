@@ -9,12 +9,7 @@ import {
     SessionState,
     WebLocksSessionLock,
 } from './session-lock';
-import {
-    dispatchVentaCrypto,
-    loadVentaCrypto,
-    VentaCryptoLoader,
-    VentaCryptoModule,
-} from './venta-crypto';
+import {dispatchVentaCrypto, loadVentaCrypto, VentaCryptoLoader, VentaCryptoModule} from './venta-crypto';
 
 /** The commands that change durable engine state, and so must be persisted after. */
 export const MLS_MUTATING_COMMANDS: ReadonlySet<string> = new Set([
@@ -46,11 +41,14 @@ const STORE_NAME = 'state';
  * as having happened.
  */
 export class MlsStateNotPersistedError extends Error {
-    constructor(readonly command: string, readonly detail: string) {
+    constructor(
+        readonly command: string,
+        readonly detail: string,
+    ) {
         super(
-            `The MLS engine performed ${command} but this browser could not save the result, so the `
-            + `operation has been refused rather than reported as done. Reload the page to return to `
-            + `the last saved state. (${detail})`,
+            `The MLS engine performed ${command} but this browser could not save the result, so the ` +
+                `operation has been refused rather than reported as done. Reload the page to return to ` +
+                `the last saved state. (${detail})`,
         );
         this.name = 'MlsStateNotPersistedError';
     }
@@ -64,11 +62,11 @@ export class MlsStateNotPersistedError extends Error {
 export class MlsSessionHeldElsewhereError extends Error {
     constructor(readonly command: string) {
         super(
-            `Venta is open in another tab of this browser, and that tab owns this account's encryption `
-            + `engine, so ${command} was refused here. Two live engines for one device reuse `
-            + `sender-ratchet generations and overwrite each other's group state, which destroys group `
-            + `keys silently. Use the other tab, or close it - this one takes the engine over by `
-            + `itself once it does.`,
+            `Venta is open in another tab of this browser, and that tab owns this account's encryption ` +
+                `engine, so ${command} was refused here. Two live engines for one device reuse ` +
+                `sender-ratchet generations and overwrite each other's group state, which destroys group ` +
+                `keys silently. Use the other tab, or close it - this one takes the engine over by ` +
+                `itself once it does.`,
         );
         this.name = 'MlsSessionHeldElsewhereError';
     }
@@ -81,11 +79,11 @@ export class MlsSessionHeldElsewhereError extends Error {
 export class MlsSessionGuardUnavailableError extends Error {
     constructor(readonly command: string) {
         super(
-            `This browser cannot guarantee that only one tab uses this account's encryption engine - it `
-            + `has no Web Locks API, which means either an insecure origin or a browser older than `
-            + `Chrome 69 / Firefox 96 / Safari 15.4 - so ${command} was refused. Two tabs sharing one `
-            + `engine destroy group keys with nothing reporting it, so this refuses rather than risk `
-            + `it. Open Venta over https in a current browser.`,
+            `This browser cannot guarantee that only one tab uses this account's encryption engine - it ` +
+                `has no Web Locks API, which means either an insecure origin or a browser older than ` +
+                `Chrome 69 / Firefox 96 / Safari 15.4 - so ${command} was refused. Two tabs sharing one ` +
+                `engine destroy group keys with nothing reporting it, so this refuses rather than risk ` +
+                `it. Open Venta over https in a current browser.`,
         );
         this.name = 'MlsSessionGuardUnavailableError';
     }
@@ -95,9 +93,9 @@ export class MlsSessionGuardUnavailableError extends Error {
 export class MlsStateUnreadableError extends Error {
     constructor(readonly detail: string) {
         super(
-            `This browser holds saved MLS state but could not read it, so no group operation will be `
-            + `attempted - writing over it would destroy the only copy of this device's group keys. `
-            + `Reload the page. (${detail})`,
+            `This browser holds saved MLS state but could not read it, so no group operation will be ` +
+                `attempted - writing over it would destroy the only copy of this device's group keys. ` +
+                `Reload the page. (${detail})`,
         );
         this.name = 'MlsStateUnreadableError';
     }
@@ -183,7 +181,7 @@ export class WebMlsEngine extends MlsEngine implements MlsSessionTakeover {
 
         const module = await this.wasm();
 
-        if (command === 'mls_init_storage') return await this.initStorage(module, args) as T;
+        if (command === 'mls_init_storage') return (await this.initStorage(module, args)) as T;
         // Must stay ahead of `requireSession`: a delete is the one write a tab without the lock may perform.
         if (command === 'mls_clear_storage') return await this.clearStorage<T>(module);
 
@@ -243,10 +241,7 @@ export class WebMlsEngine extends MlsEngine implements MlsSessionTakeover {
      * `mls_init_storage`, plus the restore the desktop gets from its state file. A tab that does not
      * win the scope must resolve `false` rather than reject, or the boot path wipes local MLS state.
      */
-    private async initStorage(
-        module: VentaCryptoModule,
-        args?: Record<string, unknown>,
-    ): Promise<boolean> {
+    private async initStorage(module: VentaCryptoModule, args?: Record<string, unknown>): Promise<boolean> {
         // Must run first and unguarded, so Rust's native error string is not pre-empted.
         dispatchVentaCrypto<boolean>(module, 'mls_init_storage', args);
 
@@ -324,8 +319,8 @@ export class WebMlsEngine extends MlsEngine implements MlsSessionTakeover {
         if (!this.stateKeyB64) {
             // Not latched: a caller-ordering fault that a later `mls_init_storage` resolves.
             throw new Error(
-                'MlsError: MLS storage is not initialised - initStorage must succeed before any group '
-                + 'operation, or the operation is silently lost',
+                'MlsError: MLS storage is not initialised - initStorage must succeed before any group ' +
+                    'operation, or the operation is silently lost',
             );
         }
 

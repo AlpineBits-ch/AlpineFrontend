@@ -8,9 +8,8 @@ describe('ServerIconComponent', () => {
 
     beforeEach(async () => {
         await TestBed.configureTestingModule({
-            imports: [ServerIconComponent]
-        })
-            .compileComponents();
+            imports: [ServerIconComponent],
+        }).compileComponents();
 
         fixture = TestBed.createComponent(ServerIconComponent);
         fixture.componentRef.setInput('serverData', {

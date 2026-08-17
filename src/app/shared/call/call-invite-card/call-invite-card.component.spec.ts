@@ -50,7 +50,7 @@ describe('CallInviteCardComponent', () => {
     it('emits invite when the action is pressed', () => {
         const fixture = render();
         let emitted = false;
-        fixture.componentInstance.invite.subscribe(() => emitted = true);
+        fixture.componentInstance.invite.subscribe(() => (emitted = true));
 
         (fixture.nativeElement.querySelector('button') as HTMLButtonElement).click();
 

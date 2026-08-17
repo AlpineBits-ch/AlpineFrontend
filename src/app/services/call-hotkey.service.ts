@@ -34,8 +34,9 @@ export class CallHotkeyService {
     private hotkey = inject(HotkeyService);
     private nativePtt = inject(NativePttService);
 
-    private readonly active = computed(() =>
-        this.callSession.session() !== null || this.voiceChannel.isInVoice());
+    private readonly active = computed(
+        () => this.callSession.session() !== null || this.voiceChannel.isInVoice(),
+    );
     private armed = false;
 
     /** Which native hook slots already have a live edge subscription. */
@@ -58,7 +59,8 @@ export class CallHotkeyService {
 
         // Rebind live: a key changed in the Keybinds settings page mid-call.
         this.keybinds.rebind$.subscribe(id => {
-            const isOurs = id === PTT_ACTION.id || id === TOGGLE_MUTE_ACTION.id || id === PUSH_TO_MUTE_ACTION.id;
+            const isOurs =
+                id === PTT_ACTION.id || id === TOGGLE_MUTE_ACTION.id || id === PUSH_TO_MUTE_ACTION.id;
             if (isOurs && this.active()) {
                 void this.arm();
             }
@@ -107,7 +109,11 @@ export class CallHotkeyService {
      * only where the native hook isn't available (macOS/Linux). Returns
      * whether *some* mechanism ended up armed.
      */
-    private async armAction(id: KeybindActionId, slot: number, onEdge: (down: boolean) => void): Promise<boolean> {
+    private async armAction(
+        id: KeybindActionId,
+        slot: number,
+        onEdge: (down: boolean) => void,
+    ): Promise<boolean> {
         const token = this.keybinds.getBinding(id);
         if (!token) {
             await this.hotkey.unbind(id);

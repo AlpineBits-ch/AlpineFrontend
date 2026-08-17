@@ -85,7 +85,10 @@ function newAdapter(): WebHotkeys {
 }
 
 async function bind(
-    adapter: WebHotkeys, id: string, accelerator: string, handlers: HotkeyHandlers,
+    adapter: WebHotkeys,
+    id: string,
+    accelerator: string,
+    handlers: HotkeyHandlers,
 ): Promise<boolean> {
     live.find(entry => entry.adapter === adapter)?.ids.push(id);
     return adapter.bind(id, accelerator, handlers);
@@ -309,7 +312,7 @@ describe('WebHotkeys', () => {
         await bind(adapter, 'combo', 'Control+Shift+KeyV', combo.handlers);
         await bind(adapter, 'bare', 'KeyB', bare.handlers);
 
-        keyDown({code: 'KeyV', ctrl: true});          // missing Shift
+        keyDown({code: 'KeyV', ctrl: true}); // missing Shift
         keyDown({code: 'KeyV', ctrl: true, shift: true, alt: true}); // one modifier too many
         expect(combo.edges).toEqual([]);
 
@@ -394,8 +397,8 @@ describe('WebHotkeys', () => {
         keyDown({code: 'KeyT', ctrl: true});
         await captured;
 
-        keyDown({code: 'KeyV'});                 // the old key is gone
-        keyDown({code: 'KeyT', ctrl: true});     // the captured one answers
+        keyDown({code: 'KeyV'}); // the old key is gone
+        keyDown({code: 'KeyT', ctrl: true}); // the captured one answers
         expect(ptt.edges).toEqual(['down']);
     });
 
@@ -491,8 +494,9 @@ describe('accelerator notation', () => {
                 shift: event.shiftKey,
                 meta: event.metaKey,
             });
-            expect(recorded.edges, `${accelerator} must fire on the key it was captured from`)
-                .toEqual(['down']);
+            expect(recorded.edges, `${accelerator} must fire on the key it was captured from`).toEqual([
+                'down',
+            ]);
             await adapter.unbind('round-trip');
         }
     });

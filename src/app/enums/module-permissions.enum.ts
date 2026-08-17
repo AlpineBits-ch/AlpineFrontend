@@ -81,9 +81,9 @@ export const MODULE_PERM_FEATURE: Readonly<Record<ModulePermissionKey, string>> 
     ManageMaintenance: 'Maintenance',
 };
 
-const FEATURE_BY_BIT: readonly (readonly [bigint, string])[] =
-    (Object.keys(MODULE_PERM_FEATURE) as ModulePermissionKey[])
-        .map(key => [ModulePermissions[key], MODULE_PERM_FEATURE[key]] as const);
+const FEATURE_BY_BIT: readonly (readonly [bigint, string])[] = (
+    Object.keys(MODULE_PERM_FEATURE) as ModulePermissionKey[]
+).map(key => [ModulePermissions[key], MODULE_PERM_FEATURE[key]] as const);
 
 /** The modules a mask depends on, all of which must be enabled for it to resolve. */
 export function modulePermissionFeatures(mask: ModulePermissionValue): string[] {
@@ -95,8 +95,17 @@ export const MODULE_PERM_GROUPS: readonly FlagGroup<ModulePermissionKey>[] = [
         label: 'Wiki',
         labelKey: 'PERM_GROUP.WIKI',
         feature: 'Wiki',
-        perms: ['ViewWiki', 'CreateWikiPages', 'EditOwnWikiPages', 'EditAnyWikiPage', 'DeleteWikiPages',
-            'ManageWikiRevisions', 'ManageWikiStructure', 'ModerateWikiComments', 'PublishWikiPublicly'],
+        perms: [
+            'ViewWiki',
+            'CreateWikiPages',
+            'EditOwnWikiPages',
+            'EditAnyWikiPage',
+            'DeleteWikiPages',
+            'ManageWikiRevisions',
+            'ManageWikiStructure',
+            'ModerateWikiComments',
+            'PublishWikiPublicly',
+        ],
     },
     {
         label: 'Lists',

@@ -15,8 +15,9 @@ export const SESSION_DECISION_TIMEOUT_MS = 6_000;
 export const hasSession: CanMatchFn = () => {
     const auth = inject(AuthService);
     const router = inject(Router);
-    return decideSession(() => auth.isLoggedIn())
-        .then(signedIn => signedIn || router.parseUrl('/authentication'));
+    return decideSession(() => auth.isLoggedIn()).then(
+        signedIn => signedIn || router.parseUrl('/authentication'),
+    );
 };
 
 /** The waiting, separated from the injection. Never rejects and never stays pending. */

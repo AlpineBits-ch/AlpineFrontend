@@ -14,13 +14,21 @@ import {FakeOsInfo} from '../../../platform/testing/fake-os-info';
 function avatarProviders() {
     return [
         {provide: OsInfo, useValue: new FakeOsInfo('web', false)},
-        {provide: ProfileService, useValue: {getCachedByUserId: () => undefined, resolveByUserId: () => undefined}},
+        {
+            provide: ProfileService,
+            useValue: {getCachedByUserId: () => undefined, resolveByUserId: () => undefined},
+        },
     ];
 }
 
 /** A stand-in that never claims. */
 function fakeRustMedia() {
-    return {previewPaused: () => false, claimPreviewRender: vi.fn(), releasePreviewRender: vi.fn(), resumePreview: vi.fn()};
+    return {
+        previewPaused: () => false,
+        claimPreviewRender: vi.fn(),
+        releasePreviewRender: vi.fn(),
+        resumePreview: vi.fn(),
+    };
 }
 
 function share(shareId: string, isLocal = false): CallScreenShare {
@@ -89,7 +97,8 @@ function setup(shares: CallScreenShare[], options: SetupOptions = {}) {
         ],
     });
 
-    const fixture: ComponentFixture<CallScreenLayoutComponent> = TestBed.createComponent(CallScreenLayoutComponent);
+    const fixture: ComponentFixture<CallScreenLayoutComponent> =
+        TestBed.createComponent(CallScreenLayoutComponent);
     fixture.componentRef.setInput('screenShares', shares);
     fixture.componentRef.setInput('participants', options.participants ?? []);
     fixture.componentRef.setInput('participantsWithAudio', new Set<string>());
@@ -151,7 +160,9 @@ describe('CallScreenLayoutComponent share placement', () => {
     });
 
     it('still pairs at four', () => {
-        expect(setup([share('a'), share('b'), share('c'), share('d')]).layout.gridClass()).toBe('grid-cols-2');
+        expect(setup([share('a'), share('b'), share('c'), share('d')]).layout.gridClass()).toBe(
+            'grid-cols-2',
+        );
     });
 
     it('goes to three columns past four, rather than stranding a tile', () => {
@@ -214,7 +225,8 @@ describe('CallScreenLayoutComponent focus requests', () => {
 
     /** Creates the layout for `scope` against whatever CallFocusService request the test armed first. */
     function createLayout(shares: CallScreenShare[]) {
-        const fixture: ComponentFixture<CallScreenLayoutComponent> = TestBed.createComponent(CallScreenLayoutComponent);
+        const fixture: ComponentFixture<CallScreenLayoutComponent> =
+            TestBed.createComponent(CallScreenLayoutComponent);
         fixture.componentRef.setInput('screenShares', shares);
         fixture.componentRef.setInput('participants', []);
         fixture.componentRef.setInput('participantsWithAudio', new Set<string>());
@@ -250,7 +262,7 @@ describe('CallScreenLayoutComponent viewer names', () => {
     it('maps viewer ids through the given name resolver', () => {
         const {layout} = setup([share('a')], {
             watchScope: scope,
-            viewersOf: (_, shareId) => shareId === 'a' ? ['user-x', 'user-y'] : [],
+            viewersOf: (_, shareId) => (shareId === 'a' ? ['user-x', 'user-y'] : []),
             nameOf: id => roster[id] ?? id,
         });
 
@@ -260,7 +272,7 @@ describe('CallScreenLayoutComponent viewer names', () => {
     it('falls back to echoing the id when no resolver is wired', () => {
         const {layout} = setup([share('a')], {
             watchScope: scope,
-            viewersOf: (_, shareId) => shareId === 'a' ? ['user-x'] : [],
+            viewersOf: (_, shareId) => (shareId === 'a' ? ['user-x'] : []),
         });
 
         expect(layout.viewerNames('a')).toEqual(['user-x']);
@@ -286,8 +298,11 @@ describe('CallScreenLayoutComponent one stage for cameras and screens', () => {
             participants: [participant('user-theirs'), participant('cam', {isCameraOn: true})],
         });
 
-        expect(layout.displayedTiles().map(t => t.id))
-            .toEqual(['share:theirs', 'camera:user-theirs', 'camera:cam']);
+        expect(layout.displayedTiles().map(t => t.id)).toEqual([
+            'share:theirs',
+            'camera:user-theirs',
+            'camera:cam',
+        ]);
     });
 
     it('renders both kinds with their own component, rather than a second copy of either', () => {
@@ -313,8 +328,12 @@ describe('CallScreenLayoutComponent one stage for cameras and screens', () => {
             participants: [participant('user-a'), participant('user-b')],
         });
 
-        expect(layout.displayedTiles().map(t => t.id))
-            .toEqual(['share:a', 'share:b', 'camera:user-a', 'camera:user-b']);
+        expect(layout.displayedTiles().map(t => t.id)).toEqual([
+            'share:a',
+            'share:b',
+            'camera:user-a',
+            'camera:user-b',
+        ]);
     });
 
     it('promotes a camera that has no track yet, rather than waiting for it to land', () => {
@@ -510,7 +529,7 @@ describe('CallScreenLayoutComponent share-less stage (Task 18)', () => {
         expect(layout.stripParticipants()).toEqual([]);
     });
 
-    it('keeps gridClass()\'s thresholds intact against the larger share-less pool', () => {
+    it("keeps gridClass()'s thresholds intact against the larger share-less pool", () => {
         const nine = Array.from({length: 9}, (_, i) => participant(`p-${i}`));
 
         expect(setup([], {participants: nine}).layout.gridClass()).toBe('grid-cols-3');
@@ -539,7 +558,11 @@ describe('CallScreenLayoutComponent a share never costs anybody their seat', () 
             participants: [participant('cam-on', {isCameraOn: true}), participant('cam-off')],
         });
 
-        expect(layout.displayedTiles().map(t => t.id)).toEqual(['share:a', 'camera:cam-on', 'camera:cam-off']);
+        expect(layout.displayedTiles().map(t => t.id)).toEqual([
+            'share:a',
+            'camera:cam-on',
+            'camera:cam-off',
+        ]);
         expect(layout.stripParticipants()).toEqual([]);
     });
 
@@ -747,5 +770,33 @@ describe('CallScreenLayoutComponent grid overflow (Task 18 review fix round 1, I
         const grid: HTMLElement = fixture.nativeElement.querySelector('.grid');
         expect(grid.className).toContain('overflow-y-auto');
         expect(grid.className).toContain('thin-scrollbar');
+    });
+
+    it('fits the maximised stream to the stage instead of scrolling it', () => {
+        const {fixture, layout} = setup([share('a'), share('b')], {
+            participants: [participant('cam', {isCameraOn: true}), participant('other')],
+        });
+
+        layout.maximizedId.set('a');
+        fixture.detectChanges();
+
+        const grid: HTMLElement = fixture.nativeElement.querySelector('.grid');
+        expect(grid.className).toContain('grid-rows-1');
+        expect(grid.className).not.toContain('auto-rows-min');
+        expect(grid.className).not.toContain('overflow-y-auto');
+    });
+
+    it('gives the scrolling grid back when the maximise is released', () => {
+        const {fixture, layout} = setup([share('a'), share('b')]);
+
+        layout.maximizedId.set('a');
+        fixture.detectChanges();
+        layout.maximizedId.set(null);
+        fixture.detectChanges();
+
+        const grid: HTMLElement = fixture.nativeElement.querySelector('.grid');
+        expect(grid.className).toContain('auto-rows-min');
+        expect(grid.className).toContain('overflow-y-auto');
+        expect(grid.className).not.toContain('grid-rows-1');
     });
 });

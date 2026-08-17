@@ -85,8 +85,9 @@ export class WikiGraphComponent {
 
     /** Colour key, in the same order the graph assigns hues. */
     protected readonly legend = computed(() => {
-        const categories = [...(this.wiki()?.categories ?? [])]
-            .sort((a, b) => a.position - b.position || a.id.localeCompare(b.id));
+        const categories = [...(this.wiki()?.categories ?? [])].sort(
+            (a, b) => a.position - b.position || a.id.localeCompare(b.id),
+        );
         return categories.map((category, index) => ({
             id: category.id,
             name: category.name,
@@ -99,7 +100,7 @@ export class WikiGraphComponent {
         const byId = new Map((this.wiki()?.pages ?? []).map(p => [p.id, p]));
         return (this.model()?.nodes ?? [])
             .map(node => ({node, page: byId.get(node.id), color: nodeColor(node.colorIndex, this.accent)}))
-            .filter((row): row is { node: GraphNode; page: WikiPageSummaryDto; color: string } => !!row.page)
+            .filter((row): row is {node: GraphNode; page: WikiPageSummaryDto; color: string} => !!row.page)
             .sort((a, b) => b.node.degree - a.node.degree || a.page.title.localeCompare(b.page.title));
     });
 
@@ -114,7 +115,7 @@ export class WikiGraphComponent {
     private camX = 0;
     private camY = 0;
     private pointerId: number | null = null;
-    private pointerStart: { x: number; y: number } | null = null;
+    private pointerStart: {x: number; y: number} | null = null;
     private pointerMoved = false;
     private draggedNode: GraphNode | null = null;
     /** True once the user has panned or zoomed; a resize re-frames the graph only until then, so dragging the nav divider doesn't keep yanking a deliberately chosen viewport back out. */
@@ -327,7 +328,7 @@ export class WikiGraphComponent {
     }
 
     /** Hit tolerance is specified in screen pixels and converted, so a node stays as easy to hit when the graph is zoomed out as when it fills the canvas. */
-    private pick(model: GraphModel, point: { x: number; y: number }): number | null {
+    private pick(model: GraphModel, point: {x: number; y: number}): number | null {
         return hitTest(model, point.x, point.y, 6 / this.scale());
     }
 
@@ -403,7 +404,7 @@ export class WikiGraphComponent {
         this.needsFit = false;
     }
 
-    private toGraph(event: { clientX: number; clientY: number }, canvas: HTMLCanvasElement) {
+    private toGraph(event: {clientX: number; clientY: number}, canvas: HTMLCanvasElement) {
         const rect = canvas.getBoundingClientRect();
         const scale = this.scale();
         return {
@@ -483,12 +484,10 @@ export class WikiGraphComponent {
         for (let i = 0; i < model.nodes.length; i++) {
             const node = model.nodes[i];
             const always = highlighted.has(i);
-            const byZoom = scale >= LABEL_ALL_SCALE
-                || (scale >= LABEL_SCALE && node.degree >= LABEL_MIN_DEGREE);
+            const byZoom =
+                scale >= LABEL_ALL_SCALE || (scale >= LABEL_SCALE && node.degree >= LABEL_MIN_DEGREE);
             if (!always && (!byZoom || hoveredIndex >= 0)) continue;
-            ctx.fillStyle = always && hoveredIndex >= 0
-                ? 'rgba(255,255,255,0.92)'
-                : 'rgba(255,255,255,0.5)';
+            ctx.fillStyle = always && hoveredIndex >= 0 ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.5)';
             ctx.fillText(truncate(node.title), node.x, node.y + nodeRadius(node) + 4 / scale);
         }
 

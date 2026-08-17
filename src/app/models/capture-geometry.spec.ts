@@ -52,10 +52,8 @@ describe('solveGeometry against a granted rung', () => {
     const RUNG_2160P60 = {maxHeight: 2160, maxFramerate: 60};
 
     it('caps a 4K display shared as source down to the rung', () => {
-        expect(solveGeometry(3840, 2160, 'source', RUNG_1080P60))
-            .toEqual({width: 1920, height: 1080});
-        expect(solveGeometry(3840, 2160, 'source', RUNG_720P30))
-            .toEqual({width: 1280, height: 720});
+        expect(solveGeometry(3840, 2160, 'source', RUNG_1080P60)).toEqual({width: 1920, height: 1080});
+        expect(solveGeometry(3840, 2160, 'source', RUNG_720P30)).toEqual({width: 1280, height: 720});
     });
 
     it('leaves source alone when no rung has been resolved', () => {
@@ -64,29 +62,27 @@ describe('solveGeometry against a granted rung', () => {
     });
 
     it('does not upscale to reach a rung taller than the display', () => {
-        expect(solveGeometry(1920, 1080, 'source', RUNG_2160P60))
-            .toEqual({width: 1920, height: 1080});
+        expect(solveGeometry(1920, 1080, 'source', RUNG_2160P60)).toEqual({width: 1920, height: 1080});
     });
 
     it('preserves aspect ratio when the rung is what binds', () => {
         // 5120x1440 under a 720-line rung is height-bound: half of each edge.
-        expect(solveGeometry(5120, 1440, 'source', RUNG_720P30))
-            .toEqual({width: 2560, height: 720});
+        expect(solveGeometry(5120, 1440, 'source', RUNG_720P30)).toEqual({width: 2560, height: 720});
     });
 
     it('leaves a named resolution already inside the rung untouched', () => {
-        expect(solveGeometry(3840, 2160, '1080p', RUNG_2160P60))
-            .toEqual({width: 1920, height: 1080});
+        expect(solveGeometry(3840, 2160, '1080p', RUNG_2160P60)).toEqual({width: 1920, height: 1080});
     });
 
     it('takes whichever of the box and the rung is smaller', () => {
         // The preset outlives the room it was chosen in, so this pairing is reachable.
-        expect(solveGeometry(3840, 2160, '2160p', RUNG_1080P60))
-            .toEqual({width: 1920, height: 1080});
+        expect(solveGeometry(3840, 2160, '2160p', RUNG_1080P60)).toEqual({width: 1920, height: 1080});
     });
 
     it('treats the audio-only rung as no limit rather than a zero-height one', () => {
-        expect(solveGeometry(1920, 1080, 'source', {maxHeight: 0, maxFramerate: 0}))
-            .toEqual({width: 1920, height: 1080});
+        expect(solveGeometry(1920, 1080, 'source', {maxHeight: 0, maxFramerate: 0})).toEqual({
+            width: 1920,
+            height: 1080,
+        });
     });
 });

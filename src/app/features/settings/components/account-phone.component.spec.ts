@@ -18,7 +18,7 @@ const PHONE_URL = `${BASE}/api/v1/identity/users/self/phone`;
 interface Internals {
     stored(): string | null;
     loading(): boolean;
-    draft: { set(value: string): void; (): string };
+    draft: {set(value: string): void; (): string};
     problemKey(): string | null;
     canSave(): boolean;
     saving(): boolean;
@@ -68,8 +68,7 @@ function setup(self: UserDto | null) {
     const users = TestBed.inject(UserService);
     users.self.set(self);
 
-    const fixture: ComponentFixture<AccountPhoneComponent> =
-        TestBed.createComponent(AccountPhoneComponent);
+    const fixture: ComponentFixture<AccountPhoneComponent> = TestBed.createComponent(AccountPhoneComponent);
     fixture.detectChanges();
 
     return {

@@ -25,9 +25,9 @@ function setup(options: {watchFails?: boolean} = {}) {
     const callEvents = new Subject<ShareViewersDto>();
 
     const guildVoice = {
-        watchShare: vi.fn((_g: string, _c: string, shareId: string) => options.watchFails
-            ? throwError(() => new Error('offline'))
-            : of(viewers(shareId, ['me']))),
+        watchShare: vi.fn((_g: string, _c: string, shareId: string) =>
+            options.watchFails ? throwError(() => new Error('offline')) : of(viewers(shareId, ['me'])),
+        ),
         unwatchShare: vi.fn((_g: string, _c: string, shareId: string) => of(viewers(shareId, []))),
         getShareViewers: vi.fn(() => of({} as Record<string, string[]>)),
     };

@@ -13,21 +13,22 @@ import {AutoHideCallControlsDirective, CONTROLS_IDLE_MS} from './auto-hide-call-
     imports: [AutoHideCallControlsDirective],
     template: `
         <div appAutoHideCallControls #autoHide="appAutoHideCallControls" class="stage">
-            <div class="bar"
-                 (focusin)="autoHide.onControlsFocusIn()"
-                 (focusout)="autoHide.onControlsFocusOut()"
-                 (pointerenter)="autoHide.onControlsPointerEnter()"
-                 (pointerleave)="autoHide.onControlsPointerLeave()"
-                 [class.opacity-0]="!autoHide.revealed()"
-                 [class.pointer-events-auto]="autoHide.revealed()"
-                 [class.pointer-events-none]="!autoHide.revealed()">
+            <div
+                class="bar"
+                (focusin)="autoHide.onControlsFocusIn()"
+                (focusout)="autoHide.onControlsFocusOut()"
+                (pointerenter)="autoHide.onControlsPointerEnter()"
+                (pointerleave)="autoHide.onControlsPointerLeave()"
+                [class.opacity-0]="!autoHide.revealed()"
+                [class.pointer-events-auto]="autoHide.revealed()"
+                [class.pointer-events-none]="!autoHide.revealed()"
+            >
                 <button>Mute</button>
             </div>
         </div>
     `,
 })
-class HostComponent {
-}
+class HostComponent {}
 
 describe('AutoHideCallControlsDirective', () => {
     let fixture: ComponentFixture<HostComponent>;

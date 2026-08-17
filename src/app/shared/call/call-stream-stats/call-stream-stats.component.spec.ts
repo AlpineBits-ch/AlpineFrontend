@@ -28,9 +28,14 @@ describe('CallStreamStatsComponent', () => {
     beforeEach(() => TestBed.resetTestingModule());
 
     it('renders one section per layer', () => {
-        const fixture = setup(snapshot({
-            layers: [{rid: 'a', width: 1920, height: 1080}, {rid: 'b', width: 960, height: 540}],
-        }));
+        const fixture = setup(
+            snapshot({
+                layers: [
+                    {rid: 'a', width: 1920, height: 1080},
+                    {rid: 'b', width: 960, height: 540},
+                ],
+            }),
+        );
 
         const sections = fixture.nativeElement.querySelectorAll('[data-testid="stats-layer"]');
         expect(sections.length).toBe(2);
@@ -60,7 +65,7 @@ describe('CallStreamStatsComponent', () => {
 
         const rows = fixture.nativeElement.querySelectorAll('[data-testid="row-fps"]');
         expect(rows.length).toBe(1);
-        expect((rows[0].textContent as string)).toContain('0');
+        expect(rows[0].textContent as string).toContain('0');
     });
 
     it('says it has no data rather than rendering an empty panel', () => {

@@ -182,8 +182,7 @@ describe('the hub connection survives background throttling', () => {
     it('pings often enough that several attempts fit inside the timeout', async () => {
         const hub = await startedConnection();
 
-        expect(hub.keepAliveIntervalInMilliseconds)
-            .toBeLessThanOrEqual(hub.serverTimeoutInMilliseconds / 3);
+        expect(hub.keepAliveIntervalInMilliseconds).toBeLessThanOrEqual(hub.serverTimeoutInMilliseconds / 3);
     });
 
     /**

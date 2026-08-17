@@ -120,8 +120,16 @@ export const PERM_GROUPS: PermGroup[] = [
     {
         label: 'Messages',
         labelKey: 'PERM_GROUP.MESSAGES',
-        perms: ['SendMessages', 'ReadMessageHistory', 'EditOwnMessages', 'EditAnyMessage',
-            'DeleteOwnMessages', 'DeleteAnyMessage', 'PinMessages', 'MentionEveryone'],
+        perms: [
+            'SendMessages',
+            'ReadMessageHistory',
+            'EditOwnMessages',
+            'EditAnyMessage',
+            'DeleteOwnMessages',
+            'DeleteAnyMessage',
+            'PinMessages',
+            'MentionEveryone',
+        ],
     },
     {
         label: 'Attachments & Embeds',
@@ -141,8 +149,18 @@ export const PERM_GROUPS: PermGroup[] = [
     {
         label: 'Moderation',
         labelKey: 'PERM_GROUP.MODERATION',
-        perms: ['ManageChannel', 'ManagePermissions', 'ManageRoles', 'ManageWebhooks', 'ManageGuild',
-            'KickMembers', 'BanMembers', 'ModerateMembers', 'ManageNicknames', 'ViewAuditLog'],
+        perms: [
+            'ManageChannel',
+            'ManagePermissions',
+            'ManageRoles',
+            'ManageWebhooks',
+            'ManageGuild',
+            'KickMembers',
+            'BanMembers',
+            'ModerateMembers',
+            'ManageNicknames',
+            'ViewAuditLog',
+        ],
     },
     {
         label: 'Emojis',
@@ -176,8 +194,16 @@ export const CHANNEL_PERM_GROUPS: PermGroup[] = [
     {
         label: 'Messages',
         labelKey: 'PERM_GROUP.MESSAGES',
-        perms: ['SendMessages', 'ReadMessageHistory', 'EditOwnMessages', 'EditAnyMessage',
-            'DeleteOwnMessages', 'DeleteAnyMessage', 'PinMessages', 'MentionEveryone'],
+        perms: [
+            'SendMessages',
+            'ReadMessageHistory',
+            'EditOwnMessages',
+            'EditAnyMessage',
+            'DeleteOwnMessages',
+            'DeleteAnyMessage',
+            'PinMessages',
+            'MentionEveryone',
+        ],
     },
     {
         label: 'Attachments & Embeds',
@@ -211,7 +237,8 @@ export const parsePermissionCarrier = codec.parseCarrier;
 export const stringifyPermissions: (mask: PermissionValue) => string = codec.stringify;
 export const stringifyPermissionCarrier = codec.stringifyCarrier;
 export const hasPermission: (mask: PermissionValue, permission: PermissionValue) => boolean = codec.has;
-export const diffPermissions: (requested: PermissionValue, grantable: PermissionValue) => PermissionKey[] = codec.diff;
+export const diffPermissions: (requested: PermissionValue, grantable: PermissionValue) => PermissionKey[] =
+    codec.diff;
 
 export function permissionLabel(key: PermissionKey): string {
     return codec.label(key);

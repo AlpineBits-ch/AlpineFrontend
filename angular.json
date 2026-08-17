@@ -45,12 +45,7 @@
                 "glob": "**/*",
                 "input": "src/assets",
                 "output": "assets",
-                "ignore": [
-                  "wasm/*.d.ts",
-                  "wasm/.gitignore",
-                  "wasm/package.json",
-                  "wasm/README.md"
-                ]
+                "ignore": ["wasm/*.d.ts", "wasm/.gitignore", "wasm/package.json", "wasm/README.md"]
               },
               {
                 "glob": "64.png",
@@ -70,9 +65,7 @@
               "node:buffer"
             ],
             "inlineStyleLanguage": "scss",
-            "polyfills": [
-              "zone.js"
-            ],
+            "polyfills": ["zone.js"],
             "styles": [
               "src/styles.css",
               "node_modules/primeicons/primeicons.css",

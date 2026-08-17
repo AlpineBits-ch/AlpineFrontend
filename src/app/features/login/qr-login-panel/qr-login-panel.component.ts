@@ -101,17 +101,17 @@ export class QrLoginPanelComponent {
     }
 
     private beginPolling(code: string): void {
-        this.polling = interval(QR_POLL_INTERVAL_MS).pipe(
-            switchMap(() => this.qr.status(code)),
-        ).subscribe({
-            next: status => this.onStatus(status),
-            error: () => {
-                // A transient network blip should not strand the user on a code that may
-                // still be perfectly valid, so surface it as retryable rather than expired.
-                this.stopWork();
-                this.state.set('error');
-            },
-        });
+        this.polling = interval(QR_POLL_INTERVAL_MS)
+            .pipe(switchMap(() => this.qr.status(code)))
+            .subscribe({
+                next: status => this.onStatus(status),
+                error: () => {
+                    // A transient network blip should not strand the user on a code that may
+                    // still be perfectly valid, so surface it as retryable rather than expired.
+                    this.stopWork();
+                    this.state.set('error');
+                },
+            });
 
         this.ticking = interval(1000).subscribe(() => {
             const left = this.secondsLeft() - 1;

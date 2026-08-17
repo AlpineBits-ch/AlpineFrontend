@@ -1,6 +1,13 @@
 import {inject} from '@angular/core';
 import {patchState, signalStore, withHooks, withMethods, withState} from '@ngrx/signals';
-import {addEntities, removeEntity, setAllEntities, updateEntity, withEntities} from '@ngrx/signals/entities';
+import {
+    addEntities,
+    removeEntity,
+    setAllEntities,
+    updateEntity,
+    upsertEntity,
+    withEntities,
+} from '@ngrx/signals/entities';
 import {ConversationDto} from '../dtos/response/conversation.dto';
 import {ConversationService} from '../services/conversation.service';
 import {MessagingWebsocketService} from '../services/messaging-websocket.service';
@@ -46,8 +53,9 @@ export const ConversationStore = signalStore(
             });
         },
 
+        /** Adds, or replaces the copy already held: a create can answer with a conversation we hold stale. */
         addConversation(conv: ConversationDto): void {
-            patchState(store, addEntities([conv]));
+            patchState(store, upsertEntity(conv));
         },
 
         removeConversation(id: string): void {
@@ -61,14 +69,15 @@ export const ConversationStore = signalStore(
         updateMemberLastRead(conversationId: string, userId: string, lastReadMessageId: string): void {
             const conv = store.entityMap()[conversationId];
             if (!conv) return;
-            patchState(store, updateEntity({
-                id: conversationId,
-                changes: {
-                    members: conv.members.map(m =>
-                        m.userId === userId ? {...m, lastReadMessageId} : m
-                    ),
-                },
-            }));
+            patchState(
+                store,
+                updateEntity({
+                    id: conversationId,
+                    changes: {
+                        members: conv.members.map(m => (m.userId === userId ? {...m, lastReadMessageId} : m)),
+                    },
+                }),
+            );
         },
     })),
 
@@ -105,7 +114,7 @@ export const ConversationStore = signalStore(
             });
 
             wsService.conversationRemovedObservable.subscribe(event =>
-                patchState(store, removeEntity(event.conversationId))
+                patchState(store, removeEntity(event.conversationId)),
             );
 
             wsService.conversationMemberRemovedObservable.subscribe(event => {
@@ -114,5 +123,5 @@ export const ConversationStore = signalStore(
                 }
             });
         },
-    })
+    }),
 );

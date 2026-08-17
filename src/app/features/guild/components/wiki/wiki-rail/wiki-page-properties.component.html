@@ -1,6 +1,5 @@
 @if (page()) {
     <div class="flex flex-col gap-3">
-
         <!-- Tags -->
         <div>
             <span class="mb-1 block text-[0.6875rem] text-white/35">{{ 'WIKI.TAGS' | translate }}</span>
@@ -8,14 +7,14 @@
             @if (tags().length) {
                 <div class="flex flex-wrap gap-1">
                     @for (tag of tags(); track tag) {
-                        <span class="flex items-center gap-1 rounded-md bg-card px-1.5 py-0.5
-                                     text-[0.6875rem] text-white/65">
+                        <span class="flex items-center gap-1 rounded-md bg-card px-1.5 py-0.5 text-[0.6875rem] text-white/65">
                             {{ tag }}
                             @if (canEditMetadata()) {
-                                <button (click)="removeTag(tag)"
-                                        [title]="'WIKI.RAIL.REMOVE_TAG' | translate: {tag: tag}"
-                                        class="cursor-pointer border-0 bg-transparent p-0 leading-none
-                                               text-white/30 hover:text-rose-400">
+                                <button
+                                    (click)="removeTag(tag)"
+                                    [title]="'WIKI.RAIL.REMOVE_TAG' | translate: {tag: tag}"
+                                    class="cursor-pointer border-0 bg-transparent p-0 leading-none text-white/30 hover:text-rose-400"
+                                >
                                     <i class="pi pi-times text-[0.5rem]"></i>
                                 </button>
                             }
@@ -28,25 +27,25 @@
 
             @if (canAddTag()) {
                 <div class="relative mt-1.5">
-                    <input (keydown)="onTagKeydown($event)"
-                           (ngModelChange)="onTagQuery($event)"
-                           [ngModel]="tagQuery()"
-                           [placeholder]="'WIKI.RAIL.ADD_TAG' | translate"
-                           class="w-full rounded-md border border-border bg-card px-2 py-1
-                                  text-[0.75rem] text-white/75 outline-none placeholder-white/25
-                                  focus:border-brand/50"
-                           [maxlength]="tagMaxLength"/>
+                    <input
+                        (keydown)="onTagKeydown($event)"
+                        (ngModelChange)="onTagQuery($event)"
+                        [ngModel]="tagQuery()"
+                        [placeholder]="'WIKI.RAIL.ADD_TAG' | translate"
+                        class="w-full rounded-md border border-border bg-card px-2 py-1 text-[0.75rem] text-white/75 outline-none placeholder-white/25 focus:border-brand/50"
+                        [maxlength]="tagMaxLength"
+                    />
 
                     <!-- Suggestions come from tags already used in this wiki, so a second page about the same thing lands on the same tag rather than a near-miss. -->
                     @if (tagSuggestions().length) {
                         <div class="mt-1 flex flex-wrap gap-1">
                             @for (suggestion of tagSuggestions(); track suggestion; let i = $index) {
-                                <button (click)="addTag(suggestion)"
-                                        [class.bg-hover]="suggestIndex() === i"
-                                        [class.text-white/80]="suggestIndex() === i"
-                                        class="cursor-pointer rounded-md border border-border
-                                               bg-transparent px-1.5 py-0.5 text-[0.6875rem]
-                                               text-white/45 hover:bg-hover hover:text-white/80">
+                                <button
+                                    (click)="addTag(suggestion)"
+                                    [class.bg-hover]="suggestIndex() === i"
+                                    [class.text-white/80]="suggestIndex() === i"
+                                    class="cursor-pointer rounded-md border border-border bg-transparent px-1.5 py-0.5 text-[0.6875rem] text-white/45 hover:bg-hover hover:text-white/80"
+                                >
                                     {{ suggestion }}
                                 </button>
                             }
@@ -60,13 +59,15 @@
         <div class="flex items-center justify-between gap-2">
             <span class="text-[0.6875rem] text-white/35">{{ 'WIKI.PINNED_LABEL' | translate }}</span>
             @if (canEditMetadata()) {
-                <p-toggleswitch (ngModelChange)="setPinned($event)" [ngModel]="pinned()"/>
+                <p-toggleswitch (ngModelChange)="setPinned($event)" [ngModel]="pinned()" />
             } @else {
-                <i [class.pi-bookmark-fill]="pinned()"
-                   [class.pi-bookmark]="!pinned()"
-                   [class.text-brand-dim]="pinned()"
-                   [class.text-white/20]="!pinned()"
-                   class="pi text-[0.75rem]"></i>
+                <i
+                    [class.pi-bookmark-fill]="pinned()"
+                    [class.pi-bookmark]="!pinned()"
+                    [class.text-brand-dim]="pinned()"
+                    [class.text-white/20]="!pinned()"
+                    class="pi text-[0.75rem]"
+                ></i>
             }
         </div>
 
@@ -74,9 +75,16 @@
         <label class="flex flex-col gap-1">
             <span class="text-[0.6875rem] text-white/35">{{ 'WIKI.CATEGORY' | translate }}</span>
             @if (canMovePage()) {
-                <p-select (ngModelChange)="setCategory($event)" [ngModel]="categoryValue()"
-                          [options]="categoryOptions()" appendTo="body" optionLabel="label"
-                          optionValue="value" size="small" styleClass="w-full"/>
+                <p-select
+                    (ngModelChange)="setCategory($event)"
+                    [ngModel]="categoryValue()"
+                    [options]="categoryOptions()"
+                    appendTo="body"
+                    optionLabel="label"
+                    optionValue="value"
+                    size="small"
+                    styleClass="w-full"
+                />
             } @else {
                 <span class="truncate text-[0.75rem] text-white/60">{{ categoryLabel() }}</span>
             }
@@ -86,9 +94,17 @@
         <label class="flex flex-col gap-1">
             <span class="text-[0.6875rem] text-white/35">{{ 'WIKI.PARENT' | translate }}</span>
             @if (canMovePage()) {
-                <p-select (ngModelChange)="setParent($event)" [filter]="parentOptions().length > 8"
-                          [ngModel]="parentValue()" [options]="parentOptions()" appendTo="body"
-                          optionLabel="label" optionValue="value" size="small" styleClass="w-full"/>
+                <p-select
+                    (ngModelChange)="setParent($event)"
+                    [filter]="parentOptions().length > 8"
+                    [ngModel]="parentValue()"
+                    [options]="parentOptions()"
+                    appendTo="body"
+                    optionLabel="label"
+                    optionValue="value"
+                    size="small"
+                    styleClass="w-full"
+                />
             } @else {
                 <span class="truncate text-[0.75rem] text-white/60">{{ parentLabel() }}</span>
             }

@@ -20,7 +20,7 @@ export class SettingsUiService {
      * The same one-way channel, for a guild's settings. The guild id must travel with the page:
      * without it, a request raised from a voice channel opens whichever server the sidebar is on.
      */
-    readonly requestedGuildPage = signal<{ guildId: string; page: string } | null>(null);
+    readonly requestedGuildPage = signal<{guildId: string; page: string} | null>(null);
 
     open(page: string, anchor?: string): void {
         this.requestedAnchor.set(anchor ?? null);
