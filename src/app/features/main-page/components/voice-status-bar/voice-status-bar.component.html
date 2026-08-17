@@ -1,7 +1,9 @@
 @if (isActive()) {
     @let status = callStatus();
 
-    <div class="shrink-0 select-none border-t border-border-subtle bg-sidebar px-3 py-2">
+    <!-- `relative` is the positioning context for the noise suppression panel, which opens upward
+         from this row's right edge. -->
+    <div class="relative shrink-0 select-none border-t border-border-subtle bg-sidebar px-3 py-2">
         <div class="flex items-center gap-2">
             <!-- Status dot. Colour and pulse come from the same resolver the in-call status row
                  uses, so the sidebar cannot disagree with the call about how it is going. -->

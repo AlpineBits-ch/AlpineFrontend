@@ -1,6 +1,5 @@
-import {ChangeDetectionStrategy, Component, computed, inject, viewChild} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, ElementRef, inject, signal} from '@angular/core';
 import {TranslateModule} from '@ngx-translate/core';
-import {Popover} from 'primeng/popover';
 import {AudioSettings, AudioSettingsService} from '../../../../services/audio-settings.service';
 import {VoiceEngineService} from '../../../../services/voice-engine.service';
 
@@ -15,21 +14,30 @@ const HINT_KEYS: Record<Mode, string> = {
 /**
  * Noise suppression, reachable from the call panel instead of only from the settings page.
  *
- * Owns its own trigger button, so nothing outside has to know which mode counts as the on state.
- * `display: contents` on the host keeps that button a direct child of the panel's icon row.
+ * A plain panel rather than `p-popover`: the preset does not cover the standalone popover, so it
+ * renders in light Aura, and the only fix on offer is `::ng-deep` overrides.
+ *
+ * `display: contents` on the host, so the panel row above is the positioning context. The overlay
+ * anchors to the row's right edge rather than to the button, which is what keeps it inside the
+ * sidebar instead of running off the left of the window.
  */
 @Component({
     selector: 'app-noise-suppression-popover',
-    imports: [Popover, TranslateModule],
+    imports: [TranslateModule],
     templateUrl: './noise-suppression-popover.component.html',
-    host: {class: 'contents'},
+    host: {
+        class: 'contents',
+        '(document:click)': 'onDocumentClick($event)',
+        '(document:keydown.escape)': 'close()',
+    },
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class NoiseSuppressionPopoverComponent {
     private readonly audioSettings = inject(AudioSettingsService);
     private readonly voice = inject(VoiceEngineService);
+    private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
-    private readonly popover = viewChild.required(Popover);
+    protected readonly open = signal(false);
 
     /** Least processing first, so the row reads as one scale rather than three unrelated buttons. */
     protected readonly modes: readonly {value: Mode; labelKey: string}[] = [
@@ -54,12 +62,21 @@ export class NoiseSuppressionPopoverComponent {
     /** Tinted only at `enhanced`: the trigger has to read as on or off from across the sidebar. */
     protected readonly triggerClass = computed(() =>
         this.mode() === 'enhanced'
-            ? 'bg-[color-mix(in_srgb,var(--color-brand)_15%,transparent)] text-[var(--color-brand-dim)] hover:bg-[color-mix(in_srgb,var(--color-brand)_25%,transparent)]'
+            ? 'bg-brand/15 text-brand-dim hover:bg-brand/25'
             : 'bg-white/[0.06] text-white/70 hover:bg-white/[0.12]',
     );
 
-    protected toggle(event: Event): void {
-        this.popover().toggle(event);
+    protected toggle(): void {
+        this.open.update(o => !o);
+    }
+
+    protected close(): void {
+        this.open.set(false);
+    }
+
+    /** The trigger's own click reaches here too, but its target is inside the host, so it survives. */
+    protected onDocumentClick(event: MouseEvent): void {
+        if (this.open() && !this.host.nativeElement.contains(event.target as Node)) this.close();
     }
 
     protected select(mode: Mode): void {
@@ -73,9 +90,7 @@ export class NoiseSuppressionPopoverComponent {
      */
     protected segmentClass(mode: Mode): string {
         if (this.mode() !== mode) return 'bg-transparent text-white/50 hover:text-white/80';
-        return mode === 'enhanced'
-            ? 'bg-[color-mix(in_srgb,var(--color-brand)_32%,transparent)] text-[var(--color-brand-dim)] shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--color-brand)_45%,transparent)]'
-            : 'bg-white/[0.12] text-white';
+        return mode === 'enhanced' ? 'bg-brand/25 text-brand-dim' : 'bg-white/[0.12] text-white';
     }
 
     protected barActive(index: number): boolean {

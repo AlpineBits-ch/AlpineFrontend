@@ -1,5 +1,6 @@
 <button
-    (click)="toggle($event)"
+    (click)="toggle()"
+    [attr.aria-expanded]="open()"
     [attr.aria-label]="'VOICE_BAR.NOISE_SUPPRESSION' | translate"
     [attr.title]="'VOICE_BAR.NOISE_SUPPRESSION' | translate"
     [class]="triggerClass()"
@@ -9,10 +10,10 @@
     <i class="pi pi-sparkles text-xs"></i>
 </button>
 
-<!-- `hidden` on the host, not the overlay: the host renders nothing but would still count as a flex
-     item in the panel's icon row and add one more `gap-2` between the buttons. -->
-<p-popover #popover [style]="{width: '17rem', padding: '0'}" appendTo="body" class="hidden">
-    <div class="flex flex-col gap-3 p-3">
+@if (open()) {
+    <div
+        class="absolute bottom-full right-0 z-50 mb-2 flex w-64 flex-col gap-3 rounded-xl border border-border-subtle bg-card p-3 shadow-xl"
+    >
         <p class="text-xs font-semibold uppercase tracking-wide text-white/40">
             {{ 'VOICE_BAR.NOISE_SUPPRESSION' | translate }}
         </p>
@@ -31,7 +32,7 @@
             }
         </div>
 
-        <!-- Fixed height: the three hints wrap to different line counts, and a popover that resizes
+        <!-- Fixed height: the three hints wrap to different line counts, and a panel that resizes
              under the cursor moves the buttons the user is aiming at. -->
         <p class="min-h-[2.25rem] text-[0.6875rem] leading-snug text-white/40">
             {{ hintKey() | translate }}
@@ -49,4 +50,4 @@
             </span>
         </div>
     </div>
-</p-popover>
+}
