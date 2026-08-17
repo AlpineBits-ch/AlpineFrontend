@@ -3,7 +3,7 @@ import {NgClass} from '@angular/common';
 import {AppAvatarComponent} from '../../../../components/avatar/avatar.component';
 import {EmptyStateComponent} from '../../../../components/empty-state/empty-state.component';
 import {ProfileService} from '../../../../services/profile.service';
-import {ProfileDialogService} from '../../../../services/profile-dialog.service';
+import {ProfilePopoutService} from '../../../../services/profile-popout.service';
 import {RelationshipStore} from '../../../../stores/relationship.store';
 import {RelationshipView} from '../../../../models/relationship.model';
 import {OnlineStatus} from '../../../../dtos/response/profile.dto';
@@ -20,27 +20,27 @@ import {Activity, ACTIVITY_TYPE_ICONS} from '../../../../models/activity.model';
 })
 export class ActivityFeedComponent {
     protected profileService = inject(ProfileService);
-    protected profileDialogSvc = inject(ProfileDialogService);
+    protected profilePopout = inject(ProfilePopoutService);
     private relationshipStore = inject(RelationshipStore);
     private userActivity = inject(UserActivityService);
     protected friends = this.relationshipStore.friends;
     protected readonly onlineFriends = computed(() =>
-        this.friends().filter(r =>
-            this.profileService.getOnlineStatus(r.other.userId) === OnlineStatus.Online
-        )
+        this.friends().filter(
+            r => this.profileService.getOnlineStatus(r.other.userId) === OnlineStatus.Online,
+        ),
     );
     // "Active Now" - friends with a live rich-presence activity get a card; everyone else
     // online falls back to the plain roster row.
     protected readonly activeNowFriends = computed(() =>
-        this.onlineFriends().filter(r => this.activityFor(r))
+        this.onlineFriends().filter(r => this.activityFor(r)),
     );
     protected readonly plainOnlineFriends = computed(() =>
-        this.onlineFriends().filter(r => !this.activityFor(r))
+        this.onlineFriends().filter(r => !this.activityFor(r)),
     );
     protected readonly offlineFriends = computed(() =>
-        this.friends().filter(r =>
-            this.profileService.getOnlineStatus(r.other.userId) !== OnlineStatus.Online
-        )
+        this.friends().filter(
+            r => this.profileService.getOnlineStatus(r.other.userId) !== OnlineStatus.Online,
+        ),
     );
 
     constructor() {

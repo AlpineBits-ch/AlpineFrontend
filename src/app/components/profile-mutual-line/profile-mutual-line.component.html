@@ -1,0 +1,39 @@
+@if (hasAny()) {
+    <div class="flex items-center gap-2 text-[0.8125rem] text-text-secondary">
+        @if (stack().length > 0) {
+            <div class="flex shrink-0 -space-x-1.5">
+                @for (friend of stack(); track friend.userId) {
+                    <app-avatar
+                        [label]="friend.userName[0].toUpperCase()"
+                        [userId]="friend.userId"
+                        styleClass="!w-4 !h-4 !text-[0.5rem] ring-2 ring-card"
+                    />
+                }
+            </div>
+        }
+
+        @if (friendCount() > 0) {
+            <button
+                (click)="friendsClick.emit()"
+                class="cursor-pointer border-0 bg-transparent p-0 text-left text-[0.8125rem] text-text-secondary transition-colors hover:text-white/85 hover:underline"
+                type="button"
+            >
+                {{ 'PROFILE.MUTUAL_FRIENDS' | translate: {count: friendCount()} }}
+            </button>
+        }
+
+        @if (friendCount() > 0 && serverCount() > 0) {
+            <span aria-hidden="true" class="text-white/20">&bull;</span>
+        }
+
+        @if (serverCount() > 0) {
+            <button
+                (click)="serversClick.emit()"
+                class="cursor-pointer border-0 bg-transparent p-0 text-left text-[0.8125rem] text-text-secondary transition-colors hover:text-white/85 hover:underline"
+                type="button"
+            >
+                {{ 'PROFILE.MUTUAL_SERVERS' | translate: {count: serverCount()} }}
+            </button>
+        }
+    </div>
+}

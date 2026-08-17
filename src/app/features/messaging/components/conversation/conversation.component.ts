@@ -53,12 +53,12 @@ import {AppAvatarComponent} from '../../../../components/avatar/avatar.component
 
 import {ConversationSearchService} from './conversation-search.service';
 import {ConversationScrollService} from './conversation-scroll.service';
-import {ProfileDialogService} from '../../../../services/profile-dialog.service';
+import {ProfilePopoutService} from '../../../../services/profile-popout.service';
 import {fileIcon, isGroupedWithPrevious, isSystemMessageType} from './message-utils';
 import {SystemMessageComponent} from './message/system-message/system-message.component';
 import {ConversationCallService} from '../../../../services/conversation-call.service';
 import {readableContent, UNDECRYPTABLE_SHORT} from '../../../../helpers/message-content.helper';
-import {toBase64} from "../../../../helpers/base64.helper";
+import {toBase64} from '../../../../helpers/base64.helper';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {ToastService} from '../../../../services/toast.service';
 import {describeRefusal} from '../../../../core/refusal-message';
@@ -68,11 +68,21 @@ import {PinnedMessagesPanelComponent} from '../pinned-messages-panel/pinned-mess
     selector: 'app-conversation',
     providers: [ConversationSearchService, ConversationScrollService],
     imports: [
-        ComposerComponent, MessageComponent, Avatar, Button,
-        CallPanelComponent, NgClass, DatePipe,
-        UserStatusDotComponent, TypingDotsComponent, HighlightPipe,
-        TranslateModule, AppAvatarComponent, PinnedMessagesPanelComponent,
-        MlsUnreadableBannerComponent, MlsJoinRequestReviewComponent,
+        ComposerComponent,
+        MessageComponent,
+        Avatar,
+        Button,
+        CallPanelComponent,
+        NgClass,
+        DatePipe,
+        UserStatusDotComponent,
+        TypingDotsComponent,
+        HighlightPipe,
+        TranslateModule,
+        AppAvatarComponent,
+        PinnedMessagesPanelComponent,
+        MlsUnreadableBannerComponent,
+        MlsJoinRequestReviewComponent,
         SystemMessageComponent,
     ],
     templateUrl: './conversation.component.html',
@@ -84,14 +94,16 @@ export class ConversationComponent implements AfterViewInit {
     protected convUtils = inject(ConversationUtilsService);
     protected search = inject(ConversationSearchService);
     protected scroll = inject(ConversationScrollService);
-    protected profileDialogSvc = inject(ProfileDialogService);
+    protected profilePopout = inject(ProfilePopoutService);
     protected readonly OnlineStatus = OnlineStatus;
     protected readonly ConversationEncryption = ConversationEncryption;
     protected readonly replyingTo = signal<MessageDto | null>(null);
     protected readonly showPinnedPanel = signal(false);
     protected readonly isSystemMessage = isSystemMessageType;
     protected readonly chatTitle = computed(() => this.convUtils.getChatTitle(this.conversation()));
-    protected readonly chatAvatarLabel = computed(() => this.convUtils.getChatAvatarLabel(this.conversation()));
+    protected readonly chatAvatarLabel = computed(() =>
+        this.convUtils.getChatAvatarLabel(this.conversation()),
+    );
     protected readonly partnerStatus = computed(() => this.convUtils.getPartnerStatus(this.conversation()));
     protected readonly typingText = computed(() => this.convUtils.getTypingLabel(this.conversation()));
     // The most recent confirmed message: watch this to react to incoming messages.
@@ -108,7 +120,7 @@ export class ConversationComponent implements AfterViewInit {
         this.messageStore
             .entities()
             .filter(m => m.conversationId === this.conversation().id)
-            .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+            .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()),
     );
     protected readonly messageRows = computed(() => {
         const msgs = this.messages();
@@ -126,24 +138,25 @@ export class ConversationComponent implements AfterViewInit {
     private mlsHealth = inject(MlsHealthService);
     private joinRequests = inject(MlsJoinRequestService);
     /** What the last re-link attempt for this conversation achieved. */
-    protected readonly relinkStatus = computed(
-        () => this.joinRequests.statusOf(this.conversation().id));
+    protected readonly relinkStatus = computed(() => this.joinRequests.statusOf(this.conversation().id));
     /** Display names for the admission review prompt, keyed by user id. */
     protected readonly participantNames = computed<Record<string, string>>(() =>
-        Object.fromEntries(this.conversation().members.map(m => [m.userId, m.cachedUserName])));
+        Object.fromEntries(this.conversation().members.map(m => [m.userId, m.cachedUserName])),
+    );
     private profileService = inject(ProfileService);
 
     // ── Conversation meta ────────────────────────────────────────────────────
     protected readonly conversationMemberCandidates = computed<MentionCandidate[]>(() => {
         const ownId = this.profileService.ownProfile()?.userId;
-        return this.conversation().members
-            .filter(m => m.userId !== ownId)
+        return this.conversation()
+            .members.filter(m => m.userId !== ownId)
             .map((m): MentionCandidate => ({kind: 'user', userId: m.userId, userName: m.cachedUserName}));
     });
     private callStateService = inject(CallStateService);
     /** An answer sent and not confirmed yet, from either way into a call. */
-    protected readonly joiningCall = computed(() =>
-        this.callStateService.joiningConversationId() === this.conversation().id);
+    protected readonly joiningCall = computed(
+        () => this.callStateService.joiningConversationId() === this.conversation().id,
+    );
     protected readonly isRinging = computed(() => {
         const out = this.callStateService.outgoingCall();
         return out?.conversationId === this.conversation().id ? out : null;
@@ -194,8 +207,8 @@ export class ConversationComponent implements AfterViewInit {
 
     // ── Load state ───────────────────────────────────────────────────────────
     @ViewChild(ComposerComponent) private composerRef?: ComposerComponent;
-    private readonly conversationMeta = computed(() =>
-        this.messageStore.conversationMeta()[this.conversation().id] ?? null
+    private readonly conversationMeta = computed(
+        () => this.messageStore.conversationMeta()[this.conversation().id] ?? null,
     );
     // True until the first batch of messages arrives (or an error occurs).
     protected readonly isInitialLoading = computed(() => this.conversationMeta() == null);
@@ -243,8 +256,7 @@ export class ConversationComponent implements AfterViewInit {
         mentionsHere: boolean;
     }): Promise<void> {
         const conversationId = this.conversation().id;
-        const serverSaysEncrypted =
-            this.conversation().encryptionState === ConversationEncryption.Encrypted;
+        const serverSaysEncrypted = this.conversation().encryptionState === ConversationEncryption.Encrypted;
 
         if (serverSaysEncrypted) {
             this.createEncryptedMessage(event);
@@ -257,9 +269,12 @@ export class ConversationComponent implements AfterViewInit {
             // the part that cannot be taken back, so there is no version of this where sending and
             // apologising afterwards is better than not sending.
             this.mlsHealth.recordFailure(
-                conversationId, false, 'downgraded',
-                `the server reports this conversation as unencrypted, but this device has held an `
-                + `MLS group for it up to generation ${floor}`);
+                conversationId,
+                false,
+                'downgraded',
+                `the server reports this conversation as unencrypted, but this device has held an ` +
+                    `MLS group for it up to generation ${floor}`,
+            );
             return;
         }
 
@@ -267,10 +282,8 @@ export class ConversationComponent implements AfterViewInit {
     }
 
     protected onScroll(): void {
-        this.scroll.onScroll(
-            this.hasMore(),
-            this.loadingMore(),
-            () => this.messageStore.loadMoreForConversation(this.conversation().id),
+        this.scroll.onScroll(this.hasMore(), this.loadingMore(), () =>
+            this.messageStore.loadMoreForConversation(this.conversation().id),
         );
     }
 
@@ -377,7 +390,7 @@ export class ConversationComponent implements AfterViewInit {
 
     // Ticks ringElapsed while the ringing banner is shown for this conversation.
     private setupRingElapsedTimer(): void {
-        effect((onCleanup) => {
+        effect(onCleanup => {
             const ringing = this.isRinging();
             if (!ringing) return;
             const start = ringing.startedAt.getTime();
@@ -462,9 +475,7 @@ export class ConversationComponent implements AfterViewInit {
                     const confirmed = msgs.filter(m => !m.isPending && !m.isFailed);
                     const readIdx = confirmed.map(m => m.id).lastIndexOf(lastReadId);
                     this.firstUnreadId.set(
-                        readIdx >= 0 && readIdx < confirmed.length - 1
-                            ? confirmed[readIdx + 1].id
-                            : null
+                        readIdx >= 0 && readIdx < confirmed.length - 1 ? confirmed[readIdx + 1].id : null,
                     );
                 }
             }
@@ -476,10 +487,7 @@ export class ConversationComponent implements AfterViewInit {
     // cycles where Angular re-creates the #messageScroll element inside the @else block.
     private setupRenderHook(): void {
         afterEveryRender(() => {
-            this.scroll.onRender(
-                this.messageListRef?.nativeElement,
-                this.scrollRef?.nativeElement,
-            );
+            this.scroll.onRender(this.messageListRef?.nativeElement, this.scrollRef?.nativeElement);
         });
     }
 
@@ -492,7 +500,8 @@ export class ConversationComponent implements AfterViewInit {
         mentionsEveryone: boolean;
         mentionsHere: boolean;
     }): void {
-        const {content, attachments, inReplyTo, mentions, roleMentions, mentionsEveryone, mentionsHere} = event;
+        const {content, attachments, inReplyTo, mentions, roleMentions, mentionsEveryone, mentionsHere} =
+            event;
         const tempId = crypto.randomUUID();
         const now = new Date();
 
@@ -500,7 +509,11 @@ export class ConversationComponent implements AfterViewInit {
 
         const optimistic: MessageDto = {
             id: tempId,
-            content: btoa(encodeURIComponent(content).replace(/%([0-9A-F]{2})/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)))),
+            content: btoa(
+                encodeURIComponent(content).replace(/%([0-9A-F]{2})/gi, (_, hex) =>
+                    String.fromCharCode(parseInt(hex, 16)),
+                ),
+            ),
             conversationId: this.conversation().id,
             channelId: undefined,
             authorId: this.profileService.ownProfile()?.userId ?? '',
@@ -523,27 +536,30 @@ export class ConversationComponent implements AfterViewInit {
 
         this.messageStore.addMessage(optimistic);
 
-        this.messagingService.createMessage({
-            content,
-            channelId: undefined,
-            conversationId: this.conversation().id,
-            attachments,
-            inReplyTo,
-            mentions,
-            roleMentions,
-            mentionsEveryone,
-            mentionsHere,
-        }).pipe(
-            tap(confirmed => {
-                this.messageStore.confirmMessage(tempId, confirmed);
-                this.messagingService.messageSentObservable.next(confirmed);
-            }),
-            catchError(err => {
-                this.messageStore.failMessage(tempId);
-                this.explainSendFailure(err);
-                return EMPTY;
-            }),
-        ).subscribe();
+        this.messagingService
+            .createMessage({
+                content,
+                channelId: undefined,
+                conversationId: this.conversation().id,
+                attachments,
+                inReplyTo,
+                mentions,
+                roleMentions,
+                mentionsEveryone,
+                mentionsHere,
+            })
+            .pipe(
+                tap(confirmed => {
+                    this.messageStore.confirmMessage(tempId, confirmed);
+                    this.messagingService.messageSentObservable.next(confirmed);
+                }),
+                catchError(err => {
+                    this.messageStore.failMessage(tempId);
+                    this.explainSendFailure(err);
+                    return EMPTY;
+                }),
+            )
+            .subscribe();
     }
 
     /** Says why a send was refused, when the server gave a reason. */
@@ -561,7 +577,8 @@ export class ConversationComponent implements AfterViewInit {
         mentionsEveryone: boolean;
         mentionsHere: boolean;
     }): void {
-        const {content, attachments, inReplyTo, mentions, roleMentions, mentionsEveryone, mentionsHere} = event;
+        const {content, attachments, inReplyTo, mentions, roleMentions, mentionsEveryone, mentionsHere} =
+            event;
         const tempId = crypto.randomUUID();
         const now = new Date();
         const b64Content = toBase64(content);
@@ -604,25 +621,39 @@ export class ConversationComponent implements AfterViewInit {
         const conversationId = this.conversation().id;
         const ownUserId = this.profileService.ownProfile()?.userId;
 
-        from(this.sendEncrypted(conversationId, keyHandle, b64Content, {
-            attachments, inReplyTo, mentions, roleMentions, mentionsEveryone, mentionsHere,
-        })).pipe(
-            tap(({confirmed, generation}) => {
-                // MLS ratchets forward only, so this is the one moment the plaintext can be cached.
-                // Must key on the generation this message was sealed with, never
-                // `confirmed.mlsGeneration`: the cache key must not be something the server chooses.
-                void this.mlsService.cacheMessage(
-                    conversationId, generation, confirmed.id, b64Content, ownUserId);
-                this.messageStore.confirmMessage(tempId, {...confirmed, content: b64Content});
-                this.messagingService.messageSentObservable.next({...confirmed, content: b64Content});
+        from(
+            this.sendEncrypted(conversationId, keyHandle, b64Content, {
+                attachments,
+                inReplyTo,
+                mentions,
+                roleMentions,
+                mentionsEveryone,
+                mentionsHere,
             }),
-            catchError(err => {
-                console.error('Failed to send encrypted message', err);
-                this.messageStore.failMessage(tempId);
-                this.explainSendFailure(err);
-                return EMPTY;
-            }),
-        ).subscribe();
+        )
+            .pipe(
+                tap(({confirmed, generation}) => {
+                    // MLS ratchets forward only, so this is the one moment the plaintext can be cached.
+                    // Must key on the generation this message was sealed with, never
+                    // `confirmed.mlsGeneration`: the cache key must not be something the server chooses.
+                    void this.mlsService.cacheMessage(
+                        conversationId,
+                        generation,
+                        confirmed.id,
+                        b64Content,
+                        ownUserId,
+                    );
+                    this.messageStore.confirmMessage(tempId, {...confirmed, content: b64Content});
+                    this.messagingService.messageSentObservable.next({...confirmed, content: b64Content});
+                }),
+                catchError(err => {
+                    console.error('Failed to send encrypted message', err);
+                    this.messageStore.failMessage(tempId);
+                    this.explainSendFailure(err);
+                    return EMPTY;
+                }),
+            )
+            .subscribe();
     }
 
     /** Tries to get this device readable again, from the banner. */
@@ -636,16 +667,20 @@ export class ConversationComponent implements AfterViewInit {
         keyHandle: string,
         b64Content: string,
         rest: {
-            attachments: string[]; inReplyTo: string | undefined; mentions: string[];
-            roleMentions: string[]; mentionsEveryone: boolean; mentionsHere: boolean;
+            attachments: string[];
+            inReplyTo: string | undefined;
+            mentions: string[];
+            roleMentions: string[];
+            mentionsEveryone: boolean;
+            mentionsHere: boolean;
         },
-    ): Promise<{ confirmed: MessageDto; generation: number }> {
+    ): Promise<{confirmed: MessageDto; generation: number}> {
         const deviceId = await this.mlsService.getOrCreateDeviceIdentifier();
 
         // The generation travels back out with the confirmation because the plaintext cache is
         // keyed on it, and the only trustworthy source for "which generation was this sealed
         // under" is the one this device used to seal it.
-        const attempt = async (): Promise<{ confirmed: MessageDto; generation: number }> => {
+        const attempt = async (): Promise<{confirmed: MessageDto; generation: number}> => {
             const generation = await this.mlsService.getKnownGeneration(conversationId);
             if (generation === null) throw new Error(`Conversation ${conversationId} is not encrypted here`);
 
@@ -656,16 +691,18 @@ export class ConversationComponent implements AfterViewInit {
                 this.mlsService.sendMessage(groupId, keyHandle, b64Content),
             );
 
-            const confirmed = await firstValueFrom(this.messagingService.createMessage({
-                content: ciphertext,
-                channelId: undefined,
-                conversationId,
-                ...rest,
-                encryptionState: MessageEncryptionState.Encrypted,
-                mlsEpoch: epoch,
-                mlsGeneration: generation,
-                senderDeviceId: deviceId,
-            }));
+            const confirmed = await firstValueFrom(
+                this.messagingService.createMessage({
+                    content: ciphertext,
+                    channelId: undefined,
+                    conversationId,
+                    ...rest,
+                    encryptionState: MessageEncryptionState.Encrypted,
+                    mlsEpoch: epoch,
+                    mlsGeneration: generation,
+                    senderDeviceId: deviceId,
+                }),
+            );
             return {confirmed, generation};
         };
 

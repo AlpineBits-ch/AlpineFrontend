@@ -8,7 +8,7 @@ import {AppAvatarComponent} from '../../../../components/avatar/avatar.component
 import {UserStatusDotComponent} from '../../../../components/user-status-dot/user-status-dot.component';
 import {ProfileService} from '../../../../services/profile.service';
 import {ConversationUtilsService} from '../../../../services/conversation-utils.service';
-import {ProfileDialogService} from '../../../../services/profile-dialog.service';
+import {ProfilePopoutService} from '../../../../services/profile-popout.service';
 import {ActivityCardComponent} from '../../../../components/activity-card/activity-card.component';
 import {UserActivityService} from '../../../../services/user-activity.service';
 import {Activity} from '../../../../models/activity.model';
@@ -16,7 +16,10 @@ import {Activity} from '../../../../models/activity.model';
 @Component({
     selector: 'app-conversation-info-panel',
     imports: [
-        AppAvatarComponent, NgClass, UserStatusDotComponent, ActivityCardComponent,
+        AppAvatarComponent,
+        NgClass,
+        UserStatusDotComponent,
+        ActivityCardComponent,
         MlsCoverageDevicesComponent,
     ],
     templateUrl: './conversation-info-panel.component.html',
@@ -25,7 +28,7 @@ import {Activity} from '../../../../models/activity.model';
 export class ConversationInfoPanelComponent {
     readonly conversation = input.required<ConversationDto>();
     protected convUtils = inject(ConversationUtilsService);
-    protected profileDialogSvc = inject(ProfileDialogService);
+    protected profilePopout = inject(ProfilePopoutService);
     protected readonly others = computed(() => this.convUtils.getOtherMembers(this.conversation()));
     protected readonly isDirect = computed(() => this.others().length === 1);
     protected readonly OnlineStatus = OnlineStatus;
@@ -44,15 +47,17 @@ export class ConversationInfoPanelComponent {
         });
     }
 
-    protected readonly hasDeviceReport = computed(
-        () => this.coverage.hasDeviceReport(this.conversation().id));
+    protected readonly hasDeviceReport = computed(() =>
+        this.coverage.hasDeviceReport(this.conversation().id),
+    );
 
     /**
      * `userId -> display name`, so a stranded device can be named after whoever owns it. The
      * coverage response carries a user id and a device name and nothing else.
      */
-    protected readonly ownerNames = computed(() => Object.fromEntries(
-        this.others().map(member => [member.userId, member.cachedUserName])));
+    protected readonly ownerNames = computed(() =>
+        Object.fromEntries(this.others().map(member => [member.userId, member.cachedUserName])),
+    );
 
     protected getOnlineStatus(userId: string): OnlineStatus {
         return this.profileService.getOnlineStatus(userId);

@@ -10,7 +10,7 @@ import {
     input,
     output,
     signal,
-    ViewChild
+    ViewChild,
 } from '@angular/core';
 import {takeUntilDestroyed, toObservable, toSignal} from '@angular/core/rxjs-interop';
 import {
@@ -19,17 +19,17 @@ import {
     MessageEmbed,
     MessageEmbedMedia,
     MessageFlags,
-    PinMessageResponse
-} from "../../../../../dtos/response/message.dto";
+    PinMessageResponse,
+} from '../../../../../dtos/response/message.dto';
 import {MessageType} from '../../../../../enums/message-type.enum';
 import {BotCommandDto} from '../../../../../dtos/response/bot-command.dto';
-import {AppAvatarComponent} from "../../../../../components/avatar/avatar.component";
-import {AsyncPipe, DatePipe, NgClass} from "@angular/common";
-import {ProfileService} from "../../../../../services/profile.service";
-import {firstValueFrom, from, Observable, of, switchMap} from "rxjs";
-import {ProfileDto} from "../../../../../dtos/response/profile.dto";
-import {ChannelDto, ChannelType, RoleDto} from "../../../../../dtos/response/guild.dto";
-import {NavigationService} from "../../../../main-page/navigation.service";
+import {AppAvatarComponent} from '../../../../../components/avatar/avatar.component';
+import {AsyncPipe, DatePipe, NgClass} from '@angular/common';
+import {ProfileService} from '../../../../../services/profile.service';
+import {firstValueFrom, from, Observable, of, switchMap} from 'rxjs';
+import {ProfileDto} from '../../../../../dtos/response/profile.dto';
+import {ChannelDto, ChannelType, RoleDto} from '../../../../../dtos/response/guild.dto';
+import {NavigationService} from '../../../../main-page/navigation.service';
 import {isKlipyGifUrl} from '../../../../../services/gif.service';
 import {EmojiDataService, getFlagCode, isRegionalIndicator} from '../../../../../services/emoji-data.service';
 import {MarkdownPipe} from '../../../../../pipes/markdown.pipe';
@@ -47,7 +47,7 @@ import {MessageStore} from '../../../../../stores/message.store';
 import {MlsService} from '../../../../../services/mls.service';
 import {MessageEncryptionState} from '../../../../../enums/message-encryption-state.enum';
 import {toBase64} from '../../../../../helpers/base64.helper';
-import {ProfileDialogService} from '../../../../../services/profile-dialog.service';
+import {ProfilePopoutService} from '../../../../../services/profile-popout.service';
 import {ReportDialogService} from '../../../../../services/report-dialog.service';
 import {LinkOpener} from '../../../../../platform/ports/link-opener.port';
 import {EmbedCardComponent} from './embed-card/embed-card.component';
@@ -63,10 +63,7 @@ import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {UserNameStyleDirective} from '../../../../../directives/user-name-style.directive';
 import {EmojiSelection} from './reaction-picker/reaction-picker.component';
 import {ToastService} from '../../../../../services/toast.service';
-import {
-    UNDECRYPTABLE_PLACEHOLDER,
-    UNDECRYPTABLE_SHORT,
-} from '../../../../../helpers/message-content.helper';
+import {UNDECRYPTABLE_PLACEHOLDER, UNDECRYPTABLE_SHORT} from '../../../../../helpers/message-content.helper';
 
 /** One run of a message body, after the text has been pulled apart. */
 interface MessageSegment {
@@ -135,7 +132,7 @@ export class MessageComponent {
         });
     }
     public readonly isOnlyEmoji = computed(() => {
-        const content = this.content().trim().replace(/ /g, '')
+        const content = this.content().trim().replace(/ /g, '');
 
         // 30 is the new 15 btw
         if (content.length > 30) return false;
@@ -145,13 +142,13 @@ export class MessageComponent {
         return /^(\p{Emoji_Presentation}|\p{Emoji}\uFE0F?|\u200D)+$/u.test(content);
     });
     /** The body as it should be *displayed*, with the sender's no-preview brackets taken off. */
-    public readonly displayContent = computed(() =>
-        this.content().replace(/<(https?:\/\/[^\s<>]+)>/g, '$1'));
+    public readonly displayContent = computed(() => this.content().replace(/<(https?:\/\/[^\s<>]+)>/g, '$1'));
 
     /** Whether there is a body to render alongside whatever cards this message carries. */
-    public readonly hasRenderableContent = computed(() =>
-        this.message().type !== MessageType.VoiceChannelInvite
-        && this.displayContent().trim().length > 0);
+    public readonly hasRenderableContent = computed(
+        () =>
+            this.message().type !== MessageType.VoiceChannelInvite && this.displayContent().trim().length > 0,
+    );
 
     public readonly contentSegments = computed(() => {
         const text = this.displayContent();
@@ -177,15 +174,16 @@ export class MessageComponent {
         // single-word @pattern below can't capture as one unit (e.g. "@The Isle").
         // Match every known mentioned name explicitly, longest first, before falling
         // back to the generic single-word pattern.
-        const knownNames = [...mentionedProfiles.map(p => p.userName), ...mentionedRoles.map(r => r.name)]
-            .sort((a, b) => b.length - a.length);
+        const knownNames = [
+            ...mentionedProfiles.map(p => p.userName),
+            ...mentionedRoles.map(r => r.name),
+        ].sort((a, b) => b.length - a.length);
         const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const knownNamePattern = knownNames.length > 0
-            ? knownNames.map(n => `@${escapeRegex(n)}\\b`).join('|') + '|'
-            : '';
+        const knownNamePattern =
+            knownNames.length > 0 ? knownNames.map(n => `@${escapeRegex(n)}\\b`).join('|') + '|' : '';
         const regex = new RegExp(
             knownNamePattern + '@[\\w\\-.]+#\\w+|@everyone\\b|@here\\b|@[\\w\\-.]+|#[\\w-]+',
-            'g'
+            'g',
         );
         let last = 0;
         let match;
@@ -216,20 +214,21 @@ export class MessageComponent {
                     segments.push({type: 'mention', value: raw, refId: profile.userId});
                 } else {
                     const role = mentionedRoles.find(r => r.name === name);
-                    segments.push(role
-                        ? {type: 'role', value: raw, refId: role.id}
-                        : {type: 'text', value: raw});
+                    segments.push(
+                        role ? {type: 'role', value: raw, refId: role.id} : {type: 'text', value: raw},
+                    );
                 }
             } else {
                 // Channel link, only if it resolves against a channel actually in this guild.
                 // Prefer a text channel over a same-named voice channel: "#general" should
                 // point at somewhere you can read, not the voice room that happens to share a name.
                 const name = raw.slice(1);
-                const channel = channels.find(c => c.name === name && c.type === ChannelType.Text)
-                    ?? channels.find(c => c.name === name);
-                segments.push(channel
-                    ? {type: 'channel', value: raw, refId: channel.id}
-                    : {type: 'text', value: raw});
+                const channel =
+                    channels.find(c => c.name === name && c.type === ChannelType.Text) ??
+                    channels.find(c => c.name === name);
+                segments.push(
+                    channel ? {type: 'channel', value: raw, refId: channel.id} : {type: 'text', value: raw},
+                );
             }
             last = match.index + raw.length;
         }
@@ -283,13 +282,13 @@ export class MessageComponent {
 
         return emojiSegments;
     });
-    readonly isOwn = computed(() =>
-        this.message().authorId === this.profileService.ownProfile()?.userId
-    );
-    readonly canPin = computed(() => !this.message().conversationId ? this.canPinMessages() : true);
+    readonly isOwn = computed(() => this.message().authorId === this.profileService.ownProfile()?.userId);
+    readonly canPin = computed(() => (!this.message().conversationId ? this.canPinMessages() : true));
     // Publishing (announcement cross-posting) reuses the PinMessages permission deliberately -
     // no separate permission bit exists for it.
-    protected readonly canPublish = computed(() => this.channelType() === ChannelType.Announcement && this.canPin());
+    protected readonly canPublish = computed(
+        () => this.channelType() === ChannelType.Announcement && this.canPin(),
+    );
     protected readonly published = signal(false);
     protected readonly publishing = signal(false);
     readonly longPressMenu = signal(false);
@@ -299,13 +298,17 @@ export class MessageComponent {
     readonly showDeleteConfirm = signal(false);
     readonly quickReactions = ['👍', '❤️', '😂'];
     private readonly links = inject(LinkOpener);
-    protected profileDialogSvc = inject(ProfileDialogService);
+    protected profilePopout = inject(ProfilePopoutService);
     private reportDialog = inject(ReportDialogService);
     protected readonly replyAuthorName = computed(() => {
         const msg = this.replyMessage();
         if (!msg) return '';
         if (msg.authorId === this.profileService.ownProfile()?.userId) return 'You';
-        return this.botName(msg.authorId) ?? this.profileService.getCachedByUserId(msg.authorId)?.userName ?? 'Unknown';
+        return (
+            this.botName(msg.authorId) ??
+            this.profileService.getCachedByUserId(msg.authorId)?.userName ??
+            'Unknown'
+        );
     });
     protected readonly replyAuthorProfile = computed(() => {
         const msg = this.replyMessage();
@@ -350,8 +353,9 @@ export class MessageComponent {
     });
 
     /** True when a person removed this message's previews - for everyone, not just for them. */
-    public readonly embedsSuppressed = computed(() =>
-        ((this.message().flags ?? 0) & MessageFlags.SuppressEmbeds) !== 0);
+    public readonly embedsSuppressed = computed(
+        () => ((this.message().flags ?? 0) & MessageFlags.SuppressEmbeds) !== 0,
+    );
 
     /** Whether the message's text carries a link the server could unfurl. */
     public readonly hasUnfurlableLink = computed(() => {
@@ -371,8 +375,9 @@ export class MessageComponent {
     });
 
     /** The subtle "preview hidden - show" row: only where a preview could actually come back. */
-    public readonly canRestoreEmbeds = computed(() =>
-        this.embedsSuppressed() && this.canSuppressEmbeds() && this.hasUnfurlableLink());
+    public readonly canRestoreEmbeds = computed(
+        () => this.embedsSuppressed() && this.canSuppressEmbeds() && this.hasUnfurlableLink(),
+    );
 
     /** The "(edited)" marker, driven by `editedAt` and never by `updatedAt`. */
     public readonly isEdited = computed(() => !!this.message().editedAt);
@@ -398,15 +403,16 @@ export class MessageComponent {
     }));
     protected readonly replyMessage = toSignal(
         toObservable(this.replyCtx).pipe(
-            switchMap(ctx => ctx.id
-                ? this.messageStore.getOrFetchMessage(ctx.id, {
-                    conversationId: ctx.conversationId,
-                    channelId: ctx.channelId
-                })
-                : of(null as MessageDto | null)
-            )
+            switchMap(ctx =>
+                ctx.id
+                    ? this.messageStore.getOrFetchMessage(ctx.id, {
+                          conversationId: ctx.conversationId,
+                          channelId: ctx.channelId,
+                      })
+                    : of(null as MessageDto | null),
+            ),
         ),
-        {initialValue: null as MessageDto | null}
+        {initialValue: null as MessageDto | null},
     );
     private longPressTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -496,16 +502,15 @@ export class MessageComponent {
     download(att: DownloadableAttachment): void {
         if (this.downloading()) return;
         this.downloading.set(true);
-        this.downloads.save(att)
+        this.downloads
+            .save(att)
             .then(saved => {
                 // Nothing is said about a dismissed dialog - the user knows they cancelled, and
                 // there is no download shelf here to confirm a save that did happen.
                 if (!saved) return;
-                this.toast.success(this.translate.instant(
-                    attachmentSavedToastKey(this.capabilities.host)));
+                this.toast.success(this.translate.instant(attachmentSavedToastKey(this.capabilities.host)));
             })
-            .catch(err => this.toast.httpError(
-                this.translate.instant('MESSAGE.DOWNLOAD_FAILED'), err))
+            .catch(err => this.toast.httpError(this.translate.instant('MESSAGE.DOWNLOAD_FAILED'), err))
             .finally(() => this.downloading.set(false));
     }
 
@@ -513,7 +518,8 @@ export class MessageComponent {
         if (contentType.startsWith('video/')) return 'pi-video';
         if (contentType.startsWith('audio/')) return 'pi-volume-up';
         if (contentType === 'application/pdf') return 'pi-file-pdf';
-        if (contentType.includes('zip') || contentType.includes('rar') || contentType.includes('tar')) return 'pi-folder';
+        if (contentType.includes('zip') || contentType.includes('rar') || contentType.includes('tar'))
+            return 'pi-folder';
         if (contentType.startsWith('text/')) return 'pi-file-edit';
         return 'pi-file';
     }
@@ -553,35 +559,41 @@ export class MessageComponent {
 
         const wasEncrypted = this.message().encryptionState === MessageEncryptionState.Encrypted;
 
-        from(this.encryptEditIfNeeded(text)).pipe(
-            switchMap(payload => this.messagingService.updateMessage(this.message().id, payload)),
-            takeUntilDestroyed(this.destroyRef),
-        ).subscribe({
-            next: updated => {
-                // Keep the plaintext locally. The server now holds ciphertext and MLS ratchets
-                // forward only, so this is the one moment the edit is still readable to us.
-                if (wasEncrypted) {
-                    // Keyed on context and generation as well as the id - `updated.id` is the
-                    // server's, and the cache must not be addressable by it alone.
-                    const original = this.message();
-                    const contextId = original.conversationId ?? original.channelId;
-                    if (contextId) {
-                        void this.mlsService.cacheMessage(
-                            contextId, original.mlsGeneration ?? null, updated.id, toBase64(text),
-                            original.authorId);
+        from(this.encryptEditIfNeeded(text))
+            .pipe(
+                switchMap(payload => this.messagingService.updateMessage(this.message().id, payload)),
+                takeUntilDestroyed(this.destroyRef),
+            )
+            .subscribe({
+                next: updated => {
+                    // Keep the plaintext locally. The server now holds ciphertext and MLS ratchets
+                    // forward only, so this is the one moment the edit is still readable to us.
+                    if (wasEncrypted) {
+                        // Keyed on context and generation as well as the id - `updated.id` is the
+                        // server's, and the cache must not be addressable by it alone.
+                        const original = this.message();
+                        const contextId = original.conversationId ?? original.channelId;
+                        if (contextId) {
+                            void this.mlsService.cacheMessage(
+                                contextId,
+                                original.mlsGeneration ?? null,
+                                updated.id,
+                                toBase64(text),
+                                original.authorId,
+                            );
+                        }
+                        this.messageStore.applyMessageUpdate({...updated, content: toBase64(text)});
+                    } else {
+                        this.messageStore.applyMessageUpdate(updated);
                     }
-                    this.messageStore.applyMessageUpdate({...updated, content: toBase64(text)});
-                } else {
-                    this.messageStore.applyMessageUpdate(updated);
-                }
-                this.saving.set(false);
-            },
-            error: () => {
-                this.saving.set(false);
-                this.editText.set(text);
-                this.isEditing.set(true);
-            },
-        });
+                    this.saving.set(false);
+                },
+                error: () => {
+                    this.saving.set(false);
+                    this.editText.set(text);
+                    this.isEditing.set(true);
+                },
+            });
     }
 
     /** Encrypts an edit to an encrypted message before it leaves the machine. */
@@ -595,11 +607,11 @@ export class MessageComponent {
             throw new Error('Cannot edit an encrypted message while the MLS session is locked');
         }
 
-        const generation = message.mlsGeneration
-            ?? await this.mlsService.getKnownGeneration(contextId);
-        const groupId = generation === null || generation === undefined
-            ? null
-            : await this.mlsService.getGroupId(contextId, generation);
+        const generation = message.mlsGeneration ?? (await this.mlsService.getKnownGeneration(contextId));
+        const groupId =
+            generation === null || generation === undefined
+                ? null
+                : await this.mlsService.getGroupId(contextId, generation);
         if (!groupId) throw new Error(`No MLS group held for encrypted context ${contextId}`);
 
         const {ciphertext} = await firstValueFrom(
@@ -685,9 +697,13 @@ export class MessageComponent {
     hasOwnReaction(emoji: string, emojiId?: string): boolean {
         const own = this.profileService.ownProfile()?.userId;
         if (!own) return false;
-        return this.message().reactions?.some(r => emojiId
-            ? r.emojiId === emojiId && r.userId === own
-            : r.emoji === emoji && !r.emojiId && r.userId === own) ?? false;
+        return (
+            this.message().reactions?.some(r =>
+                emojiId
+                    ? r.emojiId === emojiId && r.userId === own
+                    : r.emoji === emoji && !r.emojiId && r.userId === own,
+            ) ?? false
+        );
     }
 
     toggleReaction(selection: EmojiSelection): void {
@@ -706,7 +722,8 @@ export class MessageComponent {
             const dto: RemoveReactionDto = {reaction: emoji, contextId};
             this.messageStore.applyReactionRemoved({messageId: msg.id, emoji, emojiId, userId: own});
             this.messagingService.removeReaction(msg.id, dto).subscribe({
-                error: () => this.messageStore.applyReactionAdded({messageId: msg.id, emoji, emojiId, userId: own}),
+                error: () =>
+                    this.messageStore.applyReactionAdded({messageId: msg.id, emoji, emojiId, userId: own}),
             });
         } else {
             const dto: CreateReactionDto = emojiId
@@ -714,7 +731,8 @@ export class MessageComponent {
                 : {conversationId: msg.conversationId ?? '', reaction: emoji, channelId: msg.channelId};
             this.messageStore.applyReactionAdded({messageId: msg.id, emoji, emojiId, userId: own});
             this.messagingService.addReaction(msg.id, dto).subscribe({
-                error: () => this.messageStore.applyReactionRemoved({messageId: msg.id, emoji, emojiId, userId: own}),
+                error: () =>
+                    this.messageStore.applyReactionRemoved({messageId: msg.id, emoji, emojiId, userId: own}),
             });
         }
     }
@@ -723,26 +741,46 @@ export class MessageComponent {
         const msg = this.message();
         if (msg.isPending || msg.isFailed) return;
         if (msg.isPinned) {
-            this.messageStore.applyUnpinned({messageId: msg.id, authorId: msg.authorId, unpinnedById: this.profileService.ownProfile()?.userId ?? ''});
+            this.messageStore.applyUnpinned({
+                messageId: msg.id,
+                authorId: msg.authorId,
+                unpinnedById: this.profileService.ownProfile()?.userId ?? '',
+            });
             this.messagingService.unpinMessage(msg.id).subscribe({
-                error: () => this.messageStore.applyPinned({
-                    messageId: msg.id,
-                    authorId: msg.authorId,
-                    pinnedById: msg.pinnedById ?? '',
-                    pinnedAt: msg.pinnedAt ?? new Date().toISOString(),
-                }),
+                error: () =>
+                    this.messageStore.applyPinned({
+                        messageId: msg.id,
+                        authorId: msg.authorId,
+                        pinnedById: msg.pinnedById ?? '',
+                        pinnedAt: msg.pinnedAt ?? new Date().toISOString(),
+                    }),
             });
         } else {
             const own = this.profileService.ownProfile()?.userId ?? '';
             const optimisticAt = new Date().toISOString();
-            this.messageStore.applyPinned({messageId: msg.id, authorId: msg.authorId, pinnedById: own, pinnedAt: optimisticAt});
+            this.messageStore.applyPinned({
+                messageId: msg.id,
+                authorId: msg.authorId,
+                pinnedById: own,
+                pinnedAt: optimisticAt,
+            });
             this.messagingService.pinMessage(msg.id).subscribe({
                 next: (res: PinMessageResponse) => {
                     if (res.pinnedAt && res.pinnedById) {
-                        this.messageStore.applyPinned({messageId: msg.id, authorId: msg.authorId, pinnedById: res.pinnedById, pinnedAt: res.pinnedAt});
+                        this.messageStore.applyPinned({
+                            messageId: msg.id,
+                            authorId: msg.authorId,
+                            pinnedById: res.pinnedById,
+                            pinnedAt: res.pinnedAt,
+                        });
                     }
                 },
-                error: () => this.messageStore.applyUnpinned({messageId: msg.id, authorId: msg.authorId, unpinnedById: own}),
+                error: () =>
+                    this.messageStore.applyUnpinned({
+                        messageId: msg.id,
+                        authorId: msg.authorId,
+                        unpinnedById: own,
+                    }),
             });
         }
     }
@@ -757,7 +795,8 @@ export class MessageComponent {
         this.suppressingEmbeds.set(true);
         this.messageStore.applyEmbedSuppression(msg.id, suppress);
 
-        this.messagingService.setEmbedSuppression(msg.id, suppress)
+        this.messagingService
+            .setEmbedSuppression(msg.id, suppress)
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe({
                 next: () => this.suppressingEmbeds.set(false),
@@ -776,7 +815,8 @@ export class MessageComponent {
         // in-flight flag synchronously, before subscribing, so a second click before the
         // response arrives can't slip through and fire a duplicate request.
         this.publishing.set(true);
-        this.messagingService.publishMessage(this.message().id)
+        this.messagingService
+            .publishMessage(this.message().id)
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe({
                 next: res => {
@@ -786,8 +826,11 @@ export class MessageComponent {
                         res.published === 0
                             ? this.translate.instant('MESSAGE.PUBLISH_NO_FOLLOWERS')
                             : res.published === 1
-                                ? this.translate.instant('MESSAGE.PUBLISH_SUCCESS_SINGULAR', {count: res.published})
-                                : this.translate.instant('MESSAGE.PUBLISH_SUCCESS', {count: res.published}));
+                              ? this.translate.instant('MESSAGE.PUBLISH_SUCCESS_SINGULAR', {
+                                    count: res.published,
+                                })
+                              : this.translate.instant('MESSAGE.PUBLISH_SUCCESS', {count: res.published}),
+                    );
                 },
                 error: err => {
                     this.publishing.set(false);

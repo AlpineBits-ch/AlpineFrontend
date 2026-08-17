@@ -1,0 +1,204 @@
+@if (popoutSvc.modal()) {
+    <div (click)="close()" class="fixed inset-0 z-[9995] flex items-center justify-center bg-black/60 p-4">
+        <div
+            (click)="$event.stopPropagation()"
+            (keydown)="onKeydown($event)"
+            class="relative flex h-[34rem] max-h-full w-full max-w-[46rem] overflow-hidden rounded-2xl border border-border bg-card shadow-[0_8px_28px_rgba(0,0,0,0.55),0_2px_8px_rgba(0,0,0,0.3)]"
+            role="dialog"
+            tabindex="-1"
+        >
+            <button
+                (click)="close()"
+                class="absolute right-3 top-3 z-30 flex size-8 cursor-pointer items-center justify-center rounded-full border-0 bg-black/35 text-white/75 transition-colors hover:bg-black/60 hover:text-white"
+                type="button"
+            >
+                <i class="pi pi-times text-[0.6875rem]"></i>
+            </button>
+
+            <!-- Who they are -->
+            <div class="thin-scrollbar flex w-[22rem] shrink-0 flex-col overflow-y-auto border-r border-border-subtle">
+                <app-profile-header [profile]="profile()" />
+
+                @if (profile(); as p) {
+                    <div class="flex flex-col gap-4 px-4 pb-5 pt-3">
+                        <div class="flex items-center gap-2">
+                            <button
+                                (click)="message()"
+                                class="flex cursor-pointer items-center gap-2 rounded-lg border-0 bg-white/[0.08] px-3.5 py-2 text-sm font-medium text-white/85 transition-colors hover:bg-white/[0.14]"
+                                type="button"
+                            >
+                                <i class="pi pi-comment text-xs"></i>
+                                {{ 'PROFILE.MESSAGE' | translate }}
+                            </button>
+                            <app-profile-actions (dismissed)="close()" [profile]="p" />
+                        </div>
+
+                        <div class="flex flex-col gap-0.5">
+                            <span class="text-[0.625rem] font-semibold uppercase tracking-widest text-text-muted">
+                                {{ 'PROFILE.MEMBER_SINCE' | translate }}
+                            </span>
+                            <span class="text-sm text-text-secondary">{{ p.createdAt | date: 'MMM d, yyyy' }}</span>
+                        </div>
+
+                        @if (p.connections; as connections) {
+                            @if (connections.length > 0) {
+                                <div class="flex flex-col gap-1.5">
+                                    <span class="text-[0.625rem] font-semibold uppercase tracking-widest text-text-muted">
+                                        {{ 'PROFILE.CONNECTIONS' | translate }}
+                                    </span>
+                                    @for (connection of connections; track connection.type + connection.externalId) {
+                                        <div class="flex items-center gap-2 text-sm text-text-secondary">
+                                            <i class="pi pi-link text-xs text-white/35"></i>
+                                            <span class="truncate">{{ connection.displayName ?? connection.externalId }}</span>
+                                            @if (connection.verified) {
+                                                <i class="pi pi-verified text-xs text-online/70"></i>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        }
+                    </div>
+                }
+            </div>
+
+            <!-- What you have in common -->
+            <div class="flex min-w-0 flex-1 flex-col">
+                <div class="flex shrink-0 items-center gap-5 border-b border-border-subtle px-5 pt-5">
+                    <button
+                        (click)="selectTab('activity')"
+                        [class.border-white]="effectiveTab() === 'activity'"
+                        [class.border-transparent]="effectiveTab() !== 'activity'"
+                        [class.text-white]="effectiveTab() === 'activity'"
+                        [class.text-white/40]="effectiveTab() !== 'activity'"
+                        class="cursor-pointer border-0 border-b-2 bg-transparent px-0 pb-2.5 text-sm font-semibold transition-colors hover:text-white/75"
+                        type="button"
+                    >
+                        {{ 'PROFILE.TAB_ACTIVITY' | translate }}
+                    </button>
+
+                    @if (showFriendsTab()) {
+                        <button
+                            (click)="selectTab('friends')"
+                            [class.border-white]="effectiveTab() === 'friends'"
+                            [class.border-transparent]="effectiveTab() !== 'friends'"
+                            [class.text-white]="effectiveTab() === 'friends'"
+                            [class.text-white/40]="effectiveTab() !== 'friends'"
+                            class="cursor-pointer border-0 border-b-2 bg-transparent px-0 pb-2.5 text-sm font-semibold transition-colors hover:text-white/75"
+                            type="button"
+                        >
+                            {{ 'PROFILE.MUTUAL_FRIENDS' | translate: {count: friendCount()} }}
+                        </button>
+                    }
+
+                    @if (showServersTab()) {
+                        <button
+                            (click)="selectTab('servers')"
+                            [class.border-white]="effectiveTab() === 'servers'"
+                            [class.border-transparent]="effectiveTab() !== 'servers'"
+                            [class.text-white]="effectiveTab() === 'servers'"
+                            [class.text-white/40]="effectiveTab() !== 'servers'"
+                            class="cursor-pointer border-0 border-b-2 bg-transparent px-0 pb-2.5 text-sm font-semibold transition-colors hover:text-white/75"
+                            type="button"
+                        >
+                            {{ 'PROFILE.MUTUAL_SERVERS' | translate: {count: serverCount()} }}
+                        </button>
+                    }
+                </div>
+
+                <div class="thin-scrollbar min-h-0 flex-1 overflow-y-auto p-3">
+                    @switch (effectiveTab()) {
+                        @case ('activity') {
+                            @if (activities().length === 0) {
+                                <p class="px-2 py-6 text-center text-sm text-white/30">
+                                    {{ 'PROFILE.NO_ACTIVITY' | translate }}
+                                </p>
+                            } @else {
+                                @for (activity of activities(); track activity.name) {
+                                    <div class="px-2 py-1.5">
+                                        <app-activity-card [activity]="activity" />
+                                    </div>
+                                }
+                            }
+                        }
+
+                        @case ('friends') {
+                            @if (friends().loading) {
+                                <p class="px-2 py-6 text-center text-sm text-white/30">
+                                    <i class="pi pi-spin pi-spinner"></i>
+                                </p>
+                            } @else if (friends().failed) {
+                                <button
+                                    (click)="retry()"
+                                    class="mx-auto block cursor-pointer rounded-lg border-0 bg-white/[0.06] px-3 py-2 text-sm text-white/70 transition-colors hover:bg-white/[0.1]"
+                                    type="button"
+                                >
+                                    {{ 'PROFILE.MUTUALS_RETRY' | translate }}
+                                </button>
+                            } @else {
+                                @for (row of friends().items; track row.userId) {
+                                    <button
+                                        (click)="openFriend(row)"
+                                        class="flex w-full cursor-pointer items-center gap-3 rounded-lg border-0 bg-transparent px-2 py-1.5 text-left transition-colors hover:bg-white/[0.05]"
+                                        type="button"
+                                    >
+                                        <div class="relative shrink-0">
+                                            <app-avatar [label]="row.userName[0].toUpperCase()" [userId]="row.userId" size="normal" />
+                                            <app-user-status-dot [status]="row.onlineStatus" borderColor="border-card" />
+                                        </div>
+                                        <span class="min-w-0 flex-1 truncate text-sm text-white/80">
+                                            {{ row.userName }}
+                                        </span>
+                                    </button>
+                                }
+                            }
+                        }
+
+                        @case ('servers') {
+                            @if (servers().loading) {
+                                <p class="px-2 py-6 text-center text-sm text-white/30">
+                                    <i class="pi pi-spin pi-spinner"></i>
+                                </p>
+                            } @else if (servers().failed) {
+                                <button
+                                    (click)="retry()"
+                                    class="mx-auto block cursor-pointer rounded-lg border-0 bg-white/[0.06] px-3 py-2 text-sm text-white/70 transition-colors hover:bg-white/[0.1]"
+                                    type="button"
+                                >
+                                    {{ 'PROFILE.MUTUALS_RETRY' | translate }}
+                                </button>
+                            } @else {
+                                @for (row of servers().items; track row.guildId) {
+                                    <button
+                                        (click)="openServer(row)"
+                                        class="flex w-full cursor-pointer items-center gap-3 rounded-lg border-0 bg-transparent px-2 py-1.5 text-left transition-colors hover:bg-white/[0.05]"
+                                        type="button"
+                                    >
+                                        <!-- A plain img, not app-avatar: that one resolves a user, and this is a guild. -->
+                                        <div
+                                            class="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white/10 text-[0.6875rem] font-semibold text-white/70"
+                                        >
+                                            @if (iconFailed(row.guildId)) {
+                                                {{ guildInitial(row) }}
+                                            } @else {
+                                                <img
+                                                    (error)="onIconError(row.guildId)"
+                                                    [src]="guildIconUrl(row.guildId)"
+                                                    alt=""
+                                                    class="size-full object-cover"
+                                                />
+                                            }
+                                        </div>
+                                        <span class="min-w-0 flex-1 truncate text-sm text-white/80">
+                                            {{ row.name ?? row.guildId }}
+                                        </span>
+                                    </button>
+                                }
+                            }
+                        }
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}

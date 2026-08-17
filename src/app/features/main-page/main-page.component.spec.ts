@@ -9,14 +9,17 @@ import {MainPageComponent} from './main-page.component';
 import {ChannelType} from '../../dtos/response/guild.dto';
 import {AuthService} from '../../services/auth.service';
 import {NavigationService} from './navigation.service';
-import {ProfileDialogService} from '../../services/profile-dialog.service';
+import {ProfilePopoutService} from '../../services/profile-popout.service';
 import {MessagingWebsocketService} from '../../services/messaging-websocket.service';
 import {VoiceWebsocketService} from '../../services/voice-websocket.service';
 import {GuildWebsocketService} from '../../services/guild-websocket.service';
 import {SocialWebsocketService} from '../../services/social-websocket.service';
 import {NotificationService} from '../../services/notification.service';
 import {HouseholdAlertService} from '../../services/household-alert.service';
-import {GoLiveNotificationService, STREAM_LIVE_ACTION_TYPE} from '../../services/go-live-notification.service';
+import {
+    GoLiveNotificationService,
+    STREAM_LIVE_ACTION_TYPE,
+} from '../../services/go-live-notification.service';
 import {CallFocusService} from '../../services/call-focus.service';
 import {VoiceChannelService} from '../../services/voice-channel.service';
 import {VoiceResumeService} from '../../services/voice-resume.service';
@@ -187,8 +190,14 @@ function configure(fakes: Fakes): void {
     TestBed.configureTestingModule({
         imports: [MainPageComponent],
         providers: [
-            {provide: AuthService, useValue: {ensureValidToken: fakes.ensureValidToken, logout: fakes.logout}},
-            {provide: OAuthService, useValue: {events: fakes.oauthEvents$, getIdentityClaims: fakes.getIdentityClaims}},
+            {
+                provide: AuthService,
+                useValue: {ensureValidToken: fakes.ensureValidToken, logout: fakes.logout},
+            },
+            {
+                provide: OAuthService,
+                useValue: {events: fakes.oauthEvents$, getIdentityClaims: fakes.getIdentityClaims},
+            },
             {provide: Router, useValue: {navigate: fakes.navigate}},
             {
                 provide: NavigationService,
@@ -205,7 +214,7 @@ function configure(fakes: Fakes): void {
                     showHome: vi.fn(),
                 },
             },
-            {provide: ProfileDialogService, useValue: {selectedUserId: signal(null), close: vi.fn()}},
+            {provide: ProfilePopoutService, useValue: {selectedUserId: signal(null), close: vi.fn()}},
             {
                 provide: MessagingWebsocketService,
                 useValue: {
@@ -254,7 +263,10 @@ function configure(fakes: Fakes): void {
                     refreshState: fakes.refreshState,
                 },
             },
-            {provide: MlsHealthService, useValue: {clear: fakes.mlsHealthClear, recordFailure: fakes.recordFailure}},
+            {
+                provide: MlsHealthService,
+                useValue: {clear: fakes.mlsHealthClear, recordFailure: fakes.recordFailure},
+            },
             {provide: MasterKeyStateService, useValue: {refresh: fakes.masterKeyRefresh}},
             {provide: ConversationService, useValue: {getConversations: fakes.getConversations}},
             {provide: RichPresenceService, useValue: {start: fakes.richStart, stop: fakes.richStop}},
@@ -296,7 +308,10 @@ function configure(fakes: Fakes): void {
                     onSetupComplete: vi.fn(),
                 },
             },
-            {provide: AccountRegistryService, useValue: {activeSlot: fakes.activeSlot, updateProfile: fakes.updateProfile}},
+            {
+                provide: AccountRegistryService,
+                useValue: {activeSlot: fakes.activeSlot, updateProfile: fakes.updateProfile},
+            },
             {provide: AccountSwitchService, useValue: {adoptSignedInAccount: fakes.adoptSignedInAccount}},
             {
                 provide: SessionTeardownService,
@@ -304,7 +319,10 @@ function configure(fakes: Fakes): void {
             },
             {provide: ApiConfigService, useValue: {baseUrl: () => 'https://api.test'}},
             {provide: ProfileService, useValue: {getSelf: () => of({userName: 'me', avatarUrl: null})}},
-            {provide: ProfileCacheService, useValue: {hydrate: fakes.hydrate, revalidateAll: fakes.revalidateAll}},
+            {
+                provide: ProfileCacheService,
+                useValue: {hydrate: fakes.hydrate, revalidateAll: fakes.revalidateAll},
+            },
         ],
     });
 
@@ -400,7 +418,10 @@ describe('MainPageComponent notification routing', () => {
         const {fakes} = await setup();
         fakes.guilds.set([guild('g1', [], 'Chores')]);
 
-        fakes.action$.next({actionTypeId: 'a', extra: {type: 'household', guildId: 'g1', channelId: 'missing'}});
+        fakes.action$.next({
+            actionTypeId: 'a',
+            extra: {type: 'household', guildId: 'g1', channelId: 'missing'},
+        });
 
         expect(fakes.selectServer).toHaveBeenCalled();
         expect(fakes.openChannel).not.toHaveBeenCalled();
@@ -555,7 +576,10 @@ describe('MainPageComponent launch sequence gates', () => {
         await setup(fakes);
 
         expect(order).toEqual(['adopt', 'device-id']);
-        expect(fakes.adoptSignedInAccount).toHaveBeenCalledWith({userId: 'user-1', serverUrl: 'https://api.test'});
+        expect(fakes.adoptSignedInAccount).toHaveBeenCalledWith({
+            userId: 'user-1',
+            serverUrl: 'https://api.test',
+        });
     });
 
     it('stops on an unverified email', async () => {
@@ -651,10 +675,12 @@ describe('MainPageComponent device launch', () => {
 
     it('sweeps for admission over the conversations page', async () => {
         const fakes = makeFakes();
-        fakes.getConversations.mockReturnValue(of([
-            {id: 'c1', encryptionState: 'Encrypted'},
-            {id: 'c2', encryptionState: 'Plain'},
-        ]));
+        fakes.getConversations.mockReturnValue(
+            of([
+                {id: 'c1', encryptionState: 'Encrypted'},
+                {id: 'c2', encryptionState: 'Plain'},
+            ]),
+        );
         await setup(fakes);
 
         expect(fakes.getConversations).toHaveBeenCalledWith(0, 100);

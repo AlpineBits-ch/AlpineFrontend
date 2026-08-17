@@ -1,86 +1,111 @@
 <div class="flex flex-col bg-app-bg overflow-hidden h-full">
-
     <!-- Header -->
     <header class="app-header flex items-center px-3 sm:px-5 border-b border-white/[0.06] shrink-0 bg-app-bg">
         <!-- Back button (mobile only) -->
-        <p-button (onClick)="back.emit()" [text]="true" class="lg:hidden" icon="pi pi-arrow-left"
-                  severity="secondary" size="small" styleClass="mr-1"/>
+        <p-button
+            (onClick)="back.emit()"
+            [text]="true"
+            class="lg:hidden"
+            icon="pi pi-arrow-left"
+            severity="secondary"
+            size="small"
+            styleClass="mr-1"
+        />
 
-        <div (click)="convUtils.getPartnerMember(conversation())?.userId && profileDialogSvc.open(convUtils.getPartnerMember(conversation())!.userId)"
-             [class.cursor-pointer]="convUtils.getPartnerMember(conversation())"
-             class="flex items-center gap-2 sm:gap-3">
+        <div
+            (click)="
+                convUtils.getPartnerMember(conversation())?.userId &&
+                    profilePopout.open(convUtils.getPartnerMember(conversation())!.userId)
+            "
+            [class.cursor-pointer]="convUtils.getPartnerMember(conversation())"
+            class="flex items-center gap-2 sm:gap-3"
+        >
             <div class="relative">
-                <app-avatar [label]="chatAvatarLabel()" [userId]="convUtils.getPartnerMember(conversation())?.userId"
-                            size="normal"/>
-                <app-user-status-dot [status]="partnerStatus()" borderColor="border-app-bg" size="md"/>
+                <app-avatar [label]="chatAvatarLabel()" [userId]="convUtils.getPartnerMember(conversation())?.userId" size="normal" />
+                <app-user-status-dot [status]="partnerStatus()" borderColor="border-app-bg" size="md" />
             </div>
             <div class="flex flex-col">
                 <h1 class="text-sm font-semibold text-white/85 m-0 leading-tight">{{ chatTitle() }}</h1>
                 @if (partnerStatus() !== null) {
-                    <span [ngClass]="partnerStatus() === OnlineStatus.Online ? 'text-online/70' : 'text-white/30'"
-                          class="text-[11px]">
-            {{ partnerStatus() === OnlineStatus.Online ? 'Online' : 'Offline' }}
-          </span>
+                    <span [ngClass]="partnerStatus() === OnlineStatus.Online ? 'text-online/70' : 'text-white/30'" class="text-[11px]">
+                        {{ partnerStatus() === OnlineStatus.Online ? 'Online' : 'Offline' }}
+                    </span>
                 }
             </div>
         </div>
 
         <!-- E2E encryption indicator -->
         @if (conversation().encryptionState === ConversationEncryption.Encrypted) {
-            <div class="ml-4 hidden sm:flex items-center gap-1 text-emerald-400/70 select-none"
-                 title="End-to-end encrypted">
+            <div class="ml-4 hidden sm:flex items-center gap-1 text-emerald-400/70 select-none" title="End-to-end encrypted">
                 <svg fill="none" height="14" viewBox="0 0 16 16" width="14" xmlns="http://www.w3.org/2000/svg">
-                    <circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.5"/>
-                    <path d="M5 8l2 2 4-4" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
-                          stroke-width="1.5"/>
+                    <circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.5" />
+                    <path d="M5 8l2 2 4-4" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" />
                 </svg>
                 <span class="text-[11px] font-medium tracking-wide">E2E</span>
             </div>
         }
 
         <div class="ml-auto flex items-center gap-0.5 text-white/35">
-            <p-button (onClick)="startCall()" [text]="true" icon="pi pi-phone" severity="secondary"
-                      size="small" styleClass="hidden sm:flex"/>
-            <p-button (onClick)="startVideoCall()" [text]="true" icon="pi pi-video" severity="secondary" size="small"
-                      styleClass="hidden sm:flex"/>
-            <div class="hidden sm:flex items-center gap-2 bg-white/[0.04] border border-white/[0.07] rounded-xl px-3 mx-1 focus-within:border-white/20 transition-colors">
+            <p-button
+                (onClick)="startCall()"
+                [text]="true"
+                icon="pi pi-phone"
+                severity="secondary"
+                size="small"
+                styleClass="hidden sm:flex"
+            />
+            <p-button
+                (onClick)="startVideoCall()"
+                [text]="true"
+                icon="pi pi-video"
+                severity="secondary"
+                size="small"
+                styleClass="hidden sm:flex"
+            />
+            <div
+                class="hidden sm:flex items-center gap-2 bg-white/[0.04] border border-white/[0.07] rounded-xl px-3 mx-1 focus-within:border-white/20 transition-colors"
+            >
                 <i class="pi pi-search text-xs text-white/30 shrink-0"></i>
                 <input
-                        (input)="search.onInput($any($event.target).value)"
-                        [value]="search.searchQuery()"
-                        class="bg-transparent border-0 outline-none text-xs text-white/75 placeholder-white/25 py-1.5 w-32 min-w-0"
-                        placeholder="Search…"
-                        type="text"
+                    (input)="search.onInput($any($event.target).value)"
+                    [value]="search.searchQuery()"
+                    class="bg-transparent border-0 outline-none text-xs text-white/75 placeholder-white/25 py-1.5 w-32 min-w-0"
+                    placeholder="Search…"
+                    type="text"
                 />
                 @if (search.isSearchActive()) {
-                    <button (click)="search.clear()"
-                            class="shrink-0 text-white/25 hover:text-white/60 transition-colors leading-none">
+                    <button (click)="search.clear()" class="shrink-0 text-white/25 hover:text-white/60 transition-colors leading-none">
                         <i class="pi pi-times text-[10px]"></i>
                     </button>
                 }
             </div>
-            <p-button (onClick)="showPinnedPanel.set(!showPinnedPanel())" [text]="true" icon="pi pi-thumbtack"
-                      [title]="showPinnedPanel() ? 'Hide pinned messages' : 'Pinned messages'" severity="secondary" size="small"/>
-            <p-button [text]="true" icon="pi pi-ellipsis-v" severity="secondary" size="small"/>
+            <p-button
+                (onClick)="showPinnedPanel.set(!showPinnedPanel())"
+                [text]="true"
+                icon="pi pi-thumbtack"
+                [title]="showPinnedPanel() ? 'Hide pinned messages' : 'Pinned messages'"
+                severity="secondary"
+                size="small"
+            />
+            <p-button [text]="true" icon="pi pi-ellipsis-v" severity="secondary" size="small" />
         </div>
     </header>
 
     <!-- Active call panel, shown only when this conversation has an ongoing call -->
     @if (activeCall()) {
-        <app-call-panel/>
+        <app-call-panel />
     } @else if (isRinging(); as ringing) {
         <!-- Ringing banner, visible to the caller while waiting for the other side to accept -->
         <div class="ringing-banner shrink-0">
             <div class="ringing-pulse">
                 <div class="ringing-ring"></div>
-                <p-avatar [label]="ringing.avatarLabel" shape="circle"
-                          styleClass="relative z-10 !w-8 !h-8 !text-sm"/>
+                <p-avatar [label]="ringing.avatarLabel" shape="circle" styleClass="relative z-10 !w-8 !h-8 !text-sm" />
             </div>
             <div class="ringing-info">
                 <div class="ringing-status">
-                    Ringing<span class="ringing-dot" style="animation-delay:0ms">.</span
-                ><span class="ringing-dot" style="animation-delay:280ms">.</span
-                ><span class="ringing-dot" style="animation-delay:560ms">.</span>
+                    Ringing<span class="ringing-dot" style="animation-delay: 0ms">.</span
+                    ><span class="ringing-dot" style="animation-delay: 280ms">.</span
+                    ><span class="ringing-dot" style="animation-delay: 560ms">.</span>
                     <span class="ringing-elapsed">{{ ringElapsed() }}</span>
                 </div>
                 <p class="ringing-name">{{ ringing.displayName }}</p>
@@ -99,8 +124,7 @@
             </div>
             <!-- Disabled for the length of the accept round trip. The banner stays on screen through
                  all of it, so this is the one call control in here that can be pressed twice. -->
-            <button (click)="joinOngoingCall(ongoing.callId)" [disabled]="joiningCall()"
-                    class="ongoing-join">
+            <button (click)="joinOngoingCall(ongoing.callId)" [disabled]="joiningCall()" class="ongoing-join">
                 @if (joiningCall()) {
                     <i aria-hidden="true" class="pi pi-spinner pi-spin text-[0.6875rem]"></i>
                     {{ 'CALL.JOINING' | translate }}
@@ -124,221 +148,238 @@
     <!-- Hidden rather than removed while a call is full-view. -->
 
     <div [class.hidden]="isCallFullView()" class="flex-1 flex min-h-0">
-    <div class="flex-1 min-w-0 flex flex-col min-h-0">
-    <div class="relative flex-1 min-h-0 flex flex-col">
-
-    <!-- Search results panel -->
-    @if (search.isSearchActive()) {
-        <div
-                class="flex-1 min-h-0 overflow-y-auto"
-                style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
-            <div class="px-4 pt-4 pb-6">
-
-                <!-- Status row -->
-                <div class="flex items-center gap-2 mb-4 px-1">
-                    @if (search.isSearching()) {
-                        <i class="pi pi-spinner pi-spin text-[11px] text-white/30"></i>
-                        <span class="text-xs text-white/30">Searching…</span>
-                    } @else {
-                        @let total = search.msgResults().length + search.attResults().length;
-                        <span class="text-xs text-white/30">
-              {{ total }} result{{ total !== 1 ? 's' : '' }} for
-              <span class="text-white/50">"{{ search.searchQuery() }}"</span>
-            </span>
-                    }
-                </div>
-
-                <!-- Message matches -->
-                @if (search.msgResults().length > 0) {
-                    <div class="mb-5">
-                        <div class="flex items-center gap-1.5 mb-2 px-1">
-                            <i class="pi pi-comment text-[10px] text-white/25"></i>
-                            <span class="text-[10px] font-semibold text-white/25 uppercase tracking-wider">Messages</span>
-                        </div>
-                        <div class="flex flex-col gap-1.5">
-                            @for (msg of search.msgResults(); track msg.id) {
-                                <button
-                                        (click)="jumpToMessage(msg.id)"
-                                        class="flex flex-col gap-1.5 bg-card/60 border border-white/[0.06] rounded-xl p-3 text-left hover:bg-hover hover:border-white/[0.10] transition-colors w-full">
-                                    <div class="flex items-center gap-2">
-                                        <span class="text-xs font-semibold text-white/75">{{ getAuthorName(msg.authorId) }}</span>
-                                        <span class="text-[10px] text-white/25">{{ msg.createdAt | date:'MMM d, y · h:mm a' }}</span>
-                                    </div>
-                                    <p
-                                            [innerHTML]="getSnippet(msg) | highlight:search.searchQuery()"
-                                            class="text-xs text-white/50 leading-relaxed m-0 line-clamp-2">
-                                    </p>
-                                </button>
-                            }
-                        </div>
-                    </div>
-                }
-
-                <!-- Attachment matches -->
-                @if (search.attResults().length > 0) {
-                    <div>
-                        <div class="flex items-center gap-1.5 mb-2 px-1">
-                            <i class="pi pi-paperclip text-[10px] text-white/25"></i>
-                            <span class="text-[10px] font-semibold text-white/25 uppercase tracking-wider">Attachments</span>
-                        </div>
-                        <div class="flex flex-col gap-1.5">
-                            @for (item of search.attResults(); track item.attachment.id) {
-                                <button
-                                        (click)="jumpToMessage(item.message.id)"
-                                        class="flex items-center gap-3 bg-card/60 border border-white/[0.06] rounded-xl p-3 text-left hover:bg-hover hover:border-white/[0.10] transition-colors w-full">
-                                    <div class="shrink-0 w-8 h-8 rounded-lg bg-white/[0.05] border border-white/[0.07] flex items-center justify-center">
-                                        <i class="pi {{ fileIcon(item.attachment.contentType) }} text-xs text-white/40"></i>
-                                    </div>
-                                    <div class="flex flex-col gap-0.5 min-w-0">
-                    <span
-                            [innerHTML]="item.attachment.fileName | highlight:search.searchQuery()"
-                            class="text-xs font-medium text-white/75 truncate">
-                    </span>
-                                        <span class="text-[10px] text-white/25">
-                      from {{ getAuthorName(item.message.authorId) }} · {{ item.message.createdAt | date:'MMM d, y' }}
-                    </span>
-                                    </div>
-                                    <i class="pi pi-arrow-right text-[10px] text-white/20 ml-auto shrink-0"></i>
-                                </button>
-                            }
-                        </div>
-                    </div>
-                }
-
-                <!-- Empty state -->
-                @if (!search.isSearching() && search.msgResults().length === 0 && search.attResults().length === 0) {
-                    <div class="flex flex-col items-center justify-center py-14 gap-3">
-                        <i class="pi pi-search text-3xl text-white/10"></i>
-                        <p class="text-sm text-white/25 m-0">
-                            No results for <span class="text-white/40">"{{ search.searchQuery() }}"</span>
-                        </p>
-                    </div>
-                }
-
-            </div>
-        </div>
-
-    } @else if (loadError(); as errCode) {
-
-        <!-- Load error state -->
-        <div class="flex-1 min-h-0 flex flex-col items-center justify-center px-8 gap-4 select-none">
-            @if (errCode === 403) {
-                <div class="w-16 h-16 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center shrink-0">
-                    <i class="pi pi-lock text-2xl text-rose-400/70"></i>
-                </div>
-                <div class="flex flex-col items-center gap-1 text-center">
-                    <p class="text-sm font-semibold text-white/70 m-0">Permission denied</p>
-                    <p class="text-xs text-white/30 m-0 max-w-xs leading-relaxed">
-                        You don't have access to this conversation. Try a different account or ask someone to invite
-                        you.
-                    </p>
-                </div>
-            } @else {
-                <div class="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shrink-0">
-                    <i class="pi pi-server text-2xl text-amber-400/70"></i>
-                </div>
-                <div class="flex flex-col items-center gap-1 text-center">
-                    <p class="text-sm font-semibold text-white/70 m-0">The server had a moment</p>
-                    <p class="text-xs text-white/30 m-0 max-w-xs leading-relaxed">
-                        Our backend tripped over its own shoelaces ({{ errCode || '???' }}). It's probably fine. Maybe.
-                    </p>
-                </div>
-                <button
-                        (click)="retryLoad()"
-                        class="mt-1 px-4 py-1.5 rounded-lg bg-white/[0.06] border border-white/[0.08] text-xs text-white/50 hover:bg-white/[0.10] hover:text-white/75 transition-colors cursor-pointer">
-                    Try again
-                </button>
-            }
-        </div>
-
-    } @else {
-
-        <!-- Messages scroll container -->
-        <div
-            #messageScroll
-            (scroll)="onScroll()"
-            class="flex-1 min-h-0 overflow-y-auto"
-            style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
-
-            <div #messageList class="flex flex-col justify-end min-h-full px-4">
-
-                <!-- Loading older messages indicator -->
-                @if (loadingMore()) {
-                    <div class="flex items-center justify-center py-3 gap-2 text-white/30 text-xs">
-                        <i class="pi pi-spinner pi-spin text-xs"></i>
-                        Loading older messages…
-                    </div>
-                } @else if (!hasMore()) {
-                    <!-- Conversation start, only show when all history is loaded -->
-                    <div class="py-8 flex flex-col items-start gap-2">
-                        <app-avatar [label]="chatAvatarLabel()"
-                                    [userId]="convUtils.getPartnerMember(conversation())?.userId" styleClass="!w-16 !h-16 !text-2xl"/>
-                        <h2 class="text-2xl font-bold text-white/90 mt-3">{{ chatTitle() }}</h2>
-                        <p class="text-sm text-white/40 max-w-md leading-relaxed">
-                            This is the beginning of your direct message history with <span
-                                class="text-white/65">{{ chatTitle() }}</span>.
-                        </p>
-                        <hr class="w-full border-t border-white/[0.06] mt-4"/>
-                    </div>
-                }
-
-                <!-- Messages list -->
-                <div class="flex flex-col gap-0.5 pb-4">
-                    @for (row of messageRows(); track row.message.id) {
-                        @if (row.message.id === firstUnreadId()) {
-                            <div class="unread-divider">
-                                <span>New messages</span>
+        <div class="flex-1 min-w-0 flex flex-col min-h-0">
+            <div class="relative flex-1 min-h-0 flex flex-col">
+                <!-- Search results panel -->
+                @if (search.isSearchActive()) {
+                    <div
+                        class="flex-1 min-h-0 overflow-y-auto"
+                        style="scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.08) transparent"
+                    >
+                        <div class="px-4 pt-4 pb-6">
+                            <!-- Status row -->
+                            <div class="flex items-center gap-2 mb-4 px-1">
+                                @if (search.isSearching()) {
+                                    <i class="pi pi-spinner pi-spin text-[11px] text-white/30"></i>
+                                    <span class="text-xs text-white/30">Searching…</span>
+                                } @else {
+                                    @let total = search.msgResults().length + search.attResults().length;
+                                    <span class="text-xs text-white/30">
+                                        {{ total }} result{{ total !== 1 ? 's' : '' }} for
+                                        <span class="text-white/50">"{{ search.searchQuery() }}"</span>
+                                    </span>
+                                }
                             </div>
-                        }
-                        <div [attr.data-message-id]="row.message.id" class="message-row">
-                            <!-- Call notices are the first system messages a conversation can hold;
-                                 guild channels have rendered join/leave this way for a while. -->
-                            @if (isSystemMessage(row.message.type)) {
-                                <app-system-message [message]="row.message"/>
-                            } @else {
-                                <app-message (jumpTo)="jumpToMessage($event)"
-                                             (reply)="onReply($event)"
-                                             [isGrouped]="row.isGrouped"
-                                             [message]="row.message"></app-message>
+
+                            <!-- Message matches -->
+                            @if (search.msgResults().length > 0) {
+                                <div class="mb-5">
+                                    <div class="flex items-center gap-1.5 mb-2 px-1">
+                                        <i class="pi pi-comment text-[10px] text-white/25"></i>
+                                        <span class="text-[10px] font-semibold text-white/25 uppercase tracking-wider">Messages</span>
+                                    </div>
+                                    <div class="flex flex-col gap-1.5">
+                                        @for (msg of search.msgResults(); track msg.id) {
+                                            <button
+                                                (click)="jumpToMessage(msg.id)"
+                                                class="flex flex-col gap-1.5 bg-card/60 border border-white/[0.06] rounded-xl p-3 text-left hover:bg-hover hover:border-white/[0.10] transition-colors w-full"
+                                            >
+                                                <div class="flex items-center gap-2">
+                                                    <span class="text-xs font-semibold text-white/75">{{
+                                                        getAuthorName(msg.authorId)
+                                                    }}</span>
+                                                    <span class="text-[10px] text-white/25">{{
+                                                        msg.createdAt | date: 'MMM d, y · h:mm a'
+                                                    }}</span>
+                                                </div>
+                                                <p
+                                                    [innerHTML]="getSnippet(msg) | highlight: search.searchQuery()"
+                                                    class="text-xs text-white/50 leading-relaxed m-0 line-clamp-2"
+                                                ></p>
+                                            </button>
+                                        }
+                                    </div>
+                                </div>
+                            }
+
+                            <!-- Attachment matches -->
+                            @if (search.attResults().length > 0) {
+                                <div>
+                                    <div class="flex items-center gap-1.5 mb-2 px-1">
+                                        <i class="pi pi-paperclip text-[10px] text-white/25"></i>
+                                        <span class="text-[10px] font-semibold text-white/25 uppercase tracking-wider">Attachments</span>
+                                    </div>
+                                    <div class="flex flex-col gap-1.5">
+                                        @for (item of search.attResults(); track item.attachment.id) {
+                                            <button
+                                                (click)="jumpToMessage(item.message.id)"
+                                                class="flex items-center gap-3 bg-card/60 border border-white/[0.06] rounded-xl p-3 text-left hover:bg-hover hover:border-white/[0.10] transition-colors w-full"
+                                            >
+                                                <div
+                                                    class="shrink-0 w-8 h-8 rounded-lg bg-white/[0.05] border border-white/[0.07] flex items-center justify-center"
+                                                >
+                                                    <i class="pi {{ fileIcon(item.attachment.contentType) }} text-xs text-white/40"></i>
+                                                </div>
+                                                <div class="flex flex-col gap-0.5 min-w-0">
+                                                    <span
+                                                        [innerHTML]="item.attachment.fileName | highlight: search.searchQuery()"
+                                                        class="text-xs font-medium text-white/75 truncate"
+                                                    >
+                                                    </span>
+                                                    <span class="text-[10px] text-white/25">
+                                                        from {{ getAuthorName(item.message.authorId) }} ·
+                                                        {{ item.message.createdAt | date: 'MMM d, y' }}
+                                                    </span>
+                                                </div>
+                                                <i class="pi pi-arrow-right text-[10px] text-white/20 ml-auto shrink-0"></i>
+                                            </button>
+                                        }
+                                    </div>
+                                </div>
+                            }
+
+                            <!-- Empty state -->
+                            @if (!search.isSearching() && search.msgResults().length === 0 && search.attResults().length === 0) {
+                                <div class="flex flex-col items-center justify-center py-14 gap-3">
+                                    <i class="pi pi-search text-3xl text-white/10"></i>
+                                    <p class="text-sm text-white/25 m-0">
+                                        No results for <span class="text-white/40">"{{ search.searchQuery() }}"</span>
+                                    </p>
+                                </div>
                             }
                         </div>
-                    }
-                </div>
+                    </div>
+                } @else if (loadError(); as errCode) {
+                    <!-- Load error state -->
+                    <div class="flex-1 min-h-0 flex flex-col items-center justify-center px-8 gap-4 select-none">
+                        @if (errCode === 403) {
+                            <div
+                                class="w-16 h-16 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center shrink-0"
+                            >
+                                <i class="pi pi-lock text-2xl text-rose-400/70"></i>
+                            </div>
+                            <div class="flex flex-col items-center gap-1 text-center">
+                                <p class="text-sm font-semibold text-white/70 m-0">Permission denied</p>
+                                <p class="text-xs text-white/30 m-0 max-w-xs leading-relaxed">
+                                    You don't have access to this conversation. Try a different account or ask someone to invite you.
+                                </p>
+                            </div>
+                        } @else {
+                            <div
+                                class="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shrink-0"
+                            >
+                                <i class="pi pi-server text-2xl text-amber-400/70"></i>
+                            </div>
+                            <div class="flex flex-col items-center gap-1 text-center">
+                                <p class="text-sm font-semibold text-white/70 m-0">The server had a moment</p>
+                                <p class="text-xs text-white/30 m-0 max-w-xs leading-relaxed">
+                                    Our backend tripped over its own shoelaces ({{ errCode || '???' }}). It's probably fine. Maybe.
+                                </p>
+                            </div>
+                            <button
+                                (click)="retryLoad()"
+                                class="mt-1 px-4 py-1.5 rounded-lg bg-white/[0.06] border border-white/[0.08] text-xs text-white/50 hover:bg-white/[0.10] hover:text-white/75 transition-colors cursor-pointer"
+                            >
+                                Try again
+                            </button>
+                        }
+                    </div>
+                } @else {
+                    <!-- Messages scroll container -->
+                    <div
+                        #messageScroll
+                        (scroll)="onScroll()"
+                        class="flex-1 min-h-0 overflow-y-auto"
+                        style="scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.08) transparent"
+                    >
+                        <div #messageList class="flex flex-col justify-end min-h-full px-4">
+                            <!-- Loading older messages indicator -->
+                            @if (loadingMore()) {
+                                <div class="flex items-center justify-center py-3 gap-2 text-white/30 text-xs">
+                                    <i class="pi pi-spinner pi-spin text-xs"></i>
+                                    Loading older messages…
+                                </div>
+                            } @else if (!hasMore()) {
+                                <!-- Conversation start, only show when all history is loaded -->
+                                <div class="py-8 flex flex-col items-start gap-2">
+                                    <app-avatar
+                                        [label]="chatAvatarLabel()"
+                                        [userId]="convUtils.getPartnerMember(conversation())?.userId"
+                                        styleClass="!w-16 !h-16 !text-2xl"
+                                    />
+                                    <h2 class="text-2xl font-bold text-white/90 mt-3">{{ chatTitle() }}</h2>
+                                    <p class="text-sm text-white/40 max-w-md leading-relaxed">
+                                        This is the beginning of your direct message history with
+                                        <span class="text-white/65">{{ chatTitle() }}</span
+                                        >.
+                                    </p>
+                                    <hr class="w-full border-t border-white/[0.06] mt-4" />
+                                </div>
+                            }
 
-            </div>
-        </div>
+                            <!-- Messages list -->
+                            <div class="flex flex-col gap-0.5 pb-4">
+                                @for (row of messageRows(); track row.message.id) {
+                                    @if (row.message.id === firstUnreadId()) {
+                                        <div class="unread-divider">
+                                            <span>New messages</span>
+                                        </div>
+                                    }
+                                    <div [attr.data-message-id]="row.message.id" class="message-row">
+                                        <!-- Call notices are the first system messages a conversation can hold;
+                                 guild channels have rendered join/leave this way for a while. -->
+                                        @if (isSystemMessage(row.message.type)) {
+                                            <app-system-message [message]="row.message" />
+                                        } @else {
+                                            <app-message
+                                                (jumpTo)="jumpToMessage($event)"
+                                                (reply)="onReply($event)"
+                                                [isGrouped]="row.isGrouped"
+                                                [message]="row.message"
+                                            ></app-message>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
 
-    }
-
-    <!-- Typing indicator - absolutely positioned so it overlays the message list
+                <!-- Typing indicator - absolutely positioned so it overlays the message list
          instead of adding flow height, which used to push messages/composer up. -->
-    @if (typingText(); as text) {
-        <div class="absolute bottom-0 left-0 right-0 px-5 pb-1 pt-0.5 flex items-center gap-2 text-white/40 text-xs select-none bg-app-bg">
-            <app-typing-dots/>
-            {{ text }}
+                @if (typingText(); as text) {
+                    <div
+                        class="absolute bottom-0 left-0 right-0 px-5 pb-1 pt-0.5 flex items-center gap-2 text-white/40 text-xs select-none bg-app-bg"
+                    >
+                        <app-typing-dots />
+                        {{ text }}
+                    </div>
+                }
+            </div>
+
+            <!-- Composer -->
+            <footer class="shrink-0">
+                <!-- Shown only once this conversation is genuinely unreadable on this device. -->
+                <app-mls-unreadable-banner (relink)="relinkDevice()" [contextId]="conversation().id" [status]="relinkStatus()" />
+                <!-- The other half of the same story, and the half that did not exist. -->
+                <app-mls-join-request-review [contextId]="conversation().id" [participantNames]="participantNames()" />
+                <app-composer
+                    (cancelReply)="onCancelReply()"
+                    (message)="createMessage($event)"
+                    (typing)="onTyping()"
+                    [conversationMembers]="conversationMemberCandidates()"
+                    [replyTo]="replyingTo()"
+                    autofocus
+                    class="block"
+                ></app-composer>
+            </footer>
         </div>
-    }
-
-    </div>
-
-    <!-- Composer -->
-    <footer class="shrink-0">
-        <!-- Shown only once this conversation is genuinely unreadable on this device. -->
-        <app-mls-unreadable-banner (relink)="relinkDevice()" [contextId]="conversation().id"
-                                   [status]="relinkStatus()"/>
-        <!-- The other half of the same story, and the half that did not exist. -->
-        <app-mls-join-request-review [contextId]="conversation().id"
-                                     [participantNames]="participantNames()"/>
-        <app-composer (cancelReply)="onCancelReply()" (message)="createMessage($event)" (typing)="onTyping()"
-                      [conversationMembers]="conversationMemberCandidates()"
-                      [replyTo]="replyingTo()" autofocus
-                      class="block"></app-composer>
-    </footer>
-
-    </div>
-    @if (showPinnedPanel()) {
-        <app-pinned-messages-panel (messageSelected)="jumpToMessage($event)" [conversationId]="conversation().id"
-                                    class="flex flex-col w-64 shrink-0 border-l border-white/[0.08]"/>
-    }
+        @if (showPinnedPanel()) {
+            <app-pinned-messages-panel
+                (messageSelected)="jumpToMessage($event)"
+                [conversationId]="conversation().id"
+                class="flex flex-col w-64 shrink-0 border-l border-white/[0.08]"
+            />
+        }
     </div>
 </div>

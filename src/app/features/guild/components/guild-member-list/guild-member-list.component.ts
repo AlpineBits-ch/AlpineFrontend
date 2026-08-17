@@ -1,4 +1,14 @@
-import {Component, computed, DestroyRef, inject, input, OnChanges, signal, SimpleChanges, ViewChild} from '@angular/core';
+import {
+    Component,
+    computed,
+    DestroyRef,
+    inject,
+    input,
+    OnChanges,
+    signal,
+    SimpleChanges,
+    ViewChild,
+} from '@angular/core';
 import {NgClass, NgTemplateOutlet} from '@angular/common';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {HttpErrorResponse} from '@angular/common/http';
@@ -41,7 +51,7 @@ import {UserStatusDotComponent} from '../../../../components/user-status-dot/use
 import {UserNameStyleDirective} from '../../../../directives/user-name-style.directive';
 import {UserNameStyleInput} from '../../../../models/profile-font.model';
 import {BotInstallDialogService} from '../../../bot-install/bot-install-dialog.service';
-import {ProfileDialogService} from '../../../../services/profile-dialog.service';
+import {ProfilePopoutService} from '../../../../services/profile-popout.service';
 import {ReportDialogService} from '../../../../services/report-dialog.service';
 import {BrokenImageService} from '../../../../services/broken-image.service';
 import {HomeStatusBoardComponent} from '../home-status-board/home-status-board.component';
@@ -62,7 +72,20 @@ export interface MemberRoleGroup {
 
 @Component({
     selector: 'app-guild-member-list',
-    imports: [TranslateModule, Menu, UserStatusDotComponent, UserNameStyleDirective, NgClass, NgTemplateOutlet, HomeStatusBoardComponent, ActivityLineComponent, Dialog, Button, PrimeTemplate, CallLiveBadgeComponent],
+    imports: [
+        TranslateModule,
+        Menu,
+        UserStatusDotComponent,
+        UserNameStyleDirective,
+        NgClass,
+        NgTemplateOutlet,
+        HomeStatusBoardComponent,
+        ActivityLineComponent,
+        Dialog,
+        Button,
+        PrimeTemplate,
+        CallLiveBadgeComponent,
+    ],
     templateUrl: './guild-member-list.component.html',
 })
 export class GuildMemberListComponent implements OnChanges {
@@ -71,7 +94,7 @@ export class GuildMemberListComponent implements OnChanges {
     readonly loading = signal(true);
     readonly loadingMore = signal(false);
     readonly hasMore = signal(true);
-    protected profileDialogSvc = inject(ProfileDialogService);
+    protected profilePopout = inject(ProfilePopoutService);
     // Members are grouped by their highest-position role (Discord-style hierarchy display).
     // Members with no roles at all fall back to the plain online/offline split.
     readonly roleGroups = computed((): MemberRoleGroup[] => {
@@ -85,7 +108,10 @@ export class GuildMemberListComponent implements OnChanges {
         }
         return [...groups.values()]
             .sort((a, b) => b.role.position - a.role.position)
-            .map(g => ({...g, members: [...g.members].sort((a, b) => Number(this.isActive(b)) - Number(this.isActive(a)))}));
+            .map(g => ({
+                ...g,
+                members: [...g.members].sort((a, b) => Number(this.isActive(b)) - Number(this.isActive(a))),
+            }));
     });
     readonly onlineRows = computed(() => this.rows().filter(m => !this.hasRole(m) && this.isActive(m)));
     readonly offlineRows = computed(() => this.rows().filter(m => !this.hasRole(m) && !this.isActive(m)));
@@ -111,25 +137,35 @@ export class GuildMemberListComponent implements OnChanges {
     private nextSkip = 0;
 
     constructor() {
-        this.guildWsService.memberBannedObservable.pipe(takeUntilDestroyed(this.destroyRef))
+        this.guildWsService.memberBannedObservable
+            .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe((e: WsMemberBanned) => this.removeIfCurrentGuild(e.guildId, e.userId));
-        this.guildWsService.memberKickedObservable.pipe(takeUntilDestroyed(this.destroyRef))
+        this.guildWsService.memberKickedObservable
+            .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe((e: WsMemberKicked) => this.removeIfCurrentGuild(e.guildId, e.userId));
-        this.guildWsService.memberLeftObservable.pipe(takeUntilDestroyed(this.destroyRef))
+        this.guildWsService.memberLeftObservable
+            .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe((e: WsMemberLeft) => this.removeIfCurrentGuild(e.guildId, e.userId));
         // A household's only removal event: there is no kick to fire guild.MemberKicked instead.
-        this.guildWsService.memberMovedOutObservable.pipe(takeUntilDestroyed(this.destroyRef))
+        this.guildWsService.memberMovedOutObservable
+            .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe((e: WsMemberMovedOut) => this.removeIfCurrentGuild(e.guildId, e.userId));
-        this.guildWsService.memberMutedObservable.pipe(takeUntilDestroyed(this.destroyRef))
+        this.guildWsService.memberMutedObservable
+            .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe((e: WsMemberMuted) => this.notifyOwnMuteState(e.guildId, e.userId, e.mutedUntil));
-        this.guildWsService.memberUnmutedObservable.pipe(takeUntilDestroyed(this.destroyRef))
+        this.guildWsService.memberUnmutedObservable
+            .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe((e: WsMemberUnmuted) => this.notifyOwnMuteState(e.guildId, e.userId, null));
-        this.guildWsService.presenceChangedObservable.pipe(takeUntilDestroyed(this.destroyRef))
+        this.guildWsService.presenceChangedObservable
+            .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe((e: WsPresenceChanged) => {
                 if (e.guildId !== this.guild().id) return;
-                this.rows.update(list => list.map(m => m.userId === e.userId ? {...m, status: e.status} : m));
+                this.rows.update(list =>
+                    list.map(m => (m.userId === e.userId ? {...m, status: e.status} : m)),
+                );
             });
-        this.guildWsService.memberJoinedObservable.pipe(takeUntilDestroyed(this.destroyRef))
+        this.guildWsService.memberJoinedObservable
+            .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe((e: WsMemberJoined) => {
                 if (e.guildId !== this.guild().id) return;
                 if (this.nextSkip > this.TAKE) return;
@@ -137,7 +173,8 @@ export class GuildMemberListComponent implements OnChanges {
                 this.fetchPage(this.guild().id);
             });
         // Payload carries neither new roles nor the member row, so the page is re-read rather than patched; scoped to a member already on screen (or ourselves) so a rename in a 5000-member guild doesn't refetch a list nobody is looking at.
-        this.guildWsService.memberUpdatedObservable.pipe(takeUntilDestroyed(this.destroyRef))
+        this.guildWsService.memberUpdatedObservable
+            .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe((e: WsMemberUpdated) => {
                 if (e.guildId !== this.guild().id) return;
                 const isOwn = e.userId === this.ownMember()?.userId;
@@ -149,7 +186,8 @@ export class GuildMemberListComponent implements OnChanges {
                 }
             });
         // Stopgap so open member lists refresh after a bot install specifically: guild.MemberJoined (subscribed above) isn't confirmed to also fire for bot installs, so this stays until that's verified. See BotInstallDialogService.
-        this.botInstallDialogService.installedIntoGuild.pipe(takeUntilDestroyed(this.destroyRef))
+        this.botInstallDialogService.installedIntoGuild
+            .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe(guildId => {
                 if (guildId !== this.guild().id) return;
                 this.reset();
@@ -226,12 +264,11 @@ export class GuildMemberListComponent implements OnChanges {
         this.navService.openChannel(channel);
         if (this.voiceChannelSvc.joinedChannelId() !== channel.id) {
             // A refused join has already said so; focusing a stream in a room we aren't in would leave the stage waiting on a participant that never arrives.
-            if (!await this.voiceChannelSvc.joinChannel(channel, this.guild().name)) return;
+            if (!(await this.voiceChannelSvc.joinChannel(channel, this.guild().name))) return;
         }
-        this.callFocus.request(
-            scopeKey({kind: 'channel', guildId, channelId: channel.id}),
-            {userId: member.userId},
-        );
+        this.callFocus.request(scopeKey({kind: 'channel', guildId, channelId: channel.id}), {
+            userId: member.userId,
+        });
     }
 
     // Role color is only used as a fallback: a member's own profile accent color always wins when set, matching UserNameStyleDirective's precedence.
@@ -244,18 +281,23 @@ export class GuildMemberListComponent implements OnChanges {
 
     /** A member of a household without Flatmates: a guest. Only drawn where a Flatmates role actually exists, or a renamed/deleted role would label every member a guest. */
     protected isHouseGuest(member: GuildMemberDto): boolean {
-        return this.guild().kind === GuildKind.Household
-            && !!findFlatmatesRole(this.guild())
-            && !isFlatmate(this.guild(), member)
-            && !this.isBot(member);
+        return (
+            this.guild().kind === GuildKind.Household &&
+            !!findFlatmatesRole(this.guild()) &&
+            !isFlatmate(this.guild(), member) &&
+            !this.isBot(member)
+        );
     }
 
     protected isActive(member: GuildMemberDto): boolean {
-        return this.isBot(member) || (member.status !== OnlineStatus.Offline && member.status !== OnlineStatus.Hidden);
+        return (
+            this.isBot(member) ||
+            (member.status !== OnlineStatus.Offline && member.status !== OnlineStatus.Hidden)
+        );
     }
 
     // The @everyone role carries no meaningful color/grouping (usually left black), so it's excluded here to avoid forming a giant, unstyled "everyone" role group.
-    private significantRoleMembers(member: GuildMemberDto): { role: RoleDto }[] {
+    private significantRoleMembers(member: GuildMemberDto): {role: RoleDto}[] {
         return (member.roleMembers ?? []).filter(rm => rm.role.type !== RoleType.Everyone);
     }
 
@@ -266,7 +308,7 @@ export class GuildMemberListComponent implements OnChanges {
     private highestRole(member: GuildMemberDto): RoleDto | undefined {
         const roleMembers = this.significantRoleMembers(member);
         if (roleMembers.length === 0) return undefined;
-        return roleMembers.reduce((max, cur) => cur.role.position > max.role.position ? cur : max).role;
+        return roleMembers.reduce((max, cur) => (cur.role.position > max.role.position ? cur : max)).role;
     }
 
     private reset(): void {
@@ -338,10 +380,19 @@ export class GuildMemberListComponent implements OnChanges {
             items.push({label: 'Kick', icon: 'pi pi-user-minus', command: () => this.kick(member)});
         }
         if (canAct && hasPermission(perms, Permissions.ModerateMembers)) {
-            items.push({label: 'Timeout for 10 minutes', icon: 'pi pi-clock', command: () => this.mute(member, 10)});
+            items.push({
+                label: 'Timeout for 10 minutes',
+                icon: 'pi pi-clock',
+                command: () => this.mute(member, 10),
+            });
         }
         if (canAct && hasPermission(perms, Permissions.BanMembers)) {
-            items.push({label: 'Ban', icon: 'pi pi-ban', styleClass: 'text-rose-400', command: () => this.ban(member)});
+            items.push({
+                label: 'Ban',
+                icon: 'pi pi-ban',
+                styleClass: 'text-rose-400',
+                command: () => this.ban(member),
+            });
         }
         // Households reach this while Community guilds do not: with Moderation off, this is the only removal option offered. Owner is excluded by `canModerate`; the server refuses that too and asks for an ownership transfer first.
         if (this.canMoveOut(member) && (hasPermission(perms, Permissions.ManageGuild) || this.isOwner())) {
@@ -439,10 +490,12 @@ export class GuildMemberListComponent implements OnChanges {
     private reportMoveOut(summary: MoveOutSummary): void {
         this.toastService.success(this.translate.instant('MOVE_OUT.DONE', {name: this.moveOutName()}));
         if (hasUnresolvedChores(summary)) {
-            this.toastService.info(this.translate.instant('MOVE_OUT.CHORES_TO_RESOLVE', {
-                paused: summary.choresPaused,
-                dropped: summary.choresDropped,
-            }));
+            this.toastService.info(
+                this.translate.instant('MOVE_OUT.CHORES_TO_RESOLVE', {
+                    paused: summary.choresPaused,
+                    dropped: summary.choresDropped,
+                }),
+            );
         }
     }
 
@@ -476,6 +529,10 @@ export class GuildMemberListComponent implements OnChanges {
         if (guildId !== this.guild().id) return;
         const ownUserId = this.ownMember()?.userId;
         if (userId !== ownUserId) return;
-        this.toastService.info(mutedUntil ? `You have been muted until ${new Date(mutedUntil).toLocaleTimeString()}` : 'Your timeout has been lifted');
+        this.toastService.info(
+            mutedUntil
+                ? `You have been muted until ${new Date(mutedUntil).toLocaleTimeString()}`
+                : 'Your timeout has been lifted',
+        );
     }
 }

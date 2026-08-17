@@ -6,7 +6,7 @@ import {safeAccentColor} from '../../models/profile-font.model';
 import {cacheBustedUrl} from '../../models/profile-image.model';
 import {BrokenImageService} from '../../services/broken-image.service';
 
-/** Who someone is: banner, avatar, status, name, bio. Shared by {@link ProfileCardComponent} and the self menu. */
+/** Who someone is: banner, avatar, status, name, bio. Shared by the profile surfaces and the self menu. */
 @Component({
     selector: 'app-profile-header',
     imports: [UserStatusDotComponent, UserNameStyleDirective],
@@ -32,9 +32,7 @@ export class ProfileHeaderComponent {
         return this.brokenImages.isBroken(url) ? undefined : url;
     });
 
-    protected readonly avatarLabel = computed(() =>
-        this.profile()?.userName?.[0]?.toUpperCase() ?? '?'
-    );
+    protected readonly avatarLabel = computed(() => this.profile()?.userName?.[0]?.toUpperCase() ?? '?');
 
     protected onAvatarClick(): void {
         if (this.profile()?.avatarUrl && !this.avatarError()) {

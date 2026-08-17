@@ -1,0 +1,53 @@
+@if (popoutSvc.popout(); as target) {
+    <!-- The fallback has a scrim; the anchored card deliberately does not, so the list stays readable behind it. -->
+    @if (!anchored()) {
+        <div class="fixed inset-0 z-[9990] bg-black/50"></div>
+    }
+
+    <div
+        #card
+        (click)="$event.stopPropagation()"
+        (keydown)="onKeydown($event)"
+        [class.invisible]="anchored() && !placement()"
+        [class.left-1/2]="!anchored()"
+        [class.top-1/2]="!anchored()"
+        [class.-translate-x-1/2]="!anchored()"
+        [class.-translate-y-1/2]="!anchored()"
+        [style.left.px]="anchored() ? placement()?.left : null"
+        [style.top.px]="anchored() ? placement()?.top : null"
+        class="fixed z-[9991] w-[21.25rem] overflow-hidden rounded-2xl border border-border bg-card shadow-[0_8px_28px_rgba(0,0,0,0.55),0_2px_8px_rgba(0,0,0,0.3)]"
+        role="dialog"
+        tabindex="-1"
+    >
+        <div class="absolute right-2.5 top-2.5 z-20 flex items-center gap-1.5">
+            <app-profile-actions (dismissed)="close()" [profile]="profile()" />
+        </div>
+
+        <app-profile-header [profile]="profile()" />
+
+        @if (profile(); as p) {
+            <div class="flex flex-col gap-3 px-4 pb-4 pt-3">
+                <app-profile-mutual-line (friendsClick)="openMutuals('friends')" (serversClick)="openMutuals('servers')" [profile]="p" />
+
+                <div
+                    class="flex items-center gap-2 rounded-lg bg-app-bg px-3 py-2 transition-colors focus-within:ring-1 focus-within:ring-white/15"
+                >
+                    <!-- A plain value/input binding, not ngModel: ngModel applies `disabled`
+                         asynchronously, so the field stays typeable for a tick mid-send. -->
+                    <input
+                        (input)="draft.set($any($event.target).value)"
+                        (keydown.enter)="send()"
+                        [disabled]="sending()"
+                        [value]="draft()"
+                        [placeholder]="'PROFILE.MESSAGE_PLACEHOLDER' | translate: {name: placeholderName()}"
+                        class="w-full min-w-0 border-0 bg-transparent text-sm text-white/80 outline-none placeholder:text-white/30 disabled:opacity-50"
+                        type="text"
+                    />
+                    @if (sending()) {
+                        <i class="pi pi-spin pi-spinner shrink-0 text-xs text-white/40"></i>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+}

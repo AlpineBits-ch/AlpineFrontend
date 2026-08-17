@@ -19,7 +19,7 @@
     // permitted, so every read must be optional and every empty state must mean "none to show"
     // rather than "none exist". Optional here for exactly that reason.
 
-    mutualFriends?: MinimalProfileSummary[];
+    mutualFriends?: MutualFriendSummary[];
     mutualServers?: MutualServerSummary[];
     /** Linked external accounts. A list, not a Steam field - more types are expected. */
     connections?: ProfileConnection[];
@@ -34,17 +34,18 @@
     // around only invited someone to read it and get `undefined` forever.
 }
 
-export interface MinimalProfileSummary {
-    id: string;
+// Both of these carry no image URL. Avatars come from the profile id and guild icons from the guild
+// id, the same way every other surface builds them.
+
+export interface MutualFriendSummary {
+    profileId: string;
     userId: string;
     userName: string;
-    avatarUrl?: string;
 }
 
 export interface MutualServerSummary {
     guildId: string;
-    name: string;
-    iconUrl?: string;
+    name?: string;
 }
 
 export interface ProfileConnection {

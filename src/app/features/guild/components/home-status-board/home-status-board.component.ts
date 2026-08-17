@@ -14,13 +14,20 @@ import {
 } from '../../../../dtos/response/home-status.dto';
 import {HomeStatusService} from '../../../../services/home-status.service';
 import {ProfileService} from '../../../../services/profile.service';
-import {ProfileDialogService} from '../../../../services/profile-dialog.service';
+import {ProfilePopoutService} from '../../../../services/profile-popout.service';
 import {ToastService} from '../../../../services/toast.service';
 import {GuildFeature, guildHasFeature} from '../../guild-features';
 import {HOME_STATUS_META, HomeStatusMeta, homeStatusMeta} from '../../home-status-meta';
 
 /** Offered durations, in minutes. The server caps anything longer at 7 days. */
-const DURATIONS: readonly number[] = [60, 4 * 60, HOME_STATUS_DEFAULT_MINUTES, 24 * 60, 3 * 24 * 60, 7 * 24 * 60];
+const DURATIONS: readonly number[] = [
+    60,
+    4 * 60,
+    HOME_STATUS_DEFAULT_MINUTES,
+    24 * 60,
+    3 * 24 * 60,
+    7 * 24 * 60,
+];
 
 interface BoardRow {
     status: HomeStatusDto;
@@ -52,36 +59,45 @@ export class HomeStatusBoardComponent {
     private profiles = inject(ProfileService);
     private toast = inject(ToastService);
     private translate = inject(TranslateService);
-    protected profileDialog = inject(ProfileDialogService);
+    protected profilePopout = inject(ProfilePopoutService);
 
     /** Off means the household doesn't do this at all: render nothing, not a denial. */
-    protected readonly enabled = computed(() =>
-        guildHasFeature(this.guild(), GuildFeature.Presence) && !this.store.isUnavailable(this.guild().id));
+    protected readonly enabled = computed(
+        () =>
+            guildHasFeature(this.guild(), GuildFeature.Presence) &&
+            !this.store.isUnavailable(this.guild().id),
+    );
 
     /** Holds the empty state back until the first fetch lands: "nobody" is a claim, not a spinner. */
     protected readonly loadingBoard = computed(() => this.store.isLoading(this.guild().id));
 
     protected readonly durationOptions = computed(() =>
-        DURATIONS.map(minutes => ({minutes, label: this.durationLabel(minutes)})));
+        DURATIONS.map(minutes => ({minutes, label: this.durationLabel(minutes)})),
+    );
 
     protected readonly ownStatus = computed(() =>
-        this.store.own(this.guild().id, this.profiles.ownProfile()?.userId));
+        this.store.own(this.guild().id, this.profiles.ownProfile()?.userId),
+    );
 
     /** Live statuses, self first then by how soon they lapse; reads straight off the store's filtered view, so a decayed entry is gone here on the next sweep without this component tracking anything. */
     protected readonly rows = computed<BoardRow[]>(() => {
         const ownUserId = this.profiles.ownProfile()?.userId;
-        return this.store.statuses(this.guild().id)
+        return this.store
+            .statuses(this.guild().id)
             .map(status => ({
                 status,
                 meta: homeStatusMeta(status.kind),
-                displayName: this.profiles.getCachedByUserId(status.userId)?.userName
-                    ?? status.userId.slice(0, 8) + '…',
+                displayName:
+                    this.profiles.getCachedByUserId(status.userId)?.userName ??
+                    status.userId.slice(0, 8) + '…',
                 avatarUrl: this.profiles.getCachedByUserId(status.userId)?.avatarUrl,
                 isSelf: status.userId === ownUserId,
             }))
-            .sort((a, b) =>
-                Number(b.isSelf) - Number(a.isSelf)
-                || Date.parse(a.status.expiresAt) - Date.parse(b.status.expiresAt));
+            .sort(
+                (a, b) =>
+                    Number(b.isSelf) - Number(a.isSelf) ||
+                    Date.parse(a.status.expiresAt) - Date.parse(b.status.expiresAt),
+            );
     });
 
     constructor() {
@@ -93,7 +109,8 @@ export class HomeStatusBoardComponent {
 
         // Names and avatars come from the profile cache, which the member list only fills for members it has paged in; resolving here stops a board of truncated user ids on a household with more than one page.
         effect(() => {
-            const missing = this.store.statuses(this.guild().id)
+            const missing = this.store
+                .statuses(this.guild().id)
                 .map(s => s.userId)
                 .filter(id => !this.profiles.getCachedByUserId(id));
             untracked(() => missing.forEach(id => this.profiles.resolveByUserId(id)));
@@ -153,7 +170,8 @@ export class HomeStatusBoardComponent {
 
     private durationLabel(minutes: number): string {
         if (minutes < 60) return this.translate.instant('HOME_STATUS.DURATION.MINUTES', {count: minutes});
-        if (minutes < 24 * 60) return this.translate.instant('HOME_STATUS.DURATION.HOURS', {count: minutes / 60});
+        if (minutes < 24 * 60)
+            return this.translate.instant('HOME_STATUS.DURATION.HOURS', {count: minutes / 60});
         return this.translate.instant('HOME_STATUS.DURATION.DAYS', {count: minutes / (24 * 60)});
     }
 }

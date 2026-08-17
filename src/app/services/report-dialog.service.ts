@@ -22,7 +22,7 @@ export interface ReportSubject {
 /**
  * Opens the one report dialog, which is mounted once at the app shell.
  *
- * <p>Same shape as {@link ProfileDialogService}: the surfaces that offer "Report" are context
+ * <p>Same shape as {@link ProfilePopoutService}: the surfaces that offer "Report" are context
  * menus and hover toolbars scattered across the app, and none of them is a sensible place to own a
  * modal.</p>
  */

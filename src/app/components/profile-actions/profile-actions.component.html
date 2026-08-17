@@ -1,0 +1,82 @@
+@if (profile(); as p) {
+    @if (!isSelf()) {
+        <div class="relative">
+            <button
+                (click)="toggleMenu($event)"
+                [attr.aria-expanded]="menuOpen()"
+                aria-haspopup="menu"
+                class="flex size-8 cursor-pointer items-center justify-center rounded-full border-0 bg-black/35 text-white/75 transition-colors hover:bg-black/60 hover:text-white"
+                type="button"
+            >
+                <i class="pi pi-ellipsis-h text-[0.6875rem]"></i>
+            </button>
+
+            @if (menuOpen()) {
+                <div
+                    (click)="$event.stopPropagation()"
+                    class="absolute right-0 top-9 z-30 flex min-w-[10rem] flex-col gap-0.5 rounded-[10px] border border-border bg-card p-2 shadow-[0_8px_28px_rgba(0,0,0,0.55),0_2px_8px_rgba(0,0,0,0.3)]"
+                    role="menu"
+                >
+                    @if (isBlocked()) {
+                        <button
+                            (click)="unblock()"
+                            [disabled]="pending()"
+                            class="flex w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2.5 py-[0.4375rem] text-left text-sm font-medium text-white/70 transition-colors hover:bg-white/[0.06] disabled:opacity-50"
+                            type="button"
+                        >
+                            <i class="pi pi-unlock text-xs"></i>
+                            {{ 'PROFILE.UNBLOCK' | translate }}
+                        </button>
+                    } @else {
+                        <button
+                            (click)="askToBlock()"
+                            class="flex w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2.5 py-[0.4375rem] text-left text-sm font-medium text-offline transition-colors hover:bg-offline/[0.12]"
+                            type="button"
+                        >
+                            <i class="pi pi-ban text-xs"></i>
+                            {{ 'PROFILE.BLOCK' | translate }}
+                        </button>
+                    }
+
+                    <button
+                        (click)="report()"
+                        class="flex w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2.5 py-[0.4375rem] text-left text-sm font-medium text-white/70 transition-colors hover:bg-white/[0.06]"
+                        type="button"
+                    >
+                        <i class="pi pi-flag text-xs"></i>
+                        {{ 'REPORT.TITLE_USER' | translate }}
+                    </button>
+                </div>
+            }
+        </div>
+    }
+
+    <!-- Blocking severs a friendship and is invisible to the other party, so it is confirmed. -->
+    @if (confirmingBlock()) {
+        <div (click)="$event.stopPropagation()" class="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 p-4">
+            <div class="flex w-full max-w-[23.75rem] flex-col gap-4 rounded-2xl border border-border bg-card p-5">
+                <h3 class="m-0 text-base font-semibold text-white/80">
+                    {{ 'PROFILE.BLOCK_CONFIRM_TITLE' | translate: {name: p.userName} }}
+                </h3>
+                <p class="m-0 text-sm text-white/45">{{ 'PROFILE.BLOCK_CONFIRM_BODY' | translate }}</p>
+                <div class="flex gap-2">
+                    <button
+                        (click)="cancelBlock()"
+                        class="flex-1 cursor-pointer rounded-lg border-0 bg-white/[0.06] px-3 py-2 text-sm font-medium text-white/75 transition-colors hover:bg-white/[0.1]"
+                        type="button"
+                    >
+                        {{ 'SETTINGS.SECURITY.CANCEL' | translate }}
+                    </button>
+                    <button
+                        (click)="confirmBlock()"
+                        [disabled]="pending()"
+                        class="flex-1 cursor-pointer rounded-lg border-0 bg-offline px-3 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                        type="button"
+                    >
+                        {{ 'PROFILE.BLOCK' | translate }}
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+}

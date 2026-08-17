@@ -3,7 +3,7 @@ import {TranslateModule} from '@ngx-translate/core';
 import {MessageDto} from '../../../../../../dtos/response/message.dto';
 import {MessageType} from '../../../../../../enums/message-type.enum';
 import {ProfileService} from '../../../../../../services/profile.service';
-import {ProfileDialogService} from '../../../../../../services/profile-dialog.service';
+import {ProfilePopoutService} from '../../../../../../services/profile-popout.service';
 import {UserNameStyleDirective} from '../../../../../../directives/user-name-style.directive';
 import {decodeContent} from '../../message-utils';
 
@@ -20,7 +20,7 @@ const LEAVE_VARIANT_KEYS = Array.from({length: 10}, (_, i) => `MESSAGE.SYSTEM.GU
 export class SystemMessageComponent {
     public readonly message = input.required<MessageDto>();
     public readonly userToken = '%USER%';
-    public profileDialogSvc = inject(ProfileDialogService);
+    public profilePopout = inject(ProfilePopoutService);
     private profileService = inject(ProfileService);
 
     constructor() {
@@ -37,8 +37,9 @@ export class SystemMessageComponent {
      * A call notice is authored by whoever placed the call, so the caller reads their own entry.
      * "You missed a call from yourself" is the sentence that has to be avoided.
      */
-    private readonly isOwnCall = computed(() =>
-        this.message().authorId === this.profileService.ownProfile()?.userId);
+    private readonly isOwnCall = computed(
+        () => this.message().authorId === this.profileService.ownProfile()?.userId,
+    );
 
     public readonly variantKey = computed(() => {
         const msg = this.message();
@@ -60,8 +61,7 @@ export class SystemMessageComponent {
     });
 
     /** Interpolation for the call copy. Empty for everything else, which takes no parameters. */
-    public readonly translateParams = computed(() =>
-        this.isCall() ? {duration: this.duration()} : {});
+    public readonly translateParams = computed(() => (this.isCall() ? {duration: this.duration()} : {}));
 
     /** The call's length, from the whole seconds the server puts in `content`. */
     public readonly duration = computed(() => {
@@ -70,12 +70,14 @@ export class SystemMessageComponent {
         return Number.isFinite(seconds) && seconds >= 0 ? formatDuration(seconds) : '';
     });
 
-    public readonly userProfile = computed(() => this.profileService.getCachedByUserId(this.message().authorId));
+    public readonly userProfile = computed(() =>
+        this.profileService.getCachedByUserId(this.message().authorId),
+    );
 
     public readonly userDisplayName = computed(() => this.userProfile()?.userName ?? this.message().authorId);
 
     public openProfile(): void {
-        this.profileDialogSvc.open(this.message().authorId);
+        this.profilePopout.open(this.message().authorId);
     }
 }
 

@@ -12,7 +12,7 @@ import {BrokenImageService} from '../../../../services/broken-image.service';
 import {UserActivityService} from '../../../../services/user-activity.service';
 import {ApiConfigService} from '../../../../services/api-config.service';
 import {ReportDialogService} from '../../../../services/report-dialog.service';
-import {ProfileDialogService} from '../../../../services/profile-dialog.service';
+import {ProfilePopoutService} from '../../../../services/profile-popout.service';
 import {GuildVoiceActivityService} from '../../../../services/guild-voice-activity.service';
 import {VoiceChannelService} from '../../../../services/voice-channel.service';
 import {CallFocusService} from '../../../../services/call-focus.service';
@@ -35,22 +35,24 @@ function guildFixture(): GuildDto {
         name: 'Test Guild',
         ownerId: 'owner',
         kind: GuildKind.Community,
-        channels: [{
-            id: VOICE_CHANNEL_ID,
-            guildId: GUILD_ID,
-            name: 'General Voice',
-            description: '',
-            createdAt: new Date(0),
-            updatedAt: new Date(0),
-            type: 0,
-            isAgeRestricted: false,
-            isPrivate: false,
-            categoryId: undefined,
-            permissions: [],
-            position: 0,
-            slowModeSeconds: 0,
-            parentChannelId: undefined,
-        }],
+        channels: [
+            {
+                id: VOICE_CHANNEL_ID,
+                guildId: GUILD_ID,
+                name: 'General Voice',
+                description: '',
+                createdAt: new Date(0),
+                updatedAt: new Date(0),
+                type: 0,
+                isAgeRestricted: false,
+                isPrivate: false,
+                categoryId: undefined,
+                permissions: [],
+                position: 0,
+                slowModeSeconds: 0,
+                parentChannelId: undefined,
+            },
+        ],
     } as unknown as GuildDto;
 }
 
@@ -70,7 +72,7 @@ function memberFixture(userId: string, userName: string): GuildMemberDto {
     };
 }
 
-function setup(opts: { streamingUserId?: string | null } = {}) {
+function setup(opts: {streamingUserId?: string | null} = {}) {
     const members = [memberFixture(STREAMER_ID, 'Streamer'), memberFixture(QUIET_ID, 'Quiet')];
 
     const guildWs = {
@@ -104,29 +106,50 @@ function setup(opts: { streamingUserId?: string | null } = {}) {
         imports: [GuildMemberListComponent],
         providers: [
             provideTranslateService({defaultLanguage: 'en'}),
-            {provide: GuildService, useValue: {
-                getMembers: () => of(members),
-                getOwnMember: () => of({userId: 'me', roleMembers: [], permissions: ''}),
-            }},
+            {
+                provide: GuildService,
+                useValue: {
+                    getMembers: () => of(members),
+                    getOwnMember: () => of({userId: 'me', roleMembers: [], permissions: ''}),
+                },
+            },
             {provide: GuildWebsocketService, useValue: guildWs},
             {provide: BotInstallDialogService, useValue: {installedIntoGuild: new Subject()}},
-            {provide: ToastService, useValue: {success: () => undefined, httpError: () => undefined, info: () => undefined}},
+            {
+                provide: ToastService,
+                useValue: {success: () => undefined, httpError: () => undefined, info: () => undefined},
+            },
             {provide: BrokenImageService, useValue: {isBroken: () => false}},
-            {provide: UserActivityService, useValue: {primaryFor: () => null, seedFromMembers: () => undefined}},
+            {
+                provide: UserActivityService,
+                useValue: {primaryFor: () => null, seedFromMembers: () => undefined},
+            },
             {provide: ApiConfigService, useValue: {baseUrl: signal('https://example.test')}},
             {provide: ReportDialogService, useValue: {open: () => undefined}},
-            {provide: ProfileDialogService, useValue: {open: () => undefined}},
+            {provide: ProfilePopoutService, useValue: {open: () => undefined}},
             {provide: GuildVoiceActivityService, useValue: guildVoiceActivity},
             {provide: VoiceChannelService, useValue: voiceChannel},
             {provide: CallFocusService, useValue: callFocus},
             {provide: NavigationService, useValue: navService},
             // Short-circuits the home-status board's own dependency chain (RealtimeConnectionService -> AuthService -> OAuthService/HttpClient), which this spec has no use for; the board itself renders nothing without the Presence module, which this guild fixture does not have.
-            {provide: HomeStatusService, useValue: {statuses: () => [], own: () => null, isUnavailable: () => true, isLoading: () => false}},
-            {provide: ProfileService, useValue: {ownProfile: () => undefined, getCachedByUserId: () => undefined}},
+            {
+                provide: HomeStatusService,
+                useValue: {
+                    statuses: () => [],
+                    own: () => null,
+                    isUnavailable: () => true,
+                    isLoading: () => false,
+                },
+            },
+            {
+                provide: ProfileService,
+                useValue: {ownProfile: () => undefined, getCachedByUserId: () => undefined},
+            },
         ],
     });
 
-    const fixture: ComponentFixture<GuildMemberListComponent> = TestBed.createComponent(GuildMemberListComponent);
+    const fixture: ComponentFixture<GuildMemberListComponent> =
+        TestBed.createComponent(GuildMemberListComponent);
     fixture.componentRef.setInput('guild', guildFixture());
     fixture.detectChanges();
     return {fixture, navService, callFocus, voiceChannel};
@@ -167,8 +190,9 @@ describe('GuildMemberListComponent - streaming badge', () => {
             return Promise.resolve(true);
         };
 
-        const button: HTMLButtonElement = fixture.nativeElement.querySelector('button:has(app-call-live-badge)')
-            ?? fixture.nativeElement.querySelector('app-call-live-badge').closest('button');
+        const button: HTMLButtonElement =
+            fixture.nativeElement.querySelector('button:has(app-call-live-badge)') ??
+            fixture.nativeElement.querySelector('app-call-live-badge').closest('button');
         button.click();
         // watchStream joins before arming the request (matching the row it sits inside), so the request lands after the joinChannel() promise settles rather than synchronously.
         await vi.waitFor(() => expect(requested).toBeDefined());
@@ -178,7 +202,7 @@ describe('GuildMemberListComponent - streaming badge', () => {
         expect(requested).toEqual({key: `channel:${VOICE_CHANNEL_ID}`, target: {userId: STREAMER_ID}});
     });
 
-    it('does not re-join voice when already in the streaming member\'s channel', async () => {
+    it("does not re-join voice when already in the streaming member's channel", async () => {
         const {fixture, callFocus, voiceChannel} = setup();
         voiceChannel.joinedChannelId = signal(VOICE_CHANNEL_ID);
         let joinCalled = false;
@@ -191,8 +215,9 @@ describe('GuildMemberListComponent - streaming badge', () => {
             requested = {key, target};
         };
 
-        const button: HTMLButtonElement = fixture.nativeElement.querySelector('button:has(app-call-live-badge)')
-            ?? fixture.nativeElement.querySelector('app-call-live-badge').closest('button');
+        const button: HTMLButtonElement =
+            fixture.nativeElement.querySelector('button:has(app-call-live-badge)') ??
+            fixture.nativeElement.querySelector('app-call-live-badge').closest('button');
         button.click();
         await vi.waitFor(() => expect(requested).toBeDefined());
 
@@ -212,8 +237,9 @@ describe('GuildMemberListComponent - streaming badge', () => {
             return Promise.resolve(false);
         };
 
-        const button: HTMLButtonElement = fixture.nativeElement.querySelector('button:has(app-call-live-badge)')
-            ?? fixture.nativeElement.querySelector('app-call-live-badge').closest('button');
+        const button: HTMLButtonElement =
+            fixture.nativeElement.querySelector('button:has(app-call-live-badge)') ??
+            fixture.nativeElement.querySelector('app-call-live-badge').closest('button');
         button.click();
         await vi.waitFor(() => expect(joinCalled).toBe(true));
 
@@ -223,11 +249,15 @@ describe('GuildMemberListComponent - streaming badge', () => {
     it('does not also open the profile dialog when the badge is clicked', () => {
         const {fixture} = setup();
         let profileOpened = false;
-        (fixture.componentInstance as any).profileDialogSvc = {open: () => {
-            profileOpened = true;
-        }};
+        (fixture.componentInstance as any).profilePopout = {
+            open: () => {
+                profileOpened = true;
+            },
+        };
 
-        const button: HTMLButtonElement = fixture.nativeElement.querySelector('app-call-live-badge').closest('button');
+        const button: HTMLButtonElement = fixture.nativeElement
+            .querySelector('app-call-live-badge')
+            .closest('button');
         button.click();
 
         expect(profileOpened).toBe(false);
