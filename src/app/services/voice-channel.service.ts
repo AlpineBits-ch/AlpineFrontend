@@ -470,6 +470,15 @@ export class VoiceChannelService {
         channelId: string,
         ownId: string,
     ): Promise<void> {
+        // Why anyone was passed over, as one line rather than none.
+        //
+        // <p>Every skip below is a silent `continue`, and a backfill that quietly subscribes to
+        // nobody is indistinguishable from one that was never called - which is precisely how a
+        // null `mediaSessionId` cost every already-present participant their audio without a
+        // single line anywhere saying so. Summarised per snapshot rather than logged per
+        // participant, because a busy channel is mostly people in `Joined` and that is not news.</p>
+        const skipped: string[] = [];
+
         for (const p of snapshot.participants) {
             // Our own announcement names the session *we* publish on, and Cloudflare will not let a
             // session pull its own local track: the subscribe fails identically every time and the
@@ -477,9 +486,29 @@ export class VoiceChannelService {
             if (p.userId === ownId) continue;
             // A session id alone is not an invitation to subscribe. `Joined` means a session exists
             // and a track does not, so the pull would fail and burn the retry budget.
-            if (p.publishState !== 'Publishing' || !p.mediaSessionId || !p.audioTrackName) continue;
+            //
+            // <p><b>`mediaSessionId` is no longer required, and requiring it cost every backfilled
+            // participant their audio.</b> Under LiveKit one connection carries every track a
+            // participant sends, so the roster stopped carrying a separate publishing session for
+            // the microphone and the field arrives null. This still gated on it, so the loop
+            // `continue`d over everyone already in the channel - silently, since a skip logs
+            // nothing. The live `ParticipantJoined` path was unaffected because that event does
+            // carry an identity, which is why the person who joined *first* could hear the person
+            // who joined *second* and never the other way round. `call-webrtc.service.ts` was
+            // updated for this at the migration and guild voice was missed.</p>
+            //
+            // <p>The user id is the correct fallback rather than a guess: a primary connection's
+            // LiveKit identity *is* the bare user id (spec §2.1), and `sid_for` in
+            // `media::voice::rtc` matches the identity first and the user id second - so naming the
+            // user resolves to whichever connection actually publishes the track. A real
+            // `mediaSessionId` still wins when the roster has one, which keeps Cloudflare and any
+            // client that still splits its connections working unchanged.</p>
+            if (p.publishState !== 'Publishing' || !p.audioTrackName) {
+                skipped.push(`${p.userId}(${p.publishState}${p.audioTrackName ? '' : ',no-track'})`);
+                continue;
+            }
 
-            const mediaSessionId = p.mediaSessionId;
+            const mediaSessionId = p.mediaSessionId ?? p.userId;
             void this.rtc.subscribeAudio([{
                 userId: p.userId, mediaSessionId, trackName: p.audioTrackName,
             }]);
@@ -521,6 +550,10 @@ export class VoiceChannelService {
                 void this.rtc.subscribeVideo(
                     guildId, channelId, p.userId, video.mediaSessionId, video.trackName, 'video');
             }
+        }
+
+        if (skipped.length) {
+            console.warn('[voice] backfill passed over', skipped.join(' '));
         }
     }
 

@@ -870,6 +870,85 @@ describe('screen share backfill from the snapshot', () => {
     });
 
     /**
+     * The LiveKit shape: publishing, but with no separate media session on the row.
+     *
+     * <p>One connection carries every track a participant sends now, so the roster stopped
+     * projecting a distinct publishing session for the microphone and `mediaSessionId` arrives
+     * null. The backfill gated on that field being present, so it skipped every participant
+     * already in the channel - silently, because a `continue` logs nothing. The symptom was
+     * one-directional audio that looked like a transport fault: whoever joined first could hear
+     * whoever joined second, never the reverse, because only the live `ParticipantJoined` path
+     * still fired.</p>
+     *
+     * <p>The user id is the right fallback rather than a placeholder: a primary connection's
+     * LiveKit identity is the bare user id, and `sid_for` resolves an identity before a user id,
+     * so naming the user finds whichever connection actually publishes the track.</p>
+     */
+    it('backfills a publisher whose snapshot row carries no media session', async () => {
+        const {service, guildVoice, rtc} = setup({inChannel: false});
+        guildVoice.join.mockReturnValue(of({
+            ...emptySnapshot('chan-1'),
+            participants: [publisher('them', {mediaSessionId: null})],
+        }));
+
+        await service.joinChannel(
+            {id: 'chan-1', guildId: 'guild-1', name: 'General', type: ChannelType.Voice} as ChannelDto,
+            'Guild',
+        );
+
+        expect(rtc.subscribeAudio).toHaveBeenCalledWith([
+            {userId: 'them', mediaSessionId: 'them', trackName: 'audio'},
+        ]);
+    });
+
+    /**
+     * The other half of the same rule: a real session id still wins.
+     *
+     * <p>Cloudflare, and any client that still splits its connections, publishes on a session that
+     * is not the user id. Falling back unconditionally would address the wrong connection.</p>
+     */
+    it('prefers the snapshot media session over the user id when one is present', async () => {
+        const {service, guildVoice, rtc} = setup({inChannel: false});
+        guildVoice.join.mockReturnValue(of({
+            ...emptySnapshot('chan-1'),
+            participants: [publisher('them')],
+        }));
+
+        await service.joinChannel(
+            {id: 'chan-1', guildId: 'guild-1', name: 'General', type: ChannelType.Voice} as ChannelDto,
+            'Guild',
+        );
+
+        expect(rtc.subscribeAudio).toHaveBeenCalledWith([
+            {userId: 'them', mediaSessionId: 'cf-them', trackName: 'audio'},
+        ]);
+    });
+
+    /**
+     * The gate that must survive: `Joined` means a session exists and a track does not.
+     *
+     * <p>Pinned next to the two above because loosening the `mediaSessionId` requirement must not
+     * loosen this one - subscribing to a participant who has published nothing burns the retry
+     * budget and leaves a dead source in the mixer.</p>
+     */
+    it('still skips a participant who has not published', async () => {
+        const {service, guildVoice, rtc} = setup({inChannel: false});
+        guildVoice.join.mockReturnValue(of({
+            ...emptySnapshot('chan-1'),
+            participants: [publisher('them', {
+                publishState: 'Joined', mediaSessionId: null, audioTrackName: null,
+            })],
+        }));
+
+        await service.joinChannel(
+            {id: 'chan-1', guildId: 'guild-1', name: 'General', type: ChannelType.Voice} as ChannelDto,
+            'Guild',
+        );
+
+        expect(rtc.subscribeAudio).not.toHaveBeenCalled();
+    });
+
+    /**
      * A room the local user is not rendered in reads as "the join failed".
      *
      * <p>Asserted after a full join, which applies *two* snapshots - the one join returns and the
