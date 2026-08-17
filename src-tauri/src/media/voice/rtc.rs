@@ -97,6 +97,18 @@ pub fn opus_capability() -> RTCRtpCodecCapability {
 /// transceiver at all, so a test that builds its own media engine tests its own media engine - and
 /// a copy that drifts from this one passes while the client cannot hear anybody.
 pub fn voice_api() -> Result<webrtc::api::API, String> {
+    voice_api_with(webrtc::api::setting_engine::SettingEngine::default())
+}
+
+/// [`voice_api`], with gathering confined by `settings`.
+///
+/// Taken as a parameter rather than built here because the only useful setting is which local
+/// addresses may be gathered on, and that depends on the SFU being connected to - see
+/// `media::livekit::egress`. A default engine gathers on every interface, which is what every
+/// caller did before that module existed.
+pub fn voice_api_with(
+    settings: webrtc::api::setting_engine::SettingEngine,
+) -> Result<webrtc::api::API, String> {
     let mut media_engine = MediaEngine::default();
     media_engine
         .register_default_codecs()
@@ -109,6 +121,7 @@ pub fn voice_api() -> Result<webrtc::api::API, String> {
     Ok(APIBuilder::new()
         .with_media_engine(media_engine)
         .with_interceptor_registry(registry)
+        .with_setting_engine(settings)
         .build())
 }
 
@@ -426,15 +439,22 @@ impl VoicePublication {
         // would leave a room nobody publishes into holding a participant slot until the process
         // ends - and a rejoin would then find it in the registry and reuse a connection whose
         // publish had already failed once.
+        // **Every failure below drops `room` before releasing it**, and that is not a style choice.
+        // `release_room` closes the connection only if it is the last holder, and a live local
+        // binding means it never is - so the signal client and both peer connections outlived every
+        // failed join, which is exactly the leak the note on `release_room` warns about. The
+        // borrow checker cannot catch it: the code reads correctly either way.
         let publication = match room.publish_audio(TRACK_NAME).await {
             Ok(publication) => publication,
             Err(e) => {
+                drop(room);
                 release_room(&registry_key).await;
                 return Err(format!("LiveKit refused the microphone track: {e}"));
             }
         };
 
         let Some(track) = room.local_track(TRACK_NAME).await else {
+            drop(room);
             release_room(&registry_key).await;
             return Err("the published microphone track went missing from the room".into());
         };
@@ -443,9 +463,14 @@ impl VoicePublication {
         // SID arrives on `TrackPublishedResponse`, which the server may send before its `Answer`.
         // See `Room::wait_until_connected` and spec §7.
         if let Err(e) = room.wait_until_connected(LIVEKIT_CONNECT_TIMEOUT).await {
+            drop(room);
             release_room(&registry_key).await;
             return Err(format!("the LiveKit publisher never came up: {e}"));
         }
+
+        // Only a connection that came up is worth watching, and only from here is there one. See
+        // `Room::supervise`: this is what carries a call across a tunnel appearing or a handover.
+        room.supervise();
 
         eprintln!(
             "[voice] microphone published as {} (sid {})",

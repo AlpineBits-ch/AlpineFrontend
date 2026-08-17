@@ -55,17 +55,34 @@ use webrtc::rtp_transceiver::rtp_codec::RTCRtpCodecCapability;
 use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample;
 use webrtc::track::track_local::TrackLocal;
 
+use super::egress::Route;
 use super::identity::user_of;
 use crate::media::voice::jitter::Packet;
 use super::resume::{resume_action, Resume};
-use crate::media::publisher::rtc::{h264_capability, publisher_api};
-use crate::media::voice::rtc::voice_api;
+use crate::media::publisher::rtc::{h264_capability, publisher_api_with};
+use crate::media::voice::rtc::voice_api_with;
 
 /// How long to wait for the server to confirm a publication.
 ///
 /// Exceeding it means `AddTrackRequest` was refused rather than delayed - a codec or naming
 /// disagreement - which is a different problem from a slow network and should not be retried as one.
 const PUBLISH_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// How often [`Room::supervise`] looks at the publisher.
+const SUPERVISOR_POLL: Duration = Duration::from_secs(1);
+
+/// How long `Disconnected` or `Connecting` is tolerated before an ICE restart.
+///
+/// Long enough that ordinary ICE recovery wins the race - most `Disconnected` spells end on their
+/// own within a couple of seconds - and short enough that a call which has genuinely lost its route
+/// does not sit mute while nothing happens.
+const DISCONNECT_GRACE: Duration = Duration::from_secs(5);
+
+/// How many restarts before the supervisor stops.
+///
+/// A machine with no usable route would otherwise renegotiate for the life of the call, which is
+/// both useless and indistinguishable from an attack on the SFU.
+const MAX_ICE_RESTARTS: u32 = 5;
 
 /// One track we have published, as both ends name it.
 #[derive(Debug, Clone)]
@@ -103,6 +120,17 @@ pub struct RoomStats {
     pub tracks_opened: AtomicU64,
     /// Signal connection drops. Non-zero with a healthy call is the interesting case.
     pub signal_drops: AtomicU64,
+    /// Remote ICE candidates applied to the publisher, and to the subscriber.
+    ///
+    /// Split because routing is what can be wrong: `Trickle` carries a target and a candidate added
+    /// to the wrong connection is rejected. Zero on one side with a healthy count on the other is a
+    /// routing bug; zero on both is a server that never trickled.
+    pub publisher_candidates: AtomicU64,
+    pub subscriber_candidates: AtomicU64,
+    /// Remote candidates the server sent that could not be applied.
+    pub candidates_rejected: AtomicU64,
+    /// ICE restarts attempted after a connection dropped. See [`Room::restart_ice`].
+    pub ice_restarts: AtomicU64,
 }
 
 pub struct Room {
@@ -111,6 +139,15 @@ pub struct Room {
     subscriber: Arc<RTCPeerConnection>,
     /// The connection we were given, kept for resume. See [`super::resume`].
     url: String,
+    /// Which local addresses gathering may use, re-resolvable. See [`super::egress`].
+    route: Option<Route>,
+    /// Held for the whole of any offer/answer exchange this end starts.
+    ///
+    /// Two negotiators on the publisher interleave: both create an offer, the second overwrites the
+    /// first's local description, and the first's answer then applies to an SDP that no longer
+    /// matches. That was survivable while publishing was the only thing that offered; an ICE
+    /// restart firing from the supervisor while a share is being published makes it reachable.
+    negotiating: Mutex<()>,
     token: Mutex<String>,
     token_minted: Mutex<Instant>,
     /// Confirmed publications, keyed by the cid we asked under.
@@ -151,11 +188,43 @@ impl Room {
         };
         let subscriber_config = config.clone();
 
+        // What the node actually offered us, which is otherwise unknowable from a log. Whether a
+        // relay is on that list decides whether a client with no working direct path has any
+        // fallback at all. URLs only: the credential is a short-lived secret and belongs in no log.
+        for server in &config.ice_servers {
+            eprintln!(
+                "[livekit] ICE server from the join: {} ({})",
+                server.urls.join(", "),
+                if server.credential.is_empty() {
+                    "no credential"
+                } else {
+                    "credentialed"
+                }
+            );
+        }
+
+        // **Gather only where the SFU is actually reachable from.** A VPN tunnel adapter otherwise
+        // contributes a host candidate that can never carry media, and on the machine this was
+        // measured on that was enough to stop the publisher connecting at all. See `super::egress`.
+        let route = Route::to_url(url);
+        match &route {
+            Some(route) => eprintln!("[livekit] {}", route.describe()),
+            None => eprintln!("[livekit] no host in {url}; gathering on every interface"),
+        }
+        let publisher_settings = route
+            .as_ref()
+            .map(Route::settings)
+            .unwrap_or_default();
+        let subscriber_settings = route
+            .as_ref()
+            .map(Route::settings)
+            .unwrap_or_default();
+
         // `publisher_api`, never `voice_api`, for the publishing side. The offer's codec list comes
         // from the media engine, and only that one registers H.264 High 5.2 on payload type 118 -
         // which is what the SFU now answers with, and what makes 1440p60 conformant.
         let publisher = Arc::new(
-            publisher_api()?
+            publisher_api_with(publisher_settings)?
                 .new_peer_connection(config)
                 .await
                 .map_err(|e| e.to_string())?,
@@ -173,11 +242,19 @@ impl Room {
             .map_err(|e| e.to_string())?;
 
         let subscriber = Arc::new(
-            voice_api()?
+            voice_api_with(subscriber_settings)?
                 .new_peer_connection(subscriber_config)
                 .await
                 .map_err(|e| e.to_string())?,
         );
+
+        // Installed before anything negotiates, so the first state change is not missed. Until
+        // these existed the only observable fact about a connection was the state it happened to be
+        // in when someone asked, which cannot tell "ICE never checked" from "ICE checked and
+        // failed" from "ICE connected and DTLS stalled" - three different faults that all read as
+        // `connecting`.
+        watch_connection(&publisher, "publisher");
+        watch_connection(&subscriber, "subscriber");
 
         let stats = Arc::new(RoomStats::default());
         let remote = Arc::new(Mutex::new(HashMap::new()));
@@ -207,6 +284,8 @@ impl Room {
             publisher,
             subscriber,
             url: url.to_string(),
+            route,
+            negotiating: Mutex::new(()),
             token: Mutex::new(token.to_string()),
             token_minted: Mutex::new(Instant::now()),
             published,
@@ -579,10 +658,48 @@ impl Room {
                 _ => tokio::time::sleep(Duration::from_millis(50)).await,
             }
         }
+        eprintln!("[livekit] {}", self.diagnosis().await);
         Err(format!(
             "publisher stuck at {} after {timeout:?}",
             self.publisher.connection_state()
         ))
+    }
+
+    /// Everything that distinguishes the ways a connection fails to come up, in one line.
+    ///
+    /// Printed at the moment of failure rather than left to be reconstructed. The four states this
+    /// separates all present as "the publisher never connected":
+    ///
+    /// * no remote description - the `Answer` never arrived or never applied, so ICE never started
+    /// * a remote description and no remote candidates - the server never trickled, or trickled to
+    ///   the connection we did not route them to
+    /// * candidates on both sides and ICE still `checking` - no pair works, which is the tunnel
+    ///   adapter case `super::egress` exists for
+    /// * ICE `connected` with the connection still `connecting` - DTLS stalled, which is a
+    ///   different fault entirely and shares none of the same fixes
+    pub async fn diagnosis(&self) -> String {
+        format!(
+            "publisher {} / ICE {} / remote description {} / {} remote candidate(s); \
+             subscriber {} / ICE {} / {} remote candidate(s); {} rejected, {} ICE restart(s); \
+             route: {}",
+            self.publisher.connection_state(),
+            self.publisher.ice_connection_state(),
+            if self.publisher.remote_description().await.is_some() {
+                "applied"
+            } else {
+                "MISSING"
+            },
+            self.stats.publisher_candidates.load(Ordering::Relaxed),
+            self.subscriber.connection_state(),
+            self.subscriber.ice_connection_state(),
+            self.stats.subscriber_candidates.load(Ordering::Relaxed),
+            self.stats.candidates_rejected.load(Ordering::Relaxed),
+            self.stats.ice_restarts.load(Ordering::Relaxed),
+            match &self.route {
+                Some(route) => route.describe(),
+                None => "unfiltered".to_string(),
+            }
+        )
     }
 
     pub async fn local_sdp(&self) -> Option<String> {
@@ -619,9 +736,22 @@ impl Room {
     }
 
     async fn negotiate(&self) -> Result<(), String> {
+        self.offer(None).await
+    }
+
+    /// Create an offer on the publisher and send it, with its candidates already in the SDP.
+    ///
+    /// Serialised on `negotiating`: see the field's own note on why a second concurrent negotiator
+    /// corrupts the first's exchange rather than merely delaying it.
+    async fn offer(
+        &self,
+        options: Option<webrtc::peer_connection::offer_answer_options::RTCOfferOptions>,
+    ) -> Result<(), String> {
+        let _turn = self.negotiating.lock().await;
+
         let offer = self
             .publisher
-            .create_offer(None)
+            .create_offer(options)
             .await
             .map_err(|e| e.to_string())?;
         let mut gathering = self.publisher.gathering_complete_promise().await;
@@ -647,6 +777,100 @@ impl Room {
             ))
             .await;
         Ok(())
+    }
+
+    /// Re-resolve the route and renegotiate the publisher onto it.
+    ///
+    /// **The route is re-asked first, and that ordering is the point.** An ICE restart that gathers
+    /// on the same dead adapter is a slower way of failing the same way; asking the routing table
+    /// again is what lets a call survive a tunnel coming up or going down, or Wi-Fi handing over to
+    /// Ethernet. The filter installed at connect reads the shared set on every candidate, so the
+    /// fresh answer takes effect on this gathering pass without rebuilding the connection - see
+    /// [`super::egress`].
+    ///
+    /// Only the publisher restarts here. The subscriber is offered to by the server, so its restart
+    /// is the server's to initiate; ours is to keep answering, which the pump already does.
+    pub async fn restart_ice(&self) -> Result<(), String> {
+        if let Some(route) = &self.route {
+            route.refresh();
+            eprintln!("[livekit] restarting ICE - {}", route.describe());
+        } else {
+            eprintln!("[livekit] restarting ICE on every interface");
+        }
+        self.stats.ice_restarts.fetch_add(1, Ordering::Relaxed);
+        self.offer(Some(
+            webrtc::peer_connection::offer_answer_options::RTCOfferOptions {
+                ice_restart: true,
+                voice_activity_detection: false,
+            },
+        ))
+        .await
+    }
+
+    /// Watch the publisher, and renegotiate onto a working route if the one in use dies.
+    ///
+    /// Spawned rather than awaited, and holds a `Weak` so it ends when the room does rather than
+    /// keeping a dropped room alive to be supervised.
+    ///
+    /// `Disconnected` is given a grace period and `Failed` is not, because they mean different
+    /// things: ICE recovers from `Disconnected` on its own more often than not, and restarting
+    /// during that window throws away a connection that was about to come back. `Failed` is
+    /// terminal for that candidate set and waiting only adds silence to it.
+    ///
+    /// Attempts are bounded. A machine with no route at all would otherwise renegotiate for the
+    /// life of the call, and a restart loop against an SFU is indistinguishable from an attack.
+    pub fn supervise(self: &Arc<Self>) {
+        let room = Arc::downgrade(self);
+        tokio::spawn(async move {
+            let mut disconnected_since: Option<tokio::time::Instant> = None;
+            let mut attempts = 0u32;
+
+            loop {
+                tokio::time::sleep(SUPERVISOR_POLL).await;
+                let Some(room) = room.upgrade() else { return };
+
+                // A dead signal cannot carry an offer, so a restart would be shouting into a closed
+                // socket. Rejoining is the session layer's call - see `signal_is_closed`.
+                if room.signal_is_closed() {
+                    return;
+                }
+
+                let due = match room.publisher.connection_state() {
+                    RTCPeerConnectionState::Connected | RTCPeerConnectionState::New => {
+                        disconnected_since = None;
+                        attempts = 0;
+                        continue;
+                    }
+                    RTCPeerConnectionState::Closed => return,
+                    RTCPeerConnectionState::Failed => true,
+                    // `Connecting` is included: a connection that never came up at all is the case
+                    // this whole change exists for, and it presents here rather than as `Failed`.
+                    RTCPeerConnectionState::Disconnected | RTCPeerConnectionState::Connecting => {
+                        let since = disconnected_since.get_or_insert_with(tokio::time::Instant::now);
+                        since.elapsed() >= DISCONNECT_GRACE
+                    }
+                    _ => false,
+                };
+
+                if !due {
+                    continue;
+                }
+                if attempts >= MAX_ICE_RESTARTS {
+                    eprintln!(
+                        "[livekit] giving up after {attempts} ICE restart(s); {}",
+                        room.diagnosis().await
+                    );
+                    return;
+                }
+
+                attempts += 1;
+                disconnected_since = None;
+                eprintln!("[livekit] publisher is {}; {}", room.publisher.connection_state(), room.diagnosis().await);
+                if let Err(e) = room.restart_ice().await {
+                    eprintln!("[livekit] ICE restart {attempts} failed: {e}");
+                }
+            }
+        });
     }
 
     async fn await_publication(&self, cid: &str) -> Result<Publication, String> {
@@ -772,6 +996,17 @@ async fn pump(
     let held_publisher: Pending = Arc::new(Mutex::new(Vec::new()));
     let held_subscriber: Pending = Arc::new(Mutex::new(Vec::new()));
 
+    let publisher_side = Side {
+        label: "publisher",
+        applied: &stats.publisher_candidates,
+        rejected: &stats.candidates_rejected,
+    };
+    let subscriber_side = Side {
+        label: "subscriber",
+        applied: &stats.subscriber_candidates,
+        rejected: &stats.candidates_rejected,
+    };
+
     while let Some(event) = events.recv().await {
         let message = match event {
             SignalEvent::Message(message) => message,
@@ -793,7 +1028,12 @@ async fn pump(
                         if let Err(e) = publisher.set_remote_description(description).await {
                             eprintln!("[livekit] publisher answer rejected: {e}");
                         } else {
-                            flush_held(&publisher, &held_publisher).await;
+                            // Logged on success as well as failure. This is the only thing that
+                            // gives the publisher a remote description, and without it the
+                            // connection sits at `connecting` for ever - so its *absence* is a
+                            // diagnosis, and an absent log line reads the same as an absent path.
+                            eprintln!("[livekit] publisher answer applied");
+                            flush_held(&publisher, &held_publisher, &publisher_side).await;
                         }
                     }
                     Err(e) => eprintln!("[livekit] unparseable answer: {e}"),
@@ -809,7 +1049,7 @@ async fn pump(
                 match answer_subscriber(&signal, &subscriber, offer.sdp).await {
                     Ok(()) => {
                         eprintln!("[livekit] answered the subscriber offer");
-                        flush_held(&subscriber, &held_subscriber).await;
+                        flush_held(&subscriber, &held_subscriber, &subscriber_side).await;
                     }
                     Err(e) => eprintln!("[livekit] could not answer the subscriber offer: {e}"),
                 }
@@ -823,9 +1063,9 @@ async fn pump(
                         // broadcast: a candidate added to the wrong connection is rejected, and two
                         // rejections per candidate would bury the real ones in the log.
                         if trickle.target == proto::SignalTarget::Subscriber as i32 {
-                            add_or_hold(&subscriber, &held_subscriber, init).await;
+                            add_or_hold(&subscriber, &held_subscriber, init, &subscriber_side).await;
                         } else {
-                            add_or_hold(&publisher, &held_publisher, init).await;
+                            add_or_hold(&publisher, &held_publisher, init, &publisher_side).await;
                         }
                     }
                     Err(e) => eprintln!("[livekit] unparseable trickle candidate: {e}"),
@@ -867,33 +1107,100 @@ impl Drop for SignalClosedOnDrop {
     }
 }
 
+/// Log every transport state change and every candidate one connection gathers.
+///
+/// **This is the only window into why a connection did not come up.** Signalling succeeding and
+/// media flowing are independent, and before these handlers existed only the first was observable:
+/// a connection that negotiated cleanly and then never carried a packet presented as a working call
+/// with an empty log. `media::voice::rtc` has had exactly this on the Cloudflare path since the
+/// bug that established it; the LiveKit path shipped without it and cost three rounds of inference
+/// to diagnose a VPN tunnel adapter.
+///
+/// The gathered candidates matter as much as the states. One line per local candidate names the
+/// interface it came from, which is what turns "the publisher never connected" into "the publisher
+/// offered nothing but a tunnel address" - see [`super::egress`].
+fn watch_connection(pc: &Arc<RTCPeerConnection>, label: &'static str) {
+    pc.on_peer_connection_state_change(Box::new(move |state| {
+        eprintln!("[livekit] {label} connection state: {state}");
+        Box::pin(async {})
+    }));
+
+    pc.on_ice_connection_state_change(Box::new(move |state| {
+        eprintln!("[livekit] {label} ICE state: {state}");
+        Box::pin(async {})
+    }));
+
+    // Bounded: candidates are gathered once per negotiation, not periodically. `None` is the
+    // end-of-gathering marker and is logged because "gathered nothing at all" is otherwise
+    // indistinguishable from "gathering never finished".
+    pc.on_ice_candidate(Box::new(move |candidate| {
+        match candidate {
+            Some(candidate) => eprintln!(
+                "[livekit] {label} local candidate: {} {} {}:{}",
+                candidate.typ, candidate.protocol, candidate.address, candidate.port
+            ),
+            None => eprintln!("[livekit] {label} gathering complete"),
+        }
+        Box::pin(async {})
+    }));
+}
+
 /// Candidates the server sent before we had a description to attach them to.
 type Pending = Arc<Mutex<Vec<RTCIceCandidateInit>>>;
+
+/// One of the two connections, so the candidate helpers can count and name what they touch.
+struct Side<'a> {
+    label: &'a str,
+    applied: &'a AtomicU64,
+    rejected: &'a AtomicU64,
+}
 
 /// Add a remote candidate, or hold it until there is a description to add it against.
 ///
 /// `add_ice_candidate` fails on a connection with no remote description, and these routinely arrive
 /// first - the server starts trickling as soon as it has an answer to send, not after we have
 /// applied one.
-async fn add_or_hold(pc: &Arc<RTCPeerConnection>, pending: &Pending, init: RTCIceCandidateInit) {
+async fn add_or_hold(
+    pc: &Arc<RTCPeerConnection>,
+    pending: &Pending,
+    init: RTCIceCandidateInit,
+    side: &Side<'_>,
+) {
     if pc.remote_description().await.is_none() {
         pending.lock().await.push(init);
         return;
     }
-    if let Err(e) = pc.add_ice_candidate(init).await {
-        eprintln!("[livekit] rejected a remote candidate: {e}");
+    match pc.add_ice_candidate(init).await {
+        Ok(()) => {
+            side.applied.fetch_add(1, Ordering::Relaxed);
+        }
+        Err(e) => {
+            side.rejected.fetch_add(1, Ordering::Relaxed);
+            eprintln!("[livekit] {} rejected a remote candidate: {e}", side.label);
+        }
     }
 }
 
 /// Apply everything held for this connection. Called the moment its remote description lands.
-async fn flush_held(pc: &Arc<RTCPeerConnection>, pending: &Pending) {
+async fn flush_held(pc: &Arc<RTCPeerConnection>, pending: &Pending, side: &Side<'_>) {
     let held: Vec<RTCIceCandidateInit> = pending.lock().await.drain(..).collect();
     if held.is_empty() {
         return;
     }
+    eprintln!(
+        "[livekit] {} applying {} held candidate(s)",
+        side.label,
+        held.len()
+    );
     for init in held {
-        if let Err(e) = pc.add_ice_candidate(init).await {
-            eprintln!("[livekit] rejected a held candidate: {e}");
+        match pc.add_ice_candidate(init).await {
+            Ok(()) => {
+                side.applied.fetch_add(1, Ordering::Relaxed);
+            }
+            Err(e) => {
+                side.rejected.fetch_add(1, Ordering::Relaxed);
+                eprintln!("[livekit] {} rejected a held candidate: {e}", side.label);
+            }
         }
     }
 }

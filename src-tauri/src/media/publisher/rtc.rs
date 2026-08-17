@@ -139,6 +139,18 @@ const NEGOTIATION_SETTLE_TIMEOUT: Duration = Duration::from_secs(5);
 /// transceiver at all, so a test that builds its own media engine tests its own media engine - and
 /// a copy that drifts from this one passes while no viewer sees a picture.
 pub fn publisher_api() -> Result<webrtc::api::API, String> {
+    publisher_api_with(webrtc::api::setting_engine::SettingEngine::default())
+}
+
+/// [`publisher_api`], with gathering confined by `settings`.
+///
+/// Taken as a parameter rather than built here because the only useful setting is which local
+/// addresses may be gathered on, and that depends on the SFU being connected to - see
+/// `media::livekit::egress`. A default engine gathers on every interface, which is what every
+/// caller did before that module existed.
+pub fn publisher_api_with(
+    settings: webrtc::api::setting_engine::SettingEngine,
+) -> Result<webrtc::api::API, String> {
     let mut media_engine = MediaEngine::default();
 
     // **Curated, not `register_default_codecs()` plus an extra entry**, and the difference is the
@@ -292,6 +304,7 @@ pub fn publisher_api() -> Result<webrtc::api::API, String> {
     Ok(APIBuilder::new()
         .with_media_engine(media_engine)
         .with_interceptor_registry(registry)
+        .with_setting_engine(settings)
         .build())
 }
 
