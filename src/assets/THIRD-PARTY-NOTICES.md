@@ -143,7 +143,7 @@ Arun Raghavan <arun.raghavan@collabora.co.uk>
 
 ## Rust crates
 
-Compiled into the application binary. 941 packages, 468 distinct notices.
+Compiled into the application binary. 960 packages, 474 distinct notices.
 
 ### adler2 2.0.1
 
@@ -399,7 +399,7 @@ Copyright (c) 2019 The RustCrypto Project Developers
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
-### aho-corasick 1.1.4, byteorder 1.5.0, memchr 2.8.0, walkdir 2.5.0
+### aho-corasick 1.1.4, byteorder 1.5.0, jiff 0.2.35, jiff-core 0.1.0, jiff-static 0.2.35, memchr 2.8.0, walkdir 2.5.0
 
 **Licence:** Unlicense OR MIT / Unlicense/MIT
 **Source:** https://github.com/BurntSushi/aho-corasick
@@ -492,7 +492,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ```
 
-### annotate-snippets 0.11.5, anstyle 1.0.14, serde_spanned 0.6.9, serde_spanned 1.1.1, toml 0.8.2, toml 0.9.12+spec-1.1.0, toml 1.1.2+spec-1.1.0, toml_datetime 0.7.5+spec-1.1.0, toml_datetime 1.1.1+spec-1.1.0, toml_edit 0.19.15, toml_edit 0.20.2, toml_edit 0.25.11+spec-1.1.0, toml_parser 1.1.2+spec-1.1.0, toml_writer 1.1.1+spec-1.1.0
+### annotate-snippets 0.11.5, anstyle 1.0.14, env_filter 2.0.0, env_logger 0.11.11, serde_spanned 0.6.9, serde_spanned 1.1.1, toml 0.8.2, toml 0.9.12+spec-1.1.0, toml 1.1.2+spec-1.1.0, toml_datetime 0.7.5+spec-1.1.0, toml_datetime 1.1.1+spec-1.1.0, toml_edit 0.19.15, toml_edit 0.20.2, toml_edit 0.25.11+spec-1.1.0, toml_parser 1.1.2+spec-1.1.0, toml_writer 1.1.1+spec-1.1.0
 
 **Licence:** MIT OR Apache-2.0
 **Source:** https://github.com/rust-lang/annotate-snippets-rs
@@ -515,7 +515,7 @@ Copyright (c) 2014 Benjamin Sago
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
-### anyhow 1.0.102, async-channel 1.9.0, async-channel 2.5.0, async-executor 1.14.0, async-global-executor 2.4.1, async-io 2.6.0, async-lock 3.4.2, async-native-tls 0.5.0, async-process 2.5.0, async-recursion 1.1.1, async-signal 0.2.14, async-std 1.13.2, async-task 4.7.1, async-trait 0.1.89, blocking 1.6.2, camino 1.2.2, concurrent-queue 2.5.0, ctor 0.8.0, ctor-proc-macro 0.0.7, curve25519-dalek-derive 0.1.1, displaydoc 0.2.5, dtoa 1.0.11, dtor 0.3.0, dtor-proc-macro 0.0.6, dyn-clone 1.0.20, erased-serde 0.4.10, event-listener 2.5.3, event-listener 5.4.1, event-listener-strategy 0.5.4, fastrand 2.4.1, flume 0.11.1, group 0.13.0, hermit-abi 0.1.19, hermit-abi 0.5.2, itoa 1.0.18, khronos-egl 6.0.0, leb128fmt 0.1.0, ntapi 0.4.3, once_cell 1.21.4, ordered-stream 0.2.0, paste 1.0.15, pastey 0.2.2, pathdiff 0.2.3, pin-project-lite 0.2.17, piper 0.2.5, polling 3.11.0, portable-atomic 1.14.0, portable-atomic-util 0.2.7, prettyplease 0.2.37, proc-macro2 1.0.106, quote 1.0.45, ref-cast 1.0.25, ref-cast-impl 1.0.25, rsa 0.9.10, rustc-hash 1.1.0, rustc-hash 2.1.2, rustversion 1.0.22, semver 1.0.28, serde 1.0.228, serde_bytes 0.11.19, serde_core 1.0.228, serde_derive 1.0.228, serde_derive_internals 0.29.1, serde_json 1.0.149, serde_repr 0.1.20, serde-untagged 0.1.9, servo_arc 0.4.3, simd_cesu8 1.1.1, smol_str 0.2.2, swift-bridge 0.1.59, syn 1.0.109, syn 2.0.117, system-deps 6.2.2, system-deps 7.0.8, thiserror 1.0.69, thiserror 2.0.18, thiserror-impl 1.0.69, thiserror-impl 2.0.18, typeid 1.0.3, utf-8 0.7.6, wasm-streams 0.5.0
+### anyhow 1.0.102, async-channel 1.9.0, async-channel 2.5.0, async-executor 1.14.0, async-global-executor 2.4.1, async-io 2.6.0, async-lock 3.4.2, async-native-tls 0.5.0, async-process 2.5.0, async-recursion 1.1.1, async-signal 0.2.14, async-std 1.13.2, async-task 4.7.1, async-trait 0.1.89, blocking 1.6.2, camino 1.2.2, concurrent-queue 2.5.0, ctor 0.8.0, ctor-proc-macro 0.0.7, curve25519-dalek-derive 0.1.1, displaydoc 0.2.5, dtoa 1.0.11, dtor 0.3.0, dtor-proc-macro 0.0.6, dyn-clone 1.0.20, erased-serde 0.4.10, event-listener 2.5.3, event-listener 5.4.1, event-listener-strategy 0.5.4, fastrand 2.4.1, flume 0.11.1, group 0.13.0, hermit-abi 0.1.19, hermit-abi 0.5.2, itoa 1.0.18, khronos-egl 6.0.0, leb128fmt 0.1.0, ntapi 0.4.3, once_cell 1.21.4, ordered-stream 0.2.0, paste 1.0.15, pastey 0.2.2, pathdiff 0.2.3, pin-project-lite 0.2.17, piper 0.2.5, polling 3.11.0, portable-atomic 1.14.0, portable-atomic-util 0.2.7, prettyplease 0.2.37, proc-macro2 1.0.106, quote 1.0.45, ref-cast 1.0.25, ref-cast-impl 1.0.25, rsa 0.9.10, rustc-hash 1.1.0, rustc-hash 2.1.2, rustversion 1.0.22, semver 1.0.28, serde 1.0.228, serde_bytes 0.11.19, serde_core 1.0.228, serde_derive 1.0.228, serde_derive_internals 0.29.1, serde_json 1.0.149, serde_repr 0.1.20, serde-untagged 0.1.9, servo_arc 0.4.3, simd_cesu8 1.1.1, smol_str 0.2.2, swift-bridge 0.1.59, syn 1.0.109, syn 2.0.117, syn 3.0.3, system-deps 6.2.2, system-deps 7.0.8, thiserror 1.0.69, thiserror 2.0.18, thiserror-impl 1.0.69, thiserror-impl 2.0.18, typeid 1.0.3, utf-8 0.7.6, wasm-streams 0.5.0
 
 **Licence:** MIT OR Apache-2.0 / Apache-2.0 OR MIT / MIT/Apache-2.0 / Apache-2.0/MIT
 **Source:** https://github.com/dtolnay/anyhow
@@ -776,17 +776,6 @@ Copyright (c) 2021-2025 The RustCrypto Project Developers
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
-### bincode 1.3.3
-
-**Licence:** MIT
-**Source:** https://github.com/servo/bincode
-
-```text
-The MIT License (MIT)
-Copyright (c) 2014 Ty Overby
-```
-Distributed under the [MIT licence](#licence-mit), reproduced in full below.
-
 ### bindgen 0.65.1, bindgen 0.72.1
 
 **Licence:** BSD-3-Clause
@@ -913,6 +902,26 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 
 ```text
 Copyright (c) 2019 Nick Fitzgerald
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
+### bytecheck 0.8.3, rancor 0.1.3
+
+**Licence:** MIT
+**Source:** https://github.com/rkyv/bytecheck
+
+```text
+Copyright 2023 David Koloski
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
+### bytecheck_derive 0.8.3
+
+**Licence:** MIT
+**Source:** https://github.com/rkyv/bytecheck
+
+```text
+Copyright 2020 David Koloski
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
@@ -3176,6 +3185,28 @@ Copyright (c) 2016 secret-service Developers
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
+### defmt 1.1.1, defmt-macros 1.1.1
+
+**Licence:** MIT OR Apache-2.0
+**Source:** https://github.com/knurling-rs/defmt
+
+Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
+
+```text
+Copyright (c) Ferrous Systems
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
+### defmt-parser 1.0.0
+
+**Licence:** MIT OR Apache-2.0
+**Source:** https://github.com/knurling-rs/defmt
+
+```text
+Copyright (c) the defmt-parser authors — The Knurling-rs developers
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
 ### der 0.7.10, pkcs8 0.10.2
 
 **Licence:** Apache-2.0 OR MIT
@@ -3572,9 +3603,9 @@ Copyright (c) the drm-fourcc authors — Daniel Franklin <daniel@danielzfranklin
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
-### dtls 0.13.0, interceptor 0.15.0, rtcp 0.14.0, rtp 0.14.0, sdp 0.10.0, stun 0.9.0, turn 0.11.0, webrtc-data 0.12.0, webrtc-ice 0.14.0, webrtc-mdns 0.10.0, webrtc-media 0.11.0, webrtc-sctp 0.13.0, webrtc-srtp 0.16.0, webrtc-util 0.12.0
+### dtls 0.17.2, interceptor 0.17.2, rtcp 0.17.2, rtp 0.17.2, sdp 0.17.2, stun 0.17.2, turn 0.17.2, webrtc-data 0.17.2, webrtc-ice 0.17.2, webrtc-mdns 0.17.2, webrtc-media 0.17.2, webrtc-sctp 0.17.2, webrtc-srtp 0.17.2, webrtc-util 0.17.2
 
-**Licence:** MIT OR Apache-2.0
+**Licence:** MIT/Apache-2.0
 **Source:** https://github.com/webrtc-rs/webrtc/tree/master/dtls
 
 Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
@@ -6938,6 +6969,16 @@ Copyright (c) 2016 multimap developers
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
+### munge 0.4.7, munge_macro 0.4.7
+
+**Licence:** MIT
+**Source:** https://github.com/djkoloski/munge
+
+```text
+Copyright 2024 David Koloski
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
 ### nanorand 0.7.0
 
 **Licence:** Zlib
@@ -7931,6 +7972,16 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 Copyright (c) the prost authors — Dan Burkert <dan@danburkert.com>, Lucio Franco <luciofranco14@gmail.com>, Casper Meijn <casper@meijn.net>, Tokio Contributors <team@tokio.rs>
 ```
 Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
+
+### ptr_meta 0.3.2, ptr_meta_derive 0.3.2, rend 0.5.4, rkyv 0.8.18, rkyv_derive 0.8.18
+
+**Licence:** MIT
+**Source:** https://github.com/rkyv/ptr_meta
+
+```text
+Copyright 2021 David Koloski
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### quick-xml 0.30.0, quick-xml 0.37.5, quick-xml 0.39.3
 
@@ -10305,6 +10356,25 @@ Copyright (c) 2019 Daniel "Lokathor" Gee.
 ```
 Distributed under the [Zlib licence](#licence-zlib), reproduced in full below.
 
+### tinyvec_macros 0.1.1
+
+**Licence:** MIT OR Apache-2.0 OR Zlib
+**Source:** https://github.com/Soveu/tinyvec_macros
+
+Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
+
+```text
+MIT License
+Copyright (c) 2020 Soveu
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
+```text
+zlib License
+(C) 2020 Tomasz "Soveu" Marx
+```
+Distributed under the [Zlib licence](#licence-zlib), reproduced in full below.
+
 ### tokio 1.52.2, tokio-stream 0.1.19, tokio-util 0.7.18
 
 **Licence:** MIT
@@ -10790,9 +10860,9 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 Distributed under the [CDLA-Permissive-2.0 licence](#licence-cdla-permissive-2-0), reproduced in full below.
 
-### webrtc 0.14.0
+### webrtc 0.17.2
 
-**Licence:** MIT OR Apache-2.0
+**Licence:** MIT/Apache-2.0
 **Source:** https://github.com/webrtc-rs/webrtc
 
 ```text
@@ -16742,7 +16812,7 @@ authorization of the copyright holder.
 
 ### Unlicense
 
-_Text as shipped by byteorder 1.5.0._
+_Text as shipped by jiff 0.2.35._
 
 ```text
 This is free and unencumbered software released into the public domain.
