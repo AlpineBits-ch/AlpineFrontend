@@ -101,7 +101,7 @@ export class FederationInstancesComponent implements OnInit {
             case FederationStatus.Blocked:
                 return 'text-rose-400 bg-rose-400/10 border border-rose-400/20';
             case FederationStatus.Defederated:
-                return 'text-white/30 bg-white/[0.04] border border-white/[0.08]';
+                return 'text-text-muted bg-white/[0.04] border border-white/[0.08]';
         }
     }
 

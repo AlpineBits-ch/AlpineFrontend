@@ -5,19 +5,19 @@
                 <div class="flex items-center gap-3">
                     <app-avatar [label]="initial(incoming)" [userId]="incoming.ring.inviterId" />
                     <div class="min-w-0 flex-1">
-                        <p class="m-0 truncate text-sm font-semibold text-white/85">
+                        <p class="m-0 truncate text-sm font-semibold text-text-primary">
                             {{ 'VOICE_RING.INVITED_BY' | translate: {name: name(incoming)} }}
                         </p>
-                        <p class="m-0 truncate text-xs text-white/45">
+                        <p class="m-0 truncate text-xs text-text-secondary">
                             {{ incoming.ring.channelName ?? ('VOICE_RING.A_VOICE_CHANNEL' | translate) }}
                         </p>
                     </div>
                     <!-- Counted from expiresInSeconds, never differenced against a local clock. -->
-                    <span class="shrink-0 text-xs tabular-nums text-white/35">{{ incoming.secondsLeft }}s</span>
+                    <span class="shrink-0 text-xs tabular-nums text-text-muted">{{ incoming.secondsLeft }}s</span>
                 </div>
 
                 @if (incoming.ring.participantUserIds.length) {
-                    <p class="m-0 mt-2 text-[0.6875rem] text-white/35">
+                    <p class="m-0 mt-2 text-[0.6875rem] text-text-muted">
                         {{ 'VOICE_RING.ALREADY_IN' | translate: {count: incoming.ring.participantUserIds.length} }}
                     </p>
                 }

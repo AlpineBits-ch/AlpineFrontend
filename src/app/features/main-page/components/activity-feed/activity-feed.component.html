@@ -2,7 +2,7 @@
     <!-- Active Now section header -->
     @if (activeNowFriends().length > 0) {
         <div class="px-4 pt-4 pb-2 shrink-0">
-            <h2 class="text-[10.5px] font-semibold text-white/35 uppercase tracking-widest">Active Now</h2>
+            <h2 class="text-[10.5px] font-semibold text-text-muted uppercase tracking-widest">Active Now</h2>
         </div>
     }
 
@@ -18,7 +18,7 @@
         @if (friends().length > 0 && onlineFriends().length === 0) {
             <!-- Empty state: friends exist but none online -->
             <div class="flex flex-col items-center justify-center py-6 gap-1.5 text-center px-3">
-                <p class="text-[11px] text-white/20 leading-snug">Nobody's online right now</p>
+                <p class="text-[11px] text-text-faint leading-snug">Nobody's online right now</p>
             </div>
         }
 
@@ -39,7 +39,7 @@
                     </span>
                 </div>
                 <div class="flex-1 min-w-0">
-                    <p class="text-xs font-medium text-white/80 truncate">{{ friend.other.userName }}</p>
+                    <p class="text-xs font-medium text-text-primary truncate">{{ friend.other.userName }}</p>
                     <!-- No icon on the line: the badge over the avatar is already carrying it. -->
                     <app-activity-line [activity]="activity" size="xs" [showIcon]="false" />
                 </div>
@@ -47,7 +47,7 @@
         }
 
         @if (plainOnlineFriends().length > 0) {
-            <p class="text-[10px] font-semibold text-white/20 uppercase tracking-wider px-2 pt-3 pb-1">
+            <p class="text-[10px] font-semibold text-text-faint uppercase tracking-wider px-2 pt-3 pb-1">
                 Online -{{ plainOnlineFriends().length }}
             </p>
         }
@@ -63,8 +63,8 @@
                     <span class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-online border-2 border-sidebar"></span>
                 </div>
                 <div class="flex-1 min-w-0">
-                    <p class="text-xs font-medium text-white/80 truncate">{{ friend.other.userName }}</p>
-                    <p class="text-[10px] text-white/30 truncate">Online</p>
+                    <p class="text-xs font-medium text-text-primary truncate">{{ friend.other.userName }}</p>
+                    <p class="text-[10px] text-text-muted truncate">Online</p>
                 </div>
             </div>
         }
@@ -72,7 +72,7 @@
         <!-- Offline section -->
         @if (offlineFriends().length > 0) {
             <div class="px-2 pt-3 pb-1 mt-1">
-                <p class="text-[10px] font-semibold text-white/20 uppercase tracking-wider">Offline -{{ offlineFriends().length }}</p>
+                <p class="text-[10px] font-semibold text-text-faint uppercase tracking-wider">Offline -{{ offlineFriends().length }}</p>
             </div>
 
             @for (friend of offlineFriends(); track friend.id) {
@@ -85,8 +85,8 @@
                         <span class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-white/20 border-2 border-sidebar"></span>
                     </div>
                     <div class="flex-1 min-w-0">
-                        <p class="text-xs font-medium text-white/80 truncate">{{ friend.other.userName }}</p>
-                        <p class="text-[10px] text-white/40 truncate">Offline</p>
+                        <p class="text-xs font-medium text-text-primary truncate">{{ friend.other.userName }}</p>
+                        <p class="text-[10px] text-text-muted truncate">Offline</p>
                     </div>
                 </div>
             }

@@ -1,10 +1,10 @@
 <div (contextmenu)="onListContextMenu($event)" class="flex flex-col flex-1 min-h-0 select-none">
     <!-- Guild name header -->
     <div class="app-header-nested px-4 border-b border-border-subtle flex items-center justify-between shrink-0">
-        <span class="text-sm font-semibold text-white/90 truncate">{{ guild().name }}</span>
+        <span class="text-sm font-semibold text-text-primary truncate">{{ guild().name }}</span>
         <button
             (click)="toggleGuildMenu($event)"
-            class="w-6 h-6 flex items-center justify-center text-white/40 hover:text-white/70 transition-colors cursor-pointer border-0 bg-transparent rounded-lg hover:bg-white/[0.05]"
+            class="w-6 h-6 flex items-center justify-center text-text-muted hover:text-text-primary transition-colors cursor-pointer border-0 bg-transparent rounded-lg hover:bg-white/[0.05]"
         >
             <i class="pi pi-chevron-down text-[0.6875rem]"></i>
         </button>
@@ -132,7 +132,7 @@
         }
 
         @if (localChannels().length === 0 && localCategories().length === 0) {
-            <p class="text-[0.8125rem] text-white/25 text-center mt-6">{{ 'GUILD.NO_CHANNELS' | translate }}</p>
+            <p class="text-[0.8125rem] text-text-muted text-center mt-6">{{ 'GUILD.NO_CHANNELS' | translate }}</p>
         }
     </div>
 </div>
@@ -230,21 +230,21 @@
     <ng-template pTemplate="header">
         <div class="flex items-center gap-2">
             <i class="pi pi-link text-brand-dim"></i>
-            <span class="text-sm font-semibold text-white/85">{{ 'GUILD.INVITE_PEOPLE' | translate }}</span>
+            <span class="text-sm font-semibold text-text-primary">{{ 'GUILD.INVITE_PEOPLE' | translate }}</span>
         </div>
     </ng-template>
     <div class="py-2 space-y-4">
-        <p class="text-xs text-white/40">
-            {{ 'GUILD.INVITE_SHARE' | translate }} <strong class="text-white/65">{{ guild().name }}</strong
+        <p class="text-xs text-text-muted">
+            {{ 'GUILD.INVITE_SHARE' | translate }} <strong class="text-text-secondary">{{ guild().name }}</strong
             >.
         </p>
         @if (inviteLoading()) {
             <div class="flex items-center justify-center py-4">
-                <i class="pi pi-spin pi-spinner text-white/30 text-xl"></i>
+                <i class="pi pi-spin pi-spinner text-text-muted text-xl"></i>
             </div>
         } @else {
             <div class="flex gap-2">
-                <input [value]="inviteLink()" class="flex-1 text-sm font-mono text-white/60" pInputText readonly />
+                <input [value]="inviteLink()" class="flex-1 text-sm font-mono text-text-secondary" pInputText readonly />
                 <p-button
                     (onClick)="copyInviteLink()"
                     [icon]="inviteCopied() ? 'pi pi-check' : 'pi pi-copy'"

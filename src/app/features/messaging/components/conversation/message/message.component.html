@@ -5,7 +5,7 @@
     (touchstart)="onTouchStart()"
     [class.opacity-50]="message().isPending"
     [class.py-1.5]="!isGrouped()"
-    [class.py-0.5]="isGrouped()"
+    [class.py-1]="isGrouped()"
     [ngClass]="message().isFailed ? 'bg-rose-500/5' : ''"
     class="relative flex items-start gap-3 px-4 hover:bg-white/[0.02] rounded-lg transition-colors transition-opacity duration-base ease-brand group"
 >
@@ -28,7 +28,7 @@
                 (click)="jumpTo.emit(message().inReplyTo!)"
                 class="flex items-center gap-1.5 mb-1 min-w-0 cursor-pointer group/reply select-none"
             >
-                <i class="pi pi-reply text-[10px] text-white/25 shrink-0 scale-x-[-1]"></i>
+                <i class="pi pi-reply text-[10px] text-text-muted shrink-0 scale-x-[-1]"></i>
                 @if (replyMessage()) {
                     <span
                         [appUserNameStyle]="replyAuthorProfile()"
@@ -42,7 +42,7 @@
                         {{ replySnippet() || '(attachment)' }}
                     </span>
                 } @else {
-                    <span class="text-[11px] text-white/20 italic">Original message</span>
+                    <span class="text-[11px] text-text-faint italic">Original message</span>
                 }
             </div>
         }
@@ -102,7 +102,7 @@
                     </span>
                 }
                 @if (message().isPinned) {
-                    <span class="flex items-center gap-1 text-[11px] text-white/35" title="Pinned message">
+                    <span class="flex items-center gap-1 text-[11px] text-text-muted" title="Pinned message">
                         <i class="pi pi-thumbtack text-[10px]"></i>
                     </span>
                 }
@@ -129,6 +129,7 @@
                 (report)="reportMessage()"
                 [canPin]="canPin()"
                 [guildId]="guildId()"
+                [isGrouped]="isGrouped()"
                 [isOwn]="isOwn()"
                 [isPinned]="!!message().isPinned"
                 [canPublish]="canPublish()"
@@ -146,7 +147,7 @@
                     (keydown.enter)="onEditEnter($event)"
                     (keydown.escape)="cancelEdit()"
                     [value]="editText()"
-                    class="w-full bg-white/[0.05] border border-white/[0.12] focus:border-[color-mix(in_srgb,var(--color-brand-dim)_60%,transparent)] rounded-lg px-3 py-2 text-sm text-white/85 resize-none outline-none transition-colors placeholder:text-white/25 leading-relaxed"
+                    class="w-full bg-white/[0.05] border border-white/[0.12] focus:border-[color-mix(in_srgb,var(--color-brand-dim)_60%,transparent)] rounded-lg px-3 py-2 text-sm text-text-primary resize-none outline-none transition-colors placeholder:text-text-muted leading-relaxed"
                     rows="1"
                     style="
                         min-height: 2.25rem;
@@ -158,14 +159,14 @@
                 >
                 </textarea>
                 <div class="flex items-center justify-between mt-1.5">
-                    <span class="text-[11px] text-white/30">
-                        <kbd class="px-1 py-0.5 rounded bg-white/[0.06] text-white/40 text-[10px]">esc</kbd> cancel ·
-                        <kbd class="px-1 py-0.5 rounded bg-white/[0.06] text-white/40 text-[10px]">enter</kbd> save
+                    <span class="text-[11px] text-text-muted">
+                        <kbd class="px-1 py-0.5 rounded bg-white/[0.06] text-text-muted text-[10px]">esc</kbd> cancel ·
+                        <kbd class="px-1 py-0.5 rounded bg-white/[0.06] text-text-muted text-[10px]">enter</kbd> save
                     </span>
                     <div class="flex gap-1.5">
                         <button
                             (click)="cancelEdit()"
-                            class="text-xs text-white/45 hover:text-white/75 cursor-pointer border-0 bg-transparent px-2 py-1 rounded transition-colors"
+                            class="text-xs text-text-secondary hover:text-text-primary cursor-pointer border-0 bg-transparent px-2 py-1 rounded transition-colors"
                         >
                             Cancel
                         </button>
@@ -195,7 +196,7 @@
             <div
                 (click)="onLinkClick($event)"
                 [ngClass]="
-                    message().isFailed ? 'text-rose-300' : message().isPending ? 'text-white/40' : 'text-[var(--color-text-secondary)]'
+                    message().isFailed ? 'text-rose-300' : message().isPending ? 'text-text-muted' : 'text-[var(--color-text-primary)]'
                 "
                 class="text-[15px] leading-relaxed m-0 break-words"
             >
@@ -280,15 +281,15 @@
                                 <i [class]="'pi ' + fileIcon(att.contentType) + ' ' + fileIconColor(att.contentType)"></i>
                             </div>
                             <div class="flex-1 min-w-0">
-                                <p class="text-xs font-medium text-white/80 truncate m-0 leading-snug">{{ att.fileName }}</p>
-                                <p class="text-[10px] text-white/35 m-0 mt-0.5 uppercase tracking-wide">
+                                <p class="text-xs font-medium text-text-primary truncate m-0 leading-snug">{{ att.fileName }}</p>
+                                <p class="text-[10px] text-text-muted m-0 mt-0.5 uppercase tracking-wide">
                                     {{ att.fileName.split('.').pop() }}
                                 </p>
                             </div>
                             <button
                                 (click)="download(att)"
                                 [disabled]="downloading()"
-                                class="shrink-0 w-8 h-8 rounded-lg bg-white/[0.05] hover:bg-brand/20 border border-white/[0.07] hover:border-brand/30 flex items-center justify-center text-white/40 hover:text-brand-dim transition-all cursor-pointer disabled:opacity-50 disabled:cursor-default"
+                                class="shrink-0 w-8 h-8 rounded-lg bg-white/[0.05] hover:bg-brand/20 border border-white/[0.07] hover:border-brand/30 flex items-center justify-center text-text-muted hover:text-brand-dim transition-all cursor-pointer disabled:opacity-50 disabled:cursor-default"
                             >
                                 <i class="pi pi-download text-xs"></i>
                             </button>
@@ -310,7 +311,7 @@
                         (click)="toggleEmbedSuppression()"
                         [disabled]="suppressingEmbeds()"
                         [title]="'MESSAGE.EMBED_REMOVE' | translate"
-                        class="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-app-bg/95 backdrop-blur-sm border border-border-default text-white/45 hover:text-rose-300 hover:border-rose-400/40 hover:bg-app-bg flex items-center justify-center cursor-pointer transition-all opacity-0 group-hover/embeds:opacity-100 focus-visible:opacity-100 disabled:opacity-40 disabled:cursor-default"
+                        class="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-app-bg/95 backdrop-blur-sm border border-border-default text-text-secondary hover:text-rose-300 hover:border-rose-400/40 hover:bg-app-bg flex items-center justify-center cursor-pointer transition-all opacity-0 group-hover/embeds:opacity-100 focus-visible:opacity-100 disabled:opacity-40 disabled:cursor-default"
                         type="button"
                     >
                         <i class="pi pi-times text-[0.625rem]"></i>
@@ -324,7 +325,7 @@
             <button
                 (click)="toggleEmbedSuppression()"
                 [disabled]="suppressingEmbeds()"
-                class="mt-1.5 inline-flex items-center gap-1.5 px-2 py-1 rounded-md w-fit bg-white/[0.03] border border-border-subtle text-[0.6875rem] text-white/35 hover:text-white/60 hover:border-border-default cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-default"
+                class="mt-1.5 inline-flex items-center gap-1.5 px-2 py-1 rounded-md w-fit bg-white/[0.03] border border-border-subtle text-[0.6875rem] text-text-muted hover:text-text-secondary hover:border-border-default cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-default"
                 type="button"
             >
                 <i class="pi pi-eye-slash text-[0.625rem]"></i>
@@ -377,7 +378,7 @@
                             </button>
                         </div>
                         @if (lightbox()!.name) {
-                            <p class="text-xs text-white/40 m-0">{{ lightbox()!.name }}</p>
+                            <p class="text-xs text-text-muted m-0">{{ lightbox()!.name }}</p>
                         }
                     }
                 </div>
@@ -412,7 +413,7 @@
             <div class="flex flex-col gap-4 pt-1">
                 <div class="flex items-start gap-3">
                     <i class="pi pi-exclamation-triangle text-rose-400 text-lg shrink-0 mt-0.5"></i>
-                    <p class="text-sm text-white/70 m-0 leading-relaxed">
+                    <p class="text-sm text-text-primary m-0 leading-relaxed">
                         Are you sure you want to delete this message? This cannot be undone.
                     </p>
                 </div>
@@ -435,18 +436,18 @@
         <div class="flex flex-col px-4 pt-3 pb-1 gap-1">
             <button
                 (click)="onLongPressReply()"
-                class="flex items-center gap-3 w-full px-3 py-3 rounded-xl text-white/80 hover:bg-white/[0.07] text-sm text-left bg-transparent border-0 cursor-pointer transition-colors"
+                class="flex items-center gap-3 w-full px-3 py-3 rounded-xl text-text-primary hover:bg-white/[0.07] text-sm text-left bg-transparent border-0 cursor-pointer transition-colors"
             >
-                <i class="pi pi-reply text-base text-white/50"></i>
+                <i class="pi pi-reply text-base text-text-secondary"></i>
                 Reply
             </button>
 
             @if (canPin()) {
                 <button
                     (click)="longPressMenu.set(false); togglePin()"
-                    class="flex items-center gap-3 w-full px-3 py-3 rounded-xl text-white/80 hover:bg-white/[0.07] text-sm text-left bg-transparent border-0 cursor-pointer transition-colors"
+                    class="flex items-center gap-3 w-full px-3 py-3 rounded-xl text-text-primary hover:bg-white/[0.07] text-sm text-left bg-transparent border-0 cursor-pointer transition-colors"
                 >
-                    <i class="pi pi-thumbtack text-base text-white/50"></i>
+                    <i class="pi pi-thumbtack text-base text-text-secondary"></i>
                     {{ message().isPinned ? 'Unpin' : 'Pin' }} Message
                 </button>
             }
@@ -454,9 +455,9 @@
             @if (isOwn() && !message().isPending && !message().isFailed) {
                 <button
                     (click)="onLongPressEdit()"
-                    class="flex items-center gap-3 w-full px-3 py-3 rounded-xl text-white/80 hover:bg-white/[0.07] text-sm text-left bg-transparent border-0 cursor-pointer transition-colors"
+                    class="flex items-center gap-3 w-full px-3 py-3 rounded-xl text-text-primary hover:bg-white/[0.07] text-sm text-left bg-transparent border-0 cursor-pointer transition-colors"
                 >
-                    <i class="pi pi-pencil text-base text-white/50"></i>
+                    <i class="pi pi-pencil text-base text-text-secondary"></i>
                     Edit
                 </button>
                 <button
@@ -473,9 +474,9 @@
             @if (!isOwn()) {
                 <button
                     (click)="reportMessage()"
-                    class="flex items-center gap-3 w-full px-3 py-3 rounded-xl text-white/80 hover:bg-white/[0.07] text-sm text-left bg-transparent border-0 cursor-pointer transition-colors"
+                    class="flex items-center gap-3 w-full px-3 py-3 rounded-xl text-text-primary hover:bg-white/[0.07] text-sm text-left bg-transparent border-0 cursor-pointer transition-colors"
                 >
-                    <i class="pi pi-flag text-base text-white/50"></i>
+                    <i class="pi pi-flag text-base text-text-secondary"></i>
                     {{ 'REPORT.TITLE_MESSAGE' | translate }}
                 </button>
             }
@@ -483,7 +484,7 @@
             <div class="h-px bg-white/[0.06] my-1"></div>
             <button
                 (click)="longPressMenu.set(false)"
-                class="flex items-center justify-center w-full px-3 py-3 rounded-xl text-white/40 text-sm bg-transparent border-0 cursor-pointer hover:bg-white/[0.05] transition-colors"
+                class="flex items-center justify-center w-full px-3 py-3 rounded-xl text-text-muted text-sm bg-transparent border-0 cursor-pointer hover:bg-white/[0.05] transition-colors"
             >
                 Cancel
             </button>

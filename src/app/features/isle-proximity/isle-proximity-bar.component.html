@@ -7,7 +7,7 @@
                         class="w-2 h-2 rounded-full shrink-0"
                         style="background: #fbbf24; box-shadow: 0 0 5px rgba(251, 191, 36, 0.5)"
                     ></div>
-                    <p class="flex-1 min-w-0 text-xs font-semibold text-white/80 truncate">
+                    <p class="flex-1 min-w-0 text-xs font-semibold text-text-primary truncate">
                         {{ 'PROX_CHAT.LINK_STEAM' | translate }}
                     </p>
                     <button
@@ -32,7 +32,7 @@
                             animation: prox-pulse 1.6s ease-in-out infinite;
                         "
                     ></div>
-                    <p class="flex-1 min-w-0 text-xs font-semibold text-white/85 truncate">
+                    <p class="flex-1 min-w-0 text-xs font-semibold text-text-primary truncate">
                         {{ 'PROX_CHAT.CONNECT' | translate }}
                     </p>
                     <button
@@ -76,9 +76,9 @@
                             <p class="text-xs font-semibold leading-tight truncate" style="color: #34d399">
                                 {{ 'PROX_CHAT.CONNECTED_LABEL' | translate }}
                             </p>
-                            <p class="text-[11px] text-white/55 truncate leading-tight mt-0.5">
+                            <p class="text-[11px] text-text-secondary truncate leading-tight mt-0.5">
                                 {{ 'PROX_CHAT.PEERS_NEARBY' | translate: {count: prox.peerCount()} }}
-                                <span class="text-white/35"> · {{ elapsed() }}</span>
+                                <span class="text-text-muted"> · {{ elapsed() }}</span>
                             </p>
                         </div>
                     </div>
@@ -92,7 +92,7 @@
                                 ? 'bg-rose-500/15 text-rose-400 hover:bg-rose-500/25'
                                 : talking
                                   ? 'bg-emerald-400/15 text-emerald-400 hover:bg-emerald-400/25'
-                                  : 'bg-white/[0.06] text-white/50 hover:bg-white/[0.10] hover:text-white/75'
+                                  : 'bg-white/[0.06] text-text-secondary hover:bg-white/[0.10] hover:text-text-primary'
                         "
                         class="flex items-center gap-1.5 px-2 py-1 rounded-md shrink-0 border-0 cursor-pointer transition-colors"
                     >
@@ -104,7 +104,7 @@
                         </span>
                     </button>
 
-                    <span class="text-[10px] text-white/40 shrink-0 hidden sm:inline">
+                    <span class="text-[10px] text-text-muted shrink-0 hidden sm:inline">
                         @if (!pttSupported || hintKind() === 'none') {
                             {{ 'PROX_CHAT.OPEN_MIC' | translate }}
                         } @else if (hintKind() === 'mute') {
@@ -118,19 +118,19 @@
 
                     <!-- Mic boost -->
                     <div class="flex items-center gap-2 shrink-0" [title]="'PROX_CHAT.MIC_BOOST' | translate">
-                        <i class="pi pi-microphone text-xs" [class]="micBoostPct > 100 ? 'text-amber-400' : 'text-white/50'"></i>
+                        <i class="pi pi-microphone text-xs" [class]="micBoostPct > 100 ? 'text-amber-400' : 'text-text-secondary'"></i>
                         <p-slider [(ngModel)]="micBoostPct" [min]="0" [max]="200" [step]="5" styleClass="w-20" />
                     </div>
 
                     <!-- Volume -->
                     <div class="flex items-center gap-2 shrink-0" [title]="'PROX_CHAT.VOLUME' | translate">
-                        <i class="pi pi-volume-up text-xs text-white/50"></i>
+                        <i class="pi pi-volume-up text-xs text-text-secondary"></i>
                         <p-slider [(ngModel)]="volumePct" [min]="0" [max]="100" styleClass="w-24" />
                     </div>
 
                     <!-- Spatial toggle -->
                     <div class="flex items-center gap-1.5 shrink-0" [title]="'PROX_CHAT.SPATIAL' | translate">
-                        <i class="pi pi-compass text-xs text-white/50"></i>
+                        <i class="pi pi-compass text-xs text-text-secondary"></i>
                         <p-toggleswitch [(ngModel)]="spatialEnabled" />
                     </div>
 

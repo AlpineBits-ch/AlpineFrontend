@@ -298,10 +298,10 @@
 <!-- Revoking kills a link that may already be circulating, so it asks first -->
 <p-dialog [(visible)]="showRevokeDialog" [draggable]="false" [modal]="true" [resizable]="false" [style]="{width: '420px'}" appendTo="body">
     <ng-template pTemplate="header">
-        <span class="text-sm font-semibold text-white/85">{{ 'GUILD_SETTINGS.INVITES.REVOKE_TITLE' | translate }}</span>
+        <span class="text-sm font-semibold text-text-primary">{{ 'GUILD_SETTINGS.INVITES.REVOKE_TITLE' | translate }}</span>
     </ng-template>
     @if (confirmRevokeInvite()) {
-        <p class="text-sm text-white/60 py-2 leading-relaxed">{{ 'GUILD_SETTINGS.INVITES.REVOKE_CONFIRM' | translate }}</p>
+        <p class="text-sm text-text-secondary py-2 leading-relaxed">{{ 'GUILD_SETTINGS.INVITES.REVOKE_CONFIRM' | translate }}</p>
         <p class="text-xs font-mono text-text-primary break-all select-all bg-white/[0.04] rounded-lg px-3 py-2">
             {{ inviteLink(confirmRevokeInvite()!) }}
         </p>

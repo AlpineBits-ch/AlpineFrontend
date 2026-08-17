@@ -4,11 +4,19 @@ import {GuildVoiceService, VoiceStateDto} from './guild-voice.service';
 import {VoiceService} from './voice.service';
 import {VoiceChannelService} from './voice-channel.service';
 import {GuildService} from './guild.service';
+import {DeviceIdentityService} from './device-identity.service';
 import {OngoingCallDto} from '../dtos/response/ongoing-call.dto';
 
 /** A room this client was in when it went away, and can be put back into. */
 export type VoiceResumeOffer =
-    | {kind: 'channel'; guildId: string; channelId: string; channelName: string | null}
+    | {
+          kind: 'channel';
+          guildId: string;
+          channelId: string;
+          channelName: string | null;
+          /** The device the roster holds the seat for. See {@link VoiceResumeService.reconnect}. */
+          deviceId: string | null;
+      }
     | {kind: 'call'; callId: string; conversationId: string};
 
 /**
@@ -34,6 +42,7 @@ export class VoiceResumeService {
     private readonly voice = inject(VoiceService);
     private readonly voiceChannel = inject(VoiceChannelService);
     private readonly guilds = inject(GuildService);
+    private readonly devices = inject(DeviceIdentityService);
 
     private readonly offerSignal = signal<VoiceResumeOffer | null>(null);
     private readonly busySignal = signal(false);
@@ -90,6 +99,13 @@ export class VoiceResumeService {
      *
      * <p>The banner comes down first either way. The offer has been answered; if the rejoin fails,
      * what the user needs is the error the join path raises, not a banner still asking.</p>
+     *
+     * <p><b>The seat is released before it is taken again.</b> A join by somebody already on the
+     * roster refreshes their device and nothing else, so every trace of the session that went away
+     * survives it: the media session id, the track names, the screen shares nobody closed, the
+     * original join time the video cap ranks by, and this user's entry in the room's attention
+     * state. Peers are still subscribed to tracks that no longer exist and are never told
+     * otherwise. Only a leave clears any of it.</p>
      */
     async reconnect(): Promise<void> {
         const offer = this.offerSignal();
@@ -102,6 +118,8 @@ export class VoiceResumeService {
                 await firstValueFrom(this.voice.acceptCall(offer.callId));
                 return;
             }
+
+            await this.releaseOwnSeat(offer);
 
             // Read the guild rather than synthesising a channel from the three fields the offer
             // carries. joinChannel wants the real thing and the real guild name - it puts both on
@@ -116,6 +134,28 @@ export class VoiceResumeService {
             console.error('Could not rejoin the voice room this session was dropped from', err);
         } finally {
             this.busySignal.set(false);
+        }
+    }
+
+    /**
+     * Drops the ghost seat so the rejoin starts from an empty roster entry.
+     *
+     * <p>Only when the roster holds it for this device. A seat under another device id is this
+     * user's phone or second machine, and it is live rather than stale: leaving on its behalf takes
+     * it off the roster with nothing sent to tell it, where the join transfers it and sends
+     * `KickedByOtherDevice`. A device id we cannot read is treated as somebody else's.</p>
+     *
+     * <p>A failed leave is logged and not retried. It leaves the rejoin exactly where it was before
+     * this ran, which is worth having anyway.</p>
+     */
+    private async releaseOwnSeat(offer: VoiceResumeOffer & {kind: 'channel'}): Promise<void> {
+        const ours = await this.devices.deviceId().catch(() => null);
+        if (offer.deviceId && offer.deviceId !== ours) return;
+
+        try {
+            await firstValueFrom(this.guildVoice.leave(offer.guildId, offer.channelId));
+        } catch (err) {
+            console.error('Could not release the voice seat the last session left behind', err);
         }
     }
 
@@ -154,6 +194,7 @@ export function toOffer(channel: VoiceStateDto | null, call: OngoingCallDto | nu
             guildId: channel.guildId,
             channelId: channel.channelId,
             channelName: channel.channelName,
+            deviceId: channel.deviceId,
         };
     }
     if (call) return {kind: 'call', callId: call.callId, conversationId: call.conversationId};

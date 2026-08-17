@@ -61,7 +61,7 @@
         <div class="max-h-[280px] overflow-y-auto thin-scrollbar space-y-4">
             @for (group of grantedGroups(); track group.label) {
                 <div>
-                    <p class="text-[10px] font-semibold text-white/30 uppercase tracking-widest mb-2">{{ group.label }}</p>
+                    <p class="text-[10px] font-semibold text-text-muted uppercase tracking-widest mb-2">{{ group.label }}</p>
                     <div class="space-y-1">
                         @for (key of group.perms; track key) {
                             <div class="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/[0.03]">

@@ -22,7 +22,7 @@ import {AiPrivacyNoteComponent} from '../ai-privacy-note/ai-privacy-note.compone
 
             <!-- Provider -->
             <div class="flex flex-col gap-2">
-                <label class="text-xs font-medium text-white/45">
+                <label class="text-xs font-medium text-text-secondary">
                     {{ 'AI.CONNECT.PROVIDER' | translate }}
                 </label>
                 <div class="flex flex-wrap gap-2">
@@ -33,7 +33,7 @@ import {AiPrivacyNoteComponent} from '../ai-privacy-note/ai-privacy-note.compone
                             [class.text-white]="provider() === id"
                             class="flex cursor-pointer items-center gap-2 rounded-lg border
                                        border-border bg-card px-3 py-2 text-[0.8125rem]
-                                       text-white/60 transition-colors hover:bg-hover"
+                                       text-text-secondary transition-colors hover:bg-hover"
                             type="button"
                         >
                             {{ meta[id].label }}
@@ -49,7 +49,7 @@ import {AiPrivacyNoteComponent} from '../ai-privacy-note/ai-privacy-note.compone
                  a saved key is shown as its presence, not its value. -->
             <div class="flex flex-col gap-2">
                 <div class="flex items-baseline justify-between gap-3">
-                    <label class="text-xs font-medium text-white/45">
+                    <label class="text-xs font-medium text-text-secondary">
                         {{ 'AI.CONNECT.KEY' | translate }}
                     </label>
                     <a
@@ -71,13 +71,13 @@ import {AiPrivacyNoteComponent} from '../ai-privacy-note/ai-privacy-note.compone
                     "
                     autocomplete="off"
                     class="w-full rounded-lg border border-border bg-card px-3 py-2 font-mono
-                              text-[0.8125rem] text-white/80 outline-none placeholder-white/25
+                              text-[0.8125rem] text-text-primary outline-none placeholder-white/25
                               focus:border-brand-dim"
                     spellcheck="false"
                     type="password"
                 />
                 @if (isConfigured()) {
-                    <p class="text-[0.6875rem] text-white/35">
+                    <p class="text-[0.6875rem] text-text-muted">
                         {{ 'AI.CONNECT.KEY_REPLACE_HINT' | translate }}
                     </p>
                 }
@@ -85,13 +85,13 @@ import {AiPrivacyNoteComponent} from '../ai-privacy-note/ai-privacy-note.compone
 
             <!-- Model -->
             <div class="flex flex-col gap-2">
-                <label class="text-xs font-medium text-white/45">
+                <label class="text-xs font-medium text-text-secondary">
                     {{ 'AI.CONNECT.MODEL' | translate }}
                 </label>
                 <input
                     [(ngModel)]="model"
                     class="w-full rounded-lg border border-border bg-card px-3 py-2 font-mono
-                              text-[0.8125rem] text-white/80 outline-none placeholder-white/25
+                              text-[0.8125rem] text-text-primary outline-none placeholder-white/25
                               focus:border-brand-dim"
                     spellcheck="false"
                     type="text"

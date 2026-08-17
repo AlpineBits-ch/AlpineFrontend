@@ -1,7 +1,7 @@
 @if (enabled()) {
     <div class="flex flex-col gap-1.5 px-2 pt-3 pb-2 border-b border-white/[0.06]">
         <div class="flex items-center justify-between gap-2 px-2">
-            <p class="text-[0.625rem] font-semibold text-white/25 uppercase tracking-widest">
+            <p class="text-[0.625rem] font-semibold text-text-muted uppercase tracking-widest">
                 {{ 'HOME_STATUS.TITLE' | translate }}
             </p>
             @if (!editing()) {
@@ -86,7 +86,7 @@
 
         @if (rows().length === 0) {
             @if (!editing() && !loadingBoard()) {
-                <p class="px-2 pb-1 text-[0.6875rem] text-white/25">{{ 'HOME_STATUS.EMPTY' | translate }}</p>
+                <p class="px-2 pb-1 text-[0.6875rem] text-text-muted">{{ 'HOME_STATUS.EMPTY' | translate }}</p>
             }
         } @else {
             @for (row of rows(); track row.status.userId) {
@@ -98,20 +98,20 @@
                         @if (row.avatarUrl) {
                             <img [alt]="row.displayName" [src]="row.avatarUrl" class="w-full h-full object-cover" />
                         } @else {
-                            <span class="text-[0.625rem] font-semibold text-white/40">{{ row.displayName.charAt(0).toUpperCase() }}</span>
+                            <span class="text-[0.625rem] font-semibold text-text-muted">{{ row.displayName.charAt(0).toUpperCase() }}</span>
                         }
                     </div>
 
                     <div class="flex flex-col min-w-0 flex-1">
                         <div class="flex items-center gap-1.5 min-w-0">
-                            <span class="text-[0.75rem] font-medium text-white/75 truncate">{{ row.displayName }}</span>
+                            <span class="text-[0.75rem] font-medium text-text-primary truncate">{{ row.displayName }}</span>
                             <!-- Word plus icon, never a dot: the dot on the member list below is connection presence and this is not that. -->
                             <span [class]="row.meta.tone" class="flex items-center gap-1 text-[0.625rem] shrink-0">
                                 <i [class]="row.meta.icon" class="text-[0.625rem]"></i>
                                 {{ row.meta.labelKey | translate }}
                             </span>
                         </div>
-                        <span class="text-[0.625rem] text-white/30 truncate">
+                        <span class="text-[0.625rem] text-text-muted truncate">
                             @if (row.status.note) {
                                 {{ row.status.note }} ·
                             }

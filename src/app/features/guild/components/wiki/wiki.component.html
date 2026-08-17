@@ -32,7 +32,7 @@
         @if (navCollapsed()) {
             <button
                 (click)="navCollapsed.set(false)"
-                class="absolute left-2 top-2 z-10 hidden lg:flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg border border-border bg-card text-white/45 hover:text-white/80"
+                class="absolute left-2 top-2 z-10 hidden lg:flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg border border-border bg-card text-text-secondary hover:text-text-primary"
                 [title]="'WIKI.SHOW_PAGES' | translate"
             >
                 <i class="pi pi-angle-right text-[0.75rem]"></i>
@@ -44,7 +44,7 @@
         @if (state.wikiView() !== 'page' && state.wikiView() !== 'editor') {
             <button
                 (click)="navDrawerOpen.set(true)"
-                class="absolute left-2 top-2 z-10 flex lg:hidden h-7 w-7 cursor-pointer items-center justify-center rounded-lg border border-border bg-card text-white/45 hover:text-white/80"
+                class="absolute left-2 top-2 z-10 flex lg:hidden h-7 w-7 cursor-pointer items-center justify-center rounded-lg border border-border bg-card text-text-secondary hover:text-text-primary"
                 [title]="'WIKI.SHOW_PAGES' | translate"
             >
                 <i class="pi pi-bars text-[0.75rem]"></i>
@@ -109,7 +109,7 @@
                 />
             }
         } @else if (state.wikiView() === 'page' && state.pageLoading()) {
-            <div class="flex-1 flex flex-col items-center justify-center gap-3 text-white/20">
+            <div class="flex-1 flex flex-col items-center justify-center gap-3 text-text-faint">
                 <i class="pi pi-spin pi-spinner text-2xl"></i>
                 <span class="text-sm">{{ 'WIKI.LOADING_PAGE' | translate }}</span>
             </div>
@@ -228,10 +228,10 @@
     <ng-template pTemplate="header">
         <div class="flex items-center gap-2">
             <i class="pi pi-trash text-rose-400"></i>
-            <span class="text-sm font-semibold text-white/85">{{ 'WIKI.DIALOG.DELETE_TITLE' | translate }}</span>
+            <span class="text-sm font-semibold text-text-primary">{{ 'WIKI.DIALOG.DELETE_TITLE' | translate }}</span>
         </div>
     </ng-template>
-    <p class="py-2 text-sm text-white/60">
+    <p class="py-2 text-sm text-text-secondary">
         {{ 'WIKI.DIALOG.DELETE_BODY' | translate: {title: state.selectedPage()?.title} }}
     </p>
     <div class="mt-4 flex justify-end gap-2 border-t border-white/[0.06] pt-4">

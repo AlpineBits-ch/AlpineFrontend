@@ -15,14 +15,14 @@ import {WikiPageSummaryDto} from '../../../../../dtos/response/wiki.dto';
                 class="pointer-events-none fixed z-50 w-72 rounded-xl border border-border
                         bg-card p-3 shadow-xl"
             >
-                <p class="m-0 truncate text-[0.8125rem] font-semibold text-white/85">
+                <p class="m-0 truncate text-[0.8125rem] font-semibold text-text-primary">
                     {{ page()!.title }}
                 </p>
-                <p class="m-0 mt-0.5 text-[0.6875rem] text-white/30">
+                <p class="m-0 mt-0.5 text-[0.6875rem] text-text-muted">
                     {{ 'WIKI.RAIL.UPDATED' | translate: {date: page()!.updatedAt | date: 'MMM d, y'} }}
                 </p>
                 @if (snippet()) {
-                    <p class="m-0 mt-2 line-clamp-4 text-[0.75rem] leading-relaxed text-white/55">
+                    <p class="m-0 mt-2 line-clamp-4 text-[0.75rem] leading-relaxed text-text-secondary">
                         {{ snippet() }}
                     </p>
                 }

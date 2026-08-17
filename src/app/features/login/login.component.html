@@ -212,14 +212,14 @@
                             @if (!isEditingServer()) {
                                 <div class="flex items-center gap-2 bg-white/[0.04] border border-white/[0.09] rounded-xl px-3 py-2.5">
                                     @if (serverConfigLoading()) {
-                                        <i class="pi pi-spin pi-spinner text-xs text-white/30 shrink-0"></i>
+                                        <i class="pi pi-spin pi-spinner text-xs text-text-muted shrink-0"></i>
                                     } @else {
                                         <i
                                             [class]="serverDomain() === 'venta.gg' ? 'pi pi-cloud' : 'pi pi-server'"
-                                            class="text-sm text-white/30 shrink-0"
+                                            class="text-sm text-text-muted shrink-0"
                                         ></i>
                                     }
-                                    <span class="flex-1 text-sm text-white/60" data-testid="server-chip">{{ serverDomain() }}</span>
+                                    <span class="flex-1 text-sm text-text-secondary" data-testid="server-chip">{{ serverDomain() }}</span>
                                     <button
                                         (click)="startEditServer()"
                                         data-testid="server-edit-button"
@@ -234,13 +234,13 @@
                                     <div
                                         class="flex-1 flex items-center gap-2 bg-white/[0.05] border border-[color-mix(in_srgb,var(--color-brand)_30%,transparent)] rounded-xl px-3 focus-within:border-[color-mix(in_srgb,var(--color-brand)_50%,transparent)] transition-colors"
                                     >
-                                        <i class="pi pi-globe text-sm text-white/30 shrink-0"></i>
+                                        <i class="pi pi-globe text-sm text-text-muted shrink-0"></i>
                                         <input
                                             (keydown.enter)="confirmServer()"
                                             (keydown.escape)="cancelServerEdit()"
                                             [(ngModel)]="serverInputValue"
                                             autocomplete="off"
-                                            class="flex-1 bg-transparent border-0 outline-none py-2.5 text-sm text-white/80 placeholder:text-white/25"
+                                            class="flex-1 bg-transparent border-0 outline-none py-2.5 text-sm text-text-primary placeholder:text-text-muted"
                                             data-testid="server-input"
                                             placeholder="selfhosted.com"
                                             type="text"
@@ -257,7 +257,7 @@
                                     <button
                                         (click)="cancelServerEdit()"
                                         data-testid="server-cancel"
-                                        class="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-white/[0.06] text-white/40 border-0 cursor-pointer transition-colors shrink-0"
+                                        class="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-white/[0.06] text-text-muted border-0 cursor-pointer transition-colors shrink-0"
                                         type="button"
                                     >
                                         <i class="pi pi-times text-sm"></i>

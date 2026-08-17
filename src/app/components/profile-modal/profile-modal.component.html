@@ -24,7 +24,7 @@
                         <div class="flex items-center gap-2">
                             <button
                                 (click)="message()"
-                                class="flex cursor-pointer items-center gap-2 rounded-lg border-0 bg-white/[0.08] px-3.5 py-2 text-sm font-medium text-white/85 transition-colors hover:bg-white/[0.14]"
+                                class="flex cursor-pointer items-center gap-2 rounded-lg border-0 bg-white/[0.08] px-3.5 py-2 text-sm font-medium text-text-primary transition-colors hover:bg-white/[0.14]"
                                 type="button"
                             >
                                 <i class="pi pi-comment text-xs"></i>
@@ -48,7 +48,7 @@
                                     </span>
                                     @for (connection of connections; track connection.type + connection.externalId) {
                                         <div class="flex items-center gap-2 text-sm text-text-secondary">
-                                            <i class="pi pi-link text-xs text-white/35"></i>
+                                            <i class="pi pi-link text-xs text-text-muted"></i>
                                             <span class="truncate">{{ connection.displayName ?? connection.externalId }}</span>
                                             @if (connection.verified) {
                                                 <i class="pi pi-verified text-xs text-online/70"></i>
@@ -70,8 +70,8 @@
                         [class.border-white]="effectiveTab() === 'activity'"
                         [class.border-transparent]="effectiveTab() !== 'activity'"
                         [class.text-white]="effectiveTab() === 'activity'"
-                        [class.text-white/40]="effectiveTab() !== 'activity'"
-                        class="cursor-pointer border-0 border-b-2 bg-transparent px-0 pb-2.5 text-sm font-semibold transition-colors hover:text-white/75"
+                        [class.text-text-muted]="effectiveTab() !== 'activity'"
+                        class="cursor-pointer border-0 border-b-2 bg-transparent px-0 pb-2.5 text-sm font-semibold transition-colors hover:text-text-primary"
                         type="button"
                     >
                         {{ 'PROFILE.TAB_ACTIVITY' | translate }}
@@ -83,8 +83,8 @@
                             [class.border-white]="effectiveTab() === 'friends'"
                             [class.border-transparent]="effectiveTab() !== 'friends'"
                             [class.text-white]="effectiveTab() === 'friends'"
-                            [class.text-white/40]="effectiveTab() !== 'friends'"
-                            class="cursor-pointer border-0 border-b-2 bg-transparent px-0 pb-2.5 text-sm font-semibold transition-colors hover:text-white/75"
+                            [class.text-text-muted]="effectiveTab() !== 'friends'"
+                            class="cursor-pointer border-0 border-b-2 bg-transparent px-0 pb-2.5 text-sm font-semibold transition-colors hover:text-text-primary"
                             type="button"
                         >
                             {{ 'PROFILE.MUTUAL_FRIENDS' | translate: {count: friendCount()} }}
@@ -97,8 +97,8 @@
                             [class.border-white]="effectiveTab() === 'servers'"
                             [class.border-transparent]="effectiveTab() !== 'servers'"
                             [class.text-white]="effectiveTab() === 'servers'"
-                            [class.text-white/40]="effectiveTab() !== 'servers'"
-                            class="cursor-pointer border-0 border-b-2 bg-transparent px-0 pb-2.5 text-sm font-semibold transition-colors hover:text-white/75"
+                            [class.text-text-muted]="effectiveTab() !== 'servers'"
+                            class="cursor-pointer border-0 border-b-2 bg-transparent px-0 pb-2.5 text-sm font-semibold transition-colors hover:text-text-primary"
                             type="button"
                         >
                             {{ 'PROFILE.MUTUAL_SERVERS' | translate: {count: serverCount()} }}
@@ -110,7 +110,7 @@
                     @switch (effectiveTab()) {
                         @case ('activity') {
                             @if (activities().length === 0) {
-                                <p class="px-2 py-6 text-center text-sm text-white/30">
+                                <p class="px-2 py-6 text-center text-sm text-text-muted">
                                     {{ 'PROFILE.NO_ACTIVITY' | translate }}
                                 </p>
                             } @else {
@@ -124,13 +124,13 @@
 
                         @case ('friends') {
                             @if (friends().loading) {
-                                <p class="px-2 py-6 text-center text-sm text-white/30">
+                                <p class="px-2 py-6 text-center text-sm text-text-muted">
                                     <i class="pi pi-spin pi-spinner"></i>
                                 </p>
                             } @else if (friends().failed) {
                                 <button
                                     (click)="retry()"
-                                    class="mx-auto block cursor-pointer rounded-lg border-0 bg-white/[0.06] px-3 py-2 text-sm text-white/70 transition-colors hover:bg-white/[0.1]"
+                                    class="mx-auto block cursor-pointer rounded-lg border-0 bg-white/[0.06] px-3 py-2 text-sm text-text-primary transition-colors hover:bg-white/[0.1]"
                                     type="button"
                                 >
                                     {{ 'PROFILE.MUTUALS_RETRY' | translate }}
@@ -146,7 +146,7 @@
                                             <app-avatar [label]="row.userName[0].toUpperCase()" [userId]="row.userId" size="normal" />
                                             <app-user-status-dot [status]="row.onlineStatus" borderColor="border-card" />
                                         </div>
-                                        <span class="min-w-0 flex-1 truncate text-sm text-white/80">
+                                        <span class="min-w-0 flex-1 truncate text-sm text-text-primary">
                                             {{ row.userName }}
                                         </span>
                                     </button>
@@ -156,13 +156,13 @@
 
                         @case ('servers') {
                             @if (servers().loading) {
-                                <p class="px-2 py-6 text-center text-sm text-white/30">
+                                <p class="px-2 py-6 text-center text-sm text-text-muted">
                                     <i class="pi pi-spin pi-spinner"></i>
                                 </p>
                             } @else if (servers().failed) {
                                 <button
                                     (click)="retry()"
-                                    class="mx-auto block cursor-pointer rounded-lg border-0 bg-white/[0.06] px-3 py-2 text-sm text-white/70 transition-colors hover:bg-white/[0.1]"
+                                    class="mx-auto block cursor-pointer rounded-lg border-0 bg-white/[0.06] px-3 py-2 text-sm text-text-primary transition-colors hover:bg-white/[0.1]"
                                     type="button"
                                 >
                                     {{ 'PROFILE.MUTUALS_RETRY' | translate }}
@@ -176,7 +176,7 @@
                                     >
                                         <!-- A plain img, not app-avatar: that one resolves a user, and this is a guild. -->
                                         <div
-                                            class="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white/10 text-[0.6875rem] font-semibold text-white/70"
+                                            class="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white/10 text-[0.6875rem] font-semibold text-text-primary"
                                         >
                                             @if (iconFailed(row.guildId)) {
                                                 {{ guildInitial(row) }}
@@ -189,7 +189,7 @@
                                                 />
                                             }
                                         </div>
-                                        <span class="min-w-0 flex-1 truncate text-sm text-white/80">
+                                        <span class="min-w-0 flex-1 truncate text-sm text-text-primary">
                                             {{ row.name ?? row.guildId }}
                                         </span>
                                     </button>

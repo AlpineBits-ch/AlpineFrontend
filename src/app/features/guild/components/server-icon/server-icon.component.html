@@ -1,6 +1,6 @@
 <div class="relative shrink-0">
     <button
-        [ngClass]="['rounded-icon', !serverData().icon || imgFailed() ? fallbackColorClass() : 'bg-white/[0.07] text-white/60']"
+        [ngClass]="['rounded-icon', !serverData().icon || imgFailed() ? fallbackColorClass() : 'bg-white/[0.07] text-text-secondary']"
         class="w-11 h-11 flex items-center justify-center border-0 cursor-pointer text-sm font-bold overflow-hidden"
     >
         @if (serverData().icon && !imgFailed()) {

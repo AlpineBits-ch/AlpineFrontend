@@ -38,7 +38,7 @@ import {Button} from 'primeng/button';
             <i aria-hidden="true" class="pi pi-users text-[7rem] text-white/[0.06]"></i>
 
             <div class="flex flex-col items-center gap-3">
-                <p class="max-w-[14rem] text-center text-[0.6875rem] text-white/50">
+                <p class="max-w-[14rem] text-center text-[0.6875rem] text-text-secondary">
                     {{ 'CALL.INVITE_TO_VOICE_HINT' | translate }}
                 </p>
                 <p-button

@@ -15,7 +15,7 @@ const STATUS_LABEL: Record<ReportStatus, string> = {
 const STATUS_CLASS: Record<ReportStatus, string> = {
     UnderReview: 'bg-amber-400/[0.10] text-amber-400/90 border-amber-400/20',
     ActionTaken: 'bg-emerald-400/[0.10] text-emerald-400/90 border-emerald-400/20',
-    Closed: 'bg-white/[0.05] text-white/40 border-white/[0.10]',
+    Closed: 'bg-white/[0.05] text-text-muted border-white/[0.10]',
 };
 
 /** What became of the things this account reported. */

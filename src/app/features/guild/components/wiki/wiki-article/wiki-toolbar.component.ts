@@ -42,8 +42,8 @@ interface ToolbarAction {
                         [disabled]="sourceMode()"
                         [pTooltip]="action.titleKey | translate"
                         class="flex h-7 min-w-7 cursor-pointer items-center justify-center
-                                   rounded-md border-0 bg-transparent px-1.5 text-white/50
-                                   transition-colors hover:bg-hover hover:text-white/90
+                                   rounded-md border-0 bg-transparent px-1.5 text-text-secondary
+                                   transition-colors hover:bg-hover hover:text-text-primary
                                    disabled:cursor-not-allowed disabled:opacity-30
                                    disabled:hover:bg-transparent"
                         tooltipPosition="bottom"
@@ -67,8 +67,8 @@ interface ToolbarAction {
                 [class.text-brand-dim]="sourceMode()"
                 [pTooltip]="(sourceMode() ? 'WIKI.TOOLBAR.SOURCE_OFF' : 'WIKI.TOOLBAR.SOURCE_ON') | translate"
                 class="flex h-7 cursor-pointer items-center gap-1.5 rounded-md border-0
-                           bg-transparent px-2 text-[0.6875rem] font-medium text-white/50
-                           transition-colors hover:bg-hover hover:text-white/90"
+                           bg-transparent px-2 text-[0.6875rem] font-medium text-text-secondary
+                           transition-colors hover:bg-hover hover:text-text-primary"
                 tooltipPosition="bottom"
                 type="button"
             >
@@ -77,7 +77,7 @@ interface ToolbarAction {
                 @if (markdownShortcut(); as keys) {
                     <span
                         class="rounded border border-white/[0.12] bg-white/[0.04] px-1
-                                 py-px font-mono text-[0.5625rem] tracking-wide text-white/35"
+                                 py-px font-mono text-[0.5625rem] tracking-wide text-text-muted"
                     >
                         {{ keys }}
                     </span>
@@ -96,7 +96,7 @@ interface ToolbarAction {
                         (keydown.enter)="commitLink()"
                         (keydown.escape)="closeLink()"
                         [(ngModel)]="linkHref"
-                        class="w-64 border-0 bg-transparent text-[0.8125rem] text-white/80
+                        class="w-64 border-0 bg-transparent text-[0.8125rem] text-text-primary
                                   outline-none placeholder-white/25"
                         placeholder="https://example.com"
                     />
@@ -111,7 +111,7 @@ interface ToolbarAction {
                     <button
                         (click)="removeLink()"
                         class="cursor-pointer border-0 bg-transparent px-1 text-[0.6875rem]
-                                   text-white/40 hover:text-white/70"
+                                   text-text-muted hover:text-text-primary"
                         type="button"
                     >
                         {{ 'WIKI.TOOLBAR.LINK_REMOVE' | translate }}

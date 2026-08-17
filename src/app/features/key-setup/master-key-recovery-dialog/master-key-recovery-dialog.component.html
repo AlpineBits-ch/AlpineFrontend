@@ -11,16 +11,17 @@
     @if (generatedCode()) {
         <!-- Shown once. Same statement as at setup, because the consequence is the same. -->
         <div class="p-1">
-            <h2 class="m-0 text-lg font-semibold text-white/90">Save your recovery code</h2>
-            <p class="mt-1 text-[0.8125rem] leading-snug text-white/60">
+            <h2 class="m-0 text-lg font-semibold text-text-primary">Save your recovery code</h2>
+            <p class="mt-1 text-[0.8125rem] leading-snug text-text-secondary">
                 Write this down and keep it somewhere safe. It is now the only way back into your encrypted messages if you forget your
                 password.
             </p>
 
             <div class="my-4 rounded-xl border border-white/[0.08] bg-black/30 px-4 py-3">
-                <code class="block select-all break-all text-center font-mono text-[0.95rem] leading-7 tracking-[0.12em] text-white/90">{{
-                    generatedCode()
-                }}</code>
+                <code
+                    class="block select-all break-all text-center font-mono text-[0.95rem] leading-7 tracking-[0.12em] text-text-primary"
+                    >{{ generatedCode() }}</code
+                >
             </div>
 
             <div class="rounded-xl border border-amber-500/30 bg-amber-500/[0.08] px-4 py-3">
@@ -40,11 +41,11 @@
             @case ('unrecoverable') {
                 <div class="p-1">
                     <h2 class="m-0 text-lg font-semibold text-red-300">Encrypted history can no longer be recovered</h2>
-                    <p class="mt-2 text-[0.8125rem] leading-snug text-white/70">
+                    <p class="mt-2 text-[0.8125rem] leading-snug text-text-primary">
                         Your password was reset while your encryption key was protected only by your old password. That key can no longer be
                         unlocked, so backups made before the reset cannot be restored - on this device or any other.
                     </p>
-                    <p class="mt-2 text-[0.8125rem] leading-snug text-white/60">
+                    <p class="mt-2 text-[0.8125rem] leading-snug text-text-secondary">
                         Messages on devices that are still signed in are unaffected, and new conversations are fine. To protect future
                         backups, set up encryption again with a recovery code.
                     </p>
@@ -57,14 +58,16 @@
             <!-- The repair path. -->
             @case ('rewrap-required') {
                 <div class="p-1">
-                    <h2 class="m-0 text-lg font-semibold text-white/90">Finish your password reset</h2>
-                    <p class="mt-1 text-[0.8125rem] leading-snug text-white/60">
+                    <h2 class="m-0 text-lg font-semibold text-text-primary">Finish your password reset</h2>
+                    <p class="mt-1 text-[0.8125rem] leading-snug text-text-secondary">
                         Your new password doesn't unlock your encryption key yet. Enter your recovery code and your new password to
                         reconnect them. Nothing has been lost.
                     </p>
 
                     <div class="mt-4">
-                        <label class="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-white/35"> Recovery code </label>
+                        <label class="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-text-muted">
+                            Recovery code
+                        </label>
                         <!-- Both fields submit on Enter; onRewrap re-checks that each is filled
                              and that no rewrap is already running. -->
                         <input
@@ -78,7 +81,9 @@
                     </div>
 
                     <div class="mt-3">
-                        <label class="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-white/35"> New password </label>
+                        <label class="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-text-muted">
+                            New password
+                        </label>
                         <input
                             (input)="onNewPasswordInput($event)"
                             (keydown.enter)="onRewrap()"
@@ -104,14 +109,14 @@
             <!-- Retrofit for accounts created before dual wrapping. -->
             @case ('recovery-code-missing') {
                 <div class="p-1">
-                    <h2 class="m-0 text-lg font-semibold text-white/90">Set up a recovery code</h2>
-                    <p class="mt-1 text-[0.8125rem] leading-snug text-white/60">
+                    <h2 class="m-0 text-lg font-semibold text-text-primary">Set up a recovery code</h2>
+                    <p class="mt-1 text-[0.8125rem] leading-snug text-text-secondary">
                         Right now your encryption key is protected only by your password. If you ever reset it, your encrypted history would
                         be permanently unreadable. A recovery code prevents that.
                     </p>
 
                     <div class="mt-4">
-                        <label class="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-white/35"> Password </label>
+                        <label class="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-text-muted"> Password </label>
                         <input
                             (input)="onPasswordInput($event)"
                             (keydown.enter)="onAddRecoveryCode()"

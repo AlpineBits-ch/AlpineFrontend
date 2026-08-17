@@ -61,8 +61,8 @@ const TONES: readonly {instruction: string; labelKey: string}[] = [
                             [class]="action.className"
                             [title]="action.titleKey | translate"
                             class="flex h-7 min-w-7 cursor-pointer items-center justify-center
-                                       rounded-md border-0 bg-transparent px-1.5 text-white/55
-                                       transition-colors hover:bg-hover hover:text-white/90"
+                                       rounded-md border-0 bg-transparent px-1.5 text-text-secondary
+                                       transition-colors hover:bg-hover hover:text-text-primary"
                         >
                             {{ action.label }}
                         </button>
@@ -98,12 +98,12 @@ const TONES: readonly {instruction: string; labelKey: string}[] = [
                                     (click)="chooseAi(item)"
                                     class="flex w-full cursor-pointer items-center gap-2.5
                                                border-0 bg-transparent px-3 py-2 text-left
-                                               text-[0.8125rem] text-white/75 hover:bg-hover"
+                                               text-[0.8125rem] text-text-primary hover:bg-hover"
                                 >
-                                    <i [class]="item.icon" class="pi text-[0.75rem] text-white/40"></i>
+                                    <i [class]="item.icon" class="pi text-[0.75rem] text-text-muted"></i>
                                     <span class="flex-1">{{ item.labelKey | translate }}</span>
                                     @if (item.submenu) {
-                                        <i class="pi pi-angle-right text-[0.625rem] text-white/25"></i>
+                                        <i class="pi pi-angle-right text-[0.625rem] text-text-muted"></i>
                                     }
                                 </button>
                             }
@@ -112,7 +112,7 @@ const TONES: readonly {instruction: string; labelKey: string}[] = [
                                 (click)="submenu.set(null)"
                                 class="flex w-full cursor-pointer items-center gap-2 border-0
                                            bg-transparent px-3 py-1.5 text-left text-[0.6875rem]
-                                           text-white/35 hover:text-white/70"
+                                           text-text-muted hover:text-text-primary"
                             >
                                 <i class="pi pi-angle-left text-[0.625rem]"></i>
                                 {{ 'COMMON.BACK' | translate }}
@@ -123,7 +123,7 @@ const TONES: readonly {instruction: string; labelKey: string}[] = [
                                         (click)="emit(option.action)"
                                         class="flex w-full cursor-pointer items-center gap-2.5
                                                    border-0 bg-transparent px-3 py-2 text-left
-                                                   text-[0.8125rem] text-white/75 hover:bg-hover"
+                                                   text-[0.8125rem] text-text-primary hover:bg-hover"
                                     >
                                         <span class="flex-1">
                                             {{ option.label ?? (option.labelKey | translate) }}

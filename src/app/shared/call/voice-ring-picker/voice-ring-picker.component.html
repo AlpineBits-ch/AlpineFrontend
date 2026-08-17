@@ -9,7 +9,7 @@
     appendTo="body"
 >
     <ng-template pTemplate="header">
-        <span class="text-sm font-semibold text-white/85">{{ 'VOICE_RING.PICKER_TITLE' | translate }}</span>
+        <span class="text-sm font-semibold text-text-primary">{{ 'VOICE_RING.PICKER_TITLE' | translate }}</span>
     </ng-template>
 
     <!--
@@ -23,8 +23,8 @@
         <div class="mb-3 flex items-center gap-2 rounded-lg border border-border-subtle bg-white/[0.03] px-3 py-2">
             <i class="pi pi-send text-brand-dim text-xs"></i>
             <div class="flex-1 min-w-0">
-                <p class="text-xs text-white/70 m-0">{{ 'VOICE_RING.PENDING' | translate }}</p>
-                <p class="text-[11px] text-white/40 m-0">{{ 'VOICE_RING.EXPIRES_IN' | translate: {seconds: out.secondsLeft} }}</p>
+                <p class="text-xs text-text-primary m-0">{{ 'VOICE_RING.PENDING' | translate }}</p>
+                <p class="text-[11px] text-text-muted m-0">{{ 'VOICE_RING.EXPIRES_IN' | translate: {seconds: out.secondsLeft} }}</p>
             </div>
             <p-button (onClick)="cancel()" [label]="'VOICE_RING.CANCEL' | translate" [text]="true" severity="secondary" size="small" />
         </div>
@@ -32,7 +32,7 @@
 
     @if (refusal(); as refused) {
         <div class="mb-3 rounded-lg border border-border-subtle bg-white/[0.03] px-3 py-2">
-            <p class="text-xs text-white/60 m-0">{{ refused.messageKey | translate }}</p>
+            <p class="text-xs text-text-secondary m-0">{{ refused.messageKey | translate }}</p>
         </div>
     }
 
@@ -47,7 +47,7 @@
 
     @if (loading()) {
         <div class="flex items-center justify-center py-8">
-            <i class="pi pi-spin pi-spinner text-white/40"></i>
+            <i class="pi pi-spin pi-spinner text-text-muted"></i>
         </div>
     } @else {
         <div class="flex flex-col gap-1 max-h-72 overflow-y-auto thin-scrollbar">
@@ -66,10 +66,10 @@
                             type="button"
                         >
                             <app-avatar [label]="candidate.name.charAt(0).toUpperCase()" [userId]="candidate.userId" />
-                            <span class="flex-1 text-sm text-white/80 truncate">{{ candidate.name }}</span>
+                            <span class="flex-1 text-sm text-text-primary truncate">{{ candidate.name }}</span>
 
                             @if (inviting() === candidate.userId) {
-                                <i class="pi pi-spin pi-spinner text-[11px] text-white/40 shrink-0"></i>
+                                <i class="pi pi-spin pi-spinner text-[11px] text-text-muted shrink-0"></i>
                             } @else if (invited().has(candidate.userId)) {
                                 <span class="shrink-0 flex items-center gap-1 text-[11px] text-online">
                                     <i class="pi pi-check text-[9px]"></i>
@@ -88,7 +88,7 @@
                             [attr.aria-label]="'VOICE_RING.RING_THEM' | translate"
                             [disabled]="ringState.sending() || !!pending()"
                             [title]="'VOICE_RING.RING_THEM' | translate"
-                            class="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-white/35 hover:text-brand-dim hover:bg-hover disabled:opacity-30 disabled:cursor-default cursor-pointer border-0 bg-transparent transition-colors"
+                            class="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-text-muted hover:text-brand-dim hover:bg-hover disabled:opacity-30 disabled:cursor-default cursor-pointer border-0 bg-transparent transition-colors"
                             type="button"
                         >
                             <i class="pi pi-bell text-xs"></i>
@@ -102,7 +102,7 @@
                     }
                 </div>
             } @empty {
-                <p class="text-xs text-white/40 text-center py-6 m-0">{{ 'VOICE_RING.NOBODY_TO_INVITE' | translate }}</p>
+                <p class="text-xs text-text-muted text-center py-6 m-0">{{ 'VOICE_RING.NOBODY_TO_INVITE' | translate }}</p>
             }
         </div>
     }

@@ -8,25 +8,25 @@
             <!-- Header -->
             <div class="flex shrink-0 items-center gap-2.5 border-b border-white/[0.08] px-5 py-3">
                 <i class="pi pi-sparkles text-sm text-brand-dim"></i>
-                <span class="flex-1 text-[0.875rem] font-semibold text-white/85">
+                <span class="flex-1 text-[0.875rem] font-semibold text-text-primary">
                     {{ 'WIKI.AI.ASK.TITLE' | translate }}
                 </span>
                 @if (turns().length) {
                     <button
                         (click)="clear()"
-                        class="cursor-pointer border-0 bg-transparent p-0 text-[0.6875rem] text-white/35 hover:text-white/70"
+                        class="cursor-pointer border-0 bg-transparent p-0 text-[0.6875rem] text-text-muted hover:text-text-primary"
                         type="button"
                     >
                         {{ 'WIKI.AI.ASK.NEW_CONVERSATION' | translate }}
                     </button>
                 }
-                <kbd class="rounded border border-border px-1.5 py-0.5 text-[0.625rem] text-white/30"> esc </kbd>
+                <kbd class="rounded border border-border px-1.5 py-0.5 text-[0.625rem] text-text-muted"> esc </kbd>
             </div>
 
             @if (connecting() || !ai.available()) {
                 <!-- Connect, in the same place the answer would have been. -->
                 <div class="flex-1 overflow-y-auto px-5 py-4 thin-scrollbar">
-                    <p class="mb-4 text-[0.8125rem] text-white/55">
+                    <p class="mb-4 text-[0.8125rem] text-text-secondary">
                         {{ 'WIKI.AI.CONNECT_INTRO' | translate }}
                     </p>
                     <app-ai-connect-form (connected)="onConnected()" [showBilling]="false" />
@@ -37,30 +37,30 @@
                 @if (!sourcesComplete()) {
                     <div class="flex shrink-0 items-center gap-2.5 border-b border-white/[0.08] bg-white/[0.02] px-5 py-2.5">
                         @if (sourcesLoading()) {
-                            <i class="pi pi-spin pi-spinner text-[0.75rem] text-white/30"></i>
-                            <span class="flex-1 text-[0.75rem] text-white/45">
+                            <i class="pi pi-spin pi-spinner text-[0.75rem] text-text-muted"></i>
+                            <span class="flex-1 text-[0.75rem] text-text-secondary">
                                 {{ 'WIKI.AI.ASK.LOADING_PAGES' | translate }}
                             </span>
                         } @else if (sourcesFailed()) {
                             <i class="pi pi-exclamation-triangle text-[0.75rem] text-connecting"></i>
-                            <span class="flex-1 text-[0.75rem] text-white/45">
+                            <span class="flex-1 text-[0.75rem] text-text-secondary">
                                 {{ 'WIKI.AI.ASK.PARTIAL_INDEX' | translate: {n: sources().length} }}
                             </span>
                             <button
                                 (click)="warmRequested.emit()"
-                                class="shrink-0 cursor-pointer rounded border-0 bg-white/[0.06] px-2 py-1 text-[0.75rem] text-white/70 hover:bg-hover"
+                                class="shrink-0 cursor-pointer rounded border-0 bg-white/[0.06] px-2 py-1 text-[0.75rem] text-text-primary hover:bg-hover"
                                 type="button"
                             >
                                 {{ 'COMMON.RETRY' | translate }}
                             </button>
                         } @else {
-                            <i class="pi pi-clock text-[0.75rem] text-white/30"></i>
-                            <span class="flex-1 text-[0.75rem] text-white/45">
+                            <i class="pi pi-clock text-[0.75rem] text-text-muted"></i>
+                            <span class="flex-1 text-[0.75rem] text-text-secondary">
                                 {{ 'WIKI.AI.ASK.NEEDS_INDEX' | translate }}
                             </span>
                             <button
                                 (click)="warmRequested.emit()"
-                                class="shrink-0 cursor-pointer rounded border-0 bg-white/[0.06] px-2 py-1 text-[0.75rem] text-white/70 hover:bg-hover"
+                                class="shrink-0 cursor-pointer rounded border-0 bg-white/[0.06] px-2 py-1 text-[0.75rem] text-text-primary hover:bg-hover"
                                 type="button"
                             >
                                 {{ 'WIKI.AI.ASK.LOAD_PAGES' | translate }}
@@ -73,13 +73,15 @@
                 <div class="flex-1 overflow-y-auto thin-scrollbar">
                     @for (turn of turns(); track $index; let last = $last) {
                         <div class="border-b border-white/[0.06] px-5 py-4 last:border-b-0">
-                            <p class="mb-2 flex items-start gap-2 text-[0.875rem] font-medium text-white/85">
-                                <i class="pi pi-comment mt-1 text-[0.6875rem] text-white/25"></i>
+                            <p class="mb-2 flex items-start gap-2 text-[0.875rem] font-medium text-text-primary">
+                                <i class="pi pi-comment mt-1 text-[0.6875rem] text-text-muted"></i>
                                 <span class="flex-1">{{ turn.question }}</span>
                             </p>
 
                             @if (turn.error) {
-                                <p class="rounded-lg border border-offline/30 bg-offline/[0.08] px-3 py-2 text-[0.8125rem] text-white/70">
+                                <p
+                                    class="rounded-lg border border-offline/30 bg-offline/[0.08] px-3 py-2 text-[0.8125rem] text-text-primary"
+                                >
                                     {{ turn.error }}
                                 </p>
                             }
@@ -90,14 +92,14 @@
                             <div
                                 (click)="onAnswerClick($event)"
                                 [innerHTML]="renderAnswer(turn.answer)"
-                                class="wiki-content pl-5 text-[0.8125rem] leading-relaxed text-white/70"
+                                class="wiki-content pl-5 text-[0.8125rem] leading-relaxed text-text-primary"
                             ></div>
                             @if (running() && last) {
                                 <span class="ml-5 inline-block h-3 w-1.5 animate-pulse bg-brand-dim align-middle"></span>
                             }
 
                             @if (turn.answer && !running()) {
-                                <p class="mt-2 pl-5 text-[0.6875rem] text-white/25">
+                                <p class="mt-2 pl-5 text-[0.6875rem] text-text-muted">
                                     @if (turn.complete) {
                                         {{ 'WIKI.AI.ASK.SCOPE_FULL' | translate: {n: turn.sourceCount} }}
                                     } @else {
@@ -109,10 +111,10 @@
                     } @empty {
                         <div class="px-5 py-10 text-center">
                             <i class="pi pi-sparkles mb-3 block text-2xl text-white/10"></i>
-                            <p class="text-[0.8125rem] text-white/35">
+                            <p class="text-[0.8125rem] text-text-muted">
                                 {{ 'WIKI.AI.ASK.EMPTY_TITLE' | translate }}
                             </p>
-                            <p class="mt-1 text-[0.75rem] text-white/20">
+                            <p class="mt-1 text-[0.75rem] text-text-faint">
                                 {{ 'WIKI.AI.ASK.EMPTY_HINT' | translate }}
                             </p>
                         </div>
@@ -127,12 +129,12 @@
                         [(ngModel)]="question"
                         [disabled]="blocked()"
                         [placeholder]="(blocked() ? 'WIKI.AI.ASK.PLACEHOLDER_WAITING' : 'WIKI.AI.ASK.PLACEHOLDER') | translate"
-                        class="flex-1 border-0 bg-transparent text-[0.9375rem] text-white/85 outline-none placeholder-white/25 disabled:cursor-not-allowed"
+                        class="flex-1 border-0 bg-transparent text-[0.9375rem] text-text-primary outline-none placeholder-white/25 disabled:cursor-not-allowed"
                     />
                     @if (running()) {
                         <button
                             (click)="stop()"
-                            class="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md border-0 bg-white/[0.06] px-2.5 py-1.5 text-[0.75rem] text-white/70 hover:bg-hover"
+                            class="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md border-0 bg-white/[0.06] px-2.5 py-1.5 text-[0.75rem] text-text-primary hover:bg-hover"
                             type="button"
                         >
                             <i class="pi pi-stop text-[0.625rem]"></i>

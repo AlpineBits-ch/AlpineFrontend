@@ -55,13 +55,13 @@
                             @if (embed().provider!.url) {
                                 <button
                                     (click)="openUrl(embed().provider!.url!)"
-                                    class="self-start p-0 border-0 bg-transparent cursor-pointer text-[0.6875rem] text-white/40 hover:text-white/60 hover:underline transition-colors truncate max-w-full"
+                                    class="self-start p-0 border-0 bg-transparent cursor-pointer text-[0.6875rem] text-text-muted hover:text-text-secondary hover:underline transition-colors truncate max-w-full"
                                     type="button"
                                 >
                                     {{ embed().provider!.name }}
                                 </button>
                             } @else {
-                                <p class="text-[0.6875rem] text-white/40 truncate">{{ embed().provider!.name }}</p>
+                                <p class="text-[0.6875rem] text-text-muted truncate">{{ embed().provider!.name }}</p>
                             }
                         }
 
@@ -73,13 +73,13 @@
                                 @if (embed().author!.url) {
                                     <button
                                         (click)="openUrl(embed().author!.url!)"
-                                        class="p-0 border-0 bg-transparent cursor-pointer text-xs font-medium text-white/70 hover:underline truncate"
+                                        class="p-0 border-0 bg-transparent cursor-pointer text-xs font-medium text-text-primary hover:underline truncate"
                                         type="button"
                                     >
                                         {{ embed().author!.name }}
                                     </button>
                                 } @else {
-                                    <p class="text-xs font-medium text-white/70 truncate">{{ embed().author!.name }}</p>
+                                    <p class="text-xs font-medium text-text-primary truncate">{{ embed().author!.name }}</p>
                                 }
                             </div>
                         }
@@ -94,15 +94,18 @@
                                     {{ embed().title }}
                                 </button>
                             } @else {
-                                <p class="mt-1 text-[0.9375rem] font-semibold text-white/90">{{ embed().title }}</p>
+                                <p class="mt-1 text-[0.9375rem] font-semibold text-text-primary">{{ embed().title }}</p>
                             }
                         }
 
                         @if (embed().description) {
                             @if (allowMarkdown()) {
-                                <div [innerHTML]="embed().description | markdown" class="mt-1 text-sm text-white/70 leading-relaxed"></div>
+                                <div
+                                    [innerHTML]="embed().description | markdown"
+                                    class="mt-1 text-sm text-text-primary leading-relaxed"
+                                ></div>
                             } @else {
-                                <p class="mt-1 text-sm text-white/70 leading-relaxed whitespace-pre-wrap break-words line-clamp-6">
+                                <p class="mt-1 text-sm text-text-primary leading-relaxed whitespace-pre-wrap break-words line-clamp-6">
                                     {{ embed().description }}
                                 </p>
                             }
@@ -112,8 +115,8 @@
                             <div class="grid grid-cols-3 gap-x-4 gap-y-2 mt-2">
                                 @for (field of fields(); track $index) {
                                     <div [class]="field.inline ? '' : 'col-span-3'">
-                                        <p class="text-xs font-semibold text-white/80 mb-0.5">{{ field.name }}</p>
-                                        <div [innerHTML]="field.value | markdown" class="text-xs text-white/60"></div>
+                                        <p class="text-xs font-semibold text-text-primary mb-0.5">{{ field.name }}</p>
+                                        <div [innerHTML]="field.value | markdown" class="text-xs text-text-secondary"></div>
                                     </div>
                                 }
                             </div>
@@ -154,7 +157,7 @@
             }
 
             @if (footerText() || embed().timestamp) {
-                <div class="flex items-center gap-1.5 mt-2 text-[0.6875rem] text-white/35 min-w-0">
+                <div class="flex items-center gap-1.5 mt-2 text-[0.6875rem] text-text-muted min-w-0">
                     @if (footerIcon()) {
                         <img [src]="footerIcon()!" alt="" class="w-3.5 h-3.5 rounded-full object-cover shrink-0" />
                     }

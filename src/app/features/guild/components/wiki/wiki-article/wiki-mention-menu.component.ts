@@ -71,13 +71,13 @@ export function parseUserHref(href: string | null | undefined): string | null {
                                 [label]="initial(member)"
                                 styleClass="!w-6 !h-6 !text-[0.625rem]"
                             />
-                            <span class="min-w-0 flex-1 truncate text-[0.8125rem] text-white/75">
+                            <span class="min-w-0 flex-1 truncate text-[0.8125rem] text-text-primary">
                                 {{ member.name }}
                             </span>
                         </button>
                     }
                     @if (matches().length === 0) {
-                        <p class="px-3 py-2 text-[0.75rem] text-white/30">
+                        <p class="px-3 py-2 text-[0.75rem] text-text-muted">
                             {{ 'WIKI.MENTION_MENU.NO_MATCH' | translate }}
                         </p>
                     }

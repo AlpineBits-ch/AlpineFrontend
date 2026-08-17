@@ -1,7 +1,7 @@
 <div class="max-w-lg space-y-6">
     <!-- Icon -->
     <div>
-        <p class="text-xs font-semibold text-white/40 uppercase tracking-widest mb-3">
+        <p class="text-xs font-semibold text-text-muted uppercase tracking-widest mb-3">
             {{ 'GUILD_SETTINGS.OVERVIEW.SERVER_ICON' | translate }}
         </p>
         <div class="flex items-center gap-5">
@@ -25,7 +25,7 @@
             <div class="space-y-1.5">
                 <label class="block cursor-pointer">
                     <span
-                        class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] text-sm text-white/70 hover:text-white/90 transition-all cursor-pointer"
+                        class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] text-sm text-text-primary hover:text-text-primary transition-all cursor-pointer"
                     >
                         <i class="pi pi-upload text-xs"></i> {{ 'GUILD_SETTINGS.OVERVIEW.UPLOAD_IMAGE' | translate }}
                     </span>
@@ -48,7 +48,7 @@
 
     <!-- Name -->
     <div>
-        <label class="block text-xs font-semibold text-white/40 uppercase tracking-widest mb-2">
+        <label class="block text-xs font-semibold text-text-muted uppercase tracking-widest mb-2">
             {{ 'GUILD_SETTINGS.OVERVIEW.SERVER_NAME' | translate }} <span class="text-rose-400">*</span>
         </label>
         <input
@@ -72,7 +72,7 @@
 
     <!-- Description -->
     <div>
-        <label class="block text-xs font-semibold text-white/40 uppercase tracking-widest mb-2">{{
+        <label class="block text-xs font-semibold text-text-muted uppercase tracking-widest mb-2">{{
             'GUILD_SETTINGS.OVERVIEW.DESCRIPTION' | translate
         }}</label>
         <textarea
@@ -95,7 +95,7 @@
 
     <!-- System Channel -->
     <div>
-        <label class="block text-xs font-semibold text-white/40 uppercase tracking-widest mb-2">
+        <label class="block text-xs font-semibold text-text-muted uppercase tracking-widest mb-2">
             {{ 'GUILD_SETTINGS.OVERVIEW.SYSTEM_CHANNEL' | translate }}
         </label>
         <p-select
@@ -113,7 +113,7 @@
 
     <!-- Verification Level -->
     <div>
-        <label class="block text-xs font-semibold text-white/40 uppercase tracking-widest mb-2">
+        <label class="block text-xs font-semibold text-text-muted uppercase tracking-widest mb-2">
             {{ 'GUILD_SETTINGS.OVERVIEW.VERIFICATION_LEVEL' | translate }}
         </label>
         <p-select
@@ -170,11 +170,11 @@
         <span class="text-sm font-semibold text-rose-400">{{ 'GUILD_SETTINGS.OVERVIEW.DELETE_TITLE' | translate }}</span>
     </ng-template>
     <div class="flex flex-col gap-4 py-1">
-        <p class="text-sm text-white/70 m-0 leading-relaxed">
+        <p class="text-sm text-text-primary m-0 leading-relaxed">
             {{ 'GUILD_SETTINGS.OVERVIEW.DELETE_WARNING' | translate: {name: guild().name} }}
         </p>
         <div>
-            <label class="block text-xs font-semibold text-white/40 uppercase tracking-widest mb-2" for="delete-confirm-name">
+            <label class="block text-xs font-semibold text-text-muted uppercase tracking-widest mb-2" for="delete-confirm-name">
                 {{ 'GUILD_SETTINGS.OVERVIEW.DELETE_CONFIRM_LABEL' | translate }}
             </label>
             <!-- Enter deletes, which is safe here precisely because the guard is an exact match on the guild's own name: a stray Enter in a half-typed field does nothing, and having typed the whole name is already the deliberate act the dialog is asking for. -->

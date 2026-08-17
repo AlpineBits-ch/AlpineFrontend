@@ -26,14 +26,14 @@ import {searchWiki} from '../wiki-search';
                         "
                         class="flex w-full cursor-pointer items-center gap-2.5 border-0
                                    bg-transparent px-3 py-2 text-left text-[0.8125rem]
-                                   text-white/75"
+                                   text-text-primary"
                     >
-                        <i class="pi pi-file text-[0.75rem] text-white/40"></i>
+                        <i class="pi pi-file text-[0.75rem] text-text-muted"></i>
                         <span class="truncate">{{ page.title }}</span>
                     </button>
                 }
                 @if (matches().length === 0) {
-                    <p class="px-3 py-2 text-[0.75rem] text-white/30">
+                    <p class="px-3 py-2 text-[0.75rem] text-text-muted">
                         {{ 'WIKI.LINK_MENU.NO_MATCH' | translate }}
                     </p>
                 }

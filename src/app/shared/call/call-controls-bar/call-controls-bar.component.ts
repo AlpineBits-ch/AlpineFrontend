@@ -75,9 +75,9 @@ export class CallControlsBarComponent {
      * (muted, deafened); `brand` is for something they are actively doing (camera, screen share).
      */
     protected toggleClass(active: boolean, tone: 'danger' | 'brand', blocked = false): string {
-        if (blocked) return `${TOGGLE_BASE} cursor-not-allowed bg-white/[0.04] text-white/20`;
+        if (blocked) return `${TOGGLE_BASE} cursor-not-allowed bg-white/[0.04] text-text-faint`;
         if (!active) {
-            return `${TOGGLE_BASE} bg-white/[0.07] text-white/60 hover:bg-white/[0.12] hover:text-white/85`;
+            return `${TOGGLE_BASE} bg-white/[0.07] text-text-secondary hover:bg-white/[0.12] hover:text-text-primary`;
         }
         return tone === 'danger'
             ? `${TOGGLE_BASE} bg-offline/20 text-offline hover:bg-offline/30`
@@ -89,7 +89,7 @@ export class CallControlsBarComponent {
         if (!allowed) return `${SEGMENT_BASE} cursor-not-allowed bg-transparent text-white/15 line-through`;
         return active
             ? `${SEGMENT_BASE} bg-brand text-white`
-            : `${SEGMENT_BASE} bg-transparent text-white/45 hover:bg-white/[0.07] hover:text-white/75`;
+            : `${SEGMENT_BASE} bg-transparent text-text-secondary hover:bg-white/[0.07] hover:text-text-primary`;
     }
 
     protected isResolution(resolution: StreamResolution): boolean {

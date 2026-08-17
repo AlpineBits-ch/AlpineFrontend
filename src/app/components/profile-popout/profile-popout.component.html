@@ -40,11 +40,11 @@
                         [disabled]="sending()"
                         [value]="draft()"
                         [placeholder]="'PROFILE.MESSAGE_PLACEHOLDER' | translate: {name: placeholderName()}"
-                        class="w-full min-w-0 border-0 bg-transparent text-sm text-white/80 outline-none placeholder:text-white/30 disabled:opacity-50"
+                        class="w-full min-w-0 border-0 bg-transparent text-sm text-text-primary outline-none placeholder:text-text-muted disabled:opacity-50"
                         type="text"
                     />
                     @if (sending()) {
-                        <i class="pi pi-spin pi-spinner shrink-0 text-xs text-white/40"></i>
+                        <i class="pi pi-spin pi-spinner shrink-0 text-xs text-text-muted"></i>
                     }
                 </div>
             </div>

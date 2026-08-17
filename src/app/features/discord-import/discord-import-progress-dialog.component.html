@@ -26,10 +26,10 @@
     <div class="py-4 flex flex-col items-center gap-4 text-center">
         @if (job()?.status === 'Failed') {
             <i class="pi pi-times-circle text-3xl text-rose-400"></i>
-            <p class="text-sm text-white/70">{{ job()?.errorMessage || statusLabel() }}</p>
+            <p class="text-sm text-text-primary">{{ job()?.errorMessage || statusLabel() }}</p>
         } @else {
             <i class="pi pi-spin pi-spinner text-3xl" style="color: var(--color-brand-dim)"></i>
-            <p class="text-sm text-white/70">{{ statusLabel() }}</p>
+            <p class="text-sm text-text-primary">{{ statusLabel() }}</p>
         }
     </div>
 

@@ -64,6 +64,7 @@ import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {ToastService} from '../../../../services/toast.service';
 import {describeRefusal} from '../../../../core/refusal-message';
 import {PinnedMessagesPanelComponent} from '../pinned-messages-panel/pinned-messages-panel.component';
+import {JumpToPresentComponent} from '../../../../components/jump-to-present/jump-to-present.component';
 
 @Component({
     selector: 'app-conversation',
@@ -86,6 +87,7 @@ import {PinnedMessagesPanelComponent} from '../pinned-messages-panel/pinned-mess
         MlsJoinRequestReviewComponent,
         SystemMessageComponent,
         DateDividerComponent,
+        JumpToPresentComponent,
     ],
     templateUrl: './conversation.component.html',
     styleUrl: './conversation.component.css',

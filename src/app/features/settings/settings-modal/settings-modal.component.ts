@@ -146,7 +146,7 @@ export class SettingsModalComponent {
     }
 
     /** Add a new page: create its component, add an entry here, add a @case below. */
-    navItemClasses(id: string, inactiveText = 'text-white/50'): Record<string, boolean> {
+    navItemClasses(id: string, inactiveText = 'text-text-secondary'): Record<string, boolean> {
         const active = this.activePage() === id;
         return {
             'bg-[color-mix(in_srgb,var(--color-brand)_15%,transparent)]': active,

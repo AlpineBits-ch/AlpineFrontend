@@ -45,7 +45,7 @@ export class CallTileActionComponent {
 
     protected readonly buttonClass = computed(() => {
         const box = this.size() === 'sm' ? 'w-7 h-7' : 'w-8 h-8';
-        const tint = this.tone() === 'danger' ? 'text-offline' : 'text-white/75 hover:text-white';
+        const tint = this.tone() === 'danger' ? 'text-offline' : 'text-text-primary hover:text-white';
         return (
             `call-focusable ${box} ${tint} flex items-center justify-center rounded-lg border border-white/10` +
             ' bg-black/45 hover:bg-black/70 transition-colors cursor-pointer'

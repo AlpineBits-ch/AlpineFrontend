@@ -14,7 +14,7 @@
     <div
         class="absolute bottom-full right-0 z-50 mb-2 flex w-64 flex-col gap-3 rounded-xl border border-border-subtle bg-card p-3 shadow-xl"
     >
-        <p class="text-xs font-semibold uppercase tracking-wide text-white/40">
+        <p class="text-xs font-semibold uppercase tracking-wide text-text-muted">
             {{ 'VOICE_BAR.NOISE_SUPPRESSION' | translate }}
         </p>
 
@@ -34,12 +34,12 @@
 
         <!-- Fixed height: the three hints wrap to different line counts, and a panel that resizes
              under the cursor moves the buttons the user is aiming at. -->
-        <p class="min-h-[2.25rem] text-[0.6875rem] leading-snug text-white/40">
+        <p class="min-h-[2.25rem] text-[0.6875rem] leading-snug text-text-muted">
             {{ hintKey() | translate }}
         </p>
 
         <div class="flex flex-col gap-1.5 border-t border-border-subtle pt-2.5">
-            <span class="text-[0.6875rem] text-white/35">{{ 'VOICE_BAR.NS_YOUR_MIC' | translate }}</span>
+            <span class="text-[0.6875rem] text-text-muted">{{ 'VOICE_BAR.NS_YOUR_MIC' | translate }}</span>
             <span class="flex h-3 items-stretch gap-[2px]">
                 @for (bar of bars; track $index) {
                     <span

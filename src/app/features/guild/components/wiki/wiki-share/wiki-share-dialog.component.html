@@ -14,7 +14,7 @@
     <ng-template pTemplate="header">
         <div class="flex min-w-0 items-center gap-2">
             <i class="pi pi-share-alt text-brand-dim text-sm"></i>
-            <span class="truncate text-base font-semibold text-white/85">
+            <span class="truncate text-base font-semibold text-text-primary">
                 {{ 'WIKI.SHARE.TITLE' | translate }}
             </span>
         </div>
@@ -24,24 +24,24 @@
     @if (page(); as target) {
         <div class="mb-3 flex items-center gap-2.5 rounded-xl border border-border-default bg-white/[0.03] px-3 py-2.5">
             <i class="pi pi-book shrink-0 text-sm text-brand-dim"></i>
-            <span class="truncate text-sm font-medium text-white/75">{{ target.title }}</span>
+            <span class="truncate text-sm font-medium text-text-primary">{{ target.title }}</span>
         </div>
     }
 
     <div class="relative px-1 pb-3">
-        <i class="pi pi-search pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-white/30"></i>
+        <i class="pi pi-search pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-text-muted"></i>
         <input
             (ngModelChange)="search.set($event)"
             [ngModel]="search()"
             [placeholder]="'WIKI.SHARE.SEARCH' | translate"
-            class="w-full !rounded-xl !border-white/[0.08] !bg-white/[0.04] !pl-9 !text-sm placeholder:text-white/25"
+            class="w-full !rounded-xl !border-white/[0.08] !bg-white/[0.04] !pl-9 !text-sm placeholder:text-text-muted"
             pInputText
         />
     </div>
 
     <div class="thin-scrollbar -mx-1 max-h-64 overflow-y-auto px-1">
         @if (filtered().length === 0) {
-            <p class="py-6 text-center text-sm text-white/30">{{ 'WIKI.SHARE.NO_TARGETS' | translate }}</p>
+            <p class="py-6 text-center text-sm text-text-muted">{{ 'WIKI.SHARE.NO_TARGETS' | translate }}</p>
         }
         @for (target of filtered(); track target.kind + ':' + target.id) {
             <button
@@ -51,15 +51,15 @@
                 type="button"
             >
                 <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/10">
-                    <i [class]="target.icon" class="text-xs text-white/50"></i>
+                    <i [class]="target.icon" class="text-xs text-text-secondary"></i>
                 </span>
                 <span
-                    [ngClass]="selectedId() === target.id ? 'text-brand-dim' : 'text-white/75'"
+                    [ngClass]="selectedId() === target.id ? 'text-brand-dim' : 'text-text-primary'"
                     class="min-w-0 flex-1 truncate text-sm font-medium"
                     >{{ target.label }}</span
                 >
                 @if (target.context) {
-                    <span class="shrink-0 truncate text-[0.6875rem] text-white/25">{{ target.context }}</span>
+                    <span class="shrink-0 truncate text-[0.6875rem] text-text-muted">{{ target.context }}</span>
                 }
                 @if (selectedId() === target.id) {
                     <i class="pi pi-check shrink-0 text-xs text-brand-dim"></i>
@@ -73,7 +73,7 @@
             (ngModelChange)="note.set($event)"
             [ngModel]="note()"
             [placeholder]="'WIKI.SHARE.NOTE_PLACEHOLDER' | translate"
-            class="w-full !rounded-xl !border-white/[0.08] !bg-white/[0.04] !text-sm placeholder:text-white/25"
+            class="w-full !rounded-xl !border-white/[0.08] !bg-white/[0.04] !text-sm placeholder:text-text-muted"
             pInputText
         />
     </div>

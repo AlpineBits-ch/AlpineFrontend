@@ -5,7 +5,7 @@
             @for (f of filters; track f) {
                 <button
                     (click)="activeFilter.set(f)"
-                    [ngClass]="activeFilter() === f ? 'bg-white/[0.08] text-white/85' : 'text-white/40 hover:text-white/60'"
+                    [ngClass]="activeFilter() === f ? 'bg-white/[0.08] text-text-primary' : 'text-text-muted hover:text-text-secondary'"
                     class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer border-0"
                 >
                     {{ f }}
@@ -35,8 +35,8 @@
     <!-- Empty state -->
     @if (!loading() && filtered.length === 0 && !error()) {
         <div class="flex flex-col items-center gap-3 py-12 text-center">
-            <i class="pi pi-server text-3xl text-white/20"></i>
-            <p class="text-sm text-white/35">No instances found</p>
+            <i class="pi pi-server text-3xl text-text-faint"></i>
+            <p class="text-sm text-text-muted">No instances found</p>
         </div>
     }
 
@@ -47,13 +47,13 @@
                 <div class="flex items-center gap-3 bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-3">
                     <!-- Icon -->
                     <div class="w-9 h-9 rounded-lg bg-white/[0.06] flex items-center justify-center shrink-0">
-                        <i class="pi pi-server text-sm text-white/50"></i>
+                        <i class="pi pi-server text-sm text-text-secondary"></i>
                     </div>
 
                     <!-- Info -->
                     <div class="flex-1 min-w-0">
                         <div class="flex items-center gap-2">
-                            <p class="text-sm font-medium text-white/80 truncate">{{ instance.name }}</p>
+                            <p class="text-sm font-medium text-text-primary truncate">{{ instance.name }}</p>
                             <span
                                 [ngClass]="statusClass(instance.status)"
                                 class="text-[0.625rem] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full shrink-0"
@@ -61,7 +61,7 @@
                                 {{ instance.status }}
                             </span>
                         </div>
-                        <p class="text-xs text-white/35 truncate mt-0.5">{{ instance.host }}</p>
+                        <p class="text-xs text-text-muted truncate mt-0.5">{{ instance.host }}</p>
                     </div>
 
                     <!-- Actions -->

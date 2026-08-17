@@ -3,9 +3,10 @@
 }
 
 /* Markdown rendered elements inside message text */
+/* Has to clear the body colour, not sit under it. */
 :host ::ng-deep strong {
     font-weight: 600;
-    color: rgba(255, 255, 255, 0.9);
+    color: #ffffff;
 }
 
 :host ::ng-deep em {
@@ -14,7 +15,7 @@
 
 :host ::ng-deep s {
     text-decoration: line-through;
-    color: rgba(255, 255, 255, 0.45);
+    color: var(--color-text-muted);
 }
 
 :host ::ng-deep code {
@@ -24,7 +25,7 @@
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 3px;
     padding: 0 4px;
-    color: rgba(255, 255, 255, 0.75);
+    color: var(--color-text-primary);
 }
 
 /* ── Code blocks (pre + code) ─────────────────────────────────────────────── */
@@ -63,7 +64,7 @@
     border-radius: 0;
     padding: 0;
     font-size: inherit;
-    color: rgba(255, 255, 255, 0.82);
+    color: var(--color-text-primary);
 }
 
 /* ── highlight.js token colours (Material-inspired dark) ─────────────────── */

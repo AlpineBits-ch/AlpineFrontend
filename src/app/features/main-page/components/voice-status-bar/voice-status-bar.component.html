@@ -18,11 +18,11 @@
                 <p [class]="'text-xs font-semibold leading-tight ' + labelClass()">
                     {{ status.labelKey | translate }}
                 </p>
-                <p class="mt-0.5 truncate text-[0.6875rem] leading-tight text-white/55">
+                <p class="mt-0.5 truncate text-[0.6875rem] leading-tight text-text-secondary">
                     @if (isGuildVoice()) {
                         {{ voiceSvc.joinedChannelName() }}
                         @if (voiceSvc.joinedGuildName()) {
-                            <span class="text-white/35"> · {{ voiceSvc.joinedGuildName() }}</span>
+                            <span class="text-text-muted"> · {{ voiceSvc.joinedGuildName() }}</span>
                         }
                     } @else {
                         {{ dmPeerName() }}
@@ -36,7 +36,7 @@
                     (click)="showMiniPlayer()"
                     [attr.aria-label]="'CALL.SHOW_MINI_PLAYER' | translate"
                     [attr.title]="'CALL.SHOW_MINI_PLAYER' | translate"
-                    class="call-focusable flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-lg border-0 bg-white/[0.06] text-white/70 transition-colors hover:bg-white/[0.12]"
+                    class="call-focusable flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-lg border-0 bg-white/[0.06] text-text-primary transition-colors hover:bg-white/[0.12]"
                     type="button"
                 >
                     <i class="pi pi-window-minimize text-xs"></i>
@@ -51,7 +51,7 @@
                     (click)="startSharing()"
                     [attr.aria-label]="'CALL.SHARE_SCREEN' | translate"
                     [attr.title]="'CALL.SHARE_SCREEN' | translate"
-                    class="call-focusable flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-lg border-0 bg-white/[0.06] text-white/70 transition-colors hover:bg-white/[0.12]"
+                    class="call-focusable flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-lg border-0 bg-white/[0.06] text-text-primary transition-colors hover:bg-white/[0.12]"
                     type="button"
                 >
                     <i class="pi pi-desktop text-xs"></i>
@@ -103,21 +103,21 @@
                         <img [alt]="'CALL.YOUR_SCREEN' | translate" [src]="preview" class="h-full w-full object-contain" />
                     } @else {
                         <span class="flex h-full w-full items-center justify-center">
-                            <i class="pi pi-desktop text-xs text-white/20"></i>
+                            <i class="pi pi-desktop text-xs text-text-faint"></i>
                         </span>
                     }
                 </span>
                 <span class="min-w-0">
                     @if (paused) {
                         <span class="flex items-center gap-1.5">
-                            <i class="pi pi-pause-circle text-[0.625rem] text-white/40"></i>
-                            <span class="truncate text-[0.6875rem] text-white/55">
+                            <i class="pi pi-pause-circle text-[0.625rem] text-text-muted"></i>
+                            <span class="truncate text-[0.6875rem] text-text-secondary">
                                 {{ 'CALL.PREVIEW_PAUSED' | translate }}
                             </span>
                         </span>
                     } @else {
                         <app-call-live-badge [dot]="true" size="sm" variant="soft" />
-                        <span class="mt-0.5 block truncate text-[0.6875rem] text-white/55">
+                        <span class="mt-0.5 block truncate text-[0.6875rem] text-text-secondary">
                             {{ 'CALL.YOU_ARE_LIVE' | translate }}
                         </span>
                     }

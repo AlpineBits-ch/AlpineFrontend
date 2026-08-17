@@ -16,7 +16,7 @@
             <div class="flex flex-col flex-1">
                 @for (group of navGroups(); track group.titleKey) {
                     <div class="px-3 mb-4">
-                        <p class="text-[0.625rem] font-semibold text-white/25 uppercase tracking-widest px-3 mb-1">
+                        <p class="text-[0.625rem] font-semibold text-text-muted uppercase tracking-widest px-3 mb-1">
                             {{ group.titleKey | translate }}
                         </p>
                         @for (item of group.items; track item.id) {
@@ -53,14 +53,14 @@
                     class="flex items-center justify-between px-4 border-b border-white/[0.10] shrink-0"
                     style="padding-top: calc(env(safe-area-inset-top) + 1rem); padding-bottom: 1rem"
                 >
-                    <h1 class="text-base font-semibold text-white/85">{{ 'SETTINGS.TITLE' | translate }}</h1>
+                    <h1 class="text-base font-semibold text-text-primary">{{ 'SETTINGS.TITLE' | translate }}</h1>
                     <p-button (onClick)="isVisible.set(false)" [text]="true" icon="pi pi-times" severity="secondary" size="small" />
                 </div>
 
                 <!-- Nav items -->
                 <div class="flex-1 overflow-y-auto px-4 py-4 thin-scrollbar">
                     @for (group of navGroups(); track group.titleKey) {
-                        <p [class.mt-5]="!$first" class="text-[0.625rem] font-semibold text-white/25 uppercase tracking-widest px-1 mb-2">
+                        <p [class.mt-5]="!$first" class="text-[0.625rem] font-semibold text-text-muted uppercase tracking-widest px-1 mb-2">
                             {{ group.titleKey | translate }}
                         </p>
                         <div class="flex flex-col gap-1 mb-2">
@@ -69,9 +69,9 @@
                                     (click)="selectPage(item.id)"
                                     class="flex items-center gap-3 w-full px-4 py-3.5 rounded-xl text-sm font-medium transition-all cursor-pointer border-0 text-left bg-white/[0.04] active:bg-white/[0.08]"
                                 >
-                                    <i [class]="item.icon" class="text-base text-white/50 w-5 text-center shrink-0"></i>
-                                    <span class="flex-1 text-white/80">{{ item.labelKey | translate }}</span>
-                                    <i class="pi pi-angle-right text-sm text-white/25"></i>
+                                    <i [class]="item.icon" class="text-base text-text-secondary w-5 text-center shrink-0"></i>
+                                    <span class="flex-1 text-text-primary">{{ item.labelKey | translate }}</span>
+                                    <i class="pi pi-angle-right text-sm text-text-muted"></i>
                                 </button>
                             }
                         </div>
@@ -106,7 +106,7 @@
                     severity="secondary"
                     size="small"
                 />
-                <h1 class="text-base font-semibold text-white/85 flex-1">
+                <h1 class="text-base font-semibold text-text-primary flex-1">
                     @for (group of navGroups(); track group.titleKey) {
                         @for (item of group.items; track item.id) {
                             @if (item.id === activePage()) {

@@ -1,7 +1,9 @@
-import {DestroyRef, inject, Injectable} from '@angular/core';
+import {DestroyRef, inject, Injectable, signal} from '@angular/core';
 
 const SCROLL_BOTTOM_THRESHOLD = 100;
 const LOAD_MORE_THRESHOLD = 400;
+const VIEWING_OLDER_THRESHOLD = 500;
+const SMOOTH_JUMP_DISTANCE = 600;
 
 /**
  * Manages all scroll mechanics for the conversation view:
@@ -17,6 +19,8 @@ export class ConversationScrollService {
     restoreScroll = false;
     pendingScrollToBottom = false;
     lastConvId = '';
+    /** Drives the jump-to-present pill. Further from the bottom than isNearBottom, so a small nudge does not raise it. */
+    readonly isViewingOlder = signal(false);
     private scrollEl?: HTMLDivElement;
     private observedListEl?: HTMLDivElement;
     private contentObserver = new ResizeObserver(() => {
@@ -40,6 +44,7 @@ export class ConversationScrollService {
     /** Call when the active conversation has changed (detected by the host component). */
     onConversationSwitch(): void {
         this.isNearBottom = true;
+        this.isViewingOlder.set(false);
         this.restoreScroll = false;
         requestAnimationFrame(() => {
             if (this.isNearBottom) this.scrollToBottom();
@@ -56,8 +61,7 @@ export class ConversationScrollService {
         const el = this.scrollEl;
         if (!el) return;
 
-        const fromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-        this.isNearBottom = fromBottom < SCROLL_BOTTOM_THRESHOLD;
+        this.measure(el);
 
         if (el.scrollTop < LOAD_MORE_THRESHOLD && hasMore && !loadingMore) {
             this.savedScrollHeight = el.scrollHeight;
@@ -85,6 +89,9 @@ export class ConversationScrollService {
             this.pendingScrollToBottom = false;
         }
 
+        // New messages arriving while scrolled up grow the list without firing a scroll event.
+        this.measure(el);
+
         // Keep observer pointed at the current message list element: it
         // appears/disappears as search mode and error states are toggled.
         if (messageListEl !== this.observedListEl) {
@@ -103,6 +110,16 @@ export class ConversationScrollService {
         this.scrollEl.scrollTop = this.scrollEl.scrollHeight;
         // Mark as near-bottom so the ResizeObserver keeps scrolling for late-loading content.
         this.isNearBottom = true;
+        this.isViewingOlder.set(false);
+    }
+
+    /** Jump-to-present. Anything further up hard-cuts first, so the animated part is the same length from any depth. */
+    jumpToPresent(): void {
+        const el = this.scrollEl;
+        if (!el) return;
+        const target = el.scrollHeight - el.clientHeight;
+        if (target - el.scrollTop > SMOOTH_JUMP_DISTANCE) el.scrollTop = target - SMOOTH_JUMP_DISTANCE;
+        el.scrollTo({top: target, behavior: 'smooth'});
     }
 
     /** Scroll to and briefly highlight a message by its ID. */
@@ -114,6 +131,12 @@ export class ConversationScrollService {
             el.classList.add('msg-highlight');
             setTimeout(() => el.classList.remove('msg-highlight'), 2000);
         }
+    }
+
+    private measure(el: HTMLDivElement): void {
+        const fromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+        this.isNearBottom = fromBottom < SCROLL_BOTTOM_THRESHOLD;
+        this.isViewingOlder.set(fromBottom > VIEWING_OLDER_THRESHOLD);
     }
 
     // (load does not bubble, so capture phase is required).

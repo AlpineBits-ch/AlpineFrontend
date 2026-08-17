@@ -3,8 +3,8 @@
     <header class="app-header flex shrink-0 items-center gap-3 border-b border-white/[0.08] px-6">
         <p-button (onClick)="back.emit()" [text]="true" icon="pi pi-arrow-left" severity="secondary" size="small" />
         <div class="min-w-0">
-            <p class="text-sm font-semibold text-white/80">{{ 'WIKI.HISTORY_PAGE.TITLE' | translate }}</p>
-            <p class="truncate text-xs text-white/35">{{ page().title }}</p>
+            <p class="text-sm font-semibold text-text-primary">{{ 'WIKI.HISTORY_PAGE.TITLE' | translate }}</p>
+            <p class="truncate text-xs text-text-muted">{{ page().title }}</p>
         </div>
 
         @if (revisions().length) {
@@ -13,8 +13,8 @@
                     <button
                         (click)="layout.set(option === 'split' ? 'split' : 'unified')"
                         [class.bg-card]="layout() === option"
-                        [class.text-white/80]="layout() === option"
-                        [class.text-white/35]="layout() !== option"
+                        [class.text-text-primary]="layout() === option"
+                        [class.text-text-muted]="layout() !== option"
                         [pTooltip]="
                             (option === 'split' ? 'WIKI.HISTORY_PAGE.LAYOUT_SPLIT' : 'WIKI.HISTORY_PAGE.LAYOUT_UNIFIED') | translate
                         "
@@ -33,22 +33,22 @@
         <div class="mx-auto max-w-3xl px-6 py-6">
             @if (loading()) {
                 <div class="flex items-center justify-center py-16">
-                    <i class="pi pi-spin pi-spinner text-xl text-white/25"></i>
+                    <i class="pi pi-spin pi-spinner text-xl text-text-muted"></i>
                 </div>
             } @else if (revisions().length === 0) {
                 <div class="py-16 text-center">
                     <i class="pi pi-clock mb-3 block text-3xl text-white/10"></i>
-                    <p class="text-sm text-white/30">{{ 'WIKI.HISTORY_PAGE.EMPTY' | translate }}</p>
+                    <p class="text-sm text-text-muted">{{ 'WIKI.HISTORY_PAGE.EMPTY' | translate }}</p>
                 </div>
             } @else {
                 <div class="mb-3 flex flex-wrap items-center gap-2">
-                    <span class="text-[0.6875rem] text-white/30">{{ 'WIKI.HISTORY_PAGE.COMPARE_AGAINST' | translate }}</span>
+                    <span class="text-[0.6875rem] text-text-muted">{{ 'WIKI.HISTORY_PAGE.COMPARE_AGAINST' | translate }}</span>
                     @for (mode of ['previous', 'current']; track mode) {
                         <button
                             (click)="compareMode.set(mode === 'current' ? 'current' : 'previous')"
                             [class.bg-hover]="compareMode() === mode"
-                            [class.text-white/80]="compareMode() === mode"
-                            [class.text-white/40]="compareMode() !== mode"
+                            [class.text-text-primary]="compareMode() === mode"
+                            [class.text-text-muted]="compareMode() !== mode"
                             class="cursor-pointer rounded-md border-0 bg-transparent px-2 py-1 text-[0.6875rem] hover:bg-hover"
                         >
                             {{
@@ -57,7 +57,7 @@
                             }}
                         </button>
                     }
-                    <span class="ml-auto text-[0.6875rem] text-white/25">
+                    <span class="ml-auto text-[0.6875rem] text-text-muted">
                         {{ 'WIKI.HISTORY_PAGE.PICK_TWO_HINT' | translate }}
                     </span>
                 </div>
@@ -66,12 +66,12 @@
                 @if (selection().length === 1) {
                     <div class="mb-4 flex items-center gap-3 rounded-xl border border-white/[0.10] bg-card px-4 py-3">
                         <i class="pi pi-arrows-h text-[0.75rem] text-brand-dim"></i>
-                        <p class="flex-1 text-[0.75rem] text-white/50">
+                        <p class="flex-1 text-[0.75rem] text-text-secondary">
                             {{ 'WIKI.HISTORY_PAGE.PICK_SECOND' | translate }}
                         </p>
                         <button
                             (click)="clearSelection()"
-                            class="cursor-pointer border-0 bg-transparent p-0 text-[0.75rem] text-white/35 hover:text-white/70"
+                            class="cursor-pointer border-0 bg-transparent p-0 text-[0.75rem] text-text-muted hover:text-text-primary"
                         >
                             {{ 'WIKI.HISTORY_PAGE.CLEAR' | translate }}
                         </button>
@@ -79,7 +79,7 @@
                 } @else if (comparison(); as pair) {
                     <div class="mb-5 rounded-xl border border-brand/30 bg-card">
                         <div class="flex flex-wrap items-center gap-3 border-b border-white/[0.06] px-4 py-3">
-                            <span class="font-mono text-[0.6875rem] text-white/45">
+                            <span class="font-mono text-[0.6875rem] text-text-secondary">
                                 v{{ pair.from.revisionNumber }} &rarr; v{{ pair.to.revisionNumber }}
                             </span>
                             <span class="font-mono text-[0.6875rem]">
@@ -90,12 +90,12 @@
                                     <span class="ml-1 text-rose-400/70">&minus;{{ pair.stat.removed }}</span>
                                 }
                             </span>
-                            <span class="text-[0.6875rem] text-white/25">
+                            <span class="text-[0.6875rem] text-text-muted">
                                 {{ formatDate(pair.from.createdAt) }} &rarr; {{ formatDate(pair.to.createdAt) }}
                             </span>
                             <button
                                 (click)="clearSelection()"
-                                class="ml-auto cursor-pointer border-0 bg-transparent p-0 text-[0.75rem] text-white/35 hover:text-white/70"
+                                class="ml-auto cursor-pointer border-0 bg-transparent p-0 text-[0.75rem] text-text-muted hover:text-text-primary"
                             >
                                 {{ 'WIKI.HISTORY_PAGE.CLEAR' | translate }}
                             </button>
@@ -108,7 +108,7 @@
 
                 @for (group of groups(); track group.key) {
                     <section class="mb-5">
-                        <h2 class="mb-2 px-1 text-[0.625rem] font-semibold uppercase tracking-widest text-white/30">
+                        <h2 class="mb-2 px-1 text-[0.625rem] font-semibold uppercase tracking-widest text-text-muted">
                             @if (group.relation === 'today') {
                                 {{ 'WIKI.HISTORY_PAGE.TODAY' | translate }}
                             } @else if (group.relation === 'yesterday') {
@@ -149,18 +149,18 @@
 
                                         <div class="min-w-0 flex-1">
                                             @if (rev.summary) {
-                                                <p class="mb-0.5 truncate text-sm text-white/80">{{ rev.summary }}</p>
+                                                <p class="mb-0.5 truncate text-sm text-text-primary">{{ rev.summary }}</p>
                                             } @else {
-                                                <p class="mb-0.5 text-sm italic text-white/45">
+                                                <p class="mb-0.5 text-sm italic text-text-secondary">
                                                     {{ 'WIKI.HISTORY_PAGE.NO_SUMMARY' | translate }}
                                                 </p>
                                             }
-                                            <p class="flex flex-wrap items-center gap-x-2 text-xs text-white/30">
+                                            <p class="flex flex-wrap items-center gap-x-2 text-xs text-text-muted">
                                                 @if (editorName(rev); as name) {
-                                                    <span class="text-white/50">{{ name }}</span>
+                                                    <span class="text-text-secondary">{{ name }}</span>
                                                 }
                                                 <span>{{ formatTime(rev.createdAt) }}</span>
-                                                <span class="font-mono text-[0.6875rem] text-white/25">v{{ rev.revisionNumber }}</span>
+                                                <span class="font-mono text-[0.6875rem] text-text-muted">v{{ rev.revisionNumber }}</span>
                                                 @let stat = statFor(rev);
                                                 @if (stat.added || stat.removed) {
                                                     <span class="font-mono text-[0.6875rem]">
@@ -191,7 +191,7 @@
                                                 tooltipPosition="top"
                                             />
                                             @if (isCurrent) {
-                                                <span class="rounded-md bg-white/[0.04] px-2 py-1 text-[0.6875rem] text-white/30">
+                                                <span class="rounded-md bg-white/[0.04] px-2 py-1 text-[0.6875rem] text-text-muted">
                                                     {{ 'WIKI.HISTORY_PAGE.CURRENT' | translate }}
                                                 </span>
                                             } @else if (state.abilities().canManageRevisions) {
@@ -209,7 +209,7 @@
                                     <!-- Expandable diff: what the revision changed, not just what the page said. -->
                                     @if (expandedRevId() === rev.id) {
                                         <div class="border-t border-white/[0.06] px-4 pb-5">
-                                            <p class="pb-2 pt-3 text-[0.625rem] font-semibold uppercase tracking-widest text-white/25">
+                                            <p class="pb-2 pt-3 text-[0.625rem] font-semibold uppercase tracking-widest text-text-muted">
                                                 {{ 'WIKI.HISTORY_PAGE.CHANGES' | translate }}
                                             </p>
                                             <ng-container *ngTemplateOutlet="diffView; context: {lines: diffFor(rev)}"></ng-container>
@@ -228,14 +228,18 @@
 <!-- One diff renderer, used by both the inline expansion and the pair comparison, so the layout toggle applies to whichever of them is on screen. -->
 <ng-template #diffView let-lines="lines">
     @if (!lines.length) {
-        <p class="text-sm italic text-white/30">{{ 'WIKI.HISTORY_PAGE.NO_CHANGES' | translate }}</p>
+        <p class="text-sm italic text-text-muted">{{ 'WIKI.HISTORY_PAGE.NO_CHANGES' | translate }}</p>
     } @else if (layout() === 'split') {
         <div class="overflow-x-auto rounded-lg border border-white/[0.06] bg-app-bg font-mono text-[0.75rem]">
             <div class="grid min-w-[36rem] grid-cols-2">
                 @for (row of toSplit(lines); track $index) {
                     <div
                         [class]="
-                            row.kind === 'ctx' ? 'text-white/40' : row.left === null ? 'bg-white/[0.02]' : 'bg-rose-500/10 text-rose-300/90'
+                            row.kind === 'ctx'
+                                ? 'text-text-muted'
+                                : row.left === null
+                                  ? 'bg-white/[0.02]'
+                                  : 'bg-rose-500/10 text-rose-300/90'
                         "
                         class="whitespace-pre-wrap break-words border-r border-white/[0.06] px-3 py-0.5"
                     >
@@ -244,7 +248,7 @@
                     <div
                         [class]="
                             row.kind === 'ctx'
-                                ? 'text-white/40'
+                                ? 'text-text-muted'
                                 : row.right === null
                                   ? 'bg-white/[0.02]'
                                   : 'bg-emerald-500/10 text-emerald-300/90'
@@ -265,7 +269,7 @@
                             ? 'bg-emerald-500/10 text-emerald-300/90'
                             : line.type === 'del'
                               ? 'bg-rose-500/10 text-rose-300/90'
-                              : 'text-white/45'
+                              : 'text-text-secondary'
                     "
                     class="whitespace-pre-wrap px-3 py-0.5"
                 >

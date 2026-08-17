@@ -3,7 +3,7 @@
     @if (pendingDraft(); as draft) {
         <div class="flex shrink-0 items-center gap-3 border-b border-brand/20 bg-brand/[0.06] px-6 py-2.5">
             <i class="pi pi-history text-[0.8125rem] text-brand-dim"></i>
-            <span class="flex-1 text-[0.8125rem] text-white/70">
+            <span class="flex-1 text-[0.8125rem] text-text-primary">
                 {{ 'WIKI.DRAFT.UNSAVED' | translate: {age: draftAge()} }}
             </span>
             <button
@@ -14,7 +14,7 @@
             </button>
             <button
                 (click)="discardDraft()"
-                class="cursor-pointer border-0 bg-transparent px-1 text-[0.75rem] text-white/40 hover:text-white/65"
+                class="cursor-pointer border-0 bg-transparent px-1 text-[0.75rem] text-text-muted hover:text-text-secondary"
             >
                 {{ 'WIKI.DRAFT.DISCARD' | translate }}
             </button>
@@ -41,7 +41,7 @@
                 [class.cursor-default]="!editing()"
                 [ngModel]="title()"
                 [readOnly]="!editing()"
-                class="mb-2 w-full border-0 bg-transparent text-[2rem] font-bold leading-tight text-white/90 outline-none placeholder-white/20"
+                class="mb-2 w-full border-0 bg-transparent text-[2rem] font-bold leading-tight text-text-primary outline-none placeholder-white/20"
                 [placeholder]="'WIKI.ARTICLE.UNTITLED' | translate"
             />
 
@@ -52,10 +52,10 @@
             @if (showEmptyState()) {
                 <div class="rounded-xl border border-dashed border-white/[0.12] px-6 py-10 text-center">
                     <i class="pi pi-file-edit mb-3 block text-2xl text-white/15"></i>
-                    <p class="mb-1 text-sm text-white/45">
+                    <p class="mb-1 text-sm text-text-secondary">
                         {{ 'WIKI.ARTICLE.EMPTY_TITLE' | translate }}
                     </p>
-                    <p class="mb-5 text-xs text-white/25">
+                    <p class="mb-5 text-xs text-text-muted">
                         {{ 'WIKI.ARTICLE.EMPTY_HINT' | translate }}
                     </p>
                     <div class="flex items-center justify-center gap-2">
@@ -83,7 +83,7 @@
                     (keydown)="onSourceKeydown($event)"
                     (ngModelChange)="onSourceInput($event)"
                     [ngModel]="sourceText()"
-                    class="min-h-[24rem] w-full resize-y border-0 bg-transparent font-mono text-[0.8125rem] leading-relaxed text-white/80 outline-none placeholder-white/20 thin-scrollbar"
+                    class="min-h-[24rem] w-full resize-y border-0 bg-transparent font-mono text-[0.8125rem] leading-relaxed text-text-primary outline-none placeholder-white/20 thin-scrollbar"
                     [placeholder]="'WIKI.ARTICLE.SOURCE_PLACEHOLDER' | translate"
                     spellcheck="false"
                 ></textarea>
@@ -93,12 +93,12 @@
             @if (summaryApplies()) {
                 <div class="mt-6 border-t border-white/[0.06] pt-4">
                     <div class="flex items-center gap-2">
-                        <i class="pi pi-pencil text-[0.75rem] text-white/25"></i>
+                        <i class="pi pi-pencil text-[0.75rem] text-text-muted"></i>
                         <input
                             (keydown.enter)="save()"
                             (ngModelChange)="editSummary.set($event)"
                             [ngModel]="editSummary()"
-                            class="flex-1 border-0 bg-transparent text-[0.8125rem] text-white/70 outline-none placeholder-white/25"
+                            class="flex-1 border-0 bg-transparent text-[0.8125rem] text-text-primary outline-none placeholder-white/25"
                             [placeholder]="'WIKI.ARTICLE.SUMMARY_PLACEHOLDER' | translate"
                         />
                     </div>

@@ -7,18 +7,18 @@
         >
             <!-- Query -->
             <div class="flex items-center gap-3 border-b border-white/[0.08] px-4 py-3">
-                <i class="pi pi-search text-sm text-white/30"></i>
+                <i class="pi pi-search text-sm text-text-muted"></i>
                 <input
                     #queryInput
                     (ngModelChange)="query.set($event)"
                     [ngModel]="query()"
-                    class="flex-1 border-0 bg-transparent text-[0.9375rem] text-white/85 outline-none placeholder-white/25"
+                    class="flex-1 border-0 bg-transparent text-[0.9375rem] text-text-primary outline-none placeholder-white/25"
                     [placeholder]="'WIKI.SEARCH.PLACEHOLDER' | translate"
                 />
                 <button
                     (click)="filtersOpen.set(!filtersOpen())"
                     [class.text-brand-dim]="filtersOpen() || activeFilterCount() > 0"
-                    [class.text-white/30]="!filtersOpen() && activeFilterCount() === 0"
+                    [class.text-text-muted]="!filtersOpen() && activeFilterCount() === 0"
                     class="flex shrink-0 cursor-pointer items-center gap-1 rounded border-0 bg-transparent px-1.5 py-1 hover:bg-hover"
                     [attr.aria-label]="'WIKI.SEARCH.FILTERS' | translate"
                 >
@@ -27,7 +27,7 @@
                         <span class="text-[0.625rem]">{{ activeFilterCount() }}</span>
                     }
                 </button>
-                <kbd class="rounded border border-border px-1.5 py-0.5 text-[0.625rem] text-white/30"> esc </kbd>
+                <kbd class="rounded border border-border px-1.5 py-0.5 text-[0.625rem] text-text-muted"> esc </kbd>
             </div>
 
             <!-- Filters. Hidden until asked for: three dropdowns above every search would make the common case look like a form. -->
@@ -69,7 +69,7 @@
                     @if (activeFilterCount() > 0) {
                         <button
                             (click)="clearFilters()"
-                            class="shrink-0 cursor-pointer rounded border-0 bg-transparent px-1.5 py-1 text-[0.75rem] text-white/40 hover:bg-hover hover:text-white/70"
+                            class="shrink-0 cursor-pointer rounded border-0 bg-transparent px-1.5 py-1 text-[0.75rem] text-text-muted hover:bg-hover hover:text-text-primary"
                         >
                             {{ 'WIKI.SEARCH.CLEAR_FILTERS' | translate }}
                         </button>
@@ -81,12 +81,12 @@
             <div class="max-h-[50vh] overflow-y-auto thin-scrollbar">
                 @if (!query().trim() && activeFilterCount() === 0 && rows().length > 0) {
                     <div class="flex items-center justify-between px-4 pt-3 pb-1">
-                        <span class="text-[0.625rem] font-semibold uppercase tracking-widest text-white/25">
+                        <span class="text-[0.625rem] font-semibold uppercase tracking-widest text-text-muted">
                             {{ 'WIKI.SEARCH.RECENT' | translate }}
                         </span>
                         <button
                             (click)="recents.clear()"
-                            class="cursor-pointer border-0 bg-transparent text-[0.6875rem] text-white/25 hover:text-white/60"
+                            class="cursor-pointer border-0 bg-transparent text-[0.6875rem] text-text-muted hover:text-text-secondary"
                         >
                             {{ 'WIKI.SEARCH.CLEAR_RECENT' | translate }}
                         </button>
@@ -102,48 +102,48 @@
                         <!-- `@if` rather than `@switch`, so the union narrows for the template type checker on every branch. -->
                         @if (row.kind === 'page') {
                             <span class="flex w-full items-center gap-2">
-                                <i class="pi pi-file shrink-0 text-[0.6875rem] text-white/30"></i>
-                                <span class="flex-1 truncate text-[0.875rem] text-white/80">
+                                <i class="pi pi-file shrink-0 text-[0.6875rem] text-text-muted"></i>
+                                <span class="flex-1 truncate text-[0.875rem] text-text-primary">
                                     {{ row.page.title }}
                                 </span>
                                 @if (row.hit.matchedIn === 'tag') {
-                                    <span class="shrink-0 rounded bg-white/[0.06] px-1.5 py-0.5 text-[0.625rem] text-white/40">
+                                    <span class="shrink-0 rounded bg-white/[0.06] px-1.5 py-0.5 text-[0.625rem] text-text-muted">
                                         {{ 'WIKI.SEARCH.MATCHED_TAG' | translate }}
                                     </span>
                                 }
                             </span>
                             <!-- Path, not just the category: two pages called "Overview" are otherwise the same row twice. -->
                             @if (row.path.length > 1) {
-                                <span class="w-full truncate pl-5 text-[0.6875rem] text-white/30">
+                                <span class="w-full truncate pl-5 text-[0.6875rem] text-text-muted">
                                     {{ row.path.slice(0, -1).join(' › ') }}
                                 </span>
                             }
                             @if (row.hit.snippet) {
-                                <span class="w-full truncate pl-5 text-[0.75rem] text-white/40">
+                                <span class="w-full truncate pl-5 text-[0.75rem] text-text-muted">
                                     {{ row.hit.snippet }}
                                 </span>
                             }
                         } @else if (row.kind === 'create') {
                             <span class="flex w-full items-center gap-2">
                                 <i class="pi pi-plus shrink-0 text-[0.6875rem] text-brand-dim"></i>
-                                <span class="flex-1 truncate text-[0.875rem] text-white/80">
+                                <span class="flex-1 truncate text-[0.875rem] text-text-primary">
                                     {{ 'WIKI.SEARCH.CREATE_PAGE' | translate: {title: row.title} }}
                                 </span>
                                 @if (creating()) {
-                                    <i class="pi pi-spin pi-spinner shrink-0 text-[0.6875rem] text-white/40"></i>
+                                    <i class="pi pi-spin pi-spinner shrink-0 text-[0.6875rem] text-text-muted"></i>
                                 }
                             </span>
                         } @else {
                             <span class="flex w-full items-center gap-2">
-                                <i class="pi pi-clock shrink-0 text-[0.6875rem] text-white/25"></i>
-                                <span class="flex-1 truncate text-[0.875rem] text-white/65">
+                                <i class="pi pi-clock shrink-0 text-[0.6875rem] text-text-muted"></i>
+                                <span class="flex-1 truncate text-[0.875rem] text-text-secondary">
                                     {{ row.query }}
                                 </span>
                             </span>
                         }
                     </button>
                 } @empty {
-                    <p class="px-4 py-6 text-center text-[0.8125rem] text-white/30">
+                    <p class="px-4 py-6 text-center text-[0.8125rem] text-text-muted">
                         @if (query().trim() || activeFilterCount() > 0) {
                             {{ 'WIKI.SEARCH.NO_MATCH' | translate: {query: query()} }}
                         } @else {
@@ -156,26 +156,26 @@
             <!-- Coverage. States what was actually searched rather than implying full text. -->
             <div class="flex items-center justify-between gap-3 border-t border-white/[0.08] px-4 py-2">
                 @if (cache.warming()) {
-                    <span class="text-[0.75rem] text-white/35">{{ 'WIKI.SEARCH.LOADING_CONTENTS' | translate }}</span>
+                    <span class="text-[0.75rem] text-text-muted">{{ 'WIKI.SEARCH.LOADING_CONTENTS' | translate }}</span>
                 } @else if (cache.failed()) {
-                    <span class="text-[0.75rem] text-white/45">
+                    <span class="text-[0.75rem] text-text-secondary">
                         {{ 'WIKI.SEARCH.LOAD_FAILED' | translate }}
                     </span>
                     <button
                         (click)="searchContents()"
-                        class="shrink-0 cursor-pointer rounded border-0 bg-white/[0.06] px-2 py-1 text-[0.75rem] text-white/70 hover:bg-hover"
+                        class="shrink-0 cursor-pointer rounded border-0 bg-white/[0.06] px-2 py-1 text-[0.75rem] text-text-primary hover:bg-hover"
                     >
                         {{ 'WIKI.SEARCH.RETRY' | translate }}
                     </button>
                 } @else if (cache.warmed()) {
-                    <span class="text-[0.75rem] text-white/35">
+                    <span class="text-[0.75rem] text-text-muted">
                         {{ 'WIKI.SEARCH.SCOPE_FULL' | translate }}
                     </span>
                 } @else {
-                    <span class="text-[0.75rem] text-white/35">{{ 'WIKI.SEARCH.SCOPE_TITLES' | translate }}</span>
+                    <span class="text-[0.75rem] text-text-muted">{{ 'WIKI.SEARCH.SCOPE_TITLES' | translate }}</span>
                     <button
                         (click)="searchContents()"
-                        class="shrink-0 cursor-pointer rounded border-0 bg-white/[0.06] px-2 py-1 text-[0.75rem] text-white/70 hover:bg-hover"
+                        class="shrink-0 cursor-pointer rounded border-0 bg-white/[0.06] px-2 py-1 text-[0.75rem] text-text-primary hover:bg-hover"
                     >
                         {{ 'WIKI.SEARCH.SEARCH_CONTENTS' | translate }}
                     </button>

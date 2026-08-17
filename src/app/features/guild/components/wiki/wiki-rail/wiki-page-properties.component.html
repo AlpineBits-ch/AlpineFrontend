@@ -2,18 +2,18 @@
     <div class="flex flex-col gap-3">
         <!-- Tags -->
         <div>
-            <span class="mb-1 block text-[0.6875rem] text-white/35">{{ 'WIKI.TAGS' | translate }}</span>
+            <span class="mb-1 block text-[0.6875rem] text-text-muted">{{ 'WIKI.TAGS' | translate }}</span>
 
             @if (tags().length) {
                 <div class="flex flex-wrap gap-1">
                     @for (tag of tags(); track tag) {
-                        <span class="flex items-center gap-1 rounded-md bg-card px-1.5 py-0.5 text-[0.6875rem] text-white/65">
+                        <span class="flex items-center gap-1 rounded-md bg-card px-1.5 py-0.5 text-[0.6875rem] text-text-secondary">
                             {{ tag }}
                             @if (canEditMetadata()) {
                                 <button
                                     (click)="removeTag(tag)"
                                     [title]="'WIKI.RAIL.REMOVE_TAG' | translate: {tag: tag}"
-                                    class="cursor-pointer border-0 bg-transparent p-0 leading-none text-white/30 hover:text-rose-400"
+                                    class="cursor-pointer border-0 bg-transparent p-0 leading-none text-text-muted hover:text-rose-400"
                                 >
                                     <i class="pi pi-times text-[0.5rem]"></i>
                                 </button>
@@ -22,7 +22,7 @@
                     }
                 </div>
             } @else if (!canEditMetadata()) {
-                <p class="text-[0.75rem] text-white/25">{{ 'WIKI.RAIL.NO_TAGS' | translate }}</p>
+                <p class="text-[0.75rem] text-text-muted">{{ 'WIKI.RAIL.NO_TAGS' | translate }}</p>
             }
 
             @if (canAddTag()) {
@@ -32,7 +32,7 @@
                         (ngModelChange)="onTagQuery($event)"
                         [ngModel]="tagQuery()"
                         [placeholder]="'WIKI.RAIL.ADD_TAG' | translate"
-                        class="w-full rounded-md border border-border bg-card px-2 py-1 text-[0.75rem] text-white/75 outline-none placeholder-white/25 focus:border-brand/50"
+                        class="w-full rounded-md border border-border bg-card px-2 py-1 text-[0.75rem] text-text-primary outline-none placeholder-white/25 focus:border-brand/50"
                         [maxlength]="tagMaxLength"
                     />
 
@@ -43,8 +43,8 @@
                                 <button
                                     (click)="addTag(suggestion)"
                                     [class.bg-hover]="suggestIndex() === i"
-                                    [class.text-white/80]="suggestIndex() === i"
-                                    class="cursor-pointer rounded-md border border-border bg-transparent px-1.5 py-0.5 text-[0.6875rem] text-white/45 hover:bg-hover hover:text-white/80"
+                                    [class.text-text-primary]="suggestIndex() === i"
+                                    class="cursor-pointer rounded-md border border-border bg-transparent px-1.5 py-0.5 text-[0.6875rem] text-text-secondary hover:bg-hover hover:text-text-primary"
                                 >
                                     {{ suggestion }}
                                 </button>
@@ -57,7 +57,7 @@
 
         <!-- Pinned. A flag the nav and the home page have always rendered and nothing could set. -->
         <div class="flex items-center justify-between gap-2">
-            <span class="text-[0.6875rem] text-white/35">{{ 'WIKI.PINNED_LABEL' | translate }}</span>
+            <span class="text-[0.6875rem] text-text-muted">{{ 'WIKI.PINNED_LABEL' | translate }}</span>
             @if (canEditMetadata()) {
                 <p-toggleswitch (ngModelChange)="setPinned($event)" [ngModel]="pinned()" />
             } @else {
@@ -65,7 +65,7 @@
                     [class.pi-bookmark-fill]="pinned()"
                     [class.pi-bookmark]="!pinned()"
                     [class.text-brand-dim]="pinned()"
-                    [class.text-white/20]="!pinned()"
+                    [class.text-text-faint]="!pinned()"
                     class="pi text-[0.75rem]"
                 ></i>
             }
@@ -73,7 +73,7 @@
 
         <!-- Category -->
         <label class="flex flex-col gap-1">
-            <span class="text-[0.6875rem] text-white/35">{{ 'WIKI.CATEGORY' | translate }}</span>
+            <span class="text-[0.6875rem] text-text-muted">{{ 'WIKI.CATEGORY' | translate }}</span>
             @if (canMovePage()) {
                 <p-select
                     (ngModelChange)="setCategory($event)"
@@ -86,13 +86,13 @@
                     styleClass="w-full"
                 />
             } @else {
-                <span class="truncate text-[0.75rem] text-white/60">{{ categoryLabel() }}</span>
+                <span class="truncate text-[0.75rem] text-text-secondary">{{ categoryLabel() }}</span>
             }
         </label>
 
         <!-- Parent. Its own subtree is not offered: a page cannot be its own ancestor. -->
         <label class="flex flex-col gap-1">
-            <span class="text-[0.6875rem] text-white/35">{{ 'WIKI.PARENT' | translate }}</span>
+            <span class="text-[0.6875rem] text-text-muted">{{ 'WIKI.PARENT' | translate }}</span>
             @if (canMovePage()) {
                 <p-select
                     (ngModelChange)="setParent($event)"
@@ -106,13 +106,13 @@
                     styleClass="w-full"
                 />
             } @else {
-                <span class="truncate text-[0.75rem] text-white/60">{{ parentLabel() }}</span>
+                <span class="truncate text-[0.75rem] text-text-secondary">{{ parentLabel() }}</span>
             }
         </label>
 
         <!-- One indicator for the whole panel rather than one per control: the write is the same request whichever of the four started it. -->
         @if (saving()) {
-            <i class="pi pi-spin pi-spinner text-[0.625rem] text-white/25"></i>
+            <i class="pi pi-spin pi-spinner text-[0.625rem] text-text-muted"></i>
         }
 
         <!-- The write already went back to what it was; this says so rather than leaving the control showing a value the server never accepted. -->

@@ -36,7 +36,7 @@
         } @else {
             <!-- Camera on, no stream yet: the track is still being negotiated. -->
             <div class="absolute inset-0 flex items-center justify-center bg-card">
-                <i [attr.aria-label]="'CALL.CAMERA_ON' | translate" class="pi pi-camera text-2xl text-white/20"></i>
+                <i [attr.aria-label]="'CALL.CAMERA_ON' | translate" class="pi pi-camera text-2xl text-text-faint"></i>
             </div>
         }
     } @else {
@@ -88,7 +88,7 @@
                 <i class="pi pi-microphone"></i>
             </span>
         }
-        <span class="truncate text-sm font-medium text-white/85">{{ p.displayName }}</span>
+        <span class="truncate text-sm font-medium text-text-primary">{{ p.displayName }}</span>
     </div>
 
     <!-- Audio badge: quiet while the subscribe is still landing, amber once it is overdue -->

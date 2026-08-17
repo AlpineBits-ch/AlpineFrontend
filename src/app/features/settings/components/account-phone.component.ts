@@ -17,8 +17,8 @@ import {UserService} from '../../../services/user.service';
     template: `
         <div class="flex flex-col gap-3" data-testid="account-phone">
             <div>
-                <p class="text-sm text-white/75">{{ 'ACCOUNT.PHONE.TITLE' | translate }}</p>
-                <p class="text-xs text-white/35 mt-0.5">{{ 'ACCOUNT.PHONE.DESC' | translate }}</p>
+                <p class="text-sm text-text-primary">{{ 'ACCOUNT.PHONE.TITLE' | translate }}</p>
+                <p class="text-xs text-text-muted mt-0.5">{{ 'ACCOUNT.PHONE.DESC' | translate }}</p>
             </div>
 
             @if (loading()) {
@@ -46,7 +46,7 @@ import {UserService} from '../../../services/user.service';
                           Shown while the box is right as well as while it is wrong: the "+" rule is
                           the thing people get wrong, and it is cheaper to state than to correct.
                         -->
-                        <p class="m-0 text-xs text-white/25">
+                        <p class="m-0 text-xs text-text-muted">
                             {{ 'ACCOUNT.PHONE.FORMAT_HELP' | translate }}
                         </p>
                     }
@@ -58,8 +58,8 @@ import {UserService} from '../../../services/user.service';
                   unchecked one is what stops the absence of a tick being read as the presence of
                   one.
                 -->
-                <p class="m-0 text-xs text-white/35">{{ 'ACCOUNT.PHONE.PLAINTEXT' | translate }}</p>
-                <p class="m-0 text-xs text-white/35">{{ 'ACCOUNT.PHONE.UNVERIFIED' | translate }}</p>
+                <p class="m-0 text-xs text-text-muted">{{ 'ACCOUNT.PHONE.PLAINTEXT' | translate }}</p>
+                <p class="m-0 text-xs text-text-muted">{{ 'ACCOUNT.PHONE.UNVERIFIED' | translate }}</p>
 
                 <div class="flex items-center gap-2 flex-wrap">
                     <p-button
@@ -90,11 +90,11 @@ import {UserService} from '../../../services/user.service';
                 </div>
 
                 @if (stored()) {
-                    <p class="m-0 text-xs text-white/25">
+                    <p class="m-0 text-xs text-text-muted">
                         {{ 'ACCOUNT.PHONE.REMOVE_NOTE' | translate }}
                     </p>
                 } @else {
-                    <p class="m-0 text-xs text-white/25" data-testid="phone-none">
+                    <p class="m-0 text-xs text-text-muted" data-testid="phone-none">
                         {{ 'ACCOUNT.PHONE.NONE' | translate }}
                     </p>
                 }

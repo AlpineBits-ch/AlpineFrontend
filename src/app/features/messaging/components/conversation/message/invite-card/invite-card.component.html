@@ -17,13 +17,13 @@
         </div>
 
         <div class="flex-1 min-w-0">
-            <p class="text-sm font-semibold text-white/85 m-0 leading-snug truncate">
+            <p class="text-sm font-semibold text-text-primary m-0 leading-snug truncate">
                 {{ title() || ('INVITE.UNKNOWN_SERVER' | translate) }}
             </p>
             @if (description()) {
-                <p class="text-xs text-white/40 m-0 mt-0.5 truncate">{{ description() }}</p>
+                <p class="text-xs text-text-muted m-0 mt-0.5 truncate">{{ description() }}</p>
             }
-            <p class="text-[11px] text-white/30 m-0 mt-0.5">
+            <p class="text-[11px] text-text-muted m-0 mt-0.5">
                 @if (freshness() === 'gone') {
                     <span class="text-rose-400/70">{{ 'INVITE.NO_LONGER_VALID' | translate }}</span>
                 } @else if (hasLapsed()) {

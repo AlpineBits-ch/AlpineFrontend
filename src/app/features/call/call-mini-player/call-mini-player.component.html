@@ -18,7 +18,7 @@
             @if (focusedShare()) {
                 <app-call-live-badge [dot]="true" size="sm" variant="soft" />
             }
-            <span class="min-w-0 flex-1 truncate text-[0.6875rem] font-semibold text-white/85">
+            <span class="min-w-0 flex-1 truncate text-[0.6875rem] font-semibold text-text-primary">
                 {{ title() }}
             </span>
 
@@ -33,7 +33,7 @@
                     <video [streamSrc]="stream" autoplay class="h-full w-full object-contain" muted playsinline></video>
                 } @else {
                     <div class="flex h-full w-full items-center justify-center">
-                        <i class="pi pi-desktop text-2xl text-white/20"></i>
+                        <i class="pi pi-desktop text-2xl text-text-faint"></i>
                     </div>
                 }
             </div>
@@ -49,7 +49,7 @@
                         } @else {
                             <span
                                 [class.speaking-ring]="p.isSpeaking"
-                                class="flex size-7 items-center justify-center rounded-full bg-sidebar text-[0.625rem] font-semibold text-white/70"
+                                class="flex size-7 items-center justify-center rounded-full bg-sidebar text-[0.625rem] font-semibold text-text-primary"
                             >
                                 {{ p.avatarLabel }}
                             </span>
@@ -65,7 +65,7 @@
                 }
             </div>
             @if (overflowCount() > 0) {
-                <p class="px-2 pb-2 text-[0.625rem] text-white/40">+{{ overflowCount() }}</p>
+                <p class="px-2 pb-2 text-[0.625rem] text-text-muted">+{{ overflowCount() }}</p>
             }
         }
 

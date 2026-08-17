@@ -13,16 +13,16 @@
     >
         <div class="flex flex-col gap-5 p-6" data-testid="legal-consent">
             <div class="flex flex-col gap-2">
-                <h2 class="text-lg font-semibold text-white/85">{{ 'LEGAL.CONSENT_REQUIRED_TITLE' | translate }}</h2>
-                <p class="text-sm text-white/45">{{ 'LEGAL.CONSENT_REQUIRED_BODY' | translate }}</p>
+                <h2 class="text-lg font-semibold text-text-primary">{{ 'LEGAL.CONSENT_REQUIRED_TITLE' | translate }}</h2>
+                <p class="text-sm text-text-secondary">{{ 'LEGAL.CONSENT_REQUIRED_BODY' | translate }}</p>
             </div>
 
             <div class="flex flex-col gap-2">
                 @for (requirement of outstanding(); track requirement.documentType + requirement.version) {
                     <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
                         <div>
-                            <p class="text-sm text-white/60">{{ documentLabelKey(requirement.documentType) | translate }}</p>
-                            <p class="text-xs text-white/25 mt-0.5">{{ requirement.version }}</p>
+                            <p class="text-sm text-text-secondary">{{ documentLabelKey(requirement.documentType) | translate }}</p>
+                            <p class="text-xs text-text-muted mt-0.5">{{ requirement.version }}</p>
                         </div>
                         <p-button
                             [label]="'LEGAL.READ_DOCUMENT' | translate"
@@ -35,7 +35,7 @@
                 }
             </div>
 
-            <p class="text-xs text-white/25">{{ 'LEGAL.WITHDRAW_NOTE' | translate }}</p>
+            <p class="text-xs text-text-muted">{{ 'LEGAL.WITHDRAW_NOTE' | translate }}</p>
 
             <p-button
                 [label]="'LEGAL.ACCEPT' | translate"

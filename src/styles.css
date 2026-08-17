@@ -1047,12 +1047,19 @@ label {
     --color-stage: color-mix(in srgb, var(--color-app-bg) 82%, #000);
     --color-live: #e5484d;
 
-    /* ── Text shorthands (use with opacity modifier) ────────── */
-    /* bg-white/[0.85] → text-primary feel; these aliases make intent clearer */
-    --color-text-primary: rgba(255 255 255 / 0.88);
-    --color-text-secondary: rgba(255 255 255 / 0.62);
-    --color-text-muted: rgba(255 255 255 / 0.42);
-    --color-text-faint: rgba(255 255 255 / 0.24);
+    /* ── Text ladder ────────────────────────────────────────
+     Solid, not white-alpha. White over a blue-black surface composites to a
+     neutral grey that sits beside the background hue instead of above it,
+     which is what made body copy read as washed out. These carry the same
+     cool cast as the surfaces, and a label now weighs the same on app-bg as
+     it does on a card. Values match zinc.100 / zinc.400 in the PrimeNG
+     preset, so the two ladders agree.
+     muted is the floor for anything a user has to read: below #838da3 it
+     drops under 4.5:1 on app-bg. faint is for placeholders and disabled only. */
+    --color-text-primary: #e9edf5;
+    --color-text-secondary: #b6bfd0;
+    --color-text-muted: #838da3;
+    --color-text-faint: #5b6478;
 
     /* ── Borders ────────────────────────────────────────────── */
     --color-border-subtle: rgba(255 255 255 / 0.1);
@@ -1092,7 +1099,7 @@ label {
    Applied to [innerHTML] output, so must live in global scope.              */
 .wiki-content {
     line-height: 1.7;
-    color: rgba(255, 255, 255, 0.75);
+    color: var(--color-text-primary);
 }
 .wiki-content h1,
 .wiki-content h2,

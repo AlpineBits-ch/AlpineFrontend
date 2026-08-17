@@ -530,7 +530,7 @@ export class MessageComponent {
         if (contentType === 'application/pdf') return 'text-rose-400';
         if (contentType.includes('zip') || contentType.includes('rar')) return 'text-amber-400';
         if (contentType.startsWith('text/')) return 'text-sky-400';
-        return 'text-white/40';
+        return 'text-text-muted';
     }
 
     startEdit(): void {

@@ -15,14 +15,14 @@
                     <!-- What was reduced. Absent for a catalogue key this build has never heard of,
                          and then the reason below carries the card on its own. -->
                     @if (notice.surfaceKey; as surface) {
-                        <p class="m-0 text-xs font-medium text-white/85">
+                        <p class="m-0 text-xs font-medium text-text-primary">
                             {{ surface | translate: {rung: notice.rung} }}
                         </p>
                     }
 
                     <!-- Which side bound. Always present: an unrecognised code resolves to the
                          generic sentence rather than to a raw code or a blank line. -->
-                    <p class="m-0 text-xs leading-relaxed text-white/55">
+                    <p class="m-0 text-xs leading-relaxed text-text-secondary">
                         {{ notice.messageKey | translate }}
                     </p>
 
@@ -39,7 +39,7 @@
                             {{ cta | translate }}
                         </button>
                     } @else if (notice.hintKey; as hint) {
-                        <p class="m-0 pt-0.5 text-xs text-white/35">{{ hint | translate }}</p>
+                        <p class="m-0 pt-0.5 text-xs text-text-muted">{{ hint | translate }}</p>
                     }
                 </div>
             </div>

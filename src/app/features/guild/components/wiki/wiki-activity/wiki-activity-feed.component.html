@@ -12,7 +12,7 @@
                     <span class="relative shrink-0">
                         <app-avatar [userId]="entry.actorId" />
                         <span
-                            [class]="entry.kind === 'created' ? 'bg-brand text-white' : 'bg-card text-white/50'"
+                            [class]="entry.kind === 'created' ? 'bg-brand text-white' : 'bg-card text-text-secondary'"
                             class="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full border-2 border-app-bg"
                         >
                             <i [class]="entry.kind === 'created' ? 'pi pi-plus' : 'pi pi-pencil'" class="text-[0.4375rem]"></i>
@@ -20,7 +20,7 @@
                     </span>
 
                     <span class="min-w-0 flex-1">
-                        <span class="block truncate text-[0.8125rem] text-white/45">
+                        <span class="block truncate text-[0.8125rem] text-text-secondary">
                             @if (actorName(entry); as name) {
                                 {{
                                     (entry.kind === 'created' ? 'WIKI.ACTIVITY.CREATED_BY' : 'WIKI.ACTIVITY.EDITED_BY')
@@ -29,9 +29,9 @@
                             } @else {
                                 {{ (entry.kind === 'created' ? 'WIKI.ACTIVITY.CREATED' : 'WIKI.ACTIVITY.EDITED') | translate }}
                             }
-                            <span class="font-medium text-white/85 group-hover/act:text-brand-dim">{{ entry.page.title }}</span>
+                            <span class="font-medium text-text-primary group-hover/act:text-brand-dim">{{ entry.page.title }}</span>
                         </span>
-                        <span class="mt-0.5 flex items-center gap-1.5 text-[0.6875rem] text-white/30">
+                        <span class="mt-0.5 flex items-center gap-1.5 text-[0.6875rem] text-text-muted">
                             <span>{{ entry.date | relativeTime: clock.now() }}</span>
                             @if (categoryName(entry.page); as category) {
                                 <span aria-hidden="true">&middot;</span>
@@ -40,13 +40,13 @@
                         </span>
                     </span>
 
-                    <i class="pi pi-angle-right shrink-0 text-[0.75rem] text-white/0 transition-colors group-hover/act:text-white/30"></i>
+                    <i class="pi pi-angle-right shrink-0 text-[0.75rem] text-white/0 transition-colors group-hover/act:text-text-muted"></i>
                 </button>
             }
         </div>
     </div>
 } @else {
-    <p class="px-2 py-6 text-center text-[0.8125rem] text-white/30">
+    <p class="px-2 py-6 text-center text-[0.8125rem] text-text-muted">
         {{ 'WIKI.ACTIVITY.EMPTY' | translate }}
     </p>
 }

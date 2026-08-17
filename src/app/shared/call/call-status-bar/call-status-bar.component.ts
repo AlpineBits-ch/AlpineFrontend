@@ -25,13 +25,13 @@ import {CallStatus, CallStatusTone, resolveCallStatus} from '../call-status';
             <span [class]="labelClass()">{{ s.labelKey | translate }}</span>
 
             @if (s.detailKey; as detail) {
-                <span class="text-white/25" aria-hidden="true">·</span>
-                <span class="min-w-0 truncate text-white/60">
+                <span class="text-text-muted" aria-hidden="true">·</span>
+                <span class="min-w-0 truncate text-text-secondary">
                     {{ detail | translate: s.detailParams ?? {} }}
                 </span>
             } @else if (meta(); as m) {
-                <span class="text-white/25" aria-hidden="true">·</span>
-                <span class="shrink-0 tabular-nums text-white/55">{{ m }}</span>
+                <span class="text-text-muted" aria-hidden="true">·</span>
+                <span class="shrink-0 tabular-nums text-text-secondary">{{ m }}</span>
             }
 
             <!-- Trailing controls: the stats toggle and the panel's maximise button. -->

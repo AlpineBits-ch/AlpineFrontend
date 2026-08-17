@@ -1,7 +1,7 @@
 <div class="flex flex-col gap-8 max-w-2xl">
     <!-- ── Profile Overview ──────────────────────────────────────────────── -->
     <section class="flex flex-col gap-4">
-        <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">Profile Overview</h2>
+        <h2 class="text-xs font-semibold text-text-muted uppercase tracking-widest border-b border-white/[0.10] pb-3">Profile Overview</h2>
 
         <div class="flex items-center gap-5 bg-white/[0.03] border border-white/[0.10] rounded-xl px-5 py-4">
             <!-- Avatar -->
@@ -30,7 +30,7 @@
             <!-- Info -->
             <div class="flex flex-col gap-1 min-w-0">
                 <div class="flex items-center gap-2 flex-wrap">
-                    <span class="text-base font-semibold text-white/85 truncate">
+                    <span class="text-base font-semibold text-text-primary truncate">
                         {{ usernameDisplay() }}
                     </span>
                     @if (ownProfile()?.onlineStatus === 'Online') {
@@ -41,7 +41,7 @@
                         </span>
                     } @else {
                         <span
-                            class="inline-flex items-center gap-1 text-[0.625rem] font-medium text-white/35 bg-white/[0.05] border border-white/[0.10] rounded-full px-2 py-0.5"
+                            class="inline-flex items-center gap-1 text-[0.625rem] font-medium text-text-muted bg-white/[0.05] border border-white/[0.10] rounded-full px-2 py-0.5"
                         >
                             <span class="w-1.5 h-1.5 rounded-full bg-white/25"></span>Offline
                         </span>
@@ -49,15 +49,15 @@
                 </div>
 
                 @if (ownProfile()?.bio) {
-                    <p class="text-sm text-white/55 truncate">{{ ownProfile()!.bio }}</p>
+                    <p class="text-sm text-text-secondary truncate">{{ ownProfile()!.bio }}</p>
                 }
 
                 <div class="flex items-center gap-3 mt-0.5 flex-wrap">
                     @if (user()) {
-                        <span class="text-xs text-white/30"> <i class="pi pi-envelope text-[10px] mr-1"></i>{{ user()!.email }} </span>
+                        <span class="text-xs text-text-muted"> <i class="pi pi-envelope text-[10px] mr-1"></i>{{ user()!.email }} </span>
                     }
                     @if (ownProfile()?.createdAt) {
-                        <span class="text-xs text-white/30">
+                        <span class="text-xs text-text-muted">
                             <i class="pi pi-calendar text-[10px] mr-1"></i>
                             Member since {{ ownProfile()!.createdAt | date: 'MMM yyyy' }}
                         </span>
@@ -69,7 +69,7 @@
 
     <!-- ── Avatar ──────────────────────────────────────────────────────────── -->
     <section class="flex flex-col gap-4">
-        <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">Avatar</h2>
+        <h2 class="text-xs font-semibold text-text-muted uppercase tracking-widest border-b border-white/[0.10] pb-3">Avatar</h2>
         <div class="flex items-center gap-5">
             <div (click)="avatarExpanded.set(true)" class="relative w-20 h-20 shrink-0 cursor-pointer group">
                 @if (ownProfile()?.avatarUrl && !avatarError()) {
@@ -110,7 +110,7 @@
 
     <!-- ── Banner ──────────────────────────────────────────────────────────── -->
     <section class="flex flex-col gap-4">
-        <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">Banner</h2>
+        <h2 class="text-xs font-semibold text-text-muted uppercase tracking-widest border-b border-white/[0.10] pb-3">Banner</h2>
 
         <div class="relative w-full h-28 rounded-xl overflow-hidden bg-white/[0.04] border border-white/[0.09]">
             @if (bannerUrl(); as url) {
@@ -133,33 +133,33 @@
 
     <!-- ── Display ─────────────────────────────────────────────────────────── -->
     <section class="flex flex-col gap-4">
-        <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">Display</h2>
+        <h2 class="text-xs font-semibold text-text-muted uppercase tracking-widest border-b border-white/[0.10] pb-3">Display</h2>
 
         <div class="flex flex-col gap-1.5">
-            <label class="text-xs font-medium text-white/45 uppercase tracking-wide">Display Name</label>
+            <label class="text-xs font-medium text-text-secondary uppercase tracking-wide">Display Name</label>
             <input
                 [value]="ownProfile()?.userName ?? ''"
-                class="w-full bg-white/[0.04] border border-white/[0.09] rounded-xl px-4 py-2.5 text-sm text-white/40 placeholder:text-white/20 outline-none cursor-not-allowed"
+                class="w-full bg-white/[0.04] border border-white/[0.09] rounded-xl px-4 py-2.5 text-sm text-text-muted placeholder:text-text-faint outline-none cursor-not-allowed"
                 disabled
                 placeholder="Your display name"
                 type="text"
             />
-            <p class="text-[11px] text-white/25">Coming soon -this will be your visible name in chats.</p>
+            <p class="text-[11px] text-text-muted">Coming soon -this will be your visible name in chats.</p>
         </div>
 
         <div class="flex flex-col gap-1.5">
-            <label class="text-xs font-medium text-white/45 uppercase tracking-wide">Bio</label>
+            <label class="text-xs font-medium text-text-secondary uppercase tracking-wide">Bio</label>
             <textarea
                 (ngModelChange)="bioEdit.set($event)"
                 [ngModel]="bioEdit()"
-                class="w-full bg-white/[0.04] border border-white/[0.09] rounded-xl px-4 py-2.5 text-sm text-white/80 placeholder:text-white/25 outline-none focus:border-brand/40 transition-colors resize-none"
+                class="w-full bg-white/[0.04] border border-white/[0.09] rounded-xl px-4 py-2.5 text-sm text-text-primary placeholder:text-text-muted outline-none focus:border-brand/40 transition-colors resize-none"
                 placeholder="Tell people a bit about yourself…"
                 rows="3"
             ></textarea>
         </div>
 
         <div class="flex flex-col gap-1.5">
-            <label class="text-xs font-medium text-white/45 uppercase tracking-wide">Accent Color</label>
+            <label class="text-xs font-medium text-text-secondary uppercase tracking-wide">Accent Color</label>
             <div class="flex items-center gap-3">
                 <div class="color-swatch-wrap">
                     <div [style.background]="safeAccentColor(accentColorEdit()) || 'transparent'" class="color-swatch-bg"></div>
@@ -168,7 +168,7 @@
                 @if (accentColorEdit()) {
                     <button
                         (click)="accentColorEdit.set('')"
-                        class="text-xs text-white/40 hover:text-white/70 cursor-pointer border-0 bg-transparent transition-colors"
+                        class="text-xs text-text-muted hover:text-text-primary cursor-pointer border-0 bg-transparent transition-colors"
                     >
                         Clear
                     </button>
@@ -177,7 +177,7 @@
         </div>
 
         <div class="flex flex-col gap-1.5">
-            <label class="text-xs font-medium text-white/45 uppercase tracking-wide">Font</label>
+            <label class="text-xs font-medium text-text-secondary uppercase tracking-wide">Font</label>
             <p-select
                 (ngModelChange)="fontEdit.set($event)"
                 [ngModel]="fontEdit()"
@@ -190,7 +190,7 @@
                     <span [style.font-family]="$any(FONT_STACKS)[option.value]">{{ option.label }}</span>
                 </ng-template>
             </p-select>
-            <p [style.font-family]="fontEdit() === 'Default' ? null : fontStackPreview()" class="text-sm text-white/60 mt-1">
+            <p [style.font-family]="fontEdit() === 'Default' ? null : fontStackPreview()" class="text-sm text-text-secondary mt-1">
                 The quick brown fox jumps over the lazy dog.
             </p>
         </div>
@@ -209,24 +209,24 @@
 
     <!-- ── Account Info ────────────────────────────────────────────────────── -->
     <section class="flex flex-col gap-4">
-        <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">Account</h2>
+        <h2 class="text-xs font-semibold text-text-muted uppercase tracking-widest border-b border-white/[0.10] pb-3">Account</h2>
 
         <div class="flex flex-col gap-3">
             <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
                 <div>
-                    <p class="text-xs text-white/30 mb-0.5">Username</p>
-                    <p class="text-sm text-white/70 font-mono">{{ usernameDisplay() }}</p>
+                    <p class="text-xs text-text-muted mb-0.5">Username</p>
+                    <p class="text-sm text-text-primary font-mono">{{ usernameDisplay() }}</p>
                 </div>
                 <p-button [disabled]="true" [text]="true" label="Edit" severity="secondary" size="small" />
             </div>
 
             <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
                 <div>
-                    <p class="text-xs text-white/30 mb-0.5">Email</p>
+                    <p class="text-xs text-text-muted mb-0.5">Email</p>
                     @if (userLoading()) {
                         <div class="h-4 w-40 bg-white/[0.06] rounded animate-pulse mt-0.5"></div>
                     } @else {
-                        <p class="text-sm text-white/70">{{ user()?.email ?? '-' }}</p>
+                        <p class="text-sm text-text-primary">{{ user()?.email ?? '-' }}</p>
                     }
                 </div>
                 <p-button [disabled]="true" [text]="true" label="Edit" severity="secondary" size="small" />
@@ -241,19 +241,19 @@
 
     <!-- ── Connections ─────────────────────────────────────────────────────── -->
     <section class="flex flex-col gap-4">
-        <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">Connections</h2>
+        <h2 class="text-xs font-semibold text-text-muted uppercase tracking-widest border-b border-white/[0.10] pb-3">Connections</h2>
 
         <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
             <div class="flex items-center gap-3 min-w-0">
-                <i class="pi pi-link text-lg text-white/60 shrink-0"></i>
+                <i class="pi pi-link text-lg text-text-secondary shrink-0"></i>
                 <div class="min-w-0">
-                    <p class="text-sm text-white/75">Steam</p>
+                    <p class="text-sm text-text-primary">Steam</p>
                     @if (userLoading()) {
                         <div class="h-4 w-32 bg-white/[0.06] rounded animate-pulse mt-1"></div>
                     } @else if (steamId()) {
-                        <p class="text-xs text-white/35 mt-0.5 font-mono truncate">Linked · {{ steamId() }}</p>
+                        <p class="text-xs text-text-muted mt-0.5 font-mono truncate">Linked · {{ steamId() }}</p>
                     } @else {
-                        <p class="text-xs text-white/35 mt-0.5">Not linked</p>
+                        <p class="text-xs text-text-muted mt-0.5">Not linked</p>
                     }
                 </div>
             </div>
@@ -282,12 +282,12 @@
 
     <!-- ── Sessions ────────────────────────────────────────────────────────── -->
     <section class="flex flex-col gap-4">
-        <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">Sessions</h2>
+        <h2 class="text-xs font-semibold text-text-muted uppercase tracking-widest border-b border-white/[0.10] pb-3">Sessions</h2>
 
         <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
             <div>
-                <p class="text-sm text-white/75">Sign Out All Other Devices</p>
-                <p class="text-xs text-white/35 mt-0.5">All other active sessions will be revoked within 1 hour.</p>
+                <p class="text-sm text-text-primary">Sign Out All Other Devices</p>
+                <p class="text-xs text-text-muted mt-0.5">All other active sessions will be revoked within 1 hour.</p>
             </div>
             @if (signOutSuccess()) {
                 <span class="text-xs text-online flex items-center gap-1.5 shrink-0 ml-4">
@@ -307,23 +307,23 @@
 
     <!-- ── Change Password ─────────────────────────────────────────────────── -->
     <section class="flex flex-col gap-4">
-        <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">Change Password</h2>
+        <h2 class="text-xs font-semibold text-text-muted uppercase tracking-widest border-b border-white/[0.10] pb-3">Change Password</h2>
 
         <div class="flex flex-col gap-3">
             <!-- Current password -->
             <div class="flex flex-col gap-1.5">
-                <label class="text-xs font-medium text-white/45 uppercase tracking-wide">Current Password</label>
+                <label class="text-xs font-medium text-text-secondary uppercase tracking-wide">Current Password</label>
                 <div class="relative">
                     <input
                         [(ngModel)]="currentPassword"
                         [type]="showCurrentPw() ? 'text' : 'password'"
                         autocomplete="current-password"
-                        class="w-full bg-white/[0.04] border border-white/[0.09] rounded-xl px-4 py-2.5 pr-10 text-sm text-white/80 placeholder:text-white/25 outline-none focus:border-brand/40 transition-colors"
+                        class="w-full bg-white/[0.04] border border-white/[0.09] rounded-xl px-4 py-2.5 pr-10 text-sm text-text-primary placeholder:text-text-muted outline-none focus:border-brand/40 transition-colors"
                         placeholder="Enter your current password"
                     />
                     <button
                         (click)="showCurrentPw.set(!showCurrentPw())"
-                        class="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors"
+                        class="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary transition-colors"
                         type="button"
                     >
                         <i [class]="showCurrentPw() ? 'pi pi-eye-slash' : 'pi pi-eye'" style="font-size: 14px"></i>
@@ -333,18 +333,18 @@
 
             <!-- New password -->
             <div class="flex flex-col gap-1.5">
-                <label class="text-xs font-medium text-white/45 uppercase tracking-wide">New Password</label>
+                <label class="text-xs font-medium text-text-secondary uppercase tracking-wide">New Password</label>
                 <div class="relative">
                     <input
                         [(ngModel)]="newPassword"
                         [type]="showNewPw() ? 'text' : 'password'"
                         autocomplete="new-password"
-                        class="w-full bg-white/[0.04] border border-white/[0.09] rounded-xl px-4 py-2.5 pr-10 text-sm text-white/80 placeholder:text-white/25 outline-none focus:border-brand/40 transition-colors"
+                        class="w-full bg-white/[0.04] border border-white/[0.09] rounded-xl px-4 py-2.5 pr-10 text-sm text-text-primary placeholder:text-text-muted outline-none focus:border-brand/40 transition-colors"
                         placeholder="At least 8 characters"
                     />
                     <button
                         (click)="showNewPw.set(!showNewPw())"
-                        class="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors"
+                        class="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary transition-colors"
                         type="button"
                     >
                         <i [class]="showNewPw() ? 'pi pi-eye-slash' : 'pi pi-eye'" style="font-size: 14px"></i>
@@ -357,19 +357,19 @@
 
             <!-- Confirm new password -->
             <div class="flex flex-col gap-1.5">
-                <label class="text-xs font-medium text-white/45 uppercase tracking-wide">Confirm New Password</label>
+                <label class="text-xs font-medium text-text-secondary uppercase tracking-wide">Confirm New Password</label>
                 <div class="relative">
                     <input
                         [(ngModel)]="confirmPassword"
                         [style.border-color]="passwordMismatch ? 'rgba(244,63,94,0.40)' : 'rgba(255,255,255,0.09)'"
                         [type]="showConfirmPw() ? 'text' : 'password'"
                         autocomplete="new-password"
-                        class="w-full bg-white/[0.04] rounded-xl px-4 py-2.5 pr-10 text-sm text-white/80 placeholder:text-white/25 outline-none transition-colors border"
+                        class="w-full bg-white/[0.04] rounded-xl px-4 py-2.5 pr-10 text-sm text-text-primary placeholder:text-text-muted outline-none transition-colors border"
                         placeholder="Re-enter your new password"
                     />
                     <button
                         (click)="showConfirmPw.set(!showConfirmPw())"
-                        class="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors"
+                        class="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary transition-colors"
                         type="button"
                     >
                         <i [class]="showConfirmPw() ? 'pi pi-eye-slash' : 'pi pi-eye'" style="font-size: 14px"></i>
@@ -434,12 +434,12 @@
                 <div class="flex items-start gap-3 bg-rose-500/[0.08] border border-rose-500/25 rounded-xl px-4 py-3">
                     <i class="pi pi-exclamation-triangle text-rose-400 shrink-0 mt-0.5"></i>
                     <div class="flex-1 min-w-0">
-                        <p class="text-sm text-white/75">
+                        <p class="text-sm text-text-primary">
                             Your account is scheduled for deletion on
-                            <strong class="text-white/90">{{ user()?.purgeScheduledAt | date: 'MMM d, y' }}</strong
+                            <strong class="text-text-primary">{{ user()?.purgeScheduledAt | date: 'MMM d, y' }}</strong
                             >.
                         </p>
-                        <p class="text-xs text-white/35 mt-0.5">You can cancel this at any time before then.</p>
+                        <p class="text-xs text-text-muted mt-0.5">You can cancel this at any time before then.</p>
                     </div>
                     <p-button
                         (onClick)="cancelDeleteVisible.set(true)"
@@ -453,20 +453,20 @@
             @case (AccountStatus.PurgeInProgress) {
                 <div class="flex items-start gap-3 bg-rose-500/[0.08] border border-rose-500/25 rounded-xl px-4 py-3">
                     <i class="pi pi-exclamation-triangle text-rose-400 shrink-0 mt-0.5"></i>
-                    <p class="text-sm text-white/75">Your account deletion is being processed and can no longer be cancelled.</p>
+                    <p class="text-sm text-text-primary">Your account deletion is being processed and can no longer be cancelled.</p>
                 </div>
             }
             @case (AccountStatus.Deleted) {
                 <div class="flex items-start gap-3 bg-rose-500/[0.08] border border-rose-500/25 rounded-xl px-4 py-3">
                     <i class="pi pi-exclamation-triangle text-rose-400 shrink-0 mt-0.5"></i>
-                    <p class="text-sm text-white/75">This account has been deleted.</p>
+                    <p class="text-sm text-text-primary">This account has been deleted.</p>
                 </div>
             }
             @default {
                 <div class="flex items-center justify-between bg-rose-500/[0.04] border border-rose-500/20 rounded-xl px-4 py-3">
                     <div>
-                        <p class="text-sm text-white/75">Delete Account</p>
-                        <p class="text-xs text-white/35 mt-0.5">
+                        <p class="text-sm text-text-primary">Delete Account</p>
+                        <p class="text-xs text-text-muted mt-0.5">
                             Permanently delete your account and all associated data. This cannot be undone.
                         </p>
                     </div>
@@ -541,8 +541,8 @@
     <div class="flex flex-col gap-4 pt-1">
         <div class="flex items-start gap-3 bg-amber-500/[0.08] border border-amber-500/25 rounded-xl px-4 py-3">
             <i class="pi pi-info-circle text-amber-400 shrink-0 mt-0.5"></i>
-            <p class="text-sm text-white/70">
-                All sessions on other devices will be <strong class="text-white/90">revoked within 1 hour</strong>. Your current session
+            <p class="text-sm text-text-primary">
+                All sessions on other devices will be <strong class="text-text-primary">revoked within 1 hour</strong>. Your current session
                 will not be affected.
             </p>
         </div>
@@ -573,7 +573,7 @@
     <div class="flex flex-col gap-4 pt-1">
         <div class="flex items-start gap-3 bg-amber-500/[0.08] border border-amber-500/25 rounded-xl px-4 py-3">
             <i class="pi pi-info-circle text-amber-400 shrink-0 mt-0.5"></i>
-            <p class="text-sm text-white/70">Your Steam account will be disconnected. You can link it again at any time.</p>
+            <p class="text-sm text-text-primary">Your Steam account will be disconnected. You can link it again at any time.</p>
         </div>
         <div class="flex gap-3 justify-end">
             <p-button
@@ -602,9 +602,9 @@
     <div class="flex flex-col gap-4 pt-1">
         <div class="flex items-start gap-3 bg-rose-500/[0.08] border border-rose-500/25 rounded-xl px-4 py-3">
             <i class="pi pi-exclamation-triangle text-rose-400 shrink-0 mt-0.5"></i>
-            <p class="text-sm text-white/70">
+            <p class="text-sm text-text-primary">
                 This will permanently delete your account, all your messages, and your encryption keys.
-                <strong class="text-white/90">This cannot be undone.</strong>
+                <strong class="text-text-primary">This cannot be undone.</strong>
             </p>
         </div>
         <div class="flex gap-3 justify-end">
@@ -634,7 +634,7 @@
     <div class="flex flex-col gap-4 pt-1">
         <div class="flex items-start gap-3 bg-amber-500/[0.08] border border-amber-500/25 rounded-xl px-4 py-3">
             <i class="pi pi-info-circle text-amber-400 shrink-0 mt-0.5"></i>
-            <p class="text-sm text-white/70">Your account will be restored to normal and no longer scheduled for deletion.</p>
+            <p class="text-sm text-text-primary">Your account will be restored to normal and no longer scheduled for deletion.</p>
         </div>
         <div class="flex gap-3 justify-end">
             <p-button

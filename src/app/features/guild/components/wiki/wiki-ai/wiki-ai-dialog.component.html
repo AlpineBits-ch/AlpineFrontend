@@ -12,7 +12,7 @@
     <ng-template pTemplate="header">
         <div class="flex items-center gap-2">
             <i class="pi pi-sparkles text-brand-dim"></i>
-            <span class="text-sm font-semibold text-white/85">
+            <span class="text-sm font-semibold text-text-primary">
                 {{ 'WIKI.AI.TITLE' | translate }}
             </span>
         </div>
@@ -23,28 +23,28 @@
          find a settings page. -->
     @if (connecting() || !ai.available()) {
         <div class="flex flex-col gap-4 pt-1">
-            <p class="text-sm text-white/60">{{ 'WIKI.AI.CONNECT_INTRO' | translate }}</p>
+            <p class="text-sm text-text-secondary">{{ 'WIKI.AI.CONNECT_INTRO' | translate }}</p>
             <app-ai-connect-form (connected)="onConnected()" [showBilling]="false" />
         </div>
     } @else {
         <div class="flex flex-col gap-4 pt-1">
             <!-- Prompt -->
             <div class="flex flex-col gap-2">
-                <label class="text-xs font-medium text-white/45">
+                <label class="text-xs font-medium text-text-secondary">
                     {{ 'WIKI.AI.PROMPT_LABEL' | translate }}
                 </label>
                 <textarea
                     [(ngModel)]="prompt"
                     [disabled]="running()"
                     [placeholder]="'WIKI.AI.PROMPT_PLACEHOLDER' | translate"
-                    class="min-h-[5rem] w-full resize-y rounded-lg border border-border bg-card px-3 py-2 text-[0.8125rem] leading-relaxed text-white/80 outline-none placeholder-white/25 focus:border-brand-dim thin-scrollbar"
+                    class="min-h-[5rem] w-full resize-y rounded-lg border border-border bg-card px-3 py-2 text-[0.8125rem] leading-relaxed text-text-primary outline-none placeholder-white/25 focus:border-brand-dim thin-scrollbar"
                     rows="3"
                 ></textarea>
             </div>
 
             <!-- Which account this will bill, stated where the decision is made rather than only
                  in settings. -->
-            <p class="-mt-1 flex items-center gap-1.5 text-[0.6875rem] text-white/35">
+            <p class="-mt-1 flex items-center gap-1.5 text-[0.6875rem] text-text-muted">
                 <i class="pi pi-lock text-[0.625rem]"></i>
                 {{ 'WIKI.AI.USING' | translate: {provider: providerLabel()} }}
                 <button
@@ -57,7 +57,7 @@
             </p>
 
             @if (error(); as message) {
-                <p class="rounded-lg border border-offline/30 bg-offline/[0.08] px-3 py-2 text-[0.8125rem] text-white/70">
+                <p class="rounded-lg border border-offline/30 bg-offline/[0.08] px-3 py-2 text-[0.8125rem] text-text-primary">
                     {{ message }}
                 </p>
             }
@@ -68,11 +68,11 @@
                  where the result is already rendered by the thing that will hold it. -->
             @if (draft() || running()) {
                 <div class="flex flex-col gap-2">
-                    <label class="text-xs font-medium text-white/45">
+                    <label class="text-xs font-medium text-text-secondary">
                         {{ 'WIKI.AI.PREVIEW_LABEL' | translate }}
                     </label>
                     <div
-                        class="max-h-[18rem] overflow-y-auto whitespace-pre-wrap rounded-lg border border-border bg-app-bg px-3 py-2 font-mono text-[0.75rem] leading-relaxed text-white/70 thin-scrollbar"
+                        class="max-h-[18rem] overflow-y-auto whitespace-pre-wrap rounded-lg border border-border bg-app-bg px-3 py-2 font-mono text-[0.75rem] leading-relaxed text-text-primary thin-scrollbar"
                     >
                         {{ draft() }}
                         @if (running()) {

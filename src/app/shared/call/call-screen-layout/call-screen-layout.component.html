@@ -61,7 +61,7 @@
                     (click)="showShare(share.shareId)"
                     [attr.aria-label]="'CALL.SHOW_STREAM' | translate: {name: share.displayName}"
                     [attr.title]="'CALL.SHOW_STREAM' | translate: {name: share.displayName}"
-                    class="call-focusable flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-border-subtle bg-card px-3 py-1 text-[0.6875rem] text-white/70 transition-colors hover:bg-hover hover:text-white/90"
+                    class="call-focusable flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-border-subtle bg-card px-3 py-1 text-[0.6875rem] text-text-primary transition-colors hover:bg-hover hover:text-text-primary"
                     type="button"
                 >
                     <i class="pi pi-eye text-[0.625rem] text-brand-dim"></i>
@@ -84,7 +84,7 @@
                 <!-- Paused must be tested before the stream, or a frozen frame replaces the indicator. -->
                 @if (paused) {
                     <span class="flex h-full w-full items-center justify-center">
-                        <i class="pi pi-play-circle text-lg text-white/40"></i>
+                        <i class="pi pi-play-circle text-lg text-text-muted"></i>
                     </span>
                 } @else if (self.stream) {
                     <video [streamSrc]="self.stream" autoplay class="h-full w-full object-contain" muted playsinline></video>
@@ -92,7 +92,7 @@
                     <img [alt]="'CALL.YOUR_SCREEN' | translate" [src]="self.previewSrc" class="h-full w-full object-contain" />
                 } @else {
                     <span class="flex h-full w-full items-center justify-center">
-                        <i class="pi pi-desktop text-lg text-white/20"></i>
+                        <i class="pi pi-desktop text-lg text-text-faint"></i>
                     </span>
                 }
             </span>
@@ -100,18 +100,18 @@
                 <!-- Idle-paused: only this local render stopped, the stream is still going out. -->
                 @if (paused) {
                     <span class="flex items-center gap-1.5">
-                        <i class="pi pi-pause-circle text-[0.625rem] text-white/40"></i>
-                        <span class="text-xs font-semibold text-white/85">{{ 'CALL.PREVIEW_PAUSED' | translate }}</span>
+                        <i class="pi pi-pause-circle text-[0.625rem] text-text-muted"></i>
+                        <span class="text-xs font-semibold text-text-primary">{{ 'CALL.PREVIEW_PAUSED' | translate }}</span>
                     </span>
-                    <span class="mt-0.5 block text-[0.6875rem] text-white/40">
+                    <span class="mt-0.5 block text-[0.6875rem] text-text-muted">
                         {{ 'CALL.PREVIEW_PAUSED_HINT' | translate }}
                     </span>
                 } @else {
                     <span class="flex items-center gap-1.5">
                         <span class="size-1.5 shrink-0 rounded-full bg-live status-pulse"></span>
-                        <span class="text-xs font-semibold text-white/85">{{ 'CALL.YOU_ARE_LIVE' | translate }}</span>
+                        <span class="text-xs font-semibold text-text-primary">{{ 'CALL.YOU_ARE_LIVE' | translate }}</span>
                     </span>
-                    <span class="mt-0.5 block text-[0.6875rem] text-white/40">
+                    <span class="mt-0.5 block text-[0.6875rem] text-text-muted">
                         {{ 'CALL.OTHERS_SEE_FULL_STREAM' | translate }}
                         @if (self.renderedFps != null) {
                             · {{ 'CALL.FPS_OUT' | translate: {fps: self.renderedFps} }}
@@ -169,7 +169,7 @@
                         }
                     </span>
 
-                    <span class="max-w-[4.25rem] truncate text-center text-xs text-white/75">{{ p.displayName }}</span>
+                    <span class="max-w-[4.25rem] truncate text-center text-xs text-text-primary">{{ p.displayName }}</span>
 
                     @if (!p.isLocal) {
                         <app-call-audio-status [state]="audio.stateOf(p.userId)" variant="inline" />
@@ -187,7 +187,9 @@
                             <i
                                 [class]="
                                     'pi text-[0.5625rem] ' +
-                                    (share.isAudioMuted ? 'pi-volume-off text-offline' : 'pi-volume-up text-white/40 hover:text-white/70')
+                                    (share.isAudioMuted
+                                        ? 'pi-volume-off text-offline'
+                                        : 'pi-volume-up text-text-muted hover:text-text-primary')
                                 "
                             ></i>
                         </button>

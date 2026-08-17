@@ -2,10 +2,10 @@
     <!-- ── Themes ──────────────────────────────────────────────────────────── -->
     <section class="flex flex-col gap-4">
         <div class="flex items-center justify-between border-b border-white/[0.10] pb-3">
-            <h2 class="text-[0.625rem] font-semibold text-white/30 uppercase tracking-widest">Themes</h2>
+            <h2 class="text-[0.625rem] font-semibold text-text-muted uppercase tracking-widest">Themes</h2>
             <div class="flex items-center gap-2">
                 <label
-                    class="flex items-center gap-1.5 text-[0.6875rem] text-white/40 hover:text-white/70 border border-white/[0.08] hover:border-white/20 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
+                    class="flex items-center gap-1.5 text-[0.6875rem] text-text-muted hover:text-text-primary border border-white/[0.08] hover:border-white/20 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
                 >
                     <i class="pi pi-upload" style="font-size: 0.6875rem"></i>
                     Import
@@ -13,7 +13,7 @@
                 </label>
                 <button
                     (click)="themeService.exportTheme(themeService.activeThemeId())"
-                    class="flex items-center gap-1.5 text-[0.6875rem] text-white/40 hover:text-white/70 border border-white/[0.08] hover:border-white/20 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
+                    class="flex items-center gap-1.5 text-[0.6875rem] text-text-muted hover:text-text-primary border border-white/[0.08] hover:border-white/20 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
                 >
                     <i class="pi pi-download" style="font-size: 0.6875rem"></i>
                     Export
@@ -52,7 +52,7 @@
                                 <i class="pi pi-check-circle text-brand-dim shrink-0" style="font-size: 0.625rem"></i>
                             }
                             <span
-                                [ngClass]="themeService.activeThemeId() === theme.id ? 'text-brand-dim' : 'text-white/60'"
+                                [ngClass]="themeService.activeThemeId() === theme.id ? 'text-brand-dim' : 'text-text-secondary'"
                                 class="text-xs font-medium truncate"
                             >
                                 {{ theme.name }}
@@ -61,7 +61,7 @@
                         @if (theme.id !== 'alpine-dark') {
                             <button
                                 (click)="$event.stopPropagation(); requestDelete(theme.id)"
-                                class="shrink-0 w-6 h-6 flex items-center justify-center rounded opacity-0 group-hover:opacity-100 text-white/40 hover:text-rose-400 transition-all"
+                                class="shrink-0 w-6 h-6 flex items-center justify-center rounded opacity-0 group-hover:opacity-100 text-text-muted hover:text-rose-400 transition-all"
                             >
                                 <i class="pi pi-trash" style="font-size: 0.75rem"></i>
                             </button>
@@ -74,7 +74,7 @@
             @if (!showNewForm()) {
                 <button
                     (click)="showNewForm.set(true)"
-                    class="flex flex-col items-center justify-center gap-2 w-40 h-[4.5rem] rounded-xl border border-dashed border-white/[0.12] hover:border-brand/40 text-white/25 hover:text-brand-dim transition-colors cursor-pointer"
+                    class="flex flex-col items-center justify-center gap-2 w-40 h-[4.5rem] rounded-xl border border-dashed border-white/[0.12] hover:border-brand/40 text-text-muted hover:text-brand-dim transition-colors cursor-pointer"
                 >
                     <i class="pi pi-plus text-sm"></i>
                     <span class="text-xs">New Theme</span>
@@ -86,7 +86,7 @@
                         (keydown.escape)="cancelNew()"
                         (ngModelChange)="newThemeName.set($event)"
                         [ngModel]="newThemeName()"
-                        class="text-xs bg-white/[0.04] border border-white/[0.09] rounded-lg px-2.5 py-1.5 text-white/80 placeholder:text-white/25 outline-none focus:border-brand/40"
+                        class="text-xs bg-white/[0.04] border border-white/[0.09] rounded-lg px-2.5 py-1.5 text-text-primary placeholder:text-text-muted outline-none focus:border-brand/40"
                         placeholder="Theme name…"
                         type="text"
                     />
@@ -114,7 +114,7 @@
         @if (confirmDeleteId()) {
             <div class="flex items-center gap-3 bg-rose-500/[0.08] border border-rose-500/25 rounded-xl px-4 py-3">
                 <i class="pi pi-exclamation-triangle text-rose-400 shrink-0"></i>
-                <p class="text-xs text-white/70 flex-1">Delete this theme? This cannot be undone.</p>
+                <p class="text-xs text-text-primary flex-1">Delete this theme? This cannot be undone.</p>
                 <p-button (onClick)="confirmDelete()" label="Delete" severity="danger" size="small" />
                 <p-button (onClick)="cancelDelete()" label="Cancel" severity="secondary" size="small" />
             </div>
@@ -123,19 +123,21 @@
 
     <!-- ── Typography ──────────────────────────────────────────────────────── -->
     <section class="flex flex-col gap-4">
-        <h2 class="text-[0.625rem] font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">Typography</h2>
+        <h2 class="text-[0.625rem] font-semibold text-text-muted uppercase tracking-widest border-b border-white/[0.10] pb-3">
+            Typography
+        </h2>
 
         <div class="flex flex-col gap-3 bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-4">
             <div class="flex items-center justify-between">
                 <div>
-                    <p class="text-sm text-white/75">Base Font Size</p>
-                    <p class="text-xs text-white/35 mt-0.5">All text sizes scale proportionally. 16 px is the default.</p>
+                    <p class="text-sm text-text-primary">Base Font Size</p>
+                    <p class="text-xs text-text-muted mt-0.5">All text sizes scale proportionally. 16 px is the default.</p>
                 </div>
                 <span class="text-sm font-medium text-brand-dim tabular-nums w-12 text-right shrink-0"> {{ fontSizeValue }} px </span>
             </div>
 
             <div class="flex items-center gap-3">
-                <span class="text-xs text-white/30 shrink-0">12</span>
+                <span class="text-xs text-text-muted shrink-0">12</span>
                 <input
                     (input)="onFontSizeChange($any($event.target).value)"
                     [value]="fontSizeValue"
@@ -145,16 +147,16 @@
                     step="1"
                     type="range"
                 />
-                <span class="text-xs text-white/30 shrink-0">20</span>
+                <span class="text-xs text-text-muted shrink-0">20</span>
             </div>
 
             <!-- Live preview -->
             <div class="pt-3 border-t border-white/[0.06]">
-                <p class="text-xs text-white/30 mb-2 uppercase tracking-wide">Preview</p>
+                <p class="text-xs text-text-muted mb-2 uppercase tracking-wide">Preview</p>
                 <div class="flex flex-col gap-1">
-                    <p class="text-base font-semibold text-white/85">Channel Header</p>
-                    <p class="text-sm text-white/75">Message content text -this is your base reference size.</p>
-                    <p class="text-xs text-white/40">Timestamp · Label · Secondary text</p>
+                    <p class="text-base font-semibold text-text-primary">Channel Header</p>
+                    <p class="text-sm text-text-primary">Message content text -this is your base reference size.</p>
+                    <p class="text-xs text-text-muted">Timestamp · Label · Secondary text</p>
                 </div>
             </div>
         </div>
@@ -164,7 +166,7 @@
     @if (!isBuiltIn()) {
         @for (group of colorGroups; track group.title) {
             <section class="flex flex-col gap-4">
-                <h2 class="text-[0.625rem] font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">
+                <h2 class="text-[0.625rem] font-semibold text-text-muted uppercase tracking-widest border-b border-white/[0.10] pb-3">
                     {{ group.title }}
                 </h2>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -181,8 +183,8 @@
                                 />
                             </div>
                             <div class="flex-1 min-w-0">
-                                <p class="text-xs font-medium text-white/65">{{ colorLabels[key] }}</p>
-                                <p class="text-[0.625rem] text-white/30 font-mono mt-0.5">{{ themeService.activeTheme().colors[key] }}</p>
+                                <p class="text-xs font-medium text-text-secondary">{{ colorLabels[key] }}</p>
+                                <p class="text-[0.625rem] text-text-muted font-mono mt-0.5">{{ themeService.activeTheme().colors[key] }}</p>
                             </div>
                         </div>
                     }
@@ -191,10 +193,10 @@
         }
     } @else {
         <div class="flex items-start gap-3 bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-3">
-            <i class="pi pi-info-circle text-white/30 shrink-0 mt-0.5"></i>
+            <i class="pi pi-info-circle text-text-muted shrink-0 mt-0.5"></i>
             <div>
-                <p class="text-sm text-white/60">Built-in theme</p>
-                <p class="text-xs text-white/35 mt-0.5">
+                <p class="text-sm text-text-secondary">Built-in theme</p>
+                <p class="text-xs text-text-muted mt-0.5">
                     Alpine Dark cannot be edited. Create a new theme (copying its colors) to customize.
                 </p>
             </div>

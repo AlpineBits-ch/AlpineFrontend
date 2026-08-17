@@ -58,14 +58,14 @@ const FLUSH_MS = 90;
                 <!-- Connect, reached without leaving the page you were writing on. -->
                 @if (phase() === 'connect') {
                     <div class="max-h-[70vh] overflow-y-auto p-3 thin-scrollbar">
-                        <p class="mb-3 text-[0.75rem] text-white/50">
+                        <p class="mb-3 text-[0.75rem] text-text-secondary">
                             {{ 'WIKI.AI.CONNECT_INTRO' | translate }}
                         </p>
                         <app-ai-connect-form (connected)="onConnected()" [showBilling]="false" />
                         <button
                             (click)="close()"
                             class="mt-3 cursor-pointer border-0 bg-transparent p-0
-                                       text-[0.75rem] text-white/40 hover:text-white/70"
+                                       text-[0.75rem] text-text-muted hover:text-text-primary"
                             type="button"
                         >
                             {{ 'COMMON.CANCEL' | translate }}
@@ -80,7 +80,7 @@ const FLUSH_MS = 90;
                                 [class]="phase() === 'running' ? 'pi-spinner' : 'pi-sparkles'"
                                 class="pi text-[0.75rem] text-brand-dim"
                             ></i>
-                            <span class="flex-1 truncate text-[0.6875rem] text-white/40">
+                            <span class="flex-1 truncate text-[0.6875rem] text-text-muted">
                                 @if (phase() === 'running') {
                                     {{ runningLabel() || 'WIKI.AI.INLINE.GENERATING' | translate }}
                                 } @else if (phase() === 'review') {
@@ -93,7 +93,7 @@ const FLUSH_MS = 90;
                                 <button
                                     (click)="phase.set('connect')"
                                     class="cursor-pointer border-0 bg-transparent p-0
-                                               text-[0.6875rem] text-white/25 hover:text-white/60"
+                                               text-[0.6875rem] text-text-muted hover:text-text-secondary"
                                     type="button"
                                 >
                                     {{ providerLabel() }}
@@ -118,7 +118,7 @@ const FLUSH_MS = 90;
                                         ) | translate
                                     "
                                     class="flex-1 border-0 bg-transparent text-[0.8125rem]
-                                              text-white/85 outline-none placeholder-white/25"
+                                              text-text-primary outline-none placeholder-white/25"
                                 />
                                 <button
                                     (click)="submit()"
@@ -136,7 +136,7 @@ const FLUSH_MS = 90;
                         @if (error(); as message) {
                             <p
                                 class="rounded-lg border border-offline/30 bg-offline/[0.08] px-2
-                                      py-1.5 text-[0.75rem] leading-snug text-white/70"
+                                      py-1.5 text-[0.75rem] leading-snug text-text-primary"
                             >
                                 {{ message }}
                             </p>
@@ -149,7 +149,7 @@ const FLUSH_MS = 90;
                                     (click)="stop()"
                                     class="flex cursor-pointer items-center gap-1.5 rounded-md
                                                border-0 bg-white/[0.06] px-2 py-1 text-[0.75rem]
-                                               text-white/65 hover:bg-white/10 hover:text-white/90"
+                                               text-text-secondary hover:bg-white/10 hover:text-text-primary"
                                     type="button"
                                 >
                                     <i class="pi pi-stop text-[0.625rem]"></i>
@@ -170,7 +170,7 @@ const FLUSH_MS = 90;
                                     (click)="retry()"
                                     class="flex cursor-pointer items-center gap-1.5 rounded-md
                                                border-0 bg-white/[0.06] px-2 py-1 text-[0.75rem]
-                                               text-white/65 hover:bg-white/10 hover:text-white/90"
+                                               text-text-secondary hover:bg-white/10 hover:text-text-primary"
                                     type="button"
                                 >
                                     <i class="pi pi-refresh text-[0.625rem]"></i>
@@ -180,14 +180,14 @@ const FLUSH_MS = 90;
                                     (click)="close()"
                                     class="flex cursor-pointer items-center gap-1.5 rounded-md
                                                border-0 bg-white/[0.06] px-2 py-1 text-[0.75rem]
-                                               text-white/65 hover:bg-white/10 hover:text-white/90"
+                                               text-text-secondary hover:bg-white/10 hover:text-text-primary"
                                     type="button"
                                 >
                                     <i class="pi pi-times text-[0.625rem]"></i>
                                     {{ 'WIKI.AI.INLINE.DISCARD' | translate }}
                                 </button>
                             } @else {
-                                <span class="px-1 text-[0.6875rem] text-white/25">
+                                <span class="px-1 text-[0.6875rem] text-text-muted">
                                     {{ 'WIKI.AI.INLINE.HINT' | translate }}
                                 </span>
                                 @if (!ai.available()) {

@@ -6,11 +6,11 @@
         </div>
 
         <div class="flex-1 min-w-0">
-            <p class="text-sm font-semibold text-white/85 m-0 leading-snug truncate">
+            <p class="text-sm font-semibold text-text-primary m-0 leading-snug truncate">
                 {{ channelName() || ('VOICE_RING.A_VOICE_CHANNEL' | translate) }}
             </p>
             <!-- Three states, not two. -->
-            <p class="text-[11px] text-white/30 m-0 mt-0.5">
+            <p class="text-[11px] text-text-muted m-0 mt-0.5">
                 @if (live() || standing()) {
                     {{ 'VOICE_RING.CARD_SUBTITLE' | translate }}
                 } @else {
@@ -18,7 +18,7 @@
                 }
             </p>
             @if (!isOwnInvitation() && willMove()) {
-                <p class="text-[11px] text-white/30 m-0 mt-0.5">{{ 'VOICE_RING.WILL_MOVE_YOU' | translate }}</p>
+                <p class="text-[11px] text-text-muted m-0 mt-0.5">{{ 'VOICE_RING.WILL_MOVE_YOU' | translate }}</p>
             }
         </div>
 
@@ -36,7 +36,7 @@
                 <!-- Not an accept. -->
                 <button
                     (click)="joinAnyway()"
-                    class="shrink-0 px-3 py-1.5 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.08] text-white/70 text-xs font-medium cursor-pointer transition-colors"
+                    class="shrink-0 px-3 py-1.5 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.08] text-text-primary text-xs font-medium cursor-pointer transition-colors"
                     type="button"
                 >
                     {{ 'VOICE_RING.CARD_JOIN_ANYWAY' | translate }}

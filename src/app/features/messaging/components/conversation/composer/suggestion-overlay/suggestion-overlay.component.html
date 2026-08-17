@@ -9,7 +9,7 @@
     <div
         class="absolute bottom-full left-4 right-4 mb-1.5 bg-[#141926] border border-white/[0.08] rounded-xl overflow-hidden shadow-2xl z-50"
     >
-        <div class="px-3 py-1.5 border-b border-white/[0.05] text-[10px] font-semibold text-white/25 uppercase tracking-widest">
+        <div class="px-3 py-1.5 border-b border-white/[0.05] text-[10px] font-semibold text-text-muted uppercase tracking-widest">
             @if (overlayType() === 'mention') {
                 Mention a member
             } @else if (overlayType() === 'command') {
@@ -33,7 +33,7 @@
                     @switch (m.kind) {
                         @case ('user') {
                             <p-avatar icon="pi pi-user" shape="circle" />
-                            <span [appUserNameStyle]="m" class="text-sm font-semibold text-white/80">{{ m.userName }}</span>
+                            <span [appUserNameStyle]="m" class="text-sm font-semibold text-text-primary">{{ m.userName }}</span>
                         }
                         @case ('role') {
                             <span
@@ -46,15 +46,15 @@
                         }
                         @case ('everyone') {
                             <span class="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center shrink-0">
-                                <i class="pi pi-at text-xs text-white/50"></i>
+                                <i class="pi pi-at text-xs text-text-secondary"></i>
                             </span>
-                            <span class="text-sm font-semibold text-white/80">everyone</span>
+                            <span class="text-sm font-semibold text-text-primary">everyone</span>
                         }
                         @case ('here') {
                             <span class="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center shrink-0">
                                 <i class="pi pi-circle-fill text-xs text-emerald-400"></i>
                             </span>
-                            <span class="text-sm font-semibold text-white/80">here</span>
+                            <span class="text-sm font-semibold text-text-primary">here</span>
                         }
                     }
                 </div>
@@ -70,7 +70,7 @@
                 >
                     @if (item.kind === 'local') {
                         <span class="text-sm font-bold text-[var(--color-brand-dim)] shrink-0">/{{ item.def.name }}</span>
-                        <span class="text-xs text-white/40 flex-1">{{ item.def.description }}</span>
+                        <span class="text-xs text-text-muted flex-1">{{ item.def.description }}</span>
                         <span
                             [ngClass]="
                                 item.def.scope === 'inline'
@@ -82,7 +82,7 @@
                             {{ item.def.scope }}
                         </span>
                         @if (item.def.params.length > 0) {
-                            <span class="text-[11px] text-white/20 font-mono shrink-0">
+                            <span class="text-[11px] text-text-faint font-mono shrink-0">
                                 @for (p of item.def.params; track p.label) {
                                     {{ p.required ? '<' + p.label + '>' : '[' + p.label + ']' }}
                                 }
@@ -90,12 +90,12 @@
                         }
                     } @else {
                         <span class="text-sm font-bold text-[var(--color-brand-dim)] shrink-0">/{{ item.def.name }}</span>
-                        <span class="text-xs text-white/40 flex-1">{{ item.def.description }}</span>
-                        <span class="text-[10px] px-1.5 py-0.5 rounded font-medium shrink-0 bg-white/[0.08] text-white/50">
+                        <span class="text-xs text-text-muted flex-1">{{ item.def.description }}</span>
+                        <span class="text-[10px] px-1.5 py-0.5 rounded font-medium shrink-0 bg-white/[0.08] text-text-secondary">
                             {{ item.def.botName }}
                         </span>
                         @if (item.def.options.length > 0) {
-                            <span class="text-[11px] text-white/20 font-mono shrink-0">
+                            <span class="text-[11px] text-text-faint font-mono shrink-0">
                                 @for (o of item.def.options; track o.name) {
                                     {{ o.required ? '<' + o.name + '>' : '[' + o.name + ']' }}
                                 }
@@ -114,8 +114,8 @@
                     class="flex items-center gap-3 px-3 py-2 cursor-pointer transition-colors"
                 >
                     <span class="w-6 text-center leading-none"><app-twemoji [emoji]="e.native" size="1.25em" /></span>
-                    <span class="text-sm text-white/60">:{{ e.id }}:</span>
-                    <span class="text-xs text-white/25 ml-auto">{{ e.name }}</span>
+                    <span class="text-sm text-text-secondary">:{{ e.id }}:</span>
+                    <span class="text-xs text-text-muted ml-auto">{{ e.name }}</span>
                 </div>
             }
         }
@@ -128,9 +128,9 @@
                     class="flex items-center gap-2.5 px-3 py-2 cursor-pointer transition-colors"
                 >
                     <span class="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center shrink-0">
-                        <i [class]="channelIcon(c.type)" class="text-xs text-white/50"></i>
+                        <i [class]="channelIcon(c.type)" class="text-xs text-text-secondary"></i>
                     </span>
-                    <span class="text-sm font-semibold text-white/80">{{ c.name }}</span>
+                    <span class="text-sm font-semibold text-text-primary">{{ c.name }}</span>
                 </div>
             }
         }
@@ -143,14 +143,14 @@
                     class="flex items-center gap-2.5 px-3 py-2 cursor-pointer transition-colors"
                 >
                     <span class="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center shrink-0">
-                        <i class="pi pi-book text-xs text-white/50"></i>
+                        <i class="pi pi-book text-xs text-text-secondary"></i>
                     </span>
-                    <span class="text-sm font-semibold text-white/80 truncate">{{ p.title }}</span>
+                    <span class="text-sm font-semibold text-text-primary truncate">{{ p.title }}</span>
                     @if (p.isPinned) {
-                        <i class="pi pi-thumbtack text-[0.625rem] text-white/25 shrink-0"></i>
+                        <i class="pi pi-thumbtack text-[0.625rem] text-text-muted shrink-0"></i>
                     }
                     @if (p.tags.length) {
-                        <span class="text-xs text-white/25 ml-auto truncate max-w-[10rem]">{{ p.tags.join(', ') }}</span>
+                        <span class="text-xs text-text-muted ml-auto truncate max-w-[10rem]">{{ p.tags.join(', ') }}</span>
                     }
                 </div>
             }

@@ -18,10 +18,10 @@
                 <div class="flex items-start gap-3">
                     <i class="pi pi-check-circle text-lg text-emerald-400 mt-0.5"></i>
                     <div class="flex flex-col gap-1">
-                        <h3 class="text-[0.9375rem] font-semibold text-white/80">
+                        <h3 class="text-[0.9375rem] font-semibold text-text-primary">
                             {{ (merged() ? 'REPORT.SENT_MERGED_TITLE' : 'REPORT.SENT_TITLE') | translate }}
                         </h3>
-                        <p class="text-[0.8125rem] leading-relaxed text-white/45">
+                        <p class="text-[0.8125rem] leading-relaxed text-text-secondary">
                             {{ (merged() ? 'REPORT.SENT_MERGED_BODY' : 'REPORT.SENT_BODY') | translate }}
                         </p>
                     </div>
@@ -50,9 +50,9 @@
         } @else {
             <div class="flex flex-col gap-4 p-5">
                 <div class="flex flex-col gap-1">
-                    <h3 class="text-base font-semibold text-white/80">{{ titleKey() | translate }}</h3>
+                    <h3 class="text-base font-semibold text-text-primary">{{ titleKey() | translate }}</h3>
                     @if (target.targetName) {
-                        <p class="text-xs text-white/40">
+                        <p class="text-xs text-text-muted">
                             {{ 'REPORT.SUBTITLE' | translate: {name: target.targetName} }}
                         </p>
                     }
@@ -60,7 +60,7 @@
 
                 <!-- Reasons ───────────────────────────────────────────────────────── -->
                 <div class="flex flex-col gap-1.5">
-                    <label class="text-[0.6875rem] font-semibold uppercase tracking-[0.1em] text-white/40">
+                    <label class="text-[0.6875rem] font-semibold uppercase tracking-[0.1em] text-text-muted">
                         {{ 'REPORT.REASON_LABEL' | translate }}
                     </label>
                     <div class="flex flex-col gap-1 max-h-64 overflow-y-auto thin-scrollbar pr-1">
@@ -69,8 +69,8 @@
                                 (click)="reason.set(option.value)"
                                 [class]="
                                     reason() === option.value
-                                        ? 'bg-hover border-[color-mix(in_srgb,var(--color-brand)_45%,transparent)] text-white/85'
-                                        : 'border-transparent text-white/70'
+                                        ? 'bg-hover border-[color-mix(in_srgb,var(--color-brand)_45%,transparent)] text-text-primary'
+                                        : 'border-transparent text-text-primary'
                                 "
                                 class="flex items-center gap-2.5 rounded-[10px] border px-3 py-2 text-left text-[0.8125rem] transition-colors hover:bg-white/[0.05] cursor-pointer"
                                 type="button"
@@ -91,7 +91,7 @@
 
                 <!-- Details ───────────────────────────────────────────────────────── -->
                 <div class="flex flex-col gap-1.5">
-                    <label class="text-[0.6875rem] font-semibold uppercase tracking-[0.1em] text-white/40" for="report-details">
+                    <label class="text-[0.6875rem] font-semibold uppercase tracking-[0.1em] text-text-muted" for="report-details">
                         {{ 'REPORT.DETAILS_LABEL' | translate }}
                     </label>
                     <textarea
@@ -99,18 +99,18 @@
                         (ngModelChange)="details.set($event)"
                         [maxlength]="detailsMax"
                         [placeholder]="'REPORT.DETAILS_PLACEHOLDER' | translate"
-                        class="w-full min-h-20 resize-y rounded-[10px] border border-white/[0.09] bg-white/[0.04] px-3 py-2 text-[0.8125rem] text-white/75 outline-none placeholder:text-white/25 focus:border-[color-mix(in_srgb,var(--color-brand)_50%,transparent)]"
+                        class="w-full min-h-20 resize-y rounded-[10px] border border-white/[0.09] bg-white/[0.04] px-3 py-2 text-[0.8125rem] text-text-primary outline-none placeholder:text-text-muted focus:border-[color-mix(in_srgb,var(--color-brand)_50%,transparent)]"
                         id="report-details"
                     ></textarea>
-                    <span class="self-end text-[0.625rem] text-white/25"> {{ details().length }} / {{ detailsMax }} </span>
+                    <span class="self-end text-[0.625rem] text-text-muted"> {{ details().length }} / {{ detailsMax }} </span>
                 </div>
 
                 <!-- Evidence: said out loud, with the exact payload one click away. -->
                 @if (evidence(); as snapshot) {
                     <div class="flex flex-col gap-2 rounded-[10px] border border-white/[0.08] bg-white/[0.03] px-3 py-2.5">
                         <div class="flex items-start gap-2">
-                            <i class="pi pi-paperclip text-[0.6875rem] text-white/30 mt-0.5"></i>
-                            <p class="flex-1 text-[0.75rem] leading-relaxed text-white/45">
+                            <i class="pi pi-paperclip text-[0.6875rem] text-text-muted mt-0.5"></i>
+                            <p class="flex-1 text-[0.75rem] leading-relaxed text-text-secondary">
                                 {{ 'REPORT.EVIDENCE_NOTICE' | translate: {count: snapshot.messages.length} }}
                             </p>
                         </div>
@@ -129,7 +129,7 @@
                     </div>
                 } @else if (target.kind === 'Message') {
                     <!-- Opened where the conversation was never loaded: a search hit, a notification. -->
-                    <p class="text-[0.75rem] leading-relaxed text-white/35">
+                    <p class="text-[0.75rem] leading-relaxed text-text-muted">
                         {{ 'REPORT.EVIDENCE_UNAVAILABLE' | translate }}
                     </p>
                 }

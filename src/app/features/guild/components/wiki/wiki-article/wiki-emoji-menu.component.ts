@@ -43,16 +43,16 @@ import {EmojiDataService, EmojiSuggestion} from '../../../../../services/emoji-d
                             <span class="w-5 shrink-0 text-center text-[1rem] leading-none">
                                 {{ emoji.native }}
                             </span>
-                            <span class="min-w-0 flex-1 truncate text-[0.8125rem] text-white/75">
+                            <span class="min-w-0 flex-1 truncate text-[0.8125rem] text-text-primary">
                                 :{{ emoji.id }}:
                             </span>
-                            <span class="shrink-0 truncate text-[0.6875rem] text-white/30">
+                            <span class="shrink-0 truncate text-[0.6875rem] text-text-muted">
                                 {{ emoji.name }}
                             </span>
                         </button>
                     }
                     @if (matches().length === 0) {
-                        <p class="px-3 py-2 text-[0.75rem] text-white/30">
+                        <p class="px-3 py-2 text-[0.75rem] text-text-muted">
                             {{ 'WIKI.EMOJI_MENU.NO_MATCH' | translate }}
                         </p>
                     }

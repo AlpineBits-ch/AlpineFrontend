@@ -231,7 +231,7 @@ export class CallPanelComponent implements OnInit, OnDestroy {
     protected chipClass(active: boolean): string {
         return active
             ? `${CHIP_BASE} bg-brand/15 text-brand-dim`
-            : `${CHIP_BASE} text-white/40 hover:bg-white/[0.08] hover:text-white/70`;
+            : `${CHIP_BASE} text-text-muted hover:bg-white/[0.08] hover:text-text-primary`;
     }
 
     protected onParticipantContextMenu(event: MouseEvent, p: CallParticipant): void {

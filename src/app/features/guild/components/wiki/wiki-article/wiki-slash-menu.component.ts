@@ -73,7 +73,7 @@ const GROUP_ORDER: readonly SlashGroup[] = ['basic', 'lists', 'media', 'advanced
                     @for (group of groups(); track group.key) {
                         <p
                             class="px-3 pb-1 pt-2 text-[0.625rem] font-semibold uppercase
-                                  tracking-wider text-white/30"
+                                  tracking-wider text-text-muted"
                         >
                             {{ group.labelKey | translate }}
                         </p>
@@ -98,10 +98,10 @@ const GROUP_ORDER: readonly SlashGroup[] = ['basic', 'lists', 'media', 'advanced
                                     <i [class]="iconClass(entry.item)" class="pi text-[0.75rem]"></i>
                                 </span>
                                 <span class="min-w-0 flex-1">
-                                    <span class="block truncate text-[0.8125rem] text-white/85">
+                                    <span class="block truncate text-[0.8125rem] text-text-primary">
                                         {{ entry.item.labelKey | translate }}
                                     </span>
-                                    <span class="block truncate text-[0.6875rem] text-white/35">
+                                    <span class="block truncate text-[0.6875rem] text-text-muted">
                                         {{ entry.item.descriptionKey | translate }}
                                     </span>
                                 </span>
@@ -109,12 +109,12 @@ const GROUP_ORDER: readonly SlashGroup[] = ['basic', 'lists', 'media', 'advanced
                         }
                     }
                     @if (filtered().length === 0) {
-                        <p class="px-3 py-2 text-[0.75rem] text-white/30">
+                        <p class="px-3 py-2 text-[0.75rem] text-text-muted">
                             {{ 'WIKI.SLASH_MENU.NO_MATCH' | translate }}
                         </p>
                     }
                 </div>
-                <div class="border-t border-border-subtle px-3 py-1.5 text-[0.625rem] text-white/30">
+                <div class="border-t border-border-subtle px-3 py-1.5 text-[0.625rem] text-text-muted">
                     {{ 'WIKI.SLASH_MENU.HINT' | translate }}
                 </div>
             </div>
@@ -383,6 +383,6 @@ export class WikiSlashMenuComponent {
 
     /** The AI rows get the accent so the group reads as one thing at a glance. */
     protected iconClass(item: SlashItem): string {
-        return `${item.icon} ${item.group === 'ai' ? 'text-brand-dim' : 'text-white/50'}`;
+        return `${item.icon} ${item.group === 'ai' ? 'text-brand-dim' : 'text-text-secondary'}`;
     }
 }

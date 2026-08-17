@@ -315,7 +315,7 @@ export class GuildSettingsModalComponent {
         return {
             'bg-[color-mix(in_srgb,var(--color-brand)_15%,transparent)]': active,
             'text-[var(--color-brand-dim)]': active,
-            'text-white/50': !active,
+            'text-text-secondary': !active,
         };
     }
 

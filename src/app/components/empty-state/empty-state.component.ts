@@ -10,7 +10,7 @@ import {Component, computed, input} from '@angular/core';
         >
             @if (size() === 'sm') {
                 <div class="w-8 h-8 rounded-full bg-white/[0.04] flex items-center justify-center">
-                    <i class="pi text-white/20 text-sm" [class]="icon()"></i>
+                    <i class="pi text-text-faint text-sm" [class]="icon()"></i>
                 </div>
             } @else {
                 <svg
@@ -32,7 +32,7 @@ import {Component, computed, input} from '@angular/core';
                 </svg>
             }
             <p
-                [class]="size() === 'sm' ? 'text-[11px] text-white/25' : 'text-sm text-white/25'"
+                [class]="size() === 'sm' ? 'text-[11px] text-text-muted' : 'text-sm text-text-muted'"
                 class="leading-snug"
             >
                 {{ message() }}

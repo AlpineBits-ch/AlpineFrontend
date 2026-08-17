@@ -292,7 +292,7 @@ export class CallMiniPlayerComponent {
             ' rounded-lg border-0 transition-colors';
         return active
             ? `${base} bg-offline/15 text-offline hover:bg-offline/25`
-            : `${base} bg-white/[0.06] text-white/70 hover:bg-white/[0.12]`;
+            : `${base} bg-white/[0.06] text-text-primary hover:bg-white/[0.12]`;
     }
 
     /**

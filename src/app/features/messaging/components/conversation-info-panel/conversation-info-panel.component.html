@@ -16,9 +16,9 @@
                 />
                 <app-user-status-dot [status]="partnerStatus" size="lg" />
             </div>
-            <h2 class="text-sm font-semibold text-white/90 m-0">{{ partner.cachedUserName }}</h2>
+            <h2 class="text-sm font-semibold text-text-primary m-0">{{ partner.cachedUserName }}</h2>
             <span
-                [ngClass]="partnerStatus === OnlineStatus.Online ? 'text-online/80' : 'text-white/30'"
+                [ngClass]="partnerStatus === OnlineStatus.Online ? 'text-online/80' : 'text-text-muted'"
                 class="mt-1.5 text-[11px] flex items-center gap-1"
             >
                 <span
@@ -38,15 +38,15 @@
 
         <!-- Quick actions -->
         <div class="px-4 py-4 border-b border-white/[0.06]">
-            <p class="text-[10px] font-semibold uppercase tracking-widest text-white/25 mb-2 px-1">Actions</p>
+            <p class="text-[10px] font-semibold uppercase tracking-widest text-text-muted mb-2 px-1">Actions</p>
             <div class="flex flex-col gap-0.5">
                 <button
-                    class="flex items-center gap-2.5 px-2 py-2 rounded-lg text-left text-sm text-white/55 hover:text-white/80 hover:bg-white/[0.05] bg-transparent border-0 cursor-pointer transition-colors w-full"
+                    class="flex items-center gap-2.5 px-2 py-2 rounded-lg text-left text-sm text-text-secondary hover:text-text-primary hover:bg-white/[0.05] bg-transparent border-0 cursor-pointer transition-colors w-full"
                 >
                     <i class="pi pi-phone text-xs w-4 text-center"></i> Voice call
                 </button>
                 <button
-                    class="flex items-center gap-2.5 px-2 py-2 rounded-lg text-left text-sm text-white/55 hover:text-white/80 hover:bg-white/[0.05] bg-transparent border-0 cursor-pointer transition-colors w-full"
+                    class="flex items-center gap-2.5 px-2 py-2 rounded-lg text-left text-sm text-text-secondary hover:text-text-primary hover:bg-white/[0.05] bg-transparent border-0 cursor-pointer transition-colors w-full"
                 >
                     <i class="pi pi-video text-xs w-4 text-center"></i> Video call
                 </button>
@@ -55,7 +55,7 @@
     } @else {
         <!-- Members list (group chat) -->
         <div class="px-4 py-4">
-            <p class="text-[10px] font-semibold uppercase tracking-widest text-white/25 mb-2 px-1">Members -{{ others().length }}</p>
+            <p class="text-[10px] font-semibold uppercase tracking-widest text-text-muted mb-2 px-1">Members -{{ others().length }}</p>
             <div class="flex flex-col gap-0.5">
                 @for (member of others(); track member.id) {
                     <div
@@ -68,7 +68,7 @@
                             <app-user-status-dot [status]="getOnlineStatus(member.userId)" />
                         </div>
                         <div class="flex flex-col min-w-0">
-                            <span class="text-sm text-white/75 truncate leading-tight">{{ member.cachedUserName }}</span>
+                            <span class="text-sm text-text-primary truncate leading-tight">{{ member.cachedUserName }}</span>
                         </div>
                     </div>
                 }

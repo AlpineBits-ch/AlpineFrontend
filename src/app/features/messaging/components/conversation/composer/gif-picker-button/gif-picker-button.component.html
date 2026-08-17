@@ -22,7 +22,7 @@
                     #searchInput
                     (input)="onSearch($any($event.target).value)"
                     [value]="searchQuery()"
-                    class="w-full bg-white/[0.06] border border-white/[0.08] rounded-lg px-3 py-1.5 text-sm text-white/80 placeholder-white/25 outline-none focus:border-white/[0.18] transition-colors"
+                    class="w-full bg-white/[0.06] border border-white/[0.08] rounded-lg px-3 py-1.5 text-sm text-text-primary placeholder-white/25 outline-none focus:border-white/[0.18] transition-colors"
                     placeholder="Search GIFs..."
                     type="text"
                 />
@@ -34,9 +34,9 @@
                 style="scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.08) transparent"
             >
                 @if (loading()) {
-                    <div class="flex items-center justify-center py-8 text-white/25 text-sm">Loading…</div>
+                    <div class="flex items-center justify-center py-8 text-text-muted text-sm">Loading…</div>
                 } @else if (gifs().length === 0) {
-                    <div class="flex items-center justify-center py-8 text-white/25 text-sm">No results</div>
+                    <div class="flex items-center justify-center py-8 text-text-muted text-sm">No results</div>
                 } @else {
                     <div class="grid grid-cols-3 gap-1.5">
                         @for (gif of gifs(); track gif.id) {
@@ -54,7 +54,7 @@
 
             <!-- Footer -->
             <div class="px-3 py-1.5 border-t border-white/[0.06] shrink-0 flex items-center justify-end">
-                <span class="text-[10px] text-white/20">Powered by KLIPY</span>
+                <span class="text-[10px] text-text-faint">Powered by KLIPY</span>
             </div>
         </div>
     }

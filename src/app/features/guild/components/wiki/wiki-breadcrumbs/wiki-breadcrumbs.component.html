@@ -16,26 +16,26 @@
     <nav class="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
         @for (segment of trail(); track segment.id) {
             @if (!$first) {
-                <i class="pi pi-angle-right shrink-0 text-[0.625rem] text-white/25"></i>
+                <i class="pi pi-angle-right shrink-0 text-[0.625rem] text-text-muted"></i>
             }
             @if (isLast(segment)) {
-                <span class="truncate text-[0.8125rem] text-white/75">{{ segment.label }}</span>
+                <span class="truncate text-[0.8125rem] text-text-primary">{{ segment.label }}</span>
             } @else if (segment.kind === 'page') {
                 <button
                     (click)="onSegment(segment)"
-                    class="shrink-0 cursor-pointer border-0 bg-transparent p-0 text-[0.8125rem] text-white/45 hover:text-white/75"
+                    class="shrink-0 cursor-pointer border-0 bg-transparent p-0 text-[0.8125rem] text-text-secondary hover:text-text-primary"
                 >
                     {{ segment.label }}
                 </button>
             } @else {
-                <span class="shrink-0 text-[0.8125rem] text-white/35">{{ segment.label }}</span>
+                <span class="shrink-0 text-[0.8125rem] text-text-muted">{{ segment.label }}</span>
             }
         }
     </nav>
 
     <!-- Status -->
     @if (statusLabel()) {
-        <span class="shrink-0 text-[0.75rem] text-white/35">{{ statusLabel() | translate }}</span>
+        <span class="shrink-0 text-[0.75rem] text-text-muted">{{ statusLabel() | translate }}</span>
     }
 
     <!-- Actions -->

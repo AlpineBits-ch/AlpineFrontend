@@ -26,11 +26,11 @@ export const AlpinePreset = definePreset(Aura, {
         zinc: {
             0: '#ffffff',
 
-            50: '#f3f4f6',
-            100: '#e5e7eb',
-            200: '#cfd4dc',
-            300: '#9aa4b2',
-            400: '#6b7280',
+            50: '#f7f9fc',
+            100: '#e9edf5',
+            200: '#cfd6e3',
+            300: '#aab4c6',
+            400: '#838da3',
 
             500: '#454c59',
             600: '#2f3540',
@@ -77,6 +77,16 @@ export const AlpinePreset = definePreset(Aura, {
                     800: '{zinc.800}',
                     900: '{zinc.900}',
                     950: '{zinc.950}',
+                },
+
+                // Without this, --p-text-color and --p-text-muted-color fall through to
+                // Aura's dark defaults: pure #ffffff and {surface.400}. The muted one landed
+                // at 3.9:1 on app-bg, under AA, on every label and placeholder PrimeNG draws.
+                text: {
+                    color: '{zinc.100}',
+                    hoverColor: '{zinc.50}',
+                    mutedColor: '{zinc.400}',
+                    hoverMutedColor: '{zinc.300}',
                 },
 
                 formField: {

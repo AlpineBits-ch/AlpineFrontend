@@ -11,7 +11,7 @@
         >
             {{ menu().participant.avatarLabel }}
         </div>
-        <span class="min-w-0 flex-1 truncate text-sm font-semibold text-white/85">
+        <span class="min-w-0 flex-1 truncate text-sm font-semibold text-text-primary">
             {{ menu().participant.displayName }}
         </span>
         @if (menu().participant.isServerDeafened) {
@@ -26,14 +26,14 @@
     <!-- Volume -->
     <div class="px-2 pb-1.5 pt-1">
         <label
-            class="mb-2 flex items-center gap-[0.3125rem] text-[0.6875rem] font-semibold uppercase tracking-wide text-white/40"
+            class="mb-2 flex items-center gap-[0.3125rem] text-[0.6875rem] font-semibold uppercase tracking-wide text-text-muted"
             for="call-volume"
         >
             <svg aria-hidden="true" fill="currentColor" height="11" viewBox="0 0 24 24" width="11">
                 <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02z" />
             </svg>
             {{ 'CALL.VOLUME' | translate }}
-            <span class="ml-auto font-normal normal-case tabular-nums tracking-normal text-white/60"> {{ menu().volume }}% </span>
+            <span class="ml-auto font-normal normal-case tabular-nums tracking-normal text-text-secondary"> {{ menu().volume }}% </span>
         </label>
         <input
             (input)="onVolumeInput($event)"
@@ -52,7 +52,7 @@
     @if (menu().streamVolume !== undefined) {
         <div class="px-2 pb-1.5 pt-1">
             <label
-                class="mb-2 flex items-center gap-[0.3125rem] text-[0.6875rem] font-semibold uppercase tracking-wide text-white/40"
+                class="mb-2 flex items-center gap-[0.3125rem] text-[0.6875rem] font-semibold uppercase tracking-wide text-text-muted"
                 for="call-stream-volume"
             >
                 <svg aria-hidden="true" fill="currentColor" height="11" viewBox="0 0 24 24" width="11">
@@ -61,7 +61,9 @@
                     />
                 </svg>
                 {{ 'CALL.STREAM_VOLUME' | translate }}
-                <span class="ml-auto font-normal normal-case tabular-nums tracking-normal text-white/60"> {{ menu().streamVolume }}% </span>
+                <span class="ml-auto font-normal normal-case tabular-nums tracking-normal text-text-secondary">
+                    {{ menu().streamVolume }}%
+                </span>
             </label>
             <input
                 (input)="onStreamVolumeInput($event)"

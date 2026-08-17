@@ -4,21 +4,21 @@
         <button
             (click)="navService.mobileNavOpen.set(true)"
             [attr.aria-label]="'CALL.OPEN_NAVIGATION' | translate"
-            class="call-focusable mr-1 flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent text-white/50 transition-colors hover:bg-white/[0.07] lg:hidden"
+            class="call-focusable mr-1 flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent text-text-secondary transition-colors hover:bg-white/[0.07] lg:hidden"
             type="button"
         >
             <i class="pi pi-bars text-sm"></i>
         </button>
         <div class="flex min-w-0 items-center gap-2 sm:gap-3">
-            <i aria-hidden="true" class="pi pi-volume-up shrink-0 text-white/35"></i>
-            <span class="truncate text-sm font-semibold text-white/85">{{ channel().name }}</span>
+            <i aria-hidden="true" class="pi pi-volume-up shrink-0 text-text-muted"></i>
+            <span class="truncate text-sm font-semibold text-text-primary">{{ channel().name }}</span>
             <!-- "3 of 10" where the room has a ceiling; the plain count stays where the server named none, since a denominator nobody stated is not one to invent. -->
             @if (participantSlots(); as slots) {
-                <span class="shrink-0 text-xs text-white/40" data-testid="participant-slots">
+                <span class="shrink-0 text-xs text-text-muted" data-testid="participant-slots">
                     · {{ 'CALL.PARTICIPANT_COUNT_OF' | translate: {count: slots.used, max: slots.max} }}
                 </span>
             } @else if (participants().length > 0) {
-                <span class="shrink-0 text-xs text-white/40">
+                <span class="shrink-0 text-xs text-text-muted">
                     · {{ 'CALL.PARTICIPANT_COUNT' | translate: {count: participants().length} }}
                 </span>
             }
@@ -26,7 +26,7 @@
             <!-- A state, never an error: holds whether or not anybody has tried to publish; the reason and upgrade live on the notice below. -->
             @if (audioOnly()) {
                 <span
-                    class="shrink-0 rounded-full border border-white/10 bg-white/[0.06] px-2 py-0.5 text-[0.625rem] font-semibold uppercase tracking-wide text-white/45"
+                    class="shrink-0 rounded-full border border-white/10 bg-white/[0.06] px-2 py-0.5 text-[0.625rem] font-semibold uppercase tracking-wide text-text-secondary"
                     data-testid="audio-only-badge"
                 >
                     {{ 'VOICE.DEGRADED.AUDIO_ONLY' | translate }}
@@ -76,7 +76,7 @@
                 @if (screenAudioUnavailable()) {
                     <div class="pointer-events-none absolute bottom-28 left-0 right-0 z-20 flex justify-center px-6">
                         <p
-                            class="pointer-events-auto rounded-lg border border-amber-400/20 bg-amber-400/[0.08] px-3 py-2 text-xs text-white/70"
+                            class="pointer-events-auto rounded-lg border border-amber-400/20 bg-amber-400/[0.08] px-3 py-2 text-xs text-text-primary"
                             data-testid="screen-audio-unavailable"
                         >
                             {{ 'CALL.SCREEN_AUDIO_UNAVAILABLE' | translate }}

@@ -109,6 +109,8 @@ export class CallAudioStatusComponent {
                     : ' text-connecting font-semibold')
             );
         }
-        return base + (badge ? ' bg-white/[0.06] border-border-subtle text-white/45' : ' text-white/40');
+        return (
+            base + (badge ? ' bg-white/[0.06] border-border-subtle text-text-secondary' : ' text-text-muted')
+        );
     });
 }

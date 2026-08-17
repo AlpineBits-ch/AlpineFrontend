@@ -18,16 +18,16 @@ const STATE_KEY_PREFIX = 'wiki-rail-section:';
                 <i
                     [class.pi-angle-down]="open()"
                     [class.pi-angle-right]="!open()"
-                    class="pi text-[0.625rem] text-white/25 group-hover:text-white/50"
+                    class="pi text-[0.625rem] text-text-muted group-hover:text-text-secondary"
                 ></i>
                 <h2
                     class="flex-1 truncate text-[0.625rem] font-semibold uppercase tracking-widest
-                           text-white/30 group-hover:text-white/45"
+                           text-text-muted group-hover:text-text-secondary"
                 >
                     {{ heading() }}
                 </h2>
                 @if (badge() !== null) {
-                    <span class="shrink-0 text-[0.625rem] tabular-nums text-white/25">{{ badge() }}</span>
+                    <span class="shrink-0 text-[0.625rem] tabular-nums text-text-muted">{{ badge() }}</span>
                 }
             </button>
 

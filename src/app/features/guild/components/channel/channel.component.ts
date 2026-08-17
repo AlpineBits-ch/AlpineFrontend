@@ -66,10 +66,13 @@ import {TypingDotsComponent} from '../../../../components/typing-dots/typing-dot
 import {ThreadPanelComponent} from './thread-panel/thread-panel.component';
 import {PinnedMessagesPanelComponent} from '../../../messaging/components/pinned-messages-panel/pinned-messages-panel.component';
 import {FollowChannelDialogComponent} from '../follow-channel-dialog/follow-channel-dialog.component';
+import {JumpToPresentComponent} from '../../../../components/jump-to-present/jump-to-present.component';
 import {GuildFeature, guildHasFeature} from '../../guild-features';
 
 const SCROLL_BOTTOM_THRESHOLD = 100;
 const LOAD_MORE_THRESHOLD = 400;
+const VIEWING_OLDER_THRESHOLD = 500;
+const SMOOTH_JUMP_DISTANCE = 600;
 
 function decodeContent(encoded: string): string {
     try {
@@ -101,6 +104,7 @@ function decodeContent(encoded: string): string {
         ForumTagPickerComponent,
         Dialog,
         PrimeTemplate,
+        JumpToPresentComponent,
     ],
     templateUrl: './channel.component.html',
     styleUrl: './channel.component.css',
@@ -288,6 +292,8 @@ export class ChannelComponent implements AfterViewInit {
     @ViewChild('messageList') private messageListRef?: ElementRef<HTMLDivElement>;
     @ViewChild(ComposerComponent) private composerRef?: ComposerComponent;
     private isNearBottom = true;
+    /** Drives the jump-to-present pill. Further from the bottom than isNearBottom, so a small nudge does not raise it. */
+    protected readonly isViewingOlder = signal(false);
     private savedScrollHeight = 0;
     private restoreScroll = false;
     private lastScrollChannelId = '';
@@ -346,6 +352,7 @@ export class ChannelComponent implements AfterViewInit {
             if (channelId !== this.lastScrollChannelId) {
                 this.lastScrollChannelId = channelId;
                 this.isNearBottom = true;
+                this.isViewingOlder.set(false);
                 this.restoreScroll = false;
             }
 
@@ -379,6 +386,9 @@ export class ChannelComponent implements AfterViewInit {
                 this.scrollToBottom();
                 this.pendingScrollToBottom = false;
             }
+
+            // New messages arriving while scrolled up grow the list without firing a scroll event.
+            if (this.scrollRef) this.measureScroll();
 
             const listEl = this.messageListRef?.nativeElement;
             if (listEl !== this.observedListEl) {
@@ -645,8 +655,7 @@ export class ChannelComponent implements AfterViewInit {
 
     protected onScroll(): void {
         const el = this.scrollRef.nativeElement;
-        const fromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-        this.isNearBottom = fromBottom < SCROLL_BOTTOM_THRESHOLD;
+        this.measureScroll();
 
         if (el.scrollTop < LOAD_MORE_THRESHOLD && this.hasMore() && !this.loadingMore()) {
             this.savedScrollHeight = el.scrollHeight;
@@ -722,11 +731,28 @@ export class ChannelComponent implements AfterViewInit {
         if (this.isNearBottom) this.scrollToBottom();
     };
 
+    private measureScroll(): void {
+        const el = this.scrollRef.nativeElement;
+        const fromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+        this.isNearBottom = fromBottom < SCROLL_BOTTOM_THRESHOLD;
+        this.isViewingOlder.set(fromBottom > VIEWING_OLDER_THRESHOLD);
+    }
+
+    /** Jump-to-present. Anything further up hard-cuts first, so the animated part is the same length from any depth. */
+    protected jumpToPresent(): void {
+        if (!this.scrollRef) return;
+        const el = this.scrollRef.nativeElement;
+        const target = el.scrollHeight - el.clientHeight;
+        if (target - el.scrollTop > SMOOTH_JUMP_DISTANCE) el.scrollTop = target - SMOOTH_JUMP_DISTANCE;
+        el.scrollTo({top: target, behavior: 'smooth'});
+    }
+
     private scrollToBottom(): void {
         if (!this.scrollRef) return;
         const el = this.scrollRef.nativeElement;
         el.scrollTop = el.scrollHeight;
         // Keep flag in sync so the ResizeObserver keeps scrolling for late-loading content.
         this.isNearBottom = true;
+        this.isViewingOlder.set(false);
     }
 }

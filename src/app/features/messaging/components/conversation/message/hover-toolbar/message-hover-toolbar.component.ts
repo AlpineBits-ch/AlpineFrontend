@@ -12,6 +12,7 @@ export class MessageHoverToolbarComponent {
     readonly isOwn = input.required<boolean>();
     readonly canPin = input<boolean>(false);
     readonly isPinned = input<boolean>(false);
+    readonly isGrouped = input<boolean>(false);
     readonly guildId = input<string | undefined>();
     readonly canPublish = input<boolean>(false);
     readonly isPublished = input<boolean>(false);

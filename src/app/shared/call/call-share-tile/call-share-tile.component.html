@@ -22,7 +22,6 @@
         (mouseleave)="endPan()"
         (mousemove)="movePan($event)"
         (mouseup)="endPan()"
-        [attr.title]="(maximized() ? 'CALL.SHOW_OTHER_STREAMS' : 'CALL.HIDE_OTHER_STREAMS') | translate"
         [class.cursor-grab]="zoom() > 1"
         [class.cursor-pointer]="zoom() === 1"
         class="absolute inset-0 overflow-hidden"

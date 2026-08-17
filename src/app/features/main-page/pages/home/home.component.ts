@@ -86,7 +86,7 @@ export class HomeComponent {
             case OnlineStatus.DoNotDisturb:
                 return 'text-offline/80';
             default:
-                return 'text-white/35';
+                return 'text-text-muted';
         }
     }
 

@@ -21,7 +21,7 @@
                         <button
                             (click)="unblock()"
                             [disabled]="pending()"
-                            class="flex w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2.5 py-[0.4375rem] text-left text-sm font-medium text-white/70 transition-colors hover:bg-white/[0.06] disabled:opacity-50"
+                            class="flex w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2.5 py-[0.4375rem] text-left text-sm font-medium text-text-primary transition-colors hover:bg-white/[0.06] disabled:opacity-50"
                             type="button"
                         >
                             <i class="pi pi-unlock text-xs"></i>
@@ -40,7 +40,7 @@
 
                     <button
                         (click)="report()"
-                        class="flex w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2.5 py-[0.4375rem] text-left text-sm font-medium text-white/70 transition-colors hover:bg-white/[0.06]"
+                        class="flex w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2.5 py-[0.4375rem] text-left text-sm font-medium text-text-primary transition-colors hover:bg-white/[0.06]"
                         type="button"
                     >
                         <i class="pi pi-flag text-xs"></i>
@@ -55,14 +55,14 @@
     @if (confirmingBlock()) {
         <div (click)="$event.stopPropagation()" class="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 p-4">
             <div class="flex w-full max-w-[23.75rem] flex-col gap-4 rounded-2xl border border-border bg-card p-5">
-                <h3 class="m-0 text-base font-semibold text-white/80">
+                <h3 class="m-0 text-base font-semibold text-text-primary">
                     {{ 'PROFILE.BLOCK_CONFIRM_TITLE' | translate: {name: p.userName} }}
                 </h3>
-                <p class="m-0 text-sm text-white/45">{{ 'PROFILE.BLOCK_CONFIRM_BODY' | translate }}</p>
+                <p class="m-0 text-sm text-text-secondary">{{ 'PROFILE.BLOCK_CONFIRM_BODY' | translate }}</p>
                 <div class="flex gap-2">
                     <button
                         (click)="cancelBlock()"
-                        class="flex-1 cursor-pointer rounded-lg border-0 bg-white/[0.06] px-3 py-2 text-sm font-medium text-white/75 transition-colors hover:bg-white/[0.1]"
+                        class="flex-1 cursor-pointer rounded-lg border-0 bg-white/[0.06] px-3 py-2 text-sm font-medium text-text-primary transition-colors hover:bg-white/[0.1]"
                         type="button"
                     >
                         {{ 'SETTINGS.SECURITY.CANCEL' | translate }}

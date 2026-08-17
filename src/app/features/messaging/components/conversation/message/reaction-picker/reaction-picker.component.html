@@ -1,7 +1,7 @@
 @if (mode() === 'toolbar') {
     <button
         (click)="toggle($event)"
-        class="w-6 h-6 rounded flex items-center justify-center text-white/35 hover:text-white/75 hover:bg-white/[0.07] cursor-pointer border-0 bg-transparent transition-colors"
+        class="w-6 h-6 rounded flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-white/[0.07] cursor-pointer border-0 bg-transparent transition-colors"
         title="Add reaction"
     >
         <i class="pi pi-face-smile text-[10px]"></i>
@@ -9,7 +9,7 @@
 } @else {
     <button
         (click)="toggle($event)"
-        class="flex items-center justify-center h-8 px-2.5 rounded-full border bg-white/[0.04] border-white/[0.10] text-white/40 hover:bg-white/[0.08] hover:border-white/20 hover:text-white/65 cursor-pointer transition-colors"
+        class="flex items-center justify-center h-8 px-2.5 rounded-full border bg-white/[0.04] border-white/[0.10] text-text-muted hover:bg-white/[0.08] hover:border-white/20 hover:text-text-secondary cursor-pointer transition-colors"
         title="Add reaction"
     >
         <i class="pi pi-plus text-[12px]"></i>

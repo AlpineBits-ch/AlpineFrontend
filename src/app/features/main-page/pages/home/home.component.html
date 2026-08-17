@@ -13,7 +13,7 @@
                     size="small"
                 />
                 <div class="flex items-center gap-2">
-                    <i class="pi pi-users text-white/50 text-sm"></i>
+                    <i class="pi pi-users text-text-secondary text-sm"></i>
                     <h1 class="text-[15px] font-bold text-[var(--color-text-primary)]">{{ 'HOME.TITLE' | translate }}</h1>
                 </div>
             </div>
@@ -30,21 +30,21 @@
         <div class="flex items-center gap-0.5 bg-white/[0.04] border border-white/[0.07] rounded-xl p-1 self-start">
             <button
                 (click)="tab.set('online')"
-                [ngClass]="tab() === 'online' ? 'bg-brand/20 text-brand-dim' : 'text-white/50'"
+                [ngClass]="tab() === 'online' ? 'bg-brand/20 text-brand-dim' : 'text-text-secondary'"
                 class="px-3 py-1 rounded-lg text-sm font-medium border-0 cursor-pointer transition-all"
             >
                 {{ 'HOME.TAB.ONLINE' | translate }}
             </button>
             <button
                 (click)="tab.set('all')"
-                [ngClass]="tab() === 'all' ? 'bg-brand/20 text-brand-dim' : 'text-white/50'"
+                [ngClass]="tab() === 'all' ? 'bg-brand/20 text-brand-dim' : 'text-text-secondary'"
                 class="px-3 py-1 rounded-lg text-sm font-medium border-0 cursor-pointer transition-all"
             >
                 {{ 'HOME.TAB.ALL' | translate }}
             </button>
             <button
                 (click)="tab.set('pending')"
-                [ngClass]="tab() === 'pending' ? 'bg-brand/20 text-brand-dim' : 'text-white/50'"
+                [ngClass]="tab() === 'pending' ? 'bg-brand/20 text-brand-dim' : 'text-text-secondary'"
                 class="px-3 py-1 rounded-lg text-sm font-medium border-0 cursor-pointer transition-all flex items-center gap-1.5"
             >
                 {{ 'HOME.TAB.PENDING' | translate }}
@@ -59,7 +59,7 @@
             </button>
             <button
                 (click)="tab.set('blocked')"
-                [ngClass]="tab() === 'blocked' ? 'bg-brand/20 text-brand-dim' : 'text-white/50'"
+                [ngClass]="tab() === 'blocked' ? 'bg-brand/20 text-brand-dim' : 'text-text-secondary'"
                 class="px-3 py-1 rounded-lg text-sm font-medium border-0 cursor-pointer transition-all"
             >
                 {{ 'HOME.TAB.BLOCKED' | translate }}
@@ -79,12 +79,12 @@
                     <div
                         class="flex-1 flex items-center gap-2 bg-white/[0.05] border border-white/[0.08] rounded-xl px-3 focus-within:border-brand/40 transition-colors"
                     >
-                        <i class="pi pi-user text-xs text-white/30 shrink-0"></i>
+                        <i class="pi pi-user text-xs text-text-muted shrink-0"></i>
                         <input
                             (keydown.enter)="sendRequest()"
                             [(ngModel)]="friendInput"
                             [placeholder]="'HOME.ADD_FRIEND_PANEL.PLACEHOLDER' | translate"
-                            class="flex-1 bg-transparent border-0 outline-0 text-sm text-white/80 placeholder:text-white/25 py-2.5"
+                            class="flex-1 bg-transparent border-0 outline-0 text-sm text-text-primary placeholder:text-text-muted py-2.5"
                             type="text"
                         />
                     </div>
@@ -171,7 +171,7 @@
                         {{ 'HOME.INCOMING_COUNT' | translate: {count: incoming().length} }}
                     </p>
                     @if (incoming().length === 0) {
-                        <p class="text-sm text-white/25 italic py-2">{{ 'HOME.INCOMING_EMPTY' | translate }}</p>
+                        <p class="text-sm text-text-muted italic py-2">{{ 'HOME.INCOMING_EMPTY' | translate }}</p>
                     } @else {
                         @for (rel of incoming(); track rel.id) {
                             <div
@@ -214,7 +214,7 @@
                         {{ 'HOME.OUTGOING_COUNT' | translate: {count: outgoing().length} }}
                     </p>
                     @if (outgoing().length === 0) {
-                        <p class="text-sm text-white/25 italic py-2">{{ 'HOME.OUTGOING_EMPTY' | translate }}</p>
+                        <p class="text-sm text-text-muted italic py-2">{{ 'HOME.OUTGOING_EMPTY' | translate }}</p>
                     } @else {
                         @for (rel of outgoing(); track rel.id) {
                             <div
@@ -262,8 +262,8 @@
                         >
                             <app-avatar [label]="rel.other.userName[0].toUpperCase()" [userId]="rel.other.userId" size="normal" />
                             <div class="flex-1 min-w-0">
-                                <p class="text-sm font-semibold text-white/50">{{ rel.other.userName }}</p>
-                                <p class="text-xs text-white/25">{{ 'HOME.BLOCKED_STATUS' | translate }}</p>
+                                <p class="text-sm font-semibold text-text-secondary">{{ rel.other.userName }}</p>
+                                <p class="text-xs text-text-muted">{{ 'HOME.BLOCKED_STATUS' | translate }}</p>
                             </div>
                             <div (click)="$event.stopPropagation()">
                                 <p-button

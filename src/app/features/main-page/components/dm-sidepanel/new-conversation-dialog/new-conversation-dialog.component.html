@@ -10,17 +10,17 @@
     styleClass="!bg-card !border !border-white/[0.08] !rounded-2xl"
 >
     <ng-template pTemplate="header">
-        <span class="text-base font-semibold text-white/85">New Message</span>
+        <span class="text-base font-semibold text-text-primary">New Message</span>
     </ng-template>
 
     <!-- Search -->
     <div class="px-1 pb-3">
         <div class="relative">
-            <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-white/30 text-sm pointer-events-none"></i>
+            <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-text-muted text-sm pointer-events-none"></i>
             <input
                 (ngModelChange)="search.set($event)"
                 [ngModel]="search()"
-                class="w-full !pl-9 !bg-white/[0.04] !border-white/[0.08] placeholder:text-white/25 !rounded-xl !text-sm"
+                class="w-full !pl-9 !bg-white/[0.04] !border-white/[0.08] placeholder:text-text-muted !rounded-xl !text-sm"
                 pInputText
                 placeholder="Search friends..."
             />
@@ -49,7 +49,7 @@
     <!-- Friends list -->
     <div class="max-h-56 overflow-y-auto -mx-1 px-1" style="scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.08) transparent">
         @if (filteredFriends().length === 0) {
-            <p class="text-sm text-white/30 text-center py-6">No friends found</p>
+            <p class="text-sm text-text-muted text-center py-6">No friends found</p>
         }
         @for (friend of filteredFriends(); track friend.userId) {
             <button
@@ -58,7 +58,7 @@
                 class="flex items-center gap-3 w-full px-3 py-2 rounded-xl transition-colors cursor-pointer border-0 text-left"
             >
                 <p-avatar [label]="friend.userName[0].toUpperCase()" shape="circle" styleClass="shrink-0 !w-8 !h-8 !text-xs" />
-                <span [ngClass]="isSelected(friend.userId) ? 'text-brand-dim' : 'text-white/75'" class="flex-1 text-sm font-medium">
+                <span [ngClass]="isSelected(friend.userId) ? 'text-brand-dim' : 'text-text-primary'" class="flex-1 text-sm font-medium">
                     {{ friend.userName }}
                 </span>
                 @if (isSelected(friend.userId)) {
@@ -71,13 +71,13 @@
     <!-- Group name (shown when 2+ selected) -->
     @if (isGroup()) {
         <div class="pt-3 px-1 border-t border-white/[0.06] mt-3">
-            <label class="text-[10.5px] font-semibold text-white/30 uppercase tracking-widest block mb-2">Group Name (optional)</label>
+            <label class="text-[10.5px] font-semibold text-text-muted uppercase tracking-widest block mb-2">Group Name (optional)</label>
             <!-- Enter opens the conversation. -->
             <input
                 (keydown.enter)="create()"
                 (ngModelChange)="groupName.set($event)"
                 [ngModel]="groupName()"
-                class="w-full !bg-white/[0.04] !border-white/[0.08] placeholder:text-white/25 !rounded-xl !text-sm"
+                class="w-full !bg-white/[0.04] !border-white/[0.08] placeholder:text-text-muted !rounded-xl !text-sm"
                 pInputText
                 placeholder="e.g. Study group"
             />
@@ -87,10 +87,12 @@
     <!-- Encryption toggle -->
     <div class="flex items-center justify-between pt-3 px-1 border-t border-white/[0.06] mt-3">
         <div class="flex items-center gap-2">
-            <i [ngClass]="encrypted() ? 'text-brand-dim' : 'text-white/30'" class="pi pi-lock text-sm"></i>
+            <i [ngClass]="encrypted() ? 'text-brand-dim' : 'text-text-muted'" class="pi pi-lock text-sm"></i>
             <div>
-                <p [ngClass]="encrypted() ? 'text-white/85' : 'text-white/55'" class="text-sm font-medium">End-to-end encryption</p>
-                <p class="text-[11px] text-white/30 leading-tight">Requires MLS device registration</p>
+                <p [ngClass]="encrypted() ? 'text-text-primary' : 'text-text-secondary'" class="text-sm font-medium">
+                    End-to-end encryption
+                </p>
+                <p class="text-[11px] text-text-muted leading-tight">Requires MLS device registration</p>
             </div>
         </div>
         <p-toggleswitch (ngModelChange)="encrypted.set($event)" [ngModel]="encrypted()" />
@@ -100,11 +102,11 @@
     @if (unreachableDevices().length > 0) {
         <div class="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3">
             <p class="text-sm font-medium text-amber-200">Some devices can't be included</p>
-            <p class="mt-1 text-[11px] leading-snug text-white/60">
+            <p class="mt-1 text-[11px] leading-snug text-text-secondary">
                 These devices have no encryption keys left on the server. They will not be able to read anything sent in this conversation,
                 now or later:
             </p>
-            <ul class="mt-2 list-disc pl-5 text-[11px] text-white/70">
+            <ul class="mt-2 list-disc pl-5 text-[11px] text-text-primary">
                 @for (name of unreachableDevices(); track name) {
                     <li>{{ name }}</li>
                 }
@@ -121,17 +123,17 @@
         <div class="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3">
             <p class="text-sm font-medium text-amber-200">Conversation created, with gaps</p>
             @if (warning.devices.length > 0) {
-                <p class="mt-1 text-[11px] leading-snug text-white/60">
+                <p class="mt-1 text-[11px] leading-snug text-text-secondary">
                     These devices registered too late to be included, and will not be able to read anything sent here:
                 </p>
-                <ul class="mt-2 list-disc pl-5 text-[11px] text-white/70">
+                <ul class="mt-2 list-disc pl-5 text-[11px] text-text-primary">
                     @for (name of warning.devices; track name) {
                         <li>{{ name }}</li>
                     }
                 </ul>
             }
             @if (warning.lastResortCount > 0) {
-                <p class="mt-2 text-[11px] leading-snug text-white/60">
+                <p class="mt-2 text-[11px] leading-snug text-text-secondary">
                     {{ warning.lastResortCount }} device(s) joined using a reusable backup key. They can read this conversation, but that
                     key seals more than one invitation, so their messages lose the usual forward secrecy.
                 </p>

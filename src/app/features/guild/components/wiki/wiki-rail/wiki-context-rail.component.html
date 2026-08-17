@@ -1,7 +1,7 @@
 <div class="flex-1 min-h-0 overflow-y-auto thin-scrollbar px-4 py-5">
     <!-- Size of the page. Reads from the editor while editing, so it answers "is this long enough yet" during the write rather than only after publishing. -->
     @if (page() || liveContent()) {
-        <div class="mb-5 flex items-center gap-2 text-[0.6875rem] text-white/30">
+        <div class="mb-5 flex items-center gap-2 text-[0.6875rem] text-text-muted">
             <i class="pi pi-align-left text-[0.625rem]"></i>
             @if (stats().words) {
                 <span>
@@ -24,9 +24,9 @@
                         <button
                             (click)="tocEntrySelected.emit(entry)"
                             [class.text-brand-dim]="currentHeadingId() === entry.id"
-                            [class.text-white/50]="currentHeadingId() !== entry.id"
+                            [class.text-text-secondary]="currentHeadingId() !== entry.id"
                             [style.paddingLeft.px]="(entry.level - 1) * 10"
-                            class="flex-1 cursor-pointer truncate border-0 bg-transparent py-1 text-left text-[0.8125rem] hover:text-white/85"
+                            class="flex-1 cursor-pointer truncate border-0 bg-transparent py-1 text-left text-[0.8125rem] hover:text-text-primary"
                         >
                             {{ entry.text }}
                         </button>
@@ -36,7 +36,7 @@
                             (click)="copySectionLink(entry, $event)"
                             [class.opacity-100]="copiedId() === entry.id"
                             [title]="'WIKI.RAIL.COPY_SECTION_LINK' | translate"
-                            class="shrink-0 cursor-pointer border-0 bg-transparent p-1 leading-none text-white/30 opacity-0 hover:text-white/70 group-hover:opacity-100"
+                            class="shrink-0 cursor-pointer border-0 bg-transparent p-1 leading-none text-text-muted opacity-0 hover:text-text-primary group-hover:opacity-100"
                         >
                             <i
                                 [class.pi-check]="copiedId() === entry.id"
@@ -66,24 +66,24 @@
                     @for (source of backlinks(); track source.id) {
                         <button
                             (click)="openPage.emit(source)"
-                            class="flex cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-1 py-1 text-left text-[0.8125rem] text-white/55 hover:bg-hover hover:text-white/85"
+                            class="flex cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-1 py-1 text-left text-[0.8125rem] text-text-secondary hover:bg-hover hover:text-text-primary"
                         >
-                            <i class="pi pi-file shrink-0 text-[0.6875rem] text-white/30"></i>
+                            <i class="pi pi-file shrink-0 text-[0.6875rem] text-text-muted"></i>
                             <span class="truncate">{{ source.title }}</span>
                         </button>
                     }
                 </div>
             } @else if (cache.warming()) {
-                <p class="text-[0.75rem] text-white/30">{{ 'WIKI.RAIL.INDEXING' | translate }}</p>
+                <p class="text-[0.75rem] text-text-muted">{{ 'WIKI.RAIL.INDEXING' | translate }}</p>
             } @else if (cache.failed()) {
-                <p class="text-[0.75rem] text-white/40">{{ 'WIKI.RAIL.LOAD_FAILED' | translate }}</p>
+                <p class="text-[0.75rem] text-text-muted">{{ 'WIKI.RAIL.LOAD_FAILED' | translate }}</p>
             } @else {
-                <p class="text-[0.75rem] text-white/30">{{ 'WIKI.RAIL.NO_BACKLINKS' | translate }}</p>
+                <p class="text-[0.75rem] text-text-muted">{{ 'WIKI.RAIL.NO_BACKLINKS' | translate }}</p>
             }
 
             <!-- Pages that name this one in prose and never linked it. Absent when there are none, which is the common case and does not need a line saying so. -->
             @if (visibleMentions().length) {
-                <h3 class="mt-4 mb-1.5 text-[0.625rem] font-semibold uppercase tracking-widest text-white/25">
+                <h3 class="mt-4 mb-1.5 text-[0.625rem] font-semibold uppercase tracking-widest text-text-muted">
                     {{ 'WIKI.RAIL.UNLINKED_MENTIONS' | translate }}
                 </h3>
                 <div class="flex flex-col gap-0.5">
@@ -91,19 +91,19 @@
                         <div class="group flex items-center gap-1 rounded-md px-1 py-1 hover:bg-hover">
                             <button
                                 (click)="openPage.emit(row.source)"
-                                class="flex min-w-0 flex-1 cursor-pointer items-center gap-2 border-0 bg-transparent p-0 text-left text-[0.8125rem] text-white/45 hover:text-white/85"
+                                class="flex min-w-0 flex-1 cursor-pointer items-center gap-2 border-0 bg-transparent p-0 text-left text-[0.8125rem] text-text-secondary hover:text-text-primary"
                             >
-                                <i class="pi pi-file shrink-0 text-[0.6875rem] text-white/20"></i>
+                                <i class="pi pi-file shrink-0 text-[0.6875rem] text-text-faint"></i>
                                 <span class="truncate">{{ row.source.title }}</span>
                                 @if (row.mention.count > 1) {
-                                    <span class="shrink-0 text-[0.625rem] tabular-nums text-white/25">
+                                    <span class="shrink-0 text-[0.625rem] tabular-nums text-text-muted">
                                         {{ row.mention.count }}
                                     </span>
                                 }
                             </button>
 
                             @if (linkingId() === row.source.id) {
-                                <i class="pi pi-spin pi-spinner shrink-0 text-[0.625rem] text-white/30"></i>
+                                <i class="pi pi-spin pi-spinner shrink-0 text-[0.625rem] text-text-muted"></i>
                             } @else if (canLink(row.source)) {
                                 <button
                                     (click)="linkMention(row)"
@@ -117,7 +117,7 @@
                 </div>
 
                 @if (hiddenMentionCount()) {
-                    <p class="mt-1 px-1 text-[0.6875rem] text-white/25">
+                    <p class="mt-1 px-1 text-[0.6875rem] text-text-muted">
                         {{ 'WIKI.RAIL.MORE_MENTIONS' | translate: {n: hiddenMentionCount()} }}
                     </p>
                 }
@@ -137,10 +137,10 @@
             <div class="flex items-center gap-2">
                 <app-avatar [userId]="p.authorId" />
                 <div class="min-w-0">
-                    <p class="truncate text-[0.75rem] text-white/60">
+                    <p class="truncate text-[0.75rem] text-text-secondary">
                         {{ author()?.userName ?? ('WIKI.RAIL.CREATED_BY' | translate) }}
                     </p>
-                    <p class="text-[0.6875rem] text-white/30">{{ formatDate(p.createdAt) }}</p>
+                    <p class="text-[0.6875rem] text-text-muted">{{ formatDate(p.createdAt) }}</p>
                 </div>
             </div>
 
@@ -148,20 +148,20 @@
                 <div class="mt-3 flex items-center gap-2">
                     <app-avatar [userId]="p.lastEditorId" />
                     <div class="min-w-0">
-                        <p class="truncate text-[0.75rem] text-white/60">
+                        <p class="truncate text-[0.75rem] text-text-secondary">
                             {{ 'WIKI.RAIL.LAST_EDITED_BY' | translate: {name: editor.userName} }}
                         </p>
-                        <p class="text-[0.6875rem] text-white/30">{{ formatDate(p.updatedAt) }}</p>
+                        <p class="text-[0.6875rem] text-text-muted">{{ formatDate(p.updatedAt) }}</p>
                     </div>
                 </div>
             } @else {
-                <p class="mt-3 text-[0.6875rem] text-white/30">
+                <p class="mt-3 text-[0.6875rem] text-text-muted">
                     {{ 'WIKI.RAIL.UPDATED' | translate: {date: formatDate(p.updatedAt)} }}
                 </p>
             }
 
             @if (p.revisionCount > 0) {
-                <p class="mt-3 text-[0.6875rem] text-white/30">
+                <p class="mt-3 text-[0.6875rem] text-text-muted">
                     {{ (p.revisionCount === 1 ? 'WIKI.RAIL.REVISION_ONE' : 'WIKI.RAIL.REVISION_MANY') | translate: {n: p.revisionCount} }}
                 </p>
             }

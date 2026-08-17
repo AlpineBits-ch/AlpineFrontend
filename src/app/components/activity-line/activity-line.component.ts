@@ -39,11 +39,11 @@ export class ActivityLineComponent {
     protected readonly sizeClass = computed(() => {
         switch (this.size()) {
             case 'xs':
-                return 'text-[10px] text-white/45';
+                return 'text-[10px] text-text-secondary';
             case 'md':
-                return 'text-xs text-white/45';
+                return 'text-xs text-text-secondary';
             default:
-                return 'text-[11px] text-white/45';
+                return 'text-[11px] text-text-secondary';
         }
     });
 

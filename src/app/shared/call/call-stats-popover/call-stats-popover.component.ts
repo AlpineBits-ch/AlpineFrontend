@@ -19,17 +19,18 @@ import {CallStats} from '../../../services/call-webrtc.service';
             class="absolute right-3 top-full z-30 mt-1 w-56 rounded-xl border border-border bg-card p-3
                     shadow-[0_8px_28px_rgba(0,0,0,0.55)]"
         >
-            <p class="mb-2 text-[0.6875rem] font-semibold uppercase tracking-wide text-white/40">
+            <p class="mb-2 text-[0.6875rem] font-semibold uppercase tracking-wide text-text-muted">
                 {{ 'CALL.STATS_TITLE' | translate }}
             </p>
 
             <dl class="flex flex-col gap-1.5 text-xs">
                 @for (row of rows(); track row.key) {
                     <div class="flex items-baseline justify-between gap-3">
-                        <dt class="min-w-0 truncate text-white/55">{{ row.key | translate }}</dt>
+                        <dt class="min-w-0 truncate text-text-secondary">{{ row.key | translate }}</dt>
                         <dd
                             [class]="
-                                'shrink-0 tabular-nums ' + (row.warn ? 'text-connecting' : 'text-white/85')
+                                'shrink-0 tabular-nums ' +
+                                (row.warn ? 'text-connecting' : 'text-text-primary')
                             "
                         >
                             {{ row.value }}

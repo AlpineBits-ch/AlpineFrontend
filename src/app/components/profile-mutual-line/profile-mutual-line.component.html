@@ -15,7 +15,7 @@
         @if (friendCount() > 0) {
             <button
                 (click)="friendsClick.emit()"
-                class="cursor-pointer border-0 bg-transparent p-0 text-left text-[0.8125rem] text-text-secondary transition-colors hover:text-white/85 hover:underline"
+                class="cursor-pointer border-0 bg-transparent p-0 text-left text-[0.8125rem] text-text-secondary transition-colors hover:text-text-primary hover:underline"
                 type="button"
             >
                 {{ 'PROFILE.MUTUAL_FRIENDS' | translate: {count: friendCount()} }}
@@ -23,13 +23,13 @@
         }
 
         @if (friendCount() > 0 && serverCount() > 0) {
-            <span aria-hidden="true" class="text-white/20">&bull;</span>
+            <span aria-hidden="true" class="text-text-faint">&bull;</span>
         }
 
         @if (serverCount() > 0) {
             <button
                 (click)="serversClick.emit()"
-                class="cursor-pointer border-0 bg-transparent p-0 text-left text-[0.8125rem] text-text-secondary transition-colors hover:text-white/85 hover:underline"
+                class="cursor-pointer border-0 bg-transparent p-0 text-left text-[0.8125rem] text-text-secondary transition-colors hover:text-text-primary hover:underline"
                 type="button"
             >
                 {{ 'PROFILE.MUTUAL_SERVERS' | translate: {count: serverCount()} }}

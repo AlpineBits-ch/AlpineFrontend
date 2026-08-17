@@ -7,6 +7,7 @@ import {VoiceService} from './voice.service';
 import {VoiceChannelService} from './voice-channel.service';
 import {GuildService} from './guild.service';
 import {toOffer, VoiceResumeService} from './voice-resume.service';
+import {DeviceIdentityService} from './device-identity.service';
 import {OngoingCallDto} from '../dtos/response/ongoing-call.dto';
 
 const SEAT: VoiceStateDto = {
@@ -33,11 +34,16 @@ function setup(
         seat?: VoiceStateDto | null;
         call?: OngoingCallDto | null;
         inVoice?: boolean;
+        thisDeviceId?: string;
     } = {},
 ) {
+    const order: string[] = [];
     const guildVoice = {
         getVoiceState: vi.fn(() => of(options.seat ?? null)),
-        leave: vi.fn(() => of(undefined)),
+        leave: vi.fn(() => {
+            order.push('leave');
+            return of(undefined);
+        }),
     };
     const voice = {
         getActiveCall: vi.fn(() => of(options.call ?? null)),
@@ -45,11 +51,15 @@ function setup(
     };
     const voiceChannel = {
         isInVoice: signal(options.inVoice ?? false),
-        joinChannel: vi.fn(async () => true),
+        joinChannel: vi.fn(async () => {
+            order.push('join');
+            return true;
+        }),
     };
     const guilds = {
         getGuild: vi.fn(() => of({id: 'guild-1', name: 'My Guild', channels: [CHANNEL]})),
     };
+    const devices = {deviceId: vi.fn(async () => options.thisDeviceId ?? 'device-1')};
 
     TestBed.configureTestingModule({
         providers: [
@@ -57,10 +67,19 @@ function setup(
             {provide: VoiceService, useValue: voice},
             {provide: VoiceChannelService, useValue: voiceChannel},
             {provide: GuildService, useValue: guilds},
+            {provide: DeviceIdentityService, useValue: devices},
         ],
     });
 
-    return {service: TestBed.inject(VoiceResumeService), guildVoice, voice, voiceChannel, guilds};
+    return {
+        service: TestBed.inject(VoiceResumeService),
+        guildVoice,
+        voice,
+        voiceChannel,
+        guilds,
+        devices,
+        order,
+    };
 }
 
 describe('what to offer', () => {
@@ -74,6 +93,7 @@ describe('what to offer', () => {
             guildId: 'guild-1',
             channelId: 'chan-1',
             channelName: 'General',
+            deviceId: 'device-1',
         });
     });
 
@@ -166,6 +186,58 @@ describe('answering the offer', () => {
         expect(service.offer()).toBeNull();
     });
 
+    it('releases the dead session before taking the seat again', async () => {
+        // Joining on top of the old seat leaves everything that session left on the roster: the
+        // media session, the track names, the shares nobody closed. Only a leave clears them.
+        const {service, guildVoice, order} = setup({seat: SEAT});
+        service.check();
+
+        await service.reconnect();
+
+        expect(guildVoice.leave).toHaveBeenCalledWith('guild-1', 'chan-1');
+        expect(order).toEqual(['leave', 'join']);
+    });
+
+    it('rejoins even when the leave fails', async () => {
+        const {service, voiceChannel, guildVoice} = setup({seat: SEAT});
+        guildVoice.leave.mockReturnValue(throwError(() => new Error('offline')));
+        service.check();
+
+        await service.reconnect();
+
+        expect(voiceChannel.joinChannel).toHaveBeenCalled();
+    });
+
+    it('leaves a seat the server records against no device', async () => {
+        const {service, guildVoice} = setup({seat: {...SEAT, deviceId: null}});
+        service.check();
+
+        await service.reconnect();
+
+        expect(guildVoice.leave).toHaveBeenCalled();
+    });
+
+    it('leaves another device in place and lets the join take it over', async () => {
+        // A seat held by this user's phone is live, not a ghost. Yanking it removes the phone from
+        // the roster with no `KickedByOtherDevice` to tell it; the join transfers it properly.
+        const {service, guildVoice, voiceChannel} = setup({seat: SEAT, thisDeviceId: 'device-2'});
+        service.check();
+
+        await service.reconnect();
+
+        expect(guildVoice.leave).not.toHaveBeenCalled();
+        expect(voiceChannel.joinChannel).toHaveBeenCalled();
+    });
+
+    it('sends no leave for a call, which was hung up as the socket dropped', async () => {
+        const {service, guildVoice} = setup({call: CALL});
+        service.check();
+
+        await service.reconnect();
+
+        expect(guildVoice.leave).not.toHaveBeenCalled();
+    });
+
     it('rejoins a call by accepting it', async () => {
         const {service, voice} = setup({call: CALL});
         service.check();
@@ -198,6 +270,9 @@ describe('answering the offer', () => {
         service.check();
 
         const first = service.reconnect();
+        // Waited for rather than assumed: the seat is released before the guild is read, so the
+        // first reconnect is still a few microtasks short of `getGuild` when it returns here.
+        await vi.waitFor(() => expect(guilds.getGuild).toHaveBeenCalledTimes(1));
         await service.reconnect();
 
         expect(guilds.getGuild).toHaveBeenCalledTimes(1);

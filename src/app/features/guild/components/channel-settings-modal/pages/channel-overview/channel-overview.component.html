@@ -2,39 +2,39 @@
     <!-- Channel type badge -->
     <div class="flex items-center gap-2">
         @if (channel().type === ChannelType.Text) {
-            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.06] text-xs text-white/50">
-                <span class="font-bold text-base leading-none text-white/35">#</span> Text Channel
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.06] text-xs text-text-secondary">
+                <span class="font-bold text-base leading-none text-text-muted">#</span> Text Channel
             </span>
         } @else if (channel().type === ChannelType.Forum) {
-            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.06] text-xs text-white/50">
-                <i [class]="channelIcon(ChannelType.Forum)" class="text-white/35"></i> Forum Channel
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.06] text-xs text-text-secondary">
+                <i [class]="channelIcon(ChannelType.Forum)" class="text-text-muted"></i> Forum Channel
             </span>
         } @else if (channel().type === ChannelType.Announcement) {
-            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.06] text-xs text-white/50">
-                <i class="pi pi-megaphone text-white/35"></i> {{ 'GUILD.CHANNEL_TYPE_ANNOUNCEMENT_BADGE' | translate }}
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.06] text-xs text-text-secondary">
+                <i class="pi pi-megaphone text-text-muted"></i> {{ 'GUILD.CHANNEL_TYPE_ANNOUNCEMENT_BADGE' | translate }}
             </span>
         } @else {
-            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.06] text-xs text-white/50">
-                <i class="pi pi-volume-up text-white/35"></i> Voice Channel
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.06] text-xs text-text-secondary">
+                <i class="pi pi-volume-up text-text-muted"></i> Voice Channel
             </span>
         }
         @if (channel().categoryId) {
-            <span class="text-xs text-white/25">in a category</span>
+            <span class="text-xs text-text-muted">in a category</span>
         }
     </div>
 
     <!-- Name -->
     <div>
-        <label class="block text-xs font-semibold text-white/40 uppercase tracking-widest mb-2">
+        <label class="block text-xs font-semibold text-text-muted uppercase tracking-widest mb-2">
             Channel Name <span class="text-rose-400">*</span>
         </label>
         <input (ngModelChange)="name.set($event); onChange()" [ngModel]="name()" class="w-full" pInputText placeholder="e.g. general" />
-        <p class="text-[11px] text-white/25 mt-1">Use lowercase letters, numbers, and hyphens.</p>
+        <p class="text-[11px] text-text-muted mt-1">Use lowercase letters, numbers, and hyphens.</p>
     </div>
 
     <!-- Description -->
     <div>
-        <label class="block text-xs font-semibold text-white/40 uppercase tracking-widest mb-2">Description</label>
+        <label class="block text-xs font-semibold text-text-muted uppercase tracking-widest mb-2">Description</label>
         <textarea
             (ngModelChange)="description.set($event); onChange()"
             [ngModel]="description()"
@@ -49,13 +49,13 @@
 
     <!-- Flags -->
     <div class="space-y-3">
-        <p class="text-xs font-semibold text-white/40 uppercase tracking-widest">Channel Flags</p>
+        <p class="text-xs font-semibold text-text-muted uppercase tracking-widest">Channel Flags</p>
 
         <!-- Private -->
         <div class="flex items-center justify-between px-4 py-3 rounded-xl bg-white/[0.03]">
             <div>
-                <p class="text-sm font-medium text-white/80">Private Channel</p>
-                <p class="text-xs text-white/35 mt-0.5">Only members with explicit access can see this channel</p>
+                <p class="text-sm font-medium text-text-primary">Private Channel</p>
+                <p class="text-xs text-text-muted mt-0.5">Only members with explicit access can see this channel</p>
             </div>
             <p-toggleswitch (ngModelChange)="isPrivate.set($event); onChange()" [ngModel]="isPrivate()" />
         </div>
@@ -63,8 +63,8 @@
         <!-- Age restricted -->
         <div class="flex items-center justify-between px-4 py-3 rounded-xl bg-white/[0.03]">
             <div>
-                <p class="text-sm font-medium text-white/80">Age-Restricted Channel</p>
-                <p class="text-xs text-white/35 mt-0.5">Restrict this channel to users who have agreed to our terms</p>
+                <p class="text-sm font-medium text-text-primary">Age-Restricted Channel</p>
+                <p class="text-xs text-text-muted mt-0.5">Restrict this channel to users who have agreed to our terms</p>
             </div>
             <p-toggleswitch (ngModelChange)="isAgeRestricted.set($event); onChange()" [ngModel]="isAgeRestricted()" />
         </div>
@@ -72,7 +72,7 @@
 
     @if (channel().type === ChannelType.Text) {
         <div class="mb-5">
-            <label class="block text-xs font-semibold text-white/50 mb-1.5" for="slowmode">Slow Mode (seconds)</label>
+            <label class="block text-xs font-semibold text-text-secondary mb-1.5" for="slowmode">Slow Mode (seconds)</label>
             <input
                 (ngModelChange)="slowModeSeconds.set(+$event); onChange()"
                 [ngModel]="slowModeSeconds()"
@@ -82,7 +82,7 @@
                 pInputText
                 type="number"
             />
-            <p class="text-[11px] text-white/30 mt-1">Members must wait this long between messages. Not yet enforced by the server.</p>
+            <p class="text-[11px] text-text-muted mt-1">Members must wait this long between messages. Not yet enforced by the server.</p>
         </div>
     }
 

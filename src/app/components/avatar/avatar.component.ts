@@ -25,7 +25,7 @@ import {OsInfo} from '../../platform/ports/os-info.port';
                     </div>
                 } @else {
                     <div class="w-full h-full flex items-center justify-center bg-white/10 rounded-full">
-                        <i class="pi pi-user text-white/40 text-xs"></i>
+                        <i class="pi pi-user text-text-muted text-xs"></i>
                     </div>
                 }
             </div>

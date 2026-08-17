@@ -25,19 +25,19 @@ import {describeAiError, isMissingProvider} from './wiki-ai-shared';
             <div class="flex flex-col gap-2">
                 @if (connecting()) {
                     <div class="rounded-lg border border-border bg-card p-3">
-                        <p class="mb-3 text-[0.75rem] text-white/50">
+                        <p class="mb-3 text-[0.75rem] text-text-secondary">
                             {{ 'WIKI.AI.CONNECT_INTRO' | translate }}
                         </p>
                         <app-ai-connect-form (connected)="onConnected()" [showBilling]="false" />
                     </div>
                 } @else if (running()) {
-                    <div class="flex items-center gap-2 text-[0.75rem] text-white/40">
+                    <div class="flex items-center gap-2 text-[0.75rem] text-text-muted">
                         <i class="pi pi-spin pi-spinner text-[0.6875rem]"></i>
                         <span class="flex-1">{{ 'WIKI.AI.META.RUNNING' | translate }}</span>
                         <button
                             (click)="stop()"
                             class="cursor-pointer border-0 bg-transparent p-0 text-[0.75rem]
-                                       text-white/40 hover:text-white/70"
+                                       text-text-muted hover:text-text-primary"
                             type="button"
                         >
                             {{ 'WIKI.AI.STOP' | translate }}
@@ -47,7 +47,7 @@ import {describeAiError, isMissingProvider} from './wiki-ai-shared';
                     <button
                         (click)="suggest()"
                         class="flex w-fit cursor-pointer items-center gap-1.5 border-0
-                                   bg-transparent p-0 text-[0.75rem] text-white/35
+                                   bg-transparent p-0 text-[0.75rem] text-text-muted
                                    hover:text-brand-dim"
                         type="button"
                     >
@@ -57,7 +57,7 @@ import {describeAiError, isMissingProvider} from './wiki-ai-shared';
                 }
 
                 @if (error(); as message) {
-                    <p class="text-[0.75rem] leading-snug text-white/50">
+                    <p class="text-[0.75rem] leading-snug text-text-secondary">
                         {{ message }}
                         <button
                             (click)="suggest()"
@@ -77,7 +77,7 @@ import {describeAiError, isMissingProvider} from './wiki-ai-shared';
                     >
                         @if (pendingTags().length) {
                             <div class="flex flex-wrap items-center gap-1.5">
-                                <span class="mr-0.5 text-[0.6875rem] text-white/30">
+                                <span class="mr-0.5 text-[0.6875rem] text-text-muted">
                                     {{ 'WIKI.AI.META.TAGS' | translate }}
                                 </span>
                                 @for (tag of pendingTags(); track tag) {
@@ -95,7 +95,7 @@ import {describeAiError, isMissingProvider} from './wiki-ai-shared';
                                     <button
                                         (click)="acceptAllTags()"
                                         class="cursor-pointer border-0 bg-transparent p-0
-                                                   text-[0.6875rem] text-white/35 hover:text-white/70"
+                                                   text-[0.6875rem] text-text-muted hover:text-text-primary"
                                         type="button"
                                     >
                                         {{ 'WIKI.AI.META.ADD_ALL' | translate }}
@@ -106,17 +106,17 @@ import {describeAiError, isMissingProvider} from './wiki-ai-shared';
 
                         @if (metadata.editSummary) {
                             <div class="flex items-center gap-2">
-                                <span class="shrink-0 text-[0.6875rem] text-white/30">
+                                <span class="shrink-0 text-[0.6875rem] text-text-muted">
                                     {{ 'WIKI.AI.META.SUMMARY' | translate }}
                                 </span>
-                                <span class="flex-1 truncate text-[0.75rem] text-white/60">
+                                <span class="flex-1 truncate text-[0.75rem] text-text-secondary">
                                     {{ metadata.editSummary }}
                                 </span>
                                 <button
                                     (click)="summarySelected.emit(metadata.editSummary)"
                                     class="shrink-0 cursor-pointer rounded border-0
                                                bg-white/[0.06] px-2 py-0.5 text-[0.6875rem]
-                                               text-white/70 hover:bg-hover"
+                                               text-text-primary hover:bg-hover"
                                     type="button"
                                 >
                                     {{ 'WIKI.AI.META.USE' | translate }}
@@ -126,17 +126,17 @@ import {describeAiError, isMissingProvider} from './wiki-ai-shared';
 
                         @if (metadata.summary) {
                             <div class="flex items-center gap-2">
-                                <span class="shrink-0 text-[0.6875rem] text-white/30">
+                                <span class="shrink-0 text-[0.6875rem] text-text-muted">
                                     {{ 'WIKI.AI.META.DESCRIPTION' | translate }}
                                 </span>
-                                <span class="flex-1 truncate text-[0.75rem] text-white/60">
+                                <span class="flex-1 truncate text-[0.75rem] text-text-secondary">
                                     {{ metadata.summary }}
                                 </span>
                                 <button
                                     (click)="descriptionSelected.emit(metadata.summary)"
                                     class="shrink-0 cursor-pointer rounded border-0
                                                bg-white/[0.06] px-2 py-0.5 text-[0.6875rem]
-                                               text-white/70 hover:bg-hover"
+                                               text-text-primary hover:bg-hover"
                                     type="button"
                                 >
                                     {{ 'WIKI.AI.META.USE' | translate }}
@@ -147,7 +147,7 @@ import {describeAiError, isMissingProvider} from './wiki-ai-shared';
                         <button
                             (click)="dismiss()"
                             class="w-fit cursor-pointer border-0 bg-transparent p-0
-                                       text-[0.6875rem] text-white/25 hover:text-white/60"
+                                       text-[0.6875rem] text-text-muted hover:text-text-secondary"
                             type="button"
                         >
                             {{ 'WIKI.AI.META.DISMISS' | translate }}

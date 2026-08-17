@@ -63,7 +63,7 @@ export class NoiseSuppressionPopoverComponent {
     protected readonly triggerClass = computed(() =>
         this.mode() === 'enhanced'
             ? 'bg-brand/15 text-brand-dim hover:bg-brand/25'
-            : 'bg-white/[0.06] text-white/70 hover:bg-white/[0.12]',
+            : 'bg-white/[0.06] text-text-primary hover:bg-white/[0.12]',
     );
 
     protected toggle(): void {
@@ -89,7 +89,7 @@ export class NoiseSuppressionPopoverComponent {
      * decided by their order in the generated stylesheet rather than by anything here.
      */
     protected segmentClass(mode: Mode): string {
-        if (this.mode() !== mode) return 'bg-transparent text-white/50 hover:text-white/80';
+        if (this.mode() !== mode) return 'bg-transparent text-text-secondary hover:text-text-primary';
         return mode === 'enhanced' ? 'bg-brand/25 text-brand-dim' : 'bg-white/[0.12] text-white';
     }
 

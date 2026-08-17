@@ -18,14 +18,14 @@ import {TranslateModule} from '@ngx-translate/core';
         <div class="flex gap-3 rounded-xl border border-brand/25 bg-brand/[0.06] px-4 py-3">
             <i class="pi pi-lock mt-0.5 shrink-0 text-[0.875rem] text-brand-dim"></i>
             <div class="min-w-0">
-                <p class="text-sm font-semibold text-white/85">
+                <p class="text-sm font-semibold text-text-primary">
                     {{ 'AI.PRIVACY.TITLE' | translate }}
                 </p>
-                <p class="mt-1 text-sm leading-relaxed text-white/65">
+                <p class="mt-1 text-sm leading-relaxed text-text-secondary">
                     {{ 'AI.PRIVACY.BODY' | translate }}
                 </p>
                 @if (showBilling()) {
-                    <p class="mt-1.5 text-sm leading-relaxed text-white/65">
+                    <p class="mt-1.5 text-sm leading-relaxed text-text-secondary">
                         {{ 'AI.PRIVACY.BILLING' | translate }}
                     </p>
                 }
