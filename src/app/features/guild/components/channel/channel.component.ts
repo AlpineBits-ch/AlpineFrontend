@@ -33,7 +33,7 @@ import {MessageEncryptionState} from '../../../../enums/message-encryption-state
 import {MessageType} from '../../../../enums/message-type.enum';
 import {hasPermission, Permissions} from '../../../../enums/permissions.enum';
 import {unionMemberPermissions} from '../../guild-permissions';
-import {isGroupedWithPrevious} from '../../../messaging/components/conversation/message-utils';
+import {buildMessageRows} from '../../../messaging/components/conversation/message-utils';
 import {ChannelEncryptionState, classifyAutoModError, forumParentOf, mayPostCleartext} from './channel-utils';
 import {MlsService} from '../../../../services/mls.service';
 import {MlsSyncService} from '../../../../services/mls-sync.service';
@@ -60,6 +60,7 @@ import {ComposerComponent} from '../../../messaging/components/conversation/comp
 import {NavigationService} from '../../../main-page/navigation.service';
 import {MessageComponent} from '../../../messaging/components/conversation/message/message.component';
 import {SystemMessageComponent} from '../../../messaging/components/conversation/message/system-message/system-message.component';
+import {DateDividerComponent} from '../../../messaging/components/conversation/date-divider/date-divider.component';
 import {HighlightPipe} from '../../../../pipes/highlight.pipe';
 import {TypingDotsComponent} from '../../../../components/typing-dots/typing-dots.component';
 import {ThreadPanelComponent} from './thread-panel/thread-panel.component';
@@ -85,6 +86,7 @@ function decodeContent(encoded: string): string {
         ComposerComponent,
         MessageComponent,
         SystemMessageComponent,
+        DateDividerComponent,
         Button,
         DatePipe,
         HighlightPipe,
@@ -242,13 +244,7 @@ export class ChannelComponent implements AfterViewInit {
             .filter(m => m.channelId === this.channel().id)
             .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()),
     );
-    protected readonly messageRows = computed(() => {
-        const msgs = this.messages();
-        return msgs.map((message, i) => ({
-            message,
-            isGrouped: isGroupedWithPrevious(message, msgs[i - 1]),
-        }));
-    });
+    protected readonly messageRows = computed(() => buildMessageRows(this.messages()));
 
     // ── Messages ─────────────────────────────────────────────────────────────
     protected readonly hasMore = computed(

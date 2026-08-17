@@ -77,9 +77,21 @@
                             {{ user ? user.userName : message().authorId }}
                         </span>
                     }
-                    <span class="text-[11px] font-medium text-[var(--color-text-muted)]">{{
-                        message().createdAt | date: 'shortTime'
-                    }}</span>
+                    @if (headerStamp(); as stamp) {
+                        <span class="text-[11px] font-medium text-[var(--color-text-muted)]">
+                            @switch (stamp.relation) {
+                                @case ('today') {
+                                    {{ stamp.date | date: 'shortTime' }}
+                                }
+                                @case ('yesterday') {
+                                    {{ 'MESSAGE.YESTERDAY_AT' | translate: {time: stamp.date | date: 'shortTime'} }}
+                                }
+                                @default {
+                                    {{ stamp.date | date: 'short' }}
+                                }
+                            }
+                        </span>
+                    }
                 }
                 @if (message().encryptionState === 'Encrypted') {
                     <span class="flex items-center gap-0.5 text-emerald-400/70" title="End-to-end encrypted">

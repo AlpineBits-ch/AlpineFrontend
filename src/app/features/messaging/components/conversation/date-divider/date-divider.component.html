@@ -1,0 +1,15 @@
+<div class="date-divider">
+    <span>
+        @switch (separator().relation) {
+            @case ('today') {
+                {{ 'COMMON.TODAY' | translate }}
+            }
+            @case ('yesterday') {
+                {{ 'COMMON.YESTERDAY' | translate }}
+            }
+            @default {
+                {{ separator().date | date: 'longDate' }}
+            }
+        }
+    </span>
+</div>

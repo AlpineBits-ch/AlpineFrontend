@@ -1,5 +1,6 @@
 import {DiffLine} from '../wiki-diff';
 import {WikiRevisionDto} from '../../../../../dtos/response/wiki.dto';
+import {DayRelation, dayKey, dayRelationOf} from '../../../../../helpers/day.helper';
 
 /**
  * Presentation-only shaping for the history view: what a diff looks like in two columns, and how a
@@ -55,8 +56,6 @@ export function toSideBySide(lines: readonly DiffLine[]): SideBySideRow[] {
     return rows;
 }
 
-export type DayRelation = 'today' | 'yesterday' | null;
-
 export interface RevisionDayGroup {
     /** Local calendar day, `YYYY-MM-DD`. Stable enough to track a `@for` on. */
     key: string;
@@ -72,19 +71,17 @@ export function groupRevisionsByDay(
 ): RevisionDayGroup[] {
     const groups: RevisionDayGroup[] = [];
     const byKey = new Map<string, RevisionDayGroup>();
-    const todayKey = dayKey(now);
-    const yesterdayKey = dayKey(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1));
 
     for (const revision of revisions) {
         const date = new Date(revision.createdAt);
         // An unparseable stamp still belongs somewhere; its own bucket beats an `Invalid Date` heading over every revision in the list.
-        const key = Number.isNaN(date.getTime()) ? 'unknown' : dayKey(date);
+        const key = dayKey(date);
         let group = byKey.get(key);
         if (!group) {
             group = {
                 key,
                 date,
-                relation: key === todayKey ? 'today' : key === yesterdayKey ? 'yesterday' : null,
+                relation: dayRelationOf(key, now),
                 revisions: [],
             };
             byKey.set(key, group);
@@ -95,11 +92,4 @@ export function groupRevisionsByDay(
     }
 
     return groups;
-}
-
-/** Local, not UTC: "today" is the user's day, and `toISOString` would shift it by the offset. */
-function dayKey(date: Date): string {
-    const month = `${date.getMonth() + 1}`.padStart(2, '0');
-    const day = `${date.getDate()}`.padStart(2, '0');
-    return `${date.getFullYear()}-${month}-${day}`;
 }

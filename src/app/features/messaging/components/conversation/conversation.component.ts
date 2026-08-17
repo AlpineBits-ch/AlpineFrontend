@@ -54,7 +54,8 @@ import {AppAvatarComponent} from '../../../../components/avatar/avatar.component
 import {ConversationSearchService} from './conversation-search.service';
 import {ConversationScrollService} from './conversation-scroll.service';
 import {ProfilePopoutService} from '../../../../services/profile-popout.service';
-import {fileIcon, isGroupedWithPrevious, isSystemMessageType} from './message-utils';
+import {buildMessageRows, fileIcon, isSystemMessageType} from './message-utils';
+import {DateDividerComponent} from './date-divider/date-divider.component';
 import {SystemMessageComponent} from './message/system-message/system-message.component';
 import {ConversationCallService} from '../../../../services/conversation-call.service';
 import {readableContent, UNDECRYPTABLE_SHORT} from '../../../../helpers/message-content.helper';
@@ -84,6 +85,7 @@ import {PinnedMessagesPanelComponent} from '../pinned-messages-panel/pinned-mess
         MlsUnreadableBannerComponent,
         MlsJoinRequestReviewComponent,
         SystemMessageComponent,
+        DateDividerComponent,
     ],
     templateUrl: './conversation.component.html',
     styleUrl: './conversation.component.css',
@@ -122,13 +124,7 @@ export class ConversationComponent implements AfterViewInit {
             .filter(m => m.conversationId === this.conversation().id)
             .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()),
     );
-    protected readonly messageRows = computed(() => {
-        const msgs = this.messages();
-        return msgs.map((message, i) => ({
-            message,
-            isGrouped: isGroupedWithPrevious(message, msgs[i - 1]),
-        }));
-    });
+    protected readonly messageRows = computed(() => buildMessageRows(this.messages()));
     private conversationStore = inject(ConversationStore);
     private messagingService = inject(MessagingService);
 

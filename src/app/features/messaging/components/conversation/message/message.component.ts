@@ -47,6 +47,7 @@ import {MessageStore} from '../../../../../stores/message.store';
 import {MlsService} from '../../../../../services/mls.service';
 import {MessageEncryptionState} from '../../../../../enums/message-encryption-state.enum';
 import {toBase64} from '../../../../../helpers/base64.helper';
+import {DayRelation, dayKey, dayRelationOf} from '../../../../../helpers/day.helper';
 import {ProfilePopoutService} from '../../../../../services/profile-popout.service';
 import {ReportDialogService} from '../../../../../services/report-dialog.service';
 import {LinkOpener} from '../../../../../platform/ports/link-opener.port';
@@ -131,6 +132,15 @@ export class MessageComponent {
             }
         });
     }
+    /**
+     * The header stamp names its day, so a message from last week does not read as a bare "18:29".
+     * Null for a stamp that will not parse, which the template renders as no time at all.
+     */
+    public readonly headerStamp = computed<{relation: DayRelation; date: Date} | null>(() => {
+        const date = new Date(this.message().createdAt);
+        if (Number.isNaN(date.getTime())) return null;
+        return {relation: dayRelationOf(dayKey(date)), date};
+    });
     public readonly isOnlyEmoji = computed(() => {
         const content = this.content().trim().replace(/ /g, '');
 
