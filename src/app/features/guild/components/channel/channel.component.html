@@ -261,7 +261,10 @@
                                         {{ channel().description }}
                                     }
                                 </p>
-                                <hr class="w-full border-t border-white/[0.06] mt-4" />
+                                <!-- The first day's divider closes the intro off. Only an empty channel needs its own rule. -->
+                                @if (!messageRows().length) {
+                                    <hr class="w-full border-t border-white/[0.06] mt-4" />
+                                }
                             </div>
                         }
 

@@ -2,7 +2,13 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 14px 16px 6px;
+    /* No horizontal padding: the rule lines up with the intro rule and the list gutter, which already inset it. */
+    padding: 20px 0 8px;
+}
+
+/* Straight after the channel intro, whose own bottom padding is most of the space above. */
+:host(:first-child) .date-divider {
+    padding-top: 8px;
 }
 
 .date-divider::before,
