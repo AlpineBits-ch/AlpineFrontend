@@ -10,10 +10,11 @@ import {CallStatus, resolveCallStatus} from '../../../../shared/call/call-status
 import {CallLiveBadgeComponent} from '../../../../shared/call/call-live-badge/call-live-badge.component';
 import {CallMiniPlayerService} from '../../../../services/call-mini-player.service';
 import {trackActivationClick} from '../../../../shared/call/activation-click';
+import {NoiseSuppressionPopoverComponent} from '../noise-suppression-popover/noise-suppression-popover.component';
 
 @Component({
     selector: 'app-voice-status-bar',
-    imports: [TranslateModule, CallLiveBadgeComponent],
+    imports: [TranslateModule, CallLiveBadgeComponent, NoiseSuppressionPopoverComponent],
     templateUrl: './voice-status-bar.component.html',
 })
 export class VoiceStatusBarComponent {

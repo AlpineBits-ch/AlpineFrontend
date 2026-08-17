@@ -1,0 +1,52 @@
+<button
+    (click)="toggle($event)"
+    [attr.aria-label]="'VOICE_BAR.NOISE_SUPPRESSION' | translate"
+    [attr.title]="'VOICE_BAR.NOISE_SUPPRESSION' | translate"
+    [class]="triggerClass()"
+    class="call-focusable flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-lg border-0 transition-colors"
+    type="button"
+>
+    <i class="pi pi-sparkles text-xs"></i>
+</button>
+
+<!-- `hidden` on the host, not the overlay: the host renders nothing but would still count as a flex
+     item in the panel's icon row and add one more `gap-2` between the buttons. -->
+<p-popover #popover [style]="{width: '17rem', padding: '0'}" appendTo="body" class="hidden">
+    <div class="flex flex-col gap-3 p-3">
+        <p class="text-xs font-semibold uppercase tracking-wide text-white/40">
+            {{ 'VOICE_BAR.NOISE_SUPPRESSION' | translate }}
+        </p>
+
+        <div class="flex gap-0.5 rounded-lg bg-white/[0.06] p-0.5">
+            @for (m of modes; track m.value) {
+                <button
+                    (click)="select(m.value)"
+                    [attr.aria-pressed]="mode() === m.value"
+                    [class]="segmentClass(m.value)"
+                    class="call-focusable flex-1 cursor-pointer rounded-md border-0 px-2 py-1 text-[0.6875rem] font-medium transition-colors"
+                    type="button"
+                >
+                    {{ m.labelKey | translate }}
+                </button>
+            }
+        </div>
+
+        <!-- Fixed height: the three hints wrap to different line counts, and a popover that resizes
+             under the cursor moves the buttons the user is aiming at. -->
+        <p class="min-h-[2.25rem] text-[0.6875rem] leading-snug text-white/40">
+            {{ hintKey() | translate }}
+        </p>
+
+        <div class="flex flex-col gap-1.5 border-t border-border-subtle pt-2.5">
+            <span class="text-[0.6875rem] text-white/35">{{ 'VOICE_BAR.NS_YOUR_MIC' | translate }}</span>
+            <span class="flex h-3 items-stretch gap-[2px]">
+                @for (bar of bars; track $index) {
+                    <span
+                        [class]="barActive($index) ? barClass($index) : 'bg-white/[0.08]'"
+                        class="flex-1 rounded-[1px] transition-colors duration-[60ms]"
+                    ></span>
+                }
+            </span>
+        </div>
+    </div>
+</p-popover>

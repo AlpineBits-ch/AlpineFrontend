@@ -12,6 +12,8 @@ import {NavigationService, WorkspaceContext} from '../../navigation.service';
 import {CallMiniPlayerService} from '../../../../services/call-mini-player.service';
 import {ActiveCallSession, CallParticipantUi} from '../../../../services/call-session.types';
 import {ConversationDto} from '../../../../dtos/response/conversation.dto';
+import {AudioSettings, AudioSettingsService, DEFAULTS} from '../../../../services/audio-settings.service';
+import {VoiceEngineService} from '../../../../services/voice-engine.service';
 
 function participant(userId: string, displayName: string, isLocal: boolean): CallParticipantUi {
     return {
@@ -61,6 +63,8 @@ interface Fakes {
     openChannel: ReturnType<typeof vi.fn>;
     openConversation: ReturnType<typeof vi.fn>;
     entities: WritableSignal<ConversationDto[]>;
+    audioSettings: WritableSignal<AudioSettings>;
+    micLevel: WritableSignal<number>;
 }
 
 function setup(): {
@@ -95,6 +99,8 @@ function setup(): {
         openChannel: vi.fn(),
         openConversation: vi.fn(),
         entities: signal<ConversationDto[]>([]),
+        audioSettings: signal<AudioSettings>({...DEFAULTS}),
+        micLevel: signal(0),
     };
 
     TestBed.configureTestingModule({
@@ -145,6 +151,16 @@ function setup(): {
                     openConversation: fakes.openConversation,
                 },
             },
+            // Reached through the noise suppression control in the icon row, not by the bar itself.
+            {
+                provide: AudioSettingsService,
+                useValue: {
+                    settings: fakes.audioSettings,
+                    update: (patch: Partial<AudioSettings>) =>
+                        fakes.audioSettings.update(s => ({...s, ...patch})),
+                },
+            },
+            {provide: VoiceEngineService, useValue: {level: fakes.micLevel}},
         ],
     });
 
@@ -216,6 +232,21 @@ describe('VoiceStatusBarComponent ordinary state', () => {
         expect(text).toContain('Bob Testuser');
         expect(fixture.nativeElement.querySelector('app-call-live-badge')).toBeNull();
         expect(fixture.nativeElement.querySelector('[aria-label="CALL.STOP_SHARING"]')).toBeNull();
+    });
+
+    it('offers noise suppression on both surfaces', () => {
+        for (const surface of ['guild', 'dm'] as const) {
+            TestBed.resetTestingModule();
+            const {fixture, fakes} = setup();
+            if (surface === 'guild') fakes.isInVoice.set(true);
+            else fakes.session.set(dmSession());
+            fixture.detectChanges();
+
+            expect(
+                fixture.nativeElement.querySelector('[aria-label="VOICE_BAR.NOISE_SUPPRESSION"]'),
+                surface,
+            ).not.toBeNull();
+        }
     });
 
     it('disconnects guild voice through leaveChannel', () => {
