@@ -163,16 +163,16 @@ export class ConversationComponent implements AfterViewInit {
     private callStateService = inject(CallStateService);
     /** An answer sent and not confirmed yet, from either way into a call. */
     protected readonly joiningCall = computed(
-        () => this.callStateService.joiningConversationId() === this.conversation().id,
+        () => this.callStateService.joiningConversationId() === this.conversationId(),
     );
     protected readonly isRinging = computed(() => {
         const out = this.callStateService.outgoingCall();
-        return out?.conversationId === this.conversation().id ? out : null;
+        return out?.conversationId === this.conversationId() ? out : null;
     });
     private callSessionService = inject(CallSessionService);
     protected readonly activeCall = computed(() => {
         const s = this.callSessionService.session();
-        if (s?.conversationId !== this.conversation().id) return null;
+        if (s?.conversationId !== this.conversationId()) return null;
         // A session exists before acceptance, so keep the ringing banner rather than the call panel.
         // Participant count cannot detect "has answered" (the create-call response lists every
         // invitee up front), so isRinging() is the only reliable signal.
@@ -194,7 +194,7 @@ export class ConversationComponent implements AfterViewInit {
     /** Set by the header's camera button; consumed once the call session appears. */
     private enableCameraOnJoin = false;
     /** A call running in this conversation that this client is not on - see ConversationCallService. */
-    protected readonly ongoingCall = computed(() => this.conversationCalls.ongoingIn(this.conversation().id));
+    protected readonly ongoingCall = computed(() => this.conversationCalls.ongoingIn(this.conversationId()));
     /** Who is on that call, named from the conversation roster. */
     protected readonly ongoingParticipantNames = computed(() => {
         const call = this.ongoingCall();
@@ -216,7 +216,7 @@ export class ConversationComponent implements AfterViewInit {
     // ── Load state ───────────────────────────────────────────────────────────
     @ViewChild(ComposerComponent) private composerRef?: ComposerComponent;
     private readonly conversationMeta = computed(
-        () => this.messageStore.conversationMeta()[this.conversation().id] ?? null,
+        () => this.messageStore.conversationMeta()[this.conversationId()] ?? null,
     );
     // True until the first batch of messages arrives (or an error occurs).
     protected readonly isInitialLoading = computed(() => this.conversationMeta() == null);
@@ -390,7 +390,7 @@ export class ConversationComponent implements AfterViewInit {
         });
 
         effect(() => {
-            const id = this.conversation().id;
+            const id = this.conversationId();
             untracked(() => {
                 this.messageStore.loadForConversation(id);
                 // A call already running in here was announced before this conversation was
@@ -421,14 +421,14 @@ export class ConversationComponent implements AfterViewInit {
     // Keeps the search service in sync with the active conversation ID.
     private setupSearchSync(): void {
         effect(() => {
-            this.search.conversationId.set(this.conversation().id);
+            this.search.conversationId.set(this.conversationId());
         });
     }
 
     // Keeps the scroll position correct on conversation switch and new messages.
     private setupScrollBehavior(): void {
         effect(() => {
-            const convId = this.conversation().id;
+            const convId = this.conversationId();
             const _msgs = this.messages();
 
             if (convId !== this.scroll.lastConvId) {
@@ -444,7 +444,7 @@ export class ConversationComponent implements AfterViewInit {
     // Re-focuses the composer whenever the active conversation changes.
     private setupComposerFocus(): void {
         effect(() => {
-            const _conv = this.conversation();
+            const _convId = this.conversationId();
             setTimeout(() => this.composerRef?.focus(), 0);
         });
     }
@@ -453,7 +453,7 @@ export class ConversationComponent implements AfterViewInit {
     private setupReadTracking(): void {
         effect(() => {
             const msg = this.latestMessage();
-            const convId = this.conversation().id;
+            const convId = this.conversationId();
             const ownId = this.profileService.ownProfile()?.userId;
             if (!msg || !ownId) return;
             // untracked: updateMemberLastRead reads entityMap() internally; tracking it would
@@ -469,7 +469,7 @@ export class ConversationComponent implements AfterViewInit {
     // so the divider position is unaffected by subsequent read-receipt store updates.
     private setupFirstUnreadSnapshot(): void {
         effect(() => {
-            const convId = this.conversation().id;
+            const convId = this.conversationId();
             const loaded = this.isLoaded();
             const msgs = this.messages();
 

@@ -8,7 +8,16 @@
  * realtime connection - the same approach as conversation-call-full-view.spec.ts. The run counter
  * is bounded so a regression fails on the count instead of hanging the runner.
  */
-import {Component, computed, effect, inject, input, signal, untracked} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    effect,
+    inject,
+    input,
+    signal,
+    untracked,
+} from '@angular/core';
 import {TestBed} from '@angular/core/testing';
 import {provideHttpClient} from '@angular/common/http';
 import {provideHttpClientTesting} from '@angular/common/http/testing';
@@ -55,7 +64,11 @@ function fakeWebsocket() {
     };
 }
 
-@Component({selector: 'app-read-tracking', template: ''})
+@Component({
+    selector: 'app-read-tracking',
+    template: '',
+    changeDetection: ChangeDetectionStrategy.OnPush,
+})
 class ReadTrackingComponent {
     readonly conversation = input.required<ConversationDto>();
     readonly runs = signal(0);
@@ -77,6 +90,7 @@ class ReadTrackingComponent {
 @Component({
     imports: [ReadTrackingComponent],
     template: `<app-read-tracking [conversation]="live()" />`,
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 class HostComponent {
     readonly opened = conversation();
