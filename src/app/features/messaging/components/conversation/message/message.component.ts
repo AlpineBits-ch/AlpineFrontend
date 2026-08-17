@@ -459,6 +459,11 @@ export class MessageComponent {
         this.confirmDelete();
     }
 
+    /** Preview address for an image attachment. Built from the id when the payload carries no `thumbnailUrl`. */
+    thumbnailSrc(att: MessageAttachment): string {
+        return att.thumbnailUrl || this.fileService.attachmentThumbnailUrl(att.id);
+    }
+
     /** Opens an attachment full-size. */
     openLightbox(minimal: MessageAttachment): void {
         this.lightbox.set({

@@ -252,7 +252,7 @@
                         <div (click)="openLightbox(att)" class="relative inline-block group/img cursor-zoom-in">
                             <img
                                 [alt]="att.fileName"
-                                [appAuthSrc]="att.thumbnailUrl"
+                                [appAuthSrc]="thumbnailSrc(att)"
                                 class="max-h-60 max-w-sm rounded-xl border border-white/10 object-contain block"
                                 loading="lazy"
                             />

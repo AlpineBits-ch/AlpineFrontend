@@ -60,6 +60,11 @@ export class FileService {
         return `${this.apiConfig.baseUrl()}/api/v1/messaging/attachments/${id}/download`;
     }
 
+    /** The address of an attachment's preview. Same shape the server puts in `thumbnailUrl`, which a realtime payload can leave empty. */
+    public attachmentThumbnailUrl(id: string): string {
+        return `${this.apiConfig.baseUrl()}/api/v1/messaging/attachments/${id}/thumbnail`;
+    }
+
     public downloadAttachmentById(id: string) {
         return this.httpClient.get(this.attachmentDownloadUrl(id), {responseType: 'blob'});
     }

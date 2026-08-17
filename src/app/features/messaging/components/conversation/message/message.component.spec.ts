@@ -7,6 +7,7 @@ import {MessageComponent} from './message.component';
 import {provideFakePlatform} from '../../../../../platform/testing/provide-fake-platform';
 import {ApiConfigService} from '../../../../../services/api-config.service';
 import {MessageStore} from '../../../../../stores/message.store';
+import {ConversationStore} from '../../../../../stores/conversation.store';
 import {MessageDto} from '../../../../../dtos/response/message.dto';
 import {MessageType} from '../../../../../enums/message-type.enum';
 import {MessageEncryptionState} from '../../../../../enums/message-encryption-state.enum';
@@ -51,6 +52,9 @@ async function setup(overrides: Partial<MessageDto> = {}, inputs: Record<string,
             provideTranslateService({defaultLanguage: 'en'}),
             MessageService,
             {provide: ApiConfigService, useValue: {baseUrl: () => BASE}},
+            // NavigationService reads it for the active conversation, and the real store's chain
+            // ends at RealtimeConnectionService -> AuthService -> OAuthService.
+            {provide: ConversationStore, useValue: {entityMap: () => ({})}},
             // The component opens links and saves attachments through ports now, and MessageStore's
             // chain reaches MlsService -> MlsEngine, so a fake for every port is what lets this be
             // constructed at all. Fakes rather than the real adapters: the web LinkOpener calls
@@ -176,6 +180,41 @@ describe('MessageComponent publish()', () => {
 
         expect(instantSpy).toHaveBeenCalledWith('MESSAGE.PUBLISH_SUCCESS', expect.anything());
         expect(instantSpy).not.toHaveBeenCalledWith('MESSAGE.PUBLISH_SUCCESS_SINGULAR', expect.anything());
+    });
+});
+
+describe('MessageComponent attachment thumbnails', () => {
+    afterEach(() => TestBed.inject(HttpTestingController).verify());
+
+    // The realtime MessageCreated payload sends "", so `??` would not catch it and the image
+    // would stay blank until a reload refetched the message over REST.
+    it('builds the preview address from the id when the payload carries no thumbnailUrl', async () => {
+        const {component} = await setup();
+
+        expect(component.thumbnailSrc({id: 'a1', fileName: 'image.png', contentType: 'image/png'})).toBe(
+            `${BASE}/api/v1/messaging/attachments/a1/thumbnail`,
+        );
+        expect(
+            component.thumbnailSrc({
+                id: 'a1',
+                fileName: 'image.png',
+                contentType: 'image/png',
+                thumbnailUrl: '',
+            }),
+        ).toBe(`${BASE}/api/v1/messaging/attachments/a1/thumbnail`);
+    });
+
+    it('keeps the address the server sent', async () => {
+        const {component} = await setup();
+
+        expect(
+            component.thumbnailSrc({
+                id: 'a1',
+                fileName: 'image.png',
+                contentType: 'image/png',
+                thumbnailUrl: 'https://cdn.example/thumb.png',
+            }),
+        ).toBe('https://cdn.example/thumb.png');
     });
 });
 
