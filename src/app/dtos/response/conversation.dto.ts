@@ -15,6 +15,8 @@ export interface ConversationDto {
     createdAt: Date;
     updatedAt: Date;
     name: string | undefined;
+    /** When the group icon was last written, null when there is none. Also the icon URL's cache key. */
+    iconUpdatedAt?: string | null;
     members: ConversationMemberDto[];
     encryptionState: ConversationEncryption;
     /**

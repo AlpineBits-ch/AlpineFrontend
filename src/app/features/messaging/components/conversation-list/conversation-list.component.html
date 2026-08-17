@@ -16,7 +16,12 @@
                 >
                     <div class="relative shrink-0 self-center">
                         @let member = convUtils.getPartnerMember(conv);
-                        <app-avatar [label]="member?.cachedUserName?.[0]?.toUpperCase()" [userId]="member?.userId" size="normal" />
+                        <app-avatar
+                            [authSrc]="convUtils.getChatIconUrl(conv)"
+                            [label]="member?.cachedUserName?.[0]?.toUpperCase()"
+                            [userId]="member?.userId"
+                            size="normal"
+                        />
                         <app-user-status-dot [status]="convUtils.getPartnerStatus(conv)" />
                     </div>
 
@@ -104,7 +109,12 @@
                 >
                     <div class="relative shrink-0">
                         @let member = convUtils.getPartnerMember(conv);
-                        <app-avatar [label]="member?.cachedUserName?.[0]?.toUpperCase()" [userId]="member?.userId" size="normal" />
+                        <app-avatar
+                            [authSrc]="convUtils.getChatIconUrl(conv)"
+                            [label]="member?.cachedUserName?.[0]?.toUpperCase()"
+                            [userId]="member?.userId"
+                            size="normal"
+                        />
                         <app-user-status-dot [status]="convUtils.getPartnerStatus(conv)" />
                     </div>
 

@@ -62,6 +62,17 @@ export const ConversationStore = signalStore(
             patchState(store, removeEntity(id));
         },
 
+        /** Applies a name or icon change without refetching the conversation. */
+        applyEdit(conversationId: string, name: string | null, iconUpdatedAt: string | null): void {
+            patchState(
+                store,
+                updateEntity({
+                    id: conversationId,
+                    changes: {name: name ?? undefined, iconUpdatedAt},
+                }),
+            );
+        },
+
         bumpUpdatedAt(conversationId: string): void {
             patchState(store, updateEntity({id: conversationId, changes: {updatedAt: new Date()}}));
         },
@@ -116,6 +127,17 @@ export const ConversationStore = signalStore(
             wsService.conversationRemovedObservable.subscribe(event =>
                 patchState(store, removeEntity(event.conversationId)),
             );
+
+            wsService.conversationUpdatedObservable.subscribe(event => {
+                if (!ensureLoaded(event.conversationId)) return;
+                patchState(
+                    store,
+                    updateEntity({
+                        id: event.conversationId,
+                        changes: {name: event.name ?? undefined, iconUpdatedAt: event.iconUpdatedAt},
+                    }),
+                );
+            });
 
             wsService.conversationMemberRemovedObservable.subscribe(event => {
                 if (event.userId === profileService.ownProfile()?.userId) {

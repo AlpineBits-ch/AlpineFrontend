@@ -78,6 +78,29 @@ export class ConversationService {
         );
     }
 
+    /** Renames a group conversation. A blank name clears it, putting the member list back in the title. */
+    public updateConversation(id: string, name: string | null): Observable<ConversationDto> {
+        return this.httpClient.patch<ConversationDto>(
+            `${this.apiConfig.baseUrl()}/api/v1/messaging/conversations/${id}`,
+            {name},
+        );
+    }
+
+    public uploadIcon(id: string, file: File): Observable<ConversationDto> {
+        const form = new FormData();
+        form.append('file', file, file.name);
+        return this.httpClient.post<ConversationDto>(this.iconUrl(id), form);
+    }
+
+    public removeIcon(id: string): Observable<ConversationDto> {
+        return this.httpClient.delete<ConversationDto>(this.iconUrl(id));
+    }
+
+    /** Member-only and served as bytes, so it needs the bearer - load it through `appAuthSrc`, not a bare `src`. */
+    public iconUrl(id: string): string {
+        return `${this.apiConfig.baseUrl()}/api/v1/messaging/conversations/${id}/icon`;
+    }
+
     public deleteConversation(id: string): Observable<void> {
         return this.httpClient.delete<void>(
             this.apiConfig.baseUrl() + `/api/v1/messaging/conversations/${id}`,

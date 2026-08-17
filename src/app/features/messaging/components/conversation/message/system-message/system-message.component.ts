@@ -41,8 +41,22 @@ export class SystemMessageComponent {
         () => this.message().authorId === this.profileService.ownProfile()?.userId,
     );
 
+    /** The group's new name, from `content`. Empty means the name was cleared. */
+    private readonly groupName = computed(() => decodeContent(this.message().content ?? '').trim());
+
     public readonly variantKey = computed(() => {
         const msg = this.message();
+
+        if (msg.type === MessageType.GroupNameChanged) {
+            return this.groupName()
+                ? 'MESSAGE.SYSTEM.GROUP_NAME_CHANGED'
+                : 'MESSAGE.SYSTEM.GROUP_NAME_CLEARED';
+        }
+        if (msg.type === MessageType.GroupIconChanged) {
+            return this.groupName() === 'removed'
+                ? 'MESSAGE.SYSTEM.GROUP_ICON_REMOVED'
+                : 'MESSAGE.SYSTEM.GROUP_ICON_CHANGED';
+        }
 
         if (msg.type === MessageType.CallMissed) {
             return this.isOwnCall() ? 'MESSAGE.SYSTEM.CALL_MISSED_OWN' : 'MESSAGE.SYSTEM.CALL_MISSED';
@@ -60,8 +74,12 @@ export class SystemMessageComponent {
         return keys[index];
     });
 
-    /** Interpolation for the call copy. Empty for everything else, which takes no parameters. */
-    public readonly translateParams = computed(() => (this.isCall() ? {duration: this.duration()} : {}));
+    /** Interpolation for the copy that takes parameters. Empty for everything else. */
+    public readonly translateParams = computed(() => {
+        if (this.isCall()) return {duration: this.duration()};
+        if (this.message().type === MessageType.GroupNameChanged) return {name: this.groupName()};
+        return {};
+    });
 
     /** The call's length, from the whole seconds the server puts in `content`. */
     public readonly duration = computed(() => {

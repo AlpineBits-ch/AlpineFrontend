@@ -11,6 +11,56 @@
     contain-intrinsic-size: auto 72px;
 }
 
+/* ── Group title, editable ───────────────────────────────────────────────── */
+
+/*
+ * The padding and the transparent border are always there, so hovering changes
+ * colour only. Animating them in would shift the title by a pixel.
+ */
+.title-edit {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    margin: -0.375rem -0.625rem;
+    padding: 0.375rem 0.625rem;
+    border: 1px solid transparent;
+    border-radius: 0.5rem;
+    background: transparent;
+    cursor: pointer;
+    transition:
+        background 150ms ease,
+        border-color 150ms ease;
+}
+
+.title-edit:hover,
+.title-edit:focus-visible {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+.title-edit-text {
+    font-size: 0.875rem;
+    font-weight: 600;
+    line-height: 1.25;
+    color: var(--color-text-primary);
+}
+
+.title-edit-pencil {
+    font-size: 0.625rem;
+    color: var(--color-text-muted);
+    opacity: 0;
+    transform: translateX(-0.25rem);
+    transition:
+        opacity 150ms ease,
+        transform 150ms ease;
+}
+
+.title-edit:hover .title-edit-pencil,
+.title-edit:focus-visible .title-edit-pencil {
+    opacity: 1;
+    transform: none;
+}
+
 /* ── Unread divider ──────────────────────────────────────────────────────── */
 
 .unread-divider {

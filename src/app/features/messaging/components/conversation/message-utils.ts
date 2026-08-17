@@ -29,7 +29,9 @@ export function isSystemMessageType(type: MessageType): boolean {
         type === MessageType.GuildMemberJoin ||
         type === MessageType.GuildMemberLeave ||
         type === MessageType.CallEnded ||
-        type === MessageType.CallMissed
+        type === MessageType.CallMissed ||
+        type === MessageType.GroupNameChanged ||
+        type === MessageType.GroupIconChanged
     );
 }
 

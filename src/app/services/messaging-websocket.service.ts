@@ -51,6 +51,13 @@ export interface ConversationRemoved {
     conversationId: string;
 }
 
+/** A group conversation's name or icon changed. Sent to the member who made the change too. */
+export interface ConversationUpdated {
+    conversationId: string;
+    name: string | null;
+    iconUpdatedAt: string | null;
+}
+
 export interface UserTypingEvent {
     conversationId: string;
     userId: string;
@@ -203,6 +210,7 @@ export class MessagingWebsocketService {
     public messageUpdatedObservable = new Subject<MessageUpdatedEvent>();
     public messageDeletedObservable = new Subject<MessageDeletedEvent>();
     public conversationRemovedObservable = new Subject<ConversationRemoved>();
+    public conversationUpdatedObservable = new Subject<ConversationUpdated>();
     public conversationMemberRemovedObservable = new Subject<ConversationMemberRemoved>();
     public userTypingObservable = new Subject<UserTypingEvent>();
     public userOnlineObservable = new Subject<string>();
@@ -275,6 +283,9 @@ export class MessagingWebsocketService {
         this.realtime.on('conversation.ConversationDeleted', async (data: ConversationRemoved) => {
             console.log('Conversation removed:', data);
             this.conversationRemovedObservable.next(data);
+        });
+        this.realtime.on('conversation.ConversationUpdated', (data: ConversationUpdated) => {
+            this.conversationUpdatedObservable.next(data);
         });
         this.realtime.on('conversation.MemberLeft', async (data: ConversationMemberRemoved) => {
             console.log('Conversation member removed:', data);

@@ -65,6 +65,7 @@ import {ToastService} from '../../../../services/toast.service';
 import {describeRefusal} from '../../../../core/refusal-message';
 import {PinnedMessagesPanelComponent} from '../pinned-messages-panel/pinned-messages-panel.component';
 import {JumpToPresentComponent} from '../../../../components/jump-to-present/jump-to-present.component';
+import {EditGroupModalComponent} from './edit-group-modal/edit-group-modal.component';
 
 @Component({
     selector: 'app-conversation',
@@ -88,6 +89,7 @@ import {JumpToPresentComponent} from '../../../../components/jump-to-present/jum
         SystemMessageComponent,
         DateDividerComponent,
         JumpToPresentComponent,
+        EditGroupModalComponent,
     ],
     templateUrl: './conversation.component.html',
     styleUrl: './conversation.component.css',
@@ -108,6 +110,9 @@ export class ConversationComponent implements AfterViewInit {
     protected readonly chatAvatarLabel = computed(() =>
         this.convUtils.getChatAvatarLabel(this.conversation()),
     );
+    protected readonly chatIconUrl = computed(() => this.convUtils.getChatIconUrl(this.conversation()));
+    protected readonly isGroup = computed(() => this.convUtils.isGroup(this.conversation()));
+    protected readonly showGroupEdit = signal(false);
     protected readonly partnerStatus = computed(() => this.convUtils.getPartnerStatus(this.conversation()));
     protected readonly typingText = computed(() => this.convUtils.getTypingLabel(this.conversation()));
     // The most recent confirmed message: watch this to react to incoming messages.
@@ -323,6 +328,10 @@ export class ConversationComponent implements AfterViewInit {
 
     protected joinOngoingCall(callId: string): void {
         this.callStateService.joinOngoing(callId, this.conversation().id);
+    }
+
+    protected openGroupEdit(): void {
+        this.showGroupEdit.set(true);
     }
 
     /** The camera button in the header. */

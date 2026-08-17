@@ -1,6 +1,7 @@
 import {inject, Injectable} from '@angular/core';
 import {ConversationDto, ConversationMemberDto} from '../dtos/response/conversation.dto';
 import {OnlineStatus} from '../dtos/response/profile.dto';
+import {ConversationService} from './conversation.service';
 import {ProfileService} from './profile.service';
 import {TypingService} from './typing.service';
 
@@ -8,6 +9,7 @@ import {TypingService} from './typing.service';
 export class ConversationUtilsService {
     private profileService = inject(ProfileService);
     private typingService = inject(TypingService);
+    private conversationService = inject(ConversationService);
 
     /** Every member who is not the current user. */
     getOtherMembers(conv: ConversationDto): ConversationMemberDto[] {
@@ -39,6 +41,15 @@ export class ConversationUtilsService {
         if (others.length === 0) return 'Empty chat';
         if (others.length === 1) return others[0].cachedUserName;
         return conv.name ?? others.map(m => m.cachedUserName).join(', ');
+    }
+
+    /**
+     * The group icon's address, or null when there is none. The timestamp is the cache key: the URL
+     * is derived from the id, so nothing about it says the image behind it changed.
+     */
+    getChatIconUrl(conv: ConversationDto): string | null {
+        if (!conv.iconUpdatedAt) return null;
+        return `${this.conversationService.iconUrl(conv.id)}?v=${encodeURIComponent(conv.iconUpdatedAt)}`;
     }
 
     /** Single-character fallback label for the conversation avatar. */

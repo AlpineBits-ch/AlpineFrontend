@@ -16,4 +16,10 @@ export enum MessageType {
      * Not a system message: it renders as an ordinary message from the inviter.
      */
     VoiceChannelInvite = 'VoiceChannelInvite',
+
+    /** A group was renamed. `content` is the new name, empty when it was cleared. */
+    GroupNameChanged = 'GroupNameChanged',
+
+    /** A group's icon changed. `content` is empty, or `removed` when the icon was deleted. */
+    GroupIconChanged = 'GroupIconChanged',
 }

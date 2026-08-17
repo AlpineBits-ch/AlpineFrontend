@@ -20,11 +20,28 @@
             class="flex items-center gap-2 sm:gap-3"
         >
             <div class="relative">
-                <app-avatar [label]="chatAvatarLabel()" [userId]="convUtils.getPartnerMember(conversation())?.userId" size="normal" />
+                <app-avatar
+                    [authSrc]="chatIconUrl()"
+                    [label]="chatAvatarLabel()"
+                    [userId]="convUtils.getPartnerMember(conversation())?.userId"
+                    size="normal"
+                />
                 <app-user-status-dot [status]="partnerStatus()" borderColor="border-app-bg" size="md" />
             </div>
             <div class="flex flex-col">
-                <h1 class="text-sm font-semibold text-text-primary m-0 leading-tight">{{ chatTitle() }}</h1>
+                @if (isGroup()) {
+                    <button
+                        (click)="openGroupEdit()"
+                        [attr.aria-label]="'GROUP_EDIT.EDIT_TOOLTIP' | translate"
+                        class="title-edit"
+                        type="button"
+                    >
+                        <span class="title-edit-text">{{ chatTitle() }}</span>
+                        <i class="pi pi-pencil title-edit-pencil"></i>
+                    </button>
+                } @else {
+                    <h1 class="text-sm font-semibold text-text-primary m-0 leading-tight">{{ chatTitle() }}</h1>
+                }
                 @if (partnerStatus() !== null) {
                     <span [ngClass]="partnerStatus() === OnlineStatus.Online ? 'text-online/70' : 'text-text-muted'" class="text-[11px]">
                         {{ partnerStatus() === OnlineStatus.Online ? 'Online' : 'Offline' }}
@@ -89,9 +106,12 @@
                 severity="secondary"
                 size="small"
             />
-            <p-button [text]="true" icon="pi pi-ellipsis-v" severity="secondary" size="small" />
         </div>
     </header>
+
+    @if (isGroup()) {
+        <app-edit-group-modal [(visible)]="showGroupEdit" [conversation]="conversation()" />
+    }
 
     <!-- Active call panel, shown only when this conversation has an ongoing call -->
     @if (activeCall()) {
@@ -305,6 +325,7 @@
                                 <!-- Conversation start, only show when all history is loaded -->
                                 <div class="py-8 flex flex-col items-start gap-2">
                                     <app-avatar
+                                        [authSrc]="chatIconUrl()"
                                         [label]="chatAvatarLabel()"
                                         [userId]="convUtils.getPartnerMember(conversation())?.userId"
                                         styleClass="!w-16 !h-16 !text-2xl"

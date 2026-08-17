@@ -1,0 +1,84 @@
+<p-dialog
+    [(visible)]="visible"
+    [draggable]="false"
+    [modal]="true"
+    [resizable]="false"
+    [style]="{width: '420px'}"
+    appendTo="body"
+    maskStyleClass="backdrop-blur-sm"
+    styleClass="!bg-card !border !border-white/[0.08] !rounded-2xl"
+>
+    <ng-template pTemplate="header">
+        <span class="text-base font-semibold text-text-primary">{{ 'GROUP_EDIT.TITLE' | translate }}</span>
+    </ng-template>
+
+    <div class="flex flex-col items-center pt-1 pb-1">
+        <label [attr.aria-label]="'GROUP_EDIT.CHANGE_ICON' | translate" class="group-icon relative cursor-pointer">
+            <span class="group-icon-frame">
+                @if (iconPreview()) {
+                    <img [appAuthSrc]="iconPreview()" alt="" class="w-full h-full object-cover" />
+                } @else {
+                    <span class="text-3xl font-semibold text-text-secondary select-none">{{ initial() }}</span>
+                }
+            </span>
+            <span class="group-icon-scrim"></span>
+            <span class="group-icon-badge"><i class="pi pi-pencil text-[0.6875rem]"></i></span>
+            <input (change)="onIconSelected($event)" accept="image/*" class="hidden" type="file" />
+        </label>
+
+        @if (iconPreview()) {
+            <button
+                (click)="removeIcon()"
+                class="mt-3 text-xs text-rose-400 hover:text-rose-300 transition-colors bg-transparent border-0 cursor-pointer"
+            >
+                {{ 'GROUP_EDIT.REMOVE_ICON' | translate }}
+            </button>
+        }
+
+        <input
+            (keydown.enter)="save()"
+            (ngModelChange)="name.set($event)"
+            [maxlength]="nameLimit"
+            [ngModel]="name()"
+            [placeholder]="'GROUP_EDIT.NAME_PLACEHOLDER' | translate"
+            class="mt-5 w-full !bg-white/[0.04] !border-white/[0.08] placeholder:text-text-muted !rounded-xl !text-sm"
+            pInputText
+        />
+    </div>
+
+    <ng-template pTemplate="footer">
+        <div class="flex gap-3 w-full">
+            <button (click)="cancel()" class="group-edit-btn group-edit-cancel">
+                {{ 'COMMON.CANCEL' | translate }}
+            </button>
+            <button (click)="save()" [disabled]="!dirty() || saving()" class="group-edit-btn group-edit-save">
+                @if (saving()) {
+                    <i class="pi pi-spin pi-spinner text-sm"></i>
+                } @else {
+                    {{ 'COMMON.SAVE' | translate }}
+                }
+            </button>
+        </div>
+    </ng-template>
+</p-dialog>
+
+<p-dialog
+    [(visible)]="cropVisible"
+    [draggable]="false"
+    [header]="'GROUP_EDIT.CHANGE_ICON' | translate"
+    [modal]="true"
+    [resizable]="false"
+    [style]="{width: '380px'}"
+    appendTo="body"
+>
+    @if (cropVisible() && cropSrc()) {
+        <app-image-cropper
+            (cancelled)="cropVisible.set(false)"
+            (confirmed)="onCropConfirmed($event)"
+            [circular]="true"
+            [imageSrc]="cropSrc()"
+            [outputHeight]="400"
+            [outputWidth]="400"
+        />
+    }
+</p-dialog>
