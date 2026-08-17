@@ -1037,6 +1037,7 @@ async fn pump(
         match *message {
             // Ours, answered. The publisher connection only ever offers.
             proto::signal_response::Message::Answer(answer) => {
+                report_ice_role(&answer.sdp, "publisher", true);
                 match RTCSessionDescription::answer(answer.sdp) {
                     Ok(description) => {
                         if let Err(e) = publisher.set_remote_description(description).await {
@@ -1060,6 +1061,9 @@ async fn pump(
                 // above looks identical to a track that opened and carried nothing.
                 let media = offer.sdp.matches("m=").count();
                 eprintln!("[livekit] subscriber offer with {media} m-line(s)");
+                // We answer this one, so `a=ice-lite` is the only thing that can make us
+                // controlling - and without a controlling end nothing is ever nominated.
+                report_ice_role(&offer.sdp, "subscriber", false);
                 match answer_subscriber(&signal, &subscriber, offer.sdp).await {
                     Ok(()) => {
                         eprintln!("[livekit] answered the subscriber offer");
@@ -1119,6 +1123,35 @@ impl Drop for SignalClosedOnDrop {
     fn drop(&mut self) {
         self.0.store(true, Ordering::Relaxed);
     }
+}
+
+/// Report the one SDP attribute that decides which end nominates.
+///
+/// **`a=ice-lite` is not decoration; it picks the ICE role.** `webrtc-rs` reads it in
+/// `RTCPeerConnection::set_remote_description` and takes `Controlling` only when we offered, or
+/// when the remote is lite and we are not. On the subscriber connection we always answer, so
+/// without this attribute we take `Controlled` and wait for a nomination.
+///
+/// An ice-lite agent never nominates - it only answers checks. So if the far end is lite and does
+/// not say so, both ends wait, every candidate pair reaches `Succeeded`, nothing is ever selected,
+/// and the connection sits at `checking` until the server gives up. That is indistinguishable from
+/// a network fault from every counter above the transport, which is why it is logged rather than
+/// inferred.
+fn report_ice_role(sdp: &str, label: &str, we_offered: bool) {
+    let remote_is_lite = sdp.lines().any(|line| line.trim() == "a=ice-lite");
+    // Mirrors the rule in `webrtc::peer_connection`, which is the code that actually decides. We
+    // are never lite ourselves - nothing calls `SettingEngine::set_lite`.
+    let controlling = we_offered || remote_is_lite;
+    eprintln!(
+        "[livekit] {label}: remote is {}, so we are the {} agent{}",
+        if remote_is_lite { "ice-lite" } else { "a full ICE agent" },
+        if controlling { "CONTROLLING" } else { "CONTROLLED" },
+        if controlling {
+            " (we nominate)"
+        } else {
+            " (we wait to be nominated)"
+        }
+    );
 }
 
 /// Log every transport state change and every candidate one connection gathers.
