@@ -366,6 +366,20 @@ pub fn run() {
     if let Some(path) = logging::start() {
         eprintln!("[venta] logging to {}", path.display());
     }
+
+    // Bridge the `log` facade onto the stderr we just teed into that file.
+    //
+    // **Inert unless `RUST_LOG` is set** - `env_logger` defaults to `Error`, and nothing in this
+    // client logs through the facade - so this costs a released build nothing. What it buys is the
+    // only view into the crates underneath us: `webrtc-ice` narrates its own connectivity checks
+    // and nomination decisions through `log::trace!`, and with no subscriber installed those lines
+    // went nowhere. A connection whose candidate pairs all read `Succeeded` while nothing is ever
+    // nominated cannot be explained from outside the agent.
+    //
+    //   RUST_LOG=webrtc_ice=trace,webrtc=debug
+    if let Err(e) = env_logger::try_init() {
+        eprintln!("[venta] could not install the log bridge: {e}");
+    }
     #[cfg(windows)]
     crash_reporter::install();
 

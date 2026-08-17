@@ -1202,14 +1202,18 @@ struct Side<'a> {
     rejected: &'a AtomicU64,
 }
 
-/// Every candidate pair on a connection, resolved to the path it describes and what it measured.
+/// Every candidate pair on a connection, resolved to the path it describes.
 ///
 /// **This is what a state of `checking` or a drop out of `connected` refuses to explain on its
-/// own.** The counters are the diagnosis: `requests_sent` with `responses_received` at zero is a
-/// path nothing answers on, a nominated pair with `packets_received` at zero is a path that
-/// completed and then carried nothing, and `consent_requests_sent` climbing on a pair that was
-/// connected is consent freshness expiring - which is what turns `connected` into `disconnected`
-/// with no other event anywhere.
+/// own.** `Succeeded` pairs with nothing `NOMINATED` is the signature that matters: connectivity
+/// worked and no agent ever selected a pair, which is a role or nomination fault rather than a
+/// network one.
+///
+/// **The request/response/consent counters are deliberately not printed.** `webrtc-ice` 0.14
+/// initialises `requests_sent`, `responses_received` and `consent_requests_sent` to zero in
+/// `agent_stats.rs` and never increments them anywhere in the crate, so reporting them shows
+/// `0/0` on a pair that demonstrably completed a check. That reads as "nothing was ever sent",
+/// which is the opposite of the truth and cost a round of diagnosis here.
 async fn pair_report(pc: &Arc<RTCPeerConnection>, label: &str) -> String {
     let report = pc.get_stats().await;
 
@@ -1230,16 +1234,11 @@ async fn pair_report(pc: &Arc<RTCPeerConnection>, label: &str) -> String {
         };
         let unknown = "?".to_string();
         lines.push(format!(
-            "{label} pair {} -> {}: {:?}{}, req {}/{} resp, consent {}, pkts {}/{}",
+            "{label} pair {} -> {}: {:?}{}",
             addresses.get(&pair.local_candidate_id).unwrap_or(&unknown),
             addresses.get(&pair.remote_candidate_id).unwrap_or(&unknown),
             pair.state,
             if pair.nominated { " NOMINATED" } else { "" },
-            pair.requests_sent,
-            pair.responses_received,
-            pair.consent_requests_sent,
-            pair.packets_sent,
-            pair.packets_received,
         ));
     }
 
