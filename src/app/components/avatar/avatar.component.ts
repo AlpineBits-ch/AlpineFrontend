@@ -1,4 +1,14 @@
-import {Component, computed, DestroyRef, effect, inject, Injector, input, signal} from '@angular/core';
+import {
+    Component,
+    computed,
+    DestroyRef,
+    effect,
+    inject,
+    Injector,
+    input,
+    signal,
+    untracked,
+} from '@angular/core';
 import {Avatar} from 'primeng/avatar';
 import {takeUntilDestroyed, toObservable} from '@angular/core/rxjs-interop';
 import {AuthImageService} from '../../services/auth-image.service';
@@ -124,8 +134,9 @@ export class AppAvatarComponent {
         inject(DestroyRef).onDestroy(() => this.releaseAuthUrl());
     }
 
+    /** Untracked: the fetch effect calls this, and a tracked read there would make it depend on what it writes. */
     private releaseAuthUrl(): void {
-        const current = this.authObjectUrl();
+        const current = untracked(this.authObjectUrl);
         if (current) URL.revokeObjectURL(current);
         this.authObjectUrl.set(undefined);
     }
