@@ -62,6 +62,9 @@ fn rooms() -> &'static Mutex<HashMap<String, Entry>> {
 pub async fn acquire(key: &str, url: &str, token: &str) -> Result<Arc<Room>, String> {
     let mut rooms = rooms().lock().await;
 
+    // Holders of a room evicted below, whose releases the replacement has to absorb. See there.
+    let mut stale = 0usize;
+
     if let Some(entry) = rooms.get_mut(key) {
         // **A room whose signal has ended is not a room to join.** Handing it back is how a single
         // dropped connection became a permanent lockout: the key is `guild:{guild}:{channel}`, so
@@ -74,10 +77,18 @@ pub async fn acquire(key: &str, url: &str, token: &str) -> Result<Arc<Room>, Str
         // from a fresh connection instead of inheriting the last one's corpse.
         //
         // The evicted entry is dropped rather than closed: closing is async and this holds the
-        // registry lock, and any holder still referencing it releases it by the usual path. Their
-        // `release` finds nothing and returns `None`, which is already the harmless case.
+        // registry lock, and any holder still referencing it releases it by the usual path.
+        //
+        // **Their releases still have to land somewhere, and that is what `stale` is for.** They do
+        // not find nothing: this key is about to be occupied again, by a different room. Counting a
+        // holder of the *evicted* room against the *replacement* is how a fresh connection was
+        // closed under its only real user - the first stale release took the count to zero, the
+        // registry handed the room back as the last holder's, and the caller closed the signal and
+        // both peer connections on a call that was mid-sentence. From the log that is one line,
+        // `last holder out`, indistinguishable from an ordinary teardown; from the call it is a
+        // disconnect with no fault reported anywhere.
         if entry.room.signal_is_closed() {
-            rooms.remove(key);
+            stale = rooms.remove(key).map_or(0, |evicted| evicted.holders);
         } else {
             entry.holders += 1;
             return Ok(entry.room.clone());
@@ -89,7 +100,12 @@ pub async fn acquire(key: &str, url: &str, token: &str) -> Result<Arc<Room>, Str
         key.to_string(),
         Entry {
             room: room.clone(),
-            holders: 1,
+            // Ours, plus one for each holder of the room this replaces. Every one of those will
+            // release exactly once - their teardown paths are the same ones as always, and `release`
+            // is `#[must_use]` - so the debt is paid off and the count converges on the real
+            // holders. It errs towards a connection held open a little too long rather than a call
+            // dropped, which is the only direction worth erring in here.
+            holders: stale + 1,
         },
     );
     Ok(room)
@@ -189,6 +205,71 @@ mod tests {
         if let Some(room) = release(key).await {
             drop(room);
         }
+    }
+
+    /// Evicting a dead room must not forget the holders it had.
+    ///
+    /// **This is a live call closed under itself, and the log says one word about it: `last holder
+    /// out`.** The eviction above replaces the entry for a key wholesale, and the replacement used
+    /// to start its count at one. Everybody still holding the *evicted* room - the microphone, a
+    /// screen share - releases by the ordinary path later, and every one of those releases was
+    /// counted against the new room instead. So the first of them took the count to zero, and
+    /// whoever was actually using the fresh room had its signal connection and both peer connections
+    /// closed underneath them, mid-sentence, with nothing anywhere reporting a fault.
+    ///
+    /// The stale holders' releases have to land *somewhere* - they are `#[must_use]` and the callers
+    /// really do call them - so the replacement carries the evicted count as a debt and absorbs
+    /// them. What that costs is a connection held open until the last stale holder lets go, which is
+    /// the same exposure the registry had before eviction existed, and is not a dropped call.
+    #[tokio::test]
+    #[ignore = "needs a LiveKit server on 127.0.0.1:7880"]
+    async fn evicting_a_dead_room_keeps_the_holders_it_had() {
+        use crate::media::livekit::room_tests::{dev_token, DEV_URL};
+
+        let key = "guild:evict:holders";
+        let token = dev_token("lk-evict-holders", "user-1");
+
+        // Two holders, as a call with a screen share running really has.
+        let stale = acquire(key, DEV_URL, &token).await.expect("the first holder connects");
+        let stale_two = acquire(key, DEV_URL, &token).await.expect("the second holder joins it");
+
+        stale.close_signal().await;
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            while !stale.signal_is_closed() {
+                tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+            }
+        })
+        .await
+        .expect("the pump must notice its signal closing");
+
+        // The rejoin evicts the corpse and connects a fresh room. This is its only real holder.
+        let fresh = acquire(key, DEV_URL, &token).await.expect("the rejoin connects");
+        assert!(!Arc::ptr_eq(&stale, &fresh), "the rejoin inherited the dead room");
+
+        // Now the two stale holders let go, exactly as their teardown paths do. Neither of them ever
+        // held the fresh room, so neither may be the one that closes it.
+        for (n, holder) in [stale, stale_two].into_iter().enumerate() {
+            drop(holder);
+            assert!(
+                release(key).await.is_none(),
+                "stale holder {n} closed the room that replaced theirs"
+            );
+        }
+        assert!(
+            is_held(key).await,
+            "the fresh room was dropped from the registry by a holder of the evicted one"
+        );
+        assert!(
+            !fresh.signal_is_closed(),
+            "the fresh room's signal was closed under its only real holder"
+        );
+
+        // And its real holder still closes it, or the fix would have traded a dropped call for a
+        // connection that outlives every call on that key.
+        drop(fresh);
+        let closed = release(key).await.expect("the last real holder must be handed the room");
+        assert!(!is_held(key).await);
+        drop(closed);
     }
 
     #[tokio::test]

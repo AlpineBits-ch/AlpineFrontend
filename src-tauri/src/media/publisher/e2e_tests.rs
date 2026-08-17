@@ -1212,3 +1212,81 @@ async fn a_dead_connection_ends_the_publication() {
     assert_eq!(delivered.load(Ordering::Relaxed), 0);
     assert!(stopped.load(Ordering::Relaxed), "the publication must be torn down");
 }
+
+/// Stopping a share must not take down the room the microphone is still in.
+///
+/// **This is the mid-call disconnect.** The share and the microphone hold one room between them, and
+/// `release_room` closes it when the registry says the last holder has gone. If the microphone's
+/// hold is ever not counted, ending a share closes the signal connection and both peer connections
+/// under a call that is still running - and the log says exactly one thing about it, `last holder
+/// out`, which reads like an ordinary teardown.
+///
+/// Driven through the shipping entry points on both sides - `VoicePublication::start_livekit` takes
+/// the room the way the microphone really does, `Publication::start`/`stop` the way a share really
+/// does - because the bookkeeping *is* what is under test and a hand-rolled `acquire` pair would
+/// prove only that the registry can count.
+#[tokio::test]
+#[ignore = "needs a LiveKit server on 127.0.0.1:7880"]
+async fn stopping_a_share_leaves_the_room_the_microphone_is_using() {
+    use crate::media::voice::rtc::VoicePublication;
+    use webrtc::peer_connection::peer_connection_state::RTCPeerConnectionState;
+
+    let key = "guild:e2e:sharestop";
+    let token = dev_token("pub-sharestop", "user-1");
+
+    // The microphone first, as production always does: it acquires the room through the registry.
+    let mic = VoicePublication::start_livekit(key.to_owned(), DEV_URL, &token)
+        .await
+        .expect("the microphone must publish");
+
+    // The share joins the room the microphone already holds, exactly as `start_screen_publish` does.
+    let room = share_room(key, "pub-sharestop", "user-1").await;
+    let publication = Publication::start(
+        Arc::clone(&room),
+        key.to_owned(),
+        "abc",
+        &ladder(laddered_spec(), 1),
+        true,
+    )
+    .await
+    .expect("the share must start on the microphone's room");
+    // The caller's own reference goes before the teardown, or the share can never be the last
+    // holder and this test would pass for the wrong reason.
+    drop(room);
+
+    publication.stop().await;
+
+    assert!(
+        registry::is_held(key).await,
+        "ending the share closed the room the microphone is still publishing into"
+    );
+
+    // Still *held* only says the registry row survived. This says the connection did - a closed
+    // room reports `Closed` here and its signal reads closed, which is what the call sees as a
+    // disconnect mid-sentence.
+    let probe = share_room(key, "pub-sharestop", "user-1").await;
+    assert_ne!(
+        probe.publisher_state(),
+        RTCPeerConnectionState::Closed,
+        "the share closed the publisher connection the microphone is sending on"
+    );
+    assert!(
+        !probe.signal_is_closed(),
+        "the share closed the signal connection the call runs on"
+    );
+    // The microphone is still a live publication on it, not merely a surviving connection.
+    assert!(
+        probe.local_track("audio").await.is_some(),
+        "the microphone track went away with the share"
+    );
+    drop(probe);
+    release_room(key).await;
+
+    // And the ordinary end of the call still closes it - a room that outlives its last holder is
+    // the same fault read from the other side.
+    mic.stop().await;
+    assert!(
+        !registry::is_held(key).await,
+        "the last holder left and the room is still in the registry"
+    );
+}

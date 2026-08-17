@@ -1102,10 +1102,27 @@ export class VoiceChannelService {
             return n;
         });
 
-        // Never for ourselves. Reaching here with our own id means the eviction was for a channel we
-        // are not in, and cleanupParticipant is keyed on user rather than on room - so it would tear
-        // down our own subscriptions in whatever room we are actually sitting in.
-        if (e.userId !== ownId) this.rtc.cleanupParticipant(e.userId);
+        // **Only for the room we are actually in, and never for ourselves.**
+        //
+        // `cleanupParticipant` is keyed on user and not on room: it drops that user's source from
+        // the mixer, sends the SFU an unsubscribe, and clears their video demand - for whatever room
+        // this client is sitting in, whatever room the event was about. The `ownId` half of this
+        // guard was already here; the other half is the same hazard pointed at somebody else, and it
+        // is the one that reaches a user who can hear the difference.
+        //
+        // The event arrives for other channels constantly and legitimately - somebody hopping
+        // between channels, a second device dropping, the heartbeat sweep evicting the seat a force
+        // quit left behind (`VoiceHeartbeatCleanupService` announces `UserLeftVoice` to every member
+        // of the guild). Any one of those for a person sitting in the channel *with* us used to tear
+        // their audio out of our call. Nothing announces them a second time, so they stayed silent
+        // for the rest of the session while both peer connections, the subscription bookkeeping and
+        // every counter in the pipeline went on reading healthy.
+        //
+        // The roster update above is deliberately left ungated: correcting the sidebar for a channel
+        // we are not in is the whole reason this event is applied there at all.
+        if (e.userId !== ownId && e.channelId === this.joinedChannelId()) {
+            this.rtc.cleanupParticipant(e.userId);
+        }
     }
 
     private onParticipantJoined(e: WsGuildParticipantJoined): void {

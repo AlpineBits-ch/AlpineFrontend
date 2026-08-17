@@ -124,6 +124,9 @@ function setup(options: {
 
     const engineSubscribe = vi.fn(async () => undefined);
     const engineVolume = vi.fn(async () => undefined);
+    // Named rather than inline, because the teardown a departure runs is what the cross-room tests
+    // below assert on: it is keyed on user and not on room, so the only question is whether it ran.
+    const sessionParticipantLeft = vi.fn();
     const getCallSnapshot = vi.fn(() => of({
         roomId: 'call-1', kind: 'call', guildId: null,
         instanceId: 'inst-1', version: 1, participants: [],
@@ -186,7 +189,7 @@ function setup(options: {
                     toggleCamera,
                     toggleScreenShare,
                     onParticipantJoined: vi.fn(),
-                    onParticipantLeft: vi.fn(),
+                    onParticipantLeft: sessionParticipantLeft,
                     onSpeakingChanged: vi.fn(),
                     onMuteChanged: vi.fn(),
                     onCameraChanged: vi.fn(),
@@ -248,6 +251,7 @@ function setup(options: {
     return {
         service, ws, session, livekit, remoteTracks, publications, engineSubscribe, engineVolume, getCallSnapshot,
         connection, publish, unpublish, declareVideo, toggleCamera, toggleScreenShare, engineStart,
+        sessionParticipantLeft,
         resolveStart: (s: VoiceSession) => resolveStart(s),
     };
 }
@@ -1061,5 +1065,37 @@ describe('the inspected inbound bitrate', () => {
         internals(service).stopStatsPolling();
 
         expect(service.inspected()).toBeNull();
+    });
+});
+
+/**
+ * The DM half of a hazard the guild path had too: a departure event is keyed on user, the teardown
+ * it runs is keyed on user, and neither is keyed on the room the event came from.
+ *
+ * <p>Every other subscription in this service's list goes through `gate`, which is what decides
+ * whether an event is even about this call. `CallParticipantLeft` did not, so a departure from any
+ * other call - one ringing in another window, one the other person hung up, a stale seat the server
+ * swept - dropped that user's source out of the call that is actually running. Nothing announces
+ * them again, so they stay silent for the rest of the call while every state above reads healthy.</p>
+ */
+describe('a CallParticipantLeft for another call', () => {
+    it('does not tear the participant out of the call we are in', async () => {
+        const {ws, sessionParticipantLeft} = setup();
+        await tick();
+
+        ws['callParticipantLeftObservable'].next({callId: 'some-other-call', userId: 'them'});
+        await tick();
+
+        expect(sessionParticipantLeft).not.toHaveBeenCalled();
+    });
+
+    it('still tears down a departure from the call we are in', async () => {
+        const {ws, sessionParticipantLeft} = setup();
+        await tick();
+
+        ws['callParticipantLeftObservable'].next({callId: 'call-1', userId: 'them'});
+        await tick();
+
+        expect(sessionParticipantLeft).toHaveBeenCalledWith('them');
     });
 });

@@ -603,3 +603,203 @@ async fn report_what_the_room_allows_us_to_publish() {
 
     client.close().await;
 }
+
+/// How many packets arrived on the sink for each track SID over `window`.
+///
+/// Keyed rather than totalled, because the failure this exists for is *one* track going quiet while
+/// another keeps flowing - a total would stay healthy throughout it.
+async fn drain_by_key(
+    rx: &mut tokio::sync::mpsc::Receiver<(String, crate::media::voice::jitter::Packet)>,
+    window: Duration,
+) -> std::collections::HashMap<String, u64> {
+    let mut counts = std::collections::HashMap::new();
+    let deadline = tokio::time::Instant::now() + window;
+    while let Ok(Some((key, _))) =
+        tokio::time::timeout_at(deadline, rx.recv()).await
+    {
+        *counts.entry(key).or_insert(0u64) += 1;
+    }
+    counts
+}
+
+/// A later subscribe must not silence the track that is already flowing.
+///
+/// **This is "I could not hear the other party any more", and nothing above the transport can see
+/// it.** Every subscribe after the first renegotiates the subscriber connection, and `webrtc-rs`
+/// answers a renegotiation by walking every transceiver and stopping any receiver whose live track
+/// it cannot match against the new remote description (`start_rtp`, `is_renegotiation == true`). A
+/// stopped receiver ends its `TrackRemote`, so the reader `install_receive_reader` spawned returns
+/// `ErrClosedPipe` and exits - while the subscription, both connection states and every counter
+/// above still read healthy. The audio simply stops.
+///
+/// Two speakers rather than one, because a single track cannot show it: the assertion is that the
+/// *first* one keeps arriving across the second one's negotiation.
+#[tokio::test]
+#[ignore = "needs a LiveKit server on 127.0.0.1:7880"]
+async fn a_later_subscribe_does_not_silence_the_track_already_flowing() {
+    let name = "lk-renegotiate";
+
+    let first = Room::connect(DEV_URL, &dev_token(name, "user-1"))
+        .await
+        .expect("connect");
+    let first_pub = first.publish_audio("audio").await.expect("publish");
+    first
+        .wait_until_connected(Duration::from_secs(10))
+        .await
+        .expect("connected");
+
+    let second = Room::connect(DEV_URL, &dev_token(name, "user-2"))
+        .await
+        .expect("connect");
+    let second_pub = second.publish_audio("audio").await.expect("publish");
+    second
+        .wait_until_connected(Duration::from_secs(10))
+        .await
+        .expect("connected");
+
+    let listener = Room::connect(DEV_URL, &dev_token(name, "user-3"))
+        .await
+        .expect("connect");
+    let (tx, mut rx) = tokio::sync::mpsc::channel(4096);
+    listener.on_audio(tx);
+
+    let tone_a = tokio::spawn(async move {
+        pump_tone(&first, "audio", Duration::from_secs(30)).await;
+        first
+    });
+    let tone_b = tokio::spawn(async move {
+        pump_tone(&second, "audio", Duration::from_secs(30)).await;
+        second
+    });
+
+    // First subscription, and proof it is carrying before anything else happens to the connection.
+    listener.subscribe(&first_pub.sid).await;
+    let before = drain_by_key(&mut rx, Duration::from_secs(6)).await;
+    println!("RENEG before the second subscribe: {before:?}");
+    assert!(
+        before.get(&first_pub.sid).copied().unwrap_or(0) > 0,
+        "the first track never carried, so this test cannot say anything about the second: {before:?}"
+    );
+
+    // The renegotiation under test.
+    listener.subscribe(&second_pub.sid).await;
+    // Long enough for the offer/answer to land and for both to be well past it.
+    let after = drain_by_key(&mut rx, Duration::from_secs(8)).await;
+    println!("RENEG after the second subscribe: {after:?}");
+    println!("RENEG subscriber state: {}", listener.subscriber_state());
+    println!(
+        "RENEG tracks opened: {}",
+        listener.stats.tracks_opened.load(Ordering::Relaxed)
+    );
+
+    assert!(
+        after.get(&second_pub.sid).copied().unwrap_or(0) > 0,
+        "the second subscribe never carried at all: {after:?}"
+    );
+    // The regression. Silent everywhere else: the SFU is still sending it, the connection is still
+    // `Connected`, and the subscription is still on the books.
+    assert!(
+        after.get(&first_pub.sid).copied().unwrap_or(0) > 0,
+        "the first track went silent when the second was subscribed: {after:?}"
+    );
+
+    listener.close().await;
+    tone_a.await.expect("tone a").close().await;
+    tone_b.await.expect("tone b").close().await;
+}
+
+/// Starting a screen share must not interrupt the audio this room is already receiving.
+///
+/// **This is "I start a stream and can no longer hear the other party".** The share publishes on
+/// the *publisher* connection of a room whose *subscriber* connection is carrying somebody's
+/// microphone, and the two are supposed to be independent. They are not: the SFU renegotiates the
+/// subscriber whenever the participant's published set changes, and a renegotiation is where an
+/// inbound track can be dropped with every state above it still reading healthy.
+///
+/// The share is published exactly as `publisher::rtc::Publication::start` does it - the audio half
+/// first, then the ladder, with the same track names - because the order and the number of
+/// negotiations are what the failure depends on.
+#[tokio::test]
+#[ignore = "needs a LiveKit server on 127.0.0.1:7880"]
+async fn a_screen_share_does_not_interrupt_the_audio_this_room_receives() {
+    use livekit_protocol as proto;
+
+    let name = "lk-share-vs-audio";
+    let share_id = "747fa2a2";
+
+    // The other party, talking throughout.
+    let peer = Room::connect(DEV_URL, &dev_token(name, "user-peer"))
+        .await
+        .expect("connect");
+    let peer_pub = peer.publish_audio("audio").await.expect("publish");
+    peer.wait_until_connected(Duration::from_secs(10))
+        .await
+        .expect("connected");
+
+    // Us: the microphone first, as production always does, then the subscription.
+    let me = Room::connect(DEV_URL, &dev_token(name, "user-me"))
+        .await
+        .expect("connect");
+    me.publish_audio("audio").await.expect("publish mic");
+    me.wait_until_connected(Duration::from_secs(10))
+        .await
+        .expect("connected");
+
+    let (tx, mut rx) = tokio::sync::mpsc::channel(4096);
+    me.on_audio(tx);
+    me.subscribe(&peer_pub.sid).await;
+
+    let tone = tokio::spawn(async move {
+        pump_tone(&peer, "audio", Duration::from_secs(40)).await;
+        peer
+    });
+
+    let before = drain_by_key(&mut rx, Duration::from_secs(6)).await;
+    println!("SHARE before: {before:?}");
+    assert!(
+        before.get(&peer_pub.sid).copied().unwrap_or(0) > 0,
+        "the peer never carried, so this test cannot say anything about the share: {before:?}"
+    );
+
+    // The share, in the order and shape production publishes it.
+    me.publish_audio_as(
+        &format!("screen-audio-{share_id}"),
+        proto::TrackSource::ScreenShareAudio,
+    )
+    .await
+    .expect("publish the share's audio half");
+    me.publish_video(
+        &format!("screen-{share_id}"),
+        &[("f", 1920, 1080), ("h", 960, 540), ("q", 480, 270)],
+    )
+    .await
+    .expect("publish the ladder");
+
+    let after = drain_by_key(&mut rx, Duration::from_secs(8)).await;
+    println!("SHARE after: {after:?}");
+    println!("SHARE subscriber state: {}", me.subscriber_state());
+    println!("SHARE publisher state: {}", me.publisher_state());
+
+    assert!(
+        after.get(&peer_pub.sid).copied().unwrap_or(0) > 0,
+        "the peer went silent the moment we started sharing: {after:?}"
+    );
+
+    // And it must survive the share going away again, which is a second renegotiation.
+    me.unpublish(&[
+        format!("screen-{share_id}"),
+        format!("screen-audio-{share_id}"),
+    ])
+    .await
+    .expect("unpublish the share");
+
+    let stopped = drain_by_key(&mut rx, Duration::from_secs(6)).await;
+    println!("SHARE after unpublish: {stopped:?}");
+    assert!(
+        stopped.get(&peer_pub.sid).copied().unwrap_or(0) > 0,
+        "the peer went silent when the share stopped: {stopped:?}"
+    );
+
+    me.close().await;
+    tone.await.expect("tone task").close().await;
+}

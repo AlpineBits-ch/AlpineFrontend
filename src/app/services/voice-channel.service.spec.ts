@@ -1611,4 +1611,47 @@ describe('a self-addressed UserLeftVoice', () => {
 
         expect(rtc.cleanupParticipant).not.toHaveBeenCalled();
     });
+
+    /**
+     * The same hazard, for somebody else. `cleanupParticipant` is keyed on user and not on room,
+     * and the guard above closed it only for our own id.
+     *
+     * **This is "I suddenly cannot hear the other party", and nothing reports it.** Somebody in the
+     * channel with us leaves - or is swept out of - *another* channel: they hopped, a force quit
+     * left a seat behind, a second device dropped. That event tears their source out of the mixer,
+     * unsubscribes their track from the SFU, and clears their video demand for the room we are
+     * actually in. Nothing announces them again, so they stay silent for the rest of the session
+     * while every counter, both peer connections and the subscription bookkeeping read healthy.
+     */
+    it('never tears down another user in our channel because they left a different one', async () => {
+        const {ws, rtc} = setup();
+
+        // They are in chan-1 with us. This event is about the seat they gave up elsewhere.
+        ws['userLeftVoiceObservable'].next({userId: 'them', channelId: 'ghost-chan', guildId: 'guild-1'});
+        await tick();
+
+        expect(rtc.cleanupParticipant).not.toHaveBeenCalled();
+    });
+
+    /** The sidebar is the reason the event is applied for other channels at all, so it must stay. */
+    it('still corrects the sidebar for a channel we are not in', async () => {
+        const {service, ws} = setup();
+
+        ws['userJoinedVoiceObservable'].next({userId: 'them', channelId: 'ghost-chan', guildId: 'guild-1'});
+        ws['userLeftVoiceObservable'].next({userId: 'them', channelId: 'ghost-chan', guildId: 'guild-1'});
+        await tick();
+
+        expect(service.channelParticipants().get('ghost-chan')?.map(p => p.userId))
+            .not.toContain('them');
+    });
+
+    /** And a real departure from the room we are in still unwinds everything held for them. */
+    it('tears down a user who leaves the channel we are in', async () => {
+        const {ws, rtc} = setup();
+
+        ws['userLeftVoiceObservable'].next({userId: 'them', channelId: 'chan-1', guildId: 'guild-1'});
+        await tick();
+
+        expect(rtc.cleanupParticipant).toHaveBeenCalledWith('them');
+    });
 });

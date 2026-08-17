@@ -1559,6 +1559,17 @@ export class CallWebRtcService {
             // live departure; `syncParticipants` repeats it for departures missed while offline.
             // Every step is idempotent, which is what makes that overlap harmless.
             this.voiceWs.callParticipantLeftObservable.subscribe(e => {
+                // **The room this event came from, or it tears down the room we are actually in.**
+                // Every step below is keyed on user and none of them is keyed on call, so a
+                // departure from some *other* call - one ringing in another window, one the other
+                // person hung up, a stale seat the server swept - used to drop that user's audio
+                // source, their screen audio and their video out of this call. Nothing announces
+                // them a second time, so they stayed silent for the rest of it with the connection,
+                // the roster and every counter still reading healthy.
+                //
+                // Every other subscription in this list is gated; this one was not. `callAlone`
+                // just below is the same guard, spelled the same way.
+                if (e.callId !== this.callId) return;
                 this.callSession.onParticipantLeft(e.userId);
                 this.subscribedAudioUserIds.delete(e.userId);
                 this.dropScreenAudio(e.userId);
