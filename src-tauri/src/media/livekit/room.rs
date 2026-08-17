@@ -658,7 +658,7 @@ impl Room {
                 _ => tokio::time::sleep(Duration::from_millis(50)).await,
             }
         }
-        eprintln!("[livekit] {}", self.diagnosis().await);
+        eprintln!("[livekit] {}", self.full_diagnosis().await);
         Err(format!(
             "publisher stuck at {} after {timeout:?}",
             self.publisher.connection_state()
@@ -699,6 +699,20 @@ impl Room {
                 Some(route) => route.describe(),
                 None => "unfiltered".to_string(),
             }
+        )
+    }
+
+    /// [`Self::diagnosis`], plus every candidate pair on both connections.
+    ///
+    /// Separate because it is several lines and costs a `get_stats` on each connection, so it is
+    /// printed where the answer is worth that - a connection that failed to come up - rather than
+    /// on every state change.
+    pub async fn full_diagnosis(&self) -> String {
+        format!(
+            "{}\n[livekit] {}\n[livekit] {}",
+            self.diagnosis().await,
+            pair_report(&self.publisher, "publisher").await,
+            pair_report(&self.subscriber, "subscriber").await,
         )
     }
 
@@ -1155,6 +1169,53 @@ struct Side<'a> {
     rejected: &'a AtomicU64,
 }
 
+/// Every candidate pair on a connection, resolved to the path it describes and what it measured.
+///
+/// **This is what a state of `checking` or a drop out of `connected` refuses to explain on its
+/// own.** The counters are the diagnosis: `requests_sent` with `responses_received` at zero is a
+/// path nothing answers on, a nominated pair with `packets_received` at zero is a path that
+/// completed and then carried nothing, and `consent_requests_sent` climbing on a pair that was
+/// connected is consent freshness expiring - which is what turns `connected` into `disconnected`
+/// with no other event anywhere.
+async fn pair_report(pc: &Arc<RTCPeerConnection>, label: &str) -> String {
+    let report = pc.get_stats().await;
+
+    // Pairs name their candidates by id, and the ids alone say nothing. Resolve both sides first.
+    let mut addresses: HashMap<String, String> = HashMap::new();
+    for (id, stat) in &report.reports {
+        if let webrtc::stats::StatsReportType::LocalCandidate(c)
+        | webrtc::stats::StatsReportType::RemoteCandidate(c) = stat
+        {
+            addresses.insert(id.clone(), format!("{:?} {}:{}", c.candidate_type, c.ip, c.port));
+        }
+    }
+
+    let mut lines: Vec<String> = Vec::new();
+    for stat in report.reports.values() {
+        let webrtc::stats::StatsReportType::CandidatePair(pair) = stat else {
+            continue;
+        };
+        let unknown = "?".to_string();
+        lines.push(format!(
+            "{label} pair {} -> {}: {:?}{}, req {}/{} resp, consent {}, pkts {}/{}",
+            addresses.get(&pair.local_candidate_id).unwrap_or(&unknown),
+            addresses.get(&pair.remote_candidate_id).unwrap_or(&unknown),
+            pair.state,
+            if pair.nominated { " NOMINATED" } else { "" },
+            pair.requests_sent,
+            pair.responses_received,
+            pair.consent_requests_sent,
+            pair.packets_sent,
+            pair.packets_received,
+        ));
+    }
+
+    if lines.is_empty() {
+        return format!("{label}: no candidate pairs at all");
+    }
+    lines.join("; ")
+}
+
 /// Add a remote candidate, or hold it until there is a description to add it against.
 ///
 /// `add_ice_candidate` fails on a connection with no remote description, and these routinely arrive
@@ -1170,6 +1231,10 @@ async fn add_or_hold(
         pending.lock().await.push(init);
         return;
     }
+    // The candidate line itself, not just a count. What the SFU offers to be reached on is the
+    // other half of every pair, and a count cannot say whether it offered a relay, a public
+    // address, or something unroutable from here.
+    eprintln!("[livekit] {} remote candidate: {}", side.label, init.candidate);
     match pc.add_ice_candidate(init).await {
         Ok(()) => {
             side.applied.fetch_add(1, Ordering::Relaxed);
@@ -1193,6 +1258,7 @@ async fn flush_held(pc: &Arc<RTCPeerConnection>, pending: &Pending, side: &Side<
         held.len()
     );
     for init in held {
+        eprintln!("[livekit] {} remote candidate: {}", side.label, init.candidate);
         match pc.add_ice_candidate(init).await {
             Ok(()) => {
                 side.applied.fetch_add(1, Ordering::Relaxed);
