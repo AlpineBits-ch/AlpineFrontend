@@ -954,9 +954,28 @@ fn install_receive_reader(
             // inbound path silently routes nowhere if it ever stops being true.
             let key = track.id();
             let is_audio = track.kind() == webrtc::rtp_transceiver::rtp_codec::RTPCodecType::Audio;
+            eprintln!("[livekit] inbound track opened: {key} ({:?})", track.kind());
 
             tokio::spawn(async move {
-                while let Ok((rtp, _)) = track.read_rtp().await {
+                let mut read = 0u64;
+                let ended;
+                loop {
+                    let rtp = match track.read_rtp().await {
+                        Ok((rtp, _)) => rtp,
+                        // **The end of this loop is the end of the audio, and it was silent.**
+                        //
+                        // A reader lives as long as its track. When the server renegotiates the
+                        // subscriber connection the transceiver can be reused, and if `on_track`
+                        // does not fire again for it there is nothing left to re-register a reader -
+                        // so RTP simply stops while the connection, the subscription and every
+                        // counter above still read healthy. Logged with what it managed to read, so
+                        // "never started" and "worked and then stopped" are different lines.
+                        Err(e) => {
+                            ended = e.to_string();
+                            break;
+                        }
+                    };
+                    read += 1;
                     stats.rtp_received.fetch_add(1, Ordering::Relaxed);
 
                     // Video is read to keep the transport draining and counted, but never
@@ -981,6 +1000,7 @@ fn install_receive_reader(
                         },
                     ));
                 }
+                eprintln!("[livekit] inbound track ended: {key} after {read} packet(s): {ended}");
             });
         })
     }));
