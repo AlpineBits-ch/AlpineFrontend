@@ -51,7 +51,10 @@
                     <app-home [class.hidden]="navService.mobileSection() === 'conversations'" class="lg:!block" />
                 }
                 @case ('conversation') {
-                    <app-conversation (back)="navService.showHome()" [conversation]="view.conversation" />
+                    <app-conversation
+                        (back)="navService.showHome()"
+                        [conversation]="navService.activeConversation() ?? view.conversation"
+                    />
                 }
                 @case ('channel') {
                     <!-- An allowlist, deliberately. The previous @else sent every
@@ -108,7 +111,7 @@
             </div>
         } @else if (view.type === 'conversation') {
             <div class="hidden xl:flex shrink-0 h-full">
-                <app-conversation-info-panel [conversation]="view.conversation" />
+                <app-conversation-info-panel [conversation]="navService.activeConversation() ?? view.conversation" />
             </div>
         } @else if (view.type === 'channel') {
             @let ws = navService.workspace();

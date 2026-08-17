@@ -1,5 +1,6 @@
-import {inject, Injectable, signal} from '@angular/core';
+import {computed, inject, Injectable, Injector, signal} from '@angular/core';
 import {ConversationDto} from '../../dtos/response/conversation.dto';
+import {ConversationStore} from '../../stores/conversation.store';
 import {ChannelDto, ChannelType, GuildDto} from '../../dtos/response/guild.dto';
 import {GuildFeature, guildHasFeature, hasHouseholdModule} from '../guild/guild-features';
 import {AccountRegistryService, BOOTSTRAP_SLOT_ID} from '../../services/account-registry.service';
@@ -39,6 +40,22 @@ export class NavigationService {
     readonly mobileNavOpen = signal(false);
     readonly mobileSection = signal<'conversations' | 'friends'>('conversations');
     readonly eventsPanelGuildId = signal<string | null>(null);
+
+    /**
+     * The open conversation as the store holds it now. `mainView` carries the copy it was opened
+     * with, so a rename or a new icon leaves every surface reading it stale until a reload.
+     *
+     * The store is resolved here rather than injected: injecting it would drag the realtime
+     * connection, and through it OAuth, into every consumer of this service.
+     */
+    readonly activeConversation = computed((): ConversationDto | null => {
+        const view = this.mainView();
+        if (view.type !== 'conversation') return null;
+        const held = this.injector.get(ConversationStore).entityMap()[view.conversation.id];
+        return held ?? view.conversation;
+    });
+
+    private readonly injector = inject(Injector);
 
     /** Browser-style history over the signal-based navigation. */
     private history: NavSnapshot[] = [];

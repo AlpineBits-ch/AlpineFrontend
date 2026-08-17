@@ -89,7 +89,7 @@ export class TitlebarComponent implements OnInit, OnDestroy {
         if (view.type === 'conversation') {
             return {
                 icon: 'pi-at',
-                label: this.convUtils.getChatTitle(view.conversation),
+                label: this.convUtils.getChatTitle(this.nav.activeConversation() ?? view.conversation),
                 detailKey: 'TITLEBAR.DIRECT_MESSAGE',
             };
         }
