@@ -62,7 +62,7 @@
   },
   "identifier": "com.alpinebits.venta",
   "productName": "Venta",
-  "version": "3.0.212",
+  "version": "3.0.213",
   "plugins": {
     "deep-link": {
       "desktop": {
