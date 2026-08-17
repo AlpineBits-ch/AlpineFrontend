@@ -938,7 +938,30 @@ export class VoiceRTCService {
         // does not mute the voice of whoever is streaming.
         const id = target.kind === 'screenAudio' ? target.trackName : target.userId;
 
-        return this.queueAudioOp(id, () => this.subscribeQueued(session, id, target));
+        // **An absent media session means "this user", and absent includes the empty string.**
+        //
+        // Desktop publishes the microphone and the share on one LiveKit participant, so there is no
+        // second session to disambiguate and `PublishResult.mediaSessionId` is deliberately `''`.
+        // The announcement carries that verbatim, and Rust resolves the pair by matching the
+        // participant's identity and then their user id - neither of which is ever the empty string.
+        // So every subscribe to a desktop publisher failed with "the room has no track sid for audio
+        // on ", four times, and then stopped: that participant was inaudible for the session.
+        //
+        // Normalised here rather than at each announcement because there are four of them - the live
+        // join, the track-published event, the snapshot backfill and the share halves - and the
+        // snapshot one had already tried to cover this with `?? p.userId`, which does not fire on
+        // `''`. Two paths disagreeing about the same publisher is worse than either being wrong on
+        // its own: the recorded session then alternates between `''` and the user id, and
+        // `subscribeQueued` reads that as the publishing identity having changed and tears the
+        // subscription down and back up on every announcement.
+        //
+        // The user id is a safe stand-in for a share's audio too: `sid_for` filters by track name
+        // first, and a share's track name is unique to it.
+        const resolved = target.mediaSessionId
+            ? target
+            : {...target, mediaSessionId: target.userId};
+
+        return this.queueAudioOp(id, () => this.subscribeQueued(session, id, resolved));
     }
 
     /**

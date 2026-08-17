@@ -897,10 +897,16 @@ impl VoicePublication {
                         .iter()
                         .map(|t| format!("{}/{}", t.identity, t.track_name))
                         .collect();
-                    return Err(format!(
+                    // **Logged here as well as returned.** The error goes back over the Tauri
+                    // boundary to the webview, which prints it to a devtools console nobody has
+                    // open - so a subscribe that failed left `venta.log` showing a participant
+                    // going quiet with no cause anywhere in it. This is the cause.
+                    let reason = format!(
                         "the room has no track sid for {track_name} on {media_session_id}; \
                          it knows about {seen:?}"
-                    ));
+                    );
+                    eprintln!("[voice] subscribe failed: {reason}");
+                    return Err(reason);
                 }
             }
         }

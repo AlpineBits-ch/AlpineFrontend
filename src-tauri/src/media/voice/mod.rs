@@ -778,6 +778,12 @@ pub fn voice_stats() -> VoiceStats {
 
 #[tauri::command]
 pub fn voice_unsubscribe(slot: String, id: String) {
+    // **Logged because its absence is a diagnosis.** A participant going quiet reads identically in
+    // every counter whether the transport threw their track away or this client asked for it to
+    // stop, and until this line existed the two could only be told apart by inference - `subscribed
+    // []` appears either way. One line here says which, and the webview's own reason for calling it
+    // is in the devtools console nobody has open.
+    eprintln!("[voice] {slot}: the webview asked to unsubscribe {id}");
     with_engine(|active| {
         if let Some(publication) = active.publication(&slot) {
             publication.unsubscribe(&id);

@@ -1480,3 +1480,48 @@ describe('a quality change against a granted rung', () => {
         expect(service.screenPreset()).toEqual({resolution: '1440p', framerate: 60, content: 'text'});
     });
 });
+
+/**
+ * A publisher with no media session of its own is named by its user id.
+ *
+ * <p><b>This is "they cannot hear me", and it is the desktop client's own doing.</b> Since the share
+ * and the microphone moved onto one LiveKit participant there is no second session to disambiguate,
+ * so `PublishResult.mediaSessionId` is deliberately the empty string - and the announcement carries
+ * it verbatim. Rust resolves a `(mediaSessionId, trackName)` pair against the room by matching the
+ * identity and then the user id; an empty string matches neither, so every subscribe to a desktop
+ * publisher failed with "the room has no track sid for audio on ".</p>
+ *
+ * <p>The snapshot path already meant to cover this - `p.mediaSessionId ?? p.userId` - but `??` only
+ * catches null, and the value that actually arrives is `''`. So the two paths disagreed about the
+ * same publisher, which is worse than either being wrong consistently: the recorded session flips
+ * between `''` and the user id, `subscribeQueued` reads that as the publishing identity having
+ * changed, and it unsubscribes and resubscribes on every announcement.</p>
+ */
+describe('a publisher that announces no media session', () => {
+    it('is subscribed to by user id rather than by an empty string', async () => {
+        // Module-level fixture; see the beforeEach above.
+
+        await service.subscribeAudio([{userId: 'user_a', mediaSessionId: '', trackName: 'audio'}]);
+
+        expect(engine.subscribe).toHaveBeenCalledWith(SESSION, 'user_a', 'user_a', 'audio');
+    });
+
+    it('still prefers a real media session when there is one', async () => {
+        // Module-level fixture; see the beforeEach above.
+
+        await service.subscribeAudio([target()]);
+
+        expect(engine.subscribe).toHaveBeenCalledWith(SESSION, 'user_a', 'sess_1', 'audio');
+    });
+
+    /** The flip-flop: the same publisher must not read as a new identity on the next announcement. */
+    it('does not resubscribe when the same publisher is announced again without a session', async () => {
+        // Module-level fixture; see the beforeEach above.
+
+        await service.subscribeAudio([{userId: 'user_a', mediaSessionId: '', trackName: 'audio'}]);
+        await service.subscribeAudio([{userId: 'user_a', mediaSessionId: '', trackName: 'audio'}]);
+
+        expect(engine.subscribe).toHaveBeenCalledTimes(1);
+        expect(engine.unsubscribe).not.toHaveBeenCalled();
+    });
+});

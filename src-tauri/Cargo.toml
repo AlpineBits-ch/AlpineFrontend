@@ -186,7 +186,7 @@ base64 = "0.22"
 # `interprocess` crate and deliberately not hand-rolled `CreateNamedPipe` FFI - tokio's API
 # expresses the whole accept/connect/recreate loop, and it is already a dependency.
 tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros", "net", "io-util"] }
-webrtc = "0.14"
+webrtc = "0.17"
 # One encoded voice packet goes to every publication at once, so it is allocated once and the
 # handle cloned rather than the bytes copied per target. This is also what `webrtc::media::Sample`
 # takes, so the packet reaches the packetiser without a further copy.

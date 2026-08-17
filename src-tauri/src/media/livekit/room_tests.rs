@@ -1130,3 +1130,74 @@ async fn a_resubscribe_cycle_reopens_a_track() {
     listener.close().await;
     speaker.close().await;
 }
+
+/// A participant update must not take away a track that is still published.
+///
+/// **The hazard in making each update authoritative.** `record_participants` replaces what an update
+/// says about the participant it names, which is what stops a superseded microphone shadowing the
+/// live one - but it means an update carrying fewer tracks than reality would erase a track that is
+/// still there. `sid_for` would then resolve nothing, the subscribe would fail, and the caller's
+/// rollback would leave that participant with no subscription and nothing to retry from: silent for
+/// the session, exactly like the fault the replacement was introduced to fix.
+///
+/// So this drives the updates a share really produces - publish the audio half, publish the ladder,
+/// take both down - and asserts the *microphone* is still resolvable throughout. The peer never
+/// touches their microphone; only the assertions do.
+#[tokio::test]
+#[ignore = "needs a LiveKit server on 127.0.0.1:7880"]
+async fn an_update_never_drops_a_track_that_is_still_published() {
+    use livekit_protocol as proto;
+
+    let name = "lk-update-churn";
+    let share = "305187c6";
+    let video = format!("screen-{share}");
+    let audio = format!("screen-audio-{share}");
+
+    let peer = Room::connect(DEV_URL, &dev_token(name, "user-peer"))
+        .await
+        .expect("connect");
+    let mic = peer.publish_audio("audio").await.expect("publish");
+    peer.wait_until_connected(Duration::from_secs(10))
+        .await
+        .expect("connected");
+
+    let watcher = Room::connect(DEV_URL, &dev_token(name, "user-watcher"))
+        .await
+        .expect("connect");
+    let held = audio_tracks_within(&watcher, 1, Duration::from_secs(10)).await;
+    assert_eq!(held.len(), 1, "the watcher never learned about the microphone: {held:?}");
+
+    // Every update a share produces, in the order production produces them.
+    peer.publish_audio_as(&audio, proto::TrackSource::ScreenShareAudio)
+        .await
+        .expect("publish the share's audio half");
+    assert_mic_survives(&watcher, &mic.sid, "the share's audio half was published").await;
+
+    peer.publish_video(&video, &[("f", 1920, 1080), ("h", 960, 540), ("q", 480, 270)])
+        .await
+        .expect("publish the ladder");
+    assert_mic_survives(&watcher, &mic.sid, "the ladder was published").await;
+
+    peer.unpublish(&[video, audio]).await.expect("unpublish the share");
+    assert_mic_survives(&watcher, &mic.sid, "the share was taken down").await;
+
+    watcher.close().await;
+    peer.close().await;
+}
+
+/// The microphone is still the one resolvable `audio` track for its publisher.
+///
+/// Given a settling window, because an update arrives on the server's timing: asserting immediately
+/// would pass on the update not having landed yet, which is the opposite of the finding.
+async fn assert_mic_survives(room: &Room, sid: &str, after: &str) {
+    tokio::time::sleep(Duration::from_millis(750)).await;
+    let held = audio_tracks_within(room, 1, Duration::from_secs(5)).await;
+    println!("CHURN after {after}: {:?}", held.iter().map(|t| &t.sid).collect::<Vec<_>>());
+    assert_eq!(
+        held.len(),
+        1,
+        "after {after} the room holds {} microphone(s) for that publisher, not one: {held:?}",
+        held.len()
+    );
+    assert_eq!(held[0].sid, sid, "after {after} the live microphone is not the one held");
+}

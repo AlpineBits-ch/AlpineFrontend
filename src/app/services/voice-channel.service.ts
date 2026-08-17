@@ -508,7 +508,11 @@ export class VoiceChannelService {
                 continue;
             }
 
-            const mediaSessionId = p.mediaSessionId ?? p.userId;
+            // `||`, not `??`: the value that actually arrives from a desktop publisher is the empty
+            // string rather than null, and `??` does not fire on it. `subscribeOne` normalises this
+            // as well, so the two paths cannot disagree about the same publisher - which is what
+            // made the recorded session alternate and the subscription churn.
+            const mediaSessionId = p.mediaSessionId || p.userId;
             void this.rtc.subscribeAudio([{
                 userId: p.userId, mediaSessionId, trackName: p.audioTrackName,
             }]);
