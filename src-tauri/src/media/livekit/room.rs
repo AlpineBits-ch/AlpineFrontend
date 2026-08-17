@@ -163,6 +163,8 @@ pub struct Room {
     audio_sink: AudioSink,
     /// Set once the pump stops, for whatever reason. See [`Self::signal_is_closed`].
     signal_closed: Arc<AtomicBool>,
+    /// Puts a subscription back when the transport destroys its track. See [`Resubscriber`].
+    resubscribe: Resubscriber,
 }
 
 impl Room {
@@ -263,10 +265,18 @@ impl Room {
         let published = Arc::new(Mutex::new(HashMap::new()));
 
         let audio_sink: AudioSink = Arc::new(std::sync::Mutex::new(None));
-        install_receive_reader(&subscriber, stats.clone(), audio_sink.clone());
 
         let signal = Arc::new(signal);
         let signal_closed = Arc::new(AtomicBool::new(false));
+        // Built before the reader, because the reader is what reports a track it has lost.
+        let resubscribe = Resubscriber::new(signal.clone(), signal_closed.clone());
+        install_receive_reader(
+            &subscriber,
+            stats.clone(),
+            audio_sink.clone(),
+            resubscribe.clone(),
+        );
+
         tokio::spawn(pump(
             events,
             signal.clone(),
@@ -296,6 +306,7 @@ impl Room {
             stats,
             audio_sink,
             signal_closed,
+            resubscribe,
         })
     }
 
@@ -557,6 +568,9 @@ impl Room {
 
     /// Ask the server for a track. It answers by offering on the subscriber connection.
     pub async fn subscribe(&self, track_sid: &str) {
+        // Before the request, so a track that opens and is destroyed inside the same breath is still
+        // recognised as one we wanted.
+        self.resubscribe.want(track_sid).await;
         self.signal
             .send(proto::signal_request::Message::Subscription(
                 proto::UpdateSubscription {
@@ -569,6 +583,9 @@ impl Room {
     }
 
     pub async fn unsubscribe(&self, track_sid: &str) {
+        // First, or the reader ending because of *this* is read as a track to recover and we put
+        // back the very subscription we are dropping.
+        self.resubscribe.unwant(track_sid).await;
         self.signal
             .send(proto::signal_request::Message::Subscription(
                 proto::UpdateSubscription {
@@ -922,6 +939,136 @@ impl Room {
     }
 }
 
+/// How many times a track may be recovered before we stop trying.
+///
+/// A cap rather than a retry-forever, because the same signal - a reader ending - is produced by a
+/// track that has genuinely gone away, and there is a window after a publisher leaves where we still
+/// believe we want it. Three cycles clears a transport that threw the track away; nothing clears a
+/// track that no longer exists, and looping on it would put a renegotiation on the SFU every time
+/// anybody left a room.
+const MAX_TRACK_RECOVERIES: u32 = 3;
+
+/// How long to leave the subscription off before asking for it again.
+///
+/// The two messages must not be coalesced or reordered by the server into no change at all, which is
+/// the failure this whole mechanism exists to work around.
+const RECOVERY_SETTLE: Duration = Duration::from_millis(250);
+
+/// Puts a subscription back after the transport has thrown its track away.
+///
+/// # Why this is needed at all
+///
+/// `webrtc-rs` destroys live inbound tracks while answering a renegotiation. `set_local_description`
+/// runs `start_rtp(is_renegotiation = true)`, which walks every transceiver and **stops the receiver
+/// of any live `TrackRemote` whose SSRC it cannot find in the offer being answered**
+/// (`peer_connection_internal.rs`). LiveKit does not repeat `a=ssrc:` for m-lines an offer does not
+/// change, so a re-offer prompted by something else entirely - anything at all happening in the room
+/// - tears down audio that was flowing perfectly. The reader in [`install_receive_reader`] then ends
+/// with `ErrClosedPipe`, which `webrtc-rs` renders as the thoroughly unhelpful "DataChannel is not
+/// opened".
+///
+/// # Why nothing recovers on its own
+///
+/// `start_rtp_receivers` cannot reopen a track the description does not describe, so `on_track`
+/// never fires again for it. And the SFU still has us down as subscribed, so re-sending
+/// `UpdateSubscription { subscribe: true }` is a no-op that produces no offer - which is why the
+/// layer above re-pulling a source it has noticed is silent changes nothing. Observed in production
+/// as a participant going inaudible mid-sentence while the subscription, both connection states,
+/// the route table and every counter above stayed healthy, and staying inaudible across rejoins.
+///
+/// So recovery has to make the server believe the subscription is *new*: off, then on.
+/// `a_resubscribe_cycle_reopens_a_track` pins that this is what actually reopens it.
+#[derive(Clone)]
+struct Resubscriber {
+    signal: Arc<SignalClient>,
+    /// Set once the pump stops. A room on its way out ends every reader it has, and recovering into
+    /// a closed signal would put one doomed cycle on the wire per subscribed track.
+    signal_closed: Arc<AtomicBool>,
+    /// Track sids we have asked for and not let go of.
+    wanted: Arc<Mutex<std::collections::HashSet<String>>>,
+    /// Recoveries attempted since each sid last opened a track.
+    attempts: Arc<Mutex<HashMap<String, u32>>>,
+}
+
+impl Resubscriber {
+    fn new(signal: Arc<SignalClient>, signal_closed: Arc<AtomicBool>) -> Self {
+        Self {
+            signal,
+            signal_closed,
+            wanted: Arc::new(Mutex::new(std::collections::HashSet::new())),
+            attempts: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+
+    /// Record that this sid is wanted, so a reader ending on it is a fault rather than a departure.
+    async fn want(&self, sid: &str) {
+        self.wanted.lock().await.insert(sid.to_string());
+        self.attempts.lock().await.remove(sid);
+    }
+
+    /// Record that it is not, so its reader ending is expected and left alone.
+    async fn unwant(&self, sid: &str) {
+        self.wanted.lock().await.remove(sid);
+        self.attempts.lock().await.remove(sid);
+    }
+
+    /// A track opened, so whatever it took to get here is not held against the next failure.
+    async fn opened(&self, sid: &str) {
+        self.attempts.lock().await.remove(sid);
+    }
+
+    /// A reader ended. Put the subscription back if we still want it and have not given up.
+    async fn recover(&self, sid: &str) {
+        if self.signal_closed.load(Ordering::Relaxed) {
+            return;
+        }
+        if !self.wanted.lock().await.contains(sid) {
+            return;
+        }
+
+        let attempt = {
+            let mut attempts = self.attempts.lock().await;
+            let seen = attempts.entry(sid.to_string()).or_insert(0);
+            *seen += 1;
+            *seen
+        };
+        if attempt > MAX_TRACK_RECOVERIES {
+            eprintln!(
+                "[livekit] giving up on {sid} after {MAX_TRACK_RECOVERIES} recovery attempt(s); \
+                 that participant is inaudible until they republish"
+            );
+            return;
+        }
+
+        // Logged unconditionally. This runs when nothing else reports a fault, so its absence is as
+        // much a diagnosis as its presence: a track that went quiet with no line here was one
+        // nobody had asked for.
+        eprintln!("[livekit] {sid} lost its reader while still subscribed; re-pulling it (attempt {attempt})");
+        self.signal
+            .send(proto::signal_request::Message::Subscription(
+                proto::UpdateSubscription {
+                    track_sids: vec![sid.to_string()],
+                    subscribe: false,
+                    ..Default::default()
+                },
+            ))
+            .await;
+        tokio::time::sleep(RECOVERY_SETTLE).await;
+        if self.signal_closed.load(Ordering::Relaxed) {
+            return;
+        }
+        self.signal
+            .send(proto::signal_request::Message::Subscription(
+                proto::UpdateSubscription {
+                    track_sids: vec![sid.to_string()],
+                    subscribe: true,
+                    ..Default::default()
+                },
+            ))
+            .await;
+    }
+}
+
 /// Where inbound audio goes, keyed by the routing key its subscriber registered.
 ///
 /// Behind a mutex and an `Option` because the handler is installed before the consumer exists: the
@@ -941,10 +1088,12 @@ fn install_receive_reader(
     subscriber: &Arc<RTCPeerConnection>,
     stats: Arc<RoomStats>,
     audio: AudioSink,
+    resubscribe: Resubscriber,
 ) {
     subscriber.on_track(Box::new(move |track, _receiver, _transceiver| {
         let stats = stats.clone();
         let audio = audio.clone();
+        let resubscribe = resubscribe.clone();
         Box::pin(async move {
             stats.tracks_opened.fetch_add(1, Ordering::Relaxed);
 
@@ -955,6 +1104,7 @@ fn install_receive_reader(
             let key = track.id();
             let is_audio = track.kind() == webrtc::rtp_transceiver::rtp_codec::RTPCodecType::Audio;
             eprintln!("[livekit] inbound track opened: {key} ({:?})", track.kind());
+            resubscribe.opened(&key).await;
 
             tokio::spawn(async move {
                 let mut read = 0u64;
@@ -1001,6 +1151,10 @@ fn install_receive_reader(
                     ));
                 }
                 eprintln!("[livekit] inbound track ended: {key} after {read} packet(s): {ended}");
+                // **A reader ending is not the same thing as a subscription ending**, and until this
+                // existed the two were indistinguishable from here. If the sid is still wanted, the
+                // transport threw away a track we had asked for and nothing else will bring it back.
+                resubscribe.recover(&key).await;
             });
         })
     }));
@@ -1012,6 +1166,32 @@ async fn record_participants(
 ) {
     let mut map = remote.lock().await;
     for participant in participants {
+        // **Each update replaces what it says about the participant it names, rather than adding
+        // to it.** `ParticipantInfo.tracks` is that participant's whole published set as of now -
+        // it is what LiveKit's own SDKs diff against to decide what has gone away - so merging it
+        // in leaves behind every track that participant has ever published.
+        //
+        // What that cost is not a stale list, it is a subscribe that resolves to a dead track.
+        // `media::voice::rtc::sid_for` filters this by track name and takes the first entry for the
+        // user, every microphone is named `audio`, and anybody who rejoins therefore has two of
+        // them here - one from the session that ended and one live. Which of the two a subscribe
+        // picks is `HashMap` iteration order, and `UpdateSubscription` for a sid the SFU no longer
+        // has is answered with silence: no offer, no track, no error. The subscriber sits at
+        // "connecting" and cannot hear that person for the rest of the session, and rejoining adds
+        // a third entry rather than clearing the second, so it does not recover.
+        //
+        // Scoped to the identity rather than the user, because `{userId}#{tag}` secondaries arrive
+        // as their own `ParticipantInfo` - keying this on the user would have each connection of a
+        // multi-connection participant erase the other's tracks.
+        map.retain(|_, held| held.identity != participant.identity);
+
+        // Somebody the server has told us is gone leaves nothing behind. Their `tracks` list is
+        // usually still populated on this last update, so without the check the retain above would
+        // be undone on the very message that says they left.
+        if participant.state == proto::participant_info::State::Disconnected as i32 {
+            continue;
+        }
+
         for track in &participant.tracks {
             map.insert(
                 track.sid.clone(),

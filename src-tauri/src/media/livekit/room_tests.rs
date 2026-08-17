@@ -803,3 +803,330 @@ async fn a_screen_share_does_not_interrupt_the_audio_this_room_receives() {
     me.close().await;
     tone.await.expect("tone task").close().await;
 }
+
+/// The sharer's microphone must still reach a listener after the share is taken down.
+///
+/// **This is "they cannot hear me any more", and from the sharing side nothing looks wrong at all.**
+/// Ending a share renegotiates the publisher connection - `unpublish` removes the two senders, stops
+/// their transceivers and offers once - and the microphone is a *third* sender on that same
+/// connection, published long before and never touched by any of it. `write_sample` goes on
+/// returning `Ok`, `packets_sent` goes on climbing, both connections stay `Connected`. Whether the
+/// SFU is still forwarding any of it cannot be read from this end at all, which is why the assertion
+/// is made from a second room.
+///
+/// `Room::publish_video` already warns that anything which offers again on this connection corrupts
+/// a live ladder, and `unpublish` is exactly that - it offers. What it does to the *microphone*
+/// sharing the connection was never checked in either direction.
+///
+/// The listener subscribes before any share exists and is never re-subscribed, as a peer already in
+/// the channel does. Three windows, because "never carried" and "carried and then stopped" are
+/// different faults and only the middle one tells them apart.
+#[tokio::test]
+#[ignore = "needs a LiveKit server on 127.0.0.1:7880"]
+async fn the_microphone_still_reaches_a_listener_after_a_share_is_taken_down() {
+    use livekit_protocol as proto;
+
+    let name = "lk-mic-after-share";
+    let share_id = "e57aa24a";
+    let video = format!("screen-{share_id}");
+    let audio = format!("screen-audio-{share_id}");
+
+    let me = Room::connect(DEV_URL, &dev_token(name, "user-me"))
+        .await
+        .expect("connect");
+    let mic = me.publish_audio("audio").await.expect("publish the microphone");
+    me.wait_until_connected(Duration::from_secs(10))
+        .await
+        .expect("connected");
+
+    // The peer, who subscribed to the microphone before any share existed and never again.
+    let peer = Room::connect(DEV_URL, &dev_token(name, "user-peer"))
+        .await
+        .expect("connect");
+    let (tx, mut rx) = tokio::sync::mpsc::channel(8192);
+    peer.on_audio(tx);
+    peer.subscribe(&mic.sid).await;
+
+    // Pumped in windows rather than from a task, so the share operations are ordered against the
+    // audio rather than racing it. The sink queues what arrives; each drain reads one window's worth.
+    pump_tone(&me, "audio", Duration::from_secs(6)).await;
+    let before = drain_by_key(&mut rx, Duration::from_millis(500)).await;
+    println!("MIC before the share: {before:?}");
+    assert!(
+        before.get(&mic.sid).copied().unwrap_or(0) > 0,
+        "the microphone never carried, so this test cannot say anything about the share: {before:?}"
+    );
+
+    // The share, in the order and shape production publishes it.
+    me.publish_audio_as(&audio, proto::TrackSource::ScreenShareAudio)
+        .await
+        .expect("publish the share's audio half");
+    me.publish_video(&video, &[("f", 1920, 1080), ("h", 960, 540), ("q", 480, 270)])
+        .await
+        .expect("publish the ladder");
+
+    pump_tone(&me, "audio", Duration::from_secs(6)).await;
+    let during = drain_by_key(&mut rx, Duration::from_millis(500)).await;
+    println!("MIC during the share: {during:?}");
+    assert!(
+        during.get(&mic.sid).copied().unwrap_or(0) > 0,
+        "the microphone stopped reaching the peer when the share started: {during:?}"
+    );
+
+    // The renegotiation under test.
+    me.unpublish(&[video, audio]).await.expect("unpublish the share");
+
+    pump_tone(&me, "audio", Duration::from_secs(8)).await;
+    let after = drain_by_key(&mut rx, Duration::from_millis(500)).await;
+    println!("MIC after the share was taken down: {after:?}");
+    println!("MIC publisher state: {}", me.publisher_state());
+    println!("MIC peer subscriber state: {}", peer.subscriber_state());
+    println!(
+        "MIC peer sees these tracks: {:?}",
+        peer.remote_tracks().await.iter().map(|t| t.track_name.clone()).collect::<Vec<_>>()
+    );
+
+    assert!(
+        after.get(&mic.sid).copied().unwrap_or(0) > 0,
+        "the microphone stopped reaching the peer when the share was taken down - \
+         which is what 'they cannot hear me' looks like from a client that is still sending: {after:?}"
+    );
+
+    peer.close().await;
+    me.close().await;
+}
+
+/// What the room believes other people are publishing must be what they are publishing *now*.
+///
+/// **This is "they cannot hear me, and rejoining does not help".** The map behind
+/// [`Room::remote_tracks`] was only ever inserted into, so it accumulated every track the server
+/// had ever mentioned - a share that ended, a microphone from a session that is over. The join that
+/// matters is `media::voice::rtc::sid_for`, which filters that list by track name and takes the
+/// first entry matching the user. Every microphone is named `audio`, so a publisher who rejoins puts
+/// a *second* `audio` entry in it for the same user, and which one a subscribe resolves to is
+/// `HashMap` iteration order.
+///
+/// Half the time that is the dead sid. `UpdateSubscription` for a track the SFU no longer has is
+/// answered with silence - no offer, no track, no error - and the subscriber sits at "connecting"
+/// for the rest of the session. Rejoining adds a third entry rather than clearing the second, which
+/// is why it does not recover, and why it looks random.
+#[tokio::test]
+#[ignore = "needs a LiveKit server on 127.0.0.1:7880"]
+async fn a_republished_track_replaces_the_one_it_supersedes() {
+    let name = "lk-restale";
+
+    let listener = Room::connect(DEV_URL, &dev_token(name, "user-listener"))
+        .await
+        .expect("connect");
+
+    let first = Room::connect(DEV_URL, &dev_token(name, "user-1"))
+        .await
+        .expect("connect");
+    let gone = first.publish_audio("audio").await.expect("publish");
+    first
+        .wait_until_connected(Duration::from_secs(10))
+        .await
+        .expect("connected");
+    audio_tracks_within(&listener, 1, Duration::from_secs(10)).await;
+
+    // The publisher goes away and comes back, which is a rejoin: same user, same track name, a new
+    // sid. Exactly what the app does when a call drops and is re-established.
+    first.close().await;
+    let second = Room::connect(DEV_URL, &dev_token(name, "user-1"))
+        .await
+        .expect("rejoin");
+    let live = second.publish_audio("audio").await.expect("republish");
+    second
+        .wait_until_connected(Duration::from_secs(10))
+        .await
+        .expect("connected");
+    assert_ne!(gone.sid, live.sid, "the rejoin must have been issued a new sid");
+
+    let held = audio_tracks_within(&listener, 1, Duration::from_secs(10)).await;
+    println!("STALE listener holds: {held:?}");
+
+    // One entry, not two. With two, `sid_for` is a coin flip and the loser never carries a packet.
+    assert_eq!(
+        held.len(),
+        1,
+        "the room is holding a superseded microphone alongside the live one, so which of them a \
+         subscribe resolves to is iteration order: {held:?}"
+    );
+    assert_eq!(
+        held[0].sid, live.sid,
+        "the room kept the dead microphone and dropped the live one"
+    );
+
+    listener.close().await;
+    second.close().await;
+}
+
+/// Every `audio` track the room currently believes exists, once at least `want` have shown up.
+///
+/// Polled rather than read once: a track published after our join arrives on `ParticipantUpdate`,
+/// and whether it has landed yet is the server's timing rather than ours.
+async fn audio_tracks_within(
+    room: &Room,
+    want: usize,
+    patience: Duration,
+) -> Vec<crate::media::livekit::room::RemoteTrack> {
+    let deadline = tokio::time::Instant::now() + patience;
+    loop {
+        let held: Vec<_> = room
+            .remote_tracks()
+            .await
+            .into_iter()
+            .filter(|t| t.track_name == "audio")
+            .collect();
+        if held.len() >= want || tokio::time::Instant::now() >= deadline {
+            return held;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+}
+
+/// A subscriber renegotiation that changes none of our m-lines must not silence a live track.
+///
+/// **This is the fault, and it is not ours: `webrtc-rs` throws the track away while answering.**
+/// `RTCPeerConnection::set_local_description` runs `start_rtp(is_renegotiation = true)`, which walks
+/// every transceiver and stops the receiver of any live `TrackRemote` whose SSRC it cannot find in
+/// the offer it is answering (`peer_connection_internal.rs`). LiveKit does not repeat `a=ssrc:` for
+/// m-lines an offer does not change, so a re-offer prompted by something else entirely - somebody
+/// else publishing a track we never subscribed to - tears down audio that was flowing perfectly.
+/// The reader `install_receive_reader` spawned then exits with `ErrClosedPipe`, rendered as the
+/// wonderfully unhelpful "DataChannel is not opened".
+///
+/// **And nothing gets it back.** `start_rtp_receivers` cannot reopen a track the description does
+/// not describe, so `on_track` never fires again; and from the SFU's point of view we are still
+/// subscribed, so re-sending `UpdateSubscription { subscribe: true }` is a no-op that produces no
+/// offer. The subscription, both connection states, the route table and `packets_sent` all stay
+/// healthy while that participant is inaudible for the rest of the session.
+///
+/// The second publication is deliberately *not* subscribed to: a subscribe of our own would add an
+/// m-line, and an offer that adds one carries ssrc lines for everything, which is exactly the shape
+/// that hides this.
+#[tokio::test]
+#[ignore = "needs a LiveKit server on 127.0.0.1:7880"]
+async fn a_renegotiation_that_changes_nothing_must_not_silence_a_live_track() {
+    use livekit_protocol as proto;
+
+    let name = "lk-quiet-reneg";
+
+    let speaker = Room::connect(DEV_URL, &dev_token(name, "user-speaker"))
+        .await
+        .expect("connect");
+    let mic = speaker.publish_audio("audio").await.expect("publish");
+    speaker
+        .wait_until_connected(Duration::from_secs(10))
+        .await
+        .expect("connected");
+
+    let listener = Room::connect(DEV_URL, &dev_token(name, "user-listener"))
+        .await
+        .expect("connect");
+    let (tx, mut rx) = tokio::sync::mpsc::channel(8192);
+    listener.on_audio(tx);
+    listener.subscribe(&mic.sid).await;
+
+    pump_tone(&speaker, "audio", Duration::from_secs(6)).await;
+    let before = drain_by_key(&mut rx, Duration::from_millis(500)).await;
+    println!("QUIET before: {before:?}");
+    assert!(
+        before.get(&mic.sid).copied().unwrap_or(0) > 0,
+        "the microphone never carried, so this test cannot say anything: {before:?}"
+    );
+
+    // Something happens in the room that we are not a party to. This is the share's audio half in
+    // production; anybody publishing anything does as well.
+    speaker
+        .publish_audio_as("screen-audio-x", proto::TrackSource::ScreenShareAudio)
+        .await
+        .expect("publish a track the listener never asks for");
+
+    pump_tone(&speaker, "audio", Duration::from_secs(8)).await;
+    let after = drain_by_key(&mut rx, Duration::from_millis(500)).await;
+    println!("QUIET after: {after:?}");
+    println!("QUIET listener subscriber: {}", listener.subscriber_state());
+    println!(
+        "QUIET listener tracks opened: {}",
+        listener.stats.tracks_opened.load(Ordering::Relaxed)
+    );
+
+    assert!(
+        after.get(&mic.sid).copied().unwrap_or(0) > 0,
+        "a renegotiation we had no part in silenced the track we were listening to, and nothing \
+         above the transport can see it: {after:?}"
+    );
+
+    listener.close().await;
+    speaker.close().await;
+}
+
+/// Unsubscribing and subscribing again brings a track back, which is the only recovery there is.
+///
+/// A live inbound track can be destroyed by a renegotiation that had nothing to do with it - see
+/// `a_renegotiation_that_changes_nothing_must_not_silence_a_live_track` - and once it is, nothing
+/// reopens it: `on_track` fires only for tracks `start_rtp_receivers` opens, and the SFU still has
+/// us down as subscribed, so `UpdateSubscription { subscribe: true }` on its own changes nothing and
+/// produces no offer. Recovery therefore has to make the server believe the subscription is *new*.
+///
+/// This pins that it does. If the false/true cycle ever stops producing a fresh offer, the recovery
+/// built on it is silently a no-op and the failure it repairs looks exactly as it did before.
+#[tokio::test]
+#[ignore = "needs a LiveKit server on 127.0.0.1:7880"]
+async fn a_resubscribe_cycle_reopens_a_track() {
+    let name = "lk-recycle";
+
+    let speaker = Room::connect(DEV_URL, &dev_token(name, "user-speaker"))
+        .await
+        .expect("connect");
+    let mic = speaker.publish_audio("audio").await.expect("publish");
+    speaker
+        .wait_until_connected(Duration::from_secs(10))
+        .await
+        .expect("connected");
+
+    let listener = Room::connect(DEV_URL, &dev_token(name, "user-listener"))
+        .await
+        .expect("connect");
+    let (tx, mut rx) = tokio::sync::mpsc::channel(8192);
+    listener.on_audio(tx);
+    listener.subscribe(&mic.sid).await;
+
+    pump_tone(&speaker, "audio", Duration::from_secs(5)).await;
+    let before = drain_by_key(&mut rx, Duration::from_millis(500)).await;
+    assert!(
+        before.get(&mic.sid).copied().unwrap_or(0) > 0,
+        "the track never carried: {before:?}"
+    );
+
+    // Stand in for the destruction: the reader is gone and the m-line with it, which is the state
+    // the recovery finds itself in.
+    listener.unsubscribe(&mic.sid).await;
+    pump_tone(&speaker, "audio", Duration::from_secs(3)).await;
+    let _ = drain_by_key(&mut rx, Duration::from_millis(500)).await;
+
+    let opened_before = listener.stats.tracks_opened.load(Ordering::Relaxed);
+    listener.subscribe(&mic.sid).await;
+    pump_tone(&speaker, "audio", Duration::from_secs(6)).await;
+    let after = drain_by_key(&mut rx, Duration::from_millis(500)).await;
+
+    println!("RECYCLE after the cycle: {after:?}");
+    println!(
+        "RECYCLE tracks opened {} -> {}",
+        opened_before,
+        listener.stats.tracks_opened.load(Ordering::Relaxed)
+    );
+
+    assert!(
+        listener.stats.tracks_opened.load(Ordering::Relaxed) > opened_before,
+        "the resubscribe produced no fresh track, so there is no recovery to build on"
+    );
+    assert!(
+        after.get(&mic.sid).copied().unwrap_or(0) > 0,
+        "the track reopened but carried nothing: {after:?}"
+    );
+
+    listener.close().await;
+    speaker.close().await;
+}
