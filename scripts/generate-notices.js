@@ -318,11 +318,16 @@ function cargoMetadata(cwd) {
  * code into the shipped binary, so dropping build edges would under-attribute. The cost is a few
  * genuinely build-only crates such as `tauri-build` appearing in the list. Over-attributing is
  * harmless; under-attributing is the failure that matters.
+ *
+ * Workspace members are this application's own source, not third-party, so they come back out at
+ * the end. Their dependencies do not: the walk goes through them first and only the members
+ * themselves are removed. The vendored patches under `src-tauri/vendor` are not members and stay.
  */
 function rustClosure(meta) {
     const nodes = new Map(meta.resolve.nodes.map(n => [n.id, n]));
     const packages = new Map(meta.packages.map(p => [p.id, p]));
     const rootId = meta.resolve.root;
+    const firstParty = new Set(meta.workspace_members || [rootId]);
 
     const seen = new Set();
     const queue = [rootId];
@@ -338,6 +343,7 @@ function rustClosure(meta) {
             if (!devOnly) queue.push(dep.pkg);
         }
     }
+    for (const id of firstParty) seen.delete(id);
     seen.delete(rootId);
 
     return [...seen]

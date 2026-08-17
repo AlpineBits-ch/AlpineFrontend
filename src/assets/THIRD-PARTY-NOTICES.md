@@ -143,7 +143,7 @@ Arun Raghavan <arun.raghavan@collabora.co.uk>
 
 ## Rust crates
 
-Compiled into the application binary. 960 packages, 474 distinct notices.
+Compiled into the application binary. 959 packages, 473 distinct notices.
 
 ### adler2 2.0.1
 
@@ -10701,15 +10701,6 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 
 ```text
 Copyright (c) 2017 Jim McGrath
-```
-Distributed under the [MIT licence](#licence-mit), reproduced in full below.
-
-### venta-crypto 3.0.195
-
-**Licence:** MIT
-
-```text
-Copyright (c) the venta-crypto authors — venta-crypto
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 

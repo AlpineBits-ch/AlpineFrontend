@@ -19,6 +19,7 @@ const {
     demoteHeadings,
     fencedBlock,
     npmClosure,
+    rustClosure,
     dedupeByNameAndVersion,
     resolvePackageDir,
     declaredLicense,
@@ -136,6 +137,26 @@ test('headings demote outside fenced blocks but not inside them', () => {
     assert.strictEqual(
         demoteHeadings(input),
         ['### Title', '```', '# not a heading', '```', '#### Sub'].join('\n'));
+});
+
+// ── Rust collection ──────────────────────────────────────────────────────────
+
+test('workspace members are not third parties, but what they pull in still is', () => {
+    const pkg = name => ({id: name, name, version: '1.0.0', license: 'MIT', manifest_path: `/${name}/Cargo.toml`});
+    const edge = pkg => ({pkg, dep_kinds: [{kind: null}]});
+    const closure = rustClosure({
+        workspace_members: ['app', 'own-crate'],
+        packages: [pkg('app'), pkg('own-crate'), pkg('vendored')],
+        resolve: {
+            root: 'app',
+            nodes: [
+                {id: 'app', deps: [edge('own-crate')]},
+                {id: 'own-crate', deps: [edge('vendored')]},
+                {id: 'vendored', deps: []},
+            ],
+        },
+    });
+    assert.deepStrictEqual(closure.map(p => p.name), ['vendored']);
 });
 
 // ── npm collection ───────────────────────────────────────────────────────────
