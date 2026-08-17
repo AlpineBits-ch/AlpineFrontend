@@ -1,0 +1,426 @@
+<div class="flex flex-col h-full bg-app-bg overflow-hidden">
+
+    <!-- Same header height and safe-area treatment as every channel view, so the shell doesn't jump when stepping between the house and a board. -->
+    <header class="app-header flex items-center gap-2 px-3 sm:px-5 border-b border-border-subtle shrink-0 bg-app-bg">
+        <p-button (onClick)="navService.mobileNavOpen.set(true)" [text]="true" class="lg:hidden" icon="pi pi-bars"
+                  severity="secondary" size="small"/>
+
+        <div class="flex items-center gap-2 sm:gap-3 min-w-0">
+            <i class="pi pi-home text-text-muted shrink-0"></i>
+            <span class="text-sm font-semibold text-text-primary truncate">{{ 'HOUSE_HOME.TITLE' | translate }}</span>
+            @if (guild(); as g) {
+                <span class="hidden sm:block text-text-muted text-xs border-l border-border-default pl-3 truncate max-w-xs">
+                    {{ g.name }}
+                </span>
+            }
+        </div>
+
+        <div class="flex items-center gap-1 ml-auto shrink-0">
+            <p-button (onClick)="refresh()" [disabled]="state().loading" [text]="true" icon="pi pi-refresh"
+                      severity="secondary" size="small"/>
+        </div>
+    </header>
+
+    <div class="flex-1 min-h-0 overflow-y-auto thin-scrollbar px-3 sm:px-5 py-4">
+        <div class="mx-auto w-full max-w-3xl flex flex-col gap-3">
+
+            @if (state().error) {
+                <!-- Sits above whatever was already drawn rather than replacing it: a house from a minute ago is a better answer than an empty one, as long as it says so. -->
+                <div class="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3">
+                    <i class="pi pi-exclamation-triangle text-connecting shrink-0"></i>
+                    <p class="text-[0.8125rem] text-text-secondary m-0 flex-1">
+                        {{ (state().forbidden ? 'HOUSE_HOME.FORBIDDEN' : 'HOUSE_HOME.ERROR') | translate }}
+                    </p>
+                    @if (!state().forbidden) {
+                        <p-button (onClick)="refresh()" [label]="'HOUSE_HOME.RETRY' | translate" severity="secondary"
+                                  size="small"/>
+                    }
+                </div>
+            }
+
+            @if (showSpinner()) {
+                <div class="flex items-center justify-center py-16 text-text-muted">
+                    <i class="pi pi-spin pi-spinner text-xl"></i>
+                </div>
+            }
+
+            @if (allClear()) {
+                <!-- Shown instead of the sections, not under them; covers "this house has no modules the caller can see" too, since the server doesn't distinguish that from an empty house. -->
+                <div class="flex flex-col items-center justify-center gap-3 py-16 text-center">
+                    <div class="w-14 h-14 rounded-2xl bg-card border border-border flex items-center justify-center">
+                        <i class="pi pi-check text-[1.5rem] text-text-muted"></i>
+                    </div>
+                    <div class="max-w-sm space-y-1.5">
+                        <p class="text-sm font-semibold text-text-primary m-0">
+                            {{ 'HOUSE_HOME.ALL_CLEAR_TITLE' | translate }}
+                        </p>
+                        <p class="text-[0.8125rem] text-text-secondary m-0">
+                            {{ 'HOUSE_HOME.ALL_CLEAR_BODY' | translate }}
+                        </p>
+                    </div>
+                </div>
+            }
+
+            <!-- ── Chores ── `mine` is what the user owes; nothing here completes a chore, the board owns that gesture and the permission behind it. -->
+            @if (chores(); as ch) {
+                <section class="rounded-xl border border-border bg-card overflow-hidden">
+                    <div class="flex items-center gap-2 px-4 py-2.5 border-b border-border-subtle">
+                        <i class="pi pi-sync text-text-muted text-xs"></i>
+                        <span class="text-[0.8125rem] font-semibold text-text-primary">
+                            {{ 'HOUSE_HOME.CHORES_TITLE' | translate }}
+                        </span>
+                        @if (ch.houseOverdueCount > 0) {
+                            <span class="ml-auto text-[0.6875rem] text-text-muted">
+                                {{ 'HOUSE_HOME.CHORES_HOUSE_OVERDUE' | translate: {count: ch.houseOverdueCount} }}
+                            </span>
+                        }
+                    </div>
+
+                    @if (ch.mine.length === 0) {
+                        <p class="px-4 py-3 text-[0.8125rem] text-text-secondary m-0">
+                            {{ 'HOUSE_HOME.CHORES_NONE' | translate }}
+                        </p>
+                    } @else {
+                        @for (occurrence of ch.mine; track trackOccurrence($index, occurrence)) {
+                            <button (click)="openChannel(occurrence.channelId)"
+                                    class="w-full flex items-center gap-3 px-4 py-2.5 text-left border-0 bg-transparent
+                                           cursor-pointer hover:bg-hover transition-colors">
+                                <span class="text-[0.8125rem] text-text-primary truncate flex-1">
+                                    {{ occurrence.title }}
+                                </span>
+                                @if (occurrence.isOverdue) {
+                                    <span class="shrink-0 rounded-full bg-offline/15 px-2 py-0.5 text-[0.625rem]
+                                                 font-semibold uppercase tracking-wide text-offline">
+                                        {{ 'HOUSE_HOME.OVERDUE' | translate }}
+                                    </span>
+                                } @else {
+                                    <span class="shrink-0 text-[0.6875rem] text-text-muted">
+                                        {{ timeLabel(occurrence.dueAt) }}
+                                    </span>
+                                }
+                            </button>
+                        }
+                    }
+                </section>
+            }
+
+            <!-- ── Lists ── One card per list channel: the house may keep several, and merging them would put the hardware-store list in with the groceries. -->
+            @if (lists(); as listSections) {
+                @for (list of listSections; track trackList($index, list)) {
+                    <section class="rounded-xl border border-border bg-card overflow-hidden">
+                        <button (click)="openChannel(list.channelId)"
+                                class="w-full flex items-center gap-2 px-4 py-2.5 border-0 bg-transparent text-left
+                                       cursor-pointer hover:bg-hover transition-colors border-b border-border-subtle">
+                            <i class="pi pi-check-square text-text-muted text-xs"></i>
+                            <span class="text-[0.8125rem] font-semibold text-text-primary truncate">
+                                {{ list.channelName }}
+                            </span>
+                            <span class="ml-auto text-[0.6875rem] text-text-muted shrink-0">
+                                {{ 'HOUSE_HOME.LIST_OPEN' | translate: {count: list.openCount} }}
+                            </span>
+                        </button>
+
+                        @for (item of list.preview; track item.id) {
+                            <div class="flex items-center gap-2 px-4 py-1.5">
+                                <span class="size-1.5 rounded-full bg-white/25 shrink-0"></span>
+                                <span class="text-[0.8125rem] text-text-secondary truncate">{{ item.text }}</span>
+                                @if (item.quantity) {
+                                    <span class="text-[0.6875rem] text-text-muted shrink-0">{{ item.quantity }}</span>
+                                }
+                            </div>
+                        }
+                        @if (list.openCount > list.preview.length) {
+                            <p class="px-4 py-1.5 text-[0.6875rem] text-text-muted m-0">
+                                {{ 'HOUSE_HOME.MORE' | translate: {count: list.openCount - list.preview.length} }}
+                            </p>
+                        }
+                    </section>
+                }
+            }
+
+            <!-- ── Pantry ── Every pantry in the house, each judged by its own expiryWarningDays: a freezer set to 14 days and a fridge set to 2 both read correctly in this one count. -->
+            @if (pantry(); as p) {
+                <section class="rounded-xl border border-border bg-card overflow-hidden">
+                    <div class="flex items-center gap-2 px-4 py-2.5 border-b border-border-subtle">
+                        <i class="pi pi-box text-text-muted text-xs"></i>
+                        <span class="text-[0.8125rem] font-semibold text-text-primary">
+                            {{ 'HOUSE_HOME.PANTRY_TITLE' | translate }}
+                        </span>
+                        <span class="ml-auto text-[0.6875rem] text-text-muted">
+                            {{ 'HOUSE_HOME.PANTRY_EXPIRING' | translate: {count: p.expiringCount} }}
+                        </span>
+                    </div>
+
+                    @for (item of p.soonest; track trackPantryItem($index, item)) {
+                        <button (click)="openChannel(item.channelId)"
+                                class="w-full flex items-center gap-3 px-4 py-2 text-left border-0 bg-transparent
+                                       cursor-pointer hover:bg-hover transition-colors">
+                            <span class="text-[0.8125rem] text-text-primary truncate flex-1">{{ item.name }}</span>
+                            <span class="shrink-0 text-[0.6875rem] text-text-muted">{{ timeLabel(item.expiresAt) }}</span>
+                        </button>
+                    }
+                </section>
+            }
+
+            <!-- ── Ledger ── The caller's own position, per channel and per currency. -->
+            @if (ledgerRows().length > 0) {
+                <section class="rounded-xl border border-border bg-card overflow-hidden">
+                    <div class="flex items-center gap-2 px-4 py-2.5 border-b border-border-subtle">
+                        <i class="pi pi-wallet text-text-muted text-xs"></i>
+                        <span class="text-[0.8125rem] font-semibold text-text-primary">
+                            {{ 'HOUSE_HOME.LEDGER_TITLE' | translate }}
+                        </span>
+                    </div>
+
+                    @for (row of ledgerRows(); track row.entry.channelId) {
+                        <button (click)="openChannel(row.entry.channelId)"
+                                class="w-full flex items-center gap-3 px-4 py-2.5 text-left border-0 bg-transparent
+                                       cursor-pointer hover:bg-hover transition-colors">
+                            <span class="text-[0.8125rem] text-text-primary truncate flex-1">
+                                {{ row.entry.channelName }}
+                            </span>
+                            @if (row.direction === 'settled') {
+                                <span class="shrink-0 text-[0.6875rem] text-text-muted">
+                                    {{ 'HOUSE_HOME.LEDGER_SETTLED' | translate }}
+                                </span>
+                            } @else {
+                                <span [class]="row.direction === 'owed' ? 'text-online' : 'text-connecting'"
+                                      class="shrink-0 text-[0.8125rem] font-semibold">{{ row.amount }}</span>
+                                <span class="shrink-0 text-[0.6875rem] text-text-muted">
+                                    {{ (row.direction === 'owed' ? 'HOUSE_HOME.LEDGER_OWED' : 'HOUSE_HOME.LEDGER_OWES')
+                                    | translate }}
+                                </span>
+                            }
+                        </button>
+                    }
+                </section>
+            }
+
+            <!-- ── Decisions ── A vote is never cast from here: support needs an option and a block needs a written reason, neither of which fits a glance. -->
+            @if (decisions(); as d) {
+                <section class="rounded-xl border border-border bg-card overflow-hidden">
+                    <div class="flex items-center gap-2 px-4 py-2.5 border-b border-border-subtle">
+                        <i class="pi pi-flag text-text-muted text-xs"></i>
+                        <span class="text-[0.8125rem] font-semibold text-text-primary">
+                            {{ 'HOUSE_HOME.DECISIONS_TITLE' | translate }}
+                        </span>
+                        <span class="ml-auto text-[0.6875rem] text-text-muted">
+                            {{ 'HOUSE_HOME.DECISIONS_OPEN' | translate: {count: d.openCount} }}
+                        </span>
+                    </div>
+
+                    @if (d.awaitingMyVote.length === 0) {
+                        <p class="px-4 py-3 text-[0.8125rem] text-text-secondary m-0">
+                            {{ 'HOUSE_HOME.DECISIONS_NONE' | translate }}
+                        </p>
+                    } @else {
+                        @for (decision of d.awaitingMyVote; track trackDecision($index, decision)) {
+                            <button (click)="openChannel(decision.channelId)"
+                                    class="w-full flex items-center gap-3 px-4 py-2.5 text-left border-0 bg-transparent
+                                           cursor-pointer hover:bg-hover transition-colors">
+                                <span class="text-[0.8125rem] text-text-primary truncate flex-1">
+                                    {{ decision.title }}
+                                </span>
+                                @if (decision.closesAt) {
+                                    <span class="shrink-0 text-[0.6875rem] text-text-muted">
+                                        {{ 'HOUSE_HOME.CLOSES' | translate: {time: timeLabel(decision.closesAt)} }}
+                                    </span>
+                                }
+                            </button>
+                        }
+                    }
+                </section>
+            }
+
+            <!-- ── Bills ── An obligation before it is an expense, drawn apart from the ledger section since nothing here has been spent yet. -->
+            @if (bills(); as b) {
+                <section class="rounded-xl border border-border bg-card overflow-hidden">
+                    <div class="flex items-center gap-2 px-4 py-2.5 border-b border-border-subtle">
+                        <i class="pi pi-calendar text-text-muted text-xs"></i>
+                        <span class="text-[0.8125rem] font-semibold text-text-primary">
+                            {{ 'HOUSE_HOME.BILLS_TITLE' | translate }}
+                        </span>
+                        @if (b.overdueCount > 0) {
+                            <span class="ml-auto shrink-0 text-[0.6875rem] text-rose-300">
+                                {{ 'HOUSE_HOME.BILLS_OVERDUE' | translate: {count: b.overdueCount} }}
+                            </span>
+                        }
+                    </div>
+
+                    <!-- Counted apart from overdue: one needs money moved, the other needs somebody to open the post. -->
+                    @if (b.needsAmountCount > 0) {
+                        <p class="px-4 py-2 text-[0.6875rem] text-amber-300 m-0 border-b border-border-subtle">
+                            {{ 'HOUSE_HOME.BILLS_NEEDS_AMOUNT' | translate: {count: b.needsAmountCount} }}
+                        </p>
+                    }
+
+                    @for (row of billRows(); track trackBill($index, row)) {
+                        <button (click)="openChannel(row.bill.channelId)"
+                                class="w-full flex items-center gap-3 px-4 py-2.5 text-left border-0 bg-transparent
+                                       cursor-pointer hover:bg-hover transition-colors">
+                            <span class="text-[0.8125rem] text-text-primary truncate flex-1">{{ row.bill.description }}</span>
+                            <span class="shrink-0 text-[0.6875rem] text-text-muted">{{ row.dueLabel }}</span>
+                            @if (row.myShare) {
+                                <span class="shrink-0 text-[0.8125rem] text-text-primary tabular-nums">{{ row.myShare }}</span>
+                            } @else if (row.amount) {
+                                <span class="shrink-0 text-[0.8125rem] text-text-primary tabular-nums">{{ row.amount }}</span>
+                            } @else {
+                                <!-- Not zero. Nobody has said what this period costs yet. -->
+                                <span class="shrink-0 text-[0.6875rem] text-amber-300">{{ 'BILLS.AMOUNT_UNKNOWN' | translate }}</span>
+                            }
+                        </button>
+                    }
+                </section>
+            }
+
+            <!-- ── Meals ── Today only: the plan is a week, a glance is a day. -->
+            @if (meals(); as m) {
+                <section class="rounded-xl border border-border bg-card overflow-hidden">
+                    <div class="flex items-center gap-2 px-4 py-2.5 border-b border-border-subtle">
+                        <i class="pi pi-book text-text-muted text-xs"></i>
+                        <span class="text-[0.8125rem] font-semibold text-text-primary">
+                            {{ 'HOUSE_HOME.MEALS_TITLE' | translate }}
+                        </span>
+                        <!-- Computed over the whole day rather than the capped list, so a busy day can't quietly answer "no" for somebody who is in fact cooking. -->
+                        @if (m.imCookingToday) {
+                            <span class="ml-auto shrink-0 text-[0.6875rem] text-brand">
+                                {{ 'HOUSE_HOME.MEALS_YOURE_COOKING' | translate }}
+                            </span>
+                        }
+                    </div>
+
+                    @if (m.today.length === 0) {
+                        <p class="px-4 py-3 text-[0.8125rem] text-text-secondary m-0">
+                            {{ 'HOUSE_HOME.MEALS_NONE' | translate }}
+                        </p>
+                    } @else {
+                        @for (meal of m.today; track trackMeal($index, meal)) {
+                            <button (click)="openChannel(meal.channelId)"
+                                    class="w-full flex items-center gap-3 px-4 py-2 text-left border-0 bg-transparent
+                                           cursor-pointer hover:bg-hover transition-colors">
+                                <span class="shrink-0 text-[0.5625rem] uppercase tracking-wide text-text-muted w-16">
+                                    {{ mealSlotKey(meal) | translate }}
+                                </span>
+                                <span class="text-[0.8125rem] text-text-primary truncate flex-1">{{ meal.title }}</span>
+                                @if (meal.cookUserId) {
+                                    <span class="shrink-0 text-[0.6875rem] text-text-muted">{{ displayName(meal.cookUserId) }}</span>
+                                }
+                            </button>
+                        }
+                    }
+                </section>
+            }
+
+            <!-- ── Maintenance ── The warranty count is up here rather than buried: it's the one date nobody tracks and the expensive one to have missed. -->
+            @if (maintenance(); as mt) {
+                <section class="rounded-xl border border-border bg-card overflow-hidden">
+                    <div class="flex items-center gap-2 px-4 py-2.5 border-b border-border-subtle">
+                        <i class="pi pi-wrench text-text-muted text-xs"></i>
+                        <span class="text-[0.8125rem] font-semibold text-text-primary">
+                            {{ 'HOUSE_HOME.MAINTENANCE_TITLE' | translate }}
+                        </span>
+                    </div>
+
+                    <div class="px-4 py-2 flex flex-wrap items-center gap-3 border-b border-border-subtle">
+                        @if (mt.brokenCount > 0) {
+                            <span class="text-[0.6875rem] text-rose-300">
+                                {{ 'HOUSE_HOME.MAINTENANCE_BROKEN' | translate: {count: mt.brokenCount} }}
+                            </span>
+                        }
+                        @if (mt.serviceOverdueCount > 0) {
+                            <span class="text-[0.6875rem] text-amber-300">
+                                {{ 'HOUSE_HOME.MAINTENANCE_SERVICE_OVERDUE' | translate: {count: mt.serviceOverdueCount} }}
+                            </span>
+                        }
+                        @if (mt.warrantyExpiringCount > 0) {
+                            <span class="text-[0.6875rem] text-amber-300 inline-flex items-center gap-1">
+                                <i class="pi pi-shield text-[0.5625rem]"></i>
+                                {{ 'HOUSE_HOME.MAINTENANCE_WARRANTY' | translate: {count: mt.warrantyExpiringCount} }}
+                            </span>
+                        }
+                    </div>
+
+                    @for (asset of mt.attention; track trackAsset($index, asset)) {
+                        <button (click)="openChannel(asset.channelId)"
+                                class="w-full flex items-center gap-3 px-4 py-2 text-left border-0 bg-transparent
+                                       cursor-pointer hover:bg-hover transition-colors">
+                            <span class="text-[0.8125rem] text-text-primary truncate flex-1">{{ asset.name }}</span>
+                            <span class="shrink-0 text-[0.6875rem] text-text-muted">{{ assetReasonKey(asset) | translate }}</span>
+                        </button>
+                    }
+                </section>
+            }
+
+            <!-- ── Away ── Beside "who's home", not folded into it: one is a dated plan the rota reads, the other a decaying assertion about this minute; the digest's own summary is skipped when the editable board is on screen. -->
+            @if (away(); as absences) {
+                @if (absences.length > 0 && !awayBoardVisible()) {
+                    <section class="rounded-xl border border-border bg-card overflow-hidden">
+                        <div class="flex items-center gap-2 px-4 py-2.5 border-b border-border-subtle">
+                            <i class="pi pi-send text-text-muted text-xs"></i>
+                            <span class="text-[0.8125rem] font-semibold text-text-primary">
+                                {{ 'HOUSE_HOME.AWAY_TITLE' | translate }}
+                            </span>
+                        </div>
+
+                        @for (row of awayRows(); track trackAway($index, row)) {
+                            <div class="flex items-center gap-3 px-4 py-2">
+                                <span class="text-[0.8125rem] text-text-primary truncate">
+                                    {{ displayName(row.absence.userId) }}
+                                </span>
+                                @if (row.absence.note) {
+                                    <span class="text-[0.6875rem] text-text-muted truncate">{{ row.absence.note }}</span>
+                                }
+                                <span class="ml-auto shrink-0 text-[0.6875rem] text-text-muted">
+                                    {{ 'HOUSE_HOME.AWAY_UNTIL' | translate: {date: row.until} }}
+                                </span>
+                            </div>
+                        }
+                    </section>
+                }
+            }
+
+            <!-- The editable board gates itself on the Presence module and renders nothing when the house doesn't have it. -->
+            @if (awayBoardVisible()) {
+                <app-away-board [guildId]="guildId()"/>
+            }
+
+            <!-- ── Who's home ── Asserted, not derived, and it expires, which is why no live status means simply absent, not "unknown"; not connection presence. -->
+            @if (homeStatus(); as statuses) {
+                <section class="rounded-xl border border-border bg-card overflow-hidden">
+                    <div class="flex items-center gap-2 px-4 py-2.5 border-b border-border-subtle">
+                        <i class="pi pi-users text-text-muted text-xs"></i>
+                        <span class="text-[0.8125rem] font-semibold text-text-primary">
+                            {{ 'HOUSE_HOME.HOME_STATUS_TITLE' | translate }}
+                        </span>
+                    </div>
+
+                    @if (statuses.length === 0) {
+                        <p class="px-4 py-3 text-[0.8125rem] text-text-secondary m-0">
+                            {{ 'HOUSE_HOME.HOME_STATUS_NONE' | translate }}
+                        </p>
+                    } @else {
+                        @for (status of statuses; track trackStatus($index, status)) {
+                            <div class="flex items-center gap-3 px-4 py-2">
+                                <i [class]="statusMeta(status).icon + ' ' + statusMeta(status).tone"
+                                   class="text-xs shrink-0"></i>
+                                <span class="text-[0.8125rem] text-text-primary truncate">
+                                    {{ displayName(status.userId) }}
+                                </span>
+                                <span class="text-[0.6875rem] text-text-secondary truncate">
+                                    {{ statusMeta(status).labelKey | translate }}
+                                </span>
+                                @if (status.note) {
+                                    <span class="text-[0.6875rem] text-text-muted truncate">{{ status.note }}</span>
+                                }
+                                <span class="ml-auto shrink-0 text-[0.6875rem] text-text-muted">
+                                    {{ timeLabel(status.expiresAt) }}
+                                </span>
+                            </div>
+                        }
+                    }
+                </section>
+            }
+
+        </div>
+    </div>
+</div>

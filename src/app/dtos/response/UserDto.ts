@@ -1,0 +1,120 @@
+﻿export enum UserType {
+    Standard = 'Standard',
+    Admin = 'Admin',
+}
+
+export enum AccountStatus {
+    Active = 'Active',
+    PendingDeletion = 'PendingDeletion',
+    PurgeInProgress = 'PurgeInProgress',
+    Deleted = 'Deleted',
+    Inactive = 'Inactive',
+    Banned = 'Banned',
+}
+
+export interface EncryptedMasterKey {
+    cipherText: string;
+    salt: string;
+    iv: string;
+    argon2Iterations: number;
+    argon2Memory: number;
+    argon2Parallelism: number;
+    version: number;
+    /**
+     * `HKDF-SHA256(masterKey, "", "venta.masterkey.verifier.v1", 32)`, base64 (contract §L.11).
+     *
+     * <p>Derived inside the engine beside the wrapping, and identical across both wrappings of one
+     * key and across every re-wrap of it - which is what lets the server check that a
+     * `rewrap-password` seals the key it already holds blobs for. Optional because envelopes stored
+     * before §L.11 have none, and no reader may require it.</p>
+     */
+    publicVerifier?: string | null;
+}
+
+/**
+ * What an account said it came here for, at onboarding.
+ *
+ * <p>Serialised as the lowercase wire values of the server's `[Flags] UserInterests`, which is
+ * why these are strings and not a bitfield - the flags enum is a storage detail of the Identity
+ * context and nothing here benefits from reproducing it.</p>
+ */
+export enum UserInterest {
+    Isle = 'isle',
+    Social = 'social',
+}
+
+export interface UserDto {
+    id: string;
+    email: string;
+    userType: UserType;
+    createdAt: Date;
+    updatedAt: Date;
+    birthDate: Date;
+    /**
+     * The account's own phone number in E.164, or null/absent when it has never recorded one.
+     *
+     * <p><b>Nothing has checked it.</b> It is whatever its owner typed, format-checked and no more -
+     * see `models/e164-phone.ts`. {@link phoneVerifiedAt} sits next to it and is always null; the
+     * column exists because SMS verification was designed and then dropped, and its presence is not
+     * a claim that anything verifies these numbers. No UI may render a tick against this field.</p>
+     *
+     * <p>Read from here rather than from a second endpoint: `GET /users/self` already projects it,
+     * so the client can tell whether the account has a number - which is what lets the per-household
+     * sharing toggle say "there is nothing to share yet" instead of switching on and appearing to do
+     * nothing. Optional because a self-hosted server predating the field sends neither it nor the
+     * `PUT`/`DELETE` routes that write it.</p>
+     */
+    phoneNumber?: string | null;
+    phoneVerifiedAt: Date | undefined;
+    emailVerifiedAt: Date | undefined;
+    ageVerification: unknown;
+    encryptedMasterKey: EncryptedMasterKey | undefined;
+    steamId: string | undefined;
+    status: AccountStatus;
+    deletionRequestedAt: Date | undefined;
+    purgeScheduledAt: Date | undefined;
+    /**
+     * Inherited from IdentityUser server-side and already present on the /users/self
+     * payload - there is no dedicated MFA-status endpoint. Optional because a
+     * self-hosted server on an older build predating MFA won't send it at all.
+     */
+    twoFactorEnabled?: boolean;
+    /**
+     * When the account answered the "what do you want to use Venta for" picker, or null/absent if
+     * it never has.
+     *
+     * <p>Optional, and absence must be read as *onboarded*, not as *needs onboarding*. A
+     * self-hosted server on a build predating this feature sends neither this nor
+     * {@link interests}, and treating that as "not onboarded yet" would gate every one of its
+     * users behind a picker whose submit endpoint answers 404.</p>
+     */
+    onboardedAt?: string | null;
+    /**
+     * Which halves of the product this account signed up for. Decides whether master-key setup
+     * runs at launch or is deferred to the first social action - see `SocialKeyGateService`.
+     */
+    interests?: UserInterest[];
+    /**
+     * Legal documents whose current version this account has not accepted (T1-10).
+     *
+     * <p>Publishing a new Terms or Privacy version leaves existing consents intact and instead
+     * lists the document here until the account accepts it. Optional, and an absent field must be
+     * read as <i>nothing outstanding</i> rather than as unknown: a self-hosted server predating
+     * consent records sends no such field, and treating that as "consent required" would put every
+     * one of its users behind a prompt whose accept endpoint answers 404.</p>
+     */
+    consentRequired?: ConsentRequirement[];
+}
+
+/** A document version the account still has to accept. */
+export interface ConsentRequirement {
+    documentType: LegalDocumentType;
+    version: string;
+    url: string;
+}
+
+export enum LegalDocumentType {
+    Terms = 'Terms',
+    Privacy = 'Privacy',
+    Cookies = 'Cookies',
+}

@@ -1,0 +1,142 @@
+<div class="flex flex-col gap-8">
+
+    <!-- ── Current state ──────────────────────────────────────────────── -->
+    <section class="flex flex-col gap-4">
+        <div>
+            <h2 class="text-sm font-semibold text-text-primary m-0">{{ 'CHANNEL_SETTINGS.ENCRYPTION.TITLE' | translate }}</h2>
+            <p class="text-xs text-text-muted m-0 mt-1">{{ 'CHANNEL_SETTINGS.ENCRYPTION.DESC' | translate }}</p>
+        </div>
+
+        @if (loading()) {
+            <p class="text-xs text-text-muted m-0">{{ 'COMMON.LOADING' | translate }}</p>
+        } @else {
+            <div class="flex items-start justify-between gap-4 p-3 rounded-xl bg-card/60 border border-border-subtle">
+                <div class="min-w-0 flex items-start gap-3">
+                    <i [ngClass]="encrypted() ? 'pi-lock text-online' : 'pi-lock-open text-text-muted'"
+                       class="pi mt-0.5"></i>
+                    <div class="min-w-0">
+                        <p class="text-sm text-text-primary m-0">{{ statusLabel() | translate }}</p>
+                        @if (encrypted()) {
+                            <p class="text-xs text-text-muted m-0 mt-0.5">
+                                {{ 'CHANNEL_SETTINGS.ENCRYPTION.GENERATION' | translate: {generation: generation()} }}
+                            </p>
+                        }
+                    </div>
+                </div>
+
+                @if (encrypted()) {
+                    <p-button (onClick)="confirmingDisable.set(true)" [disabled]="busy()"
+                              [label]="'CHANNEL_SETTINGS.ENCRYPTION.DISABLE' | translate"
+                              severity="danger" size="small"/>
+                } @else {
+                    <p-button (onClick)="enable()" [disabled]="busy()"
+                              [label]="'CHANNEL_SETTINGS.ENCRYPTION.ENABLE' | translate"
+                              severity="primary" size="small"/>
+                }
+            </div>
+        }
+    </section>
+
+    <!-- ── Turning it off is not reversible for the messages already sent ── -->
+    @if (confirmingDisable()) {
+        <section class="flex flex-col gap-3 p-3 rounded-xl border border-offline/40 bg-offline/5">
+            <p class="text-sm text-text-primary m-0">{{ 'CHANNEL_SETTINGS.ENCRYPTION.DISABLE_CONFIRM_TITLE' | translate }}</p>
+            <p class="text-xs text-text-secondary m-0">{{ 'CHANNEL_SETTINGS.ENCRYPTION.DISABLE_CONFIRM_BODY' | translate }}</p>
+            <div class="flex items-center justify-end gap-2">
+                <p-button (onClick)="confirmingDisable.set(false)" [text]="true"
+                          [label]="'COMMON.CANCEL' | translate" severity="secondary" size="small"/>
+                <p-button (onClick)="disable()" [disabled]="busy()"
+                          [label]="'CHANNEL_SETTINGS.ENCRYPTION.DISABLE_CONFIRM' | translate"
+                          severity="danger" size="small"/>
+            </div>
+        </section>
+    }
+
+    <!-- ── Access requests awaiting review ─────────────────────────────── -->
+    @if (joinRequests().length > 0) {
+        <section class="flex flex-col gap-4">
+            <div>
+                <h2 class="text-sm font-semibold text-text-primary m-0">{{ 'CHANNEL_SETTINGS.ENCRYPTION.REQUESTS_TITLE' | translate }}</h2>
+                <p class="text-xs text-text-muted m-0 mt-1">{{ 'CHANNEL_SETTINGS.ENCRYPTION.REQUESTS_DESC' | translate }}</p>
+            </div>
+
+            @for (request of joinRequests(); track request.id) {
+                <div class="flex flex-col gap-3 p-3 rounded-xl bg-card/60 border border-border-subtle">
+                    <div class="flex items-start justify-between gap-4">
+                        <div class="min-w-0">
+                            <p class="text-sm text-text-primary m-0">{{ request.requesterUserId }}</p>
+                            <p class="text-xs text-text-muted m-0 mt-0.5">
+                                {{ 'CHANNEL_SETTINGS.ENCRYPTION.REQUEST_APPROVALS' | translate: {
+                                    approvals: request.approverUserIds.length,
+                                    required: request.requiredApprovals
+                                } }}
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- The whole point of review: confirm this key really is theirs, out of band. -->
+                    <div class="flex flex-col gap-1">
+                        <span class="text-xs font-medium text-text-secondary">{{ 'CHANNEL_SETTINGS.ENCRYPTION.FINGERPRINT' | translate }}</span>
+                        <code class="text-xs text-text-primary font-mono tracking-wider break-all">{{ request.signatureKeyFingerprint }}</code>
+                        <span class="text-[0.625rem] text-text-muted">{{ 'CHANNEL_SETTINGS.ENCRYPTION.FINGERPRINT_HINT' | translate }}</span>
+                    </div>
+
+                    <div class="flex items-center justify-end gap-2">
+                        <p-button (onClick)="deny(request)" [disabled]="!!actingOn()" [text]="true"
+                                  [label]="'CHANNEL_SETTINGS.ENCRYPTION.DENY' | translate"
+                                  severity="danger" size="small"/>
+                        @if (hasApproved(request)) {
+                            <span class="text-xs text-online">{{ 'CHANNEL_SETTINGS.ENCRYPTION.APPROVED_BY_YOU' | translate }}</span>
+                        } @else {
+                            <p-button (onClick)="approve(request)" [disabled]="!!actingOn() || !canApprove(request)"
+                                      [label]="'CHANNEL_SETTINGS.ENCRYPTION.APPROVE' | translate"
+                                      severity="primary" size="small"/>
+                        }
+                    </div>
+                </div>
+            }
+
+            @if (verificationError(); as message) {
+                <p class="text-xs text-offline m-0">{{ message }}</p>
+            }
+        </section>
+    }
+
+    <!-- ── Devices we could not include ───────────────────────────────── -->
+    @if (unreachable().length > 0) {
+        <section class="flex flex-col gap-2 p-3 rounded-xl border border-connecting/40 bg-connecting/5">
+            <p class="text-sm text-text-primary m-0">{{ 'CHANNEL_SETTINGS.ENCRYPTION.UNREACHABLE_TITLE' | translate }}</p>
+            <p class="text-xs text-text-secondary m-0">{{ 'CHANNEL_SETTINGS.ENCRYPTION.UNREACHABLE_BODY' | translate }}</p>
+            <ul class="text-xs text-text-secondary m-0 pl-4 list-disc">
+                @for (name of unreachable(); track name) {
+                    <li>{{ name }}</li>
+                }
+            </ul>
+        </section>
+    }
+
+    <!-- ── Devices that are still outside, long after the enable ────────── -->
+    <!-- The block above reports what one enable call found, once; this is the same question asked again, by anyone, at any time. -->
+    @if (hasDeviceReport()) {
+        <app-mls-coverage-devices [contextId]="channel().id" [isChannel]="true"/>
+    }
+
+    <!-- ── History that predates the current generation ────────────────── -->
+    @if (terminatedCount() > 0) {
+        <section class="flex flex-col gap-1">
+            <p class="text-xs text-text-muted m-0">
+                {{ 'CHANNEL_SETTINGS.ENCRYPTION.PAST_ERAS' | translate: {count: terminatedCount()} }}
+            </p>
+        </section>
+    }
+
+    @if (retryAfterSeconds(); as seconds) {
+        <p class="text-xs text-connecting m-0">
+            {{ 'CHANNEL_SETTINGS.ENCRYPTION.COOLDOWN' | translate: {seconds: seconds} }}
+        </p>
+    }
+
+    @if (error(); as message) {
+        <p class="text-xs text-offline m-0">{{ message | translate }}</p>
+    }
+</div>

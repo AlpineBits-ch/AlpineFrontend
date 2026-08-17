@@ -1,0 +1,350 @@
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    DestroyRef,
+    inject,
+    OnInit,
+    signal,
+    ViewChild
+} from '@angular/core';
+import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
+import {switchMap} from 'rxjs';
+import {ServerData, ServerIconComponent} from '../server-icon/server-icon.component';
+import {NavigationService} from '../../../main-page/navigation.service';
+import {GuildDto} from '../../../../dtos/response/guild.dto';
+import {GuildService} from '../../../../services/guild.service';
+import {GuildReadStateService} from '../../../../services/guild-read-state.service';
+import {GuildUiActionsService} from '../../../../services/guild-ui-actions.service';
+import {CreateGuildModalComponent} from '../create-guild-modal/create-guild-modal.component';
+import {NgClass} from '@angular/common';
+import {environment} from '../../../../../environments/environment';
+import {ContextMenu} from 'primeng/contextmenu';
+import {MenuItem} from 'primeng/api';
+import {TranslateService} from '@ngx-translate/core';
+import {ReportDialogService} from '../../../../services/report-dialog.service';
+import {GuildSettingsModalComponent} from '../guild-settings-modal/guild-settings-modal.component';
+import {InviteType} from '../../../../dtos/response/invite.dto';
+import {ToastService} from '../../../../services/toast.service';
+import {GuildWebsocketService} from '../../../../services/guild-websocket.service';
+import {GuildVoiceActivityService} from '../../../../services/guild-voice-activity.service';
+import {ProfileService} from '../../../../services/profile.service';
+import {SelfGuildMemberDto} from '../../../../dtos/response/member.dto';
+import {memberCanManageGuild} from '../../guild-permissions';
+
+@Component({
+    selector: 'app-server-taskbar',
+    imports: [ServerIconComponent, CreateGuildModalComponent, NgClass, ContextMenu, GuildSettingsModalComponent],
+    templateUrl: './server-taskbar.component.html',
+    styleUrl: './server-taskbar.component.css',
+    changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class ServerTaskbarComponent implements OnInit {
+    protected navService = inject(NavigationService);
+    protected readonly showCreateModal = signal(false);
+    protected readonly contextGuild = signal<GuildDto | null>(null);
+    protected readonly showGuildSettings = signal(false);
+    protected readonly hoveredServerId = signal<string | null>(null);
+    /** Own member row per guild, filled in on hover; see `onServerHover`. */
+    private readonly ownMembers = signal<Record<string, SelfGuildMemberDto>>({});
+    private memberRequests = new Set<string>();
+    protected readonly isDMsActive = computed(() => this.navService.workspace().type === 'dms');
+    private guildService = inject(GuildService);
+    protected guilds = this.guildService.guilds;
+    private profileService = inject(ProfileService);
+    private readStateService = inject(GuildReadStateService);
+    private voiceActivity = inject(GuildVoiceActivityService);
+    protected readonly serverIcons = computed<ServerData[]>(() => {
+        const workspace = this.navService.workspace();
+        const readStates = this.readStateService.channelStates();
+        const voice = this.voiceActivity.presence();
+        return this.guilds().map(g => {
+            const totalMentions = g.channels.reduce(
+                (sum, c) => sum + (readStates[c.id]?.mentionCount ?? 0), 0
+            );
+            return {
+                id: g.id,
+                name: g.name,
+                icon: `${environment.apiUrl}/api/v1/guild/guilds/${g.id}/icon/thumbnail`,
+                isHome: false,
+                isActive: workspace.type === 'server' && workspace.guild.id === g.id,
+                hasUnread: g.channels.some(c => {
+                    const s = readStates[c.id];
+                    return (s?.isUnread ?? false) && (s?.mentionCount ?? 0) === 0;
+                }),
+                badge: totalMentions > 0 ? totalMentions : undefined,
+                voiceCount: voice[g.id]?.participantCount,
+                hasStream: voice[g.id]?.hasStream ?? false,
+            };
+        });
+    });
+    private guildUiActions = inject(GuildUiActionsService);
+    private toastService = inject(ToastService);
+    private guildWsService = inject(GuildWebsocketService);
+    private reportDialog = inject(ReportDialogService);
+    private translate = inject(TranslateService);
+    private destroyRef = inject(DestroyRef);
+    @ViewChild('guildContextMenu') private guildContextMenu!: ContextMenu;
+
+    ngOnInit(): void {
+        // Before anything touches the network: `GuildService` hydrates its list from this account's last known layout while under construction, so on a warm start the rail, channel list, and channel are already on screen by the time the request below is issued.
+        let restored = this.navService.tryRestoreGuildNav(this.guilds());
+
+        this.guildService.getGuilds().subscribe(guilds => {
+            if (!restored) {
+                restored = this.navService.tryRestoreGuildNav(guilds);
+                return;
+            }
+            this.reconcileRestoredWorkspace(guilds);
+        });
+
+        this.guildService.guildJoined$.pipe(
+            takeUntilDestroyed(this.destroyRef),
+            switchMap(() => this.guildService.getGuilds()),
+        ).subscribe();
+
+        this.guildService.guildUpdated$.pipe(
+            takeUntilDestroyed(this.destroyRef),
+        ).subscribe(updated => this.guildService.upsertGuild(updated));
+
+        // A guild appeared without this window doing anything (created on another device, or accepted elsewhere): `guildJoined$` only fires for a join this client performed. Not navigated to, unlike `onGuildCreated`: yanking the workspace because another device did something would be wrong here.
+        this.guildWsService.guildCreatedObservable
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            // The payload is the whole guild, so no round trip; but SignalR redelivers after a reconnect, and `upsertGuild` keys on id rather than appending blindly, so a redelivery is a no-op rather than a duplicate.
+            .subscribe(guild => this.guildService.upsertGuild(guild));
+
+        this.guildWsService.guildDeletedObservable
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe(e => this.onGuildDeleted(e.guildId));
+
+        this.guildWsService.guildUpdatedObservable
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe(e => {
+                this.guildService.getGuild(e.guildId).subscribe(updated => {
+                    // Through the service so the reconciliation runs; this event fires for changes nothing on screen cares about.
+                    this.guildService.upsertGuild(updated);
+                    const current = this.guildService.guilds().find(g => g.id === e.guildId);
+                    if (current) this.navService.updateCurrentGuild(current);
+                });
+            });
+    }
+
+    /** Only reachable on a warm start, for the guild currently open. If the guild is gone (left on another device), falls back to DMs instead of restoring into a workspace that would 403 on every request. */
+    private reconcileRestoredWorkspace(guilds: readonly GuildDto[]): void {
+        const ws = this.navService.workspace();
+        if (ws.type !== 'server') return;
+
+        const current = guilds.find(g => g.id === ws.guild.id);
+        if (current) this.navService.updateCurrentGuild(current);
+        else this.navService.selectDMs();
+    }
+
+    protected getPillHeight(server: ServerData): string {
+        if (server.isActive) return '36px';
+        const hovered = this.hoveredServerId() === server.id;
+        if (hovered) return server.hasUnread ? '20px' : '16px';
+        if (server.hasUnread) return '8px';
+        return '0px';
+    }
+
+    protected isPillVisible(server: ServerData): boolean {
+        return !!(server.isActive || server.hasUnread || this.hoveredServerId() === server.id);
+    }
+
+    protected onGuildCreated(guild: GuildDto): void {
+        this.guildService.upsertGuild(guild);
+        this.navService.selectServer(guild);
+    }
+
+    protected onServerContextMenu(event: MouseEvent, guild: GuildDto): void {
+        event.preventDefault();
+        event.stopPropagation();
+        this.contextGuild.set(guild);
+        this.guildContextMenu.model = this.buildGuildMenuItems(guild);
+        this.guildContextMenu.show(event);
+    }
+
+    /** Warms the member row behind "Server Settings": the menu's model is assigned imperatively at show time, so the permission must be known before the right-click; hover is the last moment available. */
+    protected onServerHover(guild: GuildDto): void {
+        this.hoveredServerId.set(guild.id);
+        if (this.ownMembers()[guild.id] || this.memberRequests.has(guild.id)) return;
+
+        this.memberRequests.add(guild.id);
+        this.guildService.getOwnMember(guild.id).subscribe({
+            next: member => this.ownMembers.update(m => ({...m, [guild.id]: member})),
+            // Leave it unfetched so a later hover retries; until then the entry stays hidden.
+            error: () => this.memberRequests.delete(guild.id),
+        });
+    }
+
+    protected onGuildSettingsUpdated(updated: GuildDto): void {
+        this.guildService.upsertGuild(updated);
+    }
+
+    protected onGuildDeleted(guildId: string): void {
+        this.showGuildSettings.set(false);
+        this.guildService.removeGuild(guildId);
+        const ws = this.navService.workspace();
+        if (ws.type === 'server' && ws.guild.id === guildId) {
+            this.navService.selectDMs();
+        }
+    }
+
+    private canManageGuild(guild: GuildDto): boolean {
+        return memberCanManageGuild(
+            this.ownMembers()[guild.id],
+            guild.ownerId,
+            this.profileService.ownProfile()?.userId,
+        );
+    }
+
+    private buildGuildMenuItems(guild: GuildDto): MenuItem[] {
+        return [
+            {
+                label: 'Mark as Read',
+                icon: 'pi pi-check-circle',
+                command: () => this.markGuildAsRead(guild),
+            },
+            {separator: true},
+            {
+                label: 'Invite to Server',
+                icon: 'pi pi-link',
+                command: () => this.inviteToServer(guild),
+            },
+            {separator: true},
+            {
+                label: 'Mute Server',
+                icon: 'pi pi-volume-off',
+                command: () => {
+                    // TODO: Dominic, no per-guild mute API yet; needs backend support for mute state
+                },
+            },
+            {
+                label: 'Notification Settings',
+                icon: 'pi pi-bell',
+                command: () => {
+                    // TODO: Dominic, per-guild notification override (all / @mentions / nothing) not yet in API
+                },
+            },
+            {
+                label: 'Hide Muted Channels',
+                icon: 'pi pi-eye-slash',
+                command: () => {
+                    // TODO: Dominic, requires muted-channel state stored per member in backend or client-side prefs
+                },
+            },
+            {separator: true},
+            ...(this.canManageGuild(guild) ? [{
+                label: 'Server Settings',
+                icon: 'pi pi-cog',
+                command: () => this.showGuildSettings.set(true),
+            }] : []),
+            {
+                label: 'Copy Server ID',
+                icon: 'pi pi-copy',
+                command: () => this.copyGuildId(guild),
+            },
+            {
+                label: 'Privacy Settings',
+                icon: 'pi pi-lock',
+                command: () => {
+                    // TODO: Dominic, privacy settings page/modal not yet implemented
+                },
+            },
+            {
+                label: 'Edit Per-server Profile',
+                icon: 'pi pi-user-edit',
+                command: () => {
+                    // TODO: Dominic, per-guild profile overrides (nickname, avatar) not yet implemented
+                },
+            },
+            {separator: true},
+            {
+                label: 'Create Channel',
+                icon: 'pi pi-plus',
+                command: () => this.triggerCreateChannel(guild),
+            },
+            {
+                label: 'Create Category',
+                icon: 'pi pi-folder-plus',
+                command: () => this.triggerCreateCategory(guild),
+            },
+            {
+                label: 'Create Event',
+                icon: 'pi pi-calendar-plus',
+                command: () => {
+                    // TODO: Dominic, events feature not yet implemented
+                },
+            },
+            {separator: true},
+            // Reachable by every member, not just those who can open Server Settings: the people most likely to need it are the ones with no powers in the guild at all.
+            {
+                label: this.translate.instant('REPORT.TITLE_GUILD'),
+                icon: 'pi pi-flag',
+                command: () => this.reportServer(guild),
+            },
+            {
+                label: 'Leave Server',
+                icon: 'pi pi-sign-out',
+                styleClass: 'text-rose-400',
+                command: () => this.leaveServer(guild),
+            },
+        ];
+    }
+
+    /** Reports the guild. `targetUserId` is the owner: the server always wants an account behind a report, and for a guild that is whoever is answerable for it. */
+    private reportServer(guild: GuildDto): void {
+        this.reportDialog.open({
+            kind: 'Guild',
+            subjectId: guild.id,
+            targetUserId: guild.ownerId,
+            targetName: guild.name,
+        });
+    }
+
+    private markGuildAsRead(guild: GuildDto): void {
+        for (const channel of guild.channels) {
+            this.readStateService.markChannelRead(channel.id);
+        }
+    }
+
+    private inviteToServer(guild: GuildDto): void {
+        this.guildService.createInvite({type: InviteType.Permanent}, guild.id).subscribe({
+            next: invite => navigator.clipboard.writeText(`https://venta.gg/invite/${invite.code}`),
+        });
+    }
+
+    private copyGuildId(guild: GuildDto): void {
+        navigator.clipboard.writeText(guild.id);
+        this.toastService.success('Server ID copied to clipboard');
+    }
+
+    private triggerCreateChannel(guild: GuildDto): void {
+        this.navService.selectServer(guild);
+        setTimeout(() => this.guildUiActions.requestCreateChannel(), 0);
+    }
+
+    private triggerCreateCategory(guild: GuildDto): void {
+        this.navService.selectServer(guild);
+        setTimeout(() => this.guildUiActions.requestCreateCategory(), 0);
+    }
+
+    private leaveServer(guild: GuildDto): void {
+        this.guildService.leaveGuild(guild.id).subscribe({
+            next: () => {
+                this.guildService.removeGuild(guild.id);
+                const ws = this.navService.workspace();
+                if (ws.type === 'server' && ws.guild.id === guild.id) {
+                    this.navService.selectDMs();
+                }
+            },
+            error: err => {
+                if (err.status === 400) {
+                    this.toastService.error('You must delete the server instead of leaving, since you own it.');
+                } else {
+                    this.toastService.httpError('Failed to leave server', err);
+                }
+            },
+        });
+    }
+}

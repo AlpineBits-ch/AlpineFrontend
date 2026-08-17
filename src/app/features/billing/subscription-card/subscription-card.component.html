@@ -1,0 +1,253 @@
+<!-- Absent entirely for a subject with no subscription: the plans below are the whole answer there,
+     and an empty "your subscription" heading is a gap rather than a state. -->
+@if (loading() || loadFailed() || subscription()) {
+
+    <section class="flex flex-col gap-4">
+
+        <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">
+            {{ 'BILLING.SUBSCRIPTION.SECTION' | translate }}
+        </h2>
+
+        @if (loading()) {
+            <!-- Shaped like the card it becomes, so nothing jumps when the answer lands. Layout
+                 shift on a screen about money reads as instability. -->
+            <div aria-hidden="true"
+                 class="flex flex-col gap-3.5 bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3.5">
+                <div class="flex items-start justify-between gap-3">
+                    <div class="flex flex-col gap-1.5">
+                        <span class="block h-2 w-20 rounded bg-white/[0.08] motion-safe:animate-pulse"></span>
+                        <span class="block h-4 w-28 rounded bg-white/[0.08] motion-safe:animate-pulse"></span>
+                    </div>
+                    <span class="block h-4 w-16 rounded-full bg-white/[0.08] motion-safe:animate-pulse"></span>
+                </div>
+                <span class="block h-5 w-24 rounded bg-white/[0.08] motion-safe:animate-pulse"></span>
+                <div class="border-t border-white/[0.06] pt-3">
+                    <span class="block h-3 w-48 rounded bg-white/[0.08] motion-safe:animate-pulse"></span>
+                </div>
+            </div>
+            <span class="sr-only">{{ 'BILLING.SUBSCRIPTION.LOADING' | translate }}</span>
+        } @else if (loadFailed()) {
+            <!-- A read that failed is not an account with no subscription. Telling a paying customer
+                 they have none is the one wrong answer available here. -->
+            <div class="flex flex-col gap-2 bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3.5">
+                <p class="text-sm text-text-secondary m-0 leading-relaxed" role="alert">
+                    {{ 'BILLING.SUBSCRIPTION.LOAD_FAILED' | translate }}
+                </p>
+                <button
+                        (click)="reload()"
+                        class="self-start text-xs font-semibold text-[var(--color-brand-dim)] hover:text-white transition-colors duration-[var(--duration-fast)]"
+                        type="button">
+                    {{ 'BILLING.SUBSCRIPTION.RETRY' | translate }}
+                </button>
+            </div>
+        } @else if (subscription(); as current) {
+
+            <div class="flex flex-col gap-3.5 bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3.5">
+
+                <div class="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
+                    <div class="flex flex-col gap-0.5 min-w-0">
+                        <p class="text-[0.625rem] font-semibold text-white/25 uppercase tracking-widest m-0">
+                            {{ 'BILLING.SUBSCRIPTION.CURRENT_LABEL' | translate }}
+                        </p>
+                        <p class="text-base font-semibold text-text-primary m-0 truncate">
+                            {{ current.planDisplayName }}
+                        </p>
+                    </div>
+
+                    <!-- The standing, never the raw Stripe status. A word this build has never seen
+                         reads as "needs attention" rather than as itself. -->
+                    @if (standingKey(); as label) {
+                        <span [class]="standingClass()"
+                              class="shrink-0 rounded-full px-2 py-0.5 text-[0.625rem] font-semibold uppercase tracking-widest">
+                            {{ label | translate }}
+                        </span>
+                    }
+                </div>
+
+                <!-- The rate, not a bare figure. -->
+                @if (price(); as rate) {
+                    <p class="text-lg font-semibold text-text-primary m-0">
+                        {{ rate.amount }}
+                        @if (rate.intervalKey; as key) {
+                            <span class="text-sm font-normal text-text-muted">{{ key | translate }}</span>
+                        }
+                    </p>
+                }
+
+                <!-- The dates. Both of these are things a person came here to find out, so neither
+                     is behind a hover. -->
+                @if (periodEnd(); as date) {
+                    <div class="border-t border-white/[0.06] pt-2.5">
+                        @if (current.cancelAtPeriodEnd) {
+                            <div class="flex flex-col gap-1 border-l-2 border-[var(--color-connecting)] pl-3">
+                                <p class="text-sm font-semibold text-text-primary m-0">
+                                    {{ 'BILLING.SUBSCRIPTION.CANCELLING_TITLE' | translate:{date: date} }}
+                                </p>
+                                <p class="text-xs text-text-muted m-0 leading-relaxed">
+                                    {{ 'BILLING.SUBSCRIPTION.CANCELLING_BODY' | translate:{date: date} }}
+                                </p>
+                            </div>
+                        } @else {
+                            <p class="text-xs text-text-secondary m-0 leading-relaxed">
+                                {{ 'BILLING.SUBSCRIPTION.RENEWS_ON' | translate:{date: date} }}
+                            </p>
+                        }
+                    </div>
+                }
+
+                <!-- The single most important thing on this card for the person most likely to be reading it. -->
+                @if (graceEnd(); as date) {
+                    <div class="flex flex-col gap-1 rounded-lg border border-[color-mix(in_srgb,var(--color-offline)_35%,transparent)] bg-[color-mix(in_srgb,var(--color-offline)_10%,transparent)] px-3 py-2.5">
+                        <p class="text-sm font-semibold text-text-primary m-0">
+                            {{ 'BILLING.SUBSCRIPTION.GRACE_TITLE' | translate }}
+                        </p>
+                        <!--
+                          Two sentences, because "update the card" is not something a guild manager who is not the payer can do.
+                        -->
+                        @if (current.isPayer) {
+                            <p class="text-xs text-text-secondary m-0 leading-relaxed">
+                                {{ 'BILLING.SUBSCRIPTION.GRACE_BODY' | translate:{date: date} }}
+                            </p>
+                        } @else {
+                            <p class="text-xs text-text-secondary m-0 leading-relaxed">
+                                {{ 'BILLING.SUBSCRIPTION.GRACE_BODY_OTHER' | translate:{date: date} }}
+                            </p>
+                        }
+                    </div>
+                }
+
+                @if (errorText(); as text) {
+                    <p class="text-xs text-[var(--color-offline)] m-0 leading-relaxed" role="alert">{{ text }}</p>
+                } @else if (errorKey(); as key) {
+                    <p class="text-xs text-[var(--color-offline)] m-0 leading-relaxed"
+                       role="alert">{{ key | translate }}</p>
+                }
+
+                <!-- A resume that will never work again is a dead end on its own, so the refusal
+                     points at the plans further down this same page. -->
+                @if (lapsed()) {
+                    <p class="text-xs text-text-muted m-0 leading-relaxed">
+                        {{ 'BILLING.SUBSCRIPTION.LAPSED_HINT' | translate }}
+                    </p>
+                }
+
+                @if (canAct()) {
+                    <div class="flex flex-wrap items-center gap-2 border-t border-white/[0.06] pt-3">
+
+                        @if (canResume()) {
+                            <button
+                                    (click)="resume()"
+                                    [disabled]="busy() !== null"
+                                    class="inline-flex items-center gap-2 rounded-lg bg-[var(--color-brand)] hover:bg-[var(--color-brand-hover)] disabled:opacity-40 px-3 py-2 text-xs font-semibold text-white transition-colors duration-[var(--duration-fast)]"
+                                    type="button">
+                                @if (busy() === 'resume') {
+                                    <i class="pi pi-spin pi-spinner text-[0.7rem]"></i>
+                                }
+                                {{ 'BILLING.SUBSCRIPTION.RESUME' | translate }}
+                            </button>
+                        }
+
+                        <button
+                                (click)="openChange()"
+                                [disabled]="busy() !== null"
+                                class="rounded-lg border border-white/[0.10] hover:border-white/[0.16] disabled:opacity-40 px-3 py-2 text-xs font-semibold text-text-secondary hover:text-text-primary transition-colors duration-[var(--duration-fast)]"
+                                type="button">
+                            {{ 'BILLING.SUBSCRIPTION.CHANGE' | translate }}
+                        </button>
+
+                        @if (canCancel()) {
+                            <button
+                                    (click)="confirmCancel()"
+                                    [disabled]="busy() !== null"
+                                    class="ml-auto inline-flex items-center gap-2 text-xs font-semibold text-text-muted hover:text-[var(--color-offline)] disabled:opacity-40 transition-colors duration-[var(--duration-fast)]"
+                                    type="button">
+                                @if (busy() === 'cancel') {
+                                    <i class="pi pi-spin pi-spinner text-[0.7rem]"></i>
+                                }
+                                {{ 'BILLING.SUBSCRIPTION.CANCEL' | translate }}
+                            </button>
+                        }
+                    </div>
+                } @else if (!current.isPayer) {
+                    <!-- Stated rather than shown as greyed-out controls. -->
+                    <p class="text-xs text-text-muted m-0 leading-relaxed border-t border-white/[0.06] pt-3">
+                        {{ 'BILLING.SUBSCRIPTION.NOT_PAYER' | translate }}
+                    </p>
+                }
+            </div>
+        }
+
+    </section>
+
+    @if (subscription(); as current) {
+        <app-change-plan-dialog
+                (changed)="onChanged($event)"
+                (visibleChange)="changeVisible.set($event)"
+                [subject]="subject()"
+                [subscription]="current"
+                [visible]="changeVisible()"/>
+    }
+}
+
+<!-- Reversible, and still a confirmation: "cancelled" arriving with no warning is how somebody
+     cancels twice, or panics because the guild is still Pro three weeks later. -->
+<p-dialog
+        (visibleChange)="cancelVisible.set($event)"
+        [breakpoints]="{ '640px': '100vw' }"
+        [draggable]="false"
+        [modal]="true"
+        [resizable]="false"
+        [style]="{ width: '440px' }"
+        [visible]="cancelVisible()"
+        appendTo="body">
+
+    <ng-template pTemplate="header">
+        <span class="text-sm font-semibold text-text-primary">
+            {{ 'BILLING.SUBSCRIPTION.CANCEL_TITLE' | translate }}
+        </span>
+    </ng-template>
+
+    @if (subscription(); as current) {
+        <div class="flex flex-col gap-4 pb-1">
+            <div class="flex flex-col gap-1.5">
+                <!-- The consequence before the action, and the date in the sentence rather than in a tooltip. -->
+                @if (periodEnd(); as date) {
+                    <p class="text-sm text-text-secondary m-0 leading-relaxed">
+                        {{ 'BILLING.SUBSCRIPTION.CANCEL_BODY' | translate:{plan: current.planDisplayName, date: date} }}
+                    </p>
+                } @else {
+                    <p class="text-sm text-text-secondary m-0 leading-relaxed">
+                        {{ 'BILLING.SUBSCRIPTION.CANCEL_BODY_UNDATED' | translate:{plan: current.planDisplayName} }}
+                    </p>
+                }
+                <p class="text-xs text-text-muted m-0 leading-relaxed">
+                    {{ 'BILLING.SUBSCRIPTION.CANCEL_REVERSIBLE' | translate }}
+                </p>
+            </div>
+
+            <!-- Keeping the plan is first, so it is what a dialog opened by keyboard lands on, and
+                 the destructive-feeling half is the quiet one. -->
+            <div class="flex flex-wrap items-center gap-2">
+                <p-button (onClick)="cancelVisible.set(false)"
+                          [label]="'BILLING.SUBSCRIPTION.CANCEL_KEEP' | translate"
+                          severity="secondary" styleClass="flex-1 justify-center"/>
+                @if (periodEnd(); as date) {
+                    <p-button (onClick)="cancel()"
+                              [disabled]="busy() !== null"
+                              [label]="'BILLING.SUBSCRIPTION.CANCEL_CONFIRM' | translate:{date: date}"
+                              [loading]="busy() === 'cancel'"
+                              [text]="true"
+                              severity="danger" styleClass="flex-1 justify-center"/>
+                } @else {
+                    <p-button (onClick)="cancel()"
+                              [disabled]="busy() !== null"
+                              [label]="'BILLING.SUBSCRIPTION.CANCEL_CONFIRM_UNDATED' | translate"
+                              [loading]="busy() === 'cancel'"
+                              [text]="true"
+                              severity="danger" styleClass="flex-1 justify-center"/>
+                }
+            </div>
+        </div>
+    }
+
+</p-dialog>

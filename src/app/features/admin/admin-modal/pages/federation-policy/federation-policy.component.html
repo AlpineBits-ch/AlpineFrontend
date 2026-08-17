@@ -1,0 +1,87 @@
+<div class="flex flex-col gap-8 max-w-2xl">
+
+    <!-- Acceptance Policy -->
+    <section class="flex flex-col gap-4">
+        <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">
+            Acceptance Policy
+        </h2>
+
+        @if (policyError()) {
+            <div class="flex items-center gap-2 text-sm text-rose-400 bg-rose-400/10 border border-rose-400/20 rounded-xl px-4 py-3">
+                <i class="pi pi-exclamation-circle shrink-0"></i>
+                {{ policyError() }}
+            </div>
+        }
+
+        <p class="text-sm text-white/50">
+            Control how incoming federation requests from other instances are handled.
+        </p>
+
+        <div class="flex flex-col gap-2">
+            @for (option of policyOptions; track option.value) {
+                <button (click)="setPolicy(option.value)"
+                        [ngClass]="policy() === option.value
+                          ? 'ring-2 ring-[var(--color-brand)] border-[color-mix(in_srgb,var(--color-brand)_40%,transparent)]'
+                          : 'border-white/[0.08]'"
+                        class="flex items-center gap-4 w-full text-left bg-white/[0.03] border rounded-xl px-4 py-3.5 transition-all cursor-pointer">
+                    <div [ngClass]="policy() === option.value ? 'bg-[var(--color-brand)]' : 'border-white/30'"
+                         class="w-4 h-4 rounded-full border-2 shrink-0 transition-colors flex items-center justify-center">
+                        @if (policy() === option.value) {
+                            <div class="w-1.5 h-1.5 rounded-full bg-white"></div>
+                        }
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-white/80">{{ option.label }}</p>
+                        <p class="text-xs text-white/35 mt-0.5">{{ option.desc }}</p>
+                    </div>
+                </button>
+            }
+        </div>
+    </section>
+
+    <!-- Initiate Handshake -->
+    <section class="flex flex-col gap-4">
+        <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">
+            Initiate Handshake
+        </h2>
+
+        <p class="text-sm text-white/50">
+            Proactively federate with another instance by sending a handshake request.
+        </p>
+
+        <div class="flex gap-2">
+            <input pInputText
+                   [value]="targetHost()"
+                   (input)="targetHost.set($any($event.target).value)"
+                   placeholder="https://other.example.com"
+                   class="flex-1 text-sm"
+                   (keydown.enter)="initiateHandshake()"/>
+            <p-button (onClick)="initiateHandshake()"
+                      [loading]="initiating()"
+                      [disabled]="!targetHost().trim()"
+                      label="Connect"
+                      severity="primary"
+                      size="small"/>
+        </div>
+
+        @if (initiateResult()) {
+            <div class="bg-emerald-400/10 border border-emerald-400/20 rounded-xl px-4 py-3 flex flex-col gap-1">
+                <div class="flex items-center gap-2 text-sm text-emerald-400">
+                    <i class="pi pi-check-circle shrink-0"></i>
+                    <span class="font-medium">Handshake {{ initiateResult()!.status }}</span>
+                </div>
+                <p class="text-xs text-white/40 mt-1">
+                    {{ initiateResult()!.name }} · {{ initiateResult()!.host }}
+                </p>
+            </div>
+        }
+
+        @if (initiateError()) {
+            <div class="flex items-center gap-2 text-sm text-rose-400 bg-rose-400/10 border border-rose-400/20 rounded-xl px-4 py-3">
+                <i class="pi pi-exclamation-circle shrink-0"></i>
+                {{ initiateError() }}
+            </div>
+        }
+    </section>
+
+</div>

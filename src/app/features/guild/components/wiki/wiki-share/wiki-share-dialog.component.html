@@ -1,0 +1,85 @@
+<p-dialog
+        (visibleChange)="!$event && closed.emit()"
+        [closable]="true"
+        [dismissableMask]="state() !== 'sending'"
+        [draggable]="false"
+        [modal]="true"
+        [resizable]="false"
+        [style]="{ width: '440px' }"
+        [visible]="open()"
+        appendTo="body"
+        maskStyleClass="backdrop-blur-sm"
+        styleClass="!bg-card !border !border-white/[0.08] !rounded-2xl">
+
+    <ng-template pTemplate="header">
+        <div class="flex min-w-0 items-center gap-2">
+            <i class="pi pi-share-alt text-brand-dim text-sm"></i>
+            <span class="truncate text-base font-semibold text-white/85">
+                {{ 'WIKI.SHARE.TITLE' | translate }}
+            </span>
+        </div>
+    </ng-template>
+
+    <!-- What is being shared, said out loud: the picker below is a list of names with no other clue which page they are about to receive. -->
+    @if (page(); as target) {
+        <div class="mb-3 flex items-center gap-2.5 rounded-xl border border-border-default bg-white/[0.03] px-3 py-2.5">
+            <i class="pi pi-book shrink-0 text-sm text-brand-dim"></i>
+            <span class="truncate text-sm font-medium text-white/75">{{ target.title }}</span>
+        </div>
+    }
+
+    <div class="relative px-1 pb-3">
+        <i class="pi pi-search pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-white/30"></i>
+        <input (ngModelChange)="search.set($event)"
+               [ngModel]="search()"
+               [placeholder]="'WIKI.SHARE.SEARCH' | translate"
+               class="w-full !rounded-xl !border-white/[0.08] !bg-white/[0.04] !pl-9 !text-sm placeholder:text-white/25"
+               pInputText/>
+    </div>
+
+    <div class="thin-scrollbar -mx-1 max-h-64 overflow-y-auto px-1">
+        @if (filtered().length === 0) {
+            <p class="py-6 text-center text-sm text-white/30">{{ 'WIKI.SHARE.NO_TARGETS' | translate }}</p>
+        }
+        @for (target of filtered(); track target.kind + ':' + target.id) {
+            <button (click)="select(target)"
+                    [ngClass]="selectedId() === target.id ? 'bg-brand/10 hover:bg-brand/15' : 'bg-transparent hover:bg-white/[0.04]'"
+                    class="flex w-full cursor-pointer items-center gap-3 rounded-xl border-0 px-3 py-2 text-left transition-colors"
+                    type="button">
+                <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/10">
+                    <i [class]="target.icon" class="text-xs text-white/50"></i>
+                </span>
+                <span [ngClass]="selectedId() === target.id ? 'text-brand-dim' : 'text-white/75'"
+                      class="min-w-0 flex-1 truncate text-sm font-medium">{{ target.label }}</span>
+                @if (target.context) {
+                    <span class="shrink-0 truncate text-[0.6875rem] text-white/25">{{ target.context }}</span>
+                }
+                @if (selectedId() === target.id) {
+                    <i class="pi pi-check shrink-0 text-xs text-brand-dim"></i>
+                }
+            </button>
+        }
+    </div>
+
+    <div class="mt-3 border-t border-white/[0.06] px-1 pt-3">
+        <input (ngModelChange)="note.set($event)"
+               [ngModel]="note()"
+               [placeholder]="'WIKI.SHARE.NOTE_PLACEHOLDER' | translate"
+               class="w-full !rounded-xl !border-white/[0.08] !bg-white/[0.04] !text-sm placeholder:text-white/25"
+               pInputText/>
+    </div>
+
+    <ng-template pTemplate="footer">
+        <div class="flex items-center justify-end gap-2 pt-1">
+            <p-button (onClick)="close()" [label]="'COMMON.CANCEL' | translate" [text]="true"
+                      severity="secondary" size="small"/>
+            <p-button (onClick)="share()"
+                      [disabled]="!canSend()"
+                      [label]="'WIKI.SHARE.SEND' | translate"
+                      [loading]="state() === 'sending'"
+                      severity="primary"
+                      size="small"/>
+        </div>
+    </ng-template>
+
+</p-dialog>

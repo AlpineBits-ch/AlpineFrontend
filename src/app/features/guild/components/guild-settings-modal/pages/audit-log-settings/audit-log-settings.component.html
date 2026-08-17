@@ -1,0 +1,120 @@
+<!-- audit-log-settings.component.html -->
+<div class="flex flex-col h-full gap-3">
+
+    <!-- Filters -->
+    <div class="flex flex-col sm:flex-row gap-2">
+        <p-select (ngModelChange)="actionFilter.set($event)"
+                  [ngModel]="actionFilter()"
+                  [options]="actionOptions()"
+                  [placeholder]="'GUILD_SETTINGS.AUDIT_LOG.ALL_ACTIONS' | translate"
+                  [showClear]="true"
+                  optionLabel="label"
+                  optionValue="value"
+                  styleClass="w-full sm:w-56 shrink-0"/>
+
+        <div class="relative flex-1">
+            <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-text-muted text-xs pointer-events-none"></i>
+            <input (ngModelChange)="actorFilter.set($event)"
+                   [ngModel]="actorFilter()"
+                   [placeholder]="'GUILD_SETTINGS.AUDIT_LOG.ACTOR_PLACEHOLDER' | translate"
+                   class="w-full !pl-9 text-sm"
+                   pInputText/>
+        </div>
+
+        <p-button (onClick)="refresh()" [label]="'GUILD_SETTINGS.AUDIT_LOG.REFRESH' | translate" [loading]="refreshing()"
+                  icon="pi pi-refresh"
+                  severity="secondary"
+                  size="small"/>
+    </div>
+
+    <!-- The endpoint has no filter parameters, so both filters only ever see the pages already loaded. -->
+    @if (filtersActive()) {
+        <p class="text-[0.6875rem] text-text-secondary">
+            {{
+                (hasMore() ? 'GUILD_SETTINGS.AUDIT_LOG.FILTER_SCOPE_MORE' : 'GUILD_SETTINGS.AUDIT_LOG.FILTER_SCOPE') | translate: {
+                    shown: filteredRows().length,
+                    loaded: rows().length
+                }
+            }}
+        </p>
+    }
+
+    @if (loading()) {
+        <div class="flex items-center justify-center py-10">
+            <i class="pi pi-spin pi-spinner text-text-secondary text-xl"></i>
+        </div>
+    } @else if (rows().length === 0) {
+        <div class="flex flex-col items-center justify-center py-12 gap-2 text-center">
+            <i class="pi pi-history text-3xl text-text-muted"></i>
+            <p class="text-sm text-text-secondary m-0">{{ 'GUILD_SETTINGS.AUDIT_LOG.EMPTY' | translate }}</p>
+            <p class="text-xs text-text-muted m-0">{{ 'GUILD_SETTINGS.AUDIT_LOG.EMPTY_HINT' | translate }}</p>
+        </div>
+    } @else {
+        <div (scroll)="onScroll($event)" class="flex-1 overflow-y-auto thin-scrollbar">
+            @for (day of days(); track $index) {
+                <p class="sticky top-0 z-10 bg-app-bg px-1 py-1.5 text-[0.6875rem] font-semibold uppercase tracking-widest text-text-secondary">
+                    {{ day.label ? (day.label | translate) : (day.date | date:'fullDate') }}
+                </p>
+
+                @for (row of day.rows; track row.entry.id) {
+                    <div class="flex items-start gap-3 px-2 py-2 rounded-lg hover:bg-hover">
+                        <span class="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/[0.06]">
+                            <i class="pi text-xs {{ actionIcon(row) }} {{ actionTone(row) }}"></i>
+                        </span>
+
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm text-text-primary">
+                                <span class="font-medium">{{ actorName(row) }}</span> {{ describe(row) }}
+                            </p>
+                            <p [attr.title]="row.entry.createdAt | date:'medium'" class="text-[0.6875rem] text-text-muted">
+                                {{ row.entry.createdAt | relativeTime: now() }}
+                            </p>
+                        </div>
+
+                        @if (row.details.length > 0) {
+                            <p-button (onClick)="toggleDetails(row.entry.id)"
+                                      [ariaLabel]="'GUILD_SETTINGS.AUDIT_LOG.DETAILS' | translate"
+                                      [icon]="isExpanded(row.entry.id) ? 'pi pi-chevron-up' : 'pi pi-chevron-down'"
+                                      [text]="true"
+                                      severity="secondary"
+                                      size="small"/>
+                        }
+                    </div>
+
+                    @if (isExpanded(row.entry.id)) {
+                        <dl class="ml-12 mr-2 mb-2 grid grid-cols-[minmax(0,auto)_minmax(0,1fr)] gap-x-4 gap-y-1 rounded-lg bg-card px-3 py-2">
+                            @for (pair of row.details; track $index) {
+                                <dt class="text-[0.6875rem] text-text-secondary">{{ pair.label }}</dt>
+                                <dd class="text-[0.6875rem] text-text-primary font-mono break-all m-0">{{ pair.value }}</dd>
+                            }
+                        </dl>
+                    }
+                }
+            }
+
+            @if (filteredRows().length === 0) {
+                <div class="flex flex-col items-center justify-center py-10 gap-2 text-center">
+                    <p class="text-sm text-text-secondary m-0">{{ 'GUILD_SETTINGS.AUDIT_LOG.NO_MATCHES' | translate }}</p>
+                    <p-button (onClick)="clearFilters()" [label]="'GUILD_SETTINGS.AUDIT_LOG.CLEAR_FILTERS' | translate" [text]="true"
+                              severity="secondary"
+                              size="small"/>
+                </div>
+            }
+
+            @if (loadingMore()) {
+                <div class="flex items-center justify-center py-3">
+                    <i class="pi pi-spin pi-spinner text-text-secondary text-sm"></i>
+                </div>
+            } @else if (hasMore()) {
+                <!-- Explicit button as well as the scroll handler: a filtered list can be too short to scroll. -->
+                <div class="flex justify-center py-3">
+                    <p-button (onClick)="loadMore()" [label]="'GUILD_SETTINGS.AUDIT_LOG.LOAD_MORE' | translate" [text]="true"
+                              severity="secondary"
+                              size="small"/>
+                </div>
+            } @else {
+                <p class="text-[0.6875rem] text-text-muted text-center py-3">{{ 'GUILD_SETTINGS.AUDIT_LOG.END_OF_LIST' | translate }}</p>
+            }
+        </div>
+    }
+</div>

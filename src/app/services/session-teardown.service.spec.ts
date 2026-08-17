@@ -1,0 +1,259 @@
+/**
+ * The one place local MLS state is destroyed, and the order it destroys it in.
+ *
+ * <p>There were three copies of this and they disagreed. The logout dialog wiped everything; the
+ * launch sequence's corruption recovery wiped everything except the signing key; and
+ * `MainPageComponent.logout` - which is also the `Ctrl+Shift+L` handler - wiped nothing at all and
+ * just dropped the OAuth token. Signing out that way and signing in as somebody else left the
+ * previous account's signing key, groups, registry and plaintext message history on disk and
+ * readable, because the cache seal key is derived per device rather than per account.</p>
+ */
+import {TestBed} from '@angular/core/testing';
+import {of, throwError} from 'rxjs';
+import {signal} from '@angular/core';
+import {SessionTeardownService} from './session-teardown.service';
+import {MlsService} from './mls.service';
+import {DeviceService} from './device.service';
+import {MlsCoverageService} from './mls-coverage.service';
+import {ProfileService} from './profile.service';
+import {provideFakePlatform} from '../platform/testing/provide-fake-platform';
+
+const DEVICE_ID = 'device-a';
+
+let calls: string[];
+let keyHandle: ReturnType<typeof signal<string | undefined>>;
+let resetFails: boolean;
+let unloadFails: boolean;
+let profiles: {cachePersist: ((profile: unknown) => void) | null};
+
+function mlsStub() {
+    return {
+        keyHandle,
+        unloadSigningKey: (handle: string) => {
+            calls.push(`unloadSigningKey:${handle}`);
+            return unloadFails ? throwError(() => new Error('handle gone')) : of(undefined as void);
+        },
+        clearStoredSigningKey: (deviceId: string) => {
+            calls.push(`clearStoredSigningKey:${deviceId}`);
+            return of(undefined as void);
+        },
+        clearStorage: () => {
+            calls.push('clearStorage');
+            return of(undefined as void);
+        },
+        clearGroupRegistry: async () => { calls.push('clearGroupRegistry'); },
+        clearMessageCache: async () => { calls.push('clearMessageCache'); },
+    };
+}
+
+function deviceStub() {
+    return {
+        resetKeyPackages: (deviceId: string) => {
+            calls.push(`resetKeyPackages:${deviceId}`);
+            return resetFails
+                ? throwError(() => new Error('server unreachable'))
+                : of({deletedCount: 3});
+        },
+    };
+}
+
+function build(): SessionTeardownService {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+        providers: [
+            provideFakePlatform(),
+            SessionTeardownService,
+            {provide: MlsService, useValue: mlsStub()},
+            {provide: DeviceService, useValue: deviceStub()},
+            // Stubbed rather than left to the root injector for the reason this harness exists at
+            // all: the real one reaches MlsTransportService -> ApiConfigService -> OAuthService,
+            // and a wipe has no business dragging an auth provider into a pure Tauri harness.
+            {provide: MlsCoverageService, useValue: {clear: () => calls.push('forgetCoverage')}},
+            // Stubbed for the same reason: the real one injects HttpClient. Only its write-behind
+            // hook matters here, and the teardown's job is to take that hook down.
+            {provide: ProfileService, useValue: profiles},
+        ],
+    });
+    return TestBed.inject(SessionTeardownService);
+}
+
+beforeEach(() => {
+    calls = [];
+    keyHandle = signal<string | undefined>('handle-1');
+    resetFails = false;
+    unloadFails = false;
+    profiles = {cachePersist: () => calls.push('persist')};
+    vi.spyOn(console, 'error').mockImplementation(() => { });
+});
+
+afterEach(() => vi.restoreAllMocks());
+
+describe('wipeAccount', () => {
+    it('destroys everything this device holds for the account', async () => {
+        const service = build();
+
+        await service.wipeAccount(DEVICE_ID);
+
+        expect(calls).toEqual([
+            'unloadSigningKey:handle-1',
+            `clearStoredSigningKey:${DEVICE_ID}`,
+            'clearStorage',
+            'clearGroupRegistry',
+            'clearMessageCache',
+            'forgetCoverage',
+            `resetKeyPackages:${DEVICE_ID}`,
+        ]);
+    });
+
+    /**
+     * A coverage answer is one account's list of device names, held in memory. Left behind, the
+     * next account signed in on this machine would read the last one's hardware out of a live
+     * service - the same reason the decrypted payment handles are dropped here.
+     */
+    it('forgets which devices could read what', async () => {
+        const service = build();
+
+        await service.wipeAccount(DEVICE_ID);
+
+        expect(calls).toContain('forgetCoverage');
+    });
+
+    it('releases the session handle before deleting the key it refers to', async () => {
+        const service = build();
+
+        await service.wipeAccount(DEVICE_ID);
+
+        expect(calls.indexOf('unloadSigningKey:handle-1'))
+            .toBeLessThan(calls.indexOf(`clearStoredSigningKey:${DEVICE_ID}`));
+    });
+
+    it('drops the session handle so nothing can keep acting as the wiped account', async () => {
+        const service = build();
+
+        await service.wipeAccount(DEVICE_ID);
+
+        expect(keyHandle()).toBeUndefined();
+    });
+
+    it('deletes the key even when the handle cannot be released', async () => {
+        const service = build();
+        unloadFails = true;
+
+        await service.wipeAccount(DEVICE_ID);
+
+        // The handle is a session-scoped reference to a key that is about to be deleted anyway.
+        expect(calls).toContain(`clearStoredSigningKey:${DEVICE_ID}`);
+        expect(calls).toContain('clearMessageCache');
+    });
+
+    it('wipes an account that has no live session handle', async () => {
+        const service = build();
+        keyHandle.set(undefined);
+
+        await service.wipeAccount(DEVICE_ID);
+
+        expect(calls.some(c => c.startsWith('unloadSigningKey'))).toBe(false);
+        expect(calls).toContain(`clearStoredSigningKey:${DEVICE_ID}`);
+    });
+
+    it('reports a failed server-side reset without abandoning the local wipe', async () => {
+        const service = build();
+        resetFails = true;
+
+        const outcome = await service.wipeAccount(DEVICE_ID);
+
+        // Contract §A: the server would otherwise keep handing out key packages whose private
+        // halves were just deleted, and every Welcome sealed to one is undecryptable by the device
+        // it was meant for. Worth reporting - never worth stopping the local wipe over.
+        expect(outcome.keyPackagesReset).toBe(false);
+        expect(calls).toContain('clearMessageCache');
+        expect(calls).toContain('clearStorage');
+    });
+
+    it('reports a successful reset', async () => {
+        const service = build();
+
+        await expect(service.wipeAccount(DEVICE_ID)).resolves.toEqual({keyPackagesReset: true});
+    });
+
+    /**
+     * `ProfileCacheService.hydrate` installs a write-behind hook on `ProfileService` and nothing
+     * ever took it down. A sign-out is an in-document `router.navigate(['/authentication'])`, so
+     * the outgoing account's hook stays live: every profile the *next* account resolves would be
+     * written through it, from the moment it signs in until its own hydration replaces it.
+     */
+    it('uninstalls the write-behind hook, so it cannot write the next account\'s profiles', async () => {
+        const service = build();
+
+        await service.wipeAccount(DEVICE_ID);
+
+        expect(profiles.cachePersist).toBeNull();
+    });
+
+    /**
+     * `runSignOut` catches a failed wipe and carries on to the login screen regardless - leaving
+     * someone trapped in a session they asked to leave is the worse answer. So a wipe that throws
+     * must not be what leaves the previous account's hook writing into the next one's session.
+     */
+    it('uninstalls the hook even when the wipe itself fails', async () => {
+        const service = build();
+        vi.spyOn(service, 'wipeEngineState').mockRejectedValue(new Error('storage gone'));
+
+        await expect(service.wipeAccount(DEVICE_ID)).rejects.toThrow('storage gone');
+        expect(profiles.cachePersist).toBeNull();
+    });
+});
+
+describe('wipeEngineState', () => {
+    it('drops group state but keeps this device identity', async () => {
+        const service = build();
+
+        await service.wipeEngineState(DEVICE_ID);
+
+        expect(calls).toEqual([
+            'clearStorage',
+            'clearGroupRegistry',
+            'clearMessageCache',
+            'forgetCoverage',
+            `resetKeyPackages:${DEVICE_ID}`,
+        ]);
+    });
+
+    it('never touches the signing key - a corrupt state file must not cost the account its identity', async () => {
+        const service = build();
+
+        await service.wipeEngineState(DEVICE_ID);
+
+        // Deleting it would send the next launch to the registration modal, which mints a *fresh*
+        // keypair and orphans this device from every group it belongs to. That is unrecoverable;
+        // rejoining with the identity this device already has is not.
+        expect(calls.some(c => c.startsWith('clearStoredSigningKey'))).toBe(false);
+        expect(calls.some(c => c.startsWith('unloadSigningKey'))).toBe(false);
+        expect(keyHandle()).toBe('handle-1');
+    });
+
+    it('reports a failed server-side reset', async () => {
+        const service = build();
+        resetFails = true;
+
+        await expect(service.wipeEngineState(DEVICE_ID))
+            .resolves.toEqual({keyPackagesReset: false});
+    });
+
+    /**
+     * The counterpart to the `wipeAccount` test above, and the reason the hook moved off this
+     * method. `wipeEngineState` is also the launch sequence's corruption-recovery wipe: the account
+     * stays signed in and the launch carries straight on. Uninstalling the hook there meant no
+     * profile was written to the cache for the rest of that session, so the next launch was a full
+     * cold start showing raw `user_...` ids - the exact bug the cache exists to fix, reintroduced
+     * on a recovery path.
+     */
+    it('leaves the write-behind hook installed - the account is still signed in', async () => {
+        const service = build();
+        const installed = profiles.cachePersist;
+
+        await service.wipeEngineState(DEVICE_ID);
+
+        expect(profiles.cachePersist).toBe(installed);
+    });
+});

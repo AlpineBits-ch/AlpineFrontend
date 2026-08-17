@@ -1,0 +1,26 @@
+@if (resume.offer()) {
+    <div class="shrink-0 bg-sidebar border-b border-emerald-500/25 px-3 py-2 select-none">
+        <div class="flex items-center gap-2">
+            <div class="w-2 h-2 rounded-full shrink-0 bg-emerald-500"></div>
+            <p class="flex-1 min-w-0 text-xs font-semibold text-white/80 truncate">
+                {{ message() }}
+            </p>
+            <button
+                (click)="resume.reconnect()"
+                [disabled]="resume.busy()"
+                class="h-7 px-3 flex items-center rounded-lg text-xs font-semibold text-white transition-colors
+                       cursor-pointer border-0 shrink-0 bg-emerald-600 hover:bg-emerald-500
+                       disabled:opacity-60 disabled:cursor-default">
+                {{ 'VOICE.RESUME.RECONNECT' | translate }}
+            </button>
+            <button
+                (click)="resume.dismiss()"
+                [disabled]="resume.busy()"
+                class="h-7 px-3 flex items-center rounded-lg text-xs font-semibold text-white/60
+                       hover:text-white/90 transition-colors cursor-pointer border-0 shrink-0 bg-transparent
+                       disabled:opacity-60 disabled:cursor-default">
+                {{ 'VOICE.RESUME.DISMISS' | translate }}
+            </button>
+        </div>
+    </div>
+}

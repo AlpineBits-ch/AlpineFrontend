@@ -1,0 +1,36 @@
+import {Component, computed, inject, signal} from '@angular/core';
+import {Button} from 'primeng/button';
+import {ConversationListComponent} from '../../../messaging/components/conversation-list/conversation-list.component';
+import {NavigationService} from '../../navigation.service';
+import {ConversationDto} from '../../../../dtos/response/conversation.dto';
+import {NewConversationDialogComponent} from './new-conversation-dialog/new-conversation-dialog.component';
+import {RelationshipStore} from '../../../../stores/relationship.store';
+import {ProfileService} from '../../../../services/profile.service';
+import {OnlineStatus} from '../../../../dtos/response/profile.dto';
+import {TranslateModule} from '@ngx-translate/core';
+
+@Component({
+    selector: 'app-dm-sidepanel',
+    imports: [Button, ConversationListComponent, NewConversationDialogComponent, TranslateModule],
+    templateUrl: './dm-sidepanel.component.html',
+})
+export class DmSidepanelComponent {
+    protected navService = inject(NavigationService);
+    protected readonly showNewConversation = signal(false);
+    private relationshipStore = inject(RelationshipStore);
+    private profileService = inject(ProfileService);
+
+    protected readonly onlineFriendsCount = computed(() =>
+        this.relationshipStore.friends()
+            .filter(r => this.profileService.getOnlineStatus(r.other.userId) === OnlineStatus.Online)
+            .length
+    );
+
+    constructor() {
+        this.relationshipStore.load();
+    }
+
+    onConversationSelected(conv: ConversationDto): void {
+        this.navService.openConversation(conv);
+    }
+}

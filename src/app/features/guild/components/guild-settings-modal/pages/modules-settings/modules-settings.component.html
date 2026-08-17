@@ -1,0 +1,130 @@
+<div class="flex flex-col gap-8 max-w-2xl">
+
+    <!-- ── Kind ───────────────────────────────────────────────────────────── -->
+    <section class="flex flex-col gap-3">
+        <div>
+            <p class="text-[0.8125rem] text-text-primary">{{ 'GUILD_SETTINGS.MODULES.KIND_TITLE' | translate }}</p>
+            <p class="text-xs text-text-secondary mt-0.5">{{ 'GUILD_SETTINGS.MODULES.KIND_DESC' | translate }}</p>
+        </div>
+
+        <div (keydown)="onKindKeydown($event)"
+             [attr.aria-label]="'GUILD_SETTINGS.MODULES.KIND_GROUP_ARIA' | translate"
+             class="flex flex-col gap-1.5"
+             role="radiogroup">
+            @for (meta of kinds; track meta.kind) {
+                <button (click)="requestKind(meta.kind)"
+                        (focus)="focusedKind.set(meta.kind)"
+                        [attr.aria-checked]="kind() === meta.kind"
+                        [attr.tabindex]="tabbableKind() === meta.kind ? 0 : -1"
+                        [class]="kind() === meta.kind
+                            ? 'border-brand/50 bg-brand/[0.10]'
+                            : 'border-white/[0.06] bg-card/60 hover:border-white/20 hover:bg-hover'"
+                        [disabled]="kindLocked()"
+                        class="flex items-start gap-3 px-4 py-3 rounded-xl border transition-all cursor-pointer text-left
+                               disabled:opacity-60 disabled:cursor-default"
+                        data-kind-option
+                        role="radio">
+                    <i [class]="meta.icon + (kind() === meta.kind ? ' text-brand-dim' : ' text-text-secondary')"
+                       class="text-sm mt-0.5 shrink-0"></i>
+                    <span class="flex flex-col min-w-0 flex-1 gap-0.5">
+                        <span class="text-[0.8125rem] text-text-primary">{{ meta.labelKey | translate }}</span>
+                        <span class="text-xs text-text-secondary leading-snug">{{ meta.descriptionKey | translate }}</span>
+                    </span>
+                    <span [class]="kind() === meta.kind ? 'border-brand bg-brand' : 'border-white/40'"
+                          class="w-4 h-4 mt-0.5 shrink-0 rounded-full border-2 flex items-center justify-center transition-colors">
+                        @if (kind() === meta.kind) {
+                            <i class="pi pi-check text-[0.5rem] text-white"></i>
+                        }
+                    </span>
+                </button>
+            }
+        </div>
+
+        <p class="text-xs text-text-secondary">{{ 'GUILD_SETTINGS.MODULES.KIND_FOOTNOTE' | translate }}</p>
+    </section>
+
+    <!-- ── Modules ────────────────────────────────────────────────────────── -->
+    <section class="flex flex-col gap-3">
+        <div>
+            <p class="text-[0.8125rem] text-text-primary">{{ 'GUILD_SETTINGS.MODULES.MODULES_TITLE' | translate }}</p>
+            <p class="text-xs text-text-secondary mt-0.5">{{ 'GUILD_SETTINGS.MODULES.MODULES_DESC' | translate }}</p>
+        </div>
+
+        <div class="flex flex-col gap-2">
+            @for (module of communityModules; track module) {
+                <div class="flex items-center justify-between bg-card/60 border border-white/[0.06] rounded-xl px-4 py-3">
+                    <!-- The text is a sibling of the switch, never its parent: a wrapper that contains the switch turns one click on the row into two toggles. -->
+                    <div (click)="toggle(module, !isOn(module))"
+                         [class]="isBusy(module) ? 'cursor-default' : 'cursor-pointer'"
+                         class="min-w-0 flex-1 pr-4 select-none">
+                        <p [id]="labelId(module)"
+                           class="text-[0.8125rem] text-text-primary">{{ labelKey(module) | translate }}</p>
+                        <p class="text-xs text-text-secondary mt-0.5">{{ descriptionKey(module) | translate }}</p>
+                    </div>
+                    <p-toggleswitch (ngModelChange)="toggle(module, $event)"
+                                    [ariaLabelledBy]="labelId(module)"
+                                    [disabled]="isBusy(module)"
+                                    [ngModel]="isOn(module)"/>
+                </div>
+            }
+        </div>
+
+        <p class="text-xs text-text-secondary">{{ 'GUILD_SETTINGS.MODULES.MODULES_FOOTNOTE' | translate }}</p>
+    </section>
+
+    <!-- ── Household modules: switched on, nothing behind them yet ────────── -->
+    @if (householdModules().length > 0) {
+        <section class="flex flex-col gap-3">
+            <div>
+                <p class="text-[0.8125rem] text-text-primary">{{ 'GUILD_SETTINGS.MODULES.HOUSEHOLD_TITLE' | translate }}</p>
+                <p class="text-xs text-text-secondary mt-0.5">{{ 'GUILD_SETTINGS.MODULES.HOUSEHOLD_DESC' | translate }}</p>
+            </div>
+
+            <div class="flex flex-col gap-2">
+                @for (module of householdModules(); track module) {
+                    <div class="flex items-center justify-between bg-card/60 border border-white/[0.06] rounded-xl px-4 py-3">
+                        <div (click)="toggle(module, !isOn(module))"
+                             [class]="isBusy(module) ? 'cursor-default' : 'cursor-pointer'"
+                             class="min-w-0 flex-1 pr-4 select-none">
+                            <p [id]="labelId(module)"
+                               class="text-[0.8125rem] text-text-primary">{{ labelKey(module) | translate }}</p>
+                            <p class="text-xs text-text-secondary mt-0.5">{{ 'GUILD_SETTINGS.MODULES.NOT_BUILT_YET' | translate }}</p>
+                        </div>
+                        <p-toggleswitch (ngModelChange)="toggle(module, $event)"
+                                        [ariaLabelledBy]="labelId(module)"
+                                        [disabled]="isBusy(module)"
+                                        [ngModel]="isOn(module)"/>
+                    </div>
+                }
+            </div>
+        </section>
+    }
+</div>
+
+<!-- Kind switches can wipe a customised module set, so they never happen on one click. -->
+<p-dialog
+        [closable]="false"
+        [draggable]="false"
+        [modal]="true"
+        [resizable]="false"
+        [style]="{width: '420px'}"
+        [visible]="pendingKind() !== null"
+        appendTo="body">
+    <ng-template pTemplate="header">
+        <span class="text-sm font-semibold text-white/85">
+            {{ 'GUILD_SETTINGS.MODULES.SWITCH_TITLE' | translate: {kind: pendingKindLabel() | translate} }}
+        </span>
+    </ng-template>
+    <p class="text-sm text-white/60 py-2">
+        {{ 'GUILD_SETTINGS.MODULES.SWITCH_DESC' | translate: {kind: pendingKindLabel() | translate} }}
+    </p>
+    <!-- Keeping the modules is the safe answer, so it is the one that looks like the answer; re-seeding from the preset is the one that throws work away. -->
+    <div class="flex gap-2 justify-end mt-4 pt-4 border-t border-white/[0.10]">
+        <p-button (onClick)="cancelKind()" [label]="'GUILD_SETTINGS.MODULES.SWITCH_CANCEL' | translate" [text]="true"
+                  severity="secondary" size="small"/>
+        <p-button (onClick)="confirmKind(true)" [label]="'GUILD_SETTINGS.MODULES.SWITCH_PRESET' | translate"
+                  [outlined]="true" severity="danger" size="small"/>
+        <p-button (onClick)="confirmKind(false)" [label]="'GUILD_SETTINGS.MODULES.SWITCH_KEEP' | translate"
+                  severity="primary" size="small"/>
+    </div>
+</p-dialog>

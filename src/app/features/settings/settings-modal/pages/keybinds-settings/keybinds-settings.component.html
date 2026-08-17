@@ -1,0 +1,141 @@
+<div class="flex flex-col gap-8 max-w-2xl">
+
+    <!-- First, because it changes what every row below this one means. See the component. -->
+    @if (!capabilities.globalHotkeys) {
+        <div class="flex items-start gap-3 bg-amber-400/[0.06] border border-amber-400/20 rounded-xl px-4 py-3"
+             data-testid="hotkeys-focus-only">
+            <i class="pi pi-info-circle text-amber-400 text-sm mt-0.5"></i>
+            <div class="flex flex-col gap-1">
+                <p class="text-sm text-white/70">{{ 'SETTINGS.KEYBINDS.FOCUS_ONLY' | translate }}</p>
+                <p class="text-xs text-white/35">{{ 'SETTINGS.KEYBINDS.PTT_USE_VOICE_ACTIVITY' | translate }}</p>
+            </div>
+        </div>
+    }
+
+    @for (group of groups; track group.category) {
+        <section class="flex flex-col gap-2">
+            <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3 mb-1">
+                {{ group.category }}
+            </h2>
+
+            <!-- Assigned keybinds: action left, key right -->
+            @for (action of assignedIn(group.category); track action.id) {
+                <div class="group flex items-center justify-between gap-4 rounded-xl px-4 py-2.5 hover:bg-white/[0.03] transition-colors">
+                    <p class="text-sm text-white/75">{{ action.label }}</p>
+
+                    @if (editingId() === action.id) {
+                        <div class="shrink-0 flex items-center gap-1.5">
+                            <button (click)="capture(action.id)"
+                                    [ngClass]="isCapturing(action.id)
+                            ? 'bg-amber-400/15 border-amber-400/30 text-amber-400'
+                            : 'bg-white/[0.05] border-white/[0.12] text-white/70 hover:bg-white/[0.08]'"
+                                    class="min-w-[140px] flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg
+                             text-xs font-medium border cursor-pointer transition-all whitespace-nowrap">
+                                @if (isCapturing(action.id)) {
+                                    Press a key… (Esc)
+                                } @else {
+                                    <i class="pi pi-bolt text-[11px]"></i>
+                                    {{ labelFor(action.id) }}
+                                }
+                            </button>
+                            <button (click)="confirmEdit()" title="Save"
+                                    class="flex items-center justify-center w-7 h-7 rounded-lg border-0 bg-transparent
+                             text-emerald-400/80 hover:text-emerald-400 hover:bg-emerald-500/10 cursor-pointer transition-colors">
+                                <i class="pi pi-check text-[11px]"></i>
+                            </button>
+                            <button (click)="cancelEdit()" title="Cancel"
+                                    class="flex items-center justify-center w-7 h-7 rounded-lg border-0 bg-transparent
+                             text-white/30 hover:text-rose-400 hover:bg-rose-500/10 cursor-pointer transition-colors">
+                                <i class="pi pi-times text-[11px]"></i>
+                            </button>
+                        </div>
+                    } @else {
+                        <div class="shrink-0 flex items-center gap-1">
+                            <span class="px-2.5 py-1 rounded-md bg-white/[0.06] border border-white/[0.12]
+                           text-xs font-mono text-white/70 tracking-wide">
+                                {{ labelFor(action.id) }}
+                            </span>
+                            <button (click)="startEdit(action.id)" title="Edit"
+                                    class="flex items-center justify-center w-7 h-7 rounded-lg border-0 bg-transparent
+                             text-white/30 hover:text-white/70 hover:bg-white/[0.06] cursor-pointer transition-colors
+                             opacity-0 group-hover:opacity-100">
+                                <i class="pi pi-pencil text-[11px]"></i>
+                            </button>
+                            <!-- An action with a default cannot be left unbound - clearing it puts
+                                 the default back - so the button says what it actually does. -->
+                            <button (click)="remove(action.id, $event)"
+                                    [title]="action.defaultToken ? 'Reset to default' : 'Remove'"
+                                    class="flex items-center justify-center w-7 h-7 rounded-lg border-0 bg-transparent
+                             text-white/30 hover:text-rose-400 hover:bg-rose-500/10 cursor-pointer transition-colors
+                             opacity-0 group-hover:opacity-100">
+                                <i class="pi pi-trash text-[11px]"></i>
+                            </button>
+                        </div>
+                    }
+                </div>
+            }
+
+            <!-- Add a keybind -->
+            @if (addingCategory() === group.category) {
+                <div class="flex items-center justify-between gap-4 bg-white/[0.03] border border-dashed border-white/[0.15] rounded-xl px-4 py-2.5">
+                    <p-select [ngModel]="draftActionId()" (ngModelChange)="onDraftActionChange($event)"
+                              [options]="addOptionsFor(group.category)" optionLabel="label" optionValue="id"
+                              placeholder="Select an action" styleClass="w-48"/>
+
+                    <div class="shrink-0 flex items-center gap-1.5">
+                        @if (draftActionId(); as id) {
+                            <button (click)="capture(id)"
+                                    [ngClass]="isCapturing(id)
+                            ? 'bg-amber-400/15 border-amber-400/30 text-amber-400'
+                            : 'bg-white/[0.05] border-white/[0.12] text-white/70 hover:bg-white/[0.08]'"
+                                    class="min-w-[140px] flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg
+                             text-xs font-medium border cursor-pointer transition-all whitespace-nowrap">
+                                @if (isCapturing(id)) {
+                                    Press a key… (Esc)
+                                } @else {
+                                    <i class="pi pi-bolt text-[11px]"></i>
+                                    {{ labelFor(id) }}
+                                }
+                            </button>
+                        }
+                        <button (click)="confirmAdd()" title="Save"
+                                class="flex items-center justify-center w-7 h-7 rounded-lg border-0 bg-transparent
+                         text-emerald-400/80 hover:text-emerald-400 hover:bg-emerald-500/10 cursor-pointer transition-colors">
+                            <i class="pi pi-check text-[11px]"></i>
+                        </button>
+                        <button (click)="cancelAdd()" title="Cancel"
+                                class="flex items-center justify-center w-7 h-7 rounded-lg border-0 bg-transparent
+                         text-white/30 hover:text-rose-400 hover:bg-rose-500/10 cursor-pointer transition-colors">
+                            <i class="pi pi-times text-[11px]"></i>
+                        </button>
+                    </div>
+                </div>
+            } @else if (unassignedIn(group.category).length) {
+                <button (click)="startAdd(group.category)"
+                        class="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-dashed
+                   border-white/[0.15] text-xs font-medium text-white/40 bg-transparent cursor-pointer
+                   hover:text-white/70 hover:border-white/[0.25] transition-colors">
+                    <i class="pi pi-plus text-[11px]"></i>
+                    Add a Keybind
+                </button>
+            }
+        </section>
+    }
+
+    <!-- "keep working while the game is focused" is only true of a host with global hotkeys, and this
+         paragraph used to assert it on every host. -->
+    @if (capabilities.globalHotkeys) {
+        <p class="text-[0.6875rem] text-white/25 pt-1">
+            Isle Proxchat keys accept a keyboard key, a single modifier, or a mouse button, and keep working while the
+            game is focused. Voice Call keys are keyboard-only. Wiki Editor keys only apply while you are writing a
+            page, so they are free to use combinations the rest of the app also answers to.
+        </p>
+    } @else {
+        <p class="text-[0.6875rem] text-white/25 pt-1" data-testid="keybinds-footnote-web">
+            Isle Proxchat keys accept a keyboard key, a single modifier, or a mouse button. Voice Call keys are
+            keyboard-only. Wiki Editor keys only apply while you are writing a page, so they are free to use
+            combinations the rest of the app also answers to.
+        </p>
+    }
+
+</div>

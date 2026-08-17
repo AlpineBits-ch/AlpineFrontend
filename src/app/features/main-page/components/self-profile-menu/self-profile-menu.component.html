@@ -1,0 +1,98 @@
+@switch (view()) {
+
+    @case ('root') {
+        <div class="self-menu-view">
+            <app-profile-header
+                    (avatarErrorChange)="onAvatarError()"
+                    [avatarError]="avatarError()"
+                    [profile]="profileService.ownProfile()"/>
+
+            <!-- What you can do about yourself. A raised card rather than a flat list: without it
+                 the rows read as more of the profile above them instead of as a menu. -->
+            <div class="mx-3 mt-3 bg-card rounded-xl overflow-hidden">
+                <button type="button" (click)="editProfile.emit()" class="self-menu-row">
+                    <i class="pi pi-pencil self-menu-icon"></i>
+                    <span class="flex-1">{{ 'PROFILE_MENU.EDIT_PROFILE' | translate }}</span>
+                </button>
+
+                @if (isAdmin()) {
+                    <div class="self-menu-divider"></div>
+                    <button type="button" (click)="openAdmin.emit()" class="self-menu-row">
+                        <i class="pi pi-shield self-menu-icon"></i>
+                        <span class="flex-1">{{ 'PROFILE_MENU.ADMIN_PANEL' | translate }}</span>
+                    </button>
+                }
+
+                <div class="self-menu-divider"></div>
+
+                <!-- The current status is the row's label, so the menu says what you are before it
+                     offers to change it. -->
+                <button type="button" (click)="show('status')" class="self-menu-row">
+                    <span class="relative flex items-center justify-center w-4 h-4 shrink-0">
+                        <app-user-status-dot [standalone]="true" [status]="currentStatus()"
+                                             borderColor="border-card" size="md"/>
+                    </span>
+                    <span class="flex-1">
+                        {{ (statusLabelKey(currentStatus()) ?? 'STATUS.TITLE') | translate }}
+                    </span>
+                    <i class="pi pi-chevron-right self-menu-chevron"></i>
+                </button>
+            </div>
+
+            <div class="mx-3 my-3 bg-card rounded-xl overflow-hidden">
+                @if (hasOtherAccounts()) {
+                    <button type="button" (click)="show('accounts')" class="self-menu-row">
+                        <i class="pi pi-users self-menu-icon"></i>
+                        <span class="flex-1">{{ 'PROFILE_MENU.SWITCH_ACCOUNTS' | translate }}</span>
+                        <i class="pi pi-chevron-right self-menu-chevron"></i>
+                    </button>
+                } @else {
+                    <!-- One account is the state every installation starts in. A submenu holding a
+                         single button is worse than the button. -->
+                    <button type="button" (click)="addAccount.emit()" class="self-menu-row">
+                        <i class="pi pi-plus self-menu-icon"></i>
+                        <span class="flex-1">{{ 'ACCOUNTS.ADD' | translate }}</span>
+                    </button>
+                }
+            </div>
+        </div>
+    }
+
+    @case ('status') {
+        <div class="self-menu-view">
+            <button type="button" (click)="show('root')" class="self-menu-back">
+                <i class="pi pi-chevron-left" style="font-size: 0.75rem"></i>
+                <span>{{ 'STATUS.TITLE' | translate }}</span>
+            </button>
+
+            <div class="mx-3 mb-3 bg-card rounded-xl overflow-hidden">
+                @for (status of statuses; track status) {
+                    @if (!$first) {
+                        <div class="self-menu-divider"></div>
+                    }
+                    <button type="button" (click)="chooseStatus(status)" class="self-menu-row">
+                        <span class="relative flex items-center justify-center w-4 h-4 shrink-0">
+                            <app-user-status-dot [standalone]="true" [status]="status"
+                                                 borderColor="border-card" size="md"/>
+                        </span>
+                        <span class="flex-1">{{ statusLabelKey(status) | translate }}</span>
+                        @if (status === currentStatus()) {
+                            <i class="pi pi-check self-menu-chevron"></i>
+                        }
+                    </button>
+                }
+            </div>
+        </div>
+    }
+
+    @case ('accounts') {
+        <div class="self-menu-view">
+            <button type="button" (click)="show('root')" class="self-menu-back">
+                <i class="pi pi-chevron-left" style="font-size: 0.75rem"></i>
+                <span>{{ 'PROFILE_MENU.SWITCH_ACCOUNTS' | translate }}</span>
+            </button>
+
+            <app-account-switcher (addAccount)="addAccount.emit()"/>
+        </div>
+    }
+}

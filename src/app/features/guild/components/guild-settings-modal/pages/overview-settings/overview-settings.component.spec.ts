@@ -1,0 +1,322 @@
+import {ComponentFixture, TestBed} from '@angular/core/testing';
+import {provideHttpClient} from '@angular/common/http';
+import {HttpTestingController, provideHttpClientTesting} from '@angular/common/http/testing';
+import {provideTranslateService} from '@ngx-translate/core';
+import {MessageService} from 'primeng/api';
+import {OverviewSettingsComponent} from './overview-settings.component';
+import {ApiConfigService} from '../../../../../../services/api-config.service';
+import {ChannelType, GuildDto} from '../../../../../../dtos/response/guild.dto';
+import {GuildVerificationLevel} from '../../../../../../dtos/response/guild-safety.dto';
+
+const BASE = 'https://api.test.example/api/v1/guild';
+
+function guildFixture(overrides: Partial<GuildDto> = {}): GuildDto {
+    return {
+        id: 'g1',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        name: 'Test Guild',
+        description: '',
+        ownerId: 'owner_1',
+        categories: [],
+        channels: [
+            {
+                id: 'chan_1', createdAt: new Date(), updatedAt: new Date(), name: 'general',
+                description: '', type: ChannelType.Text, guildId: 'g1', isAgeRestricted: false,
+                isPrivate: false, categoryId: undefined, permissions: [], position: 0,
+                slowModeSeconds: 0, parentChannelId: undefined,
+            },
+            {
+                id: 'chan_2', createdAt: new Date(), updatedAt: new Date(), name: 'voice',
+                description: '', type: ChannelType.Voice, guildId: 'g1', isAgeRestricted: false,
+                isPrivate: false, categoryId: undefined, permissions: [], position: 1,
+                slowModeSeconds: 0, parentChannelId: undefined,
+            },
+        ],
+        roles: [],
+        systemChannelId: 'chan_1',
+        verificationLevel: GuildVerificationLevel.None,
+        ...overrides,
+    };
+}
+
+function setup(guild: GuildDto) {
+    TestBed.configureTestingModule({
+        imports: [OverviewSettingsComponent],
+        providers: [
+            provideHttpClient(),
+            provideHttpClientTesting(),
+            provideTranslateService({defaultLanguage: 'en'}),
+            MessageService,
+            {provide: ApiConfigService, useValue: {baseUrl: () => 'https://api.test.example'}},
+        ],
+    });
+
+    const fixture: ComponentFixture<OverviewSettingsComponent> = TestBed.createComponent(OverviewSettingsComponent);
+    fixture.componentRef.setInput('guild', guild);
+    const component = fixture.componentInstance;
+    const ctrl = TestBed.inject(HttpTestingController);
+    fixture.detectChanges();
+    return {fixture, component, ctrl};
+}
+
+describe('OverviewSettingsComponent system channel picker', () => {
+    afterEach(() => TestBed.inject(HttpTestingController).verify());
+
+    it('only offers Text channels as options', () => {
+        const {component} = setup(guildFixture());
+        expect(component.channelOptions()).toEqual([{label: 'general', value: 'chan_1'}]);
+    });
+
+    it('initializes systemChannelId from the guild input', () => {
+        const {component} = setup(guildFixture());
+        expect(component.systemChannelId()).toBe('chan_1');
+    });
+
+    it('is not dirty until a field changes', () => {
+        const {component} = setup(guildFixture());
+        expect(component.dirty()).toBe(false);
+    });
+
+    it('marks dirty when systemChannelId changes and includes it in the save payload', () => {
+        const {component, ctrl} = setup(guildFixture());
+        component.systemChannelId.set('chan_3');
+        expect(component.dirty()).toBe(true);
+
+        component.save();
+        const req = ctrl.expectOne(`${BASE}/guilds/g1`);
+        expect(req.request.body).toEqual({name: 'Test Guild', description: '', systemChannelId: 'chan_3'});
+        req.flush(guildFixture({systemChannelId: 'chan_3'}));
+    });
+
+    it('omits systemChannelId from the save payload when unchanged', () => {
+        const {component, ctrl} = setup(guildFixture());
+        component.name.set('Renamed');
+
+        component.save();
+        const req = ctrl.expectOne(`${BASE}/guilds/g1`);
+        expect(req.request.body).toEqual({name: 'Renamed', description: ''});
+        expect(req.request.body.systemChannelId).toBeUndefined();
+        req.flush(guildFixture({name: 'Renamed'}));
+    });
+
+    it('sends an explicit null when the picker is cleared', () => {
+        const {component, ctrl} = setup(guildFixture());
+        component.systemChannelId.set(null);
+        expect(component.dirty()).toBe(true);
+
+        component.save();
+        const req = ctrl.expectOne(`${BASE}/guilds/g1`);
+        expect(req.request.body).toEqual({name: 'Test Guild', description: '', systemChannelId: null});
+        req.flush(guildFixture({systemChannelId: null}));
+    });
+
+    it('warns instead of claiming success when the server keeps a channel the user cleared', () => {
+        const {component, ctrl} = setup(guildFixture());
+        const addSpy = vi.spyOn(TestBed.inject(MessageService), 'add');
+        component.systemChannelId.set(null);
+
+        component.save();
+        ctrl.expectOne(`${BASE}/guilds/g1`).flush(guildFixture());
+
+        expect(addSpy).toHaveBeenCalledTimes(1);
+        const call = addSpy.mock.calls[0][0];
+        expect(call.severity).toBe('warn');
+        expect(call.summary).toContain('GUILD_SETTINGS.OVERVIEW.SYSTEM_CHANNEL_CLEAR_UNSUPPORTED');
+    });
+});
+
+describe('OverviewSettingsComponent verification level picker', () => {
+    afterEach(() => TestBed.inject(HttpTestingController).verify());
+
+    it('initializes verificationLevel from the guild input', () => {
+        const {component} = setup(guildFixture({verificationLevel: GuildVerificationLevel.Medium}));
+        expect(component.verificationLevel()).toBe(GuildVerificationLevel.Medium);
+    });
+
+    it('defaults verificationLevel to None when the guild input omits it', () => {
+        const {component} = setup(guildFixture({verificationLevel: undefined}));
+        expect(component.verificationLevel()).toBe(GuildVerificationLevel.None);
+    });
+
+    it('marks dirty when verificationLevel changes and includes it in the save payload', () => {
+        const {component, ctrl} = setup(guildFixture());
+        component.verificationLevel.set(GuildVerificationLevel.High);
+        expect(component.dirty()).toBe(true);
+
+        component.save();
+        const req = ctrl.expectOne(`${BASE}/guilds/g1`);
+        expect(req.request.body).toEqual({name: 'Test Guild', description: '', verificationLevel: GuildVerificationLevel.High});
+        req.flush(guildFixture({verificationLevel: GuildVerificationLevel.High}));
+    });
+
+    it('omits verificationLevel from the save payload when unchanged', () => {
+        const {component, ctrl} = setup(guildFixture());
+        component.name.set('Renamed');
+
+        component.save();
+        const req = ctrl.expectOne(`${BASE}/guilds/g1`);
+        expect(req.request.body.verificationLevel).toBeUndefined();
+        req.flush(guildFixture({name: 'Renamed'}));
+    });
+
+    it('renders the matching hint text for the selected level', () => {
+        const {fixture, component} = setup(guildFixture());
+        expect(fixture.nativeElement.textContent).toContain('GUILD_SETTINGS.OVERVIEW.VERIFY_NONE_HINT');
+
+        component.verificationLevel.set(GuildVerificationLevel.High);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('GUILD_SETTINGS.OVERVIEW.VERIFY_HIGH_HINT');
+    });
+});
+
+describe('OverviewSettingsComponent dirty tracking', () => {
+    afterEach(() => TestBed.inject(HttpTestingController).verify());
+
+    it('stays dirty while an icon is queued even after text edits are undone', () => {
+        const {component} = setup(guildFixture());
+        component.pendingIconFile.set(new File(['x'], 'icon.png', {type: 'image/png'}));
+        expect(component.dirty()).toBe(true);
+
+        component.name.set('Renamed');
+        component.name.set('Test Guild');
+
+        expect(component.dirty()).toBe(true);
+    });
+
+    it('stays dirty when the icon is marked for removal', () => {
+        const {component} = setup(guildFixture());
+        component.iconRemoved.set(true);
+        expect(component.dirty()).toBe(true);
+    });
+
+    it('clears dirty when reset restores the saved values', () => {
+        const {component} = setup(guildFixture());
+        component.name.set('Renamed');
+        component.iconRemoved.set(true);
+        expect(component.dirty()).toBe(true);
+
+        component.reset();
+
+        expect(component.dirty()).toBe(false);
+        expect(component.name()).toBe('Test Guild');
+        expect(component.iconRemoved()).toBe(false);
+    });
+
+    it('rejects a blank server name', () => {
+        const {component, ctrl} = setup(guildFixture());
+        component.name.set('   ');
+
+        component.save();
+
+        expect(component.saving()).toBe(false);
+        ctrl.expectNone(`${BASE}/guilds/g1`);
+    });
+
+    it('does not issue a request when nothing changed', () => {
+        const {component, ctrl} = setup(guildFixture());
+
+        component.save();
+
+        expect(component.saving()).toBe(false);
+        ctrl.expectNone(`${BASE}/guilds/g1`);
+    });
+});
+
+describe('OverviewSettingsComponent icon selection', () => {
+    afterEach(() => TestBed.inject(HttpTestingController).verify());
+
+    function selectionEvent(file: File): Event {
+        const input = document.createElement('input');
+        input.type = 'file';
+        Object.defineProperty(input, 'files', {value: [file]});
+        return {target: input} as unknown as Event;
+    }
+
+    it('refuses an oversized image before it reaches the cropper', () => {
+        const {component} = setup(guildFixture());
+        const addSpy = vi.spyOn(TestBed.inject(MessageService), 'add');
+        const file = new File(['x'], 'huge.png', {type: 'image/png'});
+        Object.defineProperty(file, 'size', {value: 9 * 1024 * 1024});
+
+        component.onIconSelected(selectionEvent(file));
+
+        expect(component.cropVisible()).toBe(false);
+        expect(addSpy).toHaveBeenCalledTimes(1);
+        const call = addSpy.mock.calls[0][0];
+        expect(call.severity).toBe('error');
+        expect(call.summary).toContain('GUILD_SETTINGS.OVERVIEW.ICON_TOO_LARGE');
+    });
+});
+
+describe('OverviewSettingsComponent delete confirmation', () => {
+    afterEach(() => TestBed.inject(HttpTestingController).verify());
+
+    it('does not issue a delete until the typed name matches', () => {
+        const {component, ctrl} = setup(guildFixture());
+        component.showDeleteDialog.set(true);
+
+        component.deleteConfirmName.set('Test Guil');
+        component.deleteGuild();
+        expect(component.deleting()).toBe(false);
+        ctrl.expectNone(`${BASE}/guilds/g1`);
+
+        component.deleteConfirmName.set('Test Guild');
+        component.deleteGuild();
+        const req = ctrl.expectOne(`${BASE}/guilds/g1`);
+        expect(req.request.method).toBe('DELETE');
+        req.flush(null);
+    });
+});
+
+describe('OverviewSettingsComponent save feedback', () => {
+    afterEach(() => TestBed.inject(HttpTestingController).verify());
+
+    it('confirms a successful save with a toast', () => {
+        const {component, ctrl} = setup(guildFixture());
+        const addSpy = vi.spyOn(TestBed.inject(MessageService), 'add');
+
+        component.name.set('Renamed');
+        component.save();
+        ctrl.expectOne(`${BASE}/guilds/g1`).flush(guildFixture({name: 'Renamed'}));
+
+        expect(addSpy).toHaveBeenCalledTimes(1);
+        const call = addSpy.mock.calls[0][0];
+        expect(call.severity).toBe('success');
+        expect(call.summary).toContain('GUILD_SETTINGS.OVERVIEW.SAVE_SUCCESS');
+    });
+
+    it('says the icon already landed when only the settings PATCH fails', () => {
+        const {component, ctrl} = setup(guildFixture());
+        const addSpy = vi.spyOn(TestBed.inject(MessageService), 'add');
+
+        component.pendingIconFile.set(new File(['x'], 'icon.png', {type: 'image/png'}));
+        component.save();
+        ctrl.expectOne(`${BASE}/guilds/g1/icon`).flush(guildFixture());
+        ctrl.expectOne(`${BASE}/guilds/g1`).flush('nope', {status: 500, statusText: 'Server Error'});
+
+        expect(component.saving()).toBe(false);
+        const call = addSpy.mock.calls[0][0];
+        expect(call.severity).toBe('error');
+        expect(call.summary).toContain('GUILD_SETTINGS.OVERVIEW.SAVE_ERROR_ICON_UPLOADED');
+    });
+
+    it('surfaces a toast and clears saving when the save request fails', () => {
+        const {component, ctrl} = setup(guildFixture());
+        const messageService = TestBed.inject(MessageService);
+        const addSpy = vi.spyOn(messageService, 'add');
+
+        component.name.set('Renamed');
+        component.save();
+        expect(component.saving()).toBe(true);
+
+        const req = ctrl.expectOne(`${BASE}/guilds/g1`);
+        req.flush('Server error', {status: 500, statusText: 'Server Error'});
+
+        expect(component.saving()).toBe(false);
+        expect(addSpy).toHaveBeenCalledTimes(1);
+        const call = addSpy.mock.calls[0][0];
+        expect(call.severity).toBe('error');
+        expect(call.summary).toContain('GUILD_SETTINGS.OVERVIEW.SAVE_ERROR');
+    });
+});

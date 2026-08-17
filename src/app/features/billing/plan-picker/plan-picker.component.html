@@ -1,0 +1,155 @@
+<section class="flex flex-col gap-4">
+
+    <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">
+        {{ 'BILLING.PLANS.SECTION' | translate }}
+    </h2>
+
+    @if (loading()) {
+        <!-- Shaped like the comparison it becomes, columns and rows both. -->
+        <div aria-hidden="true" class="flex flex-wrap gap-3">
+            @for (column of skeletonColumns; track column) {
+                <div class="flex flex-col gap-3 flex-1 min-w-[13rem] bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3.5">
+                    <div class="flex flex-col gap-1.5">
+                        <span class="block h-4 w-24 rounded bg-white/[0.08] motion-safe:animate-pulse"></span>
+                        <span class="block h-2.5 w-full rounded bg-white/[0.08] motion-safe:animate-pulse"></span>
+                    </div>
+                    <span class="block h-5 w-20 rounded bg-white/[0.08] motion-safe:animate-pulse"></span>
+                    <span class="block h-8 w-full rounded-lg bg-white/[0.08] motion-safe:animate-pulse"></span>
+                </div>
+            }
+        </div>
+        <div aria-hidden="true"
+             class="flex flex-col divide-y divide-white/[0.06] border border-white/[0.10] rounded-xl">
+            @for (row of skeletonRows; track row) {
+                <div class="flex items-center justify-between gap-3 px-4 py-2.5">
+                    <span class="block h-2.5 w-32 rounded bg-white/[0.08] motion-safe:animate-pulse"></span>
+                    <span class="block h-2.5 w-16 rounded bg-white/[0.08] motion-safe:animate-pulse"></span>
+                </div>
+            }
+        </div>
+        <span class="sr-only">{{ 'BILLING.PLANS.LOADING' | translate }}</span>
+    } @else if (loadErrorKey() || loadErrorText()) {
+        <div class="flex flex-col gap-2 bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3.5">
+            <p class="text-sm text-text-secondary m-0 leading-relaxed" role="alert">
+                @if (loadErrorText(); as text) {
+                    {{ text }}
+                } @else if (loadErrorKey(); as key) {
+                    {{ key | translate }}
+                }
+            </p>
+            <button
+                    (click)="reload()"
+                    class="self-start text-xs font-semibold text-[var(--color-brand-dim)] hover:text-white transition-colors duration-[var(--duration-fast)]"
+                    type="button">
+                {{ 'BILLING.PLANS.RETRY' | translate }}
+            </button>
+        </div>
+    } @else if (columns().length === 0) {
+        <p class="text-xs text-text-muted m-0 leading-relaxed">{{ 'BILLING.PLANS.NONE' | translate }}</p>
+    } @else {
+
+        <!-- The script did not arrive. -->
+        @if (stripeReason() === 'load_failed') {
+            <div class="flex flex-col gap-2 bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
+                <p class="text-xs text-text-secondary m-0 leading-relaxed">
+                    {{ 'BILLING.STRIPE.LOAD_FAILED' | translate }}
+                </p>
+                <button
+                        (click)="retryStripe()"
+                        class="self-start text-xs font-semibold text-[var(--color-brand-dim)] hover:text-white transition-colors duration-[var(--duration-fast)]"
+                        type="button">
+                    {{ 'BILLING.STRIPE.RETRY' | translate }}
+                </button>
+            </div>
+        }
+
+        <div class="flex flex-wrap gap-3">
+            @for (column of columns(); track column.plan.name) {
+                <div
+                        [class]="column.current ? 'border-[var(--color-brand)]' : 'border-white/[0.10]'"
+                        class="flex flex-col gap-3 flex-1 min-w-[13rem] bg-white/[0.03] border rounded-xl px-4 py-3.5">
+
+                    <div class="flex flex-col gap-0.5">
+                        <div class="flex items-center gap-2">
+                            <p class="text-base font-semibold text-text-primary m-0">{{ column.plan.displayName }}</p>
+                            @if (column.current) {
+                                <span class="text-[0.625rem] font-semibold uppercase tracking-widest text-[var(--color-brand-dim)]">
+                                    {{ 'BILLING.PLANS.CURRENT' | translate }}
+                                </span>
+                            }
+                        </div>
+                        <p class="text-xs text-text-muted m-0 leading-relaxed">{{ column.plan.description }}</p>
+                    </div>
+
+                    <div class="flex items-baseline gap-1.5">
+                        @if (column.price; as price) {
+                            <p class="text-lg font-semibold text-text-primary m-0">{{ price }}</p>
+                            <span class="text-xs text-text-muted">{{ column.intervalKey | translate }}</span>
+                        } @else {
+                            <p class="text-sm text-text-secondary m-0">{{ 'BILLING.PLANS.NO_PRICE' | translate }}</p>
+                        }
+                    </div>
+
+                    <!-- Absent, never disabled. -->
+                    @if (column.buyable) {
+                        <button
+                                (click)="buy(column.plan)"
+                                class="w-full rounded-lg bg-[var(--color-brand)] hover:bg-[var(--color-brand-hover)] px-3 py-2 text-xs font-semibold text-white transition-colors duration-[var(--duration-fast)]"
+                                type="button">
+                            {{ 'BILLING.PLANS.CHOOSE' | translate:{plan: column.plan.displayName} }}
+                        </button>
+                    }
+                </div>
+            }
+        </div>
+
+        @if (rows().length > 0) {
+            <div class="overflow-x-auto border border-white/[0.10] rounded-xl">
+                <table class="w-full border-collapse text-left">
+                    <thead>
+                    <tr class="border-b border-white/[0.06]">
+                        <th class="px-4 py-2.5 text-[0.625rem] font-semibold text-white/30 uppercase tracking-widest">
+                            {{ 'BILLING.PLANS.LIMIT_COLUMN' | translate }}
+                        </th>
+                        @for (column of columns(); track column.plan.name) {
+                            <th class="px-4 py-2.5 text-[0.625rem] font-semibold text-white/30 uppercase tracking-widest whitespace-nowrap">
+                                {{ column.plan.displayName }}
+                            </th>
+                        }
+                    </tr>
+                    </thead>
+                    <tbody>
+                        @for (row of rows(); track row.key) {
+                            <tr class="border-b border-white/[0.06] last:border-b-0">
+                                <td class="px-4 py-2.5 text-xs text-text-secondary">
+                                    <!-- A key this build has no name for is shown as the key. Honest,
+                                         and better than a blank row that hides a real difference. -->
+                                    @if (row.labelKey; as labelKey) {
+                                        {{ labelKey | translate }}
+                                    } @else {
+                                        <span class="font-mono text-text-muted">{{ row.key }}</span>
+                                    }
+                                </td>
+                                @for (cell of row.cells; track $index) {
+                                    <td class="px-4 py-2.5 text-xs text-text-primary whitespace-nowrap">
+                                        {{ cell.key | translate:cell.params }}
+                                    </td>
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    }
+
+</section>
+
+@if (chosen(); as plan) {
+    <app-checkout-dialog
+            (changeRequested)="changePlanRequested.emit()"
+            (visibleChange)="checkoutVisible.set($event)"
+            [plan]="plan"
+            [subject]="subject()"
+            [visible]="checkoutVisible()"/>
+}

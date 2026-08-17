@@ -1,0 +1,61 @@
+<!--
+  Everything below renders from the embed, so there is no loading state: the card is complete the moment the message is.
+-->
+@if (venta(); as v) {
+    <div (mouseenter)="refresh()"
+         class="inline-flex items-center gap-3 bg-card border border-border-default rounded-xl px-4 py-3 mt-1 max-w-sm w-full">
+
+        <div class="shrink-0 w-10 h-10 rounded-full overflow-hidden bg-brand/20 flex items-center justify-center text-brand-dim font-bold text-sm">
+            @if (guildIconUrl() && !iconFailed()) {
+                <img (error)="iconFailed.set(true)" [alt]="title()" [src]="guildIconUrl()"
+                     class="w-full h-full object-cover"/>
+            } @else {
+                {{ guildInitials() }}
+            }
+        </div>
+
+        <div class="flex-1 min-w-0">
+            <p class="text-sm font-semibold text-white/85 m-0 leading-snug truncate">
+                {{ title() || ('INVITE.UNKNOWN_SERVER' | translate) }}
+            </p>
+            @if (description()) {
+                <p class="text-xs text-white/40 m-0 mt-0.5 truncate">{{ description() }}</p>
+            }
+            <p class="text-[11px] text-white/30 m-0 mt-0.5">
+                @if (freshness() === 'gone') {
+                    <span class="text-rose-400/70">{{ 'INVITE.NO_LONGER_VALID' | translate }}</span>
+                } @else if (hasLapsed()) {
+                    <span class="text-rose-400/70">{{ 'INVITE.EXPIRED' | translate }}</span>
+                } @else if (maxUses(); as max) {
+                    {{ 'INVITE.LIMITED_USES' | translate: {max: max} }}
+                } @else {
+                    {{ 'INVITE.CARD_SUBTITLE' | translate }}
+                }
+            </p>
+        </div>
+
+        @if (!unusable()) {
+            @if (joinState() === 'joined') {
+                <div class="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-online/10 text-online text-xs font-medium">
+                    <i class="pi pi-check text-[10px]"></i>
+                    {{ 'INVITE.JOINED' | translate }}
+                </div>
+            } @else {
+                <button (click)="join()" [disabled]="joinState() === 'joining'"
+                        class="shrink-0 px-3 py-1.5 rounded-lg bg-brand hover:bg-brand-hover disabled:opacity-50
+                 text-white text-xs font-medium cursor-pointer border-0 transition-colors
+                 flex items-center gap-1.5"
+                        type="button">
+                    @if (joinState() === 'joining') {
+                        <i class="pi pi-spin pi-spinner text-[10px]"></i>
+                    }
+                    {{ 'INVITE.JOIN' | translate }}
+                </button>
+            }
+        }
+    </div>
+
+    @if (joinState() === 'failed') {
+        <p class="text-[11px] text-rose-400/70 m-0 mt-1">{{ 'INVITE.JOIN_FAILED' | translate }}</p>
+    }
+}

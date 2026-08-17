@@ -1,0 +1,233 @@
+<!-- data-testid="app-ready" appears only once AppReadyService.markReady() has run. -->
+<div [attr.data-testid]="appReady.ready() ? 'app-ready' : null"
+     class="flex flex-col w-full overflow-hidden bg-app-bg h-full">
+    <app-account-deletion-banner (manage)="openAccountSettings()"/>
+    <app-voice-resume-banner/>
+
+    <div class="flex flex-1 min-h-0 overflow-hidden">
+
+        <!-- Mobile drawer backdrop -->
+        @if (navService.mobileNavOpen()) {
+            <div (click)="navService.mobileNavOpen.set(false)" class="fixed inset-0 z-40 bg-black/60 lg:hidden"></div>
+        }
+
+        <!-- Left panel: [server rail | sidebar] with profile spanning bottom -->
+        <div [class.-translate-x-full]="!navService.mobileNavOpen()"
+             [class.translate-x-0]="navService.mobileNavOpen()"
+             class="fixed top-0 bottom-0 left-0 z-50 flex flex-col transition-transform duration-base ease-brand
+                  lg:relative lg:top-auto lg:bottom-auto lg:z-auto lg:![translate:none]">
+
+            <!-- Server rail + sidebar side by side -->
+            <div class="flex flex-1 min-h-0">
+                <app-server-taskbar/>
+                <app-action-sidepanel/>
+            </div>
+
+            <!-- Voice connected status bar (shown above profile when in a voice channel) -->
+            <app-voice-status-bar/>
+            <!-- Profile spans both columns -->
+            <app-quick-settings/>
+        </div>
+
+        @let view = navService.mainView();
+
+        <!-- Events panel (second sidebar) -->
+        @if (navService.eventsPanelGuildId(); as eventsGuildId) {
+            <app-events-panel [guildId]="eventsGuildId" [memberPermissions]="eventsMemberPermissions()"/>
+        }
+
+        <!-- Forum post list (second sidebar, same slot as the wiki and events panels). -->
+        @if (openPostForum(); as postForum) {
+            <div class="hidden lg:flex shrink-0 h-full w-80 bg-sidebar border-r border-white/[0.10]">
+                <app-forum-post-list [compact]="true" [forum]="postForum"/>
+            </div>
+        }
+
+        <!-- Main content -->
+        <div class="flex-1 min-w-0 overflow-hidden">
+            @switch (view.type) {
+                @case ('home') {
+                    @if (navService.mobileSection() === 'conversations') {
+                        <app-mobile-conversations-page class="lg:hidden"/>
+                    }
+                    <app-home [class.hidden]="navService.mobileSection() === 'conversations'"
+                              class="lg:!block"/>
+                }
+                @case ('conversation') {
+                    <app-conversation (back)="navService.showHome()" [conversation]="view.conversation"/>
+                }
+                @case ('channel') {
+                    <!-- An allowlist, deliberately. The previous @else sent every
+                         unrecognised type to the message view, composer and all. -->
+                    @switch (channelViewFor(view.channel.type)) {
+                        @case ('voice') {
+                            <app-voice-channel [channel]="view.channel"/>
+                        }
+                        @case ('forum') {
+                            <app-forum-channel (back)="navService.showHome()" [channel]="view.channel"/>
+                        }
+                        @case ('message') {
+                            <app-channel (back)="navService.showHome()" [channel]="view.channel"/>
+                        }
+                        @case ('list') {
+                            <app-list-channel (back)="navService.showHome()" [channel]="view.channel"/>
+                        }
+                        @case ('chores') {
+                            <app-chores-channel (back)="navService.showHome()" [channel]="view.channel"/>
+                        }
+                        @case ('ledger') {
+                            <app-ledger-channel (back)="navService.showHome()" [channel]="view.channel"/>
+                        }
+                        @case ('pantry') {
+                            <app-pantry-channel (back)="navService.showHome()" [channel]="view.channel"/>
+                        }
+                        @case ('decisions') {
+                            <app-decisions-channel (back)="navService.showHome()" [channel]="view.channel"/>
+                        }
+                        @case ('meals') {
+                            <app-meals-channel (back)="navService.showHome()" [channel]="view.channel"/>
+                        }
+                        @case ('maintenance') {
+                            <app-maintenance-channel (back)="navService.showHome()" [channel]="view.channel"/>
+                        }
+                        @default {
+                            <app-unsupported-channel [channel]="view.channel"/>
+                        }
+                    }
+                }
+                @case ('wiki') {
+                    <app-wiki [guildId]="view.guildId"/>
+                }
+                @case ('house') {
+                    <app-house-home [guildId]="view.guildId"/>
+                }
+            }
+        </div>
+
+        <!-- Right sidebar: activity feed on home, conversation info on conversation, member list on channel -->
+        @if (view.type === 'home') {
+            <div class="hidden xl:flex shrink-0 h-full">
+                <app-activity-feed/>
+            </div>
+        } @else if (view.type === 'conversation') {
+            <div class="hidden xl:flex shrink-0 h-full">
+                <app-conversation-info-panel [conversation]="view.conversation"/>
+            </div>
+        } @else if (view.type === 'channel') {
+            @let ws = navService.workspace();
+            @if (ws.type === 'server') {
+                <div class="hidden xl:flex shrink-0 h-full">
+                    <app-guild-member-list [guild]="ws.guild"/>
+                </div>
+            }
+        }
+
+        @let gateWorkspace = navService.workspace();
+        @if (gateWorkspace.type === 'server' && onboardingEnabled()) {
+            <app-onboarding-gate [guildId]="gateWorkspace.guild.id"/>
+        }
+
+        <app-profile-dialog
+                (visibleChange)="profileDialogSvc.close()"
+                [userId]="profileDialogSvc.selectedUserId()"/>
+
+        <!-- Opened from message toolbars, profile cards and member menus, none of which is a
+             sensible place to own a modal. -->
+        <app-report-dialog/>
+
+        <app-device-registration-modal
+                (registered)="onDeviceRegistered($event)"
+                [visible]="showDeviceRegistration()"/>
+
+        <!-- A retry, deliberately not the registration modal. -->
+        @if (keyUnlockFailed()) {
+            <div class="fixed bottom-4 right-4 z-50 max-w-sm rounded-xl border border-amber-500/30
+                        bg-[#1b1b1f] p-4 shadow-xl">
+                <!--
+                  Two different situations, one strip, because the action differs and "try again" is a lie for the second.
+                -->
+                @if (keyStoreIncomplete()) {
+                    <p class="text-sm font-medium text-amber-200">Encryption keys are incomplete</p>
+                    <p class="mt-1 text-[12px] leading-snug text-white/60">
+                        Part of this device's keys is missing from the system key store, so encrypted
+                        conversations stay unreadable on this device. The rest is still here and has
+                        not been touched. Restore a key backup from Settings, Devices, or sign this
+                        device out and back in to set up encryption again.
+                    </p>
+                } @else {
+                    <p class="text-sm font-medium text-amber-200">Encryption keys are locked</p>
+                    <p class="mt-1 text-[12px] leading-snug text-white/60">
+                        Your device keys couldn't be read from the system key store. Encrypted
+                        conversations stay unreadable until this succeeds. Nothing has been lost.
+                    </p>
+                    <div class="mt-3 flex justify-end">
+                        <button (click)="retryUnlock()"
+                                class="rounded-lg bg-white/10 px-3 py-1.5 text-[12px] font-medium
+                                       text-white/85 hover:bg-white/15">
+                            Try again
+                        </button>
+                    </div>
+                }
+            </div>
+        }
+
+        <!-- The strip above is about the signing key; this one is about the saved group state. -->
+        @if (mlsStorageUnavailable()) {
+            <div class="fixed bottom-4 right-4 z-50 max-w-sm rounded-xl border border-amber-500/30
+                        bg-[#1b1b1f] p-4 shadow-xl">
+                <p class="text-sm font-medium text-amber-200">Encryption is unavailable right now</p>
+                <p class="mt-1 text-[12px] leading-snug text-white/60">
+                    Your saved encryption state couldn't be opened on this launch, so encrypted
+                    conversations stay unreadable until it can. Nothing has been deleted - your keys
+                    and message history are still on this device.
+                </p>
+                <div class="mt-3 flex justify-end">
+                    <button (click)="retryMlsStorage()"
+                            class="rounded-lg bg-white/10 px-3 py-1.5 text-[12px] font-medium
+                                   text-white/85 hover:bg-white/15">
+                        Try again
+                    </button>
+                </div>
+            </div>
+        }
+
+        <!-- Distinct from the strip above, and it has to be: the keychain is fine here. -->
+        @if (keyPackagesFailed()) {
+            <div class="fixed bottom-4 right-4 z-50 max-w-sm rounded-xl border border-amber-500/30
+                        bg-[#1b1b1f] p-4 shadow-xl">
+                <p class="text-sm font-medium text-amber-200">This device cannot be added to new conversations</p>
+                <p class="mt-1 text-[12px] leading-snug text-white/60">
+                    Its encryption keys could not be uploaded, so anyone starting an encrypted
+                    conversation will be told this device is unreachable and will leave it out.
+                    Nothing has been lost, and existing conversations are unaffected.
+                </p>
+                <div class="mt-3 flex justify-end">
+                    <button (click)="replenishKeyPackages()"
+                            class="rounded-lg bg-white/10 px-3 py-1.5 text-[12px] font-medium
+                                   text-white/85 hover:bg-white/15">
+                        Try again
+                    </button>
+                </div>
+            </div>
+        }
+
+        <!-- The account picker. Sits above everything, including the guild join gate, because it
+             is answered once and before anything else the app might ask for. -->
+        @if (onboarding.visible()) {
+            <app-account-onboarding/>
+        }
+
+        <!-- One instance, two ways in. -->
+        <app-key-setup-dialog
+                (dismissed)="socialGate.onDismissed()"
+                (setupComplete)="socialGate.onSetupComplete()"
+                [dismissible]="socialGate.dismissible()"
+                [visible]="socialGate.dialogVisible()"/>
+
+        <!-- A password reset that left the encryption key unopenable, or an account with no
+             recovery code yet. Both were silent until the first restore attempt failed. -->
+        <app-master-key-recovery-dialog
+                (dismissed)="showMasterKeyRecovery.set(false)"
+                [visible]="showMasterKeyRecovery()"/>
+    </div>
+</div>

@@ -1,0 +1,35 @@
+<div class="app-header flex items-center justify-between px-3 border-b border-white/[0.08]">
+    <span class="text-xs font-semibold text-white/50 uppercase tracking-widest">Threads</span>
+    <p-button (onClick)="showCreateDialog.set(true)" [text]="true" icon="pi pi-plus" size="small"/>
+</div>
+
+@if (loading()) {
+    <p class="text-xs text-white/25 text-center py-4">Loading…</p>
+} @else if (threads().length === 0) {
+    <p class="text-xs text-white/25 text-center py-4">No threads yet</p>
+} @else {
+    <div class="flex flex-col gap-0.5 p-1.5">
+        @for (thread of threads(); track thread.id) {
+            <div class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/[0.04] cursor-pointer group">
+                <span (click)="threadSelected.emit(thread)" class="flex-1 text-sm text-white/70 truncate">
+                    # {{ thread.name }}
+                </span>
+                <p-button (onClick)="archive(thread)" [loading]="archivingId() === thread.id" [text]="true"
+                          class="opacity-0 group-hover:opacity-100" icon="pi pi-inbox" size="small"/>
+            </div>
+        }
+    </div>
+}
+
+<p-dialog (visibleChange)="showCreateDialog.set($event)" [draggable]="false" [modal]="true" [resizable]="false"
+          [style]="{width: '380px'}" [visible]="showCreateDialog()" appendTo="body">
+    <ng-template pTemplate="header">
+        <span class="text-sm font-semibold text-white/85">Create Thread</span>
+    </ng-template>
+    <input (keydown.enter)="createThread()" (ngModelChange)="createName.set($event)" [ngModel]="createName()"
+           pInputText placeholder="Thread name" type="text"/>
+    <ng-template pTemplate="footer">
+        <p-button (onClick)="showCreateDialog.set(false)" [text]="true" label="Cancel"/>
+        <p-button (onClick)="createThread()" [loading]="creating()" label="Create"/>
+    </ng-template>
+</p-dialog>

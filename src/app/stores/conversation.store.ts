@@ -1,0 +1,118 @@
+import {inject} from '@angular/core';
+import {patchState, signalStore, withHooks, withMethods, withState} from '@ngrx/signals';
+import {addEntities, removeEntity, setAllEntities, updateEntity, withEntities} from '@ngrx/signals/entities';
+import {ConversationDto} from '../dtos/response/conversation.dto';
+import {ConversationService} from '../services/conversation.service';
+import {MessagingWebsocketService} from '../services/messaging-websocket.service';
+import {ProfileService} from '../services/profile.service';
+
+const PAGE_SIZE = 20;
+
+interface ConversationState {
+    loaded: boolean;
+    loading: boolean;
+    offset: number;
+    hasMore: boolean;
+}
+
+export const ConversationStore = signalStore(
+    {providedIn: 'root'},
+    withEntities<ConversationDto>(),
+    withState<ConversationState>({loaded: false, loading: false, offset: 0, hasMore: true}),
+
+    withMethods((store, service = inject(ConversationService)) => ({
+        loadInitial(): void {
+            if (store.loaded() || store.loading()) return;
+            patchState(store, {loading: true});
+            service.getConversations(0, PAGE_SIZE).subscribe(convs => {
+                patchState(store, setAllEntities(convs), {
+                    loaded: true,
+                    loading: false,
+                    offset: convs.length,
+                    hasMore: convs.length === PAGE_SIZE,
+                });
+            });
+        },
+
+        loadMore(): void {
+            if (store.loading() || !store.hasMore()) return;
+            patchState(store, {loading: true});
+            service.getConversations(store.offset(), PAGE_SIZE).subscribe(convs => {
+                patchState(store, addEntities(convs), {
+                    loading: false,
+                    offset: store.offset() + convs.length,
+                    hasMore: convs.length === PAGE_SIZE,
+                });
+            });
+        },
+
+        addConversation(conv: ConversationDto): void {
+            patchState(store, addEntities([conv]));
+        },
+
+        removeConversation(id: string): void {
+            patchState(store, removeEntity(id));
+        },
+
+        bumpUpdatedAt(conversationId: string): void {
+            patchState(store, updateEntity({id: conversationId, changes: {updatedAt: new Date()}}));
+        },
+
+        updateMemberLastRead(conversationId: string, userId: string, lastReadMessageId: string): void {
+            const conv = store.entityMap()[conversationId];
+            if (!conv) return;
+            patchState(store, updateEntity({
+                id: conversationId,
+                changes: {
+                    members: conv.members.map(m =>
+                        m.userId === userId ? {...m, lastReadMessageId} : m
+                    ),
+                },
+            }));
+        },
+    })),
+
+    withHooks({
+        onInit(store) {
+            const wsService = inject(MessagingWebsocketService);
+            const profileService = inject(ProfileService);
+            const conversationService = inject(ConversationService);
+
+            /** Fetches a conversation we do not hold. Silent on failure - a retry costs nothing. */
+            const ensureLoaded = (conversationId: string): boolean => {
+                if (store.entityMap()[conversationId]) return true;
+                conversationService.getConversationById(conversationId).subscribe({
+                    next: conv => patchState(store, addEntities([conv])),
+                    error: () => undefined,
+                });
+                return false;
+            };
+
+            wsService.conversationCreatedObservable.subscribe(id => ensureLoaded(id));
+
+            wsService.messageObservable.subscribe(msg => {
+                if (!msg.conversationId) return;
+
+                // A message can be the first we hear of a conversation. The server opens one on our
+                // behalf when somebody rings us into a voice channel and we have never DM'd them, and
+                // the two announcements travel as separate bus messages with no ordering between
+                // them - so this arriving first is ordinary, not a bug. `updateEntity` on an id the
+                // store does not hold is a silent no-op, which is how the conversation used to stay
+                // invisible until the next full reload.
+                if (!ensureLoaded(msg.conversationId)) return;
+
+                patchState(store, updateEntity({id: msg.conversationId, changes: {updatedAt: new Date()}}));
+            });
+
+            wsService.conversationRemovedObservable.subscribe(event =>
+                patchState(store, removeEntity(event.conversationId))
+            );
+
+            wsService.conversationMemberRemovedObservable.subscribe(event => {
+                if (event.userId === profileService.ownProfile()?.userId) {
+                    patchState(store, removeEntity(event.conversationId));
+                }
+            });
+        },
+    })
+);

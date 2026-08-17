@@ -1,0 +1,601 @@
+<div class="flex flex-col gap-8 max-w-2xl">
+
+    <!-- ── Profile Overview ──────────────────────────────────────────────── -->
+    <section class="flex flex-col gap-4">
+        <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">
+            Profile Overview</h2>
+
+        <div class="flex items-center gap-5 bg-white/[0.03] border border-white/[0.10] rounded-xl px-5 py-4">
+
+            <!-- Avatar -->
+            <div (click)="avatarExpanded.set(true)" class="relative shrink-0 cursor-pointer group">
+                @if (ownProfile()?.avatarUrl && !avatarError()) {
+                    <img (error)="onAvatarError()" [src]="ownProfile()!.avatarUrl"
+                         alt="Avatar"
+                         class="w-16 h-16 rounded-full object-cover border-2 border-white/10 transition-opacity group-hover:opacity-80"/>
+                } @else {
+                    <div class="w-16 h-16 rounded-full bg-[color-mix(in_srgb,var(--color-brand)_20%,transparent)] border-2 border-white/10
+                      flex items-center justify-center text-2xl font-semibold text-[var(--color-brand-dim)]
+                      transition-opacity group-hover:opacity-80">
+                        {{ avatarLabel() }}
+                    </div>
+                }
+                <div class="absolute inset-0 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <i class="pi pi-search-plus text-white text-sm drop-shadow"></i>
+                </div>
+            </div>
+
+            <!-- Info -->
+            <div class="flex flex-col gap-1 min-w-0">
+                <div class="flex items-center gap-2 flex-wrap">
+          <span class="text-base font-semibold text-white/85 truncate">
+            {{ usernameDisplay() }}
+          </span>
+                    @if (ownProfile()?.onlineStatus === 'Online') {
+                        <span class="inline-flex items-center gap-1 text-[0.625rem] font-medium text-online bg-online/10 border border-online/20 rounded-full px-2 py-0.5">
+              <span class="w-1.5 h-1.5 rounded-full bg-online"></span>Online
+            </span>
+                    } @else {
+                        <span class="inline-flex items-center gap-1 text-[0.625rem] font-medium text-white/35 bg-white/[0.05] border border-white/[0.10] rounded-full px-2 py-0.5">
+              <span class="w-1.5 h-1.5 rounded-full bg-white/25"></span>Offline
+            </span>
+                    }
+                </div>
+
+                @if (ownProfile()?.bio) {
+                    <p class="text-sm text-white/55 truncate">{{ ownProfile()!.bio }}</p>
+                }
+
+                <div class="flex items-center gap-3 mt-0.5 flex-wrap">
+                    @if (user()) {
+                        <span class="text-xs text-white/30">
+              <i class="pi pi-envelope text-[10px] mr-1"></i>{{ user()!.email }}
+            </span>
+                    }
+                    @if (ownProfile()?.createdAt) {
+                        <span class="text-xs text-white/30">
+              <i class="pi pi-calendar text-[10px] mr-1"></i>
+              Member since {{ ownProfile()!.createdAt | date:'MMM yyyy' }}
+            </span>
+                    }
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- ── Avatar ──────────────────────────────────────────────────────────── -->
+    <section class="flex flex-col gap-4">
+        <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">
+            Avatar</h2>
+        <div class="flex items-center gap-5">
+
+            <div (click)="avatarExpanded.set(true)" class="relative w-20 h-20 shrink-0 cursor-pointer group">
+                @if (ownProfile()?.avatarUrl && !avatarError()) {
+                    <img (error)="onAvatarError()" [src]="ownProfile()!.avatarUrl"
+                         alt="Avatar"
+                         class="w-20 h-20 rounded-full object-cover border-2 border-white/10 transition-opacity group-hover:opacity-80"/>
+                } @else {
+                    <div class="w-20 h-20 rounded-full bg-[color-mix(in_srgb,var(--color-brand)_20%,transparent)] border-2 border-white/10
+                      flex items-center justify-center text-3xl font-semibold text-[var(--color-brand-dim)]
+                      transition-opacity group-hover:opacity-80">
+                        {{ avatarLabel() }}
+                    </div>
+                }
+                <div class="absolute inset-0 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <i class="pi pi-search-plus text-white text-sm drop-shadow"></i>
+                </div>
+                @if (uploading()) {
+                    <div class="absolute inset-0 rounded-full bg-black/60 flex items-center justify-center">
+                        <i class="pi pi-spin pi-spinner text-white text-xl"></i>
+                    </div>
+                }
+            </div>
+
+            <div class="flex flex-col gap-2">
+                <input #fileInput (change)="onFileSelected($event)" accept="image/*" class="hidden" type="file"/>
+                <p-button (onClick)="pickFile()" [disabled]="uploading()" label="Change Avatar"
+                          severity="primary" size="small"/>
+                @if (ownProfile()?.avatarUrl) {
+                    <p-button (onClick)="removeAvatar()" [disabled]="uploading()" label="Remove"
+                              severity="secondary" size="small"/>
+                }
+            </div>
+
+        </div>
+    </section>
+
+    <!-- ── Banner ──────────────────────────────────────────────────────────── -->
+    <section class="flex flex-col gap-4">
+        <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">
+            Banner</h2>
+
+        <div class="relative w-full h-28 rounded-xl overflow-hidden bg-white/[0.04] border border-white/[0.09]">
+            @if (bannerUrl(); as url) {
+                <img (error)="onBannerError()" [src]="url" alt="Banner" class="w-full h-full object-cover"/>
+            } @else if (safeAccentColor(ownProfile()?.accentColor)) {
+                <div [style.background]="safeAccentColor(ownProfile()!.accentColor)" class="w-full h-full"></div>
+            }
+            @if (uploadingBanner()) {
+                <div class="absolute inset-0 bg-black/60 flex items-center justify-center">
+                    <i class="pi pi-spin pi-spinner text-white text-xl"></i>
+                </div>
+            }
+        </div>
+
+        <div class="flex gap-2">
+            <input #bannerFileInput (change)="onBannerFileSelected($event)" accept="image/*" class="hidden" type="file"/>
+            <p-button (onClick)="pickBannerFile()" [disabled]="uploadingBanner()" label="Change Banner"
+                      severity="primary" size="small"/>
+        </div>
+    </section>
+
+    <!-- ── Display ─────────────────────────────────────────────────────────── -->
+    <section class="flex flex-col gap-4">
+        <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">
+            Display</h2>
+
+        <div class="flex flex-col gap-1.5">
+            <label class="text-xs font-medium text-white/45 uppercase tracking-wide">Display Name</label>
+            <input [value]="ownProfile()?.userName ?? ''" class="w-full bg-white/[0.04] border border-white/[0.09] rounded-xl px-4 py-2.5 text-sm text-white/40 placeholder:text-white/20 outline-none cursor-not-allowed" disabled placeholder="Your display name"
+                   type="text"/>
+            <p class="text-[11px] text-white/25">Coming soon -this will be your visible name in chats.</p>
+        </div>
+
+        <div class="flex flex-col gap-1.5">
+            <label class="text-xs font-medium text-white/45 uppercase tracking-wide">Bio</label>
+            <textarea (ngModelChange)="bioEdit.set($event)" [ngModel]="bioEdit()"
+                      class="w-full bg-white/[0.04] border border-white/[0.09] rounded-xl px-4 py-2.5 text-sm text-white/80 placeholder:text-white/25 outline-none focus:border-brand/40 transition-colors resize-none"
+                      placeholder="Tell people a bit about yourself…"
+                      rows="3"></textarea>
+        </div>
+
+        <div class="flex flex-col gap-1.5">
+            <label class="text-xs font-medium text-white/45 uppercase tracking-wide">Accent Color</label>
+            <div class="flex items-center gap-3">
+                <div class="color-swatch-wrap">
+                    <div [style.background]="safeAccentColor(accentColorEdit()) || 'transparent'" class="color-swatch-bg"></div>
+                    <input (input)="accentColorEdit.set($any($event.target).value)"
+                           [value]="accentColorEdit() || '#4B5BC4'"
+                           type="color"/>
+                </div>
+                @if (accentColorEdit()) {
+                    <button (click)="accentColorEdit.set('')"
+                            class="text-xs text-white/40 hover:text-white/70 cursor-pointer border-0 bg-transparent transition-colors">
+                        Clear
+                    </button>
+                }
+            </div>
+        </div>
+
+        <div class="flex flex-col gap-1.5">
+            <label class="text-xs font-medium text-white/45 uppercase tracking-wide">Font</label>
+            <p-select (ngModelChange)="fontEdit.set($event)" [ngModel]="fontEdit()"
+                      [options]="fontOptions" optionLabel="label" optionValue="value"
+                      styleClass="w-full">
+                <ng-template #item let-option>
+                    <span [style.font-family]="$any(FONT_STACKS)[option.value]">{{ option.label }}</span>
+                </ng-template>
+            </p-select>
+            <p [style.font-family]="fontEdit() === 'Default' ? null : fontStackPreview()"
+               class="text-sm text-white/60 mt-1">
+                The quick brown fox jumps over the lazy dog.
+            </p>
+        </div>
+
+        <div class="flex items-center gap-3">
+            <p-button (onClick)="saveDetails()" [disabled]="!detailsDirty()" [loading]="savingDetails()"
+                      label="Save Changes" severity="primary" size="small"/>
+        </div>
+    </section>
+
+    <!-- ── Account Info ────────────────────────────────────────────────────── -->
+    <section class="flex flex-col gap-4">
+        <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">
+            Account</h2>
+
+        <div class="flex flex-col gap-3">
+            <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
+                <div>
+                    <p class="text-xs text-white/30 mb-0.5">Username</p>
+                    <p class="text-sm text-white/70 font-mono">{{ usernameDisplay() }}</p>
+                </div>
+                <p-button [disabled]="true" [text]="true" label="Edit" severity="secondary" size="small"/>
+            </div>
+
+            <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
+                <div>
+                    <p class="text-xs text-white/30 mb-0.5">Email</p>
+                    @if (userLoading()) {
+                        <div class="h-4 w-40 bg-white/[0.06] rounded animate-pulse mt-0.5"></div>
+                    } @else {
+                        <p class="text-sm text-white/70">{{ user()?.email ?? '-' }}</p>
+                    }
+                </div>
+                <p-button [disabled]="true" [text]="true" label="Edit" severity="secondary" size="small"/>
+            </div>
+
+            <!-- Here rather than beside the money in the ledger. -->
+            <div class="bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
+                <app-account-phone/>
+            </div>
+        </div>
+    </section>
+
+    <!-- ── Connections ─────────────────────────────────────────────────────── -->
+    <section class="flex flex-col gap-4">
+        <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">
+            Connections</h2>
+
+        <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
+            <div class="flex items-center gap-3 min-w-0">
+                <i class="pi pi-link text-lg text-white/60 shrink-0"></i>
+                <div class="min-w-0">
+                    <p class="text-sm text-white/75">Steam</p>
+                    @if (userLoading()) {
+                        <div class="h-4 w-32 bg-white/[0.06] rounded animate-pulse mt-1"></div>
+                    } @else if (steamId()) {
+                        <p class="text-xs text-white/35 mt-0.5 font-mono truncate">Linked · {{ steamId() }}</p>
+                    } @else {
+                        <p class="text-xs text-white/35 mt-0.5">Not linked</p>
+                    }
+                </div>
+            </div>
+            @if (!userLoading()) {
+                @if (steamId()) {
+                    <p-button (onClick)="unlinkSteamVisible.set(true)" label="Unlink" severity="secondary"
+                              size="small" styleClass="shrink-0 ml-4"/>
+                } @else {
+                    <p-button (onClick)="linkSteam()" [loading]="linkingSteam()" label="Link Steam"
+                              severity="primary" size="small" styleClass="shrink-0 ml-4"/>
+                }
+            }
+        </div>
+    </section>
+
+    <!-- ── Sessions ────────────────────────────────────────────────────────── -->
+    <section class="flex flex-col gap-4">
+        <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">
+            Sessions</h2>
+
+        <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
+            <div>
+                <p class="text-sm text-white/75">Sign Out All Other Devices</p>
+                <p class="text-xs text-white/35 mt-0.5">All other active sessions will be revoked within 1 hour.</p>
+            </div>
+            @if (signOutSuccess()) {
+                <span class="text-xs text-online flex items-center gap-1.5 shrink-0 ml-4">
+          <i class="pi pi-check-circle"></i> Revoked
+        </span>
+            } @else {
+                <p-button (onClick)="signOutAllVisible.set(true)" label="Sign Out Others" severity="secondary"
+                          size="small"
+                          styleClass="shrink-0 ml-4"/>
+            }
+        </div>
+    </section>
+
+    <!-- ── Change Password ─────────────────────────────────────────────────── -->
+    <section class="flex flex-col gap-4">
+        <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">
+            Change Password</h2>
+
+        <div class="flex flex-col gap-3">
+
+            <!-- Current password -->
+            <div class="flex flex-col gap-1.5">
+                <label class="text-xs font-medium text-white/45 uppercase tracking-wide">Current Password</label>
+                <div class="relative">
+                    <input [(ngModel)]="currentPassword"
+                           [type]="showCurrentPw() ? 'text' : 'password'"
+                           autocomplete="current-password"
+                           class="w-full bg-white/[0.04] border border-white/[0.09] rounded-xl px-4 py-2.5 pr-10 text-sm text-white/80 placeholder:text-white/25 outline-none focus:border-brand/40 transition-colors"
+                           placeholder="Enter your current password"/>
+                    <button (click)="showCurrentPw.set(!showCurrentPw())"
+                            class="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors"
+                            type="button">
+                        <i [class]="showCurrentPw() ? 'pi pi-eye-slash' : 'pi pi-eye'" style="font-size: 14px;"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- New password -->
+            <div class="flex flex-col gap-1.5">
+                <label class="text-xs font-medium text-white/45 uppercase tracking-wide">New Password</label>
+                <div class="relative">
+                    <input [(ngModel)]="newPassword"
+                           [type]="showNewPw() ? 'text' : 'password'"
+                           autocomplete="new-password"
+                           class="w-full bg-white/[0.04] border border-white/[0.09] rounded-xl px-4 py-2.5 pr-10 text-sm text-white/80 placeholder:text-white/25 outline-none focus:border-brand/40 transition-colors"
+                           placeholder="At least 8 characters"/>
+                    <button (click)="showNewPw.set(!showNewPw())"
+                            class="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors"
+                            type="button">
+                        <i [class]="showNewPw() ? 'pi pi-eye-slash' : 'pi pi-eye'" style="font-size: 14px;"></i>
+                    </button>
+                </div>
+                @if (newPassword.length > 0 && newPassword.length < 8) {
+                    <p class="text-[11px] text-amber-400/80">Must be at least 8 characters.</p>
+                }
+            </div>
+
+            <!-- Confirm new password -->
+            <div class="flex flex-col gap-1.5">
+                <label class="text-xs font-medium text-white/45 uppercase tracking-wide">Confirm New Password</label>
+                <div class="relative">
+                    <input [(ngModel)]="confirmPassword"
+                           [style.border-color]="passwordMismatch ? 'rgba(244,63,94,0.40)' : 'rgba(255,255,255,0.09)'"
+                           [type]="showConfirmPw() ? 'text' : 'password'"
+                           autocomplete="new-password"
+                           class="w-full bg-white/[0.04] rounded-xl px-4 py-2.5 pr-10 text-sm text-white/80 placeholder:text-white/25 outline-none transition-colors border"
+                           placeholder="Re-enter your new password"/>
+                    <button (click)="showConfirmPw.set(!showConfirmPw())"
+                            class="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors"
+                            type="button">
+                        <i [class]="showConfirmPw() ? 'pi pi-eye-slash' : 'pi pi-eye'" style="font-size: 14px;"></i>
+                    </button>
+                </div>
+                @if (passwordMismatch) {
+                    <p class="text-[11px] text-rose-400/80">Passwords do not match.</p>
+                }
+            </div>
+
+            <!-- Result banner -->
+            @if (passwordResult()) {
+                @if (passwordResult()!.code >= 200 && passwordResult()!.code < 300) {
+                    <div class="flex items-center gap-2.5 bg-online/[0.08] border border-online/20 text-online rounded-xl px-4 py-3 text-sm">
+                        <i class="pi pi-check-circle"></i>
+                        <span>{{ passwordResult()!.message }}</span>
+                        <span class="ml-auto text-xs opacity-60 font-mono">{{ passwordResult()!.code }}</span>
+                    </div>
+                } @else {
+                    <div class="flex items-center gap-2.5 bg-rose-500/[0.08] border border-rose-500/20 text-rose-400 rounded-xl px-4 py-3 text-sm">
+                        <i class="pi pi-exclamation-circle"></i>
+                        <span>{{ passwordResult()!.message }}</span>
+                        <span class="ml-auto text-xs opacity-60 font-mono">{{ passwordResult()!.code }}</span>
+                    </div>
+                }
+            }
+
+            <!-- Submit -->
+            <div class="flex items-center gap-3 pt-1">
+                <p-button (onClick)="submitPasswordChange()" [disabled]="!passwordFormValid" [loading]="passwordChanging()"
+                          label="Change Password"
+                          severity="primary"
+                          size="small"/>
+                @if (currentPassword || newPassword || confirmPassword) {
+                    <p-button (onClick)="currentPassword = ''; newPassword = ''; confirmPassword = ''; passwordResult.set(null)" [text]="true" label="Clear" severity="secondary"
+                              size="small"/>
+                }
+            </div>
+
+        </div>
+    </section>
+
+    <!-- ── Danger Zone ─────────────────────────────────────────────────────── -->
+    <section class="flex flex-col gap-4">
+        <h2 class="text-[0.625rem] font-semibold text-rose-400/60 uppercase tracking-widest border-b border-rose-500/20 pb-3">
+            Danger Zone
+        </h2>
+        @switch (accountStatus()) {
+            @case (AccountStatus.PendingDeletion) {
+                <div class="flex items-start gap-3 bg-rose-500/[0.08] border border-rose-500/25 rounded-xl px-4 py-3">
+                    <i class="pi pi-exclamation-triangle text-rose-400 shrink-0 mt-0.5"></i>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm text-white/75">
+                            Your account is scheduled for deletion on
+                            <strong class="text-white/90">{{ user()?.purgeScheduledAt | date:'MMM d, y' }}</strong>.
+                        </p>
+                        <p class="text-xs text-white/35 mt-0.5">You can cancel this at any time before then.</p>
+                    </div>
+                    <p-button (onClick)="cancelDeleteVisible.set(true)" label="Cancel Deletion" severity="secondary"
+                              size="small" styleClass="shrink-0 ml-4"/>
+                </div>
+            }
+            @case (AccountStatus.PurgeInProgress) {
+                <div class="flex items-start gap-3 bg-rose-500/[0.08] border border-rose-500/25 rounded-xl px-4 py-3">
+                    <i class="pi pi-exclamation-triangle text-rose-400 shrink-0 mt-0.5"></i>
+                    <p class="text-sm text-white/75">Your account deletion is being processed and can no longer be cancelled.</p>
+                </div>
+            }
+            @case (AccountStatus.Deleted) {
+                <div class="flex items-start gap-3 bg-rose-500/[0.08] border border-rose-500/25 rounded-xl px-4 py-3">
+                    <i class="pi pi-exclamation-triangle text-rose-400 shrink-0 mt-0.5"></i>
+                    <p class="text-sm text-white/75">This account has been deleted.</p>
+                </div>
+            }
+            @default {
+                <div class="flex items-center justify-between bg-rose-500/[0.04] border border-rose-500/20 rounded-xl px-4 py-3">
+                    <div>
+                        <p class="text-sm text-white/75">Delete Account</p>
+                        <p class="text-xs text-white/35 mt-0.5">Permanently delete your account and all associated data. This
+                            cannot be undone.</p>
+                    </div>
+                    <p-button (onClick)="confirmDeleteVisible.set(true)" label="Delete Account" severity="danger"
+                              size="small"
+                              styleClass="shrink-0 ml-4"/>
+                </div>
+            }
+        }
+    </section>
+
+</div>
+
+<!-- ── Avatar crop dialog ─────────────────────────────────────────────────── -->
+<p-dialog
+        [(visible)]="cropVisible"
+        [draggable]="false"
+        [modal]="true"
+        [resizable]="false"
+        [style]="{width: '380px'}"
+        appendTo="body"
+        header="Crop Avatar">
+    @if (cropVisible() && cropSrc()) {
+        <app-image-cropper
+                (cancelled)="cropVisible.set(false)"
+                (confirmed)="onCropConfirmed($event)"
+                [circular]="true"
+                [imageSrc]="cropSrc()"
+                [outputWidth]="400"
+                [outputHeight]="400"/>
+    }
+</p-dialog>
+
+<!-- ── Banner crop dialog ─────────────────────────────────────────────────── -->
+<p-dialog
+        [(visible)]="bannerCropVisible"
+        [draggable]="false"
+        [modal]="true"
+        [resizable]="false"
+        [style]="{width: '620px'}"
+        appendTo="body"
+        header="Crop Banner">
+    @if (bannerCropVisible() && bannerCropSrc()) {
+        <app-image-cropper
+                (cancelled)="bannerCropVisible.set(false)"
+                (confirmed)="onBannerCropConfirmed($event)"
+                [circular]="false"
+                [imageSrc]="bannerCropSrc()"
+                [outputHeight]="400"
+                [outputWidth]="1200"/>
+    }
+</p-dialog>
+
+<!-- ── Sign out all devices confirm dialog ───────────────────────────────── -->
+<p-dialog
+        [(visible)]="signOutAllVisible"
+        [closable]="!signingOutAll()"
+        [draggable]="false"
+        [modal]="true"
+        [resizable]="false"
+        [style]="{width: '420px'}"
+        appendTo="body"
+        header="Sign Out Other Devices">
+    <div class="flex flex-col gap-4 pt-1">
+        <div class="flex items-start gap-3 bg-amber-500/[0.08] border border-amber-500/25 rounded-xl px-4 py-3">
+            <i class="pi pi-info-circle text-amber-400 shrink-0 mt-0.5"></i>
+            <p class="text-sm text-white/70">
+                All sessions on other devices will be <strong class="text-white/90">revoked within 1 hour</strong>.
+                Your current session will not be affected.
+            </p>
+        </div>
+        <div class="flex gap-3 justify-end">
+            <p-button (onClick)="signOutAllVisible.set(false)" [disabled]="signingOutAll()" label="Cancel"
+                      severity="secondary"
+                      size="small"/>
+            <p-button (onClick)="confirmSignOutAll()" [loading]="signingOutAll()" label="Sign Out Others"
+                      severity="primary"
+                      size="small"/>
+        </div>
+    </div>
+</p-dialog>
+
+<!-- ── Unlink Steam confirm dialog ───────────────────────────────────────── -->
+<p-dialog
+        [(visible)]="unlinkSteamVisible"
+        [closable]="!unlinkingSteam()"
+        [draggable]="false"
+        [modal]="true"
+        [resizable]="false"
+        [style]="{width: '420px'}"
+        appendTo="body"
+        header="Unlink Steam">
+    <div class="flex flex-col gap-4 pt-1">
+        <div class="flex items-start gap-3 bg-amber-500/[0.08] border border-amber-500/25 rounded-xl px-4 py-3">
+            <i class="pi pi-info-circle text-amber-400 shrink-0 mt-0.5"></i>
+            <p class="text-sm text-white/70">
+                Your Steam account will be disconnected. You can link it again at any time.
+            </p>
+        </div>
+        <div class="flex gap-3 justify-end">
+            <p-button (onClick)="unlinkSteamVisible.set(false)" [disabled]="unlinkingSteam()" label="Cancel"
+                      severity="secondary"
+                      size="small"/>
+            <p-button (onClick)="unlinkSteam()" [loading]="unlinkingSteam()" label="Unlink"
+                      severity="danger"
+                      size="small"/>
+        </div>
+    </div>
+</p-dialog>
+
+<!-- ── Delete account confirm dialog ─────────────────────────────────────── -->
+<p-dialog
+        [(visible)]="confirmDeleteVisible"
+        [closable]="!deleting()"
+        [draggable]="false"
+        [modal]="true"
+        [resizable]="false"
+        [style]="{width: '420px'}"
+        appendTo="body"
+        header="Delete Account">
+    <div class="flex flex-col gap-4 pt-1">
+        <div class="flex items-start gap-3 bg-rose-500/[0.08] border border-rose-500/25 rounded-xl px-4 py-3">
+            <i class="pi pi-exclamation-triangle text-rose-400 shrink-0 mt-0.5"></i>
+            <p class="text-sm text-white/70">
+                This will permanently delete your account, all your messages, and your encryption keys.
+                <strong class="text-white/90">This cannot be undone.</strong>
+            </p>
+        </div>
+        <div class="flex gap-3 justify-end">
+            <p-button (onClick)="confirmDeleteVisible.set(false)" [disabled]="deleting()" label="Cancel"
+                      severity="secondary"
+                      size="small"/>
+            <p-button (onClick)="confirmDeleteAccount()" [loading]="deleting()" label="Delete My Account"
+                      severity="danger"
+                      size="small"/>
+        </div>
+    </div>
+</p-dialog>
+
+<!-- ── Cancel deletion confirm dialog ────────────────────────────────────── -->
+<p-dialog
+        [(visible)]="cancelDeleteVisible"
+        [closable]="!cancellingDeletion()"
+        [draggable]="false"
+        [modal]="true"
+        [resizable]="false"
+        [style]="{width: '420px'}"
+        appendTo="body"
+        header="Cancel Account Deletion">
+    <div class="flex flex-col gap-4 pt-1">
+        <div class="flex items-start gap-3 bg-amber-500/[0.08] border border-amber-500/25 rounded-xl px-4 py-3">
+            <i class="pi pi-info-circle text-amber-400 shrink-0 mt-0.5"></i>
+            <p class="text-sm text-white/70">
+                Your account will be restored to normal and no longer scheduled for deletion.
+            </p>
+        </div>
+        <div class="flex gap-3 justify-end">
+            <p-button (onClick)="cancelDeleteVisible.set(false)" [disabled]="cancellingDeletion()" label="Keep Deletion"
+                      severity="secondary"
+                      size="small"/>
+            <p-button (onClick)="confirmCancelDeletion()" [loading]="cancellingDeletion()" label="Yes, Cancel Deletion"
+                      severity="primary"
+                      size="small"/>
+        </div>
+    </div>
+</p-dialog>
+
+<!-- ── Avatar lightbox ────────────────────────────────────────────────────── -->
+<p-dialog
+        [(visible)]="avatarExpanded"
+        [closable]="true"
+        [dismissableMask]="true"
+        [draggable]="false"
+        [modal]="true"
+        [resizable]="false"
+        [showHeader]="false"
+        [style]="{background: 'transparent', boxShadow: 'none', border: 'none'}"
+        appendTo="body"
+        styleClass="avatar-lightbox">
+    <div class="flex items-center justify-center p-2">
+        @if (ownProfile()?.avatarUrl && !avatarError()) {
+            <img [src]="ownProfile()!.avatarUrl" alt="Avatar"
+                 class="w-64 h-64 rounded-full object-cover border-4 border-white/10 shadow-2xl"/>
+        } @else {
+            <div class="w-64 h-64 rounded-full bg-[color-mix(in_srgb,var(--color-brand)_20%,transparent)] border-4 border-white/10 shadow-2xl
+                  flex items-center justify-center text-8xl font-semibold text-[var(--color-brand-dim)]">
+                {{ avatarLabel() }}
+            </div>
+        }
+    </div>
+</p-dialog>

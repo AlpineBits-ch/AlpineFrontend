@@ -1,0 +1,97 @@
+@if (loading()) {
+    <p class="text-sm text-text-secondary text-center py-8">{{ 'COMMON.LOADING' | translate }}</p>
+} @else if (unavailable()) {
+    <div class="flex flex-col items-center justify-center py-12 gap-2 text-center">
+        <i class="pi pi-moon text-3xl text-text-muted"></i>
+        <p class="text-sm text-text-secondary m-0">{{ 'QUIET_HOURS.UNAVAILABLE_TITLE' | translate }}</p>
+        <p class="text-xs text-text-secondary m-0 max-w-sm">{{ 'QUIET_HOURS.UNAVAILABLE_HINT' | translate }}</p>
+    </div>
+} @else {
+    <div class="flex flex-col gap-6 max-w-2xl">
+
+        <div class="flex items-center justify-between bg-card/60 border border-white/[0.06] rounded-xl px-4 py-3">
+            <div>
+                <p class="text-[0.8125rem] text-text-primary">{{ 'QUIET_HOURS.ENABLE_TITLE' | translate }}</p>
+                <p class="text-xs text-text-secondary mt-0.5">{{ 'QUIET_HOURS.ENABLE_DESC' | translate }}</p>
+            </div>
+            <p-toggleswitch (ngModelChange)="enabled.set($event)" [ngModel]="enabled()"/>
+        </div>
+
+        <section class="flex flex-col gap-3">
+            <div>
+                <p class="text-[0.8125rem] text-text-primary">{{ 'QUIET_HOURS.WINDOW_TITLE' | translate }}</p>
+                <p class="text-xs text-text-secondary mt-0.5">{{ 'QUIET_HOURS.WINDOW_DESC' | translate }}</p>
+            </div>
+
+            <div class="flex items-center flex-wrap gap-2 text-[0.8125rem] text-text-secondary">
+                <span>{{ 'QUIET_HOURS.FROM' | translate }}</span>
+                <input (ngModelChange)="startTime.set($event)" [disabled]="!enabled()" [ngModel]="startTime()"
+                       class="w-28 text-center" pInputText type="time"/>
+                <span>{{ 'QUIET_HOURS.TO' | translate }}</span>
+                <input (ngModelChange)="endTime.set($event)" [disabled]="!enabled()" [ngModel]="endTime()"
+                       class="w-28 text-center" pInputText type="time"/>
+                @if (lengthLabel()) {
+                    <span class="text-text-muted">({{ lengthLabel() }})</span>
+                }
+            </div>
+
+            @if (!enabled()) {
+                <p class="text-xs text-text-secondary">{{ 'QUIET_HOURS.DISABLED_HINT' | translate }}</p>
+            }
+            @if (wrapsMidnight()) {
+                <p class="text-xs text-text-secondary">
+                    <i class="pi pi-moon text-[0.625rem] mr-1"></i>{{ 'QUIET_HOURS.WRAPS_MIDNIGHT' | translate }}
+                </p>
+            }
+            @if (windowError(); as err) {
+                <p class="text-xs text-rose-400">{{ ('QUIET_HOURS.ERROR.' + err) | translate }}</p>
+            }
+        </section>
+
+        <section class="flex flex-col gap-2">
+            <div>
+                <p class="text-[0.8125rem] text-text-primary">{{ 'QUIET_HOURS.TIME_ZONE_TITLE' | translate }}</p>
+                <p class="text-xs text-text-secondary mt-0.5">{{ 'QUIET_HOURS.TIME_ZONE_DESC' | translate }}</p>
+            </div>
+            <div class="flex items-center gap-2">
+                @if (timeZonePickerAvailable) {
+                    <p-select (ngModelChange)="timeZoneId.set($event)" [disabled]="!enabled()"
+                              [filterPlaceholder]="'QUIET_HOURS.TIME_ZONE_FILTER' | translate"
+                              [filter]="true" [ngModel]="timeZoneId()" [options]="timeZoneOptions()"
+                              [placeholder]="'QUIET_HOURS.TIME_ZONE_PLACEHOLDER' | translate" appendTo="body"
+                              optionLabel="label" optionValue="value" size="small" styleClass="flex-1 min-w-0"/>
+                } @else {
+                    <input (ngModelChange)="timeZoneId.set($event)" [disabled]="!enabled()" [ngModel]="timeZoneId()"
+                           [placeholder]="'QUIET_HOURS.TIME_ZONE_PLACEHOLDER' | translate" class="flex-1" pInputText
+                           type="text"/>
+                }
+                <p-button (onClick)="useBrowserTimeZone()" [disabled]="!enabled()"
+                          [label]="'QUIET_HOURS.USE_MINE' | translate" severity="secondary" size="small"/>
+            </div>
+            @if (timeZoneUnknown()) {
+                <p class="text-xs text-rose-400">{{ 'QUIET_HOURS.ERROR.UNKNOWN_TIME_ZONE' | translate }}</p>
+            }
+        </section>
+
+        @if (enabled() && !error()) {
+            <div class="flex items-center gap-2 bg-card/60 border border-white/[0.06] rounded-xl px-4 py-3">
+                <i class="pi text-[0.75rem]"
+                   [class.pi-moon]="currentlyQuiet()"
+                   [class.pi-sun]="!currentlyQuiet()"
+                   [class.text-indigo-300]="currentlyQuiet()"
+                   [class.text-text-secondary]="!currentlyQuiet()"></i>
+                <p class="text-xs text-text-secondary">
+                    {{ (currentlyQuiet() ? 'QUIET_HOURS.CURRENTLY_QUIET' : 'QUIET_HOURS.CURRENTLY_AWAKE') | translate }}
+                </p>
+            </div>
+        }
+
+        <p class="text-xs text-text-secondary">{{ 'QUIET_HOURS.DEFERRAL_NOTE' | translate }}</p>
+
+        <div>
+            <p-button (onClick)="save()" [disabled]="!!error() || !dirty()" [label]="'COMMON.SAVE' | translate"
+                      [loading]="saving()" severity="primary" size="small"/>
+        </div>
+
+    </div>
+}

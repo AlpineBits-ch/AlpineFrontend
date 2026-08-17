@@ -1,0 +1,681 @@
+# The gate that commit 4734c8b ("feat: mls improvements") needed and did not have.
+#
+# That commit overwrote src-tauri/src/crypto/mls.rs with a file belonging to a different project.
+# All 25 `#[tauri::command]` attributes disappeared, every one of the corresponding
+# `invoke_handler` registrations in lib.rs stopped resolving, and the incoming code imported
+# `hkdf` and `hmac` while Cargo.toml still listed neither. 59 compile errors, pushed straight to
+# `main`, noticed by nobody. The only workflow that existed at the time (build.yml) triggers on
+# `push: branches: [release]`, so nothing on `main` was ever compiled by CI.
+#
+# Everything below follows from that. In particular the Rust job runs a real `cargo build`, not
+# `cargo check`: `check` would also have caught this specific incident, but `build` is what proves
+# the crate actually links, and build.yml already demonstrates that a full Tauri compile fits in a
+# Linux runner, so there is no reason to settle for the weaker check.
+name: CI
+
+on:
+  pull_request:
+  # Pushes as well as pull requests, and `main` specifically: the incident was a direct push to
+  # `main` with no PR anywhere in the picture, so a `pull_request`-only gate would have sailed
+  # right past it. `release` is included so this fails in ~10 minutes rather than letting
+  # build.yml discover the same breakage 40 minutes into producing installers.
+  push:
+    branches: [main, release]
+
+# Superseded PR runs are pointless, so cancel them. Pushes to main and release are never
+# cancelled - every commit that lands on a protected branch keeps its own verdict, which is the
+# whole point of gating pushes.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  frontend:
+    name: Angular build & unit tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # src/assets/i18n/locales is a submodule and it is not optional for this job:
+      # system-message-locale.spec.ts imports en.json, de.json and fr.json from it directly, so
+      # `ng test` fails at build time without it. Same HTTPS rewrite as build.yml, which is what
+      # makes the SSH-form URL in .gitmodules resolvable with the checkout credentials.
+      - name: Force HTTPS for submodules
+        run: |
+          git config --global url."https://github.com/".insteadOf "git@github-alpine:"
+          git config --global url."https://github.com/".insteadOf "git@github.com:"
+
+      - name: Update submodules
+        run: git submodule update --init --recursive
+
+      - uses: oven-sh/setup-bun@v2
+
+      # setup-bun caches the bun binary, not the packages. This is the package cache.
+      - name: Cache bun package cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+
+      # 41 MB locally, and it takes the production build from roughly a minute cold to ~16s warm.
+      # Keyed on bun.lock alone rather than on the commit sha on purpose: a per-commit key would
+      # write a fresh entry on every single run, and the GitHub Actions cache is one shared 10 GB
+      # budget for the whole repo - see the eviction note in build.yml. Angular's cache is
+      # content-addressed internally, so a slightly stale restore is still correct, just partial.
+      - name: Cache Angular build cache
+        uses: actions/cache@v4
+        with:
+          path: .angular/cache
+          key: angular-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: angular-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # Ahead of everything Rust-shaped below, deliberately. These tests build their own
+      # development target and have no dependency whatsoever on the wasm engine, so running them
+      # first means a broken Rust build cannot take the Angular unit-test result down with it. The
+      # ordering is the whole mitigation - `ng build` genuinely does depend on the wasm blob and has
+      # to come after it.
+      #
+      # angular.json configures no `browsers`, so @angular/build:unit-test runs vitest in Node
+      # against jsdom - headless by construction, no browser and no display server involved.
+      # `--headless` is a documented no-op in that mode; it is passed anyway so that adding a real
+      # browser to angular.json later cannot silently start needing an X server here.
+      # `--watch=false` because the builder defaults `watch` to true whenever stdout is a TTY.
+      - name: Run Angular unit tests
+        run: bun x ng test --watch=false --headless
+
+      # ── The WASM crypto engine, built before ng build ──────────────────────────────────────
+      #
+      # The browser build gets its MLS engine, master-key wrapping and device-certificate
+      # verification from `crates/venta-crypto` compiled to wasm32 (see
+      # docs/superpowers/specs/2026-08-11-browser-only-build-design.md). `bun run build:wasm`
+      # emits it into src/assets/wasm/, which angular.json already copies into the bundle.
+      #
+      # This has to run *before* `ng build`, and the assertion below it is not belt-and-braces:
+      # angular.json's asset entry is a `**/*` glob over src/assets, and a glob that matches
+      # nothing is not an error. So a missing, failed or misdirected wasm build produces a
+      # perfectly green `ng build` and a web client whose crypto engine 404s at runtime - which
+      # surfaces as a login that hangs, not as a build failure. The blob's presence is therefore
+      # asserted explicitly.
+      #
+      # Rust in the *frontend* job duplicates four steps from the `wasm` job below, deliberately.
+      # Making this job `needs: wasm` would be less duplication and worse gating: a Rust compile
+      # error would report this whole job as "skipped" rather than telling anyone whether the
+      # Angular side is healthy. Independent jobs keep one red cross per broken thing, which is the
+      # same reasoning the voice and screen-publish steps in the tauri job are split out for. The
+      # cache keys are identical to that job's on purpose, so whichever runs first warms the other.
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          # The `rustup target add wasm32-unknown-unknown` equivalent, done by the toolchain
+          # action so it is part of the cached toolchain rather than a separate network step.
+          targets: wasm32-unknown-unknown
+
+      - uses: mozilla-actions/sccache-action@v0.0.10
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+          key: cargo-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      # A maintained action rather than `cargo install wasm-pack`, which compiles it from source and
+      # costs minutes; this downloads the release binary. Pinned to v0.15.0, which is the version
+      # `bun run build:wasm` was verified against - the version is spelled out rather than left to
+      # float because wasm-pack drives wasm-bindgen, and an unpinned tool that silently upgrades
+      # under a pinned crate is how "schema version mismatch" appears in a build that changed
+      # nothing.
+      - uses: jetli/wasm-pack-action@v0.4.0
+        with:
+          version: 'v0.15.0'
+
+      - name: Build the WASM crypto engine
+        env:
+          RUSTC_WRAPPER: sccache
+          SCCACHE_GHA_ENABLED: "true"
+        run: bun run build:wasm
+
+      - name: Assert the WASM engine landed where Angular will copy it
+        run: |
+          set -euo pipefail
+          out=src/assets/wasm
+          for f in venta_crypto.js venta_crypto_bg.wasm; do
+            test -s "$out/$f" || {
+              echo "::error::$out/$f is missing or empty after build:wasm - the web client would"\
+                   "ship without a crypto engine, and ng build will not notice"
+              exit 1
+            }
+          done
+          ls -la "$out"
+
+      # `ng build`, deliberately not `bun run build`. That script is
+      # `ng build && bun run sentry:sourcemaps`, and the sourcemap upload needs SENTRY_AUTH_TOKEN,
+      # which pull requests from forks never receive - so wiring the script in as-is would make
+      # this job fail for a reason that has nothing to do with the code. Split instead of skipped:
+      # the compile, which is the part that can actually break, runs on every PR and every push,
+      # and the upload stays in build.yml where the secret is available.
+      #
+      # `--configuration production` is already the default (angular.json sets
+      # defaultConfiguration), spelled out so that changing that default cannot quietly downgrade
+      # this gate to a development build with optimization off and no budgets.
+      - name: Build Angular (production)
+        run: bun x ng build --configuration production
+
+  tauri:
+    # This is the job that would have caught 4734c8b.
+    name: Rust build & tests (workspace)
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+      # No submodules and no bun here: the i18n locales are a frontend asset, and cargo never
+      # runs `beforeBuildCommand` - that belongs to the tauri CLI. Nor does this job need
+      # dist/alpine/browser to exist. `tauri::generate_context!()` only embeds the frontend when
+      # the `custom-protocol` feature is on (tauri-macros: `dev: cfg!(not(feature =
+      # "custom-protocol"))`), and this crate never enables it, so a plain cargo build takes the
+      # `devUrl` branch and embeds nothing. If someone adds that feature later, this job will
+      # start failing with "The `frontendDist` configuration is set to ... but this path doesn't
+      # exist", and the fix is to build the frontend first, not to delete the check.
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      # sccache alone, not sccache + swatinem/rust-cache, for exactly the reason spelled out in
+      # build.yml: both spend the same 10 GB repo-wide cache budget and evict each other, and a
+      # Tauri target/ directory is multiple gigabytes per save. sccache's per-object entries are
+      # small enough to survive, and they are shared with the release jobs, which use the same
+      # wrapper - so this gate warms the cache that build.yml then hits.
+      - uses: mozilla-actions/sccache-action@v0.0.10
+
+      # Compiled crates come from sccache; this only saves re-downloading and re-extracting the
+      # crate sources. Small, and deliberately excludes ~/.cargo/registry/src, which is just the
+      # unpacked form of the .crate files already cached.
+      #
+      # `Cargo.lock`, not `src-tauri/Cargo.lock`. The lockfile moved to the repository root when
+      # `crates/venta-crypto` was split out and this became a Cargo workspace - a workspace has
+      # exactly one lockfile and it lives beside the workspace root manifest. The old path did not
+      # fail loudly: `hashFiles` on a pattern that matches nothing returns the empty string, so the
+      # key silently collapsed to `cargo-Linux-` and every run wrote a fresh entry under one
+      # colliding key. Wrong-but-green, which is the failure mode this whole file exists to catch.
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+          key: cargo-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      # Taken from build.yml's release-linux job, which already builds this crate on ubuntu-24.04 -
+      # including meson, ninja-build and pkg-config, which the default-on `aec` feature needs
+      # because it compiles WebRTC's AudioProcessing module from source. Keeping the list aligned
+      # is the point: if the release build needs a package, so does the gate, and a gate that
+      # compiles a different dependency set is not gating the release.
+      #
+      # `cmake` and `clang`/`libclang-dev` are the additions, and neither is optional:
+      #
+      #   cmake        - `opus` -> `audiopus_sys` finds no system Opus through pkg-config on
+      #                  Ubuntu and falls back to building the vendored copy with CMake. Without
+      #                  it the build dies in that build script with "is `cmake` not installed?".
+      #   libclang-dev - `libpipewire-0.3-dev` gets `libspa-sys` as far as pkg-config, and then it
+      #                  runs bindgen over the SPA headers. Without libclang that panics with
+      #                  "Unable to find libclang".
+      #
+      # Both were found by reproducing this job in a clean ubuntu:24.04 container, and both are
+      # things the GitHub runner image happens to preinstall - which is how release-linux gets
+      # away with omitting them, and which is precisely the "relying on whatever the runner image
+      # happens to ship" that build.yml's own meson comment argues against. Listed explicitly so
+      # an image change cannot break either job silently.
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libpipewire-0.3-dev \
+            libsoup-3.0-dev \
+            libgbm-dev \
+            libasound2-dev \
+            patchelf \
+            meson \
+            ninja-build \
+            pkg-config \
+            cmake \
+            clang \
+            libclang-dev
+
+      # A real build, with the real default feature set (`default = ["aec"]`), of every target in
+      # every workspace member - lib, both binaries, `venta-crypto`, and the test harnesses.
+      # `--all-targets` matters here: without it a broken `#[cfg(test)]` block compiles fine and
+      # only explodes in the test step.
+      #
+      # `--workspace --all-targets`, replacing `--manifest-path src-tauri/Cargo.toml
+      # --all-targets`. `--manifest-path` selects one *package*, so once `crates/venta-crypto` was
+      # split out it stopped covering roughly a third of the Rust in this repository - including
+      # the test harnesses `--all-targets` exists to compile. `--workspace` restores what that flag
+      # was for.
+      #
+      # Still run from the repository root, and that is not cosmetic: .cargo/config.toml lives at
+      # the root and cargo discovers it by walking up from the *invocation* directory. Its
+      # CMAKE_POLICY_VERSION_MINIMUM entry is what lets audiopus_sys' vendored libopus configure
+      # under CMake 4. See the comment in that file. The root is now also where the workspace
+      # manifest and the `[patch.crates-io]` section live, so there is no longer any other place
+      # this could reasonably be invoked from.
+      #
+      # Debug profile, not release: it is several times faster and the incident class this exists
+      # to catch - missing attributes, unresolved paths, undeclared dependencies - is caught
+      # identically either way. build.yml still does the release compile on the release branch.
+      - name: Build the workspace
+        env:
+          RUSTC_WRAPPER: sccache
+          SCCACHE_GHA_ENABLED: "true"
+        run: cargo build --workspace --all-targets
+
+      # ── Why this step and the next one are two steps ────────────────────────────────────────
+      #
+      # This used to be one `cargo test --manifest-path src-tauri/Cargo.toml` with the comment
+      # "304 tests as of this commit". Splitting `crates/venta-crypto` out of `src-tauri` broke
+      # that arrangement in the worst available way: `--manifest-path` selects a single package, so
+      # the 145 `#[test]` functions in mls.rs, crypto.rs and device_cert.rs - the MLS engine, the
+      # master-key wrapping, the device-certificate verification, and the cross-client golden
+      # vectors that pin all of it against venta-mobile - would have run **nowhere**, while this
+      # step carried on reporting a green `test result: ok`. Nothing here asserted a total, so
+      # there was no floor to break and nothing to notice: the crypto suite would simply have
+      # stopped existing, quietly, on the commit that moved it.
+      #
+      # Hence one step per package, each with its own red cross, and hence the count floor and the
+      # named-test greps in the venta-crypto step below - the same shape as the voice and
+      # screen-publish gates further down, for the same reason.
+      #
+      # `-p Venta` rather than `--manifest-path src-tauri/Cargo.toml`: identical selection, but it
+      # now reads as one member of a workspace rather than as a standalone crate that happens to
+      # live in a subdirectory.
+      #
+      # ── No total floor on this step, and that is a decision rather than an omission ──────────
+      #
+      # There never was one: the old "304 tests as of this commit" was a note, not an assertion.
+      # More to the point, a correct number for *this runner* cannot be obtained anywhere except on
+      # this runner, because a meaningful slice of the suite is Windows-only:
+      #
+      #   media/publisher/encoder_mf.rs   9 tests, `#[cfg(target_os = "windows")]` on the module
+      #   media/screen_thumb.rs           9 tests, `#![cfg(windows)]` on the file
+      #
+      # plus scattered `#[cfg(windows)]` test functions inside otherwise portable modules
+      # (presence/ipc.rs, lib.rs, logging.rs). 459 test attributes exist in src-tauri/src; at least
+      # 14 of them pass on a Windows dev machine and cannot even be compiled here. A floor measured
+      # on a developer's machine and applied to ubuntu-24.04 is therefore not conservative, it is
+      # simply wrong, and it would fail every run on a green suite - the exact "wrong floor is worse
+      # than no floor" case. Deriving one statically has the same problem from the other end: it
+      # would have to model every `#[cfg]` in the crate correctly and stay correct as they change.
+      #
+      # What guards this package instead is the pair of named e2e gates below. Between them they
+      # floor ~240 of its tests, they name the two tests whose absence has actually hurt before,
+      # and - unlike a total - they cannot pass vacuously. If a total floor is ever wanted, take the
+      # number from a green run of *this job*, not from a local run.
+      #
+      # media::publisher::encoder's tests provision Cisco's precompiled OpenH264 binary and cache
+      # it under src-tauri/target/test-openh264 (see `provision_async` in encoder.rs, which builds
+      # that path from CARGO_MANIFEST_DIR).
+      #
+      # That fetch used to happen once per run, and it took the whole job down on 2026-08-11: all 11
+      # media::publisher::encoder tests failed at once on `OpenH264 must be provisioned for encoder
+      # tests`, with the same tests passing locally where the blob was already on disk. A red gate
+      # that means "Cisco's CDN was slow" teaches everyone to re-run it, and a gate people re-run
+      # reflexively is not a gate.
+      #
+      # The step below deliberately does NOT cache src-tauri/target - it is a build artifact
+      # directory, and that reasoning still holds. This caches the one leaf inside it that is a
+      # *download* rather than a build output.
+      #
+      # Keyed on openh264_blob.rs, which is where the pinned `VERSION` ("2.6.0") and the per-platform
+      # SHA-256s live. Not a constant key: the cached filename carries the version, so after a bump a
+      # constant key would hit, miss the file it needs, re-download every run, and never save the new
+      # blob - caching that quietly stops caching. Not `Cargo.lock` either, which changes constantly
+      # for reasons that have nothing to do with this binary.
+      #
+      # Caching a downloaded executable is safe here specifically because `openh264-sys2` verifies
+      # the blob's SHA-256 against its own built-in constant before loading it, so a truncated or
+      # tampered cache entry fails closed rather than being executed.
+      #
+      # If provisioning still fails, screen sharing itself is unaffected - it falls back to the
+      # software encoder (see the module docs). It is only these tests that require the real blob.
+      - name: Cache the OpenH264 test blob
+        uses: actions/cache@v4
+        with:
+          path: src-tauri/target/test-openh264
+          key: openh264-blob-${{ runner.os }}-${{ hashFiles('src-tauri/src/media/publisher/openh264_blob.rs') }}
+
+      - name: Test Venta (src-tauri)
+        env:
+          RUSTC_WRAPPER: sccache
+          SCCACHE_GHA_ENABLED: "true"
+        run: cargo test -p Venta
+
+      # The crypto engine, in its own package since the workspace split. Pure RustCrypto, no
+      # system libraries, no Tauri: it needs none of the apt list above and would run in about two
+      # minutes on its own runner. It is kept here rather than in the `wasm` job below so that
+      # "the native engine" and "the wasm engine" stay separate verdicts - the whole point of the
+      # golden-vector parity test is that those two can disagree, and a single job reporting both
+      # would make which one broke a matter of reading the log.
+      - name: Test venta-crypto (native)
+        env:
+          RUSTC_WRAPPER: sccache
+          SCCACHE_GHA_ENABLED: "true"
+        run: |
+          set -o pipefail
+          cargo test -p venta-crypto 2>&1 | tee crypto-tests.log
+
+          # ── The three named tests, all of them cross-client contracts ───────────────────────
+          #
+          # MLS is a wire protocol and this engine is shared line-for-line with venta-mobile. A
+          # ciphersuite, protocol-version or TLS-codec drift between the two does not fail as a
+          # compile error or as a wrong answer; it fails as a Welcome that the other client cannot
+          # deserialize, i.e. as a user locked out of every group they are invited to. These three
+          # are the tests that turn that into a CI failure, and `cargo test` reports success for a
+          # filter that matched nothing - so a rename, an `#[ignore]` or a bad merge would read as
+          # a pass. Exactly the vacuous-pass hazard the voice gate below documents.
+          fail=0
+          for t in \
+            'mls::integration_tests::this_engine_consumes_venta_mobiles_golden_vectors' \
+            'mls::integration_tests::the_shared_engine_dependencies_are_pinned_together' \
+            'crypto::master_key_tests::a_recovery_code_from_venta_mobile_opens_its_wrapping_here'
+          do
+            grep -q "$t \.\.\. ok" crypto-tests.log || {
+              echo "::error::the cross-client crypto test '$t' did not run - it was renamed,"\
+                   "ignored or removed"
+              fail=1
+            }
+          done
+          [ "$fail" -eq 0 ] || exit 1
+
+          passed=$(sed -n 's/^test result: ok\. \([0-9]*\) passed.*/\1/p' crypto-tests.log | head -1)
+          echo "venta-crypto tests passed: ${passed:-0}"
+          # 149 as of this commit, made up of:
+          #
+          #   mls.rs            78 `#[test]`, one `#[ignore]`d (generate_golden_fixture, the
+          #                     regenerator for testdata/mls-golden/v1/fixture.json)
+          #   device_cert.rs    38 `#[test]`
+          #   crypto.rs         29 `#[test]`, one `#[ignore]`d (generate_recovery_code_fixture,
+          #                     the same job for recovery-code-alpine.json)
+          #   parity_tests.rs    6, attributed `#[cfg_attr(not(target_arch = "wasm32"), test)]` so
+          #                     they run here as well as under wasm-bindgen-test in the wasm job
+          #
+          # i.e. 151 test functions, two of them fixture regenerators that are `#[ignore]`d because
+          # running them rewrites the fixtures the rest of the suite pins against. Nothing in the
+          # crate is platform-gated, so 149 is the figure on every host - confirmed by a real run:
+          # "151 tests: 149 passed, 0 failed, 2 ignored".
+          #
+          # The floor is 145, not 151. `cargo test` reports 151 as the number of tests it *found*
+          # and 149 as the number that *passed*, and the sed above reads the passed count - so a
+          # floor of 151 would fail every single run, on a green suite, forever. 145 keeps the
+          # headroom this file's other floors have: a floor, not an exact count, so adding tests
+          # must not fail CI while deleting most of the suite must.
+          if [ "${passed:-0}" -lt 145 ]; then
+            echo "::error::only ${passed:-0} venta-crypto tests ran; expected at least 145"
+            exit 1
+          fi
+
+      # Voice has broken three times now with the whole suite green, because every stage had unit
+      # tests and none of them crossed a stage boundary: a handler that starved every remote track
+      # after the first, and a render path that ignored the output device's sample rate. Both were
+      # invisible to a counter and to any test that did not put sound in one end and listen at the
+      # other. `media::voice::e2e_tests` does exactly that - two real peer connections, real Opus,
+      # the shipping decoder, mixer and render path, and an assertion on audible energy.
+      #
+      # Run again as its own step rather than left to the line above, for two reasons. It gets its
+      # own red cross in the checks list, so "voice is broken" is legible without opening a log.
+      # And the count guard below is what stops it passing vacuously: `cargo test` reports success
+      # for a filter that matched nothing, so a module renamed, `#[ignore]`d or lost in a merge
+      # would read as a pass - which is precisely how a gate for a recurring regression quietly
+      # stops being one.
+      - name: Voice pipeline end-to-end
+        env:
+          RUSTC_WRAPPER: sccache
+          SCCACHE_GHA_ENABLED: "true"
+        run: |
+          set -o pipefail
+          # No --nocapture: it interleaves the pipeline's own eprintln output into the result
+          # lines, and the grep below needs "<name> ... ok" to stay on one line. A failing test
+          # still prints its captured output, which is when that output is wanted anyway.
+          # `-p Venta --lib` is the workspace spelling of what used to be
+          # `--manifest-path src-tauri/Cargo.toml --lib`: identical target selection. The filter,
+          # the name grep and the floor below are unchanged - these tests did not move.
+          cargo test -p Venta --lib media::voice:: 2>&1 \
+            | tee voice-tests.log
+
+          # The end-to-end test by name: it is the one that proves audio is audible, and the one
+          # whose absence must fail this job rather than pass it.
+          grep -q 'media::voice::e2e_tests::a_remote_participant_is_audible_end_to_end \.\.\. ok' \
+            voice-tests.log || {
+              echo "::error::the voice end-to-end test did not run - it was renamed, ignored or removed"
+              exit 1
+            }
+
+          passed=$(sed -n 's/^test result: ok\. \([0-9]*\) passed.*/\1/p' voice-tests.log | head -1)
+          echo "voice tests passed: ${passed:-0}"
+          # 180 as of this commit. A floor, not an exact count - adding tests must not fail CI, but
+          # deleting most of the suite must.
+          if [ "${passed:-0}" -lt 180 ]; then
+            echo "::error::only ${passed:-0} voice tests ran; expected at least 180"
+            exit 1
+          fi
+
+      # Screen sharing has broken twice with the whole suite green, and both times the fault was
+      # invisible from the sharing side: a keyframe interval counted in frames on a screen that
+      # produces almost none (a viewer waited ~45s for a decodable picture), and one full UDP send
+      # queue ending the publication outright while capture and encoding carried on. The share
+      # reported "running" everywhere except on the wire, and the sharer's own preview - drawn from
+      # the capture source, not the stream - looked perfect throughout.
+      #
+      # `media::publisher::e2e_tests` puts frames in one end and asserts on the NAL units a viewer
+      # reassembles at the other, with the backend mocked at the socket. Same shape, and same
+      # reasoning, as the voice gate above: its own red cross in the checks list, and a name grep
+      # plus a count floor so it cannot pass vacuously.
+      - name: Screen publish end-to-end
+        env:
+          RUSTC_WRAPPER: sccache
+          SCCACHE_GHA_ENABLED: "true"
+        run: |
+          set -o pipefail
+          # `-p Venta --lib`: see the note in the voice step. These tests did not move either.
+          cargo test -p Venta --lib media::publisher:: 2>&1 \
+            | tee publisher-tests.log
+
+          # The end-to-end test by name: it is the one that proves a viewer receives the picture,
+          # and the one whose absence must fail this job rather than pass it.
+          #
+          # `ok|ignored`, not `ok`, and that is a real weakening worth naming. The LiveKit migration
+          # (92675ff) renamed this test and put it behind a live SFU on 127.0.0.1:7880, which no job
+          # here starts, so it reports `ignored` and nothing in CI watches the picture arrive any
+          # more. What survives is that the test cannot be renamed or deleted unnoticed. Accepting
+          # either word rather than pinning `ignored` is deliberate: standing an SFU up in this job
+          # is what makes it `ok`, and that must not then fail the build.
+          grep -qE 'media::publisher::e2e_tests::a_published_screen_reaches_the_sfu_end_to_end \.\.\. (ok|ignored)' \
+            publisher-tests.log || {
+              echo "::error::the screen publish end-to-end test did not run - it was renamed or removed"
+              exit 1
+            }
+
+          passed=$(sed -n 's/^test result: ok\. \([0-9]*\) passed.*/\1/p' publisher-tests.log | head -1)
+          echo "publisher tests passed: ${passed:-0}"
+          # 66 as of this commit. A floor, not an exact count.
+          if [ "${passed:-0}" -lt 60 ]; then
+            echo "::error::only ${passed:-0} publisher tests ran; expected at least 60"
+            exit 1
+          fi
+
+  wasm:
+    # The browser client's crypto engine. `crates/venta-crypto` compiled to
+    # wasm32-unknown-unknown is what gives the web build real E2EE instead of a second,
+    # divergent implementation - see docs/superpowers/specs/2026-08-11-browser-only-build-design.md.
+    #
+    # Two distinct things are gated here, and they fail for different reasons:
+    #
+    #   1. It still *compiles* for wasm32. The crate reaches wasm through two `#[cfg]`ed shims -
+    #      `now_unix_secs()` because `SystemTime::now()` panics on that target, and a no-op
+    #      `save_to_disk` because there is no filesystem - plus `getrandom`/`uuid` `js` features.
+    #      Any of those regressing breaks the browser build and nothing else; the native suite in
+    #      the tauri job stays perfectly green.
+    #
+    #   2. It still produces the *same bytes* as the native engine. That is the golden-vector
+    #      parity test, and the design calls it "the load-bearing test of this design" for a
+    #      concrete reason: if the two engines diverge, a group created on desktop is unreadable in
+    #      the browser and the other way round, and neither side reports an error - both just fail
+    #      to decrypt. There is no symptom that points at the cause. Hence the name guard below.
+    #
+    # Its own job rather than steps in the tauri job: none of that apt list is needed here (the
+    # crate is pure RustCrypto - no ring, no C, no MSVC patches), so this runs in a fraction of the
+    # time, and "the wasm engine broke" gets its own red cross instead of hiding behind a Tauri
+    # compile.
+    name: WASM crypto engine (venta-crypto)
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+      # No submodules and no bun: the i18n locales are a frontend asset and nothing here touches
+      # the Angular build.
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          # `rustup target add wasm32-unknown-unknown`, done through the toolchain action so the
+          # std artifacts for the target come down as part of the cached toolchain rather than as a
+          # separate network step on every run.
+          targets: wasm32-unknown-unknown
+
+      # Same wrapper and same cache keys as the tauri job, for the reason spelled out there:
+      # sccache's per-object entries are small enough to survive the one 10 GB repo-wide budget,
+      # and sharing the store means whichever job runs first warms the other. wasm32 objects are
+      # keyed separately from host ones, so the two do not evict each other's work.
+      - uses: mozilla-actions/sccache-action@v0.0.10
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+          key: cargo-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      # `--no-default-features`, even though `venta-crypto`'s `default` is already `[]`. That is
+      # the point: the flag is a gate on the default set *staying* empty. The moment someone adds a
+      # native-only convenience feature to `default`, this step keeps passing while the wasm build
+      # that the web client actually ships stops working - and `wasm-pack build` further down does
+      # not use `--no-default-features`, so nothing else would catch it.
+      #
+      # `cargo check`, not `cargo build`, and unusually for this file that is the right call: the
+      # thing being proven is that the crate type-checks and resolves for a target whose std is
+      # different, and the real link happens in `wasm-pack build` in the frontend job and in the
+      # web image workflow. This is the cheap early signal, not the only one.
+      - name: Check venta-crypto compiles for wasm32
+        env:
+          RUSTC_WRAPPER: sccache
+          SCCACHE_GHA_ENABLED: "true"
+        run: cargo check -p venta-crypto --target wasm32-unknown-unknown --no-default-features
+
+      # wasm-pack, not a hand-rolled `CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER=...`. `wasm-pack
+      # test` provisions a wasm-bindgen-test-runner matched to the `wasm-bindgen` version in
+      # Cargo.lock (0.2.121 at the time of writing), which is the fiddly part: pairing the CLI with
+      # the crate by hand produces "schema version mismatch" from a commit that changed nothing.
+      # Pinned for the same reason as in the frontend job.
+      - uses: jetli/wasm-pack-action@v0.4.0
+        with:
+          version: 'v0.15.0'
+
+      # `wasm-pack test --node` runs the harness under node, so node is a dependency of this gate
+      # rather than a convenience. Declared instead of taken from whatever the runner image ships,
+      # for the same reason the tauri job lists cmake and libclang-dev explicitly: a job that
+      # depends on an undeclared part of the image is one image bump from breaking for a reason
+      # nobody will look for here.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # ── The parity gate ────────────────────────────────────────────────────────────────────
+      #
+      # `crates/venta-crypto/src/parity_tests.rs` is the file the design calls the load-bearing
+      # proof of the whole thing, and its own header says so: every assertion is against a
+      # checked-in fixture and a pinned literal rather than against whatever the build produced,
+      # because a round trip that compares an engine with itself passes identically on two engines
+      # that have both drifted the same way.
+      #
+      # `--node`, not `--headless --chrome`. Nothing in that module declares
+      # `wasm_bindgen_test_configure!(run_in_browser)` - it is pure computation over `include_str!`
+      # fixtures, with no DOM and no browser API beyond `crypto.getRandomValues` and `Date.now`,
+      # both of which Node provides through the same getrandom/js-sys shims the browser uses. It is
+      # also the invocation the module's own header documents. If a parity test ever does need a
+      # real browser, swap in `--headless --chrome` plus a `browser-actions/setup-chrome` step; the
+      # greps below are unchanged either way, because the wasm-bindgen harness prints cargo's
+      # "<name> ... ok" and "test result: ok. N passed" lines in both modes.
+      #
+      # Three independent guards, catching three different things:
+      #
+      #   1. Named tests. `cargo test` and wasm-bindgen-test both report success for a filter that
+      #      matched nothing, so a rename, an `#[ignore]` or a bad merge reads as a pass. These
+      #      three names are the assertions that would actually notice a divergence: the master-key
+      #      wrapping (Argon2id is the one primitive with a plausible reason to behave differently
+      #      in wasm), the key-package digest against a pinned SHA-256, and the golden Welcome and
+      #      application message.
+      #
+      #   2. A count floor. 6 as of this commit, which is every test in the module.
+      #
+      #   3. That the harness ran anything at all. An empty wasm-bindgen-test binary exits 0, and
+      #      this crate's other test modules are `#[cfg(not(target_arch = "wasm32"))]` - so a
+      #      `#[cfg]` mistake that excluded the parity module from the wasm build too would produce
+      #      a green step proving nothing. The floor covers this, and it is the reason there is a
+      #      floor rather than only the name greps.
+      #
+      # The names are matched with a `(^|::)` prefix rather than a full path on purpose. The name is
+      # what the test's author chose and what identifies it; the module path depends on how
+      # `parity_tests` ends up declared in lib.rs, which is a detail this gate has no business
+      # pinning. If a name here stops matching, the test was renamed - fix the name, do not delete
+      # the check.
+      - name: Golden-vector parity, native vs wasm
+        env:
+          RUSTC_WRAPPER: sccache
+          SCCACHE_GHA_ENABLED: "true"
+        run: |
+          set -o pipefail
+          wasm-pack test --node crates/venta-crypto 2>&1 | tee wasm-tests.log
+
+          fail=0
+          for t in \
+            'the_golden_master_key_wrappings_unwrap_identically' \
+            'the_golden_key_package_digests_identically' \
+            'the_golden_welcome_and_message_decrypt_identically'
+          do
+            grep -qE "(^|::)$t \.\.\. ok" wasm-tests.log || {
+              echo "::error::the parity test '$t' did not run under wasm32. It is part of the proof"\
+                   "that the browser engine and the native engine produce identical bytes; without"\
+                   "it a divergence ships silently and surfaces in the field as a group neither"\
+                   "host can read, or as a master key that unlocks on one host and reports the"\
+                   "wrong password on the other."
+              fail=1
+            }
+          done
+          [ "$fail" -eq 0 ] || exit 1
+
+          passed=$(sed -n 's/^test result: ok\. \([0-9]*\) passed.*/\1/p' wasm-tests.log | head -1)
+          echo "wasm parity tests passed: ${passed:-0}"
+          # 6 as of this commit - the whole of parity_tests.rs. A floor, not an exact count.
+          if [ "${passed:-0}" -lt 6 ]; then
+            echo "::error::only ${passed:-0} tests ran under wasm32; expected at least 6. An empty"\
+                 "wasm-bindgen-test binary exits 0, so this step must assert a count or it proves"\
+                 "nothing."
+            exit 1
+          fi

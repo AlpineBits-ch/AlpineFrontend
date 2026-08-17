@@ -1,0 +1,77 @@
+<div class="flex h-full select-none flex-col items-center justify-center gap-8 bg-stage px-8">
+
+    <div class="flex size-24 items-center justify-center rounded-2xl border border-brand/20 bg-brand/10">
+        <i aria-hidden="true" class="pi pi-volume-up text-5xl text-brand-dim"></i>
+    </div>
+
+    <div class="text-center">
+        <h2 class="mb-2 text-2xl font-bold text-white/90">{{ channel().name }}</h2>
+        @if (participants().length > 0) {
+            <p class="text-base text-white/55">
+                {{ 'CALL.PARTICIPANT_COUNT' | translate: {count: participants().length} }}
+            </p>
+        } @else {
+            <p class="text-base text-white/40">{{ 'CALL.LOBBY_EMPTY' | translate }}</p>
+        }
+    </div>
+
+    @if (participants().length > 0) {
+        <div class="flex max-w-md flex-wrap justify-center gap-5">
+            @for (p of participants(); track p.userId) {
+                <div class="flex flex-col items-center gap-2">
+                    <span class="relative">
+                        <app-avatar [label]="p.avatarLabel" [userId]="p.userId" size="large"/>
+                        @if (p.isMuted) {
+                            <span [attr.aria-label]="'CALL.MUTED' | translate"
+                                  class="absolute -bottom-0.5 -right-0.5 flex size-5 items-center justify-center
+                                         rounded-full border border-border-subtle bg-sidebar">
+                                <!-- Drawn slash: PrimeIcons has no slashed microphone, see .icon-slashed. -->
+                                <span class="icon-slashed relative flex items-center justify-center text-[0.5625rem]
+                                             text-offline">
+                                    <i class="pi pi-microphone"></i>
+                                </span>
+                            </span>
+                        }
+                    </span>
+                    <span class="max-w-[4.375rem] truncate text-center text-xs text-white/70">{{ p.displayName }}</span>
+                    <!-- You cannot tell someone is streaming from the lobby otherwise: avatar and mute state are the only other signals here. -->
+                    @if (p.isScreenSharing) {
+                        <app-call-live-badge size="sm" variant="soft"/>
+                    }
+                </div>
+            }
+        </div>
+    }
+
+    <div class="flex items-center gap-3">
+        <!-- Both actions stand down together while a join is in flight, since a room takes a second or two to admit you and a button left looking idle reads as a click that missed. -->
+        <button
+                (click)="joinVoice.emit()"
+                [disabled]="joining()"
+                class="call-focusable inline-flex cursor-pointer items-center gap-2 rounded-xl border-0 bg-brand
+                       px-10 py-3 font-semibold text-white transition-colors hover:bg-brand-hover
+                       disabled:cursor-default disabled:opacity-60 disabled:hover:bg-brand"
+                type="button">
+            @if (joining()) {
+                <i aria-hidden="true" class="pi pi-spinner pi-spin text-sm"></i>
+                {{ 'CALL.JOINING' | translate }}
+            } @else {
+                {{ 'CALL.JOIN_VOICE' | translate }}
+            }
+        </button>
+
+        <!-- Only offered when someone is actually live, otherwise it's a second button doing the same thing as the first one for no reason. -->
+        @if (liveStreamer(); as streamer) {
+            <button
+                    (click)="joinAndWatch.emit(streamer.userId)"
+                    [disabled]="joining()"
+                    class="call-focusable cursor-pointer rounded-xl border border-live/30 bg-live/10 px-10 py-3
+                           font-semibold text-live transition-colors hover:bg-live/15
+                           disabled:cursor-default disabled:opacity-60 disabled:hover:bg-live/10"
+                    type="button">
+                {{ 'CALL.JOIN_AND_WATCH' | translate }}
+            </button>
+        }
+    </div>
+
+</div>

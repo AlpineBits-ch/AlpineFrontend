@@ -1,0 +1,400 @@
+name: Build & Release
+
+on:
+  push:
+    branches: [release]
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.version.outputs.VERSION }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get app version
+        id: version
+        run: echo "VERSION=$(jq -r '.version' src-tauri/tauri.conf.json)" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.VERSION }}
+          name: Alpine v${{ steps.version.outputs.VERSION }}
+          draft: false
+          prerelease: false
+          make_latest: true
+
+  # Platform-independent gates, deliberately in their own job rather than inside a build.
+  #
+  # These used to run in release-windows, on the grounds that their output is the same everywhere so
+  # they only need to run once. That part was right; the placement was not - "once" landed on the
+  # slowest job in the workflow, so a ~90s check that has nothing to do with Windows sat directly on
+  # the critical path of the release. Here it runs concurrently with both builds and finishes long
+  # before either, so it costs no wall-clock at all.
+  #
+  # `needs:` is deliberately absent. This does not gate create-release: it never did (the release was
+  # already published by the time the Windows job reached these checks), and making it a gate would
+  # serialise a couple of minutes in front of every build to preserve a property the workflow has
+  # never had. A failure here still fails the run, which is the actual point.
+  #
+  # No submodules: the i18n locales are a frontend asset, and nothing these scripts read lives there.
+  # The vendored WebRTC notices that generate-notices.js does read are committed to this repo, not
+  # pulled in as a submodule.
+  checks:
+    name: Platform-independent checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      # generate-notices.js shells out to `cargo metadata` for the Rust half of the dependency tree.
+      # Resolution only - nothing is compiled here, so no sccache and no system dependencies.
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache bun package cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # Fails if a dependency was added without regenerating the notices.
+      - name: Check third-party notices are up to date
+        run: |
+          bun run licenses:test
+          bun run licenses
+          if ! git diff --quiet -- src/assets/THIRD-PARTY-NOTICES.md; then
+            git diff -- src/assets/THIRD-PARTY-NOTICES.md
+            echo "::error::THIRD-PARTY-NOTICES.md is stale - run 'bun run licenses' and commit the result."
+            exit 1
+          fi
+
+      # The NSIS template is vendored (src-tauri/vendor/nsis/installer.nsi) so the installer can
+      # default to a passive, wizard-less install. A vendored handlebars template can drift from the
+      # bundler that consumes it on any CLI bump, producing a subtly wrong installer rather than a
+      # build failure - this makes that loud. The check only reads files, so it does not need
+      # Windows despite guarding a Windows-only artifact.
+      - name: Check the vendored NSIS template is in sync
+        run: bun run nsis:check
+
+  release-windows:
+    needs: create-release
+    environment: build
+    runs-on: windows-latest
+    permissions:
+      contents: write
+      # Lets the job mint a GitHub OIDC token, which is the whole mechanism behind
+      # azure/login below. Without it the login step fails with a token request error
+      # rather than an auth error, which reads like an Azure problem and is not one.
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Disable Windows Defender
+        run: Set-MpPreference -DisableRealtimeMonitoring $true
+        shell: powershell
+      - uses: oven-sh/setup-bun@v2
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      # Deliberately sccache alone, not sccache + swatinem/rust-cache. Both store into the same
+      # 10 GB GitHub Actions cache, so they evict each other, and rust-cache saved a multi-gigabyte
+      # Tauri target/ directory on every run - paying the upload cost each time while rarely
+      # getting a hit. sccache's per-object entries are far smaller and survive the budget.
+      - uses: mozilla-actions/sccache-action@v0.0.10
+
+      # sccache caches compiled *objects*; this caches the crate *sources* they are compiled from,
+      # and the two are unrelated. Without it every run re-resolves the crates.io index and
+      # re-downloads all ~650 crate archives - 40s on this job, measured between cargo starting and
+      # the first `Compiling` line of run 31732217786.
+      #
+      # `ci.yml` has had this on all three of its jobs since the workspace split; the release jobs
+      # were simply never given it. Same paths and the same key expression, so `cargo-Linux-` is
+      # shared with those jobs and whichever runs first warms the rest. `cargo-Windows-` has no such
+      # donor - nothing in `ci.yml` runs on Windows - so this job is both the only writer and the
+      # only reader of its own key, and the first run after this lands is still a miss.
+      #
+      # Deliberately excludes ~/.cargo/registry/src, which is just the unpacked form of the .crate
+      # files in ~/.cargo/registry/cache - caching both doubles the size for nothing. See the same
+      # note in ci.yml.
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+          key: cargo-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      - name: Force HTTPS for Submodules
+        run: |
+          git config --global url."https://github.com/".insteadOf "git@github-alpine:"
+          git config --global url."https://github.com/".insteadOf "git@github.com:"
+      - name: Update Submodules
+        run: |
+          git submodule update --init --recursive
+
+      # The `aec` feature is on by default and builds WebRTC's AudioProcessing module from source
+      # through meson and ninja (see src-tauri/Cargo.toml). Installed explicitly rather than relying
+      # on whatever the runner image happens to ship, so echo cancellation cannot silently stop
+      # building because an image changed. Python, which meson needs, is preinstalled.
+      #
+      # The MSVC toolchain this then drives is set up by the runner itself; meson only finds `cl`
+      # because of that. A plain developer shell has no MSVC on PATH and fails here with an
+      # unhelpful "[WinError 2]" out of meson - run from an "x64 Native Tools" prompt locally.
+      - name: Install meson and ninja
+        run: pip install meson ninja
+
+      # setup-bun caches the bun binary, not the packages. `bun install` on this runner was ~1m43s
+      # against ~5s on ubuntu, which is what makes the package cache worth its slot in the shared
+      # 10 GB budget here even though it barely registers on Linux.
+      - name: Cache bun package cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+
+      # ~41 MB, and it takes the production frontend build from roughly a minute cold to ~16s warm -
+      # measured in ci.yml, which has had this for a while. `tauri build` runs `bun run build` as its
+      # beforeBuildCommand, so the release jobs pay that cold cost too; they were just never given
+      # the cache. Keyed on bun.lock rather than the commit sha for the reason spelled out in ci.yml:
+      # a per-commit key writes a fresh entry every run and evicts the caches that matter.
+      - name: Cache Angular build cache
+        uses: actions/cache@v4
+        with:
+          path: .angular/cache
+          key: angular-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: angular-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # Authenticode signing, via Azure Artifact Signing. Everything below feeds
+      # bundle.windows.signCommand in tauri.conf.json - see src-tauri/vendor/signing/sign.ps1
+      # for why signing has to happen inside the bundler rather than after it.
+      #
+      # These three ids are identifiers, not credentials, and are deliberately literals
+      # rather than secrets: there is no secret in this pipeline to leak or rotate. The
+      # app registration can only sign because a federated credential trusts
+      # `repo:AlpineBits-ch/AlpineFrontend:environment:build` specifically, and because it
+      # holds the Artifact Signing Certificate Profile Signer role on the `venta` account.
+      # Both halves are required, so a leaked client id on its own grants nothing.
+      #
+      # Note the environment name above is load-bearing: the federated credential is scoped
+      # to `environment:build`. Renaming or removing `environment: build` on this job breaks
+      # signing with an opaque AADSTS700213 no-matching-federated-identity error.
+      #
+      # There are deliberately two federated credentials on the app registration. The Entra
+      # portal now builds the subject in its immutable-id form
+      # (repo:AlpineBits-ch@253154267/AlpineFrontend@1213677612:environment:build) and gives
+      # no hint that GitHub only emits that form if the org opts in - by default it sends the
+      # name-based subject, so the immutable-only credential matched nothing and every login
+      # failed with AADSTS700213. `github-actions-build-legacy-subject` carries the name-based
+      # subject and is the one that actually matches today; the immutable one is left in place
+      # for whenever the org does opt in.
+      #
+      # This step no longer authenticates the signing itself, and cannot: the OIDC
+      # assertion it redeems expires five minutes later, while signing happens at the end
+      # of a twenty minute build. sign.ps1 mints its own assertion at the moment it signs
+      # - see the note there. What this is now is a fail-fast check on the federated
+      # credential and the role assignment, one minute in rather than seventeen.
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: e80a4993-ac35-4875-bc65-3d3bac21896b
+          tenant-id: 2d977209-9059-4da8-a971-b12c78dd9122
+          subscription-id: a72ab284-5262-49fc-9947-a4fd6c70ccd2
+
+      # The dlib is what teaches signtool to talk to Artifact Signing. It ships only as a
+      # NuGet package - there is an MSI, but it needs an elevated interactive install and
+      # puts things somewhere sign.ps1 would have to guess at. Extracting it here gives an
+      # exact path, which is what ARTIFACT_SIGNING_DLIB carries into the build.
+      - name: Install the Artifact Signing dlib
+        shell: pwsh
+        run: |
+          nuget install Microsoft.ArtifactSigning.Client -x -OutputDirectory "${{ runner.temp }}\dlib"
+          $dll = Get-ChildItem -Path "${{ runner.temp }}\dlib" -Filter 'Azure.CodeSigning.Dlib.dll' -Recurse |
+            Where-Object { $_.FullName -match '\\x64\\' } |
+            Select-Object -First 1
+          if (-not $dll) { throw 'Azure.CodeSigning.Dlib.dll (x64) not found in the extracted NuGet package.' }
+          "ARTIFACT_SIGNING_DLIB=$($dll.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+          # The dlib is a .NET 8 component. If the runner image ever drops that runtime it
+          # loads no signer at all, and signtool fails in seconds with nothing useful said.
+          Write-Host '--- installed .NET runtimes ---'
+          dotnet --list-runtimes
+
+      - name: Build Tauri (Windows)
+        env:
+          RUSTC_WRAPPER: sccache
+          SCCACHE_GHA_ENABLED: "true"
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # What sign.ps1 redeems its freshly minted OIDC assertion against, via
+          # WorkloadIdentityCredential. Same two ids as the login step above and they have to
+          # stay that way - they identify the app registration the federated credential and
+          # the signer role both hang off. Neither is a secret; see the note up there.
+          AZURE_CLIENT_ID: e80a4993-ac35-4875-bc65-3d3bac21896b
+          AZURE_TENANT_ID: 2d977209-9059-4da8-a971-b12c78dd9122
+          # No SENTRY_AUTH_TOKEN here, deliberately. `bun run build` uploads frontend sourcemaps, and
+          # both release jobs build the identical frontend - so passing the token on both uploaded
+          # the same maps to the same Sentry release twice, the second upload being pure duplicate
+          # work on the job that gates the release. release-linux is the uploader now.
+          #
+          # scripts/sentry-sourcemaps.mjs skips cleanly when the token is absent rather than failing,
+          # so this omission is the whole mechanism - there is no second switch to keep in sync.
+        # NSIS only, deliberately - the MSI is not a second flavour of the same
+        # thing, it is a different install with a different location and a
+        # different privilege model.
+        #
+        # NSIS is configured `currentUser` (see tauri.conf.json), so it installs
+        # into %LOCALAPPDATA%\Venta with no UAC prompt and the updater can install
+        # it silently with `/S /R`. The MSI installs per-machine into Program
+        # Files and needs elevation for every update; under the updater's `quiet`
+        # install mode the UAC prompt is suppressed and the install fails
+        # silently. The updater also prefers `{os}-{arch}-{installer}` over
+        # `{os}-{arch}`, so as long as an msi artifact exists and the API
+        # advertises it, MSI-installed clients keep being served the broken path.
+        #
+        # Not building it is what makes that unreachable.
+        run: bun run tauri build --bundles nsis
+
+      # tauri-bundler captures the sign command's output and reports only
+      # "failed to run powershell", so without this a signing failure says nothing at all
+      # about why. Runs on success too - a signed build that took a suspicious path is
+      # worth seeing before it ships, not after.
+      - name: Signing log
+        if: always()
+        shell: pwsh
+        run: |
+          $log = Join-Path $env:RUNNER_TEMP 'signing.log'
+          if (Test-Path $log) { Get-Content $log } else { Write-Host 'No signing log was written - the sign command never ran.' }
+
+      - name: Upload Windows artifacts
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.create-release.outputs.version }}
+          fail_on_unmatched_files: false
+          files: |
+            src-tauri/target/release/bundle/nsis/*.exe
+            src-tauri/target/release/bundle/nsis/*.exe.sig
+
+  release-linux:
+    needs: create-release
+    environment: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      # See the note in release-windows: sccache alone, not alongside rust-cache.
+      - uses: mozilla-actions/sccache-action@v0.0.10
+
+      # See the note in release-windows. This half of the pair does have a donor: the key matches
+      # ci.yml's three jobs, which run on every push to main, so `cargo-Linux-` is normally warm
+      # before this job ever starts.
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+          key: cargo-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      - name: Force HTTPS for Submodules
+        run: |
+          git config --global url."https://github.com/".insteadOf "git@github-alpine:"
+          git config --global url."https://github.com/".insteadOf "git@github.com:"
+      - name: Update Submodules
+        run: |
+          git submodule update --init --recursive
+      # meson, ninja-build: the `aec` feature is on by default and builds WebRTC's AudioProcessing
+      # module from source through them (see src-tauri/Cargo.toml), which is what this job was
+      # failing on.
+      #
+      # pkg-config: the build script probes for a system abseil (>= 20240722) before falling back to
+      # the copy meson fetches. Ubuntu's is older than that, so the fallback is what actually gets
+      # used, but without pkg-config the probe cannot even run.
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libpipewire-0.3-dev \
+            libsoup-3.0-dev \
+            libgbm-dev \
+            libasound2-dev \
+            patchelf \
+            meson \
+            ninja-build \
+            pkg-config
+
+      # Same two caches as release-windows, and they share their keys with ci.yml's frontend job -
+      # whichever runs first populates them, the rest restore. See the notes over there for why the
+      # key is bun.lock rather than the commit sha.
+      - name: Cache bun package cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+
+      - name: Cache Angular build cache
+        uses: actions/cache@v4
+        with:
+          path: .angular/cache
+          key: angular-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: angular-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build Tauri (Linux)
+        env:
+          RUSTC_WRAPPER: sccache
+          SCCACHE_GHA_ENABLED: "true"
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # The only job that uploads frontend sourcemaps - see the note in release-windows. If this
+          # job is ever dropped or made conditional, the token has to move rather than just vanish,
+          # or releases stop being symbolicated in Sentry without anything failing.
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+        run: bun run tauri build --bundles deb,rpm
+
+      - name: Upload Linux artifacts
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.create-release.outputs.version }}
+          fail_on_unmatched_files: false
+          files: |
+            src-tauri/target/release/bundle/deb/*.deb
+            src-tauri/target/release/bundle/deb/*.deb.sig
+            src-tauri/target/release/bundle/rpm/*.rpm
+            src-tauri/target/release/bundle/rpm/*.rpm.sig

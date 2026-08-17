@@ -1,0 +1,400 @@
+<div class="flex flex-col h-full bg-app-bg overflow-hidden">
+
+    <!-- Header. Same padding, height and safe-area treatment as every other channel view, so the shell doesn't jump on navigation and the title clears a notch. -->
+    <header class="app-header flex items-center gap-2 px-3 sm:px-5 border-b border-border-subtle shrink-0 bg-app-bg">
+        <p-button (onClick)="navService.mobileNavOpen.set(true)" [text]="true" class="lg:hidden" icon="pi pi-bars"
+                  severity="secondary" size="small"/>
+
+        <div class="flex items-center gap-2 sm:gap-3 min-w-0">
+            <i [class]="icon()" class="text-text-muted shrink-0"></i>
+            <span class="text-sm font-semibold text-text-primary truncate">{{ channel().name }}</span>
+            @if (channel().description) {
+                <span class="hidden sm:block text-text-muted text-xs border-l border-border-default pl-3 truncate max-w-xs">
+                    {{ channel().description }}
+                </span>
+            }
+        </div>
+
+        <div class="flex items-center gap-1 ml-auto shrink-0">
+            @if (canManage()) {
+                <!-- The fastest way to add stock: a code the house knows is one Enter, no form and no arithmetic. -->
+                <p-button (onClick)="view() === 'scan' ? view.set('stock') : showScan()"
+                          [pTooltip]="'PANTRY.SCAN_TOOLTIP' | translate"
+                          [severity]="view() === 'scan' ? 'primary' : 'secondary'" [text]="true"
+                          icon="pi pi-qrcode" size="small" tooltipPosition="bottom"/>
+            }
+            <!-- House-wide, and labelled as such: it is not this pantry's list. -->
+            <p-button (onClick)="view() === 'expiring' ? view.set('stock') : showExpiring()"
+                      [pTooltip]="'PANTRY.EXPIRING_TOOLTIP' | translate" [text]="true"
+                      [severity]="view() === 'expiring' ? 'primary' : 'secondary'"
+                      icon="pi pi-clock" size="small" tooltipPosition="bottom"/>
+            @if (canManage()) {
+                <p-button (onClick)="openConfig()" [pTooltip]="'PANTRY.CONFIG_TOOLTIP' | translate" [text]="true"
+                          icon="pi pi-cog" severity="secondary" size="small" tooltipPosition="bottom"/>
+            }
+        </div>
+    </header>
+
+    @if (moduleWithheld()) {
+        <!-- Chosen and not covered. The third state, and the only one with an upgrade behind it. -->
+        <app-module-not-in-plan feature="Pantry" [guildId]="guildId()"/>
+    } @else if (moduleOff()) {
+        <!-- §13.2: the module is off for this house; not a permission problem, and there is no owner escape hatch, so nothing interactive is offered. -->
+        <div class="flex-1 min-h-0 flex flex-col items-center justify-center gap-3 px-6 text-center">
+            <div class="w-14 h-14 rounded-2xl bg-card border border-border flex items-center justify-center">
+                <i class="pi pi-box text-[1.5rem] text-text-muted"></i>
+            </div>
+            <div class="max-w-sm space-y-1.5">
+                <p class="text-sm font-semibold text-text-primary m-0">{{ 'PANTRY.MODULE_OFF_TITLE' | translate }}</p>
+                <p class="text-[0.8125rem] text-text-secondary m-0">{{ 'PANTRY.MODULE_OFF_BODY' | translate }}</p>
+            </div>
+        </div>
+    } @else if (view() === 'scan') {
+
+        <!-- ── Scan ────────────────────────────────────────────────────────── -->
+        <div class="flex-1 min-h-0 flex flex-col">
+            <div class="flex items-center gap-2 px-3 sm:px-5 py-2.5 border-b border-border-subtle shrink-0">
+                <p-button (onClick)="view.set('stock')" [text]="true" icon="pi pi-arrow-left" severity="secondary"
+                          size="small"/>
+                <span class="text-xs font-semibold text-text-secondary">{{ 'PANTRY.SCAN_TITLE' | translate }}</span>
+            </div>
+            <div class="flex-1 min-h-0 overflow-y-auto thin-scrollbar px-3 sm:px-5 py-4">
+                <app-pantry-scan [channelId]="channel().id" [guildId]="channel().guildId"/>
+            </div>
+        </div>
+
+    } @else if (view() === 'expiring') {
+
+        <!-- ── House-wide expiring ─────────────────────────────────────────── -->
+        <div class="flex-1 min-h-0 flex flex-col">
+            <div class="flex items-center gap-2 flex-wrap px-3 sm:px-5 py-2.5 border-b border-border-subtle shrink-0">
+                <p-button (onClick)="view.set('stock')" [text]="true" icon="pi pi-arrow-left" severity="secondary"
+                          size="small"/>
+                <div class="min-w-0">
+                    <p class="text-sm font-semibold text-text-primary m-0">{{ 'PANTRY.EXPIRING_TITLE' | translate }}</p>
+                    <!-- Says "every pantry", because the header above it names one channel and the two would otherwise read as the same scope. -->
+                    <p class="text-[0.6875rem] text-text-muted m-0">{{ 'PANTRY.EXPIRING_SCOPE' | translate }}</p>
+                </div>
+
+                <div class="flex items-center gap-1 ml-auto">
+                    <!-- The default, and the only option that is not an override: each pantry answers with its own expiryWarningDays, so a freezer and a fridge are both right in one list. -->
+                    <button (click)="setExpiringDays(null)"
+                            [class]="expiringDays() === null
+                                ? 'bg-brand/15 text-brand-dim border-brand/30'
+                                : 'bg-white/[0.03] text-text-secondary border-border-subtle hover:bg-hover'"
+                            [pTooltip]="'PANTRY.EXPIRING_PER_PANTRY_HINT' | translate"
+                            class="px-2 py-1 rounded-md border text-[0.6875rem] font-medium transition-colors"
+                            tooltipPosition="bottom"
+                            type="button">
+                        {{ 'PANTRY.EXPIRING_PER_PANTRY' | translate }}
+                    </button>
+                    @for (days of EXPIRING_WINDOWS; track days) {
+                        <button (click)="setExpiringDays(days)"
+                                [class]="expiringDays() === days
+                                    ? 'bg-brand/15 text-brand-dim border-brand/30'
+                                    : 'bg-white/[0.03] text-text-secondary border-border-subtle hover:bg-hover'"
+                                class="px-2 py-1 rounded-md border text-[0.6875rem] font-medium transition-colors"
+                                type="button">
+                            {{ 'PANTRY.EXPIRING_DAYS' | translate: {days: days} }}
+                        </button>
+                    }
+                    <p-button (onClick)="refreshExpiring()" [loading]="expiringBusy()" [text]="true"
+                              icon="pi pi-refresh" severity="secondary" size="small"/>
+                </div>
+            </div>
+
+            <div class="flex-1 min-h-0 overflow-y-auto thin-scrollbar px-3 sm:px-5 py-3">
+                @if (expiringBusy() && expiringRows().length === 0) {
+                    <p class="text-[0.8125rem] text-text-muted text-center py-8 m-0">{{ 'PANTRY.LOADING' | translate }}</p>
+                } @else if (expiringRows().length === 0) {
+                    <p class="text-[0.8125rem] text-text-muted text-center py-8 m-0">{{ 'PANTRY.EXPIRING_EMPTY' | translate }}</p>
+                } @else {
+                    <div class="space-y-1.5">
+                        @for (row of expiringRows(); track row.item.id) {
+                            <div class="flex items-center gap-3 px-3 py-2 rounded-lg bg-card border border-border-subtle">
+                                <div class="min-w-0 flex-1">
+                                    <p class="text-[0.8125rem] font-medium text-text-primary truncate m-0">{{ row.item.name }}</p>
+                                    <p class="text-[0.6875rem] text-text-muted truncate m-0">
+                                        {{ quantityLabel(row.item) }}
+                                        @if (channelNameFor(row.item.channelId); as pantryName) {
+                                            · #{{ pantryName }}
+                                        }
+                                    </p>
+                                </div>
+                                @if (row.item.expiresAt) {
+                                    <span [class]="expiryClass(row.expiry)"
+                                          class="shrink-0 px-1.5 py-0.5 rounded border text-[0.625rem] font-medium uppercase tracking-widest">
+                                        {{ (row.expiry === 'expired' ? 'PANTRY.EXPIRED' : 'PANTRY.EXPIRES_SOON') | translate }}
+                                    </span>
+                                    <span class="shrink-0 text-[0.6875rem] text-text-muted tabular-nums">
+                                        {{ row.item.expiresAt | date: 'mediumDate' }}
+                                    </span>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+
+    } @else {
+
+        <!-- ── This pantry's stock ─────────────────────────────────────────── -->
+        <div class="flex-1 min-h-0 flex flex-col">
+
+            @if (hasLoaded() && loopOff()) {
+                <!-- The whole loop is off, said once at the top, rather than left to be inferred from thresholds that quietly append to nothing. -->
+                <div class="flex items-start gap-2.5 mx-3 sm:mx-5 mt-3 px-3 py-2.5 rounded-lg bg-amber-400/[0.07] border border-amber-400/25">
+                    <i class="pi pi-exclamation-triangle text-amber-300 text-[0.8125rem] mt-0.5 shrink-0"></i>
+                    <div class="min-w-0 flex-1">
+                        <p class="text-[0.8125rem] font-medium text-amber-200 m-0">{{ 'PANTRY.LOOP_OFF_TITLE' | translate }}</p>
+                        <p class="text-[0.75rem] text-text-secondary m-0">{{ 'PANTRY.LOOP_OFF_BODY' | translate }}</p>
+                    </div>
+                    @if (canManage()) {
+                        <p-button (onClick)="openConfig()" [text]="true" label="{{ 'PANTRY.LOOP_OFF_ACTION' | translate }}"
+                                  severity="warn" size="small" styleClass="shrink-0"/>
+                    }
+                </div>
+            }
+
+            <!-- Toolbar: the two counts worth knowing at a glance, then Add. -->
+            <div class="flex items-center gap-2 flex-wrap px-3 sm:px-5 py-2.5 shrink-0">
+                @if (restockLoopOn()) {
+                    <span class="px-2 py-1 rounded-md border border-brand/30 bg-brand/15 text-brand-dim text-[0.6875rem] font-medium">
+                        {{ 'PANTRY.COUNT_LISTED' | translate: {count: listedCount()} }}
+                    </span>
+                }
+                <span class="px-2 py-1 rounded-md border border-amber-400/25 bg-amber-400/10 text-amber-300 text-[0.6875rem] font-medium">
+                    {{ 'PANTRY.COUNT_LOW' | translate: {count: lowCount()} }}
+                </span>
+                @if (expiringCount() > 0) {
+                    <span class="px-2 py-1 rounded-md border border-rose-500/25 bg-rose-500/10 text-rose-300 text-[0.6875rem] font-medium">
+                        {{ 'PANTRY.COUNT_EXPIRING' | translate: {count: expiringCount()} }}
+                    </span>
+                }
+
+                @if (canManage()) {
+                    <p-button (onClick)="openAdd()" icon="pi pi-plus" label="{{ 'PANTRY.ADD_ITEM' | translate }}"
+                              severity="primary" size="small" styleClass="ml-auto"/>
+                }
+            </div>
+
+            <div class="flex-1 min-h-0 overflow-y-auto thin-scrollbar px-3 sm:px-5 pb-4">
+                @if (loading() && !hasLoaded()) {
+                    <p class="text-[0.8125rem] text-text-muted text-center py-8 m-0">{{ 'PANTRY.LOADING' | translate }}</p>
+                } @else if (loadError() && !hasLoaded()) {
+                    <div class="flex flex-col items-center gap-2 py-8">
+                        <p class="text-[0.8125rem] text-text-muted m-0">{{ 'PANTRY.LOAD_ERROR' | translate }}</p>
+                        <p-button (onClick)="retry()" [text]="true" label="{{ 'PANTRY.RETRY' | translate }}"
+                                  severity="secondary" size="small"/>
+                    </div>
+                } @else if (rows().length === 0) {
+                    <p class="text-[0.8125rem] text-text-muted text-center py-8 m-0">{{ 'PANTRY.EMPTY' | translate }}</p>
+                } @else {
+                    <div class="space-y-1.5">
+                        @for (row of rows(); track row.item.id) {
+                            <div class="group flex items-center gap-3 px-3 py-2 rounded-lg bg-card border border-border-subtle hover:bg-hover transition-colors">
+
+                                <div class="min-w-0 flex-1">
+                                    <div class="flex items-center gap-2 min-w-0">
+                                        <span class="text-[0.8125rem] font-medium text-text-primary truncate">{{ row.item.name }}</span>
+
+                                        <!-- The restock badge, derived from `restockedAt` on every render, so the server releasing the stamp un-badges the row with nothing to reset here. -->
+                                        <span [class]="stateClass(row.state)"
+                                              class="shrink-0 px-1.5 py-0.5 rounded border text-[0.625rem] font-medium uppercase tracking-widest">
+                                            {{ stateLabelKey(row.state) | translate }}
+                                        </span>
+
+                                        @if (row.expiry !== 'none') {
+                                            <span [class]="expiryClass(row.expiry)"
+                                                  class="shrink-0 px-1.5 py-0.5 rounded border text-[0.625rem] font-medium uppercase tracking-widest">
+                                                {{ (row.expiry === 'expired' ? 'PANTRY.EXPIRED' : 'PANTRY.EXPIRES_SOON') | translate }}
+                                            </span>
+                                        }
+                                    </div>
+
+                                    <p class="text-[0.6875rem] text-text-muted truncate m-0">
+                                        {{ quantityLabel(row.item) }}
+                                        <!-- `!= null` and not a falsy test: a threshold of 0 is real and has to read as "low at 0", never as "not tracked". -->
+                                        @if (row.item.lowThreshold != null) {
+                                            <!-- Muted when the loop is off: the number is still the user's setting, it just cannot cause anything. -->
+                                            <span [class.line-through]="loopOff()">
+                                                · {{ 'PANTRY.LOW_AT' | translate: {threshold: row.item.lowThreshold} }}
+                                            </span>
+                                            @if (loopOff()) {
+                                                <span class="text-amber-300/70">· {{ 'PANTRY.THRESHOLD_INERT' | translate }}</span>
+                                            }
+                                        } @else {
+                                            · {{ 'PANTRY.NO_THRESHOLD' | translate }}
+                                        }
+                                        @if (row.state === 'listed' && restockListName(); as listName) {
+                                            · {{ 'PANTRY.ON_LIST' | translate: {list: listName} }}
+                                        }
+                                        @if (row.item.expiresAt) {
+                                            · {{ row.item.expiresAt | date: 'mediumDate' }}
+                                        }
+                                    </p>
+                                </div>
+
+                                @if (canManage()) {
+                                    <div class="flex items-center gap-0.5 shrink-0">
+                                        <!-- Consume and restock rather than a raw quantity edit: the two run the server's low-stock loop and the second also ticks off the list line the pantry created. -->
+                                        <p-button (onClick)="consumeOne(row.item)"
+                                                  [disabled]="row.item.quantity <= 0"
+                                                  [pTooltip]="'PANTRY.USE_ONE' | translate" [text]="true"
+                                                  icon="pi pi-minus" severity="secondary" size="small"
+                                                  tooltipPosition="top"/>
+                                        <!-- "That was the last of it": the commonest change of all, and the one an amount cannot express without first knowing the exact stock. -->
+                                        <p-button (onClick)="consumeAll(row.item)"
+                                                  [disabled]="row.item.quantity <= 0"
+                                                  [pTooltip]="'PANTRY.USE_ALL' | translate" [text]="true"
+                                                  icon="pi pi-times-circle" severity="secondary" size="small"
+                                                  tooltipPosition="top"/>
+                                        <p-button (onClick)="restockOne(row.item)"
+                                                  [pTooltip]="'PANTRY.RESTOCK_ONE' | translate" [text]="true"
+                                                  icon="pi pi-plus" severity="secondary" size="small"
+                                                  tooltipPosition="top"/>
+                                        <p-button (onClick)="openEdit(row.item)" [text]="true" icon="pi pi-pencil"
+                                                  severity="secondary" size="small"/>
+                                        <p-button (onClick)="deleteItem(row.item)" [text]="true" icon="pi pi-trash"
+                                                  severity="danger" size="small"/>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+<!-- ── Item editor ─────────────────────────────────────────────────────────── -->
+<p-dialog [(visible)]="editorOpen" [draggable]="false" [modal]="true" [resizable]="false"
+          [style]="{width: '420px'}" appendTo="body">
+    <ng-template pTemplate="header">
+        <span class="text-sm font-semibold text-text-primary">
+            {{ (editingId() ? 'PANTRY.EDIT_TITLE' : 'PANTRY.ADD_TITLE') | translate }}
+        </span>
+    </ng-template>
+
+    <div class="space-y-4">
+        <div>
+            <label class="block text-xs font-semibold text-text-muted uppercase tracking-widest mb-2">
+                {{ 'PANTRY.FIELD_NAME' | translate }} <span class="text-rose-400">*</span>
+            </label>
+            <input (keydown.enter)="saveItem()" (ngModelChange)="draftName.set($event)" [ngModel]="draftName()"
+                   [placeholder]="'PANTRY.FIELD_NAME_PLACEHOLDER' | translate" class="w-full" pInputText type="text"/>
+        </div>
+
+        <div class="flex gap-3">
+            <div class="flex-1">
+                <label class="block text-xs font-semibold text-text-muted uppercase tracking-widest mb-2">
+                    {{ 'PANTRY.FIELD_QUANTITY' | translate }} <span class="text-rose-400">*</span>
+                </label>
+                <!-- `step="any"`: quantity is a decimal here, because the server compares it against the threshold; half a bottle is a legal amount. -->
+                <input (keydown.enter)="saveItem()" (ngModelChange)="draftQuantity.set($event)" [ngModel]="draftQuantity()" class="w-full"
+                       min="0" pInputText step="any" type="number"/>
+            </div>
+            <div class="flex-1">
+                <label class="block text-xs font-semibold text-text-muted uppercase tracking-widest mb-2">
+                    {{ 'PANTRY.FIELD_UNIT' | translate }}
+                </label>
+                <input (keydown.enter)="saveItem()" (ngModelChange)="draftUnit.set($event)" [ngModel]="draftUnit()"
+                       [placeholder]="'PANTRY.FIELD_UNIT_PLACEHOLDER' | translate" class="w-full" pInputText
+                       type="text"/>
+            </div>
+        </div>
+
+        <!-- The null-vs-zero switch. Off means "never chase this"; on with 0 means "chase it when the last one is gone"; a single empty number field cannot express both. -->
+        <div class="rounded-lg border border-border-subtle bg-white/[0.02] p-3 space-y-3">
+            <div class="flex items-center justify-between gap-3">
+                <div class="min-w-0">
+                    <p class="text-[0.8125rem] font-medium text-text-primary m-0">{{ 'PANTRY.FIELD_TRACK' | translate }}</p>
+                    <p class="text-[0.6875rem] text-text-muted m-0">{{ 'PANTRY.FIELD_TRACK_HINT' | translate }}</p>
+                </div>
+                <p-toggleswitch (ngModelChange)="draftTrackRestock.set($event)" [ngModel]="draftTrackRestock()"/>
+            </div>
+
+            @if (draftTrackRestock()) {
+                <div>
+                    <label class="block text-xs font-semibold text-text-muted uppercase tracking-widest mb-2">
+                        {{ 'PANTRY.FIELD_THRESHOLD' | translate }}
+                    </label>
+                    <input (keydown.enter)="saveItem()" (ngModelChange)="draftThreshold.set($event)" [ngModel]="draftThreshold()" class="w-full"
+                           min="0" pInputText step="any" type="number"/>
+                    @if (loopOff()) {
+                        <p class="text-[0.6875rem] text-amber-300/80 mt-1.5 m-0">{{ 'PANTRY.THRESHOLD_INERT_HINT' | translate }}</p>
+                    }
+                </div>
+            }
+        </div>
+
+        <div>
+            <label class="block text-xs font-semibold text-text-muted uppercase tracking-widest mb-2">
+                {{ 'PANTRY.FIELD_EXPIRES_AT' | translate }}
+            </label>
+            <p-datepicker (ngModelChange)="draftExpiresAt.set($event)" [ngModel]="draftExpiresAt()" [showClear]="true"
+                          styleClass="w-full"/>
+        </div>
+    </div>
+
+    <ng-template pTemplate="footer">
+        <p-button (onClick)="editorOpen.set(false)" [disabled]="saving()" [text]="true"
+                  label="{{ 'PANTRY.CANCEL' | translate }}" severity="secondary"/>
+        <p-button (onClick)="saveItem()" [disabled]="!draftValid()" [loading]="saving()"
+                  label="{{ 'PANTRY.SAVE' | translate }}" severity="primary"/>
+    </ng-template>
+</p-dialog>
+
+<!-- ── Restock wiring ──────────────────────────────────────────────────────── -->
+<p-dialog [(visible)]="configOpen" [draggable]="false" [modal]="true" [resizable]="false"
+          [style]="{width: '440px'}" appendTo="body">
+    <ng-template pTemplate="header">
+        <span class="text-sm font-semibold text-text-primary">{{ 'PANTRY.CONFIG_TITLE' | translate }}</span>
+    </ng-template>
+
+    <div class="space-y-4">
+        <div>
+            <label class="block text-xs font-semibold text-text-muted uppercase tracking-widest mb-2">
+                {{ 'PANTRY.FIELD_RESTOCK_LIST' | translate }}
+            </label>
+            <!-- Restricted to List channels in this guild: nothing else is a legal target, so nothing else is offered. Clearing it switches the loop off. -->
+            <p-select (ngModelChange)="cfgListChannelId.set($event)" [ngModel]="cfgListChannelId()"
+                      [options]="listChannelOptions()"
+                      [placeholder]="'PANTRY.FIELD_RESTOCK_LIST_PLACEHOLDER' | translate" [showClear]="true"
+                      [style]="{width: '100%'}" optionLabel="label" optionValue="value"/>
+
+            @if (listChannelOptions().length === 0) {
+                <p class="text-[0.75rem] text-amber-300/80 mt-2 m-0">{{ 'PANTRY.NO_LIST_CHANNELS' | translate }}</p>
+            } @else if (cfgListChannelId() === null) {
+                <!-- Stated as a consequence, not as an empty field: thresholds keep their values and stop doing anything, which is the part people miss. -->
+                <p class="text-[0.75rem] text-amber-300/80 mt-2 m-0">{{ 'PANTRY.CONFIG_LOOP_OFF_WARNING' | translate }}</p>
+            } @else {
+                <p class="text-[0.75rem] text-text-muted mt-2 m-0">{{ 'PANTRY.CONFIG_LOOP_ON_HINT' | translate }}</p>
+            }
+        </div>
+
+        <div>
+            <label class="block text-xs font-semibold text-text-muted uppercase tracking-widest mb-2">
+                {{ 'PANTRY.FIELD_WARNING_DAYS' | translate }}
+            </label>
+            <input (keydown.enter)="saveConfig()" (ngModelChange)="cfgWarningDays.set($event)" [ngModel]="cfgWarningDays()" [max]="maxWarningDays"
+                   [min]="minWarningDays" class="w-full" pInputText step="1" type="number"/>
+            @if (!cfgWarningDaysValid()) {
+                <p class="text-[0.75rem] text-rose-400 mt-1.5 m-0">
+                    {{ 'PANTRY.WARNING_DAYS_INVALID' | translate: {min: minWarningDays, max: maxWarningDays} }}
+                </p>
+            } @else {
+                <p class="text-[0.75rem] text-text-muted mt-1.5 m-0">{{ 'PANTRY.FIELD_WARNING_DAYS_HINT' | translate }}</p>
+            }
+        </div>
+    </div>
+
+    <ng-template pTemplate="footer">
+        <p-button (onClick)="configOpen.set(false)" [disabled]="savingConfig()" [text]="true"
+                  label="{{ 'PANTRY.CANCEL' | translate }}" severity="secondary"/>
+        <p-button (onClick)="saveConfig()" [disabled]="!cfgWarningDaysValid()" [loading]="savingConfig()"
+                  label="{{ 'PANTRY.SAVE' | translate }}" severity="primary"/>
+    </ng-template>
+</p-dialog>

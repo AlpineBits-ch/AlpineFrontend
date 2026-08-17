@@ -1,0 +1,31 @@
+/* The host is a positioning wrapper for nothing - the tile inside is `position: fixed` - so it must
+   not take part in layout at all. */
+:host {
+    display: contents;
+}
+
+/* The tile arrives without a click or a route change to explain it: leaving a channel is what puts
+   it there. A short lift gives the eye something to follow to the corner it lands in.
+
+   Only the entry is animated. `left`/`top` are never transitioned, because a dragged tile that eases
+   towards the cursor instead of tracking it feels broken rather than smooth. */
+.mini-player {
+    animation: mini-player-in 140ms ease-out;
+}
+
+@keyframes mini-player-in {
+    from {
+        opacity: 0;
+        transform: translateY(0.5rem);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mini-player {
+        animation: none;
+    }
+}

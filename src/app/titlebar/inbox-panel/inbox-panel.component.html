@@ -1,0 +1,258 @@
+@let sum = summary();
+
+<div class="flex flex-col">
+    <div class="flex items-center justify-between border-b border-border-subtle px-3.5 py-3">
+        <span class="text-[0.8125rem] font-semibold text-text-primary">{{ 'TITLEBAR.INBOX' | translate }}</span>
+        <button (click)="markAllRead()"
+                [title]="'INBOX.MARK_ALL_READ' | translate"
+                class="flex items-center gap-1.5 rounded-md px-2 py-1 text-[0.6875rem] font-medium
+                       text-text-muted transition-colors hover:bg-hover hover:text-text-secondary"
+                type="button">
+            <i class="pi pi-check-circle text-[0.6875rem]"></i>
+            <span>{{ 'INBOX.MARK_ALL_READ' | translate }}</span>
+        </button>
+    </div>
+
+    <div class="flex gap-0.5 border-b border-border-subtle px-2 pt-1.5" role="tablist">
+        @for (t of tabs; track t.id) {
+            @let active = tab() === t.id;
+            @let count = tabCount(t.id);
+            <button (click)="selectTab(t.id)"
+                    [attr.aria-selected]="active"
+                    [class]="active
+                        ? 'border-brand-dim text-text-primary'
+                        : 'border-transparent text-text-muted hover:text-text-secondary'"
+                    class="flex items-center gap-1.5 border-b-2 px-3 pb-2 pt-1.5 text-xs font-medium
+                           transition-colors"
+                    role="tab"
+                    type="button">
+                {{ t.labelKey | translate }}
+                @if (count > 0) {
+                    <span [class]="active ? 'bg-brand text-white' : 'bg-brand-dark/40 text-text-primary'"
+                          class="flex h-4 min-w-4 items-center justify-center rounded-lg px-1
+                                 text-[0.5625rem] font-bold">
+                        {{ sum.capped ? '99+' : count }}
+                    </span>
+                }
+            </button>
+        }
+    </div>
+
+    <!-- A 200 with the groups intact but no bodies, so the counts and breadcrumbs still stand. -->
+    @if (tab() === 'unread' && inbox.previewsUnavailable()) {
+        <p class="m-0 px-3 py-2 text-center text-[0.6875rem] text-text-muted">
+            {{ 'INBOX.PREVIEWS_UNAVAILABLE' | translate }}
+        </p>
+    }
+
+    <div class="thin-scrollbar max-h-[420px] overflow-y-auto p-1">
+        @if (tab() === 'unread') {
+            @for (entry of inbox.unread(); track entry.breadcrumb.channelId) {
+                @let preview = entry.previews[entry.previews.length - 1];
+                <div (click)="openUnread(entry)"
+                     (keydown.enter)="openUnread(entry)"
+                     class="group flex w-full cursor-pointer items-start gap-2.5 rounded-lg px-2.5 py-2
+                            text-left transition-colors hover:bg-hover"
+                     role="button"
+                     tabindex="0">
+                    <span class="mt-0.5 shrink-0 text-xs text-text-muted">
+                        {{ inbox.channelGlyph(entry.breadcrumb) }}
+                    </span>
+
+                    <span class="flex min-w-0 flex-1 flex-col gap-px">
+                        <span class="flex min-w-0 items-baseline gap-1.5">
+                            <span class="truncate text-[0.8125rem] font-medium text-text-primary">
+                                {{ entry.breadcrumb.channelName }}
+                            </span>
+                            <span class="ml-auto shrink-0 text-[0.625rem] text-text-muted">
+                                {{ entry.lastActivityAt | date:'shortTime' }}
+                            </span>
+                        </span>
+                        <span class="truncate text-[0.6875rem] text-text-muted">{{ contextLine(entry) }}</span>
+                        @if (preview) {
+                            <!-- One line only. The popover is a glance, not a reader. -->
+                            <span class="mt-0.5 line-clamp-1 text-[0.6875rem] leading-snug text-text-secondary">
+                                @if (authorName(preview)) {
+                                    <span class="font-medium text-text-primary">{{ authorName(preview) }}:</span>
+                                }
+                                {{ previewText(preview) }}
+                            </span>
+                        }
+                    </span>
+
+                    <span class="mt-px flex shrink-0 items-center gap-1.5">
+                        <!-- Exact, and the only number here worth a red badge. -->
+                        @if (entry.mentionCount > 0) {
+                            <span class="flex h-[18px] min-w-[18px] items-center justify-center rounded-[9px]
+                                         bg-offline px-1.5 text-[0.625rem] font-bold text-white">
+                                {{ entry.mentionCount }}
+                            </span>
+                        }
+                        <!-- Best-effort, so plain text rather than a badge: the two counts must not look alike. -->
+                        @if (entry.unreadCount > 0) {
+                            <span class="text-[0.625rem] font-semibold text-text-muted">{{ entry.unreadCount }}</span>
+                        }
+                        <button (click)="markRead($event, entry)"
+                                [attr.aria-label]="'INBOX.MARK_READ' | translate"
+                                [title]="'INBOX.MARK_READ' | translate"
+                                class="flex size-[22px] items-center justify-center rounded-md text-text-muted
+                                       opacity-0 transition hover:bg-brand-dark/45 hover:text-text-primary
+                                       focus-visible:opacity-100 group-hover:opacity-100"
+                                type="button">
+                            <i class="pi pi-check text-[0.6875rem]"></i>
+                        </button>
+                    </span>
+                </div>
+            } @empty {
+                @if (!inbox.unreadLoading()) {
+                    <div class="flex flex-col items-center px-5 pb-7 pt-7 text-center">
+                        <i class="pi pi-check-circle mb-2.5 text-2xl text-online"></i>
+                        <p class="m-0 text-[0.8125rem] font-semibold text-text-secondary">
+                            {{ 'TITLEBAR.INBOX_EMPTY' | translate }}
+                        </p>
+                        <p class="m-0 mt-0.5 text-[0.6875rem] leading-relaxed text-text-muted">
+                            {{ 'INBOX.EMPTY_UNREAD_HINT' | translate }}
+                        </p>
+                    </div>
+                }
+            }
+        } @else if (tab() === 'mentions') {
+            @for (entry of inbox.mentions(); track entry.mention.messageId) {
+                <div (click)="openMention(entry)"
+                     (keydown.enter)="openMention(entry)"
+                     class="group flex w-full cursor-pointer items-start gap-2.5 rounded-lg px-2.5 py-2
+                            text-left transition-colors hover:bg-hover"
+                     role="button"
+                     tabindex="0">
+                    <i class="pi pi-at mt-0.5 shrink-0 text-xs text-text-muted"></i>
+
+                    <span class="flex min-w-0 flex-1 flex-col gap-px">
+                        <span class="flex min-w-0 items-baseline gap-1.5">
+                            <span class="truncate text-[0.8125rem] font-medium text-text-primary">
+                                {{ authorName(entry.preview) }}
+                            </span>
+                            <span class="shrink-0 rounded bg-brand-dark/30 px-1.5 py-px text-[0.5625rem]
+                                         font-semibold uppercase tracking-wide text-brand-dim">
+                                {{ kindKey(entry) | translate }}
+                            </span>
+                            <span class="ml-auto shrink-0 text-[0.625rem] text-text-muted">
+                                {{ entry.mention.createdAt | date:'shortTime' }}
+                            </span>
+                        </span>
+                        <span class="truncate text-[0.6875rem] text-text-muted">
+                            @if (entry.mention.breadcrumb) {
+                                {{ mentionContextLine(entry) }}
+                            } @else {
+                                {{ 'TITLEBAR.DIRECT_MESSAGE' | translate }}
+                            }
+                        </span>
+                        <span class="mt-0.5 line-clamp-1 text-[0.6875rem] leading-snug text-text-secondary">
+                            {{ previewText(entry.preview) }}
+                        </span>
+                    </span>
+
+                    <span class="mt-px flex shrink-0 items-center gap-1.5">
+                        @if (canDismiss(entry)) {
+                            <button (click)="dismiss($event, entry)"
+                                    [attr.aria-label]="'INBOX.DISMISS' | translate"
+                                    [title]="'INBOX.DISMISS' | translate"
+                                    class="flex size-[22px] items-center justify-center rounded-md text-text-muted
+                                           opacity-0 transition hover:bg-brand-dark/45 hover:text-text-primary
+                                           focus-visible:opacity-100 group-hover:opacity-100"
+                                    type="button">
+                                <i class="pi pi-times text-[0.6875rem]"></i>
+                            </button>
+                        }
+                    </span>
+                </div>
+            } @empty {
+                @if (!inbox.mentionsLoading()) {
+                    <div class="flex flex-col items-center px-5 pb-7 pt-7 text-center">
+                        <i class="pi pi-at mb-2.5 text-2xl text-online"></i>
+                        <p class="m-0 text-[0.8125rem] font-semibold text-text-secondary">
+                            {{ 'INBOX.EMPTY_MENTIONS' | translate }}
+                        </p>
+                        <p class="m-0 mt-0.5 text-[0.6875rem] leading-relaxed text-text-muted">
+                            {{ 'INBOX.EMPTY_MENTIONS_HINT' | translate }}
+                        </p>
+                    </div>
+                }
+            }
+        } @else {
+            <!-- Waiting on you. A household channel keeps no messages, so none of this shows up as unread. -->
+            @for (task of inbox.tasks(); track task.kind + ':' + task.targetId) {
+                <div (click)="openTask(task)"
+                     (keydown.enter)="openTask(task)"
+                     class="group flex w-full cursor-pointer items-start gap-2.5 rounded-lg px-2.5 py-2
+                            text-left transition-colors hover:bg-hover"
+                     role="button"
+                     tabindex="0">
+                    <i [class]="taskIcon(task)" class="mt-0.5 shrink-0 text-xs text-text-muted"></i>
+
+                    <span class="flex min-w-0 flex-1 flex-col gap-px">
+                        <span class="flex min-w-0 items-baseline gap-1.5">
+                            <!-- Server-written, and rendered as given. -->
+                            <span class="truncate text-[0.8125rem] font-medium text-text-primary">
+                                {{ task.title }}
+                            </span>
+                            @if (task.isOverdue) {
+                                <!-- The server's answer, not `dueAt < now`: a chore in its grace period is not overdue. -->
+                                <span class="shrink-0 rounded bg-offline/20 px-1.5 py-px text-[0.5625rem]
+                                             font-semibold uppercase tracking-wide text-offline">
+                                    {{ 'INBOX.TASK_OVERDUE' | translate }}
+                                </span>
+                            } @else if (task.dueAt) {
+                                <span class="ml-auto shrink-0 text-[0.625rem] text-text-muted">
+                                    {{ task.dueAt | date:'shortTime' }}
+                                </span>
+                            }
+                        </span>
+                        <span class="truncate text-[0.6875rem] text-text-muted">{{ taskContextLine(task) }}</span>
+                        <span class="mt-0.5 line-clamp-1 text-[0.6875rem] leading-snug text-text-secondary">
+                            {{ task.subtitle }}
+                        </span>
+                    </span>
+                </div>
+            } @empty {
+                @if (!inbox.tasksLoading()) {
+                    <div class="flex flex-col items-center px-5 pb-7 pt-7 text-center">
+                        <i class="pi pi-check-circle mb-2.5 text-2xl text-online"></i>
+                        <p class="m-0 text-[0.8125rem] font-semibold text-text-secondary">
+                            {{ 'INBOX.EMPTY_TASKS' | translate }}
+                        </p>
+                        <p class="m-0 mt-0.5 text-[0.6875rem] leading-relaxed text-text-muted">
+                            {{ 'INBOX.EMPTY_TASKS_HINT' | translate }}
+                        </p>
+                    </div>
+                }
+            }
+
+            <!-- No cursor: it is a to-do list, not a page. -->
+            @if (inbox.tasksTruncated()) {
+                <p class="m-0 px-3 py-2 text-center text-[0.6875rem] text-text-muted">
+                    {{ 'INBOX.TASKS_TRUNCATED' | translate }}
+                </p>
+            }
+        }
+
+        @let loading = tab() === 'unread' ? inbox.unreadLoading()
+            : tab() === 'mentions' ? inbox.mentionsLoading() : inbox.tasksLoading();
+        @let failed = tab() === 'unread' ? inbox.unreadFailed()
+            : tab() === 'mentions' ? inbox.mentionsFailed() : inbox.tasksFailed();
+        @let hasMore = tab() === 'unread' ? inbox.unreadHasMore()
+            : tab() === 'mentions' ? inbox.mentionsHasMore() : false;
+
+        @if (loading) {
+            <p class="m-0 px-3 py-2 text-center text-[0.6875rem] text-text-muted">
+                {{ 'INBOX.LOADING' | translate }}
+            </p>
+        } @else if (failed || hasMore) {
+            <button (click)="loadMore()"
+                    class="w-full rounded-lg py-2 text-[0.6875rem] font-semibold text-brand-dim
+                           transition-colors hover:bg-hover"
+                    type="button">
+                {{ (failed ? 'INBOX.RETRY' : 'INBOX.LOAD_MORE') | translate }}
+            </button>
+        }
+    </div>
+</div>

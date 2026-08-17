@@ -1,0 +1,114 @@
+<!-- Absent, not empty. -->
+@if (!absent()) {
+
+    <div class="flex flex-col gap-8">
+
+        <section class="flex flex-col gap-4">
+
+            <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">
+                {{ 'BILLING.CREDIT.SECTION' | translate }}
+            </h2>
+
+            @if (loading()) {
+                <div aria-hidden="true"
+                     class="flex flex-col gap-3 bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3.5">
+                    <span class="block h-2 w-20 rounded bg-white/[0.08] motion-safe:animate-pulse"></span>
+                    <span class="block h-7 w-28 rounded bg-white/[0.08] motion-safe:animate-pulse"></span>
+                    <span class="block h-2.5 w-52 rounded bg-white/[0.08] motion-safe:animate-pulse"></span>
+                </div>
+                <span class="sr-only">{{ 'BILLING.CREDIT.LOADING' | translate }}</span>
+            } @else if (loadErrorKey() || loadErrorText()) {
+                <!-- A balance that exists and would not load is not a balance that does not exist,
+                     so this apologises rather than disappearing. -->
+                <div class="flex flex-col gap-2 bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3.5">
+                    <p class="text-sm text-text-secondary m-0 leading-relaxed" role="alert">
+                        @if (loadErrorText(); as text) {
+                            {{ text }}
+                        } @else if (loadErrorKey(); as key) {
+                            {{ key | translate }}
+                        }
+                    </p>
+                    <button
+                            (click)="load()"
+                            class="self-start text-xs font-semibold text-[var(--color-brand-dim)] hover:text-white transition-colors duration-[var(--duration-fast)]"
+                            type="button">
+                        {{ 'BILLING.CREDIT.RETRY' | translate }}
+                    </button>
+                </div>
+            } @else if (wallet(); as held) {
+
+                <div class="flex flex-col gap-3.5 bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3.5">
+
+                    <div class="flex flex-col gap-0.5">
+                        <p class="text-[0.625rem] font-semibold text-white/25 uppercase tracking-widest m-0">
+                            {{ 'BILLING.CREDIT.BALANCE_LABEL' | translate }}
+                        </p>
+                        <p class="text-2xl font-semibold text-text-primary m-0 tracking-tight tabular-nums">
+                            {{ 'BILLING.CREDIT.POINTS' | translate:{points: held.balance} }}
+                        </p>
+                    </div>
+
+                    <!-- Stated, because somebody sitting at the cap who does not know it will read
+                         the next campaign that skips them as a bug. -->
+                    @if (atCap()) {
+                        <p class="text-xs text-text-secondary m-0 leading-relaxed">
+                            {{ 'BILLING.CREDIT.AT_CAP' | translate:{cap: held.capPoints} }}
+                        </p>
+                    }
+
+                    <!-- The lots. A single balance number cannot say which part of it is about to
+                         lapse, which is the whole reason these are on screen and not folded up. -->
+                    @if (lots().length > 0) {
+                        <ul class="flex flex-col gap-2 m-0 p-0 list-none border-t border-white/[0.06] pt-3">
+                            @for (row of lots(); track row.lot.lotId) {
+                                <li class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+                                    <span class="text-sm text-text-secondary tabular-nums">
+                                        {{ 'BILLING.CREDIT.POINTS' | translate:{points: row.lot.points} }}
+                                    </span>
+                                    @if (row.expires; as date) {
+                                        <!--
+                                          Inside the warning window the row says so in words as well as in colour.
+                                        -->
+                                        @if (row.expiringSoon) {
+                                            <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--color-offline)]">
+                                                <span class="rounded-full bg-[color-mix(in_srgb,var(--color-offline)_16%,transparent)] px-2 py-0.5 uppercase tracking-widest text-[0.625rem]">
+                                                    {{ 'BILLING.CREDIT.EXPIRING_SOON' | translate }}
+                                                </span>
+                                                {{ 'BILLING.CREDIT.EXPIRES_ON' | translate:{date: date} }}
+                                            </span>
+                                        } @else {
+                                            <span class="text-xs text-text-muted">
+                                                {{ 'BILLING.CREDIT.EXPIRES_ON' | translate:{date: date} }}
+                                            </span>
+                                        }
+                                    }
+                                </li>
+                            }
+                        </ul>
+                    }
+
+                    <!-- Required wherever a balance is shown. Never dropped, whatever the server
+                         did or did not send. -->
+                    @if (disclaimer(); as notice) {
+                        <p class="text-[0.6875rem] text-text-muted m-0 leading-relaxed border-t border-white/[0.06] pt-3">
+                            @if (notice.key; as key) {
+                                {{ key | translate }}
+                            } @else {
+                                {{ notice.text }}
+                            }
+                        </p>
+                    }
+                </div>
+            }
+        </section>
+
+        <!-- What the balance buys. Draws its own absence, and selects on the subject: a guild SKU
+             has nowhere to go on an account screen. -->
+        <app-credit-catalogue (purchased)="onPurchased()" [subject]="subject()"/>
+
+        <!-- The reader's own history, on the reader's own screen. -->
+        @if (showHistory()) {
+            <app-credit-ledger/>
+        }
+    </div>
+}

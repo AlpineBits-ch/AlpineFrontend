@@ -1,0 +1,81 @@
+<div class="w-60 h-full border-l border-white/[0.06] bg-sidebar flex flex-col overflow-y-auto"
+     style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.06) transparent;">
+
+    @if (isDirect()) {
+        @let partner = others()[0];
+        @let partnerStatus = getOnlineStatus(partner.userId);
+
+        <!-- Profile card (1-on-1) -->
+        <div class="flex flex-col items-center px-5 pt-8 pb-5 border-b border-white/[0.06]">
+            <div class="relative mb-3">
+                <app-avatar
+                        [label]="partner.cachedUserName[0].toUpperCase()"
+                        [userId]="partner.userId"
+                        styleClass="!w-16 !h-16 !text-2xl"/>
+                <app-user-status-dot [status]="partnerStatus" size="lg"/>
+            </div>
+            <h2 class="text-sm font-semibold text-white/90 m-0">{{ partner.cachedUserName }}</h2>
+            <span [ngClass]="partnerStatus === OnlineStatus.Online ? 'text-online/80' : 'text-white/30'"
+                  class="mt-1.5 text-[11px] flex items-center gap-1">
+        <span [ngClass]="partnerStatus === OnlineStatus.Online ? 'bg-online' : 'bg-white/30'"
+              class="w-1.5 h-1.5 rounded-full inline-block"></span>
+                {{ partnerStatus === OnlineStatus.Online ? 'Online' : 'Offline' }}
+      </span>
+        </div>
+
+        <!-- Rich presence, the DM counterpart of the friends-list line. -->
+        @for (activity of activitiesFor(partner.userId); track activity.name) {
+            <div class="px-4 py-4 border-b border-white/[0.06]">
+                <app-activity-card [activity]="activity"/>
+            </div>
+        }
+
+        <!-- Quick actions -->
+        <div class="px-4 py-4 border-b border-white/[0.06]">
+            <p class="text-[10px] font-semibold uppercase tracking-widest text-white/25 mb-2 px-1">Actions</p>
+            <div class="flex flex-col gap-0.5">
+                <button class="flex items-center gap-2.5 px-2 py-2 rounded-lg text-left text-sm text-white/55 hover:text-white/80 hover:bg-white/[0.05] bg-transparent border-0 cursor-pointer transition-colors w-full">
+                    <i class="pi pi-phone text-xs w-4 text-center"></i> Voice call
+                </button>
+                <button class="flex items-center gap-2.5 px-2 py-2 rounded-lg text-left text-sm text-white/55 hover:text-white/80 hover:bg-white/[0.05] bg-transparent border-0 cursor-pointer transition-colors w-full">
+                    <i class="pi pi-video text-xs w-4 text-center"></i> Video call
+                </button>
+            </div>
+        </div>
+
+    } @else {
+
+        <!-- Members list (group chat) -->
+        <div class="px-4 py-4">
+            <p class="text-[10px] font-semibold uppercase tracking-widest text-white/25 mb-2 px-1">
+                Members -{{ others().length }}
+            </p>
+            <div class="flex flex-col gap-0.5">
+                @for (member of others(); track member.id) {
+                    <div (click)="profileDialogSvc.open(member.userId)"
+                         class="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-white/[0.04] transition-colors cursor-pointer">
+                        <div class="relative shrink-0">
+                            <app-avatar
+                                    [label]="member.cachedUserName[0].toUpperCase()"
+                                    [userId]="member.userId"
+                                    size="normal"/>
+                            <app-user-status-dot [status]="getOnlineStatus(member.userId)"/>
+                        </div>
+                        <div class="flex flex-col min-w-0">
+                            <span class="text-sm text-white/75 truncate leading-tight">{{ member.cachedUserName }}</span>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+
+    }
+
+    <!-- Where someone goes looking, and nowhere else. -->
+    @if (hasDeviceReport()) {
+        <div class="px-4 py-4 border-t border-white/[0.06]">
+            <app-mls-coverage-devices [contextId]="conversation().id" [ownerNames]="ownerNames()"/>
+        </div>
+    }
+
+</div>

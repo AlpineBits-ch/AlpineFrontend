@@ -1,0 +1,47 @@
+<div class="flex flex-col gap-3 m-4 p-4 rounded-xl border border-border-default bg-card/60">
+
+    <div class="flex items-start gap-3">
+        <i class="pi pi-lock text-connecting mt-0.5"></i>
+        <div class="min-w-0">
+            <p class="text-sm font-medium text-text-primary m-0">
+                {{ 'CHANNEL_SETTINGS.ENCRYPTION.NO_ACCESS' | translate }}
+            </p>
+            <p class="text-xs text-text-muted m-0 mt-1">
+                @if (pending()) {
+                    {{ 'CHANNEL_SETTINGS.ENCRYPTION.REQUEST_SENT' | translate }}
+                } @else {
+                    {{ 'CHANNEL_SETTINGS.ENCRYPTION.NO_ACCESS_DESC' | translate }}
+                }
+            </p>
+        </div>
+    </div>
+
+    <!-- The reviewer will ask for this, so it has to be readable while its owner talks to them. -->
+    @if (fingerprint(); as value) {
+        <div class="flex flex-col gap-1 pl-7">
+            <span class="text-xs font-medium text-text-secondary">
+                {{ 'CHANNEL_SETTINGS.ENCRYPTION.YOUR_FINGERPRINT' | translate }}
+            </span>
+            <code class="text-xs text-text-primary font-mono tracking-wider break-all">{{ value }}</code>
+            <span class="text-[0.625rem] text-text-muted">
+                {{ 'CHANNEL_SETTINGS.ENCRYPTION.YOUR_FINGERPRINT_HINT' | translate }}
+            </span>
+        </div>
+    }
+
+    <div class="flex items-center justify-end gap-2">
+        @if (pending()) {
+            <p-button (onClick)="withdraw()" [disabled]="busy()" [text]="true"
+                      [label]="'CHANNEL_SETTINGS.ENCRYPTION.WITHDRAW_REQUEST' | translate"
+                      severity="secondary" size="small"/>
+        } @else {
+            <p-button (onClick)="request()" [disabled]="busy()"
+                      [label]="'CHANNEL_SETTINGS.ENCRYPTION.REQUEST_ACCESS' | translate"
+                      severity="primary" size="small"/>
+        }
+    </div>
+
+    @if (error(); as message) {
+        <p class="text-xs text-offline m-0 pl-7">{{ message | translate }}</p>
+    }
+</div>

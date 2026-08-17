@@ -1,0 +1,13 @@
+.mention-chip {
+    display: inline-flex;
+    align-items: center;
+    background: color-mix(in srgb, var(--color-brand) 18%, transparent);
+    color: var(--color-brand-dim);
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    line-height: 1.5;
+    vertical-align: baseline;
+}

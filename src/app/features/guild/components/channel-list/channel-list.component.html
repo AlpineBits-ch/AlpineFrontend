@@ -1,0 +1,265 @@
+<div (contextmenu)="onListContextMenu($event)" class="flex flex-col flex-1 min-h-0 select-none">
+
+    <!-- Guild name header -->
+    <div class="app-header-nested px-4 border-b border-border-subtle flex items-center justify-between shrink-0">
+        <span class="text-sm font-semibold text-white/90 truncate">{{ guild().name }}</span>
+        <button
+                (click)="toggleGuildMenu($event)"
+                class="w-6 h-6 flex items-center justify-center text-white/40 hover:text-white/70 transition-colors cursor-pointer border-0 bg-transparent rounded-lg hover:bg-white/[0.05]">
+            <i class="pi pi-chevron-down text-[0.6875rem]"></i>
+        </button>
+    </div>
+
+    @if (hasHouse() || hasWiki() || hasEvents() || hasSelfServeRoles()) {
+        <div class="chan-modules px-2 py-2 shrink-0 flex flex-col">
+            @if (hasHouse()) {
+                <button (click)="openHouse()"
+                        [class.is-active]="isHouseActive()"
+                        class="chan-row chan-row-module">
+                    <span class="chan-icon"><i class="pi pi-home"></i></span>
+                    <span class="chan-label">{{ 'HOUSE_HOME.TITLE' | translate }}</span>
+                </button>
+            }
+            @if (hasWiki()) {
+                <button (click)="openWiki()"
+                        [class.is-active]="isWikiActive()"
+                        class="chan-row chan-row-module">
+                    <span class="chan-icon"><i class="pi pi-book"></i></span>
+                    <span class="chan-label">{{ 'GUILD.WIKI' | translate }}</span>
+                </button>
+            }
+            @if (hasEvents()) {
+                <button (click)="toggleEvents()"
+                        [class.is-active]="isEventsActive()"
+                        class="chan-row chan-row-module">
+                    <span class="chan-icon"><i class="pi pi-calendar"></i></span>
+                    <span class="chan-label">{{ 'EVENTS.TITLE' | translate }}</span>
+
+                    @if (hasLiveEvent()) {
+                        <span class="shrink-0 flex items-center gap-1.5">
+                            <span class="relative flex size-1.5">
+                                <span class="absolute inline-flex size-full animate-ping rounded-full bg-online opacity-60 motion-reduce:hidden"></span>
+                                <span class="relative inline-flex size-full rounded-full bg-online"></span>
+                            </span>
+                            <span class="text-[0.625rem] font-bold uppercase tracking-[0.12em] text-online">
+                                {{ 'EVENTS.LIVE' | translate }}
+                            </span>
+                        </span>
+                    } @else if (upcomingEventCount() > 0) {
+                        <span class="chan-badge chan-badge-count">{{ upcomingEventCount() }}</span>
+                    }
+                </button>
+            }
+
+            <!-- Channels & Roles: only when the guild actually defines self-serve prompts -->
+            @if (hasSelfServeRoles()) {
+                <button (click)="showChannelsAndRoles.set(true)" class="chan-row chan-row-module">
+                    <span class="chan-icon"><i class="pi pi-sliders-h"></i></span>
+                    <span class="chan-label">{{ 'CHANNELS_ROLES.TITLE' | translate }}</span>
+                </button>
+            }
+        </div>
+    }
+
+    <!-- Channel list -->
+    <div (dragover)="$event.preventDefault()"
+         class="flex-1 min-h-0 overflow-y-auto px-2 pt-1 pb-2 thin-scrollbar">
+
+        <!-- Free-floating channels (no category) -->
+        @if (uncategorizedChannels().length > 0) {
+            <div (dragover)="$event.preventDefault()">
+                <app-channel-list-items
+                        (openChannelMenu)="onChannelContextMenu($event.event, $event.channel)"
+                        (openInvitePanel)="openInvitePanel($event.event, $event.channel)"
+                        (openParticipantMenu)="onParticipantContextMenu($event.event, $event.participant, $event.channelId)"
+                        (openTextChannel)="onChannelClick($event)"
+                        (openVoiceChannel)="onVoiceChannelClick($event)"
+                        (watchVoiceStream)="onWatchStream($event)"
+                        [canReorder]="canReorder()"
+                        [channels]="uncategorizedChannels()"/>
+            </div>
+        }
+
+        <!-- Categories -->
+        @for (category of sortedCategories(); track category.id) {
+            @if (drag.dropTargetId() === category.id && drag.dropPos() === 'before') {
+                <app-channel-drop-indicator/>
+            }
+            <div>
+                <!-- Collapse and add-channel controls are siblings, not nested: a <button> inside a <button> is invalid markup and the inner click wasn't reliably delivered. -->
+                <div
+                        (dragend)="drag.onDragEnd($event)"
+                        (dragover)="drag.onItemDragOver($event, category.id)"
+                        (dragstart)="drag.onCategoryDragStart($event, category)"
+                        [attr.draggable]="canReorder() ? 'true' : null"
+                        [ngClass]="drag.dropTargetId() === category.id ? 'bg-white/[0.04] rounded-lg' : ''"
+                        class="chan-section">
+                    <button
+                            (click)="toggleCollapse(category.id)"
+                            (contextmenu)="onCategoryContextMenu($event, category)"
+                            [attr.aria-expanded]="!isCollapsed(category.id)"
+                            [class.cursor-grab]="canReorder()"
+                            class="chan-section-toggle">
+                        <i [ngClass]="isCollapsed(category.id) ? 'pi-chevron-right' : 'pi-chevron-down'"
+                           class="pi text-[0.5625rem] opacity-70 shrink-0 transition-transform duration-150"></i>
+                        <span class="chan-section-label">{{ category.name }}</span>
+                        <span class="chan-section-rule"></span>
+                    </button>
+                    <button
+                            (click)="openCreateChannel(category.id)"
+                            [attr.aria-label]="'GUILD.CREATE_CHANNEL' | translate"
+                            class="chan-section-add">
+                        <i class="pi pi-plus"></i>
+                    </button>
+                </div>
+
+                @if (!isCollapsed(category.id)) {
+                    <app-channel-list-items
+                            (openChannelMenu)="onChannelContextMenu($event.event, $event.channel)"
+                            (openInvitePanel)="openInvitePanel($event.event, $event.channel)"
+                            (openParticipantMenu)="onParticipantContextMenu($event.event, $event.participant, $event.channelId)"
+                            (openTextChannel)="onChannelClick($event)"
+                            (openVoiceChannel)="onVoiceChannelClick($event)"
+                            (watchVoiceStream)="onWatchStream($event)"
+                            [canReorder]="canReorder()"
+                            [channels]="categoryChannels(category.id)"/>
+                }
+            </div>
+            @if (drag.dropTargetId() === category.id && drag.dropPos() === 'after') {
+                <app-channel-drop-indicator/>
+            }
+        }
+
+        @if (localChannels().length === 0 && localCategories().length === 0) {
+            <p class="text-[0.8125rem] text-white/25 text-center mt-6">{{ 'GUILD.NO_CHANNELS' | translate }}</p>
+        }
+
+    </div>
+
+</div>
+
+<!-- ── Popup menus ──────────────────────────────────────────────────────────── -->
+<p-menu #guildMenu [model]="guildMenuItems()" [popup]="true" appendTo="body"/>
+
+<!-- Only the link inside each item is replaced; PrimeNG keeps the surrounding row so command/close still work. Keep the class names: the theme styles them and the menu's Enter handling looks for the anchor. -->
+<p-menu #channelMenu [model]="[]" [popup]="true" appendTo="body">
+    <ng-template let-item pTemplate="item">
+        @if (item.id === 'invite') {
+            <a (click)="openInvitePanel($event, contextChannel())"
+               (mouseenter)="openInvitePanel($event, contextChannel())"
+               class="p-menu-item-link">
+                <span [class]="item.icon" class="p-menu-item-icon"></span>
+                <span class="p-menu-item-label">{{ item.label }}</span>
+                <i class="pi pi-angle-right ml-auto text-[0.625rem] opacity-40"></i>
+            </a>
+        } @else {
+            <a class="p-menu-item-link">
+                <span [class]="item.icon" class="p-menu-item-icon"></span>
+                <span class="p-menu-item-label">{{ item.label }}</span>
+            </a>
+        }
+    </ng-template>
+</p-menu>
+
+<p-menu #categoryMenu [model]="[]" [popup]="true" appendTo="body"/>
+<p-contextMenu #listMenu [model]="guildMenuItems()" appendTo="body"/>
+
+<!-- ── Per-person invite panel ─────────────────────────────────────────────── -->
+<p-popover #invitePopover (onHide)="onInvitePanelHide()" appendTo="body"
+           styleClass="channel-invite-popover">
+    @if (invitePanelChannel(); as channel) {
+        <app-channel-invite-panel
+                (more)="openRingPicker()"
+                [alreadyIn]="participantIdsOf(channel.id)"
+                [channelId]="channel.id"
+                [channelName]="channel.name"
+                [guildId]="guild().id"/>
+    }
+</p-popover>
+
+@if (showRingPicker() && pickerChannel(); as channel) {
+    <app-voice-ring-picker
+            [(visible)]="showRingPicker"
+            [alreadyIn]="participantIdsOf(channel.id)"
+            [channelId]="channel.id"
+            [guildId]="guild().id"/>
+}
+
+<!-- ── Voice participant context menu ─────────────────────────────────────── -->
+@if (participantMenu(); as menu) {
+    <app-call-context-menu
+            (ban)="banParticipant()"
+            (close)="participantMenu.set(null)"
+            (kick)="kickParticipant()"
+            (serverDeafen)="toggleParticipantServerDeafen()"
+            (streamVolumeChange)="onParticipantStreamVolumeChange($event)"
+            (volumeChange)="onParticipantVolumeChange($event)"
+            [isSuperadmin]="isSuperadmin()"
+            [menu]="menu"
+            [moderationEnabled]="hasModeration()"
+    />
+}
+
+<!-- ── Guild settings modal ───────────────────────────────────────────────── -->
+<app-guild-settings-modal
+        (guildUpdated)="onGuildUpdated($event)"
+        [(isVisible)]="showGuildSettings"
+        [guild]="guild()"/>
+
+<!-- ── Channel settings modal ─────────────────────────────────────────────── -->
+<app-channel-settings-modal
+        (channelUpdated)="onChannelUpdated($event)"
+        [(isVisible)]="showChannelSettings"/>
+
+<!-- ── Category settings modal ────────────────────────────────────────────── -->
+<app-category-settings-modal
+        (categoryUpdated)="onCategoryUpdated($event)"
+        [(isVisible)]="showCategorySettings"/>
+
+<!-- ── Channels & Roles ───────────────────────────────────────────────────── -->
+@if (hasSelfServeRoles()) {
+    <app-channels-and-roles-modal [(visible)]="showChannelsAndRoles" [guildId]="guild().id"/>
+}
+
+<!-- ── Quick Invite Dialog ────────────────────────────────────────────────── -->
+<p-dialog
+        [(visible)]="showInviteDialog"
+        [closable]="true" [dismissableMask]="true" [draggable]="false" [modal]="true"
+        [resizable]="false" [style]="{width: '420px'}"
+        appendTo="body">
+    <ng-template pTemplate="header">
+        <div class="flex items-center gap-2">
+            <i class="pi pi-link text-brand-dim"></i>
+            <span class="text-sm font-semibold text-white/85">{{ 'GUILD.INVITE_PEOPLE' | translate }}</span>
+        </div>
+    </ng-template>
+    <div class="py-2 space-y-4">
+        <p class="text-xs text-white/40">{{ 'GUILD.INVITE_SHARE' | translate }} <strong
+                class="text-white/65">{{ guild().name }}</strong>.</p>
+        @if (inviteLoading()) {
+            <div class="flex items-center justify-center py-4">
+                <i class="pi pi-spin pi-spinner text-white/30 text-xl"></i>
+            </div>
+        } @else {
+            <div class="flex gap-2">
+                <input [value]="inviteLink()" class="flex-1 text-sm font-mono text-white/60" pInputText readonly/>
+                <p-button
+                        (onClick)="copyInviteLink()"
+                        [icon]="inviteCopied() ? 'pi pi-check' : 'pi pi-copy'"
+                        [label]="inviteCopied() ? ('GUILD.COPIED' | translate) : ('GUILD.COPY' | translate)" severity="primary"
+                        size="small"/>
+            </div>
+        }
+    </div>
+</p-dialog>
+
+<!-- ── Create channel modal ───────────────────────────────────────────────── -->
+<app-create-channel-modal
+        [(isVisible)]="showCreateChannel"
+        [guildFeatures]="features()"
+        [guildId]="guild().id"/>
+
+<!-- ── Create category modal ──────────────────────────────────────────────── -->
+<app-create-category-modal
+        [(isVisible)]="showCreateCategory"
+        [guildId]="guild().id"/>

@@ -1,0 +1,102 @@
+<p-dialog
+        (visibleChange)="$event === false && updateService.close()"
+        [breakpoints]="{'640px': '95vw'}"
+        [closable]="!updateService.isDownloading()"
+        [dismissableMask]="!updateService.isDownloading()"
+        [draggable]="false"
+        [modal]="true"
+        [resizable]="false"
+        [style]="{width: '480px'}"
+        [visible]="updateService.dialogVisible()"
+        appendTo="body">
+
+    <ng-template pTemplate="header">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg flex items-center justify-center"
+                 style="background: color-mix(in srgb, var(--color-brand) 12%, transparent)">
+                <i class="pi pi-refresh text-sm" style="color: var(--color-brand-dim)"></i>
+            </div>
+            <span class="text-base font-semibold" style="color: var(--color-text-primary)">Update Available</span>
+        </div>
+    </ng-template>
+
+    @if (updateService.updateInfo(); as info) {
+        <div class="flex flex-col gap-5 pt-1">
+
+            <!-- Version diff -->
+            <div class="flex items-center gap-2.5 px-4 py-3 rounded-xl border"
+                 style="background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.06)">
+                <span class="text-sm font-mono"
+                      style="color: var(--color-text-secondary)">{{ info.currentVersion }}</span>
+                <i class="pi pi-arrow-right text-xs" style="color: rgba(255,255,255,0.2)"></i>
+                <span class="text-sm font-semibold font-mono"
+                      style="color: var(--color-brand-dim)">{{ info.version }}</span>
+                <span class="ml-auto text-xs px-2 py-0.5 rounded-full font-medium"
+                      style="background: color-mix(in srgb, var(--color-brand) 15%, transparent); color: var(--color-brand-dim)">
+          New
+        </span>
+            </div>
+
+            <!-- Release notes -->
+            @if (info.body) {
+                <div class="flex flex-col gap-2">
+                    <p class="text-xs font-semibold uppercase tracking-widest" style="color: var(--color-text-muted)">
+                        What's new</p>
+                    <div class="px-4 py-3 rounded-xl border overflow-y-auto max-h-44"
+                         style="background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.06);
+                      scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent">
+            <pre class="text-xs leading-relaxed whitespace-pre-wrap font-sans m-0"
+                 style="color: var(--color-text-secondary)">{{ info.body }}</pre>
+                    </div>
+                </div>
+            }
+
+            <!-- Download progress -->
+            @if (updateService.isDownloading()) {
+                <div class="flex flex-col gap-2">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs" style="color: var(--color-text-muted)">Downloading update…</span>
+                        @if (updateService.totalBytes(); as total) {
+                            <span class="text-xs font-mono" style="color: var(--color-text-muted)">
+                {{ formatBytes(updateService.downloadedBytes()) }} / {{ formatBytes(total) }}
+              </span>
+                        } @else {
+                            <span class="text-xs font-mono" style="color: var(--color-text-muted)">
+                {{ formatBytes(updateService.downloadedBytes()) }}
+              </span>
+                        }
+                    </div>
+                    <div class="w-full h-1.5 rounded-full overflow-hidden"
+                         style="background: rgba(255,255,255,0.06)">
+                        <div [class.animate-pulse]="!updateService.totalBytes()"
+                             [style.width.%]="updateService.totalBytes() ? updateService.downloadProgress() : null"
+                             class="h-full rounded-full transition-all duration-300"
+                             style="background: var(--color-brand)">
+                        </div>
+                    </div>
+                </div>
+            }
+
+        </div>
+    }
+
+    <ng-template pTemplate="footer">
+        <div class="flex gap-2 justify-end">
+            <p-button
+                    (onClick)="updateService.close()"
+                    [disabled]="updateService.isDownloading()"
+                    [text]="true"
+                    label="Later"
+                    severity="secondary"
+                    size="small"/>
+            <p-button
+                    (onClick)="updateService.downloadAndInstall()"
+                    [disabled]="updateService.isDownloading()"
+                    [label]="updateService.isDownloading() ? 'Downloading…' : 'Update Now'"
+                    [loading]="updateService.isDownloading()"
+                    severity="primary"
+                    size="small"/>
+        </div>
+    </ng-template>
+
+</p-dialog>

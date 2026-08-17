@@ -1,0 +1,744 @@
+use anyhow::{bail, Context, Result};
+use bindgen::callbacks::{AttributeInfo, DeriveInfo, ParseCallbacks};
+use std::{
+    env,
+    fs::File,
+    io::{BufWriter, Write},
+    path::PathBuf,
+    process::Command,
+};
+
+/// Name and minimum version of the library that we are binding to.
+const LIB_NAME: &str = "webrtc-audio-processing-2";
+#[cfg(not(feature = "bundled"))]
+const LIB_MIN_VERSION: &str = "2.1";
+
+const MACOSX_DEPLOYMENT_TARGET_VAR: &str = "MACOSX_DEPLOYMENT_TARGET";
+
+/// Symbol prefix for the webrtc-audio-processing library to allow multiple versions to coexist.
+const SYMBOL_PREFIX: &str = "v2_";
+
+fn out_dir() -> PathBuf {
+    std::env::var("OUT_DIR").expect("OUT_DIR environment var not set.").into()
+}
+
+/// Prefix specified symbols in a static library using objcopy --redefine-sym.
+fn prefix_archive_symbols(
+    archive_path: &std::path::Path,
+    symbols: &[String],
+    prefix: &str,
+) -> Result<()> {
+    if symbols.is_empty() {
+        return Ok(());
+    }
+
+    eprintln!(
+        "Prefixing {} symbols in {} with '{}'",
+        symbols.len(),
+        archive_path.display(),
+        prefix
+    );
+
+    let temp_path = archive_path.with_extension("prefixed.a");
+
+    let objcopy = determine_objcopy_path()?;
+
+    // Write arguments to a temp file to avoid "Argument list too long" errors.
+    let args_path = archive_path.with_extension("args");
+    let mut writer = BufWriter::new(File::create(&args_path)?);
+    for symbol in symbols {
+        writeln!(writer, "--redefine-sym={}={}{}", symbol, prefix, symbol)?;
+    }
+    writer.flush()?;
+    drop(writer);
+
+    let mut cmd = Command::new(&objcopy);
+    cmd.arg(format!("@{}", args_path.display()));
+    cmd.arg(archive_path);
+    cmd.arg(&temp_path);
+
+    eprintln!("Running {cmd:?}");
+    let status = cmd.status().context(format!("Failed to execute {:?}", objcopy))?;
+
+    if !status.success() {
+        anyhow::bail!("{:?} failed with status: {}", objcopy, status);
+    }
+
+    std::fs::rename(&temp_path, archive_path).with_context(|| {
+        format!("Failed to rename {} to {}", temp_path.display(), archive_path.display())
+    })?;
+
+    Ok(())
+}
+
+#[cfg(not(feature = "bundled"))]
+mod webrtc {
+    use super::*;
+
+    pub(super) fn get_build_paths() -> Result<(Vec<PathBuf>, Vec<PathBuf>)> {
+        let (pkgconfig_include_path, pkgconfig_lib_path) = find_pkgconfig_paths()?;
+
+        let include_path = std::env::var("WEBRTC_AUDIO_PROCESSING_INCLUDE")
+            .ok()
+            .map(PathBuf::from)
+            .or(pkgconfig_include_path);
+        let lib_path = std::env::var("WEBRTC_AUDIO_PROCESSING_LIB")
+            .ok()
+            .map(PathBuf::from)
+            .or(pkgconfig_lib_path);
+
+        if include_path.is_none() || lib_path.is_none() {
+            bail!(
+                "Couldn't find {}. Please install it or set WEBRTC_AUDIO_PROCESSING_INCLUDE and WEBRTC_AUDIO_PROCESSING_LIB environment variables.",
+                LIB_NAME
+            );
+        }
+
+        Ok((vec![include_path.unwrap()], vec![lib_path.unwrap()]))
+    }
+
+    pub(super) fn build_if_necessary() -> Result<()> {
+        Ok(())
+    }
+
+    fn find_pkgconfig_paths() -> Result<(Option<PathBuf>, Option<PathBuf>)> {
+        let lib = match pkg_config::Config::new()
+            .atleast_version(LIB_MIN_VERSION)
+            .statik(false)
+            .probe(LIB_NAME)
+        {
+            Ok(lib) => lib,
+            Err(e) => {
+                eprintln!("Couldn't find {LIB_NAME} with pkg-config:");
+                eprintln!("{e}");
+                return Ok((None, None));
+            },
+        };
+
+        Ok((lib.include_paths.first().cloned(), lib.link_paths.first().cloned()))
+    }
+
+    pub(super) fn prefix_library_symbols(
+        _lib_dirs: &[PathBuf],
+        _prefix: &str,
+    ) -> Result<Vec<String>> {
+        // For non-bundled builds, we can't prefix symbols in the system library.
+        // Users would need to build with bundled feature for multi-version support.
+        println!(
+            "cargo:warning=Symbol prefixing is only supported with the 'bundled' feature. \
+            Without it, linking multiple versions of this crate may cause symbol conflicts."
+        );
+
+        Ok(vec![])
+    }
+}
+
+#[cfg(feature = "bundled")]
+mod webrtc {
+    use super::*;
+    use std::{collections::HashSet, path::Path};
+
+    const BUNDLED_SOURCE_PATH: &str = "./webrtc-audio-processing";
+
+    pub(super) fn get_build_paths() -> Result<(Vec<PathBuf>, Vec<PathBuf>)> {
+        let mut include_paths = vec![
+            out_dir().join("include"),
+            out_dir().join("include").join(LIB_NAME),
+            webrtc_source_dir(),
+            webrtc_source_dir().join("webrtc"),
+        ];
+        // TODO(strohel): instead of hardcoding the paths, we should consult the pkgconfig file that
+        // the bundled webrtc-audio-processing build produces.
+        let mut lib_paths = vec![
+            // MacOS, Arch Linux, baseline default
+            out_dir().join("lib"),
+            // Ubuntu Linux (our CI)
+            out_dir().join("lib").join("x86_64-linux-gnu"),
+            // Ubuntu Linux (Arm 64bit)
+            out_dir().join("lib").join("aarch64-linux-gnu"),
+            // Gentoo Linux (x86_64 multilib)
+            out_dir().join("lib64"),
+        ];
+
+        // Notes: c8896801 added support for 20250814, but the meson.build is still expecting
+        // >=20240722 and the subproject will fetch 20240722. If the build environment has 20250814
+        // installed, it should still pick it up and build successfully, though.
+        if let Ok(mut lib) =
+            pkg_config::Config::new().atleast_version("20240722").probe("absl_base")
+        {
+            // If abseil package is installed locally, meson would have linked it for
+            // webrtc-audio-processing-2. Use the same library for our wrapper, too.
+            include_paths.append(&mut lib.include_paths);
+            lib_paths.append(&mut lib.link_paths);
+        } else {
+            // Otherwise use the local build fetched and built by meson.
+            include_paths
+                .push(webrtc_source_dir().join("subprojects").join("abseil-cpp-20240722.0"));
+            lib_paths.push(webrtc_build_dir().join("subprojects").join("abseil-cpp-20240722.0"));
+        }
+
+        Ok((include_paths, lib_paths))
+    }
+
+    pub(super) fn build_if_necessary() -> Result<()> {
+        let bundled_source_path = Path::new(BUNDLED_SOURCE_PATH);
+        if bundled_source_path.read_dir()?.next().is_none() {
+            eprintln!("The webrtc-audio-processing source directory is empty.");
+            eprintln!("See the crate README for installation instructions.");
+            eprintln!("Remember to clone the repo recursively if building from source.");
+            bail!("Aborting compilation because bundled source directory is empty.");
+        }
+
+        let webrtc_source_dir = webrtc_source_dir();
+        let webrtc_build_dir = webrtc_build_dir();
+        eprintln!(
+            "Copying webrtc-audio-processing to {} and building it in {}",
+            webrtc_source_dir.display(),
+            webrtc_build_dir.display()
+        );
+
+        // Copy the sources to under out directory so that we can patch it without consequences.
+        //
+        // ALPINE PATCH: upstream shells out to `cp -a`, which does not exist on Windows, so the
+        // bundled build died with "executing cp: program not found" before meson was ever reached -
+        // the MSVC support the rest of this file adds could never actually run. Copying in Rust
+        // needs no external tool on any platform.
+        copy_dir_contents(&bundled_source_path, &webrtc_source_dir)?;
+
+        #[cfg(feature = "experimental-unlink-ns")]
+        apply_patch("unlink-multichannel-noise-suppression-filters.patch")?;
+
+        let mut meson = Command::new("meson");
+        meson.arg("setup").arg("--prefix").arg(out_dir().as_os_str());
+        meson.arg("--reconfigure");
+
+        if cfg!(target_os = "macos") {
+            let link_args = "['-framework', 'CoreFoundation', '-framework', 'Foundation']";
+            meson.arg(format!("-Dc_link_args={}", link_args));
+            meson.arg(format!("-Dcpp_link_args={}", link_args));
+        }
+
+        // ALPINE PATCH: the upstream meson.build does not raise the C++ standard for MSVC, but the
+        // vendored AGC2 sources use designated initializers, so `cl` stops at `error C7555`.
+        // Setting it here rather than expecting every developer and CI job to export CXXFLAGS.
+        if cfg!(target_env = "msvc") && std::env::var_os("CXXFLAGS").is_none() {
+            meson.env("CXXFLAGS", "/std:c++20");
+        }
+
+        // See apply_msvc_env: without this, meson finds no compiler outside a developer prompt.
+        apply_msvc_env(&mut meson);
+        let status = meson
+            .arg("-Ddefault_library=static")
+            .arg(webrtc_build_dir.as_os_str())
+            .arg(webrtc_source_dir.as_os_str())
+            .status()
+            .context("Failed to execute meson. Do you have it installed?")?;
+        assert!(status.success(), "Command failed: {:?}", &meson);
+
+        let mut ninja = Command::new("ninja");
+        // ninja spawns `cl` for every translation unit, so it needs the same environment.
+        apply_msvc_env(&mut ninja);
+        let status = ninja
+            .current_dir(&webrtc_build_dir)
+            .status()
+            .context("Failed to execute ninja. Do you have it installed?")?;
+        assert!(status.success(), "Command failed: {:?}", &ninja);
+
+        let mut install = Command::new("ninja");
+        apply_msvc_env(&mut install);
+        let status = install
+            .current_dir(&webrtc_build_dir)
+            .arg("install")
+            .status()
+            .context("Failed to execute ninja install")?;
+        assert!(status.success(), "Command failed: {:?}", &install);
+
+        Ok(())
+    }
+
+    // Patch with `patch`.
+    #[cfg(feature = "experimental-unlink-ns")]
+    fn apply_patch(patch_name: &str) -> Result<()> {
+        let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let patch = manifest.join("patches").join(patch_name);
+
+        let status = Command::new("patch")
+            .args(["-p1", "--forward"])
+            .arg("-i")
+            .arg(&patch)
+            .current_dir(webrtc_source_dir())
+            .status()
+            .context("Failed to execute patch")?;
+
+        anyhow::ensure!(status.success(), "Patch '{}' failed with status: {}", patch_name, status);
+        Ok(())
+    }
+
+    /// Prefix symbols in the built webrtc-audio-processing static library.
+    /// Returns the list of symbols that were renamed.
+    pub(super) fn prefix_library_symbols(
+        lib_dirs: &[PathBuf],
+        prefix: &str,
+    ) -> Result<Vec<String>> {
+        let static_lib_filename = format!("lib{LIB_NAME}.a");
+
+        for lib_dir in lib_dirs {
+            let lib_path = lib_dir.join(&static_lib_filename);
+            if lib_path.exists() {
+                let symbols = get_defined_symbols(&lib_path)?;
+                prefix_archive_symbols(&lib_path, &symbols, prefix)?;
+                return Ok(symbols);
+            }
+        }
+
+        bail!("Cannot find {static_lib_filename} in {lib_dirs:?} to prefix its symbols.");
+    }
+
+    /// ALPINE PATCH: portable stand-in for `cp -a <from>/. <to>`.
+    ///
+    /// Copies the *contents* of `from` into `to`, matching the trailing-dot trick upstream used to
+    /// stop a second invocation nesting `webrtc-audio-processing/webrtc-audio-processing`.
+    ///
+    /// Files already present at the same length and no older than their source are left untouched.
+    /// Rewriting them would push their mtime forward on every build-script run, and ninja decides
+    /// what to recompile from mtimes - so a blind copy would rebuild the whole C++ tree each time.
+    fn copy_dir_contents(from: &std::path::Path, to: &std::path::Path) -> Result<()> {
+        std::fs::create_dir_all(to).with_context(|| format!("creating {}", to.display()))?;
+
+        for entry in std::fs::read_dir(from).with_context(|| format!("reading {}", from.display()))?
+        {
+            let entry = entry?;
+            let source = entry.path();
+            let destination = to.join(entry.file_name());
+
+            if entry.file_type()?.is_dir() {
+                copy_dir_contents(&source, &destination)?;
+                continue;
+            }
+
+            if is_up_to_date(&source, &destination) {
+                continue;
+            }
+
+            // Removed rather than overwritten: `fs::copy` carries permissions across, so a second
+            // run would otherwise fail on anything that arrived read-only.
+            if destination.exists() {
+                std::fs::remove_file(&destination)
+                    .with_context(|| format!("replacing {}", destination.display()))?;
+            }
+            std::fs::copy(&source, &destination).with_context(|| {
+                format!("copying {} to {}", source.display(), destination.display())
+            })?;
+        }
+
+        Ok(())
+    }
+
+    /// Whether `destination` already holds a copy of `source`. Conservative: anything unreadable or
+    /// ambiguous reports false and gets copied again.
+    fn is_up_to_date(source: &std::path::Path, destination: &std::path::Path) -> bool {
+        let (Ok(from), Ok(to)) = (source.metadata(), destination.metadata()) else {
+            return false;
+        };
+        from.len() == to.len()
+            && matches!((from.modified(), to.modified()), (Ok(f), Ok(t)) if t >= f)
+    }
+
+    // ALPINE PATCH: these were `webrtc-audio-processing` and `webrtc-audio-processing-build`.
+    //
+    // Shortened because MSVC cannot compile abseil at the original names. meson writes source paths
+    // into build.ninja relative to the build directory, so cl is handed
+    // `../webrtc-audio-processing/subprojects/abseil-cpp-<ver>/absl/strings/internal/str_format/
+    // float_conversion.cc`, and Windows measures that against MAX_PATH *before* resolving the `..`.
+    // Under cargo's own nesting (target/debug/build/<crate>-<hash>/out/) the unresolved form runs
+    // just past 260 characters, so the longest few abseil files - and only those - fail with
+    // "C1083: Cannot open source file". c1xx does not honour the long-path opt-in, so
+    // LongPathsEnabled does not save it.
+    //
+    // 32 characters shaved off the pair, which puts the worst case comfortably inside the limit.
+    fn webrtc_source_dir() -> PathBuf {
+        out_dir().join("wap-src")
+    }
+
+    fn webrtc_build_dir() -> PathBuf {
+        out_dir().join("wap-build")
+    }
+
+    /// Extract defined (non-external) symbols from a static library using nm.
+    fn get_defined_symbols(archive_path: &std::path::Path) -> Result<Vec<String>> {
+        let nm = determine_nm_path();
+        let output = Command::new(&nm)
+            .arg("--defined-only")
+            .arg("--format=posix")
+            .arg(archive_path)
+            .output()
+            .with_context(|| format!("Failed to execute {}", nm.display()))?;
+
+        if !output.status.success() {
+            anyhow::bail!("{} failed: {}", nm.display(), String::from_utf8_lossy(&output.stderr));
+        }
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let mut symbols = HashSet::new();
+
+        for line in stdout.lines() {
+            // POSIX format: "symbol_name type value size"
+            // We just need the first field (symbol name)
+            if let Some(symbol) = line.split_whitespace().next() {
+                symbols.insert(symbol.to_string());
+            }
+        }
+
+        Ok(symbols.into_iter().collect())
+    }
+}
+
+#[derive(Debug)]
+struct CustomDeriveCallbacks;
+
+impl ParseCallbacks for CustomDeriveCallbacks {
+    fn add_derives(&self, info: &DeriveInfo) -> Vec<String> {
+        // Matches EchoCanceller3Config, EchoCanceller3Config_Suppressor etc
+        if info.name.starts_with("EchoCanceller3Config") && cfg!(feature = "serde") {
+            vec!["serde::Deserialize".into(), "serde::Serialize".into()]
+        // Matches AudioProcessing_Config, AudioProcessing_Config_EchoCanceller etc
+        } else if info.name.starts_with("AudioProcessing_Config") {
+            // Only derive Default for AudioProcessing_Config and its inner structs. bindgen Default
+            // implementation ignores C/C++ struct default values and thus misleading to enable
+            // globally. Note that we don't expose these defaults on `webrtc-audio-processing`
+            // level: they are needed only by the code that converts from prettified Rust config
+            // structs into their FFI variants to construct disabled/dummy values.
+            vec!["Default".into()]
+        } else {
+            vec![]
+        }
+    }
+
+    fn add_attributes(&self, info: &AttributeInfo<'_>) -> Vec<String> {
+        if info.name.starts_with("EchoCanceller3Config") {
+            // Prohibit construction of ffi EchoCanceller3Config and its children structs.
+            // The only allowed API is through the wrapper struct in the webrtc_audio_processing crate.
+            vec!["#[non_exhaustive]".into()]
+        } else {
+            vec![]
+        }
+    }
+}
+
+fn main() -> Result<()> {
+    webrtc::build_if_necessary()?;
+    let (include_dirs, lib_dirs) = webrtc::get_build_paths()?;
+
+    // Prefix defined symbols in the webrtc library (bundled builds only)
+    // Returns the list of renamed symbols to update wrapper references later
+    let renamed_symbols = webrtc::prefix_library_symbols(&lib_dirs, SYMBOL_PREFIX)?;
+
+    for dir in &lib_dirs {
+        println!("cargo:rustc-link-search=native={}", dir.display());
+    }
+
+    if cfg!(target_os = "macos") {
+        println!("cargo:rustc-link-lib=framework=CoreFoundation");
+    }
+
+    let mut cc_build = cc::Build::new();
+
+    if cfg!(feature = "experimental-aec3-config") {
+        cc_build.define("WEBRTC_AEC3_CONFIG", None);
+    }
+
+    // Set macos minimum version
+    if cfg!(target_os = "macos") {
+        let min_version = match env::var(MACOSX_DEPLOYMENT_TARGET_VAR) {
+            Ok(ver) => ver,
+            Err(_) => {
+                String::from(match std::env::var("CARGO_CFG_TARGET_ARCH").unwrap().as_str() {
+                    "x86_64" => "10.10", // Using what I found here https://github.com/webrtc-uwp/chromium-build/blob/master/config/mac/mac_sdk.gni#L17
+                    "aarch64" => "11.0", // Apple silicon started here.
+                    arch => panic!("unknown arch: {}", arch),
+                })
+            },
+        };
+
+        // `cc` doesn't try to pick up on this automatically, but `clang` needs it to
+        // generate a "correct" Objective-C symbol table which better matches XCode.
+        // See https://github.com/h4llow3En/mac-notification-sys/issues/45.
+        cc_build.flag(format!("-mmacos-version-min={}", min_version));
+    }
+
+    // This automatically emits "cargo:rustc-link-lib=static=webrtc_audio_processing_wrapper".
+    // The wrapper library should be linked before webrtc-audio-processing-2, otherwise strict
+    // linkers (like when passing -Wl,--as-needed) may discard the c++ library (automatically
+    // added by cc) from the linking list, resulting in build failure.
+    // The linking order should respect the dependency graph, i.e. wrapper -> webrtc-2.
+    cc_build
+        .cpp(true)
+        .file("src/wrapper.cpp")
+        .includes(&include_dirs)
+        .out_dir(out_dir());
+
+    // ALPINE PATCH: upstream applies these two GCC flags unconditionally, which makes the crate
+    // impossible to build with MSVC. `cl` parses `-W` as its warning-level switch, so
+    // `-Wno-unused-parameter` fails outright with `D8021: invalid numeric argument`.
+    //
+    // C++20 rather than C++17 on MSVC because the vendored AGC2 sources use designated
+    // initializers, which MSVC only accepts from C++20 (`error C7555`).
+    if cc_build.get_compiler().is_like_msvc() {
+        cc_build.flag("/std:c++20");
+    } else {
+        cc_build.flag("-std=c++17").flag("-Wno-unused-parameter");
+    }
+
+    // Inform wrapper code that headers for internal classes (ResidualEchoDetector) are available.
+    #[cfg(feature = "bundled")]
+    cc_build.define("WEBRTC_HAS_INTERNAL_HEADERS", None);
+
+    cc_build.compile("webrtc_audio_processing_wrapper");
+
+    // The the cc and bindgen commands emit `cargo:rerun-if-env-changed=...`, and these deactivate
+    // the default behavior to rerun if _any_ source file changes. So state these explicitly.
+    // build.rs is always included and doesn't have to be specified.
+    println!("cargo:rerun-if-changed=src/wrapper.hpp");
+    println!("cargo:rerun-if-changed=src/wrapper.cpp");
+    // ALPINE PATCH: upstream lists only the wrapper sources, because for them the bundled tree is a
+    // git submodule that never changes. This is a vendored copy that we do patch, and without this
+    // line cargo considers the crate fresh after such an edit: meson never re-runs, the stale
+    // library is relinked, and the build fails with exactly the errors the edit was meant to fix.
+    #[cfg(feature = "bundled")]
+    println!("cargo:rerun-if-changed=./webrtc-audio-processing/meson.build");
+
+    // Prefix the wrapper library's references to webrtc symbols to match the renamed webrtc library.
+    //
+    // ALPINE PATCH: upstream only patches the `lib*.a` name. With MSVC, `cc` emits the archive
+    // twice - `webrtc_audio_processing_wrapper.lib` alongside the `.a` - and rustc links the `.lib`,
+    // which upstream leaves with unprefixed references. The result is 12 unresolved externals at
+    // link time (the wrapper's only out-of-line calls into the library). Patch every name `cc` may
+    // have produced, not just the Unix one.
+    let mut patched_any = false;
+    for name in ["libwebrtc_audio_processing_wrapper.a", "webrtc_audio_processing_wrapper.lib"] {
+        let wrapper_lib = out_dir().join(name);
+        if wrapper_lib.exists() {
+            prefix_archive_symbols(&wrapper_lib, &renamed_symbols, SYMBOL_PREFIX)?;
+            patched_any = true;
+        }
+    }
+    if !patched_any && !renamed_symbols.is_empty() {
+        // Silently skipping this is what made the failure so hard to read: the library gets renamed
+        // symbols, the wrapper keeps the originals, and the mismatch only surfaces as a wall of
+        // mangled names from the linker.
+        bail!("Symbols were prefixed in the webrtc library but no wrapper archive was found in {} to match - linking would fail with unresolved externals.", out_dir().display());
+    }
+
+    if cfg!(feature = "bundled") {
+        println!("cargo:rustc-link-lib=static={LIB_NAME}");
+        println!("cargo:rustc-link-lib=absl_strings");
+    } else {
+        println!("cargo:rustc-link-lib=dylib={LIB_NAME}");
+    }
+
+    let binding_file = out_dir().join("bindings.rs");
+    let mut builder = bindgen::Builder::default()
+        .header("src/wrapper.hpp")
+        .clang_args(&["-x", "c++", "-std=c++17", "-fparse-all-comments"])
+        .clang_args(msvc_bindgen_clang_args())
+        .generate_comments(true)
+        .enable_cxx_namespaces();
+
+    builder = builder
+        // Transitive dependencies are automatically included.
+        .allowlist_function("webrtc_audio_processing_wrapper::.*")
+        .opaque_type("std::.*")
+        .parse_callbacks(Box::new(CustomDeriveCallbacks))
+        .derive_debug(true)
+        // The default implementation ignores C++11's brace-or-equal-initializers,
+        // and thus misleading to enable. See also CustomDeriveCallbacks.
+        .derive_default(false)
+        .derive_partialeq(true);
+    for dir in &include_dirs {
+        builder = builder.clang_arg(format!("-I{}", dir.display()));
+    }
+    builder
+        .generate()
+        .expect("Unable to generate bindings")
+        .write_to_file(&binding_file)
+        .expect("Couldn't write bindings!");
+
+    Ok(())
+}
+
+/// ALPINE PATCH: hand a command the MSVC environment, so meson and ninja can find a compiler.
+///
+/// Visual Studio's toolchain is deliberately absent from the ordinary PATH - `cl.exe`, `lib.exe`
+/// and `link.exe` exist only inside the environment `vcvars64.bat` sets up. Cargo does not care,
+/// because it locates `link.exe` itself through the Windows registry, so a plain `cargo build` of
+/// pure Rust works fine. meson has no such fallback: it simply fails to spawn `cl` and reports
+/// "[WinError 2] ... This is a Meson bug and should be reported!", which is really "I could not
+/// start a compiler" and sends you looking in entirely the wrong place.
+///
+/// `cc` exposes the same registry lookup cargo uses, so the build script can apply it here and
+/// `cargo build`, `cargo test` and `tauri dev` all work from any terminal rather than only from an
+/// "x64 Native Tools" prompt.
+#[cfg(windows)]
+fn apply_msvc_env(cmd: &mut Command) {
+    let target = env::var("TARGET").unwrap_or_default();
+    let Some(tool) = cc::windows_registry::find_tool(&target, "cl.exe") else {
+        // Nothing found: leave the command alone and let it fail on its own terms. Inside a
+        // developer prompt the environment is already correct anyway.
+        return;
+    };
+
+    for (key, value) in tool.env() {
+        if key.to_string_lossy().eq_ignore_ascii_case("PATH") {
+            // Prepended, never replaced. `cc`'s PATH carries the compiler; the inherited one
+            // carries meson, ninja and python, and dropping it would trade one missing tool
+            // for three.
+            let mut combined = value.clone();
+            if let Some(existing) = env::var_os("PATH") {
+                combined.push(";");
+                combined.push(existing);
+            }
+            cmd.env("PATH", combined);
+        } else {
+            cmd.env(key, value);
+        }
+    }
+}
+
+#[cfg(not(windows))]
+fn apply_msvc_env(_cmd: &mut Command) {}
+
+/// ALPINE PATCH: tell bindgen which C++ ABI to mangle for, and where the MSVC headers are.
+///
+/// bindgen mangles `link_name`s according to the target libclang parses with, and it will not fill
+/// that target in itself: `find_effective_target` sees `TARGET` equal to bindgen's own host triple,
+/// concludes this is a host build, and deliberately omits the flag. libclang then falls back to its
+/// own default. The only libclang on a typical Windows box here is MSYS2's clang64 build - dragged
+/// onto PATH by the very `ninja` and `nm` this build script needs - and it defaults to
+/// `x86_64-w64-windows-gnu`. So bindgen emitted Itanium names
+/// (`_ZN31webrtc_audio_processing_wrapper20process_render_frameE...`) while `cc` compiled
+/// wrapper.cpp with `cl` into MSVC ones
+/// (`?process_render_frame@webrtc_audio_processing_wrapper@@YAH...`), and every wrapper function
+/// came out unresolved at link time.
+///
+/// That failure reads exactly like the symbol-prefix mismatch handled further up - same count, same
+/// wall of mangled names - which is what made it expensive to find. It is a different bug: the
+/// prefixing is correct, the two halves simply never agreed on how to spell a C++ name.
+///
+/// Naming the target is only half of it. clang then needs the MSVC headers and does not locate them
+/// unaided (`fatal error: 'string' file not found`), so hand it the include path `cc`'s registry
+/// lookup already knows, rather than expecting every build to start from a developer prompt.
+#[cfg(windows)]
+fn msvc_bindgen_clang_args() -> Vec<String> {
+    let target = env::var("TARGET").unwrap_or_default();
+    if !target.ends_with("-msvc") {
+        return Vec::new();
+    }
+
+    let mut args = vec![format!("--target={target}")];
+
+    // Prefer the registry lookup over the ambient INCLUDE so the two halves of the build agree on
+    // one set of headers: `cc` compiles wrapper.cpp against exactly these.
+    let include = cc::windows_registry::find_tool(&target, "cl.exe")
+        .and_then(|tool| {
+            tool.env()
+                .iter()
+                .find(|(key, _)| key.to_string_lossy().eq_ignore_ascii_case("INCLUDE"))
+                .map(|(_, value)| value.clone())
+        })
+        .or_else(|| env::var_os("INCLUDE"));
+
+    match include {
+        Some(include) => args.extend(
+            env::split_paths(&include).map(|dir| format!("-I{}", dir.display())),
+        ),
+        // Not fatal on its own: inside a developer prompt clang still has what it needs. Worth
+        // saying out loud, because the alternative is a "'string' file not found" with no hint
+        // that the header search path was supposed to come from here.
+        None => println!(
+            "cargo:warning=No MSVC INCLUDE path found for {target}; bindgen may fail to find the C++ standard headers."
+        ),
+    }
+
+    args
+}
+
+#[cfg(not(windows))]
+fn msvc_bindgen_clang_args() -> Vec<String> {
+    Vec::new()
+}
+
+/// ALPINE PATCH: resolve `nm` from the active Rust toolchain instead of PATH.
+///
+/// The bundled build lists a static library's symbols before prefixing them, and Windows ships no
+/// `nm` - so the build got as far as compiling all of abseil and the AudioProcessing module, then
+/// died with "Failed to execute nm". rustup's llvm-tools component installs `llvm-nm` beside the
+/// `rust-objcopy` this file already resolves the same way, and it accepts the same
+/// `--defined-only --format=posix` flags.
+///
+/// Falls back to a bare `nm` when the component is absent, which is what every host did before.
+fn determine_nm_path() -> PathBuf {
+    let fallback = || PathBuf::from("nm");
+
+    let Some(bin_dir) = toolchain_bin_dir() else {
+        return fallback();
+    };
+    let llvm_nm = bin_dir.join(if cfg!(windows) { "llvm-nm.exe" } else { "llvm-nm" });
+    if llvm_nm.exists() {
+        llvm_nm
+    } else {
+        fallback()
+    }
+}
+
+/// Where rustup's llvm-tools component puts its binaries, if that can be worked out at all.
+fn toolchain_bin_dir() -> Option<PathBuf> {
+    let rustc = env::var("RUSTC").unwrap_or_else(|_| "rustc".to_string());
+    let output = Command::new(&rustc).arg("--print").arg("sysroot").output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let sysroot = PathBuf::from(String::from_utf8(output.stdout).ok()?.trim());
+    let host = env::var("HOST").ok()?;
+    Some(sysroot.join("lib").join("rustlib").join(host).join("bin"))
+}
+
+/// Reliably determine a path to objcopy binary bundled with the active Rust toolchain (rust-objcopy)
+fn determine_objcopy_path() -> Result<PathBuf> {
+    // 1. Get the rustc command (this might be a path or just "rustc")
+    let rustc = env::var("RUSTC").unwrap_or_else(|_| "rustc".to_string());
+
+    // 2. Ask rustc for the sysroot. This works even if RUSTC="rustc"
+    let output = Command::new(&rustc)
+        .arg("--print")
+        .arg("sysroot")
+        .output()
+        .context("Failed to execute rustc to find sysroot")?;
+
+    if !output.status.success() {
+        bail!("Failed to get sysroot from rustc: {:?}", output);
+    }
+
+    let sysroot_str = String::from_utf8(output.stdout).context("Invalid UTF-8 in sysroot")?;
+    let sysroot = PathBuf::from(sysroot_str.trim());
+
+    // 3. Construct the path: <sysroot>/lib/rustlib/<HOST_TRIPLE>/bin/rust-objcopy
+    // We use HOST because that is where the compiler (and tools) are running.
+    let host = env::var("HOST").context("HOST env var not found")?;
+
+    // ALPINE PATCH: `.exe` on Windows, or the existence check below always fails and reports a
+    // missing llvm-tools component that is in fact installed.
+    let objcopy = sysroot
+        .join("lib")
+        .join("rustlib")
+        .join(host)
+        .join("bin")
+        .join(if cfg!(windows) { "rust-objcopy.exe" } else { "rust-objcopy" });
+
+    // Optional: verification
+    if !objcopy.exists() {
+        println!("cargo:warning=rust-objcopy not found at {:?}", objcopy);
+        println!("cargo:warning=Ensure the 'llvm-tools' component is installed: 'rustup component add llvm-tools'");
+    }
+
+    Ok(objcopy)
+}

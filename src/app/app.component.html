@@ -1,0 +1,31 @@
+<!-- Tagged for the negative-path tests. It carries every toast, so a test must also match on message text. -->
+<p-toast data-testid="toast" position="top-center"/>
+@if (!isPopup) {
+    <app-resize-handles/>
+    <app-titlebar/>
+    <app-status-banner/>
+    <app-call-overlay/>
+    <!-- Voice-channel rings. Global, because a ring can arrive from any guild while the user is anywhere. -->
+    <div class="pointer-events-none fixed bottom-4 right-4 z-[1200]">
+        <app-voice-ring-card/>
+    </div>
+    <!-- Must stay above the router outlet: both call stages unmount on navigation, and this keeps the picture. -->
+    <app-call-mini-player/>
+    <app-screen-picker/>
+    <app-isle-proximity-bar/>
+}
+<main [class]="isPopup ? 'w-full h-full' : 'flex-1 min-h-0'">
+    <router-outlet/>
+</main>
+@if (!isPopup) {
+    <app-update-dialog/>
+    <app-legal-consent-dialog/>
+    <app-email-verification-dialog/>
+    <app-mfa-challenge-dialog/>
+    <app-password-reset-dialog/>
+    <app-invite-dialog/>
+    <app-bot-install-dialog/>
+    <app-discord-import-progress-dialog/>
+    <app-bot-command-dialog/>
+    <app-bot-modal-dialog/>
+}

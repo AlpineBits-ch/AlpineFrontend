@@ -1,0 +1,126 @@
+@if (isActive()) {
+    @let status = callStatus();
+
+    <div class="shrink-0 select-none border-t border-border-subtle bg-sidebar px-3 py-2">
+
+        <div class="flex items-center gap-2">
+
+            <!-- Status dot. Colour and pulse come from the same resolver the in-call status row
+                 uses, so the sidebar cannot disagree with the call about how it is going. -->
+            <span [class]="dotClass()"></span>
+
+            <!-- Channel/peer info (clickable) -->
+            <button
+                    (click)="navigate()"
+                    class="call-focusable min-w-0 flex-1 cursor-pointer border-0 bg-transparent p-0 text-left"
+                    type="button">
+                <p [class]="'text-xs font-semibold leading-tight ' + labelClass()">
+                    {{ status.labelKey | translate }}
+                </p>
+                <p class="mt-0.5 truncate text-[0.6875rem] leading-tight text-white/55">
+                    @if (isGuildVoice()) {
+                        {{ voiceSvc.joinedChannelName() }}
+                        @if (voiceSvc.joinedGuildName()) {
+                            <span class="text-white/35"> · {{ voiceSvc.joinedGuildName() }}</span>
+                        }
+                    } @else {
+                        {{ dmPeerName() }}
+                    }
+                </p>
+            </button>
+
+            <!-- Brings back the floating call tile after it has been closed. -->
+            @if (isMiniPlayerDismissed()) {
+                <button
+                        (click)="showMiniPlayer()"
+                        [attr.aria-label]="'CALL.SHOW_MINI_PLAYER' | translate"
+                        [attr.title]="'CALL.SHOW_MINI_PLAYER' | translate"
+                        class="call-focusable flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-lg
+                               border-0 bg-white/[0.06] text-white/70 transition-colors hover:bg-white/[0.12]"
+                        type="button">
+                    <i class="pi pi-window-minimize text-xs"></i>
+                </button>
+            }
+
+            <!-- Start sharing. -->
+            @if (!isSharing()) {
+                <button
+                        (click)="startSharing()"
+                        [attr.aria-label]="'CALL.SHARE_SCREEN' | translate"
+                        [attr.title]="'CALL.SHARE_SCREEN' | translate"
+                        class="call-focusable flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-lg
+                               border-0 bg-white/[0.06] text-white/70 transition-colors hover:bg-white/[0.12]"
+                        type="button">
+                    <i class="pi pi-desktop text-xs"></i>
+                </button>
+            }
+
+            <!-- Stop sharing. -->
+            @if (isSharing()) {
+                <button
+                        (click)="stopSharing()"
+                        [attr.aria-label]="'CALL.STOP_SHARING' | translate"
+                        [attr.title]="'CALL.STOP_SHARING' | translate"
+                        class="call-focusable flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-lg
+                               border-0 bg-live/15 text-live transition-colors hover:bg-live/25"
+                        type="button">
+                    <i class="pi pi-desktop text-xs"></i>
+                </button>
+            }
+
+            <!-- Disconnect. -->
+            <button
+                    (click)="disconnect()"
+                    [attr.aria-label]="disconnectLabelKey() | translate"
+                    [attr.title]="disconnectLabelKey() | translate"
+                    class="call-focusable flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-lg
+                           border-0 bg-offline/15 text-offline transition-colors hover:bg-offline/25"
+                    type="button">
+                <i class="pi pi-phone rotate-[135deg] text-xs"></i>
+            </button>
+
+        </div>
+
+        <!-- Live row. -->
+        @if (isSharing()) {
+            @let paused = showingPreview() && rustMedia.previewPaused();
+            <div class="mt-2 flex items-center gap-2 rounded-lg border border-border-subtle bg-card px-2 py-1.5">
+                <span class="relative aspect-video w-10 shrink-0 overflow-hidden rounded bg-black">
+                    @if (paused) {
+                        <!-- Paused. -->
+                        <button (click)="resumePreview()"
+                                [attr.aria-label]="'CALL.RESUME_PREVIEW' | translate"
+                                [attr.title]="'CALL.PREVIEW_PAUSED_HINT' | translate"
+                                class="call-focusable flex h-full w-full cursor-pointer items-center justify-center
+                                       border-0 bg-black/60 text-white/60 transition-colors hover:text-white/90"
+                                type="button">
+                            <i class="pi pi-play text-[0.625rem]"></i>
+                        </button>
+                    } @else if (rustMedia.publishPreview(); as preview) {
+                        <img [alt]="'CALL.YOUR_SCREEN' | translate" [src]="preview"
+                             class="h-full w-full object-contain"/>
+                    } @else {
+                        <span class="flex h-full w-full items-center justify-center">
+                            <i class="pi pi-desktop text-xs text-white/20"></i>
+                        </span>
+                    }
+                </span>
+                <span class="min-w-0">
+                    @if (paused) {
+                        <span class="flex items-center gap-1.5">
+                            <i class="pi pi-pause-circle text-[0.625rem] text-white/40"></i>
+                            <span class="truncate text-[0.6875rem] text-white/55">
+                                {{ 'CALL.PREVIEW_PAUSED' | translate }}
+                            </span>
+                        </span>
+                    } @else {
+                        <app-call-live-badge [dot]="true" size="sm" variant="soft"/>
+                        <span class="mt-0.5 block truncate text-[0.6875rem] text-white/55">
+                            {{ 'CALL.YOU_ARE_LIVE' | translate }}
+                        </span>
+                    }
+                </span>
+            </div>
+        }
+    </div>
+}

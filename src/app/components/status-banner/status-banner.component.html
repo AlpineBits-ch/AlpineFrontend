@@ -1,0 +1,40 @@
+@if (kind(); as bar) {
+    <div class="shrink-0 border-b border-white/[0.10] px-3 py-2 select-none"
+         [style.background]="style().tint">
+        <div class="flex items-center gap-2.5">
+            <i [class]="style().icon + ' text-xs shrink-0'" [style.color]="style().dot"></i>
+
+            @if (bar === 'incident') {
+                <!-- Server copy, verbatim. See the class comment before changing this. -->
+                <div class="flex-1 min-w-0">
+                    <p class="text-xs font-semibold text-white/85 truncate">{{ banner()!.title }}</p>
+                    <p class="text-[0.6875rem] text-white/50 truncate">{{ banner()!.body }}</p>
+                </div>
+                <button (click)="open()"
+                        class="h-7 px-3 flex items-center gap-1.5 rounded-lg text-xs font-semibold
+                               text-white/70 hover:text-white/90 bg-white/[0.06] hover:bg-white/[0.10]
+                               transition-colors cursor-pointer border-0 shrink-0">
+                    <i class="pi pi-external-link text-[0.625rem]"></i>
+                    {{ 'STATUS.VIEW_DETAILS' | translate }}
+                </button>
+            } @else {
+                <div class="flex-1 min-w-0">
+                    <p class="text-xs font-semibold text-white/85 truncate">
+                        {{ 'STATUS.UNVERIFIED_TITLE' | translate }}
+                    </p>
+                    <p class="text-[0.6875rem] text-white/50 truncate">
+                        {{ 'STATUS.UNVERIFIED_BODY' | translate }}
+                    </p>
+                </div>
+            }
+
+            <button (click)="dismiss($event)"
+                    [attr.aria-label]="'STATUS.DISMISS' | translate"
+                    class="h-7 w-7 flex items-center justify-center rounded-lg text-white/40
+                           hover:text-white/70 hover:bg-white/[0.06] transition-colors
+                           cursor-pointer border-0 bg-transparent shrink-0">
+                <i class="pi pi-times text-[0.625rem]"></i>
+            </button>
+        </div>
+    </div>
+}

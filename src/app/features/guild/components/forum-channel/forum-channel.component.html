@@ -1,0 +1,20 @@
+<div class="flex flex-col h-full bg-app-bg overflow-hidden">
+
+    <!-- Header -->
+    <header class="app-header flex items-center gap-2 px-3 sm:px-5 border-b border-border-subtle shrink-0 bg-app-bg">
+        <p-button (onClick)="navService.mobileNavOpen.set(true)" [text]="true" class="lg:hidden" icon="pi pi-bars"
+                  severity="secondary" size="small"/>
+
+        <div class="flex items-center gap-2 sm:gap-3 min-w-0">
+            <i [class]="icon()" class="text-text-muted shrink-0"></i>
+            <span class="text-sm font-semibold text-text-primary truncate">{{ channel().name }}</span>
+            @if (channel().description) {
+                <span class="hidden sm:block text-text-muted text-xs border-l border-border-default pl-3 truncate max-w-xs">
+                    {{ channel().description }}
+                </span>
+            }
+        </div>
+    </header>
+
+    <app-forum-post-list [forum]="channel()"/>
+</div>

@@ -1,0 +1,187 @@
+<div class="flex min-h-0 flex-1 flex-col gap-3 bg-stage p-4 pb-call-controls">
+
+    <!-- Grid/focus toggle, reachable without hovering any particular tile. -->
+    @if (canToggleFocus()) {
+        <div class="flex justify-end">
+            <app-call-tile-action
+                    (action)="toggleGridFocus()"
+                    [label]="(maximizedId() ? 'CALL.SHOW_OTHER_STREAMS' : 'CALL.HIDE_OTHER_STREAMS') | translate"
+                    [icon]="maximizedId() ? 'pi-window-minimize' : 'pi-window-maximize'"
+                    [pressed]="maximizedId() !== null"
+                    size="sm"/>
+        </div>
+    }
+
+    <!-- The stage: screen shares and cameras, one grid, comparable size. Two columns are forced while
+         the invite card is showing, because gridClass() counts displayedTiles() alone. -->
+    <div [class]="'grid min-h-0 flex-1 auto-rows-min gap-3 overflow-y-auto thin-scrollbar '
+                  + (showInviteCard() ? 'grid-cols-2' : gridClass())">
+        @for (tile of displayedTiles(); track tile.id) {
+            @if (tile.kind === 'share') {
+                @let share = tile.share;
+                <app-call-share-tile
+                        (audioToggle)="onShareAudioToggle(share)"
+                        (hide)="hideShare(share.shareId)"
+                        (maximizeToggle)="toggleMaximize(share.shareId)"
+                        (statsInspect)="statsInspect.emit($event)"
+                        [inboundStatsOf]="inboundStatsOf()"
+                        [maximized]="maximizedId() === share.shareId"
+                        [share]="share"
+                        [tileScope]="watchScope()"
+                        [viewerNames]="viewerNames(share.shareId)"
+                        [viewers]="viewerCount(share.shareId)"/>
+            } @else {
+                <!-- The same component the no-share stages render, unchanged. -->
+                <app-call-participant-tile
+                        (contextMenu)="participantContextMenu.emit({ event: $event, participant: tile.participant })"
+                        [audioState]="audio.stateOf(tile.participant.userId)"
+                        [participant]="tile.participant"
+                        [tileScope]="watchScope()"
+                        [videoStream]="tile.participant.videoStream ?? null"
+                        class="min-h-0"/>
+            }
+        }
+
+        <!-- Fills the empty half of a one-tile stage. Must never enter displayedTiles(): it is
+             neither a share nor a participant, and the watch claim is keyed off that list. -->
+        @if (showInviteCard()) {
+            <app-call-invite-card (invite)="emitInviteRequest()" class="min-h-0"/>
+        }
+    </div>
+
+    <!-- Restore row for shares dropped via the tile's "stop watching" action. -->
+    @if (hiddenShares().length > 0) {
+        <div [attr.aria-label]="'CALL.HIDDEN_STREAMS' | translate"
+             class="thin-scrollbar flex shrink-0 items-center gap-2 overflow-x-auto pb-1" role="group">
+            @for (share of hiddenShares(); track share.shareId) {
+                <button (click)="showShare(share.shareId)"
+                        [attr.aria-label]="'CALL.SHOW_STREAM' | translate: {name: share.displayName}"
+                        [attr.title]="'CALL.SHOW_STREAM' | translate: {name: share.displayName}"
+                        class="call-focusable flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full
+                               border border-border-subtle bg-card px-3 py-1 text-[0.6875rem] text-white/70
+                               transition-colors hover:bg-hover hover:text-white/90"
+                        type="button">
+                    <i class="pi pi-eye text-[0.625rem] text-brand-dim"></i>
+                    {{ share.displayName }}
+                </button>
+            }
+        </div>
+    }
+
+    <!-- Your own stream, as a small monitor, while somebody else's has the grid. -->
+    @if (selfCard(); as self) {
+        @let paused = claimingPreview() && rustMedia.previewPaused();
+        <button (click)="onSelfCardClick(self.shareId, paused)"
+                [attr.title]="(paused ? 'CALL.RESUME_PREVIEW' : 'CALL.SHOW_MY_STREAM') | translate"
+                class="call-focusable flex shrink-0 cursor-pointer items-center gap-3 self-end rounded-xl border
+                       border-border bg-card px-3 py-2 text-left transition-colors hover:bg-hover"
+                type="button">
+            <span class="relative aspect-video w-28 shrink-0 overflow-hidden rounded-lg bg-black">
+                <!-- Paused must be tested before the stream, or a frozen frame replaces the indicator. -->
+                @if (paused) {
+                    <span class="flex h-full w-full items-center justify-center">
+                        <i class="pi pi-play-circle text-lg text-white/40"></i>
+                    </span>
+                } @else if (self.stream) {
+                    <video [streamSrc]="self.stream" autoplay class="h-full w-full object-contain" muted
+                           playsinline></video>
+                } @else if (self.previewSrc) {
+                    <img [alt]="'CALL.YOUR_SCREEN' | translate" [src]="self.previewSrc"
+                         class="h-full w-full object-contain"/>
+                } @else {
+                    <span class="flex h-full w-full items-center justify-center">
+                        <i class="pi pi-desktop text-lg text-white/20"></i>
+                    </span>
+                }
+            </span>
+            <span class="min-w-0">
+                <!-- Idle-paused: only this local render stopped, the stream is still going out. -->
+                @if (paused) {
+                    <span class="flex items-center gap-1.5">
+                        <i class="pi pi-pause-circle text-[0.625rem] text-white/40"></i>
+                        <span class="text-xs font-semibold text-white/85">{{ 'CALL.PREVIEW_PAUSED' | translate }}</span>
+                    </span>
+                    <span class="mt-0.5 block text-[0.6875rem] text-white/40">
+                        {{ 'CALL.PREVIEW_PAUSED_HINT' | translate }}
+                    </span>
+                } @else {
+                    <span class="flex items-center gap-1.5">
+                        <span class="size-1.5 shrink-0 rounded-full bg-live status-pulse"></span>
+                        <span class="text-xs font-semibold text-white/85">{{ 'CALL.YOU_ARE_LIVE' | translate }}</span>
+                    </span>
+                    <span class="mt-0.5 block text-[0.6875rem] text-white/40">
+                        {{ 'CALL.OTHERS_SEE_FULL_STREAM' | translate }}
+                        @if (self.renderedFps != null) {
+                            · {{ 'CALL.FPS_OUT' | translate: {fps: self.renderedFps} }}
+                        }
+                    </span>
+                }
+            </span>
+        </button>
+    }
+
+    <!-- Participants strip: the overflow for everyone whose face is not already on the stage above. -->
+    @if (stripParticipants().length > 0) {
+        <!-- items-stretch, not items-center: strip entries carry optional rows and so differ in height. -->
+        <div class="thin-scrollbar flex shrink-0 items-stretch gap-2 overflow-x-auto pb-1">
+            @for (p of stripParticipants(); track p.userId) {
+                @let share = getShareForUser(p.userId);
+                <div
+                        (contextmenu)="participantContextMenu.emit({ event: $event, participant: p })"
+                        [class]="'flex min-w-[5.25rem] shrink-0 flex-col items-center justify-center gap-1.5 rounded-xl '
+                                 + 'border bg-card px-3 py-2.5 '
+                                 + (p.isSpeaking ? 'border-online/60' : 'border-border-subtle')">
+                    <span class="relative">
+                        <!-- A camera, when there is one. Do not remove: while a share is maximised
+                             this is the only place a camera-on participant is drawn. -->
+                        @if (p.isCameraOn && p.videoStream) {
+                            <video [class.-scale-x-100]="p.isLocal"
+                                   [class.speaking-ring]="p.isSpeaking"
+                                   [muted]="p.isLocal"
+                                   [streamSrc]="p.videoStream"
+                                   autoplay
+                                   class="size-8 rounded-full border border-brand/30 object-cover"
+                                   playsinline></video>
+                        } @else {
+                            <app-avatar [label]="p.avatarLabel"
+                                        [styleClass]="p.isSpeaking ? 'speaking-ring' : undefined"
+                                        [userId]="p.userId"/>
+                        }
+                        @if (p.isMuted) {
+                            <span [attr.aria-label]="'CALL.MUTED' | translate"
+                                  class="absolute -bottom-0.5 -right-0.5 flex size-4 items-center justify-center
+                                         rounded-full border border-border-subtle bg-sidebar">
+                                <!-- Drawn slash: PrimeIcons has no slashed microphone, see .icon-slashed. -->
+                                <span class="icon-slashed relative flex items-center justify-center text-[0.5rem]
+                                             text-offline">
+                                    <i class="pi pi-microphone"></i>
+                                </span>
+                            </span>
+                        }
+                    </span>
+
+                    <span class="max-w-[4.25rem] truncate text-center text-xs text-white/75">{{ p.displayName }}</span>
+
+                    @if (!p.isLocal) {
+                        <app-call-audio-status [state]="audio.stateOf(p.userId)" variant="inline"/>
+                    }
+
+                    @if (!p.isLocal && share) {
+                        <button (click)="remoteAudioToggle.emit(p.userId)"
+                                [attr.aria-label]="(share.isAudioMuted ? 'CALL.UNMUTE_STREAM_AUDIO' : 'CALL.MUTE_STREAM_AUDIO') | translate"
+                                [attr.aria-pressed]="!!share.isAudioMuted"
+                                [attr.title]="(share.isAudioMuted ? 'CALL.UNMUTE_STREAM_AUDIO' : 'CALL.MUTE_STREAM_AUDIO') | translate"
+                                class="call-focusable flex size-5 cursor-pointer items-center justify-center rounded
+                                       border-0 bg-transparent transition-colors"
+                                type="button">
+                            <i [class]="'pi text-[0.5625rem] ' + (share.isAudioMuted
+                                           ? 'pi-volume-off text-offline'
+                                           : 'pi-volume-up text-white/40 hover:text-white/70')"></i>
+                        </button>
+                    }
+                </div>
+            }
+        </div>
+    }
+
+</div>

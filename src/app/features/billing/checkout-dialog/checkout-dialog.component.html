@@ -1,0 +1,153 @@
+<!-- Not closable while the card is being confirmed or the subscription activated. -->
+<p-dialog
+        (visibleChange)="onVisibleChange($event)"
+        [breakpoints]="{ '640px': '100vw' }"
+        [closable]="!busy()"
+        [closeOnEscape]="!busy()"
+        [draggable]="false"
+        [modal]="true"
+        [resizable]="false"
+        [style]="{ width: '520px' }"
+        [visible]="visible()"
+        appendTo="body">
+
+    <ng-template pTemplate="header">
+        <span class="text-sm font-semibold text-text-primary">
+            {{ 'BILLING.CHECKOUT.TITLE' | translate:{plan: plan().displayName} }}
+        </span>
+    </ng-template>
+
+    <div class="flex flex-col gap-5 pb-1">
+
+        <!-- What is being bought and what it costs, on every step. Somebody three screens into a
+             payment should never have to remember which plan they pressed. -->
+        <div class="flex items-baseline justify-between gap-4 bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3.5">
+            <div class="flex flex-col gap-0.5 min-w-0">
+                <p class="text-base font-semibold text-text-primary m-0 truncate">{{ plan().displayName }}</p>
+                <p class="text-xs text-text-muted m-0 leading-relaxed">{{ plan().description }}</p>
+            </div>
+            @if (price(); as amount) {
+                <p class="text-sm font-semibold text-text-primary m-0 whitespace-nowrap">
+                    {{ amount }} <span class="text-text-muted font-normal">{{ intervalKey() | translate }}</span>
+                </p>
+            }
+        </div>
+
+        @switch (step()) {
+
+            @case ('starting') {
+                <p class="text-sm text-text-secondary m-0">{{ 'BILLING.CHECKOUT.PREPARING' | translate }}</p>
+            }
+
+            @case ('done') {
+                <div class="flex flex-col gap-1.5">
+                    <p class="text-sm font-semibold text-text-primary m-0">
+                        {{ 'BILLING.CHECKOUT.DONE_TITLE' | translate }}
+                    </p>
+                    <p class="text-xs text-text-muted m-0 leading-relaxed">
+                        {{ 'BILLING.CHECKOUT.DONE_BODY' | translate:{plan: plan().displayName} }}
+                    </p>
+                </div>
+                <p-button (onClick)="close()" [label]="'BILLING.CHECKOUT.CLOSE' | translate" severity="primary"
+                          styleClass="justify-center"/>
+            }
+
+            <!-- The wait ran out and nothing is known to be wrong. -->
+            @case ('slow') {
+                <div class="flex flex-col gap-1.5">
+                    <p class="text-sm font-semibold text-text-primary m-0">
+                        {{ 'BILLING.CHECKOUT.SLOW_TITLE' | translate }}
+                    </p>
+                    <p class="text-xs text-text-muted m-0 leading-relaxed">
+                        {{ 'BILLING.CHECKOUT.SLOW_BODY' | translate }}
+                    </p>
+                </div>
+                <p-button (onClick)="close()" [label]="'BILLING.CHECKOUT.CLOSE' | translate" severity="secondary"
+                          styleClass="justify-center"/>
+            }
+
+            @case ('refused') {
+                <div class="flex flex-col gap-1.5">
+                    <p class="text-sm text-text-secondary m-0 leading-relaxed" role="alert">
+                        @if (errorText(); as text) {
+                            {{ text }}
+                        } @else if (errorKey(); as key) {
+                            {{ key | translate }}
+                        }
+                    </p>
+                </div>
+
+                <!--
+                  The one refusal whose sentence names an action, so it is the one refusal that carries the action.
+                -->
+                @if (alreadySubscribed()) {
+                    <div class="flex flex-wrap items-center gap-2">
+                        <p-button (onClick)="close()" [label]="'BILLING.CHECKOUT.CLOSE' | translate"
+                                  [text]="true" severity="secondary" styleClass="flex-1 justify-center"/>
+                        <p-button (onClick)="requestChange()"
+                                  [label]="'BILLING.CHECKOUT.CHANGE_INSTEAD' | translate"
+                                  severity="primary" styleClass="flex-1 justify-center"/>
+                    </div>
+                } @else {
+                    <p-button (onClick)="close()" [label]="'BILLING.CHECKOUT.CLOSE' | translate"
+                              severity="secondary" styleClass="justify-center"/>
+                }
+            }
+
+            @default {
+                @if (step() === 'activating') {
+                    <div class="flex items-center gap-3">
+                        <i class="pi pi-spin pi-spinner text-base" style="color: var(--color-brand-dim)"></i>
+                        <div class="flex flex-col gap-0.5">
+                            <p class="text-sm text-text-secondary m-0">
+                                {{ 'BILLING.CHECKOUT.ACTIVATING' | translate }}
+                            </p>
+                            <p class="text-xs text-text-muted m-0 leading-relaxed">
+                                {{ 'BILLING.CHECKOUT.ACTIVATING_HINT' | translate }}
+                            </p>
+                            <!-- Why the close button is gone, next to where it was. A control that
+                                 disappears without a word reads as a screen that has hung. -->
+                            <p class="text-xs text-text-muted m-0 leading-relaxed">
+                                {{ 'BILLING.CHECKOUT.ACTIVATING_STAY' | translate }}
+                            </p>
+                        </div>
+                    </div>
+                }
+
+                @if (clientSecret(); as secret) {
+                    <!-- Hidden rather than removed while the webhook is awaited. -->
+                    <div [class.hidden]="step() === 'activating'" class="flex flex-col gap-4">
+                        <app-payment-element
+                                (mounted)="elementReady.set(true)"
+                                [clientSecret]="secret"
+                                [collectAddress]="true"/>
+
+                        @if (errorText(); as text) {
+                            <p class="text-xs text-[var(--color-offline)] m-0 leading-relaxed"
+                               role="alert">{{ text }}</p>
+                        } @else if (errorKey(); as key) {
+                            <p class="text-xs text-[var(--color-offline)] m-0 leading-relaxed"
+                               role="alert">{{ key | translate }}</p>
+                        }
+
+                        <div class="flex flex-wrap items-center gap-2">
+                            <p-button (onClick)="close()" [disabled]="busy()"
+                                      [label]="'BILLING.CHECKOUT.CANCEL' | translate"
+                                      [text]="true" severity="secondary" styleClass="flex-1 justify-center"/>
+                            <p-button (onClick)="pay()" [disabled]="!canPay()"
+                                      [label]="'BILLING.CHECKOUT.PAY' | translate"
+                                      [loading]="step() === 'confirming'" severity="primary"
+                                      styleClass="flex-1 justify-center"/>
+                        </div>
+
+                        <p class="text-[0.625rem] text-text-faint m-0 leading-relaxed">
+                            {{ 'BILLING.CHECKOUT.STRIPE_NOTE' | translate }}
+                        </p>
+                    </div>
+                }
+            }
+        }
+
+    </div>
+
+</p-dialog>

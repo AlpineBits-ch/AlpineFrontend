@@ -1,0 +1,141 @@
+<p-dialog
+        [breakpoints]="{ '640px': '100vw' }"
+        [closable]="false"
+        [draggable]="false"
+        [modal]="true"
+        [resizable]="false"
+        [style]="{ width: '480px' }"
+        [visible]="visible"
+        appendTo="body">
+
+    @if (generatedCode()) {
+        <!-- Shown once. Same statement as at setup, because the consequence is the same. -->
+        <div class="p-1">
+            <h2 class="m-0 text-lg font-semibold text-white/90">Save your recovery code</h2>
+            <p class="mt-1 text-[0.8125rem] leading-snug text-white/60">
+                Write this down and keep it somewhere safe. It is now the only way back into your
+                encrypted messages if you forget your password.
+            </p>
+
+            <div class="my-4 rounded-xl border border-white/[0.08] bg-black/30 px-4 py-3">
+                <code class="block select-all break-all text-center font-mono text-[0.95rem]
+                             leading-7 tracking-[0.12em] text-white/90">{{ generatedCode() }}</code>
+            </div>
+
+            <div class="rounded-xl border border-amber-500/30 bg-amber-500/[0.08] px-4 py-3">
+                <p class="m-0 text-[0.8125rem] font-medium text-amber-200">
+                    If you lose both your password and this code, your encrypted history cannot be
+                    recovered.
+                </p>
+            </div>
+
+            <div class="mt-4 flex justify-end gap-2">
+                <p-button (onClick)="copyCode()" [text]="true" label="Copy" severity="secondary"
+                          size="small"/>
+                <p-button (onClick)="close()" label="I've saved it" size="small"/>
+            </div>
+        </div>
+    } @else {
+        @switch (action()) {
+
+            <!-- A reset already happened and there was no recovery-code wrapping to fall back on. -->
+            @case ('unrecoverable') {
+                <div class="p-1">
+                    <h2 class="m-0 text-lg font-semibold text-red-300">
+                        Encrypted history can no longer be recovered
+                    </h2>
+                    <p class="mt-2 text-[0.8125rem] leading-snug text-white/70">
+                        Your password was reset while your encryption key was protected only by your
+                        old password. That key can no longer be unlocked, so backups made before the
+                        reset cannot be restored - on this device or any other.
+                    </p>
+                    <p class="mt-2 text-[0.8125rem] leading-snug text-white/60">
+                        Messages on devices that are still signed in are unaffected, and new
+                        conversations are fine. To protect future backups, set up encryption again
+                        with a recovery code.
+                    </p>
+                    <div class="mt-4 flex justify-end">
+                        <p-button (onClick)="close()" label="I understand" severity="secondary"
+                                  size="small"/>
+                    </div>
+                </div>
+            }
+
+            <!-- The repair path. -->
+            @case ('rewrap-required') {
+                <div class="p-1">
+                    <h2 class="m-0 text-lg font-semibold text-white/90">Finish your password reset</h2>
+                    <p class="mt-1 text-[0.8125rem] leading-snug text-white/60">
+                        Your new password doesn't unlock your encryption key yet. Enter your recovery
+                        code and your new password to reconnect them. Nothing has been lost.
+                    </p>
+
+                    <div class="mt-4">
+                        <label class="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-white/35">
+                            Recovery code
+                        </label>
+                        <!-- Both fields submit on Enter; onRewrap re-checks that each is filled
+                             and that no rewrap is already running. -->
+                        <input (input)="onRecoveryCodeInput($event)" (keydown.enter)="onRewrap()"
+                               [value]="recoveryCode()"
+                               class="w-full font-mono"
+                               placeholder="XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX" type="text"/>
+                    </div>
+
+                    <div class="mt-3">
+                        <label class="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-white/35">
+                            New password
+                        </label>
+                        <input (input)="onNewPasswordInput($event)" (keydown.enter)="onRewrap()"
+                               [feedback]="false"
+                               [value]="newPassword()" pPassword placeholder="Your new password"
+                               type="password"/>
+                    </div>
+
+                    @if (errorMsg()) {
+                        <p class="mt-2 text-[0.8125rem] text-red-300">{{ errorMsg() }}</p>
+                    }
+
+                    <div class="mt-4 flex justify-end gap-2">
+                        <p-button (onClick)="close()" [text]="true" label="Later" severity="secondary"
+                                  size="small"/>
+                        <p-button (onClick)="onRewrap()" [loading]="busy()" label="Reconnect" size="small"/>
+                    </div>
+                </div>
+            }
+
+            <!-- Retrofit for accounts created before dual wrapping. -->
+            @case ('recovery-code-missing') {
+                <div class="p-1">
+                    <h2 class="m-0 text-lg font-semibold text-white/90">Set up a recovery code</h2>
+                    <p class="mt-1 text-[0.8125rem] leading-snug text-white/60">
+                        Right now your encryption key is protected only by your password. If you ever
+                        reset it, your encrypted history would be permanently unreadable. A recovery
+                        code prevents that.
+                    </p>
+
+                    <div class="mt-4">
+                        <label class="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-white/35">
+                            Password
+                        </label>
+                        <input (input)="onPasswordInput($event)" (keydown.enter)="onAddRecoveryCode()"
+                               [feedback]="false" [value]="password()"
+                               pPassword placeholder="Your account password" type="password"/>
+                    </div>
+
+                    @if (errorMsg()) {
+                        <p class="mt-2 text-[0.8125rem] text-red-300">{{ errorMsg() }}</p>
+                    }
+
+                    <div class="mt-4 flex justify-end gap-2">
+                        <p-button (onClick)="close()" [text]="true" label="Not now" severity="secondary"
+                                  size="small"/>
+                        <p-button (onClick)="onAddRecoveryCode()" [loading]="busy()"
+                                  label="Create recovery code" size="small"/>
+                    </div>
+                </div>
+            }
+        }
+    }
+
+</p-dialog>

@@ -1,0 +1,42 @@
+@let p = participant();
+
+<div (click)="open.emit()"
+     (contextmenu)="openMenu.emit($event)"
+     data-testid="voice-participant"
+     [attr.data-user-id]="p.userId"
+     class="chan-row">
+    <!-- chan-avatar, not a bare flex wrapper: the whole chain needs to be declared flex so the avatar sits on the row's centre line rather than its baseline (see styles.css). -->
+    <div class="chan-avatar">
+        <app-avatar [label]="p.avatarLabel" [userId]="p.userId"
+                    [styleClass]="p.isSpeaking ? '!w-[1.125rem] !h-[1.125rem] !text-[0.5rem] speaking-ring' : '!w-[1.125rem] !h-[1.125rem] !text-[0.5rem]'"/>
+    </div>
+    <span [ngClass]="p.isSpeaking ? 'text-online/85' : ''"
+          class="chan-label">
+        {{ p.displayName }}
+    </span>
+    @if (p.isCameraOn) {
+        <!-- Status, not a control: a screen share can be watched without joining (so it's a button), a camera is just seen by opening the channel. Its own mark, not a branch of the chain below, since camera/screen-share/mute are three independent facts. -->
+        <span [attr.aria-label]="'CALL.CAMERA_ON' | translate"
+              [title]="'CALL.CAMERA_ON' | translate"
+              data-testid="voice-participant-camera"
+              class="flex shrink-0 items-center text-[0.625rem] text-live">
+            <i class="pi pi-video"></i>
+        </span>
+    }
+    @if (p.isScreenSharing) {
+        <!-- A real button, not a clickable span: needs its own accessible name and must stop the click before it reaches the row, so watching a stream never also opens/joins it. -->
+        <button (click)="onWatchClick($event)"
+                [attr.aria-label]="'CALL.WATCH_STREAM' | translate"
+                [title]="'CALL.WATCH_STREAM' | translate"
+                class="shrink-0 cursor-pointer rounded border-0 bg-transparent p-0"
+                type="button">
+            <app-call-live-badge size="sm" variant="soft"/>
+        </button>
+    } @else if (p.isMuted) {
+        <!-- Drawn slash, since PrimeIcons has no slashed microphone; see .icon-slashed. -->
+        <span [attr.aria-label]="'CALL.MUTED' | translate"
+              class="icon-slashed relative flex shrink-0 items-center justify-center text-[0.5625rem] text-white/35">
+            <i class="pi pi-microphone"></i>
+        </span>
+    }
+</div>

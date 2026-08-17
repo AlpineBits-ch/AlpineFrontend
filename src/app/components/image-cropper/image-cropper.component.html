@@ -1,0 +1,20 @@
+<div class="flex flex-col items-center gap-3">
+    <canvas
+        #cropCanvas
+        (mousedown)="onMouseDown($event)"
+        (mouseleave)="onMouseUp()"
+        (mousemove)="onMouseMove($event)"
+        (mouseup)="onMouseUp()"
+        (touchend)="onTouchEnd()"
+        (touchstart)="onTouchStart($event)"
+        class="rounded-xl cursor-grab active:cursor-grabbing touch-none select-none block"
+        height="320"
+        style="background: #0d1117;"
+        width="320">
+    </canvas>
+    <p class="text-xs text-white/35 self-start">Drag to reposition · Scroll or pinch to zoom</p>
+    <div class="flex gap-3 w-full justify-end pt-1">
+        <p-button (onClick)="cancelled.emit()" label="Cancel" severity="secondary" size="small"/>
+        <p-button (onClick)="confirmCrop()" [disabled]="confirming()" label="Apply" severity="primary" size="small"/>
+    </div>
+</div>

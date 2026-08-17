@@ -1,0 +1,49 @@
+/*
+ * Same shape as the call context menu's volume slider, with the played portion filled in - a
+ * scrubber that does not show progress is only half a scrubber. The fill comes from an inline
+ * gradient rather than `accent-color`, because `appearance: none` (needed for the thumb) turns the
+ * browser's own fill off with it.
+ */
+.media-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 0.25rem;
+    border-radius: 0.125rem;
+    outline: none;
+    cursor: pointer;
+}
+
+.media-slider:disabled {
+    cursor: default;
+    opacity: 0.5;
+}
+
+.media-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 0.75rem;
+    height: 0.75rem;
+    border-radius: 50%;
+    background: var(--color-brand);
+    cursor: pointer;
+    transition: background 0.12s, transform 0.1s;
+}
+
+.media-slider:hover::-webkit-slider-thumb {
+    background: var(--color-brand-hover);
+    transform: scale(1.15);
+}
+
+.media-slider:disabled::-webkit-slider-thumb {
+    cursor: default;
+    transform: none;
+}
+
+.media-slider::-moz-range-thumb {
+    width: 0.75rem;
+    height: 0.75rem;
+    border: none;
+    border-radius: 50%;
+    background: var(--color-brand);
+    cursor: pointer;
+}

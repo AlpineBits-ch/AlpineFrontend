@@ -1,0 +1,28 @@
+{
+  "alphabet": "23456789ABCDEFGHJKMNPQRSTUVWXYZ",
+  "masterKey": "6Y/Si/BNytCJKcajHanfl1TA04qk5boCw/9fjxTCMFg=",
+  "normalized": "SYY43VKVD3WDH66TPS23N7Q5SNWJMFQ6",
+  "password": "fixture-password",
+  "passwordWrapping": {
+    "argon2Iterations": 3,
+    "argon2Memory": 65536,
+    "argon2Parallelism": 1,
+    "cipherText": "wh6MIiObiP9EAYn4KeRBVDE6SaPuLnPZpPDEw+2o7+aHCy6juwZWPpIQ1mUQhY7x",
+    "iv": "DuEvfuGrPb/ReaGn",
+    "publicVerifier": "FjfgesYIMLpSml0DAVd6xqdsUy7+afm12okfRH+EQ4o=",
+    "salt": "iYkgz0s429DepwsEPDbrEg==",
+    "version": 1
+  },
+  "producedBy": "alpine",
+  "recoveryCode": "SYY4-3VKV-D3WD-H66T-PS23-N7Q5-SNWJ-MFQ6",
+  "recoveryCodeWrapping": {
+    "argon2Iterations": 3,
+    "argon2Memory": 65536,
+    "argon2Parallelism": 1,
+    "cipherText": "VSClASYPJT/127K6E3L1dT97FyUrtE32J3HBJxIMqedBMleDYo2n3YDNSE5F9md4",
+    "iv": "9McWwS9d7xnhDtVs",
+    "publicVerifier": "FjfgesYIMLpSml0DAVd6xqdsUy7+afm12okfRH+EQ4o=",
+    "salt": "IEdpz4/3zOzXMHS3IzrnHA==",
+    "version": 1
+  }
+}

@@ -1,0 +1,99 @@
+# See https://docs.github.com/get-started/getting-started-with-git/ignoring-files for more about ignoring files.
+
+# Compiled output
+/dist
+/tmp
+/out-tsc
+/bazel-out
+
+# Staging directory for the E2E client image. .github/workflows/e2e-client-image.yml assembles the
+# docker build context here (built output + docker/e2e/nginx.conf and nothing else) so that no
+# source can enter the context in the first place.
+/.image-context
+
+# Staging directory for the public web client image, assembled the same way by
+# .github/workflows/web-client-image.yml (built output + docker/web/*.conf and nothing else).
+/.web-context
+
+# wasm-pack output for the browser build, produced by `bun run build:wasm`.
+#
+# A build artifact, not a source file, and deliberately not committed: it is the compiled form of
+# crates/venta-crypto, so a committed copy is a second place for the crypto engine to exist and the
+# only one anybody would notice going stale. CI builds it before `ng build` in both ci.yml's
+# frontend job and web-client-image.yml, and both assert the blob is present afterwards - `ng
+# build` copies src/assets with a `**/*` glob and a glob that matches nothing is not an error, so
+# a missing engine is otherwise silent.
+/src/assets/wasm/
+
+# Node
+/node_modules
+npm-debug.log
+yarn-error.log
+
+# IDEs and editors
+.idea/
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+
+.zed/
+
+# Visual Studio Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.history/*
+
+# Miscellaneous
+/.angular/cache
+.sass-cache/
+/connect.lock
+/coverage
+/libpeerconnection.log
+testem.log
+/typings
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Sentry Config File
+.sentryclirc
+
+# Superpowers subagent-driven-development scratch workspace
+.superpowers/
+
+# The SADIE II measurements the bundled HRIR sphere is built from.
+#
+# A 112 MB build input, not a source file: the sphere it produces
+# (src-tauri/assets/hrir/sadie_d1_48k.bin) is what ships, and it is committed. GitHub rejects any
+# push carrying a file this large, so an accidental `git add -A` here blocks the whole branch
+# rather than just adding weight. src-tauri/assets/hrir/NOTICE.md has the Zenodo record to fetch it
+# from and the command to regenerate the sphere.
+D1.zip
+
+# Transcripts from scripts/run-release.mjs. One file per run of the release build; useful to
+# attach to a bug report, never useful to commit.
+/logs
+
+# Cargo output at the repository root.
+#
+# New with the workspace: `src-tauri/.gitignore` has covered `/target/` since there was only one
+# crate, and that rule is scoped to that directory. A workspace puts `target/` beside its *root*
+# manifest, and `.cargo/config.toml` pins `target-dir` back to `src-tauri/target` for the sake of
+# build.yml's upload globs - but any cargo invocation that runs before or outside that config still
+# lands here, and this directory reached 6.3 GB unignored. Same trap the D1.zip note above describes,
+# two orders of magnitude larger.
+/target
+
+# Per-machine Claude Code state. settings.local.json is a permission allowlist built up by
+# whoever is sitting at the machine, so it conflicts on every pull and means nothing to anyone
+# else. It was tracked until now; see the history rewrite that removed it.
+.claude
+# Local agent rules, per-machine.
+CLAUDE.md

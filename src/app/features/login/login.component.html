@@ -1,0 +1,367 @@
+<div class="login-bg" data-tauri-drag-region>
+
+    <!-- Ambient background -->
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="bg-grid"></div>
+
+    <div class="login-shell">
+
+        <!-- ── Brand panel ──────────────────────────────────────────────────── -->
+        <aside class="brand-panel" data-tauri-drag-region>
+            <div class="brand-lockup">
+                <img alt="" class="brand-mark" src="assets/branding/logo-mark.svg"/>
+                <span class="brand-word">Venta</span>
+            </div>
+
+            <h1 class="brand-headline">
+                {{ 'LOGIN.BRAND.HEADLINE' | translate }}<br/>
+                <span class="brand-headline-accent">{{ 'LOGIN.BRAND.HEADLINE_ACCENT' | translate }}</span>
+            </h1>
+
+            <p class="brand-description">{{ 'LOGIN.BRAND.DESCRIPTION' | translate }}</p>
+
+            <!-- The product's own surface as the hero: a short thread that ends in the
+                 voice-connect receipt, which is the actual claim the page is making. -->
+            <div aria-hidden="true" class="thread">
+                <div class="bubble bubble-in">
+                    <img alt="" class="bubble-avatar" src="assets/branding/logo-mark.svg"/>
+                    <span>{{ 'LOGIN.BRAND.BUBBLE_HEY' | translate }}</span>
+                </div>
+                <div class="bubble bubble-out">{{ 'LOGIN.BRAND.BUBBLE_JOINING' | translate }}</div>
+                <span class="bubble-receipt">{{ 'LOGIN.BRAND.BUBBLE_CONNECTED' | translate }}</span>
+            </div>
+
+            <ul class="feature-list">
+                <li><i class="pi pi-volume-up"></i>{{ 'LOGIN.BRAND.FEATURE_PROXIMITY' | translate }}</li>
+                <li><i class="pi pi-bolt"></i>{{ 'LOGIN.BRAND.FEATURE_REALTIME' | translate }}</li>
+                <li><i class="pi pi-shield"></i>{{ 'LOGIN.BRAND.FEATURE_OWNERSHIP' | translate }}</li>
+            </ul>
+        </aside>
+
+        <!-- ── Auth card ────────────────────────────────────────────────────── -->
+        <div class="login-card">
+
+            <!-- Compact lockup, shown only when the brand panel is hidden -->
+            <div class="card-lockup">
+                <img alt="" class="w-9 h-9" src="assets/branding/logo-mark.svg"/>
+                <span class="text-[0.9375rem] font-semibold tracking-tight text-slate-200">Venta</span>
+            </div>
+
+            <!-- A restricted account replaces the whole card: the form cannot succeed, so leaving
+                 it on screen only invites another attempt at the one thing that will not work. -->
+            @if (blocked(); as restricted) {
+                <app-blocked-sign-in
+                        (tryAnotherAccount)="tryAnotherAccount()"
+                        [apiBase]="blockedApiBase()"
+                        [reference]="restricted.reference"/>
+            } @else {
+
+            <!-- The way back out of "Add Account". -->
+            @if (returnableAccounts().length > 0) {
+                <div class="flex flex-col gap-1.5 mb-4">
+                    @for (slot of returnableAccounts(); track slot.id) {
+                        <button (click)="returnTo(slot)"
+                                class="flex w-full items-center gap-2.5 rounded-[10px] border
+                                       border-white/[0.06] bg-white/[0.04] px-3 py-2 text-left
+                                       transition-colors hover:bg-white/[0.08]"
+                                type="button">
+                            <i class="pi pi-arrow-left text-[0.75rem] text-slate-500"></i>
+                            <span class="min-w-0 flex-1 truncate text-[0.8125rem] text-slate-200">
+                                {{ 'LOGIN.RETURN_TO' | translate:{name: slot.displayName || slot.username} }}
+                            </span>
+                        </button>
+                    }
+                </div>
+            }
+
+            <!-- Mode toggle. QR keeps "Sign in" lit: it is a way of signing in, not a third account action. -->
+            <div class="flex bg-white/[0.05] border border-white/[0.06] rounded-[12px] p-[3px] gap-[3px] mb-5">
+                <button
+                        (click)="switchToMode('login')"
+                        data-testid="tab-signin"
+                        [ngClass]="{ 'bg-white/[0.09] text-slate-100 shadow-sm': mode() !== 'register', 'text-slate-500 hover:text-slate-400': mode() === 'register' }"
+                        class="flex-1 py-2 px-2 rounded-[9px] text-[0.8125rem] font-medium cursor-pointer transition-all duration-150 border-0 outline-none bg-transparent touch-manipulation">
+                    {{ 'LOGIN.TAB.SIGN_IN' | translate }}
+                </button>
+                <button
+                        (click)="switchToMode('register')"
+                        data-testid="tab-register"
+                        [ngClass]="{ 'bg-white/[0.09] text-slate-100 shadow-sm': mode() === 'register', 'text-slate-500 hover:text-slate-400': mode() !== 'register' }"
+                        class="flex-1 py-2 px-2 rounded-[9px] text-[0.8125rem] font-medium cursor-pointer transition-all duration-150 border-0 outline-none bg-transparent touch-manipulation">
+                    {{ 'LOGIN.TAB.CREATE_ACCOUNT' | translate }}
+                </button>
+            </div>
+
+            @if (mode() === 'login') {
+                <div class="flex flex-col gap-3.5">
+                    <div class="text-center mb-0.5">
+                        <h2 class="text-base font-semibold text-slate-100">{{ 'LOGIN.LOGIN.TITLE' | translate }}</h2>
+                        <p class="text-xs text-slate-500 mt-0.5">{{ 'LOGIN.LOGIN.SUBTITLE' | translate }}</p>
+                    </div>
+
+                    <!-- Username -->
+                    <div class="flex flex-col gap-1">
+                        <label class="field-label">{{ 'LOGIN.LOGIN.USERNAME' | translate }}</label>
+                        <input (keydown.enter)="login()" [formField]="loginForm.username"
+                               autocomplete="username"
+                               data-testid="login-username"
+                               placeholder="username or user@selfhosted.com"
+                               pInputText type="text"/>
+                        <div class="flex items-center gap-1.5 mt-0.5">
+                            <span [class]="loginServerConfigError() ? 'bg-rose-500/15 text-rose-400 border-rose-500/25' : isCustomServer() ? 'bg-[color-mix(in_srgb,var(--color-brand)_15%,transparent)] text-[var(--color-brand-dim)] border-[color-mix(in_srgb,var(--color-brand)_25%,transparent)]' : 'bg-white/[0.04] text-slate-500 border-white/[0.08]'"
+                                  class="inline-flex items-center gap-1.5 text-[0.625rem] font-medium border rounded-full px-2 py-0.5 transition-colors">
+                                @if (loginServerConfigLoading()) {
+                                    <i class="pi pi-spin pi-spinner text-[0.5625rem]"></i>
+                                } @else if (loginServerConfigError()) {
+                                    <i class="pi pi-exclamation-circle text-[0.5625rem]"></i>
+                                } @else {
+                                    <i [class]="isCustomServer() ? 'pi pi-server' : 'pi pi-cloud'"
+                                       class="text-[0.5625rem]"></i>
+                                }
+                                @if (loginServerConfigError()) {
+                                    {{ 'LOGIN.SERVER.UNREACHABLE_NAMED' | translate: {server: serverLabel()} }}
+                                } @else {
+                                    {{ serverLabel() }}
+                                }
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Password -->
+                    <div class="flex flex-col gap-1">
+                        <label class="field-label">{{ 'LOGIN.LOGIN.PASSWORD' | translate }}</label>
+                        <input (keydown.enter)="login()" [formField]="loginForm.password"
+                               [placeholder]="'LOGIN.LOGIN.PASSWORD_PLACEHOLDER' | translate"
+                               autocomplete="current-password"
+                               data-testid="login-password"
+                               pPassword type="password"/>
+                        <button (click)="openPasswordReset()"
+                                class="text-xs text-text-muted hover:text-[var(--color-brand-dim)] transition-colors self-end bg-transparent border-0 cursor-pointer"
+                                type="button">
+                            {{ 'LOGIN.LOGIN.FORGOT_PASSWORD' | translate }}
+                        </button>
+                    </div>
+
+                    @if (!loginEnabled() && !loginServerConfigLoading()) {
+                        <div class="flex items-center gap-2 bg-amber-500/[0.08] border border-amber-500/25 rounded-xl px-3 py-2.5 text-xs text-amber-400">
+                            <i class="pi pi-exclamation-triangle text-xs shrink-0"></i>
+                            {{ 'LOGIN.SERVER.LOGIN_DISABLED' | translate }}
+                        </div>
+                    }
+
+                    <p-button (onClick)="login()" [disabled]="!loginEnabled()"
+                              data-testid="login-submit"
+                              [label]="'LOGIN.LOGIN.SUBMIT' | translate"/>
+
+                    <div class="or-rule">{{ 'LOGIN.OR' | translate }}</div>
+
+                    <button (click)="switchToMode('qr')" class="qr-cta" type="button">
+                        <i class="pi pi-qrcode"></i>
+                        {{ 'LOGIN.QR.CTA' | translate }}
+                    </button>
+
+                    <p class="legal">
+                        {{ 'LOGIN.TERMS' | translate }}
+                        <a (click)="openLink('https://venta.gg/#/eula')">{{ 'LOGIN.TERMS_OF_SERVICE' | translate }}</a>
+                        {{ 'LOGIN.AND' | translate }}
+                        <a (click)="openLink('https://venta.gg/#/privacy')">{{ 'LOGIN.PRIVACY_POLICY' | translate }}</a>.
+                    </p>
+                </div>
+            } @else {
+                <div class="flex flex-col gap-3">
+                    @if (mode() === 'register') {
+                        <div class="text-center mb-0.5">
+                            <h2 class="text-base font-semibold text-slate-100">{{ 'LOGIN.REGISTER.TITLE' | translate }}</h2>
+                            <p class="text-xs text-slate-500 mt-0.5">{{ 'LOGIN.REGISTER.SUBTITLE' | translate }}</p>
+                        </div>
+                    }
+
+                    <!-- Server selector: shared by register and QR, both of which pick a
+                         server outright rather than reading one off a typed identity. -->
+                    <div class="flex flex-col gap-1">
+                        <label class="field-label">{{ 'LOGIN.SERVER.LABEL' | translate }}</label>
+                        @if (!isEditingServer()) {
+                            <div class="flex items-center gap-2 bg-white/[0.04] border border-white/[0.09] rounded-xl px-3 py-2.5">
+                                @if (serverConfigLoading()) {
+                                    <i class="pi pi-spin pi-spinner text-xs text-white/30 shrink-0"></i>
+                                } @else {
+                                    <i [class]="serverDomain() === 'venta.gg' ? 'pi pi-cloud' : 'pi pi-server'"
+                                       class="text-sm text-white/30 shrink-0"></i>
+                                }
+                                <span class="flex-1 text-sm text-white/60"
+                                      data-testid="server-chip">{{ serverDomain() }}</span>
+                                <button (click)="startEditServer()"
+                                        data-testid="server-edit-button"
+                                        class="text-[0.6875rem] text-[color-mix(in_srgb,var(--color-brand-dim)_60%,transparent)] hover:text-[var(--color-brand-dim)] bg-transparent border-0 cursor-pointer transition-colors px-0 shrink-0"
+                                        type="button">
+                                    {{ 'LOGIN.SERVER.CHANGE' | translate }}
+                                </button>
+                            </div>
+                        } @else {
+                            <div class="flex items-center gap-1.5">
+                                <div class="flex-1 flex items-center gap-2 bg-white/[0.05] border border-[color-mix(in_srgb,var(--color-brand)_30%,transparent)] rounded-xl px-3 focus-within:border-[color-mix(in_srgb,var(--color-brand)_50%,transparent)] transition-colors">
+                                    <i class="pi pi-globe text-sm text-white/30 shrink-0"></i>
+                                    <input
+                                            (keydown.enter)="confirmServer()"
+                                            (keydown.escape)="cancelServerEdit()"
+                                            [(ngModel)]="serverInputValue"
+                                            autocomplete="off"
+                                            class="flex-1 bg-transparent border-0 outline-none py-2.5 text-sm text-white/80 placeholder:text-white/25"
+                                            data-testid="server-input"
+                                            placeholder="selfhosted.com"
+                                            type="text"/>
+                                </div>
+                                <button (click)="confirmServer()"
+                                        data-testid="server-confirm"
+                                        class="w-9 h-9 flex items-center justify-center rounded-xl bg-[color-mix(in_srgb,var(--color-brand)_20%,transparent)] hover:bg-[color-mix(in_srgb,var(--color-brand)_30%,transparent)] text-[var(--color-brand-dim)] border-0 cursor-pointer transition-colors shrink-0"
+                                        type="button">
+                                    <i class="pi pi-check text-sm"></i>
+                                </button>
+                                <button (click)="cancelServerEdit()"
+                                        data-testid="server-cancel"
+                                        class="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-white/[0.06] text-white/40 border-0 cursor-pointer transition-colors shrink-0"
+                                        type="button">
+                                    <i class="pi pi-times text-sm"></i>
+                                </button>
+                            </div>
+                        }
+                        @if (serverConfigError() && !serverConfigLoading()) {
+                            <p class="field-hint text-rose-400/80" data-testid="server-config-error">
+                                <i class="pi pi-exclamation-circle text-[0.625rem]"></i>
+                                {{ 'LOGIN.SERVER.UNREACHABLE' | translate }}
+                            </p>
+                        } @else if (mode() === 'register' && !registerEnabled() && !serverConfigLoading()) {
+                            <p class="field-hint text-amber-400/80">
+                                <i class="pi pi-exclamation-triangle text-[0.625rem]"></i>
+                                {{ 'LOGIN.SERVER.REGISTER_DISABLED' | translate }}
+                            </p>
+                        }
+                    </div>
+
+                    @if (mode() === 'qr') {
+                        <app-qr-login-panel
+                                (authenticated)="onQrAuthenticated()"
+                                (cancelled)="switchToMode('login')"
+                                [serverUrl]="serverUrl()"/>
+                    } @else {
+                        <!-- Username -->
+                        <div class="flex flex-col gap-1">
+                            <label class="field-label">{{ 'LOGIN.REGISTER.USERNAME' | translate }}</label>
+                            <input (input)="clearServerError('username')"
+                                   [formField]="registerForm.username"
+                                   [placeholder]="'LOGIN.REGISTER.USERNAME_PLACEHOLDER' | translate"
+                                   autocomplete="username"
+                                   data-testid="register-username"
+                                   pInputText type="text"/>
+                            @if (registerForm.username().touched() && registerForm.username().invalid()) {
+                                @for (error of registerForm.username().errors(); track error) {
+                                    <span class="field-error">{{ error.message }}</span>
+                                }
+                            }
+                            @if (serverErrors().username) {
+                                <span class="field-error">{{ serverErrors().username! | translate }}</span>
+                            }
+                        </div>
+
+                        <!-- Email -->
+                        <div class="flex flex-col gap-1">
+                            <label class="field-label">{{ 'LOGIN.REGISTER.EMAIL' | translate }}</label>
+                            <input (input)="clearServerError('email')"
+                                   [formField]="registerForm.email"
+                                   [placeholder]="'LOGIN.REGISTER.EMAIL_PLACEHOLDER' | translate"
+                                   autocomplete="email"
+                                   data-testid="register-email"
+                                   inputmode="email" pInputText
+                                   type="email"/>
+                            @if (registerForm.email().touched() && registerForm.email().invalid()) {
+                                @for (error of registerForm.email().errors(); track error) {
+                                    <span class="field-error">{{ error.message }}</span>
+                                }
+                            }
+                            @if (serverErrors().email) {
+                                <span class="field-error">{{ serverErrors().email! | translate }}</span>
+                            }
+                        </div>
+
+                        <!-- Date of birth -->
+                        <div class="flex flex-col gap-1">
+                            <label class="field-label">{{ 'LOGIN.REGISTER.DOB' | translate }}</label>
+                            <input (input)="clearServerError('birthdate')"
+                                   [formField]="registerForm.birthdate"
+                                   [placeholder]="'LOGIN.REGISTER.DOB_PLACEHOLDER' | translate" autocomplete="bday"
+                                   data-testid="register-birthdate"
+                                   pInputText type="text"/>
+                            @if (registerForm.birthdate().touched() && registerForm.birthdate().invalid()) {
+                                @for (error of registerForm.birthdate().errors(); track error) {
+                                    <span class="field-error">{{ error.message }}</span>
+                                }
+                            }
+                            @if (serverErrors().birthdate) {
+                                <span class="field-error">{{ serverErrors().birthdate! | translate }}</span>
+                            }
+                        </div>
+
+                        <!-- Password -->
+                        <div class="flex flex-col gap-1">
+                            <label class="field-label">{{ 'LOGIN.REGISTER.PASSWORD' | translate }}</label>
+                            <input (input)="passwordMismatch.set(false)" [formField]="registerForm.password"
+                                   [placeholder]="'LOGIN.REGISTER.PASSWORD_PLACEHOLDER' | translate"
+                                   autocomplete="new-password" data-testid="register-password" pPassword
+                                   type="password"/>
+                            @if (registerForm.password().touched() && registerForm.password().invalid()) {
+                                @for (error of registerForm.password().errors(); track error) {
+                                    <span class="field-error">{{ error.message }}</span>
+                                }
+                            }
+                        </div>
+
+                        <!-- Confirm password -->
+                        <div class="flex flex-col gap-1">
+                            <label class="field-label">{{ 'LOGIN.REGISTER.CONFIRM_PASSWORD' | translate }}</label>
+                            <input (input)="passwordMismatch.set(false)" (keydown.enter)="register()"
+                                   [formField]="registerForm.confirmPassword"
+                                   [placeholder]="'LOGIN.REGISTER.CONFIRM_PASSWORD_PLACEHOLDER' | translate"
+                                   autocomplete="new-password" data-testid="register-confirm-password" pPassword
+                                   type="password"/>
+                            @if (registerForm.confirmPassword().touched() && registerForm.confirmPassword().invalid()) {
+                                @for (error of registerForm.confirmPassword().errors(); track error) {
+                                    <span class="field-error">{{ error.message }}</span>
+                                }
+                            }
+                            @if (passwordMismatch()) {
+                                <span class="field-error">{{ 'LOGIN.REGISTER.PASSWORD_MISMATCH' | translate }}</span>
+                            }
+                        </div>
+
+                        <p-button (onClick)="register()" [disabled]="!registerEnabled() || serverConfigError()"
+                                  data-testid="register-submit"
+                                  [label]="'LOGIN.REGISTER.SUBMIT' | translate"/>
+
+                        <p class="legal">
+                            {{ 'LOGIN.TERMS' | translate }}
+                            <a (click)="openLink('https://venta.gg/#/eula')">{{ 'LOGIN.TERMS_OF_SERVICE' | translate }}</a>
+                            {{ 'LOGIN.AND' | translate }}
+                            <a (click)="openLink('https://venta.gg/#/privacy')">{{ 'LOGIN.PRIVACY_POLICY' | translate }}</a>.
+                        </p>
+                    }
+                </div>
+            }
+
+            <!-- Anonymous, and reachable without an account - so it is the one route to a human
+                 for someone who cannot get in at all. -->
+            <button (click)="openSupport()"
+                    class="mt-4 mx-auto flex items-center gap-1.5 text-xs text-text-muted
+                           hover:text-[var(--color-brand-dim)] transition-colors bg-transparent
+                           border-0 cursor-pointer"
+                    type="button">
+                <i class="pi pi-question-circle text-[0.6875rem]"></i>
+                {{ 'LOGIN.GET_SUPPORT' | translate }}
+            </button>
+
+            }
+
+        </div>
+    </div>
+
+</div>

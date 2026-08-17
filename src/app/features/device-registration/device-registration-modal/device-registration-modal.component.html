@@ -1,0 +1,81 @@
+<p-dialog
+        [breakpoints]="{ '640px': '100vw' }"
+        [closable]="false"
+        [dismissableMask]="false"
+        [draggable]="false"
+        [modal]="true"
+        [resizable]="false"
+        [style]="{ width: '480px' }"
+        [visible]="visible"
+        appendTo="body"
+        styleClass="dr-dialog">
+
+    @switch (step()) {
+
+        @case ('input') {
+            <div class="dr-panel" data-testid="device-registration">
+
+                <div class="dr-icon-wrap">
+                    <div class="dr-icon-ring">
+                        <i class="pi pi-desktop text-2xl" style="color: var(--color-brand-dim)"></i>
+                    </div>
+                </div>
+
+                <h2 class="dr-title">Register This Device</h2>
+                <p class="dr-subtitle">
+                    Give this device a name so you can identify it in your account settings.
+                    Your encryption keys will be generated and stored securely on this device.
+                </p>
+
+                <div class="dr-field">
+                    <label class="dr-label">Device Name</label>
+                    <input
+                            (input)="onDeviceNameInput($event)"
+                            (keydown.enter)="onRegister()"
+                            [value]="deviceName()"
+                            data-testid="device-registration-name"
+                            pInputText
+                            placeholder="e.g. Work MacBook, iPhone 15"
+                            type="text"
+                    />
+                </div>
+
+                @if (errorMsg()) {
+                    <p class="dr-error">
+                        <i class="pi pi-exclamation-circle mr-1.5"></i>{{ errorMsg() }}
+                    </p>
+                }
+
+                <p-button
+                        (onClick)="onRegister()"
+                        icon="pi pi-arrow-right"
+                        iconPos="right"
+                        data-testid="device-registration-submit"
+                        label="Register Device"
+                        styleClass="w-full justify-center mt-2"
+                />
+
+            </div>
+        }
+        @case ('processing') {
+            <div class="dr-panel dr-centered" data-testid="device-registration">
+                <div class="dr-spinner-ring">
+                    <i class="pi pi-spin pi-spinner text-3xl" style="color: var(--color-brand)"></i>
+                </div>
+                <h2 class="dr-title mt-4">Registering Device…</h2>
+                <p class="dr-subtitle">Generating your encryption keys. Just a moment.</p>
+            </div>
+        }
+        @case ('done') {
+            <div class="dr-panel dr-centered" data-testid="device-registration">
+                <div class="dr-check-ring">
+                    <i class="pi pi-check text-2xl" style="color: var(--color-online)"></i>
+                </div>
+                <h2 class="dr-title mt-4">Device Registered</h2>
+                <p class="dr-subtitle">Your device is ready. End-to-end encryption is active.</p>
+            </div>
+        }
+
+    }
+
+</p-dialog>

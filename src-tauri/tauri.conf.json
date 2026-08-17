@@ -1,0 +1,84 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "app": {
+    "security": {
+      "csp": null
+    },
+    "windows": []
+  },
+  "build": {
+    "beforeBuildCommand": "bun run build",
+    "beforeDevCommand": "bun run start",
+    "devUrl": "http://localhost:1420",
+    "frontendDist": "../dist/alpine/browser"
+  },
+  "bundle": {
+    "active": true,
+    "createUpdaterArtifacts": true,
+    "resources": {
+      "resources/game_map.csv": "game_map.csv"
+    },
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "targets": "all",
+    "iOS": {
+      "developmentTeam": "S33LPKH83B",
+      "infoPlist": "Info.plist"
+    },
+    "linux": {
+      "rpm": {
+        "epoch": 0,
+        "release": "1",
+        "compression": {
+          "type": "zstd",
+          "level": 3
+        }
+      }
+    },
+    "windows": {
+      "signCommand": {
+        "cmd": "powershell",
+        "args": [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "vendor/signing/sign.ps1",
+          "%1"
+        ]
+      },
+      "nsis": {
+        "installMode": "currentUser",
+        "template": "vendor/nsis/installer.nsi",
+        "installerIcon": "icons/icon.ico",
+        "uninstallerIcon": "icons/icon.ico"
+      }
+    }
+  },
+  "identifier": "com.alpinebits.venta",
+  "productName": "Venta",
+  "version": "3.0.212",
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": [
+          "venta"
+        ]
+      }
+    },
+    "updater": {
+      "windows": {
+        "installMode": "quiet"
+      },
+      "endpoints": [
+        "https://api.venta.gg/api/v1/update/check/{{current_version}}"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEI4OUQwRTkwQzBDOTM5MTEKUldRUk9jbkFrQTZkdUdIaTg1UmhlbHRSNVJ2Nyt2Qk1KWVA1Nk1BeCtGUTJTTkR3OC82ZnBXTisK"
+    }
+  }
+}

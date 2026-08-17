@@ -1,0 +1,102 @@
+<div class="flex flex-col gap-6 max-w-2xl">
+
+    <!-- Header row -->
+    <div class="flex items-center justify-between">
+        <div class="flex gap-1 bg-white/[0.04] rounded-xl p-1">
+            @for (f of filters; track f) {
+                <button (click)="activeFilter.set(f)"
+                        [ngClass]="activeFilter() === f
+                            ? 'bg-white/[0.08] text-white/85'
+                            : 'text-white/40 hover:text-white/60'"
+                        class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer border-0">
+                    {{ f }}
+                </button>
+            }
+        </div>
+        <p-button (onClick)="load()" [loading]="loading()" [text]="true" icon="pi pi-refresh"
+                  severity="secondary" size="small"/>
+    </div>
+
+    <!-- Error -->
+    @if (error()) {
+        <div class="flex items-center gap-2 text-sm text-rose-400 bg-rose-400/10 border border-rose-400/20 rounded-xl px-4 py-3">
+            <i class="pi pi-exclamation-circle shrink-0"></i>
+            {{ error() }}
+        </div>
+    }
+
+    <!-- Loading skeleton -->
+    @if (loading()) {
+        <div class="flex flex-col gap-2">
+            @for (n of [1,2,3]; track n) {
+                <div class="h-16 bg-white/[0.03] border border-white/[0.08] rounded-xl animate-pulse"></div>
+            }
+        </div>
+    }
+
+    <!-- Empty state -->
+    @if (!loading() && filtered.length === 0 && !error()) {
+        <div class="flex flex-col items-center gap-3 py-12 text-center">
+            <i class="pi pi-server text-3xl text-white/20"></i>
+            <p class="text-sm text-white/35">No instances found</p>
+        </div>
+    }
+
+    <!-- Instance list -->
+    @if (!loading()) {
+        <div class="flex flex-col gap-2">
+            @for (instance of filtered; track instance.id) {
+                <div class="flex items-center gap-3 bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-3">
+
+                    <!-- Icon -->
+                    <div class="w-9 h-9 rounded-lg bg-white/[0.06] flex items-center justify-center shrink-0">
+                        <i class="pi pi-server text-sm text-white/50"></i>
+                    </div>
+
+                    <!-- Info -->
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2">
+                            <p class="text-sm font-medium text-white/80 truncate">{{ instance.name }}</p>
+                            <span [ngClass]="statusClass(instance.status)"
+                                  class="text-[0.625rem] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full shrink-0">
+                                {{ instance.status }}
+                            </span>
+                        </div>
+                        <p class="text-xs text-white/35 truncate mt-0.5">{{ instance.host }}</p>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="flex items-center gap-1.5 shrink-0">
+                        @if (instance.status === FederationStatus.Pending) {
+                            <p-button (onClick)="approve(instance.id)"
+                                      [loading]="actionLoading() === instance.id"
+                                      icon="pi pi-check"
+                                      severity="success"
+                                      [text]="true"
+                                      size="small"
+                                      title="Approve"/>
+                            <p-button (onClick)="deny(instance.id)"
+                                      [loading]="actionLoading() === instance.id"
+                                      icon="pi pi-times"
+                                      severity="danger"
+                                      [text]="true"
+                                      size="small"
+                                      title="Deny"/>
+                        }
+                        @if (instance.status === FederationStatus.Active) {
+                            <p-button (onClick)="defederate(instance.id)"
+                                      [loading]="actionLoading() === instance.id"
+                                      icon="pi pi-ban"
+                                      severity="warn"
+                                      [text]="true"
+                                      size="small"
+                                      title="Defederate"/>
+                        }
+                    </div>
+
+                </div>
+            }
+        </div>
+    }
+
+</div>

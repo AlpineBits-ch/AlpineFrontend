@@ -1,0 +1,29 @@
+[workspace]
+members = ["src-tauri", "crates/venta-crypto"]
+
+# `2`, explicitly. `src-tauri` was a standalone edition-2021 package, which gets resolver 2 for
+# free; a *workspace* root does not - it defaults to `"1"` regardless of member editions. Leaving
+# it out would silently switch the whole dependency graph to v1 feature unification, which unifies
+# features across target-specific and build dependencies. That is a change to what gets compiled
+# into the desktop binary, made invisibly, by adding a workspace.
+resolver = "2"
+
+# Moved here from `src-tauri/Cargo.toml` because cargo only honours `[patch]` in the *workspace
+# root* manifest - a patch section in a member is ignored with a warning, which would have silently
+# un-patched all three of these. The paths are relative to this file, so each gained a `src-tauri/`
+# prefix and nothing else changed.
+#
+# Upstream `webrtc-audio-processing-sys` cannot build with MSVC: its build script applies
+# `-std=c++17` and `-Wno-unused-parameter` unconditionally, and `cl` rejects the latter outright
+# (`D8021`), so Windows could not have echo cancellation at all. The vendored copy adds an MSVC
+# branch and nothing else - see the two comments marked `ALPINE PATCH` in its build.rs.
+[patch.crates-io]
+webrtc-audio-processing-sys = { path = "src-tauri/vendor/webrtc-audio-processing-sys" }
+
+# Upstream `hrtf` panics building its face BSP whenever debug assertions are on: its LCG guards the
+# multiply with `overflowing_mul` and then adds without wrapping. Whether it fires depends only on
+# the mesh, so a given HRIR sphere either always panics or never does - and `HrirSphere::new` runs
+# at runtime, so unpatched a debug build of the app crashes the moment spatial audio is enabled.
+# The vendored copy changes that one addition and nothing else - see `ALPINE PATCH` in its lib.rs.
+hrtf = { path = "src-tauri/vendor/hrtf" }
+

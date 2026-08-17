@@ -1,0 +1,274 @@
+<p-dialog
+        (onHide)="close()"
+        [(visible)]="visible"
+        [draggable]="false"
+        [modal]="true"
+        [resizable]="false"
+        [style]="{ width: '460px' }"
+        appendTo="body"
+        maskStyleClass="backdrop-blur-sm"
+        styleClass="!bg-card !border !border-white/[0.08] !rounded-2xl">
+
+    <ng-template pTemplate="header">
+        <div class="flex items-center gap-2.5 min-w-0">
+            @if (step() !== 'start') {
+                <button (click)="back()"
+                        [disabled]="loading() || creatingFromTemplate()"
+                        [attr.aria-label]="'CREATE_GUILD.BACK' | translate"
+                        class="w-6 h-6 shrink-0 flex items-center justify-center rounded-lg border-0 bg-transparent
+                               text-white/40 hover:text-white/80 hover:bg-white/[0.06] transition-colors cursor-pointer
+                               disabled:opacity-40 disabled:cursor-default">
+                    <i class="pi pi-arrow-left text-[0.6875rem]"></i>
+                </button>
+            }
+            <span class="text-base font-semibold text-white/85 truncate">{{ title() | translate }}</span>
+            @if (stepNumber() > 0) {
+                <span class="text-[0.6875rem] font-medium text-white/30 shrink-0">
+                    {{ stepNumber() }}/{{ stepCount }}
+                </span>
+            }
+        </div>
+    </ng-template>
+
+    <!-- Step rail: only the create path is a numbered journey, so it only shows there. -->
+    @if (stepNumber() > 0) {
+        <div class="flex items-center gap-1.5 px-1 pb-4">
+            @for (i of stepIndicators; track i) {
+                <span [class]="i <= stepNumber() ? 'bg-brand' : 'bg-white/[0.10]'"
+                      class="h-[3px] flex-1 rounded-full transition-colors duration-base"></span>
+            }
+        </div>
+    }
+
+    <!-- Spans every step of the wizard, so its presence is "the modal is open" and its absence is "the modal has closed": the only signal a caller gets that creation finished, since close() is what submit() calls on success. -->
+    <div class="px-1 flex flex-col gap-4" data-testid="create-guild-modal">
+
+        @switch (step()) {
+
+            <!-- ── Step: pick a path ──────────────────────────────────────── -->
+            @case ('start') {
+                <p class="text-[0.8125rem] text-white/45 leading-relaxed">
+                    {{ 'CREATE_GUILD.START_SUBTITLE' | translate }}
+                </p>
+
+                <div class="flex flex-col gap-2">
+                    <button (click)="showKindStep()"
+                            [disabled]="importingFromDiscord()"
+                            data-testid="create-guild-path-own"
+                            class="group flex items-center gap-3 px-3.5 py-3 rounded-xl border border-white/[0.08] bg-white/[0.03]
+                                   hover:border-brand/40 hover:bg-brand/[0.07] transition-all cursor-pointer text-left
+                                   disabled:opacity-50 disabled:cursor-default">
+                        <span class="w-9 h-9 shrink-0 rounded-xl bg-brand/15 flex items-center justify-center">
+                            <i class="pi pi-plus text-sm text-brand-dim"></i>
+                        </span>
+                        <span class="flex flex-col min-w-0 flex-1">
+                            <span class="text-sm font-medium text-white/85">{{ 'CREATE_GUILD.PATH_OWN' | translate }}</span>
+                            <span class="text-xs text-white/40">{{ 'CREATE_GUILD.PATH_OWN_DESC' | translate }}</span>
+                        </span>
+                        <i class="pi pi-chevron-right text-[0.625rem] text-white/20 group-hover:text-white/50 transition-colors"></i>
+                    </button>
+
+                    <button (click)="showTemplateMode()"
+                            [disabled]="importingFromDiscord()"
+                            data-testid="create-guild-path-template"
+                            class="group flex items-center gap-3 px-3.5 py-3 rounded-xl border border-white/[0.08] bg-white/[0.03]
+                                   hover:border-white/20 hover:bg-white/[0.06] transition-all cursor-pointer text-left
+                                   disabled:opacity-50 disabled:cursor-default">
+                        <span class="w-9 h-9 shrink-0 rounded-xl bg-white/[0.06] flex items-center justify-center">
+                            <i class="pi pi-clone text-sm text-white/50"></i>
+                        </span>
+                        <span class="flex flex-col min-w-0 flex-1">
+                            <span class="text-sm font-medium text-white/85">{{ 'CREATE_GUILD.USE_A_TEMPLATE' | translate }}</span>
+                            <span class="text-xs text-white/40">{{ 'CREATE_GUILD.PATH_TEMPLATE_DESC' | translate }}</span>
+                        </span>
+                        <i class="pi pi-chevron-right text-[0.625rem] text-white/20 group-hover:text-white/50 transition-colors"></i>
+                    </button>
+
+                    <button (click)="startDiscordImport()"
+                            [disabled]="importingFromDiscord()"
+                            data-testid="create-guild-path-discord"
+                            class="group flex items-center gap-3 px-3.5 py-3 rounded-xl border border-white/[0.08] bg-white/[0.03]
+                                   hover:border-white/20 hover:bg-white/[0.06] transition-all cursor-pointer text-left
+                                   disabled:opacity-50 disabled:cursor-default">
+                        <span class="w-9 h-9 shrink-0 rounded-xl bg-white/[0.06] flex items-center justify-center">
+                            @if (importingFromDiscord()) {
+                                <i class="pi pi-spin pi-spinner text-sm text-white/50"></i>
+                            } @else {
+                                <i class="pi pi-discord text-sm text-white/50"></i>
+                            }
+                        </span>
+                        <span class="flex flex-col min-w-0 flex-1">
+                            <span class="text-sm font-medium text-white/85">{{ 'CREATE_GUILD.IMPORT_FROM_DISCORD' | translate }}</span>
+                            <span class="text-xs text-white/40">{{ 'CREATE_GUILD.PATH_DISCORD_DESC' | translate }}</span>
+                        </span>
+                        <i class="pi pi-chevron-right text-[0.625rem] text-white/20 group-hover:text-white/50 transition-colors"></i>
+                    </button>
+                </div>
+            }
+
+            <!-- ── Step: what kind of guild ───────────────────────────────── -->
+            @case ('kind') {
+                <p class="text-[0.8125rem] text-white/45 leading-relaxed">
+                    {{ 'CREATE_GUILD.KIND_SUBTITLE' | translate }}
+                </p>
+
+                <div class="flex flex-col gap-1.5" role="radiogroup">
+                    @for (meta of kinds; track meta.kind) {
+                        <button (click)="selectKind(meta.kind)"
+                                (dblclick)="chooseKind(meta.kind)"
+                                data-testid="create-guild-kind"
+                                [attr.data-guild-kind]="meta.kind"
+                                [attr.aria-checked]="kind() === meta.kind"
+                                [class]="kind() === meta.kind
+                                    ? 'border-brand/50 bg-brand/[0.10]'
+                                    : 'border-white/[0.08] bg-white/[0.03] hover:border-white/20 hover:bg-white/[0.06]'"
+                                class="flex items-start gap-3 px-3.5 py-2.5 rounded-xl border transition-all cursor-pointer text-left"
+                                role="radio">
+                            <i [class]="meta.icon + (kind() === meta.kind ? ' text-brand-dim' : ' text-white/40')"
+                               class="text-sm mt-0.5 shrink-0"></i>
+                            <span class="flex flex-col min-w-0 flex-1 gap-0.5">
+                                <span class="text-sm font-medium text-white/85">{{ meta.labelKey | translate }}</span>
+                                <span class="text-xs text-white/40 leading-snug">{{ meta.descriptionKey | translate }}</span>
+                            </span>
+                            <span [class]="kind() === meta.kind ? 'border-brand bg-brand' : 'border-white/20'"
+                                  class="w-4 h-4 mt-0.5 shrink-0 rounded-full border-2 flex items-center justify-center transition-colors">
+                                @if (kind() === meta.kind) {
+                                    <i class="pi pi-check text-[0.5rem] text-white"></i>
+                                }
+                            </span>
+                        </button>
+                    }
+                </div>
+            }
+
+            <!-- ── Step: name it ──────────────────────────────────────────── -->
+            @case ('details') {
+                <div class="flex flex-col gap-1.5">
+                    <label class="text-[0.65625rem] font-semibold text-white/30 uppercase tracking-widest">
+                        {{ 'CREATE_GUILD.NAME_LABEL' | translate: {noun: selectedKind().nounKey | translate} }}
+                        <span class="text-rose-400/70 normal-case font-normal">*</span>
+                    </label>
+                    <input (ngModelChange)="name.set($event)"
+                           (keydown.enter)="submit()"
+                           [disabled]="loading()"
+                           [ngModel]="name()"
+                           [placeholder]="selectedKind().namePlaceholderKey | translate"
+                           autofocus
+                           class="w-full !bg-white/[0.04] !border-white/[0.08] placeholder:text-white/25 !rounded-xl !text-sm"
+                           data-testid="create-guild-name"
+                           pInputText/>
+                </div>
+
+                <div class="flex flex-col gap-1.5">
+                    <label class="text-[0.65625rem] font-semibold text-white/30 uppercase tracking-widest">
+                        {{ 'CREATE_GUILD.DESCRIPTION' | translate }}
+                        <span class="text-white/20 normal-case font-normal tracking-normal">{{ 'CREATE_GUILD.DESCRIPTION_OPTIONAL' | translate }}</span>
+                    </label>
+                    <textarea
+                            (ngModelChange)="description.set($event)"
+                            [disabled]="loading()"
+                            [ngModel]="description()"
+                            [placeholder]="'CREATE_GUILD.DESCRIPTION_PLACEHOLDER' | translate"
+                            class="w-full rounded-xl bg-white/[0.04] border border-white/[0.08] text-sm text-white/85 placeholder:text-white/25 px-3 py-2 outline-none focus:border-white/20 transition-colors resize-none"
+                            rows="3">
+                    </textarea>
+                </div>
+
+                <!-- Deliberately not a promise of the exact flag set: the preset is the server's to define, and it may gain modules this build predates. -->
+                <div class="flex flex-col gap-1.5 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3.5 py-3">
+                    <span class="text-[0.65625rem] font-semibold text-white/30 uppercase tracking-widest">
+                        {{ 'CREATE_GUILD.WHAT_YOU_GET' | translate }}
+                    </span>
+                    <span class="text-xs text-white/50 leading-relaxed">{{ selectedKind().descriptionKey | translate }}</span>
+                    <span class="text-xs text-white/30 leading-relaxed">{{ 'CREATE_GUILD.MODULES_NOTE' | translate }}</span>
+                </div>
+            }
+
+            <!-- ── Step: create from a template ───────────────────────────── -->
+            @case ('template') {
+                <div class="flex flex-col gap-1.5">
+                    <label class="text-[0.65625rem] font-semibold text-white/30 uppercase tracking-widest">
+                        {{ 'CREATE_GUILD.TEMPLATE.ID_LABEL' | translate }} <span
+                            class="text-rose-400/70 normal-case font-normal">*</span>
+                    </label>
+                    <input (blur)="lookupTemplate()"
+                           (keydown.enter)="lookupTemplate()"
+                           (ngModelChange)="onTemplateInputChange($event)"
+                           [disabled]="templateLoading()"
+                           [ngModel]="templateInput()"
+                           [placeholder]="'CREATE_GUILD.TEMPLATE.ID_PLACEHOLDER' | translate"
+                           class="w-full !bg-white/[0.04] !border-white/[0.08] placeholder:text-white/25 !rounded-xl !text-sm"
+                           pInputText/>
+                    @if (templateLoading()) {
+                        <p class="text-xs text-white/30 flex items-center gap-1.5">
+                            <i class="pi pi-spin pi-spinner text-[0.6875rem]"></i> {{ 'CREATE_GUILD.TEMPLATE.LOOKING_UP' | translate }}
+                        </p>
+                    } @else if (templateNotFound()) {
+                        <p class="text-xs text-rose-400">{{ 'CREATE_GUILD.TEMPLATE.NOT_FOUND' | translate }}</p>
+                    }
+                </div>
+
+                @if (template(); as tpl) {
+                    <app-template-preview [template]="tpl"/>
+
+                    <div class="flex flex-col gap-1.5">
+                        <label class="text-[0.65625rem] font-semibold text-white/30 uppercase tracking-widest">
+                            {{ 'CREATE_GUILD.SERVER_NAME' | translate }} <span
+                                class="text-rose-400/70 normal-case font-normal">*</span>
+                        </label>
+                        <!-- Matches the from-scratch name field above, which already submits on Enter. `createFromTemplate()` re-checks the template, the trimmed name, and the in-flight flag. -->
+                        <input (keydown.enter)="createFromTemplate()" (ngModelChange)="templateGuildName.set($event)"
+                               [disabled]="creatingFromTemplate()"
+                               [ngModel]="templateGuildName()"
+                               [placeholder]="'CREATE_GUILD.SERVER_NAME_PLACEHOLDER' | translate"
+                               class="w-full !bg-white/[0.04] !border-white/[0.08] placeholder:text-white/25 !rounded-xl !text-sm"
+                               pInputText/>
+                    </div>
+                }
+            }
+        }
+
+    </div>
+
+    <ng-template pTemplate="footer">
+        <div class="flex items-center justify-end w-full pt-1 gap-2">
+            @switch (step()) {
+                @case ('start') {
+                    <p-button (onClick)="close()" [disabled]="importingFromDiscord()"
+                              [label]="'CREATE_GUILD.CANCEL' | translate" [text]="true"
+                              severity="secondary" size="small"/>
+                }
+                @case ('kind') {
+                    <p-button (onClick)="back()" [label]="'CREATE_GUILD.BACK' | translate" [text]="true"
+                              severity="secondary" size="small"/>
+                    <p-button (onClick)="continueFromKind()" [label]="'CREATE_GUILD.CONTINUE' | translate"
+                              data-testid="create-guild-kind-continue"
+                              severity="primary" size="small"/>
+                }
+                @case ('details') {
+                    <p-button (onClick)="back()" [disabled]="loading()" [label]="'CREATE_GUILD.BACK' | translate"
+                              [text]="true" severity="secondary" size="small"/>
+                    <p-button (onClick)="submit()"
+                              [disabled]="!name().trim() || loading()"
+                              data-testid="create-guild-submit"
+                              [label]="'CREATE_GUILD.CREATE' | translate"
+                              [loading]="loading()"
+                              severity="primary"
+                              size="small"/>
+                }
+                @case ('template') {
+                    <p-button (onClick)="close()" [disabled]="creatingFromTemplate()"
+                              [label]="'CREATE_GUILD.CANCEL' | translate" [text]="true"
+                              severity="secondary" size="small"/>
+                    <p-button (onClick)="createFromTemplate()"
+                              [disabled]="!template() || !templateGuildName().trim() || creatingFromTemplate()"
+                              [label]="'CREATE_GUILD.CREATE' | translate"
+                              [loading]="creatingFromTemplate()"
+                              severity="primary"
+                              size="small"/>
+                }
+            }
+        </div>
+    </ng-template>
+
+</p-dialog>

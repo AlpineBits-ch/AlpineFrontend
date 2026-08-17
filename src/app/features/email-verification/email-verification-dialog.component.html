@@ -1,0 +1,101 @@
+<p-dialog
+        (onShow)="onShow()"
+        (visibleChange)="$event === false && verificationService.dismiss()"
+        [breakpoints]="{ '640px': '95vw' }"
+        [closable]="true"
+        [dismissableMask]="false"
+        [draggable]="false"
+        [modal]="true"
+        [resizable]="false"
+        [style]="{ width: '440px' }"
+        [visible]="verificationService.visible()"
+        appendTo="body">
+
+    <ng-template pTemplate="header">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg flex items-center justify-center"
+                 style="background: color-mix(in srgb, var(--color-brand) 12%, transparent)">
+                <i class="pi pi-envelope text-sm" style="color: var(--color-brand-dim)"></i>
+            </div>
+            <span class="text-base font-semibold" style="color: var(--color-text-primary)">
+                {{ (uncertain() ? 'LOGIN.VERIFY.TITLE_PENDING' : 'LOGIN.VERIFY.TITLE') | translate }}
+            </span>
+        </div>
+    </ng-template>
+
+    <div class="flex flex-col gap-5 pt-1">
+
+        <div class="flex flex-col gap-1.5">
+            <p class="text-sm m-0" style="color: var(--color-text-secondary)">
+                {{ (uncertain() ? 'LOGIN.VERIFY.PENDING_SENT_TO' : 'LOGIN.VERIFY.SENT_TO') | translate }}
+            </p>
+            <div class="px-3 py-2 rounded-lg border text-sm font-medium"
+                 style="background: rgba(255,255,255,0.03); border-color: var(--color-border-default); color: var(--color-text-primary)">
+                {{ email() }}
+            </div>
+            <p class="text-xs m-0" style="color: var(--color-text-muted)">
+                {{ (uncertain() ? 'LOGIN.VERIFY.PENDING_HINT' : 'LOGIN.VERIFY.HINT') | translate }}
+            </p>
+        </div>
+
+        <div class="flex flex-col items-center gap-3">
+            <p-inputotp
+                    (ngModelChange)="code.set($event)"
+                    [integerOnly]="false"
+                    [length]="6"
+                    [ngModel]="code()"
+                    data-testid="verification-code-input"
+                    styleClass="gap-2"/>
+        </div>
+
+        <!-- The whole recovery path for someone whose address already had a verified account. -->
+        @if (uncertain()) {
+            <div class="flex flex-col items-center gap-1 pt-1 border-t"
+                 style="border-color: var(--color-border-subtle)">
+                <p class="text-xs m-0 pt-3" style="color: var(--color-text-muted)">
+                    {{ 'LOGIN.VERIFY.HAVE_ACCOUNT' | translate }}
+                </p>
+                <div class="flex items-center gap-1">
+                    <p-button
+                            (onClick)="goToSignIn()"
+                            [label]="'LOGIN.VERIFY.SIGN_IN' | translate"
+                            [text]="true"
+                            severity="secondary"
+                            size="small"/>
+                    <p-button
+                            (onClick)="openPasswordReset()"
+                            [label]="'LOGIN.VERIFY.FORGOT_PASSWORD' | translate"
+                            [text]="true"
+                            severity="secondary"
+                            size="small"/>
+                </div>
+            </div>
+        }
+
+    </div>
+
+    <ng-template pTemplate="footer">
+        <div class="flex items-center justify-between gap-2 w-full">
+            <p-button
+                    (onClick)="resend()"
+                    [disabled]="resendCooldown() > 0 || resendLoading()"
+                    [label]="resendCooldown() > 0
+                        ? ('LOGIN.VERIFY.RESEND_IN' | translate: {seconds: resendCooldown()})
+                        : ('LOGIN.VERIFY.RESEND' | translate)"
+                    [loading]="resendLoading()"
+                    [text]="true"
+                    data-testid="verification-resend"
+                    severity="secondary"
+                    size="small"/>
+            <p-button
+                    (onClick)="verify()"
+                    [disabled]="code().length < 6 || loading()"
+                    [loading]="loading()"
+                    [label]="'LOGIN.VERIFY.SUBMIT' | translate"
+                    data-testid="verification-submit"
+                    severity="primary"
+                    size="small"/>
+        </div>
+    </ng-template>
+
+</p-dialog>

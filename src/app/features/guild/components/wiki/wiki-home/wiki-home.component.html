@@ -1,0 +1,148 @@
+<div class="thin-scrollbar min-h-0 flex-1 overflow-y-auto">
+    <div class="mx-auto max-w-5xl px-8 py-10">
+
+        <!-- Hero -->
+        <div class="mb-8 flex flex-wrap items-center justify-between gap-4">
+            <div>
+                <h1 class="mb-1 text-2xl font-bold text-white/90">{{ 'WIKI.HOME' | translate }}</h1>
+                <p class="text-sm text-white/40">
+                    {{ (totalPages() === 1 ? 'WIKI.HOME_PAGE.PAGE_ONE' : 'WIKI.HOME_PAGE.PAGE_MANY') | translate: {n: totalPages()} }}
+                    &middot; {{ (totalCategories() === 1 ? 'WIKI.HOME_PAGE.CATEGORY_ONE' : 'WIKI.HOME_PAGE.CATEGORY_MANY') | translate: {n: totalCategories()} }}
+                </p>
+            </div>
+            <div class="flex items-center gap-2">
+                <!-- Only once there is something to answer from. On the breadcrumb bar this sits next to a page you are already reading, so it is always worth offering; here it would be a question put to an empty wiki. -->
+                @if (!isEmpty()) {
+                    <p-button (onClick)="ask.emit()" [label]="'WIKI.AI.ASK.OPEN' | translate"
+                              icon="pi pi-comments" severity="secondary" size="small"/>
+                }
+                <p-button (onClick)="openSearch.emit()" [label]="'WIKI.HOME_PAGE.SEARCH' | translate"
+                          icon="pi pi-search" severity="secondary" size="small"/>
+                <p-button (onClick)="newPage.emit()" [label]="'WIKI.HOME_PAGE.NEW_PAGE' | translate"
+                          icon="pi pi-plus" severity="primary" size="small"/>
+            </div>
+        </div>
+
+        @if (isEmpty()) {
+            <!-- Empty state -->
+            <div class="py-20 text-center">
+                <i class="pi pi-book mb-4 block text-4xl text-white/10"></i>
+                <p class="mb-1 text-sm text-white/40">{{ 'WIKI.HOME_PAGE.EMPTY' | translate }}</p>
+                <p class="mb-6 text-xs text-white/25">{{ 'WIKI.HOME_PAGE.EMPTY_HINT' | translate }}</p>
+                <!-- The AI action sits beside the ordinary one, offered before any provider is connected: a feature you have to already know about to discover is not one. -->
+                <div class="flex items-center justify-center gap-2">
+                    <p-button (onClick)="newPage.emit()" icon="pi pi-plus" [label]="'WIKI.HOME_PAGE.CREATE_FIRST' | translate"
+                              severity="primary" size="small"/>
+                    @if (canCreate()) {
+                        <p-button (onClick)="draftWithAi.emit()" icon="pi pi-sparkles"
+                                  [label]="'WIKI.AI.DRAFT_ONE' | translate" severity="secondary" size="small"/>
+                    }
+                </div>
+            </div>
+        } @else if (wiki()) {
+            <!-- Only once the wiki has actually loaded: rendering the grid against a null wiki flashes "nothing has happened here yet" over a wiki that is merely still in flight. -->
+            <div class="grid grid-cols-1 gap-8 lg:grid-cols-3">
+
+                <!-- Main column -->
+                <div class="lg:col-span-2">
+
+                    @if (pinnedPages().length > 0) {
+                        <section class="mb-8">
+                            <h2 class="mb-3 text-xs font-semibold uppercase tracking-widest text-white/40">{{ 'WIKI.PINNED' | translate }}</h2>
+                            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                @for (page of pinnedPages(); track page.id) {
+                                    <button (click)="openPage.emit(page)"
+                                            class="flex cursor-pointer items-start gap-3 rounded-xl border
+                                                   border-white/[0.06] bg-card p-4 text-left transition-all
+                                                   hover:border-brand/30 hover:bg-white/[0.04]">
+                                        <i class="pi pi-bookmark mt-0.5 shrink-0 text-brand-dim"></i>
+                                        <div class="min-w-0">
+                                            <p class="truncate text-sm font-semibold text-white/85">{{ page.title }}</p>
+                                            <p class="mt-0.5 text-xs text-white/35">{{ 'WIKI.RAIL.UPDATED' | translate: {date: formatDate(page.updatedAt)} }}</p>
+                                        </div>
+                                    </button>
+                                }
+                            </div>
+                        </section>
+                    }
+
+                    <!-- The reason to open this page rather than read the nav. -->
+                    <section>
+                        <h2 class="mb-3 text-xs font-semibold uppercase tracking-widest text-white/40">{{ 'WIKI.ACTIVITY.TITLE' | translate }}</h2>
+                        <app-wiki-activity-feed (openPage)="openPage.emit($event)"
+                                                [categories]="categories()"
+                                                [pages]="pages()"/>
+                    </section>
+                </div>
+
+                <!-- Side column -->
+                <aside class="flex flex-col gap-6">
+
+                    <!-- Graph. The preview is a real layout of this wiki, not decoration: what it draws is what opening it shows. -->
+                    <button (click)="openGraph.emit()"
+                            class="group relative w-full cursor-pointer overflow-hidden rounded-2xl
+                                   border border-white/[0.08] bg-card p-0 text-left transition-colors
+                                   hover:border-brand/40">
+                        <div class="relative h-32 overflow-hidden">
+                            <app-wiki-graph-preview [wiki]="wiki()"
+                                                    class="h-full w-full opacity-60 transition-opacity
+                                                           duration-300 group-hover:opacity-100"/>
+                            <div class="pointer-events-none absolute inset-0 bg-gradient-to-t
+                                        from-card via-transparent to-transparent"></div>
+                        </div>
+                        <div class="flex items-center gap-3 border-t border-white/[0.06] px-4 py-3">
+                            <i class="pi pi-share-alt text-brand-dim"></i>
+                            <div class="min-w-0 flex-1">
+                                <p class="text-sm font-semibold text-white/85">{{ 'WIKI.GRAPH.TITLE' | translate }}</p>
+                                <p class="truncate text-xs text-white/35">{{ 'WIKI.GRAPH.CARD_HINT' | translate }}</p>
+                            </div>
+                            <i class="pi pi-angle-right text-xs text-white/20 transition-colors group-hover:text-white/50"></i>
+                        </div>
+                    </button>
+
+                    <!-- At a glance -->
+                    <section class="rounded-2xl border border-white/[0.06] bg-card p-4">
+                        <h2 class="mb-3 text-[0.625rem] font-semibold uppercase tracking-widest text-white/30">
+                            {{ 'WIKI.HOME_PAGE.AT_A_GLANCE' | translate }}
+                        </h2>
+                        <div class="grid grid-cols-3 gap-2 text-center">
+                            <div>
+                                <p class="text-lg font-semibold text-white/85">{{ totalPages() }}</p>
+                                <p class="text-[0.625rem] uppercase tracking-wide text-white/30">{{ 'WIKI.HOME_PAGE.STAT_PAGES' | translate }}</p>
+                            </div>
+                            <div>
+                                <p class="text-lg font-semibold text-white/85">{{ totalCategories() }}</p>
+                                <p class="text-[0.625rem] uppercase tracking-wide text-white/30">{{ 'WIKI.HOME_PAGE.STAT_CATEGORIES' | translate }}</p>
+                            </div>
+                            <div>
+                                <p class="text-lg font-semibold text-white/85">{{ totalContributors() }}</p>
+                                <p class="text-[0.625rem] uppercase tracking-wide text-white/30">{{ 'WIKI.HOME_PAGE.STAT_CONTRIBUTORS' | translate }}</p>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Categories. Names and sizes only: the page titles under them are exactly what the nav tree on the left is for. -->
+                    @if (categoryTreeNodes().length > 0) {
+                        <section>
+                            <h2 class="mb-2 text-[0.625rem] font-semibold uppercase tracking-widest text-white/30">
+                                {{ 'WIKI.CATEGORIES' | translate }}
+                            </h2>
+                            <div class="flex flex-col gap-0.5">
+                                @for (node of categoryTreeNodes(); track node.category.id) {
+                                    <div [style.paddingLeft.px]="node.depth * 12"
+                                         class="flex items-center gap-2 rounded-lg px-2 py-1.5">
+                                        <i [class]="node.depth === 0 ? 'text-brand-dim/70' : 'text-white/25'"
+                                           class="pi pi-folder shrink-0 text-[0.6875rem]"></i>
+                                        <span [class]="node.depth === 0 ? 'text-white/70' : 'text-white/50'"
+                                              class="min-w-0 flex-1 truncate text-[0.8125rem]">{{ node.category.name }}</span>
+                                        <span class="shrink-0 font-mono text-[0.6875rem] text-white/25">{{ node.pageCount }}</span>
+                                    </div>
+                                }
+                            </div>
+                        </section>
+                    }
+                </aside>
+            </div>
+        }
+    </div>
+</div>

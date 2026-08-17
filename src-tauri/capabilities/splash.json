@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "description": "Capability for the pre-launch update splash window. The splash calls no commands at all - Rust drives it through WebviewWindow::eval - so it requests nothing. NOTE: this does not sandbox it. The `default` capability is scoped to [\"*\", \"echo\"], and that `*` matches `splash`, so the splash inherits the full default permission set anyway. This file exists to declare intent and to keep the splash working if that glob is ever narrowed.",
+  "identifier": "splash",
+  "windows": ["splash"],
+  "permissions": []
+}

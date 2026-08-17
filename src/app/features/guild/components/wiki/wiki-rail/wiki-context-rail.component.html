@@ -1,0 +1,174 @@
+<div class="flex-1 min-h-0 overflow-y-auto thin-scrollbar px-4 py-5">
+
+    <!-- Size of the page. Reads from the editor while editing, so it answers "is this long enough yet" during the write rather than only after publishing. -->
+    @if (page() || liveContent()) {
+        <div class="mb-5 flex items-center gap-2 text-[0.6875rem] text-white/30">
+            <i class="pi pi-align-left text-[0.625rem]"></i>
+            @if (stats().words) {
+                <span>
+                    {{ (stats().words === 1 ? 'WIKI.RAIL.WORD_ONE' : 'WIKI.RAIL.WORD_MANY')
+                    | translate: {n: stats().words} }}
+                </span>
+                <span class="text-white/15">·</span>
+                <span>{{ 'WIKI.RAIL.READ_TIME' | translate: {n: stats().minutes} }}</span>
+            } @else {
+                <span>{{ 'WIKI.RAIL.EMPTY_PAGE' | translate }}</span>
+            }
+        </div>
+    }
+
+    <!-- On this page -->
+    @if (toc().length) {
+        <app-wiki-rail-section [badge]="toc().length"
+                               [heading]="'WIKI.RAIL.ON_THIS_PAGE' | translate"
+                               stateKey="toc">
+            <nav class="flex flex-col gap-0.5">
+                @for (entry of toc(); track entry.id) {
+                    <div class="group flex items-center gap-1">
+                        <button (click)="tocEntrySelected.emit(entry)"
+                                [class.text-brand-dim]="currentHeadingId() === entry.id"
+                                [class.text-white/50]="currentHeadingId() !== entry.id"
+                                [style.paddingLeft.px]="(entry.level - 1) * 10"
+                                class="flex-1 cursor-pointer truncate border-0 bg-transparent py-1
+                                       text-left text-[0.8125rem] hover:text-white/85">
+                            {{ entry.text }}
+                        </button>
+
+                        <!-- Copies a link to this section of the page. -->
+                        <button (click)="copySectionLink(entry, $event)"
+                                [class.opacity-100]="copiedId() === entry.id"
+                                [title]="'WIKI.RAIL.COPY_SECTION_LINK' | translate"
+                                class="shrink-0 cursor-pointer border-0 bg-transparent p-1 leading-none
+                                       text-white/30 opacity-0 hover:text-white/70
+                                       group-hover:opacity-100">
+                            <i [class.pi-check]="copiedId() === entry.id"
+                               [class.pi-link]="copiedId() !== entry.id"
+                               [class.text-emerald-400]="copiedId() === entry.id"
+                               class="pi text-[0.6875rem]"></i>
+                        </button>
+                    </div>
+                }
+            </nav>
+        </app-wiki-rail-section>
+    }
+
+    <!-- Properties. Editable while reading: they describe the page rather than being part of it. -->
+    @if (page()) {
+        <app-wiki-rail-section [heading]="'WIKI.RAIL.PROPERTIES' | translate" stateKey="properties">
+            <app-wiki-page-properties [guildId]="guildId()" [page]="page()" [wiki]="wiki()"/>
+        </app-wiki-rail-section>
+    }
+
+    <!-- Linked from, and the pages that meant to. -->
+    @if (page()) {
+        <app-wiki-rail-section [badge]="backlinks().length"
+                               [heading]="'WIKI.RAIL.LINKED_FROM' | translate"
+                               stateKey="links">
+            @if (backlinks().length) {
+                <div class="flex flex-col gap-0.5">
+                    @for (source of backlinks(); track source.id) {
+                        <button (click)="openPage.emit(source)"
+                                class="flex cursor-pointer items-center gap-2 rounded-md border-0
+                                       bg-transparent px-1 py-1 text-left text-[0.8125rem]
+                                       text-white/55 hover:bg-hover hover:text-white/85">
+                            <i class="pi pi-file shrink-0 text-[0.6875rem] text-white/30"></i>
+                            <span class="truncate">{{ source.title }}</span>
+                        </button>
+                    }
+                </div>
+            } @else if (cache.warming()) {
+                <p class="text-[0.75rem] text-white/30">{{ 'WIKI.RAIL.INDEXING' | translate }}</p>
+            } @else if (cache.failed()) {
+                <p class="text-[0.75rem] text-white/40">{{ 'WIKI.RAIL.LOAD_FAILED' | translate }}</p>
+            } @else {
+                <p class="text-[0.75rem] text-white/30">{{ 'WIKI.RAIL.NO_BACKLINKS' | translate }}</p>
+            }
+
+            <!-- Pages that name this one in prose and never linked it. Absent when there are none, which is the common case and does not need a line saying so. -->
+            @if (visibleMentions().length) {
+                <h3 class="mt-4 mb-1.5 text-[0.625rem] font-semibold uppercase tracking-widest
+                           text-white/25">
+                    {{ 'WIKI.RAIL.UNLINKED_MENTIONS' | translate }}
+                </h3>
+                <div class="flex flex-col gap-0.5">
+                    @for (row of visibleMentions(); track row.source.id) {
+                        <div class="group flex items-center gap-1 rounded-md px-1 py-1 hover:bg-hover">
+                            <button (click)="openPage.emit(row.source)"
+                                    class="flex min-w-0 flex-1 cursor-pointer items-center gap-2
+                                           border-0 bg-transparent p-0 text-left text-[0.8125rem]
+                                           text-white/45 hover:text-white/85">
+                                <i class="pi pi-file shrink-0 text-[0.6875rem] text-white/20"></i>
+                                <span class="truncate">{{ row.source.title }}</span>
+                                @if (row.mention.count > 1) {
+                                    <span class="shrink-0 text-[0.625rem] tabular-nums text-white/25">
+                                        {{ row.mention.count }}
+                                    </span>
+                                }
+                            </button>
+
+                            @if (linkingId() === row.source.id) {
+                                <i class="pi pi-spin pi-spinner shrink-0 text-[0.625rem] text-white/30"></i>
+                            } @else if (canLink(row.source)) {
+                                <button (click)="linkMention(row)"
+                                        class="shrink-0 cursor-pointer rounded border-0 bg-transparent
+                                               px-1.5 py-0.5 text-[0.625rem] font-medium text-brand-dim
+                                               opacity-0 hover:bg-brand/15 group-hover:opacity-100">
+                                    {{ 'WIKI.RAIL.LINK_IT' | translate }}
+                                </button>
+                            }
+                        </div>
+                    }
+                </div>
+
+                @if (hiddenMentionCount()) {
+                    <p class="mt-1 px-1 text-[0.6875rem] text-white/25">
+                        {{ 'WIKI.RAIL.MORE_MENTIONS' | translate: {n: hiddenMentionCount()} }}
+                    </p>
+                }
+
+                @if (linkFailedId()) {
+                    <p class="mt-1 px-1 text-[0.6875rem] text-rose-400/80">
+                        {{ 'WIKI.RAIL.LINK_FAILED' | translate }}
+                    </p>
+                }
+            }
+        </app-wiki-rail-section>
+    }
+
+    <!-- Attribution. Not collapsible: it is three lines and it is the answer to "who wrote this". -->
+    @if (page(); as p) {
+        <section class="border-t border-white/[0.06] pt-4">
+            <div class="flex items-center gap-2">
+                <app-avatar [userId]="p.authorId"/>
+                <div class="min-w-0">
+                    <p class="truncate text-[0.75rem] text-white/60">
+                        {{ author()?.userName ?? ('WIKI.RAIL.CREATED_BY' | translate) }}
+                    </p>
+                    <p class="text-[0.6875rem] text-white/30">{{ formatDate(p.createdAt) }}</p>
+                </div>
+            </div>
+
+            @if (lastEditor(); as editor) {
+                <div class="mt-3 flex items-center gap-2">
+                    <app-avatar [userId]="p.lastEditorId"/>
+                    <div class="min-w-0">
+                        <p class="truncate text-[0.75rem] text-white/60">
+                            {{ 'WIKI.RAIL.LAST_EDITED_BY' | translate: {name: editor.userName} }}
+                        </p>
+                        <p class="text-[0.6875rem] text-white/30">{{ formatDate(p.updatedAt) }}</p>
+                    </div>
+                </div>
+            } @else {
+                <p class="mt-3 text-[0.6875rem] text-white/30">
+                    {{ 'WIKI.RAIL.UPDATED' | translate: {date: formatDate(p.updatedAt)} }}
+                </p>
+            }
+
+            @if (p.revisionCount > 0) {
+                <p class="mt-3 text-[0.6875rem] text-white/30">
+                    {{ (p.revisionCount === 1 ? 'WIKI.RAIL.REVISION_ONE' : 'WIKI.RAIL.REVISION_MANY') | translate: {n: p.revisionCount} }}
+                </p>
+            }
+        </section>
+    }
+</div>

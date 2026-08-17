@@ -1,0 +1,38 @@
+<p-dialog
+        [closable]="true"
+        [dismissableMask]="false"
+        [draggable]="false"
+        [modal]="true"
+        [resizable]="false"
+        [style]="{width: '400px'}"
+        [visible]="visible()"
+        appendTo="body"
+        (visibleChange)="$event === false && dismiss()">
+
+    <ng-template pTemplate="header">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg flex items-center justify-center"
+                 style="background: color-mix(in srgb, var(--color-brand) 12%, transparent)">
+                <i class="pi pi-discord text-sm" style="color: var(--color-brand-dim)"></i>
+            </div>
+            <span class="text-base font-semibold" style="color: var(--color-text-primary)">
+                {{ 'DISCORD_IMPORT.TITLE' | translate }}
+            </span>
+        </div>
+    </ng-template>
+
+    <div class="py-4 flex flex-col items-center gap-4 text-center">
+        @if (job()?.status === 'Failed') {
+            <i class="pi pi-times-circle text-3xl text-rose-400"></i>
+            <p class="text-sm text-white/70">{{ job()?.errorMessage || statusLabel() }}</p>
+        } @else {
+            <i class="pi pi-spin pi-spinner text-3xl" style="color: var(--color-brand-dim)"></i>
+            <p class="text-sm text-white/70">{{ statusLabel() }}</p>
+        }
+    </div>
+
+    <ng-template pTemplate="footer">
+        <p-button (onClick)="dismiss()" label="{{ 'DISCORD_IMPORT.CLOSE' | translate }}" severity="secondary" size="small"/>
+    </ng-template>
+
+</p-dialog>

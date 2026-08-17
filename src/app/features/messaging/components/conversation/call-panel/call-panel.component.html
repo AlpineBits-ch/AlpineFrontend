@@ -1,0 +1,134 @@
+@let s = session();
+@if (s) {
+
+    <div [class.panel--full]="isFullView()"
+         [class.panel--resizing]="isResizing()"
+         [style.height.px]="isFullView() ? null : panelHeight()"
+         class="panel">
+
+        <!--
+          ── Status ────────────────────────────────────────────────────────── One row for every condition, ranked.
+        -->
+        <div class="relative shrink-0">
+            <app-call-status-bar
+                    [aloneUntil]="aloneUntil()"
+                    [meta]="duration()"
+                    [rtcState]="rtcState()"
+                    [stalledAudio]="audio.anyStalled()">
+
+                <button (click)="toggleStats()"
+                        [attr.aria-expanded]="showStats()"
+                        [attr.aria-label]="'CALL.STATS_TITLE' | translate"
+                        [attr.title]="'CALL.STATS_TITLE' | translate"
+                        [class]="chipClass(showStats())"
+                        type="button">
+                    <svg aria-hidden="true" fill="currentColor" height="12" viewBox="0 0 24 24" width="12">
+                        <rect height="10" rx="1" width="4" x="2" y="12"/>
+                        <rect height="15" rx="1" width="4" x="9" y="7"/>
+                        <rect height="20" rx="1" width="4" x="16" y="2"/>
+                    </svg>
+                </button>
+
+                <button (click)="toggleMaximize()"
+                        [attr.aria-label]="(isFullView() ? 'CALL.RESTORE' : 'CALL.MAXIMIZE') | translate"
+                        [attr.aria-pressed]="isFullView()"
+                        [attr.title]="(isFullView() ? 'CALL.RESTORE' : 'CALL.MAXIMIZE') | translate"
+                        [class]="chipClass(false)"
+                        type="button">
+                    @if (isFullView()) {
+                        <svg aria-hidden="true" fill="none" height="12" stroke="currentColor" stroke-width="2"
+                             viewBox="0 0 24 24" width="12">
+                            <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/>
+                        </svg>
+                    } @else {
+                        <svg aria-hidden="true" fill="none" height="12" stroke="currentColor" stroke-width="2"
+                             viewBox="0 0 24 24" width="12">
+                            <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+                        </svg>
+                    }
+                </button>
+            </app-call-status-bar>
+
+            <!-- Diagnostics, over the stage rather than wedged into the layout. -->
+            @if (showStats() && stats(); as st) {
+                <app-call-stats-popover [stats]="st"/>
+            }
+        </div>
+
+        <!-- ── Stage + floating controls ───────────────────────────────────────── -->
+        <div appAutoHideCallControls
+             #autoHide="appAutoHideCallControls"
+             class="relative flex min-h-0 flex-1 flex-col bg-stage">
+            <!--
+              Always the shared stage now, sharing or not - a DM call used to render its own `.participants` grid here (see.
+            -->
+            <app-call-screen-layout
+                    (localAudioToggle)="toggleLocalScreenAudio()"
+                    (participantContextMenu)="onParticipantContextMenu($event.event, $event.participant)"
+                    (remoteAudioToggle)="toggleRemoteScreenAudio($event)"
+                    (statsInspect)="onStatsInspect($event)"
+                    [inboundStatsOf]="inboundStatsOf"
+                    [nameOf]="resolveParticipantName"
+                    [participants]="callParticipants()"
+                    [participantsWithAudio]="participantsWithAudio()"
+                    [screenShares]="callScreenShares()"
+                    [watchScope]="watchScope()"
+                    class="min-h-0 flex-1"
+            />
+
+            <!--
+              ── Floating controls bar ───────────────────────────────────────── Hidden state is opacity + pointer-events.
+            -->
+            <div class="pointer-events-none absolute bottom-8 left-0 right-0 z-20 flex justify-center">
+                <app-call-controls-bar
+                        (cameraToggle)="toggleCamera()"
+                        (deafenToggle)="toggleDeafen()"
+                        (disconnect)="endCall()"
+                        (muteToggle)="toggleMute()"
+                        (presetChange)="setScreenPreset($event)"
+                        (screenShareToggle)="toggleScreenShare()"
+                        (focusin)="autoHide.onControlsFocusIn()"
+                        (focusout)="autoHide.onControlsFocusOut()"
+                        (pointerenter)="autoHide.onControlsPointerEnter()"
+                        (pointerleave)="autoHide.onControlsPointerLeave()"
+                        [class.opacity-0]="!autoHide.revealed()"
+                        [class.pointer-events-auto]="autoHide.revealed()"
+                        [class.pointer-events-none]="!autoHide.revealed()"
+                        [disconnectLabel]="'CALL.END_CALL' | translate"
+                        [isCameraOn]="s.local.isCameraOn"
+                        [isDeafened]="s.local.isDeafened"
+                        [isMuted]="s.local.isMuted"
+                        [isScreenSharing]="s.local.isSharing"
+                        [preset]="screenPreset()"
+                        [screenHasAudio]="false"
+                        class="transition-opacity duration-150 motion-reduce:transition-none"
+                />
+            </div>
+        </div>
+
+        <!--
+          ── Resize handle ─────────────────────────────────────────────────────── Removed outright in full view rather than.
+        -->
+        @if (!isFullView()) {
+            <div (mousedown)="onResizeStart($event)"
+                 [attr.aria-label]="'CALL.RESIZE_PANEL' | translate"
+                 class="resize-handle"
+                 role="separator">
+                <div class="resize-grip"></div>
+            </div>
+        }
+
+    </div>
+
+    <!-- ── Participant context menu (volume, and stream volume when sharing, for DM calls) ──── -->
+    @if (participantMenu(); as menu) {
+        <app-call-context-menu
+                (close)="participantMenu.set(null)"
+                (streamVolumeChange)="onStreamVolumeChange($event)"
+                (volumeChange)="onVolumeChange($event)"
+                [isSuperadmin]="false"
+                [menu]="menu"
+        />
+    }
+
+}

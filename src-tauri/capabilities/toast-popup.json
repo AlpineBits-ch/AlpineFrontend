@@ -1,0 +1,13 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "description": "Capabilities for toast popup windows",
+  "identifier": "toast-popup",
+  "permissions": [
+    "core:window:allow-set-focus",
+    "core:window:allow-unminimize",
+    "os:default"
+  ],
+  "windows": [
+    "toast-*"
+  ]
+}

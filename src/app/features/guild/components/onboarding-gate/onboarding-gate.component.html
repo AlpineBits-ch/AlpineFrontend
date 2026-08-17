@@ -1,0 +1,142 @@
+@if (pending()) {
+    <!-- Full-screen takeover rather than a dialog: this is the member's whole task right now, and a modal over a UI they can't use yet only invites dismissal attempts. -->
+    <div class="fixed inset-0 z-[1200] bg-app-bg flex flex-col"
+         style="padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom)">
+
+        <!-- Progress -->
+        @if (promptProgress(); as progress) {
+            <div class="shrink-0 px-6 pt-6">
+                <div class="mx-auto max-w-2xl flex items-center gap-1.5">
+                    @for (i of [].constructor(progress.total); track $index) {
+                        <span [class]="$index <= progress.current ? 'bg-brand' : 'bg-border'"
+                              class="h-1 flex-1 rounded-full transition-colors"></span>
+                    }
+                </div>
+            </div>
+        }
+
+        <!-- Step body -->
+        <div class="flex-1 min-h-0 overflow-y-auto thin-scrollbar px-6 py-8">
+            <div class="mx-auto max-w-2xl flex flex-col gap-6">
+
+                @switch (currentStep()?.kind) {
+
+                    @case ('welcome') {
+                        <div class="flex flex-col items-center text-center gap-3 pt-8">
+                            <div class="w-14 h-14 rounded-2xl bg-[color-mix(in_srgb,var(--color-brand)_18%,transparent)]
+                                        grid place-items-center">
+                                <i class="pi pi-sparkles text-xl text-brand-dim"></i>
+                            </div>
+                            <h1 class="text-2xl font-semibold text-text-primary m-0">
+                                {{ 'ONBOARDING_GATE.WELCOME_TITLE' | translate: {name: guildName()} }}
+                            </h1>
+                            <p class="text-sm text-text-secondary m-0 max-w-md">
+                                {{ 'ONBOARDING_GATE.WELCOME_DESC' | translate }}
+                            </p>
+                        </div>
+                    }
+
+                    @case ('rules') {
+                        <div class="flex flex-col gap-4">
+                            <div>
+                                <h1 class="text-xl font-semibold text-text-primary m-0">
+                                    {{ 'ONBOARDING_GATE.RULES_HEADING' | translate }}
+                                </h1>
+                                <p class="text-sm text-text-muted m-0 mt-1">
+                                    {{ 'ONBOARDING_GATE.RULES_DESC' | translate }}
+                                </p>
+                            </div>
+                            <!-- Rendered verbatim: plain text, whitespace and line breaks preserved, never parsed as markdown. -->
+                            <div class="max-h-[45vh] overflow-y-auto thin-scrollbar bg-card/60 border border-border rounded-xl p-4">
+                                <p class="whitespace-pre-wrap text-[0.8125rem] text-text-secondary m-0">{{ status()?.rulesText }}</p>
+                            </div>
+                        </div>
+                    }
+
+                    @case ('prompt') {
+                        @if (currentStep()?.prompt; as prompt) {
+                            <div class="flex flex-col gap-4">
+                                <div>
+                                    <h1 class="text-xl font-semibold text-text-primary m-0">{{ prompt.title }}</h1>
+                                    <p class="text-sm text-text-muted m-0 mt-1">
+                                        {{ (prompt.singleSelect ? 'ONBOARDING_GATE.PICK_ONE' : 'ONBOARDING_GATE.PICK_ANY') | translate }}
+                                        @if (!prompt.required) {
+                                            <span class="opacity-60"> · {{ 'ONBOARDING_GATE.OPTIONAL' | translate }}</span>
+                                        }
+                                    </p>
+                                </div>
+
+                                <app-onboarding-prompt-step (selectionChange)="onSelectionChange(prompt.id, $event)"
+                                                            [emojiUrls]="emojiUrls()" [prompt]="prompt"
+                                                            [selected]="selectedFor(prompt.id)"/>
+
+                                @if (showRequiredError()) {
+                                    <p class="text-xs text-offline m-0">{{ 'ONBOARDING_GATE.REQUIRED_ERROR' | translate }}</p>
+                                }
+                            </div>
+                        }
+                    }
+
+                    @case ('done') {
+                        <div class="flex flex-col gap-5">
+                            <div class="flex flex-col items-center text-center gap-3 pt-4">
+                                <div class="w-14 h-14 rounded-2xl bg-[color-mix(in_srgb,var(--color-online)_18%,transparent)]
+                                            grid place-items-center">
+                                    <i class="pi pi-check text-xl text-online"></i>
+                                </div>
+                                <h1 class="text-2xl font-semibold text-text-primary m-0">
+                                    {{ 'ONBOARDING_GATE.DONE_TITLE' | translate }}
+                                </h1>
+                                <p class="text-sm text-text-secondary m-0 max-w-md">
+                                    {{ 'ONBOARDING_GATE.DONE_DESC' | translate }}
+                                </p>
+                            </div>
+
+                            @if (defaultChannels().length > 0) {
+                                <div class="flex flex-col gap-2">
+                                    <p class="text-xs font-semibold uppercase tracking-widest text-text-muted m-0">
+                                        {{ 'ONBOARDING_GATE.CHANNELS_HINT' | translate }}
+                                    </p>
+                                    <div class="flex flex-col gap-1.5">
+                                        @for (channel of defaultChannels(); track channel.id) {
+                                            <div class="flex items-center gap-2.5 rounded-xl bg-card/60 border border-border-subtle px-3 py-2.5">
+                                                <i class="pi pi-hashtag text-[0.6875rem] text-text-muted shrink-0"></i>
+                                                <span class="text-sm text-text-primary truncate">{{ channel.name }}</span>
+                                                @if (channel.description) {
+                                                    <span class="text-xs text-text-muted truncate ml-1">{{ channel.description }}</span>
+                                                }
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                }
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="shrink-0 border-t border-border-subtle px-6 py-4">
+            <div class="mx-auto max-w-2xl flex items-center gap-2">
+                @if (isFirstStep()) {
+                    <p-button (onClick)="leaveServer()" [label]="'ONBOARDING_GATE.LEAVE_SERVER' | translate"
+                              [text]="true" severity="secondary"/>
+                } @else {
+                    <p-button (onClick)="back()" [label]="'COMMON.BACK' | translate" [text]="true" icon="pi pi-arrow-left"
+                              severity="secondary"/>
+                }
+
+                <div class="ml-auto">
+                    @if (isLastStep()) {
+                        <p-button (onClick)="finish()" [label]="'ONBOARDING_GATE.ACCEPT' | translate"
+                                  [loading]="submitting()" severity="primary"/>
+                    } @else {
+                        <p-button (onClick)="next()" [label]="'ONBOARDING_GATE.CONTINUE' | translate" iconPos="right"
+                                  icon="pi pi-arrow-right" severity="primary"/>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}

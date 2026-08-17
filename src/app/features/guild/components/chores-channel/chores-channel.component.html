@@ -1,0 +1,491 @@
+<div class="flex flex-col h-full bg-app-bg overflow-hidden">
+
+    <!-- Header. Same padding, height and safe-area treatment as every other channel view, so the shell doesn't jump on navigation. No composer: this channel type has no messages. -->
+    <header class="app-header flex items-center gap-2 px-3 sm:px-5 border-b border-border-subtle shrink-0 bg-app-bg">
+        <p-button (onClick)="navService.mobileNavOpen.set(true)" [text]="true" class="lg:hidden" icon="pi pi-bars"
+                  severity="secondary" size="small"/>
+
+        <div class="flex items-center gap-2 sm:gap-3 min-w-0">
+            <i [class]="icon()" class="text-text-muted shrink-0"></i>
+            <span class="text-sm font-semibold text-text-primary truncate">{{ channel().name }}</span>
+            @if (channel().description) {
+                <span class="hidden sm:block text-text-muted text-xs border-l border-border-default pl-3 truncate max-w-xs">
+                    {{ channel().description }}
+                </span>
+            }
+        </div>
+
+        <div class="flex-1"></div>
+
+        @if (canManage()) {
+            <p-button (onClick)="openCreate()" icon="pi pi-plus" [text]="true" severity="secondary" size="small"
+                      [pTooltip]="'CHORES.NEW' | translate" tooltipPosition="bottom"/>
+        }
+        <p-button (onClick)="back.emit()" [text]="true" class="lg:hidden" icon="pi pi-arrow-left"
+                  severity="secondary" size="small" [pTooltip]="'CHORES.BACK' | translate"/>
+    </header>
+
+    @if (moduleWithheld()) {
+        <!-- Chosen and not covered. The third state, and the only one with an upgrade behind it. -->
+        <app-module-not-in-plan feature="Chores" [guildId]="guildId()"/>
+    } @else if (!moduleEnabled()) {
+        <!-- §13.2: a 403 alone can't tell "the module is off" from "you're not allowed", so the module gate is read before anything is fetched. -->
+        <div class="flex-1 min-h-0 flex flex-col items-center justify-center gap-3 px-6 text-center">
+            <div class="w-14 h-14 rounded-2xl bg-card border border-border flex items-center justify-center">
+                <i class="pi pi-sync text-[1.5rem] text-text-muted"></i>
+            </div>
+            <div class="max-w-sm space-y-1.5">
+                <p class="text-sm font-semibold text-text-primary m-0">{{ 'CHORES.MODULE_OFF_TITLE' | translate }}</p>
+                <p class="text-[0.8125rem] text-text-secondary m-0">{{ 'CHORES.MODULE_OFF_BODY' | translate }}</p>
+            </div>
+        </div>
+    } @else if (forbidden()) {
+        <div class="flex-1 min-h-0 flex flex-col items-center justify-center gap-3 px-6 text-center">
+            <div class="w-14 h-14 rounded-2xl bg-card border border-border flex items-center justify-center">
+                <i class="pi pi-lock text-[1.5rem] text-text-muted"></i>
+            </div>
+            <div class="max-w-sm space-y-1.5">
+                <p class="text-sm font-semibold text-text-primary m-0">{{ 'CHORES.FORBIDDEN_TITLE' | translate }}</p>
+                <p class="text-[0.8125rem] text-text-secondary m-0">{{ 'CHORES.FORBIDDEN_BODY' | translate }}</p>
+            </div>
+        </div>
+    } @else {
+        <div class="flex-1 min-h-0 overflow-y-auto thin-scrollbar">
+            <div class="mx-auto w-full max-w-5xl px-3 sm:px-5 py-4 space-y-5">
+
+                @if (loadFailed()) {
+                    <div class="flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-2.5">
+                        <i class="pi pi-exclamation-triangle text-offline text-[0.875rem]"></i>
+                        <span class="text-[0.8125rem] text-text-secondary flex-1">{{ 'CHORES.LOAD_ERROR' | translate }}</span>
+                        <p-button (onClick)="reload()" [label]="'CHORES.RETRY' | translate" severity="secondary"
+                                  size="small"/>
+                    </div>
+                }
+
+                @if (loading() && !hasLoaded()) {
+                    <div class="flex items-center justify-center gap-2 py-10 text-text-muted">
+                        <i class="pi pi-spin pi-spinner text-[1rem]"></i>
+                        <span class="text-[0.8125rem]">{{ 'CHORES.LOADING' | translate }}</span>
+                    </div>
+                }
+
+                @if (boardEmpty()) {
+                    <div class="flex flex-col items-center justify-center gap-3 py-12 text-center">
+                        <div class="w-14 h-14 rounded-2xl bg-card border border-border flex items-center justify-center">
+                            <i class="pi pi-sync text-[1.5rem] text-text-muted"></i>
+                        </div>
+                        <div class="max-w-md space-y-1.5">
+                            <p class="text-sm font-semibold text-text-primary m-0">{{ 'CHORES.EMPTY_TITLE' | translate }}</p>
+                            <p class="text-[0.8125rem] text-text-secondary m-0">{{ 'CHORES.EMPTY_BODY' | translate }}</p>
+                        </div>
+                        @if (canManage()) {
+                            <p-button (onClick)="openCreate()" [label]="'CHORES.NEW' | translate" icon="pi pi-plus"
+                                      severity="primary" size="small"/>
+                        }
+                    </div>
+                }
+
+                <!-- ── Fair share ──────────────────────────────────────────────── -->
+                @if (hasLoaded() && !boardEmpty()) {
+                    <section class="rounded-xl border border-border bg-sidebar overflow-hidden">
+                        <div class="px-4 pt-3.5 pb-2.5 border-b border-border-subtle">
+                            <h2 class="text-[0.8125rem] font-semibold text-text-primary m-0">
+                                {{ 'CHORES.BALANCE_TITLE' | translate }}
+                            </h2>
+                            <p class="text-[0.75rem] text-text-muted m-0 mt-1 leading-relaxed">
+                                {{ 'CHORES.BALANCE_EXPLAINER' | translate }}
+                            </p>
+                        </div>
+
+                        @if (balance().length === 0) {
+                            <p class="text-[0.8125rem] text-text-muted m-0 px-4 py-3.5">
+                                {{ 'CHORES.BALANCE_EMPTY' | translate }}
+                            </p>
+                        } @else {
+                            <ul class="m-0 p-0 list-none divide-y divide-border-subtle">
+                                @for (entry of balance(); track entry.userId) {
+                                    <li class="flex items-center gap-3 px-4 py-2.5">
+                                        <div class="min-w-0 flex-1">
+                                            <div class="flex items-baseline gap-2">
+                                                <span class="text-[0.8125rem] font-medium text-text-primary truncate">
+                                                    {{ nameOf(entry.userId) }}
+                                                </span>
+                                                <span class="text-[0.6875rem] text-text-muted shrink-0">
+                                                    {{ 'CHORES.BALANCE_DONE_COUNT' | translate:{count: entry.completedCount, minutes: entry.completedMinutes} }}
+                                                </span>
+                                                <!-- The balance is weighted by this, so being away no longer reads as being behind. -->
+                                                @if (presentDaysOf(entry); as presentDays) {
+                                                    @if (presentDays < balanceWindowDays) {
+                                                        <span class="text-[0.6875rem] text-text-muted shrink-0">
+                                                            {{ 'CHORES.BALANCE_PRESENT_DAYS' | translate:{days: presentDays, window: balanceWindowDays} }}
+                                                        </span>
+                                                    }
+                                                }
+                                            </div>
+
+                                            <!-- Bars compare members to each other; the number is always a magnitude, never an unlabelled minus sign. -->
+                                            <div class="mt-1.5 h-1 rounded-full bg-hover overflow-hidden">
+                                                <div [style.width.%]="balanceWidth(entry)"
+                                                     [class]="standing(entry) === 'behind' ? 'bg-connecting' : standing(entry) === 'ahead' ? 'bg-online' : 'bg-border-default'"
+                                                     class="h-full rounded-full"></div>
+                                            </div>
+                                        </div>
+
+                                        <span class="text-[0.75rem] shrink-0 text-right w-40"
+                                              [class]="standing(entry) === 'behind' ? 'text-connecting' : standing(entry) === 'ahead' ? 'text-online' : 'text-text-muted'">
+                                            @switch (standing(entry)) {
+                                                @case ('behind') {
+                                                    {{ 'CHORES.BALANCE_BEHIND' | translate:{minutes: balanceMagnitude(entry)} }}
+                                                }
+                                                @case ('ahead') {
+                                                    {{ 'CHORES.BALANCE_AHEAD' | translate:{minutes: balanceMagnitude(entry)} }}
+                                                }
+                                                @default {
+                                                    {{ 'CHORES.BALANCE_EVEN' | translate }}
+                                                }
+                                            }
+                                        </span>
+                                    </li>
+                                }
+                            </ul>
+
+                            <!-- Only when somebody actually was away, otherwise it's a paragraph explaining a weighting that made no difference. -->
+                            @if (anyPartialPresence()) {
+                                <p class="text-[0.625rem] text-text-muted m-0 px-4 py-2 border-t border-border-subtle">
+                                    {{ 'CHORES.BALANCE_PRESENCE_HINT' | translate }}
+                                </p>
+                            }
+                        }
+                    </section>
+                }
+
+                <!-- ── The board ─────────────────────────────────────────────── -->
+                @if (noTurns()) {
+                    <p class="text-[0.8125rem] text-text-muted m-0 px-1">{{ 'CHORES.NO_TURNS' | translate }}</p>
+                }
+
+                @for (section of sections(); track section.key) {
+                    <section>
+                        <div class="flex items-baseline gap-2 px-1 mb-2">
+                            <h2 class="text-[0.6875rem] font-semibold uppercase tracking-widest text-text-muted m-0">
+                                {{ section.titleKey | translate }}
+                            </h2>
+                            <span class="text-[0.6875rem] text-text-muted">{{ section.items.length }}</span>
+                        </div>
+
+                        @if (section.hintKey) {
+                            <p class="text-[0.75rem] text-text-muted m-0 px-1 mb-2 leading-relaxed max-w-2xl">
+                                {{ section.hintKey | translate }}
+                            </p>
+                        }
+
+                        <ul class="m-0 p-0 list-none rounded-xl border border-border bg-sidebar divide-y divide-border-subtle overflow-hidden">
+                            @for (occurrence of section.items; track occurrence.id) {
+                                <li class="flex items-start gap-3 px-3.5 py-3">
+
+                                    <i class="mt-0.5 shrink-0 text-[0.8125rem]"
+                                       [class]="section.tone === 'overdue' ? 'pi pi-exclamation-circle text-offline'
+                                              : section.tone === 'done' ? 'pi pi-check-circle text-online'
+                                              : section.tone === 'skipped' ? 'pi pi-forward text-connecting'
+                                              : 'pi pi-circle text-text-muted'"></i>
+
+                                    <div class="min-w-0 flex-1">
+                                        <div class="flex items-baseline gap-2 flex-wrap">
+                                            <!-- Never struck through for a skip: a skipped turn is not finished work and must not be drawn as if it were. -->
+                                            <span class="text-[0.8125rem] font-medium truncate"
+                                                  [class]="section.tone === 'done' ? 'text-text-secondary line-through' : 'text-text-primary'">
+                                                {{ choreTitleFor(occurrence) }}
+                                            </span>
+                                            <span class="text-[0.6875rem] text-text-muted shrink-0">
+                                                {{ 'CHORES.EFFORT' | translate:{minutes: occurrence.effortMinutes} }}
+                                            </span>
+                                        </div>
+
+                                        <div class="mt-0.5 text-[0.75rem] text-text-secondary">
+                                            @if (section.tone === 'done') {
+                                                @if (isProxyCompletion(occurrence)) {
+                                                    <!-- Both names, always: the balance credits the assignee, so collapsing these into one would credit the wrong flatmate. -->
+                                                    <span>{{ 'CHORES.DONE_BY_PROXY' | translate:{doer: nameOf(occurrence.completedByUserId), assignee: nameOf(occurrence.assignedUserId)} }}</span>
+                                                    <span class="text-text-muted"> · {{ 'CHORES.CREDITED_TO' | translate:{name: nameOf(occurrence.assignedUserId)} }}</span>
+                                                } @else {
+                                                    <span>{{ 'CHORES.DONE_BY' | translate:{name: nameOf(occurrence.assignedUserId)} }}</span>
+                                                }
+                                            } @else {
+                                                <span>{{ 'CHORES.ASSIGNED_TO' | translate:{name: nameOf(occurrence.assignedUserId)} }}</span>
+                                            }
+                                        </div>
+
+                                        <div class="mt-0.5 text-[0.6875rem] text-text-muted">
+                                            {{ 'CHORES.DUE' | translate:{when: (occurrence.dueAt | date:'EEE d MMM, HH:mm')} }}
+                                            @if (section.tone === 'skipped' && occurrence.skippedAt) {
+                                                · {{ 'CHORES.SKIPPED_ON' | translate:{when: (occurrence.skippedAt | date:'d MMM')} }}
+                                            }
+                                            @if (section.tone === 'done' && occurrence.completedAt) {
+                                                · {{ 'CHORES.COMPLETED_ON' | translate:{when: (occurrence.completedAt | date:'d MMM')} }}
+                                            }
+                                        </div>
+                                    </div>
+
+                                    @if (canComplete()) {
+                                        <div class="flex items-center gap-1 shrink-0">
+                                            @switch (section.tone) {
+                                                @case ('done') {
+                                                    <p-button (onClick)="onUnComplete(occurrence)" [text]="true"
+                                                              icon="pi pi-undo" severity="secondary" size="small"
+                                                              [pTooltip]="'CHORES.ACTION_UNCOMPLETE' | translate"/>
+                                                }
+                                                @case ('skipped') {
+                                                    <!-- Deliberately no verbs: the turn is closed, and the work it represents is settled by the rota handing back the next one, not by re-opening this row. -->
+                                                }
+                                                @default {
+                                                    <!-- The nudge: nobody is named, and it greys off nudgedAt rather than offering an action that would come back a 409. -->
+                                                    @if (canNudgeOccurrence(occurrence)) {
+                                                        <p-button (onClick)="onNudge(occurrence)" [text]="true"
+                                                                  icon="pi pi-bell" severity="secondary" size="small"
+                                                                  [pTooltip]="'CHORES.NUDGE_TOOLTIP' | translate"/>
+                                                    } @else if (nudgeOnCooldown(occurrence)) {
+                                                        <p-button [disabled]="true" [text]="true"
+                                                                  icon="pi pi-bell" severity="secondary" size="small"
+                                                                  [pTooltip]="'CHORES.NUDGE_ALREADY' | translate"/>
+                                                    }
+                                                    <p-button (onClick)="onSwap(occurrence)" [text]="true"
+                                                              icon="pi pi-user-edit" severity="secondary" size="small"
+                                                              [pTooltip]="'CHORES.SWAP_TOOLTIP' | translate"/>
+                                                    <p-button (onClick)="onSkip(occurrence)" [text]="true"
+                                                              icon="pi pi-forward" severity="secondary" size="small"
+                                                              [pTooltip]="'CHORES.SKIP_TOOLTIP' | translate"/>
+                                                    <p-button (onClick)="onComplete(occurrence)" [text]="true"
+                                                              icon="pi pi-check" severity="success" size="small"
+                                                              [pTooltip]="'CHORES.ACTION_COMPLETE' | translate"/>
+                                                }
+                                            }
+                                        </div>
+                                    }
+                                </li>
+                            }
+                        </ul>
+                    </section>
+                }
+
+                <!-- ── Chore definitions ─────────────────────────────────────── -->
+                @if (chores().length > 0) {
+                    <section>
+                        <div class="flex items-center gap-2 px-1 mb-2">
+                            <h2 class="text-[0.6875rem] font-semibold uppercase tracking-widest text-text-muted m-0 flex-1">
+                                {{ 'CHORES.DEFINITIONS_TITLE' | translate }}
+                            </h2>
+                            @if (canManage()) {
+                                <p-button (onClick)="openCreate()" [label]="'CHORES.NEW' | translate" icon="pi pi-plus"
+                                          [text]="true" severity="secondary" size="small"/>
+                            }
+                        </div>
+
+                        <p class="text-[0.75rem] text-text-muted m-0 px-1 mb-2 leading-relaxed max-w-2xl">
+                            {{ 'CHORES.SERVER_GENERATES' | translate }}
+                        </p>
+
+                        <ul class="m-0 p-0 list-none rounded-xl border border-border bg-sidebar divide-y divide-border-subtle overflow-hidden">
+                            @for (chore of chores(); track chore.id) {
+                                <li class="flex items-start gap-3 px-3.5 py-3">
+                                    <div class="min-w-0 flex-1">
+                                        <div class="flex items-baseline gap-2 flex-wrap">
+                                            <span class="text-[0.8125rem] font-medium text-text-primary truncate">{{ chore.title }}</span>
+                                            @if (chore.isPaused) {
+                                                <span class="text-[0.625rem] font-medium uppercase tracking-widest text-text-muted px-1.5 py-0.5 rounded bg-white/[0.04]">
+                                                    {{ 'CHORES.PAUSED' | translate }}
+                                                </span>
+                                            }
+                                        </div>
+
+                                        @if (chore.description) {
+                                            <p class="mt-0.5 text-[0.75rem] text-text-secondary m-0 line-clamp-2">{{ chore.description }}</p>
+                                        }
+
+                                        <div class="mt-1 text-[0.6875rem] text-text-muted">
+                                            {{ 'CHORES.EVERY_DAYS' | translate:{days: chore.intervalDays} }}
+                                            · {{ 'CHORES.EFFORT' | translate:{minutes: chore.effortMinutes} }}
+                                            ·
+                                            @if (chore.fixedAssigneeUserId) {
+                                                {{ 'CHORES.FIXED_ASSIGNEE' | translate:{name: nameOf(chore.fixedAssigneeUserId)} }}
+                                            } @else {
+                                                {{ 'CHORES.ROTATION_POOL' | translate:{role: roleNameOf(chore.rotationRoleId)} }}
+                                            }
+                                            · {{ 'CHORES.NEXT_DUE' | translate:{when: (chore.nextDueAt | date:'d MMM')} }}
+                                        </div>
+                                    </div>
+
+                                    @if (canManage()) {
+                                        <div class="flex items-center gap-1 shrink-0">
+                                            <!-- One-field PATCH: pausing must not re-send the cadence a flatmate may have just changed. -->
+                                            <p-button (onClick)="togglePause(chore)" [text]="true"
+                                                      [disabled]="pausing() === chore.id"
+                                                      [icon]="chore.isPaused ? 'pi pi-play' : 'pi pi-pause'"
+                                                      severity="secondary" size="small"
+                                                      [pTooltip]="(chore.isPaused ? 'CHORES.RESUME' : 'CHORES.PAUSE') | translate"/>
+                                            <p-button (onClick)="openEdit(chore)" [text]="true" icon="pi pi-pencil"
+                                                      severity="secondary" size="small"
+                                                      [pTooltip]="'CHORES.EDIT' | translate"/>
+                                            <p-button (onClick)="askDelete(chore)" [text]="true" icon="pi pi-trash"
+                                                      severity="danger" size="small"
+                                                      [pTooltip]="'CHORES.DELETE' | translate"/>
+                                        </div>
+                                    }
+                                </li>
+                            }
+                        </ul>
+                    </section>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+<!-- ── Editor ─────────────────────────────────────────────────────────────── -->
+<p-dialog (onHide)="closeEditor()" [(visible)]="showEditor" [modal]="true" [style]="{width: '32rem'}"
+          [draggable]="false" [dismissableMask]="true"
+          [header]="(editing() ? 'CHORES.EDIT_TITLE' : 'CHORES.NEW_TITLE') | translate">
+    <div class="flex flex-col gap-3.5">
+
+        <div class="flex flex-col gap-1.5">
+            <label class="text-[0.75rem] text-text-secondary" for="chore-title">{{ 'CHORES.FORM_TITLE' | translate }}</label>
+            <!-- maxlength is the server's MaxTitleLength, not a round number: 101 characters is a 400, and this is the only place that can say so before the request. -->
+            <input (keydown.enter)="save()" [ngModel]="formTitle()" (ngModelChange)="formTitle.set($event)" class="w-full" id="chore-title"
+                   [maxlength]="limits.titleMaxLength" pInputText/>
+            @if (showValidation() && !titleValid()) {
+                <span class="text-[0.6875rem] text-offline">{{ 'CHORES.FORM_TITLE_REQUIRED' | translate }}</span>
+            }
+        </div>
+
+        <div class="flex flex-col gap-1.5">
+            <label class="text-[0.75rem] text-text-secondary" for="chore-desc">{{ 'CHORES.FORM_DESCRIPTION' | translate }}</label>
+            <textarea [ngModel]="formDescription()" (ngModelChange)="formDescription.set($event)" class="w-full"
+                      id="chore-desc" pTextarea rows="2"></textarea>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+            <div class="flex flex-col gap-1.5">
+                <label class="text-[0.75rem] text-text-secondary">{{ 'CHORES.FORM_INTERVAL' | translate }}</label>
+                <p-inputnumber [ngModel]="formIntervalDays()" (ngModelChange)="formIntervalDays.set($event)"
+                               [min]="limits.intervalDaysMin" [max]="limits.intervalDaysMax" [showButtons]="true"
+                               styleClass="w-full"/>
+                @if (showValidation() && !intervalValid()) {
+                    <span class="text-[0.6875rem] text-offline">
+                        {{ 'CHORES.FORM_INTERVAL_RANGE' | translate:{min: limits.intervalDaysMin, max: limits.intervalDaysMax} }}
+                    </span>
+                }
+            </div>
+
+            <div class="flex flex-col gap-1.5">
+                <label class="text-[0.75rem] text-text-secondary">{{ 'CHORES.FORM_EFFORT' | translate }}</label>
+                <p-inputnumber [ngModel]="formEffortMinutes()" (ngModelChange)="formEffortMinutes.set($event)"
+                               [min]="limits.effortMinutesMin" [max]="limits.effortMinutesMax" [showButtons]="true"
+                               styleClass="w-full"/>
+                <span class="text-[0.6875rem] text-text-muted leading-relaxed">{{ 'CHORES.FORM_EFFORT_HINT' | translate }}</span>
+                @if (showValidation() && !effortValid()) {
+                    <span class="text-[0.6875rem] text-offline">
+                        {{ 'CHORES.FORM_EFFORT_RANGE' | translate:{min: limits.effortMinutesMin, max: limits.effortMinutesMax} }}
+                    </span>
+                }
+            </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+            <!-- Create only: the server's UpdateChoreDto carries no anchor, so an editable one here would look like a rota re-phase and do nothing at all. -->
+            @if (!editing()) {
+                <div class="flex flex-col gap-1.5">
+                    <label class="text-[0.75rem] text-text-secondary">{{ 'CHORES.FORM_ANCHOR' | translate }}</label>
+                    <p-datepicker [ngModel]="formAnchorAt()" (ngModelChange)="formAnchorAt.set($event)" [showTime]="true"
+                                  [showClear]="true" appendTo="body" dateFormat="d M yy" hourFormat="24"
+                                  styleClass="w-full"/>
+                    <span class="text-[0.6875rem] text-text-muted leading-relaxed">{{ 'CHORES.FORM_ANCHOR_HINT' | translate }}</span>
+                </div>
+            } @else {
+                <div class="flex flex-col gap-1.5">
+                    <label class="text-[0.75rem] text-text-secondary">{{ 'CHORES.FORM_ANCHOR' | translate }}</label>
+                    <p class="text-[0.8125rem] text-text-secondary m-0 pt-1.5">{{ formAnchorAt() | date:'d MMM y, HH:mm' }}</p>
+                    <span class="text-[0.6875rem] text-text-muted leading-relaxed">{{ 'CHORES.FORM_ANCHOR_FIXED' | translate }}</span>
+                </div>
+            }
+
+            <div class="flex flex-col gap-1.5">
+                <label class="text-[0.75rem] text-text-secondary">{{ 'CHORES.FORM_GRACE' | translate }}</label>
+                <p-inputnumber [ngModel]="formGraceHours()" (ngModelChange)="formGraceHours.set($event)"
+                               [min]="limits.graceHoursMin" [max]="limits.graceHoursMax" [showButtons]="true"
+                               styleClass="w-full"/>
+                <span class="text-[0.6875rem] text-text-muted leading-relaxed">{{ 'CHORES.FORM_GRACE_HINT' | translate }}</span>
+                @if (showValidation() && !graceValid()) {
+                    <span class="text-[0.6875rem] text-offline">
+                        {{ 'CHORES.FORM_GRACE_RANGE' | translate:{min: limits.graceHoursMin, max: limits.graceHoursMax} }}
+                    </span>
+                }
+            </div>
+        </div>
+
+        <!-- Exactly one of the two assignment fields, enforced here rather than by letting the server's 400 land next to two half-filled pickers. -->
+        <div class="flex flex-col gap-2 pt-1 border-t border-border-subtle">
+            <span class="text-[0.75rem] text-text-secondary pt-2">{{ 'CHORES.FORM_ASSIGNMENT' | translate }}</span>
+
+            <div class="flex gap-2">
+                <button (click)="setMode('rotation')" type="button"
+                        [class]="formMode() === 'rotation' ? 'border-brand bg-brand/10 text-text-primary' : 'border-border bg-card text-text-secondary hover:bg-hover'"
+                        class="flex-1 rounded-lg border px-3 py-2 text-left transition-colors">
+                    <span class="block text-[0.75rem] font-medium">{{ 'CHORES.FORM_ROTATION' | translate }}</span>
+                    <span class="block text-[0.6875rem] text-text-muted mt-0.5">{{ 'CHORES.FORM_ROTATION_HINT' | translate }}</span>
+                </button>
+                <button (click)="setMode('fixed')" type="button"
+                        [class]="formMode() === 'fixed' ? 'border-brand bg-brand/10 text-text-primary' : 'border-border bg-card text-text-secondary hover:bg-hover'"
+                        class="flex-1 rounded-lg border px-3 py-2 text-left transition-colors">
+                    <span class="block text-[0.75rem] font-medium">{{ 'CHORES.FORM_FIXED' | translate }}</span>
+                    <span class="block text-[0.6875rem] text-text-muted mt-0.5">{{ 'CHORES.FORM_FIXED_HINT' | translate }}</span>
+                </button>
+            </div>
+
+            @if (formMode() === 'rotation') {
+                <p-select [ngModel]="formRotationRoleId()" (ngModelChange)="formRotationRoleId.set($event)"
+                          [options]="roleOptions()" [filter]="true" appendTo="body" optionLabel="label"
+                          optionValue="value" [placeholder]="'CHORES.FORM_ROTATION_PLACEHOLDER' | translate"
+                          styleClass="w-full"/>
+            } @else {
+                <p-select [ngModel]="formFixedAssigneeUserId()" (ngModelChange)="formFixedAssigneeUserId.set($event)"
+                          [options]="memberOptions()" [filter]="true" appendTo="body" optionLabel="label"
+                          optionValue="value" [placeholder]="'CHORES.FORM_FIXED_PLACEHOLDER' | translate"
+                          styleClass="w-full"/>
+            }
+
+            @if (showValidation() && assignmentError() === 'missing') {
+                <span class="text-[0.6875rem] text-offline">{{ 'CHORES.FORM_ASSIGNMENT_REQUIRED' | translate }}</span>
+            }
+            @if (showValidation() && assignmentError() === 'both') {
+                <span class="text-[0.6875rem] text-offline">{{ 'CHORES.FORM_ASSIGNMENT_EXCLUSIVE' | translate }}</span>
+            }
+        </div>
+
+        @if (editing()) {
+            <div class="flex items-center gap-2.5 pt-1">
+                <p-toggleswitch [ngModel]="formPaused()" (ngModelChange)="formPaused.set($event)" inputId="chore-paused"/>
+                <label class="text-[0.75rem] text-text-secondary" for="chore-paused">{{ 'CHORES.FORM_PAUSED' | translate }}</label>
+            </div>
+        }
+    </div>
+
+    <div class="flex gap-2 pt-4">
+        <p-button (onClick)="closeEditor()" [label]="'CHORES.CANCEL' | translate" severity="secondary" size="small"
+                  styleClass="flex-1 justify-center"/>
+        <p-button (onClick)="save()" [disabled]="saving()" [label]="'CHORES.SAVE' | translate" severity="primary"
+                  size="small" styleClass="flex-1 justify-center"/>
+    </div>
+</p-dialog>
+
+<!-- ── Delete confirmation ────────────────────────────────────────────────── -->
+<p-dialog (onHide)="pendingDelete.set(null)" [visible]="!!pendingDelete()" [modal]="true" [style]="{width: '24rem'}"
+          [draggable]="false" [dismissableMask]="true" [header]="'CHORES.DELETE_TITLE' | translate">
+    <p class="text-[0.8125rem] text-text-secondary m-0">
+        {{ 'CHORES.DELETE_CONFIRM' | translate:{title: pendingDelete()?.title} }}
+    </p>
+    <div class="flex gap-2 pt-4">
+        <p-button (onClick)="pendingDelete.set(null)" [label]="'CHORES.CANCEL' | translate" severity="secondary"
+                  size="small" styleClass="flex-1 justify-center"/>
+        <p-button (onClick)="confirmDelete()" [disabled]="deleting()" [label]="'CHORES.DELETE' | translate"
+                  severity="danger" size="small" styleClass="flex-1 justify-center"/>
+    </div>
+</p-dialog>

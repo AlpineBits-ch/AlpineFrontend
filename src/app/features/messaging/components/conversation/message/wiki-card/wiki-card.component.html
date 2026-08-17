@@ -1,0 +1,59 @@
+<!-- A button rather than a div: this navigates, and a keyboard has to be able to reach it. -->
+<button (click)="open()"
+        (focus)="resolveTitle()"
+        (mouseenter)="resolveTitle()"
+        [disabled]="!reachable()"
+        [ngClass]="reachable()
+            ? 'cursor-pointer hover:bg-hover hover:border-[color-mix(in_srgb,var(--color-brand-dim)_40%,transparent)]'
+            : 'cursor-default'"
+        class="flex items-start gap-3 bg-card border border-border-default rounded-xl px-4 py-3 mt-1
+               max-w-md w-full text-left transition-colors group/wiki"
+        type="button">
+
+    <div class="shrink-0 w-9 h-9 rounded-lg bg-brand/15 flex items-center justify-center">
+        <i class="pi pi-book text-brand-dim text-sm"></i>
+    </div>
+
+    <div class="flex-1 min-w-0">
+        @if (preview(); as loaded) {
+            <!-- Where it lives, above the title: the same order the wiki's own breadcrumbs use. -->
+            @if (trail().length) {
+                <p class="text-[0.625rem] uppercase tracking-widest text-white/30 m-0 truncate">
+                    @for (name of trail(); track $index) {
+                        @if (!$first) {
+                            <span class="text-white/15"> / </span>
+                        }{{ name }}
+                    }
+                </p>
+            }
+
+            <p class="text-sm font-semibold text-white/85 m-0 leading-snug truncate">
+                {{ loaded.page.title }}
+            </p>
+
+            @if (snippet()) {
+                <p class="text-xs text-white/40 m-0 mt-1 leading-relaxed line-clamp-2">{{ snippet() }}</p>
+            }
+
+            <p class="text-[0.6875rem] text-white/30 m-0 mt-1.5 truncate">
+                @if (editorName()) {
+                    {{ 'WIKI.CARD.EDITED_BY' | translate: {name: editorName()} }}
+                    <span class="text-white/15"> · </span>
+                }
+                {{ loaded.page.updatedAt | date: 'mediumDate' }}
+                @if (!reachable()) {
+                    <span class="text-white/15"> · </span>{{ 'WIKI.CARD.NOT_A_MEMBER' | translate }}
+                }
+            </p>
+        } @else {
+            <p class="text-sm font-semibold text-white/85 m-0 leading-snug truncate">
+                {{ 'WIKI.CARD.PLACEHOLDER_TITLE' | translate }}
+            </p>
+            <p class="text-[0.6875rem] text-white/30 m-0 mt-1 truncate">{{ url() }}</p>
+        }
+    </div>
+
+    @if (reachable()) {
+        <i class="pi pi-angle-right text-white/20 text-sm shrink-0 self-center transition-colors"></i>
+    }
+</button>

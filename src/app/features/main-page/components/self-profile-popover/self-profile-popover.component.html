@@ -1,0 +1,8 @@
+<p-popover #popover appendTo="body" styleClass="self-profile-popover" [style]="{width: '320px', padding: '0'}"
+           (onHide)="onHide()">
+    <app-self-profile-menu
+            (addAccount)="onAddAccount()"
+            (editProfile)="onEditProfile()"
+            (openAdmin)="onOpenAdmin()"
+            (viewChanged)="realign()"/>
+</p-popover>

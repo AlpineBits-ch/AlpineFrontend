@@ -1,0 +1,19 @@
+/*
+ * The canvas is one element with three cursors, and which one applies depends on what is under
+ * the pointer - which only the hit test knows. Class bindings from the component pick between
+ * them; Tailwind has no `cursor-grabbing` variant that could be driven from a hover selector.
+ */
+.wiki-graph-canvas {
+    cursor: grab;
+    /* The pointer gestures are pan and zoom. Without this, a trackpad drag scrolls the panel
+       behind the graph at the same time and the two fight each other. */
+    touch-action: none;
+}
+
+.wiki-graph-canvas.wiki-graph-pointing {
+    cursor: pointer;
+}
+
+.wiki-graph-canvas.wiki-graph-grabbing {
+    cursor: grabbing;
+}

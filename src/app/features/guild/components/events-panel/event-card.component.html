@@ -1,0 +1,97 @@
+<div [ngClass]="phase() === 'live'
+                    ? 'border-online/30 bg-online/[0.06]'
+                    : 'border-border bg-card hover:border-border-default'"
+     class="group relative rounded-xl border p-3 transition-colors">
+
+    <!-- Manage actions: hover-revealed so the card stays quiet, focus-revealed so they're still reachable from the keyboard. Never on a past event, since there is nothing left to change. -->
+    @if (canManage() && phase() !== 'past') {
+        <div class="absolute top-1.5 right-1.5 flex items-center gap-0.5 rounded-lg bg-sidebar/90 p-0.5
+                    opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+            <p-button (onClick)="edit.emit()" [pTooltip]="'COMMON.EDIT' | translate" [text]="true"
+                      icon="pi pi-pencil" severity="secondary" size="small" tooltipPosition="bottom"/>
+            <p-button (onClick)="cancel.emit()" [pTooltip]="'EVENTS.CANCEL_CONFIRM_HEADER' | translate"
+                      [text]="true" icon="pi pi-trash" severity="danger" size="small" tooltipPosition="bottom"/>
+        </div>
+    }
+
+    <!-- When -->
+    @if (phase() === 'live') {
+        <div class="flex items-center gap-2 min-w-0 pr-16">
+            <!-- The ring is emphasis; the dot's colour carries the meaning on its own, so motion-reduce drops the ring and keeps the dot. -->
+            <span class="relative flex size-1.5 shrink-0">
+                <span class="absolute inline-flex size-full animate-ping rounded-full bg-online opacity-60 motion-reduce:hidden"></span>
+                <span class="relative inline-flex size-full rounded-full bg-online"></span>
+            </span>
+            <span class="text-[0.625rem] font-semibold uppercase tracking-widest text-online shrink-0">
+                {{ 'EVENTS.LIVE' | translate }}
+            </span>
+            @if (endsAt(); as ends) {
+                <span class="text-[0.75rem] text-text-secondary truncate">
+                    {{ 'EVENTS.ENDS_RELATIVE' | translate: {when: (ends | relativeTime: clock.now())} }}
+                </span>
+            }
+        </div>
+    } @else {
+        <div class="flex items-baseline gap-2 min-w-0 pr-16">
+            <span class="text-[0.75rem] font-medium text-brand-dim shrink-0">
+                {{ event().startsAt | date:'EEE, MMM d · h:mm a' }}
+            </span>
+            @if (phase() === 'upcoming') {
+                <span class="text-[0.6875rem] text-text-muted truncate">
+                    {{ event().startsAt | relativeTime: clock.now() }}
+                </span>
+            }
+        </div>
+    }
+
+    <h4 class="mt-1 mb-0 text-[0.9375rem] font-semibold leading-snug text-text-primary break-words">
+        {{ event().title }}
+    </h4>
+
+    @if (event().description) {
+        <p class="mt-1 mb-0 text-[0.8125rem] text-text-secondary line-clamp-2">{{ event().description }}</p>
+    }
+
+    @if (event().location; as location) {
+        <div class="mt-2 flex items-center gap-1.5 min-w-0 text-[0.75rem] text-text-secondary">
+            <i class="pi pi-map-marker text-[0.6875rem] shrink-0 text-text-muted"></i>
+            <span class="truncate">{{ location }}</span>
+        </div>
+    }
+
+    @if (voiceChannelName(); as channelName) {
+        <div class="mt-1.5 flex items-center gap-1.5 min-w-0 text-[0.75rem] text-text-secondary">
+            <i class="pi pi-volume-up text-[0.6875rem] shrink-0 text-text-muted"></i>
+            <span class="truncate">{{ channelName }}</span>
+            @if (voiceParticipantCount() > 0) {
+                <span class="shrink-0 text-text-muted">
+                    · {{ 'EVENTS.IN_VOICE_COUNT' | translate: {count: voiceParticipantCount()} }}
+                </span>
+            }
+        </div>
+    }
+
+    @if (phase() !== 'past') {
+        <div class="mt-3 flex items-center gap-2">
+            <button (click)="interest.emit()"
+                    [attr.aria-pressed]="event().isInterested"
+                    [ngClass]="event().isInterested
+                                   ? 'border-connecting/40 bg-connecting/10 text-connecting'
+                                   : 'border-border text-text-secondary hover:border-border-default hover:text-text-primary'"
+                    [pTooltip]="'EVENTS.INTERESTED' | translate"
+                    class="flex items-center gap-1.5 rounded-lg border bg-transparent px-2 py-1
+                           text-[0.75rem] font-medium cursor-pointer transition-colors"
+                    tooltipPosition="bottom"
+                    type="button">
+                <i [ngClass]="event().isInterested ? 'pi-star-fill' : 'pi-star'" class="pi text-[0.6875rem]"></i>
+                <span>{{ event().interestedCount }}</span>
+            </button>
+
+            <!-- Only while it is actually happening: a Join button on an event three weeks out drops you into an empty channel. -->
+            @if (phase() === 'live' && event().voiceChannelId) {
+                <p-button (onClick)="joinVoice.emit()" [label]="'EVENTS.JOIN_VOICE' | translate"
+                          class="ml-auto" severity="primary" size="small"/>
+            }
+        </div>
+    }
+</div>

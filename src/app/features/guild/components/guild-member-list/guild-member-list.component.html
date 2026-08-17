@@ -1,0 +1,151 @@
+<div class="flex flex-col w-60 bg-sidebar border-l border-white/[0.08] h-full shrink-0">
+    <p-menu #memberMenu [popup]="true" appendTo="body"/>
+
+    <!-- Above the roster, not folded into it: "in the flat" and "app connected" are different questions. Renders nothing without the Presence module. -->
+    <app-home-status-board [guild]="guild()"/>
+
+    <!-- One row, rendered by all three sections. -->
+    <ng-template #memberRow let-member>
+        <div (click)="profileDialogSvc.open(member.userId)"
+             (contextmenu)="onMemberContextMenu($event, member)"
+             class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/[0.06] transition-colors cursor-pointer">
+            <div class="relative shrink-0">
+                <div class="w-8 h-8 rounded-full overflow-hidden bg-card flex items-center justify-center">
+                    @if (avatarUrl(member); as url) {
+                        <img (error)="onAvatarError(url)" [alt]="displayName(member)" [src]="url"
+                             class="w-full h-full object-cover"/>
+                    } @else {
+                        <span class="text-xs font-semibold text-white/40">{{ displayName(member).charAt(0).toUpperCase() }}</span>
+                    }
+                </div>
+                <app-user-status-dot [status]="effectiveStatus(member)" size="md" borderColor="border-sidebar"/>
+            </div>
+
+            <div class="flex flex-col min-w-0 flex-1">
+                <div class="flex items-center gap-1.5 min-w-0">
+                    <span [appUserNameStyle]="nameStyleFor(member)"
+                          [ngClass]="isActive(member) ? 'text-white/80' : 'text-white/35'"
+                          class="text-sm font-medium truncate min-w-0">{{ displayName(member) }}</span>
+                    @if (isBot(member)) {
+                        <span class="shrink-0 text-[9px] font-bold uppercase tracking-wide px-1 py-[1px] rounded bg-brand/20 text-brand-dim">Bot</span>
+                    }
+                    <!-- "Lives here" versus "is staying": Flatmates membership is what puts somebody on the chore rota, so it's worth more than a role chip. -->
+                    @if (isHouseGuest(member)) {
+                        <span class="shrink-0 text-[9px] font-bold uppercase tracking-wide px-1 py-[1px] rounded bg-white/10 text-text-muted">
+                            {{ 'HOUSEHOLD.GUEST' | translate }}
+                        </span>
+                    }
+                    @if (isStreaming(member)) {
+                        <button (click)="watchStream(member, $event)"
+                                class="shrink-0 border-0 bg-transparent p-0 cursor-pointer">
+                            <app-call-live-badge size="sm" variant="soft"/>
+                        </button>
+                    }
+                </div>
+                @if (activityFor(member); as activity) {
+                    <app-activity-line [activity]="activity" size="sm"/>
+                }
+            </div>
+        </div>
+    </ng-template>
+
+    @if (loading()) {
+        <div class="flex items-center justify-center flex-1">
+            <i class="pi pi-spin pi-spinner text-white/30 text-lg"></i>
+        </div>
+    } @else {
+        <div (scroll)="onScroll($event)"
+             class="flex-1 overflow-y-auto px-2 py-2 min-h-0"
+             style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
+
+            @for (group of roleGroups(); track group.role.id) {
+                <p class="text-[10px] font-semibold text-white/25 uppercase tracking-widest px-2 pt-2 pb-1">
+                    {{ group.role.name }} &mdash; {{ group.members.length }}
+                </p>
+                @for (member of group.members; track member.id) {
+                    <ng-container *ngTemplateOutlet="memberRow; context: {$implicit: member}"/>
+                }
+            }
+
+            @if (onlineRows().length > 0) {
+                <p class="text-[10px] font-semibold text-white/25 uppercase tracking-widest px-2 pt-2 pb-1">
+                    Online &mdash; {{ onlineRows().length }}
+                </p>
+                @for (member of onlineRows(); track member.id) {
+                    <ng-container *ngTemplateOutlet="memberRow; context: {$implicit: member}"/>
+                }
+            }
+
+            @if (offlineRows().length > 0) {
+                <p class="text-[10px] font-semibold text-white/25 uppercase tracking-widest px-2 pt-3 pb-1">
+                    Offline &mdash; {{ offlineRows().length }}
+                </p>
+                @for (member of offlineRows(); track member.id) {
+                    <ng-container *ngTemplateOutlet="memberRow; context: {$implicit: member}"/>
+                }
+            }
+
+            @if (loadingMore()) {
+                <div class="flex items-center justify-center py-3">
+                    <i class="pi pi-spin pi-spinner text-white/30 text-sm"></i>
+                </div>
+            }
+
+        </div>
+    }
+</div>
+
+<!-- ── Move out ─────────────────────────────────────────────────────────────
+     Not a kick dialog: the first press asks for nothing beyond confirmation; a 409 turns it into the settle-up decision, the only thing that can authorise a write-off. -->
+<p-dialog (visibleChange)="$event ? null : cancelMoveOut()" [draggable]="false" [modal]="true"
+          [resizable]="false" [style]="{width: '460px'}" [visible]="!!movingOut()" appendTo="body">
+    <ng-template pTemplate="header">
+        <span class="text-sm font-semibold text-text-primary">
+            {{ 'MOVE_OUT.TITLE' | translate: {name: moveOutName()} }}
+        </span>
+    </ng-template>
+
+    <div class="flex flex-col gap-4">
+        @if (moveOutOutstanding().length === 0) {
+            <p class="text-[0.8125rem] text-text-secondary m-0">
+                {{ 'MOVE_OUT.BODY' | translate: {name: moveOutName()} }}
+            </p>
+            <!-- Says what survives, because the thing people expect to be erased is not. -->
+            <p class="text-[0.6875rem] text-text-muted m-0">{{ 'MOVE_OUT.KEEPS_HISTORY' | translate }}</p>
+        } @else {
+            <p class="text-[0.8125rem] text-text-primary m-0">
+                {{ 'MOVE_OUT.NOT_SETTLED' | translate: {name: moveOutName()} }}
+            </p>
+
+            <div class="flex flex-col gap-1.5 rounded-lg border border-border-subtle bg-white/[0.03] p-3">
+                @for (row of moveOutOutstanding(); track row.channelId) {
+                    <div class="flex items-center justify-between gap-3 text-[0.8125rem]">
+                        <span class="text-text-secondary truncate">
+                            {{ (owesTheHouse(row) ? 'MOVE_OUT.OWES' : 'MOVE_OUT.IS_OWED')
+                            | translate: {name: moveOutName()} }}
+                        </span>
+                        <span [class]="owesTheHouse(row) ? 'text-offline' : 'text-online'"
+                              class="font-semibold tabular-nums shrink-0">{{ outstandingLabel(row) }}</span>
+                    </div>
+                }
+            </div>
+
+            <!-- The sentence that has to be read before the write-off button means anything. -->
+            <p class="text-[0.6875rem] text-text-muted m-0">{{ 'MOVE_OUT.WRITE_OFF_EXPLAINER' | translate }}</p>
+        }
+    </div>
+
+    <ng-template pTemplate="footer">
+        <div class="flex justify-end gap-2">
+            <p-button (onClick)="cancelMoveOut()" [label]="'COMMON.CANCEL' | translate"
+                      [text]="true" severity="secondary" size="small"/>
+            @if (moveOutOutstanding().length === 0) {
+                <p-button (onClick)="confirmMoveOut()" [label]="'MOVE_OUT.ACTION' | translate"
+                          [loading]="moveOutBusy()" severity="primary" size="small"/>
+            } @else {
+                <p-button (onClick)="confirmMoveOut(true)" [label]="'MOVE_OUT.WRITE_OFF_AND_MOVE_OUT' | translate"
+                          [loading]="moveOutBusy()" severity="danger" size="small"/>
+            }
+        </div>
+    </ng-template>
+</p-dialog>

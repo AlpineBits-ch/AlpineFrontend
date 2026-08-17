@@ -1,0 +1,97 @@
+<p-dialog
+        (onHide)="onHide()"
+        [(visible)]="dialogVisible"
+        [breakpoints]="{ '480px': '95vw' }"
+        [closable]="true"
+        [dismissableMask]="true"
+        [draggable]="false"
+        [modal]="true"
+        [resizable]="false"
+        [showHeader]="false"
+        [style]="{ width: '360px' }"
+        styleClass="profile-dialog">
+
+    <div class="relative">
+        <button (click)="dialogVisible = false" class="close-btn">
+            <i class="pi pi-times"></i>
+        </button>
+        <app-profile-card
+                (avatarClick)="onAvatarClick()"
+                (avatarErrorChange)="onAvatarError()"
+                [activities]="activities()"
+                [avatarError]="avatarError()"
+                [friendsSince]="friendsSince"
+                [profile]="profile()"/>
+
+        @if (profile() && !isSelf()) {
+            <!-- Block sits above Report: blocking works immediately, a report is a queue. -->
+            <div class="flex flex-col gap-1 px-4 pb-4 pt-1">
+                @if (isBlocked()) {
+                    <p-button [label]="'PROFILE.UNBLOCK' | translate"
+                              severity="secondary" size="small"
+                              styleClass="w-full justify-center"
+                              [loading]="blockPending()"
+                              (onClick)="unblock()"/>
+                } @else {
+                    <p-button [label]="'PROFILE.BLOCK' | translate"
+                              severity="danger" size="small" [text]="true"
+                              styleClass="w-full justify-center"
+                              (onClick)="askToBlock()"/>
+                }
+                <p-button [label]="'REPORT.TITLE_USER' | translate"
+                          icon="pi pi-flag" severity="secondary" size="small" [text]="true"
+                          styleClass="w-full justify-center"
+                          (onClick)="report()"/>
+            </div>
+        }
+    </div>
+
+</p-dialog>
+
+<!-- Blocking severs a friendship and is invisible to the other party, so it is confirmed. -->
+@if (blockConfirmVisible() && profile()) {
+    <p-dialog
+            [(visible)]="blockConfirmVisible"
+            [breakpoints]="{ '480px': '95vw' }"
+            [dismissableMask]="true"
+            [draggable]="false"
+            [modal]="true"
+            [resizable]="false"
+            [showHeader]="false"
+            [style]="{ width: '380px' }">
+        <div class="flex flex-col gap-4 p-5">
+            <h3 class="text-base font-semibold text-white/80">
+                {{ 'PROFILE.BLOCK_CONFIRM_TITLE' | translate:{name: profile()!.userName} }}
+            </h3>
+            <p class="text-sm text-white/45">{{ 'PROFILE.BLOCK_CONFIRM_BODY' | translate }}</p>
+            <div class="flex gap-2">
+                <p-button [label]="'SETTINGS.SECURITY.CANCEL' | translate"
+                          severity="secondary" size="small"
+                          styleClass="flex-1 justify-center"
+                          (onClick)="blockConfirmVisible.set(false)"/>
+                <p-button [label]="'PROFILE.BLOCK' | translate"
+                          severity="danger" size="small"
+                          styleClass="flex-1 justify-center"
+                          [loading]="blockPending()"
+                          (onClick)="confirmBlock()"/>
+            </div>
+        </div>
+    </p-dialog>
+}
+
+<!-- Avatar lightbox -->
+@if (avatarExpanded && profile()?.avatarUrl && !avatarError()) {
+    <p-dialog
+            [(visible)]="avatarExpanded"
+            [dismissableMask]="true"
+            [draggable]="false"
+            [modal]="true"
+            [resizable]="false"
+            [showHeader]="false"
+            [style]="{ background: 'transparent', boxShadow: 'none', border: 'none' }"
+            styleClass="avatar-lightbox-dialog">
+        <div class="flex items-center justify-center p-1">
+            <img [src]="profile()!.avatarUrl" alt="Profile avatar" class="w-72 h-72 rounded-2xl object-cover"/>
+        </div>
+    </p-dialog>
+}

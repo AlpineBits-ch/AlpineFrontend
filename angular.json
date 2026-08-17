@@ -1,0 +1,135 @@
+{
+  "$schema": "./node_modules/@angular/cli/lib/config/schema.json",
+  "cli": {
+    "analytics": false
+  },
+  "newProjectRoot": "projects",
+  "projects": {
+    "alpine": {
+      "architect": {
+        "build": {
+          "builder": "@angular/build:application",
+          "configurations": {
+            "development": {
+              "extractLicenses": false,
+              "optimization": false,
+              "sourceMap": true,
+              "fileReplacements": [
+                {
+                  "replace": "src/environments/environment.ts",
+                  "with": "src/environments/environment.development.ts"
+                }
+              ]
+            },
+            "production": {
+              "budgets": [
+                {
+                  "maximumError": "10MB",
+                  "maximumWarning": "500kB",
+                  "type": "initial"
+                },
+                {
+                  "maximumError": "80kB",
+                  "maximumWarning": "4kB",
+                  "type": "anyComponentStyle"
+                }
+              ],
+              "outputHashing": "all"
+            }
+          },
+          "defaultConfiguration": "production",
+          "options": {
+            "sourceMap": true,
+            "assets": [
+              {
+                "glob": "**/*",
+                "input": "src/assets",
+                "output": "assets",
+                "ignore": [
+                  "wasm/*.d.ts",
+                  "wasm/.gitignore",
+                  "wasm/package.json",
+                  "wasm/README.md"
+                ]
+              },
+              {
+                "glob": "64.png",
+                "input": "node_modules/emoji-datasource-twitter/img/twitter/sheets-256",
+                "output": "emoji-sheets/twitter"
+              }
+            ],
+            "browser": "src/main.ts",
+            "externalDependencies": [
+              "node:fs",
+              "node:path",
+              "node:process",
+              "node:child_process",
+              "node:crypto",
+              "node:util",
+              "node:stream",
+              "node:buffer"
+            ],
+            "inlineStyleLanguage": "scss",
+            "polyfills": [
+              "zone.js"
+            ],
+            "styles": [
+              "src/styles.css",
+              "node_modules/primeicons/primeicons.css",
+              "node_modules/@fontsource-variable/inter/index.css",
+              "node_modules/@fontsource-variable/lora/index.css",
+              "node_modules/@fontsource-variable/fira-code/index.css",
+              "node_modules/@fontsource-variable/quicksand/index.css",
+              "node_modules/@fontsource/bebas-neue/index.css",
+              "node_modules/@fontsource-variable/caveat/index.css"
+            ],
+            "tsConfig": "tsconfig.app.json"
+          }
+        },
+        "test": {
+          "builder": "@angular/build:unit-test",
+          "options": {
+            "buildTarget": "alpine:build:development",
+            "tsConfig": "tsconfig.spec.json",
+            "runnerConfig": true
+          }
+        },
+        "serve": {
+          "builder": "@angular/build:dev-server",
+          "configurations": {
+            "development": {
+              "buildTarget": "alpine:build:development"
+            },
+            "production": {
+              "buildTarget": "alpine:build:production"
+            }
+          },
+          "defaultConfiguration": "development",
+          "options": {
+            "port": 1420
+          }
+        }
+      },
+      "prefix": "app",
+      "projectType": "application",
+      "root": "",
+      "schematics": {
+        "@schematics/angular:component": {
+          "style": "css",
+          "type": "component"
+        },
+        "@schematics/angular:service": {
+          "type": "service"
+        },
+        "@schematics/angular:directive": {
+          "type": "directive"
+        },
+        "@schematics/angular:pipe": {
+          "type": "pipe"
+        }
+      },
+      "sourceRoot": "src"
+    }
+  },
+  "version": 1
+}

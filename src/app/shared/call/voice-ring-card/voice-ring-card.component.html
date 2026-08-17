@@ -1,0 +1,41 @@
+@if (ringState.hasIncoming()) {
+    <div class="pointer-events-auto flex flex-col gap-2">
+        @for (incoming of ringState.incoming(); track incoming.ring.ringId) {
+            <div class="w-72 rounded-2xl border border-border-default bg-card p-4 shadow-xl">
+                <div class="flex items-center gap-3">
+                    <app-avatar [label]="initial(incoming)" [userId]="incoming.ring.inviterId"/>
+                    <div class="min-w-0 flex-1">
+                        <p class="m-0 truncate text-sm font-semibold text-white/85">
+                            {{ 'VOICE_RING.INVITED_BY' | translate: {name: name(incoming)} }}
+                        </p>
+                        <p class="m-0 truncate text-xs text-white/45">
+                            {{ incoming.ring.channelName ?? ('VOICE_RING.A_VOICE_CHANNEL' | translate) }}
+                        </p>
+                    </div>
+                    <!-- Counted from expiresInSeconds, never differenced against a local clock. -->
+                    <span class="shrink-0 text-xs tabular-nums text-white/35">{{ incoming.secondsLeft }}s</span>
+                </div>
+
+                @if (incoming.ring.participantUserIds.length) {
+                    <p class="m-0 mt-2 text-[0.6875rem] text-white/35">
+                        {{ 'VOICE_RING.ALREADY_IN' | translate: {count: incoming.ring.participantUserIds.length} }}
+                    </p>
+                }
+
+                <!-- The join endpoint moves them for us, so without this the move is silent. -->
+                @if (alreadyInVoice()) {
+                    <p class="m-0 mt-2 text-[0.6875rem] text-amber-300/80">{{ 'VOICE_RING.WILL_MOVE_YOU' | translate }}</p>
+                }
+
+                <div class="mt-3 flex justify-end gap-2">
+                    <p-button (onClick)="ringState.decline(incoming.ring.ringId)"
+                              [label]="'VOICE_RING.DECLINE' | translate"
+                              [text]="true" severity="secondary" size="small"/>
+                    <p-button (onClick)="ringState.accept(incoming.ring.ringId)"
+                              [label]="'VOICE_RING.ACCEPT' | translate"
+                              icon="pi pi-check" severity="primary" size="small"/>
+                </div>
+            </div>
+        }
+    </div>
+}

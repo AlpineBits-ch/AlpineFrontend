@@ -1,0 +1,133 @@
+<div class="flex flex-col h-full min-w-0">
+
+    <!-- Unsaved draft recovery. -->
+    @if (pendingDraft(); as draft) {
+        <div class="flex shrink-0 items-center gap-3 border-b border-brand/20 bg-brand/[0.06]
+                    px-6 py-2.5">
+            <i class="pi pi-history text-[0.8125rem] text-brand-dim"></i>
+            <span class="flex-1 text-[0.8125rem] text-white/70">
+                {{ 'WIKI.DRAFT.UNSAVED' | translate: {age: draftAge()} }}
+            </span>
+            <button (click)="restoreDraft()"
+                    class="cursor-pointer rounded border-0 bg-brand/20 px-3 py-1 text-[0.75rem]
+                           font-medium text-brand-dim hover:bg-brand/30">
+                {{ 'WIKI.DRAFT.RESTORE' | translate }}
+            </button>
+            <button (click)="discardDraft()"
+                    class="cursor-pointer border-0 bg-transparent px-1 text-[0.75rem] text-white/40
+                           hover:text-white/65">
+                {{ 'WIKI.DRAFT.DISCARD' | translate }}
+            </button>
+        </div>
+    }
+
+    <!-- Formatting bar. Edit mode only; reading a page shows no chrome at all. -->
+    @if (editing()) {
+        <app-wiki-toolbar #toolbar (insertImage)="openFilePicker()" (toggleSource)="toggleSourceMode()"
+                          [editor]="editorInstance()" [sourceMode]="sourceMode()"/>
+    }
+
+    <!-- Body padding is the only padding for both modes: read and edit render the same element, so there is no second value to drift out of step. -->
+    <div #scrollEl class="flex-1 min-h-0 overflow-y-auto thin-scrollbar">
+        <div class="mx-auto w-full max-w-[68ch] px-8 py-10">
+
+            <!-- Title: a separate DTO field rendered as the first line of the body, so the header above stays a slim breadcrumb bar. -->
+            <input (ngModelChange)="onTitleInput($event)"
+                   [class.cursor-default]="!editing()"
+                   [ngModel]="title()"
+                   [readOnly]="!editing()"
+                   class="mb-2 w-full border-0 bg-transparent text-[2rem] font-bold leading-tight
+                          text-white/90 outline-none placeholder-white/20"
+                   [placeholder]="'WIKI.ARTICLE.UNTITLED' | translate"/>
+
+            <!-- Kept mounted, never destroyed: source mode hides this rather than tearing the editor down, so toggling back keeps the undo history and the caret. -->
+            <!-- wiki-wysiwyg carries every rule targeting ProseMirror's own DOM (task-list checkboxes, placeholder, table cell selection, upload shimmer); do not drop it. -->
+            <div #editorEl [class.hidden]="sourceMode()"
+                 class="wiki-content wiki-wysiwyg wiki-article-body"></div>
+
+            @if (showEmptyState()) {
+                <div class="rounded-xl border border-dashed border-white/[0.12] px-6 py-10 text-center">
+                    <i class="pi pi-file-edit mb-3 block text-2xl text-white/15"></i>
+                    <p class="mb-1 text-sm text-white/45">
+                        {{ 'WIKI.ARTICLE.EMPTY_TITLE' | translate }}
+                    </p>
+                    <p class="mb-5 text-xs text-white/25">
+                        {{ 'WIKI.ARTICLE.EMPTY_HINT' | translate }}
+                    </p>
+                    <div class="flex items-center justify-center gap-2">
+                        <p-button (onClick)="requestEdit.emit()" icon="pi pi-pencil"
+                                  [label]="'WIKI.ARTICLE.START_EDITING' | translate"
+                                  severity="primary" size="small"/>
+                        <p-button (onClick)="requestAi.emit()" icon="pi pi-sparkles"
+                                  [label]="'WIKI.ARTICLE.WRITE_WITH_AI' | translate"
+                                  severity="secondary" size="small"/>
+                    </div>
+                </div>
+            }
+
+            @if (sourceMode()) {
+                <!-- ProseMirror's keymap plugin does not apply here, so the textarea must answer these shortcuts itself, or the key that opened markdown mode cannot close it. -->
+                <textarea (keydown)="onSourceKeydown($event)"
+                          (ngModelChange)="onSourceInput($event)"
+                          [ngModel]="sourceText()"
+                          class="min-h-[24rem] w-full resize-y border-0 bg-transparent font-mono
+                                 text-[0.8125rem] leading-relaxed text-white/80 outline-none
+                                 placeholder-white/20 thin-scrollbar"
+                          [placeholder]="'WIKI.ARTICLE.SOURCE_PLACEHOLDER' | translate"
+                          spellcheck="false"></textarea>
+            }
+
+            <!-- Edit summary, offered only when the body changed: the server attaches it to the revision that change creates, and there is none otherwise. -->
+            @if (summaryApplies()) {
+                <div class="mt-6 border-t border-white/[0.06] pt-4">
+                    <div class="flex items-center gap-2">
+                        <i class="pi pi-pencil text-[0.75rem] text-white/25"></i>
+                        <input (keydown.enter)="save()"
+                               (ngModelChange)="editSummary.set($event)"
+                               [ngModel]="editSummary()"
+                               class="flex-1 border-0 bg-transparent text-[0.8125rem] text-white/70
+                                      outline-none placeholder-white/25"
+                               [placeholder]="'WIKI.ARTICLE.SUMMARY_PLACEHOLDER' | translate"/>
+                    </div>
+                    <!-- descriptionSelected is left unbound: there is no page description field in the DTO to put it in. -->
+                    <div class="mt-2 pl-5">
+                        <app-wiki-ai-metadata (summarySelected)="editSummary.set($event)"
+                                              (tagsSelected)="tagsSuggested.emit($event)"
+                                              [content]="aiMetadataContent()"
+                                              [existingTags]="page()?.tags ?? []"
+                                              [pageTitle]="title()"/>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<input #fileInputEl (change)="onFilesSelected($event)"
+       accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.zip,.rar"
+       class="hidden" multiple type="file"/>
+
+<!-- Editor chrome, all of it on demand: nothing here is on screen while you are just reading. -->
+<app-wiki-bubble-menu #bubbleMenu (aiAction)="aiInline.runTransform($event)"
+                     [editor]="editorInstance()"/>
+<app-wiki-ai-inline #aiInline
+                    [editable]="editing()"
+                    [editor]="editorInstance()"
+                    [pageTitle]="title()"
+                    [pageTitles]="pageTitles()"/>
+<app-wiki-slash-menu #slashMenu (selected)="applySlashItem($event)"
+                     [editor]="editorInstance()" [open]="slashOpen()"
+                     [position]="suggestPosition()" [query]="suggestQuery()"/>
+<app-wiki-link-menu #linkMenu (selected)="applyPageLink($event)"
+                    [open]="linkMenuOpen()" [pages]="wiki()?.pages ?? []"
+                    [position]="suggestPosition()" [query]="suggestQuery()"/>
+<app-wiki-emoji-menu #emojiMenu (selected)="applyEmoji($event)"
+                     [open]="emojiMenuOpen()"
+                     [position]="suggestPosition()" [query]="suggestQuery()"/>
+<app-wiki-mention-menu #mentionMenu (selected)="applyMention($event)"
+                       [guildId]="guildId()" [open]="mentionMenuOpen()"
+                       [position]="suggestPosition()" [query]="suggestQuery()"/>
+
+<!-- Read mode too: knowing where a link goes is not an editing concern. -->
+<app-wiki-link-preview [open]="previewOpen()" [page]="previewPage()"
+                       [position]="previewPosition()" [snippet]="previewSnippet()"/>

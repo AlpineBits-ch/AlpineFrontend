@@ -1,0 +1,133 @@
+@if (picker.visible()) {
+    <!-- Backdrop -->
+    <div (click)="cancel()"
+         class="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm">
+
+        <!-- Panel. -->
+        <div (click)="$event.stopPropagation()"
+             class="relative flex flex-col w-[min(56.25rem,92vw)] max-h-[80vh] bg-sidebar rounded-2xl border border-border shadow-2xl overflow-hidden">
+
+            <!-- Header -->
+            <div class="flex items-center justify-between px-5 py-4 border-b border-border-subtle shrink-0">
+                <div>
+                    <h2 class="text-sm font-semibold text-text-primary">Share your screen</h2>
+                    <p class="text-xs text-text-muted mt-0.5">
+                        Pick a screen or application to start sharing
+                    </p>
+                </div>
+                <button (click)="cancel()"
+                        class="flex items-center justify-center w-7 h-7 rounded-lg text-text-muted
+                 hover:text-text-primary hover:bg-white/[0.08] transition-colors cursor-pointer">
+                    <i class="pi pi-times text-xs"></i>
+                </button>
+            </div>
+
+            <!-- Tabs, and the one setting that has to be decided before the share starts. -->
+            <div class="flex items-center justify-between gap-3 px-5 pt-3 shrink-0">
+                <div class="flex gap-1">
+                    <button (click)="activeTab.set('monitors')"
+                            [class.bg-brand]="activeTab() === 'monitors'"
+                            [class.hover:text-text-secondary]="activeTab() !== 'monitors'"
+                            [class.text-text-muted]="activeTab() !== 'monitors'"
+                            [class.text-white]="activeTab() === 'monitors'"
+                            class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer">
+                        Screens
+                    </button>
+                    <button (click)="activeTab.set('windows')"
+                            [class.bg-brand]="activeTab() === 'windows'"
+                            [class.hover:text-text-secondary]="activeTab() !== 'windows'"
+                            [class.text-text-muted]="activeTab() !== 'windows'"
+                            [class.text-white]="activeTab() === 'windows'"
+                            class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer">
+                        Applications
+                    </button>
+                </div>
+
+                <div class="flex items-center gap-2">
+                    <p-checkbox (ngModelChange)="shareAudio.set($event)"
+                                [binary]="true"
+                                [ngModel]="shareAudio()"
+                                inputId="share-system-audio"
+                                size="small"/>
+                    <label class="text-xs text-text-secondary cursor-pointer" for="share-system-audio">
+                        Share system audio
+                    </label>
+                </div>
+            </div>
+
+            <!-- Source grid. A tile is the whole interaction: clicking one goes live. -->
+            <div class="flex-1 overflow-y-auto px-5 py-3 min-h-0 thin-scrollbar">
+
+                @if (picker.loading()) {
+                    <div class="flex flex-col items-center justify-center gap-3 py-12 text-text-muted">
+                        <i class="pi pi-spin pi-spinner text-2xl"></i>
+                        <!-- No longer "capturing previews": this step is metadata only, and
+                             each tile fetches its own image once it is on screen. -->
+                        <span class="text-xs">Finding screens and windows…</span>
+                    </div>
+                } @else {
+                    @let list = activeTab() === 'monitors' ? monitors : windows;
+
+                    @if (list.length === 0) {
+                        <div class="flex flex-col items-center justify-center gap-2 py-12 text-text-muted">
+                            <i class="pi pi-desktop text-2xl"></i>
+                            <span class="text-xs">No {{ activeTab() === 'monitors' ? 'screens' : 'applications' }}
+                                found</span>
+                        </div>
+                    } @else {
+                        <!-- Two per row, every tile the same size. -->
+                        <div class="grid grid-cols-2 gap-3">
+                            @for (source of list; track source.id) {
+                                <button (appInView)="picker.requestThumbnail(source.id)"
+                                        (click)="select(source)"
+                                        [class.border-border-subtle]="suggestedSourceId() !== source.id"
+                                        [class.border-brand]="suggestedSourceId() === source.id"
+                                        class="relative flex flex-col rounded-xl border-2 overflow-hidden
+                     hover:border-brand transition-all cursor-pointer group text-left">
+
+                                    <!--
+                                      A fixed 16:9 box for every source, whatever shape it really is, and the image fills it.
+                                    -->
+                                    <div class="relative w-full bg-black/40" style="aspect-ratio: 16/9">
+                                        @if (thumbSrc(source); as src) {
+                                            <img [src]="src"
+                                                 alt=""
+                                                 class="w-full h-full object-cover"/>
+                                        } @else if (isThumbnailPending(source)) {
+                                            <!-- Asked for and not back yet. -->
+                                            <div class="flex items-center justify-center w-full h-full text-text-muted">
+                                                <i class="pi pi-spin pi-spinner text-lg opacity-40"></i>
+                                            </div>
+                                        } @else {
+                                            <div class="flex items-center justify-center w-full h-full text-text-muted">
+                                                <i [ngClass]="source.isMonitor ? 'pi-desktop' : 'pi-window-maximize'"
+                                                   class="pi text-2xl"></i>
+                                            </div>
+                                        }
+
+                                        <!-- The activity hint's tile. -->
+                                        @if (suggestedSourceId() === source.id) {
+                                            <div class="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-full
+                                                        bg-brand text-[0.625rem] font-medium text-white">
+                                                Suggested
+                                            </div>
+                                        }
+                                    </div>
+
+                                    <!-- Label -->
+                                    <div class="px-2.5 py-2 bg-card">
+                                        <p class="text-xs font-medium text-text-primary truncate leading-snug">{{ source.name }}</p>
+                                        @if (source.isMonitor) {
+                                            <p class="text-[0.625rem] text-text-muted mt-0.5">{{ source.width }}
+                                                ×{{ source.height }}</p>
+                                        }
+                                    </div>
+                                </button>
+                            }
+                        </div>
+                    }
+                }
+            </div>
+        </div>
+    </div>
+}

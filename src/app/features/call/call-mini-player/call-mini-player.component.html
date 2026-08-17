@@ -1,0 +1,129 @@
+@if (visible()) {
+    <!-- `left`/`top` stay unset until the tile has been dragged once. -->
+    <section #tile
+             [attr.aria-label]="'CALL.MINI_PLAYER' | translate"
+             [class.bottom-4]="!position()"
+             [class.right-4]="!position()"
+             [style.left.px]="position()?.x"
+             [style.top.px]="position()?.y"
+             class="mini-player fixed z-40 w-64 overflow-hidden rounded-xl border border-border-subtle
+                    bg-sidebar shadow-[0_8px_28px_rgba(0,0,0,0.55)]"
+             role="region">
+
+        <!-- Drag handle. The whole header, so there is no thin grip to hunt for. -->
+        <header (mousedown)="onDragStart($event)"
+                class="flex cursor-move select-none items-center gap-1.5 border-b border-border-subtle
+                       bg-card px-2.5 py-1.5">
+            @if (focusedShare()) {
+                <app-call-live-badge [dot]="true" size="sm" variant="soft"/>
+            }
+            <span class="min-w-0 flex-1 truncate text-[0.6875rem] font-semibold text-white/85">
+                {{ title() }}
+            </span>
+
+            <!-- Sends the tile away for this session. -->
+            <app-call-tile-action
+                    (action)="dismiss()"
+                    [label]="'CALL.HIDE_MINI_PLAYER' | translate"
+                    icon="pi-times"
+                    size="sm"/>
+        </header>
+
+        @if (focusedShare(); as share) {
+            <div class="relative aspect-video w-full bg-black">
+                <!-- Guarded because a CallScreenShare need not carry a MediaStream at all. -->
+                @if (share.stream; as stream) {
+                    <video [streamSrc]="stream" autoplay class="h-full w-full object-contain" muted
+                           playsinline></video>
+                } @else {
+                    <div class="flex h-full w-full items-center justify-center">
+                        <i class="pi pi-desktop text-2xl text-white/20"></i>
+                    </div>
+                }
+            </div>
+        } @else {
+            <!--
+              Nobody is sharing: the roster in miniature, so the tile still says who you are with and who is talking.
+            -->
+            <div [class]="'grid gap-1 bg-stage p-2 ' + (miniature().length > 1 ? 'grid-cols-2' : 'grid-cols-1')">
+                @for (p of miniature(); track p.userId) {
+                    <div class="relative flex aspect-video items-center justify-center overflow-hidden
+                                rounded-lg bg-black/40">
+                        @if (p.isCameraOn && p.videoStream) {
+                            <video [streamSrc]="p.videoStream" autoplay class="h-full w-full object-cover"
+                                   muted playsinline></video>
+                        } @else {
+                            <span [class.speaking-ring]="p.isSpeaking"
+                                  class="flex size-7 items-center justify-center rounded-full bg-sidebar
+                                         text-[0.625rem] font-semibold text-white/70">
+                                {{ p.avatarLabel }}
+                            </span>
+                        }
+                        @if (p.isMuted) {
+                            <!-- The slash goes on a positioned wrapper, never on the <i> - the
+                                 icon's own ::before is the glyph. See .icon-slashed. -->
+                            <span class="icon-slashed absolute bottom-1 right-1 flex items-center
+                                         justify-center text-offline">
+                                <i class="pi pi-microphone text-[0.625rem]"></i>
+                            </span>
+                        }
+                    </div>
+                }
+            </div>
+            @if (overflowCount() > 0) {
+                <p class="px-2 pb-2 text-[0.625rem] text-white/40">+{{ overflowCount() }}</p>
+            }
+        }
+
+        <!-- Mute, deafen, back to the call, hang up. Deliberately short: everything else, screen
+             sharing included, stays in the stage and in the sidebar voice bar. -->
+        <div [attr.aria-label]="'CALL.CONTROLS' | translate"
+             class="flex items-center gap-1 border-t border-border-subtle bg-card px-2 py-1.5"
+             role="group">
+
+            <button (click)="toggleMute()"
+                    [attr.aria-label]="(isMuted() ? 'CALL.UNMUTE' : 'CALL.MUTE') | translate"
+                    [attr.aria-pressed]="isMuted()"
+                    [attr.title]="(isMuted() ? 'CALL.UNMUTE' : 'CALL.MUTE') | translate"
+                    [class]="toggleClass(isMuted())"
+                    type="button">
+                <!-- The slash is drawn rather than looked up - PrimeIcons has no slashed microphone. -->
+                <span [class.icon-slashed]="isMuted()" class="relative flex items-center justify-center">
+                    <i class="pi pi-microphone text-xs"></i>
+                </span>
+            </button>
+
+            <button (click)="toggleDeafen()"
+                    [attr.aria-label]="(isDeafened() ? 'CALL.UNDEAFEN' : 'CALL.DEAFEN') | translate"
+                    [attr.aria-pressed]="isDeafened()"
+                    [attr.title]="(isDeafened() ? 'CALL.UNDEAFEN' : 'CALL.DEAFEN') | translate"
+                    [class]="toggleClass(isDeafened())"
+                    type="button">
+                <span [class.icon-slashed]="isDeafened()" class="relative flex items-center justify-center">
+                    <i class="pi pi-headphones text-xs"></i>
+                </span>
+            </button>
+
+            <!-- The reason the tile is not a dead end. Focuses the stream being watched here once
+                 the stage comes up - see returnToCall(). -->
+            <button (click)="returnToCall()"
+                    [attr.title]="'CALL.RETURN_TO_CALL' | translate"
+                    class="call-focusable ml-auto flex min-w-0 cursor-pointer items-center gap-1.5 rounded-lg
+                           border-0 bg-brand/15 px-2 py-1.5 text-[0.6875rem] font-semibold text-brand-dim
+                           transition-colors hover:bg-brand/25"
+                    type="button">
+                <i class="pi pi-window-maximize text-[0.625rem]"></i>
+                <span class="truncate">{{ 'CALL.RETURN_TO_CALL' | translate }}</span>
+            </button>
+
+            <button (click)="disconnect()"
+                    [attr.aria-label]="disconnectLabelKey() | translate"
+                    [attr.title]="disconnectLabelKey() | translate"
+                    class="call-focusable flex size-7 shrink-0 cursor-pointer items-center justify-center
+                           rounded-lg border-0 bg-offline/15 text-offline transition-colors hover:bg-offline/25"
+                    type="button">
+                <i class="pi pi-phone rotate-[135deg] text-xs"></i>
+            </button>
+        </div>
+    </section>
+}

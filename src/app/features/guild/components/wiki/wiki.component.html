@@ -1,0 +1,217 @@
+<!-- `?` and `e`. Both are single-key, so the directive is gated off while the editor is open -
+     otherwise typing either character into a page would trigger them. -->
+<div (editRequested)="state.openEditor(state.selectedPage() ?? undefined)"
+     (helpRequested)="shortcutsOpen.set(true)"
+     [editShortcutEnabled]="state.wikiView() === 'page' && canEditCurrent()"
+     [shortcutsEnabled]="state.wikiView() !== 'editor'"
+     appWikiShortcutKeys
+     class="flex h-full min-w-0 flex-1 overflow-hidden bg-app-bg">
+
+    <!-- Nav. One instance at every width - a column at `lg` and up, an overlay drawer below.
+         See the stylesheet for why it is not two. -->
+    <div [class.is-collapsed]="navCollapsed()"
+         [class.is-open]="navDrawerOpen()"
+         [style.width.px]="navWidth()"
+         class="wiki-nav-col shrink-0 h-full bg-sidebar border-r border-white/[0.10]">
+        <app-wiki-nav (search)="searchOpen.set(true)" class="flex flex-col flex-1 min-h-0"/>
+    </div>
+    <!-- Drag handle. A 1px seam widened to a grabbable target by the ::after in the
+         stylesheet, so resizing never opens a visible gutter. -->
+    @if (!navCollapsed()) {
+        <div (mousedown)="startResize($event)"
+             class="hidden lg:block wiki-resize-handle shrink-0"></div>
+    }
+    @if (navDrawerOpen()) {
+        <div (click)="navDrawerOpen.set(false)" class="fixed inset-0 z-40 bg-black/60 lg:hidden"></div>
+    }
+
+    <!-- Article column -->
+    <div class="flex-1 min-w-0 flex flex-col h-full overflow-hidden">
+        @if (navCollapsed()) {
+            <button (click)="navCollapsed.set(false)"
+                    class="absolute left-2 top-2 z-10 hidden lg:flex h-7 w-7 cursor-pointer items-center
+                           justify-center rounded-lg border border-border bg-card text-white/45
+                           hover:text-white/80"
+                    [title]="'WIKI.SHOW_PAGES' | translate">
+                <i class="pi pi-angle-right text-[0.75rem]"></i>
+            </button>
+        }
+
+        <!-- Home, history and the graph draw no breadcrumb bar, so the drawer needs its own way
+             in on those views. -->
+        @if (state.wikiView() !== 'page' && state.wikiView() !== 'editor') {
+            <button (click)="navDrawerOpen.set(true)"
+                    class="absolute left-2 top-2 z-10 flex lg:hidden h-7 w-7 cursor-pointer items-center
+                           justify-center rounded-lg border border-border bg-card text-white/45
+                           hover:text-white/80"
+                    [title]="'WIKI.SHOW_PAGES' | translate">
+                <i class="pi pi-bars text-[0.75rem]"></i>
+            </button>
+        }
+
+        @if (state.wikiView() === 'page' || state.wikiView() === 'editor') {
+            <app-wiki-breadcrumbs (ask)="askOpen.set(true)"
+                                  (cancel)="state.cancelEditor()"
+                                  (openNav)="navDrawerOpen.set(true)"
+                                  (openRail)="railDrawerOpen.set(true)"
+                                  (deletePage)="showDeleteDialog.set(true)"
+                                  (draftWithAi)="openAiDialog()"
+                                  (edit)="state.openEditor(state.selectedPage() ?? undefined)"
+                                  (history)="state.openHistory()"
+                                  (openSegment)="state.openPage($event)"
+                                  (save)="article()?.save()"
+                                  (share)="shareOpen.set(true)"
+                                  [canDelete]="state.abilities().canDelete"
+                                  [canEdit]="canEditCurrent()"
+                                  [editing]="state.wikiView() === 'editor'"
+                                  [pageId]="(state.wikiView() === 'editor' ? state.editingPage()?.id : state.selectedPage()?.id) ?? null"
+                                  [saveStatus]="saveStatus()"
+                                  [wiki]="state.wiki()"/>
+        }
+
+        <!-- One article element for both reading and editing.
+             Not a @switch with a branch each: those are separate embedded views, so every Edit
+             click tore down the ProseMirror instance and built a new one - which is both the
+             layout jump the redesign set out to remove and the source of the repeated
+             "linkify already initialized" warnings. -->
+        @if (state.wikiView() === 'home') {
+            <app-wiki-home (ask)="askOpen.set(true)"
+                           (draftWithAi)="startAiPage()"
+                           (newPage)="state.openEditor()"
+                           (openGraph)="state.openGraph()"
+                           (openPage)="state.openPage($event)"
+                           (openSearch)="searchOpen.set(true)"
+                           [canCreate]="state.abilities().canCreate"
+                           [wiki]="state.wiki()"
+                           class="flex-1 min-h-0"/>
+        } @else if (state.wikiView() === 'graph') {
+            <app-wiki-graph (back)="state.openHome()"
+                            (openPage)="state.openPage($event)"
+                            [guildId]="guildId()"
+                            [wiki]="state.wiki()"
+                            class="flex-1 min-h-0"/>
+        } @else if (state.wikiView() === 'history') {
+            @if (state.selectedPage(); as page) {
+                <app-wiki-history (back)="state.wikiView.set('page')"
+                                  (restored)="state.afterRestored($event)"
+                                  [guildId]="guildId()"
+                                  [page]="page"
+                                  class="flex-1 min-h-0"/>
+            }
+        } @else if (state.wikiView() === 'page' && state.pageLoading()) {
+            <div class="flex-1 flex flex-col items-center justify-center gap-3 text-white/20">
+                <i class="pi pi-spin pi-spinner text-2xl"></i>
+                <span class="text-sm">{{ 'WIKI.LOADING_PAGE' | translate }}</span>
+            </div>
+        } @else if (state.wikiView() === 'editor' || state.selectedPage()) {
+            <!-- `canEdit`, `requestEdit` and `requestAi` were declared on the article and never
+                 bound here, which left the empty-page state permanently switched off (it is
+                 gated on `canEdit`) and both of its buttons inert. The slash menu's AI rows also
+                 arrive through `requestAi`. -->
+            <app-wiki-article #article
+                              (cancelled)="state.cancelEditor()"
+                              (contentChanged)="liveContent.set($event)"
+                              (headingsChanged)="onHeadingsChanged($event)"
+                              (requestAi)="openAiDialog()"
+                              (requestEdit)="state.openEditor(state.selectedPage() ?? undefined)"
+                              (saveStatusChanged)="saveStatus.set($event)"
+                              (saved)="onEditorSaved($event)"
+                              (tagsSuggested)="aiSuggestedTags.set($event)"
+                              (wikiLinkClicked)="openLinkedPage($event)"
+                              [canEdit]="canEditCurrent()"
+                              [pageTitles]="siblingTitles()"
+                              [editing]="state.wikiView() === 'editor'"
+                              [guildId]="guildId()"
+                              [page]="articlePage()"
+                              [wiki]="state.wiki()"
+                              class="flex-1 min-h-0"/>
+        }
+    </div>
+
+    <!-- Context rail. Occupies the width the article deliberately does not take, which is what
+         turns the old dead gutter into something useful. Below `xl` it is the same element as a
+         right-hand drawer rather than something the narrow window simply does without. -->
+    @if (state.wikiView() === 'page' || state.wikiView() === 'editor') {
+        @if (railDrawerOpen()) {
+            <div (click)="railDrawerOpen.set(false)" class="fixed inset-0 z-40 bg-black/60 xl:hidden"></div>
+        }
+        <div [class.is-open]="railDrawerOpen()"
+             class="wiki-rail-col flex xl:w-[17.5rem] shrink-0 h-full bg-sidebar border-l border-white/[0.10]">
+            <!-- `[page]` is deliberately `selectedPage()`, not `articlePage()`: the rail writes
+                 metadata, and pointing it at `editingPage()` would let a pin reset the document
+                 under an open editor. -->
+            <app-wiki-context-rail (openPage)="state.openPage($event)"
+                                   (tocEntrySelected)="scrollToHeading($event)"
+                                   [guildId]="guildId()"
+                                   [headings]="headings()"
+                                   [liveContent]="liveContent()"
+                                   [page]="state.selectedPage()"
+                                   [wiki]="state.wiki()"
+                                   class="flex-1 min-w-0"/>
+        </div>
+    }
+</div>
+
+<app-wiki-ai-dialog (closed)="aiOpen.set(false)"
+                   (insert)="onAiInsert($event)"
+                   (replace)="onAiReplace($event)"
+                   (streamRequest)="onAiStreamRequest($event)"
+                   [canStreamInPlace]="state.wikiView() === 'editor'"
+                   [existingContent]="article()?.currentContent() ?? ''"
+                   [open]="aiOpen()"
+                   [pageTitle]="article()?.currentTitle() ?? ''"
+                   [pageTitles]="siblingTitles()"/>
+
+<!-- Answers from this wiki's own pages, cited back to them. -->
+<app-wiki-ai-ask (closed)="askOpen.set(false)"
+                 (pageSelected)="openLinkedPage($event)"
+                 (warmRequested)="cache.warm(guildId())"
+                 [open]="askOpen()"
+                 [sources]="askSources()"
+                 [sourcesComplete]="cache.warmed()"
+                 [sourcesFailed]="cache.failed()"
+                 [sourcesLoading]="cache.warming()"/>
+
+<!-- Offered for a new page only, and suppressed when an unsaved draft is already competing for
+     the same blank document - see `openEditor`. -->
+<app-wiki-template-picker (chosen)="applyTemplate($event)"
+                          (closed)="state.templatePickerOpen.set(false)"
+                          [open]="state.templatePickerOpen()"/>
+
+<app-wiki-shortcuts-overlay (closed)="shortcutsOpen.set(false)" [open]="shortcutsOpen()"/>
+
+<!-- Sharing a page into a channel is the wiki's one way back into the chat it lives inside. -->
+<app-wiki-share-dialog (closed)="shareOpen.set(false)"
+                       [guildId]="guildId()"
+                       [open]="shareOpen()"
+                       [page]="state.selectedPage()"/>
+
+<app-wiki-search-palette (closed)="searchOpen.set(false)"
+                        (pageSelected)="state.openPage($event)"
+                        [canCreate]="state.abilities().canCreate"
+                        [guildId]="guildId()"
+                        [open]="searchOpen()"
+                        [wiki]="state.wiki()"/>
+
+<!-- Delete confirmation -->
+<p-dialog
+        [(visible)]="showDeleteDialog"
+        [closable]="true" [dismissableMask]="true" [draggable]="false" [modal]="true"
+        [resizable]="false" [style]="{width: '380px'}"
+        appendTo="body">
+    <ng-template pTemplate="header">
+        <div class="flex items-center gap-2">
+            <i class="pi pi-trash text-rose-400"></i>
+            <span class="text-sm font-semibold text-white/85">{{ 'WIKI.DIALOG.DELETE_TITLE' | translate }}</span>
+        </div>
+    </ng-template>
+    <p class="py-2 text-sm text-white/60">
+        {{ 'WIKI.DIALOG.DELETE_BODY' | translate: {title: state.selectedPage()?.title} }}
+    </p>
+    <div class="mt-4 flex justify-end gap-2 border-t border-white/[0.06] pt-4">
+        <p-button (onClick)="showDeleteDialog.set(false)" [label]="'COMMON.CANCEL' | translate" severity="secondary"
+                  size="small"/>
+        <p-button (onClick)="confirmDelete()" [loading]="deleting()" [label]="'WIKI.DELETE' | translate" severity="danger"
+                  size="small"/>
+    </div>
+</p-dialog>

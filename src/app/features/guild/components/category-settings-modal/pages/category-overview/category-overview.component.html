@@ -1,0 +1,30 @@
+<div class="max-w-lg space-y-6">
+    <div>
+        <label class="block text-xs font-semibold text-white/40 uppercase tracking-widest mb-2">
+            Category Name <span class="text-rose-400">*</span>
+        </label>
+        <input (ngModelChange)="name.set($event); onChange()"
+               [ngModel]="name()"
+               class="w-full"
+               pInputText
+               placeholder="e.g. GENERAL"/>
+    </div>
+
+    <div>
+        <label class="block text-xs font-semibold text-white/40 uppercase tracking-widest mb-2">Description</label>
+        <textarea (ngModelChange)="description.set($event); onChange()"
+                  [ngModel]="description()"
+                  class="w-full resize-none"
+                  pTextarea
+                  placeholder="Describe this category" rows="2"></textarea>
+    </div>
+
+    @if (dirty()) {
+        <div class="flex items-center gap-3 pt-1">
+            <p-button (onClick)="save()" [loading]="saving()" label="Save Changes"
+                      severity="primary" size="small"/>
+            <p-button (onClick)="ngOnInit()" [text]="true" label="Reset" severity="secondary"
+                      size="small"/>
+        </div>
+    }
+</div>

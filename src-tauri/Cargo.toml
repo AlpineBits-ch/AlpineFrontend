@@ -1,0 +1,281 @@
+[package]
+name = "Venta"
+version = "3.0.212"
+description = ""
+authors = ["you"]
+edition = "2021"
+license = "AGPL-3.0-only"
+default-run = "Venta"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+# The `_lib` suffix may seem redundant but it is necessary
+# to make the lib name unique and wouldn't conflict with the bin name.
+# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
+name = "alpine_lib"
+# `rlib` only, which is all `src/main.rs` needs to link `alpine_lib::run()`.
+#
+# The Tauri template ships `["staticlib", "cdylib", "rlib"]` because mobile needs the other two -
+# `staticlib` for iOS, `cdylib` for Android. Mobile is a separate Flutter app now, so nothing here
+# consumes them, and each extra crate type costs a full codegen-and-link pass over the entire
+# dependency graph, producing a .lib and a .dll that are then thrown away.
+#
+# What is measured: the Windows release job spent 7m56s on this one crate, ~6m of it a single
+# silent codegen-and-link window after the last warning was emitted (run 31099750385's parent,
+# 31095631509). Dropping to one crate type is the change that window is expected to answer to.
+#
+# If a Tauri mobile target ever comes back, this is the line to restore - not something to work
+# around. Cargo has no per-target `[lib]` override, so it is all three or none.
+crate-type = ["rlib"]
+
+[[bin]]
+name = "bench-screen"
+path = "src/bin/bench_screen.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# The `log` facade's stderr sink, so the crates under us can be heard. Inert unless `RUST_LOG` is
+# set (`env_logger` defaults to `Error` and nothing here logs through the facade), which is what
+# makes it acceptable in a shipped build. `webrtc-ice` narrates its nomination decisions only
+# through `log::trace!`, and without a subscriber those lines went nowhere at all.
+env_logger = { version = "0.11", default-features = false, features = ["humantime"] }
+
+# NOTE: `devtools` is enabled unconditionally, so the inspector is compiled into **release** builds.
+# Cargo has no debug-only feature selection, so removing it safely means splitting the release
+# pipeline (`default = ["devtools"]` here plus `--no-default-features` in CI) - a build-system
+# change, not verifiable from a dev machine, and left deliberately rather than half-done. Flagged so
+# whoever owns that pipeline makes the split. What made it actively harmful was the console output
+# beside it: no message path logs plaintext any more.
+tauri = { version = "2", features = [ "devtools"] }
+# The MLS engine, master-key wrapping and device-certificate verification. Used to be
+# `src/crypto/{mls,crypto,device_cert}.rs`; the files moved out unchanged so the same engine can also
+# be compiled to `wasm32-unknown-unknown` for the browser client.
+#
+# `features = ["tauri"]` is what turns on the `#[tauri::command]` wrappers at the bottom of each
+# module. Without it the crate has no `tauri` in its dependency graph at all, which is the property
+# the wasm target needs. `src/crypto/mod.rs` re-exports the three modules, so every path in
+# `generate_handler!` below is unchanged.
+venta-crypto = { path = "../crates/venta-crypto", features = ["tauri"] }
+tauri-plugin-opener = "2"
+# Key-package fingerprints in crypto::mls, and the certificate and revocation fingerprints in
+# crypto::device_cert. Has to be available on mobile too - this previously sat in the desktop-only
+# target block next to the openh264 blob loader.
+sha2 = "0.10"
+# Not used by any Alpine code path today, and kept deliberately.
+#
+# `the_shared_engine_dependencies_are_pinned_together` compares this manifest against venta-mobile's
+# crate by crate, and mobile needs both for the §G admission-proof code, which Alpine has no caller
+# for and does not port. The comparison reads an absent crate as `None`, so dropping these fails the
+# pin rather than passing it - and the pin is what stops the two engines drifting into mutually
+# unreadable wire formats.
+#
+# Two earlier versions of this comment attributed them to device certificates. Neither was right,
+# and the reason has now changed: `crypto::device_cert` *does* port §H.2 verification, and it needs
+# neither crate. A device certificate is Ed25519 over a length-framed payload - `openmls` and `sha2`
+# and nothing else. It is the §G admission proof, still unported, that is HMAC-SHA256 under an
+# HKDF-derived subkey of the account master key. If §G is ever ported, these acquire a caller and
+# this comment goes.
+hkdf = "0.12"
+hmac = "0.12"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+getrandom = "0.2"
+sysinfo = "0.38.4"
+tauri-plugin-updater = "2.10.1"
+tauri-plugin-process = "2.3.1"
+tauri-plugin-single-instance = {version = "2", features = ["deep-link"] }
+tauri-plugin-os = "2"
+openmls = "0.8.1"
+openmls_rust_crypto = "0.5"
+openmls_basic_credential = { version = "0.5", features = ["test-utils"] }
+argon2 = "0.5.3"
+base64 = "0.22"
+aes-gcm = "0.10.3"
+rsa = { version = "0.9", features = ["sha2"] }
+rand = "0.8"
+uuid = { version = "1.0", features = ["v4"] }
+tauri-plugin-store = "2.0.0"
+tauri-plugin-secure-storage = "1.5.0"
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+tauri-plugin-deep-link = "2"
+
+# Android
+[target.aarch64-linux-android.dependencies]
+tauri-plugin-notifications = { version = "0.4.6", features = ["push-notifications"] }
+
+[target.armv7-linux-androideabi.dependencies]
+tauri-plugin-notifications = { version = "0.4.6", features = ["push-notifications"] }
+
+[target.i686-linux-android.dependencies]
+tauri-plugin-notifications = { version = "0.4.6", features = ["push-notifications"] }
+
+[target.x86_64-linux-android.dependencies]
+tauri-plugin-notifications = { version = "0.4.6", features = ["push-notifications"] }
+
+# iOS (device)
+[target.aarch64-apple-ios.dependencies]
+tauri-plugin-notifications = { version = "0.4.6", features = ["push-notifications"] }
+
+# iOS Simulator (Apple Silicon Mac)
+[target.aarch64-apple-ios-sim.dependencies]
+tauri-plugin-notifications = { version = "0.4.6", features = ["push-notifications"] }
+
+# iOS Simulator (Intel Mac)
+[target.x86_64-apple-ios.dependencies]
+tauri-plugin-notifications = { version = "0.4.6", features = ["push-notifications"] }
+
+# `[patch.crates-io]` used to live here. Cargo only honours a patch section in the *workspace root*
+# manifest, and this crate became a workspace member when `crates/venta-crypto` was split out - a
+# patch left here would be ignored with a warning, un-patching MSVC echo cancellation and the
+# `hrtf` debug-assertion panic. Both moved to `../Cargo.toml` verbatim, with `src-tauri/` prepended
+# to their paths. (A third, `tauri-plugin-window-state`, went with them and has since been dropped
+# entirely in favour of `src/window_state`.)
+
+[features]
+default = ["aec"]
+# Acoustic echo cancellation via WebRTC's AudioProcessing module.
+#
+# It builds that module from source, which needs meson, ninja and Python on PATH. Because it is on
+# by default, so does an ordinary `cargo build` or `tauri build` - the fallback in
+# media::voice::process is reached by turning the feature *off*, not by lacking the tools, and a
+# machine without them fails the build outright ("Failed to execute meson. Do you have it
+# installed?"). CI installs them explicitly; see .github/workflows/build.yml.
+#
+# Build without echo cancellation - and without those tools - via --no-default-features.
+aec = ["dep:webrtc-audio-processing"]
+
+[dev-dependencies]
+# The MLS persistence tests write real state files. The crash-safety behaviour they cover -
+# atomic replace, a truncated state file, a group listed but missing - is not observable
+# without one, which is why none of it was tested before.
+tempfile = "3"
+# Minting a probe token needs the JWT half of livekit-api, which shipping code must not carry -
+# a client never signs its own join token. Cargo unifies this with the runtime dependency above
+# for test builds only.
+livekit-api = { version = "0.6.3", default-features = false, features = ["access-token"] }
+
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+reqwest = { version = "0.12", default-features = false, features = ["native-tls", "json"] }
+# LiveKit signalling only. The `signal-client` feature is documented upstream as "blind to the
+# transport backend" and pulls no libwebrtc - the media stays `webrtc-rs`. `default-features = false`
+# drops services/access-token/webhooks (reqwest, jsonwebtoken); `native-tls` matches the TLS backend
+# `reqwest` already links above, so we do not end up carrying two.
+#
+# The `livekit` crate is deliberately NOT used: its `SignalClient` is private and it links libwebrtc
+# unconditionally. See docs/superpowers/specs/2026-08-16-livekit-signaling-migration-design.md §1.
+livekit-api = { version = "0.6.3", default-features = false, features = ["signal-client-tokio", "native-tls"] }
+# Pinned to what livekit-api 0.6.3 resolves. Two copies of the generated types would compile and
+# then fail to unify at the `SignalClient` boundary, which is a confusing error to meet later.
+livekit-protocol = "0.7.12"
+tauri-plugin-autostart = "2"
+tauri-plugin-single-instance = "2"
+tauri-plugin-global-shortcut = "2"
+cpal = "0.15"
+xcap = "0.9"
+nnnoiseless = "0.3"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
+jpeg-encoder = "0.6"
+base64 = "0.22"
+# `net` and `io-util` are for the Discord-compatible RPC server in `presence::ipc`: named pipes on
+# Windows (`tokio::net::windows::named_pipe`) and Unix domain sockets elsewhere, plus the
+# `AsyncReadExt`/`AsyncWriteExt` the frame codec reads and writes through. Deliberately not the
+# `interprocess` crate and deliberately not hand-rolled `CreateNamedPipe` FFI - tokio's API
+# expresses the whole accept/connect/recreate loop, and it is already a dependency.
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros", "net", "io-util"] }
+webrtc = "0.17"
+# One encoded voice packet goes to every publication at once, so it is allocated once and the
+# handle cloned rather than the bytes copied per target. This is also what `webrtc::media::Sample`
+# takes, so the packet reaches the packetiser without a further copy.
+bytes = "1"
+# `libloading`, never `source`. Building OpenH264 from source produces a binary Cisco never
+# licensed, and the BSD source licence grants copyright but not patent rights. Only Cisco's own
+# precompiled binary carries their MPEG-LA royalty coverage, so it is fetched at runtime and loaded
+# dynamically -see media::publisher::openh264_blob.
+openh264 = { version = "0.9", default-features = false, features = ["libloading"] }
+bzip2-rs = "0.1"
+# Direct, so `keychain.rs` can read the OS keychain without `tauri-plugin-secure-storage`'s
+# `get_item` collapsing every failure into "no entry" - see that module's header for what the
+# collapse costs. Already a transitive dependency through that plugin; this only names it.
+#
+# **The version and the feature list both matter and neither is a preference.** 3.6.3 is what
+# `Cargo.lock` already resolves for the plugin, and the three features are character for character
+# the plugin's own (`tauri-plugin-secure-storage-1.5.0/Cargo.toml`: `apple-native`,
+# `windows-native`, `sync-secret-service`). `keyring` picks its credential store by `cfg` *and*
+# feature, so under resolver 2's feature unification adding a feature here would change which store
+# the *plugin* uses too - re-pointing every existing entry at a different backend on some platform.
+# Union with the plugin's set has to be the plugin's set exactly. `keyring` declares no default
+# features, so there is nothing to disable.
+keyring = { version = "3.6.3", features = ["apple-native", "windows-native", "sync-secret-service"] }
+
+# ── Voice pipeline (media::voice) ─────────────────────────────────────────────
+# Band-limited resampling. Replaces the linear interpolator in media::audio, which had no
+# anti-aliasing filter at all, so a 44.1 kHz microphone folded its top octave into the voice band.
+rubato = "4"
+audioadapter-buffers = "4"
+# Opus, configured for VoIP with in-band FEC and DTX - see media::voice::codec.
+opus = "0.3"
+# HRTF panning for Isle proximity voice. The crate ships no impulse-response data; the sphere is
+# supplied separately. See media::voice::mixer.
+hrtf = "0.8"
+# A lock-free single-producer/single-consumer ring, for the hop between the cpal callback and the
+# capture thread. Hand-rolling this means hand-rolling the unsafe; this crate is the standard choice
+# for exactly this job and allocates only when constructed. See media::voice::ring.
+ringbuf = "0.4"
+# Echo cancellation, noise suppression and gain control. Optional because it builds a C++ library
+# with meson, and the toolchain is not present everywhere - a machine without it builds the
+# passthrough processor and loses echo cancellation rather than losing voice.
+# See media::voice::process.
+webrtc-audio-processing = { version = "2.1", features = ["bundled"], optional = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+tauri-plugin-notifications = { version = "0.4.6", default-features = false }
+nokhwa = { version = "0.10", default-features = false, features = ["input-avfoundation"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+tauri-plugin-notifications = "0.4.6"
+nokhwa = { version = "0.10", default-features = false, features = ["input-v4l"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+tauri-plugin-notifications = "0.4.6"
+nokhwa = { version = "0.10", default-features = false, features = ["input-msmf"] }
+windows = { version = "0.58", features = [
+    "Win32_Media_MediaFoundation",
+    "Win32_Media_KernelStreaming",
+    "implement",
+    "Foundation",
+    "Data_Xml_Dom",
+    "UI_Notifications",
+    "Win32_Foundation",
+    # GDI, for the screen picker's window thumbnails - see media/screen_thumb.rs.
+    "Win32_Graphics_Gdi",
+    "Win32_Media_Audio",
+    "Win32_Security",
+    "Win32_System_Com",
+    "Win32_System_Com_StructuredStorage",
+    # `AttachConsole`, so a release build started from a terminal can still be read - see the note
+    # over `attach_parent_console` in src/main.rs.
+    "Win32_System_Console",
+    # AddVectoredExceptionHandler + GetModuleFileNameW, so an access violation names the module it
+    # faulted in instead of only its exit code - see `crash_reporter` in media/publisher/encoder_mf.
+    "Win32_System_Diagnostics_Debug",
+    # AddVectoredExceptionHandler and EXCEPTION_POINTERS are gated behind this, not behind Debug.
+    "Win32_System_Kernel",
+    "Win32_System_LibraryLoader",
+    # CreatePipe, for taking over stderr - see src/logging.rs.
+    "Win32_System_Pipes",
+    # GetLocalTime, so log lines carry a timestamp without pulling in a date crate.
+    "Win32_System_SystemInformation",
+    "Win32_System_Registry",
+    # PrintWindow lives here, oddly - see media/screen_thumb.rs.
+    "Win32_Storage_Xps",
+    "Win32_System_Threading",
+    "Win32_System_Variant",
+    "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_UI_Input_KeyboardAndMouse",
+] }
+windows-core = "0.58"

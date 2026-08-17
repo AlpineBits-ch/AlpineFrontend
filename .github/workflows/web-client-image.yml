@@ -1,0 +1,628 @@
+# Publishes the deployable image of the Venta web client: the Angular app plus the wasm crypto
+# engine, served by nginx.
+#
+# This is a product, not a test fixture. Per
+# docs/superpowers/specs/2026-08-11-browser-only-build-design.md the browser build is "a public web
+# client for real users... not a demo, not a CI target", built from the same source tree as the
+# Tauri desktop app. The image this workflow pushes is what a real user's browser loads.
+#
+# Modelled deliberately on e2e-client-image.yml, which already does ng build -> nginx -> ghcr.io.
+# Reusing its shape means the bun and Angular cache keys are shared, the submodule handling is
+# identical, and there is one staging-directory pattern in this repository rather than two. The
+# differences are noted where they occur; the three that matter are collected here.
+#
+# ---------------------------------------------------------------------------------------------
+# 1. Source maps: off, same as the E2E image, for a different reason
+# ---------------------------------------------------------------------------------------------
+#
+# The E2E image bans maps because Playwright traces in a PUBLIC repository would archive them.
+# That argument does not apply here - nothing traces this image - so the decision was made again
+# from scratch, and lands in the same place:
+#
+#   * Angular's maps embed `sourcesContent`, the complete original TypeScript of every file in the
+#     bundle. This repository is private and closed-source. Serving the maps publishes all of it
+#     to anyone who opens devtools, which is a disclosure, not a debugging affordance.
+#   * The client holds the account master key and MLS signing keys in IndexedDB. Handing an
+#     attacker a readable map of the key-handling glue is a concrete assist, not a theoretical one.
+#   * Debuggability does not actually depend on them: scripts/sentry-sourcemaps.mjs exists so that
+#     Sentry holds the maps and symbolicates server-side. Readable stack traces come from there.
+#
+# So: `--source-map=false`, and the same three independent guards as the E2E image - the assertion
+# step after the build, the assertions baked into docker/web/Dockerfile, and the `location ~ \.map$`
+# 404 in docker/web/nginx.conf.
+#
+# GAP, named rather than papered over: the web bundle's chunk hashes differ from the desktop
+# bundle's, so the maps build.yml uploads to Sentry cannot symbolicate a web error. Closing it
+# means building this job WITH maps, running `bun run sentry:sourcemaps`, and deleting the .map
+# files before staging - which needs SENTRY_AUTH_TOKEN here and is a release-pipeline decision
+# rather than something to slip in. Until then, web stack traces arrive minified.
+#
+# ---------------------------------------------------------------------------------------------
+# 2. The wasm crypto engine is built here, and its absence is silent
+# ---------------------------------------------------------------------------------------------
+#
+# `bun run build:wasm` runs before `ng build`, never after: angular.json copies src/assets into the
+# bundle with a `**/*` glob, and a glob that matches nothing is not an error. A missing engine
+# therefore produces a completely green build and a client that dies on the login path. Hence the
+# explicit assertions, here and again in the Dockerfile.
+#
+# ---------------------------------------------------------------------------------------------
+# 3. The CSP is a hard requirement and it is smoke-tested against a running container
+# ---------------------------------------------------------------------------------------------
+#
+# docker/web/security-headers.conf explains the policy directive by directive. What matters here is
+# that the image is built, loaded and *exercised* before it is pushed, because every failure mode
+# of a CSP is quiet: a wrong `script-src` blocks the app, a wrong `.wasm` MIME type makes
+# `WebAssembly.instantiateStreaming` fail in a way that reads like a corrupt binary, and a nonce
+# substitution that stopped matching serves a document whose own stylesheets are refused. None of
+# those show up in a docker build log. So a broken image is never published: build with `load`,
+# assert against real HTTP responses, then push.
+name: Web Client Image
+
+on:
+  # `main` only, same reasoning as e2e-client-image.yml: feature branches would each publish a
+  # `latest` and race for the tag a deployment pulls.
+  #
+  # Whether a `release`-branch build should also produce a promotion tag (`stable`, a version tag)
+  # is a deployment decision that has not been made yet, and inventing one here would be worse
+  # than leaving the question open. Add it when there is a deployment to promote into.
+  push:
+    branches: [main]
+    # Same departure from this repository's no-path-filter convention as e2e-client-image.yml, and
+    # justified the same way: build.yml and ci.yml are gates whose value is running on everything,
+    # while this one only produces an artifact and a README edit cannot change it. Kept narrow
+    # rather than a blanket '**/*.md' because angular.json copies all of src/assets into the
+    # bundle, so src/assets/THIRD-PARTY-NOTICES.md is part of the payload.
+    paths-ignore:
+      - 'docs/**'
+      - 'README.md'
+  workflow_dispatch:
+
+# Matches e2e-client-image.yml: a cancelled run may have pushed the image already, so pushes to a
+# protected branch are never cancelled.
+concurrency:
+  group: web-client-image-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Build and publish the web client image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # src/assets/i18n/locales is the AlpineBits-ch/venta-i18n submodule and it is not optional:
+      # ngx-translate loads its JSON at runtime, so without it the client renders raw translation
+      # keys where every label should be.
+      #
+      # Same two-step form as ci.yml, build.yml and e2e-client-image.yml rather than
+      # `submodules: true` on the checkout, because .gitmodules gives the URL in SSH form; the
+      # rewrite is what makes it resolvable with the checkout credentials.
+      - name: Force HTTPS for submodules
+        run: |
+          git config --global url."https://github.com/".insteadOf "git@github-alpine:"
+          git config --global url."https://github.com/".insteadOf "git@github.com:"
+
+      - name: Update submodules
+        run: git submodule update --init --recursive
+
+      - uses: oven-sh/setup-bun@v2
+
+      # Both cache keys are deliberately identical to ci.yml's, so this job restores what that job
+      # already warmed. Two workflows saving the same key is harmless - the second save is a no-op
+      # with an "already exists" notice - and sharing beats each workflow spending its own slice of
+      # the one 10 GB repo-wide budget.
+      - name: Cache bun package cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+
+      - name: Cache Angular build cache
+        uses: actions/cache@v4
+        with:
+          path: .angular/cache
+          key: angular-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: angular-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # ── The wasm crypto engine ────────────────────────────────────────────────────────────────
+      #
+      # Same four steps as ci.yml's frontend job, same pins, same cache keys - see the longer
+      # explanation there. `cargo-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}` is the workspace
+      # root lockfile: there is exactly one since crates/venta-crypto was split out.
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - uses: mozilla-actions/sccache-action@v0.0.10
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+          key: cargo-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      - uses: jetli/wasm-pack-action@v0.4.0
+        with:
+          version: 'v0.13.1'
+
+      - name: Build the WASM crypto engine
+        env:
+          RUSTC_WRAPPER: sccache
+          SCCACHE_GHA_ENABLED: "true"
+        run: bun run build:wasm
+
+      # `bun x ng build`, deliberately not `bun run build`. That script is
+      # `ng build && bun run sentry:sourcemaps`, which needs SENTRY_AUTH_TOKEN and exists to upload
+      # sourcemaps after running `sentry-cli sourcemaps inject` over ./dist - the opposite of what
+      # this workflow wants. Splitting the compile out is what ci.yml and e2e-client-image.yml do.
+      #
+      # --source-map=false: see the header. This is the load-bearing flag.
+      #
+      # --configuration production spelled out even though angular.json makes it the default,
+      # matching the other two workflows: changing defaultConfiguration must not be able to
+      # quietly downgrade this to an unoptimised development build with sourcemaps back on.
+      #
+      # This is the ordinary production build, environment.ts and all, so what ships is the
+      # artifact users actually run rather than a web-only variant of it. It boots pointed at
+      # https://api.venta.gg, which is correct for this image - a self-hoster redirects it through
+      # the client's own federation server picker, exactly as on desktop.
+      - name: Build Angular (production, sourcemaps off)
+        run: bun x ng build --configuration production --source-map=false
+
+      - name: Assert the build carries no sourcemaps, no source, and a wasm engine
+        run: |
+          set -euo pipefail
+          out=dist/alpine/browser
+          test -f "$out/index.html" || { echo "::error::$out/index.html is missing - did the build output move?"; exit 1; }
+
+          fail=0
+
+          maps=$(find "$out" -name '*.map' || true)
+          if [ -n "$maps" ]; then
+            echo "::error::sourcemap files were emitted into the image payload"
+            printf '%s\n' "$maps"
+            fail=1
+          fi
+
+          refs=$(grep -rlI 'sourceMappingURL' "$out" || true)
+          if [ -n "$refs" ]; then
+            echo "::error::a bundle still references a sourcemap"
+            printf '%s\n' "$refs"
+            fail=1
+          fi
+
+          ts=$(find "$out" -name '*.ts' -o -name '*.tsx' || true)
+          if [ -n "$ts" ]; then
+            echo "::error::TypeScript source was emitted into the image payload"
+            printf '%s\n' "$ts"
+            fail=1
+          fi
+
+          # The engine. `ng build` will not have complained about its absence: the asset entry is a
+          # `**/*` glob over src/assets and a glob that matches nothing is not an error.
+          for f in assets/wasm/venta_crypto.js assets/wasm/venta_crypto_bg.wasm; do
+            if [ ! -s "$out/$f" ]; then
+              echo "::error::$out/$f is missing or empty - the client would ship without a crypto"\
+                   "engine and fail at runtime on the login path"
+              fail=1
+            fi
+          done
+
+          [ "$fail" -eq 0 ] || exit 1
+          echo "clean: no .map files, no sourceMappingURL references, no TypeScript, wasm engine present"
+          ls -la "$out/assets/wasm"
+
+      # ── The one rewrite this deployment makes to the built output ─────────────────────────────
+      #
+      # Angular's production build inlines critical CSS (Beasties) and defers the real stylesheet
+      # with an inline event handler:
+      #
+      #   <link rel="stylesheet" href="styles-HASH.css" media="print" onload="this.media='all'">
+      #
+      # Inline event handlers are governed by script-src. Under the CSP in
+      # docker/web/security-headers.conf that handler never runs, the stylesheet stays
+      # `media="print"`, and the app loads with critical CSS only - which looks like a broken
+      # theme, not a policy violation. The alternatives were worse: 'unsafe-inline' in script-src
+      # is the exact thing the CSP exists to withhold from a page holding private keys, and
+      # 'unsafe-hashes' plus a hash of `this.media='all'` re-permits inline handlers generally.
+      #
+      # Deleting the two attributes turns it back into an ordinary blocking stylesheet link. The
+      # only cost is that the stylesheet is no longer loaded asynchronously; the inlined critical
+      # CSS is untouched, so first paint and the loading spinner are unaffected.
+      #
+      # Done here rather than by setting `optimization.styles.inlineCritical: false` in
+      # angular.json on purpose: that file is shared with the desktop build and the dev server, and
+      # a deployment-specific CSP is no reason to change what either of those produces.
+      #
+      # The assertions below are the point. A sed that silently stops matching would hand the
+      # Dockerfile a payload it then rejects - which is the intended order of failure, but naming
+      # it here makes the log readable.
+      - name: Make index.html CSP-clean (drop Beasties' inline onload handler)
+        run: |
+          set -euo pipefail
+          idx=dist/alpine/browser/index.html
+
+          sed -i 's| media="print" onload="this\.media=.all."||g' "$idx"
+
+          fail=0
+
+          handlers=$(grep -o ' on[a-z]*="' "$idx" || true)
+          if [ -n "$handlers" ]; then
+            echo "::error::index.html still contains inline event handlers, which script-src does"\
+                 "not permit. Update the rewrite above for whatever the build now emits:"
+            printf '%s\n' "$handlers"
+            fail=1
+          fi
+
+          inline_scripts=$(grep -o '<script[^>]*>' "$idx" | grep -v 'src=' || true)
+          if [ -n "$inline_scripts" ]; then
+            echo "::error::index.html contains an inline <script>, which script-src does not permit:"
+            printf '%s\n' "$inline_scripts"
+            fail=1
+          fi
+
+          # The rewrite must not have destroyed the link it was editing.
+          grep -q '<link rel="stylesheet" href="styles-' "$idx" || {
+            echo "::error::the global stylesheet link is gone from index.html - the sed rewrite"\
+                 "matched more than it should have"
+            fail=1
+          }
+
+          # The two hooks nginx's nonce sub_filter matches on. Asserted here as well as in the
+          # Dockerfile so the failure names the Angular build rather than the docker build.
+          grep -q '<style>' "$idx" || {
+            echo "::error::no bare '<style>' in index.html for the nonce sub_filter to match"
+            fail=1
+          }
+          grep -q '<app-root></app-root>' "$idx" || {
+            echo "::error::no literal '<app-root></app-root>' in index.html, so nginx cannot"\
+                 "inject ngCspNonce and Angular's runtime component styles would be CSP-refused"
+            fail=1
+          }
+
+          [ "$fail" -eq 0 ] || exit 1
+          echo "index.html is CSP-clean and the nonce hooks are intact"
+
+      # The docker build context is this staging directory and nothing else. Pointing the context
+      # at the repository root would hand the daemon every .ts file in the repo, plus node_modules
+      # and the cargo target directories, for an image that is published to a registry - and a
+      # .dockerignore would be the only thing between the two, one careless edit from failing open.
+      # Here there is nothing to exclude because there is nothing else present.
+      - name: Stage the image build context
+        run: |
+          set -euo pipefail
+          rm -rf .web-context
+          mkdir -p .web-context
+          cp -R dist/alpine/browser .web-context/browser
+          cp docker/web/nginx.conf .web-context/nginx.conf
+          cp docker/web/security-headers.conf.template .web-context/security-headers.conf.template
+          cp docker/web/40-render-csp.sh .web-context/40-render-csp.sh
+          echo "context contents:"
+          ls -la .web-context
+
+      # No QEMU: linux/amd64 is the runner's own architecture, so there is nothing to emulate.
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Built and loaded locally FIRST, and pushed only after the smoke test below passes. The
+      # second build-push-action call is a full cache hit off type=gha, so this costs a few seconds
+      # rather than a second compile - and it means a container that does not serve wasm correctly,
+      # or serves a CSP that blocks its own app, never reaches the registry.
+      - name: Build the image locally
+        uses: docker/build-push-action@v5
+        with:
+          context: .web-context
+          file: docker/web/Dockerfile
+          load: true
+          push: false
+          platforms: linux/amd64
+          tags: venta-client-web:smoketest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # ── The smoke test ────────────────────────────────────────────────────────────────────────
+      #
+      # Every check here guards a failure mode that produces no error at build time and a
+      # misleading one at runtime. In order:
+      #
+      #   * the .wasm Content-Type, because instantiateStreaming refuses anything that is not
+      #     application/wasm and complains in terms that read like a corrupt binary;
+      #   * script-src, because the whole security argument for this deployment is that an injected
+      #     script cannot run and read the keys out of IndexedDB. Asserted positively (the token
+      #     that must be there) and negatively (the two that must not);
+      #   * the nonce, in the header AND in the body AND differing between two requests - a
+      #     sub_filter that stops matching serves the document unchanged, so the app would load
+      #     with its own stylesheets refused;
+      #   * the SPA fallback, because a deep link 404 is the single most visible way an nginx
+      #     config for an Angular app is wrong;
+      #   * the .map 404 and /healthz, which are cheap and are what the E2E image's config gets
+      #     wrong quietly if a location is reordered;
+      #   * connect-src, in three configurations - default, overridden, malformed. That mechanism
+      #     exists so a self-hoster does not need `connect-src https:`, and every way it can fail is
+      #     invisible: a default that quietly widened, an override that appended instead of
+      #     replacing, a derived wss:// that stopped being derived (which reads as a dead backend,
+      #     not as a policy), and a rejected value that started anyway.
+      - name: Smoke-test the image
+        run: |
+          set -euo pipefail
+
+          docker run -d --name web-smoketest -p 8080:80 venta-client-web:smoketest
+          for i in $(seq 1 30); do
+            if [ "$(docker inspect -f '{{.State.Health.Status}}' web-smoketest)" = "healthy" ]; then
+              break
+            fi
+            sleep 1
+          done
+          if [ "$(docker inspect -f '{{.State.Health.Status}}' web-smoketest)" != "healthy" ]; then
+            echo "::error::the container never became healthy"
+            docker logs web-smoketest
+            exit 1
+          fi
+
+          fail=0
+          check() {
+            if [ "$1" = "ok" ]; then echo "  ok   - $2"; else echo "::error::$2"; fail=1; fi
+          }
+
+          # --- the wasm MIME type ---
+          ct=$(curl -sSI http://localhost:8080/assets/wasm/venta_crypto_bg.wasm \
+                 | tr -d '\r' | sed -n 's/^[Cc]ontent-[Tt]ype: //p')
+          code=$(curl -sS -o /dev/null -w '%{http_code}' \
+                   http://localhost:8080/assets/wasm/venta_crypto_bg.wasm)
+          [ "$code" = "200" ] && check ok "the wasm engine is served (200)" \
+            || check bad "the wasm engine did not answer 200, got $code"
+          case "$ct" in
+            application/wasm*) check ok "the wasm engine is served as application/wasm" ;;
+            *) check bad "the wasm engine is served as '$ct', not application/wasm -
+                          WebAssembly.instantiateStreaming will refuse it" ;;
+          esac
+
+          # --- the CSP on the app document ---
+          curl -sS -D headers.txt -o body.html http://localhost:8080/
+          csp=$(tr -d '\r' < headers.txt | sed -n 's/^[Cc]ontent-[Ss]ecurity-[Pp]olicy: //p')
+          [ -n "$csp" ] && check ok "a Content-Security-Policy header is present" \
+            || check bad "no Content-Security-Policy header on / - the add_header inheritance rule bit again"
+
+          script_src=$(printf '%s' "$csp" | tr ';' '\n' | sed -n 's/^ *script-src //p')
+          case "$script_src" in
+            *"'wasm-unsafe-eval'"*) check ok "script-src permits wasm compilation" ;;
+            *) check bad "script-src lacks 'wasm-unsafe-eval'; the crypto engine cannot instantiate" ;;
+          esac
+          case "$script_src" in
+            *"'unsafe-inline'"*) check bad "script-src contains 'unsafe-inline' - this build holds
+                                            key material in IndexedDB and must not" ;;
+            *) check ok "script-src has no 'unsafe-inline'" ;;
+          esac
+          case "$script_src" in
+            *"'unsafe-eval'"*)
+              # 'wasm-unsafe-eval' contains the substring, so match the standalone token only.
+              if printf '%s' "$script_src" | tr ' ' '\n' | grep -qx "'unsafe-eval'"; then
+                check bad "script-src contains 'unsafe-eval'"
+              else
+                check ok "script-src has no bare 'unsafe-eval'"
+              fi ;;
+            *) check ok "script-src has no bare 'unsafe-eval'" ;;
+          esac
+
+          # --- connect-src: the default must be exactly as tight as a hard-coded one ---
+          connect_src=$(printf '%s' "$csp" | tr ';' '\n' | sed -n 's/^ *connect-src //p')
+          echo "  default connect-src: $connect_src"
+          for want in "https://api.venta.gg" "wss://api.venta.gg"; do
+            case " $connect_src " in
+              *" $want "*) check ok "connect-src permits $want" ;;
+              *) check bad "connect-src is missing $want" ;;
+            esac
+          done
+          case "$connect_src" in
+            *"https:"[!/]*|*" https:"|*"'*'"*|*" *"*)
+              check bad "connect-src contains a wildcard or a bare scheme; this build holds the
+                         master key and the MLS signing keys in IndexedDB and a broad connect-src
+                         is an exfiltration channel" ;;
+            *) check ok "connect-src has no wildcard and no bare scheme source" ;;
+          esac
+
+          # The host list published to the app. The client gates its federation server picker on
+          # this, so if it silently stopped being injected the picker would offer origins the CSP
+          # refuses and the resulting login failure would have nothing in the UI to explain it.
+          if grep -q '<meta name="venta-api-hosts" content="https://api.venta.gg">' body.html; then
+            check ok "the API host list is published to the app as a meta tag"
+          else
+            check bad "no venta-api-hosts meta tag in the served HTML - nginx's sub_filter did not
+                       match, so the client has no way to know which origins are permitted"
+          fi
+
+          # --- the nonce, header vs body, and per-response ---
+          hdr_nonce=$(printf '%s' "$csp" | grep -o "nonce-[A-Za-z0-9+/=_-]*" | head -1 | cut -c7-)
+          [ -n "$hdr_nonce" ] && check ok "the CSP carries a style nonce" \
+            || check bad "the CSP carries no style nonce"
+          if [ -n "$hdr_nonce" ] && grep -q "<style nonce=\"$hdr_nonce\">" body.html; then
+            check ok "the <style> blocks carry the same nonce as the header"
+          else
+            check bad "no <style> block in the served HTML carries the header's nonce - nginx's
+                       sub_filter did not match, so the CSP will refuse the inlined critical CSS"
+          fi
+          if [ -n "$hdr_nonce" ] && grep -q "<app-root ngCspNonce=\"$hdr_nonce\">" body.html; then
+            check ok "app-root carries ngCspNonce, so Angular can nonce its runtime styles"
+          else
+            check bad "app-root has no ngCspNonce - every component style Angular injects at
+                       runtime will be refused by the CSP"
+          fi
+          second=$(curl -sSI http://localhost:8080/ | tr -d '\r' \
+                     | sed -n 's/^[Cc]ontent-[Ss]ecurity-[Pp]olicy: //p' \
+                     | grep -o "nonce-[A-Za-z0-9+/=_-]*" | head -1)
+          [ "nonce-$hdr_nonce" != "$second" ] && check ok "the nonce differs between responses" \
+            || check bad "two responses shared a nonce; a reused nonce is not a nonce"
+
+          # --- caching, SPA fallback, map 404, health ---
+          cc=$(tr -d '\r' < headers.txt | sed -n 's/^[Cc]ache-[Cc]ontrol: //p')
+          case "$cc" in
+            *no-store*) check ok "index.html is not cacheable (required: the nonce is per-response)" ;;
+            *) check bad "index.html Cache-Control is '$cc'; a cached document would pair stale
+                          markup with a fresh nonce and lose every inline style" ;;
+          esac
+
+          deep=$(curl -sS -o deep.html -w '%{http_code}' http://localhost:8080/guilds/123/channels/456)
+          if [ "$deep" = "200" ] && grep -q '<app-root' deep.html; then
+            check ok "a deep link falls back to index.html (SPA routing works)"
+          else
+            check bad "a deep link answered $deep instead of serving the app shell"
+          fi
+
+          m=$(curl -sS -o /dev/null -w '%{http_code}' http://localhost:8080/main-deadbeef.js.map)
+          [ "$m" = "404" ] && check ok ".map paths are refused" \
+            || check bad ".map paths answered $m, not 404"
+
+          h=$(curl -sS -o /dev/null -w '%{http_code}' http://localhost:8080/healthz)
+          [ "$h" = "200" ] && check ok "/healthz answers 200" \
+            || check bad "/healthz answered $h"
+
+          echo
+          echo "--- served CSP (default configuration) ---"
+          printf '%s\n' "$csp" | tr ';' '\n'
+          docker logs web-smoketest || true
+          docker rm -f web-smoketest >/dev/null 2>&1 || true
+
+          # ── VENTA_API_HOSTS overridden: the self-hosting path ──────────────────────────────
+          #
+          # Same image, one env var, no rebuild - which is the whole design, because this
+          # repository is private and a self-hoster can only pull.
+          echo
+          echo "--- self-hosted configuration ---"
+          docker run -d --name web-selfhost -p 8081:80 \
+            -e VENTA_API_HOSTS=https://chat.example.org \
+            venta-client-web:smoketest
+          for i in $(seq 1 30); do
+            if [ "$(docker inspect -f '{{.State.Health.Status}}' web-selfhost)" = "healthy" ]; then
+              break
+            fi
+            sleep 1
+          done
+          if [ "$(docker inspect -f '{{.State.Health.Status}}' web-selfhost)" != "healthy" ]; then
+            echo "::error::the container did not start with a custom VENTA_API_HOSTS"
+            docker logs web-selfhost
+            docker rm -f web-selfhost >/dev/null 2>&1 || true
+            exit 1
+          fi
+
+          curl -sS -D sh-headers.txt -o sh-body.html http://localhost:8081/
+          sh_csp=$(tr -d '\r' < sh-headers.txt | sed -n 's/^[Cc]ontent-[Ss]ecurity-[Pp]olicy: //p')
+          sh_connect=$(printf '%s' "$sh_csp" | tr ';' '\n' | sed -n 's/^ *connect-src //p')
+          echo "  self-hosted connect-src: $sh_connect"
+
+          # The custom origin, and the wss:// form nobody had to type. The derivation is the check
+          # that matters most here: if it regressed, this deployment would authenticate fine and
+          # then receive no realtime events at all, which presents as a broken server.
+          for want in "https://chat.example.org" "wss://chat.example.org"; do
+            case " $sh_connect " in
+              *" $want "*) check ok "override permits $want" ;;
+              *) check bad "override did not permit $want" ;;
+            esac
+          done
+
+          # Replaced, not appended. A self-hoster's users must not be able to reach the production
+          # API from an origin their operator controls.
+          case " $sh_connect " in
+            *" https://api.venta.gg "*|*" wss://api.venta.gg "*)
+              check bad "the override ADDED to the default instead of replacing it; api.venta.gg is
+                         still permitted in a self-hosted deployment" ;;
+            *) check ok "the override replaced the default rather than extending it" ;;
+          esac
+
+          if grep -q '<meta name="venta-api-hosts" content="https://chat.example.org">' sh-body.html; then
+            check ok "the meta tag follows the override, so the client and the CSP agree"
+          else
+            check bad "the meta tag does not match the overridden host list - the client would
+                       offer or refuse the wrong servers"
+          fi
+          docker rm -f web-selfhost >/dev/null 2>&1 || true
+
+          # ── Malformed input must stop the container, not soften the policy ─────────────────
+          #
+          # Four shapes, each a realistic mistake and each one that a naive substitution would turn
+          # into a policy that is quietly wrong rather than absent: an empty value renders a
+          # syntactically valid directive that forbids every API call; a path or a trailing slash is
+          # not a legal CSP host-source and gets dropped, leaving the directive narrower than the
+          # deployer believes; http is a downgrade for a page holding key material; and a wildcard is
+          # the exfiltration channel the whole mechanism exists to prevent.
+          echo
+          echo "--- rejected configurations ---"
+          i=0
+          for badval in "" "not a url" "https://chat.example.org/api" "http://chat.example.org" "https://*.example.org"; do
+            i=$((i + 1))
+            name="web-badcfg-$i"
+            if docker run --name "$name" -e VENTA_API_HOSTS="$badval" \
+                 venta-client-web:smoketest > "bad-$i.log" 2>&1; then
+              check bad "the container STARTED with VENTA_API_HOSTS='$badval'; a malformed value
+                         must stop it rather than render a policy nobody checked"
+            else
+              if grep -q 'FATAL' "bad-$i.log"; then
+                check ok "rejected VENTA_API_HOSTS='$badval' with a diagnostic"
+              else
+                check bad "VENTA_API_HOSTS='$badval' failed the container but printed no FATAL
+                           diagnostic; the operator gets no idea what to fix"
+              fi
+            fi
+            docker rm -f "$name" >/dev/null 2>&1 || true
+          done
+
+          [ "$fail" -eq 0 ] || {
+            echo "::error::the image does not serve what the CSP and the wasm loader require;"\
+                 "nothing was pushed"
+            exit 1
+          }
+
+      # Tag scheme copied from e2e-client-image.yml, which copied it from Echo's docker-build.yml:
+      # a `sha` tag so a deployment names one exact commit, plus `latest` for whatever pulls
+      # without pinning. The image name is spelled out in lowercase rather than built from
+      # github.repository_owner ("AlpineBits-ch") because a deployment refers to it by literal
+      # string; metadata-action would lowercase it either way.
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/alpinebits-ch/venta-client-web
+          tags: |
+            type=sha,prefix=
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      # GHCR needs no secret: GITHUB_TOKEN with `packages: write` is enough. The package it creates
+      # is private by default; making it pullable by whatever serves it is a one-time setting on
+      # the package, not something this workflow can do.
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # A full cache hit on the layers the smoke-tested image was built from, so this is a push
+      # rather than a rebuild.
+      - name: Push the image
+        uses: docker/build-push-action@v5
+        with:
+          context: .web-context
+          file: docker/web/Dockerfile
+          push: true
+          platforms: linux/amd64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Say what was published
+        run: |
+          echo "::notice::Published:"
+          printf '%s\n' "${{ steps.meta.outputs.tags }}"

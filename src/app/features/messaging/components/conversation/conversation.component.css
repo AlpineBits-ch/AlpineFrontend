@@ -1,0 +1,214 @@
+/* ── Virtual scrolling ───────────────────────────────────────────────────── */
+
+/*
+ * Skip layout and paint for off-screen messages. The browser remembers each
+ * row's actual rendered height (the `auto` keyword) so scroll position stays
+ * accurate even when many rows are skipped. 72px is just the initial fallback
+ * estimate until the row has been painted at least once.
+ */
+.message-row {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 72px;
+}
+
+/* ── Unread divider ──────────────────────────────────────────────────────── */
+
+.unread-divider {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 0 6px;
+}
+
+.unread-divider::before,
+.unread-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: rgba(244, 63, 94, 0.35);
+}
+
+.unread-divider span {
+    font-size: 10px;
+    font-weight: 700;
+    color: rgba(244, 63, 94, 0.65);
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    white-space: nowrap;
+}
+
+/* ── Message jump highlight ───────────────────────────────────────────────── */
+
+@keyframes msg-flash {
+    0% {
+        background: transparent;
+        border-radius: 6px;
+    }
+    20% {
+        background: color-mix(in srgb, var(--color-brand) 15%, transparent);
+        border-radius: 6px;
+    }
+    100% {
+        background: transparent;
+        border-radius: 6px;
+    }
+}
+
+.msg-highlight {
+    animation: msg-flash 2s ease-out forwards;
+}
+
+/* ── Ringing banner ──────────────────────────────────────────────────────── */
+
+.ringing-banner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    background: linear-gradient(90deg, color-mix(in srgb, var(--color-brand) 13%, transparent) 0%, color-mix(in srgb, var(--color-brand) 4%, transparent) 100%);
+    border-bottom: 1px solid color-mix(in srgb, var(--color-brand) 18%, transparent);
+}
+
+.ringing-pulse {
+    position: relative;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+}
+
+.ringing-ring {
+    position: absolute;
+    inset: -6px;
+    border-radius: 50%;
+    border: 1.5px solid color-mix(in srgb, var(--color-brand) 45%, transparent);
+    animation: ringing-expand 1.8s ease-out infinite;
+}
+
+@keyframes ringing-expand {
+    0% {
+        transform: scale(0.85);
+        opacity: 0.7;
+    }
+    100% {
+        transform: scale(1.5);
+        opacity: 0;
+    }
+}
+
+.ringing-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.ringing-status {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.45);
+    line-height: 1;
+    margin-bottom: 2px;
+}
+
+.ringing-dot {
+    display: inline-block;
+    animation: ringing-dot-pulse 1.2s ease-in-out infinite;
+    opacity: 0;
+}
+
+@keyframes ringing-dot-pulse {
+    0%, 60%, 100% {
+        opacity: 0;
+    }
+    30% {
+        opacity: 1;
+    }
+}
+
+.ringing-elapsed {
+    margin-left: 4px;
+    color: rgba(255, 255, 255, 0.28);
+    font-variant-numeric: tabular-nums;
+}
+
+.ringing-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.85);
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ringing-cancel {
+    flex-shrink: 0;
+    padding: 5px 12px;
+    border-radius: 6px;
+    border: 1px solid rgba(244, 63, 94, 0.35);
+    background: rgba(244, 63, 94, 0.1);
+    color: #f43f5e;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.12s, border-color 0.12s;
+}
+
+.ringing-cancel:hover {
+    background: rgba(244, 63, 94, 0.2);
+    border-color: rgba(244, 63, 94, 0.55);
+}
+
+/* ── Ongoing call ─────────────────────────────────────────────────────────────
+   Same banner shape as the ringing one, in the online green rather than the brand
+   colour: this is not a call reaching for you, it is one already happening that you
+   may walk into. */
+
+.ongoing-banner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    background: linear-gradient(90deg, color-mix(in srgb, var(--color-online) 12%, transparent) 0%, color-mix(in srgb, var(--color-online) 3%, transparent) 100%);
+    border-bottom: 1px solid color-mix(in srgb, var(--color-online) 20%, transparent);
+}
+
+.ongoing-icon {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--color-online) 15%, transparent);
+    color: var(--color-online);
+}
+
+.ongoing-join {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+    padding: 5px 14px;
+    border-radius: 6px;
+    border: 1px solid color-mix(in srgb, var(--color-online) 40%, transparent);
+    background: color-mix(in srgb, var(--color-online) 14%, transparent);
+    color: var(--color-online);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.12s, border-color 0.12s;
+}
+
+.ongoing-join:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--color-online) 24%, transparent);
+    border-color: color-mix(in srgb, var(--color-online) 60%, transparent);
+}
+
+/* While the accept is in flight. The button keeps its size so the banner does not shift under the
+   pointer as the label changes. */
+.ongoing-join:disabled {
+    cursor: default;
+    opacity: 0.6;
+}

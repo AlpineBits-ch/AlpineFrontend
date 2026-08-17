@@ -1,0 +1,38 @@
+.vc-volume-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--color-border);
+    cursor: pointer;
+}
+
+/* No `outline: none` here. It used to sit on the base rule, which killed the focus ring in every
+   state - and a range input is the one control in this menu a keyboard user has to aim. The ring
+   comes from `.call-focusable` in styles.css; component styles carry the same specificity and are
+   injected later, so silencing it here would have won. */
+
+.vc-volume-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--color-brand);
+    cursor: pointer;
+    transition: background 0.12s, transform 0.1s;
+}
+
+.vc-volume-slider::-webkit-slider-thumb:hover {
+    background: var(--color-brand-hover);
+    transform: scale(1.2);
+}
+
+.vc-volume-slider::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: none;
+    background: var(--color-brand);
+    cursor: pointer;
+}

@@ -1,0 +1,70 @@
+<div class="absolute top-1 right-3 hidden sm:flex items-center gap-0.5
+            opacity-0 group-hover:opacity-100 transition-opacity duration-100
+            bg-card border border-white/[0.08] rounded-md px-0.5 py-0.5 z-20 shadow-sm">
+
+    @for (emoji of quickReactions; track emoji) {
+        <button (click)="emojiToggled.emit({native: emoji})"
+                [title]="emoji"
+                class="w-6 h-6 rounded flex items-center justify-center text-base leading-none
+             hover:bg-white/[0.07] cursor-pointer border-0 bg-transparent transition-all
+             hover:scale-125">{{ emoji }}
+        </button>
+    }
+
+    <app-reaction-picker (emojiSelected)="emojiToggled.emit($event)" [guildId]="guildId()" mode="toolbar"/>
+
+    <div class="w-px h-3 mx-0.5 bg-white/[0.10]"></div>
+
+    <button (click)="reply.emit()"
+            class="w-6 h-6 rounded flex items-center justify-center text-white/35 hover:text-white/75
+           hover:bg-white/[0.07] cursor-pointer border-0 bg-transparent transition-colors"
+            title="Reply">
+        <i class="pi pi-reply -scale-x-100 text-[10px]"></i></button>
+
+    @if (canPin()) {
+        <button (click)="pinToggled.emit()"
+                [class.text-brand-dim]="isPinned()"
+                class="w-6 h-6 rounded flex items-center justify-center text-white/35 hover:text-white/75
+               hover:bg-white/[0.07] cursor-pointer border-0 bg-transparent transition-colors"
+                [title]="isPinned() ? 'Unpin message' : 'Pin message'">
+            <i class="pi pi-thumbtack text-[10px]"></i>
+        </button>
+    }
+
+    @if (canPublish()) {
+        <button (click)="publish.emit()"
+                [disabled]="isPublished()"
+                [class.text-brand-dim]="isPublished()"
+                class="w-6 h-6 rounded flex items-center justify-center text-white/35 hover:text-white/75
+               hover:bg-white/[0.07] cursor-pointer border-0 bg-transparent transition-colors
+               disabled:opacity-40 disabled:cursor-not-allowed"
+                [title]="(isPublished() ? 'MESSAGE.PUBLISHED' : 'MESSAGE.PUBLISH') | translate">
+            <i class="pi pi-megaphone text-[10px]"></i>
+        </button>
+    }
+
+    <!-- Only on someone else's message: reporting your own is a `self_report` refusal. -->
+    @if (!isOwn()) {
+        <button (click)="report.emit()"
+                class="w-6 h-6 rounded flex items-center justify-center text-white/35 hover:text-amber-400
+             hover:bg-amber-500/10 cursor-pointer border-0 bg-transparent transition-colors"
+                [title]="'REPORT.TITLE_MESSAGE' | translate">
+            <i class="pi pi-flag text-[10px]"></i>
+        </button>
+    }
+
+    @if (isOwn()) {
+        <button (click)="edit.emit()"
+                class="w-6 h-6 rounded flex items-center justify-center text-white/35 hover:text-white/75
+             hover:bg-white/[0.07] cursor-pointer border-0 bg-transparent transition-colors"
+                title="Edit">
+            <i class="pi pi-pencil text-[10px]"></i>
+        </button>
+        <button (click)="delete.emit()"
+                class="w-6 h-6 rounded flex items-center justify-center text-white/35 hover:text-rose-400
+             hover:bg-rose-500/10 cursor-pointer border-0 bg-transparent transition-colors"
+                title="Delete">
+            <i class="pi pi-trash text-[10px]"></i>
+        </button>
+    }
+</div>

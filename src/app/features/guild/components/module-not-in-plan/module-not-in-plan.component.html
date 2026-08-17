@@ -1,0 +1,16 @@
+<div class="flex-1 min-h-0 flex flex-col items-center justify-center gap-3 px-6 text-center">
+    <div class="w-14 h-14 rounded-2xl bg-card border border-border flex items-center justify-center">
+        <i class="pi pi-sparkles text-[1.5rem] text-text-muted"></i>
+    </div>
+    <div class="max-w-sm space-y-1.5">
+        <p class="text-sm font-semibold text-text-primary m-0">{{ copy().titleKey | translate }}</p>
+        <p class="text-[0.8125rem] text-text-secondary m-0">{{ copy().bodyKey | translate }}</p>
+
+        <!-- Never both halves at once: `ctaKey` is present only for a reader the server said can act; the hint names who can instead, and neither appears on an instance where there's nothing to buy. -->
+        @if (remedy().ctaKey; as cta) {
+            <p class="text-[0.8125rem] text-text-primary m-0 pt-1">{{ cta | translate }}</p>
+        } @else if (remedy().hintKey; as hint) {
+            <p class="text-[0.8125rem] text-text-muted m-0 pt-1">{{ hint | translate }}</p>
+        }
+    </div>
+</div>

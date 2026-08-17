@@ -1,0 +1,10 @@
+/*
+ * Deliberately empty.
+ *
+ * This file held five `--ion-*` custom properties whose whole job was to talk `ion-item` back out
+ * of its own defaults - transparent background, no border, 8px side padding, a 12px radius, and
+ * the two white-tint hover/selected states. Every one of them is now a Tailwind class on the
+ * element itself in the template, which is where the desktop branch already expressed the same
+ * thing. Kept as a file rather than deleted so `styleUrl` in the component stays valid and a
+ * future rule has an obvious home.
+ */

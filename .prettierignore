@@ -1,0 +1,14 @@
+node_modules
+dist
+.angular
+.claude
+src-tauri/gen
+src-tauri/target
+src/assets/wasm
+src/assets/locales
+crates
+bun.lock
+package-lock.json
+Cargo.lock
+*.min.js
+*.min.css

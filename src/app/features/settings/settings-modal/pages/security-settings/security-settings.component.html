@@ -1,0 +1,236 @@
+<div class="flex flex-col gap-8 max-w-2xl">
+
+    <!-- Two-Factor Authentication -->
+    <section class="flex flex-col gap-4">
+        <h3 class="text-xs font-semibold text-text-muted uppercase tracking-widest border-b border-border pb-3">
+            {{ 'SETTINGS.SECURITY.SECTION_2FA' | translate }}
+        </h3>
+
+        @if (stage() === 'idle') {
+            <p class="text-[0.8125rem] text-text-secondary">
+                {{ 'SETTINGS.SECURITY.DESC_IDLE' | translate }}
+            </p>
+            <div>
+                <p-button [label]="'SETTINGS.SECURITY.ENABLE' | translate"
+                          [loading]="busy()"
+                          (onClick)="beginEnroll()"
+                          severity="primary"
+                          size="small"/>
+            </div>
+        }
+
+        @if (stage() === 'enrolling') {
+            <div class="bg-card border border-border rounded-lg p-4 flex flex-col gap-4">
+                <p class="text-[0.8125rem] text-text-secondary">
+                    {{ 'SETTINGS.SECURITY.ENROLL_DESC' | translate }}
+                </p>
+
+                <div class="flex flex-col items-center gap-3">
+                    <app-qr-code [data]="otpAuthUri()" [ariaLabel]="'SETTINGS.SECURITY.QR_ARIA' | translate"/>
+
+                    <div class="flex items-center gap-2">
+                        <span class="font-mono select-all text-text-secondary text-[0.8125rem]">{{ secret() }}</span>
+                        <p-button icon="pi pi-copy"
+                                  [text]="true"
+                                  (onClick)="copySecret()"
+                                  severity="secondary"
+                                  size="small"/>
+                    </div>
+                    <p class="text-[0.6875rem] text-text-muted">
+                        {{ 'SETTINGS.SECURITY.SECRET_HINT' | translate }}
+                    </p>
+                </div>
+
+                <div class="flex flex-col items-center gap-2">
+                    <label class="text-xs font-medium text-text-muted uppercase tracking-wide">
+                        {{ 'SETTINGS.SECURITY.ENTER_CODE' | translate }}
+                    </label>
+                    <p-inputotp [ngModel]="code()"
+                                (ngModelChange)="code.set($event)"
+                                [length]="6"
+                                [integerOnly]="true"/>
+                </div>
+
+                <div class="flex gap-3">
+                    <p-button [label]="'SETTINGS.SECURITY.CONFIRM' | translate"
+                              [loading]="busy()"
+                              [disabled]="code().length < 6"
+                              (onClick)="confirmEnable()"
+                              severity="primary"
+                              size="small"
+                              styleClass="flex-1 justify-center"/>
+                    <p-button [label]="'SETTINGS.SECURITY.CANCEL' | translate"
+                              [disabled]="busy()"
+                              (onClick)="cancelEnroll()"
+                              severity="secondary"
+                              size="small"
+                              styleClass="flex-1 justify-center"/>
+                </div>
+            </div>
+        }
+
+        @if (stage() === 'enabled') {
+            <div class="flex items-center gap-2.5 bg-card border border-border rounded-lg px-4 py-3">
+                <i class="pi pi-check-circle text-online"></i>
+                <span class="text-[0.8125rem] text-text-primary">
+                    {{ 'SETTINGS.SECURITY.STATUS_ENABLED' | translate }}
+                </span>
+            </div>
+            <div class="flex gap-3">
+                <p-button [label]="'SETTINGS.SECURITY.DISABLE' | translate"
+                          (onClick)="showDisableDialog.set(true)"
+                          severity="danger"
+                          size="small"/>
+                <p-button [label]="'SETTINGS.SECURITY.REGENERATE' | translate"
+                          (onClick)="showRegenerateDialog.set(true)"
+                          severity="secondary"
+                          size="small"/>
+            </div>
+        }
+    </section>
+
+</div>
+
+<!-- Recovery codes: shown exactly once, right after enable or regenerate -->
+@if (recoveryCodes(); as codes) {
+    <p-dialog [visible]="true"
+              [closable]="false"
+              [dismissableMask]="false"
+              [modal]="true"
+              [draggable]="false"
+              [resizable]="false"
+              [style]="{width: '440px'}"
+              [header]="'SETTINGS.SECURITY.RECOVERY_CODES_TITLE' | translate"
+              appendTo="body">
+        <div class="flex flex-col gap-4 pt-1">
+            <div class="flex items-start gap-3 bg-card border border-border rounded-lg px-4 py-3">
+                <i class="pi pi-exclamation-triangle text-connecting shrink-0 mt-0.5"></i>
+                <p class="text-[0.8125rem] text-text-secondary">
+                    {{ 'SETTINGS.SECURITY.RECOVERY_CODES_WARNING' | translate }}
+                </p>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 font-mono text-[0.8125rem] text-text-primary bg-sidebar border border-border rounded-lg p-3 max-h-48 overflow-y-auto thin-scrollbar">
+                @for (c of codes; track c) {
+                    <span>{{ c }}</span>
+                }
+            </div>
+
+            <div class="flex gap-3">
+                <p-button icon="pi pi-copy"
+                          [label]="'SETTINGS.SECURITY.COPY' | translate"
+                          (onClick)="copyCodes()"
+                          severity="secondary"
+                          size="small"
+                          styleClass="flex-1 justify-center"/>
+                <p-button icon="pi pi-download"
+                          [label]="'SETTINGS.SECURITY.DOWNLOAD' | translate"
+                          (onClick)="downloadCodes()"
+                          severity="secondary"
+                          size="small"
+                          styleClass="flex-1 justify-center"/>
+            </div>
+
+            <p-button [label]="'SETTINGS.SECURITY.SAVED_CONFIRM' | translate"
+                      (onClick)="dismissCodes()"
+                      severity="primary"
+                      size="small"
+                      styleClass="w-full justify-center"/>
+        </div>
+    </p-dialog>
+}
+
+<!-- Disable 2FA confirm -->
+<p-dialog [(visible)]="showDisableDialog"
+          (onHide)="password.set('')"
+          [closable]="!busy()"
+          [dismissableMask]="!busy()"
+          [modal]="true"
+          [draggable]="false"
+          [resizable]="false"
+          [style]="{width: '380px'}"
+          [header]="'SETTINGS.SECURITY.DISABLE_TITLE' | translate"
+          appendTo="body">
+    <div class="flex flex-col gap-4 pt-1">
+        <p class="text-[0.8125rem] text-text-secondary">
+            {{ 'SETTINGS.SECURITY.DISABLE_DESC' | translate }}
+        </p>
+
+        <div class="flex flex-col gap-1.5">
+            <label class="text-xs font-medium text-text-muted uppercase tracking-wide">
+                {{ 'SETTINGS.SECURITY.PASSWORD_LABEL' | translate }}
+            </label>
+            <input (keydown.enter)="confirmDisable()"
+                   pInputText
+                   type="password"
+                   [ngModel]="password()"
+                   (ngModelChange)="password.set($event)"
+                   [placeholder]="'SETTINGS.SECURITY.PASSWORD_PLACEHOLDER' | translate"
+                   autocomplete="current-password"
+                   class="w-full"/>
+        </div>
+
+        <div class="flex gap-3 justify-end">
+            <p-button [label]="'SETTINGS.SECURITY.CANCEL' | translate"
+                      [disabled]="busy()"
+                      (onClick)="showDisableDialog.set(false)"
+                      severity="secondary"
+                      size="small"/>
+            <p-button [label]="'SETTINGS.SECURITY.DISABLE_CONFIRM' | translate"
+                      [loading]="busy()"
+                      [disabled]="!password()"
+                      (onClick)="confirmDisable()"
+                      severity="danger"
+                      size="small"/>
+        </div>
+    </div>
+</p-dialog>
+
+<!-- Regenerate recovery codes confirm -->
+<p-dialog [(visible)]="showRegenerateDialog"
+          (onHide)="password.set('')"
+          [closable]="!busy()"
+          [dismissableMask]="!busy()"
+          [modal]="true"
+          [draggable]="false"
+          [resizable]="false"
+          [style]="{width: '380px'}"
+          [header]="'SETTINGS.SECURITY.REGENERATE_TITLE' | translate"
+          appendTo="body">
+    <div class="flex flex-col gap-4 pt-1">
+        <div class="flex items-start gap-3 bg-card border border-border rounded-lg px-4 py-3">
+            <i class="pi pi-exclamation-triangle text-connecting shrink-0 mt-0.5"></i>
+            <p class="text-[0.8125rem] text-text-secondary">
+                {{ 'SETTINGS.SECURITY.REGENERATE_WARNING' | translate }}
+            </p>
+        </div>
+
+        <div class="flex flex-col gap-1.5">
+            <label class="text-xs font-medium text-text-muted uppercase tracking-wide">
+                {{ 'SETTINGS.SECURITY.PASSWORD_LABEL' | translate }}
+            </label>
+            <input (keydown.enter)="confirmRegenerate()"
+                   pInputText
+                   type="password"
+                   [ngModel]="password()"
+                   (ngModelChange)="password.set($event)"
+                   [placeholder]="'SETTINGS.SECURITY.PASSWORD_PLACEHOLDER' | translate"
+                   autocomplete="current-password"
+                   class="w-full"/>
+        </div>
+
+        <div class="flex gap-3 justify-end">
+            <p-button [label]="'SETTINGS.SECURITY.CANCEL' | translate"
+                      [disabled]="busy()"
+                      (onClick)="showRegenerateDialog.set(false)"
+                      severity="secondary"
+                      size="small"/>
+            <p-button [label]="'SETTINGS.SECURITY.REGENERATE_CONFIRM' | translate"
+                      [loading]="busy()"
+                      [disabled]="!password()"
+                      (onClick)="confirmRegenerate()"
+                      severity="primary"
+                      size="small"/>
+        </div>
+    </div>
+</p-dialog>

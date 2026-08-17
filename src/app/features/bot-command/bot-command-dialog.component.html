@@ -1,0 +1,73 @@
+<p-dialog
+        (visibleChange)="$event === false && dismiss()"
+        [breakpoints]="{'640px': '95vw'}"
+        [closable]="true"
+        [dismissableMask]="true"
+        [draggable]="false"
+        [modal]="true"
+        [resizable]="false"
+        [style]="{width: '420px'}"
+        [visible]="visible()"
+        appendTo="body">
+
+    <ng-template pTemplate="header">
+        @if (dialogService.request(); as request) {
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg flex items-center justify-center"
+                     style="background: color-mix(in srgb, var(--color-brand) 12%, transparent)">
+                    <i class="pi pi-bolt text-sm" style="color: var(--color-brand-dim)"></i>
+                </div>
+                <span class="text-base font-semibold" style="color: var(--color-text-primary)">
+                    /{{ request.command.name }}
+                </span>
+            </div>
+        }
+    </ng-template>
+
+    <div class="py-2 flex flex-col gap-4">
+        @if (dialogService.request(); as request) {
+            @if (request.command.description) {
+                <p class="text-xs text-white/40">{{ request.command.description }}</p>
+            }
+            @for (option of request.command.options; track option.name) {
+                <div class="flex flex-col gap-1.5">
+                    <label class="text-sm text-white/75 flex items-center gap-1.5">
+                        {{ option.name }}
+                        <span class="text-[10px] text-white/30">{{ option.required ? '(required)' : '(optional)' }}</span>
+                    </label>
+                    @if (option.description) {
+                        <p class="text-xs text-white/35">{{ option.description }}</p>
+                    }
+                    @if (discordOptionInputKind(option.type) === 'boolean') {
+                        <p-toggleswitch
+                                (ngModelChange)="setValue(option.name, $event)"
+                                [ngModel]="optionValues()[option.name]"
+                                [name]="'opt-' + option.name"/>
+                    } @else {
+                        <input
+                                (keydown.enter)="submit()"
+                                (ngModelChange)="setValue(option.name, $event)"
+                                [ngModel]="optionValues()[option.name]"
+                                [name]="'opt-' + option.name"
+                                [placeholder]="discordOptionPlaceholder(option.type)"
+                                [type]="discordOptionInputKind(option.type) === 'number' ? 'number' : 'text'"
+                                class="w-full px-3 py-2 rounded-lg bg-card border border-border text-sm text-white/85 outline-none focus:border-[var(--color-brand)]"/>
+                    }
+                </div>
+            }
+        }
+    </div>
+
+    <ng-template pTemplate="footer">
+        <div class="flex gap-2 justify-end">
+            <p-button (onClick)="dismiss()" [text]="true" label="Cancel" severity="secondary" size="small"/>
+            <p-button
+                    (onClick)="submit()"
+                    [disabled]="!canSubmit()"
+                    label="Run"
+                    severity="primary"
+                    size="small"/>
+        </div>
+    </ng-template>
+
+</p-dialog>
