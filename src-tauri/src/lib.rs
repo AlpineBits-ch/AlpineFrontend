@@ -374,23 +374,19 @@ pub fn run() {
     // subscriber installed those lines went nowhere - and a connection whose candidate pairs all
     // read `Succeeded` while nothing is ever nominated cannot be explained from outside the agent.
     //
-    // **A debug build turns the ICE agent's trace on by default**, rather than waiting for someone
-    // to set `RUST_LOG`. The bug this exists for reproduces on one person's machine and not on
-    // ours, so the run that captures it is a run somebody else makes - and "set this environment
-    // variable, through `tauri dev`, on Windows" has already silently produced a log with no trace
-    // in it once. `RUST_LOG` still wins when it is set, for narrowing or for turning this off.
+    // **Silent by default, including in a debug build.** `webrtc_ice=trace` is hundreds of lines
+    // per join - a ping and a binding response for every candidate pair, every 200ms - which buries
+    // this client's own output in its own console. It was briefly on by default while the ICE
+    // nomination fault was being chased and is not worth that cost the rest of the time.
     //
-    // Release stays silent. Nothing here logs through the facade, so `off` costs a shipped build
-    // nothing at all.
-    let default_filter = if cfg!(debug_assertions) {
-        "webrtc_ice=trace"
-    } else {
-        "off"
-    };
-    if let Err(e) = env_logger::Builder::from_env(
-        env_logger::Env::default().default_filter_or(default_filter),
-    )
-    .try_init()
+    // Turn it back on for one run when a connection will not come up:
+    //
+    //   RUST_LOG=webrtc_ice=trace         # PowerShell: $env:RUST_LOG="webrtc_ice=trace"
+    //
+    // The line that matters there is `Nominatable pair found, nominating` - its absence, with
+    // candidate pairs in `Succeeded`, is a nomination fault rather than a connectivity one.
+    if let Err(e) =
+        env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("off")).try_init()
     {
         eprintln!("[venta] could not install the log bridge: {e}");
     }

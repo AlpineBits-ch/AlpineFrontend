@@ -71,12 +71,14 @@ const PUBLISH_TIMEOUT: Duration = Duration::from_secs(5);
 /// How often [`Room::supervise`] looks at the publisher.
 const SUPERVISOR_POLL: Duration = Duration::from_secs(1);
 
-/// How long `Disconnected` or `Connecting` is tolerated before an ICE restart.
+/// How long `Disconnected` is tolerated before an ICE restart is considered.
 ///
-/// Long enough that ordinary ICE recovery wins the race - most `Disconnected` spells end on their
-/// own within a couple of seconds - and short enough that a call which has genuinely lost its route
-/// does not sit mute while nothing happens.
-const DISCONNECT_GRACE: Duration = Duration::from_secs(5);
+/// **ICE gets first refusal, and generously.** `Disconnected` is not a failure - it is consent
+/// freshness lapsing, and it recovers on its own most of the time. Restarting into that window
+/// tears down a connection that was about to come back, so this is set well past the point where
+/// webrtc-rs would have given up and said `Failed` instead. Even after it elapses a restart only
+/// happens if the route actually moved; see `Room::supervise`.
+const DISCONNECT_GRACE: Duration = Duration::from_secs(15);
 
 /// How many restarts before the supervisor stops.
 ///
@@ -849,7 +851,17 @@ impl Room {
                     return;
                 }
 
-                let due = match room.publisher.connection_state() {
+                // **Terminal states only, and `Connecting` is not one of them.**
+                //
+                // An earlier version restarted on `Connecting` too, on the theory that a connection
+                // which never came up presents that way. It does - but so does every renegotiation
+                // and every transient blip on a *working* call, and an ICE restart mints new
+                // credentials on a live connection. That version dropped audio at random on a
+                // healthy call and again whenever a screen share renegotiated, which is a far worse
+                // failure than the one it was built to repair. A connection that never came up is
+                // already handled: `wait_until_connected` fails the join and nothing is supervised.
+                let state = room.publisher.connection_state();
+                let due = match state {
                     RTCPeerConnectionState::Connected | RTCPeerConnectionState::New => {
                         disconnected_since = None;
                         attempts = 0;
@@ -857,9 +869,7 @@ impl Room {
                     }
                     RTCPeerConnectionState::Closed => return,
                     RTCPeerConnectionState::Failed => true,
-                    // `Connecting` is included: a connection that never came up at all is the case
-                    // this whole change exists for, and it presents here rather than as `Failed`.
-                    RTCPeerConnectionState::Disconnected | RTCPeerConnectionState::Connecting => {
+                    RTCPeerConnectionState::Disconnected => {
                         let since = disconnected_since.get_or_insert_with(tokio::time::Instant::now);
                         since.elapsed() >= DISCONNECT_GRACE
                     }
@@ -867,6 +877,19 @@ impl Room {
                 };
 
                 if !due {
+                    continue;
+                }
+
+                // **A restart is only a fix when there is somewhere new to go.**
+                //
+                // This exists to move a call onto a different local address after the one it was
+                // using stopped working - a tunnel coming up, an adapter dying, Wi-Fi handing over
+                // to Ethernet. If the routing table still answers with the same address, an ICE
+                // restart gathers the identical candidates and the only thing it changes is that a
+                // working connection is torn down and rebuilt. `Failed` is the exception: ICE has
+                // given up there, so a restart is the only move left whatever the route says.
+                let route_moved = room.route.as_ref().is_some_and(Route::refresh);
+                if state != RTCPeerConnectionState::Failed && !route_moved {
                     continue;
                 }
                 if attempts >= MAX_ICE_RESTARTS {
