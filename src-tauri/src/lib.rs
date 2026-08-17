@@ -369,15 +369,29 @@ pub fn run() {
 
     // Bridge the `log` facade onto the stderr we just teed into that file.
     //
-    // **Inert unless `RUST_LOG` is set** - `env_logger` defaults to `Error`, and nothing in this
-    // client logs through the facade - so this costs a released build nothing. What it buys is the
-    // only view into the crates underneath us: `webrtc-ice` narrates its own connectivity checks
-    // and nomination decisions through `log::trace!`, and with no subscriber installed those lines
-    // went nowhere. A connection whose candidate pairs all read `Succeeded` while nothing is ever
-    // nominated cannot be explained from outside the agent.
+    // This is the only view into the crates underneath us. `webrtc-ice` narrates its connectivity
+    // checks and its nomination decisions through `log::trace!` and nothing else, so with no
+    // subscriber installed those lines went nowhere - and a connection whose candidate pairs all
+    // read `Succeeded` while nothing is ever nominated cannot be explained from outside the agent.
     //
-    //   RUST_LOG=webrtc_ice=trace,webrtc=debug
-    if let Err(e) = env_logger::try_init() {
+    // **A debug build turns the ICE agent's trace on by default**, rather than waiting for someone
+    // to set `RUST_LOG`. The bug this exists for reproduces on one person's machine and not on
+    // ours, so the run that captures it is a run somebody else makes - and "set this environment
+    // variable, through `tauri dev`, on Windows" has already silently produced a log with no trace
+    // in it once. `RUST_LOG` still wins when it is set, for narrowing or for turning this off.
+    //
+    // Release stays silent. Nothing here logs through the facade, so `off` costs a shipped build
+    // nothing at all.
+    let default_filter = if cfg!(debug_assertions) {
+        "webrtc_ice=trace"
+    } else {
+        "off"
+    };
+    if let Err(e) = env_logger::Builder::from_env(
+        env_logger::Env::default().default_filter_or(default_filter),
+    )
+    .try_init()
+    {
         eprintln!("[venta] could not install the log bridge: {e}");
     }
     #[cfg(windows)]
