@@ -55,12 +55,41 @@ pub struct EncoderSpec {
     pub content: EncoderContent,
 }
 
+/// One captured frame, in whatever form the pipeline that produced it carries.
+///
+/// <p>The variant is the pipeline. `Cpu` is the portable path: the frame has been downloaded,
+/// fitted to the layer's geometry by the pump, and is ready to convert. `Gpu` is the Windows
+/// zero-copy path, where the frame is an NV12 texture the scaler has already produced at the
+/// layer's geometry and the encoder hands it straight to the driver.</p>
+///
+/// <p>An enum rather than a second trait method, because a defaulted `encode_texture` would let a
+/// new encoder silently not implement it and quietly never be used on the fast path - the same
+/// trap the note on [`VideoEncoder::reconfigure`] describes.</p>
+#[derive(Clone, Copy)]
+pub enum CapturedFrame<'a> {
+    Cpu(&'a RgbaImage),
+    /// An NV12 texture at the layer's exact geometry, on the shared device.
+    #[cfg(target_os = "windows")]
+    Gpu(&'a windows::Win32::Graphics::Direct3D11::ID3D11Texture2D),
+}
+
+impl CapturedFrame<'_> {
+    /// The CPU frame, or `None` on the GPU path. For encoders that cannot take a texture.
+    pub fn cpu(&self) -> Option<&RgbaImage> {
+        match self {
+            Self::Cpu(frame) => Some(frame),
+            #[cfg(target_os = "windows")]
+            Self::Gpu(_) => None,
+        }
+    }
+}
+
 /// A video encoder fed raw captured frames.
 ///
 /// Implementations are stateful (inter-frame prediction), so an instance belongs to one capture
 /// session.
 pub trait VideoEncoder: Send {
-    fn encode(&mut self, frame: &RgbaImage, timestamp_us: u64) -> EncodeOutcome;
+    fn encode(&mut self, frame: CapturedFrame<'_>, timestamp_us: u64) -> EncodeOutcome;
 
     /// Ask for the next frame to be an IDR, e.g. when a new viewer joins or after a fallback.
     fn request_keyframe(&mut self);
@@ -234,7 +263,7 @@ impl ResilientEncoder {
 }
 
 impl VideoEncoder for ResilientEncoder {
-    fn encode(&mut self, frame: &RgbaImage, timestamp_us: u64) -> EncodeOutcome {
+    fn encode(&mut self, frame: CapturedFrame<'_>, timestamp_us: u64) -> EncodeOutcome {
         match self.active.encode(frame, timestamp_us) {
             EncodeOutcome::Chunk(chunk) => {
                 self.consecutive_failures = 0;
@@ -245,6 +274,14 @@ impl VideoEncoder for ResilientEncoder {
                 self.consecutive_failures += 1;
                 if self.consecutive_failures < FAILURES_BEFORE_FALLBACK {
                     return EncodeOutcome::Skipped;
+                }
+                // Software cannot encode a texture, so on the zero-copy path there is nothing to
+                // fall back *to*: the replacement would refuse every frame and the layer would go
+                // quiet either way, with a misleading "falling back" line in the log. The build
+                // time choice in `session::start` is what protects that path, plus
+                // `VENTA_DISABLE_GPU_CAPTURE`.
+                if frame.cpu().is_none() {
+                    return EncodeOutcome::Failed;
                 }
                 if !self.fall_back() {
                     return EncodeOutcome::Failed;
@@ -306,7 +343,7 @@ mod tests {
                 ..spec(320, 240)
             });
             assert!(
-                matches!(enc.encode(&frame(320, 240, 0), 0), EncodeOutcome::Chunk(_)),
+                matches!(enc.encode(CapturedFrame::Cpu(&frame(320, 240, 0)), 0), EncodeOutcome::Chunk(_)),
                 "{content:?} should encode"
             );
         }
@@ -353,7 +390,7 @@ mod tests {
     #[test]
     fn emits_a_keyframe_first() {
         let mut enc = software(spec(320, 240));
-        let chunk = chunk_of(enc.encode(&frame(320, 240, 0), 0));
+        let chunk = chunk_of(enc.encode(CapturedFrame::Cpu(&frame(320, 240, 0)), 0));
 
         assert!(chunk.is_keyframe, "the first encoded frame must be a keyframe");
         assert!(chunk.data.len() > 4);
@@ -363,15 +400,15 @@ mod tests {
     #[test]
     fn preserves_the_frame_timestamp() {
         let mut enc = software(spec(320, 240));
-        assert_eq!(chunk_of(enc.encode(&frame(320, 240, 0), 123_456)).timestamp_us, 123_456);
+        assert_eq!(chunk_of(enc.encode(CapturedFrame::Cpu(&frame(320, 240, 0)), 123_456)).timestamp_us, 123_456);
     }
 
     #[test]
     fn a_static_scene_costs_less_after_the_keyframe() {
         let mut enc = software(spec(320, 240));
         let still = frame(320, 240, 0);
-        let key = chunk_of(enc.encode(&still, 0));
-        let delta = chunk_of(enc.encode(&still, 33_333));
+        let key = chunk_of(enc.encode(CapturedFrame::Cpu(&still), 0));
+        let delta = chunk_of(enc.encode(CapturedFrame::Cpu(&still), 33_333));
 
         assert!(!delta.is_keyframe, "an unchanged frame should not force a new keyframe");
         assert!(
@@ -386,11 +423,11 @@ mod tests {
     fn request_keyframe_forces_an_idr() {
         let mut enc = software(spec(320, 240));
         let still = frame(320, 240, 0);
-        enc.encode(&still, 0);
-        enc.encode(&still, 33_333);
+        enc.encode(CapturedFrame::Cpu(&still), 0);
+        enc.encode(CapturedFrame::Cpu(&still), 33_333);
 
         enc.request_keyframe();
-        assert!(chunk_of(enc.encode(&still, 66_666)).is_keyframe);
+        assert!(chunk_of(enc.encode(CapturedFrame::Cpu(&still), 66_666)).is_keyframe);
     }
 
     #[test]
@@ -399,7 +436,7 @@ mod tests {
         for (w, h) in [(1920u32, 540u32), (606, 1080)] {
             let mut enc = software(spec(w, h));
             assert!(
-                matches!(enc.encode(&frame(w, h, 0), 0), EncodeOutcome::Chunk(_)),
+                matches!(enc.encode(CapturedFrame::Cpu(&frame(w, h, 0)), 0), EncodeOutcome::Chunk(_)),
                 "{w}x{h} should encode"
             );
         }
@@ -425,7 +462,7 @@ mod tests {
         provision();
         let mut enc = new_encoder(spec(640, 360)).unwrap();
         let produced = (0..30u64)
-            .filter(|i| matches!(enc.encode(&frame(640, 360, *i as u32), i * 33_333), EncodeOutcome::Chunk(_)))
+            .filter(|i| matches!(enc.encode(CapturedFrame::Cpu(&frame(640, 360, *i as u32)), i * 33_333), EncodeOutcome::Chunk(_)))
             .count();
         assert!(produced > 0, "no output from {} over 30 frames", enc.name());
     }
@@ -440,7 +477,7 @@ mod tests {
     }
 
     impl VideoEncoder for FlakyEncoder {
-        fn encode(&mut self, _frame: &RgbaImage, timestamp_us: u64) -> EncodeOutcome {
+        fn encode(&mut self, _frame: CapturedFrame<'_>, timestamp_us: u64) -> EncodeOutcome {
             if self.encoded >= self.healthy_frames {
                 return EncodeOutcome::Failed;
             }
@@ -479,10 +516,10 @@ mod tests {
         let mut enc = ResilientEncoder::new(flaky(1), spec(320, 240));
         let still = frame(320, 240, 0);
 
-        enc.encode(&still, 0);
+        enc.encode(CapturedFrame::Cpu(&still), 0);
         // Below the threshold, a failure is reported as a skip and the encoder is kept.
         for i in 1..FAILURES_BEFORE_FALLBACK {
-            assert!(matches!(enc.encode(&still, i as u64 * 1000), EncodeOutcome::Skipped));
+            assert!(matches!(enc.encode(CapturedFrame::Cpu(&still), i as u64 * 1000), EncodeOutcome::Skipped));
             assert_eq!(enc.name(), "flaky", "must not swap on a transient failure");
         }
     }
@@ -493,9 +530,9 @@ mod tests {
         let mut enc = ResilientEncoder::new(flaky(1), spec(320, 240));
         let still = frame(320, 240, 0);
 
-        enc.encode(&still, 0);
+        enc.encode(CapturedFrame::Cpu(&still), 0);
         for i in 0..FAILURES_BEFORE_FALLBACK {
-            enc.encode(&still, (i as u64 + 1) * 1000);
+            enc.encode(CapturedFrame::Cpu(&still), (i as u64 + 1) * 1000);
         }
 
         assert_eq!(enc.name(), "openh264", "must have swapped to the software encoder");
@@ -507,10 +544,10 @@ mod tests {
         let mut enc = ResilientEncoder::new(flaky(1), spec(320, 240));
         let still = frame(320, 240, 0);
 
-        enc.encode(&still, 0);
+        enc.encode(CapturedFrame::Cpu(&still), 0);
         let mut outcome = EncodeOutcome::Skipped;
         for i in 0..FAILURES_BEFORE_FALLBACK {
-            outcome = enc.encode(&still, (i as u64 + 1) * 1000);
+            outcome = enc.encode(CapturedFrame::Cpu(&still), (i as u64 + 1) * 1000);
         }
 
         // The replacement shares no prediction state with the dead encoder, so anything but a
@@ -525,8 +562,8 @@ mod tests {
         let mut enc = ResilientEncoder::new(flaky(2), spec(320, 240));
         let still = frame(320, 240, 0);
 
-        enc.encode(&still, 0);
-        enc.encode(&still, 1000);
+        enc.encode(CapturedFrame::Cpu(&still), 0);
+        enc.encode(CapturedFrame::Cpu(&still), 1000);
         assert_eq!(enc.name(), "flaky");
     }
 
@@ -540,7 +577,7 @@ mod tests {
 
         let mut outcome = EncodeOutcome::Skipped;
         for i in 0..FAILURES_BEFORE_FALLBACK {
-            outcome = enc.encode(&still, i as u64 * 1000);
+            outcome = enc.encode(CapturedFrame::Cpu(&still), i as u64 * 1000);
         }
         assert!(matches!(outcome, EncodeOutcome::Failed));
     }

@@ -18,7 +18,11 @@ use windows::core::Interface;
 use windows::Win32::Media::MediaFoundation::*;
 use windows::Win32::System::Com::CoIncrementMTAUsage;
 
-use super::encoder::{EncodeOutcome, EncodedChunk, EncoderContent, EncoderSpec, VideoEncoder};
+use windows::Win32::Graphics::Direct3D11::{ID3D11Device, ID3D11Texture2D};
+
+use super::encoder::{
+    CapturedFrame, EncodeOutcome, EncodedChunk, EncoderContent, EncoderSpec, VideoEncoder,
+};
 use super::nv12;
 
 /// How long a single frame may spend waiting on the encoder before we give up on it.
@@ -120,7 +124,11 @@ pub struct MediaFoundationEncoder {
     events: Option<IMFMediaEventGenerator>,
     codec_api: Option<ICodecAPI>,
     spec: EncoderSpec,
+    /// Only used on the CPU path. Empty and untouched once `bind_to_device` has succeeded.
     nv12_buf: Vec<u8>,
+    /// Present once the transform has been pointed at the device its input textures live on.
+    /// Its presence is what says this encoder takes textures rather than buffers.
+    device_manager: Option<IMFDXGIDeviceManager>,
     /// Output runs a few frames behind input, so completed frames queue here.
     pending: VecDeque<EncodedChunk>,
     /// Timestamps queued in submission order, to pair with output that arrives later.
@@ -450,9 +458,73 @@ impl MediaFoundationEncoder {
             codec_api,
             spec,
             nv12_buf: Vec::with_capacity(nv12::buffer_len(spec.width, spec.height)),
+            device_manager: None,
             pending: VecDeque::new(),
             inflight: VecDeque::new(),
         })
+    }
+
+    /// Point the transform at the device its input textures live on.
+    ///
+    /// Required before an MFT that reports `MF_SA_D3D11_AWARE` will accept a DXGI-backed sample.
+    /// Without it the driver assumes system memory and rejects the buffer, so this failing is what
+    /// sends `session::start` back to the CPU pipeline.
+    pub(crate) fn bind_to_device(&mut self, device: &ID3D11Device) -> Result<(), String> {
+        let aware = unsafe { self.transform.GetAttributes() }
+            .ok()
+            .and_then(|a| unsafe { a.GetUINT32(&MF_SA_D3D11_AWARE) }.ok())
+            .unwrap_or(0);
+        if aware != 1 {
+            return Err("this encoder does not take D3D11 textures".into());
+        }
+
+        let mut token = 0u32;
+        let mut manager: Option<IMFDXGIDeviceManager> = None;
+        unsafe { MFCreateDXGIDeviceManager(&mut token, &mut manager) }
+            .map_err(|e| format!("no DXGI device manager: {e}"))?;
+        let manager = manager.ok_or("MFCreateDXGIDeviceManager returned nothing")?;
+        unsafe { manager.ResetDevice(device, token) }
+            .map_err(|e| format!("the device manager refused the device: {e}"))?;
+
+        // The message takes the manager as a bare pointer-sized value. The transform holds its own
+        // reference for as long as it needs one, and `manager` is kept alive here regardless.
+        unsafe {
+            self.transform
+                .ProcessMessage(MFT_MESSAGE_SET_D3D_MANAGER, manager.as_raw() as usize)
+        }
+        .map_err(|e| format!("the encoder refused a D3D manager: {e}"))?;
+
+        self.device_manager = Some(manager);
+        Ok(())
+    }
+
+    /// Whether this encoder is taking textures rather than CPU buffers.
+    pub(crate) fn is_gpu_bound(&self) -> bool {
+        self.device_manager.is_some()
+    }
+
+    /// Wrap an NV12 texture in an `IMFSample`, with no copy anywhere.
+    ///
+    /// The texture is already at this encoder's exact geometry, produced by the video processor,
+    /// so there is nothing to convert and nothing to upload.
+    unsafe fn build_texture_sample(
+        &mut self,
+        texture: &ID3D11Texture2D,
+        timestamp_us: u64,
+    ) -> Result<IMFSample, String> {
+        let buffer = MFCreateDXGISurfaceBuffer(&ID3D11Texture2D::IID, texture, 0, false)
+            .map_err(|e| format!("could not wrap the texture: {e}"))?;
+        // A DXGI buffer reports its own length only after this is asked for; without it the
+        // transform sees a zero-length buffer and skips the frame.
+        let length = buffer
+            .cast::<IMF2DBuffer>()
+            .ok()
+            .and_then(|two_d| two_d.GetContiguousLength().ok())
+            .unwrap_or(0);
+        if length > 0 {
+            let _ = buffer.SetCurrentLength(length);
+        }
+        self.finish_sample(buffer, timestamp_us)
     }
 
     /// Wrap the converted frame in an `IMFSample` with timing information.
@@ -470,6 +542,16 @@ impl MediaFoundationEncoder {
             .SetCurrentLength(self.nv12_buf.len() as u32)
             .map_err(|e| e.to_string())?;
 
+        self.finish_sample(buffer, timestamp_us)
+    }
+
+    /// Put one buffer into a timed sample. Shared by the CPU and texture paths so a frame is
+    /// timestamped identically whichever produced it.
+    unsafe fn finish_sample(
+        &self,
+        buffer: IMFMediaBuffer,
+        timestamp_us: u64,
+    ) -> Result<IMFSample, String> {
         let sample = MFCreateSample().map_err(|e| e.to_string())?;
         sample.AddBuffer(&buffer).map_err(|e| e.to_string())?;
         // MF timestamps are in 100 ns units.
@@ -605,21 +687,36 @@ impl MediaFoundationEncoder {
 }
 
 impl VideoEncoder for MediaFoundationEncoder {
-    fn encode(&mut self, frame: &RgbaImage, timestamp_us: u64) -> EncodeOutcome {
-        if frame.width() != self.spec.width || frame.height() != self.spec.height {
-            // Named rather than silent. This is the one failure here that is a *caller* fault
-            // rather than a driver one - the pump fitted the frame to a geometry the encoder was
-            // not built for - and telling those apart from a log is the difference between fixing
-            // the pump and blaming the GPU.
-            eprintln!(
-                "[publisher] frame {}x{} does not match the encoder built for {}x{}",
-                frame.width(), frame.height(), self.spec.width, self.spec.height
-            );
-            return EncodeOutcome::Failed;
-        }
-
+    fn encode(&mut self, frame: CapturedFrame<'_>, timestamp_us: u64) -> EncodeOutcome {
         unsafe {
-            let sample = match self.build_sample(frame, timestamp_us) {
+            let sample = match frame {
+                CapturedFrame::Cpu(frame) => {
+                    if frame.width() != self.spec.width || frame.height() != self.spec.height {
+                        // Named rather than silent. This is the one failure here that is a *caller*
+                        // fault rather than a driver one - the pump fitted the frame to a geometry
+                        // the encoder was not built for - and telling those apart from a log is
+                        // the difference between fixing the pump and blaming the GPU.
+                        eprintln!(
+                            "[publisher] frame {}x{} does not match the encoder built for {}x{}",
+                            frame.width(),
+                            frame.height(),
+                            self.spec.width,
+                            self.spec.height
+                        );
+                        return EncodeOutcome::Failed;
+                    }
+                    self.build_sample(frame, timestamp_us)
+                }
+                CapturedFrame::Gpu(texture) => {
+                    if self.device_manager.is_none() {
+                        eprintln!("[publisher] a texture reached an encoder with no D3D manager");
+                        return EncodeOutcome::Failed;
+                    }
+                    self.build_texture_sample(texture, timestamp_us)
+                }
+            };
+
+            let sample = match sample {
                 Ok(sample) => sample,
                 Err(e) => {
                     eprintln!("[publisher] failed to build an input sample: {e}");
@@ -835,8 +932,26 @@ impl PooledEncoder {
     }
 }
 
+impl PooledEncoder {
+    /// Point the pooled transform at the device its input textures live on.
+    ///
+    /// Fails on a transform that is not `MF_SA_D3D11_AWARE` or whose driver refuses the manager,
+    /// which is what sends `session::start` back to the CPU pipeline for the whole share.
+    pub fn bind_to_device(&mut self, device: &ID3D11Device) -> Result<(), String> {
+        match self.0.as_mut() {
+            Some(encoder) => encoder.bind_to_device(device),
+            None => Err("the pooled encoder is gone".into()),
+        }
+    }
+
+    /// Whether this encoder is taking textures rather than CPU buffers.
+    pub fn is_gpu_bound(&self) -> bool {
+        self.0.as_ref().is_some_and(|encoder| encoder.is_gpu_bound())
+    }
+}
+
 impl VideoEncoder for PooledEncoder {
-    fn encode(&mut self, frame: &RgbaImage, timestamp_us: u64) -> EncodeOutcome {
+    fn encode(&mut self, frame: CapturedFrame<'_>, timestamp_us: u64) -> EncodeOutcome {
         match self.0.as_mut() {
             Some(encoder) => encoder.encode(frame, timestamp_us),
             None => EncodeOutcome::Failed,
@@ -998,7 +1113,7 @@ mod tests {
         // Pipelined encoders emit nothing for the first frames, so feed a short run.
         let mut chunks = Vec::new();
         for i in 0..30u64 {
-            if let EncodeOutcome::Chunk(chunk) = encoder.encode(&frame(640, 360, i as u32), i * 33_333) {
+            if let EncodeOutcome::Chunk(chunk) = encoder.encode(CapturedFrame::Cpu(&frame(640, 360, i as u32)), i * 33_333) {
                 chunks.push(chunk);
             }
         }
@@ -1022,7 +1137,7 @@ mod tests {
         };
         // Geometry is fixed for the session; a mismatch is a broken contract, not a skip.
         assert!(matches!(
-            encoder.encode(&frame(320, 240, 0), 0),
+            encoder.encode(CapturedFrame::Cpu(&frame(320, 240, 0)), 0),
             EncodeOutcome::Failed
         ));
     }
@@ -1056,6 +1171,61 @@ mod probe {
         eprintln!("[probe] encoder constructed: {}", built.is_some());
     }
 
+    /// Whether the encoders on this machine will take a GPU texture instead of a CPU buffer.
+    ///
+    /// The one fact the whole zero-copy question turns on. An MFT that reports `MF_SA_D3D11_AWARE`
+    /// can be handed a `Direct3D11CaptureFrame`'s texture through `MFCreateDXGISurfaceBuffer`, and
+    /// the RGBA download, the scale, the NV12 conversion and the upload all stop existing.
+    #[test]
+    fn report_whether_the_encoders_take_gpu_textures() {
+        assert!(ensure_mf_started(), "Media Foundation failed to start");
+
+        for activate in unsafe { enumerate_hardware_encoders() } {
+            let name = unsafe { friendly_name(&activate) };
+            let Ok(transform) = (unsafe { activate.ActivateObject::<IMFTransform>() }) else {
+                eprintln!("[probe] {name}: would not activate");
+                continue;
+            };
+
+            let attributes = unsafe { transform.GetAttributes() };
+            let d3d11 = attributes
+                .as_ref()
+                .ok()
+                .and_then(|a| unsafe { a.GetUINT32(&MF_SA_D3D11_AWARE) }.ok())
+                .unwrap_or(0);
+            let d3d9 = attributes
+                .as_ref()
+                .ok()
+                .and_then(|a| unsafe { a.GetUINT32(&MF_SA_D3D_AWARE) }.ok())
+                .unwrap_or(0);
+            let async_mft = attributes
+                .as_ref()
+                .ok()
+                .and_then(|a| unsafe { a.GetUINT32(&MF_TRANSFORM_ASYNC) }.ok())
+                .unwrap_or(0);
+
+            eprintln!(
+                "[probe] {name}: MF_SA_D3D11_AWARE={d3d11} MF_SA_D3D_AWARE={d3d9} async={async_mft}"
+            );
+
+            // What the encoder will take on its input stream. NV12 is the CPU path we use today;
+            // anything else here is what a GPU surface could be handed as.
+            for index in 0..8u32 {
+                match unsafe { transform.GetInputAvailableType(0, index) } {
+                    Ok(media_type) => {
+                        let subtype = unsafe { media_type.GetGUID(&MF_MT_SUBTYPE) };
+                        eprintln!("[probe]   input type {index}: {subtype:?}");
+                    }
+                    Err(_) => break,
+                }
+            }
+
+            unsafe {
+                let _ = activate.ShutdownObject();
+            }
+        }
+    }
+
 
     /// One encoder, the same total number of frames, never torn down until the end.
     ///
@@ -1077,7 +1247,7 @@ mod probe {
         };
         let frames: Vec<RgbaImage> = (0..4).map(|i| frame(w, h, i * 7)).collect();
         for i in 0..6000u64 {
-            let _ = encoder.encode(&frames[i as usize % 4], i * 33_333);
+            let _ = encoder.encode(CapturedFrame::Cpu(&frames[i as usize % 4]), i * 33_333);
             if i % 1000 == 0 {
                 eprintln!("[probe] {i} frames through one encoder");
             }
@@ -1107,7 +1277,7 @@ mod probe {
             };
             let frames: Vec<RgbaImage> = (0..2).map(|i| frame(w, h, i * 7)).collect();
             for i in 0..60u64 {
-                let _ = encoder.encode(&frames[i as usize % 2], i * 33_333);
+                let _ = encoder.encode(CapturedFrame::Cpu(&frames[i as usize % 2]), i * 33_333);
             }
             eprintln!("[probe] round {round}: {w}x{h} encoded, keeping it alive");
             kept.push(encoder);
@@ -1152,7 +1322,7 @@ mod probe {
             let frames: Vec<RgbaImage> = (0..2).map(|i| frame(w, h, i * 7)).collect();
             let mut out = 0usize;
             for i in 0..60u64 {
-                if let EncodeOutcome::Chunk(_) = encoder.encode(&frames[i as usize % 2], i * 33_333) {
+                if let EncodeOutcome::Chunk(_) = encoder.encode(CapturedFrame::Cpu(&frames[i as usize % 2]), i * 33_333) {
                     out += 1;
                 }
             }
@@ -1188,7 +1358,7 @@ mod probe {
             let frames: Vec<RgbaImage> = (0..4).map(|i| frame(w, h, i * 7)).collect();
             let mut out = 0usize;
             for i in 0..60u64 {
-                if let EncodeOutcome::Chunk(_) = encoder.encode(&frames[i as usize % 4], i * 33_333) {
+                if let EncodeOutcome::Chunk(_) = encoder.encode(CapturedFrame::Cpu(&frames[i as usize % 4]), i * 33_333) {
                     out += 1;
                 }
             }
@@ -1229,7 +1399,7 @@ mod probe {
             let mut out = 0usize;
             let started = Instant::now();
             for i in 0..60u64 {
-                if let EncodeOutcome::Chunk(_) = encoder.encode(&frames[i as usize % 4], i * 33_333)
+                if let EncodeOutcome::Chunk(_) = encoder.encode(CapturedFrame::Cpu(&frames[i as usize % 4]), i * 33_333)
                 {
                     out += 1;
                 }
@@ -1293,7 +1463,7 @@ mod ladder_diagnosis {
             let mut chunks = 0u32;
             let mut first_failure: Option<u32> = None;
             for i in 0..90u64 {
-                match encoder.encode(&frame(spec.width, spec.height, i as u32), i * 33_333) {
+                match encoder.encode(CapturedFrame::Cpu(&frame(spec.width, spec.height, i as u32)), i * 33_333) {
                     EncodeOutcome::Chunk(_) => chunks += 1,
                     // By design, not a fault - a pipelined encoder emits nothing for its first
                     // frames, so counting these as failures is how a healthy stream gets swapped
@@ -1416,7 +1586,7 @@ mod ladder_concurrency {
         // 180 frames is three seconds of 60 fps, long enough for rate control to settle.
         for i in 0..180u64 {
             for (index, (spec, encoder)) in encoders.iter_mut().enumerate() {
-                match encoder.encode(&frame(spec.width, spec.height, i as u32), i * 16_667) {
+                match encoder.encode(CapturedFrame::Cpu(&frame(spec.width, spec.height, i as u32)), i * 16_667) {
                     EncodeOutcome::Chunk(_) => chunks[index] += 1,
                     EncodeOutcome::Skipped => {}
                     EncodeOutcome::Failed => {
@@ -1469,7 +1639,7 @@ mod ladder_concurrency {
 
         let mut before = 0u32;
         for i in 0..30u64 {
-            if let EncodeOutcome::Chunk(_) = encoder.encode(&frame(small.width, small.height, i as u32), i * 33_333) {
+            if let EncodeOutcome::Chunk(_) = encoder.encode(CapturedFrame::Cpu(&frame(small.width, small.height, i as u32)), i * 33_333) {
                 before += 1;
             }
         }
@@ -1486,7 +1656,7 @@ mod ladder_concurrency {
         let mut after = 0u32;
         let mut first_failure: Option<u32> = None;
         for i in 30..90u64 {
-            match encoder.encode(&frame(big.width, big.height, i as u32), i * 33_333) {
+            match encoder.encode(CapturedFrame::Cpu(&frame(big.width, big.height, i as u32)), i * 33_333) {
                 EncodeOutcome::Chunk(_) => after += 1,
                 EncodeOutcome::Skipped => {}
                 EncodeOutcome::Failed => {
@@ -1521,7 +1691,7 @@ mod ladder_concurrency {
 
         for i in 0..90u64 {
             for (index, (spec, encoder)) in encoders.iter_mut().enumerate() {
-                match encoder.encode(&frame(spec.width, spec.height, i as u32), i * 33_333) {
+                match encoder.encode(CapturedFrame::Cpu(&frame(spec.width, spec.height, i as u32)), i * 33_333) {
                     EncodeOutcome::Chunk(_) => chunks[index] += 1,
                     EncodeOutcome::Skipped => {}
                     EncodeOutcome::Failed => {
@@ -1566,7 +1736,7 @@ mod ladder_concurrency {
 
         for i in 0..90u64 {
             for (index, (spec, encoder)) in encoders.iter_mut().enumerate() {
-                match encoder.encode(&frame(spec.width, spec.height, i as u32), i * 33_333) {
+                match encoder.encode(CapturedFrame::Cpu(&frame(spec.width, spec.height, i as u32)), i * 33_333) {
                     EncodeOutcome::Chunk(_) => chunks[index] += 1,
                     EncodeOutcome::Skipped => {}
                     EncodeOutcome::Failed => {

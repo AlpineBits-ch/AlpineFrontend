@@ -509,7 +509,7 @@ async fn the_sfu_forwards_a_published_screen_to_a_subscriber() {
             let v = (((x + i as u32) / 8 + y / 8) % 2) as u8;
             image::Rgba([v * 255, (x % 256) as u8, (y % 256) as u8, 255])
         });
-        if let EncodeOutcome::Chunk(chunk) = encoder.encode(&frame, i * 33_333) {
+        if let EncodeOutcome::Chunk(chunk) = encoder.encode(crate::media::publisher::encoder::CapturedFrame::Cpu(&frame), i * 33_333) {
             if track
                 .write_sample(&webrtc::media::Sample {
                     data: bytes::Bytes::from(chunk.data),

@@ -344,6 +344,78 @@ pub async fn run_audio_writer(
 /// from this, so a value that disagrees with the encoder makes every viewer's jitter buffer wrong.
 const OPUS_PACKET_DURATION: Duration = Duration::from_millis(20);
 
+/// Build the zero-copy capture session and a set of encoders bound to its device.
+///
+/// All or nothing, and never fatal. A machine with no D3D11 device, a driver whose encoder is not
+/// `MF_SA_D3D11_AWARE`, a source Windows Graphics Capture will not open, or `VENTA_DISABLE_GPU_CAPTURE`
+/// all land here as `(None, None)` and the share runs the portable pipeline instead. Anything
+/// acquired on the way to a failure is dropped, which returns pooled encoders to the pool.
+#[cfg(target_os = "windows")]
+#[allow(clippy::type_complexity)]
+fn open_gpu_pipeline(
+    source_id: &str,
+    ladder: &[simulcast::Layer],
+) -> (
+    Option<super::gpu::pipeline::GpuPipeline>,
+    Option<Vec<Box<dyn VideoEncoder>>>,
+) {
+    use super::gpu;
+
+    if gpu::disabled() {
+        eprintln!("[publisher] VENTA_DISABLE_GPU_CAPTURE is set; capturing through the CPU");
+        return (None, None);
+    }
+
+    let device = match gpu::device::GpuDevice::new() {
+        Ok(device) => Arc::new(device),
+        Err(e) => {
+            eprintln!("[publisher] no D3D11 device ({e}); capturing through the CPU");
+            return (None, None);
+        }
+    };
+
+    // Always built. The sharer's own tile prefers the encoded stream, but a webview with no
+    // `VideoDecoder` has only the thumbnail, and two small textures is not worth a behaviour
+    // difference between hosts.
+    let pipeline = match gpu::pipeline::GpuPipeline::open(source_id, Arc::clone(&device), true) {
+        Ok(pipeline) => pipeline,
+        Err(e) => {
+            eprintln!("[publisher] no GPU capture for {source_id} ({e}); capturing through the CPU");
+            return (None, None);
+        }
+    };
+
+    let mut encoders: Vec<Box<dyn VideoEncoder>> = Vec::with_capacity(ladder.len());
+    for rung in ladder {
+        let Some(mut encoder) = super::encoder_mf::PooledEncoder::acquire(rung.spec) else {
+            eprintln!(
+                "[publisher] no hardware encoder for layer {} at {}x{}",
+                rung.rid, rung.spec.width, rung.spec.height
+            );
+            break;
+        };
+        if let Err(e) = encoder.bind_to_device(&device.device) {
+            eprintln!("[publisher] layer {} would not take textures ({e})", rung.rid);
+            // Not a truncated ladder: an encoder that cannot take a texture means this machine
+            // cannot run the fast path at all, and a mixed ladder has no device in common.
+            return (None, None);
+        }
+        // Deliberately not wrapped in `ResilientEncoder`. Its fallback is the software encoder,
+        // which cannot take a texture, so the wrapper would only add a misleading log line - see
+        // the note in `ResilientEncoder::encode`.
+        encoders.push(Box::new(encoder) as Box<dyn VideoEncoder>);
+    }
+
+    if encoders.is_empty() {
+        return (None, None);
+    }
+    eprintln!(
+        "[publisher] capturing on the GPU: {} layer(s), no frame touches the CPU",
+        encoders.len()
+    );
+    (Some(pipeline), Some(encoders))
+}
+
 /// Start capturing, encoding and publishing a source.
 ///
 /// Returns once the track is live on the SFU, so the caller can tell other clients to subscribe.
@@ -381,19 +453,29 @@ pub async fn start(
     // offered - and a rid advertised with no encoder behind it is a layer the SFU will select and
     // then find empty. A layer that cannot be built is dropped rather than fatal: one encoder is
     // the pre-simulcast share, which is a working share.
-    let mut encoders: Vec<Box<dyn VideoEncoder>> = Vec::with_capacity(ladder.len());
-    for rung in &ladder {
-        match new_encoder(rung.spec) {
-            Some(encoder) => encoders.push(encoder),
-            None => {
-                eprintln!(
-                    "[publisher] no encoder for layer {} at {}x{}; publishing {} layer(s)",
-                    rung.rid,
-                    rung.spec.width,
-                    rung.spec.height,
-                    encoders.len()
-                );
-                break;
+    // The zero-copy path first. It either produces a capture session *and* a set of encoders bound
+    // to the same device, or nothing at all: a texture from one device is no use to an encoder on
+    // another, so there is no half of this worth keeping.
+    #[cfg(target_os = "windows")]
+    let (mut gpu_pipeline, gpu_encoders) = open_gpu_pipeline(&source_id, &ladder);
+    #[cfg(not(target_os = "windows"))]
+    let gpu_encoders: Option<Vec<Box<dyn VideoEncoder>>> = None;
+
+    let mut encoders: Vec<Box<dyn VideoEncoder>> = gpu_encoders.unwrap_or_default();
+    if encoders.is_empty() {
+        for rung in &ladder {
+            match new_encoder(rung.spec) {
+                Some(encoder) => encoders.push(encoder),
+                None => {
+                    eprintln!(
+                        "[publisher] no encoder for layer {} at {}x{}; publishing {} layer(s)",
+                        rung.rid,
+                        rung.spec.width,
+                        rung.spec.height,
+                        encoders.len()
+                    );
+                    break;
+                }
             }
         }
     }
@@ -540,6 +622,14 @@ pub async fn start(
             // below, and including a panic.
             let _capture_gone = capture_gone_tx;
 
+            // The zero-copy path was already built and proved in `start`, so reaching here with one
+            // means the whole chain - session, scaler, device-bound encoders - is live.
+            #[cfg(target_os = "windows")]
+            if let Some(pipeline) = gpu_pipeline.take() {
+                super::gpu::pipeline::run_gpu_capture_loop(pipeline, pump, capture_fps, stop_rx);
+                return;
+            }
+
             let Some(source) = find_capture_source(&source_id) else {
                 eprintln!("[publisher] capture source {source_id} not found");
                 return;
@@ -615,6 +705,35 @@ mod tests {
 
         assert_eq!(disabled, 1, "the kill switch did not take the ladder to one layer");
         assert_eq!(desired_layer_count(layer_spec(1920, 1080)), 3, "the switch did not clear");
+    }
+
+    /// The way back off the zero-copy path without a rebuild.
+    ///
+    /// <p>The whole fast path depends on driver behaviour that cannot be proved from here - a
+    /// video processor, a `MF_SA_D3D11_AWARE` encoder, a capture session Windows will open - so
+    /// there has to be a switch that does not need a release, exactly as
+    /// `VENTA_FORCE_SOFTWARE_ENCODER` and `VENTA_DISABLE_SIMULCAST` are.</p>
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn the_env_var_takes_the_share_off_the_gpu() {
+        let ladder = simulcast::layers_for(layer_spec(1920, 1080), 1);
+
+        std::env::set_var("VENTA_DISABLE_GPU_CAPTURE", "1");
+        let (pipeline, encoders) = open_gpu_pipeline("monitor:0", &ladder);
+        std::env::remove_var("VENTA_DISABLE_GPU_CAPTURE");
+
+        assert!(pipeline.is_none(), "the switch did not stop the capture session");
+        assert!(encoders.is_none(), "the switch did not stop the encoders binding");
+    }
+
+    /// A source that does not exist must fall back rather than fail the share.
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn an_unopenable_source_falls_back_instead_of_failing() {
+        let ladder = simulcast::layers_for(layer_spec(1920, 1080), 1);
+        let (pipeline, encoders) = open_gpu_pipeline("monitor:9999", &ladder);
+        assert!(pipeline.is_none());
+        assert!(encoders.is_none());
     }
 
     /// A throwaway connection for tests that need a `PublishHandle` but never poll its stats.

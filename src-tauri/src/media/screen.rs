@@ -424,7 +424,10 @@ pub fn run_capture_loop(
             Ok(_) | Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
             Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
         }
-        next_frame += interval;
+        // Clamped to now rather than advanced blindly. A loop that has fallen behind - which at
+        // 60 fps against a capture that manages 20 is every iteration - would otherwise build a
+        // deficit it later burns off by running flat out for as long as it took to accumulate.
+        next_frame = (next_frame + interval).max(std::time::Instant::now());
 
         let Some((rgba, w, h)) = source.capture() else {
             continue;

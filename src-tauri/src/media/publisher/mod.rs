@@ -25,6 +25,8 @@ pub mod fit;
 pub mod encoder_sw;
 #[cfg(target_os = "windows")]
 pub mod encoder_mf;
+#[cfg(target_os = "windows")]
+pub mod gpu;
 pub mod nv12;
 pub mod openh264_blob;
 pub mod pump;
@@ -42,6 +44,10 @@ pub mod signalling;
 /// drawn from the capture source and looks perfect either way.
 #[cfg(test)]
 mod e2e_tests;
+
+/// Where a frame's time goes. Ignored benchmarks, release only.
+#[cfg(test)]
+mod bench;
 
 use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};

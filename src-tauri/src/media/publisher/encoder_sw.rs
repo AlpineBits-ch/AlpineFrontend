@@ -1,11 +1,12 @@
-use image::RgbaImage;
 use openh264::encoder::{
     BitRate, Encoder, EncoderConfig, FrameRate, FrameType, IntraFramePeriod, RateControlMode, UsageType,
 };
 use openh264::formats::{RgbaSliceU8, YUVBuffer};
 use openh264::{OpenH264API, Timestamp};
 
-use super::encoder::{EncodeOutcome, EncodedChunk, EncoderContent, EncoderSpec, VideoEncoder};
+use super::encoder::{
+    CapturedFrame, EncodeOutcome, EncodedChunk, EncoderContent, EncoderSpec, VideoEncoder,
+};
 use super::openh264_blob;
 
 /// openh264 software encoder.
@@ -83,7 +84,12 @@ impl SoftwareEncoder {
 }
 
 impl VideoEncoder for SoftwareEncoder {
-    fn encode(&mut self, frame: &RgbaImage, timestamp_us: u64) -> EncodeOutcome {
+    fn encode(&mut self, frame: CapturedFrame<'_>, timestamp_us: u64) -> EncodeOutcome {
+        // openh264 takes pixels, not textures. A GPU frame here means the pump paired a zero-copy
+        // capture with a software encoder, which `session::start` does not do.
+        let Some(frame) = frame.cpu() else {
+            return EncodeOutcome::Failed;
+        };
         if frame.width() != self.width || frame.height() != self.height {
             // Geometry is fixed for the session; a mismatch means the capture side broke its
             // contract. Encoding it anyway would corrupt the stream, and no retry will fix it.

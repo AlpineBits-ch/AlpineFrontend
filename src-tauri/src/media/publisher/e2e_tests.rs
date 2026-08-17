@@ -32,8 +32,8 @@ use livekit_api::access_token::{AccessToken, VideoGrants};
 use tokio::sync::mpsc;
 
 use super::encoder::{
-    new_software_encoder, provision_async, EncodeOutcome, EncodedChunk, EncoderContent, EncoderSpec,
-    VideoEncoder,
+    new_software_encoder, provision_async, CapturedFrame, EncodeOutcome, EncodedChunk,
+    EncoderContent, EncoderSpec, VideoEncoder,
 };
 use super::pump::{FramePump, PreviewSink, PumpLayer};
 use super::rtc::{release_room, FrameSink, Publication};
@@ -242,7 +242,7 @@ struct RecordingEncoder {
 }
 
 impl VideoEncoder for RecordingEncoder {
-    fn encode(&mut self, _frame: &RgbaImage, timestamp_us: u64) -> EncodeOutcome {
+    fn encode(&mut self, _frame: CapturedFrame<'_>, timestamp_us: u64) -> EncodeOutcome {
         let is_keyframe = std::mem::take(&mut self.pending_keyframe);
         let mut log = self.log.lock().unwrap();
         log.encodes += 1;

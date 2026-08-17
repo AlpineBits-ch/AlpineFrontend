@@ -13,7 +13,7 @@ use std::time::{Duration, Instant};
 
 use image::RgbaImage;
 
-use super::encoder::{EncodeOutcome, EncoderSpec, VideoEncoder};
+use super::encoder::{CapturedFrame, EncodeOutcome, EncoderSpec, VideoEncoder};
 use super::fit::fit_into;
 use super::session::PreviewFrame;
 
@@ -153,6 +153,57 @@ pub struct PumpLayer {
     pub frame_tx: tokio::sync::mpsc::Sender<(Vec<u8>, Duration)>,
     pub width: u32,
     pub height: u32,
+}
+
+/// Supplies each layer's input for one captured frame.
+///
+/// The only thing the two pipelines do differently. The portable one fits an `RgbaImage` per rung
+/// on the CPU; the Windows zero-copy one blits a texture per rung on the GPU. Everything else the
+/// pump does is the same policy either way, and every rule of it was written for a failure a
+/// viewer suffers and the sharer cannot see - so they are shared rather than copied.
+pub trait LayerFrames {
+    /// This layer's input, at exactly the geometry it was built for.
+    ///
+    /// `None` skips the layer for this frame, which the pump treats as it treats a skip from the
+    /// encoder: routine, and not a reason to end anything.
+    fn layer(&mut self, index: usize, width: u32, height: u32) -> Option<CapturedFrame<'_>>;
+
+    /// Pixels for the sharer's thumbnail. Called at most five times a second, after every layer
+    /// has been offered, so an implementation can hand back the bottom rung it already produced.
+    fn thumbnail(&mut self) -> Option<&RgbaImage>;
+}
+
+/// The portable pipeline's inputs: one fitted `RgbaImage` per rung.
+struct CpuFrames<'a> {
+    /// The capture, fitted to the pump's output geometry.
+    frame: std::borrow::Cow<'a, RgbaImage>,
+    /// The most recent rung's scaled copy, held so the thumbnail can reuse it.
+    scaled: Option<RgbaImage>,
+    /// Whether the last rung asked for was the full-size one, which is `frame` itself.
+    whole_frame_last: bool,
+}
+
+impl LayerFrames for CpuFrames<'_> {
+    fn layer(&mut self, _index: usize, width: u32, height: u32) -> Option<CapturedFrame<'_>> {
+        if self.frame.width() == width && self.frame.height() == height {
+            self.whole_frame_last = true;
+            return Some(CapturedFrame::Cpu(&self.frame));
+        }
+        // Always owned: the identity case returned above, so `fit_into` took the resize or the
+        // block-average path and `into_owned` copies nothing.
+        let scaled = fit_into(&self.frame, width, height).into_owned();
+        self.whole_frame_last = false;
+        self.scaled = Some(scaled);
+        self.scaled.as_ref().map(CapturedFrame::Cpu)
+    }
+
+    fn thumbnail(&mut self) -> Option<&RgbaImage> {
+        if self.whole_frame_last {
+            Some(&self.frame)
+        } else {
+            self.scaled.as_ref()
+        }
+    }
 }
 
 /// Turns captured frames into queued access units.
@@ -342,11 +393,30 @@ impl<P: PreviewSink> FramePump<P> {
         );
     }
 
-    /// Fit, preview, encode and enqueue one captured frame.
+    /// Fit, preview, encode and enqueue one captured frame from the portable pipeline.
     ///
     /// Never blocks. A writer that has fallen behind costs a dropped frame, not a stalled capture
     /// thread - for a live screen, bounded latency matters far more than completeness.
     pub fn on_frame(&mut self, rgba: &RgbaImage) {
+        // Fit before encoding: the source can change size mid-session, the encoder cannot. Done
+        // here rather than in `CpuFrames` so the geometry the layers are cut from is the pump's,
+        // which is the thing `apply_spec` moves.
+        let frame = fit_into(rgba, self.width, self.height);
+        let mut frames = CpuFrames {
+            frame,
+            scaled: None,
+            whole_frame_last: false,
+        };
+        self.drive(&mut frames);
+    }
+
+    /// The same policy, over whatever produced this frame's per-layer inputs.
+    ///
+    /// Every rule below was written for a failure a viewer suffers and the sharer cannot see, so
+    /// the two pipelines share them rather than each carrying a copy: timestamps taken from the
+    /// clock, the wall-clock keyframe floor, per-layer counters, the local-stream copy and the
+    /// preview interval are all pipeline-independent.
+    pub fn drive(&mut self, frames: &mut dyn LayerFrames) {
         // Before the frame is fitted, because fitting reads the very geometry this moves. Taken
         // out of the cell rather than read from it, so a spec is applied once and a lock is never
         // held across the encode below.
@@ -377,12 +447,11 @@ impl<P: PreviewSink> FramePump<P> {
         };
         self.last_frame_at = Some(now);
 
-        // Fit before encoding: the source can change size mid-session, the encoder cannot.
-        let frame = fit_into(rgba, self.width, self.height);
-
-        if now >= self.next_preview {
+        // Decided here, served from the bottom of the ladder below. That layer is already at or
+        // under the preview box, so the thumbnail costs a JPEG rather than a full-frame filter.
+        let preview_due = now >= self.next_preview;
+        if preview_due {
             self.next_preview = now + PREVIEW_INTERVAL;
-            emit_preview(&frame, &mut self.jpeg_buf, &self.preview);
         }
 
         // A viewer who cannot decode has asked for a keyframe over RTCP. Honoured here because the
@@ -413,15 +482,10 @@ impl<P: PreviewSink> FramePump<P> {
 
         for index in 0..self.layers.len() {
             let (width, height) = (self.layers[index].width, self.layers[index].height);
-            // Scaled from the already-fitted frame rather than from the raw capture: it is less
-            // work, and it guarantees every layer shows identical framing down to the letterbox
-            // bars. The top layer is the fitted frame itself, with no second copy.
-            let scaled;
-            let source = if width == self.width && height == self.height {
-                &frame
-            } else {
-                scaled = fit_into(&frame, width, height);
-                &scaled
+            // Cut from the already-fitted frame rather than from the raw capture: it is less work,
+            // and it guarantees every layer shows identical framing down to the letterbox bars.
+            let Some(source) = frames.layer(index, width, height) else {
+                continue;
             };
 
             let chunk = match self.layers[index].encoder.encode(source, timestamp_us) {
@@ -494,6 +558,16 @@ impl<P: PreviewSink> FramePump<P> {
                 layer_counters.dropped_frames.fetch_add(1, Ordering::Relaxed);
             }
         }
+
+        // After the layers, so the thumbnail is the bottom rung the loop just produced rather than
+        // a second filter pass over the top one. Last rather than first because on the zero-copy
+        // path it is a readback, and doing it before the encodes would put a GPU stall in front of
+        // every frame instead of behind five a second.
+        if preview_due {
+            if let Some(thumbnail) = frames.thumbnail() {
+                emit_preview(thumbnail, &mut self.jpeg_buf, &self.preview);
+            }
+        }
     }
 
     /// Frame one access unit for the webview's decoder and send it, if one is listening.
@@ -528,23 +602,25 @@ impl<P: PreviewSink> FramePump<P> {
 /// thumbnail, decoded once per 200 ms.
 fn emit_preview(frame: &RgbaImage, buf: &mut Vec<u8>, sink: &impl PreviewSink) {
     let scale = PREVIEW_WIDTH as f32 / frame.width() as f32;
-    // Never upscale a source that is already smaller than the preview box.
-    let (width, height) = if scale >= 1.0 {
-        (frame.width(), frame.height())
+    // Never upscale a source that is already smaller than the preview box, and never filter one
+    // that is already at it. The bottom of a full ladder is 480 wide, which is exactly the box.
+    let thumb = if scale >= 1.0 {
+        frame.clone()
     } else {
-        (
+        let height = (frame.height() as f32 * scale).round().max(1.0) as u32;
+        image::imageops::resize(
+            frame,
             PREVIEW_WIDTH,
-            (frame.height() as f32 * scale).round().max(1.0) as u32,
+            height,
+            image::imageops::FilterType::Triangle,
         )
     };
-
-    let thumb = image::DynamicImage::ImageRgba8(frame.clone())
-        .resize(width, height, image::imageops::FilterType::Triangle)
-        .to_rgb8();
     let out_width = thumb.width();
     let out_height = thumb.height();
 
-    crate::media::screen::encode_jpeg_into(&image::DynamicImage::ImageRgb8(thumb), 70, buf);
+    // Handed over as RGBA. `jpeg_encoder` takes that directly, so the separate pass that used to
+    // drop the alpha channel bought nothing.
+    crate::media::screen::encode_jpeg_into(&image::DynamicImage::ImageRgba8(thumb), 70, buf);
     sink.send(PreviewFrame {
         data: crate::media::screen::base64_encode(buf),
         width: out_width,
@@ -579,7 +655,10 @@ mod tests {
     }
 
     impl VideoEncoder for RecordingEncoder {
-        fn encode(&mut self, frame: &RgbaImage, timestamp_us: u64) -> EncodeOutcome {
+        fn encode(&mut self, frame: CapturedFrame<'_>, timestamp_us: u64) -> EncodeOutcome {
+            let Some(frame) = frame.cpu() else {
+                return EncodeOutcome::Failed;
+            };
             let mut log = self.log.lock().unwrap();
             log.seen.push(timestamp_us);
             log.sizes.push((frame.width(), frame.height()));
@@ -796,6 +875,96 @@ mod tests {
 
         assert_eq!(top_log.lock().unwrap().sizes, vec![(1280, 720)]);
         assert_eq!(mid_log.lock().unwrap().sizes, vec![(640, 360)]);
+    }
+
+    /// Collects the thumbnails the pump emits.
+    #[derive(Clone, Default)]
+    struct RecordingPreview(Arc<Mutex<Vec<(u32, u32)>>>);
+
+    impl PreviewSink for RecordingPreview {
+        fn send(&self, frame: PreviewFrame) {
+            self.0.lock().unwrap().push((frame.width, frame.height));
+        }
+    }
+
+    /// A three-layer pump wired to a recording preview sink. The receivers come back so nothing is
+    /// dropped for want of somewhere to go.
+    #[allow(clippy::type_complexity)]
+    fn previewing_pump(
+        sink: RecordingPreview,
+    ) -> (
+        FramePump<RecordingPreview>,
+        Vec<tokio::sync::mpsc::Receiver<(Vec<u8>, Duration)>>,
+    ) {
+        let mut layers = Vec::new();
+        let mut receivers = Vec::new();
+        for (width, height) in [(1920u32, 1080u32), (960, 540), (480, 270)] {
+            let (_log, encoder) = recording_encoder();
+            let (frame_tx, frame_rx) = tokio::sync::mpsc::channel(64);
+            receivers.push(frame_rx);
+            layers.push(PumpLayer {
+                encoder,
+                frame_tx,
+                width,
+                height,
+            });
+        }
+        let pump = FramePump::new(
+            layers,
+            Arc::new(AtomicU32::new(30)),
+            Arc::new(AtomicBool::new(false)),
+            sink,
+        );
+        (pump, receivers)
+    }
+
+    #[test]
+    fn the_preview_is_sent_once_a_frame_not_once_a_layer() {
+        // It is served from inside the layer loop now, so a missing index guard would send three.
+        let sink = RecordingPreview::default();
+        let (mut pump, _rx) = previewing_pump(sink.clone());
+
+        pump.on_frame(&RgbaImage::new(1920, 1080));
+
+        assert_eq!(sink.0.lock().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn the_preview_comes_from_the_bottom_of_the_ladder() {
+        // 480 wide either way, but from the bottom rung it needs no filtering at all - which is
+        // the entire saving. The height pins which rung it came from: the bottom layer is 480x270
+        // already, and a thumbnail scaled from the top layer would land there too, so this holds
+        // the geometry contract rather than the cost.
+        let sink = RecordingPreview::default();
+        let (mut pump, _rx) = previewing_pump(sink.clone());
+
+        pump.on_frame(&RgbaImage::new(1920, 1080));
+
+        assert_eq!(sink.0.lock().unwrap()[0], (480, 270));
+    }
+
+    #[test]
+    fn a_single_layer_pump_still_sends_a_preview() {
+        // With simulcast off the bottom of the ladder is the top of it, and the thumbnail has to
+        // come from a full-size frame exactly as it always did.
+        let sink = RecordingPreview::default();
+        let (_log, encoder) = recording_encoder();
+        let (frame_tx, _rx) = tokio::sync::mpsc::channel(64);
+        let mut pump = FramePump::new(
+            vec![PumpLayer {
+                encoder,
+                frame_tx,
+                width: 1920,
+                height: 1080,
+            }],
+            Arc::new(AtomicU32::new(30)),
+            Arc::new(AtomicBool::new(false)),
+            sink.clone(),
+        );
+
+        pump.on_frame(&RgbaImage::new(1920, 1080));
+
+        assert_eq!(sink.0.lock().unwrap()[0], (480, 270));
     }
 
     /// The sharer's own tile is fed from the top layer only. One copy per layer would triple the
