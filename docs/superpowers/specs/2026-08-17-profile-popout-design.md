@@ -24,11 +24,17 @@ open it:
 
 ## Scope
 
-In: the two list surfaces, mutuals, the composer, the DTO correction, lifting the DM helper out of
-`home.component.ts`.
+Two surfaces, in order of how they open:
 
-Out: connections and badges (the icon row under the name in the reference screenshot), and
-anchoring the other five call sites. They keep the centered fallback.
+1. **Popout.** Anchored to the clicked row. Shows a preview of the mutuals as a single line.
+2. **Full profile modal.** Opened from that line. Two columns: the profile card on the left, and a
+   tabbed panel on the right holding Activity, N Mutual Friends and M Mutual Servers.
+
+Plus dedicated backend endpoints backing the modal's lists, the DTO correction, and lifting the DM
+helper out of `home.component.ts`.
+
+Out: badges (the icon row beside the username), and anchoring the other five call sites. They keep
+the centered fallback.
 
 ## 1. Placement
 
@@ -93,21 +99,76 @@ The client declares `id` where the server sends `profileId`, and adds `avatarUrl
 that the server never sends. Both interfaces are unreferenced outside `dtos/response/profile.dto.ts`,
 so correcting them touches nothing else.
 
-Rendering, one line under the name:
+The embedded lists stay the popout's preview. One line under the name:
 
 ```
 [avatar avatar avatar]  9 Mutual Friends  ·  10 Mutual Servers
 ```
 
 - Friend avatars are `<app-avatar [userId]>`, which resolves and fetches on its own. Capped at three.
-- Guild icons are `apiConfig.baseUrl() + '/api/v1/guild/guilds/{guildId}/icon'`. Not
-  `environment.apiUrl`: that is the venta.gg address baked in at build time and would send
-  self-hosted deployments to our servers.
 - An absent key means the viewer is not permitted to see it. An empty array means there are none.
   Both draw nothing, but every read stays optional or it throws.
 - Both halves absent means the whole line is omitted, not an empty row.
+- Clicking either half opens the full modal on that tab.
 
-## 4. Direct message
+## 4. Backend endpoints
+
+The profile embed is a preview and stays as it is. The modal's lists get their own endpoints, so a
+1000 friend profile does not put 1000 rows into every profile read.
+
+```
+GET /api/v1/social/profiles/{profileId}/mutual-friends?limit=&cursor=
+GET /api/v1/social/profiles/{profileId}/mutual-servers?limit=
+```
+
+New `Social.Application/Endpoints/MutualsEndpoint.cs`, Wolverine, following `BlockEndpoint`. Both
+answer `{items, nextCursor}`.
+
+`mutual-friends` keyset paginates over `(Relationship.UpdatedAt, Id)` descending and reuses
+`BlockEndpoint.EncodeCursor` / `TryDecodeCursor`, which are `internal` in the same assembly. Rows
+carry `profileId`, `userId`, `userName`, `avatarUrl` and `onlineStatus`, the last passed through
+`ProfileVisibility.ProjectStatus` so a Hidden mutual reads as Offline.
+
+`mutual-servers` comes back from Guild in one bus call with no natural cursor, so it caps at 200 and
+always answers `nextCursor: null`. One shape for both, no special case in the client.
+
+Both apply the same gate the profile projection applies, `CanView(settings.MutualXVisibility,
+relation)`, and refuse with `403 {"code": "not_visible"}`. That leaks nothing the profile payload
+does not already leak: key absence there is exactly as observable.
+
+### Guild has to start returning names
+
+`BusSharedGuildResolver` leaves `MutualServerDto.Name` null because `GetSharedGuildsResponse` only
+carries ids, so a server tab built on it today would draw a list of ULIDs.
+
+`SharedGuildsSummary` gains `Guilds`, a list of `{Id, Name}`, alongside the existing `GuildIds`.
+Additive: `FriendRequestPolicy.ServerMembers` and `ShareAnyGuildAsync` keep reading `GuildIds` and
+are untouched.
+
+Icon URLs are built client side from the guild id, as everywhere else. Not `environment.apiUrl`:
+that is the venta.gg address baked in at build time and would send self-hosted deployments to our
+servers.
+
+## 5. Full profile modal
+
+`components/profile-modal/`. Custom, like the popout. Left column is the same `app-profile-card`
+plus a Message button and the overflow menu. Right column is a tab strip over a scrolling list.
+
+| Tab | Source | Shown when |
+|---|---|---|
+| Activity | `UserActivityService.activitiesFor(userId)` | Always. Empty state when there is nothing. |
+| N Mutual Friends | `GET .../mutual-friends` | `mutualFriends` present on the profile |
+| M Mutual Servers | `GET .../mutual-servers` | `mutualServers` present on the profile |
+
+Counts in the tab labels come from the profile embed, so the strip renders before either list
+loads. A tab fetches on first open and keeps its page. A 403 removes the tab rather than showing an
+error, because the only way to reach it is a stale count from a profile read that predates the
+subject tightening the setting.
+
+Mutual friend rows open that person's profile modal in place, replacing the subject. Mutual server
+rows navigate to the guild and close the modal.
+
+## 6. Direct message
 
 `home.component.ts:145` already has `openOrCreateDm`, trapped in that component. It moves to
 `services/direct-message.service.ts` unchanged in behaviour:
@@ -137,18 +198,22 @@ today and differs from `new-conversation-dialog`, which runs the full MLS exchan
 the MLS path can fail on unreachable devices and needs a confirmation prompt the popout has no room
 for.
 
-## 5. Errors
+## 7. Errors
 
 | Case | Behaviour |
 |---|---|
 | Profile fetch fails | Card shows the existing loading skeleton, no toast. Same as today. |
-| Mutual key absent | Half omitted. Never read without a guard. |
+| Mutual key absent | Half omitted, tab omitted. Never read without a guard. |
+| Mutuals endpoint 403 | Tab removed. The count that offered it was stale. |
+| Mutuals endpoint fails otherwise | Retry row inside the tab. The rest of the modal stays usable. |
 | Guild icon 404 | Falls back to the guild initial. |
-| DM create fails | Toast, popout stays open, composer text kept. |
+| DM create fails | Toast, surface stays open, composer text kept. |
 | Send fails after create | Toast, navigate anyway. |
-| Anchor detached while open | Close. |
+| Anchor detached while open | Close the popout. |
 
-## 6. Tests
+## 8. Tests
+
+Client:
 
 - `place-popout.spec.ts`: left preferred, right flip when clipped, vertical clamp top and bottom,
   card taller than viewport. No DOM.
@@ -158,11 +223,24 @@ for.
   created otherwise; `existing: true` from the 302 path still resolves and navigates.
 - `profile-popout.component.spec.ts`: mutual halves for absent, empty and populated; whole line
   omitted when both absent; composer disabled while pending; text kept after a failed send.
+- `profile-modal.component.spec.ts`: tab present only when its key is present; a tab fetches once
+  and keeps its page; 403 removes the tab.
 
-## 7. i18n
+Server, in `Social.Tests` and `Guild.Tests`:
+
+- Gate refuses with `not_visible` for `Nobody`, and for `Friends` when the viewer is not a friend.
+- A blocked viewer gets the refusal on both routes.
+- Keyset paging over mutual friends returns each row once across pages and terminates.
+- A malformed cursor is a 400, not a 500.
+- `GetSharedGuildsHandler` fills `Guilds` with names and leaves `GuildIds` byte for byte as before.
+
+## 9. i18n
 
 New keys, needing their own commit in the `src/assets/i18n/locales` submodule:
 
 - `PROFILE.MUTUAL_FRIENDS`
 - `PROFILE.MUTUAL_SERVERS`
 - `PROFILE.MESSAGE_PLACEHOLDER`
+- `PROFILE.TAB_ACTIVITY`
+- `PROFILE.NO_ACTIVITY`
+- `PROFILE.MUTUALS_RETRY`
