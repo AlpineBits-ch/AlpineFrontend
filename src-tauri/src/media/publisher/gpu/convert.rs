@@ -253,6 +253,47 @@ impl GpuScaler {
     }
 }
 
+impl GpuScaler {
+    /// What the driver says this processor can do, and whether the formats we use are native.
+    ///
+    /// The question behind it: is `VideoProcessorBlt` running on the fixed-function video block, or
+    /// is the driver emulating an unsupported conversion with 3D shaders? The second costs the
+    /// game its frame rate and looks identical from every other angle.
+    pub fn report_capabilities(&self) -> String {
+        let mut caps = windows::Win32::Graphics::Direct3D11::D3D11_VIDEO_PROCESSOR_CAPS::default();
+        let ok = unsafe { self.enumerator.GetVideoProcessorCaps(&mut caps) }.is_ok();
+        if !ok {
+            return "the driver would not report processor capabilities".into();
+        }
+
+        // 1 is INPUT, 2 is OUTPUT.
+        let support = |format| unsafe { self.enumerator.CheckVideoProcessorFormat(format) }.unwrap_or(0);
+        let bgra = support(DXGI_FORMAT_B8G8R8A8_UNORM);
+        let nv12 = support(DXGI_FORMAT_NV12);
+
+        format!(
+            "BGRA input={} output={} | NV12 input={} output={} | rate-conversion caps {} | \
+             max input streams {} | DeviceCaps 0x{:x} FeatureCaps 0x{:x} FilterCaps 0x{:x} \
+             AutoStreamCaps 0x{:x}",
+            bgra & 1 != 0,
+            bgra & 2 != 0,
+            nv12 & 1 != 0,
+            nv12 & 2 != 0,
+            caps.RateConversionCapsCount,
+            caps.MaxInputStreams,
+            caps.DeviceCaps,
+            caps.FeatureCaps,
+            caps.FilterCaps,
+            caps.AutoStreamCaps,
+        )
+    }
+
+    /// The device this scaler runs on, for a timer to bracket its work.
+    pub fn device(&self) -> &GpuDevice {
+        &self.device
+    }
+}
+
 // ── The raw D3D11 video surface ───────────────────────────────────────────────
 //
 // One-call wrappers around COM methods the `windows` crate declares unsafe. Sound throughout for

@@ -1108,6 +1108,248 @@ fn bench_gpu_picture_is_correct() {
     println!("  OK: the decoded picture matches the desktop");
 }
 
+/// Where the GPU time goes, on the GPU's own clock.
+///
+/// Measured because 40% of a card at 1080p is not what one hardware blit and one NVENC session
+/// should cost, and wall-clock timing around a blit measures queueing rather than work. The
+/// capability line above the numbers is half the answer on its own: a conversion the video block
+/// cannot do natively is emulated by the driver in 3D shaders, which is exactly the budget a game
+/// is competing for.
+#[cfg(target_os = "windows")]
+#[test]
+#[ignore = "benchmark: drives the real video processor"]
+fn bench_gpu_time_per_stage() {
+    use crate::media::publisher::gpu;
+
+    rule("GPU time per stage, measured with timestamp queries");
+
+    let device = match gpu::device::GpuDevice::new() {
+        Ok(device) => Arc::new(device),
+        Err(e) => {
+            println!("  no D3D11 device: {e}");
+            return;
+        }
+    };
+
+    for source_index in 0..2usize {
+        let source_id = format!("monitor:{source_index}");
+        let Ok(capture) = gpu::capture::GpuCapture::open(&source_id, Arc::clone(&device)) else {
+            continue;
+        };
+        let source = capture.source_size();
+        let Ok(scaler) = gpu::convert::GpuScaler::new(Arc::clone(&device), source) else {
+            println!("  {source_id}: no scaler");
+            continue;
+        };
+        println!("\n  {source_id} {}x{}", source.0, source.1);
+        println!("  caps: {}", scaler.report_capabilities());
+
+        // A frame to work from. Capture is change-driven, so wait for the desktop to present one.
+        let mut frame = None;
+        for _ in 0..200 {
+            if let Some(got) = capture.take_latest() {
+                frame = Some(got);
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        let Some(frame) = frame else {
+            println!("  no frame arrived to measure against");
+            continue;
+        };
+
+        for share in [
+            EncoderSpec { width: 1920, height: 1080, ..SHARE },
+            EncoderSpec { width: 2560, height: 1440, kbps: 24_000, ..SHARE },
+        ] {
+            let ladder = simulcast::layers_for(share, simulcast::LAYER_RIDS.len());
+            let mut rungs: Vec<gpu::convert::Rung> = Vec::new();
+            for rung in &ladder {
+                match scaler.new_rung(rung.spec.width, rung.spec.height) {
+                    Ok(built) => rungs.push(built),
+                    Err(e) => {
+                        println!("  no rung for {}x{}: {e}", rung.spec.width, rung.spec.height);
+                        break;
+                    }
+                }
+            }
+            if rungs.len() != ladder.len() {
+                continue;
+            }
+
+            let Ok(mut timer) = gpu::timing::GpuTimer::new(&device) else {
+                println!("  no timestamp queries on this device");
+                return;
+            };
+
+            // Per rung, so a single expensive one is visible rather than averaged away.
+            let mut total = 0f64;
+            for (index, rung) in rungs.iter_mut().enumerate() {
+                // Warm up: the first blit of a new target pays for allocations the rest do not.
+                for _ in 0..5 {
+                    let _ = scaler.blit(&frame.texture, rung);
+                }
+                timer.start(&device);
+                for _ in 0..30 {
+                    let _ = scaler.blit(&frame.texture, rung);
+                }
+                let per_blit = timer.stop(&device).map(|ms| ms / 30.0).unwrap_or(f64::NAN);
+                total += per_blit;
+                println!(
+                    "    {}x{} -> {}x{} (layer {}): {:6.3} ms/blit on the GPU",
+                    source.0,
+                    source.1,
+                    rung.width,
+                    rung.height,
+                    ladder[index].rid,
+                    per_blit
+                );
+            }
+            println!(
+                "    {}x{} ladder total: {:6.3} ms/frame, which at {} fps is {:5.1}% of the GPU",
+                share.width,
+                share.height,
+                total,
+                share.fps,
+                total * share.fps as f64 / 10.0
+            );
+        }
+        capture.recycle(frame);
+    }
+}
+
+/// Which GPU engine a running share actually loads, and how much of it simulcast is.
+///
+/// Task Manager reports one "GPU" number that is the *largest* engine, not the sum, so a share at
+/// 40% could be 40% of the encoder or 40% of the 3D engine a game wants. These are the same
+/// counters, split by engine and filtered to this process, against 1, 2 and 3 layers.
+#[cfg(target_os = "windows")]
+#[test]
+#[ignore = "benchmark: drives real GPU capture and real encoders"]
+fn bench_gpu_engine_load() {
+    use crate::media::publisher::gpu;
+
+    rule("which engine the share loads, per layer count");
+
+    let engines = match gpu::engines::GpuEngines::for_this_process() {
+        Ok(engines) => engines,
+        Err(e) => {
+            println!("  no GPU engine counters: {e}");
+            return;
+        }
+    };
+
+    // One layer throughout: the sweep above showed the ladder is worth five points, so varying it
+    // here would only hide what the encoder settings are worth.
+    // Down the resolutions at a fixed 60 fps. If the cost tracks pixel count it is encode work; if
+    // it barely moves it is a fixed charge per frame, and a fixed charge is a defect rather than a
+    // budget - an RTX 3090 does not need 8 ms to encode a 1080p frame.
+    for (label, share) in [
+        ("320x180  ", EncoderSpec { width: 320, height: 180, kbps: 1_000, ..SHARE }),
+        ("640x360  ", EncoderSpec { width: 640, height: 360, kbps: 2_000, ..SHARE }),
+        ("1280x720 ", EncoderSpec { width: 1280, height: 720, kbps: 8_000, ..SHARE }),
+        ("1920x1080", EncoderSpec { width: 1920, height: 1080, ..SHARE }),
+        ("2560x1440", EncoderSpec { width: 2560, height: 1440, kbps: 24_000, ..SHARE }),
+    ] {
+        for layer_count in [1usize] {
+            let _ = label;
+            let ladder = simulcast::layers_for(share, layer_count);
+            let device = match gpu::device::GpuDevice::new() {
+                Ok(device) => Arc::new(device),
+                Err(e) => {
+                    println!("  no device: {e}");
+                    return;
+                }
+            };
+            let Ok(pipeline) =
+                gpu::pipeline::GpuPipeline::open("monitor:0", Arc::clone(&device), true)
+            else {
+                println!("  no GPU capture");
+                return;
+            };
+
+            let mut layers = Vec::new();
+            let mut drains = Vec::new();
+            let mut built = true;
+            for rung in &ladder {
+                let Some(mut encoder) = super::encoder_mf::PooledEncoder::acquire(rung.spec) else {
+                    built = false;
+                    break;
+                };
+                if encoder.bind_to_device(&device.device).is_err() {
+                    built = false;
+                    break;
+                }
+                let (frame_tx, mut frame_rx) =
+                    tokio::sync::mpsc::channel::<(Vec<u8>, Duration)>(2);
+                drains.push(std::thread::spawn(move || {
+                    let mut bytes = 0usize;
+                    while let Some((data, _)) = frame_rx.blocking_recv() {
+                        bytes += data.len();
+                    }
+                    bytes
+                }));
+                layers.push(PumpLayer {
+                    encoder: Box::new(encoder),
+                    frame_tx,
+                    width: rung.spec.width,
+                    height: rung.spec.height,
+                });
+            }
+            if !built {
+                println!("  {}x{} {layer_count} layers: could not build", share.width, share.height);
+                continue;
+            }
+
+            let fps = Arc::new(AtomicU32::new(share.fps));
+            let pump = FramePump::new(
+                layers,
+                Arc::clone(&fps),
+                Arc::new(AtomicBool::new(false)),
+                (),
+            )
+            .with_local_stream(Box::new(NullLocalStream), Arc::new(AtomicBool::new(true)));
+            let counters = pump.counters();
+
+            let (stop_tx, stop_rx) = std::sync::mpsc::sync_channel::<()>(1);
+            let started = Instant::now();
+            let loop_thread = std::thread::spawn(move || {
+                gpu::pipeline::run_gpu_capture_loop(pipeline, pump, fps, stop_rx);
+            });
+
+            // Settle first, then take the window that gets reported.
+            std::thread::sleep(Duration::from_secs(2));
+            let _ = engines.sample();
+            std::thread::sleep(MEASURE_FOR);
+            let load = engines.sample();
+            let elapsed = started.elapsed();
+            drop(stop_tx);
+            let _ = loop_thread.join();
+
+            let encoded = counters.snapshot()[0].encoded_frames;
+            let bytes: usize = drains.into_iter().filter_map(|d| d.join().ok()).sum();
+            let summary: Vec<String> = load
+                .iter()
+                .filter(|(_, value)| **value >= 0.5)
+                .map(|(engine, value)| format!("{engine} {value:.0}%"))
+                .collect();
+            println!(
+                "  {label:<11} {}x{}@{}: {:5.1} fps, {:5.1} Mb/s | {}",
+                share.width,
+                share.height,
+                share.fps,
+                encoded as f64 / elapsed.as_secs_f64(),
+                bytes as f64 * 8.0 / elapsed.as_secs_f64() / 1_000_000.0,
+                if summary.is_empty() {
+                    "no engine above 0.5%".to_string()
+                } else {
+                    summary.join("  ")
+                }
+            );
+        }
+    }
+}
+
 /// Mean of the first three channels across a run of pixels.
 #[cfg(target_os = "windows")]
 fn mean_rgb<'a>(pixels: impl Iterator<Item = &'a [u8]>) -> [f64; 3] {

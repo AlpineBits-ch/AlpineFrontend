@@ -10,6 +10,8 @@
 
 pub mod capture;
 pub mod pipeline;
+pub mod timing;
+pub mod engines;
 pub mod convert;
 pub mod device;
 

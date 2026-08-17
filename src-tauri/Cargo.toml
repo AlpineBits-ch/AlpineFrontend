@@ -269,6 +269,8 @@ windows = { version = "0.58", features = [
     "Win32_System_Pipes",
     # GetLocalTime, so log lines carry a timestamp without pulling in a date crate.
     "Win32_System_SystemInformation",
+    # PDH, so a benchmark can read the same per-engine GPU counters Task Manager shows.
+    "Win32_System_Performance",
     "Win32_System_Registry",
     # PrintWindow lives here, oddly - see media/screen_thumb.rs.
     "Win32_Storage_Xps",
