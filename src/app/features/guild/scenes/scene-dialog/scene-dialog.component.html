@@ -17,14 +17,18 @@
     </ng-template>
 
     @if (canChooseHome()) {
-        <label class="mb-4 block">
+        <div class="mb-4">
             <span class="scene-field-label">{{ 'SCENE.DIALOG.HOME' | translate }}</span>
-            <select (change)="homeChannelId.set($any($event.target).value)" class="scene-search mt-1.5">
-                @for (channel of guildChannels(); track channel.id) {
-                    <option [selected]="channel.id === home()" [value]="channel.id">#{{ channel.name }}</option>
-                }
-            </select>
-        </label>
+            <p-select
+                (ngModelChange)="homeChannelId.set($event)"
+                [ngModel]="home()"
+                [options]="homeOptions()"
+                [style]="{width: '100%'}"
+                class="mt-1.5 block"
+                optionLabel="label"
+                optionValue="value"
+            />
+        </div>
     }
 
     <!-- The name is the chapter heading, so it is set like one. -->

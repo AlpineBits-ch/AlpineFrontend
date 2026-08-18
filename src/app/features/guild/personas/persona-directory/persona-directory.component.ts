@@ -27,7 +27,7 @@ import {SelfGuildMemberDto} from '../../../../dtos/response/member.dto';
 import {matchesPersonaQuery, personaIdentity, sortPersonas} from '../persona-identity';
 import {readableAccent} from '../../../../models/profile-font.model';
 import {approvalMeta, canSubmit} from '../persona-approval';
-import {formatProxyTags, proxyTagsOf} from '../persona-proxy';
+import {hasProxyTags, ProxyTags, proxyTagsOf} from '../persona-proxy';
 
 type DirectoryTab = 'cast' | 'mine' | 'review';
 
@@ -167,8 +167,10 @@ export class PersonaDirectoryComponent {
         return approvalMeta(entry.approvalState);
     }
 
-    protected tagsOf(entry: GuildPersonaDto): string {
-        return formatProxyTags(proxyTagsOf(entry));
+    /** The two halves separately, so the card can float the body between them. */
+    protected tagsOf(entry: GuildPersonaDto): ProxyTags | null {
+        const tags = proxyTagsOf(entry);
+        return hasProxyTags(tags) ? tags : null;
     }
 
     protected open(entry: GuildPersonaDto): void {

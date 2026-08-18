@@ -1,6 +1,7 @@
 import {inject, Injectable} from '@angular/core';
 import {HttpErrorResponse} from '@angular/common/http';
 import {MessageService} from 'primeng/api';
+import {apiErrorMessage} from '../core/api-error';
 
 export interface ToastOptions {
     detail?: string;
@@ -31,6 +32,7 @@ export class ToastService {
 
     httpError(summary: string, err?: unknown, options: ToastOptions = {}): void {
         const status = err instanceof HttpErrorResponse && err.status ? ` [${err.status}]` : '';
-        this.messageService.add({severity: 'error', summary: summary + status, ...options});
+        const detail = options.detail ?? apiErrorMessage(err) ?? undefined;
+        this.messageService.add({severity: 'error', summary: summary + status, ...options, detail});
     }
 }

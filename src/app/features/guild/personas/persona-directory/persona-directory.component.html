@@ -139,7 +139,15 @@
 
                             <div class="mt-auto flex items-center gap-2 pt-1 text-[0.6875rem] text-text-faint">
                                 @if (tagsOf(entry); as tags) {
-                                    <code class="rounded bg-white/[0.05] px-1 font-mono">{{ tags }}</code>
+                                    <code class="flex items-center gap-1 rounded bg-white/[0.05] px-1 font-mono">
+                                        @if (tags.prefix) {
+                                            <span>{{ tags.prefix }}</span>
+                                        }
+                                        <span class="italic text-text-muted">{{ 'PERSONA.FIELD.PROXY_MIDDLE' | translate }}</span>
+                                        @if (tags.suffix) {
+                                            <span>{{ tags.suffix }}</span>
+                                        }
+                                    </code>
                                 }
                                 @if (entry.wikiPageId) {
                                     <span class="flex items-center gap-1"

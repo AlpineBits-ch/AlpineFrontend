@@ -12,6 +12,7 @@ import {
 import {FormsModule} from '@angular/forms';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {Dialog} from 'primeng/dialog';
+import {Select} from 'primeng/select';
 import {PrimeTemplate} from 'primeng/api';
 import {PersonaAvatarComponent} from '../../personas/persona-avatar/persona-avatar.component';
 import {PersonaService} from '../../../../services/persona.service';
@@ -42,7 +43,7 @@ interface CastRow {
 @Component({
     selector: 'app-scene-dialog',
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [FormsModule, TranslateModule, Dialog, PrimeTemplate, PersonaAvatarComponent],
+    imports: [FormsModule, TranslateModule, Dialog, Select, PrimeTemplate, PersonaAvatarComponent],
     templateUrl: './scene-dialog.component.html',
     styleUrl: './scene-dialog.component.css',
 })
@@ -74,6 +75,10 @@ export class SceneDialogComponent {
     /** Where the scene thread opens. Only asked for when the guild has more than one candidate. */
     protected readonly home = computed(() => this.homeChannelId() ?? this.parentChannelId());
     protected readonly canChooseHome = computed(() => !this.isEdit() && this.guildChannels().length > 1);
+
+    protected readonly homeOptions = computed(() =>
+        this.guildChannels().map(channel => ({label: `#${channel.name}`, value: channel.id})),
+    );
 
     constructor() {
         effect(() => {
@@ -148,12 +153,13 @@ export class SceneDialogComponent {
         const work = existing
             ? this.scenes.update(this.guildId(), existing.channelId, {
                   turnOrder: this.order(),
-                  turnDeadlineHours: this.deadlineHours(),
+                  turnLengthHours: this.deadlineHours(),
               })
             : this.scenes.create(this.guildId(), this.home() ?? '', {
                   name: this.name().trim(),
+                  participantPersonaIds: this.order(),
                   turnOrder: this.order(),
-                  turnDeadlineHours: this.deadlineHours(),
+                  turnLengthHours: this.deadlineHours(),
                   status: start ? SceneStatus.Active : SceneStatus.Open,
               });
 

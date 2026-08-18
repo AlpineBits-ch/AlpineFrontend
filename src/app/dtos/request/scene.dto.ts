@@ -4,10 +4,12 @@ import {SceneStatus} from '../response/scene.dto';
 export interface CreateSceneDto {
     name: string;
     description?: string | null;
+    /** The cast. Omitting it takes the cast from `turnOrder`. */
+    participantPersonaIds?: string[];
     /** Personas, in turn order. The first one is up when the scene opens. */
     turnOrder: string[];
     /** Whole hours. Absent means the scene runs without a clock. */
-    turnDeadlineHours?: number | null;
+    turnLengthHours?: number | null;
     /** Scenes usually open `Open` and are started once the cast has arrived. */
     status?: SceneStatus;
 }
@@ -15,7 +17,7 @@ export interface CreateSceneDto {
 export interface UpdateSceneDto {
     status?: SceneStatus;
     turnOrder?: string[];
-    turnDeadlineHours?: number | null;
+    turnLengthHours?: number | null;
     /** Sent when concluding. The server has no column for it yet. */
     conclusionNote?: string | null;
 }
