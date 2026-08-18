@@ -21,6 +21,7 @@ use std::time::Duration;
 use webrtc::api::API;
 use webrtc::media::Sample;
 use webrtc::peer_connection::configuration::RTCConfiguration;
+use webrtc::peer_connection::peer_connection_state::RTCPeerConnectionState;
 use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
 use webrtc::peer_connection::RTCPeerConnection;
 use webrtc::rtp_transceiver::rtp_codec::RTPCodecType;
@@ -59,6 +60,31 @@ async fn pc() -> Arc<RTCPeerConnection> {
 async fn gather(pc: &RTCPeerConnection) {
     let mut done = pc.gathering_complete_promise().await;
     let _ = tokio::time::timeout(Duration::from_secs(10), done.recv()).await;
+}
+
+/// Block until the DTLS transport is up.
+///
+/// A sample written before it is discarded and `write_sample` still returns `Ok`, so a test that
+/// sends a finite burst sends it into nothing if it does not wait here.
+async fn connected(pc: &Arc<RTCPeerConnection>) {
+    let (tx, mut rx) = tokio::sync::mpsc::channel::<()>(1);
+    pc.on_peer_connection_state_change(Box::new(move |state| {
+        let tx = tx.clone();
+        Box::pin(async move {
+            if state == RTCPeerConnectionState::Connected {
+                let _ = tx.try_send(());
+            }
+        })
+    }));
+    // Registered before the state is read, so a connection that completed in between is not missed.
+    if pc.connection_state() != RTCPeerConnectionState::Connected {
+        let _ = tokio::time::timeout(Duration::from_secs(15), rx.recv()).await;
+    }
+    assert_eq!(
+        pc.connection_state(),
+        RTCPeerConnectionState::Connected,
+        "the transport never came up, so nothing could have crossed it"
+    );
 }
 
 /// One offer/answer round trip, driven the way `negotiate_subscription` drives it.
@@ -376,6 +402,8 @@ async fn hear_a_participant(device_hz: u32) -> Vec<f32> {
     .unwrap();
 
     negotiate(&client, &sfu).await;
+    connected(&sfu).await;
+    connected(&client).await;
 
     // Two seconds of tone, sent as the far end would send it.
     let packets = tone_packets(100);
