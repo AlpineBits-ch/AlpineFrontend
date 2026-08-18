@@ -2,16 +2,20 @@ import {describe, expect, it} from 'vitest';
 import {lengthCounterClass, lengthState, MESSAGE_LENGTH_HARD_CEILING} from './composer-length';
 
 describe('lengthState', () => {
-    it('says nothing about a short reply', () => {
+    it('leaves a short reply uncoloured, but still counted', () => {
         const state = lengthState(120, 4_000);
-        expect(state.visible).toBe(false);
+        expect(state.visible).toBe(true);
         expect(state.level).toBe('idle');
         expect(state.blocked).toBe(false);
     });
 
-    it('shows the counter once the post is long enough for the ceiling to matter', () => {
-        expect(lengthState(2_400, 4_000).visible).toBe(true);
-        expect(lengthState(2_399, 4_000).visible).toBe(false);
+    it('starts colouring once the post is long enough for the ceiling to matter', () => {
+        expect(lengthState(2_400, 4_000).level).toBe('approaching');
+        expect(lengthState(2_399, 4_000).level).toBe('idle');
+    });
+
+    it('counts up towards the ceiling, which is what the counter shows', () => {
+        expect(lengthState(10, 15_000)).toMatchObject({length: 10, max: 15_000});
     });
 
     it('escalates near the ceiling', () => {

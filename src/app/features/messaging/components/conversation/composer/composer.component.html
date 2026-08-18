@@ -149,7 +149,13 @@
         }
 
         <!-- Attachment previews -->
-        <app-attachment-previews (remove)="attachments.remove($event)" [files]="attachments.files()" />
+        <app-attachment-previews
+            (placeInline)="placeInline($event)"
+            (remove)="removeAttachment($event)"
+            (removeInline)="removeInline($event)"
+            [files]="attachments.files()"
+            [inlineIds]="inlineIds()"
+        />
 
         <!-- Enter arrived before the uploads did. Says so, rather than leaving a pressed Enter
              looking like it did nothing. -->
@@ -183,7 +189,7 @@
                 [class.hidden]="previewing()"
                 [class.is-empty]="isEmpty()"
                 aria-multiline="true"
-                class="composer-editor flex-1 min-w-0 py-1.5 max-h-[120px] sm:max-h-[160px] overflow-y-auto outline-none text-sm text-text-primary"
+                class="composer-editor flex-1 min-w-0 py-1.5 max-h-[144px] sm:max-h-[192px] overflow-y-auto outline-none text-sm text-text-primary"
                 contenteditable="true"
                 data-testid="message-composer"
                 role="textbox"
@@ -194,7 +200,7 @@
             @if (previewing()) {
                 <div
                     [class.composer-editor-tall]="expanded()"
-                    class="composer-preview flex-1 min-w-0 py-1.5 max-h-[120px] sm:max-h-[160px] overflow-y-auto text-sm text-text-primary"
+                    class="composer-preview flex-1 min-w-0 py-1.5 max-h-[144px] sm:max-h-[192px] overflow-y-auto text-sm text-text-primary"
                 >
                     @if (typed()) {
                         <div [innerHTML]="typed() | markdown"></div>
@@ -240,7 +246,7 @@
         }
 
         <!-- The long-form footer. Nothing here is drawn for a one-line reply. -->
-        @if (canExpand() || length().visible || draftState() === 'saved') {
+        @if (canExpand() || length().visible || draftState() !== 'idle') {
             <div class="flex items-center gap-2 px-3 pb-1.5 text-[0.6875rem]">
                 @if (canExpand()) {
                     <button
@@ -269,7 +275,12 @@
                 }
 
                 <span class="ml-auto flex items-center gap-2.5">
-                    @if (draftState() === 'saved') {
+                    @if (draftState() === 'saving') {
+                        <span aria-live="polite" class="flex items-center gap-1 text-text-faint">
+                            <i class="pi pi-spin pi-spinner text-[0.5rem]"></i>
+                            {{ 'COMPOSER.DRAFT_SAVING' | translate }}
+                        </span>
+                    } @else if (draftState() === 'saved') {
                         <span class="flex items-center gap-1 text-text-faint">
                             <i class="pi pi-check text-[0.5rem]"></i>
                             {{ 'COMPOSER.DRAFT_SAVED' | translate }}
@@ -281,9 +292,9 @@
                     @if (length().visible) {
                         <span [class]="counterClass()" aria-live="polite">
                             @if (length().max) {
-                                {{ length().remaining }} / {{ length().max }}
+                                {{ length().length | number }} / {{ length().max | number }}
                             } @else {
-                                {{ length().length }}
+                                {{ length().length | number }}
                             }
                         </span>
                     }

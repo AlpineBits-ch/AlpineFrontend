@@ -6,7 +6,7 @@
 /** Nothing on any plan goes above this, so it stands in while the guild's own answer is unknown. */
 export const MESSAGE_LENGTH_HARD_CEILING = 15_000;
 
-/** Past this share of the ceiling the counter appears. Below it a short reply never sees one. */
+/** Past this share of the ceiling the counter starts colouring. Below it, it is plain. */
 const COUNTER_AT = 0.6;
 
 /** Past this share it stops being informational. */
@@ -21,7 +21,7 @@ export interface LengthState {
     /** Negative once the post is too long, which is what the counter shows. */
     remaining: number | null;
     level: LengthLevel;
-    /** Whether to draw the counter at all. */
+    /** Whether to draw the counter at all. False only while the ceiling is unknown. */
     visible: boolean;
     /** The post cannot be sent as it stands. */
     blocked: boolean;
@@ -55,7 +55,7 @@ export function lengthState(length: number, max: number | null): LengthState {
         max,
         remaining,
         level,
-        visible: level !== 'idle',
+        visible: true,
         blocked: remaining < 0,
     };
 }

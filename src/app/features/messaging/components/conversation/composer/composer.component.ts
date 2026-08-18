@@ -14,6 +14,7 @@ import {
 import twemoji from 'twemoji';
 import {takeUntilDestroyed, toObservable, toSignal} from '@angular/core/rxjs-interop';
 import {catchError, debounceTime, map, of, switchMap} from 'rxjs';
+import {DecimalPipe} from '@angular/common';
 import {Button} from 'primeng/button';
 import {MessageDto} from '../../../../../dtos/response/message.dto';
 import {MessageEncryptionState} from '../../../../../enums/message-encryption-state.enum';
@@ -32,14 +33,21 @@ import {
     mentionCandidateMatches,
     setEditorText,
 } from './composer-utils';
-import {lengthCounterClass, lengthState} from './composer-length';
+import {lengthCounterClass, lengthState, MESSAGE_LENGTH_HARD_CEILING} from './composer-length';
 import {DraftService} from '../../../../../services/draft.service';
 import {MarkdownPipe} from '../../../../../pipes/markdown.pipe';
 import {
-    buildHighlightedFragment,
+    applyTrailingSentinel,
+    blockKey,
+    blockOf,
+    EditorSegment,
     getEditorSegments,
     getTextCursorOffset,
+    highlightBlock,
+    needsReblock,
+    renderBlocks,
     restoreCursorOffset,
+    splitIntoBlocks,
 } from './composer-markdown';
 import {SuggestionOverlayComponent} from './suggestion-overlay/suggestion-overlay.component';
 import {EmojiPickerButtonComponent} from './emoji-picker-button/emoji-picker-button.component';
@@ -72,8 +80,14 @@ import {SceneService} from '../../../../../services/scene.service';
 import {DiceService} from '../../../../../services/dice.service';
 import {parseDiceExpression} from '../../../../guild/dice/dice-notation';
 import {RelativeTimePipe} from '../../../../../pipes/relative-time.pipe';
+import {FileService} from '../../../../../services/file.service';
+import {inlineAttachmentIds, inlineAttachmentPattern} from '../../../inline-attachment';
 
 const TWEMOJI_BASE = 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/';
+
+function segmentText(segments: EditorSegment[]): string {
+    return segments.map(s => (s.type === 'text' ? s.text : '')).join('');
+}
 
 /**
  * What the composer says when the scene is waiting on you. The notice sits on the thing you would
@@ -102,6 +116,7 @@ export interface SceneTurnPrompt {
         MarkdownPipe,
         TranslateModule,
         RelativeTimePipe,
+        DecimalPipe,
     ],
     templateUrl: './composer.component.html',
     styleUrl: './composer.component.css',
@@ -231,8 +246,16 @@ export class ComposerComponent {
     /** Which channel's draft has already been put on screen, so a restore happens once. */
     private restoredFor: string | null = null;
     private lastChannelId: string | null = null;
+    /** Last highlighted state per block, so an untouched block is skipped without reading its DOM twice. */
+    private readonly blockKeys = new WeakMap<HTMLElement, string>();
+    private readonly blockTexts = new WeakMap<HTMLElement, string>();
+    /** The attachment set last written to the draft, so an unchanged list is not saved again. */
+    private lastFileKey = '';
 
     protected readonly attachments = inject(ComposerAttachmentsService);
+    private readonly fileService = inject(FileService);
+    /** Which attachments the body already names, so the tray knows which tile is already placed. */
+    protected readonly inlineIds = computed(() => inlineAttachmentIds(this.typed()));
     /** True while a send is parked waiting on uploads that were still in flight when Enter landed. */
     protected readonly awaitingUploads = signal(false);
     private readonly emojiData = inject(EmojiDataService);
@@ -289,6 +312,9 @@ export class ComposerComponent {
                 this.previewing.set(false);
                 this.draftRestored.set(false);
                 this.clearEditor();
+                // After the park above, so the files leaving with the old channel are in its draft.
+                this.attachments.clear();
+                this.lastFileKey = '';
                 this.drafts.ensureLoaded(channelId);
             });
         });
@@ -297,17 +323,49 @@ export class ComposerComponent {
         effect(() => {
             const channelId = this.channelId();
             const draft = this.drafts.draft(channelId);
-            if (!channelId || !draft?.content) return;
+            const content = draft?.content ?? '';
+            const files = draft?.attachments ?? [];
+            if (!channelId || (!content && files.length === 0)) return;
             untracked(() => {
                 if (this.restoredFor === channelId) return;
                 this.restoredFor = channelId;
                 const editor = this.editorRef().nativeElement;
                 if ((editor.textContent ?? '').trim()) return;
-                setEditorText(editor, draft.content);
-                this.typed.set(draft.content);
-                this.isEmpty.set(false);
+                if (content) {
+                    setEditorText(editor, content);
+                    this.typed.set(content);
+                    this.isEmpty.set(false);
+                    this.applyMarkdownHighlighting(editor);
+                }
+                this.attachments.adopt(files);
+                this.lastFileKey = files.join(',');
                 this.draftRestored.set(true);
-                this.applyMarkdownHighlighting(editor);
+            });
+        });
+
+        // A restored draft holds tokens, not chips. Each becomes a chip as the tray's metadata for
+        // it lands, so the body reads as pictures rather than as ids somebody has to decode.
+        effect(() => {
+            this.attachments.files();
+            untracked(() => this.hydrateInlineChips());
+        });
+
+        // Attaching a file is a draft change with no keystroke behind it, so `onInput` never sees
+        // it. Held until the channel's own draft has been read: recording before that would write
+        // an empty draft over the one still in flight and delete it.
+        effect(() => {
+            const ids = this.attachments.uploadedIds();
+            untracked(() => {
+                const channelId = this.channelId();
+                if (!channelId || !this.drafts.isLoaded(channelId)) return;
+
+                const key = ids.join(',');
+                if (key === this.lastFileKey) return;
+                const hadFiles = this.lastFileKey !== '';
+                this.lastFileKey = key;
+                if (!hadFiles && ids.length === 0) return;
+
+                this.drafts.record(channelId, this.typed(), ids);
             });
         });
 
@@ -482,12 +540,13 @@ export class ComposerComponent {
     onInput(): void {
         const editor = this.editorRef().nativeElement;
         this.savedEmojiOffset = getTextCursorOffset(editor);
-        this.typed.set(getMessage(editor));
-        this.drafts.record(this.channelId(), this.typed());
+        // One read of the editor per keystroke. Typing notification and the trigger scan below both
+        // work off this, rather than walking the whole post again for their own copy.
+        const text = getMessage(editor);
+        this.typed.set(text);
+        this.drafts.record(this.channelId(), text, this.attachments.uploadedIds());
         this.isEmpty.set(
-            (editor.textContent ?? '').trim() === '' &&
-                !editor.querySelector('.mention-chip') &&
-                !editor.querySelector('img[data-emoji]'),
+            text === '' && !editor.querySelector('.mention-chip') && !editor.querySelector('img[data-emoji]'),
         );
 
         // Auto-replace :shortcode: on closing colon
@@ -520,7 +579,7 @@ export class ComposerComponent {
             }
         }
 
-        this.emitTypingIfNeeded(editor);
+        this.emitTypingIfNeeded(text);
 
         const result = detectTrigger(editor);
         if (result) {
@@ -626,6 +685,8 @@ export class ComposerComponent {
         this.restoredFor = this.channelId();
         this.draftRestored.set(false);
         this.clearEditor();
+        this.attachments.clear();
+        this.lastFileKey = '';
         this.focus();
     }
 
@@ -639,7 +700,7 @@ export class ComposerComponent {
         if (!channelId) return;
         const editor = this.editorRef?.()?.nativeElement;
         if (!editor) return;
-        this.drafts.flushNow(channelId, getMessage(editor));
+        this.drafts.flushNow(channelId, getMessage(editor), this.attachments.uploadedIds());
     }
 
     private clearEditor(): void {
@@ -663,8 +724,13 @@ export class ComposerComponent {
             }
         }
         event.preventDefault();
-        const text = event.clipboardData?.getData('text/plain') ?? '';
-        document.execCommand('insertText', false, text);
+        const pasted = event.clipboardData?.getData('text/plain') ?? '';
+        // Clamped on the way in rather than left for the counter to complain about afterwards: a
+        // paste of a whole document has to be highlighted and laid out before anything can say no.
+        const ceiling = this.maxLength() ?? MESSAGE_LENGTH_HARD_CEILING;
+        const room = Math.max(0, ceiling - this.typed().length);
+        if (room === 0) return;
+        document.execCommand('insertText', false, pasted.slice(0, room));
     }
 
     onEditorFocus(): void {
@@ -1031,7 +1097,7 @@ export class ComposerComponent {
         // The post stays exactly where it is, and is written to the draft rather than trimmed. The
         // notice above the box already says how much room this server allows.
         if (this.length().blocked) {
-            this.drafts.flushNow(this.channelId(), this.typed());
+            this.drafts.flushNow(this.channelId(), this.typed(), this.attachments.uploadedIds());
             return;
         }
 
@@ -1081,6 +1147,7 @@ export class ComposerComponent {
         this.expanded.set(false);
         this.draftRestored.set(false);
         this.restoredFor = this.channelId();
+        this.lastFileKey = '';
         this.drafts.clear(this.channelId());
         this.closeOverlay();
         editor.focus();
@@ -1088,9 +1155,8 @@ export class ComposerComponent {
 
     // ── GIF handling ──────────────────────────────────────────────────────────
 
-    private emitTypingIfNeeded(editor: HTMLElement): void {
-        const hasContent = getMessage(editor).trim().length > 0;
-        if (!hasContent || this.typingThrottle !== null) return;
+    private emitTypingIfNeeded(text: string): void {
+        if (!text.trim() || this.typingThrottle !== null) return;
         this.typing.emit();
         this.typingThrottle = setTimeout(() => {
             this.typingThrottle = null;
@@ -1113,22 +1179,185 @@ export class ComposerComponent {
         this.onInput();
     }
 
+    // ── Inline attachments ────────────────────────────────────────────────────
+
+    /** Put an already-uploaded file into the body at the cursor. */
+    protected placeInline(index: number): void {
+        const file = this.attachments.files()[index];
+        if (!file?.uploadedId) return;
+
+        const editor = this.editorRef().nativeElement;
+        editor.focus();
+        restoreCursorOffset(editor, this.savedEmojiOffset);
+
+        const sel = window.getSelection();
+        if (!sel || sel.rangeCount === 0) return;
+        const range = sel.getRangeAt(0);
+        range.deleteContents();
+
+        const chip = this.buildAttachmentChip(file.uploadedId, file.name, file.isImage);
+        range.insertNode(chip);
+        range.setStartAfter(chip);
+        range.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(range);
+
+        this.onInput();
+    }
+
+    /** Take it out of the body. The file stays attached, it just goes back under the message. */
+    protected removeInline(attachmentId: string): void {
+        const editor = this.editorRef().nativeElement;
+        for (const chip of this.chipsFor(editor, attachmentId)) chip.remove();
+        this.onInput();
+    }
+
+    /** The tray's own remove, which has to take the chip with it. */
+    protected removeAttachment(index: number): void {
+        const id = this.attachments.files()[index]?.uploadedId;
+        if (id) {
+            const editor = this.editorRef().nativeElement;
+            for (const chip of this.chipsFor(editor, id)) chip.remove();
+        }
+        this.attachments.remove(index);
+        this.onInput();
+    }
+
+    private chipsFor(editor: HTMLElement, attachmentId: string): HTMLElement[] {
+        return Array.from(
+            editor.querySelectorAll<HTMLElement>(
+                `.attachment-chip[data-attachment-id="${CSS.escape(attachmentId)}"]`,
+            ),
+        );
+    }
+
+    private buildAttachmentChip(id: string, name: string, isImage: boolean): HTMLElement {
+        const chip = document.createElement('span');
+        chip.className = 'attachment-chip';
+        chip.contentEditable = 'false';
+        chip.dataset['attachmentId'] = id;
+
+        if (isImage) {
+            const img = document.createElement('img');
+            img.src = this.fileService.attachmentThumbnailUrl(id);
+            img.alt = name;
+            chip.appendChild(img);
+        } else {
+            const icon = document.createElement('i');
+            icon.className = 'pi pi-paperclip';
+            chip.appendChild(icon);
+        }
+
+        const label = document.createElement('span');
+        label.textContent = name || this.translate.instant('COMPOSER.INLINE_ATTACHMENT');
+        chip.appendChild(label);
+        return chip;
+    }
+
+    /**
+     * A restored draft arrives as token text, because that is how the body is stored. Each token
+     * becomes a chip once the file behind it is known, which the tray is already fetching.
+     */
+    private hydrateInlineChips(): void {
+        const editor = this.editorRef?.()?.nativeElement;
+        if (!editor) return;
+
+        const ready = new Map(
+            this.attachments
+                .files()
+                .filter(f => f.uploadedId && !f.isUploading)
+                .map(f => [f.uploadedId!, f]),
+        );
+        if (ready.size === 0) return;
+
+        const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT);
+        const pending: Text[] = [];
+        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+            if (inlineAttachmentPattern().test(node.textContent ?? '')) pending.push(node as Text);
+        }
+        if (pending.length === 0) return;
+
+        const offset = getTextCursorOffset(editor);
+        for (const node of pending) {
+            const text = node.textContent ?? '';
+            const frag = document.createDocumentFragment();
+            let last = 0;
+            for (const match of text.matchAll(inlineAttachmentPattern())) {
+                const file = ready.get(match[1]);
+                if (!file) continue;
+                if (match.index > last) {
+                    frag.appendChild(document.createTextNode(text.slice(last, match.index)));
+                }
+                frag.appendChild(this.buildAttachmentChip(match[1], file.name, file.isImage));
+                last = match.index + match[0].length;
+            }
+            if (last === 0) continue;
+            if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
+            node.replaceWith(frag);
+        }
+
+        this.typed.set(getMessage(editor));
+        restoreCursorOffset(editor, offset);
+    }
+
     // ── Send ─────────────────────────────────────────────────────────────────
 
+    /**
+     * Re-highlight the block holding the cursor and nothing else. Rebuilding the whole editor is
+     * what a 15k-character post cannot afford: it also drops native undo, breaks IME composition,
+     * and resets the scroll position, none of which survive an `innerHTML` swap.
+     */
     private applyMarkdownHighlighting(editor: HTMLElement): void {
+        if (needsReblock(editor)) {
+            this.rebuildBlocks(editor);
+            return;
+        }
+
+        const sel = window.getSelection();
+        const anchor = sel && sel.rangeCount > 0 ? sel.getRangeAt(0).startContainer : null;
+        const block = blockOf(anchor, editor);
+        if (!block) {
+            this.rebuildBlocks(editor);
+            return;
+        }
+
+        const segments = getEditorSegments(block);
+        const key = blockKey(segments);
+        if (key === this.blockKeys.get(block)) return;
+
+        const text = segmentText(segments);
+        const previous = this.blockTexts.get(block) ?? '';
+        if (this.boundariesMoved(block, previous, text)) {
+            this.rebuildBlocks(editor);
+            return;
+        }
+
+        const offset = getTextCursorOffset(block);
+        highlightBlock(block, segments);
+        this.blockKeys.set(block, key);
+        this.blockTexts.set(block, text);
+        applyTrailingSentinel(editor);
+        restoreCursorOffset(block, offset);
+    }
+
+    /**
+     * Whether this edit changed where blocks begin, which the single-block path cannot express.
+     * A fence is treated as a boundary move on sight: its delimiters decide how the text around
+     * them parses, so an edit near one is never local.
+     */
+    private boundariesMoved(block: HTMLElement, previous: string, text: string): boolean {
+        if (text.includes('```') || previous.includes('```')) return true;
+        if (splitIntoBlocks(text).length > 1) return true;
+        const endedBlock = /\n\n+$/.test(previous);
+        return endedBlock && !/\n\n+$/.test(text) && !!block.nextElementSibling;
+    }
+
+    private rebuildBlocks(editor: HTMLElement): void {
         const offset = getTextCursorOffset(editor);
-        const segments = getEditorSegments(editor);
-        const frag = buildHighlightedFragment(segments);
-        editor.innerHTML = '';
-        editor.appendChild(frag);
-        // Browsers don't render a trailing `<br>` as a visible new line unless there
-        // is content after it. Add a sentinel so the cursor can visually land on
-        // the new line after Shift+Enter.
-        const last = editor.lastChild;
-        if (last instanceof HTMLElement && last.tagName === 'BR' && (editor.textContent ?? '').length > 0) {
-            const sentinel = document.createElement('br');
-            sentinel.dataset['sentinel'] = '1';
-            editor.appendChild(sentinel);
+        for (const block of renderBlocks(editor, getEditorSegments(editor))) {
+            const segments = getEditorSegments(block);
+            this.blockKeys.set(block, blockKey(segments));
+            this.blockTexts.set(block, segmentText(segments));
         }
         restoreCursorOffset(editor, offset);
     }
