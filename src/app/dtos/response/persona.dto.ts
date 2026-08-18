@@ -99,13 +99,37 @@ export interface ChannelAutoproxyDto {
     personaId?: string | null;
 }
 
+/** How a pull resolves the two sides. Sent verbatim; anything else fails to bind. */
+export const PersonaPagePullStrategy = {
+    /** Returns the diff and writes nothing. */
+    Preview: 'Preview',
+    /** Three-way merge that keeps local edits wherever the two sides disagree. */
+    KeepLocal: 'KeepLocal',
+    /** Discards local edits and takes the reference copy verbatim. */
+    TakeUpstream: 'TakeUpstream',
+} as const;
+
+export type PersonaPagePullStrategy = (typeof PersonaPagePullStrategy)[keyof typeof PersonaPagePullStrategy];
+
+/** One line the local copy and the reference copy both changed. */
+export interface PersonaPageConflictDto {
+    lineNumber: number;
+    base?: string | null;
+    local?: string | null;
+    upstream?: string | null;
+}
+
 /** What a pull from the reference copy would change. `applied` is false for a preview. */
 export interface PersonaPagePullDto {
+    personaId: string;
+    pageId?: string | null;
     applied: boolean;
     upstreamState: PersonaUpstreamState;
     upstreamRevisionNumber?: number | null;
-    /** How many reference revisions this guild's copy has not taken. */
-    behindBy?: number | null;
-    localChanged: boolean;
-    upstreamChanged: boolean;
+    referenceRevisionNumber?: number | null;
+    /** The merged body, so a preview shows exactly what applying would write. */
+    mergedContent: string;
+    mergedInfoboxJson?: string | null;
+    /** Lines the two sides changed differently. Kept local, and listed here. */
+    conflicts: PersonaPageConflictDto[];
 }

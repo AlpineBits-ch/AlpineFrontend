@@ -1,4 +1,13 @@
-import {Component, DestroyRef, HostListener, inject, OnDestroy, OnInit} from '@angular/core';
+import {
+    afterNextRender,
+    Component,
+    DestroyRef,
+    ElementRef,
+    HostListener,
+    inject,
+    OnDestroy,
+    OnInit,
+} from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {NavigationEnd, Router, RouterOutlet} from '@angular/router';
 import {ProfileService} from './services/profile.service';
@@ -89,6 +98,17 @@ export class AppComponent implements OnInit, OnDestroy {
     // Do not remove: constructed here so a ring arriving before the card renders is still caught.
     private voiceRings = inject(VoiceRingStateService);
     private updateInterval: ReturnType<typeof setInterval> | null = null;
+    private host = inject(ElementRef<HTMLElement>);
+
+    constructor() {
+        // app-root is `position: fixed` and therefore its own stacking context, and every dialog in
+        // the app appends its mask to the body. No z-index on the toast can beat that from in here,
+        // so the element moves out to sit beside the masks.
+        afterNextRender(() => {
+            const toast = this.host.nativeElement.querySelector('p-toast');
+            if (toast) document.body.appendChild(toast);
+        });
+    }
 
     @HostListener('document:contextmenu', ['$event'])
     onContextMenu(event: MouseEvent) {

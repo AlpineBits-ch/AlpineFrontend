@@ -91,7 +91,12 @@ export class SceneDialogComponent {
             untracked(() => {
                 if (!scene) return;
                 this.name.set(scene.name);
-                this.order.set([...scene.turnOrder]);
+                // The rotation is the cast here, and an empty turn order means the cast in join order.
+                this.order.set(
+                    scene.turnOrder.length
+                        ? [...scene.turnOrder]
+                        : scene.participants.map(participant => participant.personaId),
+                );
                 this.deadlineHours.set(hoursBetween(scene));
             });
         });
@@ -152,6 +157,7 @@ export class SceneDialogComponent {
         const existing = this.scene();
         const work = existing
             ? this.scenes.update(this.guildId(), existing.channelId, {
+                  participantPersonaIds: this.order(),
                   turnOrder: this.order(),
                   turnLengthHours: this.deadlineHours(),
               })

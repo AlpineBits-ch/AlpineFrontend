@@ -51,6 +51,30 @@ describe('mapGuildMessageCreatedPayload', () => {
         const result = mapGuildMessageCreatedPayload(BASE_PAYLOAD);
         expect(result.mentions).toEqual([]);
     });
+
+    // A dice roll never comes back over HTTP, so this socket is the only delivery even for the
+    // person who rolled it. Dropping these renders every roll under the account, not the character.
+    it('carries the persona overrides a message was spoken under', () => {
+        const result = mapGuildMessageCreatedPayload({
+            ...BASE_PAYLOAD,
+            type: 'DiceRoll',
+            personaId: 'pers_1',
+            authorDisplayName: 'Mayor Cogsgrove',
+            authorAvatarUrl: 'https://cdn.test.example/mayor.png',
+        });
+
+        expect(result.personaId).toBe('pers_1');
+        expect(result.authorDisplayName).toBe('Mayor Cogsgrove');
+        expect(result.authorAvatarUrl).toBe('https://cdn.test.example/mayor.png');
+    });
+
+    it('leaves the persona overrides empty on a message nobody spoke in character', () => {
+        const result = mapGuildMessageCreatedPayload(BASE_PAYLOAD);
+
+        expect(result.personaId ?? null).toBeNull();
+        expect(result.authorDisplayName ?? null).toBeNull();
+        expect(result.authorAvatarUrl ?? null).toBeNull();
+    });
 });
 
 /**

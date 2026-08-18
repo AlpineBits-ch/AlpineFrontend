@@ -16,8 +16,21 @@ import {NotificationService, NotificationSound} from './notification.service';
 import {catchError, firstValueFrom, of, Subject, timeout} from 'rxjs';
 import {MessageDto, MessageEmbed} from '../dtos/response/message.dto';
 import {GuildDto} from '../dtos/response/guild.dto';
-import {PersonaApprovalState} from '../dtos/response/persona.dto';
-import {SceneTurnChangedDto, SceneTurnNudgeDto, SceneUpdatedDto} from '../dtos/response/scene.dto';
+import {
+    ChannelAutoproxyDto,
+    PersonaApprovalState,
+    PersonaPagePullStrategy,
+    PersonaScope,
+    PersonaUpstreamState,
+} from '../dtos/response/persona.dto';
+import {
+    SceneConcludedDto,
+    SceneCreatedDto,
+    SceneTurnChangedDto,
+    SceneTurnNudgeDto,
+    SceneUpdatedDto,
+} from '../dtos/response/scene.dto';
+import {DiceRolledDto} from '../dtos/response/dice.dto';
 import {MessageEncryptionState} from '../enums/message-encryption-state.enum';
 import {MessageType} from '../enums/message-type.enum';
 import {AttachmentDto} from './file.service';
@@ -269,16 +282,125 @@ export interface WsPersonaProfileChanged {
     canSpeak: boolean;
 }
 
-/** Guildless when the account-level row changed, so every guild the character is in must re-read. */
-export interface WsPersonaUpdated {
-    guildId?: string;
+/**
+ * The account-level row, as `guild.PersonaCreated` and `guild.PersonaUpdated` both carry it. One
+ * copy per guild the character is adopted into, plus a guildless one for its owner, so a client
+ * patches its cache rather than dropping it.
+ */
+export interface WsPersonaChanged {
+    guildId?: string | null;
+    personaId: string;
+    scope: PersonaScope;
+    name: string;
+    avatarUrl?: string | null;
+    pronouns?: string | null;
+    color?: string | null;
+    shortBio?: string | null;
+    isRetired: boolean;
+    updatedAt?: string | null;
+}
+
+/** Guild-owned goes to the guild; a personal character goes to its owner alone. */
+export type WsPersonaCreated = WsPersonaChanged;
+
+export type WsPersonaUpdated = WsPersonaChanged;
+
+export interface WsPersonaDeleted {
+    guildId?: string | null;
+    personaId: string;
+    /** True when the character had already spoken, so the row was retired rather than removed. */
+    retired: boolean;
+}
+
+/** A character joined the guild's cast. Display data, not the character itself. */
+export interface WsPersonaAdopted {
+    guildId: string;
     personaId: string;
     name: string;
     avatarUrl?: string | null;
+    color?: string | null;
+    tag?: string | null;
+    wikiPageId?: string | null;
+    approvalState: PersonaApprovalState;
+    /** The profile's own state, same rule as {@link WsPersonaProfileChanged}. */
+    canSpeak: boolean;
+}
+
+export interface WsPersonaUnadopted {
+    guildId: string;
+    personaId: string;
+}
+
+/** To the reviewers and to whoever answers for the character. Never guild-wide. */
+export interface WsPersonaReviewRequested {
+    guildId: string;
+    personaId: string;
+    name: string;
+    wikiPageId?: string | null;
+    approvalState: PersonaApprovalState;
+    isResubmission: boolean;
+    submittedAt?: string | null;
+}
+
+/** Same audience. The reason is reviewer feedback and rides this event alone. */
+export interface WsPersonaReviewCompleted {
+    guildId: string;
+    personaId: string;
+    name: string;
+    approvalState: PersonaApprovalState;
+    approved: boolean;
+    reviewedByUserId: string;
+    reviewedAt?: string | null;
+    reason?: string | null;
+    canSpeak: boolean;
+}
+
+/** `guild.PersonaGrantCreated` and `guild.PersonaGrantDeleted`, to the managers and the grantee. */
+export interface WsPersonaGrantChanged {
+    guildId: string;
+    personaId: string;
+    grantId: string;
+    roleId?: string | null;
+    userId?: string | null;
+}
+
+/** This guild's copy of a character page now exists. No wiki event goes out beside it. */
+export interface WsPersonaPageCreated {
+    guildId: string;
+    personaId: string;
+    pageId: string;
+    title: string;
+    categoryId?: string | null;
+}
+
+/** A character page was merged from its reference copy. A preview announces nothing. */
+export interface WsPersonaPagePulled {
+    guildId: string;
+    personaId: string;
+    pageId: string;
+    strategy: PersonaPagePullStrategy;
+    upstreamState: PersonaUpstreamState;
+    upstreamRevisionNumber?: number | null;
+    referenceRevisionNumber?: number | null;
+    conflictCount?: number | null;
+}
+
+/** A roll landed. The message carries the faces; this carries who rolled and what it came to. */
+export type WsDiceRolled = DiceRolledDto;
+
+/** The caller's own autoproxy for one channel. Sticky moves it on send, so a second window hears. */
+export interface WsAutoproxyChanged extends ChannelAutoproxyDto {
+    guildId: string;
 }
 
 /** The nudge, and the escalation to whoever holds `ManageScenes` after a second miss. */
 export type WsSceneTurnNudge = SceneTurnNudgeDto;
+
+/** A scene was opened. The two `guild.ThreadCreated` events beside it do not say a game started. */
+export type WsSceneCreated = SceneCreatedDto;
+
+/** A scene finished for good. */
+export type WsSceneConcluded = SceneConcludedDto;
 
 /** The turn moved. A patch: the clock and whose turn it is, not the whole scene. */
 export type WsSceneTurnChanged = SceneTurnChangedDto;
@@ -482,6 +604,11 @@ export interface GuildMessageCreatedPayload {
     editedAt?: string | null;
     type: string;
     systemMessageVariant: number | undefined;
+    /** The character this was spoken as. `authorId` stays the account either way. */
+    personaId?: string | null;
+    /** Set for a persona post and for a webhook execution, which has no character behind it. */
+    authorDisplayName?: string | null;
+    authorAvatarUrl?: string | null;
 }
 
 /**
@@ -702,6 +829,11 @@ export function mapGuildMessageCreatedPayload(data: GuildMessageCreatedPayload):
         flags: data.flags,
         editedAt: data.editedAt,
         systemMessageVariant: data.systemMessageVariant,
+        // A dice roll answers with the roll, never the message, so this socket is the only place
+        // its character ever arrives - including for the person who rolled it.
+        personaId: data.personaId,
+        authorDisplayName: data.authorDisplayName,
+        authorAvatarUrl: data.authorAvatarUrl,
     };
 }
 
@@ -765,11 +897,26 @@ export class GuildWebsocketService {
     public wikiCategoryDeletedObservable = new Subject<WsWikiCategoryDeleted>();
     // ── Personas ───────────────────────────────────────────────────────────────
     public personaProfileChangedObservable = new Subject<WsPersonaProfileChanged>();
+    public personaCreatedObservable = new Subject<WsPersonaCreated>();
     public personaUpdatedObservable = new Subject<WsPersonaUpdated>();
+    public personaDeletedObservable = new Subject<WsPersonaDeleted>();
+    public personaAdoptedObservable = new Subject<WsPersonaAdopted>();
+    public personaUnadoptedObservable = new Subject<WsPersonaUnadopted>();
+    public personaReviewRequestedObservable = new Subject<WsPersonaReviewRequested>();
+    public personaReviewCompletedObservable = new Subject<WsPersonaReviewCompleted>();
+    public personaGrantCreatedObservable = new Subject<WsPersonaGrantChanged>();
+    public personaGrantDeletedObservable = new Subject<WsPersonaGrantChanged>();
+    public personaPageCreatedObservable = new Subject<WsPersonaPageCreated>();
+    public personaPagePulledObservable = new Subject<WsPersonaPagePulled>();
+    public autoproxyChangedObservable = new Subject<WsAutoproxyChanged>();
     // ── Scenes ─────────────────────────────────────────────────────────────────
+    readonly sceneCreatedObservable = new Subject<WsSceneCreated>();
+    readonly sceneConcludedObservable = new Subject<WsSceneConcluded>();
     readonly sceneTurnChangedObservable = new Subject<WsSceneTurnChanged>();
     readonly sceneUpdatedObservable = new Subject<WsSceneUpdated>();
     readonly sceneTurnNudgeObservable = new Subject<WsSceneTurnNudge>();
+    // ── Dice ───────────────────────────────────────────────────────────────────
+    readonly diceRolledObservable = new Subject<WsDiceRolled>();
     // ── Member moderation ──────────────────────────────────────────────────────────
     public memberBannedObservable = new Subject<WsMemberBanned>();
     public memberKickedObservable = new Subject<WsMemberKicked>();
@@ -1012,8 +1159,46 @@ export class GuildWebsocketService {
         this.realtime.on('guild.PersonaProfileChanged', (d: WsPersonaProfileChanged) =>
             this.personaProfileChangedObservable.next(d),
         );
+        this.realtime.on('guild.PersonaCreated', (d: WsPersonaCreated) =>
+            this.personaCreatedObservable.next(d),
+        );
         this.realtime.on('guild.PersonaUpdated', (d: WsPersonaUpdated) =>
             this.personaUpdatedObservable.next(d),
+        );
+        this.realtime.on('guild.PersonaDeleted', (d: WsPersonaDeleted) =>
+            this.personaDeletedObservable.next(d),
+        );
+        this.realtime.on('guild.PersonaAdopted', (d: WsPersonaAdopted) =>
+            this.personaAdoptedObservable.next(d),
+        );
+        this.realtime.on('guild.PersonaUnadopted', (d: WsPersonaUnadopted) =>
+            this.personaUnadoptedObservable.next(d),
+        );
+        this.realtime.on('guild.PersonaReviewRequested', (d: WsPersonaReviewRequested) =>
+            this.personaReviewRequestedObservable.next(d),
+        );
+        this.realtime.on('guild.PersonaReviewCompleted', (d: WsPersonaReviewCompleted) =>
+            this.personaReviewCompletedObservable.next(d),
+        );
+        this.realtime.on('guild.PersonaGrantCreated', (d: WsPersonaGrantChanged) =>
+            this.personaGrantCreatedObservable.next(d),
+        );
+        this.realtime.on('guild.PersonaGrantDeleted', (d: WsPersonaGrantChanged) =>
+            this.personaGrantDeletedObservable.next(d),
+        );
+        this.realtime.on('guild.PersonaPageCreated', (d: WsPersonaPageCreated) =>
+            this.personaPageCreatedObservable.next(d),
+        );
+        this.realtime.on('guild.PersonaPagePulled', (d: WsPersonaPagePulled) =>
+            this.personaPagePulledObservable.next(d),
+        );
+        this.realtime.on('guild.AutoproxyChanged', (d: WsAutoproxyChanged) =>
+            this.autoproxyChangedObservable.next(d),
+        );
+        this.realtime.on('guild.DiceRolled', (d: WsDiceRolled) => this.diceRolledObservable.next(d));
+        this.realtime.on('guild.SceneCreated', (d: WsSceneCreated) => this.sceneCreatedObservable.next(d));
+        this.realtime.on('guild.SceneConcluded', (d: WsSceneConcluded) =>
+            this.sceneConcludedObservable.next(d),
         );
         this.realtime.on('guild.SceneTurnChanged', (d: WsSceneTurnChanged) =>
             this.sceneTurnChangedObservable.next(d),

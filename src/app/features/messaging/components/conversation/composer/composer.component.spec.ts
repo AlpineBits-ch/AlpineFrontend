@@ -6,7 +6,7 @@ import {OAuthService} from 'angular-oauth2-oidc';
 
 import {MessageService} from 'primeng/api';
 import {provideTranslateService} from '@ngx-translate/core';
-import {Subject} from 'rxjs';
+import {of, Subject} from 'rxjs';
 
 import {provideFakePlatform} from '../../../../../platform/testing/provide-fake-platform';
 import {ComposerComponent} from './composer.component';
@@ -14,6 +14,9 @@ import {ApiConfigService} from '../../../../../services/api-config.service';
 import {NotificationService} from '../../../../../services/notification.service';
 import {SocialKeyGateService} from '../../../../../services/social-key-gate.service';
 import {AttachmentDto, FileService} from '../../../../../services/file.service';
+import {PersonaService} from '../../../../../services/persona.service';
+import {DraftApi} from '../../../../../services/draft-api.service';
+import {PersonaApi} from '../../../../../services/persona-api.service';
 
 /** The composer only ever asks the gate two things, so the double only answers two. */
 function gateStub(satisfied: boolean) {
@@ -77,6 +80,22 @@ describe('ComposerComponent', () => {
                 {provide: NotificationService, useValue: {createNotification: vi.fn()}},
                 {provide: SocialKeyGateService, useValue: gate},
                 {provide: FileService, useValue: files},
+                // Reached the moment a channelId is set: the composer asks what the server holds.
+                {
+                    provide: DraftApi,
+                    useValue: {
+                        list: () => of([]),
+                        get: () => of(null),
+                        save: () => of(null),
+                        discard: () => of(undefined),
+                    },
+                },
+                // The switcher loads the cast as soon as personas are switched on. Empty is fine:
+                // these tests drive the selection directly rather than through the menu.
+                {
+                    provide: PersonaApi,
+                    useValue: {listOwn: () => of([]), listGuild: () => of([]), getAutoproxy: () => of(null)},
+                },
                 // ToastService -> MessageService; the composer reports a failed upload through it.
                 MessageService,
                 provideTranslateService({defaultLanguage: 'en'}),
@@ -235,6 +254,38 @@ describe('ComposerComponent', () => {
 
             expect(sent).toHaveBeenCalledOnce();
             expect(sent.mock.calls[0][0].content).toBe('a message worth keeping');
+        });
+    });
+
+    /** Picking a character applies to everything the composer posts, not only to typed prose. */
+    describe('speaking as a character', () => {
+        beforeEach(async () => {
+            fixture.componentRef.setInput('guildId', 'guil_1');
+            fixture.componentRef.setInput('channelId', 'chan_1');
+            fixture.componentRef.setInput('canUsePersonas', true);
+            TestBed.inject(PersonaService).select('chan_1', 'pers_1');
+            fixture.detectChanges();
+        });
+
+        it('posts a gif as the chosen character', () => {
+            const sent = vi.fn();
+            component.message.subscribe(sent);
+
+            component.onGifSelected('https://gif.test.example/wave.gif');
+
+            expect(sent).toHaveBeenCalledOnce();
+            expect(sent.mock.calls[0][0].content).toBe('https://gif.test.example/wave.gif');
+            expect(sent.mock.calls[0][0].personaId).toBe('pers_1');
+        });
+
+        it('posts a gif as itself once the character is cleared', () => {
+            const sent = vi.fn();
+            component.message.subscribe(sent);
+            TestBed.inject(PersonaService).select('chan_1', null);
+
+            component.onGifSelected('https://gif.test.example/wave.gif');
+
+            expect(sent.mock.calls[0][0].personaId).toBeUndefined();
         });
     });
 });

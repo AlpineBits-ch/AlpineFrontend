@@ -4,7 +4,15 @@ import {Observable, tap} from 'rxjs';
 import {RoleplayApi} from './roleplay-api.service';
 import {PersonaService} from './persona.service';
 import {GuildWebsocketService} from './guild-websocket.service';
-import {SceneDto, SceneListItemDto, SceneStatus, SceneTurnNudgeDto} from '../dtos/response/scene.dto';
+import {GuildService} from './guild.service';
+import {NavigationService} from '../features/main-page/navigation.service';
+import {
+    SceneCreatedDto,
+    SceneDto,
+    SceneListItemDto,
+    SceneStatus,
+    SceneTurnNudgeDto,
+} from '../dtos/response/scene.dto';
 import {
     AddSceneParticipantDto,
     AdvanceTurnDto,
@@ -51,6 +59,8 @@ export class SceneService {
     private readonly nudgesByChannel = signal<Record<string, SceneNudge>>({});
 
     private readonly requestedGuilds = new Set<string>();
+    /** Guilds with a channel-list read in flight, so a board of new scenes costs one of them. */
+    private readonly learningGuilds = new Set<string>();
 
     constructor() {
         const timer = setInterval(() => this.now.set(Date.now()), TICK_MS);
@@ -65,6 +75,21 @@ export class SceneService {
         if (this.wired) return;
         this.wired = true;
         const ws = this.injector.get(GuildWebsocketService);
+
+        ws.sceneCreatedObservable
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe(event => this.noteCreated(event));
+
+        ws.sceneConcludedObservable.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(event => {
+            this.patch(event.guildId, event.channelId, {
+                status: event.status,
+                conclusionNote: event.conclusionNote,
+                turnNumber: event.turnNumber,
+                postCount: event.postCount,
+                concludedAt: event.concludedAt,
+            });
+            this.clearNudge(event.channelId);
+        });
 
         ws.sceneTurnChangedObservable
             .pipe(takeUntilDestroyed(this.destroyRef))
@@ -154,6 +179,10 @@ export class SceneService {
         this.api.listScenes(guildId).subscribe({
             next: page => {
                 this.byGuild.update(map => ({...map, [guildId]: page.scenes ?? []}));
+                this.learnChannels(
+                    guildId,
+                    (page.scenes ?? []).map(scene => scene.channelId),
+                );
                 this.truncatedGuilds.update(map => ({...map, [guildId]: !!page.truncated}));
                 this.loadingGuilds.update(map => ({...map, [guildId]: false}));
             },
@@ -248,6 +277,7 @@ export class SceneService {
 
     /** Stores a whole scene and refreshes the board row it stands behind. */
     private absorb(guildId: string, scene: SceneDto): void {
+        this.learnChannels(guildId, [scene.channelId]);
         this.sceneByChannel.update(map => ({...map, [scene.channelId]: scene}));
         this.byGuild.update(map => {
             const rows = map[guildId] ?? [];
@@ -273,6 +303,43 @@ export class SceneService {
             const at = rows.findIndex(s => s.channelId === channelId);
             if (at === -1) return map;
             return {...map, [guildId]: rows.map((s, i) => (i === at ? {...s, ...rowPatch(patch)} : s))};
+        });
+    }
+
+    /**
+     * A scene opened. Only boards that have already been read gain the row; one that has not is
+     * loaded whole by the next read, and a row invented for it would be the only one on it.
+     */
+    private noteCreated(event: SceneCreatedDto): void {
+        this.learnChannels(event.guildId, [event.channelId]);
+        if (!this.requestedGuilds.has(event.guildId)) return;
+        this.byGuild.update(map => {
+            const rows = map[event.guildId] ?? [];
+            if (rows.some(s => s.channelId === event.channelId)) return map;
+            return {...map, [event.guildId]: [...rows, rowFromCreated(event)]};
+        });
+    }
+
+    /**
+     * A scene channel is a thread, so the guild's channel list only learns about it on the next read
+     * of the guild. Until it does, nothing can open the scene: every surface resolves a scene to a
+     * channel through that list.
+     */
+    private learnChannels(guildId: string, channelIds: readonly string[]): void {
+        if (this.learningGuilds.has(guildId)) return;
+        const guilds = this.injector.get(GuildService);
+        const known = guilds.guilds().find(g => g.id === guildId)?.channels;
+        if (!known || channelIds.every(id => known.some(channel => channel.id === id))) return;
+
+        this.learningGuilds.add(guildId);
+        guilds.getGuild(guildId).subscribe({
+            next: fresh => {
+                this.learningGuilds.delete(guildId);
+                guilds.upsertGuild(fresh);
+                const current = guilds.guilds().find(g => g.id === guildId);
+                if (current) this.injector.get(NavigationService).updateCurrentGuild(current);
+            },
+            error: () => this.learningGuilds.delete(guildId),
         });
     }
 
@@ -321,6 +388,24 @@ function rowFromScene(scene: SceneDto, previous: SceneListItemDto | null): Scene
         participantCount: scene.participants.length || previous?.participantCount || 0,
         oocThreadId: scene.oocThreadId,
         nudgeCount: scene.nudgeCount,
+    };
+}
+
+/** The board row a `guild.SceneCreated` stands up. It carries no display data for the cast. */
+function rowFromCreated(event: SceneCreatedDto): SceneListItemDto {
+    return {
+        channelId: event.channelId,
+        name: event.name,
+        parentChannelId: event.parentChannelId,
+        status: event.status,
+        currentTurnPersonaId: event.currentTurnPersonaId,
+        turnStartedAt: event.turnStartedAt,
+        turnDeadlineAt: event.turnDeadlineAt,
+        turnNumber: event.turnNumber,
+        postCount: 0,
+        participantCount: event.participantPersonaIds?.length ?? 0,
+        oocThreadId: event.oocThreadId,
+        nudgeCount: 0,
     };
 }
 

@@ -1,4 +1,4 @@
-import {AutoproxyMode} from '../response/persona.dto';
+import {AutoproxyMode, PersonaPagePullStrategy} from '../response/persona.dto';
 
 export interface CreatePersonaDto {
     name: string;
@@ -36,5 +36,5 @@ export interface SetAutoproxyDto {
 }
 
 export interface PullPersonaPageDto {
-    strategy: 'preview' | 'apply';
+    strategy: PersonaPagePullStrategy;
 }

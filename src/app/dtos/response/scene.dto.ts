@@ -139,3 +139,31 @@ export interface SceneUpdatedDto {
     conclusionNote?: string | null;
     oocThreadId?: string | null;
 }
+
+/** `guild.SceneCreated`: a game started. Enough to put a row on the board without a read. */
+export interface SceneCreatedDto {
+    guildId: string;
+    channelId: string;
+    parentChannelId?: string | null;
+    name: string;
+    oocThreadId?: string | null;
+    status: SceneStatus;
+    participantPersonaIds?: string[];
+    turnOrder?: string[];
+    currentTurnPersonaId?: string | null;
+    turnStartedAt?: string | null;
+    turnDeadlineAt?: string | null;
+    turnNumber?: number | null;
+    turnLengthHours?: number | null;
+}
+
+/** `guild.SceneConcluded`: the scene finished for good. What a client stops nudging on. */
+export interface SceneConcludedDto {
+    guildId: string;
+    channelId: string;
+    status: SceneStatus;
+    conclusionNote?: string | null;
+    turnNumber?: number | null;
+    postCount?: number | null;
+    concludedAt?: string | null;
+}

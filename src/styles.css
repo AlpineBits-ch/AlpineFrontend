@@ -658,6 +658,12 @@ label {
     touch-action: manipulation;
 }
 
+/* PrimeNG numbers the toast and a dialog from the same counter and the toast takes its number
+   once, so a dialog opened later covers every toast raised from it. */
+.p-toast {
+    z-index: 9000 !important;
+}
+
 /* ── Toast -mobile fix ──────────────────────────────────────────────────── */
 /* Override PrimeNG's default top-center position on narrow screens.
    transform:none removes the translateX(-50%) that causes the "halfway" shift. */

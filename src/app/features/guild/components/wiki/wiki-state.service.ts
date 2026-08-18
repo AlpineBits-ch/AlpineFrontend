@@ -69,23 +69,21 @@ export class WikiStateService {
                 return;
             }
 
-            if (this.wikiView() === 'page' && this.selectedPage()?.id === e.pageId) {
-                this.pageLoading.set(true);
-                this.wikiService.getPage(this.guildId(), e.pageId).subscribe({
-                    next: page => {
-                        this.selectedPage.set(page);
-                        this.pageLoading.set(false);
-                    },
-                    error: () => this.pageLoading.set(false),
-                });
-            }
+            this.rereadOpenPage(e.pageId);
+        });
 
-            if (this.wikiView() === 'editor' && this.editingPage()?.id === e.pageId) {
-                this.wikiService.getPage(this.guildId(), e.pageId).subscribe({
-                    next: page => this.pendingRemoteUpdate.set(page),
-                    error: () => {},
-                });
-            }
+        // A character page is an ordinary wiki page, but neither its creation nor a pull into it
+        // sends a wiki event: only these two say the tree and the body moved.
+        this.ws.personaPageCreatedObservable.subscribe(e => {
+            if (e.guildId !== this.guildId()) return;
+            this.loadWiki(this.guildId());
+        });
+
+        this.ws.personaPagePulledObservable.subscribe(e => {
+            if (e.guildId !== this.guildId()) return;
+            this.loadWiki(this.guildId());
+            this.contentCache.invalidate(e.pageId);
+            this.rereadOpenPage(e.pageId);
         });
 
         this.ws.wikiPageDeletedObservable.subscribe(e => {
@@ -117,6 +115,27 @@ export class WikiStateService {
             if (e.guildId !== this.guildId()) return;
             this.loadWiki(this.guildId());
         });
+    }
+
+    /** Reads a page again wherever it is open: straight into the view, or as a prompt in the editor. */
+    private rereadOpenPage(pageId: string): void {
+        if (this.wikiView() === 'page' && this.selectedPage()?.id === pageId) {
+            this.pageLoading.set(true);
+            this.wikiService.getPage(this.guildId(), pageId).subscribe({
+                next: page => {
+                    this.selectedPage.set(page);
+                    this.pageLoading.set(false);
+                },
+                error: () => this.pageLoading.set(false),
+            });
+        }
+
+        if (this.wikiView() === 'editor' && this.editingPage()?.id === pageId) {
+            this.wikiService.getPage(this.guildId(), pageId).subscribe({
+                next: page => this.pendingRemoteUpdate.set(page),
+                error: () => {},
+            });
+        }
     }
 
     initialize(guildId: string): void {

@@ -103,12 +103,9 @@ export class PersonaDirectoryComponent {
             ),
     );
 
-    /**
-     * Read from the queue endpoint, not from the cast: the cast is what the caller may speak as,
-     * and a reviewer is precisely somebody looking at characters that are not theirs.
-     */
-    protected readonly pending = signal<GuildPersonaDto[]>([]);
-    protected readonly loadingPending = signal(false);
+    /** The queue as the service holds it: the review events patch it there, not here. */
+    protected readonly pending = computed(() => this.personas.pending(this.guildId()));
+    protected readonly loadingPending = computed(() => this.personas.isPendingLoading(this.guildId()));
 
     protected readonly loading = computed(() => this.personas.isLoading(this.guildId()));
 
@@ -130,27 +127,16 @@ export class PersonaDirectoryComponent {
             const allowed = this.canApprove();
             untracked(() => {
                 if (!allowed) {
-                    this.pending.set([]);
+                    this.personas.forgetPending(guildId);
                     return;
                 }
-                this.refreshPending(guildId);
+                this.personas.ensurePending(guildId);
             });
         });
 
         // A reviewer who loses the permission mid-session must not be left on an empty tab.
         effect(() => {
             if (this.tab() === 'review' && !this.canApprove()) untracked(() => this.tab.set('cast'));
-        });
-    }
-
-    private refreshPending(guildId: string): void {
-        this.loadingPending.set(true);
-        this.personas.listPending(guildId).subscribe({
-            next: rows => {
-                this.pending.set(rows);
-                this.loadingPending.set(false);
-            },
-            error: () => this.loadingPending.set(false),
         });
     }
 
@@ -243,7 +229,7 @@ export class PersonaDirectoryComponent {
         this.personas.approve(this.guildId(), entry.persona.id).subscribe({
             next: () => {
                 this.busyId.set(null);
-                this.refreshPending(this.guildId());
+                this.personas.ensurePending(this.guildId(), true);
             },
             error: err => {
                 this.busyId.set(null);
@@ -267,7 +253,7 @@ export class PersonaDirectoryComponent {
             next: () => {
                 this.busyId.set(null);
                 this.reviewing.set(null);
-                this.refreshPending(this.guildId());
+                this.personas.ensurePending(this.guildId(), true);
             },
             error: err => {
                 this.busyId.set(null);

@@ -41,3 +41,22 @@ export interface DiceEmbedPayload {
     terms: DiceTermDto[];
     reason?: string | null;
 }
+
+/**
+ * `guild.DiceRolled`, to whoever can see the channel. No terms: the roll's message carries the
+ * faces, and `rollerUserId` is withheld for a roll made in character.
+ */
+export interface DiceRolledDto {
+    guildId: string;
+    channelId: string;
+    rollId: string;
+    messageId: string;
+    rollerUserId?: string | null;
+    personaId?: string | null;
+    expression: string;
+    total: number;
+    breakdown: string;
+    reason?: string | null;
+    visibility: 'Public';
+    createdAt: string;
+}

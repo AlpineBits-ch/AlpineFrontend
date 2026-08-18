@@ -1,6 +1,8 @@
-import {inject, Injectable, Injector, signal} from '@angular/core';
+import {DestroyRef, inject, Injectable, Injector, signal} from '@angular/core';
+import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {Observable, tap} from 'rxjs';
 import {RoleplayApi} from './roleplay-api.service';
+import {GuildWebsocketService} from './guild-websocket.service';
 import {DiceRollDto} from '../dtos/response/dice.dto';
 import {RollDiceDto} from '../dtos/request/dice.dto';
 
@@ -16,17 +18,36 @@ const RECENT_LIMIT = 6;
 @Injectable({providedIn: 'root'})
 export class DiceService {
     private readonly injector = inject(Injector);
+    private readonly destroyRef = inject(DestroyRef);
     private readonly recentByChannel = signal<Record<string, string[]>>({});
+    private wired = false;
 
     private get api(): RoleplayApi {
         return this.injector.get(RoleplayApi);
     }
 
+    /**
+     * The hub is reached on the first read rather than injected: the composer holds this service in
+     * every channel, and most channels never roll anything.
+     */
+    private wire(): void {
+        if (this.wired) return;
+        this.wired = true;
+        this.injector
+            .get(GuildWebsocketService)
+            .diceRolledObservable.pipe(takeUntilDestroyed(this.destroyRef))
+            // The table's history, not this window's: an expression somebody else rolled here is
+            // the one most worth offering back.
+            .subscribe(event => this.remember(event.channelId, event.expression));
+    }
+
     recent(channelId: string | null | undefined): string[] {
+        this.wire();
         return channelId ? (this.recentByChannel()[channelId] ?? []) : [];
     }
 
     roll(guildId: string, channelId: string, dto: RollDiceDto): Observable<DiceRollDto> {
+        this.wire();
         return this.api.roll(guildId, channelId, dto).pipe(
             // The server's normalisation is remembered, not what was typed, so the list is canonical.
             tap(result => this.remember(channelId, result.expression)),

@@ -830,6 +830,9 @@ export class ComposerComponent {
                         personaMentions: [],
                         mentionsEveryone: false,
                         mentionsHere: false,
+                        // Resolved against an empty body, not the generated text: a command's own
+                        // output must never be read as somebody's proxy tags.
+                        personaId: this.speakingAs('').personaId,
                     });
                 if (result.action) this.dispatchAction(result.action);
             } else {
@@ -967,6 +970,7 @@ export class ComposerComponent {
             personaMentions: [],
             mentionsEveryone: false,
             mentionsHere: false,
+            personaId: this.speakingAs('').personaId,
         });
     }
 

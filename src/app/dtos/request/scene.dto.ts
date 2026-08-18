@@ -16,9 +16,12 @@ export interface CreateSceneDto {
 
 export interface UpdateSceneDto {
     status?: SceneStatus;
+    /** Replaces the cast. A character it drops leaves the scene. */
+    participantPersonaIds?: string[];
+    /** Checked against the cast as this same call leaves it. */
     turnOrder?: string[];
     turnLengthHours?: number | null;
-    /** Sent when concluding. The server has no column for it yet. */
+    /** Sent when concluding. */
     conclusionNote?: string | null;
 }
 

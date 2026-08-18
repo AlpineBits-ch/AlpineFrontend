@@ -23,7 +23,7 @@ import {NavigationService} from '../../../main-page/navigation.service';
 import {WikiDeepLinkService} from '../../components/wiki/wiki-share/wiki-deep-link.service';
 import {renderWikiMarkdown} from '../../components/wiki/wiki.utils';
 import {WikiPageDto} from '../../../../dtos/response/wiki.dto';
-import {PersonaUpstreamState} from '../../../../dtos/response/persona.dto';
+import {PersonaPagePullStrategy, PersonaUpstreamState} from '../../../../dtos/response/persona.dto';
 import {personaCoverGradient, personaIdentity} from '../persona-identity';
 import {approvalMeta} from '../persona-approval';
 import {
@@ -136,6 +136,8 @@ export class CharacterPageComponent {
         effect(() => {
             const guildId = this.guildId();
             const pageId = this.entry()?.wikiPageId;
+            // A pull rewrites the page under the same id, so the version is what says to read again.
+            this.personas.pageVersion(pageId);
             untracked(() => {
                 if (!pageId) {
                     this.page.set(null);
@@ -188,22 +190,25 @@ export class CharacterPageComponent {
 
     protected pull(): void {
         this.pulling.set(true);
-        this.personas.pullPage(this.guildId(), this.personaId(), 'apply').subscribe({
-            next: () => {
-                this.pulling.set(false);
-                const pageId = this.entry()?.wikiPageId;
-                if (pageId) {
-                    this.personas
-                        .getPage(this.guildId(), pageId)
-                        .subscribe({next: page => this.page.set(page), error: () => undefined});
-                }
-                this.toast.success(this.translate.instant('PERSONA.PAGE.PULLED'));
-            },
-            error: err => {
-                this.pulling.set(false);
-                this.toast.httpError(this.translate.instant('PERSONA.PAGE.PULL_FAILED'), err);
-            },
-        });
+        // The merge that keeps whatever this guild edited. Nothing here offers to discard it.
+        this.personas
+            .pullPage(this.guildId(), this.personaId(), PersonaPagePullStrategy.KeepLocal)
+            .subscribe({
+                next: () => {
+                    this.pulling.set(false);
+                    const pageId = this.entry()?.wikiPageId;
+                    if (pageId) {
+                        this.personas
+                            .getPage(this.guildId(), pageId)
+                            .subscribe({next: page => this.page.set(page), error: () => undefined});
+                    }
+                    this.toast.success(this.translate.instant('PERSONA.PAGE.PULLED'));
+                },
+                error: err => {
+                    this.pulling.set(false);
+                    this.toast.httpError(this.translate.instant('PERSONA.PAGE.PULL_FAILED'), err);
+                },
+            });
     }
 
     protected openInfobox(): void {
