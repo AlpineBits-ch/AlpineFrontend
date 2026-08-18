@@ -181,7 +181,7 @@ export class CharacterPageComponent {
     protected openInWiki(): void {
         const page = this.page();
         if (!page) return;
-        if (!this.deepLink.open(this.guildId(), page.id)) {
+        if (!this.deepLink.open(this.guildId(), page.id, {edit: true})) {
             this.toast.error(this.translate.instant('PERSONA.PAGE.WIKI_UNAVAILABLE'));
         }
     }

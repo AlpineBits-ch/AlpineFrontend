@@ -34,6 +34,8 @@ export class WikiStateService {
     private readonly ownMember = signal<SelfGuildMemberDto | null>(null);
     /** The id the member fetch reported, as a fallback before the profile has loaded. */
     private readonly memberUserId = signal<string | null>(null);
+    /** False while the member fetch is in flight. Anything that branches on `abilities` rather than merely hiding a control has to wait for this, or it reads the fail-closed value. */
+    readonly abilitiesResolved = signal(false);
 
     private readonly guild = computed(
         () => this.guildService.guilds().find(g => g.id === this.guildId()) ?? null,
@@ -238,13 +240,18 @@ export class WikiStateService {
     private loadAbilities(guildId: string): void {
         this.ownMember.set(null);
         this.memberUserId.set(null);
+        this.abilitiesResolved.set(false);
         this.guildService.getOwnMember(guildId).subscribe({
             next: member => {
                 this.ownMember.set(member);
                 this.memberUserId.set(member.userId ?? null);
+                this.abilitiesResolved.set(true);
             },
             // Ownership is decided separately and reactively, so an owner keeps their abilities even when this fetch fails.
-            error: () => this.ownMember.set(null),
+            error: () => {
+                this.ownMember.set(null);
+                this.abilitiesResolved.set(true);
+            },
         });
     }
 

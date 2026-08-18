@@ -4,6 +4,7 @@ import {GuildService} from '../../../../../services/guild.service';
 import {WikiService} from '../../../../../services/wiki.service';
 import {WikiStateService} from '../wiki-state.service';
 import {GuildFeature, guildHasFeature} from '../../../guild-features';
+import {canEditPage} from '../wiki-permissions';
 
 /**
  * Opens a wiki page named by a link somewhere else in the app (a card under a message, today).
@@ -20,7 +21,7 @@ export class WikiDeepLinkService {
     private readonly state = inject(WikiStateService);
 
     /** The page we are on our way to, if any. Cleared the moment it is opened or abandoned. */
-    private readonly pending = signal<{guildId: string; pageId: string} | null>(null);
+    private readonly pending = signal<{guildId: string; pageId: string; edit: boolean} | null>(null);
 
     constructor() {
         effect(() => {
@@ -38,8 +39,29 @@ export class WikiDeepLinkService {
             const wiki = this.state.wiki();
             if (!wiki || wiki.guildId !== target.guildId) return;
 
+            // Abilities fail closed while the member fetch is in flight, so an edit link that did not wait would drop into the reader whenever that fetch lost the race with the listing.
+            if (target.edit && !this.state.abilitiesResolved()) return;
+
             untracked(() => {
                 this.pending.set(null);
+
+                if (target.edit) {
+                    // The editor takes a whole page; a listing summary is not one, so this fetch is not optional here.
+                    this.wikiService.getPage(target.guildId, target.pageId).subscribe({
+                        next: page => {
+                            const mayEdit = canEditPage(
+                                this.state.abilities(),
+                                page.authorId,
+                                this.state.ownUserId(),
+                            );
+                            if (mayEdit) this.state.openEditor(page);
+                            else this.state.openPage(page);
+                        },
+                        error: () => undefined,
+                    });
+                    return;
+                }
+
                 const summary = wiki.pages.find(p => p.id === target.pageId);
                 if (summary) {
                     this.state.openPage(summary);
@@ -59,15 +81,15 @@ export class WikiDeepLinkService {
         return !!guild && guildHasFeature(guild, GuildFeature.Wiki);
     }
 
-    /** Returns false when {@link canOpen} would have; the caller then says so rather than nothing. */
-    open(guildId: string, pageId: string): boolean {
+    /** Returns false when {@link canOpen} would have; the caller then says so rather than nothing. `edit` lands in the editor, falling back to the reader when this member may not edit that page. */
+    open(guildId: string, pageId: string, options?: {edit?: boolean}): boolean {
         const guild = this.guildService.guilds().find(g => g.id === guildId);
         if (!guild || !guildHasFeature(guild, GuildFeature.Wiki)) return false;
 
         // Both are no-ops when we are already there, and `selectServer` picking a channel first is immediately overridden by `openWiki`, so a same-guild click never flashes a channel.
         this.nav.selectServer(guild);
         this.nav.openWiki(guildId);
-        this.pending.set({guildId, pageId});
+        this.pending.set({guildId, pageId, edit: options?.edit ?? false});
         return true;
     }
 }
