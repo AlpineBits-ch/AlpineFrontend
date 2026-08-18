@@ -6,6 +6,8 @@ export interface MessageDraftDto {
     conversationId: string | null;
     content: string;
     inReplyTo: string | null;
+    /** Attachment ids already uploaded. Absent from a server that predates draft attachments. */
+    attachments?: string[] | null;
     updatedAt: string;
     /** Which device wrote it, set only on the answer to that device's own write. */
     deviceId?: string | null;
@@ -14,4 +16,5 @@ export interface MessageDraftDto {
 export interface SaveMessageDraftDto {
     content: string;
     inReplyTo?: string | null;
+    attachments?: string[];
 }

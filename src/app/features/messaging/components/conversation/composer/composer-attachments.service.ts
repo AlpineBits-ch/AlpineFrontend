@@ -4,7 +4,8 @@ import {FileService} from '../../../../../services/file.service';
 import {EntitlementStore} from '../../../../../stores/entitlement.store';
 
 export interface AttachedFile {
-    file: File;
+    /** Absent on a file adopted from a draft: that one was uploaded by an earlier session. */
+    file?: File;
     previewUrl: string;
     name: string;
     isImage: boolean;
@@ -13,6 +14,11 @@ export interface AttachedFile {
     uploadFailed: boolean;
     /** Why it failed, as a translation key. Present only on a failure. */
     errorKey?: string;
+}
+
+/** Only a blob URL was minted here; a restored file points at the server and must not be revoked. */
+function releasePreview(url: string): void {
+    if (url.startsWith('blob:')) URL.revokeObjectURL(url);
 }
 
 @Injectable()
@@ -30,6 +36,12 @@ export class ComposerAttachmentsService implements OnDestroy {
     readonly hasFailed = computed(() => this.files().some(f => f.uploadFailed));
     /** The first failure's reason, for a caller that shows one sentence rather than one per file. */
     readonly failureKey = computed(() => this.files().find(f => f.uploadFailed)?.errorKey ?? null);
+    /** Ids of the files that made it up. What a draft has to carry to survive a refresh. */
+    readonly uploadedIds = computed(() =>
+        this.files()
+            .map(f => f.uploadedId)
+            .filter((id): id is string => !!id),
+    );
     private fileService = inject(FileService);
     private entitlements = inject(EntitlementStore);
     private dragCounter = 0;
@@ -87,10 +99,63 @@ export class ComposerAttachmentsService implements OnDestroy {
         });
     }
 
+    /**
+     * Put back the files a draft was saved with. They are already on the server, so nothing is
+     * re-uploaded: only the metadata behind each id is read back so the tray can draw them.
+     */
+    adopt(ids: string[]): void {
+        const known = new Set(this.files().map(f => f.uploadedId));
+        for (const id of ids) {
+            if (known.has(id)) continue;
+            known.add(id);
+
+            const entry: AttachedFile = {
+                previewUrl: this.fileService.attachmentThumbnailUrl(id),
+                name: '',
+                isImage: false,
+                uploadedId: id,
+                isUploading: true,
+                uploadFailed: false,
+            };
+            this.files.update(prev => [...prev, entry]);
+
+            this.fileService.getAttachmentMetadataById(id).subscribe({
+                next: meta => {
+                    this.files.update(prev =>
+                        prev.map(f =>
+                            f === entry
+                                ? {
+                                      ...f,
+                                      name: meta.fileName,
+                                      isImage: meta.contentType.startsWith('image/'),
+                                      isUploading: false,
+                                  }
+                                : f,
+                        ),
+                    );
+                    this.releaseIfSettled();
+                },
+                // The id outlived the file it named. Dropped rather than shown as a failure: nobody
+                // attached it this session, so there is nothing for them to retry.
+                error: () => {
+                    this.files.update(prev => prev.filter(f => f !== entry));
+                    this.releaseIfSettled();
+                },
+            });
+        }
+    }
+
+    /** Drops everything without touching the server, for a composer moving to another channel. */
+    clear(): void {
+        for (const f of this.files()) releasePreview(f.previewUrl);
+        this.files.set([]);
+        this.releaseIfSettled();
+    }
+
     remove(index: number): void {
         this.files.update(prev => {
             const next = [...prev];
-            URL.revokeObjectURL(next[index].previewUrl);
+            releasePreview(next[index].previewUrl);
             next.splice(index, 1);
             return next;
         });
@@ -141,13 +206,13 @@ export class ComposerAttachmentsService implements OnDestroy {
         const ids = this.files()
             .filter(f => f.uploadedId)
             .map(f => f.uploadedId!);
-        for (const f of this.files()) URL.revokeObjectURL(f.previewUrl);
+        for (const f of this.files()) releasePreview(f.previewUrl);
         this.files.set([]);
         return ids;
     }
 
     ngOnDestroy(): void {
-        for (const f of this.files()) URL.revokeObjectURL(f.previewUrl);
+        for (const f of this.files()) releasePreview(f.previewUrl);
         // Released rather than left hanging, so a parked send resolves and can see it was
         // abandoned instead of holding its captured closure for the life of the page.
         const waiting = this.settleWaiters;

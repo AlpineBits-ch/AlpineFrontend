@@ -25,7 +25,7 @@ export class DraftService {
     private readonly loaded = signal<Record<string, boolean>>({});
     private readonly saveState = signal<Record<string, DraftSaveState>>({});
 
-    private readonly pending = new Subject<{channelId: string; content: string}>();
+    private readonly pending = new Subject<{channelId: string; content: string; attachments: string[]}>();
     private readonly requested = new Set<string>();
     private indexRequested = false;
 
@@ -36,7 +36,7 @@ export class DraftService {
                 mergeMap(group => group.pipe(debounceTime(SAVE_DEBOUNCE_MS))),
                 takeUntilDestroyed(this.destroyRef),
             )
-            .subscribe(entry => this.flush(entry.channelId, entry.content));
+            .subscribe(entry => this.flush(entry.channelId, entry.content, entry.attachments));
     }
 
     private get api(): DraftApi {
@@ -54,7 +54,8 @@ export class DraftService {
 
     /** Drives the pencil beside a channel that has something waiting in it. */
     hasDraft(channelId: string | null | undefined): boolean {
-        return !!this.draft(channelId)?.content.trim();
+        const draft = this.draft(channelId);
+        return !!draft?.content.trim() || !!draft?.attachments?.length;
     }
 
     state(channelId: string | null | undefined): DraftSaveState {
@@ -95,16 +96,20 @@ export class DraftService {
     }
 
     /** Called on every keystroke. The write itself is debounced. */
-    record(channelId: string | null | undefined, content: string): void {
+    record(channelId: string | null | undefined, content: string, attachments: string[] = []): void {
         if (!channelId) return;
-        this.saveState.update(map => ({...map, [channelId]: 'saving'}));
-        this.pending.next({channelId, content});
+        // Guarded rather than set unconditionally: this runs per keystroke, and a fresh map object
+        // each time is a change-detection pass per character for a value that did not move.
+        if (this.saveState()[channelId] !== 'saving') {
+            this.saveState.update(map => ({...map, [channelId]: 'saving'}));
+        }
+        this.pending.next({channelId, content, attachments});
     }
 
     /** Writes now rather than on the debounce, for a view about to go away. */
-    flushNow(channelId: string | null | undefined, content: string): void {
+    flushNow(channelId: string | null | undefined, content: string, attachments: string[] = []): void {
         if (!channelId) return;
-        this.flush(channelId, content);
+        this.flush(channelId, content, attachments);
     }
 
     /** After a successful send, and when somebody throws the draft away by hand. */
@@ -115,13 +120,15 @@ export class DraftService {
         this.api.discard(channelId).subscribe({error: () => undefined});
     }
 
-    private flush(channelId: string, content: string): void {
-        if (!content.trim()) {
+    private flush(channelId: string, content: string, attachments: string[] = []): void {
+        // An attachment with no text is still a draft: losing the upload is what costs somebody
+        // the transfer, not losing the sentence they had not written yet.
+        if (!content.trim() && attachments.length === 0) {
             this.clear(channelId);
             return;
         }
 
-        this.api.save(channelId, {content}).subscribe({
+        this.api.save(channelId, {content, attachments}).subscribe({
             next: draft => {
                 this.drafts.update(map => ({...map, [channelId]: draft}));
                 this.saveState.update(map => ({...map, [channelId]: 'saved'}));
