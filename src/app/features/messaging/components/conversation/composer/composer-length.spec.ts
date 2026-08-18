@@ -1,5 +1,10 @@
 import {describe, expect, it} from 'vitest';
-import {lengthCounterClass, lengthState, MESSAGE_LENGTH_HARD_CEILING} from './composer-length';
+import {
+    effectiveCeiling,
+    lengthCounterClass,
+    lengthState,
+    MESSAGE_LENGTH_HARD_CEILING,
+} from './composer-length';
 
 describe('lengthState', () => {
     it('leaves a short reply uncoloured, but still counted', () => {
@@ -53,5 +58,32 @@ describe('lengthCounterClass', () => {
         expect(lengthCounterClass('over')).toContain('text-offline');
         expect(lengthCounterClass('near')).toContain('text-connecting');
         expect(lengthCounterClass('approaching')).toContain('text-text-muted');
+    });
+});
+
+describe('effectiveCeiling', () => {
+    it('uses the plan ceiling when there is one', () => {
+        expect(effectiveCeiling(4_000)).toBe(4_000);
+    });
+
+    it('falls back to the hard ceiling when no plan caps it', () => {
+        // An unlimited plan reads as null upstream, and a counter has to show something.
+        expect(effectiveCeiling(null)).toBe(MESSAGE_LENGTH_HARD_CEILING);
+    });
+
+    it('never promises more room than the instance allows', () => {
+        expect(effectiveCeiling(MESSAGE_LENGTH_HARD_CEILING * 2)).toBe(MESSAGE_LENGTH_HARD_CEILING);
+    });
+
+    it('treats a nonsense ceiling as no ceiling', () => {
+        expect(effectiveCeiling(0)).toBe(MESSAGE_LENGTH_HARD_CEILING);
+    });
+
+    it('always gives lengthState a max, so the counter is never blank', () => {
+        expect(lengthState(10, effectiveCeiling(null))).toMatchObject({
+            length: 10,
+            max: MESSAGE_LENGTH_HARD_CEILING,
+            visible: true,
+        });
     });
 });

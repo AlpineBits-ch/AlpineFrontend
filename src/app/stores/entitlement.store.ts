@@ -308,15 +308,24 @@ export const EntitlementStore = signalStore(
                 },
 
                 /**
-                 * How long a message may be in this guild, in characters, or null when the guild's
-                 * plan has not been read yet. Null means "not known", never "unlimited": the
-                 * composer counts nothing in that state rather than inventing a ceiling to enforce.
+                 * How long a message may be here, in characters, or null when nothing caps it.
+                 *
+                 * <p>Two keys, mirroring what the server's own policy reads:
+                 * `guild.message_max_length` in a guild channel, `user.message_max_length`
+                 * everywhere else. Null means "not capped by a plan", which is not the same as
+                 * "no limit": the instance hard ceiling still applies, and naming it is the
+                 * caller's job.</p>
                  */
                 messageMaxLength(guildId: string | null): number | null {
-                    if (!guildId) return null;
-                    return numericCeiling(
-                        valueOf({kind: 'guild', id: guildId}, ENTITLEMENT_KEYS.messageMaxLength),
+                    const own = numericCeiling(
+                        valueOf(MY_ENTITLEMENTS, ENTITLEMENT_KEYS.userMessageMaxLength),
                     );
+                    if (!guildId) return own;
+
+                    const guild = numericCeiling(
+                        valueOf({kind: 'guild', id: guildId}, ENTITLEMENT_KEYS.guildMessageMaxLength),
+                    );
+                    return guild ?? own;
                 },
             };
         },

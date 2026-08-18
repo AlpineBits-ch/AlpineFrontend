@@ -33,7 +33,7 @@ import {
     mentionCandidateMatches,
     setEditorText,
 } from './composer-utils';
-import {lengthCounterClass, lengthState, MESSAGE_LENGTH_HARD_CEILING} from './composer-length';
+import {effectiveCeiling, lengthCounterClass, lengthState} from './composer-length';
 import {DraftService} from '../../../../../services/draft.service';
 import {MarkdownPipe} from '../../../../../pipes/markdown.pipe';
 import {
@@ -231,7 +231,9 @@ export class ComposerComponent {
 
     // ── Long-form writing ────────────────────────────────────────────────────
     /** The room a post has in this guild. Plan-derived, so it differs between servers. */
-    protected readonly maxLength = computed(() => this.entitlements.messageMaxLength(this.guildId()));
+    protected readonly maxLength = computed(() =>
+        effectiveCeiling(this.entitlements.messageMaxLength(this.guildId())),
+    );
     protected readonly length = computed(() => lengthState(this.typed().length, this.maxLength()));
     protected readonly counterClass = computed(() => lengthCounterClass(this.length().level));
     protected readonly expanded = signal(false);
@@ -727,8 +729,7 @@ export class ComposerComponent {
         const pasted = event.clipboardData?.getData('text/plain') ?? '';
         // Clamped on the way in rather than left for the counter to complain about afterwards: a
         // paste of a whole document has to be highlighted and laid out before anything can say no.
-        const ceiling = this.maxLength() ?? MESSAGE_LENGTH_HARD_CEILING;
-        const room = Math.max(0, ceiling - this.typed().length);
+        const room = Math.max(0, this.maxLength() - this.typed().length);
         if (room === 0) return;
         document.execCommand('insertText', false, pasted.slice(0, room));
     }

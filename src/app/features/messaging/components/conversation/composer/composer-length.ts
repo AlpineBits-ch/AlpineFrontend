@@ -71,3 +71,13 @@ export function lengthCounterClass(level: LengthLevel): string {
             return 'text-text-muted';
     }
 }
+
+/**
+ * What the server will actually enforce: the plan's ceiling when it names one, the instance hard
+ * ceiling otherwise, and never more than the hard ceiling. An unlimited plan resolves to null
+ * upstream, which is why "no plan ceiling" has to mean the hard one rather than no counter at all.
+ */
+export function effectiveCeiling(planMax: number | null): number {
+    if (planMax === null || planMax <= 0) return MESSAGE_LENGTH_HARD_CEILING;
+    return Math.min(planMax, MESSAGE_LENGTH_HARD_CEILING);
+}

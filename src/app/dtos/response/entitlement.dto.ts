@@ -196,7 +196,8 @@ export const ENTITLEMENT_KEYS = {
     userUploadMaxBytes: 'user.upload_max_bytes',
     userMaxDevices: 'user.max_devices',
     /** Characters, not bytes. Read against the guild subject: the ceiling is plan-derived. */
-    messageMaxLength: 'message.max_length',
+    guildMessageMaxLength: 'guild.message_max_length',
+    userMessageMaxLength: 'user.message_max_length',
 } as const;
 
 /** The ceiling to enforce, or null when there is none: unlimited, absent key, or wrong shape. */
