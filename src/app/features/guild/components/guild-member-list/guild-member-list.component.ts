@@ -31,8 +31,10 @@ import {Menu} from 'primeng/menu';
 import {MenuItem, PrimeTemplate} from 'primeng/api';
 import {Dialog} from 'primeng/dialog';
 import {Button} from 'primeng/button';
-import {hasPermission, Permissions} from '../../../../enums/permissions.enum';
-import {unionMemberPermissions} from '../../guild-permissions';
+import {InputText} from 'primeng/inputtext';
+import {FormsModule} from '@angular/forms';
+import {Permissions} from '../../../../enums/permissions.enum';
+import {guildAbilities} from '../../guild-permissions';
 import {GuildFeature, guildHasFeature} from '../../guild-features';
 import {ToastService} from '../../../../services/toast.service';
 import {
@@ -65,6 +67,16 @@ import {scopeKey} from '../../../../services/share-watch.service';
 import {NavigationService} from '../../../main-page/navigation.service';
 import {CallLiveBadgeComponent} from '../../../../shared/call/call-live-badge/call-live-badge.component';
 
+/** Durations the timeout submenu offers, in minutes. */
+const TIMEOUT_CHOICES: readonly {minutes: number; key: string}[] = [
+    {minutes: 1, key: 'MEMBER_ACTIONS.TIMEOUT_60S'},
+    {minutes: 5, key: 'MEMBER_ACTIONS.TIMEOUT_5M'},
+    {minutes: 10, key: 'MEMBER_ACTIONS.TIMEOUT_10M'},
+    {minutes: 60, key: 'MEMBER_ACTIONS.TIMEOUT_1H'},
+    {minutes: 1440, key: 'MEMBER_ACTIONS.TIMEOUT_1D'},
+    {minutes: 10080, key: 'MEMBER_ACTIONS.TIMEOUT_1W'},
+];
+
 export interface MemberRoleGroup {
     role: RoleDto;
     members: GuildMemberDto[];
@@ -83,6 +95,8 @@ export interface MemberRoleGroup {
         ActivityLineComponent,
         Dialog,
         Button,
+        InputText,
+        FormsModule,
         PrimeTemplate,
         CallLiveBadgeComponent,
     ],
@@ -351,10 +365,6 @@ export class GuildMemberListComponent implements OnChanges {
         return this.guild().kind === GuildKind.Household && this.canModerate(member);
     }
 
-    private isOwner(): boolean {
-        return !!this.ownMember() && this.ownMember()!.userId === this.guild().ownerId;
-    }
-
     protected canModerate(member: GuildMemberDto): boolean {
         if (member.userId === this.guild().ownerId) return false;
         const own = this.ownMember();
@@ -371,31 +381,48 @@ export class GuildMemberListComponent implements OnChanges {
 
     private buildMemberMenuItems(member: GuildMemberDto): MenuItem[] {
         const own = this.ownMember();
-        const perms = unionMemberPermissions(own);
+        // Not `unionMemberPermissions`: it cannot see ownership, and the owner's row carries no permissions with @everyone their only role, so every action here would be hidden from them.
+        const abilities = guildAbilities(own, this.guild(), own?.userId);
         const items: MenuItem[] = [];
         // Kick, timeout and ban live behind the Moderation module; with it off the server refuses them for everyone (owner included), so offering them here would only produce 403s.
         const canAct = this.canModerate(member) && guildHasFeature(this.guild(), GuildFeature.Moderation);
 
-        if (canAct && hasPermission(perms, Permissions.KickMembers)) {
-            items.push({label: 'Kick', icon: 'pi pi-user-minus', command: () => this.kick(member)});
-        }
-        if (canAct && hasPermission(perms, Permissions.ModerateMembers)) {
+        if (canAct && abilities.can(Permissions.KickMembers)) {
             items.push({
-                label: 'Timeout for 10 minutes',
-                icon: 'pi pi-clock',
-                command: () => this.mute(member, 10),
+                label: this.translate.instant('MEMBER_ACTIONS.KICK'),
+                icon: 'pi pi-user-minus',
+                command: () => this.openKick(member),
             });
         }
-        if (canAct && hasPermission(perms, Permissions.BanMembers)) {
+        if (canAct && abilities.can(Permissions.ModerateMembers)) {
             items.push({
-                label: 'Ban',
+                label: this.translate.instant('MEMBER_ACTIONS.TIMEOUT'),
+                icon: 'pi pi-clock',
+                items: [
+                    ...TIMEOUT_CHOICES.map(choice => ({
+                        label: this.translate.instant(choice.key),
+                        command: () => this.mute(member, choice.minutes),
+                    })),
+                    {separator: true},
+                    // Always offered: the member row carries no `mutedUntil`, so who is timed out cannot be known here. Lifting one nobody has succeeds.
+                    {
+                        label: this.translate.instant('MEMBER_ACTIONS.TIMEOUT_REMOVE'),
+                        icon: 'pi pi-times',
+                        command: () => this.unmute(member),
+                    },
+                ],
+            });
+        }
+        if (canAct && abilities.can(Permissions.BanMembers)) {
+            items.push({
+                label: this.translate.instant('MEMBER_ACTIONS.BAN'),
                 icon: 'pi pi-ban',
                 styleClass: 'text-rose-400',
-                command: () => this.ban(member),
+                command: () => this.openBan(member),
             });
         }
         // Households reach this while Community guilds do not: with Moderation off, this is the only removal option offered. Owner is excluded by `canModerate`; the server refuses that too and asks for an ownership transfer first.
-        if (this.canMoveOut(member) && (hasPermission(perms, Permissions.ManageGuild) || this.isOwner())) {
+        if (this.canMoveOut(member) && abilities.can(Permissions.ManageGuild)) {
             items.push({
                 label: this.translate.instant('MOVE_OUT.ACTION'),
                 icon: 'pi pi-sign-out',
@@ -412,7 +439,7 @@ export class GuildMemberListComponent implements OnChanges {
             });
         }
         if (items.length === 0) {
-            items.push({label: 'No actions available', disabled: true});
+            items.push({label: this.translate.instant('MEMBER_ACTIONS.NONE'), disabled: true});
         }
         return items;
     }
@@ -499,24 +526,115 @@ export class GuildMemberListComponent implements OnChanges {
         }
     }
 
-    private kick(member: GuildMemberDto): void {
+    // ── Kick and ban ─────────────────────────────────────────────────────────
+    // Both confirm first: the menu opens on a right-click anywhere in the roster, and neither undoes.
+
+    /** The member the kick dialog is about, or null when it is closed. */
+    protected readonly pendingKick = signal<GuildMemberDto | null>(null);
+    protected readonly kickBusy = signal(false);
+    /** The member the ban dialog is about, or null when it is closed. */
+    protected readonly pendingBan = signal<GuildMemberDto | null>(null);
+    protected readonly banBusy = signal(false);
+    protected readonly banReason = signal('');
+
+    protected readonly kickName = computed(() => {
+        const member = this.pendingKick();
+        return member ? this.displayName(member) : '';
+    });
+
+    protected readonly banName = computed(() => {
+        const member = this.pendingBan();
+        return member ? this.displayName(member) : '';
+    });
+
+    protected openKick(member: GuildMemberDto): void {
+        this.pendingKick.set(member);
+        this.kickBusy.set(false);
+    }
+
+    protected cancelKick(): void {
+        this.pendingKick.set(null);
+        this.kickBusy.set(false);
+    }
+
+    protected confirmKick(): void {
+        const member = this.pendingKick();
+        if (!member || this.kickBusy()) return;
+
+        this.kickBusy.set(true);
         this.guildService.kickMember(this.guild().id, member.id).subscribe({
-            next: () => this.rows.update(list => list.filter(m => m.id !== member.id)),
-            error: err => this.toastService.httpError('Failed to kick member', err),
+            next: () => {
+                this.rows.update(list => list.filter(m => m.id !== member.id));
+                this.cancelKick();
+            },
+            error: err => {
+                this.kickBusy.set(false);
+                this.toastService.httpError(this.translate.instant('GUILD_SETTINGS.MEMBERS.KICK_ERROR'), err);
+            },
         });
     }
 
-    private ban(member: GuildMemberDto): void {
-        this.guildService.banMember(this.guild().id, {userId: member.userId}).subscribe({
-            next: () => this.rows.update(list => list.filter(m => m.id !== member.id)),
-            error: err => this.toastService.httpError('Failed to ban member', err),
-        });
+    protected openBan(member: GuildMemberDto): void {
+        this.pendingBan.set(member);
+        this.banReason.set('');
+        this.banBusy.set(false);
+    }
+
+    protected cancelBan(): void {
+        this.pendingBan.set(null);
+        this.banReason.set('');
+        this.banBusy.set(false);
+    }
+
+    /** Bans are addressed by user id, not member id. */
+    protected confirmBan(): void {
+        const member = this.pendingBan();
+        if (!member || this.banBusy()) return;
+
+        this.banBusy.set(true);
+        const reason = this.banReason().trim();
+        this.guildService
+            .banMember(this.guild().id, {userId: member.userId, reason: reason || undefined})
+            .subscribe({
+                next: () => {
+                    this.rows.update(list => list.filter(m => m.id !== member.id));
+                    this.cancelBan();
+                    this.toastService.success(this.translate.instant('GUILD_SETTINGS.MEMBERS.BAN_SUCCESS'));
+                },
+                error: err => {
+                    this.banBusy.set(false);
+                    this.toastService.httpError(
+                        this.translate.instant('GUILD_SETTINGS.MEMBERS.BAN_ERROR'),
+                        err,
+                    );
+                },
+            });
     }
 
     private mute(member: GuildMemberDto, minutes: number): void {
         this.guildService.muteMember(this.guild().id, member.id, minutes).subscribe({
-            next: () => this.toastService.success(`Muted for ${minutes} minutes`),
-            error: err => this.toastService.httpError('Failed to mute member', err),
+            next: () =>
+                this.toastService.success(
+                    this.translate.instant('MEMBER_ACTIONS.TIMEOUT_DONE', {name: this.displayName(member)}),
+                ),
+            error: err =>
+                this.toastService.httpError(this.translate.instant('MEMBER_ACTIONS.TIMEOUT_ERROR'), err),
+        });
+    }
+
+    private unmute(member: GuildMemberDto): void {
+        this.guildService.unmuteMember(this.guild().id, member.id).subscribe({
+            next: () =>
+                this.toastService.success(
+                    this.translate.instant('MEMBER_ACTIONS.TIMEOUT_REMOVED', {
+                        name: this.displayName(member),
+                    }),
+                ),
+            error: err =>
+                this.toastService.httpError(
+                    this.translate.instant('MEMBER_ACTIONS.TIMEOUT_REMOVE_ERROR'),
+                    err,
+                ),
         });
     }
 
@@ -531,8 +649,10 @@ export class GuildMemberListComponent implements OnChanges {
         if (userId !== ownUserId) return;
         this.toastService.info(
             mutedUntil
-                ? `You have been muted until ${new Date(mutedUntil).toLocaleTimeString()}`
-                : 'Your timeout has been lifted',
+                ? this.translate.instant('MEMBER_ACTIONS.YOU_ARE_TIMED_OUT', {
+                      until: new Date(mutedUntil).toLocaleTimeString(),
+                  })
+                : this.translate.instant('MEMBER_ACTIONS.YOUR_TIMEOUT_LIFTED'),
         );
     }
 }

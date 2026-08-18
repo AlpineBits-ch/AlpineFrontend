@@ -3,6 +3,7 @@ import {signal} from '@angular/core';
 import {provideTranslateService} from '@ngx-translate/core';
 import {of, Subject} from 'rxjs';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
+import {MenuItem} from 'primeng/api';
 import {GuildMemberListComponent} from './guild-member-list.component';
 import {GuildService} from '../../../../services/guild.service';
 import {GuildWebsocketService} from '../../../../services/guild-websocket.service';
@@ -20,7 +21,7 @@ import {NavigationService} from '../../../main-page/navigation.service';
 import {HomeStatusService} from '../../../../services/home-status.service';
 import {ProfileService} from '../../../../services/profile.service';
 import {GuildDto, GuildKind} from '../../../../dtos/response/guild.dto';
-import {GuildMemberDto} from '../../../../dtos/response/member.dto';
+import {GuildMemberDto, SelfGuildMemberDto} from '../../../../dtos/response/member.dto';
 import {OnlineStatus} from '../../../../dtos/response/profile.dto';
 import {MemberType} from '../../../../enums/member-type.enum';
 
@@ -28,13 +29,15 @@ const GUILD_ID = 'guild-1';
 const VOICE_CHANNEL_ID = 'channel-1';
 const STREAMER_ID = 'user-streamer';
 const QUIET_ID = 'user-quiet';
+const OWNER_ID = 'owner';
 
-function guildFixture(): GuildDto {
+function guildFixture(features?: string): GuildDto {
     return {
         id: GUILD_ID,
         name: 'Test Guild',
-        ownerId: 'owner',
+        ownerId: OWNER_ID,
         kind: GuildKind.Community,
+        features,
         channels: [
             {
                 id: VOICE_CHANNEL_ID,
@@ -72,8 +75,26 @@ function memberFixture(userId: string, userName: string): GuildMemberDto {
     };
 }
 
-function setup(opts: {streamingUserId?: string | null} = {}) {
-    const members = [memberFixture(STREAMER_ID, 'Streamer'), memberFixture(QUIET_ID, 'Quiet')];
+const OWN_MEMBER: Partial<SelfGuildMemberDto> = {userId: 'me', roleMembers: [], permissions: ''};
+/** Carries no permissions and no roles, exactly as the server sends an owner's row. */
+const OWNER_MEMBER: Partial<SelfGuildMemberDto> = {userId: OWNER_ID, roleMembers: [], permissions: ''};
+
+function roleGrant(permissions: string): Partial<SelfGuildMemberDto> {
+    return {userId: 'me', permissions: '', roleMembers: [{role: {id: 'role-1', permissions} as never}]};
+}
+
+function setup(
+    opts: {
+        streamingUserId?: string | null;
+        ownMember?: Partial<SelfGuildMemberDto>;
+        features?: string;
+    } = {},
+) {
+    const members = [
+        memberFixture(STREAMER_ID, 'Streamer'),
+        memberFixture(QUIET_ID, 'Quiet'),
+        memberFixture(OWNER_ID, 'Owner'),
+    ];
 
     const guildWs = {
         memberBannedObservable: new Subject(),
@@ -96,6 +117,14 @@ function setup(opts: {streamingUserId?: string | null} = {}) {
         // Answers whether the join actually happened; a stub that resolves undefined reads as a refusal, and everything the caller does after the join is gated on it.
         joinChannel: (_channel: unknown, _guildName: string) => Promise.resolve(true),
     };
+    const guildService = {
+        getMembers: () => of(members),
+        getOwnMember: () => of(opts.ownMember ?? OWN_MEMBER),
+        kickMember: vi.fn(() => of(undefined)),
+        banMember: vi.fn(() => of(undefined)),
+        muteMember: vi.fn(() => of(undefined)),
+        unmuteMember: vi.fn(() => of(undefined)),
+    };
     const guildVoiceActivity = {
         isStreaming: (userId: string) => userId === liveUserId,
         streamingChannelId: (_guildId: string, userId: string) =>
@@ -106,13 +135,7 @@ function setup(opts: {streamingUserId?: string | null} = {}) {
         imports: [GuildMemberListComponent],
         providers: [
             provideTranslateService({defaultLanguage: 'en'}),
-            {
-                provide: GuildService,
-                useValue: {
-                    getMembers: () => of(members),
-                    getOwnMember: () => of({userId: 'me', roleMembers: [], permissions: ''}),
-                },
-            },
+            {provide: GuildService, useValue: guildService},
             {provide: GuildWebsocketService, useValue: guildWs},
             {provide: BotInstallDialogService, useValue: {installedIntoGuild: new Subject()}},
             {
@@ -150,9 +173,9 @@ function setup(opts: {streamingUserId?: string | null} = {}) {
 
     const fixture: ComponentFixture<GuildMemberListComponent> =
         TestBed.createComponent(GuildMemberListComponent);
-    fixture.componentRef.setInput('guild', guildFixture());
+    fixture.componentRef.setInput('guild', guildFixture(opts.features));
     fixture.detectChanges();
-    return {fixture, navService, callFocus, voiceChannel};
+    return {fixture, navService, callFocus, voiceChannel, guildService};
 }
 
 describe('GuildMemberListComponent - streaming badge', () => {
@@ -261,5 +284,127 @@ describe('GuildMemberListComponent - streaming badge', () => {
         button.click();
 
         expect(profileOpened).toBe(false);
+    });
+});
+
+/** Swaps the popup menu for a plain capture object: the assertions are about the model that gets built, not PrimeNG's overlay. */
+function menuFor(fixture: ComponentFixture<GuildMemberListComponent>, name: string): MenuItem[] {
+    const stub = {model: [] as MenuItem[], show: () => undefined};
+    (fixture.componentInstance as never as {memberMenu: unknown}).memberMenu = stub;
+
+    const row = [...fixture.nativeElement.querySelectorAll('div.cursor-pointer')].find((el: HTMLElement) =>
+        el.textContent?.includes(name),
+    ) as HTMLElement;
+    row.dispatchEvent(new MouseEvent('contextmenu', {bubbles: true}));
+    return stub.model;
+}
+
+function labels(items: MenuItem[]): string[] {
+    return items.filter(i => !i.separator).map(i => i.label as string);
+}
+
+function invoke(items: MenuItem[], label: string): void {
+    items.find(i => i.label === label)!.command!({} as never);
+}
+
+function submenu(items: MenuItem[], label: string): MenuItem[] {
+    return items.find(i => i.label === label)!.items!;
+}
+
+describe('GuildMemberListComponent - member actions', () => {
+    beforeEach(() => TestBed.resetTestingModule());
+
+    // The union fallback cannot see ownership: the owner's row carries no permissions and their only
+    // role is @everyone, so gating on it alone hid every action from the one person who always has them.
+    it('offers kick, timeout and ban to the owner, whose row carries no permissions', () => {
+        const {fixture} = setup({ownMember: OWNER_MEMBER});
+        expect(labels(menuFor(fixture, 'Quiet'))).toEqual([
+            'MEMBER_ACTIONS.KICK',
+            'MEMBER_ACTIONS.TIMEOUT',
+            'MEMBER_ACTIONS.BAN',
+            'REPORT.TITLE_MEMBER',
+        ]);
+    });
+
+    it('offers only report to a member with no moderation permissions', () => {
+        const {fixture} = setup();
+        expect(labels(menuFor(fixture, 'Quiet'))).toEqual(['REPORT.TITLE_MEMBER']);
+    });
+
+    it('offers kick but not ban to a member granted only KickMembers', () => {
+        const {fixture} = setup({ownMember: roleGrant('KickMembers')});
+        const items = labels(menuFor(fixture, 'Quiet'));
+        expect(items).toContain('MEMBER_ACTIONS.KICK');
+        expect(items).not.toContain('MEMBER_ACTIONS.BAN');
+    });
+
+    it('prefers the server-resolved mask over the role union', () => {
+        const {fixture} = setup({
+            ownMember: {...roleGrant('KickMembers'), effectivePermissions: 'BanMembers'},
+        });
+        const items = labels(menuFor(fixture, 'Quiet'));
+        expect(items).toContain('MEMBER_ACTIONS.BAN');
+        expect(items).not.toContain('MEMBER_ACTIONS.KICK');
+    });
+
+    it('offers nothing but report when the Moderation module is off', () => {
+        const {fixture} = setup({ownMember: OWNER_MEMBER, features: 'VoiceChannels'});
+        expect(labels(menuFor(fixture, 'Quiet'))).toEqual(['REPORT.TITLE_MEMBER']);
+    });
+
+    it('does not kick until the dialog is confirmed', () => {
+        const {fixture, guildService} = setup({ownMember: OWNER_MEMBER});
+        invoke(menuFor(fixture, 'Quiet'), 'MEMBER_ACTIONS.KICK');
+        expect(guildService.kickMember).not.toHaveBeenCalled();
+
+        (fixture.componentInstance as never as {confirmKick: () => void}).confirmKick();
+        expect(guildService.kickMember).toHaveBeenCalledWith(GUILD_ID, `member-${QUIET_ID}`);
+    });
+
+    it('does not ban until the dialog is confirmed, and sends the reason typed into it', () => {
+        const {fixture, guildService} = setup({ownMember: OWNER_MEMBER});
+        invoke(menuFor(fixture, 'Quiet'), 'MEMBER_ACTIONS.BAN');
+        expect(guildService.banMember).not.toHaveBeenCalled();
+
+        const component = fixture.componentInstance as never as {
+            banReason: {set: (v: string) => void};
+            confirmBan: () => void;
+        };
+        component.banReason.set('spam');
+        component.confirmBan();
+        expect(guildService.banMember).toHaveBeenCalledWith(GUILD_ID, {userId: QUIET_ID, reason: 'spam'});
+    });
+
+    it('omits an empty reason rather than sending a blank one', () => {
+        const {fixture, guildService} = setup({ownMember: OWNER_MEMBER});
+        invoke(menuFor(fixture, 'Quiet'), 'MEMBER_ACTIONS.BAN');
+        (fixture.componentInstance as never as {confirmBan: () => void}).confirmBan();
+        expect(guildService.banMember).toHaveBeenCalledWith(GUILD_ID, {userId: QUIET_ID, reason: undefined});
+    });
+
+    it('mutes for the duration chosen from the timeout submenu', () => {
+        const {fixture, guildService} = setup({ownMember: OWNER_MEMBER});
+        const items = submenu(menuFor(fixture, 'Quiet'), 'MEMBER_ACTIONS.TIMEOUT');
+        invoke(items, 'MEMBER_ACTIONS.TIMEOUT_1H');
+        expect(guildService.muteMember).toHaveBeenCalledWith(GUILD_ID, `member-${QUIET_ID}`, 60);
+    });
+
+    it('lifts a timeout through the unmute endpoint', () => {
+        const {fixture, guildService} = setup({ownMember: OWNER_MEMBER});
+        const items = submenu(menuFor(fixture, 'Quiet'), 'MEMBER_ACTIONS.TIMEOUT');
+        invoke(items, 'MEMBER_ACTIONS.TIMEOUT_REMOVE');
+        expect(guildService.unmuteMember).toHaveBeenCalledWith(GUILD_ID, `member-${QUIET_ID}`);
+    });
+
+    // The server refuses all three against the owner, so offering them only buys the user a 403.
+    it('offers no moderation actions against the owner', () => {
+        const {fixture} = setup({ownMember: roleGrant('KickMembers, BanMembers, ModerateMembers')});
+        expect(labels(menuFor(fixture, 'Owner'))).toEqual(['REPORT.TITLE_MEMBER']);
+        expect(labels(menuFor(fixture, 'Quiet'))).toContain('MEMBER_ACTIONS.KICK');
+    });
+
+    it('offers no actions at all against your own row', () => {
+        const {fixture} = setup({ownMember: {...roleGrant('KickMembers'), userId: QUIET_ID}});
+        expect(labels(menuFor(fixture, 'Quiet'))).toEqual(['MEMBER_ACTIONS.NONE']);
     });
 });
