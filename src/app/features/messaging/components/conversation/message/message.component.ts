@@ -68,6 +68,7 @@ import {UNDECRYPTABLE_PLACEHOLDER, UNDECRYPTABLE_SHORT} from '../../../../../hel
 import {PersonaService} from '../../../../../services/persona.service';
 import {personaIdentity} from '../../../../guild/personas/persona-identity';
 import {PERSONA_MENTION_SOURCE} from '../../../../guild/personas/persona-mention';
+import {INLINE_ATTACHMENT_SOURCE, inlineAttachmentIds} from '../../../inline-attachment';
 import {PersonaAvatarComponent} from '../../../../guild/personas/persona-avatar/persona-avatar.component';
 import {DiceRollCardComponent} from '../../../../guild/dice/dice-roll-card/dice-roll-card.component';
 import {diceRollFromMessage} from '../../../../guild/dice/dice-roll-view';
@@ -76,7 +77,17 @@ import {rollJustLanded} from '../../../../../services/dice.service';
 /** One run of a message body, after the text has been pulled apart. */
 interface MessageSegment {
     type:
-        'text' | 'mention' | 'persona' | 'role' | 'everyone' | 'here' | 'channel' | 'gif' | 'emoji' | 'flag';
+        | 'text'
+        | 'mention'
+        | 'persona'
+        | 'role'
+        | 'everyone'
+        | 'here'
+        | 'channel'
+        | 'gif'
+        | 'emoji'
+        | 'flag'
+        | 'attachment';
     value: string;
     refId?: string;
     /** Persona segments only: the colour the character is drawn in. */
@@ -258,7 +269,9 @@ export class MessageComponent {
         // The character token comes first in the alternation: `<@pers_...>` starts with a bracket
         // the other patterns never match, and it must never fall through to the generic `@word`.
         const regex = new RegExp(
-            PERSONA_MENTION_SOURCE +
+            INLINE_ATTACHMENT_SOURCE +
+                '|' +
+                PERSONA_MENTION_SOURCE +
                 '|' +
                 knownNamePattern +
                 '@[\\w\\-.]+#\\w+|@everyone\\b|@here\\b|@[\\w\\-.]+|#[\\w-]+',
@@ -273,8 +286,18 @@ export class MessageComponent {
                 segments.push({type: 'text', value: text.slice(last, match.index)});
             }
             const raw = match[0];
-            const personaId = match[1];
-            if (personaId) {
+            const attachmentId = match[1];
+            const personaId = match[2];
+            if (attachmentId) {
+                // Only ever drawn for a file this message actually carries. A token naming anything
+                // else is somebody's literal text, and stays literal text.
+                const carried = msg.attachments?.some(a => a.id === attachmentId);
+                segments.push(
+                    carried
+                        ? {type: 'attachment', value: raw, refId: attachmentId}
+                        : {type: 'text', value: raw},
+                );
+            } else if (personaId) {
                 // Nothing here may name the account: the hint and the cast are the only two
                 // sources, and neither carries an owner.
                 const hint = (msg.personaMentions ?? []).find(m => m.personaId === personaId);
@@ -372,6 +395,16 @@ export class MessageComponent {
         }
 
         return emojiSegments;
+    });
+    /** The file behind an inline token. Null is impossible here: the segmenter already checked. */
+    public inlineAttachment(attachmentId: string): MessageAttachment | null {
+        return this.message().attachments?.find(a => a.id === attachmentId) ?? null;
+    }
+
+    /** The gallery under a message shows what the body did not already place in it. */
+    public readonly galleryAttachments = computed(() => {
+        const placed = new Set(inlineAttachmentIds(this.displayContent()));
+        return (this.message().attachments ?? []).filter(a => !placed.has(a.id));
     });
     readonly isOwn = computed(() => this.message().authorId === this.profileService.ownProfile()?.userId);
     readonly canPin = computed(() => (!this.message().conversationId ? this.canPinMessages() : true));

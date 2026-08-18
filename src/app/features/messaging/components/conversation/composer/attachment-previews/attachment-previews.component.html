@@ -27,6 +27,33 @@
                         <i class="pi pi-exclamation-circle text-rose-400 text-sm"></i>
                     </div>
                 }
+
+                <!-- Only ever offered for a file the body can actually name, which means one that
+                     finished uploading and has an id. -->
+                @if (attachment.uploadedId && !attachment.isUploading && !attachment.uploadFailed) {
+                    @if (inlineIds().includes(attachment.uploadedId)) {
+                        <button
+                            (click)="removeInline.emit(attachment.uploadedId!)"
+                            [attr.aria-label]="'COMPOSER.ATTACH_INLINE_REMOVE' | translate"
+                            [title]="'COMPOSER.ATTACH_INLINE_REMOVE' | translate"
+                            class="absolute bottom-1 left-1 h-5 px-1.5 rounded-md bg-brand/80 border border-white/10 flex items-center gap-1 text-[10px] text-white cursor-pointer transition-opacity"
+                            type="button"
+                        >
+                            <i class="pi pi-align-left text-[8px]"></i>
+                        </button>
+                    } @else {
+                        <button
+                            (click)="placeInline.emit(i)"
+                            [attr.aria-label]="'COMPOSER.ATTACH_INLINE' | translate"
+                            [title]="'COMPOSER.ATTACH_INLINE' | translate"
+                            class="absolute bottom-1 left-1 h-5 px-1.5 rounded-md bg-black/70 border border-white/10 flex items-center gap-1 text-[10px] text-white/60 hover:text-white opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity"
+                            type="button"
+                        >
+                            <i class="pi pi-align-left text-[8px]"></i>
+                        </button>
+                    }
+                }
+
                 <button
                     (click)="remove.emit(i)"
                     class="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/70 border border-white/10 flex items-center justify-center text-[10px] text-white/50 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"

@@ -217,3 +217,33 @@
         animation: none;
     }
 }
+
+/* ── Inline attachments ──────────────────────────────────────────────────── */
+.inline-attachment {
+    display: block;
+    max-width: min(100%, 24rem);
+    max-height: 20rem;
+    margin: 0.375rem 0;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 0.75rem;
+    object-fit: contain;
+}
+
+.inline-attachment-file {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    max-width: 14rem;
+    padding: 0.125rem 0.5rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 0.5rem;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--color-text-secondary);
+    font: inherit;
+    font-size: 0.9em;
+    cursor: pointer;
+}
+
+.inline-attachment-file:hover {
+    color: var(--color-text-primary);
+}

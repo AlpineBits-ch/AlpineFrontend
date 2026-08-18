@@ -286,6 +286,23 @@
                             <app-twemoji [emoji]="seg.value" size="1.25em" />
                         } @else if (seg.type === 'emoji') {
                             <app-twemoji [emoji]="seg.value" size="1.25em" />
+                        } @else if (seg.type === 'attachment') {
+                            @if (inlineAttachment(seg.refId!); as att) {
+                                @if (att.contentType.startsWith('image/')) {
+                                    <img
+                                        (click)="openLightbox(att)"
+                                        [alt]="att.fileName"
+                                        [appAuthSrc]="thumbnailSrc(att)"
+                                        class="inline-attachment cursor-zoom-in"
+                                        loading="lazy"
+                                    />
+                                } @else {
+                                    <button (click)="download(att)" class="inline-attachment-file" type="button">
+                                        <i [class]="'pi ' + fileIcon(att.contentType)"></i>
+                                        <span class="truncate">{{ att.fileName }}</span>
+                                    </button>
+                                }
+                            }
                         } @else {
                             <div [innerHTML]="seg.value | markdown" class="contents"></div>
                         }
@@ -294,9 +311,9 @@
             </div>
         }
 
-        @if (message().attachments.length) {
+        @if (galleryAttachments().length) {
             <div class="flex flex-wrap gap-2 mt-2">
-                @for (att of message().attachments; track att.id) {
+                @for (att of galleryAttachments(); track att.id) {
                     @if (att.contentType.startsWith('image/')) {
                         <div (click)="openLightbox(att)" class="relative inline-block group/img cursor-zoom-in">
                             <img
