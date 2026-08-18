@@ -1,5 +1,14 @@
 import hljs from 'highlight.js';
 
+/**
+ * A node the editor treats as one character: the cursor goes before or after it, never inside.
+ * An attachment chip counts as one regardless of the filename drawn in it, so two chips side by
+ * side still occupy two cursor positions.
+ */
+export function isAtomicChip(node: Node): boolean {
+    return node instanceof HTMLElement && node.classList.contains('attachment-chip');
+}
+
 /** A raw text run or an atomic mention chip from the contenteditable. */
 export type EditorSegment =
     | {type: 'text'; text: string}
@@ -19,7 +28,7 @@ export function getEditorSegments(editor: HTMLElement): EditorSegment[] {
     let textAcc = '';
 
     function walk(node: Node): void {
-        if (node instanceof HTMLElement && node.classList.contains('mention-chip')) {
+        if (node instanceof HTMLElement && (node.classList.contains('mention-chip') || isAtomicChip(node))) {
             if (textAcc) {
                 segments.push({type: 'text', text: textAcc});
                 textAcc = '';
@@ -176,6 +185,10 @@ export function getTextCursorOffset(editor: HTMLElement): number {
                 count += 1;
                 return;
             }
+            if (isAtomicChip(node)) {
+                count += 1;
+                return;
+            }
             if (node.classList.contains('mention-chip')) {
                 count += node.textContent?.length ?? 0;
                 return;
@@ -199,6 +212,11 @@ export function getTextCursorOffset(editor: HTMLElement): number {
         }
         if (node instanceof HTMLElement) {
             if (node.tagName === 'BR') {
+                count += 1;
+                return false;
+            }
+            if (isAtomicChip(node)) {
+                if (node === startContainer) return true;
                 count += 1;
                 return false;
             }
@@ -264,6 +282,18 @@ export function restoreCursorOffset(editor: HTMLElement, target: number): void {
                 remaining -= 1;
                 return false;
             }
+            if (isAtomicChip(node)) {
+                if (remaining <= 0) {
+                    const r = document.createRange();
+                    r.setStartBefore(node);
+                    r.collapse(true);
+                    window.getSelection()?.removeAllRanges();
+                    window.getSelection()?.addRange(r);
+                    return true;
+                }
+                remaining -= 1;
+                return false;
+            }
             if (node.classList.contains('mention-chip')) {
                 remaining -= node.textContent?.length ?? 0;
                 return false;
@@ -295,5 +325,177 @@ export function restoreCursorOffset(editor: HTMLElement, target: number): void {
         const sel = window.getSelection();
         sel?.removeAllRanges();
         sel?.addRange(r);
+    }
+}
+
+// ── Blocks ───────────────────────────────────────────────────────────────────
+
+/**
+ * Editor content is split into blocks so a keystroke re-highlights one paragraph instead of the
+ * whole post. A block is a span, never a div: the editor is `white-space: pre-wrap` and a block-level
+ * box would draw a line break on top of the `<br>` the source newline already became.
+ */
+export const BLOCK_TAG = 'span';
+export const BLOCK_ATTR = 'data-block';
+const BLOCK_SELECTOR = `[${BLOCK_ATTR}]`;
+
+/** Half-open `[start, end)` ranges of the text covered by fences, including an unterminated one. */
+function fenceRegions(text: string): [number, number][] {
+    const regions: [number, number][] = [];
+    const re = /```/g;
+    let open: number | null = null;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(text)) !== null) {
+        if (open === null) {
+            open = m.index;
+        } else {
+            regions.push([open, m.index + 3]);
+            open = null;
+        }
+    }
+    if (open !== null) regions.push([open, text.length]);
+    return regions;
+}
+
+function insideFence(regions: [number, number][], index: number): boolean {
+    return regions.some(([start, end]) => index >= start && index < end);
+}
+
+/**
+ * Cut text at blank lines that are not inside a fence. Each piece keeps its own trailing newlines,
+ * so joining the result reproduces the input exactly.
+ */
+export function splitIntoBlocks(text: string): string[] {
+    if (!text) return [''];
+
+    const fences = fenceRegions(text);
+    const blocks: string[] = [];
+    let start = 0;
+    let i = 0;
+
+    while (i < text.length) {
+        if (text[i] === '\n' && text[i + 1] === '\n' && !insideFence(fences, i)) {
+            let end = i + 2;
+            while (text[end] === '\n') end++;
+            blocks.push(text.slice(start, end));
+            start = end;
+            i = end;
+            continue;
+        }
+        i++;
+    }
+
+    if (start < text.length) blocks.push(text.slice(start));
+    return blocks.length ? blocks : [''];
+}
+
+/**
+ * Identifies a block's source for the dirty check. Node positions matter as much as the text: a chip
+ * moving between two identical runs has to count as a change.
+ */
+export function blockKey(segments: EditorSegment[]): string {
+    return segments.map(s => (s.type === 'text' ? s.text : '\u0000')).join('\u0001');
+}
+
+/** The block a node sits in, or null if the editor has not been blocked yet. */
+export function blockOf(node: Node | null, editor: HTMLElement): HTMLElement | null {
+    let el = node instanceof HTMLElement ? node : (node?.parentElement ?? null);
+    while (el && el !== editor) {
+        if (el.hasAttribute(BLOCK_ATTR)) return el;
+        el = el.parentElement;
+    }
+    return null;
+}
+
+export function blocksOf(editor: HTMLElement): HTMLElement[] {
+    return Array.from(editor.querySelectorAll<HTMLElement>(`:scope > ${BLOCK_SELECTOR}`));
+}
+
+/** True when the editor's children are not the flat run of blocks the incremental path assumes. */
+export function needsReblock(editor: HTMLElement): boolean {
+    for (const child of Array.from(editor.childNodes)) {
+        if (child instanceof HTMLElement && child.hasAttribute(BLOCK_ATTR)) continue;
+        if (child instanceof HTMLElement && child.dataset['sentinel']) continue;
+        return true;
+    }
+    return editor.childNodes.length === 0 ? false : blocksOf(editor).length === 0;
+}
+
+function makeBlock(): HTMLElement {
+    const block = document.createElement(BLOCK_TAG);
+    block.setAttribute(BLOCK_ATTR, '');
+    return block;
+}
+
+/** Highlight one block's segments in place, leaving every other block's DOM untouched. */
+export function highlightBlock(block: HTMLElement, segments: EditorSegment[]): void {
+    block.replaceChildren(buildHighlightedFragment(segments));
+}
+
+/**
+ * Rebuild the whole editor as highlighted blocks. The expensive path: used on paste, draft restore,
+ * and whenever an edit changes where the block boundaries fall.
+ */
+export function renderBlocks(editor: HTMLElement, segments: EditorSegment[]): HTMLElement[] {
+    const textOnly = segments.map(s => (s.type === 'text' ? s.text : '')).join('');
+    const boundaries: number[] = [];
+    let at = 0;
+    for (const piece of splitIntoBlocks(textOnly)) {
+        at += piece.length;
+        boundaries.push(at);
+    }
+
+    const perBlock: EditorSegment[][] = boundaries.map(() => []);
+    let blockIndex = 0;
+    let offset = 0;
+
+    for (const seg of segments) {
+        if (seg.type !== 'text') {
+            // A chip carries no newline, so it can never open a block. It belongs to whichever block
+            // the cursor position it sits at falls in.
+            while (blockIndex < boundaries.length - 1 && offset >= boundaries[blockIndex]) blockIndex++;
+            perBlock[blockIndex].push(seg);
+            continue;
+        }
+
+        let text = seg.text;
+        while (text.length > 0) {
+            while (blockIndex < boundaries.length - 1 && offset >= boundaries[blockIndex]) blockIndex++;
+            const room = boundaries[blockIndex] - offset;
+            const take = Math.min(room, text.length);
+            perBlock[blockIndex].push({type: 'text', text: text.slice(0, take)});
+            text = text.slice(take);
+            offset += take;
+        }
+    }
+
+    const blocks = perBlock.map(blockSegments => {
+        const block = makeBlock();
+        highlightBlock(block, blockSegments);
+        return block;
+    });
+
+    editor.replaceChildren(...blocks);
+    applyTrailingSentinel(editor);
+    return blocks;
+}
+
+/**
+ * Browsers do not render a trailing `<br>` as a visible line unless something follows it, so the
+ * cursor cannot land on the empty line after Shift+Enter without this.
+ */
+export function applyTrailingSentinel(editor: HTMLElement): void {
+    for (const stale of Array.from(editor.querySelectorAll<HTMLElement>('br[data-sentinel]'))) {
+        stale.remove();
+    }
+    if (!(editor.textContent ?? '').length && !editor.querySelector('br')) return;
+
+    const blocks = blocksOf(editor);
+    const last = blocks[blocks.length - 1] ?? editor;
+    const lastNode = last.lastChild;
+    if (lastNode instanceof HTMLElement && lastNode.tagName === 'BR') {
+        const sentinel = document.createElement('br');
+        sentinel.dataset['sentinel'] = '1';
+        last.appendChild(sentinel);
     }
 }

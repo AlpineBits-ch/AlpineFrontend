@@ -1,8 +1,11 @@
 import {ProfileFont} from '../../../../../dtos/response/profile.dto';
+import {inlineAttachmentToken} from '../../../inline-attachment';
 
-/** Extract the plain-text message from a contenteditable element,
- *  converting mention-chip spans to their @Username display value. */
-export function getMessage(editor: HTMLElement): string {
+/**
+ * The source text of an element, untrimmed, so a block's text can be cached and the blocks joined
+ * back into the whole post. Mention chips read as their @Username display value.
+ */
+export function readEditorText(root: HTMLElement): string {
     let text = '';
 
     const walk = (nodes: NodeList) => {
@@ -10,12 +13,15 @@ export function getMessage(editor: HTMLElement): string {
             if (node.nodeType === Node.TEXT_NODE) {
                 text += node.textContent ?? '';
             } else if (node instanceof HTMLElement) {
-                if (node.classList.contains('mention-chip')) {
+                if (node.classList.contains('attachment-chip')) {
+                    const id = node.dataset['attachmentId'];
+                    if (id) text += inlineAttachmentToken(id);
+                } else if (node.classList.contains('mention-chip')) {
                     text += node.dataset['display'] ?? node.textContent ?? '';
                 } else if (node.tagName === 'IMG' && node.dataset['emoji']) {
                     text += node.dataset['emoji'];
                 } else if (node.tagName === 'BR') {
-                    text += '\n';
+                    if (!node.dataset['sentinel']) text += '\n';
                 } else if (node.tagName === 'DIV') {
                     text += '\n';
                     walk(node.childNodes);
@@ -26,8 +32,15 @@ export function getMessage(editor: HTMLElement): string {
         });
     };
 
-    walk(editor.childNodes);
-    return text.replace(/\u00a0/g, ' ').trim();
+    walk(root.childNodes);
+    return text;
+}
+
+/** Extract the plain-text message from a contenteditable element, ready to send. */
+export function getMessage(editor: HTMLElement): string {
+    return readEditorText(editor)
+        .replace(/\u00a0/g, ' ')
+        .trim();
 }
 
 /**
