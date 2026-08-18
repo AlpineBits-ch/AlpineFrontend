@@ -71,7 +71,7 @@ export class DraftService {
                     const next = {...map};
                     for (const row of rows) {
                         // A channel already read individually holds the fresher answer.
-                        if (!(row.channelId in next)) next[row.channelId] = row;
+                        if (!(row.contextId in next)) next[row.contextId] = row;
                     }
                     return next;
                 });

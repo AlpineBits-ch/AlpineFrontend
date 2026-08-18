@@ -29,7 +29,9 @@ export class HttpDraftApi extends DraftApi {
     private readonly apiConfig = inject(ApiConfigService);
 
     private get base(): string {
-        return `${this.apiConfig.baseUrl()}/api/v1/messaging/drafts`;
+        // The gateway strips one service segment, so the service's own `/api/v1/messaging/drafts` is
+        // only reachable through the doubled prefix. The single one is a route that is not there.
+        return `${this.apiConfig.baseUrl()}/api/v1/messaging/messaging/drafts`;
     }
 
     private url(channelId: string): string {
