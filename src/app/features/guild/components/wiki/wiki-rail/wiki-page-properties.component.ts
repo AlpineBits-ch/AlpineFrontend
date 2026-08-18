@@ -3,14 +3,22 @@ import {FormsModule} from '@angular/forms';
 import {Select} from 'primeng/select';
 import {ToggleSwitch} from 'primeng/toggleswitch';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
-import {WikiDto, WikiPageDto, WikiPageSummaryDto} from '../../../../../dtos/response/wiki.dto';
+import {
+    WikiDto,
+    WikiPageDto,
+    WikiPageSummaryDto,
+    WikiVisibility,
+} from '../../../../../dtos/response/wiki.dto';
 import {UpdateWikiPageDto} from '../../../../../dtos/request/wiki.dto';
 import {WikiService} from '../../../../../services/wiki.service';
 import {WikiStateService} from '../wiki-state.service';
 import {canEditPage} from '../wiki-permissions';
 
-/** The four fields of a page that are metadata rather than prose. */
-type PropertyPatch = Pick<UpdateWikiPageDto, 'tags' | 'isPinned' | 'categoryId' | 'parentPageId'>;
+/** The fields of a page that are metadata rather than prose. */
+type PropertyPatch = Pick<
+    UpdateWikiPageDto,
+    'tags' | 'isPinned' | 'categoryId' | 'parentPageId' | 'visibility'
+>;
 
 /** `p-select` shows its placeholder for a null model, so "no category" needs a value of its own or it renders as though nothing were chosen at all. */
 const NONE = '';
@@ -50,6 +58,18 @@ export class WikiPagePropertiesComponent {
     protected readonly tags = computed(() => this.pending().tags ?? this.page()?.tags ?? []);
 
     protected readonly pinned = computed(() => this.pending().isPinned ?? this.page()?.isPinned ?? false);
+
+    /** Who in this guild may open the page. Nothing to do with the public wiki. */
+    protected readonly visibility = computed<WikiVisibility>(
+        () => this.pending().visibility ?? this.page()?.visibility ?? 'public',
+    );
+
+    /** Decides whether the restricted option reads "Only me" or names the author instead. */
+    protected readonly isOwnPage = computed(() => {
+        const page = this.page();
+        const ownUserId = this.state.ownUserId();
+        return !!page && ownUserId !== null && page.authorId === ownUserId;
+    });
 
     protected readonly categoryValue = computed(() => {
         const pending = this.pending();
@@ -154,6 +174,9 @@ export class WikiPagePropertiesComponent {
                 const next = {...current};
                 if (next.tags && sameTags(next.tags, page.tags ?? [])) delete next.tags;
                 if (next.isPinned === (page.isPinned ?? false)) delete next.isPinned;
+                if (next.visibility && next.visibility === (page.visibility ?? 'public')) {
+                    delete next.visibility;
+                }
                 if ('categoryId' in next && (next.categoryId ?? undefined) === page.categoryId) {
                     delete next.categoryId;
                 }
@@ -219,6 +242,11 @@ export class WikiPagePropertiesComponent {
     protected setPinned(pinned: boolean): void {
         if (!this.canEditMetadata()) return;
         this.apply({isPinned: pinned});
+    }
+
+    protected setVisibility(visibility: WikiVisibility): void {
+        if (!this.canEditMetadata() || this.visibility() === visibility) return;
+        this.apply({visibility});
     }
 
     protected setCategory(value: string): void {
@@ -296,6 +324,7 @@ function summaryFields(
     for (const key of keys) {
         if (key === 'tags') out.tags = [...(page.tags ?? [])];
         if (key === 'isPinned') out.isPinned = page.isPinned ?? false;
+        if (key === 'visibility') out.visibility = page.visibility ?? 'public';
         if (key === 'categoryId') out.categoryId = page.categoryId ?? undefined;
         if (key === 'parentPageId') out.parentPageId = page.parentPageId ?? undefined;
     }
@@ -314,6 +343,7 @@ function optimisticFields(patch: PropertyPatch): Partial<WikiPageSummaryDto> {
     const out: Partial<WikiPageSummaryDto> = {};
     if (patch.tags !== undefined) out.tags = [...patch.tags];
     if (patch.isPinned !== undefined) out.isPinned = patch.isPinned;
+    if (patch.visibility !== undefined) out.visibility = patch.visibility;
     if ('categoryId' in patch) out.categoryId = patch.categoryId ?? undefined;
     if ('parentPageId' in patch) out.parentPageId = patch.parentPageId ?? undefined;
     return out;

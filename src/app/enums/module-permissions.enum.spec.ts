@@ -39,6 +39,11 @@ describe('ModulePermissions bit positions', () => {
         ManageMeals: 21,
         LogMaintenance: 22,
         ManageMaintenance: 23,
+        UsePersonas: 24,
+        ManageAnyPersona: 25,
+        ApprovePersonas: 26,
+        ManageScenes: 27,
+        RollDice: 28,
     };
 
     it.each(Object.entries(expected))('puts %s at bit %i', (key, bit) => {

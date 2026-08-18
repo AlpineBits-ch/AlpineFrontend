@@ -35,6 +35,12 @@ export const ModulePermissions = {
     ManageMeals: 1n << 21n,
     LogMaintenance: 1n << 22n,
     ManageMaintenance: 1n << 23n,
+
+    UsePersonas: 1n << 24n,
+    ManageAnyPersona: 1n << 25n,
+    ApprovePersonas: 1n << 26n,
+    ManageScenes: 1n << 27n,
+    RollDice: 1n << 28n,
 } as const;
 
 export type ModulePermissionKey = Exclude<keyof typeof ModulePermissions, 'None'>;
@@ -79,6 +85,12 @@ export const MODULE_PERM_FEATURE: Readonly<Record<ModulePermissionKey, string>> 
     ManageMeals: 'Meals',
     LogMaintenance: 'Maintenance',
     ManageMaintenance: 'Maintenance',
+
+    UsePersonas: 'Personas',
+    ManageAnyPersona: 'Personas',
+    ApprovePersonas: 'Personas',
+    ManageScenes: 'Scenes',
+    RollDice: 'Dice',
 };
 
 const FEATURE_BY_BIT: readonly (readonly [bigint, string])[] = (
@@ -106,6 +118,24 @@ export const MODULE_PERM_GROUPS: readonly FlagGroup<ModulePermissionKey>[] = [
             'ModerateWikiComments',
             'PublishWikiPublicly',
         ],
+    },
+    {
+        label: 'Characters',
+        labelKey: 'PERM_GROUP.PERSONAS',
+        feature: 'Personas',
+        perms: ['UsePersonas', 'ManageAnyPersona', 'ApprovePersonas'],
+    },
+    {
+        label: 'Scenes',
+        labelKey: 'PERM_GROUP.SCENES',
+        feature: 'Scenes',
+        perms: ['ManageScenes'],
+    },
+    {
+        label: 'Dice',
+        labelKey: 'PERM_GROUP.DICE',
+        feature: 'Dice',
+        perms: ['RollDice'],
     },
     {
         label: 'Lists',

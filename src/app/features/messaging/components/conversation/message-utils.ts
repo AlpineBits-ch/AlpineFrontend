@@ -38,6 +38,9 @@ export function isSystemMessageType(type: MessageType): boolean {
 export function isGroupedWithPrevious(current: MessageDto, previous: MessageDto | undefined): boolean {
     if (!previous) return false;
     if (previous.authorId !== current.authorId) return false;
+    // One account switching character mid-scene must break the run, or the second character is
+    // drawn with no name and no avatar and reads as the first one still speaking.
+    if ((previous.personaId ?? null) !== (current.personaId ?? null)) return false;
     if (current.inReplyTo) return false;
     if (isSystemMessageType(previous.type)) return false;
     const gap = new Date(current.createdAt).getTime() - new Date(previous.createdAt).getTime();

@@ -9,6 +9,8 @@ export enum ChannelType {
     /** A forum variant: same tags, posts and endpoints, gallery-first rendering. */
     Media = 'Media',
     Announcement = 'Announcement',
+    /** A thread variant with turn order. Everything thread-shaped applies to it. */
+    Scene = 'Scene',
 
     // ── Household channel types ─────────────────────────────────────────────
     // Structured rows, not messages: none of these has message history or a

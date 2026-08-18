@@ -10,6 +10,7 @@ import {
     input,
     output,
     signal,
+    untracked,
     ViewChild,
 } from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
@@ -32,7 +33,17 @@ import {SelfGuildMemberDto} from '../../../../dtos/response/member.dto';
 import {MessageEncryptionState} from '../../../../enums/message-encryption-state.enum';
 import {MessageType} from '../../../../enums/message-type.enum';
 import {hasPermission, Permissions} from '../../../../enums/permissions.enum';
-import {unionMemberPermissions} from '../../guild-permissions';
+import {guildAbilities, unionMemberPermissions} from '../../guild-permissions';
+import {ModulePermissions} from '../../../../enums/module-permissions.enum';
+import {PersonaService} from '../../../../services/persona.service';
+import {personaIdentity} from '../../personas/persona-identity';
+import {SceneService} from '../../../../services/scene.service';
+import {SceneStatus} from '../../../../dtos/response/scene.dto';
+import {isWaitingOnMe} from '../../scenes/scene-status';
+import {turnClock} from '../../scenes/scene-clock';
+import {SceneHeaderComponent} from '../../scenes/scene-header/scene-header.component';
+import {SceneConclusionComponent} from '../../scenes/scene-conclusion/scene-conclusion.component';
+import {SceneTurnPrompt} from '../../../messaging/components/conversation/composer/composer.component';
 import {buildMessageRows} from '../../../messaging/components/conversation/message-utils';
 import {ChannelEncryptionState, classifyAutoModError, forumParentOf, mayPostCleartext} from './channel-utils';
 import {MlsService} from '../../../../services/mls.service';
@@ -105,6 +116,8 @@ function decodeContent(encoded: string): string {
         Dialog,
         PrimeTemplate,
         JumpToPresentComponent,
+        SceneHeaderComponent,
+        SceneConclusionComponent,
     ],
     templateUrl: './channel.component.html',
     styleUrl: './channel.component.css',
@@ -128,6 +141,86 @@ export class ChannelComponent implements AfterViewInit {
         const ws = this.navService.workspace();
         return ws.type === 'server' && guildHasFeature(ws.guild, GuildFeature.Threads);
     });
+    protected readonly canUsePersonas = computed(() => {
+        const ws = this.navService.workspace();
+        if (ws.type !== 'server') return false;
+        const own = this.ownMember();
+        const ownUserId = this.profileService.ownProfile()?.userId;
+        return guildAbilities(own, ws.guild, ownUserId).canModule(ModulePermissions.UsePersonas);
+    });
+    protected readonly canRollDice = computed(() => {
+        const ws = this.navService.workspace();
+        if (ws.type !== 'server') return false;
+        return guildAbilities(this.ownMember(), ws.guild, this.profileService.ownProfile()?.userId).canModule(
+            ModulePermissions.RollDice,
+        );
+    });
+    protected readonly canManageScenes = computed(() => {
+        const ws = this.navService.workspace();
+        if (ws.type !== 'server') return false;
+        return guildAbilities(this.ownMember(), ws.guild, this.profileService.ownProfile()?.userId).canModule(
+            ModulePermissions.ManageScenes,
+        );
+    });
+
+    // ── Scene ────────────────────────────────────────────────────────────────
+    protected readonly hasScenes = computed(() => {
+        const ws = this.navService.workspace();
+        return ws.type === 'server' && guildHasFeature(ws.guild, GuildFeature.Scenes);
+    });
+    protected readonly scenes = inject(SceneService);
+    protected readonly passing = signal(false);
+
+    /**
+     * The scene channel behind whatever is open: this channel when it is the scene, the in-character
+     * side when it is the companion thread. Read off the board, which is loaded for the whole guild.
+     */
+    private readonly sceneChannelId = computed(() => {
+        const channelId = this.channel().id;
+        const rows = this.scenes.scenes(this.guildId());
+        if (rows.some(row => row.channelId === channelId)) return channelId;
+        return rows.find(row => row.oocThreadId === channelId)?.channelId ?? null;
+    });
+
+    /** The scene this channel is, or the scene whose companion thread it is. */
+    protected readonly scene = computed(() => this.scenes.scene(this.guildId(), this.sceneChannelId()));
+
+    protected readonly sceneSide = computed((): 'ic' | 'ooc' =>
+        this.scene()?.channelId === this.channel().id ? 'ic' : 'ooc',
+    );
+
+    /** Only the in-character half closes with the ending mark; the companion thread stays open. */
+    protected readonly concludedScene = computed(() => {
+        const scene = this.scene();
+        return scene?.status === SceneStatus.Concluded && this.sceneSide() === 'ic' ? scene : null;
+    });
+
+    /**
+     * What the composer shows when the scene is waiting on a character the caller plays. Null the
+     * rest of the time, which is most of the time.
+     */
+    protected readonly sceneTurn = computed((): SceneTurnPrompt | null => {
+        const scene = this.scene();
+        if (!scene || this.sceneSide() !== 'ic') return null;
+        if (!isWaitingOnMe(scene, this.scenes.speakableIds(this.guildId()))) return null;
+
+        const participant = scene.participants.find(p => p.personaId === scene.currentTurnPersonaId);
+        const identity = this.personaService.identity(
+            this.guildId(),
+            scene.currentTurnPersonaId,
+            participant,
+        );
+        return {
+            characterName: identity?.name ?? '',
+            deadlineAt: scene.turnDeadlineAt ?? null,
+            overdue: turnClock(scene, this.scenes.now()).overdue,
+            pass: () => this.passTurn(),
+            passing: this.passing(),
+        };
+    });
+
+    /** Ciphertext hides the proxy tag from the server, so the composer has to resolve it here. */
+    protected readonly resolvePersonaLocally = computed(() => this.encryptionState() === 'joined');
     protected readonly replyingTo = signal<MessageDto | null>(null);
     /** Set when the server refuses a send via auto-mod, cleared on the next attempt. */
     protected readonly autoModError = signal<'blocked_word' | 'rate_limited' | null>(null);
@@ -271,6 +364,7 @@ export class ChannelComponent implements AfterViewInit {
     private joinRequests = inject(MlsJoinRequestService);
     private guildService = inject(GuildService);
     private ownMemberRevision = inject(OwnMemberRevisionService);
+    private personaService = inject(PersonaService);
     private profileService = inject(ProfileService);
     private guildWs = inject(GuildWebsocketService);
     private translate = inject(TranslateService);
@@ -323,6 +417,17 @@ export class ChannelComponent implements AfterViewInit {
             // Re-runs when guild.MemberUpdated says our own roles changed; see ownMemberRevision.
             this.ownMemberRevision.revision();
             this.guildService.getOwnMember(this.guildId()).subscribe(m => this.ownMember.set(m));
+        });
+
+        effect(() => {
+            const guildId = this.guildId();
+            if (this.hasScenes()) untracked(() => this.scenes.ensureGuild(guildId));
+        });
+
+        effect(() => {
+            // The board carries rows, not scenes; the cast and the rotation need this second read.
+            const channelId = this.sceneChannelId();
+            if (channelId) untracked(() => this.scenes.refreshScene(this.guildId(), channelId));
         });
 
         effect(() => {
@@ -462,11 +567,22 @@ export class ChannelComponent implements AfterViewInit {
         inReplyTo?: string;
         mentions: string[];
         roleMentions: string[];
+        personaMentions: string[];
         mentionsEveryone: boolean;
         mentionsHere: boolean;
+        personaId?: string;
     }): void {
-        const {content, attachments, inReplyTo, mentions, roleMentions, mentionsEveryone, mentionsHere} =
-            event;
+        const {
+            content,
+            attachments,
+            inReplyTo,
+            mentions,
+            roleMentions,
+            personaMentions,
+            mentionsEveryone,
+            mentionsHere,
+            personaId,
+        } = event;
         const tempId = crypto.randomUUID();
         const now = new Date();
         const channelId = this.channel().id;
@@ -474,6 +590,9 @@ export class ChannelComponent implements AfterViewInit {
 
         this.replyingTo.set(null);
         this.autoModError.set(null);
+
+        const speaking = this.personaService.entry(this.guildId(), personaId);
+        const optimisticIdentity = speaking ? personaIdentity(speaking) : null;
 
         const optimistic: MessageDto = {
             id: tempId,
@@ -496,9 +615,17 @@ export class ChannelComponent implements AfterViewInit {
             mlsSequenceNumber: undefined,
             senderDeviceId: undefined,
             type: MessageType.Message,
+            personaId,
+            // The server sends its own copy back; this only keeps the character on screen in the
+            // moment between Enter and the confirmation.
+            authorDisplayName: optimisticIdentity?.name ?? null,
+            authorAvatarUrl: optimisticIdentity?.avatarUrl ?? null,
         };
 
         this.messageStore.addMessage(optimistic);
+        // The turn advances server-side when the character posts, and no event says so; this keeps
+        // the rail honest in the meantime. See SceneService.notePost.
+        this.scenes.notePost(this.guildId(), channelId, personaId ?? null);
 
         from(
             this.send(channelId, content, b64Content, {
@@ -506,8 +633,10 @@ export class ChannelComponent implements AfterViewInit {
                 inReplyTo,
                 mentions,
                 roleMentions,
+                personaMentions,
                 mentionsEveryone,
                 mentionsHere,
+                personaId,
             }),
         )
             .pipe(
@@ -541,6 +670,20 @@ export class ChannelComponent implements AfterViewInit {
                 }),
             )
             .subscribe();
+    }
+
+    /** Passing without posting. The scene moves on and the timeline says who passed. */
+    protected passTurn(): void {
+        const scene = this.scene();
+        if (!scene || this.passing()) return;
+        this.passing.set(true);
+        this.scenes.advanceTurn(this.guildId(), scene.channelId).subscribe({
+            next: () => this.passing.set(false),
+            error: err => {
+                this.passing.set(false);
+                this.toastService.httpError(this.translate.instant('SCENE.TOAST.FAILED'), err);
+            },
+        });
     }
 
     /** Tries to get this device readable again, from the banner; {@link MlsJoinRequestService.relink} does the retry and, if needed, asks a member to admit this device. Deliberately never mints a new signing key: that would orphan the device from every group it belongs to. */
@@ -588,8 +731,10 @@ export class ChannelComponent implements AfterViewInit {
             inReplyTo: string | undefined;
             mentions: string[];
             roleMentions: string[];
+            personaMentions: string[];
             mentionsEveryone: boolean;
             mentionsHere: boolean;
+            personaId: string | undefined;
         },
     ): Promise<{confirmed: MessageDto; generation: number | null}> {
         // The generation travels back out with the confirmation: the plaintext cache is keyed on it, since this device is the only trustworthy source for which generation sealed the message.

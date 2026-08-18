@@ -1,0 +1,159 @@
+<div class="relative">
+    <!-- ── The strip: who the next message is from ─────────────────────────── -->
+    <button
+        (click)="toggle()"
+        (keydown)="onTriggerKeydown($event)"
+        [attr.aria-expanded]="open()"
+        [attr.aria-label]="'PERSONA.SWITCHER.ARIA' | translate"
+        [class]="speaker() ? 'bg-white/[0.03]' : 'bg-transparent'"
+        class="flex w-full items-center gap-2 rounded-t-2xl border-0 px-3 py-1.5 text-left transition-colors cursor-pointer hover:bg-white/[0.05] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-brand"
+        type="button"
+    >
+        @if (speaker(); as who) {
+            <app-persona-avatar [avatarUrl]="who.avatarUrl" [color]="who.color" [name]="who.name" size="xs" />
+            <span [style.color]="who.color ?? 'var(--color-text-primary)'" class="truncate text-[0.8125rem] font-semibold">
+                {{ who.name }}
+            </span>
+            @if (who.tag) {
+                <span
+                    [style.background]="who.color ? 'color-mix(in srgb, ' + who.color + ' 18%, transparent)' : 'rgba(255,255,255,0.06)'"
+                    [style.color]="who.color ?? 'var(--color-text-muted)'"
+                    class="shrink-0 rounded px-1 py-[1px] text-[0.5625rem] font-semibold uppercase tracking-wide"
+                >
+                    {{ who.tag }}
+                </span>
+            }
+        } @else {
+            <i class="pi pi-user text-[0.6875rem] text-text-faint"></i>
+            <span class="truncate text-[0.8125rem] text-text-muted">{{ 'PERSONA.SWITCHER.AS_YOURSELF' | translate }}</span>
+        }
+
+        @if (sourceKey(); as key) {
+            <span class="shrink-0 text-[0.6875rem] text-text-faint">
+                {{ key | translate: {tag: matchedTag()} }}
+            </span>
+        }
+
+        <i class="pi pi-angle-up ml-auto shrink-0 text-[0.625rem] text-text-faint"></i>
+    </button>
+
+    <!-- ── The panel ───────────────────────────────────────────────────────── -->
+    @if (open()) {
+        <div
+            #panel
+            (focusout)="onBlur($event)"
+            (keydown)="onPanelKeydown($event)"
+            class="absolute bottom-full left-0 z-30 mb-2 w-[21rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-white/[0.10] bg-card shadow-[0_0_0_1px_rgba(255,255,255,0.06),0_20px_60px_rgba(0,0,0,0.6)]"
+            role="listbox"
+            tabindex="-1"
+        >
+            <div class="border-b border-white/[0.06] px-3 py-2">
+                <input
+                    #search
+                    (ngModelChange)="query.set($event); cursor.set(0)"
+                    [ngModel]="query()"
+                    [placeholder]="'PERSONA.SWITCHER.SEARCH' | translate"
+                    class="w-full border-0 bg-transparent text-sm text-text-primary outline-none placeholder:text-text-faint"
+                />
+            </div>
+
+            <div class="max-h-[17rem] overflow-y-auto thin-scrollbar py-1">
+                @for (row of rows(); track row.entry?.persona?.id ?? 'self'; let i = $index) {
+                    <button
+                        (click)="pick(row)"
+                        [attr.aria-selected]="isCurrent(row)"
+                        [class]="rowClass(row)"
+                        class="flex w-full items-center gap-2.5 border-0 px-3 py-2 text-left transition-colors"
+                        role="option"
+                        type="button"
+                    >
+                        @if (row.identity; as who) {
+                            <app-persona-avatar
+                                [avatarUrl]="who.avatarUrl"
+                                [color]="who.color"
+                                [muted]="!!row.blockedReason"
+                                [name]="who.name"
+                                size="sm"
+                            />
+                            <span class="flex min-w-0 flex-1 flex-col">
+                                <span class="flex items-center gap-1.5">
+                                    <span
+                                        [style.color]="who.color ?? 'var(--color-text-primary)'"
+                                        class="truncate text-[0.8125rem] font-semibold"
+                                    >
+                                        {{ who.name }}
+                                    </span>
+                                    @if (who.tag) {
+                                        <span
+                                            class="shrink-0 rounded bg-white/[0.07] px-1 text-[0.5625rem] font-semibold uppercase tracking-wide text-text-muted"
+                                        >
+                                            {{ who.tag }}
+                                        </span>
+                                    }
+                                </span>
+                                <span class="flex items-center gap-1.5 text-[0.6875rem] text-text-faint">
+                                    @if (row.blockedReason) {
+                                        <span>{{ row.blockedReason | translate }}</span>
+                                    } @else if (row.tags) {
+                                        <code class="rounded bg-white/[0.06] px-1 font-mono">{{ row.tags }}</code>
+                                    } @else if (who.pronouns) {
+                                        <span>{{ who.pronouns }}</span>
+                                    }
+                                </span>
+                            </span>
+                        } @else {
+                            <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/[0.06]">
+                                <i class="pi pi-user text-[0.625rem] text-text-muted"></i>
+                            </span>
+                            <span class="flex min-w-0 flex-1 flex-col">
+                                <span class="text-[0.8125rem] font-semibold text-text-primary">{{
+                                    'PERSONA.SWITCHER.YOURSELF' | translate
+                                }}</span>
+                                <span class="text-[0.6875rem] text-text-faint">{{ 'PERSONA.SWITCHER.YOURSELF_HINT' | translate }}</span>
+                            </span>
+                        }
+
+                        @if (isCurrent(row)) {
+                            <i class="pi pi-check shrink-0 text-[0.625rem] text-brand-dim"></i>
+                        }
+                    </button>
+                } @empty {
+                    <p class="px-3 py-6 text-center text-sm text-text-muted">{{ 'PERSONA.SWITCHER.NO_MATCHES' | translate }}</p>
+                }
+
+                @if (isEmpty()) {
+                    <p class="px-3 py-4 text-center text-[0.6875rem] leading-relaxed text-text-muted">
+                        {{ 'PERSONA.SWITCHER.EMPTY' | translate }}
+                    </p>
+                }
+            </div>
+
+            <!-- ── Autoproxy: how long the choice lasts ────────────────────── -->
+            <div class="border-t border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
+                <p class="mb-1.5 text-[0.5625rem] font-semibold uppercase tracking-widest text-text-muted">
+                    {{ 'PERSONA.AUTOPROXY.TITLE' | translate }}
+                </p>
+                <div class="flex gap-1">
+                    @for (mode of [AutoproxyMode.Off, AutoproxyMode.Pinned, AutoproxyMode.Sticky]; track mode) {
+                        <button
+                            (click)="setMode(mode)"
+                            [class]="
+                                (autoproxy()?.mode ?? AutoproxyMode.Off) === mode
+                                    ? 'bg-brand/20 text-brand-dim'
+                                    : 'text-text-muted hover:bg-white/[0.05]'
+                            "
+                            [disabled]="savingMode()"
+                            class="flex-1 rounded-lg border-0 bg-transparent px-2 py-1 text-[0.6875rem] font-medium transition-colors cursor-pointer disabled:cursor-default"
+                            type="button"
+                        >
+                            {{ modeLabelKey(mode) | translate }}
+                        </button>
+                    }
+                </div>
+                <p class="mt-1.5 text-[0.6875rem] leading-snug text-text-faint">
+                    {{ modeHintKey(autoproxy()?.mode ?? AutoproxyMode.Off) | translate }}
+                </p>
+            </div>
+        </div>
+    }
+</div>

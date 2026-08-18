@@ -4,6 +4,7 @@ import {Dialog} from 'primeng/dialog';
 import {Button} from 'primeng/button';
 import {ProfileSettingsComponent} from './pages/profile-settings/profile-settings.component';
 import {PrivacySettingsComponent} from './pages/privacy-settings/privacy-settings.component';
+import {PersonasSettingsComponent} from './pages/personas-settings/personas-settings.component';
 import {ActivitySettingsComponent} from './pages/activity-settings/activity-settings.component';
 import {OtherSettingsComponent} from './pages/other-settings/other-settings.component';
 import {NotificationSettingsComponent} from './pages/notification-settings/notification-settings.component';
@@ -39,6 +40,7 @@ export const SETTINGS_NAV_GROUPS: readonly SettingsNavGroup[] = [
         titleKey: 'SETTINGS.NAV.MY_ACCOUNT',
         items: [
             {id: 'profile', labelKey: 'SETTINGS.NAV.PROFILE', icon: 'pi pi-user'},
+            {id: 'personas', labelKey: 'SETTINGS.NAV.PERSONAS', icon: 'pi pi-users'},
             {id: 'privacy', labelKey: 'SETTINGS.NAV.PRIVACY', icon: 'pi pi-shield'},
             {id: 'activity', labelKey: 'SETTINGS.NAV.ACTIVITY', icon: 'pi pi-play-circle'},
             {id: 'security', labelKey: 'SETTINGS.NAV.SECURITY', icon: 'pi pi-lock'},
@@ -83,6 +85,7 @@ export function visibleSettingsNavGroups(billingAvailable: boolean): SettingsNav
         Button,
         ProfileSettingsComponent,
         PrivacySettingsComponent,
+        PersonasSettingsComponent,
         ActivitySettingsComponent,
         OtherSettingsComponent,
         NotificationSettingsComponent,

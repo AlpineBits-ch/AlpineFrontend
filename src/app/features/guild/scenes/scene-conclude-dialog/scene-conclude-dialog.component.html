@@ -1,0 +1,54 @@
+<p-dialog
+    (visibleChange)="!$event && closed.emit()"
+    [closable]="true"
+    [draggable]="false"
+    [modal]="true"
+    [resizable]="false"
+    [style]="{width: '28rem'}"
+    [visible]="true"
+    appendTo="body"
+    maskStyleClass="backdrop-blur-sm"
+    styleClass="!bg-card !border !border-white/[0.08] !rounded-2xl"
+>
+    <ng-template pTemplate="header">
+        <span class="text-base font-semibold text-text-primary">{{ 'SCENE.CONCLUDE.TITLE' | translate }}</span>
+    </ng-template>
+
+    <p class="conclude-name">{{ scene().name }}</p>
+
+    @if (tally().length) {
+        <ul class="conclude-tally">
+            @for (entry of tally(); track entry.labelKey) {
+                <li>
+                    <span class="conclude-tally-value">{{ entry.value }}</span>
+                    <span class="conclude-tally-label">{{ entry.labelKey | translate }}</span>
+                </li>
+            }
+        </ul>
+    }
+
+    <label class="mt-5 block">
+        <span class="conclude-label">{{ 'SCENE.CONCLUDE.NOTE' | translate }}</span>
+        <textarea
+            (ngModelChange)="note.set($event)"
+            [ngModel]="note()"
+            [placeholder]="'SCENE.CONCLUDE.NOTE_PLACEHOLDER' | translate"
+            class="conclude-note"
+            maxlength="600"
+            rows="4"
+        ></textarea>
+    </label>
+
+    <p class="conclude-hint">{{ 'SCENE.CONCLUDE.HINT' | translate }}</p>
+
+    <ng-template pTemplate="footer">
+        <div class="flex w-full items-center justify-end gap-2">
+            <button (click)="closed.emit()" class="conclude-secondary" type="button">
+                {{ 'PERSONA.CANCEL' | translate }}
+            </button>
+            <button (click)="conclude()" [disabled]="saving()" class="conclude-primary" type="button">
+                {{ 'SCENE.CONCLUDE.CONFIRM' | translate }}
+            </button>
+        </div>
+    </ng-template>
+</p-dialog>

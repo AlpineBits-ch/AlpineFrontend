@@ -1,0 +1,177 @@
+.scene-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-width: 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    background: linear-gradient(to bottom, rgba(255, 255, 255, 0.022), transparent);
+}
+
+/* ── The in-character / out-of-character pair ───────────────────────────────
+   One control, because they are one place. Every roleplay server builds this
+   out of two channels and a naming convention. */
+.scene-pair {
+    display: inline-flex;
+    padding: 0.125rem;
+    border-radius: 0.625rem;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.scene-pair-tab {
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    border-radius: 0.5rem;
+    padding: 0.1875rem 0.625rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    white-space: nowrap;
+    transition:
+        background-color var(--duration-base) var(--ease-brand),
+        color var(--duration-base) var(--ease-brand);
+}
+
+.scene-pair-tab:hover {
+    color: var(--color-text-secondary);
+}
+
+.scene-pair-tab.is-on {
+    background: rgba(255, 255, 255, 0.09);
+    color: var(--color-text-primary);
+}
+
+.scene-status-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    border-radius: 9999px;
+    padding: 0.1875rem 0.5rem;
+    font-size: 0.625rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.scene-icon-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    border: 0;
+    border-radius: 0.5rem;
+    background: transparent;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    transition:
+        background-color var(--duration-base) var(--ease-brand),
+        color var(--duration-base) var(--ease-brand);
+}
+
+.scene-icon-button:hover {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--color-text-secondary);
+}
+
+.scene-menu {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 0.375rem);
+    z-index: 30;
+    min-width: 12rem;
+    padding: 0.25rem;
+    border-radius: 0.875rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--color-card);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+}
+
+.scene-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    border: 0;
+    background: transparent;
+    border-radius: 0.625rem;
+    padding: 0.4375rem 0.625rem;
+    font-size: 0.8125rem;
+    color: var(--color-text-secondary);
+    text-align: left;
+    cursor: pointer;
+    transition: background-color var(--duration-fast) var(--ease-brand);
+}
+
+.scene-menu-item i {
+    font-size: 0.6875rem;
+    color: var(--color-text-muted);
+}
+
+.scene-menu-item:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--color-text-primary);
+}
+
+.scene-menu-item:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+/* ── Stalled ────────────────────────────────────────────────────────────── */
+.scene-stalled {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.625rem;
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    background: color-mix(in srgb, var(--color-connecting) 7%, transparent);
+}
+
+.scene-stalled-icon {
+    font-size: 0.6875rem;
+    color: var(--color-connecting);
+    flex-shrink: 0;
+}
+
+.scene-stalled-text {
+    margin: 0;
+    flex: 1;
+    min-width: 12rem;
+    font-size: 0.75rem;
+    line-height: 1.4;
+    color: var(--color-text-secondary);
+}
+
+.scene-stalled-action {
+    flex-shrink: 0;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 0.5rem;
+    padding: 0.25rem 0.625rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition:
+        background-color var(--duration-base) var(--ease-brand),
+        color var(--duration-base) var(--ease-brand);
+}
+
+.scene-stalled-action:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.09);
+    color: var(--color-text-primary);
+}
+
+.scene-stalled-action:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+@media (max-width: 640px) {
+    .scene-pair-tab {
+        padding: 0.1875rem 0.5rem;
+        font-size: 0.625rem;
+    }
+}

@@ -306,6 +306,18 @@ export const EntitlementStore = signalStore(
                     if (guild === null) return own;
                     return own === null ? guild : Math.min(own, guild);
                 },
+
+                /**
+                 * How long a message may be in this guild, in characters, or null when the guild's
+                 * plan has not been read yet. Null means "not known", never "unlimited": the
+                 * composer counts nothing in that state rather than inventing a ceiling to enforce.
+                 */
+                messageMaxLength(guildId: string | null): number | null {
+                    if (!guildId) return null;
+                    return numericCeiling(
+                        valueOf({kind: 'guild', id: guildId}, ENTITLEMENT_KEYS.messageMaxLength),
+                    );
+                },
             };
         },
     ),

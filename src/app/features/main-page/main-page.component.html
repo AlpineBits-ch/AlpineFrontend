@@ -101,6 +101,15 @@
                 @case ('house') {
                     <app-house-home [guildId]="view.guildId" />
                 }
+                @case ('personas') {
+                    <app-persona-directory [guildId]="view.guildId" />
+                }
+                @case ('character') {
+                    <app-character-page [guildId]="view.guildId" [personaId]="view.personaId" />
+                }
+                @case ('scenes') {
+                    <app-scene-board [guildId]="view.guildId" />
+                }
             }
         </div>
 

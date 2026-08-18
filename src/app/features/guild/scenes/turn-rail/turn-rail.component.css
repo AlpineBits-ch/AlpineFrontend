@@ -1,0 +1,151 @@
+.turn-rail {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    min-width: 0;
+    padding: 0.625rem 1rem;
+}
+
+/* Paused, open or concluded: still legible, no longer the loudest thing in the room. */
+.turn-rail.is-resting {
+    opacity: 0.66;
+}
+
+/* ── The ledger number ──────────────────────────────────────────────────────
+   Tabular figures, because turn 9 and turn 47 sit in the same column as the
+   scene runs on. */
+.rail-ledger {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.0625rem;
+    padding-right: 1rem;
+    border-right: 1px solid rgba(255, 255, 255, 0.07);
+    flex-shrink: 0;
+}
+
+.rail-ledger-label {
+    font-size: 0.5rem;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--color-text-faint);
+}
+
+.rail-ledger-value {
+    font-family: 'Fira Code Variable', 'Fira Code', monospace;
+    font-variant-numeric: tabular-nums;
+    font-size: 1rem;
+    font-weight: 500;
+    line-height: 1;
+    color: var(--color-text-secondary);
+}
+
+.rail-name {
+    font-size: 0.9375rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* The one loud mark in the feature. Amber means "this is waiting on you" and
+   nothing else, here or on the composer. */
+.rail-your-move {
+    flex-shrink: 0;
+    border-radius: 9999px;
+    background: color-mix(in srgb, var(--color-connecting) 16%, transparent);
+    color: var(--color-connecting);
+    padding: 0.0625rem 0.4375rem;
+    font-size: 0.5625rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.rail-clock {
+    display: flex;
+    align-items: center;
+    gap: 0.3125rem;
+    font-size: 0.6875rem;
+    line-height: 1.2;
+    color: var(--color-text-muted);
+    white-space: nowrap;
+}
+
+.rail-clock-icon {
+    font-size: 0.5625rem;
+}
+
+/* Overdue is a fact, not a failure: it changes colour and says how long, and
+   nothing pulses. */
+.rail-clock-late {
+    color: var(--color-connecting);
+}
+
+/* ── The queue ──────────────────────────────────────────────────────────── */
+.rail-queue {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    min-width: 0;
+    overflow-x: auto;
+    padding: 0.25rem 0;
+}
+
+/* A hairline running under the upcoming faces, so the queue reads as a line
+   rather than a group. */
+.rail-thread {
+    flex-shrink: 0;
+    width: 1.25rem;
+    height: 1px;
+    background: linear-gradient(to right, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.06));
+}
+
+.rail-upcoming {
+    position: relative;
+    display: inline-flex;
+    flex-shrink: 0;
+}
+
+/* A badge, not a speck: an away character is skipped, and a reader has to be able to see why
+   the queue is about to jump over them. */
+.rail-away-mark {
+    position: absolute;
+    right: -0.1875rem;
+    bottom: -0.1875rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 0.875rem;
+    height: 0.875rem;
+    font-size: 0.5rem;
+    line-height: 1;
+    border-radius: 9999px;
+    border: 1.5px solid var(--color-app-bg);
+    background: var(--color-hover);
+    color: var(--color-text-secondary);
+}
+
+.rail-overflow {
+    flex-shrink: 0;
+    font-family: 'Fira Code Variable', 'Fira Code', monospace;
+    font-variant-numeric: tabular-nums;
+    font-size: 0.625rem;
+    color: var(--color-text-faint);
+    padding-left: 0.125rem;
+}
+
+@media (max-width: 640px) {
+    .turn-rail {
+        gap: 0.75rem;
+        padding: 0.5rem 0.75rem;
+    }
+
+    .rail-ledger {
+        display: none;
+    }
+}

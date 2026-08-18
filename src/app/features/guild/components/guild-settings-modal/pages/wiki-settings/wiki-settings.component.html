@@ -1,0 +1,355 @@
+@if (isHousehold()) {
+    <div class="max-w-lg rounded-xl border border-white/[0.08] bg-card/60 px-4 py-6 text-center">
+        <i class="pi pi-home mb-2 block text-lg text-text-faint"></i>
+        <p class="text-sm text-text-secondary">{{ 'WIKI_PUBLISH.HOUSEHOLD_TITLE' | translate }}</p>
+        <p class="mt-1 text-xs leading-relaxed text-text-muted">{{ 'WIKI_PUBLISH.HOUSEHOLD_BODY' | translate }}</p>
+    </div>
+} @else if (!canPublish()) {
+    <div class="max-w-lg rounded-xl border border-white/[0.08] bg-card/60 px-4 py-6 text-center">
+        <i class="pi pi-lock mb-2 block text-lg text-text-faint"></i>
+        <p class="text-sm text-text-secondary">{{ 'WIKI_PUBLISH.NO_PERMISSION' | translate }}</p>
+    </div>
+} @else {
+    <div class="max-w-lg space-y-6">
+        <!-- ── What publishing means. Said once, at the top, and not repeated per page. ──── -->
+        <div>
+            <p class="text-xs font-semibold uppercase tracking-widest text-text-muted mb-2">
+                {{ 'WIKI_PUBLISH.SECTION_ADDRESS' | translate }}
+            </p>
+            <p class="text-xs leading-relaxed text-text-secondary">{{ 'WIKI_PUBLISH.INTRO' | translate }}</p>
+        </div>
+
+        <!-- ── The address ───────────────────────────────────────────────────────────── -->
+        <div>
+            <label class="mb-2 block text-xs font-semibold uppercase tracking-widest text-text-muted" for="wiki-slug">
+                {{ 'WIKI_PUBLISH.SLUG_LABEL' | translate }}
+            </label>
+
+            <div class="flex items-stretch">
+                <input
+                    (ngModelChange)="onSlugInput($event)"
+                    [attr.aria-describedby]="'wiki-slug-help'"
+                    [attr.aria-invalid]="!!grammarError() || !!takenSlug()"
+                    [maxlength]="slugMaxLength"
+                    [ngModel]="slug()"
+                    [placeholder]="'WIKI_PUBLISH.SLUG_PLACEHOLDER' | translate"
+                    autocapitalize="off"
+                    autocomplete="off"
+                    class="min-w-0 flex-1 !rounded-r-none"
+                    id="wiki-slug"
+                    pInputText
+                    spellcheck="false"
+                />
+                <!-- The suffix is chrome, not an input: the part somebody types is the label only. -->
+                <span
+                    class="flex shrink-0 items-center rounded-r-md border border-l-0 border-white/[0.12] bg-white/[0.03] px-3 text-sm text-text-muted"
+                >
+                    .{{ host() }}
+                </span>
+            </div>
+
+            <!-- ── The address, in full, as it is typed ──────────────────────────────── -->
+            <div class="mt-2 min-h-[1.25rem]" id="wiki-slug-help">
+                @if (takenSlug(); as taken) {
+                    <!-- Amber, and worded as a fact rather than a fault: for a guild with a common
+                         name this is the first thing that happens, every time. -->
+                    <p class="m-0 flex items-start gap-1.5 text-[0.75rem] text-connecting">
+                        <i class="pi pi-info-circle mt-[0.15rem] shrink-0 text-[0.6875rem]"></i>
+                        <span>{{ 'WIKI_PUBLISH.SLUG.TAKEN' | translate: {host: taken + '.' + host()} }}</span>
+                    </p>
+                } @else if (grammarError(); as error) {
+                    <p class="m-0 text-[0.75rem] text-rose-400">{{ error | translate }}</p>
+                } @else if (previewHost(); as preview) {
+                    <p class="m-0 font-mono text-[0.8125rem] text-text-primary">
+                        <span class="text-text-faint">https://</span>{{ preview }}
+                    </p>
+                } @else {
+                    <p class="m-0 text-[0.75rem] text-text-muted">{{ 'WIKI_PUBLISH.SLUG.HINT' | translate }}</p>
+                }
+            </div>
+
+            <!-- Derived here, never asked for: there is no availability endpoint, so these are
+                 guesses to try rather than names known to be free. -->
+            @if (suggestions().length) {
+                <div class="mt-2 flex flex-wrap items-center gap-1.5">
+                    <span class="text-[0.75rem] text-text-muted">{{ 'WIKI_PUBLISH.SLUG.TRY' | translate }}</span>
+                    @for (suggestion of suggestions(); track suggestion) {
+                        <button
+                            (click)="useSuggestion(suggestion)"
+                            class="cursor-pointer rounded-md border border-white/[0.10] bg-transparent px-2 py-0.5 font-mono text-[0.75rem] text-text-secondary transition-colors hover:border-white/25 hover:text-text-primary"
+                            type="button"
+                        >
+                            {{ suggestion }}
+                        </button>
+                    }
+                </div>
+            }
+
+            <p class="mt-2 text-[0.6875rem] leading-relaxed text-text-muted">
+                {{ 'WIKI_PUBLISH.SLUG.RULES' | translate }}
+            </p>
+
+            <div class="mt-3 flex flex-wrap items-center gap-2">
+                <p-button
+                    (onClick)="save()"
+                    [disabled]="!canSave()"
+                    [label]="(isLive() ? 'WIKI_PUBLISH.SAVE_ADDRESS' : 'WIKI_PUBLISH.PUBLISH') | translate"
+                    [loading]="saving()"
+                    severity="primary"
+                    size="small"
+                />
+                @if (isLive()) {
+                    <p-button
+                        (onClick)="copyLive()"
+                        [label]="'WIKI_PUBLISH.COPY' | translate"
+                        [text]="true"
+                        icon="pi pi-copy"
+                        severity="secondary"
+                        size="small"
+                    />
+                    <p-button
+                        (onClick)="openLive()"
+                        [label]="'WIKI_PUBLISH.VISIT' | translate"
+                        [text]="true"
+                        icon="pi pi-external-link"
+                        severity="secondary"
+                        size="small"
+                    />
+                }
+            </div>
+        </div>
+
+        <div class="border-t border-white/[0.10]"></div>
+
+        <!-- ── The two levels, drawn as two, because neither alone makes a page public ─── -->
+        <div class="space-y-2">
+            <p class="text-xs font-semibold uppercase tracking-widest text-text-muted">
+                {{ 'WIKI_PUBLISH.SECTION_STEPS' | translate }}
+            </p>
+
+            <div class="flex items-start gap-3 rounded-xl border border-white/[0.06] bg-card/60 px-4 py-3">
+                <i [class]="isLive() ? 'pi-check-circle text-online' : 'pi-circle text-text-faint'" class="pi mt-0.5 shrink-0 text-sm"></i>
+                <div class="min-w-0 flex-1">
+                    <p class="m-0 text-[0.8125rem] text-text-primary">{{ 'WIKI_PUBLISH.STEP_ONE' | translate }}</p>
+                    <p class="m-0 mt-0.5 text-xs text-text-muted">
+                        @if (liveUrl(); as url) {
+                            <span class="font-mono">{{ url }}</span>
+                        } @else {
+                            {{ 'WIKI_PUBLISH.STEP_ONE_TODO' | translate }}
+                        }
+                    </p>
+                </div>
+            </div>
+
+            <div class="flex items-start gap-3 rounded-xl border border-white/[0.06] bg-card/60 px-4 py-3">
+                <i
+                    [class]="publishedPages().length ? 'pi-check-circle text-online' : 'pi-circle text-text-faint'"
+                    class="pi mt-0.5 shrink-0 text-sm"
+                ></i>
+                <div class="min-w-0 flex-1">
+                    <p class="m-0 text-[0.8125rem] text-text-primary">{{ 'WIKI_PUBLISH.STEP_TWO' | translate }}</p>
+                    <p class="m-0 mt-0.5 text-xs text-text-muted">
+                        {{ 'WIKI_PUBLISH.STEP_TWO_COUNT' | translate: {count: publishedPages().length, total: pages().length} }}
+                    </p>
+                </div>
+            </div>
+
+            <p
+                [class]="isLive() && publishedPages().length ? 'text-online' : 'text-text-secondary'"
+                class="px-1 text-[0.75rem] leading-relaxed"
+            >
+                {{ statusKey() | translate: {count: publishedPages().length} }}
+            </p>
+        </div>
+
+        <div class="border-t border-white/[0.10]"></div>
+
+        <!-- ── Which pages ───────────────────────────────────────────────────────────── -->
+        <div>
+            <div class="mb-2 flex items-center justify-between gap-3">
+                <p class="text-xs font-semibold uppercase tracking-widest text-text-muted">
+                    {{ 'WIKI_PUBLISH.SECTION_PAGES' | translate }}
+                </p>
+                @if (pages().length > 8) {
+                    <input
+                        (ngModelChange)="pageQuery.set($event)"
+                        [ngModel]="pageQuery()"
+                        [placeholder]="'WIKI_PUBLISH.PAGE_SEARCH' | translate"
+                        class="w-40 !py-1 !text-xs"
+                        pInputText
+                    />
+                }
+            </div>
+
+            <!-- The trap, named: a page can be switched on while the wiki has no address, and it
+                 will sit there doing nothing until one is set. -->
+            @if (!isLive() && publishedPages().length) {
+                <p
+                    class="mb-2 rounded-lg border border-connecting/20 bg-connecting/[0.08] px-3 py-2 text-[0.75rem] leading-relaxed text-text-secondary"
+                >
+                    {{ waitingKey() | translate: {count: publishedPages().length} }}
+                </p>
+            }
+
+            @if (pagesLoading() && !pages().length) {
+                <div class="space-y-2">
+                    @for (i of [1, 2, 3]; track i) {
+                        <div class="h-11 animate-pulse rounded-xl bg-white/[0.03]"></div>
+                    }
+                </div>
+            } @else {
+                <div class="space-y-1.5">
+                    @for (page of visiblePages(); track page.id) {
+                        <div class="rounded-xl border border-white/[0.06] bg-card/60 px-3 py-2.5">
+                            <div class="flex items-center gap-3">
+                                <div class="min-w-0 flex-1">
+                                    <p class="m-0 flex items-center gap-1.5 truncate text-[0.8125rem] text-text-primary">
+                                        @if (page.icon) {
+                                            <span class="shrink-0">{{ page.icon }}</span>
+                                        }
+                                        {{ page.title }}
+                                        @if (page.visibility === 'private') {
+                                            <!-- Named here because it is the reason the switch will refuse. -->
+                                            <span
+                                                class="shrink-0 rounded border border-white/[0.10] px-1 py-px text-[0.625rem] text-text-muted"
+                                            >
+                                                {{ 'WIKI.VISIBILITY.AUTHOR_ONLY' | translate }}
+                                            </span>
+                                        }
+                                    </p>
+                                    @if (isPagePublished(page)) {
+                                        @if (pageUrl(page); as url) {
+                                            <p class="m-0 truncate font-mono text-[0.6875rem] text-text-muted">{{ url }}</p>
+                                        } @else {
+                                            <p class="m-0 text-[0.6875rem] text-connecting">
+                                                {{ 'WIKI_PUBLISH.PAGE_WAITING' | translate }}
+                                            </p>
+                                        }
+                                    }
+                                </div>
+                                <p-toggleswitch
+                                    (ngModelChange)="setPagePublished(page, $event)"
+                                    [ariaLabel]="'WIKI_PUBLISH.PAGE_TOGGLE_ARIA' | translate: {title: page.title}"
+                                    [disabled]="busyPageId() === page.id"
+                                    [ngModel]="switchOn(page)"
+                                />
+                            </div>
+
+                            @if (halfDonePageId() === page.id) {
+                                <p class="m-0 mt-2 text-[0.75rem] leading-relaxed text-text-secondary">
+                                    {{ 'WIKI_PUBLISH.HALF_DONE' | translate }}
+                                </p>
+                            }
+
+                            <!-- The refusal, on the row it belongs to rather than in a toast. -->
+                            @if (refusedPageId() === page.id) {
+                                <div class="mt-2 rounded-lg border border-connecting/25 bg-connecting/[0.07] px-2.5 py-2">
+                                    @if (refusal() === 'private') {
+                                        <p class="m-0 text-[0.75rem] leading-relaxed text-text-secondary">
+                                            {{ 'WIKI_PUBLISH.REFUSED.PRIVATE' | translate }}
+                                        </p>
+                                        @if (canOpenToGuild(page)) {
+                                            <p-button
+                                                (onClick)="openConsent(page)"
+                                                [label]="'WIKI_PUBLISH.REFUSED.PRIVATE_FIX' | translate"
+                                                [outlined]="true"
+                                                severity="secondary"
+                                                size="small"
+                                                styleClass="mt-2"
+                                            />
+                                        } @else {
+                                            <p class="m-0 mt-1 text-[0.75rem] leading-relaxed text-text-muted">
+                                                {{ 'WIKI_PUBLISH.REFUSED.PRIVATE_NO_RIGHTS' | translate }}
+                                            </p>
+                                        }
+                                    } @else {
+                                        <p class="m-0 text-[0.75rem] leading-relaxed text-text-secondary">
+                                            @if (coverHostOf(page); as host) {
+                                                {{ 'WIKI_PUBLISH.REFUSED.COVER' | translate: {host: host} }}
+                                            } @else {
+                                                {{ 'WIKI_PUBLISH.REFUSED.COVER_UNKNOWN_HOST' | translate }}
+                                            }
+                                        </p>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    } @empty {
+                        <p class="py-6 text-center text-sm text-text-muted">
+                            {{ (pageQuery() ? 'WIKI_PUBLISH.NO_MATCHES' : 'WIKI_PUBLISH.NO_PAGES') | translate }}
+                        </p>
+                    }
+                </div>
+            }
+        </div>
+
+        <!-- ── Taking it down. As easy as putting it up, and it reads like the lever it is. ─ -->
+        @if (isLive()) {
+            <div class="border-t border-white/[0.08] pt-5">
+                <p class="mb-1 text-xs font-semibold uppercase tracking-widest text-text-muted">
+                    {{ 'WIKI_PUBLISH.SECTION_OFFLINE' | translate }}
+                </p>
+                <p class="mb-3 max-w-sm text-[0.6875rem] leading-relaxed text-text-secondary">
+                    {{ 'WIKI_PUBLISH.OFFLINE_DESC' | translate }}
+                </p>
+                <p-button
+                    (onClick)="confirmOffline.set(true)"
+                    [label]="'WIKI_PUBLISH.TAKE_OFFLINE' | translate"
+                    [outlined]="true"
+                    icon="pi pi-eye-slash"
+                    severity="danger"
+                    size="small"
+                />
+            </div>
+        }
+    </div>
+
+    @if (consentPage(); as page) {
+        <app-wiki-publish-consent
+            (confirmed)="confirmPublish()"
+            (dismissed)="closeConsent()"
+            [failedStep]="consentFailedStep()"
+            [title]="page.title"
+            [url]="pageUrl(page)"
+            [working]="consentWorking()"
+        />
+    }
+
+    <p-dialog
+        (visibleChange)="!$event && confirmOffline.set(false)"
+        [closable]="true"
+        [draggable]="false"
+        [modal]="true"
+        [resizable]="false"
+        [style]="{width: '26rem'}"
+        [visible]="confirmOffline()"
+        appendTo="body"
+        maskStyleClass="backdrop-blur-sm"
+        styleClass="!bg-card !border !border-white/[0.08] !rounded-2xl"
+    >
+        <ng-template pTemplate="header">
+            <span class="text-base font-semibold text-text-primary">{{ 'WIKI_PUBLISH.OFFLINE_TITLE' | translate }}</span>
+        </ng-template>
+
+        <p class="py-1 text-sm leading-relaxed text-text-secondary">
+            {{ offlineBodyKey() | translate: {count: publishedPages().length} }}
+        </p>
+
+        <div class="mt-4 flex justify-end gap-2 border-t border-white/[0.10] pt-4">
+            <p-button
+                (onClick)="confirmOffline.set(false)"
+                [label]="'COMMON.CANCEL' | translate"
+                [text]="true"
+                severity="secondary"
+                size="small"
+            />
+            <p-button
+                (onClick)="takeOffline()"
+                [label]="'WIKI_PUBLISH.TAKE_OFFLINE' | translate"
+                [loading]="takingOffline()"
+                severity="danger"
+                size="small"
+            />
+        </div>
+    </p-dialog>
+}

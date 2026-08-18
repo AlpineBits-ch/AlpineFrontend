@@ -11,6 +11,8 @@ export interface WikiAbilities {
     canDelete: boolean;
     canManageStructure: boolean;
     canManageRevisions: boolean;
+    /** May put the wiki on the public host, and may opt individual pages into it. */
+    canPublish: boolean;
 }
 
 /** Reads the module mask; `canModule` already folds in ownership, Superadmin, and the clamp for a guild with the wiki module switched off. */
@@ -22,6 +24,7 @@ export function wikiAbilities(abilities: GuildAbilities): WikiAbilities {
         canDelete: abilities.canModule(ModulePermissions.DeleteWikiPages),
         canManageStructure: abilities.canModule(ModulePermissions.ManageWikiStructure),
         canManageRevisions: abilities.canModule(ModulePermissions.ManageWikiRevisions),
+        canPublish: abilities.canModule(ModulePermissions.PublishWikiPublicly),
     };
 }
 

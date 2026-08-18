@@ -15,6 +15,12 @@ export const GuildFeature = {
     Bots: 'Bots',
     Wiki: 'Wiki',
     Events: 'Events',
+    /** Characters people speak as. Needs Wiki too; the Roleplay preset switches on both. */
+    Personas: 'Personas',
+    /** Threads with turn order. Needs Threads and Presence, which the Roleplay preset includes. */
+    Scenes: 'Scenes',
+    /** Server-rolled dice. */
+    Dice: 'Dice',
 
     // Household modules: the first five each gate a channel type too - without the module every call behind it 403s, even for the owner.
     Lists: 'Lists',
@@ -47,6 +53,9 @@ export const COMMUNITY_MODULES: readonly GuildFeature[] = [
     GuildFeature.Bots,
     GuildFeature.Wiki,
     GuildFeature.Events,
+    GuildFeature.Personas,
+    GuildFeature.Scenes,
+    GuildFeature.Dice,
 ];
 
 export const HOUSEHOLD_MODULES: readonly GuildFeature[] = [
@@ -197,6 +206,9 @@ export const GUILD_FEATURE_LABEL_KEY: Readonly<Record<string, string>> = {
     [GuildFeature.Bots]: 'GUILD_MODULE.BOTS',
     [GuildFeature.Wiki]: 'GUILD_MODULE.WIKI',
     [GuildFeature.Events]: 'GUILD_MODULE.EVENTS',
+    [GuildFeature.Personas]: 'GUILD_MODULE.PERSONAS',
+    [GuildFeature.Scenes]: 'GUILD_MODULE.SCENES',
+    [GuildFeature.Dice]: 'GUILD_MODULE.DICE',
     [GuildFeature.Lists]: 'GUILD_MODULE.LISTS',
     [GuildFeature.Chores]: 'GUILD_MODULE.CHORES',
     [GuildFeature.Ledger]: 'GUILD_MODULE.LEDGER',

@@ -1,0 +1,116 @@
+.conclude-name {
+    margin: 0;
+    font-family: 'Lora Variable', Georgia, 'Times New Roman', serif;
+    font-size: 1.375rem;
+    line-height: 1.25;
+    color: var(--color-text-primary);
+}
+
+/* Tabular figures so the numbers line up as a row of facts rather than a sentence. */
+.conclude-tally {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.25rem;
+    margin: 1rem 0 0;
+    padding: 0.875rem 0 0;
+    list-style: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.conclude-tally li {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+}
+
+.conclude-tally-value {
+    font-family: 'Fira Code Variable', 'Fira Code', monospace;
+    font-variant-numeric: tabular-nums;
+    font-size: 1.125rem;
+    line-height: 1;
+    color: var(--color-text-primary);
+}
+
+.conclude-tally-label {
+    font-size: 0.5625rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-text-faint);
+}
+
+.conclude-label {
+    display: block;
+    font-size: 0.5625rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+}
+
+/* The closing line is prose someone writes, so it is typed in the prose face. */
+.conclude-note {
+    width: 100%;
+    margin-top: 0.5rem;
+    resize: none;
+    border-radius: 0.875rem;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.03);
+    padding: 0.625rem 0.75rem;
+    font-family: 'Lora Variable', Georgia, 'Times New Roman', serif;
+    font-size: 0.9375rem;
+    line-height: 1.6;
+    color: var(--color-text-primary);
+    outline: none;
+    transition: border-color var(--duration-base) var(--ease-brand);
+}
+
+.conclude-note::placeholder {
+    color: var(--color-text-faint);
+}
+
+.conclude-note:focus {
+    border-color: rgba(255, 255, 255, 0.18);
+}
+
+.conclude-hint {
+    margin: 0.75rem 0 0;
+    font-size: 0.6875rem;
+    line-height: 1.5;
+    color: var(--color-text-faint);
+}
+
+.conclude-primary,
+.conclude-secondary {
+    border-radius: 0.625rem;
+    padding: 0.375rem 0.875rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color var(--duration-base) var(--ease-brand);
+}
+
+.conclude-primary {
+    border: 0;
+    background: var(--color-brand);
+    color: #fff;
+}
+
+.conclude-primary:hover:not(:disabled) {
+    background: var(--color-brand-hover);
+}
+
+.conclude-primary:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
+.conclude-secondary {
+    border: 0;
+    background: transparent;
+    color: var(--color-text-muted);
+}
+
+.conclude-secondary:hover {
+    color: var(--color-text-primary);
+}

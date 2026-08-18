@@ -17,6 +17,7 @@ import {
 import {activeHeadingIndex, buildToc, Heading, headingElementsIn, TocEntry} from '../wiki-toc';
 import {pageStats} from './wiki-page-stats';
 import {WikiRailSectionComponent} from './wiki-rail-section.component';
+import {WikiPagePublicationComponent} from './wiki-page-publication.component';
 import {WikiPagePropertiesComponent} from './wiki-page-properties.component';
 
 /** The rendered document, which ProseMirror owns and this component only reads. */
@@ -41,7 +42,13 @@ interface MentionRow {
  */
 @Component({
     selector: 'app-wiki-context-rail',
-    imports: [AppAvatarComponent, TranslateModule, WikiRailSectionComponent, WikiPagePropertiesComponent],
+    imports: [
+        AppAvatarComponent,
+        TranslateModule,
+        WikiRailSectionComponent,
+        WikiPagePropertiesComponent,
+        WikiPagePublicationComponent,
+    ],
     templateUrl: './wiki-context-rail.component.html',
     host: {class: 'flex flex-col h-full min-h-0'},
 })

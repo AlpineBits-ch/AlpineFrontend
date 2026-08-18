@@ -33,6 +33,10 @@ import * as Sentry from '@sentry/angular';
 import {ApiConfigService} from './services/api-config.service';
 import {authConfig} from './auth.config';
 import {activeSlotId, migrateLegacyOAuthKeys, ScopedOAuthStorage} from './services/scoped-oauth-storage';
+import {HttpPersonaApi, PersonaApi} from './services/persona-api.service';
+import {HttpRoleplayApi, RoleplayApi} from './services/roleplay-api.service';
+import {DraftApi, HttpDraftApi} from './services/draft-api.service';
+import {HttpWikiPublicationApi, WikiPublicationApi} from './services/wiki-publication-api.service';
 
 export function authConfigFactory(): AuthConfig {
     const apiService = inject(ApiConfigService);
@@ -107,6 +111,10 @@ export const appConfig: ApplicationConfig = {
             },
         }),
         MessageService,
+        {provide: PersonaApi, useClass: HttpPersonaApi},
+        {provide: RoleplayApi, useClass: HttpRoleplayApi},
+        {provide: DraftApi, useClass: HttpDraftApi},
+        {provide: WikiPublicationApi, useClass: HttpWikiPublicationApi},
         provideAnimations(),
         provideAppInitializer(() => {
             inject(ThemeService);

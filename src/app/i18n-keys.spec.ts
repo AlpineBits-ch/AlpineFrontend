@@ -4,6 +4,8 @@ import {describe, expect, it} from 'vitest';
 import en from '../assets/i18n/locales/en.json';
 import {ENTITLEMENT_KEY_NAME_KEYS, ENTITLEMENT_TRANSLATION_KEYS} from './core/entitlement-message';
 import {VOICE_LIMIT_TRANSLATION_KEYS} from './core/voice-limits';
+import {WIKI_PUBLISH_STATUS_KEYS} from './features/guild/components/guild-settings-modal/pages/wiki-settings/wiki-settings.component';
+import {WIKI_PUBLISH_CONSENT_KEYS} from './features/guild/components/wiki/wiki-publish/wiki-publish-consent.component';
 
 /** Every `'SOME.KEY' | translate` in the app resolves to a string in en.json. en.json only: the others are partial. */
 
@@ -70,6 +72,24 @@ describe('translation keys', () => {
 
         expect(ENTITLEMENT_TRANSLATION_KEYS.length).toBeGreaterThan(10);
         expect(missing, `keys held in a table but absent from en.json:\n${missing.join('\n')}`).toEqual([]);
+    });
+
+    /** The same, for the wiki publishing sentences, which are chosen by count. */
+    it('resolves every wiki publishing status key', () => {
+        const strings = en as Record<string, string>;
+        const missing = WIKI_PUBLISH_STATUS_KEYS.filter(key => !(key in strings));
+
+        expect(WIKI_PUBLISH_STATUS_KEYS.length).toBeGreaterThan(5);
+        expect(missing, `wiki publishing keys absent from en.json:\n${missing.join('\n')}`).toEqual([]);
+    });
+
+    /** The same, for the publish dialog's buttons, which are chosen by which step refused. */
+    it('resolves every wiki publish consent key', () => {
+        const strings = en as Record<string, string>;
+        const missing = WIKI_PUBLISH_CONSENT_KEYS.filter(key => !(key in strings));
+
+        expect(WIKI_PUBLISH_CONSENT_KEYS.length).toBeGreaterThan(3);
+        expect(missing, `wiki publish consent keys absent from en.json:\n${missing.join('\n')}`).toEqual([]);
     });
 
     /** The same, for what a voice room says about its own limits. */

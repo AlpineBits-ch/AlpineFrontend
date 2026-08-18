@@ -1,0 +1,39 @@
+<div [class.is-single]="roll().isSingleDie" [class.is-settling]="settling()" class="roll-plate">
+    <div class="roll-body">
+        @if (roll().reason; as reason) {
+            <p class="roll-reason">{{ reason }}</p>
+        }
+
+        <div class="roll-dice">
+            @for (term of pools(); track $index) {
+                @if ($index > 0 || term.sign === -1) {
+                    <span class="roll-operator">{{ term.sign === -1 ? '-' : '+' }}</span>
+                }
+                <span class="roll-pool">
+                    @for (face of term.faces; track $index) {
+                        <span [style.animation-delay]="delay($index)" class="roll-die">
+                            <app-dice-face [face]="face" [sides]="term.sides" [size]="roll().isSingleDie ? 'lg' : 'sm'" />
+                        </span>
+                    }
+                </span>
+            }
+
+            @for (term of constants(); track $index) {
+                <span class="roll-operator">{{ term.sign === -1 ? '-' : '+' }}</span>
+                <span class="roll-constant">{{ term.constant }}</span>
+            }
+        </div>
+
+        <p class="roll-expression">
+            <span>{{ roll().expression }}</span>
+            <span class="roll-provenance">{{ 'DICE.CARD.SERVER_ROLLED' | translate }}</span>
+        </p>
+    </div>
+
+    @if (!roll().isSingleDie) {
+        <div class="roll-total">
+            <span class="roll-total-value">{{ total() }}</span>
+            <span class="roll-total-label">{{ 'DICE.CARD.TOTAL' | translate }}</span>
+        </div>
+    }
+</div>

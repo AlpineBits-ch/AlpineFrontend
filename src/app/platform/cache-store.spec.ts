@@ -80,6 +80,18 @@ describe('CacheStore', () => {
         expect((await store.all('message')).map(([k]) => k)).toEqual(['c1']);
     });
 
+    it('keeps the conversation domain apart from the other two, and wipes it with them', async () => {
+        await store.set('profile', 'u1', {userName: 'ada'});
+        await store.set('conversation', 'list', [{id: 'c1'}]);
+
+        expect((await store.all('conversation')).map(([k]) => k)).toEqual(['list']);
+        expect((await store.all('profile')).map(([k]) => k)).toEqual(['u1']);
+
+        // The DM list names everyone the user talks to, so a sign-out must take it too.
+        await store.clear();
+        expect(await store.get('conversation', 'list')).toBeUndefined();
+    });
+
     it('survives a reopen, which is the entire point', async () => {
         await store.set('profile', 'u1', {userName: 'ada'});
         expect(await makeStore().get('profile', 'u1')).toEqual({userName: 'ada'});

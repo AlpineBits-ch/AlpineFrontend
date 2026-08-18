@@ -4,11 +4,14 @@ import {GuildReadStateService} from '../../../../../../services/guild-read-state
 import {NavigationService} from '../../../../../main-page/navigation.service';
 import {ChannelListDragService} from '../../channel-list-drag.service';
 import {channelIcon, isHouseholdChannel} from '../../../../channel-types';
+import {DraftService} from '../../../../../../services/draft.service';
+import {TranslateModule} from '@ngx-translate/core';
 
 /** A channel row in the channel sidebar: every type except Voice, which has its own row. */
 @Component({
     selector: 'app-text-channel-item',
     host: {class: 'contents'},
+    imports: [TranslateModule],
     templateUrl: './text-channel-item.component.html',
 })
 export class TextChannelItemComponent {
@@ -21,6 +24,7 @@ export class TextChannelItemComponent {
     protected drag = inject(ChannelListDragService);
     private navService = inject(NavigationService);
     private readStateService = inject(GuildReadStateService);
+    private drafts = inject(DraftService);
 
     /** A forum's own posts: every message in a forum lives in one of these, never on the forum itself, so a forum row reading only its own id would be permanently silent (no mention/unread ever reported). Empty for every other channel type. */
     private readonly rollupIds = computed(() => {
@@ -41,4 +45,7 @@ export class TextChannelItemComponent {
 
     /** Household channels carry no messages, so read state for them is meaningless: an unread weight or mention count on a shopping list could only ever be wrong. */
     protected readonly showsReadState = computed(() => !isHouseholdChannel(this.channel().type));
+
+    /** Never on the open channel: its draft is on screen in the composer already. */
+    protected readonly hasDraft = computed(() => !this.isActive() && this.drafts.hasDraft(this.channel().id));
 }

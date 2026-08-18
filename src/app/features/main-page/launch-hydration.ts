@@ -1,20 +1,28 @@
 /**
- * Loads cached profiles before the splash comes down, and never lets a cache fault hold it up.
+ * Loads the sealed caches before the splash comes down, and never lets a cache fault hold it up.
  * Hydrate, then reveal, in that order, unconditionally: an empty profile map is what puts a raw
- * `user_...` id on screen, and a cache fault must not cost the user the app.
+ * `user_...` id on screen, an empty conversation store is what leaves the DM list blank for a round
+ * trip after the splash, and a cache fault must not cost the user the app.
  */
 
-export interface ProfileCacheHydrationSteps {
+export interface LaunchHydrationSteps {
     /** `ProfileCacheService.hydrate()`. Resolves with how many profiles were loaded from disk. */
     hydrate: () => Promise<number>;
+    /** `ConversationStore.hydrate()`. Resolves with how many conversations were loaded from disk. */
+    hydrateConversations: () => Promise<number>;
     /** `ProfileCacheService.revalidateAll()`. Only worth calling when something was hydrated. */
     revalidateAll: () => void;
     /** `AppReadyService.markReady()`. Takes the splash down. */
     markReady: () => void;
 }
 
-export async function hydrateThenReveal(steps: ProfileCacheHydrationSteps): Promise<void> {
-    const cached = await steps.hydrate().catch(() => 0);
+export async function hydrateThenReveal(steps: LaunchHydrationSteps): Promise<void> {
+    // In parallel, and each swallowing its own fault: neither cache is the other's precondition,
+    // and the splash is held for as long as the slower one takes either way.
+    const [cached] = await Promise.all([
+        steps.hydrate().catch(() => 0),
+        steps.hydrateConversations().catch(() => 0),
+    ]);
     if (cached > 0) steps.revalidateAll();
     steps.markReady();
 }
@@ -37,7 +45,7 @@ export type AccountGateBlock = 'onboarding' | 'email-verification';
  */
 export async function revealAfterAccountGateBlock(
     block: AccountGateBlock,
-    steps: ProfileCacheHydrationSteps,
+    steps: LaunchHydrationSteps,
     hasAccountSlot: () => Promise<boolean> = async () => true,
 ): Promise<void> {
     if (block === 'onboarding') {

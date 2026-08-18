@@ -28,6 +28,14 @@
         @if (showsReadState() && rs.mentionCount > 0) {
             <span class="chan-badge chan-badge-mention pointer-events-none">{{ rs.mentionCount }}</span>
         }
+        <!-- Something unsent is waiting here. Quiet, and never on the channel you are looking at. -->
+        @if (hasDraft()) {
+            <i
+                [attr.aria-label]="'COMPOSER.DRAFT_WAITING' | translate"
+                [title]="'COMPOSER.DRAFT_WAITING' | translate"
+                class="pi pi-pencil chan-draft pointer-events-none"
+            ></i>
+        }
         @if (channel().isPrivate) {
             <i class="pi pi-lock chan-lock pointer-events-none"></i>
         }

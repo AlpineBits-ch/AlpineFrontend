@@ -1,21 +1,21 @@
 import {describe, expect, it} from 'vitest';
-import {
-    hydrateThenReveal,
-    ProfileCacheHydrationSteps,
-    revealAfterAccountGateBlock,
-} from './profile-cache-hydration';
+import {hydrateThenReveal, LaunchHydrationSteps, revealAfterAccountGateBlock} from './launch-hydration';
 
 /**
  * Pins the ordering rule `MainPageComponent.runDeviceLaunch` relies on: hydration must finish
  * before the splash comes down, and a hydration fault must never be able to hold the splash up.
  */
 describe('hydrateThenReveal', () => {
-    function steps(overrides: Partial<ProfileCacheHydrationSteps> = {}) {
+    function steps(overrides: Partial<LaunchHydrationSteps> = {}) {
         const calls: string[] = [];
-        const base: ProfileCacheHydrationSteps = {
+        const base: LaunchHydrationSteps = {
             hydrate: async () => {
                 calls.push('hydrate');
                 return 3;
+            },
+            hydrateConversations: async () => {
+                calls.push('hydrateConversations');
+                return 4;
             },
             revalidateAll: () => {
                 calls.push('revalidateAll');
@@ -56,7 +56,7 @@ describe('hydrateThenReveal', () => {
 
         await hydrateThenReveal(s);
 
-        expect(calls).toEqual(['hydrate', 'revalidateAll', 'markReady']);
+        expect(calls).toEqual(['hydrate', 'hydrateConversations', 'revalidateAll', 'markReady']);
     });
 
     it('skips revalidation when nothing was hydrated, but still marks ready', async () => {
@@ -69,7 +69,68 @@ describe('hydrateThenReveal', () => {
 
         await hydrateThenReveal(s);
 
-        expect(calls).toEqual(['hydrate', 'markReady']);
+        expect(calls).toEqual(['hydrate', 'hydrateConversations', 'markReady']);
+    });
+
+    it('does not mark ready until the conversation cache resolves either', async () => {
+        let resolveConversations!: (count: number) => void;
+        const {calls, steps: s} = steps({
+            hydrateConversations: () =>
+                new Promise<number>(resolve => {
+                    resolveConversations = resolve;
+                }),
+        });
+
+        const done = hydrateThenReveal(s);
+
+        // The DM list is painted from this one. Revealing ahead of it is the blank-sidebar bug.
+        await Promise.resolve();
+        await Promise.resolve();
+        expect(calls).not.toContain('markReady');
+
+        resolveConversations(4);
+        await done;
+
+        expect(calls).toContain('markReady');
+    });
+
+    it('hydrates both caches at once rather than one after the other', async () => {
+        const started: string[] = [];
+        let releaseProfiles!: () => void;
+        const {steps: s} = steps({
+            hydrate: () =>
+                new Promise<number>(resolve => {
+                    started.push('hydrate');
+                    releaseProfiles = () => resolve(3);
+                }),
+            hydrateConversations: async () => {
+                started.push('hydrateConversations');
+                return 4;
+            },
+        });
+
+        const done = hydrateThenReveal(s);
+        await Promise.resolve();
+
+        // Sequential hydration would make the splash as long as the sum of the two, and the
+        // conversation cache has no dependency on the profile one.
+        expect(started).toEqual(['hydrate', 'hydrateConversations']);
+
+        releaseProfiles();
+        await done;
+    });
+
+    it('a rejected conversation hydration still reveals, and still revalidates profiles', async () => {
+        const {calls, steps: s} = steps({
+            hydrateConversations: async () => {
+                calls.push('hydrateConversations');
+                throw new Error('no sealing key');
+            },
+        });
+
+        await expect(hydrateThenReveal(s)).resolves.toBeUndefined();
+
+        expect(calls).toEqual(['hydrate', 'hydrateConversations', 'revalidateAll', 'markReady']);
     });
 
     it('a rejected hydration still results in markReady being called', async () => {
@@ -84,7 +145,7 @@ describe('hydrateThenReveal', () => {
         // existed, it does not hang or fail the launch.
         await expect(hydrateThenReveal(s)).resolves.toBeUndefined();
 
-        expect(calls).toEqual(['hydrate', 'markReady']);
+        expect(calls).toEqual(['hydrate', 'hydrateConversations', 'markReady']);
     });
 });
 
@@ -98,12 +159,16 @@ describe('hydrateThenReveal', () => {
  * {@link revealAfterAccountGateBlock} itself - the exact function `initLaunchSequence` calls.
  */
 describe('revealAfterAccountGateBlock', () => {
-    function steps(overrides: Partial<ProfileCacheHydrationSteps> = {}) {
+    function steps(overrides: Partial<LaunchHydrationSteps> = {}) {
         const calls: string[] = [];
-        const base: ProfileCacheHydrationSteps = {
+        const base: LaunchHydrationSteps = {
             hydrate: async () => {
                 calls.push('hydrate');
                 return 3;
+            },
+            hydrateConversations: async () => {
+                calls.push('hydrateConversations');
+                return 4;
             },
             revalidateAll: () => {
                 calls.push('revalidateAll');
@@ -159,7 +224,7 @@ describe('revealAfterAccountGateBlock', () => {
 
         await expect(revealAfterAccountGateBlock('email-verification', s)).resolves.toBeUndefined();
 
-        expect(calls).toEqual(['hydrate', 'markReady']);
+        expect(calls).toEqual(['hydrate', 'hydrateConversations', 'markReady']);
     });
 
     /**
@@ -182,7 +247,7 @@ describe('revealAfterAccountGateBlock', () => {
 
         await revealAfterAccountGateBlock('email-verification', s, async () => true);
 
-        expect(calls).toEqual(['hydrate', 'revalidateAll', 'markReady']);
+        expect(calls).toEqual(['hydrate', 'hydrateConversations', 'revalidateAll', 'markReady']);
     });
 
     it('treats an unanswerable slot lookup as no slot, and still reveals', async () => {

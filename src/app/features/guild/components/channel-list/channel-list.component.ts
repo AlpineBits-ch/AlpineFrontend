@@ -63,6 +63,7 @@ import {ChannelDropIndicatorComponent} from './components/channel-drop-indicator
 import {ChannelsAndRolesModalComponent} from '../channels-and-roles/channels-and-roles-modal.component';
 import {GuildOnboardingStateService} from '../../../../services/guild-onboarding-state.service';
 import {ScheduledEventStore} from '../../../../stores/scheduled-event.store';
+import {SceneService} from '../../../../services/scene.service';
 import {MinuteClockService} from '../../../../services/minute-clock.service';
 import {phaseOf} from '../events-panel/event-timing';
 
@@ -134,6 +135,19 @@ export class ChannelListComponent {
         const view = this.navService.mainView();
         return view.type === 'house' && view.guildId === this.guild().id;
     });
+    protected readonly isPersonasActive = computed(() => {
+        const view = this.navService.mainView();
+        return (view.type === 'personas' || view.type === 'character') && view.guildId === this.guild().id;
+    });
+    // ── Scenes ────────────────────────────────────────────────────────────────
+    protected readonly scenes = inject(SceneService);
+    protected readonly isScenesActive = computed(() => {
+        const view = this.navService.mainView();
+        return view.type === 'scenes' && view.guildId === this.guild().id;
+    });
+    /** The one ambient signal that a game is waiting: a count, in the sidebar, and no toast. */
+    protected readonly waitingSceneCount = computed(() => this.scenes.waitingOnMeCount(this.guild().id));
+
     // ── Events ────────────────────────────────────────────────────────────────
     private eventStore = inject(ScheduledEventStore);
     private minuteClock = inject(MinuteClockService);
@@ -151,6 +165,8 @@ export class ChannelListComponent {
     // Hidden, not disabled: an off module is absent from navigation, but existing channels of a disabled type stay put; switching Forums off blocks creating new ones, not removing existing ones.
     protected readonly features = computed(() => guildFeatures(this.guild()));
     protected readonly hasWiki = computed(() => this.features().has(GuildFeature.Wiki));
+    protected readonly hasPersonas = computed(() => this.features().has(GuildFeature.Personas));
+    protected readonly hasScenes = computed(() => this.features().has(GuildFeature.Scenes));
     /** Any one of the six digest modules; the digest nulls the sections it cannot answer. */
     protected readonly hasHouse = computed(() => hasHouseholdModule(this.guild()));
     protected readonly hasEvents = computed(() => this.features().has(GuildFeature.Events));
@@ -310,6 +326,13 @@ export class ChannelListComponent {
             untracked(() => this.eventStore.loadFor(guildId));
         });
 
+        // The badge has to be right before anything is opened, so the board is loaded from here.
+        effect(() => {
+            const guildId = this.guild().id;
+            if (!this.hasScenes()) return;
+            untracked(() => this.scenes.ensureGuild(guildId));
+        });
+
         // Switching a module off while its view is open would strand the user on a screen whose entry point just disappeared from the sidebar.
         effect(() => {
             const guildId = this.guild().id;
@@ -317,8 +340,15 @@ export class ChannelListComponent {
             const wikiGone = !this.hasWiki() && view.type === 'wiki' && view.guildId === guildId;
             const houseGone = !this.hasHouse() && view.type === 'house' && view.guildId === guildId;
             const eventsGone = !this.hasEvents() && this.navService.eventsPanelGuildId() === guildId;
+            const personasGone =
+                !this.hasPersonas() &&
+                (view.type === 'personas' || view.type === 'character') &&
+                view.guildId === guildId;
+            const scenesGone = !this.hasScenes() && view.type === 'scenes' && view.guildId === guildId;
             untracked(() => {
                 if (wikiGone) this.navService.leaveWiki();
+                if (personasGone) this.navService.leavePersonas();
+                if (scenesGone) this.navService.leaveScenes();
                 if (houseGone) this.navService.leaveHouse();
                 if (eventsGone) this.navService.closeEventsPanel();
             });
@@ -460,6 +490,14 @@ export class ChannelListComponent {
 
     protected openWiki(): void {
         this.navService.openWiki(this.guild().id);
+    }
+
+    protected openScenes(): void {
+        this.navService.openScenes(this.guild().id);
+    }
+
+    protected openPersonas(): void {
+        this.navService.openPersonas(this.guild().id);
     }
 
     protected openHouse(): void {

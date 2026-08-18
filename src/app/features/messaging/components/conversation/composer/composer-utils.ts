@@ -30,6 +30,19 @@ export function getMessage(editor: HTMLElement): string {
     return text.replace(/\u00a0/g, ' ').trim();
 }
 
+/**
+ * Puts plain text back into the editor, as far as {@link getMessage} can be inverted. Mention chips
+ * and emoji images are not rebuilt: a restored draft carries the text somebody typed, and
+ * re-resolving `@name` here would attach an id nobody picked.
+ */
+export function setEditorText(editor: HTMLElement, text: string): void {
+    editor.innerHTML = '';
+    text.split('\n').forEach((line, index) => {
+        if (index > 0) editor.appendChild(document.createElement('br'));
+        if (line) editor.appendChild(document.createTextNode(line));
+    });
+}
+
 export type {EmojiSuggestion} from '../../../../../services/emoji-data.service';
 
 export interface UserMentionCandidate {
@@ -48,6 +61,16 @@ export interface RoleMentionCandidate {
     color: string;
 }
 
+/** A character. Carries no owner, because a character mention never names one. */
+export interface PersonaMentionCandidate {
+    kind: 'persona';
+    personaId: string;
+    name: string;
+    avatarUrl: string | null;
+    color: string | null;
+    tag: string | null;
+}
+
 export interface EveryoneMentionCandidate {
     kind: 'everyone';
 }
@@ -57,12 +80,18 @@ export interface HereMentionCandidate {
 }
 
 export type MentionCandidate =
-    UserMentionCandidate | RoleMentionCandidate | EveryoneMentionCandidate | HereMentionCandidate;
+    | UserMentionCandidate
+    | PersonaMentionCandidate
+    | RoleMentionCandidate
+    | EveryoneMentionCandidate
+    | HereMentionCandidate;
 
 export function mentionCandidateId(c: MentionCandidate): string {
     switch (c.kind) {
         case 'user':
             return `user:${c.userId}`;
+        case 'persona':
+            return `persona:${c.personaId}`;
         case 'role':
             return `role:${c.roleId}`;
         case 'everyone':
@@ -76,6 +105,8 @@ export function mentionCandidateLabel(c: MentionCandidate): string {
     switch (c.kind) {
         case 'user':
             return c.userName;
+        case 'persona':
+            return c.name;
         case 'role':
             return c.name;
         case 'everyone':

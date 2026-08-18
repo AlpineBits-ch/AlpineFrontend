@@ -81,6 +81,19 @@
             </div>
         </header>
 
+        <!-- Whose turn it is. Furniture, not a notice: it is the first thing under the title in
+             both halves of a scene, so nobody has to go looking for it. -->
+        @if (scene(); as sceneState) {
+            <app-scene-header
+                [canManage]="canManageScenes()"
+                [guildChannels]="guildChannels()"
+                [guildId]="guildId()"
+                [scene]="sceneState"
+                [side]="sceneSide()"
+                class="shrink-0"
+            />
+        }
+
         <!-- Forum post tag bar. Only mounts when this thread's parent is a Forum/Media channel. -->
         @if (isForumPost() && (appliedTags().length > 0 || canEditTags())) {
             <div class="flex items-center gap-1.5 px-3 sm:px-5 py-2 border-b border-white/[0.06] shrink-0 overflow-x-auto thin-scrollbar">
@@ -307,6 +320,11 @@
                                     }
                                 </div>
                             }
+
+                            <!-- The end of a scene is the last page of a chapter, so it is set as one. -->
+                            @if (concludedScene(); as ended) {
+                                <app-scene-conclusion [scene]="ended" />
+                            }
                         </div>
                     </div>
                 </div>
@@ -370,10 +388,14 @@
                     (message)="createMessage($event)"
                     (typing)="onTyping()"
                     [guildId]="guildId()"
+                    [canUsePersonas]="canUsePersonas()"
+                    [canRollDice]="canRollDice()"
+                    [sceneTurn]="sceneTurn()"
                     [channelId]="channel().id"
                     [guildChannels]="guildChannels()"
                     [guildRoles]="guildRoles()"
                     [replyTo]="replyingTo()"
+                    [resolvePersonaLocally]="resolvePersonaLocally()"
                     autofocus
                     class="block"
                 ></app-composer>

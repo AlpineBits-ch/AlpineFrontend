@@ -36,6 +36,24 @@ export const COMMANDS: CommandDef[] = [
         execute: () => ({text: '¯\\_(ツ)_/¯'}),
     },
     {
+        // The muscle memory every roleplayer arrives with. Everything after the notation is the
+        // reason, so `/roll 1d20+7 Perception` reads the way people already write it.
+        name: 'roll',
+        description: 'Roll dice on the server',
+        scope: 'global',
+        params: [
+            {label: 'notation', required: true},
+            {label: 'reason', required: false},
+        ],
+        execute: input => {
+            const trimmed = input.trim();
+            const split = trimmed.indexOf(' ');
+            const expression = split === -1 ? trimmed : trimmed.slice(0, split);
+            const reason = split === -1 ? '' : trimmed.slice(split + 1).trim();
+            return {action: {name: 'roll-dice', payload: {expression, reason}}};
+        },
+    },
+    {
         name: 'gif',
         description: 'Search for a GIF',
         scope: 'global',

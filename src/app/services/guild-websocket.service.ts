@@ -16,6 +16,8 @@ import {NotificationService, NotificationSound} from './notification.service';
 import {catchError, firstValueFrom, of, Subject, timeout} from 'rxjs';
 import {MessageDto, MessageEmbed} from '../dtos/response/message.dto';
 import {GuildDto} from '../dtos/response/guild.dto';
+import {PersonaApprovalState} from '../dtos/response/persona.dto';
+import {SceneTurnChangedDto, SceneTurnNudgeDto, SceneUpdatedDto} from '../dtos/response/scene.dto';
 import {MessageEncryptionState} from '../enums/message-encryption-state.enum';
 import {MessageType} from '../enums/message-type.enum';
 import {AttachmentDto} from './file.service';
@@ -258,6 +260,31 @@ export interface WsWikiCategoryDeleted {
     categoryId: string;
     guildId: string;
 }
+
+export interface WsPersonaProfileChanged {
+    guildId: string;
+    personaId: string;
+    approvalState: PersonaApprovalState;
+    /** The profile's own state, broadcast guild-wide. Grants are not in it; only the GET resolves those. */
+    canSpeak: boolean;
+}
+
+/** Guildless when the account-level row changed, so every guild the character is in must re-read. */
+export interface WsPersonaUpdated {
+    guildId?: string;
+    personaId: string;
+    name: string;
+    avatarUrl?: string | null;
+}
+
+/** The nudge, and the escalation to whoever holds `ManageScenes` after a second miss. */
+export type WsSceneTurnNudge = SceneTurnNudgeDto;
+
+/** The turn moved. A patch: the clock and whose turn it is, not the whole scene. */
+export type WsSceneTurnChanged = SceneTurnChangedDto;
+
+/** Status, cast or rotation moved. Carries no display data for the cast. */
+export type WsSceneUpdated = SceneUpdatedDto;
 
 export interface WsMemberBanned {
     guildId: string;
@@ -736,6 +763,13 @@ export class GuildWebsocketService {
     public wikiCategoryCreatedObservable = new Subject<WsWikiCategoryCreated>();
     public wikiCategoryUpdatedObservable = new Subject<WsWikiCategoryUpdated>();
     public wikiCategoryDeletedObservable = new Subject<WsWikiCategoryDeleted>();
+    // ── Personas ───────────────────────────────────────────────────────────────
+    public personaProfileChangedObservable = new Subject<WsPersonaProfileChanged>();
+    public personaUpdatedObservable = new Subject<WsPersonaUpdated>();
+    // ── Scenes ─────────────────────────────────────────────────────────────────
+    readonly sceneTurnChangedObservable = new Subject<WsSceneTurnChanged>();
+    readonly sceneUpdatedObservable = new Subject<WsSceneUpdated>();
+    readonly sceneTurnNudgeObservable = new Subject<WsSceneTurnNudge>();
     // ── Member moderation ──────────────────────────────────────────────────────────
     public memberBannedObservable = new Subject<WsMemberBanned>();
     public memberKickedObservable = new Subject<WsMemberKicked>();
@@ -974,6 +1008,19 @@ export class GuildWebsocketService {
         );
         this.realtime.on('guild.WikiCategoryDeleted', (d: WsWikiCategoryDeleted) =>
             this.wikiCategoryDeletedObservable.next(d),
+        );
+        this.realtime.on('guild.PersonaProfileChanged', (d: WsPersonaProfileChanged) =>
+            this.personaProfileChangedObservable.next(d),
+        );
+        this.realtime.on('guild.PersonaUpdated', (d: WsPersonaUpdated) =>
+            this.personaUpdatedObservable.next(d),
+        );
+        this.realtime.on('guild.SceneTurnChanged', (d: WsSceneTurnChanged) =>
+            this.sceneTurnChangedObservable.next(d),
+        );
+        this.realtime.on('guild.SceneUpdated', (d: WsSceneUpdated) => this.sceneUpdatedObservable.next(d));
+        this.realtime.on('guild.SceneTurnNudge', (d: WsSceneTurnNudge) =>
+            this.sceneTurnNudgeObservable.next(d),
         );
         this.realtime.on('guild.MemberBanned', (d: WsMemberBanned) => this.memberBannedObservable.next(d));
         this.realtime.on('guild.MemberKicked', (d: WsMemberKicked) => this.memberKickedObservable.next(d));

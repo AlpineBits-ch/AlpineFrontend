@@ -5,6 +5,20 @@
     white-space: pre-wrap;
 }
 
+/* Room for a scene post rather than a reply. A viewport unit, not a pixel count: the point is to
+   take a useful share of the screen on a laptop and on a large monitor alike. */
+.composer-editor-tall {
+    max-height: 55vh !important;
+    min-height: 12rem;
+    line-height: 1.65;
+}
+
+.composer-preview {
+    word-break: break-word;
+    white-space: pre-wrap;
+    line-height: 1.65;
+}
+
 .composer-editor.is-empty::before {
     content: attr(data-placeholder);
     position: absolute;
@@ -149,4 +163,58 @@
     font-family: primeicons, sans-serif;
     font-size: 0.75em;
     opacity: 0.55;
+}
+
+/* ── The scene's turn ────────────────────────────────────────────────────────
+   Amber means one thing in this client: something is waiting on you. It is spent
+   here and on the turn rail, and nowhere else. */
+.composer-your-turn {
+    border-color: color-mix(in srgb, var(--color-connecting) 30%, transparent);
+    background: color-mix(in srgb, var(--color-connecting) 5%, rgba(255, 255, 255, 0.05));
+}
+
+.composer-turn-strip {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.375rem 0.75rem 0.25rem;
+    font-size: 0.6875rem;
+}
+
+.composer-turn-mark {
+    font-weight: 700;
+    color: var(--color-connecting);
+}
+
+.composer-turn-clock {
+    color: var(--color-text-muted);
+}
+
+.composer-turn-late {
+    color: var(--color-connecting);
+}
+
+.composer-turn-pass {
+    flex-shrink: 0;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 0.5rem;
+    background: transparent;
+    padding: 0.125rem 0.5rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    transition:
+        background-color var(--duration-base) var(--ease-brand),
+        color var(--duration-base) var(--ease-brand);
+}
+
+.composer-turn-pass:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.07);
+    color: var(--color-text-primary);
+}
+
+.composer-turn-pass:disabled {
+    opacity: 0.5;
+    cursor: default;
 }

@@ -11,7 +11,7 @@
     >
         <div class="px-3 py-1.5 border-b border-white/[0.05] text-[10px] font-semibold text-text-muted uppercase tracking-widest">
             @if (overlayType() === 'mention') {
-                Mention a member
+                {{ 'MENTION.HEADING' | translate }}
             } @else if (overlayType() === 'command') {
                 Commands
             } @else if (overlayType() === 'emoji') {
@@ -34,6 +34,19 @@
                         @case ('user') {
                             <p-avatar icon="pi pi-user" shape="circle" />
                             <span [appUserNameStyle]="m" class="text-sm font-semibold text-text-primary">{{ m.userName }}</span>
+                        }
+                        @case ('persona') {
+                            <!-- The character, and nothing about who plays them. -->
+                            <app-persona-avatar [avatarUrl]="m.avatarUrl" [color]="m.color" [name]="m.name" size="sm" />
+                            <span [style.color]="m.color ?? 'var(--color-text-primary)'" class="text-sm font-semibold">{{ m.name }}</span>
+                            @if (m.tag) {
+                                <span
+                                    class="rounded bg-white/[0.07] px-1 text-[0.5625rem] font-semibold uppercase tracking-wide text-text-muted"
+                                >
+                                    {{ m.tag }}
+                                </span>
+                            }
+                            <span class="ml-auto text-[0.625rem] text-text-faint">{{ 'PERSONA.MENTION.KIND' | translate }}</span>
                         }
                         @case ('role') {
                             <span

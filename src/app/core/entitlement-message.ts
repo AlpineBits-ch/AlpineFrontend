@@ -93,6 +93,7 @@ export const ENTITLEMENT_KEY_NAME_KEYS: Record<string, string> = {
     [ENTITLEMENT_KEYS.guildAuditLogDays]: 'ENTITLEMENT.KEY.GUILD_AUDIT_LOG_DAYS',
     [ENTITLEMENT_KEYS.userUploadMaxBytes]: 'ENTITLEMENT.KEY.USER_UPLOAD_MAX_BYTES',
     [ENTITLEMENT_KEYS.userMaxDevices]: 'ENTITLEMENT.KEY.USER_MAX_DEVICES',
+    [ENTITLEMENT_KEYS.messageMaxLength]: 'ENTITLEMENT.KEY.MESSAGE_MAX_LENGTH',
 };
 
 /** Every literal key these tables can produce, for the spec that checks they all resolve. */

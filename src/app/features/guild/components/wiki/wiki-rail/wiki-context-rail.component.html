@@ -58,6 +58,14 @@
         </app-wiki-rail-section>
     }
 
+    <!-- Public. Its own section rather than a row in Properties: everything above describes the
+         page to this guild, and this one puts it on the open internet. -->
+    @if (page()) {
+        <app-wiki-rail-section [heading]="'WIKI_PUBLISH.RAIL.HEADING' | translate" stateKey="publication">
+            <app-wiki-page-publication [guildId]="guildId()" [page]="page()" />
+        </app-wiki-rail-section>
+    }
+
     <!-- Linked from, and the pages that meant to. -->
     @if (page()) {
         <app-wiki-rail-section [badge]="backlinks().length" [heading]="'WIKI.RAIL.LINKED_FROM' | translate" stateKey="links">

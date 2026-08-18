@@ -21,6 +21,11 @@ export interface SignOutSteps {
      * is keyed by account slot.
      */
     clearGuildCache: () => void;
+    /**
+     * Empties the conversation store, whose write-behind would otherwise seal the outgoing
+     * account's DM list straight back onto disk after {@link wipeAccount} cleared it.
+     */
+    clearConversations: () => void;
     /** Discards the OAuth tokens. */
     dropTokens: () => void;
     /** Leaves for the login screen. */
@@ -46,9 +51,10 @@ export async function runSignOut(steps: SignOutSteps): Promise<SignOutOutcome> {
         console.error('Could not fully wipe local MLS state on sign-out', err);
     }
 
-    // All three run whatever happened above: a failed local wipe must not trap the user in the
+    // All four run whatever happened above: a failed local wipe must not trap the user in the
     // session they asked to leave.
     steps.clearGuildCache();
+    steps.clearConversations();
     steps.dropTokens();
     steps.goToLogin();
     return {wiped};

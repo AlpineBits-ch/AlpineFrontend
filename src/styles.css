@@ -583,6 +583,13 @@ body {
     color: rgb(255 255 255 / 0.5);
 }
 
+/* Scenes waiting on a character you play. Amber carries exactly this meaning here,
+   on the turn rail and on the composer, and nothing else. */
+.chan-badge-turn {
+    background: color-mix(in srgb, var(--color-connecting) 18%, transparent);
+    color: var(--color-connecting);
+}
+
 /* Not a badge: a bare figure for a fact nobody needs to act on, like how many
    people are in a voice channel you can already see listed underneath. */
 .chan-meta {
@@ -596,6 +603,15 @@ body {
     flex-shrink: 0;
     font-size: 0.625rem;
     color: rgb(255 255 255 / 0.28);
+}
+
+/* An unsent draft is waiting in this channel. Sits at the same weight as the lock: a reminder,
+   never a count, and it must not read as unread. */
+.chan-draft {
+    flex-shrink: 0;
+    font-size: 0.5625rem;
+    color: var(--color-brand-dim);
+    opacity: 0.65;
 }
 
 /* iOS keyboard fix: when a text input is focused, iOS scrolls the visual viewport

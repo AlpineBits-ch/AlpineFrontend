@@ -1,0 +1,224 @@
+<p-dialog
+    (visibleChange)="!$event && closed.emit()"
+    [closable]="true"
+    [draggable]="false"
+    [modal]="true"
+    [resizable]="false"
+    [style]="{width: hasGuildHalf() ? '46rem' : '26rem'}"
+    [visible]="!!target()"
+    appendTo="body"
+    maskStyleClass="backdrop-blur-sm"
+    styleClass="!bg-card !border !border-white/[0.08] !rounded-2xl"
+>
+    <ng-template pTemplate="header">
+        <div class="flex min-w-0 items-center gap-2.5">
+            <app-persona-avatar [avatarUrl]="previewAvatar() || null" [color]="previewColor()" [name]="previewName()" size="sm" />
+            <span class="truncate text-base font-semibold text-text-primary">
+                {{ (isCreate() ? 'PERSONA.EDITOR.NEW' : 'PERSONA.EDITOR.EDIT') | translate: {name: previewName()} }}
+            </span>
+            <!-- The two create buttons open this same editor; without the chip they read as one thing. -->
+            @if (isGuildOwned()) {
+                <span
+                    class="shrink-0 rounded-full bg-brand/15 px-2 py-[3px] text-[0.625rem] font-semibold uppercase tracking-wide text-brand-dim"
+                >
+                    {{ 'PERSONA.SHARED' | translate }}
+                </span>
+            }
+        </div>
+    </ng-template>
+
+    <div class="persona-editor-grid">
+        <!-- ── Everywhere ──────────────────────────────────────────────────── -->
+        <section class="flex flex-col gap-3">
+            <div>
+                <p class="text-[0.625rem] font-semibold uppercase tracking-widest text-text-muted">
+                    {{ 'PERSONA.EDITOR.GLOBAL_TITLE' | translate }}
+                </p>
+                <p class="mt-0.5 text-[0.6875rem] leading-snug text-text-faint">
+                    {{ (isGuildOwned() ? 'PERSONA.EDITOR.GUILD_OWNED_DESC' : 'PERSONA.EDITOR.GLOBAL_DESC') | translate }}
+                </p>
+            </div>
+
+            <label class="flex flex-col gap-1">
+                <span class="text-[0.75rem] text-text-secondary">{{ 'PERSONA.FIELD.NAME' | translate }}</span>
+                <input
+                    (ngModelChange)="name.set($event)"
+                    [ngModel]="name()"
+                    [placeholder]="'PERSONA.FIELD.NAME_PLACEHOLDER' | translate"
+                    class="persona-input"
+                    maxlength="64"
+                />
+            </label>
+
+            <label class="flex flex-col gap-1">
+                <span class="text-[0.75rem] text-text-secondary">{{ 'PERSONA.FIELD.AVATAR' | translate }}</span>
+                <input
+                    (ngModelChange)="avatarUrl.set($event)"
+                    [ngModel]="avatarUrl()"
+                    [placeholder]="'PERSONA.FIELD.AVATAR_PLACEHOLDER' | translate"
+                    class="persona-input"
+                />
+            </label>
+
+            <div class="flex gap-3">
+                <label class="flex min-w-0 flex-1 flex-col gap-1">
+                    <span class="text-[0.75rem] text-text-secondary">{{ 'PERSONA.FIELD.PRONOUNS' | translate }}</span>
+                    <input
+                        (ngModelChange)="pronouns.set($event)"
+                        [ngModel]="pronouns()"
+                        [placeholder]="'PERSONA.FIELD.PRONOUNS_PLACEHOLDER' | translate"
+                        class="persona-input"
+                        maxlength="32"
+                    />
+                </label>
+                <div class="flex flex-col gap-1">
+                    <span class="text-[0.75rem] text-text-secondary">{{ 'PERSONA.FIELD.COLOR' | translate }}</span>
+                    <div class="flex items-center gap-2">
+                        <div class="color-swatch-wrap">
+                            <div [style.background]="previewColor() || 'transparent'" class="color-swatch-bg"></div>
+                            <input (input)="color.set($any($event.target).value)" [value]="color() || '#4B5BC4'" type="color" />
+                        </div>
+                        @if (color()) {
+                            <button
+                                (click)="color.set('')"
+                                class="border-0 bg-transparent text-[0.6875rem] text-text-muted transition-colors cursor-pointer hover:text-text-primary"
+                                type="button"
+                            >
+                                {{ 'PERSONA.EDITOR.CLEAR' | translate }}
+                            </button>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <label class="flex flex-col gap-1">
+                <span class="text-[0.75rem] text-text-secondary">{{ 'PERSONA.FIELD.BIO' | translate }}</span>
+                <textarea
+                    (ngModelChange)="shortBio.set($event)"
+                    [ngModel]="shortBio()"
+                    [placeholder]="'PERSONA.FIELD.BIO_PLACEHOLDER' | translate"
+                    class="persona-input resize-none"
+                    maxlength="200"
+                    rows="3"
+                ></textarea>
+            </label>
+        </section>
+
+        <!-- ── In this guild ───────────────────────────────────────────────── -->
+        @if (hasGuildHalf()) {
+            <section class="flex flex-col gap-3 persona-editor-guild">
+                <div>
+                    <p class="text-[0.625rem] font-semibold uppercase tracking-widest text-text-muted">
+                        {{ 'PERSONA.EDITOR.GUILD_TITLE' | translate: {guild: guildName()} }}
+                    </p>
+                    <p class="mt-0.5 text-[0.6875rem] leading-snug text-text-faint">
+                        {{ 'PERSONA.EDITOR.GUILD_DESC' | translate }}
+                    </p>
+                </div>
+
+                <label class="flex flex-col gap-1">
+                    <span class="flex items-center gap-1.5 text-[0.75rem] text-text-secondary">
+                        {{ 'PERSONA.FIELD.DISPLAY_NAME' | translate }}
+                        @if (inherited(displayName())) {
+                            <span class="text-[0.625rem] text-text-faint">{{ 'PERSONA.EDITOR.INHERITED' | translate }}</span>
+                        } @else {
+                            <button
+                                (click)="displayName.set('')"
+                                class="border-0 bg-transparent p-0 text-[0.625rem] text-brand-dim transition-colors cursor-pointer hover:brightness-125"
+                                type="button"
+                            >
+                                {{ 'PERSONA.EDITOR.RESET' | translate }}
+                            </button>
+                        }
+                    </span>
+                    <input
+                        (ngModelChange)="displayName.set($event)"
+                        [ngModel]="displayName()"
+                        [placeholder]="name() || ('PERSONA.FIELD.NAME_PLACEHOLDER' | translate)"
+                        class="persona-input"
+                        maxlength="64"
+                    />
+                </label>
+
+                <label class="flex flex-col gap-1">
+                    <span class="flex items-center gap-1.5 text-[0.75rem] text-text-secondary">
+                        {{ 'PERSONA.FIELD.AVATAR' | translate }}
+                        @if (inherited(guildAvatarUrl())) {
+                            <span class="text-[0.625rem] text-text-faint">{{ 'PERSONA.EDITOR.INHERITED' | translate }}</span>
+                        } @else {
+                            <button
+                                (click)="guildAvatarUrl.set('')"
+                                class="border-0 bg-transparent p-0 text-[0.625rem] text-brand-dim transition-colors cursor-pointer hover:brightness-125"
+                                type="button"
+                            >
+                                {{ 'PERSONA.EDITOR.RESET' | translate }}
+                            </button>
+                        }
+                    </span>
+                    <input
+                        (ngModelChange)="guildAvatarUrl.set($event)"
+                        [ngModel]="guildAvatarUrl()"
+                        [placeholder]="avatarUrl() || ('PERSONA.FIELD.AVATAR_PLACEHOLDER' | translate)"
+                        class="persona-input"
+                    />
+                </label>
+
+                <label class="flex flex-col gap-1">
+                    <span class="text-[0.75rem] text-text-secondary">{{ 'PERSONA.FIELD.TAG' | translate }}</span>
+                    <input
+                        (ngModelChange)="tag.set($event)"
+                        [ngModel]="tag()"
+                        [placeholder]="'PERSONA.FIELD.TAG_PLACEHOLDER' | translate"
+                        class="persona-input"
+                        maxlength="24"
+                    />
+                    <span class="text-[0.625rem] leading-snug text-text-faint">{{ 'PERSONA.FIELD.TAG_HINT' | translate }}</span>
+                </label>
+
+                <div class="flex flex-col gap-1">
+                    <span class="text-[0.75rem] text-text-secondary">{{ 'PERSONA.FIELD.PROXY' | translate }}</span>
+                    <div class="flex items-center gap-2">
+                        <input
+                            (ngModelChange)="proxyPrefix.set($event)"
+                            [ngModel]="proxyPrefix()"
+                            [placeholder]="'PERSONA.FIELD.PREFIX' | translate"
+                            class="persona-input w-20 text-center font-mono"
+                            maxlength="8"
+                        />
+                        <span class="shrink-0 text-[0.75rem] text-text-faint">{{ 'PERSONA.FIELD.PROXY_MIDDLE' | translate }}</span>
+                        <input
+                            (ngModelChange)="proxySuffix.set($event)"
+                            [ngModel]="proxySuffix()"
+                            [placeholder]="'PERSONA.FIELD.SUFFIX' | translate"
+                            class="persona-input w-20 text-center font-mono"
+                            maxlength="8"
+                        />
+                    </div>
+                    @if (tagCollision(); as other) {
+                        <span class="text-[0.6875rem] leading-snug text-offline">
+                            {{ 'PERSONA.FIELD.PROXY_TAKEN' | translate: {name: other} }}
+                        </span>
+                    } @else if (tagPreview()) {
+                        <span class="text-[0.6875rem] leading-snug text-text-faint">
+                            {{ 'PERSONA.FIELD.PROXY_PREVIEW' | translate: {example: tagPreview(), name: previewName()} }}
+                        </span>
+                    } @else {
+                        <span class="text-[0.6875rem] leading-snug text-text-faint">{{ 'PERSONA.FIELD.PROXY_HINT' | translate }}</span>
+                    }
+                </div>
+            </section>
+        }
+    </div>
+
+    <div class="mt-5 flex items-center justify-end gap-2 border-t border-white/[0.10] pt-4">
+        <p-button (onClick)="closed.emit()" [label]="'PERSONA.CANCEL' | translate" [text]="true" severity="secondary" size="small" />
+        <p-button
+            (onClick)="save()"
+            [disabled]="!canSave()"
+            [label]="(isCreate() ? 'PERSONA.EDITOR.CREATE' : 'PERSONA.SAVE') | translate"
+            [loading]="saving()"
+            severity="primary"
+            size="small"
+        />
+    </div>
+</p-dialog>

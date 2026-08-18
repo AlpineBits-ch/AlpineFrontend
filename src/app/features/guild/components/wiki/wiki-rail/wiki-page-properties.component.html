@@ -1,5 +1,76 @@
 @if (page()) {
     <div class="flex flex-col gap-3">
+        <!-- Who in the guild may open the page. Says nothing about the public wiki, and the wording never borrows its words. -->
+        <div>
+            <span class="mb-1 block text-[0.6875rem] text-text-muted" id="wiki-visibility-label">
+                {{ 'WIKI.VISIBILITY_LABEL' | translate }}
+            </span>
+
+            @if (canEditMetadata()) {
+                <div
+                    aria-labelledby="wiki-visibility-label"
+                    class="grid grid-cols-2 gap-0.5 rounded-lg border border-border bg-card p-0.5"
+                    role="group"
+                >
+                    <button
+                        (click)="setVisibility('public')"
+                        [attr.aria-pressed]="visibility() === 'public'"
+                        [class.bg-hover]="visibility() === 'public'"
+                        [class.text-text-primary]="visibility() === 'public'"
+                        [class.text-text-muted]="visibility() !== 'public'"
+                        class="flex cursor-pointer items-center justify-center gap-1.5 rounded-md border-0 bg-transparent px-2 py-1.5 text-[0.6875rem] hover:text-text-secondary"
+                        type="button"
+                    >
+                        <i class="pi pi-users text-[0.625rem]"></i>
+                        <span class="truncate">{{ 'WIKI.VISIBILITY.MEMBERS' | translate }}</span>
+                    </button>
+                    <button
+                        (click)="setVisibility('private')"
+                        [attr.aria-pressed]="visibility() === 'private'"
+                        [class.bg-hover]="visibility() === 'private'"
+                        [class.text-text-primary]="visibility() === 'private'"
+                        [class.text-text-muted]="visibility() !== 'private'"
+                        class="flex cursor-pointer items-center justify-center gap-1.5 rounded-md border-0 bg-transparent px-2 py-1.5 text-[0.6875rem] hover:text-text-secondary"
+                        type="button"
+                    >
+                        <i class="pi pi-lock text-[0.625rem]"></i>
+                        <span class="truncate">
+                            @if (isOwnPage()) {
+                                {{ 'WIKI.VISIBILITY.ONLY_ME' | translate }}
+                            } @else {
+                                {{ 'WIKI.VISIBILITY.AUTHOR_ONLY' | translate }}
+                            }
+                        </span>
+                    </button>
+                </div>
+            } @else {
+                <p class="m-0 flex items-center gap-1.5 text-[0.75rem] text-text-secondary">
+                    <i
+                        [class.pi-lock]="visibility() === 'private'"
+                        [class.pi-users]="visibility() === 'public'"
+                        class="pi text-[0.625rem] text-text-muted"
+                    ></i>
+                    @if (visibility() === 'private') {
+                        @if (isOwnPage()) {
+                            {{ 'WIKI.VISIBILITY.ONLY_ME' | translate }}
+                        } @else {
+                            {{ 'WIKI.VISIBILITY.AUTHOR_ONLY' | translate }}
+                        }
+                    } @else {
+                        {{ 'WIKI.VISIBILITY.MEMBERS' | translate }}
+                    }
+                </p>
+            }
+
+            <p class="m-0 mt-1 text-[0.6875rem] leading-snug text-text-muted">
+                @if (visibility() === 'private') {
+                    {{ 'WIKI.VISIBILITY.PRIVATE_HINT' | translate }}
+                } @else {
+                    {{ 'WIKI.VISIBILITY.MEMBERS_HINT' | translate }}
+                }
+            </p>
+        </div>
+
         <!-- Tags -->
         <div>
             <span class="mb-1 block text-[0.6875rem] text-text-muted">{{ 'WIKI.TAGS' | translate }}</span>

@@ -1,0 +1,60 @@
+<div (keydown)="onKeydown($event)" class="tray" role="group" tabindex="-1">
+    <div class="tray-row">
+        <input
+            #expressionInput
+            (ngModelChange)="expression.set($event)"
+            [ngModel]="expression()"
+            [placeholder]="'DICE.TRAY.PLACEHOLDER' | translate"
+            aria-label="{{ 'DICE.TRAY.PLACEHOLDER' | translate }}"
+            class="tray-expression"
+            maxlength="128"
+            spellcheck="false"
+        />
+        <input
+            (ngModelChange)="reason.set($event)"
+            [ngModel]="reason()"
+            [placeholder]="'DICE.TRAY.REASON' | translate"
+            class="tray-reason"
+            maxlength="80"
+        />
+        <button (click)="roll()" [disabled]="!canRoll()" class="tray-roll" type="button">
+            {{ 'DICE.TRAY.ROLL' | translate }}
+        </button>
+    </div>
+
+    <!-- What the expression will produce, before it produces it. Dimmed shapes are the
+         dice a keep or drop mode will throw away. -->
+    @if (preview().length || constants().length) {
+        <div class="tray-preview">
+            @for (pool of preview(); track $index) {
+                @if ($index > 0 || pool.sign === -1) {
+                    <span class="tray-operator">{{ pool.sign === -1 ? '-' : '+' }}</span>
+                }
+                @for (face of pool.faces; track $index) {
+                    <app-dice-face [blank]="true" [face]="face" [sides]="pool.sides" size="sm" />
+                }
+            }
+            @for (term of constants(); track $index) {
+                <span class="tray-operator">{{ term.sign === -1 ? '-' : '+' }}</span>
+                <span class="tray-constant">{{ term.constant }}</span>
+            }
+        </div>
+    } @else if (error(); as bad) {
+        <p class="tray-error">{{ bad.key | translate: bad.params ?? {} }}</p>
+    }
+
+    <div class="tray-row tray-row-quiet">
+        @for (option of suggestions(); track option) {
+            <button (click)="use(option)" class="tray-chip" type="button">{{ option }}</button>
+        }
+
+        @if (speaker(); as who) {
+            <span class="tray-speaker">
+                <app-persona-avatar [avatarUrl]="who.avatarUrl" [color]="who.color" [name]="who.name" size="xs" />
+                <span [style.color]="who.color ?? 'var(--color-text-muted)'">
+                    {{ 'DICE.TRAY.ROLLING_AS' | translate: {name: who.name} }}
+                </span>
+            </span>
+        }
+    </div>
+</div>

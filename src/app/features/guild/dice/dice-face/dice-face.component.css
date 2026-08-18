@@ -1,0 +1,81 @@
+.die {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.die-sm {
+    width: 1.75rem;
+    height: 1.75rem;
+}
+
+.die-lg {
+    width: 3.25rem;
+    height: 3.25rem;
+}
+
+.die-shape {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+}
+
+.die-shape polygon,
+.die-shape circle {
+    fill: rgba(255, 255, 255, 0.05);
+    stroke: rgba(255, 255, 255, 0.18);
+    stroke-width: 4;
+    stroke-linejoin: round;
+}
+
+.die-value {
+    position: relative;
+    font-family: 'Fira Code Variable', 'Fira Code', monospace;
+    font-variant-numeric: tabular-nums;
+    font-size: 0.6875rem;
+    line-height: 1;
+    color: var(--color-text-secondary);
+}
+
+.die-lg .die-value {
+    font-size: 1.25rem;
+}
+
+/* A die that did not count: hollow and dashed rather than struck or faded. Which die a
+   keep-highest roll threw out is half of what makes the roll worth reading, and a line through a
+   28px face takes the digit with it. */
+.is-dropped .die-shape polygon,
+.is-dropped .die-shape circle {
+    fill: none;
+    stroke: rgba(255, 255, 255, 0.22);
+    stroke-dasharray: 7 7;
+}
+
+.is-dropped .die-value {
+    color: var(--color-text-muted);
+}
+
+/* Highest and lowest face, for any die size rather than only a d20: the notation
+   is system-neutral and so is this. */
+.is-max .die-shape polygon,
+.is-max .die-shape circle {
+    fill: rgba(255, 255, 255, 0.11);
+    stroke: rgba(255, 255, 255, 0.55);
+}
+
+.is-max .die-value {
+    color: var(--color-text-primary);
+    font-weight: 600;
+}
+
+.is-min .die-shape polygon,
+.is-min .die-shape circle {
+    stroke: rgba(255, 255, 255, 0.1);
+}
+
+.is-min .die-value {
+    color: var(--color-text-faint);
+}

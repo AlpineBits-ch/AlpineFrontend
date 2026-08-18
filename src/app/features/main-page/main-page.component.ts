@@ -56,6 +56,9 @@ import {DeviceRegistrationModalComponent} from '../device-registration/device-re
 import {ConversationService} from '../../services/conversation.service';
 import {RichPresenceService} from '../../services/rich-presence.service';
 import {WikiComponent} from '../guild/components/wiki/wiki.component';
+import {PersonaDirectoryComponent} from '../guild/personas/persona-directory/persona-directory.component';
+import {CharacterPageComponent} from '../guild/personas/character-page/character-page.component';
+import {SceneBoardComponent} from '../guild/scenes/scene-board/scene-board.component';
 import {OnboardingGateComponent} from '../guild/components/onboarding-gate/onboarding-gate.component';
 import {EventsPanelComponent} from '../guild/components/events-panel/events-panel.component';
 import {GuildFeature, guildHasFeature, hasHouseholdModule} from '../guild/guild-features';
@@ -66,7 +69,7 @@ import {runMlsLaunch} from './mls-launch';
 import {runMlsStorageInit} from './mls-storage-init';
 import {relaunchOnSessionTakeover} from './mls-takeover';
 import {runSignOut} from './sign-out';
-import {AccountGateBlock, hydrateThenReveal, revealAfterAccountGateBlock} from './profile-cache-hydration';
+import {AccountGateBlock, hydrateThenReveal, revealAfterAccountGateBlock} from './launch-hydration';
 import {MlsJoinRequestService} from '../../services/mls-join-request.service';
 import {ConversationEncryption} from '../../enums/conversation-encryption.enum';
 import {AccountOnboardingComponent} from '../onboarding/account-onboarding.component';
@@ -122,6 +125,9 @@ import {scopeKey} from '../../services/share-watch.service';
         KeySetupDialogComponent,
         MasterKeyRecoveryDialogComponent,
         WikiComponent,
+        PersonaDirectoryComponent,
+        CharacterPageComponent,
+        SceneBoardComponent,
         OnboardingGateComponent,
         AccountOnboardingComponent,
         EventsPanelComponent,
@@ -380,6 +386,7 @@ export class MainPageComponent implements OnDestroy {
             clearActivity: () => this.richPresenceService.stop(),
             wipeAccount: id => this.teardown.wipeAccount(id),
             clearGuildCache: () => this.guildService.forgetCachedGuilds(),
+            clearConversations: () => this.conversationStore.forget(),
             dropTokens: () => this.authService.logout(),
             goToLogin: () => void this.router.navigate(['/authentication']),
         });
@@ -399,6 +406,7 @@ export class MainPageComponent implements OnDestroy {
                 gate,
                 {
                     hydrate: () => this.profileCache.hydrate(),
+                    hydrateConversations: () => this.conversationStore.hydrate(),
                     revalidateAll: () => this.profileCache.revalidateAll(),
                     markReady: () => this.appReady.markReady(),
                 },
@@ -474,6 +482,7 @@ export class MainPageComponent implements OnDestroy {
         // the splash regardless, and a splash lifted over an empty profile map shows raw `user_...`.
         await hydrateThenReveal({
             hydrate: () => this.profileCache.hydrate(),
+            hydrateConversations: () => this.conversationStore.hydrate(),
             revalidateAll: () => this.profileCache.revalidateAll(),
             markReady: () => this.appReady.markReady(),
         });

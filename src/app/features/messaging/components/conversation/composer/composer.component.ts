@@ -30,7 +30,11 @@ import {
     getMessage,
     MentionCandidate,
     mentionCandidateMatches,
+    setEditorText,
 } from './composer-utils';
+import {lengthCounterClass, lengthState} from './composer-length';
+import {DraftService} from '../../../../../services/draft.service';
+import {MarkdownPipe} from '../../../../../pipes/markdown.pipe';
 import {
     buildHighlightedFragment,
     getEditorSegments,
@@ -59,8 +63,31 @@ import {wikiShareLink} from '../../../wiki-link';
 import {ToastService} from '../../../../../services/toast.service';
 import {TranslateService} from '@ngx-translate/core';
 import {EntitlementStore, MY_ENTITLEMENTS} from '../../../../../stores/entitlement.store';
+import {PersonaService} from '../../../../../services/persona.service';
+import {PersonaSwitcherComponent} from '../../../../guild/personas/persona-switcher/persona-switcher.component';
+import {personaIdentity} from '../../../../guild/personas/persona-identity';
+import {personaMentionToken} from '../../../../guild/personas/persona-mention';
+import {DiceTrayComponent} from '../../../../guild/dice/dice-tray/dice-tray.component';
+import {SceneService} from '../../../../../services/scene.service';
+import {DiceService} from '../../../../../services/dice.service';
+import {parseDiceExpression} from '../../../../guild/dice/dice-notation';
+import {RelativeTimePipe} from '../../../../../pipes/relative-time.pipe';
 
 const TWEMOJI_BASE = 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/';
+
+/**
+ * What the composer says when the scene is waiting on you. The notice sits on the thing you would
+ * use to answer it, which is the only place it cannot be missed and the only place it is not nagging.
+ */
+export interface SceneTurnPrompt {
+    characterName: string;
+    /** ISO-8601, or null for a scene with no clock. */
+    deadlineAt: string | null;
+    overdue: boolean;
+    /** Passing without posting. Absent when the caller cannot advance the turn. */
+    pass: (() => void) | null;
+    passing: boolean;
+}
 
 @Component({
     selector: 'app-composer',
@@ -70,7 +97,11 @@ const TWEMOJI_BASE = 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/
         EmojiPickerButtonComponent,
         GifPickerButtonComponent,
         AttachmentPreviewsComponent,
+        PersonaSwitcherComponent,
+        DiceTrayComponent,
+        MarkdownPipe,
         TranslateModule,
+        RelativeTimePipe,
     ],
     templateUrl: './composer.component.html',
     styleUrl: './composer.component.css',
@@ -88,14 +119,25 @@ export class ComposerComponent {
     /** Set when composing in a guild channel, feeds # channel suggestions. */
     readonly guildChannels = input<ChannelDto[]>([]);
     readonly replyTo = input<MessageDto | null>(null);
+    /** Guild channels only: the caller holds `UsePersonas` and the guild has the module on. */
+    readonly canUsePersonas = input(false);
+    /** Guild channels only: the caller holds `RollDice` and the guild has the module on. */
+    readonly canRollDice = input(false);
+    /** Set while this channel's scene is waiting on a character the caller speaks as. */
+    readonly sceneTurn = input<SceneTurnPrompt | null>(null);
+    /** The server cannot read ciphertext, so proxy tags have to be resolved here instead. */
+    readonly resolvePersonaLocally = input(false);
     message = output<{
         content: string;
         attachments: string[];
         inReplyTo?: string;
         mentions: string[];
         roleMentions: string[];
+        /** Persona ids named in the body as `<@pers_...>`. */
+        personaMentions: string[];
         mentionsEveryone: boolean;
         mentionsHere: boolean;
+        personaId?: string;
     }>();
     cancelReply = output<void>();
 
@@ -134,6 +176,62 @@ export class ComposerComponent {
             ? `/${cmd.name} ${paramHints} -press Enter to send`
             : `/${cmd.name} -press Enter to send`;
     });
+    // ── Personas ─────────────────────────────────────────────────────────────
+    protected readonly personas = inject(PersonaService);
+    /** What is in the editor now. Not to be confused with {@link drafts}, which is what the server holds. */
+    protected readonly typed = signal('');
+    protected readonly showPersonaSwitcher = computed(() => !!this.guildId() && this.canUsePersonas());
+    protected readonly personaResolution = computed(() =>
+        this.personas.resolveFor(this.guildId(), this.channelId(), this.typed()),
+    );
+    protected readonly proxyHintKey = computed((): string | null => {
+        if (!this.showPersonaSwitcher()) return null;
+        switch (this.personaResolution().source) {
+            case 'tag':
+                return 'PERSONA.COMPOSER.TAG_STRIPPED';
+            case 'escaped':
+                return 'PERSONA.COMPOSER.ESCAPED';
+            default:
+                return null;
+        }
+    });
+    protected readonly proxyHintTag = computed(() => {
+        const matched = this.personaResolution().matched;
+        return matched ? `${matched.prefix}${matched.suffix}` : '';
+    });
+    private readonly personaSwitcherRef = viewChild(PersonaSwitcherComponent);
+
+    /** The character a roll would be made as, so the tray never asks a question already answered. */
+    protected readonly rollSpeaker = computed(() => {
+        const entry = this.personas.entry(this.guildId(), this.personaResolution().personaId);
+        return entry ? personaIdentity(entry) : null;
+    });
+    private readonly dice = inject(DiceService);
+    protected readonly diceOpen = signal(false);
+    protected readonly showDice = computed(
+        () => !!this.guildId() && !!this.channelId() && this.canRollDice(),
+    );
+    /** Redraws the deadline on the scene strip without each composer holding its own timer. */
+    protected readonly now = inject(SceneService).now;
+
+    // ── Long-form writing ────────────────────────────────────────────────────
+    /** The room a post has in this guild. Plan-derived, so it differs between servers. */
+    protected readonly maxLength = computed(() => this.entitlements.messageMaxLength(this.guildId()));
+    protected readonly length = computed(() => lengthState(this.typed().length, this.maxLength()));
+    protected readonly counterClass = computed(() => lengthCounterClass(this.length().level));
+    protected readonly expanded = signal(false);
+    protected readonly previewing = signal(false);
+    /** Offered once a post is long enough for the extra room to be worth having. */
+    protected readonly canExpand = computed(() => this.expanded() || this.typed().length > 240);
+
+    // ── Drafts ───────────────────────────────────────────────────────────────
+    protected readonly drafts = inject(DraftService);
+    protected readonly draftRestored = signal(false);
+    protected readonly draftState = computed(() => this.drafts.state(this.channelId()));
+    /** Which channel's draft has already been put on screen, so a restore happens once. */
+    private restoredFor: string | null = null;
+    private lastChannelId: string | null = null;
+
     protected readonly attachments = inject(ComposerAttachmentsService);
     /** True while a send is parked waiting on uploads that were still in flight when Enter landed. */
     protected readonly awaitingUploads = signal(false);
@@ -173,7 +271,45 @@ export class ComposerComponent {
     private wikiPagesGuildId: string | null = null;
 
     constructor() {
-        this.destroyRef.onDestroy(() => (this.destroyed = true));
+        this.destroyRef.onDestroy(() => {
+            this.destroyed = true;
+            this.parkDraft();
+        });
+
+        // Moving between channels: what was typed in the one being left becomes its draft, and the
+        // editor is emptied so it cannot arrive in the next channel. The composer instance is
+        // reused across channels, so nothing else clears it.
+        effect(() => {
+            const channelId = this.channelId();
+            untracked(() => {
+                if (this.lastChannelId === channelId) return;
+                this.parkDraft();
+                this.lastChannelId = channelId;
+                this.expanded.set(false);
+                this.previewing.set(false);
+                this.draftRestored.set(false);
+                this.clearEditor();
+                this.drafts.ensureLoaded(channelId);
+            });
+        });
+
+        // Restores once the draft has landed, and only into an editor nobody has typed in since.
+        effect(() => {
+            const channelId = this.channelId();
+            const draft = this.drafts.draft(channelId);
+            if (!channelId || !draft?.content) return;
+            untracked(() => {
+                if (this.restoredFor === channelId) return;
+                this.restoredFor = channelId;
+                const editor = this.editorRef().nativeElement;
+                if ((editor.textContent ?? '').trim()) return;
+                setEditorText(editor, draft.content);
+                this.typed.set(draft.content);
+                this.isEmpty.set(false);
+                this.draftRestored.set(true);
+                this.applyMarkdownHighlighting(editor);
+            });
+        });
 
         // The attachment service is told the scope rather than reaching for a route. Must stay
         // untracked: `ensureLoaded` reads the cache it also writes, so tracking it would re-run this
@@ -219,6 +355,8 @@ export class ComposerComponent {
         const q = this.query().toLowerCase();
         const atStart = this.commandAtStart();
         const local: ComposerCommandItem[] = COMMANDS.filter(c => atStart || c.scope === 'inline')
+            // Never offered where it cannot work: this guild has no dice, or the caller no `RollDice`.
+            .filter(c => c.name !== 'roll' || this.canRollDice())
             .filter(c => c.name.startsWith(q))
             .map(def => ({kind: 'local' as const, def}));
         // Bot commands always consume the whole message (like local 'global'-scope commands),
@@ -263,6 +401,26 @@ export class ComposerComponent {
             .map(r => ({kind: 'role', roleId: r.id, name: r.name, color: r.color}));
         return [{kind: 'everyone'}, {kind: 'here'}, ...roleCandidates];
     });
+    /**
+     * The guild's characters, offered beside its people. A character mention is the most natural
+     * thing to reach for mid-scene, and it notifies whoever plays them without naming them.
+     */
+    private readonly personaCandidates = computed<MentionCandidate[]>(() => {
+        const guildId = this.guildId();
+        if (!guildId || !this.canUsePersonas()) return [];
+        return this.personas.cast(guildId).map((entry): MentionCandidate => {
+            const identity = personaIdentity(entry);
+            return {
+                kind: 'persona',
+                personaId: entry.persona.id,
+                name: identity.name,
+                avatarUrl: identity.avatarUrl,
+                color: identity.color,
+                tag: identity.tag,
+            };
+        });
+    });
+
     readonly filteredMentions = computed<MentionCandidate[]>(() => {
         if (this.overlayType() !== 'mention') return [];
         const q = this.query().toLowerCase();
@@ -270,7 +428,9 @@ export class ComposerComponent {
             ? this.guildSearchResults()
             : this.conversationMembers().filter(m => mentionCandidateMatches(m, q));
         const staticMatches = this.staticGuildCandidates().filter(c => mentionCandidateMatches(c, q));
-        return [...staticMatches, ...userCandidates].slice(0, 8);
+        // Characters lead in a guild that has them: in a roleplay server they are what `@` means.
+        const personaMatches = this.personaCandidates().filter(c => mentionCandidateMatches(c, q));
+        return [...personaMatches, ...staticMatches, ...userCandidates].slice(0, 8);
     });
     readonly filteredChannels = computed<ChannelDto[]>(() => {
         if (this.overlayType() !== 'channel') return [];
@@ -322,6 +482,8 @@ export class ComposerComponent {
     onInput(): void {
         const editor = this.editorRef().nativeElement;
         this.savedEmojiOffset = getTextCursorOffset(editor);
+        this.typed.set(getMessage(editor));
+        this.drafts.record(this.channelId(), this.typed());
         this.isEmpty.set(
             (editor.textContent ?? '').trim() === '' &&
                 !editor.querySelector('.mention-chip') &&
@@ -406,6 +568,12 @@ export class ComposerComponent {
             }
         }
 
+        if (event.altKey && (event.key === 'p' || event.key === 'P') && this.showPersonaSwitcher()) {
+            event.preventDefault();
+            this.personaSwitcherRef()?.toggle();
+            return;
+        }
+
         if (event.key === 'Escape' && this.activeCommand()) {
             event.preventDefault();
             this.activeCommand.set(null);
@@ -424,6 +592,62 @@ export class ComposerComponent {
             event.preventDefault();
             this.send();
         }
+    }
+
+    /**
+     * On a plain channel the server owns the resolution, so only a choice it cannot see gets sent:
+     * an explicit pick. Tags, autoproxy and the backslash escape are left in the text for it to
+     * read. An encrypted channel has no readable text, so the whole resolution happens here.
+     */
+    private speakingAs(text: string): {content: string; personaId?: string} {
+        if (!this.showPersonaSwitcher()) return {content: text};
+
+        const resolved = this.personas.resolveFor(this.guildId(), this.channelId(), text);
+        if (this.resolvePersonaLocally()) {
+            return {content: resolved.content, personaId: resolved.personaId ?? undefined};
+        }
+        return {content: text, personaId: resolved.source === 'explicit' ? resolved.personaId! : undefined};
+    }
+
+    protected toggleExpanded(): void {
+        this.expanded.update(v => !v);
+        if (!this.expanded()) this.previewing.set(false);
+        this.focus();
+    }
+
+    protected togglePreview(): void {
+        this.previewing.update(v => !v);
+        if (!this.previewing()) this.focus();
+    }
+
+    /** Throws away what the server is holding, after the reader has seen what it was. */
+    protected discardDraft(): void {
+        this.drafts.clear(this.channelId());
+        this.restoredFor = this.channelId();
+        this.draftRestored.set(false);
+        this.clearEditor();
+        this.focus();
+    }
+
+    protected dismissRestoredNotice(): void {
+        this.draftRestored.set(false);
+    }
+
+    /** Writes whatever is in the editor now, for a composer about to be reused or torn down. */
+    private parkDraft(): void {
+        const channelId = this.lastChannelId;
+        if (!channelId) return;
+        const editor = this.editorRef?.()?.nativeElement;
+        if (!editor) return;
+        this.drafts.flushNow(channelId, getMessage(editor));
+    }
+
+    private clearEditor(): void {
+        const editor = this.editorRef().nativeElement;
+        editor.innerHTML = '';
+        this.typed.set('');
+        this.isEmpty.set(true);
+        this.closeOverlay();
     }
 
     onPaste(event: ClipboardEvent): void {
@@ -465,6 +689,16 @@ export class ComposerComponent {
             chip.dataset['display'] = `@${candidate.userName}`;
             chip.textContent = `@${candidate.userName}`;
             Object.assign(chip.style, userNameStyle(candidate));
+        } else if (candidate.kind === 'persona') {
+            // Reads as the character and sends as the id: a name cannot be resolved back to a
+            // character without going through an account, which is the thing that must not happen.
+            chip.className = 'mention-chip mention-chip-persona';
+            chip.dataset['personaId'] = candidate.personaId;
+            chip.dataset['display'] = personaMentionToken(candidate.personaId);
+            chip.textContent = `@${candidate.name}`;
+            if (candidate.color) {
+                chip.style.setProperty('--persona-mention-color', candidate.color);
+            }
         } else if (candidate.kind === 'role') {
             chip.className = 'mention-chip mention-chip-role';
             chip.dataset['roleId'] = candidate.roleId;
@@ -593,6 +827,7 @@ export class ComposerComponent {
                         attachments: [],
                         mentions: [],
                         roleMentions: [],
+                        personaMentions: [],
                         mentionsEveryone: false,
                         mentionsHere: false,
                     });
@@ -729,6 +964,7 @@ export class ComposerComponent {
             attachments: [],
             mentions: [],
             roleMentions: [],
+            personaMentions: [],
             mentionsEveryone: false,
             mentionsHere: false,
         });
@@ -788,6 +1024,13 @@ export class ComposerComponent {
             return;
         }
 
+        // The post stays exactly where it is, and is written to the draft rather than trimmed. The
+        // notice above the box already says how much room this server allows.
+        if (this.length().blocked) {
+            this.drafts.flushNow(this.channelId(), this.typed());
+            return;
+        }
+
         if (this.typingThrottle !== null) {
             clearTimeout(this.typingThrottle);
             this.typingThrottle = null;
@@ -807,23 +1050,34 @@ export class ComposerComponent {
         const chips = Array.from(editor.querySelectorAll<HTMLElement>('.mention-chip'));
         const mentions = chips.map(c => c.dataset['userId'] ?? '').filter(Boolean);
         const roleMentions = chips.map(c => c.dataset['roleId'] ?? '').filter(Boolean);
+        const personaMentions = chips.map(c => c.dataset['personaId'] ?? '').filter(Boolean);
         const mentionsEveryone = chips.some(c => c.dataset['everyone'] === 'true');
         const mentionsHere = chips.some(c => c.dataset['here'] === 'true');
 
-        if (text || attachments.length > 0) {
+        const speaking = this.speakingAs(text);
+
+        if (speaking.content || attachments.length > 0) {
             this.message.emit({
-                content: text,
+                content: speaking.content,
                 attachments,
                 inReplyTo: this.replyTo()?.id,
                 mentions,
                 roleMentions,
+                personaMentions,
                 mentionsEveryone,
                 mentionsHere,
+                personaId: speaking.personaId,
             });
         }
 
         editor.innerHTML = '';
+        this.typed.set('');
         this.isEmpty.set(true);
+        this.previewing.set(false);
+        this.expanded.set(false);
+        this.draftRestored.set(false);
+        this.restoredFor = this.channelId();
+        this.drafts.clear(this.channelId());
         this.closeOverlay();
         editor.focus();
     }
@@ -897,9 +1151,44 @@ export class ComposerComponent {
         }
     }
 
+    /**
+     * `/roll` goes straight to the server rather than opening the tray: somebody typing notation
+     * already knows what they want, and a confirmation step would only be in the way.
+     */
+    private rollFromCommand(payload: {expression: string; reason: string}): void {
+        const guildId = this.guildId();
+        const channelId = this.channelId();
+        if (!guildId || !channelId) return;
+
+        if (!this.canRollDice()) {
+            this.toast.error(this.translate.instant('DICE.TRAY.NOT_ALLOWED'));
+            return;
+        }
+
+        const parsed = parseDiceExpression(payload.expression);
+        if (!parsed.ok) {
+            this.toast.error(this.translate.instant(parsed.key, parsed.params ?? {}));
+            return;
+        }
+
+        this.dice
+            .roll(guildId, channelId, {
+                expression: payload.expression,
+                personaId: this.personaResolution().personaId,
+                reason: payload.reason || null,
+            })
+            .subscribe({
+                error: err => this.toast.httpError(this.translate.instant('DICE.TRAY.FAILED'), err),
+            });
+    }
+
     private dispatchAction(action: {name: string; payload?: unknown}): void {
         if (action.name === 'open-gif-picker') {
             this.gifPickerRef()?.open();
+            return;
+        }
+        if (action.name === 'roll-dice') {
+            this.rollFromCommand(action.payload as {expression: string; reason: string});
             return;
         }
         if (action.name === 'open-gif-picker-with-search') {

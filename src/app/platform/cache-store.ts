@@ -16,12 +16,13 @@ const REVISION_PREFIX = `__rev${SEPARATOR}`;
 /** The subsystem name this store takes its cross-tab locks under. */
 const LOCK_AREA = 'cache-store';
 
-export type CacheDomain = 'profile' | 'message';
+export type CacheDomain = 'profile' | 'message' | 'conversation';
 
 /** The hard ceiling each domain is held to, in bytes. Domains never borrow from each other. */
 export const DOMAIN_RESERVES: Record<CacheDomain, number> = {
     profile: 5 * 1024 * 1024,
     message: 15 * 1024 * 1024,
+    conversation: 1 * 1024 * 1024,
 };
 
 /** How long index writes are batched for, in milliseconds. */
@@ -42,7 +43,7 @@ interface IndexEntry {
 export class CacheStore {
     private store: Promise<IdbStore> | undefined;
     private index: Map<string, IndexEntry> | undefined;
-    private readonly sizes: Record<CacheDomain, number> = {profile: 0, message: 0};
+    private readonly sizes: Record<CacheDomain, number> = {profile: 0, message: 0, conversation: 0};
 
     /** The revision marker {@link index} was built at. `undefined` is a cache nothing has written. */
     private indexRevision: string | undefined;
@@ -183,6 +184,7 @@ export class CacheStore {
             for (const scoped of [...index.keys()]) await this.discard(index, scoped);
             this.sizes.profile = 0;
             this.sizes.message = 0;
+            this.sizes.conversation = 0;
             await this.purgeStoredRows();
             // Never batched: an unflushed clear() leaves the signed-out account's index readable.
             await this.flushIndex(index);
@@ -266,6 +268,7 @@ export class CacheStore {
         this.indexRevision = revision;
         this.sizes.profile = 0;
         this.sizes.message = 0;
+        this.sizes.conversation = 0;
         for (const entry of loaded.map.values()) this.sizes[entry.domain] += entry.bytes;
         return loaded.map;
     }

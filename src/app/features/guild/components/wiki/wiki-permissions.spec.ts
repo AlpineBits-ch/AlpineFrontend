@@ -38,6 +38,7 @@ describe('wikiAbilities', () => {
             canDelete: false,
             canManageStructure: false,
             canManageRevisions: false,
+            canPublish: false,
         });
     });
 
@@ -48,6 +49,7 @@ describe('wikiAbilities', () => {
         expect(abilitiesFor('DeleteWikiPages').canDelete).toBe(true);
         expect(abilitiesFor('ManageWikiStructure').canManageStructure).toBe(true);
         expect(abilitiesFor('ManageWikiRevisions').canManageRevisions).toBe(true);
+        expect(abilitiesFor('PublishWikiPublicly').canPublish).toBe(true);
     });
 
     // Superadmin has no bit in the module space; it is read off the core mask instead.

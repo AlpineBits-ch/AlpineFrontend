@@ -1,0 +1,372 @@
+<header class="app-header flex shrink-0 items-center gap-3 border-b border-white/[0.06] bg-app-bg px-4">
+    <i class="pi pi-users shrink-0 text-sm text-brand-dim"></i>
+    <span class="shrink-0 text-[0.8125rem] font-semibold text-text-primary">{{ 'PERSONA.DIRECTORY.TITLE' | translate }}</span>
+
+    <nav class="ml-3 flex items-center gap-0.5">
+        <button
+            (click)="tab.set('cast')"
+            [class]="tab() === 'cast' ? 'bg-white/[0.07] text-text-primary' : 'text-text-muted hover:bg-white/[0.04]'"
+            class="rounded-lg border-0 bg-transparent px-2.5 py-1 text-[0.75rem] font-medium transition-colors cursor-pointer"
+            type="button"
+        >
+            {{ 'PERSONA.DIRECTORY.TAB_CAST' | translate }}
+        </button>
+        <button
+            (click)="tab.set('mine')"
+            [class]="tab() === 'mine' ? 'bg-white/[0.07] text-text-primary' : 'text-text-muted hover:bg-white/[0.04]'"
+            class="rounded-lg border-0 bg-transparent px-2.5 py-1 text-[0.75rem] font-medium transition-colors cursor-pointer"
+            type="button"
+        >
+            {{ 'PERSONA.DIRECTORY.TAB_MINE' | translate }}
+        </button>
+        @if (canApprove()) {
+            <button
+                (click)="tab.set('review')"
+                [class]="tab() === 'review' ? 'bg-white/[0.07] text-text-primary' : 'text-text-muted hover:bg-white/[0.04]'"
+                class="flex items-center gap-1.5 rounded-lg border-0 bg-transparent px-2.5 py-1 text-[0.75rem] font-medium transition-colors cursor-pointer"
+                type="button"
+            >
+                {{ 'PERSONA.DIRECTORY.TAB_REVIEW' | translate }}
+                @if (pending().length) {
+                    <span class="rounded-full bg-connecting/20 px-1.5 text-[0.625rem] font-semibold text-connecting">{{
+                        pending().length
+                    }}</span>
+                }
+            </button>
+        }
+    </nav>
+
+    <div class="ml-auto flex shrink-0 items-center gap-2">
+        <input
+            (ngModelChange)="query.set($event)"
+            [ngModel]="query()"
+            [placeholder]="'PERSONA.DIRECTORY.SEARCH' | translate"
+            class="hidden w-40 rounded-lg border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[0.75rem] text-text-primary outline-none placeholder:text-text-faint sm:block"
+        />
+        <p-button
+            (onClick)="createPersonal()"
+            [label]="'PERSONA.DIRECTORY.NEW' | translate"
+            icon="pi pi-plus"
+            severity="primary"
+            size="small"
+        />
+        @if (canManage()) {
+            <p-button
+                (onClick)="createShared()"
+                [label]="'PERSONA.DIRECTORY.NEW_SHARED' | translate"
+                [outlined]="true"
+                icon="pi pi-users"
+                severity="secondary"
+                size="small"
+            />
+        }
+    </div>
+</header>
+
+<div class="min-h-0 flex-1 overflow-y-auto thin-scrollbar px-4 py-5 sm:px-6">
+    @switch (tab()) {
+        <!-- ── Cast ────────────────────────────────────────────────────────── -->
+        @case ('cast') {
+            @if (loading() && !cast().length) {
+                <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    @for (i of [1, 2, 3, 4, 5, 6]; track i) {
+                        <div class="h-28 animate-pulse rounded-2xl bg-white/[0.03]"></div>
+                    }
+                </div>
+            } @else if (!cast().length) {
+                <div class="mx-auto max-w-md rounded-2xl border border-dashed border-white/[0.10] px-6 py-12 text-center">
+                    <p class="text-sm text-text-secondary">{{ 'PERSONA.DIRECTORY.EMPTY' | translate }}</p>
+                    <p class="mt-1 text-[0.75rem] leading-relaxed text-text-muted">{{ 'PERSONA.DIRECTORY.EMPTY_HINT' | translate }}</p>
+                </div>
+            } @else {
+                <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    @for (entry of cast(); track entry.persona.id) {
+                        @let who = identityOf(entry);
+                        <button
+                            (click)="open(entry)"
+                            [style.border-color]="
+                                who.color ? 'color-mix(in srgb, ' + who.color + ' 26%, transparent)' : 'rgba(255,255,255,0.07)'
+                            "
+                            class="group flex flex-col gap-2.5 rounded-2xl border bg-card/60 p-4 text-left transition-colors cursor-pointer hover:bg-hover"
+                            type="button"
+                        >
+                            <div class="flex items-start gap-3">
+                                <app-persona-avatar
+                                    [avatarUrl]="who.avatarUrl"
+                                    [color]="who.color"
+                                    [muted]="who.isRetired"
+                                    [name]="who.name"
+                                    size="lg"
+                                />
+                                <div class="flex min-w-0 flex-1 flex-col gap-0.5">
+                                    <span
+                                        [style.color]="who.color ?? 'var(--color-text-primary)'"
+                                        class="truncate text-[0.9375rem] font-semibold"
+                                    >
+                                        {{ who.name }}
+                                    </span>
+                                    <span class="flex flex-wrap items-center gap-1.5 text-[0.6875rem] text-text-muted">
+                                        @if (who.pronouns) {
+                                            <span>{{ who.pronouns }}</span>
+                                        }
+                                        @if (who.tag) {
+                                            <span
+                                                class="rounded bg-white/[0.07] px-1 text-[0.5625rem] font-semibold uppercase tracking-wide"
+                                                >{{ who.tag }}</span
+                                            >
+                                        }
+                                        @if (entry.persona.ownerGuildId) {
+                                            <span
+                                                class="rounded bg-brand/15 px-1 text-[0.5625rem] font-semibold uppercase tracking-wide text-brand-dim"
+                                            >
+                                                {{ 'PERSONA.SHARED' | translate }}
+                                            </span>
+                                        }
+                                    </span>
+                                </div>
+                                @let state = approvalOf(entry);
+                                <span
+                                    [class]="state.chipClass"
+                                    class="shrink-0 rounded-full px-1.5 py-[2px] text-[0.5625rem] font-semibold"
+                                >
+                                    <i [class]="state.icon" class="text-[0.5rem]"></i>
+                                </span>
+                            </div>
+
+                            @if (entry.persona.shortBio) {
+                                <p class="line-clamp-2 text-[0.75rem] leading-relaxed text-text-secondary">{{ entry.persona.shortBio }}</p>
+                            }
+
+                            <div class="mt-auto flex items-center gap-2 pt-1 text-[0.6875rem] text-text-faint">
+                                @if (tagsOf(entry); as tags) {
+                                    <code class="rounded bg-white/[0.05] px-1 font-mono">{{ tags }}</code>
+                                }
+                                @if (entry.wikiPageId) {
+                                    <span class="flex items-center gap-1"
+                                        ><i class="pi pi-book text-[0.5625rem]"></i>{{ 'PERSONA.DIRECTORY.HAS_PAGE' | translate }}</span
+                                    >
+                                }
+                                @if (who.isRetired) {
+                                    <span>{{ 'PERSONA.RETIRED' | translate }}</span>
+                                }
+                            </div>
+                        </button>
+                    }
+                </div>
+            }
+        }
+
+        <!-- ── Mine: the account list, and whether each is played here ─────── -->
+        @case ('mine') {
+            <div class="mx-auto flex max-w-3xl flex-col gap-3">
+                <p class="text-[0.75rem] leading-relaxed text-text-muted">
+                    {{ 'PERSONA.DIRECTORY.MINE_INTRO' | translate: {guild: guildName()} }}
+                </p>
+
+                @for (row of mine(); track row.persona.id) {
+                    <div class="flex flex-col gap-2 rounded-2xl border border-white/[0.07] bg-card/60 px-4 py-3">
+                        <div class="flex items-center gap-3">
+                            <app-persona-avatar
+                                [avatarUrl]="row.entry ? identityOf(row.entry).avatarUrl : (row.persona.avatarUrl ?? null)"
+                                [color]="accentOf(row.persona)"
+                                [muted]="row.persona.isRetired"
+                                [name]="row.persona.name"
+                                size="md"
+                            />
+                            <div class="flex min-w-0 flex-1 flex-col">
+                                <span class="truncate text-[0.8125rem] font-semibold text-text-primary">{{ row.persona.name }}</span>
+                                <span class="truncate text-[0.6875rem] text-text-muted">
+                                    @if (row.entry) {
+                                        @let who = identityOf(row.entry);
+                                        @if (who.name !== row.persona.name) {
+                                            {{ 'PERSONA.DIRECTORY.KNOWN_AS' | translate: {name: who.name, guild: guildName()} }}
+                                        } @else {
+                                            {{ 'PERSONA.DIRECTORY.PLAYED_HERE' | translate: {guild: guildName()} }}
+                                        }
+                                    } @else {
+                                        {{ 'PERSONA.DIRECTORY.NOT_HERE' | translate: {guild: guildName()} }}
+                                    }
+                                </span>
+                            </div>
+
+                            @if (row.entry; as entry) {
+                                @let state = approvalOf(entry);
+                                <span
+                                    [class]="state.chipClass"
+                                    class="hidden shrink-0 items-center gap-1 rounded-full px-2 py-[3px] text-[0.625rem] font-semibold sm:flex"
+                                >
+                                    <i [class]="state.icon" class="text-[0.5625rem]"></i>
+                                    {{ state.labelKey | translate }}
+                                </span>
+                                @if (canSubmitEntry(entry)) {
+                                    <p-button
+                                        (onClick)="submit(entry)"
+                                        [label]="'PERSONA.DIRECTORY.SUBMIT' | translate"
+                                        [loading]="busyId() === row.persona.id"
+                                        [outlined]="true"
+                                        severity="secondary"
+                                        size="small"
+                                    />
+                                }
+                                <p-button
+                                    (onClick)="edit(entry)"
+                                    [attr.aria-label]="'PERSONA.DIRECTORY.EDIT' | translate"
+                                    [text]="true"
+                                    icon="pi pi-pencil"
+                                    severity="secondary"
+                                    size="small"
+                                />
+                                <p-button
+                                    (onClick)="withdraw(row.persona)"
+                                    [attr.aria-label]="'PERSONA.DIRECTORY.WITHDRAW' | translate"
+                                    [loading]="busyId() === row.persona.id"
+                                    [text]="true"
+                                    icon="pi pi-sign-out"
+                                    severity="secondary"
+                                    size="small"
+                                />
+                            } @else {
+                                <p-button
+                                    (onClick)="adopt(row.persona)"
+                                    [label]="'PERSONA.DIRECTORY.ADOPT' | translate"
+                                    [loading]="busyId() === row.persona.id"
+                                    icon="pi pi-plus"
+                                    severity="primary"
+                                    size="small"
+                                />
+                            }
+                        </div>
+
+                        <!-- What the reviewer actually wrote. Without it the chip is an instruction to guess. -->
+                        @if (row.entry?.changesRequestedReason; as reason) {
+                            <p
+                                class="rounded-xl border border-brand/20 bg-brand/[0.06] px-3 py-2 text-[0.6875rem] leading-snug text-text-secondary"
+                            >
+                                {{ reason }}
+                            </p>
+                        }
+                    </div>
+                } @empty {
+                    <div class="rounded-2xl border border-dashed border-white/[0.10] px-6 py-12 text-center">
+                        <p class="text-sm text-text-secondary">{{ 'PERSONA.DIRECTORY.MINE_EMPTY' | translate }}</p>
+                        <p-button
+                            (onClick)="createPersonal()"
+                            [label]="'PERSONA.DIRECTORY.NEW' | translate"
+                            class="mt-4 inline-block"
+                            icon="pi pi-plus"
+                            severity="primary"
+                            size="small"
+                        />
+                    </div>
+                }
+            </div>
+        }
+
+        <!-- ── Review ──────────────────────────────────────────────────────── -->
+        @case ('review') {
+            <div class="mx-auto flex max-w-3xl flex-col gap-3">
+                @for (entry of pending(); track entry.persona.id) {
+                    @let who = identityOf(entry);
+                    <div class="flex flex-col gap-3 rounded-2xl border border-white/[0.07] bg-card/60 p-4">
+                        <div class="flex items-start gap-3">
+                            <app-persona-avatar [avatarUrl]="who.avatarUrl" [color]="who.color" [name]="who.name" size="lg" />
+                            <div class="flex min-w-0 flex-1 flex-col gap-0.5">
+                                <span
+                                    [style.color]="who.color ?? 'var(--color-text-primary)'"
+                                    class="truncate text-[0.9375rem] font-semibold"
+                                    >{{ who.name }}</span
+                                >
+                                @if (who.pronouns) {
+                                    <span class="text-[0.6875rem] text-text-muted">{{ who.pronouns }}</span>
+                                }
+                                @if (entry.persona.shortBio) {
+                                    <p class="mt-1 text-[0.75rem] leading-relaxed text-text-secondary">{{ entry.persona.shortBio }}</p>
+                                }
+                            </div>
+                        </div>
+
+                        <div class="flex flex-wrap items-center gap-2">
+                            <p-button
+                                (onClick)="open(entry)"
+                                [label]="'PERSONA.REVIEW.READ_PAGE' | translate"
+                                [text]="true"
+                                icon="pi pi-book"
+                                severity="secondary"
+                                size="small"
+                            />
+                            <span class="flex-1"></span>
+                            <p-button
+                                (onClick)="openReview(entry)"
+                                [label]="'PERSONA.REVIEW.REQUEST_CHANGES' | translate"
+                                [outlined]="true"
+                                severity="secondary"
+                                size="small"
+                            />
+                            <p-button
+                                (onClick)="approve(entry)"
+                                [label]="'PERSONA.REVIEW.APPROVE' | translate"
+                                [loading]="busyId() === entry.persona.id"
+                                icon="pi pi-check"
+                                severity="primary"
+                                size="small"
+                            />
+                        </div>
+                    </div>
+                } @empty {
+                    <div class="rounded-2xl border border-dashed border-white/[0.10] px-6 py-12 text-center">
+                        <p class="text-sm text-text-secondary">{{ 'PERSONA.REVIEW.EMPTY' | translate }}</p>
+                        <p class="mt-1 text-[0.75rem] text-text-muted">{{ 'PERSONA.REVIEW.EMPTY_HINT' | translate }}</p>
+                    </div>
+                }
+            </div>
+        }
+    }
+</div>
+
+<app-persona-editor
+    (closed)="editing.set(null)"
+    (saved)="personas.ensureCast(guildId(), true)"
+    [guildName]="guildName()"
+    [target]="editing()"
+/>
+
+<!-- ── Request changes ────────────────────────────────────────────────────── -->
+<p-dialog
+    (visibleChange)="!$event && reviewing.set(null)"
+    [closable]="true"
+    [draggable]="false"
+    [modal]="true"
+    [resizable]="false"
+    [style]="{width: '30rem'}"
+    [visible]="!!reviewing()"
+    appendTo="body"
+    maskStyleClass="backdrop-blur-sm"
+    styleClass="!bg-card !border !border-white/[0.08] !rounded-2xl"
+>
+    <ng-template pTemplate="header">
+        <span class="text-base font-semibold text-text-primary">
+            {{ 'PERSONA.REVIEW.DIALOG_TITLE' | translate: {name: reviewing() ? identityOf(reviewing()!).name : ''} }}
+        </span>
+    </ng-template>
+
+    <p class="mb-3 text-[0.75rem] leading-relaxed text-text-muted">{{ 'PERSONA.REVIEW.DIALOG_HINT' | translate }}</p>
+    <textarea
+        (ngModelChange)="reviewReason.set($event)"
+        [ngModel]="reviewReason()"
+        [placeholder]="'PERSONA.REVIEW.REASON_PLACEHOLDER' | translate"
+        class="w-full resize-none rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-sm text-text-primary outline-none placeholder:text-text-faint focus:border-white/[0.18]"
+        maxlength="500"
+        rows="4"
+    ></textarea>
+
+    <div class="mt-4 flex justify-end gap-2 border-t border-white/[0.10] pt-4">
+        <p-button (onClick)="reviewing.set(null)" [label]="'PERSONA.CANCEL' | translate" [text]="true" severity="secondary" size="small" />
+        <p-button
+            (onClick)="sendChanges()"
+            [disabled]="!reviewReason().trim()"
+            [label]="'PERSONA.REVIEW.SEND' | translate"
+            severity="primary"
+            size="small"
+        />
+    </div>
+</p-dialog>

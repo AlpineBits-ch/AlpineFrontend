@@ -13,10 +13,22 @@ export type MainView =
     | {type: 'channel'; channel: ChannelDto}
     | {type: 'wiki'; guildId: string}
     /** The household digest - one guild-scoped view over six modules, not a channel. */
-    | {type: 'house'; guildId: string};
+    | {type: 'house'; guildId: string}
+    /** The guild's cast list, and the approval queue behind it. */
+    | {type: 'personas'; guildId: string}
+    | {type: 'character'; guildId: string; personaId: string}
+    /** Every scene in the guild, ordered by what is waiting on the reader. */
+    | {type: 'scenes'; guildId: string};
 
 interface PersistedNav {
-    kind: 'dms-home' | 'dms-conversation' | 'server-channel' | 'server-wiki' | 'server-house';
+    kind:
+        | 'dms-home'
+        | 'dms-conversation'
+        | 'server-channel'
+        | 'server-wiki'
+        | 'server-house'
+        | 'server-personas'
+        | 'server-scenes';
     guildId?: string;
     channelId?: string;
     conversationId?: string;
@@ -88,7 +100,9 @@ export class NavigationService {
             if (
                 state.kind !== 'server-channel' &&
                 state.kind !== 'server-wiki' &&
-                state.kind !== 'server-house'
+                state.kind !== 'server-house' &&
+                state.kind !== 'server-personas' &&
+                state.kind !== 'server-scenes'
             )
                 return false;
             const guild = guilds.find(g => g.id === state.guildId);
@@ -101,6 +115,10 @@ export class NavigationService {
                 this.mainView.set({type: 'wiki', guildId: guild.id});
             } else if (state.kind === 'server-house' && hasHouseholdModule(guild)) {
                 this.mainView.set({type: 'house', guildId: guild.id});
+            } else if (state.kind === 'server-personas' && guildHasFeature(guild, GuildFeature.Personas)) {
+                this.mainView.set({type: 'personas', guildId: guild.id});
+            } else if (state.kind === 'server-scenes' && guildHasFeature(guild, GuildFeature.Scenes)) {
+                this.mainView.set({type: 'scenes', guildId: guild.id});
             } else {
                 const ch =
                     guild.channels.find(c => c.id === state.channelId) ??
@@ -228,6 +246,45 @@ export class NavigationService {
         this.mobileNavOpen.set(false);
     }
 
+    /** The cast list. Guild-scoped like the wiki, and for the same reason. */
+    openPersonas(guildId: string): void {
+        const current = this.mainView();
+        if (current.type !== 'personas' || current.guildId !== guildId) {
+            this.mainView.set({type: 'personas', guildId});
+            this.saveNav();
+        }
+        this.mobileNavOpen.set(false);
+    }
+
+    /** The scene board. Guild-scoped like the wiki, and for the same reason. */
+    openScenes(guildId: string): void {
+        const current = this.mainView();
+        if (current.type !== 'scenes' || current.guildId !== guildId) {
+            this.mainView.set({type: 'scenes', guildId});
+            this.saveNav();
+        }
+        this.mobileNavOpen.set(false);
+    }
+
+    /** Steps off the board when the module goes away underneath the reader. */
+    leaveScenes(): void {
+        if (this.mainView().type !== 'scenes') return;
+        this.leaveGuildView();
+    }
+
+    openCharacter(guildId: string, personaId: string): void {
+        this.mainView.set({type: 'character', guildId, personaId});
+        this.mobileNavOpen.set(false);
+        this.saveNav();
+    }
+
+    /** Steps off both persona views when the module goes away underneath the reader. */
+    leavePersonas(): void {
+        const view = this.mainView().type;
+        if (view !== 'personas' && view !== 'character') return;
+        this.leaveGuildView();
+    }
+
     /** The digest's counterpart to {@link leaveWiki}, for a house that turns every module off. */
     leaveHouse(): void {
         if (this.mainView().type !== 'house') return;
@@ -301,6 +358,12 @@ export class NavigationService {
                 return `${ws}|wiki:${view.guildId}`;
             case 'house':
                 return `${ws}|house:${view.guildId}`;
+            case 'personas':
+                return `${ws}|personas:${view.guildId}`;
+            case 'character':
+                return `${ws}|character:${view.personaId}`;
+            case 'scenes':
+                return `${ws}|scenes:${view.guildId}`;
         }
     }
 
@@ -353,6 +416,12 @@ export class NavigationService {
         } else {
             if (view.type === 'wiki') {
                 state = {kind: 'server-wiki', guildId: ws.guild.id};
+            } else if (view.type === 'personas' || view.type === 'character') {
+                // A character page is restored as the cast list: the persona may have been retired,
+                // renamed or dropped from the guild while the app was closed.
+                state = {kind: 'server-personas', guildId: ws.guild.id};
+            } else if (view.type === 'scenes') {
+                state = {kind: 'server-scenes', guildId: ws.guild.id};
             } else if (view.type === 'house') {
                 state = {kind: 'server-house', guildId: ws.guild.id};
             } else if (view.type === 'channel') {

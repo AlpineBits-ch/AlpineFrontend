@@ -7,9 +7,13 @@ export interface CreateMessageDto {
     attachments: string[];
     inReplyTo: string | undefined;
     mentions: string[];
+    /** Characters named in the body as `<@pers_...>`. Notifies each owner without naming them. */
+    personaMentions?: string[];
     roleMentions?: string[];
     mentionsEveryone?: boolean;
     mentionsHere?: boolean;
+    /** Speak as this character. The server resolves it and fills the author display overrides. */
+    personaId?: string;
     encryptionState?: MessageEncryptionState;
     mlsEpoch?: number;
     /** Which encryption era of the context the ciphertext was sealed under. */

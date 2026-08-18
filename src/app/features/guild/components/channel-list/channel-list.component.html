@@ -10,7 +10,7 @@
         </button>
     </div>
 
-    @if (hasHouse() || hasWiki() || hasEvents() || hasSelfServeRoles()) {
+    @if (hasHouse() || hasWiki() || hasPersonas() || hasScenes() || hasEvents() || hasSelfServeRoles()) {
         <div class="chan-modules px-2 py-2 shrink-0 flex flex-col">
             @if (hasHouse()) {
                 <button (click)="openHouse()" [class.is-active]="isHouseActive()" class="chan-row chan-row-module">
@@ -22,6 +22,22 @@
                 <button (click)="openWiki()" [class.is-active]="isWikiActive()" class="chan-row chan-row-module">
                     <span class="chan-icon"><i class="pi pi-book"></i></span>
                     <span class="chan-label">{{ 'GUILD.WIKI' | translate }}</span>
+                </button>
+            }
+            @if (hasPersonas()) {
+                <button (click)="openPersonas()" [class.is-active]="isPersonasActive()" class="chan-row chan-row-module">
+                    <span class="chan-icon"><i class="pi pi-users"></i></span>
+                    <span class="chan-label">{{ 'PERSONA.DIRECTORY.TITLE' | translate }}</span>
+                </button>
+            }
+            @if (hasScenes()) {
+                <button (click)="openScenes()" [class.is-active]="isScenesActive()" class="chan-row chan-row-module">
+                    <span class="chan-icon"><i class="pi pi-bookmark"></i></span>
+                    <span class="chan-label">{{ 'SCENE.BOARD.TITLE' | translate }}</span>
+                    <!-- The whole nudge design, in one number: no toast, no banner, no interruption. -->
+                    @if (waitingSceneCount(); as waiting) {
+                        <span class="chan-badge chan-badge-count chan-badge-turn">{{ waiting }}</span>
+                    }
                 </button>
             }
             @if (hasEvents()) {

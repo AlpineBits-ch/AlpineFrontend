@@ -139,6 +139,8 @@ describe('channelViewFor', () => {
         expect(channelViewFor(ChannelType.Text)).toBe('message');
         expect(channelViewFor(ChannelType.Announcement)).toBe('message');
         expect(channelViewFor(ChannelType.Thread)).toBe('message');
+        // A scene is a thread variant, so it gets the message view and its composer.
+        expect(channelViewFor(ChannelType.Scene)).toBe('message');
     });
 
     it('routes each household type to its own view', () => {

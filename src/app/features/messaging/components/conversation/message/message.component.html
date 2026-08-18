@@ -10,9 +10,20 @@
     class="relative flex items-start gap-3 px-4 hover:bg-white/[0.02] rounded-lg transition-colors transition-opacity duration-base ease-brand group"
 >
     @if (!isGrouped()) {
-        <div (click)="profilePopout.open(message().authorId)" class="cursor-pointer shrink-0 mt-0.5">
-            <app-avatar [userId]="message().authorId" />
-        </div>
+        @if (speaker(); as who) {
+            <button
+                (click)="openCharacter()"
+                [attr.aria-label]="'PERSONA.MESSAGE.OPEN_PAGE' | translate: {name: who.name}"
+                class="cursor-pointer shrink-0 mt-0.5 border-0 bg-transparent p-0"
+                type="button"
+            >
+                <app-persona-avatar [avatarUrl]="who.avatarUrl" [color]="who.color" [name]="who.name" />
+            </button>
+        } @else {
+            <div (click)="profilePopout.open(message().authorId)" class="cursor-pointer shrink-0 mt-0.5">
+                <app-avatar [userId]="message().authorId" />
+            </div>
+        }
     } @else {
         <div class="shrink-0 w-8 flex items-start justify-center mt-0.5">
             <span class="hidden group-hover:block text-[10px] font-medium text-[var(--color-text-muted)] select-none">{{
@@ -57,7 +68,33 @@
         ) {
             <div class="flex items-center gap-2 mb-1">
                 @if (!isGrouped()) {
-                    @if (botName(message().authorId); as bName) {
+                    @if (speaker(); as who) {
+                        <!-- The character leads; the account that typed it stays on the same line,
+                             one click from their profile. Nothing here is a badge. -->
+                        <span
+                            (click)="openCharacter()"
+                            [style.color]="who.color ?? 'var(--color-text-primary)'"
+                            class="text-sm font-bold cursor-pointer hover:brightness-125 transition-[filter]"
+                        >
+                            {{ who.name }}
+                        </span>
+                        @let author = getProfile() | async;
+                        <button
+                            (click)="profilePopout.open(message().authorId)"
+                            [title]="'PERSONA.MESSAGE.PLAYED_BY' | translate: {name: author ? author.userName : ''}"
+                            class="shrink-0 border-0 bg-transparent p-0 text-[0.6875rem] text-text-muted hover:text-text-secondary transition-colors cursor-pointer"
+                            type="button"
+                        >
+                            {{ author ? author.userName : message().authorId }}
+                        </button>
+                    } @else if (webhookName(); as hookName) {
+                        <span class="text-sm font-bold text-[var(--color-text-primary)]">{{ hookName }}</span>
+                        <span
+                            class="shrink-0 text-[9px] font-bold uppercase tracking-wide px-1 py-[1px] rounded bg-white/[0.08] text-text-muted"
+                        >
+                            {{ 'PERSONA.MESSAGE.WEBHOOK' | translate }}
+                        </span>
+                    } @else if (botName(message().authorId); as bName) {
                         <span
                             (click)="profilePopout.open(message().authorId)"
                             class="text-sm font-bold text-[var(--color-text-primary)] cursor-pointer hover:text-white transition-colors"
@@ -191,6 +228,9 @@
                 <i class="pi pi-exclamation-circle text-[13px]"></i>
                 <span>Didn't respond</span>
             </div>
+        } @else if (diceRoll(); as roll) {
+            <!-- A recorded roll. The plain line stays in `content` for anything that cannot read this. -->
+            <app-dice-roll-card [roll]="roll" [settling]="diceSettling" />
         } @else if (hasRenderableContent()) {
             <!-- Normal message content -->
             <div
@@ -219,6 +259,15 @@
                                 [appUserNameStyle]="seg.refId ? mentionedProfile(seg.refId) : null"
                                 [class.cursor-pointer]="seg.refId"
                                 class="mention-chip"
+                                >{{ seg.value }}</span
+                            >
+                        } @else if (seg.type === 'persona') {
+                            <!-- The character, and only the character. Nothing here, and nothing
+                                 reachable from here, names the account behind them. -->
+                            <span
+                                (click)="openMentionedCharacter(seg.refId)"
+                                [style.--persona-mention-color]="seg.color"
+                                class="mention-chip mention-chip-persona cursor-pointer"
                                 >{{ seg.value }}</span
                             >
                         } @else if (seg.type === 'role') {
@@ -299,8 +348,9 @@
             </div>
         }
 
-        <!-- Cards arrive seconds after the message, never with it. -->
-        @if (embeds().length && !embedsSuppressed()) {
+        <!-- Cards arrive seconds after the message, never with it. A roll's own embed is the
+             fallback for clients that cannot read the structured roll, so it is not drawn twice. -->
+        @if (embeds().length && !embedsSuppressed() && !diceRoll()) {
             <div class="group/embeds relative flex flex-col gap-2 mt-2 w-fit max-w-full embed-enter">
                 @for (embed of embeds(); track $index) {
                     <app-embed-card (openMedia)="openEmbedMedia($event)" [embed]="embed" />

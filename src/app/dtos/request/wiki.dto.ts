@@ -20,6 +20,9 @@ export interface UpdateWikiPageDto {
     isPinned?: boolean;
     /** Stored on the revision this update creates. Ignored when the content is unchanged. */
     summary?: string;
+    icon?: string | null;
+    coverUrl?: string | null;
+    infoboxJson?: string | null;
 }
 
 export interface CreateWikiCategoryDto {

@@ -22,4 +22,10 @@ export enum MessageType {
 
     /** A group's icon changed. `content` is empty, or `removed` when the icon was deleted. */
     GroupIconChanged = 'GroupIconChanged',
+
+    /**
+     * A server-rolled result. `content` is the plain line and `embedsJson` carries the structured
+     * roll; a client that reads neither still shows the text.
+     */
+    DiceRoll = 'DiceRoll',
 }

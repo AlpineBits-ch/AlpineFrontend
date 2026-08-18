@@ -10,15 +10,15 @@ carries a composer that opens or reuses a DM and sends the first message.
 `app-profile-dialog`, a centered PrimeNG `p-dialog` holding `app-profile-card`. Seven call sites
 open it:
 
-| Call site | File |
-|---|---|
-| Guild member list | `features/guild/components/guild-member-list/guild-member-list.component.html:9` |
+| Call site               | File                                                                                              |
+| ----------------------- | ------------------------------------------------------------------------------------------------- |
+| Guild member list       | `features/guild/components/guild-member-list/guild-member-list.component.html:9`                  |
 | Conversation info panel | `features/messaging/components/conversation-info-panel/conversation-info-panel.component.html:62` |
-| Message author | `features/messaging/components/conversation/message/message.component.html:12,47,54,170` |
-| DM header | `features/messaging/components/conversation/conversation.component.html:9` |
-| Home friends list | `features/main-page/pages/home/home.component.html:151,181,212` |
-| Activity feed | `features/main-page/components/activity-feed/activity-feed.component.html:30,55,77` |
-| Home status board | `features/guild/components/home-status-board/home-status-board.component.html:58` |
+| Message author          | `features/messaging/components/conversation/message/message.component.html:12,47,54,170`          |
+| DM header               | `features/messaging/components/conversation/conversation.component.html:9`                        |
+| Home friends list       | `features/main-page/pages/home/home.component.html:151,181,212`                                   |
+| Activity feed           | `features/main-page/components/activity-feed/activity-feed.component.html:30,55,77`               |
+| Home status board       | `features/guild/components/home-status-board/home-status-board.component.html:58`                 |
 
 `ProfileDto` already declares `mutualFriends?` and `mutualServers?`. Nothing renders them.
 
@@ -49,8 +49,15 @@ Placement is a pure function so it is testable without a DOM:
 
 ```ts
 // components/profile-popout/place-popout.ts
-export interface Placement { left: number; top: number; }
-export function placePopout(anchor: DOMRect, card: {width: number; height: number}, viewport: {width: number; height: number}): Placement;
+export interface Placement {
+  left: number;
+  top: number;
+}
+export function placePopout(
+  anchor: DOMRect,
+  card: {width: number; height: number},
+  viewport: {width: number; height: number},
+): Placement;
 ```
 
 Rules:
@@ -154,11 +161,11 @@ servers.
 `components/profile-modal/`. Custom, like the popout. Left column is the same `app-profile-card`
 plus a Message button and the overflow menu. Right column is a tab strip over a scrolling list.
 
-| Tab | Source | Shown when |
-|---|---|---|
-| Activity | `UserActivityService.activitiesFor(userId)` | Always. Empty state when there is nothing. |
-| N Mutual Friends | `GET .../mutual-friends` | `mutualFriends` present on the profile |
-| M Mutual Servers | `GET .../mutual-servers` | `mutualServers` present on the profile |
+| Tab              | Source                                      | Shown when                                 |
+| ---------------- | ------------------------------------------- | ------------------------------------------ |
+| Activity         | `UserActivityService.activitiesFor(userId)` | Always. Empty state when there is nothing. |
+| N Mutual Friends | `GET .../mutual-friends`                    | `mutualFriends` present on the profile     |
+| M Mutual Servers | `GET .../mutual-servers`                    | `mutualServers` present on the profile     |
 
 Counts in the tab labels come from the profile embed, so the strip renders before either list
 loads. A tab fetches on first open and keeps its page. A 403 removes the tab rather than showing an
@@ -200,16 +207,16 @@ for.
 
 ## 7. Errors
 
-| Case | Behaviour |
-|---|---|
-| Profile fetch fails | Card shows the existing loading skeleton, no toast. Same as today. |
-| Mutual key absent | Half omitted, tab omitted. Never read without a guard. |
-| Mutuals endpoint 403 | Tab removed. The count that offered it was stale. |
-| Mutuals endpoint fails otherwise | Retry row inside the tab. The rest of the modal stays usable. |
-| Guild icon 404 | Falls back to the guild initial. |
-| DM create fails | Toast, surface stays open, composer text kept. |
-| Send fails after create | Toast, navigate anyway. |
-| Anchor detached while open | Close the popout. |
+| Case                             | Behaviour                                                          |
+| -------------------------------- | ------------------------------------------------------------------ |
+| Profile fetch fails              | Card shows the existing loading skeleton, no toast. Same as today. |
+| Mutual key absent                | Half omitted, tab omitted. Never read without a guard.             |
+| Mutuals endpoint 403             | Tab removed. The count that offered it was stale.                  |
+| Mutuals endpoint fails otherwise | Retry row inside the tab. The rest of the modal stays usable.      |
+| Guild icon 404                   | Falls back to the guild initial.                                   |
+| DM create fails                  | Toast, surface stays open, composer text kept.                     |
+| Send fails after create          | Toast, navigate anyway.                                            |
+| Anchor detached while open       | Close the popout.                                                  |
 
 ## 8. Tests
 

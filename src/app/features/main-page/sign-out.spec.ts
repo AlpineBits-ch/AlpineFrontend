@@ -17,6 +17,9 @@ function steps(overrides: Partial<SignOutSteps> = {}) {
         clearGuildCache: () => {
             calls.push('clearGuildCache');
         },
+        clearConversations: () => {
+            calls.push('clearConversations');
+        },
         dropTokens: () => {
             calls.push('dropTokens');
         },
@@ -40,6 +43,7 @@ it('wipes this device key material before leaving', async () => {
         'deviceId',
         'wipeAccount:device-a',
         'clearGuildCache',
+        'clearConversations',
         'dropTokens',
         'goToLogin',
     ]);
@@ -70,6 +74,33 @@ it('forgets the cached guild layout even when the MLS wipe throws', async () => 
 
     expect(calls).toContain('clearGuildCache');
     expect(calls.indexOf('clearGuildCache')).toBeLessThan(calls.indexOf('goToLogin'));
+});
+
+/**
+ * The DM list is a roster of everyone this account talks to, sealed on disk and painted into the
+ * store at launch. SessionTeardownService.wipeAccount empties the cache, but the store still
+ * holds the entities and its write-behind would put them straight back - under whichever device id
+ * is live by then, which after a sign-out is the next account's.
+ */
+it('forgets the conversation list on the way out', async () => {
+    const {calls, steps: s} = steps();
+
+    await runSignOut(s);
+
+    expect(calls).toContain('clearConversations');
+    expect(calls.indexOf('clearConversations')).toBeLessThan(calls.indexOf('goToLogin'));
+});
+
+it('forgets the conversation list even when the MLS wipe throws', async () => {
+    const {calls, steps: s} = steps({
+        wipeAccount: async () => {
+            throw new Error('keychain locked');
+        },
+    });
+
+    await runSignOut(s);
+
+    expect(calls).toContain('clearConversations');
 });
 
 it('clears rich presence before dropping the tokens that write needs', async () => {

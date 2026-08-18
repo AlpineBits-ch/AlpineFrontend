@@ -1,5 +1,11 @@
 import {ProfileFont} from '../dtos/response/profile.dto';
-import {FONT_SIZE_ADJUST, FONT_STACKS, safeAccentColor, userNameStyle} from './profile-font.model';
+import {
+    FONT_SIZE_ADJUST,
+    FONT_STACKS,
+    readableAccent,
+    safeAccentColor,
+    userNameStyle,
+} from './profile-font.model';
 
 describe('userNameStyle', () => {
     it('returns an empty object for null/undefined input', () => {
@@ -69,5 +75,41 @@ describe('safeAccentColor', () => {
         expect(safeAccentColor('url(https://evil.example/pixel.png)')).toBeNull();
         expect(safeAccentColor('red')).toBeNull();
         expect(safeAccentColor('#zzzzzz')).toBeNull();
+    });
+});
+
+describe('readableAccent', () => {
+    // Relative luminance against #161b27, the lighter of the two surfaces a name is drawn on.
+    function contrast(hex: string): number {
+        const lum = (c: string) => {
+            const parts = [1, 3, 5].map(at => {
+                const v = parseInt(c.slice(at, at + 2), 16) / 255;
+                return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+            });
+            return 0.2126 * parts[0] + 0.7152 * parts[1] + 0.0722 * parts[2];
+        };
+        return (lum(hex) + 0.05) / (lum('#161b27') + 0.05);
+    }
+
+    it('leaves a colour that already reads alone', () => {
+        expect(readableAccent('#b08968')).toBe('#b08968');
+    });
+
+    it('lifts a near-black accent until it can be read', () => {
+        const lifted = readableAccent('#000000');
+        expect(lifted).not.toBe('#000000');
+        expect(contrast(lifted!)).toBeGreaterThanOrEqual(4.5);
+    });
+
+    it('lifts a saturated dark accent without discarding its hue', () => {
+        const lifted = readableAccent('#1a1a3e')!;
+        expect(contrast(lifted)).toBeGreaterThanOrEqual(4.5);
+        // Still blue: the channel that was highest stays highest.
+        expect(parseInt(lifted.slice(5, 7), 16)).toBeGreaterThan(parseInt(lifted.slice(1, 3), 16));
+    });
+
+    it('rejects what safeAccentColor rejects', () => {
+        expect(readableAccent('red')).toBeNull();
+        expect(readableAccent(null)).toBeNull();
     });
 });

@@ -1,0 +1,81 @@
+/* ── Plate ──────────────────────────────────────────────────────────────────
+   The cover, the face over its edge, and the name. Sized here rather than in
+   utilities because the avatar's negative offset has to stay tied to the
+   cover height, and the two would drift apart as two separate class lists. */
+.character-cover {
+    position: relative;
+    height: 12.5rem;
+    overflow: hidden;
+}
+
+/* Fades the cover into the page so the name never lands on a bright photo. */
+.character-cover-scrim {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to bottom, transparent 35%, var(--color-app-bg) 100%);
+}
+
+.character-plate {
+    display: flex;
+    align-items: flex-end;
+    gap: 1.25rem;
+    max-width: 64rem;
+    margin: -4rem auto 0;
+    padding: 0 1.5rem;
+    position: relative;
+}
+
+.character-face {
+    box-shadow: 0 0 0 4px var(--color-app-bg);
+    border-radius: 9999px;
+}
+
+.character-name {
+    font-size: 1.875rem;
+    font-weight: 700;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    margin: 0;
+}
+
+@media (max-width: 640px) {
+    .character-cover {
+        height: 9rem;
+    }
+
+    .character-plate {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.75rem;
+        margin-top: -3rem;
+        padding: 0 1rem;
+    }
+
+    .character-name {
+        font-size: 1.5rem;
+    }
+}
+
+/* ── Prose ──────────────────────────────────────────────────────────────────
+   The one place in the app that is not Inter. A character page is fiction
+   somebody wrote, and it is read rather than scanned. Applied to [innerHTML]
+   output, so the descendant selectors cannot be scoped. */
+:host ::ng-deep .character-prose {
+    font-family: 'Lora Variable', Georgia, 'Times New Roman', serif;
+    font-size: 1.0625rem;
+    line-height: 1.75;
+}
+
+:host ::ng-deep .character-prose h1,
+:host ::ng-deep .character-prose h2,
+:host ::ng-deep .character-prose h3,
+:host ::ng-deep .character-prose h4 {
+    font-family: var(--font-sans);
+    letter-spacing: -0.01em;
+}
+
+:host ::ng-deep .character-prose code,
+:host ::ng-deep .character-prose pre {
+    font-family: 'Fira Code Variable', monospace;
+    font-size: 0.875rem;
+}

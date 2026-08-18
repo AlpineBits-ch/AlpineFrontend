@@ -1,0 +1,87 @@
+<div [class.is-resting]="scene().status !== SceneStatus.Active" class="turn-rail">
+    @if (turnNumber(); as turn) {
+        <!-- Position in the scene, not decoration: a play-by-post game is counted in turns. -->
+        <span class="rail-ledger">
+            <span class="rail-ledger-label">{{ 'SCENE.RAIL.TURN' | translate }}</span>
+            <span class="rail-ledger-value">{{ turn }}</span>
+        </span>
+    }
+
+    @if (current(); as who) {
+        <div class="flex min-w-0 items-center gap-3">
+            <app-turn-clock-ring
+                [clock]="clock()"
+                [identity]="who.identity"
+                [muted]="who.away || scene().status !== SceneStatus.Active"
+                size="lg"
+            />
+
+            <div class="flex min-w-0 flex-col gap-0.5">
+                <span class="flex min-w-0 items-center gap-2">
+                    <span [style.color]="who.identity?.color ?? 'var(--color-text-primary)'" class="rail-name">
+                        {{ who.identity?.name ?? ('SCENE.RAIL.UNKNOWN_CHARACTER' | translate) }}
+                    </span>
+
+                    @if (isMyTurn()) {
+                        <span class="rail-your-move">{{ 'SCENE.RAIL.YOUR_MOVE' | translate }}</span>
+                    }
+                </span>
+
+                <span class="rail-clock">
+                    @if (who.away) {
+                        <i class="pi pi-moon rail-clock-icon"></i>
+                        <span>{{ 'SCENE.BOARD.AWAY' | translate }}</span>
+                    } @else if (isSolo()) {
+                        <span>{{ 'SCENE.RAIL.SOLO' | translate }}</span>
+                    } @else if (clock().hasDeadline) {
+                        <span [class.rail-clock-late]="clock().overdue">
+                            {{ 'SCENE.RAIL.DUE' | translate: {when: scene().turnDeadlineAt | relativeTime: scenes.now()} }}
+                        </span>
+                    } @else if (scene().turnStartedAt || scene().lastPostAt) {
+                        <span>
+                            {{
+                                'SCENE.RAIL.SINCE'
+                                    | translate: {when: scene().turnStartedAt ?? scene().lastPostAt | relativeTime: scenes.now()}
+                            }}
+                        </span>
+                    } @else {
+                        <span>{{ 'SCENE.RAIL.NO_DEADLINE' | translate }}</span>
+                    }
+                </span>
+            </div>
+        </div>
+    } @else {
+        <!-- No turn yet: the cast is still coming together, so the queue is the whole story. -->
+        <div class="flex min-w-0 flex-col gap-0.5">
+            <span class="rail-name text-text-secondary">{{ 'SCENE.RAIL.NOT_STARTED' | translate }}</span>
+            <span class="rail-clock">{{ 'SCENE.RAIL.CAST_COUNT' | translate: {count: castCount()} }}</span>
+        </div>
+    }
+
+    @if (upcoming().length) {
+        <div class="rail-queue thin-scrollbar">
+            <span aria-hidden="true" class="rail-thread"></span>
+            @for (entry of upcoming(); track entry.personaId) {
+                <span
+                    [attr.aria-label]="entry.identity?.name ?? ('SCENE.RAIL.UNKNOWN_CHARACTER' | translate)"
+                    [attr.title]="entry.identity?.name ?? ('SCENE.RAIL.UNKNOWN_CHARACTER' | translate)"
+                    class="rail-upcoming"
+                >
+                    <app-persona-avatar
+                        [avatarUrl]="entry.identity?.avatarUrl ?? null"
+                        [color]="entry.identity?.color ?? null"
+                        [muted]="true"
+                        [name]="entry.identity?.name ?? '?'"
+                        size="sm"
+                    />
+                    @if (entry.away) {
+                        <i class="pi pi-moon rail-away-mark"></i>
+                    }
+                </span>
+            }
+            @if (overflow(); as more) {
+                <span class="rail-overflow">+{{ more }}</span>
+            }
+        </div>
+    }
+</div>

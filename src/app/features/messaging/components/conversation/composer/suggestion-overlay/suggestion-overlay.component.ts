@@ -9,11 +9,19 @@ import {UserNameStyleDirective} from '../../../../../../directives/user-name-sty
 import {ChannelDto, ChannelType} from '../../../../../../dtos/response/guild.dto';
 import {WikiPageSummaryDto} from '../../../../../../dtos/response/wiki.dto';
 import {channelIcon as iconForType} from '../../../../../guild/channel-types';
+import {PersonaAvatarComponent} from '../../../../../guild/personas/persona-avatar/persona-avatar.component';
 import {TranslateModule} from '@ngx-translate/core';
 
 @Component({
     selector: 'app-suggestion-overlay',
-    imports: [NgClass, Avatar, TwemojiComponent, UserNameStyleDirective, TranslateModule],
+    imports: [
+        NgClass,
+        Avatar,
+        TwemojiComponent,
+        UserNameStyleDirective,
+        PersonaAvatarComponent,
+        TranslateModule,
+    ],
     templateUrl: './suggestion-overlay.component.html',
     styleUrl: './suggestion-overlay.component.css',
 })

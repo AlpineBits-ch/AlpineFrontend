@@ -88,6 +88,15 @@ export const CHANNEL_META: readonly ChannelTypeMeta[] = [
         descKey: 'GUILD.CHANNEL_TYPE_MEDIA_DESC',
     },
     {
+        // Never offered in the create-channel picker either: a scene is created from a channel,
+        // with its cast, by the scene dialog.
+        type: ChannelType.Scene,
+        icon: 'pi pi-bookmark',
+        feature: GuildFeature.Scenes,
+        labelKey: 'SCENE.CHANNEL_TYPE',
+        descKey: 'SCENE.CHANNEL_TYPE_DESC',
+    },
+    {
         type: ChannelType.Announcement,
         icon: 'pi pi-megaphone',
         feature: GuildFeature.Announcements,
@@ -174,7 +183,12 @@ export function householdFeatureFor(type: ChannelType): GuildFeature | null {
 }
 
 /** The types this build can render as a message view - the only ones that get a composer. */
-const MESSAGE_TYPES: readonly string[] = [ChannelType.Text, ChannelType.Announcement, ChannelType.Thread];
+const MESSAGE_TYPES: readonly string[] = [
+    ChannelType.Text,
+    ChannelType.Announcement,
+    ChannelType.Thread,
+    ChannelType.Scene,
+];
 
 /** Deliberately an allowlist: anything not named here (an unshipped household type, or a type from a newer server) is inert, never falls through to the message view. */
 export function channelViewFor(type: ChannelType): ChannelView {

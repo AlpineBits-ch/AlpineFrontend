@@ -1,0 +1,123 @@
+<div class="flex max-w-2xl flex-col gap-6">
+    <section class="flex flex-col gap-3">
+        <div class="flex items-start justify-between gap-4">
+            <div>
+                <p class="text-[0.8125rem] text-text-primary">{{ 'PERSONA.ACCOUNT.TITLE' | translate }}</p>
+                <p class="mt-0.5 text-xs leading-relaxed text-text-secondary">{{ 'PERSONA.ACCOUNT.DESC' | translate }}</p>
+            </div>
+            <p-button (onClick)="create()" [label]="'PERSONA.ACCOUNT.NEW' | translate" icon="pi pi-plus" severity="primary" size="small" />
+        </div>
+
+        <div class="flex flex-col gap-2">
+            @for (persona of active(); track persona.id) {
+                <div class="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-card/60 px-4 py-3">
+                    <app-persona-avatar
+                        [avatarUrl]="persona.avatarUrl ?? null"
+                        [color]="colorOf(persona)"
+                        [name]="persona.name"
+                        size="md"
+                    />
+                    <div class="flex min-w-0 flex-1 flex-col">
+                        <span
+                            [style.color]="colorOf(persona) ?? 'var(--color-text-primary)'"
+                            class="truncate text-[0.8125rem] font-semibold"
+                        >
+                            {{ persona.name }}
+                        </span>
+                        <span class="truncate text-xs text-text-secondary">
+                            {{ persona.shortBio || persona.pronouns || ('PERSONA.ACCOUNT.NO_BIO' | translate) }}
+                        </span>
+                    </div>
+                    <p-button
+                        (onClick)="edit(persona)"
+                        [attr.aria-label]="'PERSONA.ACCOUNT.EDIT' | translate"
+                        [text]="true"
+                        icon="pi pi-pencil"
+                        severity="secondary"
+                        size="small"
+                    />
+                    <p-button
+                        (onClick)="confirmDelete(persona)"
+                        [attr.aria-label]="'PERSONA.ACCOUNT.DELETE' | translate"
+                        [text]="true"
+                        icon="pi pi-trash"
+                        severity="danger"
+                        size="small"
+                    />
+                </div>
+            } @empty {
+                <div class="rounded-xl border border-dashed border-white/[0.10] px-4 py-8 text-center">
+                    <p class="text-xs text-text-muted">{{ 'PERSONA.ACCOUNT.EMPTY' | translate }}</p>
+                </div>
+            }
+        </div>
+
+        <p class="text-xs leading-relaxed text-text-secondary">{{ 'PERSONA.ACCOUNT.FOOTNOTE' | translate }}</p>
+    </section>
+
+    @if (retired().length) {
+        <section class="flex flex-col gap-3">
+            <div>
+                <p class="text-[0.8125rem] text-text-primary">{{ 'PERSONA.ACCOUNT.RETIRED_TITLE' | translate }}</p>
+                <p class="mt-0.5 text-xs leading-relaxed text-text-secondary">{{ 'PERSONA.ACCOUNT.RETIRED_DESC' | translate }}</p>
+            </div>
+
+            <div class="flex flex-col gap-2">
+                @for (persona of retired(); track persona.id) {
+                    <div class="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-card/40 px-4 py-3">
+                        <app-persona-avatar
+                            [avatarUrl]="persona.avatarUrl ?? null"
+                            [color]="colorOf(persona)"
+                            [muted]="true"
+                            [name]="persona.name"
+                            size="md"
+                        />
+                        <span class="min-w-0 flex-1 truncate text-[0.8125rem] text-text-secondary">{{ persona.name }}</span>
+                        <p-button
+                            (onClick)="unretire(persona)"
+                            [label]="'PERSONA.ACCOUNT.UNRETIRE' | translate"
+                            [loading]="busyId() === persona.id"
+                            [text]="true"
+                            severity="secondary"
+                            size="small"
+                        />
+                    </div>
+                }
+            </div>
+        </section>
+    }
+</div>
+
+<app-persona-editor (closed)="editing.set(null)" (saved)="personas.ensureOwn(true)" [target]="editing()" />
+
+<p-dialog
+    (visibleChange)="!$event && confirming.set(null)"
+    [closable]="true"
+    [draggable]="false"
+    [modal]="true"
+    [resizable]="false"
+    [style]="{width: '26rem'}"
+    [visible]="!!confirming()"
+    appendTo="body"
+    maskStyleClass="backdrop-blur-sm"
+    styleClass="!bg-card !border !border-white/[0.08] !rounded-2xl"
+>
+    <ng-template pTemplate="header">
+        <span class="text-base font-semibold text-text-primary">
+            {{ 'PERSONA.ACCOUNT.DELETE_TITLE' | translate: {name: confirming()?.name ?? ''} }}
+        </span>
+    </ng-template>
+
+    <p class="py-1 text-sm leading-relaxed text-text-secondary">{{ 'PERSONA.ACCOUNT.DELETE_BODY' | translate }}</p>
+
+    <div class="mt-4 flex justify-end gap-2 border-t border-white/[0.10] pt-4">
+        <p-button (onClick)="confirming.set(null)" [label]="'PERSONA.CANCEL' | translate" [text]="true" severity="secondary" size="small" />
+        <p-button
+            (onClick)="remove()"
+            [label]="'PERSONA.ACCOUNT.DELETE' | translate"
+            [loading]="busyId() === confirming()?.id"
+            severity="danger"
+            size="small"
+        />
+    </div>
+</p-dialog>

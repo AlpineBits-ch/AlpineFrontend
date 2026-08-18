@@ -1,0 +1,73 @@
+/* Two columns so the global row and this guild's overrides are read against each other; one
+   column below the dialog's own breakpoint, where they would otherwise be 12rem wide each. */
+.persona-editor-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+}
+
+@media (min-width: 40rem) {
+    .persona-editor-grid:has(.persona-editor-guild) {
+        grid-template-columns: 1fr 1fr;
+        gap: 2rem;
+    }
+
+    .persona-editor-guild {
+        padding-left: 2rem;
+        border-left: 1px solid rgba(255, 255, 255, 0.07);
+    }
+}
+
+.persona-input {
+    width: 100%;
+    border-radius: 0.75rem;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.04);
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    color: var(--color-text-primary);
+    outline: none;
+    transition: border-color var(--duration-fast) var(--ease-brand);
+}
+
+.persona-input::placeholder {
+    color: var(--color-text-faint);
+}
+
+.persona-input:focus {
+    border-color: rgba(255, 255, 255, 0.18);
+}
+
+/* ── Colour swatch ──────────────────────────────────────────────────────── */
+.color-swatch-wrap {
+    position: relative;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 0.75rem;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: border-color var(--duration-fast) var(--ease-brand);
+}
+
+.color-swatch-wrap:hover {
+    border-color: rgba(255, 255, 255, 0.28);
+}
+
+.color-swatch-wrap input[type='color'] {
+    position: absolute;
+    inset: -4px;
+    width: calc(100% + 8px);
+    height: calc(100% + 8px);
+    opacity: 0;
+    cursor: pointer;
+    border: none;
+    padding: 0;
+}
+
+.color-swatch-bg {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}

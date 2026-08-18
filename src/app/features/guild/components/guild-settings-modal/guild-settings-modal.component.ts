@@ -18,6 +18,7 @@ import {Button} from 'primeng/button';
 import {ZIndexUtils} from 'primeng/utils';
 import {GuildDto, RoleDto} from '../../../../dtos/response/guild.dto';
 import {environment} from '../../../../../environments/environment';
+import {WikiSettingsComponent} from './pages/wiki-settings/wiki-settings.component';
 import {OverviewSettingsComponent} from './pages/overview-settings/overview-settings.component';
 import {MembersSettingsComponent} from './pages/members-settings/members-settings.component';
 import {RolesSettingsComponent} from './pages/roles-settings/roles-settings.component';
@@ -89,6 +90,9 @@ export function buildGuildNavGroups(
                 ...(features.has(GuildFeature.Emojis)
                     ? [{id: 'emojis', labelKey: 'GUILD_SETTINGS.NAV.EMOJIS', icon: 'pi pi-face-smile'}]
                     : []),
+                ...(features.has(GuildFeature.Wiki)
+                    ? [{id: 'wiki', labelKey: 'GUILD_SETTINGS.NAV.WIKI', icon: 'pi pi-globe'}]
+                    : []),
                 {id: 'templates', labelKey: 'GUILD_SETTINGS.NAV.TEMPLATES', icon: 'pi pi-clone'},
                 {id: 'discord-sync', labelKey: 'GUILD_SETTINGS.NAV.DISCORD_SYNC', icon: 'pi pi-discord'},
                 ...(features.has(GuildFeature.Onboarding)
@@ -126,6 +130,7 @@ export function buildGuildNavGroups(
         Dialog,
         Button,
         OverviewSettingsComponent,
+        WikiSettingsComponent,
         MembersSettingsComponent,
         RolesSettingsComponent,
         InvitesSettingsComponent,

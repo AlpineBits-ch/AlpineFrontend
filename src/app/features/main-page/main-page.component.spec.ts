@@ -77,6 +77,8 @@ interface Fakes {
     syncContext: ReturnType<typeof vi.fn>;
     refreshState: ReturnType<typeof vi.fn>;
     conversations: WritableSignal<any[]>;
+    hydrateConversations: ReturnType<typeof vi.fn>;
+    forgetConversations: ReturnType<typeof vi.fn>;
     openConversation: ReturnType<typeof vi.fn>;
     selectServer: ReturnType<typeof vi.fn>;
     openChannel: ReturnType<typeof vi.fn>;
@@ -141,6 +143,8 @@ function makeFakes(): Fakes {
         syncContext: vi.fn().mockResolvedValue(undefined),
         refreshState: vi.fn().mockResolvedValue(undefined),
         conversations: signal<any[]>([]),
+        hydrateConversations: vi.fn(async () => 0),
+        forgetConversations: vi.fn(),
         openConversation: vi.fn(),
         selectServer: vi.fn(),
         openChannel: vi.fn(),
@@ -236,7 +240,14 @@ function configure(fakes: Fakes): void {
                 useValue: {joinedChannelId: fakes.joinedChannelId, joinChannel: fakes.joinChannel},
             },
             {provide: VoiceResumeService, useValue: {check: fakes.voiceResumeCheck}},
-            {provide: ConversationStore, useValue: {entities: fakes.conversations}},
+            {
+                provide: ConversationStore,
+                useValue: {
+                    entities: fakes.conversations,
+                    hydrate: fakes.hydrateConversations,
+                    forget: fakes.forgetConversations,
+                },
+            },
             {provide: UserTokenService, useValue: {ensureTokenRegistered: fakes.ensureTokenRegistered}},
             {
                 provide: UserService,

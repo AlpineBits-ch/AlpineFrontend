@@ -1,5 +1,6 @@
 import {MessageEncryptionState} from '../../enums/message-encryption-state.enum';
 import {MessageType} from '../../enums/message-type.enum';
+import {PersonaMentionDto} from '../../features/guild/personas/persona-mention';
 
 /** Has no `url`. Build the full-size address from the id with `FileService.attachmentDownloadUrl`. */
 export interface MessageAttachment {
@@ -155,11 +156,22 @@ export interface MessageDto {
     channelId: string | undefined;
     conversationId: string | undefined;
     authorId: string;
+    /** Denormalised at send time. Set for personas and webhooks; `authorId` stays the real account. */
+    authorDisplayName?: string | null;
+    authorAvatarUrl?: string | null;
+    /** The character this was spoken as. Absent on a webhook, which has the overrides but no persona. */
+    personaId?: string | null;
     isPending: boolean;
     isFailed: boolean;
     attachments: MessageAttachment[];
     inReplyTo: string | undefined;
     mentions: string[];
+    /**
+     * Characters named in the body as `<@pers_...>`. A separate list from {@link mentions} because
+     * a character mention notifies its owner without ever naming them to anyone else, and because
+     * the display fields are the only way to draw a character the reader cannot speak as.
+     */
+    personaMentions?: PersonaMentionDto[];
     roleMentions?: string[];
     mentionsEveryone?: boolean;
     mentionsHere?: boolean;

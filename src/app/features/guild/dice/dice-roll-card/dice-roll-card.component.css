@@ -1,0 +1,180 @@
+/* Darker than the message surface and hard-edged at the left, so a result reads as
+   something the server recorded rather than a message with numbers in it. */
+.roll-plate {
+    display: flex;
+    align-items: stretch;
+    gap: 1rem;
+    width: fit-content;
+    max-width: 100%;
+    margin-top: 0.25rem;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-left: 2px solid rgba(255, 255, 255, 0.18);
+    border-radius: 0.25rem 0.875rem 0.875rem 0.25rem;
+    background: color-mix(in srgb, var(--color-app-bg) 55%, #000);
+    padding: 0.625rem 0.875rem;
+}
+
+.roll-body {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 0.375rem;
+}
+
+.roll-reason {
+    margin: 0;
+    font-size: 0.5625rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+}
+
+.roll-dice {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.3125rem;
+}
+
+.roll-pool {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.roll-operator,
+.roll-constant {
+    font-family: 'Fira Code Variable', 'Fira Code', monospace;
+    font-variant-numeric: tabular-nums;
+    font-size: 0.8125rem;
+    color: var(--color-text-muted);
+}
+
+.roll-constant {
+    color: var(--color-text-secondary);
+}
+
+.roll-expression {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.5rem;
+    margin: 0.125rem 0 0;
+    font-family: 'Fira Code Variable', 'Fira Code', monospace;
+    font-size: 0.6875rem;
+    color: var(--color-text-muted);
+}
+
+.roll-provenance {
+    font-family: var(--font-sans);
+    font-size: 0.5625rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--color-text-faint);
+}
+
+/* ── The total ──────────────────────────────────────────────────────────── */
+.roll-total {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 0.125rem;
+    flex-shrink: 0;
+    padding-left: 1rem;
+    border-left: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.roll-total-value {
+    font-family: 'Fira Code Variable', 'Fira Code', monospace;
+    font-variant-numeric: tabular-nums;
+    font-size: 1.625rem;
+    font-weight: 500;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    color: var(--color-text-primary);
+}
+
+.roll-total-label {
+    font-size: 0.5rem;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--color-text-faint);
+}
+
+/* A single die needs no total: the face is the result. It sits beside the notation rather than
+   above it, so the plate hugs the one thing on it. */
+.is-single .roll-body {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    column-gap: 0.875rem;
+    align-items: center;
+}
+
+.is-single .roll-dice {
+    grid-column: 1;
+    grid-row: 1 / -1;
+}
+
+.is-single .roll-reason,
+.is-single .roll-expression {
+    grid-column: 2;
+}
+
+.is-single .roll-expression {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.0625rem;
+    margin: 0;
+}
+
+/* ── Landing ────────────────────────────────────────────────────────────────
+   The one animation in this feature. A roll that arrives while you are looking
+   settles; everything already in the scrollback is drawn at rest. */
+.roll-die {
+    display: inline-flex;
+}
+
+.is-settling .roll-die {
+    animation: die-settle 320ms var(--ease-brand) both;
+}
+
+.is-settling .roll-total-value {
+    animation: total-settle 320ms var(--ease-brand) both;
+}
+
+@keyframes die-settle {
+    0% {
+        opacity: 0;
+        transform: translateY(-7px) scale(0.86);
+    }
+    62% {
+        opacity: 1;
+        transform: translateY(1px) scale(1.05);
+    }
+    100% {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+@keyframes total-settle {
+    0% {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+    100% {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .is-settling .roll-die,
+    .is-settling .roll-total-value {
+        animation: none;
+    }
+}

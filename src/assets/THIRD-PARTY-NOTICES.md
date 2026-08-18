@@ -140,7 +140,6 @@ Google Inc.
 Arun Raghavan <arun.raghavan@collabora.co.uk>
 ```
 
-
 ## Rust crates
 
 Compiled into the application binary. 959 packages, 473 distinct notices.
@@ -153,11 +152,13 @@ Compiled into the application binary. 959 packages, 473 distinct notices.
 ```text
 Copyright (C) Jonas Schievink <jonasschievink@gmail.com>
 ```
+
 Distributed under the [0BSD licence](#licence-0bsd), reproduced in full below.
 
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 <!-- LICENSE-APACHE -->
+
 ```text
 Apache License
                         Version 2.0, January 2004
@@ -373,6 +374,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 Copyright (c) 2019 The RustCrypto Project Developers
 Copyright (c) 2019 MobileCoin, LLC
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### aes 0.8.4
@@ -385,6 +387,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2018 Artyom Pavlov
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### aes-gcm 0.10.3, chacha20poly1305 0.10.1
@@ -397,6 +400,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2019 The RustCrypto Project Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### aho-corasick 1.1.4, byteorder 1.5.0, jiff 0.2.35, jiff-core 0.1.0, jiff-static 0.2.35, memchr 2.8.0, walkdir 2.5.0
@@ -408,11 +412,13 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 The MIT License (MIT)
 Copyright (c) 2015 Andrew Gallant
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 Distributed under the [Unlicense licence](#licence-unlicense), reproduced in full below.
 
 <!-- COPYING -->
+
 ```text
 This project is dual-licensed under the Unlicense and MIT licenses.
 
@@ -428,6 +434,7 @@ You may use this code under the terms of either license.
 Copyright (c) 2016 Dropbox, Inc.
 All rights reserved.
 ```
+
 Distributed under the [BSD-3-Clause licence](#licence-bsd-3-clause), reproduced in full below.
 
 ### alloc-stdlib 0.2.2
@@ -438,6 +445,7 @@ Distributed under the [BSD-3-Clause licence](#licence-bsd-3-clause), reproduced 
 ```text
 Copyright (c) the alloc-stdlib authors — Daniel Reiter Horn <danielrh@dropbox.com>
 ```
+
 Distributed under the [BSD-3-Clause licence](#licence-bsd-3-clause), reproduced in full below.
 
 ### alsa 0.9.1
@@ -451,6 +459,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 MIT License
 Copyright (c) 2015-2021 David Henningsson, and other contributors.
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### alsa-sys 0.3.1
@@ -462,6 +471,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) 2018 diwic
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### android_system_properties 0.1.5
@@ -473,9 +483,11 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 The MIT License (MIT)
 Copyright (c) 2013 Nicolas Silva
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 <!-- LICENSE-APACHE -->
+
 ```text
 Copyright 2016 Nicolas Silva
 
@@ -502,6 +514,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) Individual contributors
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### ansi_term 0.12.1
@@ -513,6 +526,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 The MIT License (MIT)
 Copyright (c) 2014 Benjamin Sago
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### anyhow 1.0.102, async-channel 1.9.0, async-channel 2.5.0, async-executor 1.14.0, async-global-executor 2.4.1, async-io 2.6.0, async-lock 3.4.2, async-native-tls 0.5.0, async-process 2.5.0, async-recursion 1.1.1, async-signal 0.2.14, async-std 1.13.2, async-task 4.7.1, async-trait 0.1.89, blocking 1.6.2, camino 1.2.2, concurrent-queue 2.5.0, ctor 0.8.0, ctor-proc-macro 0.0.7, curve25519-dalek-derive 0.1.1, displaydoc 0.2.5, dtoa 1.0.11, dtor 0.3.0, dtor-proc-macro 0.0.6, dyn-clone 1.0.20, erased-serde 0.4.10, event-listener 2.5.3, event-listener 5.4.1, event-listener-strategy 0.5.4, fastrand 2.4.1, flume 0.11.1, group 0.13.0, hermit-abi 0.1.19, hermit-abi 0.5.2, itoa 1.0.18, khronos-egl 6.0.0, leb128fmt 0.1.0, ntapi 0.4.3, once_cell 1.21.4, ordered-stream 0.2.0, paste 1.0.15, pastey 0.2.2, pathdiff 0.2.3, pin-project-lite 0.2.17, piper 0.2.5, polling 3.11.0, portable-atomic 1.14.0, portable-atomic-util 0.2.7, prettyplease 0.2.37, proc-macro2 1.0.106, quote 1.0.45, ref-cast 1.0.25, ref-cast-impl 1.0.25, rsa 0.9.10, rustc-hash 1.1.0, rustc-hash 2.1.2, rustversion 1.0.22, semver 1.0.28, serde 1.0.228, serde_bytes 0.11.19, serde_core 1.0.228, serde_derive 1.0.228, serde_derive_internals 0.29.1, serde_json 1.0.149, serde_repr 0.1.20, serde-untagged 0.1.9, servo_arc 0.4.3, simd_cesu8 1.1.1, smol_str 0.2.2, swift-bridge 0.1.59, syn 1.0.109, syn 2.0.117, syn 3.0.3, system-deps 6.2.2, system-deps 7.0.8, thiserror 1.0.69, thiserror 2.0.18, thiserror-impl 1.0.69, thiserror-impl 2.0.18, typeid 1.0.3, utf-8 0.7.6, wasm-streams 0.5.0
@@ -535,6 +549,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 MIT License
 Copyright (c) 2019 Manish Goregaokar
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### arc-swap 1.9.2
@@ -547,6 +562,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2017 arc-swap developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### argon2 0.5.3
@@ -559,6 +575,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2021-2024 The RustCrypto Project Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### asn1-rs 0.6.2, asn1-rs-derive 0.5.1, der-parser 9.0.0, oid-registry 0.7.1, rusticata-macros 4.1.0, x509-parser 0.16.0
@@ -571,6 +588,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2017 Pierre Chifflier
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### asn1-rs-impl 0.2.0
@@ -581,6 +599,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the asn1-rs-impl authors — Pierre Chifflier <chifflier@wzdftpd.net>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### async-broadcast 0.7.2
@@ -600,12 +619,14 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 ```
+
 Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
 
 ```text
 The MIT License (MIT)
 Copyright (c) 2020 Yoshua Wuyts
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### async-tungstenite 0.29.1
@@ -618,6 +639,7 @@ Copyright (c) 2017 Daniel Abramov
 Copyright (c) 2017 Alexey Galakhov
 Copyright (c) 2019 Sebastian Dröge
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### atk 0.18.2, atk-sys 0.18.2, cairo-rs 0.18.5, cairo-sys-rs 0.18.2, cargo_metadata 0.19.2, drm 0.14.1, drm-ffi 0.9.1, drm-sys 0.8.1, endi 1.1.1, gdk 0.18.2, gdk-pixbuf 0.18.5, gdk-pixbuf-sys 0.18.0, gdk-sys 0.18.2, gdkwayland-sys 0.18.2, gdkx11 0.18.2, gdkx11-sys 0.18.2, gio 0.18.4, gio-sys 0.18.1, glib 0.18.5, glib-macros 0.18.5, glib-sys 0.18.1, gobject-sys 0.18.0, gtk 0.18.2, gtk-sys 0.18.2, gtk3-macros 0.18.2, pango 0.18.3, pango-sys 0.18.0, winnow 0.5.40, winnow 0.7.15, winnow 1.0.2, x11 2.21.0, x11-dl 2.21.0, zmij 1.0.21, zvariant_utils 3.3.1
@@ -649,6 +671,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### atty 0.2.14
@@ -659,6 +682,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) 2015-2019 Doug Tangren
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### audio-core 0.2.1
@@ -669,6 +693,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the audio-core authors — John-John Tedro <udoprog@tedro.se>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### audioadapter 4.0.0, audioadapter-buffers 4.0.0, audioadapter-sample 4.0.0
@@ -681,9 +706,11 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2026 Henrik Enquist
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 <!-- LICENSE.txt -->
+
 ```text
 This crate is dual-licensed under either of:
 
@@ -702,6 +729,7 @@ You may choose either license, at your option.
 ISC License
 Copyright (c) 2019, Lakelezz
 ```
+
 Distributed under the [ISC licence](#licence-isc), reproduced in full below.
 
 ### auto-launch 0.5.0
@@ -713,6 +741,7 @@ Distributed under the [ISC licence](#licence-isc), reproduced in full below.
 MIT License
 Copyright (c) 2022 zzzgydi
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### autocfg 1.5.0
@@ -725,6 +754,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2018 Josh Stone
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### autotools 0.2.7
@@ -735,6 +765,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) 2018 Luca Barbato
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### base16ct 0.2.0
@@ -748,6 +779,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 Copyright (c) 2014 Steve "Sc00bz" Thomas (steve at tobtu dot com)
 Copyright (c) 2022 The RustCrypto Project Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### base64 0.21.7, base64 0.22.1
@@ -761,6 +793,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 The MIT License (MIT)
 Copyright (c) 2015 Alice Maz
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### base64ct 1.8.3
@@ -774,6 +807,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 Copyright (c) 2014 Steve "Sc00bz" Thomas (steve at tobtu dot com)
 Copyright (c) 2021-2025 The RustCrypto Project Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### bindgen 0.65.1, bindgen 0.72.1
@@ -782,6 +816,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 **Source:** https://github.com/rust-lang/rust-bindgen
 
 <!-- LICENSE -->
+
 ```text
 BSD 3-Clause License
 
@@ -824,6 +859,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2023 The Rust Project Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### bitflags 1.3.2, bitflags 2.11.1, glob 0.3.3, log 0.4.29, num-bigint 0.4.6, num-bigint-dig 0.8.6, num-complex 0.4.6, num-derive 0.4.2, num-integer 0.1.46, num-iter 0.1.45, num-traits 0.2.19, regex 1.12.3, regex-automata 0.4.14, regex-syntax 0.8.10
@@ -836,6 +872,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2014 The Rust Project Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### blake2 0.10.6
@@ -849,6 +886,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 Copyright (c) 2015-2016 The blake2-rfc Developers, Cesar Barros
 Copyright (c) 2017 Artyom Pavlov
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### block 0.1.6
@@ -859,6 +897,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the block authors — Steven Sheldon
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### block-buffer 0.10.4, block-padding 0.3.3
@@ -871,6 +910,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2018-2019 The RustCrypto Project Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### block2 0.6.2
@@ -881,6 +921,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the block2 authors — Mads Marquart <mads@marquart.dk>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### brotli 8.0.2
@@ -891,6 +932,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) 2009, 2010, 2013-2016 by the Brotli Authors.
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### bumpalo 3.20.2
@@ -903,6 +945,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2019 Nick Fitzgerald
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### bytecheck 0.8.3, rancor 0.1.3
@@ -913,6 +956,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright 2023 David Koloski
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### bytecheck_derive 0.8.3
@@ -923,6 +967,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright 2020 David Koloski
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### bytemuck 1.25.0, bytemuck_derive 1.10.2
@@ -935,9 +980,11 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2019 Daniel "Lokathor" Gee.
 ```
+
 Distributed under the [Zlib licence](#licence-zlib), reproduced in full below.
 
 <!-- LICENSE-MIT -->
+
 ```text
 MIT License
 
@@ -959,6 +1006,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 The MIT License (MIT)
 Copyright (c) 2015 Andrew Gallant
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 Distributed under the [Unlicense licence](#licence-unlicense), reproduced in full below.
@@ -971,6 +1019,7 @@ Distributed under the [Unlicense licence](#licence-unlicense), reproduced in ful
 ```text
 Copyright (c) 2018 Carl Lerche
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### bzip2-rs 0.1.2
@@ -984,6 +1033,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 MIT License
 Copyright (c) 2021 Paolo Barbolini
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### cargo_toml 0.22.3
@@ -992,6 +1042,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 **Source:** https://gitlab.com/lib.rs/cargo_toml
 
 <!-- LICENSE -->
+
 ```text
 © Kornel Lesiński
 
@@ -1205,6 +1256,7 @@ DEALINGS IN THE SOFTWARE.
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 <!-- LICENSE-APACHE -->
+
 ```text
 Apache License
                         Version 2.0, January 2004
@@ -1420,6 +1472,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 Copyright (c) 2018-2022 RustCrypto Developers
 Copyright (c) 2018 Artyom Pavlov
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### cc 1.2.61, cfg-if 0.1.10, cfg-if 1.0.4, cmake 0.1.58, filetime 0.2.27, find-msvc-tools 0.1.9, id-arena 2.3.0, jobserver 0.1.34, js-sys 0.3.98, openssl-probe 0.2.1, pkg-config 0.3.33, scoped-tls 1.0.1, socket2 0.5.10, socket2 0.6.3, toml_datetime 0.6.3, wasm-bindgen 0.2.121, wasm-bindgen-futures 0.4.71, wasm-bindgen-macro 0.2.121, wasm-bindgen-macro-support 0.2.121, wasm-bindgen-shared 0.2.121, web-sys 0.3.98
@@ -1432,6 +1485,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2014 Alex Crichton
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### ccm 0.5.0, tls_codec 0.4.2, tls_codec_derive 0.4.2
@@ -1444,6 +1498,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2020 The RustCrypto Project Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### cesu8 1.1.0
@@ -1454,6 +1509,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the cesu8 authors — Eric Kidd <git@randomhacks.net>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### cexpr 0.6.0
@@ -1466,6 +1522,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 (C) Copyright 2016 Jethro G. Beekman
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### cfb 0.7.3
@@ -1477,6 +1534,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) 2017 Matthew D. Steele
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### cfg_aliases 0.2.1
@@ -1488,6 +1546,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) 2020 Katharos Technology
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ```text
@@ -1496,6 +1555,7 @@ The `cfg_aliases!` macro uses a lot of the code from [`tectonic_cfg_support::tar
 [`tectonic_cfg_support::target_cfg!`]: https://github.com/tectonic-typesetting/tectonic/blob/f2439b936470ad27bdf92882064bc4702ee01899/cfg_support/src/lib.rs#L166
 tectonic_cfg_support is licensed under the MIT License.
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### cfg-expr 0.15.8, cfg-expr 0.20.7
@@ -1508,6 +1568,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2019 Embark Studios
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### chacha20 0.10.0
@@ -1520,6 +1581,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2019-2026 The RustCrypto Project Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### chacha20 0.9.1
@@ -1532,6 +1594,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2019-2023 The RustCrypto Project Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### chrono 0.4.44
@@ -1540,6 +1603,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 **Source:** https://github.com/chronotope/chrono
 
 <!-- LICENSE.txt -->
+
 ```text
 Rust-chrono is dual-licensed under The MIT License [1] and
 Apache 2.0 License [2]. Copyright (c) 2014--2026, Kang Seonghoon and
@@ -1792,6 +1856,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2016-2020 RustCrypto Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### clang-sys 1.8.1, cpal 0.15.3, gethostname 1.1.0, hound 3.5.1, nokhwa 0.10.11, prost-build 0.12.6, prost-derive 0.12.6, prost-types 0.12.6, sync_wrapper 1.0.2, tao 0.35.2, waitgroup 0.1.2, xcap 0.9.4
@@ -1810,6 +1875,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 The MIT License (MIT)
 Copyright (c) 2015-2016 Kevin B. Knapp
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### cocoa 0.20.2, cocoa-foundation 0.2.1, core-foundation 0.10.1, core-foundation 0.7.0, core-foundation 0.9.4, core-foundation-sys 0.7.0, core-foundation-sys 0.8.7, core-graphics 0.19.2, core-graphics 0.25.0, core-graphics-types 0.2.0, string_cache 0.9.0, string_cache_codegen 0.6.1
@@ -1822,6 +1888,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2012-2013 Mozilla Foundation
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### combine 4.6.7
@@ -1833,6 +1900,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 The MIT License (MIT)
 Copyright (c) 2015 Markus Westerlind
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### const-oid 0.9.6
@@ -1845,6 +1913,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2020-2022 The RustCrypto Project Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### const-random 0.1.18, const-random-macro 0.1.16, hashbrown 0.12.3, hashbrown 0.14.5, hashbrown 0.15.5, hashbrown 0.17.0
@@ -1857,6 +1926,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2016 Amanieu d'Antras
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### convert_case 0.8.0
@@ -1868,6 +1938,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) 2025 rutrum
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### cookie 0.18.1
@@ -1881,6 +1952,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 Copyright (c) 2017 Sergio Benitez
 Copyright (c) 2014 Alex Crichton
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### cookie-factory 0.3.3
@@ -1891,6 +1963,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the cookie-factory authors — Geoffroy Couprie <geo.couprie@gmail.com>, Pierre Chifflier <chifflier@wzdftpd.net>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### core-media-sys 0.1.2, core-video-sys 0.1.4
@@ -1902,6 +1975,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) 2018 寧靜
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### core-models 0.0.5
@@ -1912,6 +1986,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the core-models authors — Cryspen
 ```
+
 Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
 
 ### coreaudio-rs 0.11.3, either 1.15.0, itertools 0.11.0, itertools 0.12.1, itertools 0.13.0, petgraph 0.6.5, serde_with 3.19.0, serde_with_macros 3.19.0
@@ -1924,6 +1999,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2015
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### coreaudio-sys 0.2.17
@@ -1934,6 +2010,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) 2015
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### cpufeatures 0.2.17, cpufeatures 0.3.0
@@ -1946,6 +2023,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2020-2025 The RustCrypto Project Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### crc 3.4.0
@@ -1959,6 +2037,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 MIT License
 Copyright (c) 2017 crc-rs Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### crc-catalog 2.5.0
@@ -1969,6 +2048,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the crc-catalog authors — Akhil Velagapudi <akhilvelagapudi@gmail.com>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### crc32fast 1.5.0
@@ -1982,6 +2062,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 MIT License
 Copyright (c) 2018 Sam Rijs, Alex Crichton and contributors
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### crossbeam-channel 0.5.15
@@ -1995,9 +2076,11 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 The MIT License (MIT)
 Copyright (c) 2019 The Crossbeam Project Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 <!-- LICENSE-THIRD-PARTY -->
+
 ```text
 ===============================================================================
 
@@ -2605,6 +2688,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 The MIT License (MIT)
 Copyright (c) 2019 The Crossbeam Project Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### crunchy 0.2.4
@@ -2616,6 +2700,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 The MIT License (MIT)
 Copyright 2017-2023 Eira Fransham.
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### crypto-bigint 0.5.5, pem-rfc7468 0.7.0
@@ -2628,6 +2713,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2021 The RustCrypto Project Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### crypto-common 0.1.7
@@ -2640,6 +2726,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2021 RustCrypto Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### cssparser 0.36.0, cssparser-macros 0.6.1
@@ -2648,6 +2735,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 **Source:** https://github.com/servo/rust-cssparser
 
 <!-- LICENSE -->
+
 ```text
 Mozilla Public License Version 2.0
 ==================================
@@ -2686,7 +2774,7 @@ Mozilla Public License Version 2.0
     means any form of the work other than Source Code Form.
 
 1.7. "Larger Work"
-    means a work that combines Covered Software with other material, in 
+    means a work that combines Covered Software with other material, in
     a separate file or files, that is not Covered Software.
 
 1.8. "License"
@@ -3030,6 +3118,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 **Source:** https://github.com/dalek-cryptography/curve25519-dalek/tree/main/curve25519-dalek
 
 <!-- LICENSE -->
+
 ```text
 Copyright (c) 2016-2021 isis agora lovecruft. All rights reserved.
 Copyright (c) 2016-2021 Henry de Valence. All rights reserved.
@@ -3059,7 +3148,7 @@ TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
 PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
 LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
 NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ========================================================================
 
@@ -3107,6 +3196,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 MIT License
 Copyright (c) 2017 Ted Driggs
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### dasp_frame 0.11.0
@@ -3117,6 +3207,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the dasp_frame authors — mitchmindtree <mitchell.nordine@gmail.com>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### dasp_interpolate 0.11.0
@@ -3127,6 +3218,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the dasp_interpolate authors — mitchmindtree <mitchell.nordine@gmail.com>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### dasp_ring_buffer 0.11.0
@@ -3137,6 +3229,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the dasp_ring_buffer authors — mitchmindtree <mitchell.nordine@gmail.com>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### dasp_sample 0.11.0
@@ -3147,6 +3240,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the dasp_sample authors — mitchmindtree <mitchell.nordine@gmail.com>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### data-encoding 2.11.0
@@ -3159,6 +3253,7 @@ The MIT License (MIT)
 Copyright (c) 2015-2020 Julien Cretin
 Copyright (c) 2017-2020 Google Inc.
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### dbus 0.9.11, libdbus-sys 0.2.7
@@ -3171,6 +3266,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2014-2018 David Henningsson <diwic@ubuntu.com> and other contributors
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### dbus-secret-service 4.1.0
@@ -3183,6 +3279,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2016 secret-service Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### defmt 1.1.1, defmt-macros 1.1.1
@@ -3195,6 +3292,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) Ferrous Systems
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### defmt-parser 1.0.0
@@ -3205,6 +3303,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the defmt-parser authors — The Knurling-rs developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### der 0.7.10, pkcs8 0.10.2
@@ -3217,6 +3316,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2020-2023 The RustCrypto Project Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### deranged 0.5.8
@@ -3229,6 +3329,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2024 Jacob Pratt et al.
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### derive_more 2.1.1, derive_more-impl 2.1.1
@@ -3240,6 +3341,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 The MIT License (MIT)
 Copyright (c) 2016 Jelte Fennema
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### device-info 0.1.1
@@ -3250,6 +3352,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the device-info authors — https://github.com/livekit/rust-sdks
 ```
+
 Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
 
 ### digest 0.10.7, hmac 0.12.1
@@ -3262,6 +3365,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2017 Artyom Pavlov
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### dirs 4.0.0, dirs 6.0.0, dirs-sys 0.3.7, dirs-sys 0.5.0
@@ -3272,9 +3376,11 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) 2018-2019 dirs-rs contributors
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 <!-- LICENSE-APACHE -->
+
 ```text
 Apache License
                         Version 2.0, January 2004
@@ -3460,6 +3566,7 @@ TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
 ```text
 Copyright (c) the dispatch2 authors — Mads Marquart <mads@marquart.dk>, Mary <mary@mary.zone>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### dlib 0.5.3
@@ -3470,6 +3577,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) 2015 Victor Berger
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### dlopen2 0.8.2
@@ -3480,6 +3588,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the dlopen2 authors — Szymon Wieloch <szymon.wieloch@gmail.com>, Ahmed Masud <ahmed.masud@saf.ai>, OpenByte <development.openbyte@gmail.com>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### dlopen2_derive 0.4.3
@@ -3490,6 +3599,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the dlopen2_derive authors — Szymon Wieloch <szymon.wieloch@gmail.com>, OpenByte <development.openbyte@gmail.com>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### dlv-list 0.5.2
@@ -3503,6 +3613,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 MIT License
 Copyright (c) 2022 Scott Godwin
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### dom_query 0.27.0
@@ -3517,6 +3628,7 @@ This project contains portions of code and architectural concepts originally
 derived from the "nipper" project (https://github.com/importcjj/nipper),
 developed by Chen Jiaju, licensed under the MIT License and the Apache License 2.0 (dual licensed).
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### downcast-rs 1.2.1
@@ -3529,6 +3641,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2020 Ashish Myles and contributors
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### dpi 0.1.2
@@ -3539,6 +3652,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
 
 <!-- LICENSE-LIBM-MIT -->
+
 ```text
 rust-lang/libm as a whole is available for use under the MIT license:
 
@@ -3601,6 +3715,7 @@ have been licensed under extremely permissive terms.
 ```text
 Copyright (c) the drm-fourcc authors — Daniel Franklin <daniel@danielzfranklin.org>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### dtls 0.17.2, interceptor 0.17.2, rtcp 0.17.2, rtp 0.17.2, sdp 0.17.2, stun 0.17.2, turn 0.17.2, webrtc-data 0.17.2, webrtc-ice 0.17.2, webrtc-mdns 0.17.2, webrtc-media 0.17.2, webrtc-sctp 0.17.2, webrtc-srtp 0.17.2, webrtc-util 0.17.2
@@ -3614,6 +3729,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 MIT License
 Copyright (c) 2021 WebRTC.rs
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### dtoa-short 0.3.5
@@ -3622,6 +3738,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 **Source:** https://github.com/upsuper/dtoa-short
 
 <!-- LICENSE -->
+
 ```text
 Mozilla Public License Version 2.0
 ==================================
@@ -4015,6 +4132,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2018-2022 RustCrypto Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### ed25519 2.2.3, signature 2.2.0
@@ -4027,6 +4145,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2018-2023 RustCrypto Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### ed25519-dalek 2.2.0
@@ -4037,6 +4156,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) 2017-2019 isis agora lovecruft. All rights reserved.
 ```
+
 Distributed under the [BSD-3-Clause licence](#licence-bsd-3-clause), reproduced in full below.
 
 ### elliptic-curve 0.13.8
@@ -4049,6 +4169,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2020-2022 RustCrypto Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### embed_plist 1.2.2
@@ -4062,6 +4183,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 MIT License
 Copyright (c) 2020 Nikolai Vazquez
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### embed-resource 3.0.9
@@ -4073,6 +4195,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 The MIT License (MIT)
 Copyright (c) 2017 nabijaczleweli
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### enumflags2 0.7.12
@@ -4083,9 +4206,11 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) 2017-2023 Maik Klein, Maja Kądziołka
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 <!-- LICENSE-APACHE -->
+
 ```text
 Apache License
 
@@ -4126,7 +4251,7 @@ TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
 You must give any other recipients of the Work or Derivative Works a copy of this License; and
 You must cause any modified files to carry prominent notices stating that You changed the files; and
 You must retain, in the Source form of any Derivative Works that You distribute, all copyright, patent, trademark, and attribution notices from the Source form of the Work, excluding those notices that do not pertain to any part of the Derivative Works; and
-If the Work includes a "NOTICE" text file as part of its distribution, then any Derivative Works that You distribute must include a readable copy of the attribution notices contained within such NOTICE file, excluding those notices that do not pertain to any part of the Derivative Works, in at least one of the following places: within a NOTICE text file distributed as part of the Derivative Works; within the Source form or documentation, if provided along with the Derivative Works; or, within a display generated by the Derivative Works, if and wherever such third-party notices normally appear. The contents of the NOTICE file are for informational purposes only and do not modify the License. You may add Your own attribution notices within Derivative Works that You distribute, alongside or as an addendum to the NOTICE text from the Work, provided that such additional attribution notices cannot be construed as modifying the License. 
+If the Work includes a "NOTICE" text file as part of its distribution, then any Derivative Works that You distribute must include a readable copy of the attribution notices contained within such NOTICE file, excluding those notices that do not pertain to any part of the Derivative Works, in at least one of the following places: within a NOTICE text file distributed as part of the Derivative Works; within the Source form or documentation, if provided along with the Derivative Works; or, within a display generated by the Derivative Works, if and wherever such third-party notices normally appear. The contents of the NOTICE file are for informational purposes only and do not modify the License. You may add Your own attribution notices within Derivative Works that You distribute, alongside or as an addendum to the NOTICE text from the Work, provided that such additional attribution notices cannot be construed as modifying the License.
 
 You may add Your own copyright statement to Your modifications and may provide additional or different license terms and conditions for use, reproduction, or distribution of Your modifications, or for any such Derivative Works as a whole, provided Your use, reproduction, and distribution of the Work otherwise complies with the conditions stated in this License.
 5. Submission of Contributions. Unless You explicitly state otherwise, any Contribution intentionally submitted for inclusion in the Work by You to the Licensor shall be under the terms and conditions of this License, without any additional terms or conditions. Notwithstanding the above, nothing herein shall supersede or modify the terms of any separate license agreement you may have executed with Licensor regarding such Contributions.
@@ -4165,9 +4290,11 @@ limitations under the License.
 ```text
 Copyright (c) 2017 Maik Klein
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 <!-- LICENSE-APACHE -->
+
 ```text
 Apache License
 
@@ -4208,7 +4335,7 @@ TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
 You must give any other recipients of the Work or Derivative Works a copy of this License; and
 You must cause any modified files to carry prominent notices stating that You changed the files; and
 You must retain, in the Source form of any Derivative Works that You distribute, all copyright, patent, trademark, and attribution notices from the Source form of the Work, excluding those notices that do not pertain to any part of the Derivative Works; and
-If the Work includes a "NOTICE" text file as part of its distribution, then any Derivative Works that You distribute must include a readable copy of the attribution notices contained within such NOTICE file, excluding those notices that do not pertain to any part of the Derivative Works, in at least one of the following places: within a NOTICE text file distributed as part of the Derivative Works; within the Source form or documentation, if provided along with the Derivative Works; or, within a display generated by the Derivative Works, if and wherever such third-party notices normally appear. The contents of the NOTICE file are for informational purposes only and do not modify the License. You may add Your own attribution notices within Derivative Works that You distribute, alongside or as an addendum to the NOTICE text from the Work, provided that such additional attribution notices cannot be construed as modifying the License. 
+If the Work includes a "NOTICE" text file as part of its distribution, then any Derivative Works that You distribute must include a readable copy of the attribution notices contained within such NOTICE file, excluding those notices that do not pertain to any part of the Derivative Works, in at least one of the following places: within a NOTICE text file distributed as part of the Derivative Works; within the Source form or documentation, if provided along with the Derivative Works; or, within a display generated by the Derivative Works, if and wherever such third-party notices normally appear. The contents of the NOTICE file are for informational purposes only and do not modify the License. You may add Your own attribution notices within Derivative Works that You distribute, alongside or as an addendum to the NOTICE text from the Work, provided that such additional attribution notices cannot be construed as modifying the License.
 
 You may add Your own copyright statement to Your modifications and may provide additional or different license terms and conditions for use, reproduction, or distribution of Your modifications, or for any such Derivative Works as a whole, provided Your use, reproduction, and distribution of the Work otherwise complies with the conditions stated in this License.
 5. Submission of Contributions. Unless You explicitly state otherwise, any Contribution intentionally submitted for inclusion in the Work by You to the Licensor shall be under the terms and conditions of this License, without any additional terms or conditions. Notwithstanding the above, nothing herein shall supersede or modify the terms of any separate license agreement you may have executed with Licensor regarding such Contributions.
@@ -4249,6 +4376,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2016--2023
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### errno 0.3.14
@@ -4261,6 +4389,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2014 Chris Wong
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### fdeflate 0.3.7, image 0.25.10, simdutf8 0.1.5, widestring 1.2.1
@@ -4273,6 +4402,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 MIT License
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### ff 0.13.1
@@ -4286,6 +4416,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 The MIT License (MIT)
 Copyright (c) 2017 Sean Bowe
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### fiat-crypto 0.2.9
@@ -4297,9 +4428,11 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 The MIT License (MIT)
 Copyright (c) 2015-2020 the fiat-crypto authors (see the AUTHORS file).
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 <!-- LICENSE-APACHE -->
+
 ```text
 The Apache License, Version 2.0 (Apache-2.0)
 
@@ -4319,6 +4452,7 @@ limitations under the License.
 ```
 
 <!-- LICENSE-BSD-1 -->
+
 ```text
 The BSD 1-Clause License (BSD-1-Clause)
 
@@ -4356,6 +4490,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 MIT License
 Copyright (c) 2016-2021 Diggory Blake, and other contributors.
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### fixedbitset 0.4.2
@@ -4368,6 +4503,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2015-2017
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### flate2 1.1.9
@@ -4380,6 +4516,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2014-2026 Alex Crichton
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### fluvio-wasm-timer 0.2.5
@@ -4391,6 +4528,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 Copyright 2019 Pierre Krieger
 Copyright (c) 2019 Tokio Contributors
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### fnv 1.0.7
@@ -4403,6 +4541,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2017 Contributors
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### foldhash 0.1.5, foldhash 0.2.0
@@ -4413,6 +4552,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) 2024 Orson Peters
 ```
+
 Distributed under the [Zlib licence](#licence-zlib), reproduced in full below.
 
 ### foreign-types 0.3.2, foreign-types 0.5.0, foreign-types-macros 0.2.3, foreign-types-shared 0.1.1, foreign-types-shared 0.3.1
@@ -4425,6 +4565,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2017 The foreign-types Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### form_urlencoded 1.2.2
@@ -4437,6 +4578,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2013-2016 The rust-url developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### fs_extra 1.3.0
@@ -4448,6 +4590,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) 2017 Denis Kurilenko
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### futures 0.3.32, futures-channel 0.3.32, futures-core 0.3.32, futures-executor 0.3.32, futures-io 0.3.32, futures-macro 0.3.32, futures-sink 0.3.32, futures-task 0.3.32, futures-util 0.3.32
@@ -4461,6 +4604,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 Copyright (c) 2016 Alex Crichton
 Copyright (c) 2017 The Tokio Authors
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### gbm 0.18.0
@@ -4472,6 +4616,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) 2017 Victor Brekenfeld
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### gbm-sys 0.4.0
@@ -4482,6 +4627,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the gbm-sys authors — Drakulix (Victor Brekenfeld)
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### generic-array 0.14.7
@@ -4493,6 +4639,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 The MIT License (MIT)
 Copyright (c) 2015 Bartłomiej Kamiński
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### getrandom 0.2.17
@@ -4504,9 +4651,11 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 Copyright (c) 2018-2024 The rust-random Project Developers
 Copyright (c) 2014 The Rust Project Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 <!-- LICENSE-APACHE -->
+
 ```text
 Apache License
                         Version 2.0, January 2004
@@ -4720,9 +4869,11 @@ limitations under the License.
 Copyright (c) 2018-2025 The rust-random Project Developers
 Copyright (c) 2014 The Rust Project Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 <!-- LICENSE-APACHE -->
+
 ```text
 Apache License
                         Version 2.0, January 2004
@@ -4936,9 +5087,11 @@ limitations under the License.
 Copyright (c) 2018-2026 The rust-random Project Developers
 Copyright (c) 2014 The Rust Project Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 <!-- LICENSE-APACHE -->
+
 ```text
 Apache License
                         Version 2.0, January 2004
@@ -5153,6 +5306,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2019 RustCrypto Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### gl 0.14.0
@@ -5163,6 +5317,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the gl authors — Brendan Zabarauskas <bjzaba@yahoo.com.au>, Corey Richardson, Arseny Kapoulkine
 ```
+
 Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
 
 ### gl_generator 0.14.0
@@ -5173,6 +5328,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) the gl_generator authors — Brendan Zabarauskas <bjzaba@yahoo.com.au>, Corey Richardson, Arseny Kapoulkine
 ```
+
 Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
 
 ### global-hotkey 0.8.0, muda 0.19.1, tray-icon 0.23.1
@@ -5186,6 +5342,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 MIT License
 Copyright (c) 2022-2022 Tauri Programme within The Commons Conservancy
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### gloo-timers 0.3.0
@@ -5196,6 +5353,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the gloo-timers authors — Rust and WebAssembly Working Group
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### hax-lib 0.3.6
@@ -5206,6 +5364,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the hax-lib authors — hax Authors
 ```
+
 Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
 
 ### hax-lib-macros 0.3.6
@@ -5216,6 +5375,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) the hax-lib-macros authors — hax Authors
 ```
+
 Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
 
 ### hax-lib-macros-types 0.3.6
@@ -5226,6 +5386,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) the hax-lib-macros-types authors — hax Authors
 ```
+
 Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
 
 ### heck 0.4.1, heck 0.5.0, peeking_take_while 0.1.2, unicode-segmentation 1.13.2, unicode-width 0.1.14, unicode-width 0.2.2, unicode-xid 0.2.6, vec_map 0.8.2
@@ -5238,6 +5399,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2015 The Rust Project Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### hex 0.4.3
@@ -5251,6 +5413,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 Copyright (c) 2013-2014 The Rust Project Developers.
 Copyright (c) 2015-2020 The rust-hex Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### hkdf 0.12.4
@@ -5264,6 +5427,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 Copyright (c) 2015-2018 Vlad Filippov
 Copyright (c) 2018-2021 RustCrypto Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### hpke-rs 0.6.1
@@ -5274,6 +5438,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the hpke-rs authors — Franziskus Kiefer <franziskuskiefer@gmail.com>
 ```
+
 Distributed under the [MPL-2.0 licence](#licence-mpl-2-0), reproduced in full below.
 
 ### hpke-rs-crypto 0.6.1
@@ -5284,6 +5449,7 @@ Distributed under the [MPL-2.0 licence](#licence-mpl-2-0), reproduced in full be
 ```text
 Copyright (c) the hpke-rs-crypto authors — Franziskus Kiefer <franziskuskiefer@gmail.com>
 ```
+
 Distributed under the [MPL-2.0 licence](#licence-mpl-2-0), reproduced in full below.
 
 ### hpke-rs-libcrux 0.6.1
@@ -5294,6 +5460,7 @@ Distributed under the [MPL-2.0 licence](#licence-mpl-2-0), reproduced in full be
 ```text
 Copyright (c) the hpke-rs-libcrux authors — Franziskus Kiefer <franziskuskiefer@gmail.com>
 ```
+
 Distributed under the [MPL-2.0 licence](#licence-mpl-2-0), reproduced in full below.
 
 ### hpke-rs-rust-crypto 0.6.1
@@ -5304,6 +5471,7 @@ Distributed under the [MPL-2.0 licence](#licence-mpl-2-0), reproduced in full be
 ```text
 Copyright (c) the hpke-rs-rust-crypto authors — Franziskus Kiefer <franziskuskiefer@gmail.com>
 ```
+
 Distributed under the [MPL-2.0 licence](#licence-mpl-2-0), reproduced in full below.
 
 ### hrtf 0.8.1
@@ -5315,6 +5483,7 @@ Distributed under the [MPL-2.0 licence](#licence-mpl-2-0), reproduced in full be
 MIT License
 Copyright (c) 2020 Dmitry Stepanov
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### html5ever 0.38.0, markup5ever 0.38.0, web_atoms 0.2.4
@@ -5327,6 +5496,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2014 The html5ever Project Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### http 1.4.0
@@ -5339,6 +5509,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2017 http-rs authors
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### http-body 1.0.1
@@ -5349,6 +5520,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) 2019-2024 Sean McArthur & Hyper Contributors
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### http-body-util 0.1.3
@@ -5359,6 +5531,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) 2019-2025 Sean McArthur & Hyper Contributors
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### httparse 1.10.1
@@ -5371,6 +5544,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2015-2025 Sean McArthur
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### hyper 1.9.0
@@ -5381,6 +5555,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) 2014-2026 Sean McArthur
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### hyper-rustls 0.27.9, rustls 0.23.40
@@ -5394,11 +5569,13 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ISC License (ISC)
 Copyright (c) 2016, Joseph Birr-Pixton <jpixton@gmail.com>
 ```
+
 Distributed under the [ISC licence](#licence-isc), reproduced in full below.
 
 ```text
 Copyright (c) 2016 Joseph Birr-Pixton <jpixton@gmail.com>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### hyper-tls 0.6.0
@@ -5411,6 +5588,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2017 Sean McArthur
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### hyper-util 0.1.20
@@ -5421,6 +5599,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) 2023-2025 Sean McArthur
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### iana-time-zone 0.1.65, iana-time-zone-haiku 0.1.2
@@ -5433,6 +5612,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2020 Andrew D. Straw
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### ico 0.5.0
@@ -5444,6 +5624,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) 2018 Matthew D. Steele
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### icu_collections 2.2.0, icu_locale_core 2.2.0, icu_normalizer 2.2.0, icu_normalizer_data 2.2.0, icu_properties 2.2.0, icu_properties_data 2.2.0, icu_provider 2.2.0, litemap 0.8.2, potential_utf 0.1.5, tinystr 0.8.3, writeable 0.6.3, yoke 0.8.2, yoke-derive 0.8.2, zerofrom 0.1.7, zerofrom-derive 0.1.7, zerotrie 0.2.4, zerovec 0.11.6, zerovec-derive 0.11.3
@@ -5452,6 +5633,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 **Source:** https://github.com/unicode-org/icu4x
 
 <!-- LICENSE -->
+
 ```text
 UNICODE LICENSE V3
 
@@ -5509,6 +5691,7 @@ ICU 1.8.1 to ICU 57.1 © 1995-2016 International Business Machines Corporation a
 ```text
 MIT License
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### idna 1.1.0, percent-encoding 2.3.2, url 2.5.8
@@ -5521,6 +5704,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2013-2025 The rust-url developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### idna_adapter 1.2.2
@@ -5533,6 +5717,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) The rust-url developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### indexmap 1.9.3, indexmap 2.14.0
@@ -5545,6 +5730,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2016--2017
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### infer 0.19.0
@@ -5556,6 +5742,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) 2019 Bojan
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### inout 0.1.4
@@ -5569,6 +5756,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 Copyright (c) 2022 The RustCrypto Project Developers
 Copyright (c) 2022 Artyom Pavlov
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### instant 0.1.13
@@ -5577,6 +5765,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 **Source:** https://github.com/sebcrozet/instant
 
 <!-- LICENSE -->
+
 ```text
 Copyright (c) 2019, Sébastien Crozet
 All rights reserved.
@@ -5617,6 +5806,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright 2017 Juniper Networks, Inc.
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### is-docker 0.2.0, is-wsl 0.4.0
@@ -5628,6 +5818,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) 2023 Sean Larkin
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### javascriptcore-rs 1.1.2
@@ -5640,6 +5831,7 @@ The MIT License (MIT)
 Copyright (c) 2013-2021, The Gtk-rs Project Developers.
 Copyright (c) 2021, Tauri Programme within The Commons Conservancy.
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### javascriptcore-rs-sys 1.1.1, soup3 0.5.0, soup3-sys 0.5.0
@@ -5651,6 +5843,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 The MIT License (MIT)
 Copyright (c) 2013-2017, The Gtk-rs Project Developers.
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### jni 0.21.1
@@ -5664,6 +5857,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 The MIT License (MIT)
 Copyright (c) 2016 Prevoty, Inc. and jni-rs contributors
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### jni 0.22.4
@@ -5674,6 +5868,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the jni authors — jni team
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### jni-macros 0.22.4
@@ -5684,6 +5879,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the jni-macros authors — https://github.com/jni-rs/jni-rs
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### jni-sys 0.3.1, jni-sys 0.4.1
@@ -5696,6 +5892,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2015 The rust-jni-sys Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### jni-sys-macros 0.4.1
@@ -5706,6 +5903,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the jni-sys-macros authors — Robert Bragg <robert@sixbynine.org>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### jpeg-encoder 0.6.1
@@ -5718,6 +5916,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2021 Volker Ströbel <volkerstroebel@mysurdity.de>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### json-patch 3.0.1
@@ -5731,6 +5930,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 MIT License
 Copyright (c) 2017 Ivan Dubrov
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### jsonptr 0.6.3
@@ -5744,6 +5944,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 MIT License
 Copyright (c) 2022 Chance Dinkins
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### jsonwebtoken 10.4.0
@@ -5755,6 +5956,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 The MIT License (MIT)
 Copyright (c) 2015 Vincent Prouillet
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### k256 0.13.4
@@ -5767,6 +5969,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2020-2024 RustCrypto Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### keyboard-types 0.7.0
@@ -5779,6 +5982,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2017 Pyfisch
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### keyring 3.6.3
@@ -5791,6 +5995,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2016 keyring Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### khronos_api 3.1.0
@@ -5801,6 +6006,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the khronos_api authors — Brendan Zabarauskas <bjzaba@yahoo.com.au>, Corey Richardson, Arseny Kapoulkine, Pierre Krieger <pierre.krieger1708@gmail.com>
 ```
+
 Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
 
 ### kv-log-macro 1.0.7
@@ -5820,12 +6026,14 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 ```
+
 Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
 
 ```text
 The MIT License (MIT)
 Copyright (c) 2019 Yoshua Wuyts
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### lazy_static 1.5.0, metal 0.18.0, rayon 1.12.0, rayon-core 1.13.0
@@ -5838,6 +6046,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2010 The Rust Project Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### lazycell 1.3.0
@@ -5851,6 +6060,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 Original work Copyright (c) 2014 The Rust Project Developers
 Modified work Copyright (c) 2016-2018 Nikita Pekin and lazycell contributors
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### libappindicator 0.9.0
@@ -5864,6 +6074,7 @@ MIT License
 Copyright (c) 2017-2021 qDot
 Copyright (c) 2021 Tauri Apps Contributors
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### libappindicator-sys 0.9.0
@@ -5873,6 +6084,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the libappindicator-sys authors — libappindicator-sys
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### libc 0.2.186
@@ -5885,6 +6097,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) The Rust Project Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### libcrux-aead 0.0.7
@@ -5895,6 +6108,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the libcrux-aead authors — Cryspen
 ```
+
 Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
 
 ### libcrux-aesgcm 0.0.7
@@ -5905,6 +6119,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) the libcrux-aesgcm authors — Cryspen
 ```
+
 Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
 
 ### libcrux-chacha20poly1305 0.0.7
@@ -5915,6 +6130,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) the libcrux-chacha20poly1305 authors — Cryspen
 ```
+
 Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
 
 ### libcrux-curve25519 0.0.6
@@ -5925,6 +6141,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) the libcrux-curve25519 authors — Cryspen
 ```
+
 Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
 
 ### libcrux-ecdh 0.0.6
@@ -5935,6 +6152,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) the libcrux-ecdh authors — Cryspen
 ```
+
 Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
 
 ### libcrux-hacl-rs 0.0.4
@@ -5945,6 +6163,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) the libcrux-hacl-rs authors — Cryspen
 ```
+
 Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
 
 ### libcrux-hkdf 0.0.6
@@ -5955,6 +6174,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) the libcrux-hkdf authors — Cryspen
 ```
+
 Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
 
 ### libcrux-hmac 0.0.6
@@ -5965,6 +6185,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) the libcrux-hmac authors — Cryspen
 ```
+
 Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
 
 ### libcrux-intrinsics 0.0.6
@@ -5975,6 +6196,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) the libcrux-intrinsics authors — Cryspen
 ```
+
 Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
 
 ### libcrux-kem 0.0.7
@@ -5985,6 +6207,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) the libcrux-kem authors — Cryspen
 ```
+
 Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
 
 ### libcrux-macros 0.0.3
@@ -5995,6 +6218,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) the libcrux-macros authors — Cryspen
 ```
+
 Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
 
 ### libcrux-ml-kem 0.0.8
@@ -6005,6 +6229,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) the libcrux-ml-kem authors — Cryspen
 ```
+
 Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
 
 ### libcrux-p256 0.0.6
@@ -6015,6 +6240,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) the libcrux-p256 authors — Cryspen
 ```
+
 Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
 
 ### libcrux-platform 0.0.3
@@ -6025,6 +6251,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) the libcrux-platform authors — Cryspen
 ```
+
 Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
 
 ### libcrux-poly1305 0.0.5
@@ -6035,6 +6262,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) the libcrux-poly1305 authors — Cryspen
 ```
+
 Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
 
 ### libcrux-secrets 0.0.5
@@ -6045,6 +6273,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) the libcrux-secrets authors — Cryspen
 ```
+
 Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
 
 ### libcrux-sha2 0.0.6
@@ -6055,6 +6284,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) the libcrux-sha2 authors — Cryspen
 ```
+
 Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
 
 ### libcrux-sha3 0.0.8
@@ -6065,6 +6295,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) the libcrux-sha3 authors — Cryspen
 ```
+
 Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
 
 ### libcrux-traits 0.0.6
@@ -6075,6 +6306,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) the libcrux-traits authors — Cryspen
 ```
+
 Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
 
 ### libloading 0.7.4, libloading 0.8.9
@@ -6085,6 +6317,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright © 2015, Simonas Kazlauskas
 ```
+
 Distributed under the [ISC licence](#licence-isc), reproduced in full below.
 
 ### libm 0.2.16
@@ -6093,6 +6326,7 @@ Distributed under the [ISC licence](#licence-isc), reproduced in full below.
 **Source:** https://github.com/rust-lang/compiler-builtins
 
 <!-- LICENSE.txt -->
+
 ```text
 rust-lang/libm as a whole is available for use under the MIT license:
 
@@ -6363,6 +6597,7 @@ Copyright notices are retained in src/* files where relevant.
 MIT License
 Copyright (c) 2023 4lDO2
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### libspa 0.9.2, libspa-sys 0.9.2, pipewire 0.9.2, pipewire-sys 0.9.2
@@ -6371,6 +6606,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 **Source:** https://gitlab.freedesktop.org/pipewire/pipewire-rs
 
 <!-- LICENSE -->
+
 ```text
 Copyright The pipewire-rs Contributors.
 
@@ -6402,6 +6638,7 @@ DEALINGS IN THE SOFTWARE.
 ```text
 Copyright (c) the libwayshot-xcap authors — Shinyzenith <https://aakash.is-a.dev>
 ```
+
 Distributed under the [BSD-2-Clause licence](#licence-bsd-2-clause), reproduced in full below.
 
 ### linux-raw-sys 0.12.1, linux-raw-sys 0.4.15, linux-raw-sys 0.9.4, rustix 0.38.44, rustix 1.1.4, wasi 0.11.1+wasi-snapshot-preview1, wasip2 1.0.3+wasi-0.2.9, wit-bindgen 0.51.0, wit-bindgen 0.57.1, wit-bindgen-core 0.51.0, wit-bindgen-rust 0.51.0, wit-bindgen-rust-macro 0.51.0
@@ -6414,6 +6651,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 <!-- LICENSE-Apache-2.0_WITH_LLVM-exception -->
+
 ```text
 Apache License
                            Version 2.0, January 2004
@@ -6643,6 +6881,7 @@ Software.
 ```text
 Copyright (c) the livekit-api authors — https://github.com/livekit/rust-sdks
 ```
+
 Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
 
 ### livekit-common 0.1.1
@@ -6653,6 +6892,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) the livekit-common authors — https://github.com/livekit/rust-sdks
 ```
+
 Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
 
 ### livekit-net 0.1.2
@@ -6663,6 +6903,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) the livekit-net authors — https://github.com/livekit/rust-sdks
 ```
+
 Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
 
 ### livekit-protocol 0.7.12
@@ -6673,6 +6914,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) the livekit-protocol authors — https://github.com/livekit/rust-sdks
 ```
+
 Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
 
 ### livekit-runtime 0.4.0
@@ -6683,6 +6925,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) the livekit-runtime authors — https://github.com/livekit/rust-sdks
 ```
+
 Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
 
 ### lock_api 0.4.14, parking_lot 0.11.2, parking_lot 0.12.5, parking_lot_core 0.8.6, parking_lot_core 0.9.12, rustc_version 0.4.1
@@ -6695,6 +6938,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2016 The Rust Project Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### mac-notification-sys 0.6.12
@@ -6705,6 +6949,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the mac-notification-sys authors — Felix Döring <development@felixdoering.com>, Hendrik Sollich <hendrik@hoodie.de>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### mach2 0.4.3
@@ -6718,11 +6963,13 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 Copyright (c) 2019 Nick Fitzgerald, 2021 Yuki Okushi
 All rights reserved.
 ```
+
 Distributed under the [BSD-2-Clause licence](#licence-bsd-2-clause), reproduced in full below.
 
 ```text
 Copyright (c) 2019 Nick Fitzgerald, 2021 Yuki Okushi
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### malloc_buf 0.0.6
@@ -6733,6 +6980,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the malloc_buf authors — Steven Sheldon
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### md-5 0.10.6, sha1 0.10.7, sha2 0.10.9
@@ -6747,6 +6995,7 @@ Copyright (c) 2006-2009 Graydon Hoare
 Copyright (c) 2009-2013 Mozilla Foundation
 Copyright (c) 2016 Artyom Pavlov
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### memmap2 0.9.10
@@ -6760,6 +7009,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 Copyright (c) 2020 Yevhenii Reizner
 Copyright (c) 2015 Dan Burkert
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### memoffset 0.7.1, memoffset 0.9.1
@@ -6770,6 +7020,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) 2017 Gilad Naaman
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### mime 0.3.17
@@ -6782,6 +7033,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2014 Sean McArthur
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### minimal-lexical 0.2.1
@@ -6794,6 +7046,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 <!-- LICENSE.md -->
+
 ```text
 Minimal-lexical is dual licensed under the Apache 2.0 license as well as the MIT
 license. See the LICENCE-MIT and the LICENCE-APACHE files for the licenses.
@@ -6840,6 +7093,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 **Source:** https://github.com/jedisct1/rust-minisign-verify
 
 <!-- LICENSE -->
+
 ```text
 Copyright (c) 2019-2025 Frank Denis
 
@@ -6914,6 +7168,7 @@ Copyright 2010-2014 Rich Geldreich and Tenacious Software LLC
 Copyright (c) 2017 Frommi
 Copyright (c) 2017-2024 oyvindln
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
@@ -6925,6 +7180,7 @@ Copyright 2010-2014 Rich Geldreich and Tenacious Software LLC
 Copyright (c) 2017 Frommi
 Copyright (c) 2017-2024 oyvindln
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ```text
@@ -6933,6 +7189,7 @@ Copyright 2010-2014 Rich Geldreich and Tenacious Software LLC
 Copyright (c) 2020 Frommi
 Copyright (c) 2017-2024 oyvindln
 ```
+
 Distributed under the [Zlib licence](#licence-zlib), reproduced in full below.
 
 ### mio 1.2.0
@@ -6943,6 +7200,7 @@ Distributed under the [Zlib licence](#licence-zlib), reproduced in full below.
 ```text
 Copyright (c) 2014 Carl Lerche and other MIO contributors
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### moxcms 0.8.1, pxfm 0.1.29
@@ -6955,6 +7213,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) Radzivon Bartoshyk. All rights reserved.
 ```
+
 Distributed under the [BSD-3-Clause licence](#licence-bsd-3-clause), reproduced in full below.
 
 ### multimap 0.10.1
@@ -6967,6 +7226,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2016 multimap developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### munge 0.4.7, munge_macro 0.4.7
@@ -6977,6 +7237,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright 2024 David Koloski
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### nanorand 0.7.0
@@ -6988,6 +7249,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 The zlib/libpng License
 Copyright (c) 2021 lucy
 ```
+
 Distributed under the [Zlib licence](#licence-zlib), reproduced in full below.
 
 ### native-tls 0.2.18
@@ -7000,6 +7262,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2016 The rust-native-tls Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### ndk 0.8.0, ndk 0.9.0
@@ -7010,6 +7273,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the ndk authors — The Rust Mobile contributors
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### ndk-context 0.1.1
@@ -7020,6 +7284,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the ndk-context authors — The Rust Windowing contributors
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### ndk-sys 0.5.0+25.2.9519653, ndk-sys 0.6.0+11769913
@@ -7030,6 +7295,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the ndk-sys authors — The Rust Windowing contributors
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### new_debug_unreachable 1.0.6
@@ -7040,6 +7306,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) 2015 Jonathan Reem
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### nix 0.26.4, nix 0.30.1
@@ -7051,6 +7318,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 The MIT License (MIT)
 Copyright (c) 2015 Carl Lerche + nix-rust Authors
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### nnnoiseless 0.3.3
@@ -7059,6 +7327,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 **Source:** https://github.com/jneem/nnnoiseless
 
 <!-- COPYING -->
+
 ```text
 Copyright (c) 2020, Joe Neeman
 Copyright (c) 2017, Mozilla
@@ -7102,6 +7371,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```text
 Copyright (c) the nokhwa-bindings-linux authors — https://github.com/l1npengtul/nokhwa
 ```
+
 Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
 
 ### nokhwa-bindings-macos 0.2.4
@@ -7112,6 +7382,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) the nokhwa-bindings-macos authors — l1npengtul
 ```
+
 Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
 
 ### nokhwa-bindings-windows 0.4.6
@@ -7122,6 +7393,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) the nokhwa-bindings-windows authors — l1npengtul
 ```
+
 Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
 
 ### nokhwa-core 0.1.9
@@ -7132,6 +7404,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) the nokhwa-core authors — l1npengtul <l1npengtul@protonmail.com>
 ```
+
 Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
 
 ### nom 7.1.3, nom 8.0.0
@@ -7142,6 +7415,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2014-2019 Geoffroy Couprie
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### notify-rust 4.17.0
@@ -7155,6 +7429,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 MIT License
 Copyright (c) 2017 Hendrik Sollich
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### num_enum 0.7.6, num_enum_derive 0.7.6
@@ -7167,6 +7442,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 <!-- LICENSE-BSD -->
+
 ```text
 Copyright (c) 2018, Daniel Wagner-Hall
 All rights reserved.
@@ -7207,6 +7483,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) Jacob Pratt
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### objc 0.2.7
@@ -7218,6 +7495,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) Steven Sheldon
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### objc_exception 0.1.2
@@ -7228,6 +7506,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the objc_exception authors — Steven Sheldon
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### objc2 0.6.4
@@ -7238,6 +7517,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the objc2 authors — Mads Marquart <mads@marquart.dk>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### objc2-app-kit 0.3.2
@@ -7248,6 +7528,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the objc2-app-kit authors — https://github.com/madsmtm/objc2
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### objc2-av-foundation 0.3.2
@@ -7258,6 +7539,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the objc2-av-foundation authors — https://github.com/madsmtm/objc2
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### objc2-avf-audio 0.3.2
@@ -7268,6 +7550,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the objc2-avf-audio authors — https://github.com/madsmtm/objc2
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### objc2-cloud-kit 0.3.2
@@ -7278,6 +7561,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the objc2-cloud-kit authors — https://github.com/madsmtm/objc2
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### objc2-core-audio 0.3.2
@@ -7288,6 +7572,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the objc2-core-audio authors — https://github.com/madsmtm/objc2
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### objc2-core-audio-types 0.3.2
@@ -7298,6 +7583,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the objc2-core-audio-types authors — https://github.com/madsmtm/objc2
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### objc2-core-data 0.3.2
@@ -7308,6 +7594,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the objc2-core-data authors — https://github.com/madsmtm/objc2
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### objc2-core-foundation 0.3.2
@@ -7318,6 +7605,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the objc2-core-foundation authors — https://github.com/madsmtm/objc2
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### objc2-core-graphics 0.3.2
@@ -7328,6 +7616,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the objc2-core-graphics authors — https://github.com/madsmtm/objc2
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### objc2-core-image 0.3.2
@@ -7338,6 +7627,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the objc2-core-image authors — https://github.com/madsmtm/objc2
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### objc2-core-location 0.3.2
@@ -7348,6 +7638,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the objc2-core-location authors — https://github.com/madsmtm/objc2
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### objc2-core-media 0.3.2
@@ -7358,6 +7649,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the objc2-core-media authors — https://github.com/madsmtm/objc2
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### objc2-core-text 0.3.2
@@ -7368,6 +7660,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the objc2-core-text authors — https://github.com/madsmtm/objc2
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### objc2-core-video 0.3.2
@@ -7378,6 +7671,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the objc2-core-video authors — https://github.com/madsmtm/objc2
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### objc2-encode 4.1.0
@@ -7388,6 +7682,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the objc2-encode authors — Mads Marquart <mads@marquart.dk>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### objc2-exception-helper 0.1.1
@@ -7398,6 +7693,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the objc2-exception-helper authors — Mads Marquart <mads@marquart.dk>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### objc2-foundation 0.3.2
@@ -7408,6 +7704,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the objc2-foundation authors — https://github.com/madsmtm/objc2
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### objc2-image-io 0.3.2
@@ -7418,6 +7715,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the objc2-image-io authors — https://github.com/madsmtm/objc2
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### objc2-io-kit 0.3.2
@@ -7428,6 +7726,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the objc2-io-kit authors — https://github.com/madsmtm/objc2
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### objc2-io-surface 0.3.2
@@ -7438,6 +7737,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the objc2-io-surface authors — https://github.com/madsmtm/objc2
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### objc2-media-toolbox 0.3.2
@@ -7448,6 +7748,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the objc2-media-toolbox authors — https://github.com/madsmtm/objc2
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### objc2-metal 0.3.2
@@ -7458,6 +7759,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the objc2-metal authors — https://github.com/madsmtm/objc2
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### objc2-osa-kit 0.3.2
@@ -7468,6 +7770,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the objc2-osa-kit authors — https://github.com/madsmtm/objc2
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### objc2-quartz-core 0.3.2
@@ -7478,6 +7781,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the objc2-quartz-core authors — https://github.com/madsmtm/objc2
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### objc2-ui-kit 0.3.2
@@ -7488,6 +7792,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the objc2-ui-kit authors — https://github.com/madsmtm/objc2
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### objc2-user-notifications 0.3.2
@@ -7498,6 +7803,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the objc2-user-notifications authors — https://github.com/madsmtm/objc2
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### objc2-web-kit 0.3.2
@@ -7508,6 +7814,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the objc2-web-kit authors — https://github.com/madsmtm/objc2
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### oboe 0.6.1
@@ -7518,6 +7825,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the oboe authors — K. <kayo@illumium.org>
 ```
+
 Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
 
 ### oboe-sys 0.6.1
@@ -7528,6 +7836,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) the oboe-sys authors — K. <kayo@illumium.org>
 ```
+
 Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
 
 ### opaque-debug 0.3.1
@@ -7540,6 +7849,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2018-2024 The RustCrypto Project Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### open 5.3.4
@@ -7551,6 +7861,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 The MIT License (MIT)
 Copyright © `2015` `Sebastian Thiel`
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### openh264 0.9.7
@@ -7561,6 +7872,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the openh264 authors — Ralf Biedert <rb@xr.io>
 ```
+
 Distributed under the [BSD-2-Clause licence](#licence-bsd-2-clause), reproduced in full below.
 
 ### openh264-sys2 0.9.7
@@ -7571,6 +7883,7 @@ Distributed under the [BSD-2-Clause licence](#licence-bsd-2-clause), reproduced 
 ```text
 Copyright (c) the openh264-sys2 authors — Ralf Biedert <rb@xr.io>
 ```
+
 Distributed under the [BSD-2-Clause licence](#licence-bsd-2-clause), reproduced in full below.
 
 ### openmls 0.8.1
@@ -7581,6 +7894,7 @@ Distributed under the [BSD-2-Clause licence](#licence-bsd-2-clause), reproduced 
 ```text
 Copyright (c) the openmls authors — OpenMLS Authors
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### openmls_basic_credential 0.5.0
@@ -7591,6 +7905,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the openmls_basic_credential authors — OpenMLS Authors
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### openmls_memory_storage 0.5.0
@@ -7601,6 +7916,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the openmls_memory_storage authors — OpenMLS Authors
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### openmls_rust_crypto 0.5.1
@@ -7611,6 +7927,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the openmls_rust_crypto authors — OpenMLS Authors
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### openmls_traits 0.5.0
@@ -7621,6 +7938,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the openmls_traits authors — OpenMLS Authors
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### openssl 0.10.79
@@ -7631,6 +7949,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
 
 <!-- LICENSE -->
+
 ```text
 Copyright 2011-2017 Google Inc.
           2013 Jack Lloyd
@@ -7658,6 +7977,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2022 Steven Fackler
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### openssl-sys 0.9.115
@@ -7668,6 +7988,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) 2014 Alex Crichton
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### option-ext 0.2.0
@@ -7687,6 +8008,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2016 Tad Hardesty
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### ordered-multimap 0.7.3
@@ -7698,6 +8020,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) 2018 sgodwincs
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### os_info 3.14.0
@@ -7709,6 +8032,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 The MIT License (MIT)
 Copyright (c) 2017 Stanislav Tkach
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### osakit 0.3.1
@@ -7721,6 +8045,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2024 Marat Dulin
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### p256 0.13.2, password-hash 0.5.0, primeorder 0.13.6
@@ -7733,6 +8058,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2020-2023 RustCrypto Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### p384 0.13.1
@@ -7745,6 +8071,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2020-2021 RustCrypto Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### parking 2.2.1
@@ -7757,6 +8084,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 <!-- LICENSE-THIRD-PARTY -->
+
 ```text
 ===============================================================================
 
@@ -7777,6 +8105,7 @@ copied, modified, or distributed except according to those terms.
 ```text
 Copyright (c) the pbjson authors — Raphael Taylor-Davies <r.taylordavies@googlemail.com>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### pbjson-build 0.6.2
@@ -7787,6 +8116,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the pbjson-build authors — Raphael Taylor-Davies <r.taylordavies@googlemail.com>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### pbjson-types 0.6.0
@@ -7797,6 +8127,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the pbjson-types authors — Raphael Taylor-Davies <r.taylordavies@googlemail.com>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### pem 3.0.6
@@ -7808,6 +8139,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 The MIT License (MIT)
 Copyright (c) 2016 Jonathan Creekmore
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### phf 0.13.1, phf_codegen 0.13.1, phf_generator 0.13.1, phf_macros 0.13.1, phf_shared 0.13.1
@@ -7819,6 +8151,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 The MIT License (MIT)
 Copyright (c) 2014-2022 Steven Fackler, Yuki Okushi
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### pin-utils 0.1.0
@@ -7831,6 +8164,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2018 The pin-utils authors
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### pkcs1 0.7.5, spki 0.7.3
@@ -7843,6 +8177,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2021-2023 The RustCrypto Project Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### plain 0.2.3
@@ -7855,6 +8190,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2017 Plain contributors
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### plist 1.9.0
@@ -7865,6 +8201,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) 2015 Edward Barnard
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### png 0.17.16, png 0.18.1
@@ -7877,6 +8214,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2015 nwin
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### poly1305 0.8.0
@@ -7889,6 +8227,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2015-2019 RustCrypto Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### polyval 0.6.2
@@ -7901,6 +8240,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2019-2023 RustCrypto Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### powerfmt 0.2.0
@@ -7913,6 +8253,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2023 Jacob Pratt et al.
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### ppv-lite86 0.2.21
@@ -7925,6 +8266,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2019 The CryptoCorrosion Contributors
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### precomputed-hash 0.1.1
@@ -7936,6 +8278,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) 2017 Emilio Cobos Álvarez
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### primal-check 0.3.4
@@ -7948,6 +8291,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2014 Huon Wilson
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### proc-macro-error 1.0.4, proc-macro-error-attr 1.0.4, proc-macro-error-attr2 2.0.0, proc-macro-error2 2.0.1
@@ -7961,6 +8305,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 MIT License
 Copyright (c) 2019-2020 CreepySkeleton
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### prost 0.12.6
@@ -7971,6 +8316,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the prost authors — Dan Burkert <dan@danburkert.com>, Lucio Franco <luciofranco14@gmail.com>, Casper Meijn <casper@meijn.net>, Tokio Contributors <team@tokio.rs>
 ```
+
 Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
 
 ### ptr_meta 0.3.2, ptr_meta_derive 0.3.2, rend 0.5.4, rkyv 0.8.18, rkyv_derive 0.8.18
@@ -7981,6 +8327,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright 2021 David Koloski
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### quick-xml 0.30.0, quick-xml 0.37.5, quick-xml 0.39.3
@@ -7992,6 +8339,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 The MIT License (MIT)
 Copyright (c) 2016 Johann Tuffe
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### r-efi 5.3.0, r-efi 6.0.0
@@ -8002,6 +8350,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the r-efi authors — https://github.com/r-efi/r-efi
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### rand 0.10.1, rand 0.8.6, rand 0.9.4, rand_chacha 0.10.0, rand_chacha 0.9.0
@@ -8013,9 +8362,11 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 Copyright 2018 Developers of the Rand project
 Copyright (c) 2014 The Rust Project Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 <!-- LICENSE-APACHE -->
+
 ```text
 Apache License
                         Version 2.0, January 2004
@@ -8204,9 +8555,11 @@ END OF TERMS AND CONDITIONS
 Copyright 2018 Developers of the Rand project
 Copyright (c) 2014 The Rust Project Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 <!-- LICENSE-APACHE -->
+
 ```text
 Apache License
                         Version 2.0, January 2004
@@ -8419,9 +8772,11 @@ limitations under the License.
 ```text
 Copyright (c) 2018-2026 The Rand Project Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 <!-- LICENSE-APACHE -->
+
 ```text
 Apache License
                         Version 2.0, January 2004
@@ -8621,9 +8976,11 @@ APPENDIX: How to apply the Apache License to your work.
 Copyright 2018 Developers of the Rand project
 Copyright (c) 2014 The Rust Project Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 <!-- LICENSE-APACHE -->
+
 ```text
 Apache License
                         Version 2.0, January 2004
@@ -8825,11 +9182,13 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 MIT License
 Copyright (c) 2019 Osspial
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ```text
 Copyright (c) 2020 Osspial
 ```
+
 Distributed under the [Zlib licence](#licence-zlib), reproduced in full below.
 
 ### rcgen 0.13.2
@@ -8838,6 +9197,7 @@ Distributed under the [Zlib licence](#licence-zlib), reproduced in full below.
 **Source:** https://github.com/rustls/rcgen
 
 <!-- LICENSE -->
+
 ```text
 Copyright (c) 2019-2022 est31 <MTest31@outlook.com> and contributors
 
@@ -9063,6 +9423,7 @@ Apache License, version 2.0
 ```text
 Copyright (c) the realfft authors — HEnquist <henrik.enquist@gmail.com>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### redox_syscall 0.2.16, redox_syscall 0.5.18, redox_syscall 0.7.5
@@ -9074,6 +9435,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 Copyright (c) 2017 Redox OS Developers
 MIT License
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### redox_users 0.4.6, redox_users 0.5.2
@@ -9085,6 +9447,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 The MIT License (MIT)
 Copyright (c) 2017 Jose Narvaez
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### reqwest 0.12.28
@@ -9097,6 +9460,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2016-2025 Sean McArthur
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### reqwest 0.13.3
@@ -9109,6 +9473,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2016-2026 Sean McArthur
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### rfd 0.16.0
@@ -9120,6 +9485,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) 2022 Bartłomiej Maryńczak
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### ring 0.17.14
@@ -9130,9 +9496,11 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright 2015-2025 Brian Smith.
 ```
+
 Distributed under the [ISC licence](#licence-isc), reproduced in full below.
 
 <!-- LICENSE -->
+
 ```text
 *ring* uses an "ISC" license, like BoringSSL used to use, for new code
 files. See LICENSE-other-bits for the text of that license.
@@ -9146,6 +9514,7 @@ for the license to code that was sourced from the once_cell project.
 ```
 
 <!-- LICENSE-BoringSSL -->
+
 ```text
 Apache License
                            Version 2.0, January 2004
@@ -9430,6 +9799,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2019 Alexey Gerasev
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### rubato 0.14.1
@@ -9440,6 +9810,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) 2020 Henrik Enquist
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### rubato 4.0.0
@@ -9452,9 +9823,11 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2020 Henrik Enquist
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 <!-- LICENSE.txt -->
+
 ```text
 This project is dual-licensed under either of:
 
@@ -9473,6 +9846,7 @@ You may choose either license, at your option.
 The MIT License (MIT)
 Copyright (c) 2014 Y. T. CHUNG
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### rustfft 6.4.1, strength_reduce 0.2.4
@@ -9485,6 +9859,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2015 The RustFFT Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### rustls-native-certs 0.8.3
@@ -9498,14 +9873,17 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ISC License (ISC)
 Copyright (c) 2016, Joseph Birr-Pixton <jpixton@gmail.com>
 ```
+
 Distributed under the [ISC licence](#licence-isc), reproduced in full below.
 
 ```text
 Copyright (c) 2016 Joseph Birr-Pixton <jpixton@gmail.com>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 <!-- LICENSE -->
+
 ```text
 Rustls is distributed under the following three licenses:
 
@@ -9528,6 +9906,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2023 Dirkjan Ochtman <dirkjan@ochtman.nl>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### rustls-platform-verifier 0.7.0
@@ -9541,6 +9920,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 MIT License
 Copyright (c) 2022 1Password
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### rustls-platform-verifier-android 0.1.1
@@ -9551,6 +9931,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the rustls-platform-verifier-android authors — https://github.com/rustls/rustls-platform-verifier
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### rustls-webpki 0.103.13
@@ -9559,6 +9940,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 **Source:** https://github.com/rustls/webpki
 
 <!-- LICENSE -->
+
 ```text
 Except as otherwise noted, this project is licensed under the following
 (ISC-style) terms:
@@ -9600,9 +9982,11 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2020 Daniel "Lokathor" Gee.
 ```
+
 Distributed under the [Zlib licence](#licence-zlib), reproduced in full below.
 
 <!-- LICENSE-MIT.md -->
+
 ```text
 MIT License
 
@@ -9624,11 +10008,13 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 The MIT License (MIT)
 Copyright (c) 2017 Andrew Gallant
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 Distributed under the [Unlicense licence](#licence-unlicense), reproduced in full below.
 
 <!-- COPYING -->
+
 ```text
 This project is dual-licensed under the Unlicense and MIT licenses.
 
@@ -9643,6 +10029,7 @@ You may use this code under the terms of either license.
 ```text
 Copyright (c) 2015 steffengy
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### schemars 0.8.22, schemars 0.9.0, schemars 1.2.1, schemars_derive 0.8.22
@@ -9654,6 +10041,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) 2019 Graham Esau
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### scopeguard 1.2.0
@@ -9666,6 +10054,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2016-2019 Ulrik Sverdrup "bluss" and scopeguard developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### sec1 0.7.3
@@ -9678,6 +10067,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2021-2022 The RustCrypto Project Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### security-framework 2.11.1, security-framework 3.7.0, security-framework-sys 2.17.0
@@ -9691,6 +10081,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 The MIT License (MIT)
 Copyright (c) 2015 Steven Fackler
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### selectors 0.36.1
@@ -9701,6 +10092,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the selectors authors — The Servo Project Developers
 ```
+
 Distributed under the [MPL-2.0 licence](#licence-mpl-2-0), reproduced in full below.
 
 ### serde_urlencoded 0.7.1
@@ -9713,6 +10105,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2016 Anthony Ramine
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### serialize-to-javascript 0.1.2, serialize-to-javascript-impl 0.1.2
@@ -9726,6 +10119,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 MIT License
 Copyright (c) 2021 Chip Reed
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### shlex 1.3.0
@@ -9737,9 +10131,11 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 The MIT License (MIT)
 Copyright (c) 2015 Nicholas Allegra (comex).
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 <!-- LICENSE-APACHE -->
+
 ```text
 Copyright 2015 Nicholas Allegra (comex).
 
@@ -9766,6 +10162,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2017 tokio-jsonrpc developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### simd-adler32 0.3.9
@@ -9777,6 +10174,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) [2021] [Marvin Countryman]
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### siphasher 1.0.3
@@ -9785,6 +10183,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 **Source:** https://github.com/jedisct1/rust-siphash
 
 <!-- COPYING -->
+
 ```text
 Copyright 2012-2016 The Rust Project Developers.
 Copyright 2016-2026 Frank Denis.
@@ -9803,6 +10202,7 @@ option.
 ```text
 Copyright (c) 2019 Carl Lerche
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### smallvec 1.15.1
@@ -9815,6 +10215,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2018 The Servo Project Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### softbuffer 0.4.8
@@ -9827,6 +10228,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright 2022 Kirill Chibisov
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### spin 0.9.8
@@ -9838,6 +10240,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 The MIT License (MIT)
 Copyright (c) 2014 Mathijs van de Nes
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### stable_deref_trait 1.2.1
@@ -9850,6 +10253,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2017 Robert Grosse
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### strsim 0.11.1
@@ -9863,6 +10267,7 @@ Copyright (c) 2015 Danny Guo
 Copyright (c) 2016 Titus Wormer <tituswormer@gmail.com>
 Copyright (c) 2018 Akash Kurdekar
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### strsim 0.8.0
@@ -9875,6 +10280,7 @@ The MIT License (MIT)
 Copyright (c) 2015 Danny Guo
 Copyright (c) 2016 Titus Wormer <tituswormer@gmail.com>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### substring 1.4.5
@@ -9888,6 +10294,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 MIT License
 Copyright (c) 2021 Anders Evensen
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### subtle 2.6.1
@@ -9899,6 +10306,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 Copyright (c) 2016-2017 Isis Agora Lovecruft, Henry de Valence. All rights reserved.
 Copyright (c) 2016-2024 Isis Agora Lovecruft. All rights reserved.
 ```
+
 Distributed under the [BSD-3-Clause licence](#licence-bsd-3-clause), reproduced in full below.
 
 ### swift-bridge-build 0.1.59
@@ -9909,6 +10317,7 @@ Distributed under the [BSD-3-Clause licence](#licence-bsd-3-clause), reproduced 
 ```text
 Copyright (c) the swift-bridge-build authors — https://github.com/chinedufn/swift-bridge
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### swift-bridge-ir 0.1.59
@@ -9919,6 +10328,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the swift-bridge-ir authors — https://github.com/chinedufn/swift-bridge
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### swift-bridge-macro 0.1.59
@@ -9929,6 +10339,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the swift-bridge-macro authors — https://github.com/chinedufn/swift-bridge
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### swift-rs 1.0.7
@@ -9941,6 +10352,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2023 The swift-rs Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### synstructure 0.13.2
@@ -9951,6 +10363,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright 2016 Nika Layzell
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### sys-locale 0.3.2
@@ -9964,6 +10377,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 MIT License
 Copyright (c) 2021 1Password
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### sysinfo 0.38.4
@@ -9975,6 +10389,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 The MIT License (MIT)
 Copyright (c) 2015 Guillaume Gomez
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### tao-macros 0.1.3
@@ -9985,6 +10400,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the tao-macros authors — Tauri Programme within The Commons Conservancy
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### tar 0.4.45
@@ -9997,6 +10413,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) The tar-rs Project Contributors
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### target-lexicon 0.12.16, target-lexicon 0.13.3
@@ -10005,6 +10422,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 **Source:** https://github.com/bytecodealliance/target-lexicon
 
 <!-- LICENSE -->
+
 ```text
 Apache License
                            Version 2.0, January 2004
@@ -10237,6 +10655,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 MIT License
 Copyright (c) 2017 - Present Tauri Apps Contributors
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### tauri-plugin 2.6.1
@@ -10247,6 +10666,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the tauri-plugin authors — Tauri Programme within The Commons Conservancy
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### tauri-plugin-notifications 0.4.6
@@ -10258,6 +10678,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) 2025 Vladimir Pankratov
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### tauri-plugin-secure-storage 1.5.0
@@ -10268,6 +10689,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) 2025 ThatzOkay
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### tauri-plugin-single-instance 2.4.2
@@ -10281,6 +10703,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 MIT License
 Copyright (c) 2017 - Present The Tauri Programme in the Commons Conservancy
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### tauri-winres 0.3.6
@@ -10293,6 +10716,7 @@ The MIT License (MIT)
 Copyright (c) 2023 - Present Tauri Apps Contributors
 Copyright (c) 2016 Max Resch
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### tempfile 3.27.0, xattr 1.6.1
@@ -10305,6 +10729,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2015 Steven Allen
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### tendril 0.5.0
@@ -10317,6 +10742,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2015 Keegan McAllister
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### textwrap 0.11.0
@@ -10328,6 +10754,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) 2016 Martin Geisler
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### time 0.3.47, time-core 0.1.8, time-macros 0.2.27
@@ -10340,6 +10767,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) Jacob Pratt et al.
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### tinyvec 1.12.0
@@ -10354,6 +10782,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) 2019 Daniel "Lokathor" Gee.
 ```
+
 Distributed under the [Zlib licence](#licence-zlib), reproduced in full below.
 
 ### tinyvec_macros 0.1.1
@@ -10367,12 +10796,14 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 MIT License
 Copyright (c) 2020 Soveu
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ```text
 zlib License
 (C) 2020 Tomasz "Soveu" Marx
 ```
+
 Distributed under the [Zlib licence](#licence-zlib), reproduced in full below.
 
 ### tokio 1.52.2, tokio-stream 0.1.19, tokio-util 0.7.18
@@ -10384,6 +10815,7 @@ Distributed under the [Zlib licence](#licence-zlib), reproduced in full below.
 MIT License
 Copyright (c) Tokio Contributors
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### tokio-macros 2.7.0
@@ -10396,6 +10828,7 @@ MIT License
 Copyright (c) 2019 Yoshua Wuyts
 Copyright (c) Tokio Contributors
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### tokio-native-tls 0.3.1, tracing 0.1.44, tracing-attributes 0.1.31, tracing-core 0.1.36
@@ -10406,6 +10839,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) 2019 Tokio Contributors
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### tokio-rustls 0.26.4
@@ -10418,6 +10852,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2017 quininer kel
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### tokio-tungstenite 0.29.0
@@ -10429,6 +10864,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 Copyright (c) 2017 Daniel Abramov
 Copyright (c) 2017 Alexey Galakhov
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### tower 0.5.3, tower-layer 0.3.3, tower-service 0.3.3
@@ -10439,6 +10875,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) 2019 Tower Contributors
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### tower-http 0.6.10
@@ -10449,6 +10886,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) 2019-2021 Tower Contributors
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### transpose 0.2.3
@@ -10461,6 +10899,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2022 The transpose Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### try-lock 0.2.5
@@ -10472,6 +10911,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 Copyright (c) 2018-2023 Sean McArthur
 Copyright (c) 2016 Alex Crichton
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### tungstenite 0.26.2, tungstenite 0.29.0
@@ -10485,6 +10925,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 Copyright (c) 2017 Alexey Galakhov
 Copyright (c) 2016 Jason Housley
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### typenum 1.20.0
@@ -10498,9 +10939,11 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 The MIT License (MIT)
 Copyright (c) 2014 Paho Lurie-Gregg
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 <!-- LICENSE -->
+
 ```text
 MIT OR Apache-2.0
 ```
@@ -10514,6 +10957,7 @@ MIT OR Apache-2.0
 MIT License
 Copyright (c) Microsoft Corporation. All rights reserved.
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### unic-char-property 0.9.0
@@ -10524,6 +10968,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the unic-char-property authors — The UNIC Project Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### unic-char-range 0.9.0
@@ -10534,6 +10979,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the unic-char-range authors — The UNIC Project Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### unic-common 0.9.0
@@ -10544,6 +10990,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the unic-common authors — The UNIC Project Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### unic-ucd-ident 0.9.0
@@ -10554,6 +11001,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the unic-ucd-ident authors — The UNIC Project Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### unic-ucd-version 0.9.0
@@ -10564,6 +11012,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the unic-ucd-version authors — The UNIC Project Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### unicase 2.9.0
@@ -10576,6 +11025,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2014-2026 Sean McArthur
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### unicode-ident 1.0.24
@@ -10599,6 +11049,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2019-2020 RustCrypto Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### untrusted 0.9.0
@@ -10607,6 +11058,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 **Source:** https://github.com/briansmith/untrusted
 
 <!-- LICENSE.txt -->
+
 ```text
 // Copyright 2015-2016 Brian Smith.
 //
@@ -10632,6 +11084,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) 2021 the Deno authors
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### utf8_iter 1.0.4
@@ -10644,6 +11097,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright Mozilla Foundation
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### uuid 1.23.1
@@ -10657,6 +11111,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 Copyright (c) 2014 The Rust Project Developers
 Copyright (c) 2018 Ashley Mannix, Christopher Armstrong, Dylan DPC, Hunar Roop Kahlon
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### v4l 0.14.0
@@ -10668,6 +11123,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) 2020 Christopher N. Hesse.
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### v4l2-sys-mit 0.3.0
@@ -10677,6 +11133,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the v4l2-sys-mit authors — Christopher N. Hesse <raymanfx@gmail.com>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### value-bag 1.13.2
@@ -10690,6 +11147,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 MIT License
 Copyright (c) 2020 sval-rs
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### vcpkg 0.2.15
@@ -10702,6 +11160,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2017 Jim McGrath
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### version_check 0.9.5
@@ -10715,6 +11174,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 The MIT License (MIT)
 Copyright (c) 2017-2018 Sergio Benitez
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### version-compare 0.2.1
@@ -10725,6 +11185,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) 2017 Tim Visée
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### visibility 0.1.1
@@ -10738,15 +11199,18 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 MIT License
 Copyright (c) 2024 Daniel Henry-Mantilla
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ```text
 zlib License
 (C) 2024 Daniel Henry-Mantilla
 ```
+
 Distributed under the [Zlib licence](#licence-zlib), reproduced in full below.
 
 <!-- LICENSE -->
+
 ```text
 No license.
 ```
@@ -10760,6 +11224,7 @@ No license.
 The MIT License (MIT)
 Copyright (c) 2019 nabijaczleweli
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### want 0.3.1
@@ -10770,6 +11235,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) 2018-2019 Sean McArthur
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### wasip3 0.4.0+wasi-0.3.0-rc-2026-01-06
@@ -10780,6 +11246,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the wasip3 authors — https://github.com/bytecodealliance/wasi-rs
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### wasm-encoder 0.244.0
@@ -10790,6 +11257,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the wasm-encoder authors — Nick Fitzgerald <fitzgen@gmail.com>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### wasm-metadata 0.244.0
@@ -10800,6 +11268,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the wasm-metadata authors — https://github.com/bytecodealliance/wasm-tools/tree/main/crates/wasm-metadata
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### wasmparser 0.244.0
@@ -10810,6 +11279,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the wasmparser authors — Yury Delendik <ydelendik@mozilla.com>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### wayland-backend 0.3.15, wayland-client 0.31.14, wayland-protocols 0.32.12, wayland-protocols-wlr 0.3.12, wayland-scanner 0.31.10, wayland-server 0.31.13, wayland-sys 0.31.11
@@ -10820,6 +11290,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) 2015 Elinor Berger
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### webkit2gtk 2.0.2
@@ -10832,6 +11303,7 @@ Copyright (c) 2016 Boucher, Antoni <bouanto@zoho.com>
 Copyright (c) 2017-2021, The Gtk-rs Project Developers.
 Copyright (c) 2021, Tauri Programme within The Commons Conservancy
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### webkit2gtk-sys 2.0.2
@@ -10842,6 +11314,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) 2016 Boucher, Antoni <bouanto@zoho.com>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### webpki-root-certs 1.0.7
@@ -10859,6 +11332,7 @@ Distributed under the [CDLA-Permissive-2.0 licence](#licence-cdla-permissive-2-0
 ```text
 Copyright (c) the webrtc authors — Rain Liu <yliu@webrtc.rs>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### webrtc-audio-processing 2.1.0, webrtc-audio-processing-config 2.1.0, webrtc-audio-processing-sys 2.1.0
@@ -10867,6 +11341,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 **Source:** https://github.com/tonarino/webrtc-audio-processing
 
 <!-- COPYING -->
+
 ```text
 Copyright (c) 2011, Google Inc. All rights reserved.
 
@@ -10907,6 +11382,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```text
 Copyright (c) the webview2-com authors — https://github.com/wravery/webview2-rs
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### webview2-com-macros 0.8.1
@@ -10917,6 +11393,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the webview2-com-macros authors — https://github.com/wravery/webview2-rs
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### webview2-com-sys 0.38.2
@@ -10927,6 +11404,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the webview2-com-sys authors — https://github.com/wravery/webview2-rs
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### which 4.4.2
@@ -10937,6 +11415,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) 2015 fangyuanziti
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### wide 1.6.0
@@ -10950,11 +11429,13 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 MIT License
 Copyright (c) 2020 Daniel "Lokathor" Gee
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ```text
 Copyright (c) 2020 Daniel "Lokathor" Gee.
 ```
+
 Distributed under the [Zlib licence](#licence-zlib), reproduced in full below.
 
 ### winapi 0.3.9
@@ -10967,6 +11448,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2015-2018 The winapi-rs Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### winapi-i686-pc-windows-gnu 0.4.0
@@ -10977,6 +11459,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the winapi-i686-pc-windows-gnu authors — Peter Atashian <retep998@gmail.com>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### winapi-x86_64-pc-windows-gnu 0.4.0
@@ -10987,6 +11470,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the winapi-x86_64-pc-windows-gnu authors — Peter Atashian <retep998@gmail.com>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### window-vibrancy 0.6.0
@@ -11000,6 +11484,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 MIT License
 Copyright (c) 2020-2022 Tauri Programme within The Commons Conservancy
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### windowfunctions 0.1.1
@@ -11010,6 +11495,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) 2025 Henrik Enquist
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### windows 0.54.0, windows 0.58.0, windows 0.61.3, windows 0.62.2, windows_aarch64_gnullvm 0.42.2, windows_aarch64_gnullvm 0.52.6, windows_aarch64_gnullvm 0.53.1, windows_aarch64_msvc 0.42.2, windows_aarch64_msvc 0.52.6, windows_aarch64_msvc 0.53.1, windows_i686_gnu 0.42.2, windows_i686_gnu 0.52.6, windows_i686_gnu 0.53.1, windows_i686_gnullvm 0.52.6, windows_i686_gnullvm 0.53.1, windows_i686_msvc 0.42.2, windows_i686_msvc 0.52.6, windows_i686_msvc 0.53.1, windows_x86_64_gnu 0.42.2, windows_x86_64_gnu 0.52.6, windows_x86_64_gnu 0.53.1, windows_x86_64_gnullvm 0.42.2, windows_x86_64_gnullvm 0.52.6, windows_x86_64_gnullvm 0.53.1, windows_x86_64_msvc 0.42.2, windows_x86_64_msvc 0.52.6, windows_x86_64_msvc 0.53.1, windows-collections 0.2.0, windows-collections 0.3.2, windows-core 0.54.0, windows-core 0.58.0, windows-core 0.61.2, windows-core 0.62.2, windows-future 0.2.1, windows-future 0.3.2, windows-implement 0.58.0, windows-implement 0.60.2, windows-interface 0.58.0, windows-interface 0.59.3, windows-link 0.1.3, windows-link 0.2.1, windows-numerics 0.2.0, windows-numerics 0.3.1, windows-registry 0.5.3, windows-result 0.1.2, windows-result 0.2.0, windows-result 0.3.4, windows-result 0.4.1, windows-strings 0.1.0, windows-strings 0.4.2, windows-strings 0.5.1, windows-sys 0.45.0, windows-sys 0.52.0, windows-sys 0.59.0, windows-sys 0.60.2, windows-sys 0.61.2, windows-targets 0.42.2, windows-targets 0.52.6, windows-targets 0.53.5, windows-threading 0.1.0, windows-threading 0.2.1, windows-version 0.1.7
@@ -11023,6 +11509,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 MIT License
 Copyright (c) Microsoft Corporation.
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### winreg 0.10.1, winreg 0.55.0
@@ -11033,6 +11520,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) 2015 Igor Shaula
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### wit-component 0.244.0
@@ -11043,6 +11531,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the wit-component authors — Peter Huene <peter@huene.dev>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### wit-parser 0.244.0
@@ -11053,6 +11542,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the wit-parser authors — Alex Crichton <alex@alexcrichton.com>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### wry 0.55.1
@@ -11066,6 +11556,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 MIT License
 Copyright (c) 2020-2023 Ngo Iok Ui & Tauri Programme within The Commons Conservancy
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### x11rb 0.13.2, x11rb-protocol 0.13.2
@@ -11078,6 +11569,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright 2019 x11rb Contributers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### x25519-dalek 2.0.1
@@ -11089,6 +11581,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 Copyright (c) 2017-2021 isis agora lovecruft. All rights reserved.
 Copyright (c) 2019-2021 DebugSteven. All rights reserved.
 ```
+
 Distributed under the [BSD-3-Clause licence](#licence-bsd-3-clause), reproduced in full below.
 
 ### xcb 1.7.0
@@ -11100,6 +11593,7 @@ Distributed under the [BSD-3-Clause licence](#licence-bsd-3-clause), reproduced 
 Copyright (c) 2013 James Miller <james@aatch.net>
 Copyright (c) 2016-2023 Rémi Thebault <@rtbo> and many others
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### xkeysym 0.2.1
@@ -11112,11 +11606,13 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright (c) 2022-2023 John Nunley
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ```text
 Copyright (c) 2022-2023 John Nunley
 ```
+
 Distributed under the [Zlib licence](#licence-zlib), reproduced in full below.
 
 ### xml-rs 0.8.28
@@ -11128,6 +11624,7 @@ Distributed under the [Zlib licence](#licence-zlib), reproduced in full below.
 The MIT License (MIT)
 Copyright (c) 2014 Vladimir Matveev
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### yasna 0.5.2
@@ -11138,6 +11635,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the yasna authors — Masaki Hara <ackie.h.gmai@gmail.com>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### zbus 5.15.0, zbus_macros 5.15.0, zbus_names 4.3.2, zvariant 5.11.0, zvariant_derive 5.11.0
@@ -11148,6 +11646,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) 2024 Zeeshan Ali Khan & zbus contributors
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### zerocopy 0.8.48, zerocopy-derive 0.8.48
@@ -11160,9 +11659,11 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 ```text
 Copyright 2023 The Fuchsia Authors
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 <!-- LICENSE-BSD -->
+
 ```text
 Copyright 2019 The Fuchsia Authors.
 
@@ -11201,6 +11702,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 MIT License
 Copyright (c) 2018-2021 The RustCrypto Project Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### zeroize_derive 1.4.3
@@ -11214,6 +11716,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 MIT License
 Copyright (c) 2019-2023 The RustCrypto Project Developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### zip 4.6.1
@@ -11227,6 +11730,7 @@ Copyright (c) 2014 Mathijs van de Nes
 Some files in the "tests/data" subdirectory of this repository are under other
 licences; see files named LICENSE.*.txt for details.
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### zune-core 0.5.1, zune-jpeg 0.5.15
@@ -11240,12 +11744,14 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 MIT License
 Copyright (c) zune-image developers
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ```text
 zlib License
 (C) zune-image developers
 ```
+
 Distributed under the [Zlib licence](#licence-zlib), reproduced in full below.
 
 ## npm packages
@@ -11261,6 +11767,7 @@ Bundled into the application frontend. 366 packages, 192 distinct notices.
 MIT License
 Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### @angular/animations 21.2.11, @angular/common 21.2.11, @angular/compiler 21.2.11, @angular/core 21.2.11, @angular/forms 21.2.11, @angular/platform-browser 21.2.11, @angular/router 21.2.11
@@ -11272,6 +11779,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 The MIT License
 Copyright (c) 2010-2026 Google LLC. https://angular.dev/license
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### @antfu/install-pkg 1.1.0
@@ -11283,6 +11791,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) 2021 Anthony Fu <https://github.com/antfu>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### @anthropic-ai/sdk 0.115.0
@@ -11293,6 +11802,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright 2023 Anthropic, PBC.
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### @babel/runtime 7.29.7
@@ -11304,6 +11814,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) 2014-present Sebastian McKenzie and other contributors
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### @braintree/sanitize-url 7.1.2
@@ -11315,6 +11826,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) 2017 Braintree
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### @bufbuild/protobuf 1.10.1
@@ -11325,11 +11837,13 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the @bufbuild/protobuf authors — https://github.com/bufbuild/protobuf-es.git
 ```
+
 Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
 
 ```text
 Copyright (c) the @bufbuild/protobuf authors — https://github.com/bufbuild/protobuf-es.git
 ```
+
 Distributed under the [BSD-3-Clause licence](#licence-bsd-3-clause), reproduced in full below.
 
 ### @chevrotain/types 11.1.2, @google/genai 2.15.0, @livekit/protocol 1.50.4, detect-libc 2.1.2, ecdsa-sig-formatter 1.0.11, gaxios 7.3.0, gcp-metadata 8.1.2, google-auth-library 10.9.1, google-logging-utils 1.1.3, long 5.3.2, openai 7.4.0, rxjs 7.8.2
@@ -11348,6 +11862,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 MIT License
 Copyright (c) 2025 Vladimir Pankratov
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### @emoji-mart/data 1.2.1, emoji-mart 5.6.0
@@ -11359,6 +11874,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) Missive.
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### @fontsource-variable/caveat 5.3.0
@@ -11374,6 +11890,7 @@ Distributed under the [OFL-1.1 licence](#licence-ofl-1-1), reproduced in full be
 **Source:** git+https://github.com/fontsource/font-files.git
 
 <!-- LICENSE -->
+
 ```text
 Copyright 2014-2020 The Fira Code Project Authors (https://github.com/tonsky/FiraCode)
 
@@ -11476,6 +11993,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 **Source:** git+https://github.com/fontsource/font-files.git
 
 <!-- LICENSE -->
+
 ```text
 Copyright 2016 The Inter Project Authors (https://github.com/rsms/inter) Inter-Italic[opsz,wght].ttf: Copyright 2016 The Inter Project Authors (https://github.com/rsms/inter)
 
@@ -11578,6 +12096,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 **Source:** git+https://github.com/fontsource/font-files.git
 
 <!-- LICENSE -->
+
 ```text
 Copyright 2011 The Lora Project Authors (https://github.com/cyrealtype/Lora-Cyrillic), with Reserved Font Name "Lora". Lora-Italic[wght].ttf: Copyright 2011 The Lora Project Authors (https://github.com/cyrealtype/Lora-Cyrillic), with Reserved Font Name "Lora".
 
@@ -11680,6 +12199,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 **Source:** git+https://github.com/fontsource/font-files.git
 
 <!-- LICENSE -->
+
 ```text
 Copyright 2019 The Quicksand Project Authors (https://github.com/andrew-paglinawan/QuicksandFamily.git), with Reserved Font Name "Quicksand"
 
@@ -11782,6 +12302,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 **Source:** git+https://github.com/fontsource/font-files.git
 
 <!-- LICENSE -->
+
 ```text
 Copyright 2019 The Bebas Neue Project Authors (https://github.com/dharmatype/Bebas-Neue)
 
@@ -11887,6 +12408,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 MIT License
 Copyright (c) 2021 - 2022 Vjacheslav Trushkin / Iconify OÜ
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### @iconify/utils 3.1.4
@@ -11898,6 +12420,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) 2021-PRESENT Vjacheslav Trushkin
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### @jridgewell/gen-mapping 0.3.13, @jridgewell/remapping 2.3.5, @jridgewell/sourcemap-codec 1.5.5, @jridgewell/trace-mapping 0.3.31
@@ -11908,6 +12431,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright 2024 Justin Ridgewell <justin@ridgewell.name>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### @jridgewell/resolve-uri 3.1.2
@@ -11918,6 +12442,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright 2019 Justin Ridgewell <jridgewell@google.com>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### @livekit/mutex 1.1.1, livekit-client 2.21.0
@@ -11926,6 +12451,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 **Source:** git@github.com:livekit/ts-mutex.git
 
 <!-- LICENSE -->
+
 ```text
 Apache License
                            Version 2.0, January 2004
@@ -12112,6 +12638,7 @@ Apache License
 The MIT License (MIT)
 Copyright (c) 2023 Yokozuna59
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### @microsoft/signalr 10.0.0
@@ -12122,6 +12649,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the @microsoft/signalr authors — Microsoft
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### @mixmark-io/domino 2.2.0
@@ -12130,6 +12658,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 **Source:** https://github.com/mixmark-io/domino.git
 
 <!-- LICENSE -->
+
 ```text
 Copyright (c) 2011 The Mozilla Foundation.
 All rights reserved.
@@ -12170,6 +12699,7 @@ This repository includes a file "debounceSync.ts" originially copied from
 https://github.com/cartant/rxjs-etc by Nicholas Jamieson, MIT licensed. See the
 file header for details.
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### @ngx-translate/core 17.0.0, @ngx-translate/http-loader 17.0.0
@@ -12181,6 +12711,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 Copyright (c) 2018 Olivier Combe
 Copyright (c) 2024 Andreas Löw / CodeAndWeb GmbH
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### @noble/curves 2.3.0, @noble/hashes 2.3.0
@@ -12192,6 +12723,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 The MIT License (MIT)
 Copyright (c) 2022 Paul Miller (https://paulmillr.com)
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### @primeuix/motion 0.0.10, @primeuix/styled 0.7.4, @primeuix/styles 2.0.3, @primeuix/themes 2.0.3, @primeuix/utils 0.6.4
@@ -12203,6 +12735,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) 2025 PrimeTek
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### @protobufjs/aspromise 1.1.2, @protobufjs/base64 1.1.2, @protobufjs/codegen 2.0.5, @protobufjs/eventemitter 1.1.1, @protobufjs/fetch 1.1.1, @protobufjs/float 1.0.2, @protobufjs/path 1.1.2, @protobufjs/pool 1.1.0, @protobufjs/utf8 1.1.2
@@ -12211,6 +12744,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 **Source:** https://github.com/dcodeIO/protobuf.js.git
 
 <!-- LICENSE -->
+
 ```text
 Copyright (c) 2016, Daniel Wirtz  All rights reserved.
 
@@ -12249,6 +12783,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 MIT License
 Copyright (c) 2024 Functional Software, Inc. dba Sentry
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### @sentry/browser 10.59.0, @sentry/core 10.59.0
@@ -12260,6 +12795,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) 2019 Functional Software, Inc. dba Sentry
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### @sentry/browser-utils 10.59.0
@@ -12271,6 +12807,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) 2020 Functional Software, Inc. dba Sentry
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### @sentry/cli 2.58.6
@@ -12289,6 +12826,7 @@ Distributed under the [FSL-1.1-MIT licence](#licence-fsl-1-1-mit), reproduced in
 MIT License
 Copyright (c) 2023 Functional Software, Inc. dba Sentry
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### @sentry/replay 10.59.0
@@ -12300,6 +12838,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) 2022 Functional Software, Inc. dba Sentry
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### @stablelib/base64 1.0.1
@@ -12311,6 +12850,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 This software is licensed under the MIT license:
 Copyright (C) 2016 Dmitry Chestnykh
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### @standard-schema/spec 1.1.0
@@ -12322,6 +12862,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) 2024 Colin McDonnell
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### @stripe/stripe-js 9.13.0
@@ -12333,6 +12874,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) 2017 Stripe
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### @tailwindcss/node 4.2.4, @tailwindcss/oxide 4.2.4, @tailwindcss/postcss 4.2.4, tailwindcss 4.2.4
@@ -12344,6 +12886,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) Tailwind Labs, Inc.
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### @tauri-apps/api 2.10.1, @tauri-apps/api 2.11.0
@@ -12357,6 +12900,7 @@ Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in f
 MIT License
 Copyright (c) 2017 - Present Tauri Apps Contributors
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### @tauri-apps/plugin-autostart 2.5.1
@@ -12367,6 +12911,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the @tauri-apps/plugin-autostart authors — https://github.com/tauri-apps/plugins-workspace
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### @tauri-apps/plugin-deep-link 2.4.9
@@ -12377,6 +12922,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the @tauri-apps/plugin-deep-link authors — https://github.com/tauri-apps/plugins-workspace
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### @tauri-apps/plugin-dialog 2.7.1
@@ -12387,6 +12933,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the @tauri-apps/plugin-dialog authors — https://github.com/tauri-apps/plugins-workspace
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### @tauri-apps/plugin-fs 2.5.1
@@ -12397,6 +12944,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the @tauri-apps/plugin-fs authors — https://github.com/tauri-apps/plugins-workspace
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### @tauri-apps/plugin-global-shortcut 2.3.2
@@ -12407,6 +12955,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the @tauri-apps/plugin-global-shortcut authors — https://github.com/tauri-apps/plugins-workspace
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### @tauri-apps/plugin-opener 2.5.4
@@ -12417,6 +12966,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the @tauri-apps/plugin-opener authors — https://github.com/tauri-apps/plugins-workspace
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### @tauri-apps/plugin-os 2.3.2
@@ -12427,6 +12977,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the @tauri-apps/plugin-os authors — https://github.com/tauri-apps/plugins-workspace
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### @tauri-apps/plugin-process 2.3.1
@@ -12437,6 +12988,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the @tauri-apps/plugin-process authors — https://github.com/tauri-apps/plugins-workspace
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### @tauri-apps/plugin-store 2.4.3
@@ -12447,6 +12999,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the @tauri-apps/plugin-store authors — https://github.com/tauri-apps/plugins-workspace
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### @tauri-apps/plugin-stronghold 2.3.1
@@ -12457,6 +13010,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the @tauri-apps/plugin-stronghold authors — https://github.com/tauri-apps/plugins-workspace
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### @tauri-apps/plugin-updater 2.10.1
@@ -12467,6 +13021,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the @tauri-apps/plugin-updater authors — https://github.com/tauri-apps/plugins-workspace
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### @tiptap/core 3.23.1, @tiptap/extension-blockquote 3.23.1, @tiptap/extension-bold 3.23.1, @tiptap/extension-bullet-list 3.23.1, @tiptap/extension-code 3.23.1, @tiptap/extension-code-block 3.23.1, @tiptap/extension-document 3.23.1, @tiptap/extension-dropcursor 3.23.1, @tiptap/extension-gapcursor 3.23.1, @tiptap/extension-hard-break 3.23.1, @tiptap/extension-heading 3.23.1, @tiptap/extension-horizontal-rule 3.23.1, @tiptap/extension-image 3.23.1, @tiptap/extension-italic 3.23.1, @tiptap/extension-link 3.23.1, @tiptap/extension-list 3.23.1, @tiptap/extension-list-item 3.23.1, @tiptap/extension-list-keymap 3.23.1, @tiptap/extension-ordered-list 3.23.1, @tiptap/extension-paragraph 3.23.1, @tiptap/extension-placeholder 3.23.1, @tiptap/extension-strike 3.23.1, @tiptap/extension-table 3.23.1, @tiptap/extension-table-cell 3.23.1, @tiptap/extension-table-header 3.23.1, @tiptap/extension-table-row 3.23.1, @tiptap/extension-task-item 3.23.2, @tiptap/extension-task-list 3.23.2, @tiptap/extension-text 3.23.1, @tiptap/extension-underline 3.23.1, @tiptap/extensions 3.23.1, @tiptap/markdown 3.23.4, @tiptap/pm 3.23.1, @tiptap/starter-kit 3.23.1
@@ -12478,6 +13033,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) 2025, Tiptap GmbH
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### @types/d3 7.4.3, @types/d3-array 3.2.2, @types/d3-axis 3.0.6, @types/d3-brush 3.0.6, @types/d3-chord 3.0.6, @types/d3-color 3.1.3, @types/d3-contour 3.0.6, @types/d3-delaunay 6.0.4, @types/d3-dispatch 3.0.7, @types/d3-drag 3.0.7, @types/d3-dsv 3.0.7, @types/d3-ease 3.0.2, @types/d3-fetch 3.0.7, @types/d3-force 3.0.10, @types/d3-format 3.0.4, @types/d3-geo 3.1.1, @types/d3-hierarchy 3.1.7, @types/d3-interpolate 3.0.4, @types/d3-path 3.1.1, @types/d3-polygon 3.0.2, @types/d3-quadtree 3.0.6, @types/d3-random 3.0.4, @types/d3-scale 4.0.9, @types/d3-scale-chromatic 3.1.0, @types/d3-selection 3.0.11, @types/d3-shape 3.1.8, @types/d3-time 3.0.4, @types/d3-time-format 4.0.3, @types/d3-timer 3.0.2, @types/d3-transition 3.0.9, @types/d3-zoom 3.0.8, @types/geojson 7946.0.16, @types/node 26.1.2, @types/turndown 5.0.6
@@ -12489,6 +13045,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) Microsoft Corporation.
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### @types/retry 0.12.0
@@ -12500,6 +13057,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) Microsoft Corporation. All rights reserved.
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### @upsetjs/venn.js 2.0.0
@@ -12512,6 +13070,7 @@ MIT License
 Copyright (c) 2013 Ben Frederickson
 Copyright (c) 2021 Samuel Gratzl
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### @workos-inc/authkit-js 0.20.0
@@ -12523,6 +13082,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) 2024 WorkOS
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### abort-controller 3.0.0
@@ -12534,6 +13094,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) 2017 Toru Nagashima
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### agent-base 6.0.2
@@ -12544,6 +13105,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the agent-base authors — Nathan Rajlich <nathan@tootallnate.net> (http://n8.io/)
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### agent-base 7.1.4, https-proxy-agent 7.0.6
@@ -12555,6 +13117,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 (The MIT License)
 Copyright (c) 2013 Nathan Rajlich <nathan@tootallnate.net>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### angular-oauth2-oidc 20.0.2
@@ -12565,6 +13128,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) 2017 Manfred Steyer
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### base64-js 1.5.1
@@ -12576,6 +13140,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 The MIT License (MIT)
 Copyright (c) 2014 Jameson Little
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### bignumber.js 9.3.1
@@ -12587,6 +13152,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 The MIT License (MIT)
 Copyright © `<2025>` `Michael Mclaughlin`
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### buffer-equal-constant-time 1.0.1
@@ -12595,6 +13161,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 **Source:** git@github.com:goinstant/buffer-equal-constant-time.git
 
 <!-- LICENSE.txt -->
+
 ```text
 Copyright (c) 2013, GoInstant Inc., a salesforce.com company
 All rights reserved.
@@ -12618,6 +13185,7 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 ```text
 Copyright (c) 2015, Contributors
 ```
+
 Distributed under the [ISC licence](#licence-isc), reproduced in full below.
 
 ### color-convert 2.0.1
@@ -12628,6 +13196,7 @@ Distributed under the [ISC licence](#licence-isc), reproduced in full below.
 ```text
 Copyright (c) 2011-2016 Heather Arthur <fayearthur@gmail.com>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### color-name 1.1.4
@@ -12639,6 +13208,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 The MIT License (MIT)
 Copyright (c) 2015 Dmitry Ivanov
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### commander 7.2.0, commander 8.3.0
@@ -12650,6 +13220,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 (The MIT License)
 Copyright (c) 2011 TJ Holowaychuk <tj@vision-media.ca>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### cose-base 1.0.3, cose-base 2.2.0
@@ -12661,6 +13232,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) 2019 - present, iVis@Bilkent.
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### cytoscape 3.34.0
@@ -12671,6 +13243,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) 2016-2026, The Cytoscape Consortium.
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ```text
@@ -12684,6 +13257,7 @@ const year = (new Date()).getFullYear();
 const license = `Copyright (c) 2016-${year}, The Cytoscape Consortium.
 fs.writeFileSync(path.join(__dirname, 'LICENSE'), license);
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### cytoscape-cose-bilkent 4.1.0
@@ -12694,6 +13268,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) 2016-2018, The Cytoscape Consortium.
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### cytoscape-fcose 2.2.0
@@ -12704,6 +13279,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) 2018 - present, iVis-at-Bilkent.
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### d3 7.9.0, d3-array 3.2.4
@@ -12714,6 +13290,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright 2010-2023 Mike Bostock
 ```
+
 Distributed under the [ISC licence](#licence-isc), reproduced in full below.
 
 ### d3-array 2.12.1
@@ -12722,6 +13299,7 @@ Distributed under the [ISC licence](#licence-isc), reproduced in full below.
 **Source:** https://github.com/d3/d3-array.git
 
 <!-- LICENSE -->
+
 ```text
 Copyright 2010-2020 Mike Bostock
 All rights reserved.
@@ -12760,6 +13338,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```text
 Copyright 2010-2021 Mike Bostock
 ```
+
 Distributed under the [ISC licence](#licence-isc), reproduced in full below.
 
 ### d3-color 3.1.0, d3-shape 3.2.0, d3-time 3.1.0
@@ -12770,6 +13349,7 @@ Distributed under the [ISC licence](#licence-isc), reproduced in full below.
 ```text
 Copyright 2010-2022 Mike Bostock
 ```
+
 Distributed under the [ISC licence](#licence-isc), reproduced in full below.
 
 ### d3-contour 4.0.2
@@ -12780,6 +13360,7 @@ Distributed under the [ISC licence](#licence-isc), reproduced in full below.
 ```text
 Copyright 2012-2023 Mike Bostock
 ```
+
 Distributed under the [ISC licence](#licence-isc), reproduced in full below.
 
 ### d3-delaunay 6.0.4
@@ -12791,6 +13372,7 @@ Distributed under the [ISC licence](#licence-isc), reproduced in full below.
 Copyright 2018-2021 Observable, Inc.
 Copyright 2021 Mapbox
 ```
+
 Distributed under the [ISC licence](#licence-isc), reproduced in full below.
 
 ### d3-dsv 3.0.1
@@ -12801,6 +13383,7 @@ Distributed under the [ISC licence](#licence-isc), reproduced in full below.
 ```text
 Copyright 2013-2021 Mike Bostock
 ```
+
 Distributed under the [ISC licence](#licence-isc), reproduced in full below.
 
 ### d3-ease 3.0.1
@@ -12809,6 +13392,7 @@ Distributed under the [ISC licence](#licence-isc), reproduced in full below.
 **Source:** https://github.com/d3/d3-ease.git
 
 <!-- LICENSE -->
+
 ```text
 Copyright 2010-2021 Mike Bostock
 Copyright 2001 Robert Penner
@@ -12848,6 +13432,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```text
 Copyright 2016-2021 Mike Bostock
 ```
+
 Distributed under the [ISC licence](#licence-isc), reproduced in full below.
 
 ### d3-format 3.1.2
@@ -12858,6 +13443,7 @@ Distributed under the [ISC licence](#licence-isc), reproduced in full below.
 ```text
 Copyright 2010-2026 Mike Bostock
 ```
+
 Distributed under the [ISC licence](#licence-isc), reproduced in full below.
 
 ### d3-geo 3.1.1
@@ -12866,6 +13452,7 @@ Distributed under the [ISC licence](#licence-isc), reproduced in full below.
 **Source:** https://github.com/d3/d3-geo.git
 
 <!-- LICENSE -->
+
 ```text
 Copyright 2010-2024 Mike Bostock
 
@@ -12909,6 +13496,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 **Source:** https://github.com/d3/d3-path.git
 
 <!-- LICENSE -->
+
 ```text
 Copyright 2015-2016 Mike Bostock
 All rights reserved.
@@ -12947,6 +13535,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```text
 Copyright 2015-2022 Mike Bostock
 ```
+
 Distributed under the [ISC licence](#licence-isc), reproduced in full below.
 
 ### d3-sankey 0.12.3
@@ -12955,6 +13544,7 @@ Distributed under the [ISC licence](#licence-isc), reproduced in full below.
 **Source:** https://github.com/d3/d3-sankey.git
 
 <!-- LICENSE -->
+
 ```text
 Copyright 2015, Mike Bostock
 All rights reserved.
@@ -13003,6 +13593,7 @@ under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 CONDITIONS OF ANY KIND, either express or implied. See the License for the
 specific language governing permissions and limitations under the License.
 ```
+
 Distributed under the [ISC licence](#licence-isc), reproduced in full below.
 
 ### d3-shape 1.3.7
@@ -13011,6 +13602,7 @@ Distributed under the [ISC licence](#licence-isc), reproduced in full below.
 **Source:** https://github.com/d3/d3-shape.git
 
 <!-- LICENSE -->
+
 ```text
 Copyright 2010-2015 Mike Bostock
 All rights reserved.
@@ -13052,6 +13644,7 @@ Original dagre copyright: Copyright (c) 2012-2014 Chris Pettitt
 Original graphlib copyright: Copyright (c) 2012-2014 Chris Pettitt
 Copyright (c) 2022-2024 Thibaut Lassalle, David Newell, Alois Klink, Sidharth Vinod and dagre-es contributors
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### data-uri-to-buffer 4.0.1
@@ -13062,6 +13655,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the data-uri-to-buffer authors — Nathan Rajlich <nathan@tootallnate.net> (http://n8.io/)
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### dayjs 1.11.21
@@ -13073,6 +13667,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) 2018-present, iamkun
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### debug 4.4.3
@@ -13085,6 +13680,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 Copyright (c) 2014-2017 TJ Holowaychuk <tj@vision-media.ca>
 Copyright (c) 2018-2021 Josh Junon
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### decamelize 1.2.0
@@ -13096,6 +13692,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 The MIT License (MIT)
 Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### delaunator 5.1.0
@@ -13107,6 +13704,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ISC License
 Copyright (c) 2026, Mapbox
 ```
+
 Distributed under the [ISC licence](#licence-isc), reproduced in full below.
 
 ### dijkstrajs 1.0.3
@@ -13115,6 +13713,7 @@ Distributed under the [ISC licence](#licence-isc), reproduced in full below.
 **Source:** git://github.com/tcort/dijkstrajs
 
 <!-- LICENSE.md -->
+
 ````text
 ```
 Dijkstra path-finding functions. Adapted from the Dijkstar Python project.
@@ -13143,6 +13742,7 @@ THE SOFTWARE.
 **Source:** git://github.com/cure53/DOMPurify.git
 
 <!-- LICENSE -->
+
 ```text
 DOMPurify
 Copyright 2025-2026 Dr.-Ing. Mario Heiderich, Cure53
@@ -13722,6 +14322,7 @@ Exhibit B - “Incompatible With Secondary Licenses” Notice
 The MIT License (MIT)
 Copyright (c) 2013 Cal Henderson
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### emoji-regex 8.0.0, punycode 2.3.1
@@ -13732,6 +14333,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright Mathias Bynens <https://mathiasbynens.be/>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### enhanced-resolve 5.20.1
@@ -13742,6 +14344,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright JS Foundation and other contributors
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### es-toolkit 1.50.0
@@ -13753,6 +14356,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) 2024 Viva Republica, Inc.
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### event-target-shim 5.0.1
@@ -13764,6 +14368,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 The MIT License (MIT)
 Copyright (c) 2015 Toru Nagashima
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### events 3.3.0
@@ -13775,6 +14380,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT
 Copyright Joyent, Inc. and other Node contributors.
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### eventsource 2.0.2
@@ -13786,6 +14392,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 The MIT License
 Copyright (c) EventSource GitHub organisation
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### extend 3.0.2
@@ -13797,6 +14404,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 The MIT License (MIT)
 Copyright (c) 2014 Stefan Thomas
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### fast-sha256 1.3.0, fetch-cookie 2.2.0, robust-predicates 3.0.3
@@ -13815,6 +14423,7 @@ Distributed under the [Unlicense licence](#licence-unlicense), reproduced in ful
 MIT License
 Copyright (c) 2019 David Frank
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### formdata-polyfill 4.0.10
@@ -13826,6 +14435,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) 2016 Jimmy Karl Roland Wärting
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### fs-extra 8.1.0
@@ -13837,6 +14447,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 (The MIT License)
 Copyright (c) 2011-2017 JP Richardson
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### get-caller-file 2.0.5
@@ -13848,6 +14459,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ISC License (ISC)
 Copyright 2018 Stefan Penner
 ```
+
 Distributed under the [ISC licence](#licence-isc), reproduced in full below.
 
 ### graceful-fs 4.2.11
@@ -13859,6 +14471,7 @@ Distributed under the [ISC licence](#licence-isc), reproduced in full below.
 The ISC License
 Copyright (c) 2011-2022 Isaac Z. Schlueter, Ben Noordhuis, and Contributors
 ```
+
 Distributed under the [ISC licence](#licence-isc), reproduced in full below.
 
 ### hachure-fill 0.5.2
@@ -13870,6 +14483,7 @@ Distributed under the [ISC licence](#licence-isc), reproduced in full below.
 MIT License
 Copyright (c) 2023 Preet Shihn
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### highlight.js 11.11.1
@@ -13878,6 +14492,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 **Source:** git://github.com/highlightjs/highlight.js.git
 
 <!-- LICENSE -->
+
 ```text
 BSD 3-Clause License
 
@@ -13918,6 +14533,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```text
 Copyright (c) the https-proxy-agent authors — Nathan Rajlich <nathan@tootallnate.net> (http://n8.io/)
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### iconv-lite 0.6.3
@@ -13928,6 +14544,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) 2011 Alexander Shtuchkin
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### import-meta-resolve 4.2.0
@@ -13936,6 +14553,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 **Source:** wooorm/import-meta-resolve
 
 <!-- license -->
+
 ```text
 (The MIT License)
 
@@ -14021,6 +14639,7 @@ IN THE SOFTWARE.
 ```text
 Copyright 2021 Mike Bostock
 ```
+
 Distributed under the [ISC licence](#licence-isc), reproduced in full below.
 
 ### isexe 2.0.0, which 2.0.2
@@ -14032,6 +14651,7 @@ Distributed under the [ISC licence](#licence-isc), reproduced in full below.
 The ISC License
 Copyright (c) Isaac Z. Schlueter and Contributors
 ```
+
 Distributed under the [ISC licence](#licence-isc), reproduced in full below.
 
 ### jiti 2.6.1
@@ -14043,6 +14663,7 @@ Distributed under the [ISC licence](#licence-isc), reproduced in full below.
 MIT License
 Copyright (c) Pooya Parsa <pooya@pi0.io>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### jose 6.2.2
@@ -14054,6 +14675,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 The MIT License (MIT)
 Copyright (c) 2018 Filip Skokan
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### json-bigint 1.0.0
@@ -14065,6 +14687,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 The MIT License (MIT)
 Copyright (c) 2013 Andrey Sidorov
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### json-schema-to-ts 3.1.1, ts-algebra 2.0.0
@@ -14076,6 +14699,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) 2020 Thomas Aribart
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### jsonfile 4.0.0, jsonfile 5.0.0
@@ -14087,6 +14711,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 (The MIT License)
 Copyright (c) 2012-2015, JP Richardson <jprichardson@gmail.com>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### jwa 2.0.1, jws 4.0.1
@@ -14097,6 +14722,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) 2013 Brian J. Brennan
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### katex 0.16.47
@@ -14108,6 +14734,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 The MIT License (MIT)
 Copyright (c) 2013-2020 Khan Academy and other contributors
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### khroma 2.1.0
@@ -14118,6 +14745,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 The MIT License (MIT)
 Copyright (c) 2019-present Fabio Spampinato, Andrew Maney
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### layout-base 1.0.2, layout-base 2.0.1
@@ -14129,6 +14757,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) 2019 iVis@Bilkent
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### lightningcss 1.32.0
@@ -14146,6 +14775,7 @@ Distributed under the [MPL-2.0 licence](#licence-mpl-2-0), reproduced in full be
 ```text
 Copyright (c) 2024 Nick Frasser
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### lodash-es 4.18.1
@@ -14154,6 +14784,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 **Source:** lodash/lodash
 
 <!-- LICENSE -->
+
 ```text
 Copyright OpenJS Foundation and other contributors <https://openjsf.org/>
 
@@ -14212,6 +14843,7 @@ terms above.
 ```text
 Copyright (c) 2013 Tim Perry
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### magic-string 0.30.21
@@ -14222,6 +14854,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright 2018 Rich Harris
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### marked 16.4.2, marked 17.0.6, marked 18.0.3
@@ -14230,6 +14863,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 **Source:** git://github.com/markedjs/marked.git
 
 <!-- LICENSE.md -->
+
 ```text
 # License information
 
@@ -14286,6 +14920,7 @@ This software is provided by the copyright holders and contributors “as is” 
 The MIT License (MIT)
 Copyright (c) 2014 - 2022 Knut Sveidqvist
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### ms 2.1.3
@@ -14297,6 +14932,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 The MIT License (MIT)
 Copyright (c) 2020 Vercel, Inc.
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### nanoid 3.3.11
@@ -14308,6 +14944,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 The MIT License (MIT)
 Copyright 2017 Andrey Sitnik <andrey@sitnik.ru>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### node-domexception 1.0.0
@@ -14319,6 +14956,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) 2021 Jimmy Wärting
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### node-fetch 2.7.0
@@ -14330,6 +14968,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 The MIT License (MIT)
 Copyright (c) 2016 David Frank
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### node-fetch 3.3.2
@@ -14341,6 +14980,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 The MIT License (MIT)
 Copyright (c) 2016 - 2020 Node Fetch Team
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### orderedmap 2.1.1, w3c-keyname 2.2.8
@@ -14351,6 +14991,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (C) 2016 by Marijn Haverbeke <marijn@haverbeke.berlin> and others
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### package-manager-detector 1.8.0
@@ -14362,6 +15003,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) 2020-PRESENT Anthony Fu <https://github.com/antfu>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### path-data-parser 0.1.0, points-on-curve 0.2.0
@@ -14373,6 +15015,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) 2020 Preet Shihn
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### picocolors 1.1.1
@@ -14384,6 +15027,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ISC License
 Copyright (c) 2021-2024 Oleksii Raspopov, Kostiantyn Denysov, Anton Verinov
 ```
+
 Distributed under the [ISC licence](#licence-isc), reproduced in full below.
 
 ### pngjs 5.0.0
@@ -14395,6 +15039,7 @@ Distributed under the [ISC licence](#licence-isc), reproduced in full below.
 pngjs2 original work Copyright (c) 2015 Luke Page & Original Contributors
 pngjs derived work Copyright (c) 2012 Kuba Niegowski
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### points-on-path 0.2.1
@@ -14406,6 +15051,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) 2020 Preet
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### postcss 8.5.13
@@ -14417,6 +15063,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 The MIT License (MIT)
 Copyright 2013 Andrey Sitnik <andrey@sitnik.es>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### primeicons 7.0.0
@@ -14428,6 +15075,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) 2018-2021 PrimeTek
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### primeng 21.1.6
@@ -14436,6 +15084,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 **Source:** https://github.com/primefaces/primeng.git
 
 <!-- LICENSE.md -->
+
 ```text
 # PRIMENG LICENSES
 
@@ -14525,6 +15174,7 @@ The term “Software” includes all source and object code, in whole and/or par
 (The MIT License)
 Copyright (c) 2017 TJ Holowaychuk <tj@vision-media.ca>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### prosemirror-changeset 2.4.1
@@ -14535,6 +15185,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (C) 2017 by Marijn Haverbeke <marijn@haverbeke.berlin> and others
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### prosemirror-commands 1.7.1, prosemirror-dropcursor 1.8.2, prosemirror-gapcursor 1.4.1, prosemirror-history 1.5.0, prosemirror-keymap 1.2.3, prosemirror-model 1.25.4, prosemirror-schema-list 1.5.1, prosemirror-state 1.4.4, prosemirror-transform 1.12.0, prosemirror-view 1.41.8
@@ -14545,6 +15196,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (C) 2015-2017 by Marijn Haverbeke <marijn@haverbeke.berlin> and others
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### prosemirror-tables 1.8.5
@@ -14555,6 +15207,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (C) 2015-2016 by Marijn Haverbeke <marijnh@gmail.com> and others
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### protobufjs 7.6.5
@@ -14563,6 +15216,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 **Source:** protobufjs/protobuf.js
 
 <!-- LICENSE -->
+
 ```text
 This license applies to all parts of protobuf.js except those files
 either explicitly including or referencing a different license or
@@ -14614,6 +15268,7 @@ support library is itself covered by the above license.
 The MIT License
 Copyright (C) 2016-2018 Rob Wu <rob@robwu.nl>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### psl 1.15.0
@@ -14625,6 +15280,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 The MIT License (MIT)
 Copyright (c) 2017 Lupo Montero lupomontero@gmail.com
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### qrcode 1.5.4
@@ -14636,6 +15292,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 The MIT License (MIT)
 Copyright (c) 2012 Ryan Day
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### querystringify 2.2.0, requires-port 1.0.0, url-parse 1.5.10
@@ -14647,6 +15304,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 The MIT License (MIT)
 Copyright (c) 2015 Unshift.io, Arnout Kazemier,  the Contributors.
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### require-directory 2.1.1
@@ -14658,6 +15316,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 The MIT License (MIT)
 Copyright (c) 2011 Troy Goode <troygoode@gmail.com>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### require-main-filename 2.0.0, set-blocking 2.0.0, which-module 2.0.1, yargs-parser 18.1.3
@@ -14668,6 +15327,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) 2016, Contributors
 ```
+
 Distributed under the [ISC licence](#licence-isc), reproduced in full below.
 
 ### retry 0.13.1
@@ -14680,6 +15340,7 @@ Copyright (c) 2011:
 Tim Koschützki (tim@debuggable.com)
 Felix Geisendörfer (felix@debuggable.com)
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### rope-sequence 1.3.4
@@ -14690,6 +15351,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (C) 2016 by Marijn Haverbeke <marijn@haverbeke.berlin>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### roughjs 4.6.6
@@ -14701,6 +15363,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) 2019 Preet Shihn
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### rw 1.3.3
@@ -14709,6 +15372,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 **Source:** http://github.com/mbostock/rw.git
 
 <!-- LICENSE -->
+
 ```text
 Copyright (c) 2014-2016, Michael Bostock
 All rights reserved.
@@ -14747,6 +15411,7 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 The MIT License (MIT)
 Copyright (c) Feross Aboukhadijeh
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### safer-buffer 2.1.2
@@ -14758,6 +15423,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) 2018 Nikita Skovoroda <chalkerx@gmail.com>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### sdp 3.2.2
@@ -14768,6 +15434,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) 2017 Philipp Hancke
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### sdp-transform 2.15.0
@@ -14779,6 +15446,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 (The MIT License)
 Copyright (c) 2013 Eirik Albrigtsen
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### set-cookie-parser 2.7.2
@@ -14790,6 +15458,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 The MIT License (MIT)
 Copyright (c) 2015 Nathan Friedly <nathan@nfriedly.com> (http://nfriedly.com/)
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### source-map-js 1.2.1
@@ -14798,6 +15467,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 **Source:** 7rulnik/source-map-js
 
 <!-- LICENSE -->
+
 ```text
 Copyright (c) 2009-2011, Mozilla Foundation and contributors
 All rights reserved.
@@ -14836,6 +15506,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```text
 Copyright (c) the standardwebhooks authors — Standard Webhooks
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### stylis 4.4.0
@@ -14847,6 +15518,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) 2016-present Sultan Tarimo
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### tapable 2.3.2
@@ -14858,6 +15530,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 The MIT License
 Copyright JS Foundation and other contributors
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### tauri-plugin-keyring-api 0.1.1
@@ -14867,6 +15540,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) the tauri-plugin-keyring-api authors — Huakun Shen
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### tauri-plugin-secure-storage-api 1.5.0
@@ -14877,6 +15551,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) 2025 ThatzOkay
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### tinyexec 1.1.2
@@ -14888,6 +15563,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) 2024 Tinylibs
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### tough-cookie 4.1.4
@@ -14896,6 +15572,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 **Source:** git://github.com/salesforce/tough-cookie.git
 
 <!-- LICENSE -->
+
 ```text
 Copyright (c) 2015, Salesforce.com, Inc.
 All rights reserved.
@@ -14919,6 +15596,7 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 ```text
 Copyright (c) the tr46 authors — Sebastian Mayr <npm@smayr.name>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### ts-dedent 2.3.0
@@ -14930,6 +15608,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) 2018 Tamino Martinius
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### tslib 2.8.1
@@ -14940,6 +15619,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) Microsoft Corporation.
 ```
+
 Distributed under the [0BSD licence](#licence-0bsd), reproduced in full below.
 
 ### turndown 7.2.4, turndown-plugin-gfm 1.0.2
@@ -14951,6 +15631,7 @@ Distributed under the [0BSD licence](#licence-0bsd), reproduced in full below.
 MIT License
 Copyright (c) 2017 Dom Christie
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### twemoji 14.0.2
@@ -14961,6 +15642,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) 2021 Twitter
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 Distributed under the [CC-BY-4.0 licence](#licence-cc-by-4-0), reproduced in full below.
@@ -14972,6 +15654,7 @@ Distributed under the [CC-BY-4.0 licence](#licence-cc-by-4-0), reproduced in ful
 ```text
 Copyright (c) 2018 Twitter, Inc.
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### typed-emitter 2.1.0
@@ -14983,6 +15666,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 The MIT License (MIT)
 Copyright (c) 2018 Andy Wermke
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### undici-types 8.3.0
@@ -14994,6 +15678,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright (c) Matteo Collina and Undici contributors
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### universalify 0.1.2, universalify 0.2.0
@@ -15005,6 +15690,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 (The MIT License)
 Copyright (c) 2017, Ryan Zimmerman <opensrc@ryanzim.com>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### uuid 14.0.1
@@ -15016,6 +15702,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 The MIT License (MIT)
 Copyright (c) 2010-2020 Robert Kieffer and other contributors
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### web-streams-polyfill 3.3.3
@@ -15028,6 +15715,7 @@ The MIT License (MIT)
 Copyright (c) 2024 Mattias Buelens
 Copyright (c) 2016 Diwank Singh Tomer
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### webidl-conversions 3.0.1
@@ -15040,6 +15728,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 Copyright (c) 2014, Domenic Denicola
 All rights reserved.
 ```
+
 Distributed under the [BSD-2-Clause licence](#licence-bsd-2-clause), reproduced in full below.
 
 ### webrtc-adapter 9.0.6
@@ -15048,6 +15737,7 @@ Distributed under the [BSD-2-Clause licence](#licence-bsd-2-clause), reproduced 
 **Source:** https://github.com/webrtchacks/adapter.git
 
 <!-- LICENSE.md -->
+
 ```text
 Copyright (c) 2014, The WebRTC project authors. All rights reserved.
 Copyright (c) 2018, The adapter.js project authors. All rights reserved.
@@ -15090,6 +15780,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 The MIT License (MIT)
 Copyright (c) 2015–2016 Sebastian Mayr
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### ws 7.5.10
@@ -15101,6 +15792,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 The MIT License (MIT)
 Copyright (c) 2011 Einar Otto Stangvik <einaros@gmail.com>
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### ws 8.21.2
@@ -15113,6 +15805,7 @@ Copyright (c) 2011 Einar Otto Stangvik <einaros@gmail.com>
 Copyright (c) 2013 Arnout Kazemier and contributors
 Copyright (c) 2016 Luigi Pinca and contributors
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### yargs 15.4.1
@@ -15124,6 +15817,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 MIT License
 Copyright 2010 James Halliday (mail@substack.net); Modified work Copyright 2014 Contributors (ben@npmjs.com)
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### zone.js 0.15.1
@@ -15135,6 +15829,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 The MIT License
 Copyright (c) 2010-2025 Google LLC. https://angular.dev/license
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ```text
@@ -15142,6 +15837,7 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 The MIT License
 Copyright (c) 2010-2025 Google LLC. https://angular.dev/license
 ```
+
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ## Platform-specific native builds
@@ -15562,7 +16258,7 @@ exhaustive, and do not form part of our licenses.
      such as asking that all changes be marked or described.
      Although not required by our licenses, you are encouraged to
      respect those requests where reasonable. More_considerations
-     for the public: 
+     for the public:
 	wiki.creativecommons.org/Considerations_for_licensees
 
 =======================================================================
@@ -16311,7 +17007,7 @@ Mozilla Public License Version 2.0
     means any form of the work other than Source Code Form.
 
 1.7. "Larger Work"
-    means a work that combines Covered Software with other material, in 
+    means a work that combines Covered Software with other material, in
     a separate file or files, that is not Covered Software.
 
 1.8. "License"
@@ -16855,4 +17551,3 @@ the following restrictions:
 
 3. This notice may not be removed or altered from any source distribution.
 ```
-

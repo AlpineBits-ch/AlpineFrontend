@@ -59,10 +59,45 @@
         </div>
     }
 
-    <!-- Input row -->
+    <!-- Too long for this server's plan. Amber, not red: nothing was typed wrongly, and the post
+         is safe in the draft either way. -->
+    @if (length().blocked) {
+        <div class="flex items-start gap-2.5 mb-2 px-3 py-2 rounded-xl border border-amber-400/20 bg-amber-400/[0.08]">
+            <i aria-hidden="true" class="pi pi-info-circle mt-0.5 shrink-0 text-xs text-amber-300/70"></i>
+            <div class="min-w-0 flex flex-col gap-0.5">
+                <p class="m-0 text-xs font-medium text-text-primary">
+                    @if (length().max) {
+                        {{ 'COMPOSER.TOO_LONG' | translate: {max: length().max, over: -length().remaining!} }}
+                    } @else {
+                        {{ 'COMPOSER.TOO_LONG_HARD' | translate }}
+                    }
+                </p>
+                <p class="m-0 text-xs leading-relaxed text-text-secondary">{{ 'COMPOSER.TOO_LONG_KEPT' | translate }}</p>
+            </div>
+        </div>
+    }
+
+    <!-- Input row. The scene's turn marks the box itself: the notice belongs on the thing you
+         would use to answer it, not on a banner somewhere else on screen. -->
     <div
+        [class.composer-your-turn]="!!sceneTurn()"
         class="relative flex flex-col bg-white/[0.05] border border-white/[0.08] rounded-2xl focus-within:border-white/[0.15] transition-colors"
     >
+        @if (sceneTurn(); as turn) {
+            <div class="composer-turn-strip" role="status">
+                <span class="composer-turn-mark">{{ 'SCENE.COMPOSER.YOUR_TURN' | translate: {name: turn.characterName} }}</span>
+                @if (turn.deadlineAt) {
+                    <span [class.composer-turn-late]="turn.overdue" class="composer-turn-clock">
+                        {{ 'SCENE.RAIL.DUE' | translate: {when: turn.deadlineAt | relativeTime: now()} }}
+                    </span>
+                }
+                @if (turn.pass; as pass) {
+                    <button (click)="pass()" [disabled]="turn.passing" class="composer-turn-pass ml-auto" type="button">
+                        {{ 'SCENE.COMPOSER.PASS' | translate }}
+                    </button>
+                }
+            </div>
+        }
         <!-- Drop overlay -->
         @if (attachments.isDraggingOver()) {
             <div
@@ -73,6 +108,44 @@
                     <p class="text-xs text-[color-mix(in_srgb,var(--color-brand-dim)_70%,transparent)]">Drop files here</p>
                 </div>
             </div>
+        }
+
+        @if (showPersonaSwitcher()) {
+            <app-persona-switcher #personaSwitcher [channelId]="channelId()" [draft]="typed()" [guildId]="guildId()" />
+        }
+
+        <!-- Says the post survived, rather than leaving somebody to wonder whether it did. -->
+        @if (draftRestored()) {
+            <div class="flex items-center gap-2 px-3 pt-2 text-[0.6875rem] text-text-muted">
+                <i class="pi pi-history text-[0.625rem] text-brand-dim"></i>
+                <span>{{ 'COMPOSER.DRAFT_RESTORED' | translate }}</span>
+                <button
+                    (click)="discardDraft()"
+                    class="border-0 bg-transparent p-0 text-[0.6875rem] text-text-muted transition-colors cursor-pointer hover:text-offline"
+                    type="button"
+                >
+                    {{ 'COMPOSER.DRAFT_DISCARD' | translate }}
+                </button>
+                <button
+                    (click)="dismissRestoredNotice()"
+                    [attr.aria-label]="'COMPOSER.DRAFT_DISMISS' | translate"
+                    class="ml-auto border-0 bg-transparent p-0 text-text-faint transition-colors cursor-pointer hover:text-text-secondary"
+                    type="button"
+                >
+                    <i class="pi pi-times text-[0.5625rem]"></i>
+                </button>
+            </div>
+        }
+
+        <!-- Sits directly above the editor, because writing an expression is writing. -->
+        @if (diceOpen() && showDice()) {
+            <app-dice-tray
+                (closed)="diceOpen.set(false)"
+                [channelId]="channelId()!"
+                [guildId]="guildId()!"
+                [personaId]="personaResolution().personaId"
+                [speaker]="rollSpeaker()"
+            />
         }
 
         <!-- Attachment previews -->
@@ -106,6 +179,8 @@
                 (keydown)="onKeydown($event)"
                 (paste)="onPaste($event)"
                 [attr.data-placeholder]="placeholder()"
+                [class.composer-editor-tall]="expanded()"
+                [class.hidden]="previewing()"
                 [class.is-empty]="isEmpty()"
                 aria-multiline="true"
                 class="composer-editor flex-1 min-w-0 py-1.5 max-h-[120px] sm:max-h-[160px] overflow-y-auto outline-none text-sm text-text-primary"
@@ -115,7 +190,31 @@
                 style="scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.06) transparent"
             ></div>
 
+            <!-- What the post will look like once it lands, for something too long to hold in your head. -->
+            @if (previewing()) {
+                <div
+                    [class.composer-editor-tall]="expanded()"
+                    class="composer-preview flex-1 min-w-0 py-1.5 max-h-[120px] sm:max-h-[160px] overflow-y-auto text-sm text-text-primary"
+                >
+                    @if (typed()) {
+                        <div [innerHTML]="typed() | markdown"></div>
+                    } @else {
+                        <p class="m-0 text-text-faint">{{ 'COMPOSER.PREVIEW_EMPTY' | translate }}</p>
+                    }
+                </div>
+            }
+
             <div class="flex items-center gap-0.5 sm:gap-1 self-end mb-0.5 shrink-0">
+                @if (showDice()) {
+                    <p-button
+                        (onClick)="diceOpen.set(!diceOpen())"
+                        [text]="true"
+                        [title]="'DICE.TRAY.OPEN' | translate"
+                        icon="pi pi-box"
+                        [severity]="diceOpen() ? 'primary' : 'secondary'"
+                        size="small"
+                    />
+                }
                 <div class="hidden sm:contents">
                     <app-gif-picker-button (gifSelected)="onGifSelected($event)" />
                 </div>
@@ -131,5 +230,65 @@
                 />
             </div>
         </div>
+
+        <!-- What the send will do to the text, before it does it. -->
+        @if (proxyHintKey(); as hint) {
+            <div class="flex items-center gap-1.5 px-3 pb-1.5 text-[0.6875rem] text-text-faint">
+                <i class="pi pi-arrow-right text-[0.5625rem]"></i>
+                <span>{{ hint | translate: {tag: proxyHintTag()} }}</span>
+            </div>
+        }
+
+        <!-- The long-form footer. Nothing here is drawn for a one-line reply. -->
+        @if (canExpand() || length().visible || draftState() === 'saved') {
+            <div class="flex items-center gap-2 px-3 pb-1.5 text-[0.6875rem]">
+                @if (canExpand()) {
+                    <button
+                        (click)="toggleExpanded()"
+                        class="flex items-center gap-1 border-0 bg-transparent p-0 text-text-muted transition-colors cursor-pointer hover:text-text-secondary"
+                        type="button"
+                    >
+                        <i [class]="expanded() ? 'pi pi-window-minimize' : 'pi pi-window-maximize'" class="text-[0.5625rem]"></i>
+                        {{ (expanded() ? 'COMPOSER.COLLAPSE' : 'COMPOSER.EXPAND') | translate }}
+                    </button>
+                    <button
+                        (click)="togglePreview()"
+                        [class]="previewing() ? 'text-brand-dim' : 'text-text-muted hover:text-text-secondary'"
+                        class="flex items-center gap-1 border-0 bg-transparent p-0 transition-colors cursor-pointer"
+                        type="button"
+                    >
+                        <i class="pi pi-eye text-[0.5625rem]"></i>
+                        {{ 'COMPOSER.PREVIEW' | translate }}
+                    </button>
+                }
+
+                <!-- Discoverable before it is hit: the ceiling is named the moment somebody
+                     asks for more room, not once they run out of it. -->
+                @if (expanded() && length().max) {
+                    <span class="text-text-faint">{{ 'COMPOSER.ROOM' | translate: {max: length().max} }}</span>
+                }
+
+                <span class="ml-auto flex items-center gap-2.5">
+                    @if (draftState() === 'saved') {
+                        <span class="flex items-center gap-1 text-text-faint">
+                            <i class="pi pi-check text-[0.5rem]"></i>
+                            {{ 'COMPOSER.DRAFT_SAVED' | translate }}
+                        </span>
+                    } @else if (draftState() === 'failed') {
+                        <span class="text-offline">{{ 'COMPOSER.DRAFT_SAVE_FAILED' | translate }}</span>
+                    }
+
+                    @if (length().visible) {
+                        <span [class]="counterClass()" aria-live="polite">
+                            @if (length().max) {
+                                {{ length().remaining }} / {{ length().max }}
+                            } @else {
+                                {{ length().length }}
+                            }
+                        </span>
+                    }
+                </span>
+            </div>
+        }
     </div>
 </div>

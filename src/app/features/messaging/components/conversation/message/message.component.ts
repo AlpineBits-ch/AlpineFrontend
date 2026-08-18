@@ -10,6 +10,7 @@ import {
     input,
     output,
     signal,
+    untracked,
     ViewChild,
 } from '@angular/core';
 import {takeUntilDestroyed, toObservable, toSignal} from '@angular/core/rxjs-interop';
@@ -64,12 +65,22 @@ import {UserNameStyleDirective} from '../../../../../directives/user-name-style.
 import {EmojiSelection} from './reaction-picker/reaction-picker.component';
 import {ToastService} from '../../../../../services/toast.service';
 import {UNDECRYPTABLE_PLACEHOLDER, UNDECRYPTABLE_SHORT} from '../../../../../helpers/message-content.helper';
+import {PersonaService} from '../../../../../services/persona.service';
+import {personaIdentity} from '../../../../guild/personas/persona-identity';
+import {PERSONA_MENTION_SOURCE} from '../../../../guild/personas/persona-mention';
+import {PersonaAvatarComponent} from '../../../../guild/personas/persona-avatar/persona-avatar.component';
+import {DiceRollCardComponent} from '../../../../guild/dice/dice-roll-card/dice-roll-card.component';
+import {diceRollFromMessage} from '../../../../guild/dice/dice-roll-view';
+import {rollJustLanded} from '../../../../../services/dice.service';
 
 /** One run of a message body, after the text has been pulled apart. */
 interface MessageSegment {
-    type: 'text' | 'mention' | 'role' | 'everyone' | 'here' | 'channel' | 'gif' | 'emoji' | 'flag';
+    type:
+        'text' | 'mention' | 'persona' | 'role' | 'everyone' | 'here' | 'channel' | 'gif' | 'emoji' | 'flag';
     value: string;
     refId?: string;
+    /** Persona segments only: the colour the character is drawn in. */
+    color?: string | null;
 }
 
 @Component({
@@ -91,6 +102,8 @@ interface MessageSegment {
         UserNameStyleDirective,
         AuthImageDirective,
         AudioAttachmentComponent,
+        PersonaAvatarComponent,
+        DiceRollCardComponent,
     ],
     templateUrl: './message.component.html',
     styleUrl: './message.component.css',
@@ -124,11 +137,72 @@ export class MessageComponent {
     public reply = output<MessageDto>();
     public jumpTo = output<string>();
 
+    // ── In character ─────────────────────────────────────────────────────────
+    private readonly personas = inject(PersonaService);
+
+    /** The character on this message, from what was denormalised at send time. */
+    protected readonly speaker = computed(() => {
+        const message = this.message();
+        if (!message.personaId || !message.authorDisplayName) return null;
+        const entry = this.personas.entry(this.guildId(), message.personaId);
+        return {
+            personaId: message.personaId,
+            name: message.authorDisplayName,
+            avatarUrl: message.authorAvatarUrl ?? null,
+            // The colour is live rather than denormalised, so a recoloured character recolours
+            // its whole history at once, which is what people expect of an accent colour.
+            color: entry ? personaIdentity(entry).color : null,
+        };
+    });
+
+    // ── Dice ─────────────────────────────────────────────────────────────────
+    /** The structured roll, or null when it cannot be read - then `content` renders as text. */
+    protected readonly diceRoll = computed(() =>
+        this.message().type === MessageType.DiceRoll ? diceRollFromMessage(this.message()) : null,
+    );
+
+    private settleAnswer: boolean | null = null;
+
+    /** Decided on the first read and kept: a roll must not start settling again on a redraw. */
+    protected get diceSettling(): boolean {
+        this.settleAnswer ??= rollJustLanded(this.message().createdAt);
+        return this.settleAnswer;
+    }
+
+    /** A webhook: the display overrides without a character behind them. */
+    protected readonly webhookName = computed(() => {
+        const message = this.message();
+        return !message.personaId && message.authorDisplayName ? message.authorDisplayName : null;
+    });
+
+    protected openCharacter(): void {
+        const guildId = this.guildId();
+        const speaker = this.speaker();
+        if (guildId && speaker) this.navService.openCharacter(guildId, speaker.personaId);
+    }
+
+    /** A mention resolves to the character's page. There is no path from it to an account. */
+    protected openMentionedCharacter(personaId: string | undefined): void {
+        const guildId = this.guildId();
+        if (guildId && personaId) this.navService.openCharacter(guildId, personaId);
+    }
+
+    private unknownCharacterLabel(): string {
+        return this.translate.instant('PERSONA.MENTION.UNKNOWN');
+    }
+
     constructor() {
         effect(() => {
             for (const userId of this.message().mentions ?? []) {
                 this.profileService.resolveByUserId(userId);
             }
+        });
+
+        // The cast carries this guild's overrides, which the denormalised hint does not.
+        effect(() => {
+            const guildId = this.guildId();
+            const mentioned = this.message().personaMentions?.length || this.message().personaId;
+            if (guildId && mentioned) untracked(() => this.personas.ensureCast(guildId));
         });
     }
     public readonly isOnlyEmoji = computed(() => {
@@ -181,8 +255,13 @@ export class MessageComponent {
         const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const knownNamePattern =
             knownNames.length > 0 ? knownNames.map(n => `@${escapeRegex(n)}\\b`).join('|') + '|' : '';
+        // The character token comes first in the alternation: `<@pers_...>` starts with a bracket
+        // the other patterns never match, and it must never fall through to the generic `@word`.
         const regex = new RegExp(
-            knownNamePattern + '@[\\w\\-.]+#\\w+|@everyone\\b|@here\\b|@[\\w\\-.]+|#[\\w-]+',
+            PERSONA_MENTION_SOURCE +
+                '|' +
+                knownNamePattern +
+                '@[\\w\\-.]+#\\w+|@everyone\\b|@here\\b|@[\\w\\-.]+|#[\\w-]+',
             'g',
         );
         let last = 0;
@@ -194,7 +273,19 @@ export class MessageComponent {
                 segments.push({type: 'text', value: text.slice(last, match.index)});
             }
             const raw = match[0];
-            if (/^@[\w\-.]+#\w+$/.test(raw)) {
+            const personaId = match[1];
+            if (personaId) {
+                // Nothing here may name the account: the hint and the cast are the only two
+                // sources, and neither carries an owner.
+                const hint = (msg.personaMentions ?? []).find(m => m.personaId === personaId);
+                const identity = this.personas.identity(this.guildId(), personaId, hint);
+                segments.push({
+                    type: 'persona',
+                    value: identity ? `@${identity.name}` : this.unknownCharacterLabel(),
+                    refId: personaId,
+                    color: identity?.color ?? null,
+                });
+            } else if (/^@[\w\-.]+#\w+$/.test(raw)) {
                 // Legacy discriminator-style mention, kept for compatibility, no click target.
                 segments.push({type: 'mention', value: raw});
             } else if (raw === '@everyone' && msg.mentionsEveryone) {

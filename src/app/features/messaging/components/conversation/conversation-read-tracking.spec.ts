@@ -23,6 +23,7 @@ import {provideHttpClient} from '@angular/common/http';
 import {provideHttpClientTesting} from '@angular/common/http/testing';
 import {Subject} from 'rxjs';
 import {describe, expect, it} from 'vitest';
+import {ConversationCacheService} from '../../../../services/cache/conversation-cache.service';
 import {ConversationStore} from '../../../../stores/conversation.store';
 import {ConversationDto} from '../../../../dtos/response/conversation.dto';
 import {ConversationEncryption} from '../../../../enums/conversation-encryption.enum';
@@ -107,6 +108,16 @@ function setup() {
             provideHttpClientTesting(),
             {provide: ApiConfigService, useValue: {baseUrl: () => 'https://api.test.example'}},
             {provide: MessagingWebsocketService, useValue: fakeWebsocket()},
+            // Stubbed rather than provided for real: the store's write-behind would otherwise pull
+            // CacheStoreFactory -> CacheSealService -> SecureStore into a spec about signal cycles.
+            {
+                provide: ConversationCacheService,
+                useValue: {
+                    recall: async () => [],
+                    remember: async () => undefined,
+                    forget: async () => undefined,
+                },
+            },
         ],
     });
 

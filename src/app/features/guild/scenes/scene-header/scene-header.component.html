@@ -1,0 +1,116 @@
+<div class="scene-header">
+    <div class="flex min-w-0 flex-1 items-center gap-2">
+        <app-turn-rail [guildId]="guildId()" [scene]="scene()" class="min-w-0 flex-1" />
+    </div>
+
+    <div class="flex shrink-0 items-center gap-1.5 pr-3">
+        <!-- The pair. One place, two registers: the segment you are in is filled, the other is a
+             way across. -->
+        @if (hasPair()) {
+            <div [attr.aria-label]="'SCENE.PAIR.ARIA' | translate" class="scene-pair" role="group">
+                <button
+                    (click)="openIc()"
+                    [attr.aria-current]="side() === 'ic'"
+                    [class.is-on]="side() === 'ic'"
+                    class="scene-pair-tab"
+                    type="button"
+                >
+                    {{ 'SCENE.PAIR.IN_CHARACTER' | translate }}
+                </button>
+                <button
+                    (click)="openOoc()"
+                    [attr.aria-current]="side() === 'ooc'"
+                    [class.is-on]="side() === 'ooc'"
+                    class="scene-pair-tab"
+                    type="button"
+                >
+                    {{ 'SCENE.PAIR.OUT_OF_CHARACTER' | translate }}
+                </button>
+            </div>
+        }
+
+        @if (scene().status !== SceneStatus.Active) {
+            <span [class]="status().chipClass" class="scene-status-chip">
+                <i [class]="status().icon" class="text-[0.5625rem]"></i>
+                {{ status().labelKey | translate }}
+            </span>
+        }
+
+        @if (canManage()) {
+            <div class="relative">
+                <button
+                    (click)="menuOpen.set(!menuOpen())"
+                    [attr.aria-expanded]="menuOpen()"
+                    [attr.aria-label]="'SCENE.MENU.ARIA' | translate"
+                    class="scene-icon-button"
+                    type="button"
+                >
+                    <i class="pi pi-ellipsis-h text-[0.75rem]"></i>
+                </button>
+
+                @if (menuOpen()) {
+                    <div #menu (focusout)="onMenuBlur($event)" class="scene-menu" tabindex="-1">
+                        <button (click)="editing.set(true); menuOpen.set(false)" class="scene-menu-item" type="button">
+                            <i class="pi pi-users"></i>
+                            {{ 'SCENE.MENU.EDIT' | translate }}
+                        </button>
+                        @if (scene().status === SceneStatus.Active) {
+                            <button (click)="skipTurn()" [disabled]="busy()" class="scene-menu-item" type="button">
+                                <i class="pi pi-forward"></i>
+                                {{ 'SCENE.MENU.SKIP' | translate }}
+                            </button>
+                            <button (click)="setStatus(SceneStatus.Paused)" [disabled]="busy()" class="scene-menu-item" type="button">
+                                <i class="pi pi-pause"></i>
+                                {{ 'SCENE.MENU.PAUSE' | translate }}
+                            </button>
+                        } @else if (scene().status === SceneStatus.Paused || scene().status === SceneStatus.Open) {
+                            <button (click)="setStatus(SceneStatus.Active)" [disabled]="busy()" class="scene-menu-item" type="button">
+                                <i class="pi pi-play"></i>
+                                {{ (scene().status === SceneStatus.Open ? 'SCENE.MENU.START' : 'SCENE.MENU.RESUME') | translate }}
+                            </button>
+                        }
+                        @if (scene().status !== SceneStatus.Concluded) {
+                            <button (click)="concluding.set(true); menuOpen.set(false)" class="scene-menu-item" type="button">
+                                <i class="pi pi-bookmark-fill"></i>
+                                {{ 'SCENE.MENU.CONCLUDE' | translate }}
+                            </button>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+<!-- ── Stalled ─────────────────────────────────────────────────────────────
+     Only the game master sees this, and only after the sweep has already told
+     the players. It states the fact and offers the two verbs that move a scene. -->
+@if (isStalled() && canManage()) {
+    <div class="scene-stalled">
+        <i class="pi pi-hourglass scene-stalled-icon"></i>
+        <p class="scene-stalled-text">
+            {{
+                'SCENE.STALLED.BODY'
+                    | translate
+                        : {
+                              name: currentIdentity()?.name ?? ('SCENE.RAIL.UNKNOWN_CHARACTER' | translate),
+                              when: waitingSince() | relativeTime: scenes.now(),
+                          }
+            }}
+        </p>
+        <button (click)="skipTurn()" [disabled]="busy()" class="scene-stalled-action" type="button">
+            {{ 'SCENE.STALLED.SKIP' | translate: {name: currentIdentity()?.name ?? ''} }}
+        </button>
+        <button (click)="setStatus(SceneStatus.Paused)" [disabled]="busy()" class="scene-stalled-action" type="button">
+            {{ 'SCENE.MENU.PAUSE' | translate }}
+        </button>
+    </div>
+}
+
+@if (editing()) {
+    <app-scene-dialog (closed)="editing.set(false)" [guildId]="guildId()" [scene]="scene()" />
+}
+
+@if (concluding()) {
+    <app-scene-conclude-dialog (closed)="concluding.set(false)" [guildId]="guildId()" [scene]="scene()" />
+}
