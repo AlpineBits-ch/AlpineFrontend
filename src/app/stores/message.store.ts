@@ -325,6 +325,19 @@ export const MessageStore = signalStore(
                     );
                 },
 
+                /** Only the named message changes: the event exists so a client on the parent channel can redraw one row. */
+                attachThread(messageId: string, threadId: string): void {
+                    const held = store.entityMap()[messageId];
+                    if (!held) return;
+                    patchState(
+                        store,
+                        updateEntity({
+                            id: messageId,
+                            changes: {threadId, flags: (held.flags ?? 0) | MessageFlags.HasThread},
+                        }),
+                    );
+                },
+
                 applyMessageUpdate(dto: MessageDto): void {
                     patchState(store, updateEntity({id: dto.id, changes: dto}));
                 },

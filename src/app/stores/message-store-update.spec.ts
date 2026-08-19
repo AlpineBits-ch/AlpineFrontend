@@ -11,7 +11,7 @@ import {ProfileService} from '../services/profile.service';
 import {MessageCacheService} from '../services/cache/message-cache.service';
 import {MessageEncryptionState} from '../enums/message-encryption-state.enum';
 import {MessageType} from '../enums/message-type.enum';
-import {MessageDto} from '../dtos/response/message.dto';
+import {MessageDto, MessageFlags} from '../dtos/response/message.dto';
 import {Subject} from 'rxjs';
 
 const CONTEXT = 'conv-1';
@@ -525,5 +525,37 @@ describe('MessageStore replayed messages', () => {
 
         // Paging back to it later must find the plaintext: there is no second chance to decrypt.
         expect(mls.cacheMessage).toHaveBeenCalledWith(CONTEXT, 1, 'not-loaded', 'cmVwbGF5ZWQ=', 'user-2');
+    });
+});
+
+describe('MessageStore thread attachment', () => {
+    it('attaches a thread to exactly the message named', () => {
+        const {store} = setup();
+        store.addMessage(encryptedMessage({id: 'msg-1'}));
+        store.addMessage(encryptedMessage({id: 'msg-2'}));
+
+        store.attachThread('msg-1', 'chan_t');
+
+        expect(store.entityMap()['msg-1'].threadId).toBe('chan_t');
+        expect(store.entityMap()['msg-2'].threadId).toBeUndefined();
+    });
+
+    it('sets the HasThread flag beside the id, leaving the other bits alone', () => {
+        const {store} = setup();
+        store.addMessage(encryptedMessage({id: 'msg-1', flags: MessageFlags.SuppressEmbeds}));
+
+        store.attachThread('msg-1', 'chan_t');
+
+        const flags = store.entityMap()['msg-1'].flags ?? 0;
+        expect(flags & MessageFlags.HasThread).toBeTruthy();
+        expect(flags & MessageFlags.SuppressEmbeds).toBeTruthy();
+    });
+
+    it('ignores an event for a message the store has never seen', () => {
+        const {store} = setup();
+
+        store.attachThread('msg-unknown', 'chan_t');
+
+        expect(store.entityMap()['msg-unknown']).toBeUndefined();
     });
 });

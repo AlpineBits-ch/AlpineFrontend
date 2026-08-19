@@ -12,6 +12,7 @@ import {
     untracked,
     ViewChild,
 } from '@angular/core';
+import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {HttpErrorResponse} from '@angular/common/http';
 import {catchError, EMPTY, firstValueFrom, from, tap} from 'rxjs';
 
@@ -284,8 +285,10 @@ export class ChannelConversationComponent implements AfterViewInit {
     });
     private observedListEl?: HTMLDivElement;
 
+    private readonly destroyRef = inject(DestroyRef);
+
     constructor() {
-        inject(DestroyRef).onDestroy(() => {
+        this.destroyRef.onDestroy(() => {
             this.contentObserver.disconnect();
             this.observedListEl?.removeEventListener('load', this.onContentLoad, true);
         });
@@ -379,6 +382,17 @@ export class ChannelConversationComponent implements AfterViewInit {
             void this.guildWs.updateLastReadMessageByChannel(latest.id, channelId);
             this.readStateService.markChannelRead(channelId);
         });
+
+        this.watchThreadAttachments();
+    }
+
+    private watchThreadAttachments(): void {
+        this.guildWs.messageThreadAttachedObservable
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe(e => {
+                if (e.channelId !== untracked(() => this.channel().id)) return;
+                this.messageStore.attachThread(e.messageId, e.threadId);
+            });
     }
 
     ngAfterViewInit(): void {

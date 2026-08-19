@@ -456,6 +456,10 @@
             }
         </p-dialog>
 
+        @if (message().threadId; as threadId) {
+            <app-message-thread-card [threadId]="threadId" />
+        }
+
         <!-- Reaction bar -->
         @if (!message().isPending && !message().isFailed && message().reactions?.length) {
             <app-message-reaction-bar

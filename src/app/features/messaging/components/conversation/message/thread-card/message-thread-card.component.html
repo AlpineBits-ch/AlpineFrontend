@@ -1,0 +1,25 @@
+@if (thread(); as openThread) {
+    <div class="flex items-stretch mt-1">
+        <!-- The elbow rises into the avatar gutter, tying the card to the message it hangs off. -->
+        <div class="w-[1.375rem] shrink-0 -mt-2 mb-2 ml-3 border-l-2 border-b-2 border-white/[0.10] rounded-bl-lg"></div>
+        <button
+            (click)="open()"
+            class="group/thread flex items-center gap-2 min-w-0 ml-1.5 px-2.5 py-1 rounded-lg bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.06] cursor-pointer transition-colors text-left"
+            type="button"
+        >
+            <i class="pi pi-comments text-brand-dim text-[0.6875rem] shrink-0"></i>
+            <span class="text-[0.8125rem] font-semibold text-brand-dim truncate">{{ openThread.name }}</span>
+            <span class="text-[0.6875rem] text-text-muted shrink-0">
+                {{ (messageCount() === 1 ? 'THREAD.MESSAGE_COUNT_ONE' : 'THREAD.MESSAGE_COUNT') | translate: {count: messageCount()} }}
+            </span>
+            @if (openThread.lastActivityAt) {
+                <span class="text-[0.6875rem] text-text-faint shrink-0 hidden sm:inline">
+                    {{ openThread.lastActivityAt | relativeTime }}
+                </span>
+            }
+            <i
+                class="pi pi-chevron-right text-text-muted text-[0.5625rem] shrink-0 opacity-0 group-hover/thread:opacity-100 transition-opacity"
+            ></i>
+        </button>
+    </div>
+}

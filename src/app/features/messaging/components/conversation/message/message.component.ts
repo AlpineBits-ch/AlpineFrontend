@@ -76,6 +76,7 @@ import {
     buildMessageMenuItems,
     MessageContextMenuComponent,
 } from './context-menu/message-context-menu.component';
+import {MessageThreadCardComponent} from './thread-card/message-thread-card.component';
 import {diceRollFromMessage} from '../../../../guild/dice/dice-roll-view';
 import {rollJustLanded} from '../../../../../services/dice.service';
 
@@ -121,6 +122,7 @@ interface MessageSegment {
         PersonaAvatarComponent,
         DiceRollCardComponent,
         MessageContextMenuComponent,
+        MessageThreadCardComponent,
     ],
     templateUrl: './message.component.html',
     styleUrl: './message.component.css',
