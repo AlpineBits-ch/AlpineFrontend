@@ -1,4 +1,4 @@
-import {computed, inject, Injectable, Injector, signal} from '@angular/core';
+import {computed, effect, inject, Injectable, Injector, signal, untracked} from '@angular/core';
 import {ConversationDto} from '../../dtos/response/conversation.dto';
 import {ConversationStore} from '../../stores/conversation.store';
 import {ChannelDto, ChannelType, GuildDto} from '../../dtos/response/guild.dto';
@@ -52,6 +52,8 @@ export class NavigationService {
     readonly mobileNavOpen = signal(false);
     readonly mobileSection = signal<'conversations' | 'friends'>('conversations');
     readonly eventsPanelGuildId = signal<string | null>(null);
+    /** The thread open beside the main view. A panel, not a view: it never appears in nav history. */
+    readonly threadPanel = signal<ChannelDto | null>(null);
 
     /**
      * The open conversation as the store holds it now. `mainView` carries the copy it was opened
@@ -89,6 +91,22 @@ export class NavigationService {
         // Seeds the stack with the launch state, so the first navigation already has somewhere
         // to go back to rather than needing two before the arrows come alive.
         this.pushHistory();
+
+        // One place rather than one per navigation method: a panel left open over a channel it
+        // does not belong to is the failure, and every path that moves the main view is a way in.
+        effect(() => {
+            this.mainView();
+            untracked(() => this.threadPanel.set(null));
+        });
+    }
+
+    openThread(thread: ChannelDto): void {
+        this.threadPanel.set(thread);
+        this.mobileNavOpen.set(false);
+    }
+
+    closeThread(): void {
+        this.threadPanel.set(null);
     }
 
     /** Puts the app back where it was, given the guilds it can choose from. */

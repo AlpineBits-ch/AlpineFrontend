@@ -1,0 +1,44 @@
+<div class="flex flex-col h-full bg-app-bg overflow-hidden">
+    <header class="app-header flex items-center gap-2 px-3 border-b border-white/[0.10] shrink-0">
+        <i class="pi pi-comments text-text-muted text-xs shrink-0"></i>
+        <div class="flex flex-col min-w-0 leading-tight">
+            <span class="text-sm font-semibold text-text-primary truncate">{{ thread().name }}</span>
+            <button
+                (click)="navService.closeThread()"
+                class="text-[0.6875rem] text-text-muted hover:text-text-secondary text-left truncate border-0 bg-transparent p-0 cursor-pointer"
+                type="button"
+            >
+                {{ 'THREAD.PANEL_PARENT' | translate: {channel: parentName()} }}
+            </button>
+        </div>
+        <button
+            (click)="navService.closeThread()"
+            class="ml-auto shrink-0 w-6 h-6 rounded flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-white/[0.07] border-0 bg-transparent cursor-pointer transition-colors"
+            type="button"
+        >
+            <i class="pi pi-times text-[0.625rem]"></i>
+        </button>
+    </header>
+
+    @if (starter(); as message) {
+        <div class="px-3 py-2 border-b border-white/[0.06] shrink-0 bg-white/[0.02]">
+            <p class="text-[0.6875rem] text-text-muted m-0 mb-1.5">
+                {{ 'THREAD.STARTED_FROM' | translate: {channel: parentName()} }}
+            </p>
+            <div class="flex items-start gap-2 min-w-0">
+                <app-avatar [userId]="message.authorId" styleClass="w-5 h-5 shrink-0" />
+                <p class="text-xs text-text-secondary m-0 line-clamp-3 min-w-0 break-words">{{ starterText() }}</p>
+            </div>
+        </div>
+    }
+
+    @if (thread().isArchived) {
+        <div class="px-3 py-2 border-b border-white/[0.06] shrink-0 flex items-center gap-2">
+            <i class="pi pi-inbox text-connecting text-[0.75rem] shrink-0"></i>
+            <span class="text-xs text-text-muted">{{ 'THREAD.ARCHIVED_NOTICE' | translate }}</span>
+        </div>
+    }
+
+    <!-- Renders as display:contents, so its scrollback and footer are the flex items here. -->
+    <app-channel-conversation [channel]="thread()" variant="panel" />
+</div>

@@ -7,6 +7,7 @@ import {
     input,
     output,
     signal,
+    untracked,
     viewChild,
 } from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
@@ -48,7 +49,23 @@ import {ThreadPanelComponent} from './thread-panel/thread-panel.component';
 import {PinnedMessagesPanelComponent} from '../../../messaging/components/pinned-messages-panel/pinned-messages-panel.component';
 import {FollowChannelDialogComponent} from '../follow-channel-dialog/follow-channel-dialog.component';
 import {ChannelConversationComponent} from './channel-conversation/channel-conversation.component';
+import {ThreadSidePanelComponent} from './thread-side-panel/thread-side-panel.component';
 import {GuildFeature, guildHasFeature} from '../../guild-features';
+
+const THREAD_PANEL_WIDTH_KEY = 'alpine.threadPanel.width';
+const THREAD_PANEL_MIN_REM = 20;
+const THREAD_PANEL_MAX_REM = 40;
+const THREAD_PANEL_DEFAULT_REM = 25;
+
+function clampPanelWidth(rem: number): number {
+    return Math.min(THREAD_PANEL_MAX_REM, Math.max(THREAD_PANEL_MIN_REM, rem));
+}
+
+function readPanelWidth(): number {
+    const raw = Number(localStorage.getItem(THREAD_PANEL_WIDTH_KEY));
+    if (!Number.isFinite(raw) || raw <= 0) return THREAD_PANEL_DEFAULT_REM;
+    return clampPanelWidth(raw);
+}
 
 function decodeContent(encoded: string): string {
     try {
@@ -63,6 +80,7 @@ function decodeContent(encoded: string): string {
     selector: 'app-channel',
     imports: [
         ChannelConversationComponent,
+        ThreadSidePanelComponent,
         Button,
         DatePipe,
         HighlightPipe,
@@ -122,6 +140,7 @@ export class ChannelComponent {
     protected readonly showThreadPanel = signal(false);
     protected readonly showPinnedPanel = signal(false);
     protected readonly showFollowDialog = signal(false);
+    protected readonly panelWidth = signal(readPanelWidth());
 
     // ── Forum post state ─────────────────────────────────────────────────────
     // A forum post is an ordinary Thread channel; this whole view is reused, and these members only light up when the thread's parent turns out to be a forum.
@@ -251,6 +270,15 @@ export class ChannelComponent {
             if (e.tagIds !== undefined) this.localTagIds.set(e.tagIds);
         });
 
+        // The three side panels share the slot, so raising one lowers the others.
+        effect(() => {
+            if (!this.navService.threadPanel()) return;
+            untracked(() => {
+                this.showThreadPanel.set(false);
+                this.showPinnedPanel.set(false);
+            });
+        });
+
         effect(() => {
             this.channel().id;
             this.searchQuery.set('');
@@ -296,6 +324,45 @@ export class ChannelComponent {
             },
         });
     }
+    /** Drag right narrows the panel, so the delta is subtracted. Pointer capture keeps the drag alive over the iframe-free but busy message list. */
+    protected startPanelResize(event: PointerEvent): void {
+        event.preventDefault();
+        const grip = event.target as HTMLElement;
+        const rootFontSize = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+        const startX = event.clientX;
+        const startWidth = this.panelWidth();
+
+        const onMove = (move: PointerEvent): void => {
+            this.panelWidth.set(clampPanelWidth(startWidth - (move.clientX - startX) / rootFontSize));
+        };
+        const onUp = (): void => {
+            grip.removeEventListener('pointermove', onMove);
+            grip.removeEventListener('pointerup', onUp);
+            grip.removeEventListener('pointercancel', onUp);
+            try {
+                localStorage.setItem(THREAD_PANEL_WIDTH_KEY, String(this.panelWidth()));
+            } catch {
+                // A full quota must not break the panel.
+            }
+        };
+
+        grip.setPointerCapture(event.pointerId);
+        grip.addEventListener('pointermove', onMove);
+        grip.addEventListener('pointerup', onUp);
+        grip.addEventListener('pointercancel', onUp);
+    }
+
+    /** The three side panels share one slot, so raising either of these lowers the thread. */
+    protected toggleThreadList(): void {
+        this.navService.closeThread();
+        this.showThreadPanel.update(open => !open);
+    }
+
+    protected togglePinned(): void {
+        this.navService.closeThread();
+        this.showPinnedPanel.update(open => !open);
+    }
+
     protected onSearchInput(value: string): void {
         this.searchQuery.set(value);
         this.searchSubject.next(value);

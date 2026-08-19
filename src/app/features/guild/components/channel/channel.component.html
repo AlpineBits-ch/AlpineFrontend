@@ -1,5 +1,5 @@
 <div class="flex h-full overflow-hidden">
-    <div class="flex flex-col h-full bg-app-bg overflow-hidden flex-1 min-w-0">
+    <div [class.thread-panel-pushes-out]="!!navService.threadPanel()" class="flex flex-col h-full bg-app-bg overflow-hidden flex-1 min-w-0">
         <!-- Header -->
         <header class="app-header flex items-center px-3 sm:px-5 border-b border-white/[0.10] shrink-0 bg-app-bg">
             <p-button
@@ -51,7 +51,7 @@
                 </div>
                 @if (channel().type === ChannelType.Text && hasThreads()) {
                     <p-button
-                        (onClick)="showThreadPanel.set(!showThreadPanel())"
+                        (onClick)="toggleThreadList()"
                         icon="pi pi-comments"
                         [text]="true"
                         [title]="showThreadPanel() ? 'Hide threads' : 'Threads'"
@@ -70,7 +70,7 @@
                     />
                 }
                 <p-button
-                    (onClick)="showPinnedPanel.set(!showPinnedPanel())"
+                    (onClick)="togglePinned()"
                     [text]="true"
                     icon="pi pi-thumbtack"
                     [title]="showPinnedPanel() ? 'Hide pinned messages' : 'Pinned messages'"
@@ -219,7 +219,7 @@
     </div>
     @if (showThreadPanel() && hasThreads()) {
         <app-thread-panel
-            (threadSelected)="navService.openChannel($event)"
+            (threadSelected)="navService.openThread($event)"
             [parentChannelId]="channel().id"
             class="w-64 shrink-0 border-l border-white/[0.08]"
         />
@@ -229,6 +229,17 @@
             (messageSelected)="jumpToMessage($event)"
             [channelId]="channel().id"
             class="flex flex-col w-64 shrink-0 border-l border-white/[0.08]"
+        />
+    }
+    @if (navService.threadPanel(); as openThread) {
+        <div
+            (pointerdown)="startPanelResize($event)"
+            class="thread-panel-grip w-1 shrink-0 cursor-col-resize bg-transparent hover:bg-brand/40 transition-colors"
+        ></div>
+        <app-thread-side-panel
+            [style.width.rem]="panelWidth()"
+            [thread]="openThread"
+            class="thread-panel shrink-0 border-l border-white/[0.08]"
         />
     }
 </div>

@@ -16,3 +16,19 @@
 .msg-highlight {
     animation: msg-flash 2s ease-out forwards;
 }
+
+/* Below sm the thread panel takes the pane instead of sitting beside it. */
+@media (max-width: 639px) {
+    .thread-panel-pushes-out {
+        display: none;
+    }
+
+    .thread-panel-grip {
+        display: none;
+    }
+
+    .thread-panel {
+        width: 100% !important;
+        border-left: 0;
+    }
+}
