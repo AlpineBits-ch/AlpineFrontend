@@ -1,0 +1,67 @@
+import {ChangeDetectionStrategy, Component, ViewChild} from '@angular/core';
+import {MenuItem} from 'primeng/api';
+import {Menu} from 'primeng/menu';
+
+export interface MessageMenuAbilities {
+    isOwn: boolean;
+    canPin: boolean;
+    isPinned: boolean;
+    canCreateThread: boolean;
+    threadId: string | null;
+    label: (key: string) => string;
+    onReply: () => void;
+    onThread: () => void;
+    onCopyText: () => void;
+    onTogglePin: () => void;
+    onEdit: () => void;
+    onDelete: () => void;
+    onReport: () => void;
+}
+
+/** A message already carrying a thread offers the way in even to someone who could not have started it. */
+export function buildMessageMenuItems(a: MessageMenuAbilities): MenuItem[] {
+    const items: MenuItem[] = [{label: a.label('MESSAGE.REPLY'), icon: 'pi pi-reply', command: a.onReply}];
+
+    if (a.threadId) {
+        items.push({label: a.label('THREAD.GO_TO'), icon: 'pi pi-comments', command: a.onThread});
+    } else if (a.canCreateThread) {
+        items.push({label: a.label('THREAD.CREATE'), icon: 'pi pi-comments', command: a.onThread});
+    }
+
+    items.push({label: a.label('MESSAGE.COPY_TEXT'), icon: 'pi pi-copy', command: a.onCopyText});
+
+    if (a.canPin) {
+        items.push({
+            label: a.label(a.isPinned ? 'MESSAGE.UNPIN' : 'MESSAGE.PIN'),
+            icon: 'pi pi-thumbtack',
+            command: a.onTogglePin,
+        });
+    }
+
+    items.push({separator: true});
+
+    if (a.isOwn) {
+        items.push({label: a.label('COMMON.EDIT'), icon: 'pi pi-pencil', command: a.onEdit});
+        items.push({label: a.label('COMMON.DELETE'), icon: 'pi pi-trash', command: a.onDelete});
+    } else {
+        items.push({label: a.label('REPORT.TITLE_MESSAGE'), icon: 'pi pi-flag', command: a.onReport});
+    }
+
+    return items;
+}
+
+@Component({
+    selector: 'app-message-context-menu',
+    imports: [Menu],
+    template: '<p-menu #menu [popup]="true" appendTo="body" />',
+    changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class MessageContextMenuComponent {
+    @ViewChild('menu') private menu!: Menu;
+
+    open(event: MouseEvent, items: MenuItem[]): void {
+        event.preventDefault();
+        this.menu.model = items;
+        this.menu.show(event);
+    }
+}

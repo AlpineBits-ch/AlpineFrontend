@@ -1,5 +1,6 @@
 <div
     #msgElement
+    (contextmenu)="onContextMenu($event)"
     (touchend)="onTouchEnd()"
     (touchmove)="onTouchMove()"
     (touchstart)="onTouchStart()"
@@ -561,3 +562,5 @@
         </div>
     </div>
 }
+
+<app-message-context-menu #contextMenu />

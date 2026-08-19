@@ -71,6 +71,10 @@ import {PERSONA_MENTION_SOURCE} from '../../../../guild/personas/persona-mention
 import {INLINE_ATTACHMENT_SOURCE, inlineAttachmentIds} from '../../../inline-attachment';
 import {PersonaAvatarComponent} from '../../../../guild/personas/persona-avatar/persona-avatar.component';
 import {DiceRollCardComponent} from '../../../../guild/dice/dice-roll-card/dice-roll-card.component';
+import {
+    buildMessageMenuItems,
+    MessageContextMenuComponent,
+} from './context-menu/message-context-menu.component';
 import {diceRollFromMessage} from '../../../../guild/dice/dice-roll-view';
 import {rollJustLanded} from '../../../../../services/dice.service';
 
@@ -115,6 +119,7 @@ interface MessageSegment {
         AudioAttachmentComponent,
         PersonaAvatarComponent,
         DiceRollCardComponent,
+        MessageContextMenuComponent,
     ],
     templateUrl: './message.component.html',
     styleUrl: './message.component.css',
@@ -528,6 +533,7 @@ export class MessageComponent {
     private destroyRef = inject(DestroyRef);
     private toast = inject(ToastService);
     private translate = inject(TranslateService);
+    @ViewChild('contextMenu') private contextMenu!: MessageContextMenuComponent;
     /** Read only to pick the wording of the save confirmation. See {@link download}. */
     private capabilities = inject(PlatformCapabilities);
     @ViewChild('editArea') private editAreaRef?: ElementRef<HTMLTextAreaElement>;
@@ -671,6 +677,27 @@ export class MessageComponent {
         if (contentType.includes('zip') || contentType.includes('rar')) return 'text-amber-400';
         if (contentType.startsWith('text/')) return 'text-sky-400';
         return 'text-text-muted';
+    }
+
+    protected onContextMenu(event: MouseEvent): void {
+        this.contextMenu.open(
+            event,
+            buildMessageMenuItems({
+                isOwn: this.isOwn(),
+                canPin: this.canPin(),
+                isPinned: !!this.message().isPinned,
+                canCreateThread: this.canOfferThread(),
+                threadId: this.message().threadId ?? null,
+                label: key => this.translate.instant(key),
+                onReply: () => this.reply.emit(this.message()),
+                onThread: () => this.createThread.emit(this.message()),
+                onCopyText: () => void navigator.clipboard?.writeText(this.displayContent()),
+                onTogglePin: () => this.togglePin(),
+                onEdit: () => this.startEdit(),
+                onDelete: () => this.confirmDelete(),
+                onReport: () => this.reportMessage(),
+            }),
+        );
     }
 
     startEdit(): void {
