@@ -4,6 +4,7 @@ import {ConversationStore} from '../../stores/conversation.store';
 import {ChannelDto, ChannelType, GuildDto} from '../../dtos/response/guild.dto';
 import {GuildFeature, guildHasFeature, hasHouseholdModule} from '../guild/guild-features';
 import {AccountRegistryService, BOOTSTRAP_SLOT_ID} from '../../services/account-registry.service';
+import {VisitedThreadsService} from '../../services/visited-threads.service';
 
 export type WorkspaceContext = {type: 'dms'} | {type: 'server'; guild: GuildDto};
 
@@ -103,6 +104,10 @@ export class NavigationService {
     openThread(thread: ChannelDto): void {
         this.threadPanel.set(thread);
         this.mobileNavOpen.set(false);
+        // Resolved rather than injected, for the same reason ConversationStore is: a direct inject
+        // would drag the realtime connection into every consumer of this service.
+        const parentId = thread.parentChannelId;
+        if (parentId) this.injector.get(VisitedThreadsService).record(parentId, thread.id);
     }
 
     closeThread(): void {

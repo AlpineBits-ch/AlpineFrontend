@@ -1,0 +1,22 @@
+@let rows = threads();
+
+@if (rows.length > 0) {
+    <div class="chan-nest">
+        @for (thread of rows; track thread.id) {
+            @let state = stateOf(thread.id);
+            @let unread = state.isUnread || state.mentionCount > 0;
+
+            <button
+                (click)="open(thread)"
+                [class.is-active]="isOpen(thread.id)"
+                [class.is-unread]="!isOpen(thread.id) && unread"
+                class="chan-row"
+            >
+                <span class="chan-label">{{ thread.name }}</span>
+                @if (state.mentionCount > 0) {
+                    <span class="chan-badge chan-badge-mention">{{ state.mentionCount }}</span>
+                }
+            </button>
+        }
+    </div>
+}

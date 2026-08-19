@@ -5,27 +5,26 @@ import {forumParentOf} from '../features/guild/components/channel/channel-utils'
 const STORAGE_KEY = 'alpine.forum.visitedPosts';
 
 /**
- * How many visited posts a single forum keeps. Small on purpose: these rows exist to get
- * you back to what you were just reading, not to be a history. Unread and mentioned posts
- * are shown regardless and are not counted against this - see selectNestedPosts.
+ * How many visited threads a single parent keeps. Small on purpose: these rows exist to get
+ * you back to what you were just reading, not to be a history. Unread and mentioned threads
+ * are shown regardless and are not counted against this - see selectNestedThreads.
  */
-export const VISITED_POSTS_PER_FORUM = 5;
+export const VISITED_THREADS_PER_PARENT = 5;
 
-/** forumId -> post ids, most recently visited first. */
+/** parentId -> thread ids, most recently visited first. */
 type VisitedMap = Record<string, string[]>;
 
 /**
- * Remembers which forum posts the user has opened, so the sidebar can keep showing them
- * beneath their forum after they have been read.
+ * Remembers which threads the user has opened, so the sidebar can keep showing them beneath
+ * their parent after they have been read. Forum posts and text-channel threads both land here.
  *
- * Recording happens here rather than at the call sites that open a post, because there are
- * four of them - the full-width post list, the narrow pane, a sidebar row, and nav restored
- * from localStorage on reload - and a missed one would silently drop posts from the sidebar.
- * Watching the main view catches all four, including the restore, which no click handler
- * ever runs for.
+ * A forum post is recorded by watching the main view, because there are four ways to open one -
+ * the full-width post list, the narrow pane, a sidebar row, and nav restored from localStorage on
+ * reload - and a missed one would silently drop posts from the sidebar. A text-channel thread opens
+ * in a side panel and never changes the main view, so NavigationService.openThread calls record.
  */
 @Injectable({providedIn: 'root'})
-export class ForumVisitedPostsService {
+export class VisitedThreadsService {
     private navService = inject(NavigationService);
 
     private readonly visited = signal<VisitedMap>(load());
@@ -43,23 +42,26 @@ export class ForumVisitedPostsService {
         });
     }
 
-    /** Most recently visited first. Empty for a forum whose posts have never been opened. */
-    postsFor(forumId: string): readonly string[] {
-        return this.visited()[forumId] ?? [];
+    /** Most recently visited first. Empty for a parent whose threads have never been opened. */
+    threadsFor(parentId: string): readonly string[] {
+        return this.visited()[parentId] ?? [];
     }
 
     /**
-     * Moves a post to the front, evicting the oldest past the cap. Re-visiting the post
+     * Moves a thread to the front, evicting the oldest past the cap. Re-visiting the thread
      * already at the front is a no-op down to object identity, so the effect that calls
      * this on every main-view change doesn't churn the signal on unrelated navigation.
      */
-    private record(forumId: string, postId: string): void {
-        const current = this.visited()[forumId] ?? [];
-        if (current[0] === postId) return;
+    record(parentId: string, threadId: string): void {
+        const current = this.visited()[parentId] ?? [];
+        if (current[0] === threadId) return;
 
-        const next = [postId, ...current.filter(id => id !== postId)].slice(0, VISITED_POSTS_PER_FORUM);
+        const next = [threadId, ...current.filter(id => id !== threadId)].slice(
+            0,
+            VISITED_THREADS_PER_PARENT,
+        );
         this.visited.update(map => {
-            const updated = {...map, [forumId]: next};
+            const updated = {...map, [parentId]: next};
             save(updated);
             return updated;
         });
@@ -69,7 +71,7 @@ export class ForumVisitedPostsService {
 /**
  * A malformed or foreign value reads as "nothing visited yet" rather than throwing -
  * losing these rows is a cosmetic regression, but throwing here would take the sidebar
- * down with it. Entries are shape-checked individually so one bad forum can't discard
+ * down with it. Entries are shape-checked individually so one bad parent can't discard
  * the rest.
  */
 function load(): VisitedMap {
@@ -80,10 +82,10 @@ function load(): VisitedMap {
         if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
 
         const out: VisitedMap = {};
-        for (const [forumId, ids] of Object.entries(parsed as Record<string, unknown>)) {
+        for (const [parentId, ids] of Object.entries(parsed as Record<string, unknown>)) {
             if (!Array.isArray(ids)) continue;
             const clean = ids.filter((id): id is string => typeof id === 'string');
-            if (clean.length) out[forumId] = clean.slice(0, VISITED_POSTS_PER_FORUM);
+            if (clean.length) out[parentId] = clean.slice(0, VISITED_THREADS_PER_PARENT);
         }
         return out;
     } catch {

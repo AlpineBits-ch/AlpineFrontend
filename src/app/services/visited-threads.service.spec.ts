@@ -1,6 +1,6 @@
 import {TestBed} from '@angular/core/testing';
 
-import {ForumVisitedPostsService, VISITED_POSTS_PER_FORUM} from './forum-visited-posts.service';
+import {VisitedThreadsService, VISITED_THREADS_PER_PARENT} from './visited-threads.service';
 import {NavigationService} from '../features/main-page/navigation.service';
 import {ChannelDto, ChannelType, GuildDto} from '../dtos/response/guild.dto';
 import {provideFakePlatform} from '../platform/testing/provide-fake-platform';
@@ -53,7 +53,7 @@ function setup() {
         type: 'server',
         guild: {id: 'g1', channels: [forum, textChannel, ...posts], categories: []} as unknown as GuildDto,
     });
-    return {nav, service: TestBed.inject(ForumVisitedPostsService)};
+    return {nav, service: TestBed.inject(VisitedThreadsService)};
 }
 
 /** Drives the service the only way the app does: by opening something in the main view. */
@@ -62,7 +62,7 @@ function open(nav: NavigationService, channel: ChannelDto) {
     TestBed.tick();
 }
 
-describe('ForumVisitedPostsService', () => {
+describe('VisitedThreadsService', () => {
     beforeEach(() => {
         localStorage.removeItem(STORAGE_KEY);
         TestBed.resetTestingModule();
@@ -73,7 +73,7 @@ describe('ForumVisitedPostsService', () => {
     it('reports nothing for a forum whose posts have never been opened', () => {
         const {service} = setup();
 
-        expect(service.postsFor('f1')).toEqual([]);
+        expect(service.threadsFor('f1')).toEqual([]);
     });
 
     it('records a post once it is open in the main view', () => {
@@ -81,7 +81,7 @@ describe('ForumVisitedPostsService', () => {
 
         open(nav, posts[0]);
 
-        expect(service.postsFor('f1')).toEqual(['p0']);
+        expect(service.threadsFor('f1')).toEqual(['p0']);
     });
 
     /** The effect fires on every main-view change, so it has to tell a forum post from everything else the user opens. */
@@ -91,7 +91,7 @@ describe('ForumVisitedPostsService', () => {
         open(nav, textChannel);
         open(nav, forum);
 
-        expect(service.postsFor('f1')).toEqual([]);
+        expect(service.threadsFor('f1')).toEqual([]);
     });
 
     it('keeps the most recently opened first', () => {
@@ -101,7 +101,7 @@ describe('ForumVisitedPostsService', () => {
         open(nav, posts[1]);
         open(nav, posts[2]);
 
-        expect(service.postsFor('f1')).toEqual(['p2', 'p1', 'p0']);
+        expect(service.threadsFor('f1')).toEqual(['p2', 'p1', 'p0']);
     });
 
     it('moves a re-opened post back to the front rather than duplicating it', () => {
@@ -111,7 +111,7 @@ describe('ForumVisitedPostsService', () => {
         open(nav, posts[1]);
         open(nav, posts[0]);
 
-        expect(service.postsFor('f1')).toEqual(['p0', 'p1']);
+        expect(service.threadsFor('f1')).toEqual(['p0', 'p1']);
     });
 
     it('evicts the oldest past the cap', () => {
@@ -119,8 +119,8 @@ describe('ForumVisitedPostsService', () => {
 
         for (const p of posts) open(nav, p);
 
-        const kept = service.postsFor('f1');
-        expect(kept.length).toBe(VISITED_POSTS_PER_FORUM);
+        const kept = service.threadsFor('f1');
+        expect(kept.length).toBe(VISITED_THREADS_PER_PARENT);
         expect(kept[0]).toBe('p7');
         expect(kept).not.toContain('p0');
     });
@@ -133,7 +133,7 @@ describe('ForumVisitedPostsService', () => {
         TestBed.resetTestingModule();
         const second = setup();
 
-        expect(second.service.postsFor('f1')).toEqual(['p4', 'p3']);
+        expect(second.service.threadsFor('f1')).toEqual(['p4', 'p3']);
     });
 
     /** Losing these rows is cosmetic; taking the sidebar down over a bad string is not. */
@@ -142,7 +142,7 @@ describe('ForumVisitedPostsService', () => {
 
         const {service} = setup();
 
-        expect(service.postsFor('f1')).toEqual([]);
+        expect(service.threadsFor('f1')).toEqual([]);
     });
 
     it('discards malformed entries without losing the well-formed ones', () => {
@@ -157,8 +157,8 @@ describe('ForumVisitedPostsService', () => {
 
         const {service} = setup();
 
-        expect(service.postsFor('f1')).toEqual(['good1', 'good2']);
-        expect(service.postsFor('f2')).toEqual([]);
-        expect(service.postsFor('f3')).toEqual(['other']);
+        expect(service.threadsFor('f1')).toEqual(['good1', 'good2']);
+        expect(service.threadsFor('f2')).toEqual([]);
+        expect(service.threadsFor('f3')).toEqual(['other']);
     });
 });

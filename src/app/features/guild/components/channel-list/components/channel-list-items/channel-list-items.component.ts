@@ -1,11 +1,14 @@
-import {Component, inject, input, output} from '@angular/core';
+import {Component, computed, inject, input, output} from '@angular/core';
 import {ChannelDto, ChannelType, isForumLike} from '../../../../../../dtos/response/guild.dto';
 import {ForumPostRowsComponent} from '../forum-post-rows/forum-post-rows.component';
+import {ThreadRowsComponent} from '../thread-rows/thread-rows.component';
 import {ChannelListDragService} from '../../channel-list-drag.service';
 import {ChannelMenuRequest, ParticipantMenuRequest} from '../channel-item.types';
 import {ChannelDropIndicatorComponent} from '../channel-drop-indicator/channel-drop-indicator.component';
 import {TextChannelItemComponent} from '../text-channel-item/text-channel-item.component';
 import {VoiceChannelItemComponent} from '../voice-channel-item/voice-channel-item.component';
+import {NavigationService} from '../../../../../main-page/navigation.service';
+import {GuildFeature, guildHasFeature} from '../../../../guild-features';
 
 /**
  * Renders an ordered run of channel rows (uncategorized section or the body of a
@@ -19,6 +22,7 @@ import {VoiceChannelItemComponent} from '../voice-channel-item/voice-channel-ite
         TextChannelItemComponent,
         VoiceChannelItemComponent,
         ForumPostRowsComponent,
+        ThreadRowsComponent,
     ],
     templateUrl: './channel-list-items.component.html',
 })
@@ -38,4 +42,11 @@ export class ChannelListItemsComponent {
     protected readonly ChannelType = ChannelType;
     protected readonly isForumLike = isForumLike;
     protected drag = inject(ChannelListDragService);
+    private navService = inject(NavigationService);
+
+    /** Threads are a module: with it off the nested rows are absent, not empty. */
+    protected readonly hasThreads = computed(() => {
+        const ws = this.navService.workspace();
+        return ws.type === 'server' && guildHasFeature(ws.guild, GuildFeature.Threads);
+    });
 }

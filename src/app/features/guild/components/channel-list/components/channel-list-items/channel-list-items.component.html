@@ -26,6 +26,11 @@
         @if (isForumLike(channel.type)) {
             <app-forum-post-rows [forum]="channel" />
         }
+
+        <!-- Same idea one level along: the threads started from messages in a text channel. -->
+        @if (channel.type === ChannelType.Text && hasThreads()) {
+            <app-thread-rows [parent]="channel" />
+        }
     }
 
     @if (drag.dropTargetId() === channel.id && drag.dropPos() === 'after') {

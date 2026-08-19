@@ -1,9 +1,9 @@
 import {ChangeDetectionStrategy, Component, computed, inject, input} from '@angular/core';
 import {ChannelDto} from '../../../../../../dtos/response/guild.dto';
 import {GuildReadStateService} from '../../../../../../services/guild-read-state.service';
-import {ForumVisitedPostsService} from '../../../../../../services/forum-visited-posts.service';
+import {VisitedThreadsService} from '../../../../../../services/visited-threads.service';
 import {NavigationService} from '../../../../../main-page/navigation.service';
-import {selectNestedPosts} from './forum-post-rows.util';
+import {selectNestedThreads} from './nested-thread-rows.util';
 
 /**
  * The posts hanging beneath a forum in the sidebar: the ones you were just reading, and the ones with something waiting in them. Renders nothing for a forum with neither.
@@ -20,7 +20,7 @@ export class ForumPostRowsComponent {
 
     private navService = inject(NavigationService);
     private readStateService = inject(GuildReadStateService);
-    private visitedService = inject(ForumVisitedPostsService);
+    private visitedService = inject(VisitedThreadsService);
 
     /** Posts arrive in the guild payload alongside top-level channels (the sidebar filters them out of its own rows), so the whole list is already here and needs no fetch. */
     private readonly allChannels = computed(() => {
@@ -29,10 +29,10 @@ export class ForumPostRowsComponent {
     });
 
     protected readonly posts = computed(() =>
-        selectNestedPosts(
+        selectNestedThreads(
             this.forum().id,
             this.allChannels(),
-            this.visitedService.postsFor(this.forum().id),
+            this.visitedService.threadsFor(this.forum().id),
             id => this.readStateService.getChannelState(id),
         ),
     );

@@ -1,6 +1,6 @@
 import {ChannelDto, ChannelType} from '../../../../../../dtos/response/guild.dto';
 import {ChannelReadState} from '../../../../../../services/guild-read-state.service';
-import {MAX_NESTED_POST_ROWS, selectNestedPosts} from './forum-post-rows.util';
+import {MAX_NESTED_THREAD_ROWS, selectNestedThreads} from './nested-thread-rows.util';
 
 function post(over: Partial<ChannelDto> & {id: string}): ChannelDto {
     return {
@@ -32,17 +32,17 @@ function reader(states: Record<string, Partial<ChannelReadState>>) {
 
 const quiet = reader({});
 
-describe('selectNestedPosts', () => {
+describe('selectNestedThreads', () => {
     it('returns nothing for a forum whose posts are neither visited nor active', () => {
         const all = [post({id: 'p1'}), post({id: 'p2'})];
 
-        expect(selectNestedPosts('f1', all, [], quiet)).toEqual([]);
+        expect(selectNestedThreads('f1', all, [], quiet)).toEqual([]);
     });
 
     it('ignores posts belonging to another forum', () => {
         const all = [post({id: 'mine'}), post({id: 'theirs', parentChannelId: 'f2'})];
 
-        const rows = selectNestedPosts('f1', all, ['mine', 'theirs'], quiet);
+        const rows = selectNestedThreads('f1', all, ['mine', 'theirs'], quiet);
 
         expect(rows.map(p => p.id)).toEqual(['mine']);
     });
@@ -56,7 +56,7 @@ describe('selectNestedPosts', () => {
         ];
         const read = reader({unread: {isUnread: true}, mentioned: {mentionCount: 2}});
 
-        const rows = selectNestedPosts('f1', all, ['visited'], read);
+        const rows = selectNestedThreads('f1', all, ['visited'], read);
 
         expect(rows.map(p => p.id).sort()).toEqual(['mentioned', 'unread', 'visited']);
     });
@@ -66,14 +66,14 @@ describe('selectNestedPosts', () => {
         const all = [post({id: 'gone', isArchived: true})];
         const read = reader({gone: {isUnread: true, mentionCount: 3}});
 
-        expect(selectNestedPosts('f1', all, ['gone'], read)).toEqual([]);
+        expect(selectNestedThreads('f1', all, ['gone'], read)).toEqual([]);
     });
 
     it('orders mentioned before unread before visited', () => {
         const all = [post({id: 'visited'}), post({id: 'unread'}), post({id: 'mentioned'})];
         const read = reader({unread: {isUnread: true}, mentioned: {mentionCount: 1}});
 
-        const rows = selectNestedPosts('f1', all, ['visited'], read);
+        const rows = selectNestedThreads('f1', all, ['visited'], read);
 
         expect(rows.map(p => p.id)).toEqual(['mentioned', 'unread', 'visited']);
     });
@@ -85,7 +85,7 @@ describe('selectNestedPosts', () => {
             post({id: 'middle', lastActivityAt: '2026-07-15T00:00:00Z'}),
         ];
 
-        const rows = selectNestedPosts('f1', all, ['older', 'newest', 'middle'], quiet);
+        const rows = selectNestedThreads('f1', all, ['older', 'newest', 'middle'], quiet);
 
         expect(rows.map(p => p.id)).toEqual(['newest', 'middle', 'older']);
     });
@@ -97,7 +97,7 @@ describe('selectNestedPosts', () => {
             post({id: 'older', createdAt: new Date('2026-07-02T00:00:00Z')}),
         ];
 
-        const rows = selectNestedPosts('f1', all, ['newer', 'older'], quiet);
+        const rows = selectNestedThreads('f1', all, ['newer', 'older'], quiet);
 
         expect(rows.map(p => p.id)).toEqual(['newer', 'older']);
     });
@@ -111,15 +111,37 @@ describe('selectNestedPosts', () => {
         ];
         const read = reader({mentioned: {mentionCount: 1}});
 
-        const rows = selectNestedPosts(
+        const rows = selectNestedThreads(
             'f1',
             all,
             all.map(p => p.id),
             read,
         );
 
-        expect(rows.length).toBe(MAX_NESTED_POST_ROWS);
+        expect(rows.length).toBe(MAX_NESTED_THREAD_ROWS);
         // Oldest of the lot, but the only one that named the user; it must survive the cut.
         expect(rows[0].id).toBe('mentioned');
+    });
+});
+
+describe('selectNestedThreads under a text channel', () => {
+    it('nests threads under a text parent the same way it nests posts under a forum', () => {
+        const all = [
+            post({id: 't1', parentChannelId: 'chan_text'}),
+            post({id: 't2', parentChannelId: 'other'}),
+            post({id: 't3', parentChannelId: 'chan_text', isArchived: true}),
+        ];
+
+        const rows = selectNestedThreads('chan_text', all, ['t1', 't3'], quiet);
+
+        expect(rows.map(t => t.id)).toEqual(['t1']);
+    });
+
+    it('raises an unread thread the reader has never opened', () => {
+        const all = [post({id: 't1', parentChannelId: 'chan_text'})];
+
+        const rows = selectNestedThreads('chan_text', all, [], reader({t1: {isUnread: true}}));
+
+        expect(rows.map(t => t.id)).toEqual(['t1']);
     });
 });
