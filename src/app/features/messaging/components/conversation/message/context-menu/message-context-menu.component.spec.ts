@@ -1,7 +1,7 @@
 import {describe, expect, it} from 'vitest';
 import {buildMessageMenuItems, MessageMenuAbilities} from './message-context-menu.component';
 
-function abilities(overrides: Partial<MessageMenuAbilities> = {}): MessageMenuAbilities {
+function abilities(): MessageMenuAbilities {
     return {
         isOwn: false,
         canPin: false,

@@ -1,4 +1,4 @@
-import {ChangeDetectionStrategy, Component, ViewChild} from '@angular/core';
+import {ChangeDetectionStrategy, Component, viewChild} from '@angular/core';
 import {MenuItem} from 'primeng/api';
 import {Menu} from 'primeng/menu';
 
@@ -57,11 +57,12 @@ export function buildMessageMenuItems(a: MessageMenuAbilities): MenuItem[] {
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class MessageContextMenuComponent {
-    @ViewChild('menu') private menu!: Menu;
+    private readonly menu = viewChild.required<Menu>('menu');
 
     open(event: MouseEvent, items: MenuItem[]): void {
         event.preventDefault();
-        this.menu.model = items;
-        this.menu.show(event);
+        const menu = this.menu();
+        menu.model = items;
+        menu.show(event);
     }
 }

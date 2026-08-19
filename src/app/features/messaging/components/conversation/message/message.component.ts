@@ -11,6 +11,7 @@ import {
     output,
     signal,
     untracked,
+    viewChild,
     ViewChild,
 } from '@angular/core';
 import {takeUntilDestroyed, toObservable, toSignal} from '@angular/core/rxjs-interop';
@@ -533,7 +534,7 @@ export class MessageComponent {
     private destroyRef = inject(DestroyRef);
     private toast = inject(ToastService);
     private translate = inject(TranslateService);
-    @ViewChild('contextMenu') private contextMenu!: MessageContextMenuComponent;
+    private readonly contextMenu = viewChild.required<MessageContextMenuComponent>('contextMenu');
     /** Read only to pick the wording of the save confirmation. See {@link download}. */
     private capabilities = inject(PlatformCapabilities);
     @ViewChild('editArea') private editAreaRef?: ElementRef<HTMLTextAreaElement>;
@@ -680,7 +681,7 @@ export class MessageComponent {
     }
 
     protected onContextMenu(event: MouseEvent): void {
-        this.contextMenu.open(
+        this.contextMenu().open(
             event,
             buildMessageMenuItems({
                 isOwn: this.isOwn(),
