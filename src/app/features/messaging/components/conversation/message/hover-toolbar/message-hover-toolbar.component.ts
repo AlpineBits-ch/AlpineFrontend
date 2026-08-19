@@ -16,6 +16,8 @@ export class MessageHoverToolbarComponent {
     readonly guildId = input<string | undefined>();
     readonly canPublish = input<boolean>(false);
     readonly isPublished = input<boolean>(false);
+    readonly canCreateThread = input<boolean>(false);
+    readonly threadId = input<string | null>(null);
 
     reply = output<void>();
     edit = output<void>();
@@ -23,6 +25,7 @@ export class MessageHoverToolbarComponent {
     report = output<void>();
     emojiToggled = output<EmojiSelection>();
     pinToggled = output<void>();
+    createThread = output<void>();
     publish = output<void>();
 
     readonly quickReactions = ['👍', '❤️', '😂'];

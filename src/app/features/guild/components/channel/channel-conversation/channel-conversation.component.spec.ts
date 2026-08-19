@@ -140,7 +140,9 @@ async function setup(sendResult: 'ok' | 'fail' | 'automod' = 'ok', entities: Mes
         }),
     };
     const guildWs = {
+        threadCreatedObservable: new Subject<unknown>(),
         threadUpdatedObservable: new Subject<unknown>(),
+        messageThreadAttachedObservable: new Subject<unknown>(),
         updateLastReadMessageByChannel: vi.fn(async () => {}),
         invokeStartTyping: vi.fn(),
     };

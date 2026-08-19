@@ -1,0 +1,57 @@
+<p-dialog
+    (visibleChange)="visible.set($event)"
+    [draggable]="false"
+    [modal]="true"
+    [resizable]="false"
+    [style]="{width: '26rem'}"
+    [visible]="visible()"
+    appendTo="body"
+>
+    <ng-template pTemplate="header">
+        <span class="text-sm font-semibold text-text-primary">{{ 'THREAD.DIALOG_TITLE' | translate }}</span>
+    </ng-template>
+
+    <div class="flex flex-col gap-3">
+        @if (starter(); as message) {
+            <div class="rounded-lg border border-white/[0.07] bg-white/[0.03] px-3 py-2">
+                <p class="text-[0.6875rem] text-text-muted m-0 mb-1">{{ 'MESSAGE.REPLY_ORIGINAL' | translate }}</p>
+                <p class="text-xs text-text-secondary m-0 line-clamp-2 break-words">{{ starterPreview() }}</p>
+            </div>
+        }
+
+        <label class="flex flex-col gap-1.5">
+            <span class="text-[0.6875rem] font-semibold text-text-muted uppercase tracking-wider">
+                {{ 'THREAD.NAME_LABEL' | translate }}
+            </span>
+            <input
+                (keydown.enter)="submit()"
+                (ngModelChange)="name.set($event)"
+                [ngModel]="name()"
+                [placeholder]="'THREAD.NAME_PLACEHOLDER' | translate"
+                autofocus
+                maxlength="100"
+                pInputText
+                type="text"
+            />
+        </label>
+
+        <textarea
+            (ngModelChange)="firstMessage.set($event)"
+            [ngModel]="firstMessage()"
+            [placeholder]="'THREAD.FIRST_MESSAGE_PLACEHOLDER' | translate"
+            class="w-full resize-none rounded-lg border border-white/[0.07] bg-white/[0.03] px-3 py-2 text-sm text-text-primary placeholder-white/25 outline-none focus:border-white/20 transition-colors"
+            rows="3"
+        ></textarea>
+    </div>
+
+    <ng-template pTemplate="footer">
+        <p-button (onClick)="visible.set(false)" [label]="'COMMON.CANCEL' | translate" [text]="true" severity="secondary" />
+        <p-button
+            (onClick)="submit()"
+            [disabled]="!name().trim()"
+            [label]="'THREAD.CREATE' | translate"
+            [loading]="submitting()"
+            severity="primary"
+        />
+    </ng-template>
+</p-dialog>

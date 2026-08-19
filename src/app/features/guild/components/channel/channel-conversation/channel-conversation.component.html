@@ -95,7 +95,9 @@
                                         [guildRoles]="guildRoles()"
                                         [isGrouped]="row.isGrouped"
                                         [message]="row.message"
+                                        [canCreateThread]="canCreateThreads()"
                                         [channelType]="channel().type"
+                                        (createThread)="onCreateThread($event)"
                                     ></app-message>
                                 }
                             </div>
@@ -181,3 +183,10 @@
         ></app-composer>
     }
 </footer>
+
+<app-create-thread-dialog
+    (created)="openThreadById($event)"
+    [(visible)]="showCreateThread"
+    [channelId]="channel().id"
+    [starter]="threadStarter()"
+/>

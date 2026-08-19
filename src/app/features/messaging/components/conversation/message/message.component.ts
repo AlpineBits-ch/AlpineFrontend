@@ -145,7 +145,10 @@ export class MessageComponent {
     /** `DeleteAnyMessage` in this channel - the one permission that may dismiss someone else's preview. */
     public readonly canDeleteAnyMessage = input<boolean>(false);
     public readonly channelType = input<ChannelType | undefined>();
+    /** Resolved by the host, which is the only thing that knows the channel's encryption and this member's permissions. */
+    public readonly canCreateThread = input<boolean>(false);
     public reply = output<MessageDto>();
+    public createThread = output<MessageDto>();
     public jumpTo = output<string>();
 
     // ── In character ─────────────────────────────────────────────────────────
@@ -413,6 +416,14 @@ export class MessageComponent {
     protected readonly canPublish = computed(
         () => this.channelType() === ChannelType.Announcement && this.canPin(),
     );
+    /** A thread needs something the server can point at, so nothing optimistic or synthetic qualifies. */
+    protected readonly canOfferThread = computed(() => {
+        const message = this.message();
+        if (!this.canCreateThread()) return false;
+        if (message.isPending || message.isFailed || message.isEphemeral) return false;
+        if (message.isBotCommandPlaceholder) return false;
+        return message.type === MessageType.Message || message.type === MessageType.DiceRoll;
+    });
     protected readonly published = signal(false);
     protected readonly publishing = signal(false);
     readonly longPressMenu = signal(false);

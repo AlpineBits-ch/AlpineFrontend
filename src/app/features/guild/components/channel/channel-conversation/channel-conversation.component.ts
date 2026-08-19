@@ -15,7 +15,7 @@ import {
 import {HttpErrorResponse} from '@angular/common/http';
 import {catchError, EMPTY, firstValueFrom, from, tap} from 'rxjs';
 
-import {ChannelDto} from '../../../../../dtos/response/guild.dto';
+import {ChannelDto, ChannelType} from '../../../../../dtos/response/guild.dto';
 import {MessageDto} from '../../../../../dtos/response/message.dto';
 import {SelfGuildMemberDto} from '../../../../../dtos/response/member.dto';
 import {MessageEncryptionState} from '../../../../../enums/message-encryption-state.enum';
@@ -58,6 +58,7 @@ import {GuildReadStateService} from '../../../../../services/guild-read-state.se
 import {TypingService} from '../../../../../services/typing.service';
 import {BotCommandService} from '../../../../../services/bot-command.service';
 import {ToastService} from '../../../../../services/toast.service';
+import {ThreadRegistryService} from '../../../../../services/thread-registry.service';
 
 import {ComposerComponent} from '../../../../messaging/components/conversation/composer/composer.component';
 import {NavigationService} from '../../../../main-page/navigation.service';
@@ -66,6 +67,7 @@ import {SystemMessageComponent} from '../../../../messaging/components/conversat
 import {DateDividerComponent} from '../../../../messaging/components/conversation/date-divider/date-divider.component';
 import {TypingDotsComponent} from '../../../../../components/typing-dots/typing-dots.component';
 import {JumpToPresentComponent} from '../../../../../components/jump-to-present/jump-to-present.component';
+import {CreateThreadDialogComponent} from '../create-thread-dialog/create-thread-dialog.component';
 
 const SCROLL_BOTTOM_THRESHOLD = 100;
 const LOAD_MORE_THRESHOLD = 400;
@@ -86,6 +88,7 @@ const SMOOTH_JUMP_DISTANCE = 600;
         MlsUnreadableBannerComponent,
         JumpToPresentComponent,
         SceneConclusionComponent,
+        CreateThreadDialogComponent,
         TranslateModule,
     ],
     templateUrl: './channel-conversation.component.html',
@@ -200,6 +203,22 @@ export class ChannelConversationComponent implements AfterViewInit {
             hasPermission(this.threadPermissions(), Permissions.DeleteAnyMessage),
     );
 
+    /** Hidden, not disabled: a thread off an encrypted channel would be created in the clear. */
+    protected readonly canCreateThreads = computed(() => {
+        const ws = this.navService.workspace();
+        if (ws.type !== 'server') return false;
+        if (!guildHasFeature(ws.guild, GuildFeature.Threads)) return false;
+        if (this.channel().type !== ChannelType.Text) return false;
+        if (this.encryptionState() !== 'plain') return false;
+        const perms = this.threadPermissions();
+        return (
+            hasPermission(perms, Permissions.Superadmin) || hasPermission(perms, Permissions.CreateThreads)
+        );
+    });
+
+    protected readonly threadStarter = signal<MessageDto | null>(null);
+    protected readonly showCreateThread = signal(false);
+
     private readonly threadPermissions = computed(() => {
         const member = this.ownMember();
         if (!member) return 0n;
@@ -237,6 +256,7 @@ export class ChannelConversationComponent implements AfterViewInit {
     private typingService = inject(TypingService);
     private toastService = inject(ToastService);
     private translate = inject(TranslateService);
+    private threadRegistry = inject(ThreadRegistryService);
 
     protected readonly typingText = computed(() => {
         const ownId = this.profileService.ownProfile()?.userId;
@@ -636,6 +656,32 @@ export class ChannelConversationComponent implements AfterViewInit {
 
     protected onCancelReply(): void {
         this.replyingTo.set(null);
+    }
+
+    protected onCreateThread(message: MessageDto): void {
+        const existing = message.threadId;
+        if (existing) {
+            this.openThreadById(existing);
+            return;
+        }
+        this.threadStarter.set(message);
+        this.showCreateThread.set(true);
+    }
+
+    /** The registry answers from the guild payload where it can, so the panel usually opens without a round trip. */
+    protected openThreadById(threadId: string): void {
+        const held = this.threadRegistry.thread(threadId);
+        if (held) {
+            this.navService.openThread(held);
+            return;
+        }
+        this.guildService.getChannel(threadId).subscribe({
+            next: thread => {
+                this.threadRegistry.upsert(thread);
+                this.navService.openThread(thread);
+            },
+            error: err => this.toastService.httpError(this.translate.instant('THREAD.CREATE_ERROR'), err),
+        });
     }
 
     protected onTyping(): void {

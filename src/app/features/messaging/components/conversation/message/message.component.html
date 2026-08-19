@@ -172,6 +172,9 @@
                 [canPublish]="canPublish()"
                 [isPublished]="published() || publishing()"
                 (publish)="publish()"
+                [canCreateThread]="canOfferThread()"
+                [threadId]="message().threadId ?? null"
+                (createThread)="createThread.emit(message())"
             />
         }
 
