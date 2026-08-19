@@ -41,6 +41,10 @@ Threads already arrive in the guild payload alongside channels: `channel-list` f
 So the card and the sidebar read `guild.channels` first and call `getChannel` only when the id is
 not there yet, which is the window between a `ThreadCreated` event and the next guild refresh.
 
+That lookup is a service, `ThreadRegistryService`, rather than the same three lines at each call
+site. Whether a text-channel thread arrives in the payload the way a forum post does is unverified
+against a live server, so exactly one file should absorb the answer either way.
+
 ## B. Phase 0, extraction
 
 `channel.component` is 903 TS + 447 HTML and holds the message list, scroll machinery,
