@@ -146,6 +146,8 @@ export const EmbedFlags = {
 export const MessageFlags = {
     /** Bit 2: a person removed this message's previews, for everyone who can see it. */
     SuppressEmbeds: 1 << 2,
+    /** Bit 5: derived server-side from threadId, so the two can never disagree. */
+    HasThread: 1 << 5,
 } as const;
 
 export interface MessageDto {
@@ -197,6 +199,8 @@ export interface MessageDto {
     editedAt?: string | null;
     /** Message bitfield; see {@link MessageFlags}. */
     flags?: number;
+    /** The thread started from this message, or null. */
+    threadId?: string | null;
     systemMessageVariant?: number;
     isPinned?: boolean;
     pinnedAt?: string;

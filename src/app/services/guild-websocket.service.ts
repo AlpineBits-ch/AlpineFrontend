@@ -505,6 +505,15 @@ export interface WsThreadUpdated {
     isArchived?: boolean;
 }
 
+/** Redraw the one message named here. Separate from ThreadCreated, which only says a thread exists. */
+export interface WsMessageThreadAttached {
+    channelId: string;
+    guildId: string;
+    messageId: string;
+    threadId: string;
+    name: string;
+}
+
 export interface WsForumTagEvent {
     guildId: string;
     channelId: string;
@@ -957,6 +966,7 @@ export class GuildWebsocketService {
     public channelUpdatedObservable = new Subject<WsChannelUpdated>();
     public threadCreatedObservable = new Subject<WsThreadCreated>();
     public threadUpdatedObservable = new Subject<WsThreadUpdated>();
+    public messageThreadAttachedObservable = new Subject<WsMessageThreadAttached>();
     // ── Forums ──────────────────────────────────────────────────────────────────
     public forumTagCreatedObservable = new Subject<WsForumTagEvent>();
     public forumTagUpdatedObservable = new Subject<WsForumTagEvent>();
@@ -1228,6 +1238,9 @@ export class GuildWebsocketService {
         );
         this.realtime.on('guild.ThreadCreated', (d: WsThreadCreated) => this.threadCreatedObservable.next(d));
         this.realtime.on('guild.ThreadUpdated', (d: WsThreadUpdated) => this.threadUpdatedObservable.next(d));
+        this.realtime.on('guild.MessageThreadAttached', (d: WsMessageThreadAttached) =>
+            this.messageThreadAttachedObservable.next(d),
+        );
         this.realtime.on('guild.ForumTagCreated', (d: WsForumTagEvent) =>
             this.forumTagCreatedObservable.next(d),
         );

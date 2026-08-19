@@ -49,6 +49,8 @@ export interface ChannelDto {
     // ── Thread-only, additive. Absent on non-thread channels and on threads
     // created before the forum-parity deploy. ───────────────────────────────
     createdByUserId?: string;
+    /** The message this thread was started from. Absent on forum posts and plain threads. */
+    starterMessageId?: string;
     tagIds?: string[];
     isPinned?: boolean;
     isLocked?: boolean;

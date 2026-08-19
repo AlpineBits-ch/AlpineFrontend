@@ -769,8 +769,24 @@ export class GuildService {
         return this.http.post<ChannelDto>(`${this.base}/channels/${channelId}/threads`, dto);
     }
 
+    /** Started from a specific message. A 409 means the message already has one; the body is `{threadId}`. */
+    createThreadFromMessage(
+        channelId: string,
+        messageId: string,
+        dto: CreateThreadDto,
+    ): Observable<ChannelDto> {
+        return this.http.post<ChannelDto>(
+            `${this.base}/channels/${channelId}/messages/${messageId}/threads`,
+            dto,
+        );
+    }
+
     getThreads(channelId: string): Observable<ChannelDto[]> {
         return this.http.get<ChannelDto[]>(`${this.base}/channels/${channelId}/threads`);
+    }
+
+    getChannel(channelId: string): Observable<ChannelDto> {
+        return this.http.get<ChannelDto>(`${this.base}/channels/${channelId}`);
     }
 
     archiveThread(threadId: string): Observable<void> {
