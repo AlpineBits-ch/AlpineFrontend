@@ -1,0 +1,183 @@
+<div class="relative flex-1 min-h-0 flex flex-col">
+    @if (showMessages()) {
+        @if (loadError(); as errCode) {
+            <!-- Load error state -->
+            <div class="flex-1 min-h-0 flex flex-col items-center justify-center px-8 gap-4 select-none">
+                @if (errCode === 403) {
+                    <div class="w-16 h-16 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center shrink-0">
+                        <i class="pi pi-lock text-2xl text-rose-400/70"></i>
+                    </div>
+                    <div class="flex flex-col items-center gap-1 text-center">
+                        <p class="text-sm font-semibold text-text-primary m-0">Permission denied</p>
+                        <p class="text-xs text-text-muted m-0 max-w-xs leading-relaxed">
+                            You don't have access to this channel. Ask someone with the right permissions to let you in.
+                        </p>
+                    </div>
+                } @else {
+                    <div class="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shrink-0">
+                        <i class="pi pi-server text-2xl text-amber-400/70"></i>
+                    </div>
+                    <div class="flex flex-col items-center gap-1 text-center">
+                        <p class="text-sm font-semibold text-text-primary m-0">The server had a moment</p>
+                        <p class="text-xs text-text-muted m-0 max-w-xs leading-relaxed">
+                            Our backend tripped over its own shoelaces ({{ errCode || '???' }}). It's probably fine. Maybe.
+                        </p>
+                    </div>
+                    <button
+                        (click)="retryLoad()"
+                        class="mt-1 px-4 py-1.5 rounded-lg bg-white/[0.06] border border-white/[0.08] text-xs text-text-secondary hover:bg-white/[0.10] hover:text-text-primary transition-colors cursor-pointer"
+                    >
+                        Try again
+                    </button>
+                }
+            </div>
+        } @else {
+            <!-- Messages scroll container -->
+            <div
+                #messageScroll
+                (scroll)="onScroll()"
+                class="flex-1 min-h-0 overflow-y-auto"
+                style="scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.08) transparent"
+            >
+                <div #messageList data-testid="message-list" class="flex flex-col justify-end min-h-full px-4">
+                    <!-- Loading older messages indicator -->
+                    @if (loadingMore()) {
+                        <div class="flex items-center justify-center py-3 gap-2 text-text-muted text-xs">
+                            <i class="pi pi-spinner pi-spin text-xs"></i>
+                            Loading older messages…
+                        </div>
+                    } @else if (!hasMore() && variant() === 'main') {
+                        <!-- Channel start; only show when all history is loaded -->
+                        <div class="py-8 flex flex-col items-start gap-2">
+                            <div class="w-16 h-16 rounded-2xl bg-white/[0.05] border border-white/[0.06] flex items-center justify-center">
+                                <span class="text-3xl font-bold text-text-faint leading-none">#</span>
+                            </div>
+                            <h2 class="text-2xl font-bold text-text-primary mt-3">Welcome to #{{ channel().name }}!</h2>
+                            <p class="text-sm text-text-muted max-w-md leading-relaxed">
+                                This is the beginning of the <span class="text-text-secondary">#{{ channel().name }}</span>
+                                channel.
+                                @if (channel().description) {
+                                    {{ channel().description }}
+                                }
+                            </p>
+                            <!-- The first day's divider closes the intro off. Only an empty channel needs its own rule. -->
+                            @if (!messageRows().length) {
+                                <hr class="w-full border-t border-white/[0.06] mt-4" />
+                            }
+                        </div>
+                    }
+
+                    <!-- Messages list -->
+                    <div class="flex flex-col gap-0.5 pb-4">
+                        @for (row of messageRows(); track row.message.id) {
+                            @if (row.daySeparator; as separator) {
+                                <app-date-divider [separator]="separator" />
+                            }
+                            <!-- data-message-state distinguishes sent/pending/failed; all three render the same text otherwise. -->
+                            <div
+                                data-testid="message-item"
+                                [attr.data-message-id]="row.message.id"
+                                [attr.data-message-state]="row.message.isFailed ? 'failed' : row.message.isPending ? 'pending' : 'sent'"
+                            >
+                                @if (
+                                    row.message.type === MessageType.GuildMemberJoin || row.message.type === MessageType.GuildMemberLeave
+                                ) {
+                                    <app-system-message [message]="row.message" />
+                                } @else {
+                                    <app-message
+                                        (jumpTo)="jumpToMessage($event)"
+                                        (reply)="onReply($event)"
+                                        [canDeleteAnyMessage]="canDeleteAnyMessage()"
+                                        [canPinMessages]="canPinMessages()"
+                                        [guildBots]="botCommandService.currentGuildBots()"
+                                        [guildChannels]="guildChannels()"
+                                        [guildId]="guildId()"
+                                        [guildRoles]="guildRoles()"
+                                        [isGrouped]="row.isGrouped"
+                                        [message]="row.message"
+                                        [channelType]="channel().type"
+                                    ></app-message>
+                                }
+                            </div>
+                        }
+
+                        <!-- The end of a scene is the last page of a chapter, so it is set as one. -->
+                        @if (concludedScene(); as ended) {
+                            <app-scene-conclusion [scene]="ended" />
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+    }
+    <!-- Overlay stack is absolutely positioned so it sits on top of the message list instead of adding flow height. -->
+    <div class="absolute bottom-0 left-0 right-0 z-20 flex flex-col pointer-events-none">
+        @if (isViewingOlder() && showMessages() && !loadError()) {
+            <div class="flex justify-center px-4 pb-1.5">
+                <app-jump-to-present (jump)="jumpToPresent()" class="pointer-events-auto" />
+            </div>
+        }
+        @if (typingText(); as text) {
+            <div class="px-5 pb-1 pt-0.5 flex items-center gap-2 text-text-muted text-xs select-none bg-app-bg">
+                <app-typing-dots />
+                {{ text }}
+            </div>
+        }
+    </div>
+</div>
+
+<!-- Composer -->
+<footer class="shrink-0">
+    <!-- Says why this device cannot read or send here, including when the server reports the channel unencrypted after this device saw it encrypted: the composer refuses outright rather than downgrading. -->
+    <!-- accessOfferedElsewhere: app-channel-access-banner below already covers a device holding no group, so this doesn't duplicate that notice. -->
+    <app-mls-unreadable-banner
+        (relink)="relinkDevice()"
+        [accessOfferedElsewhere]="isLockedOut()"
+        [contextId]="channel().id"
+        [isChannel]="true"
+        [status]="relinkStatus()"
+    />
+    @if (autoModError(); as reason) {
+        <div
+            class="mx-4 mb-2 flex items-center gap-2 rounded-md border border-offline/40 bg-[color-mix(in_srgb,var(--color-offline)_12%,transparent)] px-3 py-2"
+        >
+            <i class="pi pi-ban text-offline text-[0.875rem]"></i>
+            <span class="text-[0.8125rem] text-text-secondary">
+                {{ (reason === 'rate_limited' ? 'COMPOSER.AUTOMOD_RATE_LIMITED' : 'COMPOSER.AUTOMOD_BLOCKED_WORD') | translate }}
+            </span>
+            <button type="button" class="ml-auto text-text-muted hover:text-text-primary" (click)="autoModError.set(null)">
+                <i class="pi pi-times text-[0.75rem]"></i>
+            </button>
+        </div>
+    }
+    @if (locked()) {
+        <!-- A locked post stays fully readable; only the composer goes away. -->
+        <div class="mx-4 mb-4 flex items-center gap-2.5 rounded-xl border border-border-subtle bg-card/60 px-4 py-3">
+            <i class="pi pi-lock text-connecting text-[0.875rem] shrink-0"></i>
+            <div class="min-w-0">
+                <p class="text-[0.8125rem] text-text-primary m-0">{{ 'FORUM.LOCKED_TITLE' | translate }}</p>
+                <p class="text-xs text-text-muted m-0 mt-0.5">{{ 'FORUM.LOCKED_DESC' | translate }}</p>
+            </div>
+        </div>
+    } @else if (isLockedOut()) {
+        <!-- Offering a composer here would only produce sends the server refuses: this device holds no group, so it has nothing to encrypt with. -->
+        <app-channel-access-banner [channelId]="channel().id" />
+    } @else {
+        <app-composer
+            (cancelReply)="onCancelReply()"
+            (message)="createMessage($event)"
+            (typing)="onTyping()"
+            [guildId]="guildId()"
+            [canUsePersonas]="canUsePersonas()"
+            [canRollDice]="canRollDice()"
+            [sceneTurn]="sceneTurn()"
+            [channelId]="channel().id"
+            [guildChannels]="guildChannels()"
+            [guildRoles]="guildRoles()"
+            [replyTo]="replyingTo()"
+            [resolvePersonaLocally]="resolvePersonaLocally()"
+            autofocus
+            class="block"
+        ></app-composer>
+    }
+</footer>

@@ -1,6 +1,6 @@
 /**
- * Characterization of the send path and read tracking, written against the pre-extraction
- * component so the move into `app-channel-conversation` has a net under it.
+ * Characterization of the send path and read tracking. Written against ChannelComponent before the
+ * move and re-pointed here unaltered, which is what makes it evidence the move changed nothing.
  *
  * The template is overridden away: every child component in it drags its own DI chain, and none of
  * them is what this file is about.
@@ -14,32 +14,32 @@ import {MessageService} from 'primeng/api';
 import {of, Subject, throwError} from 'rxjs';
 import {describe, expect, it, vi} from 'vitest';
 
-import {ChannelComponent} from './channel.component';
-import {provideFakePlatform} from '../../../../platform/testing/provide-fake-platform';
-import {ApiConfigService} from '../../../../services/api-config.service';
-import {MessageStore} from '../../../../stores/message.store';
-import {MessagingService} from '../../../../services/messaging.service';
-import {GuildWebsocketService} from '../../../../services/guild-websocket.service';
-import {GuildService} from '../../../../services/guild.service';
-import {GuildReadStateService} from '../../../../services/guild-read-state.service';
-import {MlsService} from '../../../../services/mls.service';
-import {MlsSyncService} from '../../../../services/mls-sync.service';
-import {MlsJoinRequestService} from '../../../../services/mls-join-request.service';
-import {OwnMemberRevisionService} from '../../../../services/own-member-revision.service';
-import {PersonaService} from '../../../../services/persona.service';
-import {ProfileService} from '../../../../services/profile.service';
-import {TypingService} from '../../../../services/typing.service';
-import {SceneService} from '../../../../services/scene.service';
-import {ForumService} from '../../../../services/forum.service';
-import {ForumStateService} from '../../../../services/forum-state.service';
-import {GuildEmojiStore} from '../../../../stores/guild-emoji.store';
-import {ToastService} from '../../../../services/toast.service';
-import {BotCommandService} from '../../../../services/bot-command.service';
-import {NavigationService} from '../../../main-page/navigation.service';
-import {ChannelDto, ChannelType} from '../../../../dtos/response/guild.dto';
-import {MessageDto} from '../../../../dtos/response/message.dto';
-import {MessageType} from '../../../../enums/message-type.enum';
-import {MessageEncryptionState} from '../../../../enums/message-encryption-state.enum';
+import {ChannelConversationComponent} from './channel-conversation.component';
+import {provideFakePlatform} from '../../../../../platform/testing/provide-fake-platform';
+import {ApiConfigService} from '../../../../../services/api-config.service';
+import {MessageStore} from '../../../../../stores/message.store';
+import {MessagingService} from '../../../../../services/messaging.service';
+import {GuildWebsocketService} from '../../../../../services/guild-websocket.service';
+import {GuildService} from '../../../../../services/guild.service';
+import {GuildReadStateService} from '../../../../../services/guild-read-state.service';
+import {MlsService} from '../../../../../services/mls.service';
+import {MlsSyncService} from '../../../../../services/mls-sync.service';
+import {MlsJoinRequestService} from '../../../../../services/mls-join-request.service';
+import {OwnMemberRevisionService} from '../../../../../services/own-member-revision.service';
+import {PersonaService} from '../../../../../services/persona.service';
+import {ProfileService} from '../../../../../services/profile.service';
+import {TypingService} from '../../../../../services/typing.service';
+import {SceneService} from '../../../../../services/scene.service';
+import {ForumService} from '../../../../../services/forum.service';
+import {ForumStateService} from '../../../../../services/forum-state.service';
+import {GuildEmojiStore} from '../../../../../stores/guild-emoji.store';
+import {ToastService} from '../../../../../services/toast.service';
+import {BotCommandService} from '../../../../../services/bot-command.service';
+import {NavigationService} from '../../../../main-page/navigation.service';
+import {ChannelDto, ChannelType} from '../../../../../dtos/response/guild.dto';
+import {MessageDto} from '../../../../../dtos/response/message.dto';
+import {MessageType} from '../../../../../enums/message-type.enum';
+import {MessageEncryptionState} from '../../../../../enums/message-encryption-state.enum';
 
 const BASE = 'https://api.test.example';
 
@@ -148,7 +148,7 @@ async function setup(sendResult: 'ok' | 'fail' | 'automod' = 'ok', entities: Mes
     const guild = {id: 'g1', name: 'G', roles: [], channels: [], features: '', ownerId: 'owner'};
 
     await TestBed.configureTestingModule({
-        imports: [ChannelComponent],
+        imports: [ChannelConversationComponent],
         providers: [
             provideHttpClient(),
             provideHttpClientTesting(),
@@ -206,10 +206,12 @@ async function setup(sendResult: 'ok' | 'fail' | 'automod' = 'ok', entities: Mes
             {provide: TypingService, useValue: {state: signal(new Map())}},
         ],
     })
-        .overrideComponent(ChannelComponent, {set: {template: '', imports: [], styles: []}})
+        .overrideComponent(ChannelConversationComponent, {set: {template: '', imports: [], styles: []}})
         .compileComponents();
 
-    const fixture: ComponentFixture<ChannelComponent> = TestBed.createComponent(ChannelComponent);
+    const fixture: ComponentFixture<ChannelConversationComponent> = TestBed.createComponent(
+        ChannelConversationComponent,
+    );
     fixture.componentRef.setInput('channel', channelFixture());
     fixture.detectChanges();
     await fixture.whenStable();
@@ -222,7 +224,7 @@ async function settle(): Promise<void> {
     for (let i = 0; i < 8; i++) await Promise.resolve();
 }
 
-describe('ChannelComponent send path', () => {
+describe('ChannelConversationComponent send path', () => {
     it('adds an optimistic message before the request settles', async () => {
         const {component, store} = await setup();
 
@@ -268,7 +270,7 @@ describe('ChannelComponent send path', () => {
     });
 });
 
-describe('ChannelComponent read tracking', () => {
+describe('ChannelConversationComponent read tracking', () => {
     it('reports the newest settled message as read', async () => {
         const {guildWs, readState} = await setup('ok', [
             messageFixture({id: 'mesg_old', createdAt: new Date('2026-08-19T00:00:00Z')}),

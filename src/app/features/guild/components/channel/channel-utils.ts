@@ -36,3 +36,12 @@ export function forumParentOf(channel: ChannelDto, channels: readonly ChannelDto
     if (!parentId) return null;
     return channels.find(c => c.id === parentId && isForumLike(c.type)) ?? null;
 }
+
+/** The scene this channel is, or the scene whose companion thread it is. */
+export function sceneChannelIdFor(
+    channelId: string,
+    rows: readonly {channelId: string; oocThreadId?: string | null}[],
+): string | null {
+    if (rows.some(row => row.channelId === channelId)) return channelId;
+    return rows.find(row => row.oocThreadId === channelId)?.channelId ?? null;
+}
