@@ -108,4 +108,16 @@ export class InboxApiService {
             params: new HttpParams().set('createdAt', createdAt),
         });
     }
+
+    /**
+     * Puts one Waiting-on-you row away until whatever it is about moves again.
+     *
+     * @param guildId <b>required</b>, and part of the key rather than derivable from `targetId`: the
+     *        same character can be waiting in two guilds at once.
+     */
+    dismissTask(kind: string, targetId: string, guildId: string): Observable<void> {
+        return this.http.delete<void>(`${this.base}/tasks/${kind}/${targetId}`, {
+            params: new HttpParams().set('guildId', guildId),
+        });
+    }
 }

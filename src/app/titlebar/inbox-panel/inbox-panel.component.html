@@ -219,6 +219,18 @@
                             {{ task.subtitle }}
                         </span>
                     </span>
+
+                    <span class="mt-px flex shrink-0 items-center gap-1.5">
+                        <button
+                            (click)="dismissTask($event, task)"
+                            [attr.aria-label]="'INBOX.DISMISS' | translate"
+                            [title]="'INBOX.DISMISS' | translate"
+                            class="flex size-[22px] items-center justify-center rounded-md text-text-muted opacity-0 transition hover:bg-brand-dark/45 hover:text-text-primary focus-visible:opacity-100 group-hover:opacity-100"
+                            type="button"
+                        >
+                            <i class="pi pi-times text-[0.6875rem]"></i>
+                        </button>
+                    </span>
                 </div>
             } @empty {
                 @if (!inbox.tasksLoading()) {

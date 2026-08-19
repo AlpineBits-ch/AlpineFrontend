@@ -102,6 +102,13 @@ export class NavigationService {
     }
 
     openThread(thread: ChannelDto): void {
+        // A scene is thread-shaped and reaches this from the same lists, but it carries a turn rail,
+        // a cast and a conclusion mark that a 25rem panel cannot hold. It takes the main view.
+        if (thread.type === ChannelType.Scene) {
+            this.openChannel(thread);
+            return;
+        }
+
         this.threadPanel.set(thread);
         this.mobileNavOpen.set(false);
         // Resolved rather than injected, for the same reason ConversationStore is: a direct inject

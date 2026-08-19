@@ -386,6 +386,59 @@ describe('InboxService', () => {
         });
     });
 
+    describe('dismissTask', () => {
+        /** The guild is part of the key: the same character can be waiting in two guilds at once. */
+        it('deletes by kind, target and guild, and drops the row', async () => {
+            const {service, ctrl} = setup();
+            const load = service.loadTasks();
+            ctrl.expectOne(`${INBOX}/tasks?limit=25`).flush({
+                tasks: [task({kind: 'SceneTurn', targetId: 'chan_scene'})],
+                truncated: false,
+            });
+            await load;
+
+            const dismissed = service.dismissTask(service.tasks()[0]);
+            const req = ctrl.expectOne(`${INBOX}/tasks/SceneTurn/chan_scene?guildId=gild_1`);
+            expect(req.request.method).toBe('DELETE');
+            req.flush(null);
+            await dismissed;
+
+            expect(service.tasks().length).toBe(0);
+        });
+
+        it('takes the row off the badge too', async () => {
+            const {service, ctrl} = setup();
+            await loadSummary(service, ctrl, {taskCount: 2});
+            const load = service.loadTasks();
+            ctrl.expectOne(`${INBOX}/tasks?limit=25`).flush({tasks: [task()], truncated: false});
+            await load;
+
+            const dismissed = service.dismissTask(service.tasks()[0]);
+            ctrl.expectOne(r => r.url.startsWith(`${INBOX}/tasks/`)).flush(null);
+            await dismissed;
+
+            expect(service.summary().taskCount).toBe(1);
+        });
+
+        it('restores the row and the badge when the delete fails', async () => {
+            const {service, ctrl} = setup();
+            await loadSummary(service, ctrl, {taskCount: 1});
+            const load = service.loadTasks();
+            ctrl.expectOne(`${INBOX}/tasks?limit=25`).flush({tasks: [task()], truncated: false});
+            await load;
+
+            const dismissed = service.dismissTask(service.tasks()[0]);
+            ctrl.expectOne(r => r.url.startsWith(`${INBOX}/tasks/`)).flush(null, {
+                status: 500,
+                statusText: 'Server Error',
+            });
+            await dismissed;
+
+            expect(service.tasks().length).toBe(1);
+            expect(service.summary().taskCount).toBe(1);
+        });
+    });
+
     describe('markChannelRead', () => {
         it('drops the row and decrements the badge optimistically', async () => {
             const {service, ctrl} = setup();

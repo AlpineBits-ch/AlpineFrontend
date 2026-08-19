@@ -74,15 +74,22 @@ export class InboxPanelComponent {
                 return 'pi pi-book';
             case 'MaintenanceDue':
                 return 'pi pi-wrench';
+            case 'SceneTurn':
+                return 'pi pi-comments';
+            case 'PersonaReview':
+                return 'pi pi-user-edit';
+            case 'PersonaChangesRequested':
+                return 'pi pi-undo';
             default:
                 return 'pi pi-check-circle';
         }
     }
 
-    /** `Echo / #chores`. Literal text, so it never goes through the `translate` pipe. */
+    /** `Echo / #chores`, or just the guild: an approval queue lives in the cast, not in a channel. */
     protected taskContextLine(task: InboxTask): string {
         const b = task.breadcrumb;
         if (!b) return '';
+        if (!b.channelName) return b.guildName;
         return `${b.guildName} / ${this.inbox.channelGlyph(b)}${b.channelName}`;
     }
 
@@ -95,6 +102,12 @@ export class InboxPanelComponent {
     protected dismiss(event: Event, entry: InboxMentionEntry): void {
         event.stopPropagation();
         void this.inbox.dismissMention(entry);
+    }
+
+    /** The X on a task row. It comes back on its own when the thing it is about moves again. */
+    protected dismissTask(event: Event, task: InboxTask): void {
+        event.stopPropagation();
+        void this.inbox.dismissTask(task);
     }
 
     protected markAllRead(): void {

@@ -121,14 +121,31 @@ export type InboxTaskKind =
     | 'CookingToday'
     /** A service is overdue or a warranty is lapsing. `targetId` is the asset. */
     | 'MaintenanceDue'
+    /** An active scene whose turn is on a character you answer for. `targetId` is the scene channel. */
+    | 'SceneTurn'
+    /** A character waiting in an approval queue you review. `targetId` is the persona. */
+    | 'PersonaReview'
+    /** A character a reviewer sent back. `targetId` is the persona. */
+    | 'PersonaChangesRequested'
     | (string & {});
+
+/**
+ * A task's breadcrumb. An approval queue lives in a guild's cast rather than in any one channel,
+ * so `PersonaReview` and `PersonaChangesRequested` rows name only the guild. Every other kind,
+ * and every unread group and mention, still carries all three channel fields.
+ */
+export type InboxTaskBreadcrumb = Omit<InboxBreadcrumb, 'channelId' | 'channelName' | 'channelType'> & {
+    channelId: string | null;
+    channelName: string | null;
+    channelType: number | null;
+};
 
 /** One thing waiting on the caller, from any guild they are in. */
 export interface InboxTask {
     kind: InboxTaskKind;
-    /** An occurrence, decision, list item, bill, meal plan entry or asset, per {@link kind}. */
+    /** An occurrence, decision, list item, bill, meal plan entry, asset, scene or persona, per {@link kind}. */
     targetId: string;
-    breadcrumb: InboxBreadcrumb;
+    breadcrumb: InboxTaskBreadcrumb;
     /** Server-written, and rendered as given. See {@link InboxTaskKind}. */
     title: string;
     subtitle: string;

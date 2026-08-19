@@ -14,6 +14,7 @@ import {
     InboxReadStateChanged,
     InboxSummary,
     InboxTask,
+    InboxTaskBreadcrumb,
     InboxUnreadGroup,
 } from '../dtos/response/inbox.dto';
 import {InboxApiService} from './inbox-api.service';
@@ -331,6 +332,31 @@ export class InboxService {
         }
     }
 
+    /**
+     * The dismiss action on a task row. The tab is derived from the modules that own the rows, so
+     * this is the only thing that can put one away - and the server lets it back in as soon as the
+     * thing it was about moves on, which is what makes the next turn of a scene a new row.
+     */
+    async dismissTask(task: InboxTask): Promise<void> {
+        const before = this._tasks();
+        const isSame = (t: InboxTask) =>
+            t.kind === task.kind &&
+            t.targetId === task.targetId &&
+            t.breadcrumb.guildId === task.breadcrumb.guildId;
+
+        this._tasks.set(before.filter(t => !isSame(t)));
+        this.adjustTaskCount(-1);
+
+        try {
+            await firstValueFrom(
+                this.api.dismissTask(task.kind, task.targetId, task.breadcrumb.guildId),
+            );
+        } catch {
+            this._tasks.set(before);
+            this.adjustTaskCount(1);
+        }
+    }
+
     /** Jumps to whatever an unread row points at, switching workspace first when it is elsewhere. */
     openUnread(entry: InboxUnreadEntry): void {
         this.openBreadcrumb(entry.breadcrumb);
@@ -357,7 +383,7 @@ export class InboxService {
      * The glyph in front of a channel name. Resolved from the loaded guild, never from
      * `breadcrumb.channelType`: that field is numeric while {@link ChannelType} is a string enum.
      */
-    channelGlyph(breadcrumb: InboxBreadcrumb): string {
+    channelGlyph(breadcrumb: InboxTaskBreadcrumb): string {
         const channel = this.resolveChannel(breadcrumb);
         switch (channel?.type) {
             case ChannelType.Voice:
@@ -406,7 +432,7 @@ export class InboxService {
 
     // ── Internals ───────────────────────────────────────────────────────────
 
-    private openBreadcrumb(breadcrumb: InboxBreadcrumb): void {
+    private openBreadcrumb(breadcrumb: InboxTaskBreadcrumb): void {
         const guild = this.guildService.guilds().find(g => g.id === breadcrumb.guildId);
         if (!guild) return;
         const channel = this.resolveChannel(breadcrumb, guild);
@@ -418,7 +444,7 @@ export class InboxService {
      * The loaded `ChannelDto` behind a breadcrumb. Threads and forum posts are not always in
      * `guild.channels`, so a missing one falls back to the parent the breadcrumb names.
      */
-    private resolveChannel(breadcrumb: InboxBreadcrumb, guild?: GuildDto): ChannelDto | undefined {
+    private resolveChannel(breadcrumb: InboxTaskBreadcrumb, guild?: GuildDto): ChannelDto | undefined {
         const g = guild ?? this.guildService.guilds().find(x => x.id === breadcrumb.guildId);
         if (!g) return undefined;
         return (
@@ -516,6 +542,13 @@ export class InboxService {
             embedsJson: msg.embedsJson ?? undefined,
             systemMessageVariant: msg.systemMessageVariant ?? undefined,
         };
+    }
+
+    /** The task half of the badge, moved on its own by a dismissal. */
+    private adjustTaskCount(delta: number): void {
+        this._summary.update(s =>
+            s.capped ? s : {...s, taskCount: Math.max(0, s.taskCount + delta)},
+        );
     }
 
     /** Moves the badge by a delta. Clamped at zero, and left alone once `capped`. */

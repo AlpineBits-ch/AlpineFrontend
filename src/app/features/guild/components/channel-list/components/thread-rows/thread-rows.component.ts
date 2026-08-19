@@ -1,5 +1,5 @@
 import {ChangeDetectionStrategy, Component, computed, effect, inject, input, untracked} from '@angular/core';
-import {ChannelDto} from '../../../../../../dtos/response/guild.dto';
+import {ChannelDto, ChannelType} from '../../../../../../dtos/response/guild.dto';
 import {GuildReadStateService} from '../../../../../../services/guild-read-state.service';
 import {VisitedThreadsService} from '../../../../../../services/visited-threads.service';
 import {ThreadRegistryService} from '../../../../../../services/thread-registry.service';
@@ -24,10 +24,15 @@ export class ThreadRowsComponent {
     private visitedService = inject(VisitedThreadsService);
     private registry = inject(ThreadRegistryService);
 
+    /**
+     * A scene hangs off the same text channel its threads do, so it arrives in the same list. It is
+     * left out here because it has the scenes board and a main-view header of its own; the OOC room
+     * beside it is an ordinary thread and stays.
+     */
     protected readonly threads = computed(() =>
         selectNestedThreads(
             this.parent().id,
-            this.registry.threadsFor(this.parent().id),
+            this.registry.threadsFor(this.parent().id).filter(c => c.type !== ChannelType.Scene),
             this.visitedService.threadsFor(this.parent().id),
             id => this.readStateService.getChannelState(id),
         ),
