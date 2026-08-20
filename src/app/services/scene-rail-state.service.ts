@@ -1,6 +1,6 @@
 import {Injectable, signal} from '@angular/core';
 
-export const SCENE_RAIL_STORAGE_KEY = 'venta.scene-rail';
+export const SCENE_RAIL_STORAGE_KEY = 'alpine.scene-rail';
 
 const EMPTY: readonly string[] = [];
 
