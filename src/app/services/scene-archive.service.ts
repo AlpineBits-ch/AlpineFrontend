@@ -1,4 +1,5 @@
 import {computed, inject, Injectable, signal} from '@angular/core';
+import {map, Observable, tap} from 'rxjs';
 
 import {RoleplayApi} from './roleplay-api.service';
 import {SceneListItemDto} from '../dtos/response/scene.dto';
@@ -144,6 +145,24 @@ export class SceneArchiveService {
             if (row) return row;
         }
         return undefined;
+    }
+
+    /** Shared by both filing UIs: patches the moved row and invalidates both shelves once `move`
+     *  settles. Emits the folder the scene moved out of, so a caller can react to the old shelf too. */
+    fileScene(
+        guildId: string,
+        channelId: string,
+        folderId: string | null,
+        move: Observable<unknown>,
+    ): Observable<string | null> {
+        const from = this.cachedRow(channelId)?.folderId ?? null;
+        return move.pipe(
+            tap(() => {
+                this.patch(channelId, {folderId});
+                this.invalidateShelves(guildId, from, folderId);
+            }),
+            map(() => from),
+        );
     }
 
     /** Drops both shelves' cached pages so an open one re-reads. Filing moves a row between keys, and

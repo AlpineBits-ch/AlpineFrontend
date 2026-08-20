@@ -197,13 +197,23 @@ export class SceneNavComponent {
     }
 
     protected file(channelId: string, folderId: string | null): void {
-        const from = this.archive.cachedRow(channelId)?.folderId ?? null;
-        this.scenes.update(this.guildId(), channelId, {folderId}).subscribe({
-            next: () => {
-                this.archive.patch(channelId, {folderId});
-                this.archive.invalidateShelves(this.guildId(), from, folderId);
-            },
-            error: err => this.toast.httpError(this.translate.instant('SCENE.ARCHIVE.FILE_ERROR'), err),
-        });
+        const guildId = this.guildId();
+        this.archive
+            .fileScene(guildId, channelId, folderId, this.scenes.update(guildId, channelId, {folderId}))
+            .subscribe({
+                next: from => this.repeek(from, folderId),
+                error: err => this.toast.httpError(this.translate.instant('SCENE.ARCHIVE.FILE_ERROR'), err),
+            });
+    }
+
+    /** Invalidation empties both shelves' cached pages; refill only the ones the reader has open, so
+     *  filing into a closed shelf does not fetch it. */
+    private repeek(...folderIds: (string | null)[]): void {
+        const guildId = this.guildId();
+        const open = this.expandedIds();
+        for (const folderId of folderIds) {
+            if (folderId !== null && open.includes(folderId))
+                this.archive.peek(guildId, folderId, SHELF_STATUS);
+        }
     }
 }

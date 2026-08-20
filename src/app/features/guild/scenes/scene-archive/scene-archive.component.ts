@@ -186,16 +186,16 @@ export class SceneArchiveComponent {
     }
 
     protected file(channelId: string, folderId: string | null): void {
-        const oldFolderId = this.archive.cachedRow(channelId)?.folderId ?? null;
-        this.scenes.update(this.guildId(), channelId, {folderId}).subscribe({
-            next: () => {
-                this.archive.patch(channelId, {folderId});
-                this.archive.invalidateShelves(this.guildId(), oldFolderId, folderId);
-                // A row filed elsewhere no longer belongs to the shelf being shown.
-                if (this.folderId() && this.folderId() !== folderId) this.archive.drop(channelId);
-            },
-            error: err => this.toast.httpError(this.translate.instant('SCENE.ARCHIVE.FILE_ERROR'), err),
-        });
+        const guildId = this.guildId();
+        this.archive
+            .fileScene(guildId, channelId, folderId, this.scenes.update(guildId, channelId, {folderId}))
+            .subscribe({
+                next: () => {
+                    // A row filed elsewhere no longer belongs to the shelf being shown.
+                    if (this.folderId() && this.folderId() !== folderId) this.archive.drop(channelId);
+                },
+                error: err => this.toast.httpError(this.translate.instant('SCENE.ARCHIVE.FILE_ERROR'), err),
+            });
     }
 
     protected tagged(channelId: string, tagIds: string[]): void {
