@@ -8,6 +8,7 @@ import {
     OverrideState,
     PermOverride,
 } from '../../../../../shared/permission-override-editor/permission-override-editor.component';
+import {ApplyOverrideDialogComponent} from '../../../../../shared/apply-override-dialog/apply-override-dialog.component';
 import {
     CategoryDto,
     ChannelDto,
@@ -42,7 +43,7 @@ function toOverride(perm: ChannelPermission): PermOverride {
 
 @Component({
     selector: 'app-role-channels',
-    imports: [NgClass, Tooltip, TranslateModule],
+    imports: [NgClass, Tooltip, TranslateModule, ApplyOverrideDialogComponent],
     templateUrl: './role-channels.component.html',
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -58,6 +59,21 @@ export class RoleChannelsComponent {
 
     /** Keyed by channel id, holding only this role's override on that channel. */
     private readonly overrides = signal<Map<string, PermOverride>>(new Map());
+
+    /** The row that opened the apply dialog; also its source override. Null means the dialog is closed. */
+    protected readonly applyChannelId = signal<string | null>(null);
+    protected readonly showApplyDialog = signal(false);
+
+    protected readonly applyOverride = computed<PermOverride>(() => {
+        const channelId = this.applyChannelId();
+        return channelId ? this.overrideFor(channelId) : EMPTY_OVERRIDE;
+    });
+
+    /** Every channel but the one the override is being copied from; applying it to itself is not a real target. */
+    protected readonly applyTargets = computed<ChannelDto[]>(() => {
+        const channelId = this.applyChannelId();
+        return this.channels().filter(c => c.id !== channelId);
+    });
 
     protected readonly rows = computed<RoleChannelRow[]>(() => {
         const categoryNames = new Map(this.categories().map(c => [c.id, c.name]));
@@ -140,6 +156,30 @@ export class RoleChannelsComponent {
                 next: perm => this.remember(channelId, perm),
                 error: err => this.reportCellError(err),
             });
+    }
+
+    openApplyDialog(channelId: string): void {
+        this.applyChannelId.set(channelId);
+        this.showApplyDialog.set(true);
+    }
+
+    /** The dialog already wrote the channels it reports succeeded; re-read them rather than guessing what landed. */
+    onApplied(result: {succeeded: string[]; failed: string[]}): void {
+        const roleId = this.role().id;
+        for (const channelId of result.succeeded) {
+            this.guildService.getChannel(channelId).subscribe({
+                next: channel => {
+                    const perm = channel.permissions.find(p => p.roleId === roleId);
+                    if (perm) this.remember(channelId, perm);
+                    else this.forget(channelId);
+                },
+            });
+        }
+        if (result.failed.length > 0) {
+            this.toastService.error(
+                this.translate.instant('ROLE_CHANNELS.APPLY_PARTIAL_FAILURE', {count: result.failed.length}),
+            );
+        }
     }
 
     /** Never left showing the edit as saved: overrides only changes from remember/forget, never optimistically. */

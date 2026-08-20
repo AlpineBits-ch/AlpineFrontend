@@ -37,10 +37,22 @@
                 @for (row of rows(); track row.channel.id) {
                     <tr class="border-t border-border-subtle hover:bg-white/[0.03]">
                         <td class="sticky left-0 z-10 bg-app-bg px-3 py-1.5 whitespace-nowrap">
-                            @if (row.categoryLabel) {
-                                <span class="text-text-muted">{{ row.categoryLabel }} /</span>
-                            }
-                            <span class="text-text-primary">{{ row.channel.name }}</span>
+                            <div class="flex items-center gap-1.5 group">
+                                @if (row.categoryLabel) {
+                                    <span class="text-text-muted">{{ row.categoryLabel }} /</span>
+                                }
+                                <span class="text-text-primary">{{ row.channel.name }}</span>
+                                <button
+                                    (click)="openApplyDialog(row.channel.id)"
+                                    [attr.aria-label]="'ROLE_CHANNELS.APPLY' | translate"
+                                    [pTooltip]="'ROLE_CHANNELS.APPLY' | translate"
+                                    class="opacity-0 group-hover:opacity-100 shrink-0 w-5 h-5 rounded flex items-center justify-center border-0 bg-transparent text-text-muted hover:text-text-primary hover:bg-white/[0.06] cursor-pointer transition-all"
+                                    tooltipPosition="top"
+                                    type="button"
+                                >
+                                    <i class="pi pi-share-alt text-[0.6rem]"></i>
+                                </button>
+                            </div>
                         </td>
                         @for (col of columns; track col) {
                             <td class="px-2 py-1.5 text-center">
@@ -77,4 +89,16 @@
             </tbody>
         </table>
     </div>
+
+    @if (applyChannelId()) {
+        <app-apply-override-dialog
+            (applied)="onApplied($event)"
+            [(visible)]="showApplyDialog"
+            [categories]="categories()"
+            [channels]="applyTargets()"
+            [guild]="guild()"
+            [override]="applyOverride()"
+            [roleId]="role().id"
+        />
+    }
 </div>

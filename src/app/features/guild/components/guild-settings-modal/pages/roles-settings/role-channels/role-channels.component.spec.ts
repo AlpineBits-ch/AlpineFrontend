@@ -7,6 +7,7 @@ import {vi} from 'vitest';
 import {RoleChannelsComponent} from './role-channels.component';
 import {GuildService, OverridePermissionsDto} from '../../../../../../../services/guild.service';
 import {ToastService} from '../../../../../../../services/toast.service';
+import {Permissions} from '../../../../../../../enums/permissions.enum';
 import {
     ChannelDto,
     ChannelPermission,
@@ -76,6 +77,7 @@ function setup(options: SetupOptions) {
             } as ChannelPermission),
         ),
         deleteChannelRolePermission: vi.fn(() => of(undefined)),
+        getChannel: vi.fn((id: string) => of(channel(id, ChannelType.Text))),
     };
 
     const toastService = {
@@ -154,6 +156,51 @@ describe('RoleChannelsComponent', () => {
 
         expect(component.applies('c1', 'SendMessages')).toBe(false);
         expect(component.applies('c1', 'Connect')).toBe(true);
+    });
+
+    it("opens the apply dialog seeded with the row's own override", () => {
+        const {component} = setup({
+            channels: [
+                channel('c1', ChannelType.Text, {allowPermissions: 'SendMessages', denyPermissions: 'None'}),
+            ],
+        });
+
+        component.openApplyDialog('c1');
+
+        expect(component['showApplyDialog']()).toBe(true);
+        expect(component['applyOverride']().allow).toBe(Permissions.SendMessages);
+    });
+
+    it('excludes the source channel from the apply dialog targets', () => {
+        const {component} = setup({
+            channels: [channel('c1', ChannelType.Text), channel('c2', ChannelType.Text)],
+        });
+
+        component.openApplyDialog('c1');
+
+        expect(component['applyTargets']().map(c => c.id)).toEqual(['c2']);
+    });
+
+    it('refreshes a channel the apply dialog reports succeeded', () => {
+        const {component, guildService} = setup({
+            channels: [channel('c1', ChannelType.Text), channel('c2', ChannelType.Text)],
+        });
+        guildService.getChannel.mockReturnValue(
+            of(channel('c2', ChannelType.Text, {allowPermissions: 'SendMessages', denyPermissions: 'None'})),
+        );
+
+        component.onApplied({succeeded: ['c2'], failed: []});
+
+        expect(guildService.getChannel).toHaveBeenCalledWith('c2');
+        expect(component.cellState('c2', 'SendMessages')).toBe('allow');
+    });
+
+    it('surfaces apply failures via a toast instead of swallowing them', () => {
+        const {component, toastService} = setup({channels: [channel('c1', ChannelType.Text)]});
+
+        component.onApplied({succeeded: [], failed: ['c9']});
+
+        expect(toastService.error).toHaveBeenCalled();
     });
 
     it('reports a failed cell write via a toast and leaves the cell as it was', () => {
