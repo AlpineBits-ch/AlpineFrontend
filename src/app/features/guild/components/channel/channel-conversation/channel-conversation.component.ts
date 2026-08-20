@@ -367,6 +367,14 @@ export class ChannelConversationComponent implements AfterViewInit {
     private lastAck: string | null = null;
 
     constructor() {
+        // The channel list only asks for the channels it renders. A channel opened from anywhere
+        // else has no trace, and `can` fails closed, so the composer would refuse a subject who may
+        // in fact post here.
+        effect(() => {
+            if (!this.viewAs.active(this.guildId())()) return;
+            this.viewAs.request(this.guildId(), this.channel().id);
+        });
+
         effect(onCleanup => {
             const channelId = this.channel().id;
 
