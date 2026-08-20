@@ -18,7 +18,7 @@ Spans two repos. Sections A to D are `RiderProjects\Echo`; E onwards is this cli
 
 | Question | Answer |
 |---|---|
-| Icon family | Lucide (ISC). PrimeIcons stays for the rest of the app until a separate sweep. |
+| Icon family | Lucide (ISC), through the data-only `lucide` core package plus a local renderer. PrimeIcons stays for the rest of the app until a separate sweep. |
 | How wide the Lucide migration goes now | The channel icon slot only: `CHANNEL_META`, the `channelIcon` call sites, the voice row, the picker. The remaining ~1150 `pi pi-*` chrome usages are Phase B and out of scope here. |
 | Why not migrate everything now | 1167 usages across 246 files and 160 distinct glyphs with no 1:1 name mapping. The clash being avoided is *within the icon slot*; chrome icons never land there. |
 | Where a custom icon shows | Everywhere the channel's icon shows: sidebar row, mention autocomplete, wiki share dialog, household and forum view headers. |
@@ -106,17 +106,37 @@ refetches (`channel-list.component.ts:418`).
 
 ## E. Client: the catalog
 
-`lucide-angular@1.0.0` (ISC, peer range `13.x - 21.x`).
+`lucide@1.33.0` (ISC), the data-only core package. **Not** `lucide-angular`.
 
-One module, `features/guild/channel-icon-catalog.ts`, holding an array of
-`{name, icon, group}`. Both the picker's grouped contents and the `LUCIDE_ICONS` registry are
-derived from that one array, so a catalog entry that is not registered cannot exist.
+`lucide-angular@1.0.0` was evaluated and rejected. Its component throws when a name is not in its
+registry:
+
+```
+throw new Error(`The "${nameOrIcon}" icon has not been provided by any available icon providers.`)
+```
+
+A channel carrying an icon name this build does not ship would break its sidebar row rather than
+degrade. The package also ships Angular 13.3.12 partial declarations and drives itself from
+`ngOnChanges`, against the house rule of OnPush plus signals.
+
+The core package exports each icon as a plain data array, tree-shaken via `sideEffects: false`:
+
+```ts
+import {Volume2} from 'lucide';
+// type IconNode = [tag: string, attrs: SVGProps][]
+// Volume2 === [['path', {d: 'M11 4.702a...'}], ['path', {d: 'M16 9a5 5 0 0 1 0 6'}], ...]
+```
+
+Seven element tags appear across the whole set: `path`, `circle`, `rect`, `line`, `ellipse`,
+`polyline`, `polygon`.
+
+One module, `features/guild/channel-icon-catalog.ts`, holds an array of `{name, icon, group}`.
+Both the picker's grouped contents and the name lookup map derive from that one array, so a catalog
+entry with no icon data cannot exist.
 
 Around 200 icons in themed groups: General, Communication, Gaming, Media, Places, Objects, Nature,
-Symbols. Every default in `CHANNEL_META` is also a catalog member.
-
-Registry provision happens once in `app.config.ts`. Icons are imported by name, never
-`import * as`, which would pull all ~1600.
+Symbols. Every default in `CHANNEL_META` is also a catalog member. Icons are imported by name,
+never `import * as`, which would defeat tree-shaking.
 
 ## F. Client: the two lookups
 
@@ -145,13 +165,24 @@ Two functions:
 - `channelIconFor(channel)` returns `resolve(channel.icon) ?? channelIcon(channel.type)`, where
   `resolve` yields the name only if the registry holds it.
 
-## G. Client: the shared component
+## G. Client: the two components
 
-`<app-channel-icon [channel]="c">` owns the slot markup, the `#` fallback for Text, and the colour
-binding. It replaces the fourteen `<i [class]="icon()">` sites, which is what makes "everywhere the
-icon shows" one component rather than fourteen edits.
+`<app-lucide-icon [icon]="data">` renders one `IconNode` array. It builds the child elements through
+`inject(DOCUMENT).createElementNS` in an effect rather than a per-tag `@switch` over seven tags and
+their attributes, and rather than `innerHTML` with a sanitizer bypass. The app has no SSR, so
+touching the DOM directly is safe here.
+
+The outer `svg` carries lucide's own defaults, of which `stroke="currentColor"` is the one that
+matters: it is what lets section H tint an icon purely through CSS `color`.
+
+`<app-channel-icon [channel]="c">` sits on top and owns the slot markup, the `#` fallback for Text,
+and the tint class. It replaces the fourteen `<i [class]="icon()">` sites, which is what makes
+"everywhere the icon shows" one component rather than fourteen edits.
 
 The voice row's hardcoded `pi pi-volume-up` and its in-flight `pi pi-spinner` swap move here too.
+
+An unresolved name never reaches `<app-lucide-icon>`: `channelIconFor` returns catalog data or the
+type default, and Text's `null` renders the `#`. There is no throwing path.
 
 ## H. Client: the tint
 
@@ -218,10 +249,10 @@ Guild.Tests failures without Docker are expected and pre-existing.
 
 - Two icon families coexist until the Phase B sweep. They occupy disjoint surfaces, so nothing
   clashes inside the icon slot, but it is a real interim state.
-- `lucide-angular@1.0.0` is a fresh 1.0. It needs verifying under the zoneless config and the
-  browser/WASM build, not only the desktop one.
 - Bundle grows by ~200 icon path objects while `primeicons.woff2` is still shipped. Measure before
   and after.
+- `<app-lucide-icon>` writes DOM children directly. That is correct only while this app has no SSR,
+  which is true today and asserted nowhere else.
 
 ## Out of scope
 
