@@ -13,7 +13,7 @@ import {DatePipe} from '@angular/common';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 
 import {TagChipComponent} from '../../../../components/tag-chip/tag-chip.component';
-import {AppAvatarComponent} from '../../../../components/avatar/avatar.component';
+import {PersonaAvatarComponent} from '../../personas/persona-avatar/persona-avatar.component';
 import {SceneTaxonomyService} from '../../../../services/scene-taxonomy.service';
 import {SceneService} from '../../../../services/scene.service';
 import {RoleplayApi} from '../../../../services/roleplay-api.service';
@@ -30,7 +30,7 @@ import {sceneTally} from '../scene-tally';
 @Component({
     selector: 'app-scene-detail-sheet',
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [TranslateModule, DatePipe, TagChipComponent, AppAvatarComponent],
+    imports: [TranslateModule, DatePipe, TagChipComponent, PersonaAvatarComponent],
     templateUrl: './scene-detail-sheet.component.html',
     styleUrl: './scene-detail-sheet.component.css',
     host: {'(document:keydown.escape)': 'closed.emit()'},

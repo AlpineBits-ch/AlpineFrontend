@@ -23,7 +23,14 @@
     @if (cast().length) {
         <div class="sheet-cast">
             @for (member of cast(); track member.personaId) {
-                <app-avatar [authSrc]="member.avatarUrl" [label]="member.name ?? ''" size="normal" />
+                <app-persona-avatar
+                    [avatarUrl]="member.avatarUrl ?? null"
+                    [color]="member.color ?? null"
+                    [muted]="!!member.isRetired"
+                    [name]="member.name ?? ''"
+                    [title]="member.name ?? ''"
+                    size="sm"
+                />
             }
             <span class="sheet-cast-count">
                 {{ 'SCENE.RAIL.CAST_COUNT' | translate: {count: cast().length} }}

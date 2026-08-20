@@ -45,7 +45,9 @@ import {UNFILED} from '../../../../dtos/request/scene.dto';
     ],
     templateUrl: './scene-archive.component.html',
     styleUrl: './scene-archive.component.css',
-    host: {class: 'flex min-h-0 flex-1 flex-col'},
+    // `relative` is load-bearing: the detail sheet is absolutely positioned and would otherwise
+    // resolve against the page and cover the whole app.
+    host: {class: 'relative flex min-h-0 flex-1 flex-col'},
 })
 export class SceneArchiveComponent {
     readonly guildId = input.required<string>();
