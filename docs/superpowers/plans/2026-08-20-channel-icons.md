@@ -13,6 +13,20 @@
 ## Global Constraints
 
 - Backend repo is `C:\Users\Domin\RiderProjects\Echo`. Client repo is `C:\Users\Domin\WebstormProjects\Alpine`. Tasks name which.
+
+**Anyone working a backend task MUST read `C:\Users\Domin\RiderProjects\Echo\CLAUDE.md` first.** Agents run with the client repo as cwd, so Alpine's CLAUDE.md loads automatically and Echo's does not. Its rules bind and override this plan where they differ. The ones that bear on this work:
+
+- Never hand-edit a migration; the Designer snapshot desyncs. Leftover work goes in a separate EF-generated empty migration plus `Sql()`.
+- For any `dotnet` CLI tool (`dotnet ef`), refresh `$env:Path` from Machine + User **plus** `%USERPROFILE%\.dotnet\tools`, which is on neither.
+- Wolverine handlers that inject a DbContext commit via middleware. Do not add a manual `SaveChangesAsync`.
+- Facet `NestedFacets` must be scalar-only Include lists.
+- `Guild.Tests` needs Docker (testcontainers). If Docker is unavailable the endpoint tests cannot run at all: report that plainly rather than claiming or inferring a pass.
+- Plain hyphens only, no em dash and no en dash. No emoji in comments, logs, docs or commits.
+- Comments target 8-12% of lines, one sentence per block. No `<remarks>`, `<example>`, or `<para>` chains. Keep `<summary>`/`<param>`/`<returns>` at one sentence each: `<GenerateDocumentationFile>` feeds the published API docs.
+- Commits: conventional prefix, subject line only, no body, no attribution trailers of any kind.
+- Use the built-in file tools, not shell `cat`/`grep`/`ls`; shell calls need manual approval and stall the run. Do not write `cd <path> && cmd`.
+
+Backend commits push straight to `main` once compliant.
 - Work on `main` in both repos. Never `git stash`, `git checkout --`, `git reset --hard`, `git clean`, or any other command that discards working-tree state.
 
 **Another agent is working on `main` in this repo at the same time, on an unrelated feature.** This is not a hypothetical:
