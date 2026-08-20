@@ -67,14 +67,28 @@ describe('PermissionOverrideEditorComponent inherited values', () => {
         expect(component.inheritedState('SendMessages')).toBeNull();
     });
 
-    it('names everything a deny takes with it', () => {
+    it('names everything a deny takes with it, as labels not identifiers', () => {
         const component = setup();
 
-        const collateral = component.denyCollateral('SendMessages');
+        const names = component.denyCollateralNames('SendMessages');
 
-        expect(collateral).toContain('AttachFiles');
-        expect(collateral).toContain('PinMessages');
-        expect(collateral).not.toContain('SendMessages');
+        expect(names).toContain('Attach Files');
+        expect(names).toContain('Pin Messages');
+        expect(names).not.toContain('SendMessages');
+        // The regression this guards: raw PascalCase identifiers dropped into translated prose.
+        expect(names).not.toContain('AttachFiles');
+    });
+
+    it('caps a long deny list and counts what is left out', () => {
+        const component = setup();
+
+        // ViewChannel's collateral runs to 21 permissions; only the first few are named.
+        const names = component.denyCollateralNames('ViewChannel');
+
+        expect(names).toContain('Send Messages');
+        expect(names).toContain('Delete Any Message');
+        expect(names).not.toContain('Manage Channel'); // past the display cap
+        expect(component.denyCollateral('ViewChannel').length).toBe(21);
     });
 
     it('greys a row the current deny already removed', () => {

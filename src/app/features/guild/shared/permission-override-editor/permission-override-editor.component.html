@@ -81,7 +81,7 @@
                             >
                                 <i class="pi pi-exclamation-triangle text-connecting text-xs mt-0.5"></i>
                                 <p class="text-xs text-text-secondary m-0">
-                                    {{ 'PERM_OVERRIDE.DENY_ALSO_REMOVES' | translate: {names: denyCollateral(key).join(', ')} }}
+                                    {{ 'PERM_OVERRIDE.DENY_ALSO_REMOVES' | translate: {names: denyCollateralNames(key)} }}
                                 </p>
                             </div>
                         }

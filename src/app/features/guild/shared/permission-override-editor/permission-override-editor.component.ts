@@ -1,7 +1,7 @@
-import {Component, computed, input, output} from '@angular/core';
+import {Component, computed, inject, input, output} from '@angular/core';
 import {NgClass} from '@angular/common';
 import {Tooltip} from 'primeng/tooltip';
-import {TranslateModule} from '@ngx-translate/core';
+import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {
     CHANNEL_PERM_GROUPS,
     expandDeniedPermissions,
@@ -48,6 +48,9 @@ const MODULE_GROUP_BY_CHANNEL: Partial<Record<ChannelType, string>> = {
     templateUrl: './permission-override-editor.component.html',
 })
 export class PermissionOverrideEditorComponent {
+    /** Names beyond this many are folded into a count instead of listed; ViewChannel alone has 21. */
+    private static readonly DENY_COLLATERAL_DISPLAY_CAP = 5;
+
     readonly override = input.required<PermOverride>();
     overrideChange = output<PermOverride>();
 
@@ -61,6 +64,8 @@ export class PermissionOverrideEditorComponent {
     readonly savedOverride = input<PermOverride>(EMPTY_OVERRIDE);
 
     protected readonly groups = CHANNEL_PERM_GROUPS;
+
+    private readonly translate = inject(TranslateService);
 
     private readonly sourceByPermission = computed(() => {
         const map = new Map<PermissionKey, PermissionSourceEntry>();
@@ -125,6 +130,21 @@ export class PermissionOverrideEditorComponent {
         return CHANNEL_PERM_GROUPS.flatMap(group => group.perms).filter(
             k => (expanded & Permissions[k]) === Permissions[k],
         );
+    }
+
+    /** {@link denyCollateral} as labels, not identifiers, capped with a trailing count. */
+    denyCollateralNames(key: PermissionKey): string {
+        const collateral = this.denyCollateral(key);
+        const shown = collateral
+            .slice(0, PermissionOverrideEditorComponent.DENY_COLLATERAL_DISPLAY_CAP)
+            .map(k => this.label(k));
+        const names = shown.join(', ');
+
+        const remaining = collateral.length - shown.length;
+        if (remaining <= 0) return names;
+
+        const more = this.translate.instant('PERM_OVERRIDE.DENY_ALSO_REMOVES_MORE', {count: remaining});
+        return `${names}, ${more}`;
     }
 
     /** Whether the edit in progress already removes this row through some other deny. */
