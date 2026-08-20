@@ -217,6 +217,98 @@ describe('PermissionOverridesComponent', () => {
     });
 });
 
+describe('PermissionOverridesComponent scope reconciliation', () => {
+    it('keeps a dirty row pending and refreshes a clean one when the overwrites change', () => {
+        const {fixture, component} = setup({
+            channelDto: channel([
+                {
+                    id: 'p1',
+                    channelId: CHANNEL,
+                    roleId: PLAYER,
+                    allowPermissions: 'SendMessages',
+                    denyPermissions: 'None',
+                } as ChannelDto['permissions'][number],
+            ]),
+        });
+
+        // An unsaved edit: deny SendMessages instead of allowing it.
+        component.onRoleChange(PLAYER, {allow: 0n, deny: 2n, allowModule: 0n, denyModule: 0n});
+
+        // The page re-syncs the channel: the server now denies ViewChannel for both.
+        const resynced = channel([
+            {
+                id: 'p1',
+                channelId: CHANNEL,
+                roleId: PLAYER,
+                allowPermissions: 'None',
+                denyPermissions: 'ViewChannel',
+            } as ChannelDto['permissions'][number],
+            {
+                id: 'p2',
+                channelId: CHANNEL,
+                roleId: EVERYONE,
+                allowPermissions: 'None',
+                denyPermissions: 'ViewChannel',
+            } as ChannelDto['permissions'][number],
+        ]);
+        fixture.componentRef.setInput('scope', channelScope(resynced));
+        fixture.detectChanges();
+
+        const rows = component['roleEntries']();
+        const playerRow = rows.find(e => e.id === PLAYER);
+        const everyoneRow = rows.find(e => e.id === EVERYONE);
+
+        expect(playerRow?.dirty).toBe(true);
+        expect(playerRow?.override.deny).toBe(2n); // still the pending edit, not the server's ViewChannel deny
+
+        expect(everyoneRow?.dirty).toBe(false);
+        expect(everyoneRow?.override.deny).toBe(1n); // picked up from the resync
+    });
+
+    it('reflects a new @everyone ViewChannel deny once the scope resyncs', () => {
+        const {fixture, component} = setup();
+
+        expect(component['roleEntries']().find(e => e.id === EVERYONE)?.override.deny).toBe(0n);
+
+        const madePrivate = channel([
+            {
+                id: 'p1',
+                channelId: CHANNEL,
+                roleId: EVERYONE,
+                allowPermissions: 'None',
+                denyPermissions: 'ViewChannel',
+            } as ChannelDto['permissions'][number],
+        ]);
+        fixture.componentRef.setInput('scope', channelScope(madePrivate));
+        fixture.detectChanges();
+
+        const everyoneRow = component['roleEntries']().find(e => e.id === EVERYONE);
+        expect(everyoneRow?.dirty).toBe(false);
+        expect(everyoneRow?.override.deny).toBe(1n);
+    });
+
+    it('does not refetch members while reconciling a resync', () => {
+        const {fixture, component, guildService} = setup({members: [memberDto('ada')]});
+
+        component.switchTab('members');
+        expect(guildService.getMembers).toHaveBeenCalledTimes(1);
+
+        const resynced = channel([
+            {
+                id: 'p1',
+                channelId: CHANNEL,
+                roleId: EVERYONE,
+                allowPermissions: 'None',
+                denyPermissions: 'ViewChannel',
+            } as ChannelDto['permissions'][number],
+        ]);
+        fixture.componentRef.setInput('scope', channelScope(resynced));
+        fixture.detectChanges();
+
+        expect(guildService.getMembers).toHaveBeenCalledTimes(1);
+    });
+});
+
 describe('PermissionOverridesComponent members tab', () => {
     it('reads one page of members, not the whole guild', () => {
         const {component, guildService} = setup();

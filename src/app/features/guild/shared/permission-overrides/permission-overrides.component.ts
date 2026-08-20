@@ -2,6 +2,7 @@ import {
     ChangeDetectionStrategy,
     Component,
     computed,
+    effect,
     inject,
     input,
     OnInit,
@@ -78,10 +79,35 @@ export class PermissionOverridesComponent implements OnInit {
     private memberSkip = 0;
     private memberQuerySubject = new Subject<string>();
 
+    /**
+     * The scope's identity and overwrites, but only changed (by `Object.is`) when either actually
+     * differs. `scope()` is a fresh object on every parent render, so keying reconciliation on it
+     * directly would re-run on every patch; this re-runs only when a save, a resync or the private
+     * toggle actually changed what a row should show.
+     */
+    private readonly reconcileOn = computed(
+        () => ({id: this.scope().id, overrides: this.scope().overrides}),
+        {
+            equal: (a, b) =>
+                a.id === b.id &&
+                PermissionOverridesComponent.overridesFingerprint(a.overrides) ===
+                    PermissionOverridesComponent.overridesFingerprint(b.overrides),
+        },
+    );
+
     constructor() {
         this.memberQuerySubject
             .pipe(debounceTime(MEMBER_SEARCH_DEBOUNCE_MS), takeUntilDestroyed())
             .subscribe(term => this.searchMembers(term));
+
+        // Reconciles, never rebuilds: a dirty row is a pending edit the user has not saved yet, and
+        // the incoming overwrites must not clobber it. `.update()` reads the current rows without
+        // tracking them, so this never depends on what it writes.
+        effect(() => {
+            const {overrides} = this.reconcileOn();
+            this.reconcileRoleRows(overrides);
+            this.reconcileMemberRows(overrides);
+        });
     }
 
     protected get memberPageSize(): number {
@@ -146,7 +172,7 @@ export class PermissionOverridesComponent implements OnInit {
     );
 
     ngOnInit(): void {
-        this.buildRoleRows();
+        this.reconcileRoleRows(this.scope().overrides);
     }
 
     switchTab(tab: 'roles' | 'members'): void {
@@ -395,14 +421,46 @@ export class PermissionOverridesComponent implements OnInit {
         };
     }
 
-    private buildRoleRows(): void {
-        const overrides = this.scope().overrides;
-        this.roleRows.set(
-            this.guild().roles.map(subject => {
+    /** A row's dirty edit survives; a clean row picks up whatever this scope now says. */
+    private reconcileRoleRows(overrides: ChannelPermission[]): void {
+        this.roleRows.update(current => {
+            const byId = new Map(current.map(r => [r.subject.id, r]));
+            return this.guild().roles.map(subject => {
+                const existing = byId.get(subject.id);
+                if (existing?.dirty) return existing;
                 const perm = overrides.find(p => p.roleId === subject.id) ?? null;
-                return {subject, perm, override: this.toOverride(perm), dirty: false, saving: false};
-            }),
-        );
+                return {
+                    subject,
+                    perm,
+                    override: this.toOverride(perm),
+                    dirty: false,
+                    saving: existing?.saving ?? false,
+                };
+            });
+        });
+    }
+
+    /** Only reconciles rows already fetched; never fetches to have something to reconcile. */
+    private reconcileMemberRows(overrides: ChannelPermission[]): void {
+        this.memberRows.update(current => {
+            if (current.length === 0) return current;
+            return current.map(row => {
+                if (row.dirty) return row;
+                const perm = overrides.find(p => p.memberId === row.subject.id) ?? null;
+                return {...row, perm, override: this.toOverride(perm)};
+            });
+        });
+    }
+
+    private static overridesFingerprint(overrides: ChannelPermission[]): string {
+        return overrides
+            .map(
+                o =>
+                    `${o.roleId ?? o.memberId}:${o.allowPermissions}:${o.denyPermissions}:` +
+                    `${o.allowModulePermissions ?? ''}:${o.denyModulePermissions ?? ''}`,
+            )
+            .sort()
+            .join(',');
     }
 
     private matchesRoleSearch(role: RoleDto): boolean {
