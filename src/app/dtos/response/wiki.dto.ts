@@ -67,6 +67,27 @@ export interface WikiDto {
     pages: WikiPageSummaryDto[];
 }
 
+export interface WikiGraphNodeDto {
+    id: string;
+    title: string;
+    icon?: string | null;
+    parentPageId?: string | null;
+    categoryId?: string | null;
+}
+
+export interface WikiGraphEdgeDto {
+    sourcePageId: string;
+    targetPageId: string;
+    /** The section of the target the link points at, null for the page as a whole. */
+    headingId?: string | null;
+}
+
+export interface WikiGraphDto {
+    nodes: WikiGraphNodeDto[];
+    /** Body links only. The tree is not in here: derive it from `nodes[].parentPageId`. */
+    edges: WikiGraphEdgeDto[];
+}
+
 export interface WikiRevisionDto {
     id: string;
     pageId: string;

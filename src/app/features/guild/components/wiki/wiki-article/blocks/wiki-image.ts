@@ -28,10 +28,16 @@ export interface WikiImageSources {
     fetch(src: string): Promise<Blob>;
 }
 
+/** How a failed upload gets a second chance; the node knows the blob URL, the article knows the file. */
+export interface WikiImageUploads {
+    retry(src: string): void;
+}
+
 export interface WikiImageOptions extends ImageOptions {
     labels: WikiBlockLabels;
     /** Omitted outside the app: tests and tooling render plain URLs and need no resolver. */
     sources: WikiImageSources | null;
+    uploads: WikiImageUploads | null;
 }
 
 interface WikiImageStorage {
@@ -55,6 +61,7 @@ class WikiImageView implements NodeView {
     private readonly handle: HTMLElement;
     private readonly captionInput: HTMLInputElement;
     private readonly caption: HTMLElement;
+    private readonly failure: HTMLElement;
 
     private node: ProseMirrorNode;
     private editable: boolean;
@@ -74,6 +81,7 @@ class WikiImageView implements NodeView {
         private readonly labels: WikiBlockLabels,
         private readonly registry: Set<WikiImageView>,
         private readonly sources: WikiImageSources | null,
+        private readonly uploads: WikiImageUploads | null,
     ) {
         this.node = node;
         this.editable = editor.isEditable;
@@ -108,7 +116,9 @@ class WikiImageView implements NodeView {
         this.caption = document.createElement('figcaption');
         this.caption.className = 'wiki-image-caption';
 
-        this.dom.append(this.frame, this.captionInput, this.caption);
+        this.failure = this.buildFailureStrip();
+
+        this.dom.append(this.frame, this.failure, this.captionInput, this.caption);
 
         this.paint();
         this.registry.add(this);
@@ -134,6 +144,7 @@ class WikiImageView implements NodeView {
         return (
             this.captionInput.contains(target) ||
             this.handle.contains(target) ||
+            this.failure.contains(target) ||
             !!this.lightbox?.contains(target)
         );
     }
@@ -162,6 +173,10 @@ class WikiImageView implements NodeView {
         if (title) this.image.title = title;
         else this.image.removeAttribute('title');
         this.image.style.width = width ? `${width}px` : '';
+
+        const failed = attrs['uploadFailed'] === true;
+        this.failure.style.display = failed && this.editable ? 'flex' : 'none';
+        this.dom.setAttribute('data-upload-failed', String(failed));
 
         this.dom.setAttribute('data-mode', this.editable ? 'edit' : 'read');
         this.caption.textContent = alt;
@@ -203,6 +218,48 @@ class WikiImageView implements NodeView {
         if (!this.objectUrl) return;
         URL.revokeObjectURL(this.objectUrl);
         this.objectUrl = null;
+    }
+
+    /** Shown in place of a silent deletion: the picture is still on screen (the blob URL is kept alive) and the two things worth doing about it are one click away. */
+    private buildFailureStrip(): HTMLElement {
+        const strip = document.createElement('div');
+        strip.className = 'wiki-image-upload-failed';
+        strip.contentEditable = 'false';
+        strip.style.display = 'none';
+
+        const icon = document.createElement('i');
+        icon.className = 'pi pi-exclamation-triangle';
+        const text = document.createElement('span');
+        text.textContent = this.labels.imageUploadFailed;
+
+        const retry = document.createElement('button');
+        retry.type = 'button';
+        retry.textContent = this.labels.imageRetry;
+        retry.addEventListener('mousedown', event => event.preventDefault());
+        retry.addEventListener('click', () => this.retryUpload());
+
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.textContent = this.labels.imageRemove;
+        remove.addEventListener('mousedown', event => event.preventDefault());
+        remove.addEventListener('click', () => this.removeSelf());
+
+        strip.append(icon, text, retry, remove);
+        return strip;
+    }
+
+    private retryUpload(): void {
+        const pos = this.getPos();
+        const src = this.node.attrs['src'];
+        if (pos === undefined || typeof src !== 'string') return;
+        this.editor.view.dispatch(this.editor.state.tr.setNodeAttribute(pos, 'uploadFailed', false));
+        this.uploads?.retry(src);
+    }
+
+    private removeSelf(): void {
+        const pos = this.getPos();
+        if (pos === undefined) return;
+        this.editor.view.dispatch(this.editor.state.tr.delete(pos, pos + this.node.nodeSize));
     }
 
     private scheduleCaption(): void {
@@ -294,6 +351,7 @@ const WikiImageExtension = Image.extend<WikiImageOptions, WikiImageStorage>({
             ...this.parent?.(),
             labels: DEFAULT_WIKI_BLOCK_LABELS,
             sources: null,
+            uploads: null,
         } as WikiImageOptions;
     },
 
@@ -312,15 +370,24 @@ const WikiImageExtension = Image.extend<WikiImageOptions, WikiImageStorage>({
                     return width ? {width: String(width)} : {};
                 },
             },
+            // Session state, never content: it must not reach the HTML or the markdown a page is
+            // saved as, or a failed upload would be stored as one.
+            uploadFailed: {
+                default: false,
+                parseHTML: () => false,
+                renderHTML: () => ({}),
+            },
         };
     },
 
     addNodeView() {
         const labels = this.options.labels;
         const sources = this.options.sources;
+        const uploads = this.options.uploads;
         const registry = this.storage.views;
         const editor = this.editor;
-        return ({node, getPos}) => new WikiImageView(node, getPos, editor, labels, registry, sources);
+        return ({node, getPos}) =>
+            new WikiImageView(node, getPos, editor, labels, registry, sources, uploads);
     },
 
     addProseMirrorPlugins() {
@@ -350,6 +417,10 @@ const WikiImageExtension = Image.extend<WikiImageOptions, WikiImageStorage>({
 });
 
 /** Configured once, at editor construction, because the labels are resolved translations. */
-export function wikiImage(labels: WikiBlockLabels, sources: WikiImageSources | null = null) {
-    return WikiImageExtension.configure({inline: false, allowBase64: false, labels, sources});
+export function wikiImage(
+    labels: WikiBlockLabels,
+    sources: WikiImageSources | null = null,
+    uploads: WikiImageUploads | null = null,
+) {
+    return WikiImageExtension.configure({inline: false, allowBase64: false, labels, sources, uploads});
 }

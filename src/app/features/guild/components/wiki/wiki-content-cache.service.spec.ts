@@ -51,12 +51,39 @@ describe('WikiContentCacheService', () => {
         expect(service.warming()).toBe(false);
     });
 
-    // The server omits content for a page it could not read; an empty string is a truthful
-    // "nothing to search" whereas undefined would break the search candidate mapping.
-    it('stores an empty body for a page returned without content', () => {
-        getWikiWithContent.mockReturnValue(of(wikiWith([{id: 'p1'}])));
+    // An empty string is a truthful "nothing to search here", so it counts as warm.
+    it('warms on a page whose body really is empty', () => {
+        getWikiWithContent.mockReturnValue(of(wikiWith([{id: 'p1', content: ''}])));
         service.warm('g1');
         expect(service.content().get('p1')).toBe('');
+        expect(service.warmed()).toBe(true);
+        expect(service.failed()).toBe(false);
+    });
+
+    // Without this, a response carrying no content field at all reads as a fully indexed wiki of
+    // empty pages: search finds nothing and the graph draws no links, both while claiming coverage.
+    it('treats a response with no content field on any page as a failed warm', () => {
+        getWikiWithContent.mockReturnValue(of(wikiWith([{id: 'p1'}, {id: 'p2'}])));
+        service.warm('g1');
+        expect(service.warmed()).toBe(false);
+        expect(service.failed()).toBe(true);
+        expect(service.content().size).toBe(0);
+    });
+
+    // The server omits content for a single page it could not read; that one is empty, the rest
+    // of the warm still counts.
+    it('stores an empty body for one page returned without content among others', () => {
+        getWikiWithContent.mockReturnValue(of(wikiWith([{id: 'p1'}, {id: 'p2', content: 'body'}])));
+        service.warm('g1');
+        expect(service.content().get('p1')).toBe('');
+        expect(service.warmed()).toBe(true);
+    });
+
+    it('counts a wiki with no pages at all as warmed', () => {
+        getWikiWithContent.mockReturnValue(of(wikiWith([])));
+        service.warm('g1');
+        expect(service.warmed()).toBe(true);
+        expect(service.failed()).toBe(false);
     });
 
     // A failed warm must not look like a completed one, or search silently reports title-only

@@ -1,4 +1,5 @@
-<div class="flex flex-col h-full min-w-0">
+<!-- relative: the find bar docks to the top right of this column rather than floating on the caret. -->
+<div class="relative flex flex-col h-full min-w-0">
     <!-- Unsaved draft recovery. -->
     @if (pendingDraft(); as draft) {
         <div class="flex shrink-0 items-center gap-3 border-b border-brand/20 bg-brand/[0.06] px-6 py-2.5">
@@ -25,18 +26,23 @@
     @if (editing()) {
         <app-wiki-toolbar
             #toolbar
-            (insertImage)="openFilePicker()"
+            (insertItem)="runSlashItem($event)"
+            (openLinkPicker)="onLinkPickerRequested($event)"
             (toggleSource)="toggleSourceMode()"
             [editor]="editorInstance()"
             [sourceMode]="sourceMode()"
         />
     }
 
+    <!-- Read mode too: highlighting writes nothing, and the WebView offers no find bar of its own. -->
+    <app-wiki-find-bar #findBar (closed)="onFindClosed()" [editable]="editing()" [editor]="editorInstance()" [open]="findOpen()" />
+
     <!-- Body padding is the only padding for both modes: read and edit render the same element, so there is no second value to drift out of step. -->
     <div #scrollEl class="flex-1 min-h-0 overflow-y-auto thin-scrollbar">
         <div class="mx-auto w-full max-w-[68ch] px-8 py-10">
             <!-- Title: a separate DTO field rendered as the first line of the body, so the header above stays a slim breadcrumb bar. -->
             <input
+                #titleEl
                 (ngModelChange)="onTitleInput($event)"
                 [class.cursor-default]="!editing()"
                 [ngModel]="title()"
@@ -118,14 +124,7 @@
     </div>
 </div>
 
-<input
-    #fileInputEl
-    (change)="onFilesSelected($event)"
-    accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.zip,.rar"
-    class="hidden"
-    multiple
-    type="file"
-/>
+<input #fileInputEl (change)="onFilesSelected($event)" accept="image/*" class="hidden" multiple type="file" />
 
 <!-- Editor chrome, all of it on demand: nothing here is on screen while you are just reading. -->
 <app-wiki-bubble-menu #bubbleMenu (aiAction)="aiInline.runTransform($event)" [editor]="editorInstance()" />
@@ -138,12 +137,18 @@
     [position]="suggestPosition()"
     [query]="suggestQuery()"
 />
-<app-wiki-link-menu
-    #linkMenu
-    (selected)="applyPageLink($event)"
-    [open]="linkMenuOpen()"
+<app-wiki-link-picker
+    #linkPicker
+    (applied)="onLinkApplied($event)"
+    (dismissed)="closeLinkPicker()"
+    (removed)="onLinkRemoved()"
+    [anchor]="linkPickerAnchor()"
+    [captureFocus]="linkPickerCapture()"
+    [contentByPageId]="pageContent()"
+    [href]="linkPickerHref()"
+    [initialTab]="linkPickerTab()"
+    [open]="linkPickerOpen()"
     [pages]="wiki()?.pages ?? []"
-    [position]="suggestPosition()"
     [query]="suggestQuery()"
 />
 <app-wiki-emoji-menu

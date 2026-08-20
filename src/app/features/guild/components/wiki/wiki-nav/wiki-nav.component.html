@@ -1,10 +1,10 @@
-<div class="flex flex-col flex-1 min-h-0 select-none">
+<div class="flex flex-col flex-1 min-h-0">
     <!-- Header: the wiki's own, now that there is no panel wrapper to carry it -->
     <div class="app-header flex items-center gap-1.5 px-3 border-b border-white/[0.10] shrink-0">
         <i class="pi pi-book text-brand-dim text-sm shrink-0"></i>
         <span class="text-sm font-semibold text-text-primary truncate flex-1">{{ 'WIKI.HOME' | translate }}</span>
         <p-button
-            (onClick)="search.emit()"
+            (onClick)="searchRequested.emit()"
             [text]="true"
             icon="pi pi-search"
             [pTooltip]="'WIKI.NAV.SEARCH' | translate"
@@ -12,7 +12,7 @@
             size="small"
             tooltipPosition="bottom"
         />
-        @if (state.abilities().canCreate) {
+        @if (state.abilitiesResolved() && state.abilities().canCreate) {
             <p-button
                 (onClick)="newPage()"
                 [text]="true"
@@ -28,14 +28,14 @@
     <!-- Filter. Narrows this tree in place; ⌘K is the one that takes you somewhere else. -->
     <div class="px-2 pt-2 shrink-0">
         <div class="flex items-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.03] px-2 py-1">
-            <i class="pi pi-filter text-[0.625rem] text-text-muted shrink-0"></i>
+            <i class="pi pi-filter text-xs text-text-muted shrink-0"></i>
             <input
                 (keydown.arrowdown)="focusFirstItem($event)"
                 (keydown.escape)="filterText.set('')"
                 (ngModelChange)="filterText.set($event)"
                 [ngModel]="filterText()"
                 [placeholder]="'WIKI.NAV.FILTER_PLACEHOLDER' | translate"
-                class="flex-1 min-w-0 border-0 bg-transparent text-[0.8125rem] text-text-primary outline-none placeholder-white/25"
+                class="flex-1 min-w-0 border-0 bg-transparent text-sm text-text-primary outline-none placeholder-white/25"
             />
             @if (filterText()) {
                 <button
@@ -43,261 +43,202 @@
                     [attr.aria-label]="'WIKI.NAV.FILTER_CLEAR' | translate"
                     class="shrink-0 cursor-pointer rounded border-0 bg-transparent p-0.5 text-text-muted hover:text-text-primary"
                 >
-                    <i class="pi pi-times text-[0.625rem]"></i>
+                    <i class="pi pi-times text-xs"></i>
                 </button>
             }
         </div>
     </div>
 
-    <!-- Tree -->
-    <div (keydown)="onTreeKeydown($event)" class="flex-1 min-h-0 overflow-y-auto px-2 py-2 thin-scrollbar">
-        <!-- Home -->
+    <div #scroller (dragleave)="onScrollerDragLeave($event)" class="flex-1 min-h-0 overflow-y-auto px-2 py-2 thin-scrollbar">
         <button
             (click)="goHome()"
-            [ngClass]="
-                state.wikiView() === 'home'
-                    ? 'bg-white/[0.08] text-text-primary'
-                    : 'text-text-secondary hover:bg-white/[0.06] hover:text-text-primary'
-            "
-            class="w-full flex items-center gap-2.5 px-2 py-[7px] rounded-lg text-left transition-all border-0 cursor-pointer mb-1"
-            data-nav-item
+            [class.bg-hover]="state.wikiView() === 'home'"
+            [class.text-text-primary]="state.wikiView() === 'home'"
+            [class.text-text-secondary]="state.wikiView() !== 'home'"
+            class="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-left transition-colors border-0 cursor-pointer mb-1 hover:bg-white/[0.06] hover:text-text-primary bg-transparent"
         >
-            <i class="pi pi-home text-[13px] shrink-0"></i>
-            <span class="text-[15px] font-medium">{{ 'WIKI.NAV.HOME' | translate }}</span>
+            <i class="pi pi-home text-xs shrink-0"></i>
+            <span class="text-sm font-medium">{{ 'WIKI.NAV.HOME' | translate }}</span>
         </button>
 
-        <!-- Favourites: this member's own, stored locally. Pinned below is the shared one. -->
-        @if (favouritePages().length > 0) {
-            <div class="mt-3 mb-1">
-                <p class="text-[10px] font-semibold text-text-muted uppercase tracking-widest px-2 mb-1">
-                    {{ 'WIKI.NAV.FAVOURITES' | translate }}
-                </p>
-                @for (page of favouritePages(); track page.id) {
-                    <ng-container *ngTemplateOutlet="flatRow; context: {$implicit: page, icon: 'pi-star-fill'}"></ng-container>
+        @if (loading()) {
+            <div [attr.aria-label]="'COMMON.LOADING' | translate" class="mt-2 space-y-1.5" role="status">
+                @for (width of skeletonWidths; track $index) {
+                    <div [style.width.%]="width" class="h-6 rounded-lg bg-white/[0.04] animate-pulse"></div>
                 }
             </div>
-        }
-
-        <!-- Recently viewed -->
-        @if (recentPages().length > 0) {
-            <div class="mt-3 mb-1">
-                <div class="flex items-center justify-between px-2 mb-1 group/recent">
-                    <p class="text-[10px] font-semibold text-text-muted uppercase tracking-widest">{{ 'WIKI.NAV.RECENT' | translate }}</p>
-                    <button
-                        (click)="prefs.clearRecents()"
-                        [attr.aria-label]="'WIKI.NAV.RECENT_CLEAR' | translate"
-                        class="opacity-0 group-hover/recent:opacity-100 border-0 bg-transparent cursor-pointer text-text-muted hover:text-text-secondary transition-all"
-                    >
-                        <i class="pi pi-times text-[9px]"></i>
-                    </button>
-                </div>
-                @for (page of recentPages(); track page.id) {
-                    <ng-container *ngTemplateOutlet="flatRow; context: {$implicit: page, icon: 'pi-clock'}"></ng-container>
-                }
-            </div>
-        }
-
-        <!-- Pinned pages -->
-        @if (pinnedPages().length > 0) {
-            <div class="mt-3 mb-1">
-                <p class="text-[10px] font-semibold text-text-muted uppercase tracking-widest px-2 mb-1">{{ 'WIKI.PINNED' | translate }}</p>
-                @for (page of pinnedPages(); track page.id) {
-                    <ng-container *ngTemplateOutlet="flatRow; context: {$implicit: page, icon: 'pi-bookmark'}"></ng-container>
-                }
-            </div>
-        }
-
-        <!-- Nested categories -->
-        @for (node of categoryTreeNodes(); track node.category.id) {
-            @if (dropTargetId() === node.category.id && dropPos() === 'before') {
-                <div class="mx-1 h-0.5 rounded-full bg-brand my-0.5"></div>
-            }
-            <div [style.paddingLeft]="node.depth * 12 + 'px'" class="mt-1">
-                <div
-                    (contextmenu)="onCategoryContextMenu($event, node.category)"
-                    (dragend)="onDragEnd($event)"
-                    (dragover)="onItemDragOver($event, node.category.id)"
-                    (dragstart)="onCategoryDragStart($event, node.category)"
-                    class="flex items-center justify-between px-2 py-1 group/cat cursor-grab"
-                    [attr.draggable]="state.abilities().canManageStructure ? true : null"
-                >
-                    @if (renamingId() === node.category.id) {
-                        <input
-                            (blur)="commitRename()"
-                            (keydown.enter)="commitRename()"
-                            (keydown.escape)="cancelRename()"
-                            (ngModelChange)="renameValue.set($event)"
-                            [ngModel]="renameValue()"
-                            class="flex-1 min-w-0 border-0 bg-white/[0.06] rounded px-1 py-0.5 text-[11px] font-semibold uppercase tracking-widest text-text-primary outline-none"
-                            data-rename-input
-                        />
-                    } @else {
-                        <button
-                            (click)="prefs.toggleCollapsed(node.category.id)"
-                            (keydown)="onCategoryKeydown($event, node.category)"
-                            [attr.aria-expanded]="!isCollapsed(node.category.id)"
-                            class="flex items-center gap-1 flex-1 min-w-0 border-0 bg-transparent p-0 text-left cursor-pointer"
-                            data-nav-item
-                        >
-                            <i
-                                [ngClass]="isCollapsed(node.category.id) ? 'pi-chevron-right' : 'pi-chevron-down'"
-                                class="pi text-[8px] text-text-muted shrink-0"
-                            ></i>
-                            @if (node.depth > 0) {
-                                <i class="pi pi-folder text-[10px] text-text-muted shrink-0"></i>
-                            }
-                            <span class="text-[11px] font-semibold text-text-muted uppercase tracking-widest truncate">{{
-                                node.category.name
-                            }}</span>
-                        </button>
-                        @if (state.abilities().canManageStructure) {
-                            <button
-                                (click)="deleteCategory(node.category)"
-                                [attr.aria-label]="'WIKI.NAV.DELETE_CATEGORY' | translate"
-                                class="opacity-0 group-hover/cat:opacity-100 w-4 h-4 flex items-center justify-center text-text-muted hover:text-rose-400 transition-all border-0 bg-transparent cursor-pointer rounded shrink-0"
+        } @else {
+            <div [attr.aria-label]="'WIKI.NAV.TREE' | translate" role="tree">
+                @for (row of rows(); track row.key; let i = $index) {
+                    @switch (row.kind) {
+                        @case ('divider') {
+                            <div class="my-2 border-t border-white/[0.06]" role="presentation"></div>
+                        }
+                        @case ('header') {
+                            <p class="px-2 mt-2 mb-1 text-xs font-semibold uppercase tracking-wide text-text-muted" role="presentation">
+                                {{ row.labelKey | translate }}
+                            </p>
+                        }
+                        @case ('empty') {
+                            <p
+                                [style.paddingLeft.rem]="0.5 + row.level * 0.75"
+                                class="py-1 text-xs italic text-text-faint"
+                                role="presentation"
                             >
-                                <i class="pi pi-trash text-[9px]"></i>
-                            </button>
+                                {{ row.labelKey | translate }}
+                            </p>
+                        }
+                        @default {
+                            @if (insertLine(); as line) {
+                                @if (line.id === row.id && line.position === 'before') {
+                                    <div class="mx-1 my-0.5 h-0.5 rounded-full bg-brand"></div>
+                                }
+                            }
+                            @if (renamingId() === row.id) {
+                                <div
+                                    [style.paddingLeft.rem]="0.5 + row.level * 0.75"
+                                    class="w-full flex items-center gap-2 pr-2 py-1.5 rounded-lg bg-white/[0.04]"
+                                >
+                                    <i [class]="row.icon" class="pi text-xs shrink-0 text-text-muted"></i>
+                                    <input
+                                        (blur)="commitRename()"
+                                        (keydown.enter)="commitRename()"
+                                        (keydown.escape)="cancelRename()"
+                                        (ngModelChange)="renameValue.set($event)"
+                                        [ngModel]="renameValue()"
+                                        class="flex-1 min-w-0 border-0 bg-transparent text-sm text-text-primary outline-none"
+                                        data-rename-input
+                                    />
+                                </div>
+                            } @else {
+                                <div
+                                    (click)="onRowClick(row)"
+                                    (contextmenu)="onRowContextMenu($event, row)"
+                                    (dragend)="onRowDragEnd()"
+                                    (dragover)="onRowDragOver($event, row)"
+                                    (dragstart)="onRowDragStart($event, row)"
+                                    (drop)="onRowDrop($event, row)"
+                                    (focus)="onRowFocus(i)"
+                                    (keydown)="onRowKeydown($event, row, i)"
+                                    [attr.aria-current]="row.kind === 'page' && row.id === activePageId() ? 'page' : null"
+                                    [attr.aria-expanded]="row.expandable ? !row.collapsed : null"
+                                    [attr.aria-level]="row.level + 1"
+                                    [attr.aria-selected]="row.kind === 'page' ? row.id === activePageId() : null"
+                                    [attr.data-row]="row.key"
+                                    [attr.draggable]="row.draggable ? true : null"
+                                    [attr.tabindex]="row.key === rovingKey() ? 0 : -1"
+                                    [attr.title]="row.tooltip"
+                                    [class.bg-hover]="row.page && row.id === activePageId()"
+                                    [class.cursor-grab]="row.draggable"
+                                    [class.cursor-pointer]="!row.draggable"
+                                    [class.drop-into]="row.id === dropIntoId()"
+                                    [class.drop-refused]="row.id === refusedId()"
+                                    [class.font-semibold]="row.kind === 'category' && row.level === 0"
+                                    [class.font-medium]="row.kind === 'category' && row.level > 0"
+                                    [class.nest-blink]="row.id === nestTargetId()"
+                                    [class.text-text-primary]="row.page && row.id === activePageId()"
+                                    [style.paddingLeft.rem]="0.5 + row.level * 0.75"
+                                    class="group/row w-full flex items-center gap-2 pr-1 py-1.5 rounded-lg text-left text-sm text-text-secondary transition-colors hover:bg-white/[0.06] hover:text-text-primary"
+                                    role="treeitem"
+                                >
+                                    @if (row.expandable) {
+                                        <i
+                                            [class.pi-chevron-down]="!row.collapsed"
+                                            [class.pi-chevron-right]="row.collapsed"
+                                            class="pi text-xs text-text-muted shrink-0"
+                                        ></i>
+                                    }
+                                    <i
+                                        [class]="row.icon"
+                                        [class.text-brand-dim]="row.kind === 'shortcut'"
+                                        [class.text-text-muted]="row.kind !== 'shortcut'"
+                                        class="pi text-xs shrink-0"
+                                    ></i>
+                                    <span class="truncate flex-1">{{ row.title }}</span>
+                                    @if (row.favourite && row.kind !== 'shortcut') {
+                                        <i class="pi pi-star-fill text-xs text-brand-dim/60 shrink-0"></i>
+                                    }
+                                    @if (row.id === nestTargetId()) {
+                                        <i class="pi pi-sitemap text-xs text-brand-dim shrink-0"></i>
+                                    }
+                                    <button
+                                        (click)="openRowMenu($event, row)"
+                                        [attr.aria-label]="'WIKI.NAV.MORE' | translate"
+                                        class="shrink-0 rounded border-0 bg-transparent px-1 text-text-muted opacity-0 transition-opacity hover:text-text-primary group-hover/row:opacity-100 group-focus-within/row:opacity-100 cursor-pointer"
+                                        tabindex="-1"
+                                        type="button"
+                                    >
+                                        <i class="pi pi-ellipsis-h text-xs"></i>
+                                    </button>
+                                </div>
+                            }
+                            @if (insertLine(); as line) {
+                                @if (line.id === row.id && line.position === 'after') {
+                                    <div class="mx-1 my-0.5 h-0.5 rounded-full bg-brand"></div>
+                                }
+                            }
                         }
                     }
+                }
+            </div>
+
+            @if (filterEmpty()) {
+                <p class="mt-4 px-2 text-center text-xs text-text-faint">
+                    {{ 'WIKI.NAV.FILTER_EMPTY' | translate: {filter: filterText()} }}
+                </p>
+            } @else if (state.wikiLoadFailed()) {
+                <div class="mt-4 px-2 text-center">
+                    <p class="text-xs text-text-faint">{{ 'WIKI.NAV.LOAD_FAILED' | translate }}</p>
+                    <button
+                        (click)="retry()"
+                        class="mt-2 cursor-pointer rounded border-0 bg-white/[0.06] px-2 py-1 text-xs text-text-secondary hover:text-text-primary"
+                        type="button"
+                    >
+                        {{ 'COMMON.RETRY' | translate }}
+                    </button>
                 </div>
-                @let catPages = pageTreeForCategory(node.category.id);
-                @for (pn of catPages; track pn.page.id) {
-                    <ng-container *ngTemplateOutlet="pageRow; context: {$implicit: pn}"></ng-container>
-                }
-                @if (catPages.length === 0 && !isCollapsed(node.category.id)) {
-                    <p class="text-[12px] text-text-faint px-2 py-1 italic">{{ 'WIKI.NAV.NO_PAGES_IN_CATEGORY' | translate }}</p>
-                }
-            </div>
-            @if (dropTargetId() === node.category.id && dropPos() === 'after') {
-                <div class="mx-1 h-0.5 rounded-full bg-brand my-0.5"></div>
+            } @else if (!state.wiki()?.pages?.length) {
+                <div class="mt-4 px-2 text-center">
+                    <p class="text-xs text-text-faint">{{ 'WIKI.NAV.EMPTY' | translate }}</p>
+                    <button
+                        (click)="retry()"
+                        class="mt-2 cursor-pointer rounded border-0 bg-white/[0.06] px-2 py-1 text-xs text-text-secondary hover:text-text-primary"
+                        type="button"
+                    >
+                        {{ 'COMMON.RETRY' | translate }}
+                    </button>
+                </div>
             }
-        }
 
-        <!-- Uncategorized pages -->
-        @if (uncategorizedPageTree().length > 0) {
-            <div class="mt-3">
-                @if (categoryTreeNodes().length > 0) {
-                    <p class="text-[10px] font-semibold text-text-muted uppercase tracking-widest px-2 mb-1">
-                        {{ 'WIKI.NAV.PAGES' | translate }}
-                    </p>
-                }
-                @for (node of uncategorizedPageTree(); track node.page.id) {
-                    <ng-container *ngTemplateOutlet="pageRow; context: {$implicit: node}"></ng-container>
-                }
-            </div>
-        }
-
-        @if (filterEmpty()) {
-            <p class="text-[12px] text-text-faint text-center mt-4 px-2">
-                {{ 'WIKI.NAV.FILTER_EMPTY' | translate: {filter: filterText()} }}
-            </p>
-        } @else if (!state.wiki()?.pages?.length && state.wiki() !== null) {
-            <p class="text-[12px] text-text-faint text-center mt-4 px-2">{{ 'WIKI.NAV.EMPTY' | translate }}</p>
-        }
-
-        <!-- Add category -->
-        @if (state.abilities().canManageStructure) {
-            <div class="mt-4 pt-3 border-t border-white/[0.05]">
-                <button
-                    (click)="openCategoryDialog()"
-                    class="w-full flex items-center gap-2 px-2 py-[6px] rounded-lg text-text-muted hover:text-text-secondary hover:bg-white/[0.04] transition-all border border-dashed border-white/[0.08] cursor-pointer bg-transparent text-left"
-                >
-                    <i class="pi pi-folder-plus text-[12px] shrink-0"></i>
-                    <span class="text-[13px]">{{ 'WIKI.NAV.ADD_CATEGORY' | translate }}</span>
-                </button>
-            </div>
+            @if (state.abilitiesResolved() && state.abilities().canManageStructure) {
+                <div class="mt-4 pt-3 border-t border-white/[0.05]">
+                    <button
+                        (click)="openCategoryDialog()"
+                        class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-text-muted hover:text-text-secondary hover:bg-white/[0.04] transition-colors border border-dashed border-white/[0.08] cursor-pointer bg-transparent text-left"
+                    >
+                        <i class="pi pi-folder-plus text-xs shrink-0"></i>
+                        <span class="text-sm">{{ 'WIKI.NAV.ADD_CATEGORY' | translate }}</span>
+                    </button>
+                </div>
+            }
         }
     </div>
 </div>
 
-<!-- A page row inside the tree: drop indicators, inline rename, drag handles. One template for both the categorized and the loose lists, so they can't drift apart. -->
-<ng-template #pageRow let-node>
-    @if (dropTargetId() === node.page.id && dropPos() === 'before' && nestTargetId() !== node.page.id) {
-        <div class="mx-1 h-0.5 rounded-full bg-brand my-0.5"></div>
-    }
-    @if (renamingId() === node.page.id) {
-        <div
-            [style.paddingLeft]="8 + node.depth * 14 + 'px'"
-            class="w-full flex items-center gap-2 pr-2 py-[6px] rounded-lg bg-white/[0.04]"
-        >
-            <i class="pi pi-file text-[12px] shrink-0 text-text-muted"></i>
-            <input
-                (blur)="commitRename()"
-                (keydown.enter)="commitRename()"
-                (keydown.escape)="cancelRename()"
-                (ngModelChange)="renameValue.set($event)"
-                [ngModel]="renameValue()"
-                class="flex-1 min-w-0 border-0 bg-transparent text-[14px] text-text-primary outline-none"
-                data-rename-input
-            />
-        </div>
-    } @else {
-        <button
-            (click)="goPage(node.page)"
-            (contextmenu)="onPageContextMenu($event, node.page)"
-            (dragend)="onDragEnd($event)"
-            (dragover)="onItemDragOver($event, node.page.id)"
-            (dragstart)="onPageDragStart($event, node.page)"
-            (keydown)="onPageKeydown($event, node.page)"
-            [ngClass]="
-                nestTargetId() === node.page.id
-                    ? 'nest-blink text-text-primary scale-[1.01]'
-                    : isPageActive(node.page)
-                      ? 'bg-white/[0.08] text-text-primary'
-                      : 'text-text-secondary hover:bg-white/[0.06] hover:text-text-primary'
-            "
-            [style.paddingLeft]="8 + node.depth * 14 + 'px'"
-            class="w-full flex items-center gap-2 pr-2 py-[6px] rounded-lg text-left transition-all duration-200 border-0 cursor-grab"
-            [attr.draggable]="state.abilities().canManageStructure ? true : null"
-            data-nav-item
-        >
-            <i [ngClass]="node.depth > 0 ? 'pi-file-minus text-text-muted' : 'pi-file'" class="pi text-[12px] shrink-0"></i>
-            <span class="text-[14px] truncate flex-1">{{ node.page.title }}</span>
-            @if (prefs.isFavourite(node.page.id)) {
-                <i class="pi pi-star-fill text-[9px] text-brand-dim/60 shrink-0"></i>
-            }
-            <i
-                [class.opacity-0]="nestTargetId() !== node.page.id"
-                [class.opacity-100]="nestTargetId() === node.page.id"
-                class="pi pi-sitemap text-[10px] text-brand-dim shrink-0 transition-opacity duration-300"
-            ></i>
-        </button>
-    }
-    @if (dropTargetId() === node.page.id && dropPos() === 'after' && nestTargetId() !== node.page.id) {
-        <div class="mx-1 h-0.5 rounded-full bg-brand my-0.5"></div>
-    }
-</ng-template>
+<!-- Page and category context menu, opened by right-click, by the row's `...` button and by Shift+F10 -->
+<app-context-menu #rowMenu />
 
-<!-- Favourites, recents and pinned: shortcuts to a page that is also somewhere in the tree, so they carry no drag, no nesting and no depth. -->
-<ng-template #flatRow let-page let-icon="icon">
-    <button
-        (click)="goPage(page)"
-        (contextmenu)="onPageContextMenu($event, page)"
-        (keydown)="onPageKeydown($event, page)"
-        [ngClass]="
-            isPageActive(page) ? 'bg-white/[0.08] text-text-primary' : 'text-text-secondary hover:bg-white/[0.06] hover:text-text-primary'
-        "
-        class="w-full flex items-center gap-2.5 px-2 py-[6px] rounded-lg text-left transition-all border-0 cursor-pointer"
-        data-nav-item
-    >
-        <i [ngClass]="icon" class="pi text-[12px] shrink-0 text-brand-dim/70"></i>
-        <span class="text-[14px] truncate">{{ page.title }}</span>
-    </button>
-</ng-template>
-
-<!-- Page and category context menu -->
-<p-context-menu #catCtxMenu [model]="ctxMenuItems" appendTo="body" />
-
-<!-- Undo. Keyed so it lands here and not in the app-wide outlet, which has no action slot. -->
+<!-- Undo. Keyed so it lands here and not in the app-wide outlet, which has no action slot.
+     Moved to the body at startup: below `lg` this column is transformed, which would make it
+     the containing block for anything fixed inside it. -->
 <p-toast [key]="undoToastKey" position="bottom-center">
     <ng-template let-message pTemplate="message">
         <div class="flex w-full items-center gap-3">
-            <i class="pi pi-trash text-[0.75rem] text-text-muted"></i>
-            <span class="flex-1 text-[0.8125rem] text-text-primary">{{ message.summary }}</span>
+            <i class="pi pi-trash text-xs text-text-muted"></i>
+            <span class="flex-1 text-sm text-text-primary">{{ message.summary }}</span>
             <button
                 (click)="undoPending()"
-                class="shrink-0 cursor-pointer rounded border-0 bg-white/[0.08] px-2 py-1 text-[0.75rem] font-medium text-text-primary hover:bg-hover"
+                class="shrink-0 cursor-pointer rounded border-0 bg-white/[0.08] px-2 py-1 text-xs font-medium text-text-primary hover:bg-hover"
             >
                 {{ 'WIKI.NAV.UNDO' | translate }}
             </button>
@@ -321,7 +262,7 @@
     </ng-template>
     <div class="py-2 space-y-4">
         <div>
-            <label class="block text-xs font-semibold text-text-muted uppercase tracking-widest mb-2">{{
+            <label class="block text-xs font-semibold text-text-muted uppercase tracking-wide mb-2">{{
                 'WIKI.NAV.CATEGORY_NAME' | translate
             }}</label>
             <input
@@ -334,9 +275,7 @@
             />
         </div>
         <div>
-            <label class="block text-xs font-semibold text-text-muted uppercase tracking-widest mb-2">
-                {{ 'WIKI.PARENT' | translate }}</label
-            >
+            <label class="block text-xs font-semibold text-text-muted uppercase tracking-wide mb-2"> {{ 'WIKI.PARENT' | translate }}</label>
             <p-select
                 (ngModelChange)="newCategoryParentId.set($event)"
                 [ngModel]="newCategoryParentId()"

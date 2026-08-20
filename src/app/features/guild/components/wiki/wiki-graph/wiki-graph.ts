@@ -1,8 +1,8 @@
-import {WikiCategoryDto, WikiPageSummaryDto} from '../../../../../dtos/response/wiki.dto';
+import {WikiCategoryDto, WikiGraphDto, WikiPageSummaryDto} from '../../../../../dtos/response/wiki.dto';
 import {extractLinkedPageIds} from '../wiki-links';
 
 /**
- * The wiki as a map: pages are nodes, `wiki:` links are edges, categories are colour.
+ * The wiki as a map: pages are nodes, `wiki:` links and the page tree are edges, categories are colour.
  * Layout is deterministic: initial positions come from a hash of the page id, never `Math.random()`, so the static preview and the full view always agree.
  */
 
@@ -26,13 +26,19 @@ export const ALPHA_MIN = 0.01;
 export const ALPHA_REHEAT = 0.4;
 const ALPHA_DECAY = 0.022;
 
+/** `hierarchy` is a page filed under another, `link` is a `wiki:` link written in a body. */
+export type GraphEdgeKind = 'hierarchy' | 'link';
+
 export interface GraphNode {
     id: string;
     title: string;
-    categoryId?: string;
+    categoryId?: string | null;
     /** Index into the colour ramp, `-1` for a page in no category. */
     colorIndex: number;
+    /** Both kinds together. Never filtered by what is on screen: a node must not resize when a class is toggled off. */
     degree: number;
+    linkDegree: number;
+    hierarchyDegree: number;
     x: number;
     y: number;
     vx: number;
@@ -44,6 +50,22 @@ export interface GraphNode {
 export interface GraphEdge {
     a: number;
     b: number;
+    kind: GraphEdgeKind;
+}
+
+/** What a node needs to be placed. Both `WikiPageSummaryDto` and `WikiGraphNodeDto` satisfy it. */
+export interface GraphPage {
+    id: string;
+    title: string;
+    parentPageId?: string | null;
+    categoryId?: string | null;
+    updatedAt?: Date | string | null;
+}
+
+/** One written link, source to target. Direction is used only to reject self-links. */
+export interface PageLink {
+    sourceId: string;
+    targetId: string;
 }
 
 export interface GraphModel {
@@ -60,33 +82,68 @@ export interface Point {
     y: number;
 }
 
+/** Reads the links out of the cached page bodies. Used until the graph endpoint answers. */
 export function buildGraph(
     pages: readonly WikiPageSummaryDto[],
     contentByPageId: ReadonlyMap<string, string>,
     categories: readonly WikiCategoryDto[] = [],
     previous?: ReadonlyMap<string, Point>,
 ): GraphModel {
-    const known = new Set(pages.map(p => p.id));
-
-    // Links first: the node cap wants to keep the most connected pages, which cannot be known before the links are read.
-    const linksBySource = new Map<string, string[]>();
-    const degree = new Map<string, number>();
+    const links: PageLink[] = [];
     for (const page of pages) {
         const body = contentByPageId.get(page.id);
-        // A link to a page that no longer exists is not an edge: it has no other end.
-        const written = body ? extractLinkedPageIds(body).filter(id => id !== page.id && known.has(id)) : [];
+        if (!body) continue;
+        for (const targetId of extractLinkedPageIds(body)) links.push({sourceId: page.id, targetId});
+    }
+    return buildGraphFrom(pages, links, categories, previous);
+}
 
-        // A page's parent counts as an edge too, not just its written `wiki:` links, so a filed-under page with no body links still shows as connected.
-        const parent = page.parentPageId;
-        // Deduped: a page filed under another and also linking to it in its body counts once, since `degree` sizes the node and decides what survives the node cap.
-        const targets = [
-            ...new Set(parent && parent !== page.id && known.has(parent) ? [...written, parent] : written),
-        ];
-        if (!targets.length) continue;
+/** The endpoint's nodes as graph pages, borrowing `updatedAt` from the page list for the cap's tiebreak. */
+export function graphPagesOf(graph: WikiGraphDto, pages: readonly WikiPageSummaryDto[] = []): GraphPage[] {
+    const updatedById = new Map(pages.map(p => [p.id, p.updatedAt] as const));
+    return graph.nodes.map(node => ({...node, updatedAt: updatedById.get(node.id) ?? null}));
+}
 
-        linksBySource.set(page.id, targets);
-        degree.set(page.id, (degree.get(page.id) ?? 0) + targets.length);
-        for (const target of targets) degree.set(target, (degree.get(target) ?? 0) + 1);
+/** The endpoint sends body links only; the tree is derived from `parentPageId` like every other path. */
+export function graphLinksOf(graph: WikiGraphDto): PageLink[] {
+    return graph.edges.map(edge => ({sourceId: edge.sourcePageId, targetId: edge.targetPageId}));
+}
+
+export function buildGraphFrom(
+    pages: readonly GraphPage[],
+    links: readonly PageLink[],
+    categories: readonly WikiCategoryDto[] = [],
+    previous?: ReadonlyMap<string, Point>,
+): GraphModel {
+    const known = new Set(pages.map(p => p.id));
+    const pairs = new Map<string, {source: string; target: string; kind: GraphEdgeKind}>();
+
+    const connect = (source: string, target: string | null | undefined, kind: GraphEdgeKind): void => {
+        // A link to a page that no longer exists, or that this reader cannot see, has no other end.
+        if (!target || target === source || !known.has(source) || !known.has(target)) return;
+        const key = source < target ? `${source}:${target}` : `${target}:${source}`;
+        const existing = pairs.get(key);
+        if (!existing) {
+            pairs.set(key, {source, target, kind});
+            return;
+        }
+        // A pair that is both filed-under and written-about is one edge of kind 'link'. Storing it
+        // as 'hierarchy' would hide a written link whenever the tree is toggled off.
+        if (kind === 'link') existing.kind = 'link';
+    };
+
+    for (const page of pages) connect(page.id, page.parentPageId, 'hierarchy');
+    for (const link of links) connect(link.sourceId, link.targetId, 'link');
+
+    const degree = new Map<string, number>();
+    const linkDegree = new Map<string, number>();
+    const hierarchyDegree = new Map<string, number>();
+    for (const pair of pairs.values()) {
+        const perKind = pair.kind === 'link' ? linkDegree : hierarchyDegree;
+        for (const id of [pair.source, pair.target]) {
+            degree.set(id, (degree.get(id) ?? 0) + 1);
+            perKind.set(id, (perKind.get(id) ?? 0) + 1);
+        }
     }
 
     const ranked = [...pages].sort(
@@ -113,6 +170,8 @@ export function buildGraph(
             categoryId: page.categoryId,
             colorIndex: page.categoryId ? (colorIndexByCategory.get(page.categoryId) ?? -1) : -1,
             degree: degree.get(page.id) ?? 0,
+            linkDegree: linkDegree.get(page.id) ?? 0,
+            hierarchyDegree: hierarchyDegree.get(page.id) ?? 0,
             x: seed.x,
             y: seed.y,
             vx: 0,
@@ -123,28 +182,28 @@ export function buildGraph(
 
     const indexById = new Map(nodes.map((node, index) => [node.id, index] as const));
     const edges: GraphEdge[] = [];
-    const seen = new Set<string>();
     const neighbours: number[][] = nodes.map(() => []);
-    for (const [sourceId, targets] of linksBySource) {
-        const a = indexById.get(sourceId);
-        if (a === undefined) continue;
-        for (const targetId of targets) {
-            const b = indexById.get(targetId);
-            if (b === undefined) continue;
-            // Undirected: A links to B and B links back is one line, not two drawn on top of each other at double opacity.
-            const key = a < b ? `${a}:${b}` : `${b}:${a}`;
-            if (seen.has(key)) continue;
-            seen.add(key);
-            edges.push({a, b});
-            neighbours[a].push(b);
-            neighbours[b].push(a);
-        }
+    for (const pair of pairs.values()) {
+        const a = indexById.get(pair.source);
+        const b = indexById.get(pair.target);
+        if (a === undefined || b === undefined) continue;
+        edges.push({a, b, kind: pair.kind});
+        neighbours[a].push(b);
+        neighbours[b].push(a);
     }
 
     return {nodes, edges, neighbours, omitted};
 }
 
-/** One integration step. Mutates in place: this runs every frame and must not allocate. */
+/** The edges a view showing these classes draws. */
+export function visibleEdges(model: GraphModel, show: {hierarchy: boolean; links: boolean}): GraphEdge[] {
+    return model.edges.filter(edge => (edge.kind === 'hierarchy' ? show.hierarchy : show.links));
+}
+
+/**
+ * One integration step. Mutates in place: this runs every frame and must not allocate.
+ * Every edge pulls, whatever is on screen, so hiding a class does not rearrange the map.
+ */
 export function stepSimulation(model: GraphModel, alpha: number): void {
     const {nodes, edges} = model;
     const count = nodes.length;

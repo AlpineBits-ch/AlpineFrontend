@@ -60,6 +60,14 @@ export class WikiContentCacheService {
         this.didFail.set(false);
         this.wikiService.getWikiWithContent(guildId).subscribe({
             next: wiki => {
+                this.isWarming.set(false);
+                // A response where no page carries the field at all is a wiki fetched without
+                // content, not a wiki of empty pages. Storing '' for those would make `warmed`
+                // and every coverage count claim a full index of nothing.
+                if (wiki.pages.length && !wiki.pages.some(page => typeof page.content === 'string')) {
+                    this.didFail.set(true);
+                    return;
+                }
                 this.store.update(map => {
                     const next = new Map(map);
                     // `?? ''` rather than a skip: an empty body is a truthful "nothing to
@@ -67,7 +75,6 @@ export class WikiContentCacheService {
                     for (const page of wiki.pages) next.set(page.id, page.content ?? '');
                     return next;
                 });
-                this.isWarming.set(false);
                 this.isWarmed.set(true);
             },
             error: () => {

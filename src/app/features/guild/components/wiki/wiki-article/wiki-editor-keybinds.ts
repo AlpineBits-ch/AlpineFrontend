@@ -1,7 +1,8 @@
-import {Editor, Extension} from '@tiptap/core';
+import {Extension} from '@tiptap/core';
 import {Plugin, PluginKey} from '@tiptap/pm/state';
 import {WikiEditorKeybindId} from '../../../../../models/keybind-action.model';
 import {acceleratorFromEvent} from '../../../../../services/keybinds.service';
+import {WIKI_FORMAT_ACTION_IDS, WIKI_FORMAT_ACTIONS} from './wiki-format-actions';
 
 /** The configurable half of the editor's keyboard: TipTap's own keymaps are fixed at construction and invisible to the user, so this plugin is asked first (priority) and consumes anything it recognises, making the stored binding win; unbound keys fall through to TipTap's defaults. Two actions (the markdown-source toggle, the toolbar's link row) are not editor commands, so the host passes those in. */
 
@@ -23,32 +24,8 @@ export interface WikiEditorKeybindOptions {
     editable: () => boolean;
 }
 
-/** What each action does: everything here wraps the selection or converts the block the caret is in, which is TipTap's own behaviour for every one of these toggles. */
-type EditorAction = (editor: Editor, host: WikiKeybindHost) => void;
-
-const ACTIONS: Record<WikiEditorKeybindId, EditorAction> = {
-    'wiki-toggle-markdown': (_editor, host) => host.toggleMarkdown(),
-    'wiki-link': (_editor, host) => host.openLink(),
-    'wiki-bold': editor => editor.chain().focus().toggleBold().run(),
-    'wiki-italic': editor => editor.chain().focus().toggleItalic().run(),
-    'wiki-underline': editor => editor.chain().focus().toggleUnderline().run(),
-    'wiki-strike': editor => editor.chain().focus().toggleStrike().run(),
-    'wiki-inline-code': editor => editor.chain().focus().toggleCode().run(),
-    'wiki-heading-1': editor => editor.chain().focus().toggleHeading({level: 1}).run(),
-    'wiki-heading-2': editor => editor.chain().focus().toggleHeading({level: 2}).run(),
-    'wiki-heading-3': editor => editor.chain().focus().toggleHeading({level: 3}).run(),
-    'wiki-bullet-list': editor => editor.chain().focus().toggleBulletList().run(),
-    'wiki-numbered-list': editor => editor.chain().focus().toggleOrderedList().run(),
-    'wiki-task-list': editor => editor.chain().focus().toggleTaskList().run(),
-    'wiki-quote': editor => editor.chain().focus().toggleBlockquote().run(),
-    'wiki-code-block': editor => editor.chain().focus().toggleCodeBlock().run(),
-    'wiki-divider': editor => editor.chain().focus().setHorizontalRule().run(),
-};
-
 /** The one action that still applies to a page you are only reading. */
 const READ_ONLY_ACTIONS: ReadonlySet<WikiEditorKeybindId> = new Set(['wiki-toggle-markdown']);
-
-const ACTION_IDS = Object.keys(ACTIONS) as WikiEditorKeybindId[];
 
 export function wikiEditorKeybinds(options: WikiEditorKeybindOptions): Extension {
     return Extension.create({
@@ -66,13 +43,18 @@ export function wikiEditorKeybinds(options: WikiEditorKeybindOptions): Extension
                             if (isModifierOnly(event)) return false;
 
                             const pressed = acceleratorFromEvent(event);
-                            const id = ACTION_IDS.find(action => options.binding(action) === pressed);
+                            const id = WIKI_FORMAT_ACTION_IDS.find(
+                                action => options.binding(action) === pressed,
+                            );
                             if (!id) return false;
                             if (!options.editable() && !READ_ONLY_ACTIONS.has(id)) return false;
 
                             // Consumed either way: the key belongs to this action now, and letting it fall through would run the built-in default on top of it.
                             event.preventDefault();
-                            ACTIONS[id](editor, options.host);
+                            const action = WIKI_FORMAT_ACTIONS[id];
+                            if (action.host === 'toggle-markdown') options.host.toggleMarkdown();
+                            else if (action.host === 'link') options.host.openLink();
+                            else action.run?.(editor);
                             return true;
                         },
                     },

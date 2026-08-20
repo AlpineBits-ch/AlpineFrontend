@@ -39,11 +39,26 @@ export function matchTrigger(textBefore: string): SuggestState | null {
     return null;
 }
 
-export function wikiSuggestPlugin(onChange: (state: SuggestState | null) => void): Plugin {
-    return new Plugin({
+export interface WikiSuggestHandle {
+    plugin: Plugin;
+    /**
+     * Stops the trigger before the caret from re-opening the menu Escape just closed. Lifted by
+     * the next document change: state is re-derived from the text on every keystroke, so without
+     * this the menu comes straight back on the next arrow key.
+     */
+    suppress(): void;
+}
+
+export function wikiSuggestPlugin(onChange: (state: SuggestState | null) => void): WikiSuggestHandle {
+    let suppressed = false;
+    const plugin = new Plugin({
         key: wikiSuggestKey,
         view: () => ({
-            update: view => {
+            update: (view, previous) => {
+                if (suppressed) {
+                    if (view.state.doc.eq(previous.doc)) return;
+                    suppressed = false;
+                }
                 const {selection} = view.state;
                 if (!selection.empty) {
                     onChange(null);
@@ -55,4 +70,10 @@ export function wikiSuggestPlugin(onChange: (state: SuggestState | null) => void
             },
         }),
     });
+    return {
+        plugin,
+        suppress: () => {
+            suppressed = true;
+        },
+    };
 }

@@ -16,7 +16,7 @@
         [style.width.px]="navWidth()"
         class="wiki-nav-col shrink-0 h-full bg-sidebar border-r border-white/[0.10]"
     >
-        <app-wiki-nav (search)="searchOpen.set(true)" class="flex flex-col flex-1 min-h-0" />
+        <app-wiki-nav (searchRequested)="searchOpen.set(true)" class="flex flex-col flex-1 min-h-0" />
     </div>
     <!-- Drag handle. A 1px seam widened to a grabbable target by the ::after in the
          stylesheet, so resizing never opens a visible gutter. -->

@@ -14,11 +14,16 @@ describe('wiki editor keys', () => {
 
     afterEach(() => editor.destroy());
 
-    /** Routes through ProseMirror's own keydown handling, keymaps and all. */
-    function press(key: string, shift = false): void {
-        editor.view.dom.dispatchEvent(
-            new KeyboardEvent('keydown', {key, shiftKey: shift, bubbles: true, cancelable: true}),
-        );
+    /** Routes through ProseMirror's own keydown handling, keymaps and all. Returns whether anything claimed the key, which for Tab is the difference between indenting and letting focus leave. */
+    function press(key: string, shift = false): boolean {
+        const event = new KeyboardEvent('keydown', {
+            key,
+            shiftKey: shift,
+            bubbles: true,
+            cancelable: true,
+        });
+        editor.view.dom.dispatchEvent(event);
+        return event.defaultPrevented;
     }
 
     /** Types text the way a person does, so input rules see it. */
@@ -60,51 +65,32 @@ describe('wiki editor keys', () => {
             expect(nodeNames().filter(name => name === 'bulletList').length).toBe(2);
         });
 
-        it('indents at the caret in prose, the way a text editor does', () => {
-            editor.commands.setContent('one two', {contentType: 'markdown'});
-            editor.commands.setTextSelection(4);
-
-            press('Tab');
-
-            // Position 4 is the end of "one", so the step lands there and the space follows it.
-            expect(editor.state.selection.$from.parent.textContent).toBe(`one${INDENT} two`);
-            // The caret stays after what it inserted rather than moving anywhere else.
-            expect(editor.state.selection.from).toBe(4 + INDENT.length);
-        });
-
-        it('indents at the start of a line without turning the paragraph into code', () => {
-            editor.commands.setContent('indented para', {contentType: 'markdown'});
-            editor.commands.setTextSelection(1);
-
-            press('Tab');
-            // Saved and loaded again, which is what a mode switch and a page reload both do.
-            const saved = editor.getMarkdown();
-            editor.commands.setContent(saved, {contentType: 'markdown'});
-
-            // A literal tab here reparses as an indented code block, and the paragraph is gone.
-            expect(editor.state.doc.firstChild?.type.name).toBe('paragraph');
-            expect(editor.state.doc.firstChild?.textContent).toBe(`${INDENT}indented para`);
-            expect(editor.getMarkdown()).toBe(saved);
-        });
-
-        it('takes the indent back off with Shift-Tab', () => {
-            editor.commands.setContent('one two', {contentType: 'markdown'});
-            editor.commands.setTextSelection(4);
-            press('Tab');
-
-            press('Tab', true);
-
-            expect(editor.state.selection.$from.parent.textContent).toBe('one two');
-        });
-
-        it('leaves the text alone when Shift-Tab has no indent to remove', () => {
+        // The accessibility half: consuming Tab everywhere left the article with no keyboard exit.
+        it('lets Tab through in prose, so focus can leave the article', () => {
             editor.commands.setContent('one two', {contentType: 'markdown'});
             editor.commands.setTextSelection(4);
             const before = editor.getHTML();
 
-            press('Tab', true);
-
+            expect(press('Tab')).toBe(false);
             expect(editor.getHTML()).toBe(before);
+        });
+
+        it('lets Shift-Tab through in prose too, so focus can leave backwards', () => {
+            editor.commands.setContent('one two', {contentType: 'markdown'});
+            editor.commands.setTextSelection(4);
+            const before = editor.getHTML();
+
+            expect(press('Tab', true)).toBe(false);
+            expect(editor.getHTML()).toBe(before);
+        });
+
+        // The first item has nothing to sink under, so the list keymap declines; moving focus out
+        // of a list halfway through writing it is not what Tab means there.
+        it('keeps Tab inside a list even where there is nothing to indent', () => {
+            editor.commands.setContent('- only item', {contentType: 'markdown'});
+            editor.commands.setTextSelection(4);
+
+            expect(press('Tab')).toBe(true);
         });
 
         it('moves between table cells rather than indenting inside one', () => {

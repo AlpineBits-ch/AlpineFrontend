@@ -3,7 +3,8 @@
     <div class="min-w-0">
         <p class="text-sm font-semibold text-text-primary">{{ 'WIKI.GRAPH.TITLE' | translate }}</p>
         <p class="truncate text-xs text-text-muted">
-            {{ 'WIKI.GRAPH.SUBTITLE' | translate: {nodes: nodeCount(), links: edgeCount()} }}
+            {{ 'WIKI.GRAPH.SUBTITLE' | translate: {nodes: nodeCount(), links: linkEdgeCount()} }}
+            &middot; {{ 'WIKI.GRAPH.HIERARCHY_COUNT' | translate: {n: hierarchyEdgeCount()} }}
             @if (omitted()) {
                 &middot; {{ 'WIKI.GRAPH.OMITTED' | translate: {n: omitted()} }}
             }
@@ -11,6 +12,27 @@
     </div>
 
     <div class="ml-auto flex items-center gap-1">
+        @if (!listMode() && !unavailable()) {
+            <p-button
+                (onClick)="toggleLinks()"
+                [pTooltip]="(prefs.showLinks() ? 'WIKI.GRAPH.HIDE_LINKS' : 'WIKI.GRAPH.SHOW_LINKS') | translate"
+                [severity]="prefs.showLinks() ? 'primary' : 'secondary'"
+                [text]="true"
+                icon="pi pi-link"
+                size="small"
+                tooltipPosition="bottom"
+            />
+            <p-button
+                (onClick)="toggleHierarchy()"
+                [pTooltip]="(prefs.showHierarchy() ? 'WIKI.GRAPH.HIDE_HIERARCHY' : 'WIKI.GRAPH.SHOW_HIERARCHY') | translate"
+                [severity]="prefs.showHierarchy() ? 'primary' : 'secondary'"
+                [text]="true"
+                icon="pi pi-sitemap"
+                size="small"
+                tooltipPosition="bottom"
+            />
+            <span class="mx-1 h-4 w-px bg-white/[0.08]"></span>
+        }
         @if (!listMode() && !unavailable()) {
             <p-button
                 (onClick)="zoomBy(0.8)"
@@ -75,7 +97,9 @@
                                 {{ row.page.title }}
                             </span>
                             <span class="shrink-0 font-mono text-[0.6875rem] text-text-muted">
-                                {{ 'WIKI.GRAPH.LINK_COUNT' | translate: {n: row.node.degree} }}
+                                {{ 'WIKI.GRAPH.LINK_COUNT' | translate: {n: row.node.linkDegree} }}
+                                &middot;
+                                {{ 'WIKI.GRAPH.HIERARCHY_COUNT' | translate: {n: row.node.hierarchyDegree} }}
                             </span>
                         </button>
                     } @empty {
@@ -100,20 +124,30 @@
             class="wiki-graph-canvas absolute inset-0 h-full w-full"
         ></canvas>
 
-        <!-- Coverage. Edges need page bodies, and the bodies arrive in one request after the view opens, so an empty graph in the first second is loading, not an empty wiki. -->
-        @if (cache.warming()) {
+        <!-- Links arrive after the view opens, so a graph showing only the tree in the first second is loading, not a wiki with nothing linked. -->
+        @if (loadingLinks()) {
             <div
                 class="pointer-events-none absolute left-1/2 top-4 flex -translate-x-1/2 items-center gap-2 rounded-full border border-white/[0.08] bg-card/90 px-3 py-1.5 text-[0.6875rem] text-text-secondary backdrop-blur"
             >
                 <i class="pi pi-spin pi-spinner text-[0.6875rem]"></i>
-                <span>{{ 'WIKI.GRAPH.INDEXING' | translate: {loaded: coverage().loaded, total: coverage().total} }}</span>
+                @if (cache.warming()) {
+                    <span>
+                        {{ 'WIKI.GRAPH.INDEXING' | translate: {loaded: coverage().loaded, total: coverage().total} }}
+                    </span>
+                } @else {
+                    <span>{{ 'WIKI.GRAPH.LOADING_LINKS' | translate }}</span>
+                }
             </div>
-        } @else if (cache.failed()) {
+        } @else if (linksFailed()) {
             <div
                 class="absolute left-1/2 top-4 flex -translate-x-1/2 items-center gap-2 rounded-full border border-white/[0.08] bg-card/90 px-3 py-1.5 text-[0.6875rem] text-text-secondary backdrop-blur"
             >
-                <span>{{ 'WIKI.GRAPH.LINKS_UNAVAILABLE' | translate }}</span>
-                <button (click)="retryWarm()" class="cursor-pointer border-0 bg-transparent p-0 text-brand-dim hover:underline">
+                @if (source.failed()) {
+                    <span>{{ 'WIKI.GRAPH.LINKS_FAILED' | translate }}</span>
+                } @else {
+                    <span>{{ 'WIKI.GRAPH.LINKS_UNAVAILABLE' | translate }}</span>
+                }
+                <button (click)="retry()" class="cursor-pointer border-0 bg-transparent p-0 text-brand-dim hover:underline">
                     {{ 'WIKI.SEARCH.RETRY' | translate }}
                 </button>
             </div>
@@ -127,11 +161,29 @@
         }
 
         <!-- Legend -->
-        @if (legend().length) {
-            <div
-                class="thin-scrollbar pointer-events-none absolute bottom-4 left-4 max-h-[45%] max-w-[13rem] overflow-y-auto rounded-xl border border-white/[0.08] bg-card/80 p-3 backdrop-blur"
-            >
-                <p class="mb-2 text-[0.625rem] font-semibold uppercase tracking-widest text-text-muted">
+        <div
+            class="thin-scrollbar pointer-events-none absolute bottom-4 left-4 max-h-[45%] max-w-[13rem] overflow-y-auto rounded-xl border border-white/[0.08] bg-card/80 p-3 backdrop-blur"
+        >
+            <p class="mb-2 text-[0.625rem] font-semibold uppercase tracking-widest text-text-muted">
+                {{ 'WIKI.GRAPH.CONNECTIONS' | translate }}
+            </p>
+            <div class="flex flex-col gap-1.5">
+                <div [class.opacity-40]="!prefs.showLinks()" class="flex items-center gap-2">
+                    <span class="h-0.5 w-5 shrink-0 rounded-full bg-brand-dim"></span>
+                    <span class="truncate text-[0.75rem] text-text-secondary">
+                        {{ 'WIKI.GRAPH.LEGEND_LINK' | translate }}
+                    </span>
+                </div>
+                <div [class.opacity-40]="!prefs.showHierarchy()" class="flex items-center gap-2">
+                    <span class="w-5 shrink-0 border-t border-dashed border-white/40"></span>
+                    <span class="truncate text-[0.75rem] text-text-secondary">
+                        {{ 'WIKI.GRAPH.LEGEND_HIERARCHY' | translate }}
+                    </span>
+                </div>
+            </div>
+
+            @if (legend().length) {
+                <p class="mb-2 mt-3 text-[0.625rem] font-semibold uppercase tracking-widest text-text-muted">
                     {{ 'WIKI.CATEGORIES' | translate }}
                 </p>
                 <div class="flex flex-col gap-1.5">
@@ -142,8 +194,8 @@
                         </div>
                     }
                 </div>
-            </div>
-        }
+            }
+        </div>
 
         <!-- Hovered page -->
         @if (hovered(); as node) {
@@ -151,11 +203,13 @@
                 class="pointer-events-none absolute bottom-4 right-4 max-w-[15rem] rounded-xl border border-white/[0.10] bg-card/90 p-3 backdrop-blur"
             >
                 <p class="truncate text-sm font-semibold text-text-primary">{{ node.title }}</p>
+                @if (hoveredCategory(); as category) {
+                    <p class="mt-0.5 truncate text-[0.6875rem] text-text-muted">{{ category }}</p>
+                }
                 <p class="mt-0.5 text-[0.6875rem] text-text-muted">
-                    @if (hoveredCategory(); as category) {
-                        {{ category }} &middot;
-                    }
-                    {{ 'WIKI.GRAPH.LINK_COUNT' | translate: {n: node.degree} }}
+                    {{ 'WIKI.GRAPH.LINK_COUNT' | translate: {n: node.linkDegree} }}
+                    &middot;
+                    {{ 'WIKI.GRAPH.HIERARCHY_COUNT' | translate: {n: node.hierarchyDegree} }}
                 </p>
                 <p class="mt-1.5 text-[0.625rem] text-text-muted">{{ 'WIKI.GRAPH.CLICK_TO_OPEN' | translate }}</p>
             </div>

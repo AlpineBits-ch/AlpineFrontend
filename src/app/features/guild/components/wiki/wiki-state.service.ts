@@ -4,6 +4,7 @@ import {WikiService} from '../../../../services/wiki.service';
 import {WikiView} from './wiki.types';
 import {GuildWebsocketService} from '../../../../services/guild-websocket.service';
 import {WikiContentCacheService} from './wiki-content-cache.service';
+import {WikiGraphSourceService} from './wiki-graph/wiki-graph-source.service';
 import {WikiDraftsService} from './wiki-drafts.service';
 import {wikiAbilities, WikiAbilities} from './wiki-permissions';
 import {guildAbilities} from '../../guild-permissions';
@@ -23,9 +24,12 @@ export class WikiStateService {
     readonly guildId = signal<string>('');
     readonly pageLoading = signal(false);
     readonly pendingRemoteUpdate = signal<WikiPageDto | null>(null);
+    /** True when the tree fetch failed. Without it an errored load is indistinguishable from an empty wiki. */
+    readonly wikiLoadFailed = signal(false);
     private readonly wikiService = inject(WikiService);
     private readonly ws = inject(GuildWebsocketService);
     private readonly contentCache = inject(WikiContentCacheService);
+    private readonly graphSource = inject(WikiGraphSourceService);
     private readonly drafts = inject(WikiDraftsService);
     private readonly guildService = inject(GuildService);
     private readonly profileService = inject(ProfileService);
@@ -53,6 +57,7 @@ export class WikiStateService {
         this.ws.wikiPageCreatedObservable.subscribe(e => {
             if (e.guildId !== this.guildId()) return;
             this.loadWiki(this.guildId());
+            this.graphChanged();
         });
 
         this.ws.wikiPageUpdatedObservable.subscribe(e => {
@@ -60,6 +65,7 @@ export class WikiStateService {
             this.loadWiki(this.guildId());
             // A cache nothing invalidates goes stale, and stale bodies produce a backlink index pointing at links that are no longer there.
             this.contentCache.invalidate(e.pageId);
+            this.graphChanged();
 
             // Consumed once, for both branches below.
             const affectsOpenPage =
@@ -83,12 +89,14 @@ export class WikiStateService {
             if (e.guildId !== this.guildId()) return;
             this.loadWiki(this.guildId());
             this.contentCache.invalidate(e.pageId);
+            this.graphChanged();
             this.rereadOpenPage(e.pageId);
         });
 
         this.ws.wikiPageDeletedObservable.subscribe(e => {
             if (e.guildId !== this.guildId()) return;
             this.contentCache.invalidate(e.pageId);
+            this.graphChanged();
             const affectsSelected = this.selectedPage()?.id === e.pageId;
             const affectsEditing = this.editingPage()?.id === e.pageId;
             if (affectsSelected || affectsEditing) {
@@ -275,20 +283,33 @@ export class WikiStateService {
     }
 
     private loadWiki(guildId: string, navigateTo?: WikiPageDto): void {
-        this.wikiService.getWiki(guildId).subscribe(wiki => {
-            this.wiki.set(wiki);
-            if (navigateTo) {
-                this.selectedPage.set(navigateTo);
-                this.wikiView.set('page');
-                this.pageLoading.set(false);
-            } else {
-                const current = this.selectedPage();
-                if (current) {
-                    const summary = wiki.pages.find(p => p.id === current.id);
-                    if (summary) this.selectedPage.update(p => (p ? mergeSummary(p, summary) : p));
+        this.wikiService.getWikiTree(guildId).subscribe({
+            next: wiki => {
+                this.wikiLoadFailed.set(false);
+                this.wiki.set(wiki);
+                if (navigateTo) {
+                    this.selectedPage.set(navigateTo);
+                    this.wikiView.set('page');
+                    this.pageLoading.set(false);
+                } else {
+                    const current = this.selectedPage();
+                    if (current) {
+                        const summary = wiki.pages.find(p => p.id === current.id);
+                        if (summary) this.selectedPage.update(p => (p ? mergeSummary(p, summary) : p));
+                    }
                 }
-            }
+            },
+            // `wiki` keeps whatever it held: a failed refresh must not blank a tree the user is reading.
+            error: () => {
+                this.wikiLoadFailed.set(true);
+                this.pageLoading.set(false);
+            },
         });
+    }
+
+    /** The link graph moved. Refreshes the shared source so the home preview follows live edits. */
+    private graphChanged(): void {
+        this.graphSource.refresh(this.guildId());
     }
 }
 

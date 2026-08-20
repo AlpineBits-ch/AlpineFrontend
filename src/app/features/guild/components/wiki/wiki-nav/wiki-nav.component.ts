@@ -1,26 +1,31 @@
 import {
+    afterNextRender,
+    ChangeDetectionStrategy,
     Component,
     computed,
     effect,
     ElementRef,
     HostListener,
     inject,
+    Injector,
+    NgZone,
     OnDestroy,
     output,
     signal,
-    ViewChild,
+    untracked,
+    viewChild,
 } from '@angular/core';
-import {NgClass, NgTemplateOutlet} from '@angular/common';
 import {FormsModule} from '@angular/forms';
 import {forkJoin, Observable} from 'rxjs';
 import {Button} from 'primeng/button';
 import {Dialog} from 'primeng/dialog';
 import {InputText} from 'primeng/inputtext';
 import {Select} from 'primeng/select';
-import {ContextMenu} from 'primeng/contextmenu';
+import {ContextMenuComponent} from '../../../../../shared/context-menu/context-menu.component';
 import {Toast} from 'primeng/toast';
 import {Tooltip} from 'primeng/tooltip';
-import {MenuItem, MessageService, PrimeTemplate} from 'primeng/api';
+import {MessageService, PrimeTemplate} from 'primeng/api';
+import {MenuItem} from '../../../../../shared/context-menu/context-menu.model';
 import {WikiCategoryDto, WikiDto, WikiPageSummaryDto} from '../../../../../dtos/response/wiki.dto';
 import {WikiService} from '../../../../../services/wiki.service';
 import {ToastService} from '../../../../../services/toast.service';
@@ -29,22 +34,19 @@ import {canEditPage} from '../wiki-permissions';
 import {wikiUrl} from '../../../../messaging/wiki-link';
 import {narrowNav} from './wiki-nav-filter';
 import {WikiNavPrefsService} from './wiki-nav-prefs.service';
+import {ancestorCategoryIds, buildNavRows, NavRow} from './wiki-nav-rows';
+import {DragSource, DropIntent, dropIntent, DropModel, DropTarget} from './wiki-nav-drop';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
-
-export interface CategoryTreeNode {
-    category: WikiCategoryDto;
-    depth: number;
-}
-
-export interface PageTreeNode {
-    page: WikiPageSummaryDto;
-    depth: number;
-}
 
 /** How long a delete stays undoable; long enough to notice the toast and react, short enough that a user who walked away doesn't leave the wiki in a half-deleted state. */
 const UNDO_WINDOW_MS = 6000;
 /** Keyed so this toast lands in the nav's own outlet, not the app-wide one, which has no Undo. */
 const UNDO_TOAST_KEY = 'wiki-undo';
+/** Dwell before a page-over-page hover gets the full nest emphasis. */
+const NEST_DELAY_MS = 850;
+const AUTOSCROLL_ZONE_PX = 36;
+const AUTOSCROLL_STEP_PX = 12;
+const NO_COLLAPSED: ReadonlySet<string> = new Set<string>();
 
 interface PendingRemoval {
     /** The whole wiki as it was before the optimistic removal: the cheapest correct undo. */
@@ -56,29 +58,31 @@ interface PendingRemoval {
 @Component({
     selector: 'app-wiki-nav',
     imports: [
-        NgClass,
-        NgTemplateOutlet,
         FormsModule,
         Button,
         Dialog,
         InputText,
         Select,
-        ContextMenu,
+        ContextMenuComponent,
         Toast,
         Tooltip,
         PrimeTemplate,
         TranslateModule,
     ],
     templateUrl: './wiki-nav.component.html',
+    styleUrl: './wiki-nav.component.css',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class WikiNavComponent implements OnDestroy {
     /** A keyboard shortcut nobody can see is not a feature, so the header carries a button too. */
-    readonly search = output<void>();
+    readonly searchRequested = output<void>();
 
     protected readonly state = inject(WikiStateService);
     protected readonly prefs = inject(WikiNavPrefsService);
-    protected readonly undoToastKey = UNDO_TOAST_KEY;
-    protected ctxMenuItems: MenuItem[] = [];
+
+    protected get undoToastKey(): string {
+        return UNDO_TOAST_KEY;
+    }
 
     // ── In-place filtering ────────────────────────────────────────────────────
     /** Narrows the tree where it stands. ⌘K navigates away; this one does not. */
@@ -92,48 +96,35 @@ export class WikiNavComponent implements OnDestroy {
     protected readonly renamingId = signal<string | null>(null);
     protected readonly renameValue = signal('');
 
-    protected readonly categoryTreeNodes = computed((): CategoryTreeNode[] => {
-        const cats = this.state.wiki()?.categories ?? [];
+    protected readonly visiblePages = computed(() => {
+        const pages = this.state.wiki()?.pages ?? [];
+        const visible = this.narrowed()?.pageIds;
+        return visible ? pages.filter(p => visible.has(p.id)) : pages;
+    });
+
+    protected readonly visibleCategories = computed(() => {
+        const categories = this.state.wiki()?.categories ?? [];
         const visible = this.narrowed()?.categoryIds;
-        const result: CategoryTreeNode[] = [];
-        const buildTree = (parentId: string | undefined, depth: number) => {
-            const children = cats
-                .filter(c => (parentId === undefined ? !c.parentCategoryId : c.parentCategoryId === parentId))
-                .filter(c => !visible || visible.has(c.id))
-                .sort((a, b) => a.position - b.position);
-            for (const child of children) {
-                result.push({category: child, depth});
-                buildTree(child.id, depth + 1);
-            }
-        };
-        buildTree(undefined, 0);
-        return result;
+        return visible ? categories.filter(c => visible.has(c.id)) : categories;
     });
 
-    protected readonly pinnedPages = computed(() => this.visiblePages().filter(p => p.isPinned));
+    /** Every row the nav draws, in order. One pass; nothing here is recomputed per category. */
+    protected readonly rows = computed<NavRow[]>(() =>
+        buildNavRows({
+            categories: this.visibleCategories(),
+            pages: this.visiblePages(),
+            allPages: this.state.wiki()?.pages ?? [],
+            allCategories: this.state.wiki()?.categories ?? [],
+            // A filter that left a category folded would hide its own matches.
+            collapsedIds: this.narrowed() ? NO_COLLAPSED : new Set(this.prefs.collapsed()),
+            favourites: this.prefs.favourites(),
+            recents: this.prefs.recents(),
+            canDrag: this.state.abilitiesResolved() && this.state.abilities().canManageStructure,
+        }),
+    );
 
-    protected readonly favouritePages = computed(() => {
-        const byId = new Map(this.visiblePages().map(p => [p.id, p]));
-        return this.prefs
-            .favourites()
-            .map(id => byId.get(id))
-            .filter((p): p is WikiPageSummaryDto => !!p);
-    });
-
-    /** Favourites are already pinned to the top, so repeating them under Recent is noise. */
-    protected readonly recentPages = computed(() => {
-        const byId = new Map(this.visiblePages().map(p => [p.id, p]));
-        const favourites = new Set(this.prefs.favourites());
-        return this.prefs
-            .recents()
-            .filter(id => !favourites.has(id))
-            .map(id => byId.get(id))
-            .filter((p): p is WikiPageSummaryDto => !!p)
-            .slice(0, 5);
-    });
-
-    protected readonly uncategorizedPageTree = computed((): PageTreeNode[] =>
-        this.buildPageTree(this.visiblePages().filter(x => !x.categoryId)),
+    protected readonly activePageId = computed(() =>
+        this.state.wikiView() === 'page' ? (this.state.selectedPage()?.id ?? null) : null,
     );
 
     /** True when a filter is on and it matched nothing anywhere. */
@@ -142,6 +133,10 @@ export class WikiNavComponent implements OnDestroy {
         return !!narrowed && narrowed.pageIds.size === 0 && narrowed.categoryIds.size === 0;
     });
 
+    // A failed first load also leaves `wiki` null, and a skeleton that never resolves reads as a hang.
+    protected readonly loading = computed(() => this.state.wiki() === null && !this.state.wikiLoadFailed());
+    protected readonly skeletonWidths = [88, 64, 76, 58, 82, 60];
+
     // ── Category dialog ────────────────────────────────────────────────────────
     protected readonly showCategoryDialog = signal(false);
     protected readonly newCategoryName = signal('');
@@ -149,27 +144,59 @@ export class WikiNavComponent implements OnDestroy {
     protected readonly creatingCategory = signal(false);
     protected readonly parentCategoryOptions = computed(() => [
         {label: this.translate.instant('WIKI.NAV.CATEGORY_ROOT'), value: undefined},
-        ...(this.state.wiki()?.categories ?? [])
+        // Copied first: `.sort()` on the signal's own array would reorder the live wiki as a side effect of reading this.
+        ...[...(this.state.wiki()?.categories ?? [])]
             .sort((a, b) => a.position - b.position)
             .map(c => ({label: c.name, value: c.id})),
     ]);
 
-    protected readonly dropTargetId = signal<string | null>(null);
-    protected readonly dropPos = signal<'before' | 'after'>('after');
+    // ── Drag state ────────────────────────────────────────────────────────────
+    protected readonly dragging = signal<DragSource | null>(null);
+    protected readonly hover = signal<{id: string; intent: DropIntent} | null>(null);
     protected readonly nestTargetId = signal<string | null>(null);
+
+    /** Only category rows can carry one: pages have no position to reorder into. */
+    protected readonly insertLine = computed(() => {
+        const hover = this.hover();
+        if (!hover || hover.intent.kind !== 'reorder') return null;
+        return {id: hover.id, position: hover.intent.position ?? 'after'};
+    });
+
+    protected readonly dropIntoId = computed(() => {
+        const hover = this.hover();
+        return hover && (hover.intent.kind === 'into' || hover.intent.kind === 'nest') ? hover.id : null;
+    });
+
+    protected readonly refusedId = computed(() => {
+        const hover = this.hover();
+        return hover && hover.intent.kind === 'none' && hover.intent.reason !== 'self' ? hover.id : null;
+    });
+
+    // ── Keyboard ──────────────────────────────────────────────────────────────
+    protected readonly focusIndex = signal(0);
+    /** The one row in the tab order: the tree is a single tab stop, arrows move within it. */
+    protected readonly rovingKey = computed(() => {
+        const rows = this.rows();
+        const at = rows[this.focusIndex()];
+        return (at?.focusable ? at : rows.find(row => row.focusable))?.key ?? null;
+    });
 
     private readonly wikiService = inject(WikiService);
     private readonly translate = inject(TranslateService);
     private readonly toast = inject(ToastService);
     private readonly messageService = inject(MessageService);
     private readonly host: ElementRef<HTMLElement> = inject(ElementRef);
+    private readonly injector = inject(Injector);
+    private readonly zone = inject(NgZone);
 
-    @ViewChild('catCtxMenu') private catCtxMenu?: ContextMenu;
+    private readonly rowMenu = viewChild<ContextMenuComponent>('rowMenu');
+    private readonly scroller = viewChild<ElementRef<HTMLElement>>('scroller');
 
-    // ── Drag state ────────────────────────────────────────────────────────────
-    private dragging: {type: 'category' | 'page'; id: string} | null = null;
     private nestTimer: ReturnType<typeof setTimeout> | null = null;
     private lastHoverTarget: string | null = null;
+    private autoScrollDirection = 0;
+    private autoScrollFrame: number | null = null;
+    private movedToast: Element | null = null;
 
     /** Only one removal is undoable at a time: a queue would need per-toast dismissal, which PrimeNG's MessageService cannot do (`clear(key)` clears them all), so a second delete commits the first instead of silently stranding it without an Undo. */
     private pending: PendingRemoval | null = null;
@@ -180,45 +207,151 @@ export class WikiNavComponent implements OnDestroy {
         // Recorded from the selection rather than from this component's own click handler: pages are opened from search, backlinks, breadcrumbs and the home grid too, and a "recently viewed" list that only knew about tree clicks would be wrong most of the time.
         effect(() => {
             const page = this.state.selectedPage();
-            if (page) this.prefs.recordVisit(page.id);
+            if (!page) return;
+            // `recordVisit` reads the list it writes; tracking that read makes the effect its own trigger.
+            untracked(() => {
+                this.prefs.recordVisit(page.id);
+                this.reveal(page.id);
+            });
+        });
+
+        // The nav column is `transform`ed into a drawer below `lg`, which makes it the containing
+        // block for anything fixed inside it. The toast has to sit beside the dialog masks instead.
+        afterNextRender(() => {
+            this.movedToast = this.host.nativeElement.querySelector('p-toast');
+            if (this.movedToast) document.body.appendChild(this.movedToast);
         });
     }
 
     ngOnDestroy(): void {
         // Leaving the wiki must not cancel a delete the user already asked for.
         this.flushPending();
+        this.clearDragState();
+        this.movedToast?.remove();
+        this.movedToast = null;
     }
 
     protected goHome(): void {
         this.state.openHome();
     }
 
-    protected goPage(page: WikiPageSummaryDto): void {
-        this.state.openPage(page);
-    }
-
     protected newPage(): void {
         this.state.openEditor();
     }
 
-    protected pageTreeForCategory(categoryId: string): PageTreeNode[] {
-        if (this.isCollapsed(categoryId)) return [];
-        return this.buildPageTree(this.visiblePages().filter(x => x.categoryId === categoryId));
+    protected retry(): void {
+        this.state.reload();
     }
 
-    protected isPageActive(page: WikiPageSummaryDto): boolean {
-        return this.state.wikiView() === 'page' && this.state.selectedPage()?.id === page.id;
+    // ── Rows ──────────────────────────────────────────────────────────────────
+
+    protected onRowClick(row: NavRow): void {
+        if (row.category) {
+            this.prefs.toggleCollapsed(row.category.id);
+            return;
+        }
+        if (row.page) this.state.openPage(row.page);
     }
 
-    /** A filter that left a category folded would hide its own matches. */
-    protected isCollapsed(categoryId: string): boolean {
-        return !this.narrowed() && this.prefs.isCollapsed(categoryId);
+    protected onRowFocus(index: number): void {
+        this.focusIndex.set(index);
+    }
+
+    protected onRowKeydown(event: KeyboardEvent, row: NavRow, index: number): void {
+        if (this.renamingId()) return;
+
+        switch (event.key) {
+            case 'ArrowDown':
+                event.preventDefault();
+                this.focusRow(this.nextFocusable(index, 1));
+                return;
+            case 'ArrowUp':
+                event.preventDefault();
+                this.focusRow(this.nextFocusable(index, -1));
+                return;
+            case 'Home':
+                event.preventDefault();
+                this.focusRow(this.nextFocusable(-1, 1));
+                return;
+            case 'End':
+                event.preventDefault();
+                this.focusRow(this.nextFocusable(this.rows().length, -1));
+                return;
+            case 'Enter':
+            case ' ':
+                event.preventDefault();
+                this.onRowClick(row);
+                return;
+            case 'ContextMenu':
+                event.preventDefault();
+                this.openRowMenuAt(row);
+                return;
+        }
+
+        if (event.key === 'F10' && event.shiftKey) {
+            event.preventDefault();
+            this.openRowMenuAt(row);
+            return;
+        }
+
+        if (row.category) {
+            this.onCategoryKeydown(event, row.category, index);
+            return;
+        }
+        if (row.page) this.onPageKeydown(event, row.page, index);
+    }
+
+    /** ArrowDown out of the filter box lands on the first row, so the two feel like one control. */
+    protected focusFirstItem(event: Event): void {
+        event.preventDefault();
+        this.focusRow(this.nextFocusable(-1, 1));
     }
 
     // ── Context menus ─────────────────────────────────────────────────────────
 
-    protected onCategoryContextMenu(event: MouseEvent, category: WikiCategoryDto): void {
-        event.preventDefault();
+    protected onRowContextMenu(event: MouseEvent, row: NavRow): void {
+        const items = this.menuItemsFor(row);
+        if (!items.length) {
+            event.preventDefault();
+            return;
+        }
+        this.rowMenu()?.show(event, items);
+    }
+
+    /** The pointer-discoverable twin of the context menu, on the row's `...` button. */
+    protected openRowMenu(event: MouseEvent, row: NavRow): void {
+        event.stopPropagation();
+        const items = this.menuItemsFor(row);
+        if (items.length) this.rowMenu()?.toggle(event, items);
+    }
+
+    private openRowMenuAt(row: NavRow): void {
+        const element = this.rowElement(row.key);
+        const items = this.menuItemsFor(row);
+        if (!element || !items.length) return;
+        const rect = element.getBoundingClientRect();
+        this.rowMenu()?.show(
+            new MouseEvent('contextmenu', {clientX: rect.left + 12, clientY: rect.bottom - 4}),
+            items,
+        );
+    }
+
+    private menuItemsFor(row: NavRow): MenuItem[] {
+        if (row.category) return this.categoryMenuItems(row.category);
+        if (!row.page) return [];
+        const items = this.pageMenuItems(row.page, this.rows().indexOf(row));
+        // The old clear button was `opacity-0` and still focusable; this is the same action with an owner.
+        if (row.shortcutOf === 'recent') {
+            items.push({
+                label: this.translate.instant('WIKI.NAV.RECENT_CLEAR'),
+                icon: 'pi pi-history',
+                command: () => this.prefs.clearRecents(),
+            });
+        }
+        return items;
+    }
+
+    private categoryMenuItems(category: WikiCategoryDto): MenuItem[] {
         const abilities = this.state.abilities();
         const items: MenuItem[] = [];
 
@@ -248,22 +381,25 @@ export class WikiNavComponent implements OnDestroy {
                 {
                     label: this.translate.instant('WIKI.NAV.DELETE_CATEGORY'),
                     icon: 'pi pi-trash',
+                    danger: true,
                     command: () => this.deleteCategory(category),
                 },
             );
         }
-
         // Every entry is gated, so an empty list means this member may do nothing here: showing a blank menu would be worse than showing none.
-        if (!items.length) return;
-        this.ctxMenuItems = items;
-        this.catCtxMenu?.show(event);
+        return items;
     }
 
-    protected onPageContextMenu(event: MouseEvent, page: WikiPageSummaryDto): void {
-        event.preventDefault();
+    private pageMenuItems(page: WikiPageSummaryDto, rowIndex: number): MenuItem[] {
         const abilities = this.state.abilities();
         const canEdit = canEditPage(abilities, page.authorId, this.state.ownUserId());
-        const items: MenuItem[] = [];
+        const items: MenuItem[] = [
+            {
+                label: this.translate.instant('WIKI.NAV.REVEAL'),
+                icon: 'pi pi-crosshairs',
+                command: () => this.reveal(page.id, true),
+            },
+        ];
 
         if (abilities.canCreate) {
             items.push({
@@ -319,14 +455,32 @@ export class WikiNavComponent implements OnDestroy {
                 {
                     label: this.translate.instant('WIKI.DELETE'),
                     icon: 'pi pi-trash',
-                    command: () => this.deletePage(page),
+                    danger: true,
+                    command: () => this.deletePage(page, rowIndex),
                 },
             );
         }
+        return items;
+    }
 
-        if (!items.length) return;
-        this.ctxMenuItems = items;
-        this.catCtxMenu?.show(event);
+    // ── Reveal ────────────────────────────────────────────────────────────────
+
+    /** Un-collapses whatever hides the page, then brings its row into view. */
+    protected reveal(pageId: string, focusRow = false): void {
+        const wiki = this.state.wiki();
+        if (!wiki) return;
+        for (const id of ancestorCategoryIds(pageId, wiki.pages, wiki.categories)) {
+            if (this.prefs.isCollapsed(id)) this.prefs.toggleCollapsed(id);
+        }
+        afterNextRender(
+            () => {
+                const element = this.rowElement(`p:${pageId}`);
+                if (!element) return;
+                element.scrollIntoView({block: 'nearest'});
+                if (focusRow) element.focus({preventScroll: true});
+            },
+            {injector: this.injector},
+        );
     }
 
     // ── Inline rename ─────────────────────────────────────────────────────────
@@ -335,9 +489,10 @@ export class WikiNavComponent implements OnDestroy {
         this.renamingId.set(id);
         this.renameValue.set(current);
         // The input does not exist until this render lands.
-        setTimeout(() => {
-            this.host.nativeElement.querySelector<HTMLInputElement>('[data-rename-input]')?.select();
-        }, 0);
+        afterNextRender(
+            () => this.host.nativeElement.querySelector<HTMLInputElement>('[data-rename-input]')?.select(),
+            {injector: this.injector},
+        );
     }
 
     protected cancelRename(): void {
@@ -441,14 +596,15 @@ export class WikiNavComponent implements OnDestroy {
     // ── Undoable removal ──────────────────────────────────────────────────────
 
     /** Removes the page now and asks the server in a few seconds; only the undo path, not a confirm dialog, catches a mistaken delete. */
-    protected deletePage(page: WikiPageSummaryDto): void {
+    protected deletePage(page: WikiPageSummaryDto, rowIndex = -1): void {
         const guildId = this.state.guildId();
         const snapshot = this.state.wiki();
         if (!guildId || !snapshot) return;
 
         this.state.updateWikiOptimistic(w => ({...w, pages: w.pages.filter(p => p.id !== page.id)}));
-        // Children are left alone: `buildPageTree` already treats a page whose parent is missing as a root, so they surface one level up instead of vanishing with the parent.
+        // Children are left alone: the row builder already treats a page whose parent is missing as a root, so they surface one level up instead of vanishing with the parent.
         if (this.state.selectedPage()?.id === page.id) this.state.openHome();
+        this.restoreFocus(rowIndex);
 
         this.schedule(this.translate.instant('WIKI.NAV.DELETED_PAGE', {title: page.title}), snapshot, () => {
             this.prefs.forget(page.id);
@@ -456,7 +612,7 @@ export class WikiNavComponent implements OnDestroy {
         });
     }
 
-    protected deleteCategory(category: WikiCategoryDto): void {
+    protected deleteCategory(category: WikiCategoryDto, rowIndex = -1): void {
         const guildId = this.state.guildId();
         const snapshot = this.state.wiki();
         if (!guildId || !snapshot) return;
@@ -469,6 +625,7 @@ export class WikiNavComponent implements OnDestroy {
             // Matches what the server does: the pages survive, uncategorized.
             pages: w.pages.map(p => (p.categoryId === category.id ? {...p, categoryId: undefined} : p)),
         }));
+        this.restoreFocus(rowIndex);
 
         this.schedule(
             this.translate.instant('WIKI.NAV.DELETED_CATEGORY', {name: category.name}),
@@ -487,59 +644,6 @@ export class WikiNavComponent implements OnDestroy {
         this.pending = null;
         this.state.updateWikiOptimistic(() => pending.snapshot);
         this.messageService.clear(UNDO_TOAST_KEY);
-    }
-
-    // ── Keyboard navigation ───────────────────────────────────────────────────
-
-    /** Roving focus over whatever `[data-nav-item]` rows happen to be rendered, driven off the DOM rather than an index into a model: the rows come from five separate sections, and keeping a flat index in sync with all of them would be a second tree to maintain. */
-    protected onTreeKeydown(event: KeyboardEvent): void {
-        if (this.renamingId()) return;
-        if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
-        const items = Array.from(this.host.nativeElement.querySelectorAll<HTMLElement>('[data-nav-item]'));
-        if (!items.length) return;
-        const current = items.indexOf(document.activeElement as HTMLElement);
-        let next: number;
-        if (event.key === 'Home') next = 0;
-        else if (event.key === 'End') next = items.length - 1;
-        else if (current === -1) next = 0;
-        else if (event.key === 'ArrowDown') next = Math.min(current + 1, items.length - 1);
-        else next = Math.max(current - 1, 0);
-        event.preventDefault();
-        items[next]?.focus();
-    }
-
-    protected onPageKeydown(event: KeyboardEvent, page: WikiPageSummaryDto): void {
-        const abilities = this.state.abilities();
-        if (event.key === 'F2' && canEditPage(abilities, page.authorId, this.state.ownUserId())) {
-            event.preventDefault();
-            this.startRename(page.id, page.title);
-        } else if (event.key === 'Delete' && abilities.canDelete) {
-            event.preventDefault();
-            this.deletePage(page);
-        }
-    }
-
-    protected onCategoryKeydown(event: KeyboardEvent, category: WikiCategoryDto): void {
-        const abilities = this.state.abilities();
-        if (event.key === 'ArrowRight' && this.isCollapsed(category.id)) {
-            event.preventDefault();
-            this.prefs.toggleCollapsed(category.id);
-        } else if (event.key === 'ArrowLeft' && !this.isCollapsed(category.id)) {
-            event.preventDefault();
-            this.prefs.toggleCollapsed(category.id);
-        } else if (event.key === 'F2' && abilities.canManageStructure) {
-            event.preventDefault();
-            this.startRename(category.id, category.name);
-        } else if (event.key === 'Delete' && abilities.canManageStructure) {
-            event.preventDefault();
-            this.deleteCategory(category);
-        }
-    }
-
-    /** ArrowDown out of the filter box lands on the first row, so the two feel like one control. */
-    protected focusFirstItem(event: Event): void {
-        event.preventDefault();
-        this.host.nativeElement.querySelector<HTMLElement>('[data-nav-item]')?.focus();
     }
 
     // ── Category creation ─────────────────────────────────────────────────────
@@ -579,164 +683,232 @@ export class WikiNavComponent implements OnDestroy {
 
     // ── Drag and drop ─────────────────────────────────────────────────────────
 
-    // WebView2 requires dropEffect = 'move' set on every dragover/dragenter.
+    // WebView2 requires an explicit dropEffect on every dragover and dragenter.
     @HostListener('document:dragover', ['$event'])
     protected onGlobalDragOver(event: DragEvent): void {
-        if (!this.dragging) return;
+        if (!this.dragging()) return;
         event.preventDefault();
-        if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+        this.applyDropEffect(event);
+        this.updateAutoScroll(event.clientY);
     }
 
     @HostListener('document:dragenter', ['$event'])
     protected onGlobalDragEnter(event: DragEvent): void {
-        if (!this.dragging) return;
+        if (!this.dragging()) return;
         event.preventDefault();
-        if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+        this.applyDropEffect(event);
     }
 
+    /** A release anywhere but on a row is a cancel, not a move. */
     @HostListener('document:drop', ['$event'])
     protected onGlobalDrop(event: DragEvent): void {
         event.preventDefault();
+        this.clearDragState();
     }
 
-    protected onCategoryDragStart(event: DragEvent, category: WikiCategoryDto): void {
-        this.dragging = {type: 'category', id: category.id};
+    @HostListener('document:dragend')
+    protected onGlobalDragEnd(): void {
+        this.clearDragState();
+    }
+
+    @HostListener('document:keydown.escape')
+    protected onGlobalEscape(): void {
+        if (this.dragging()) this.clearDragState();
+    }
+
+    protected onRowDragStart(event: DragEvent, row: NavRow): void {
+        if (!row.draggable) return;
+        this.dragging.set({type: row.category ? 'category' : 'page', id: row.id});
         if (event.dataTransfer) {
             event.dataTransfer.effectAllowed = 'move';
-            event.dataTransfer.setData('text/plain', category.id);
+            event.dataTransfer.setData('text/plain', row.id);
         }
     }
 
-    protected onPageDragStart(event: DragEvent, page: WikiPageSummaryDto): void {
-        this.dragging = {type: 'page', id: page.id};
-        if (event.dataTransfer) {
-            event.dataTransfer.effectAllowed = 'move';
-            event.dataTransfer.setData('text/plain', page.id);
-        }
-    }
-
-    protected onItemDragOver(event: DragEvent, targetId: string): void {
+    protected onRowDragOver(event: DragEvent, row: NavRow): void {
+        const dragging = this.dragging();
+        if (!dragging) return;
+        // Left to bubble: the document handler is what keeps autoscroll running over a row.
         event.preventDefault();
-        if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
-        if (!this.dragging || this.dragging.id === targetId) return;
 
-        if (this.lastHoverTarget !== targetId) {
-            this.lastHoverTarget = targetId;
+        const target: DropTarget | null =
+            row.kind === 'category' || row.kind === 'page'
+                ? {type: row.kind === 'category' ? 'category' : 'page', id: row.id}
+                : null;
+        if (!target) {
+            this.clearHover();
+            if (event.dataTransfer) event.dataTransfer.dropEffect = 'none';
+            return;
+        }
+
+        const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+        const offset = rect.height > 0 ? (event.clientY - rect.top) / rect.height : 0.5;
+        const intent = dropIntent(dragging, target, offset, this.dropModel());
+        this.hover.set({id: row.id, intent});
+        if (event.dataTransfer) event.dataTransfer.dropEffect = intent.kind === 'none' ? 'none' : 'move';
+
+        if (this.lastHoverTarget !== row.id) {
+            this.lastHoverTarget = row.id;
             this.clearNestTimer();
             this.nestTargetId.set(null);
-
-            if (this.dragging.type === 'page' && this.state.wiki()?.pages.some(p => p.id === targetId)) {
+            if (intent.kind === 'nest') {
                 this.nestTimer = setTimeout(() => {
-                    this.nestTargetId.set(targetId);
-                    this.dropTargetId.set(null);
+                    this.nestTargetId.set(row.id);
                     this.nestTimer = null;
-                }, 850);
+                }, NEST_DELAY_MS);
             }
-        }
-
-        if (this.nestTargetId() !== targetId) {
-            const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-            this.dropTargetId.set(targetId);
-            this.dropPos.set(event.clientY < rect.top + rect.height / 2 ? 'before' : 'after');
         }
     }
 
-    protected onDragEnd(event: DragEvent): void {
-        const dragging = this.dragging;
-        const nestTarget = this.nestTargetId();
-        const targetId = nestTarget ?? this.dropTargetId();
-        const pos = this.dropPos();
+    protected onRowDrop(event: DragEvent, row: NavRow): void {
+        event.preventDefault();
+        event.stopPropagation();
+        const dragging = this.dragging();
+        const hover = this.hover();
         this.clearDragState();
+        if (!dragging || !hover || hover.id !== row.id) return;
+        this.commitDrop(dragging, row, hover.intent);
+    }
 
-        if (!dragging || !targetId) return;
+    protected onRowDragEnd(): void {
+        this.clearDragState();
+    }
+
+    /** The pointer left the tree entirely: nothing should still be showing where it would land. */
+    protected onScrollerDragLeave(event: DragEvent): void {
+        const related = event.relatedTarget as Node | null;
+        const scroller = this.scroller()?.nativeElement;
+        if (related && scroller?.contains(related)) return;
+        this.clearHover();
+    }
+
+    private commitDrop(dragging: DragSource, row: NavRow, intent: DropIntent): void {
         const wiki = this.state.wiki();
-        if (!wiki) return;
         const guildId = this.state.guildId();
+        if (!wiki || !guildId) return;
 
-        // Nest mode: make dragged page a child of the hovered page
-        if (nestTarget && dragging.type === 'page') {
-            const draggedPage = wiki.pages.find(p => p.id === dragging.id);
-            const targetPage = wiki.pages.find(p => p.id === nestTarget);
-            if (draggedPage && targetPage && !this.wouldCreateCycle(draggedPage.id, nestTarget, wiki.pages)) {
-                this.movePageToGroup(
-                    draggedPage,
-                    {
-                        categoryId: targetPage.categoryId,
-                        parentPageId: nestTarget,
-                    },
-                    guildId,
-                );
-            }
+        if (intent.kind === 'reorder') {
+            this.reorderCategories(dragging.id, row.id, intent.position ?? 'after', wiki.categories, guildId);
             return;
         }
 
-        const targetCategory = wiki.categories.find(c => c.id === targetId);
+        const dragged = wiki.pages.find(p => p.id === dragging.id);
+        if (!dragged) return;
 
-        if (dragging.type === 'category' && targetCategory) {
-            this.reorderCategories(dragging.id, targetId, pos, wiki.categories, guildId);
+        if (intent.kind === 'into') {
+            this.movePageToGroup(dragged, {categoryId: row.id, parentPageId: null}, guildId);
             return;
         }
 
-        if (dragging.type === 'page') {
-            const draggedPage = wiki.pages.find(p => p.id === dragging.id);
-            if (!draggedPage) return;
-
-            if (targetCategory) {
-                const newCategoryId = pos === 'before' ? null : targetCategory.id;
-                this.movePageToGroup(
-                    draggedPage,
-                    {
-                        categoryId: newCategoryId ?? undefined,
-                        parentPageId: null,
-                    },
-                    guildId,
-                );
-                return;
-            }
-
-            const targetPage = wiki.pages.find(p => p.id === targetId);
-            if (targetPage) {
-                const newParentId = targetPage.parentPageId ?? null;
-                if (newParentId && this.wouldCreateCycle(draggedPage.id, newParentId, wiki.pages)) return;
-                this.movePageToGroup(
-                    draggedPage,
-                    {
-                        categoryId: targetPage.categoryId,
-                        parentPageId: newParentId,
-                    },
-                    guildId,
-                );
-            }
+        if (intent.kind === 'nest' && row.page) {
+            this.movePageToGroup(
+                dragged,
+                {categoryId: row.page.categoryId, parentPageId: row.page.id},
+                guildId,
+            );
         }
+    }
+
+    private dropModel(): DropModel {
+        const wiki = this.state.wiki();
+        return {categories: wiki?.categories ?? [], pages: wiki?.pages ?? []};
+    }
+
+    private applyDropEffect(event: DragEvent): void {
+        if (!event.dataTransfer) return;
+        const hover = this.hover();
+        event.dataTransfer.dropEffect = !hover || hover.intent.kind === 'none' ? 'none' : 'move';
+    }
+
+    /** The tree is its own scroll container, so a category off the bottom is unreachable in one gesture without this. */
+    private updateAutoScroll(clientY: number): void {
+        const scroller = this.scroller()?.nativeElement;
+        if (!scroller) return;
+        const rect = scroller.getBoundingClientRect();
+        this.autoScrollDirection =
+            clientY < rect.top + AUTOSCROLL_ZONE_PX ? -1 : clientY > rect.bottom - AUTOSCROLL_ZONE_PX ? 1 : 0;
+        if (this.autoScrollDirection !== 0 && this.autoScrollFrame === null) {
+            this.zone.runOutsideAngular(() => {
+                this.autoScrollFrame = requestAnimationFrame(this.stepAutoScroll);
+            });
+        }
+    }
+
+    private readonly stepAutoScroll = (): void => {
+        const scroller = this.scroller()?.nativeElement;
+        if (!scroller || !this.autoScrollDirection || !this.dragging()) {
+            this.autoScrollFrame = null;
+            return;
+        }
+        scroller.scrollTop += this.autoScrollDirection * AUTOSCROLL_STEP_PX;
+        this.autoScrollFrame = requestAnimationFrame(this.stepAutoScroll);
+    };
+
+    // ── Keyboard internals ────────────────────────────────────────────────────
+
+    private onCategoryKeydown(event: KeyboardEvent, category: WikiCategoryDto, index: number): void {
+        const abilities = this.state.abilities();
+        const collapsed = this.rows()[index]?.collapsed ?? false;
+        if (event.key === 'ArrowRight' && collapsed) {
+            event.preventDefault();
+            this.prefs.toggleCollapsed(category.id);
+        } else if (event.key === 'ArrowLeft' && !collapsed) {
+            event.preventDefault();
+            this.prefs.toggleCollapsed(category.id);
+        } else if (event.key === 'F2' && abilities.canManageStructure) {
+            event.preventDefault();
+            this.startRename(category.id, category.name);
+        } else if (event.key === 'Delete' && abilities.canManageStructure) {
+            event.preventDefault();
+            this.deleteCategory(category, index);
+        }
+    }
+
+    private onPageKeydown(event: KeyboardEvent, page: WikiPageSummaryDto, index: number): void {
+        const abilities = this.state.abilities();
+        if (event.key === 'F2' && canEditPage(abilities, page.authorId, this.state.ownUserId())) {
+            event.preventDefault();
+            this.startRename(page.id, page.title);
+        } else if (event.key === 'Delete' && abilities.canDelete) {
+            event.preventDefault();
+            this.deletePage(page, index);
+        }
+    }
+
+    private nextFocusable(from: number, delta: number): number {
+        const rows = this.rows();
+        for (let i = from + delta; i >= 0 && i < rows.length; i += delta) {
+            if (rows[i].focusable) return i;
+        }
+        return from;
+    }
+
+    private focusRow(index: number): void {
+        const row = this.rows()[index];
+        if (!row) return;
+        this.focusIndex.set(index);
+        this.rowElement(row.key)?.focus();
+    }
+
+    /** After a removal the row is gone; focus falls to `<body>` and the next arrow key jumps to the top. */
+    private restoreFocus(index: number): void {
+        if (index < 0) return;
+        afterNextRender(
+            () => {
+                const rows = this.rows();
+                const at = Math.min(index, rows.length - 1);
+                const next = rows[at]?.focusable ? at : this.nextFocusable(at, -1);
+                this.focusRow(next);
+            },
+            {injector: this.injector},
+        );
+    }
+
+    private rowElement(key: string): HTMLElement | null {
+        return this.host.nativeElement.querySelector<HTMLElement>(`[data-row="${key}"]`);
     }
 
     // ── Internals ─────────────────────────────────────────────────────────────
-
-    private visiblePages(): WikiPageSummaryDto[] {
-        const pages = this.state.wiki()?.pages ?? [];
-        const visible = this.narrowed()?.pageIds;
-        return visible ? pages.filter(p => visible.has(p.id)) : pages;
-    }
-
-    private buildPageTree(group: WikiPageSummaryDto[]): PageTreeNode[] {
-        const groupIds = new Set(group.map(p => p.id));
-        const result: PageTreeNode[] = [];
-        // A page is a root if it has no parent, its parent doesn't exist in the group, or it references itself.
-        const roots = group.filter(
-            x => !x.parentPageId || !groupIds.has(x.parentPageId) || x.parentPageId === x.id,
-        );
-        const build = (parentId: string, depth: number) => {
-            for (const p of group.filter(x => x.parentPageId === parentId && x.id !== parentId)) {
-                result.push({page: p, depth});
-                build(p.id, depth + 1);
-            }
-        };
-        for (const root of roots) {
-            result.push({page: root, depth: 0});
-            build(root.id, 1);
-        }
-        return result;
-    }
 
     private reorderCategories(
         draggedId: string,
@@ -748,8 +920,6 @@ export class WikiNavComponent implements OnDestroy {
         const dragged = categories.find(c => c.id === draggedId);
         const target = categories.find(c => c.id === targetId);
         if (!dragged || !target) return;
-        // Only reorder within the same parent group
-        if ((dragged.parentCategoryId ?? null) !== (target.parentCategoryId ?? null)) return;
 
         const siblings = categories
             .filter(c => (c.parentCategoryId ?? null) === (dragged.parentCategoryId ?? null))
@@ -880,23 +1050,6 @@ export class WikiNavComponent implements OnDestroy {
         return result;
     }
 
-    // Returns true if making `draggedId`'s parent = `newParentId` would create a cycle.
-    private wouldCreateCycle(draggedId: string, newParentId: string, pages: WikiPageSummaryDto[]): boolean {
-        if (newParentId === draggedId) return true;
-        const parentMap = new Map(pages.map(p => [p.id, p.parentPageId]));
-        const visited = new Set<string>();
-        let current: string | undefined = newParentId;
-        while (current) {
-            if (visited.has(current)) break; // existing cycle in data, stop
-            visited.add(current);
-            const parent = parentMap.get(current);
-            if (!parent) break;
-            if (parent === draggedId) return true;
-            current = parent;
-        }
-        return false;
-    }
-
     private clearNestTimer(): void {
         if (this.nestTimer) {
             clearTimeout(this.nestTimer);
@@ -904,12 +1057,20 @@ export class WikiNavComponent implements OnDestroy {
         }
     }
 
-    private clearDragState(): void {
+    private clearHover(): void {
         this.clearNestTimer();
         this.nestTargetId.set(null);
-        this.dragging = null;
-        this.dropTargetId.set(null);
-        this.dropPos.set('after');
+        this.hover.set(null);
         this.lastHoverTarget = null;
+    }
+
+    private clearDragState(): void {
+        this.clearHover();
+        this.dragging.set(null);
+        this.autoScrollDirection = 0;
+        if (this.autoScrollFrame !== null) {
+            cancelAnimationFrame(this.autoScrollFrame);
+            this.autoScrollFrame = null;
+        }
     }
 }

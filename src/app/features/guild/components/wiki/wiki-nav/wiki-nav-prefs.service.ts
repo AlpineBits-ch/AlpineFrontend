@@ -1,6 +1,6 @@
 import {Injectable, signal} from '@angular/core';
-
-const RECENT_LIMIT = 8;
+// The shortcuts strip is the only place recents are shown, so remembering more than it can draw would strand them.
+import {SHORTCUT_LIMIT} from './wiki-nav-rows';
 
 type PrefKind = 'favourites' | 'recents' | 'collapsed';
 
@@ -46,7 +46,7 @@ export class WikiNavPrefsService {
 
     /** Records a visit. Moves an already-known page to the front rather than duplicating it. */
     recordVisit(pageId: string): void {
-        const next = [pageId, ...this.recentIds().filter(id => id !== pageId)].slice(0, RECENT_LIMIT);
+        const next = [pageId, ...this.recentIds().filter(id => id !== pageId)].slice(0, SHORTCUT_LIMIT);
         // A revisit of the page that is already at the front happens on every render pass of the article; writing storage for it would be a write per change detection.
         if (next.length === this.recentIds().length && next[0] === this.recentIds()[0]) return;
         this.recentIds.set(next);

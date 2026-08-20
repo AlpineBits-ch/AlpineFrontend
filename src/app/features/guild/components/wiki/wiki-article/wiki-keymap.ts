@@ -1,51 +1,45 @@
 import {Extension, InputRule} from '@tiptap/core';
-import {EditorState, Transaction} from '@tiptap/pm/state';
+import {ResolvedPos} from '@tiptap/pm/model';
 
-/** The keys the block extensions do not agree on between them: (1) Tab is bound per-extension (indents in a list, moves table cells) but does nothing elsewhere, so the browser's default steals focus; {@link WikiTabGuard} is the floor under all of them. (2) The bullet-list input rule fires before `[ ]` can be typed, so the task-item rule never matches inside a fresh list item; {@link WikiTaskFromListItem} catches it there instead. */
+/** The keys the block extensions do not agree on between them: (1) Tab is bound per-extension (indents in a list, moves table cells) but does nothing elsewhere; {@link WikiTabGuard} decides what happens when none of them claimed it. (2) The bullet-list input rule fires before `[ ]` can be typed, so the task-item rule never matches inside a fresh list item; {@link WikiTaskFromListItem} catches it there instead. */
 
 /** Deliberately below default priority: registered ahead of the list and table keymaps, this would swallow Tab before either of them could indent anything. */
 const TAB_GUARD_PRIORITY = 50;
+
+/** Structures whose own keymap owns Tab. Reaching the guard inside one means it declined (the first item of a list has nothing to sink under), and moving focus out of a half-indented list is worse than doing nothing. */
+const TAB_HOLDERS: ReadonlySet<string> = new Set([
+    'listItem',
+    'taskItem',
+    'table',
+    'tableRow',
+    'tableCell',
+    'tableHeader',
+]);
 
 export const WikiTabGuard = Extension.create({
     name: 'wikiTabGuard',
     priority: TAB_GUARD_PRIORITY,
 
     addKeyboardShortcuts() {
-        // Always true, whichever branch ran: that is what stops the browser's default and keeps focus in the article.
+        // False in prose is what lets the browser move focus on: consuming Tab everywhere left the
+        // article with no keyboard exit at all.
         return {
-            Tab: ({editor}) => {
-                editor.commands.command(({state, dispatch}) => indent(state, dispatch));
-                return true;
-            },
-            'Shift-Tab': ({editor}) => {
-                editor.commands.command(({state, dispatch}) => outdent(state, dispatch));
+            Tab: ({editor}) => holdsTab(editor.state.selection.$from),
+            'Shift-Tab': ({editor}) => holdsTab(editor.state.selection.$from),
+            Escape: ({editor}) => {
+                if (!editor.isFocused) return false;
+                editor.commands.blur();
                 return true;
             },
         };
     },
 });
 
-/** Non-breaking spaces, not a tab character: a tab at the start of a line means an indented code block in markdown, so indenting a paragraph and reloading would turn it into code; non-breaking spaces carry no meaning in markdown and survive the round trip verbatim. */
-const INDENT = ' '.repeat(4);
-
-/** Indents at the caret; reached only when nothing above claimed the key, so a list still indents its item and a table still moves a cell. */
-function indent(state: EditorState, dispatch: ((tr: Transaction) => void) | undefined): boolean {
-    if (dispatch) {
-        const {from, to} = state.selection;
-        dispatch(state.tr.insertText(INDENT, from, to).scrollIntoView());
+function holdsTab($from: ResolvedPos): boolean {
+    for (let depth = $from.depth; depth > 0; depth--) {
+        if (TAB_HOLDERS.has($from.node(depth).type.name)) return true;
     }
-    return true;
-}
-
-/** Takes one step back off, where what is before the caret is a step this put there. */
-function outdent(state: EditorState, dispatch: ((tr: Transaction) => void) | undefined): boolean {
-    const {empty, from} = state.selection;
-    if (!empty) return false;
-    const start = from - INDENT.length;
-    if (start < 0) return false;
-    if (state.doc.textBetween(start, from) !== INDENT) return false;
-    if (dispatch) dispatch(state.tr.delete(start, from).scrollIntoView());
-    return true;
+    return false;
 }
 
 /** `[ ]`, `[x]` or `[]` followed by the space that commits it, at the start of a list item. */

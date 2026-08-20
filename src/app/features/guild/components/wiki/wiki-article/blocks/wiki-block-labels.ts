@@ -17,6 +17,9 @@ export interface WikiBlockLabels {
     diagramFailed: string;
     imageCaption: string;
     imageClose: string;
+    imageUploadFailed: string;
+    imageRetry: string;
+    imageRemove: string;
     tableAddRowAbove: string;
     tableAddRowBelow: string;
     tableAddColumnLeft: string;
@@ -43,6 +46,9 @@ export const DEFAULT_WIKI_BLOCK_LABELS: WikiBlockLabels = {
     diagramFailed: 'This diagram could not be rendered',
     imageCaption: 'Add a caption',
     imageClose: 'Close',
+    imageUploadFailed: 'Upload failed',
+    imageRetry: 'Retry',
+    imageRemove: 'Remove',
     tableAddRowAbove: 'Insert row above',
     tableAddRowBelow: 'Insert row below',
     tableAddColumnLeft: 'Insert column left',
@@ -69,6 +75,9 @@ const LABEL_KEYS: Record<keyof WikiBlockLabels, string> = {
     diagramFailed: 'WIKI.DIAGRAM.FAILED',
     imageCaption: 'WIKI.IMAGE.CAPTION',
     imageClose: 'WIKI.IMAGE.CLOSE',
+    imageUploadFailed: 'WIKI.IMAGE.UPLOAD_FAILED',
+    imageRetry: 'WIKI.IMAGE.RETRY',
+    imageRemove: 'WIKI.IMAGE.REMOVE',
     tableAddRowAbove: 'WIKI.TABLE.ADD_ROW_ABOVE',
     tableAddRowBelow: 'WIKI.TABLE.ADD_ROW_BELOW',
     tableAddColumnLeft: 'WIKI.TABLE.ADD_COLUMN_LEFT',

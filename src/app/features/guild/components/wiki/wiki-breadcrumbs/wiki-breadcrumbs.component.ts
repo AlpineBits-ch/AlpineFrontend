@@ -5,7 +5,7 @@ import {TranslateModule} from '@ngx-translate/core';
 import {WikiDto, WikiPageSummaryDto} from '../../../../../dtos/response/wiki.dto';
 import {buildTrail, TrailSegment} from './wiki-trail';
 
-export type SaveStatus = 'idle' | 'draft' | 'saving' | 'saved';
+export type SaveStatus = 'idle' | 'draft' | 'saving' | 'saved' | 'error';
 
 /** The slim bar above the article: where you are on the left, what you can do on the right. */
 @Component({
@@ -44,6 +44,8 @@ export class WikiBreadcrumbsComponent {
                 return 'WIKI.STATUS.SAVING';
             case 'saved':
                 return 'WIKI.STATUS.SAVED';
+            case 'error':
+                return 'WIKI.STATUS.SAVE_FAILED';
             default:
                 return '';
         }

@@ -457,6 +457,40 @@
     display: none;
 }
 
+.wiki-article-body ::ng-deep .wiki-image-upload-failed {
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+    padding: 0.375rem 0.625rem;
+    border: 1px solid color-mix(in srgb, var(--color-offline) 40%, transparent);
+    border-radius: 0.5rem;
+    background: color-mix(in srgb, var(--color-offline) 12%, transparent);
+    color: var(--color-offline);
+    font-size: 0.75rem;
+}
+
+.wiki-article-body ::ng-deep .wiki-image-upload-failed span {
+    flex: 1;
+}
+
+.wiki-article-body ::ng-deep .wiki-image-upload-failed button {
+    border: 0;
+    border-radius: 0.25rem;
+    padding: 0.125rem 0.5rem;
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--color-text-primary);
+    font-size: 0.6875rem;
+    cursor: pointer;
+}
+
+.wiki-article-body ::ng-deep .wiki-image-upload-failed button:hover {
+    background: rgba(255, 255, 255, 0.14);
+}
+
+.wiki-article-body ::ng-deep .wiki-image[data-upload-failed='true'] .wiki-image-frame img {
+    opacity: 0.5;
+}
+
 /* Mounted inside the node view so this stylesheet can reach it; fixed to the viewport so the surrounding scroll container does not clip it. */
 .wiki-article-body ::ng-deep .wiki-image-lightbox {
     position: fixed;

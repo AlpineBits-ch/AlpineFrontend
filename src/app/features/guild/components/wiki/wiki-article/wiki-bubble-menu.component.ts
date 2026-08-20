@@ -1,17 +1,16 @@
-import {Component, input, output, signal} from '@angular/core';
+import {Component, ElementRef, input, output, signal, viewChild} from '@angular/core';
 import {TranslateModule} from '@ngx-translate/core';
 import {Editor} from '@tiptap/core';
 import {SUPPORTED_LANGUAGES} from '../../../../../models/language.model';
 import {WikiAiTransformAction} from '../wiki-ai/wiki-ai-shared';
-
-interface BubbleAction {
-    label: string;
-    titleKey: string;
-    mark: string;
-    attrs?: Record<string, unknown>;
-    run: (editor: Editor) => void;
-    className?: string;
-}
+import {
+    isFormatActive,
+    WIKI_BUBBLE_BLOCK_IDS,
+    WIKI_FORMAT_ACTIONS,
+    WIKI_INLINE_FORMAT_IDS,
+    WikiFormatAction,
+} from './wiki-format-actions';
+import {anchorTo, AnchorRect, injectWikiFloating} from './wiki-floating';
 
 interface AiItem extends WikiAiTransformAction {
     labelKey: string;
@@ -31,6 +30,9 @@ interface SubmenuOption {
 /** English names for the languages we ship locales for: the picker shows the endonym, since that is what a person recognises, but the model is told the English name. Anything added to SUPPORTED_LANGUAGES without an entry here still works; it just sends its own label. */
 const LANGUAGE_NAMES: Record<string, string> = {en: 'English', de: 'German', fr: 'French'};
 
+/** Used until the bar has been laid out once; the measured size replaces it on the next frame. */
+const BAR_SIZE = {width: 300, height: 36};
+
 const TONES: readonly {instruction: string; labelKey: string}[] = [
     {instruction: 'friendly', labelKey: 'WIKI.AI.TONE.FRIENDLY'},
     {instruction: 'formal', labelKey: 'WIKI.AI.TONE.FORMAL'},
@@ -44,25 +46,29 @@ const TONES: readonly {instruction: string; labelKey: string}[] = [
     template: `
         @if (visible()) {
             <!-- mousedown is swallowed for the whole bar: pressing a button otherwise blurs the editor and collapses the selection before the click handler runs. -->
+            <!-- No translate on the container: anchorTo already returns the flipped, clamped top, and a transform on top of it would move the bar back off the viewport on the first line of the page. -->
             <div
+                #panel
                 (mousedown)="$event.preventDefault()"
                 [style.left.px]="position().left"
                 [style.top.px]="position().top"
-                class="fixed z-50 -translate-x-1/2 -translate-y-full"
+                class="fixed z-50"
             >
                 <div
                     class="flex items-center gap-0.5 rounded-lg border border-border bg-card
                             px-1 py-1 shadow-xl"
                 >
-                    @for (action of actions; track action.titleKey) {
+                    @for (action of actions; track action.id) {
                         <button
                             (click)="apply(action)"
+                            [attr.aria-pressed]="isActive(action)"
                             [class.text-brand-dim]="isActive(action)"
                             [class]="action.className"
                             [title]="action.titleKey | translate"
                             class="flex h-7 min-w-7 cursor-pointer items-center justify-center
                                        rounded-md border-0 bg-transparent px-1.5 text-text-secondary
                                        transition-colors hover:bg-hover hover:text-text-primary"
+                            type="button"
                         >
                             {{ action.label }}
                         </button>
@@ -149,73 +155,24 @@ export class WikiBubbleMenuComponent {
     protected readonly aiMenuOpen = signal(false);
     protected readonly submenu = signal<'tone' | 'translate' | null>(null);
 
-    protected readonly actions: BubbleAction[] = [
-        {
-            label: 'B',
-            titleKey: 'WIKI.FORMAT.BOLD',
-            mark: 'bold',
-            className: 'font-bold',
-            run: e => e.chain().focus().toggleBold().run(),
-        },
-        {
-            label: 'I',
-            titleKey: 'WIKI.FORMAT.ITALIC',
-            mark: 'italic',
-            className: 'italic',
-            run: e => e.chain().focus().toggleItalic().run(),
-        },
-        {
-            label: 'U',
-            titleKey: 'WIKI.FORMAT.UNDERLINE',
-            mark: 'underline',
-            className: 'underline',
-            run: e => e.chain().focus().toggleUnderline().run(),
-        },
-        {
-            label: 'S',
-            titleKey: 'WIKI.FORMAT.STRIKETHROUGH',
-            mark: 'strike',
-            className: 'line-through',
-            run: e => e.chain().focus().toggleStrike().run(),
-        },
-        {
-            label: '<>',
-            titleKey: 'WIKI.FORMAT.INLINE_CODE',
-            mark: 'code',
-            className: 'font-mono text-[0.6875rem]',
-            run: e => e.chain().focus().toggleCode().run(),
-        },
-        {
-            label: 'H1',
-            titleKey: 'WIKI.BLOCK.HEADING_1',
-            mark: 'heading',
-            attrs: {level: 1},
-            className: 'text-[0.6875rem] font-bold',
-            run: e => e.chain().focus().toggleHeading({level: 1}).run(),
-        },
-        {
-            label: 'H2',
-            titleKey: 'WIKI.BLOCK.HEADING_2',
-            mark: 'heading',
-            attrs: {level: 2},
-            className: 'text-[0.6875rem] font-bold',
-            run: e => e.chain().focus().toggleHeading({level: 2}).run(),
-        },
-        {
-            label: 'H3',
-            titleKey: 'WIKI.BLOCK.HEADING_3',
-            mark: 'heading',
-            attrs: {level: 3},
-            className: 'text-[0.6875rem] font-bold',
-            run: e => e.chain().focus().toggleHeading({level: 3}).run(),
-        },
-        {
-            label: '❝',
-            titleKey: 'WIKI.BLOCK.QUOTE',
-            mark: 'blockquote',
-            run: e => e.chain().focus().toggleBlockquote().run(),
-        },
-    ];
+    private readonly panel = viewChild<ElementRef<HTMLElement>>('panel');
+    private actionCache?: WikiFormatAction[];
+    /** The selection rect the bar hangs off, kept so a scroll can re-place it. */
+    private anchor: AnchorRect | null = null;
+
+    private readonly floating = injectWikiFloating({
+        reposition: () => this.place(),
+        close: () => this.hide(),
+        contains: node => this.panel()?.nativeElement.contains(node) ?? false,
+        // Escape reaches this component through the article's own menu chain.
+        escape: false,
+    });
+
+    protected get actions(): WikiFormatAction[] {
+        return (this.actionCache ??= [...WIKI_INLINE_FORMAT_IDS, ...WIKI_BUBBLE_BLOCK_IDS].map(
+            id => WIKI_FORMAT_ACTIONS[id],
+        ));
+    }
 
     protected readonly aiItems: AiItem[] = [
         {op: 'improve', labelKey: 'WIKI.AI.OP.IMPROVE', icon: 'pi-sparkles'},
@@ -240,20 +197,29 @@ export class WikiBubbleMenuComponent {
         }
         const start = editor.view.coordsAtPos(from);
         const end = editor.view.coordsAtPos(to);
-        this.position.set({
-            top: Math.min(start.top, end.top) - 8,
-            left: (start.left + end.left) / 2,
-        });
+        this.anchor = {
+            top: Math.min(start.top, end.top),
+            bottom: Math.max(start.bottom, end.bottom),
+            left: Math.min(start.left, end.left),
+            right: Math.max(start.left, end.left),
+        };
+        this.place();
         this.visible.set(true);
+        this.floating.attach();
+        // The panel does not exist until this render, so the first placement uses the estimate
+        // above and this one uses what was actually laid out.
+        requestAnimationFrame(() => {
+            if (this.visible()) this.place();
+        });
     }
 
-    protected isActive(action: BubbleAction): boolean {
-        return this.editor()?.isActive(action.mark, action.attrs) ?? false;
+    protected isActive(action: WikiFormatAction): boolean {
+        return isFormatActive(action, this.editor());
     }
 
-    protected apply(action: BubbleAction): void {
+    protected apply(action: WikiFormatAction): void {
         const editor = this.editor();
-        if (editor) action.run(editor);
+        if (editor) action.run?.(editor);
     }
 
     protected toggleAiMenu(): void {
@@ -297,10 +263,28 @@ export class WikiBubbleMenuComponent {
         this.hide();
     }
 
+    /** Public because Escape has to reach the bar, and the article is what sees the key. */
+    isVisible(): boolean {
+        return this.visible();
+    }
+
     /** Public because the article suppresses the menu for the length of a selection drag. */
     hide(): void {
+        this.floating.detach();
+        this.anchor = null;
         this.visible.set(false);
         this.aiMenuOpen.set(false);
         this.submenu.set(null);
+    }
+
+    private place(): void {
+        const anchor = this.anchor;
+        if (!anchor) return;
+        const element = this.panel()?.nativeElement;
+        const size = {
+            width: element?.offsetWidth || BAR_SIZE.width,
+            height: element?.offsetHeight || BAR_SIZE.height,
+        };
+        this.position.set(anchorTo(anchor, size, {align: 'center', prefer: 'above'}));
     }
 }

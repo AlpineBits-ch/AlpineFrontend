@@ -16,10 +16,12 @@ import {DEFAULT_WIKI_BLOCK_LABELS, WikiBlockLabels} from './blocks/wiki-block-la
 import {WikiCallout} from './blocks/wiki-callout';
 import {WikiToggle, WikiToggleBody, WikiToggleSummary} from './blocks/wiki-toggle';
 import {WikiCodeBlock} from './blocks/wiki-code-block';
-import {wikiImage, WikiImageSources} from './blocks/wiki-image';
+import {wikiImage, WikiImageSources, WikiImageUploads} from './blocks/wiki-image';
 import {WIKI_TABLE_CELL_MIN_WIDTH, WikiTableControls} from './blocks/wiki-table-controls';
 import {WikiTabGuard, WikiTaskFromListItem} from './wiki-keymap';
 import {WikiClipboardMarkdown} from './wiki-clipboard';
+import {WikiFind} from './wiki-find.plugin';
+import {WikiBlockHandle, WikiBlockHandleOptions} from './wiki-block-handle.plugin';
 
 export {DEFAULT_WIKI_BLOCK_LABELS, wikiBlockLabels} from './blocks/wiki-block-labels';
 export type {WikiBlockLabels} from './blocks/wiki-block-labels';
@@ -27,10 +29,18 @@ export {CALLOUT_VARIANTS} from './blocks/wiki-callout';
 export type {CalloutVariant} from './blocks/wiki-callout';
 
 /** The one extension list, shared by read and edit mode: read mode is the same editor with setEditable(false), not a separate render path, so layout cannot drift between them. Sanitisation comes from the schema; the explicit protocol allowlist on Link is the one thing a schema does not constrain (mark attributes), without which a stored javascript: href would survive into a live anchor. `labels` carries resolved translations for the block extensions, since their ProseMirror node views render outside Angular where no pipe or injected service is reachable; omitting it falls back to English, which keeps this callable from tests and tooling. */
+export interface WikiExtensionHooks {
+    /** Retry for a failed image upload. Absent leaves the node view's retry button inert. */
+    uploads?: WikiImageUploads | null;
+    /** Absent still registers the gutter, with English labels and no "Turn into" rows. */
+    blockHandle?: WikiBlockHandleOptions;
+}
+
 export function wikiExtensions(
     placeholder: string,
     labels: WikiBlockLabels = DEFAULT_WIKI_BLOCK_LABELS,
     images: WikiImageSources | null = null,
+    hooks: WikiExtensionHooks = {},
 ): Extensions {
     return [
         StarterKit.configure({
@@ -41,6 +51,9 @@ export function wikiExtensions(
             link: false,
             underline: false,
         }),
+        // Highlighting is a decoration over plugin state, so it works with setEditable(false) too.
+        WikiFind,
+        WikiBlockHandle.configure(hooks.blockHandle ?? {}),
         Underline,
         Link.configure({
             openOnClick: false,
@@ -62,7 +75,7 @@ export function wikiExtensions(
         TableHeader,
         TableCell,
         WikiTableControls.configure({labels}),
-        wikiImage(labels, images),
+        wikiImage(labels, images, hooks.uploads ?? null),
         TaskList,
         // nested: true is what binds Tab inside a checklist; with it off, Tab is unbound there and the browser's own handling moves focus to the checkbox above instead of indenting.
         TaskItem.configure({nested: true, HTMLAttributes: {'data-type': 'taskItem'}}),

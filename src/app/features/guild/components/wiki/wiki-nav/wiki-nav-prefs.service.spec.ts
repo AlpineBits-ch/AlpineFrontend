@@ -75,7 +75,7 @@ describe('WikiNavPrefsService', () => {
     it('caps the recent list', () => {
         service.load('g1');
         for (let i = 0; i < 20; i++) service.recordVisit(`p${i}`);
-        expect(service.recents()).toHaveLength(8);
+        expect(service.recents()).toHaveLength(6);
         expect(service.recents()[0]).toBe('p19');
     });
 

@@ -1,4 +1,5 @@
 import {
+    ChangeDetectionStrategy,
     Component,
     computed,
     DestroyRef,
@@ -16,20 +17,27 @@ import {Tooltip} from 'primeng/tooltip';
 import {TranslateModule} from '@ngx-translate/core';
 import {WikiDto, WikiPageSummaryDto} from '../../../../../dtos/response/wiki.dto';
 import {WikiContentCacheService} from '../wiki-content-cache.service';
+import {WikiGraphPrefsService} from './wiki-graph-prefs.service';
+import {WikiGraphSourceService} from './wiki-graph-source.service';
 import {
     ALPHA_MIN,
     ALPHA_REHEAT,
     ALPHA_START,
     boundsOf,
     buildGraph,
+    buildGraphFrom,
     coolAlpha,
+    GraphEdgeKind,
+    graphLinksOf,
     GraphModel,
     GraphNode,
+    graphPagesOf,
     hitTest,
     nodeColor,
     nodeRadius,
     positionsOf,
     stepSimulation,
+    visibleEdges,
 } from './wiki-graph';
 
 const MIN_SCALE = 0.2;
@@ -41,12 +49,16 @@ const CLICK_SLOP = 4;
 const LABEL_SCALE = 0.75;
 const LABEL_ALL_SCALE = 1.3;
 const LABEL_MIN_DEGREE = 2;
+const HIERARCHY_WIDTH = 0.8;
+const HIERARCHY_DASH = 4;
+const LINK_WIDTH = 1.7;
 
 @Component({
     selector: 'app-wiki-graph',
     imports: [Button, Tooltip, TranslateModule],
     templateUrl: './wiki-graph.component.html',
     styleUrl: './wiki-graph.component.css',
+    changeDetection: ChangeDetectionStrategy.OnPush,
     host: {class: 'flex flex-col h-full min-h-0'},
 })
 export class WikiGraphComponent {
@@ -57,6 +69,8 @@ export class WikiGraphComponent {
     readonly back = output<void>();
 
     protected readonly cache = inject(WikiContentCacheService);
+    protected readonly source = inject(WikiGraphSourceService);
+    protected readonly prefs = inject(WikiGraphPrefsService);
 
     protected readonly model = signal<GraphModel | null>(null);
     protected readonly hovered = signal<GraphNode | null>(null);
@@ -69,19 +83,33 @@ export class WikiGraphComponent {
 
     protected readonly canvasRef = viewChild<ElementRef<HTMLCanvasElement>>('canvas');
 
-    /** How much of the wiki the graph can actually see. Edges need bodies; bodies need the warm. */
+    /**
+     * How much of the wiki the fallback can actually see. Only the non-empty bodies count: a page
+     * cached as `''` carries no links, so counting it would report an index the graph has not got.
+     */
     protected readonly coverage = computed(() => {
         const pages = this.wiki()?.pages ?? [];
         const content = this.cache.content();
         return {
             total: pages.length,
-            loaded: pages.reduce((n, page) => n + (content.has(page.id) ? 1 : 0), 0),
+            loaded: pages.reduce((n, page) => n + (content.get(page.id) ? 1 : 0), 0),
         };
     });
 
-    protected readonly edgeCount = computed(() => this.model()?.edges.length ?? 0);
+    protected readonly linkEdgeCount = computed(
+        () => this.model()?.edges.filter(edge => edge.kind === 'link').length ?? 0,
+    );
+    protected readonly hierarchyEdgeCount = computed(
+        () => (this.model()?.edges.length ?? 0) - this.linkEdgeCount(),
+    );
     protected readonly nodeCount = computed(() => this.model()?.nodes.length ?? 0);
     protected readonly omitted = computed(() => this.model()?.omitted ?? 0);
+
+    /** True while the graph is still reading links from page bodies, endpoint or not. */
+    protected readonly loadingLinks = computed(() => this.source.loading() || this.cache.warming());
+    protected readonly linksFailed = computed(
+        () => this.source.failed() || (this.source.absent() && this.cache.failed()),
+    );
 
     /** Colour key, in the same order the graph assigns hues. */
     protected readonly legend = computed(() => {
@@ -126,21 +154,39 @@ export class WikiGraphComponent {
     private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
     constructor() {
-        // Same bargain the context rail makes: the warm is paid for by the feature that needs it, when the user asks for it, rather than on every wiki load.
         effect(() => {
             const guildId = this.guildId();
-            if (guildId) this.cache.warm(guildId);
+            if (!guildId) return;
+            this.prefs.load(guildId);
+            // This view is created when it is opened, so a fetch here is a fetch per visit, which is what keeps the map current after an edit.
+            this.source.refresh(guildId);
+        });
+
+        // TODO(dominic): drop the content-warm fallback once the graph endpoint is deployed everywhere.
+        effect(() => {
+            const guildId = this.guildId();
+            if (guildId && this.source.absent()) this.cache.warm(guildId);
         });
 
         effect(() => {
             const wiki = this.wiki();
-            const content = this.cache.content();
+            const graph = this.source.graphs().get(this.guildId()) ?? null;
             // Positions carry over so the layout relaxes into the new data instead of restarting from the seed ring every time a page is edited elsewhere in the guild.
             const previous = untracked(() => {
                 const current = this.model();
                 return current ? positionsOf(current) : undefined;
             });
-            this.model.set(buildGraph(wiki?.pages ?? [], content, wiki?.categories ?? [], previous));
+            this.model.set(
+                graph
+                    ? buildGraphFrom(
+                          graphPagesOf(graph, wiki?.pages ?? []),
+                          graphLinksOf(graph),
+                          wiki?.categories ?? [],
+                          previous,
+                      )
+                    : // Reading the cache only on this branch keeps the endpoint path off the content cache entirely.
+                      buildGraph(wiki?.pages ?? [], this.cache.content(), wiki?.categories ?? [], previous),
+            );
             // The hovered node is a reference into the model that just got replaced; keeping it would highlight a node that no longer exists.
             this.hovered.set(null);
             this.needsFit = this.needsFit || !this.userAdjusted;
@@ -187,14 +233,27 @@ export class WikiGraphComponent {
         inject(DestroyRef).onDestroy(() => this.cancel());
     }
 
-    /** A failed warm leaves the cache retryable on purpose; without edges this is a scatter plot. */
-    protected retryWarm(): void {
-        this.cache.warm(this.guildId());
+    /** A failed fetch leaves both paths retryable on purpose; without edges this is a scatter plot. */
+    protected retry(): void {
+        const guildId = this.guildId();
+        if (this.source.absent()) this.cache.warm(guildId);
+        else this.source.refresh(guildId);
     }
 
     protected toggleList(): void {
         this.listMode.update(v => !v);
         this.hovered.set(null);
+    }
+
+    /** The draw reads the preferences untracked, so a toggle has to ask for the repaint itself. */
+    protected toggleHierarchy(): void {
+        this.prefs.toggleHierarchy();
+        this.schedule();
+    }
+
+    protected toggleLinks(): void {
+        this.prefs.toggleLinks();
+        this.schedule();
     }
 
     protected zoomBy(factor: number): void {
@@ -418,12 +477,18 @@ export class WikiGraphComponent {
         if (!ctx) return;
 
         const scale = this.scale();
+        const showHierarchy = untracked(() => this.prefs.showHierarchy());
+        const showLinks = untracked(() => this.prefs.showLinks());
         const hovered = untracked(() => this.hovered());
         const hoveredIndex = hovered ? model.nodes.indexOf(hovered) : -1;
         const highlighted = new Set<number>();
         if (hoveredIndex >= 0) {
             highlighted.add(hoveredIndex);
-            for (const neighbour of model.neighbours[hoveredIndex]) highlighted.add(neighbour);
+            // From the visible edges, not `neighbours`: a neighbour reached only by a hidden edge would light up with no line to explain it.
+            for (const edge of visibleEdges(model, {hierarchy: showHierarchy, links: showLinks})) {
+                if (edge.a === hoveredIndex) highlighted.add(edge.b);
+                else if (edge.b === hoveredIndex) highlighted.add(edge.a);
+            }
         }
 
         ctx.clearRect(0, 0, this.viewWidth, this.viewHeight);
@@ -432,23 +497,13 @@ export class WikiGraphComponent {
         ctx.scale(scale, scale);
         ctx.translate(-this.camX, -this.camY);
 
-        ctx.lineWidth = 1 / scale;
-        for (const edge of model.edges) {
-            const a = model.nodes[edge.a];
-            const b = model.nodes[edge.b];
-            const lit = hoveredIndex >= 0 && (edge.a === hoveredIndex || edge.b === hoveredIndex);
-            if (hoveredIndex >= 0 && !lit) {
-                ctx.strokeStyle = 'rgba(255,255,255,0.04)';
-            } else if (lit) {
-                ctx.strokeStyle = this.accent;
-            } else {
-                ctx.strokeStyle = 'rgba(255,255,255,0.10)';
-            }
-            ctx.beginPath();
-            ctx.moveTo(a.x, a.y);
-            ctx.lineTo(b.x, b.y);
-            ctx.stroke();
+        if (showHierarchy) {
+            ctx.setLineDash([HIERARCHY_DASH / scale, HIERARCHY_DASH / scale]);
+            this.drawEdges(ctx, model, 'hierarchy', hoveredIndex, scale);
         }
+        // Cleared here rather than left to `restore`: the node outlines below are stroked inside the same save block and must not come out dashed.
+        ctx.setLineDash([]);
+        if (showLinks) this.drawEdges(ctx, model, 'link', hoveredIndex, scale);
 
         for (let i = 0; i < model.nodes.length; i++) {
             const node = model.nodes[i];
@@ -492,6 +547,38 @@ export class WikiGraphComponent {
         }
 
         ctx.restore();
+    }
+
+    /** One class of edge. The caller owns the dash state; this only sets width, colour and alpha. */
+    private drawEdges(
+        ctx: CanvasRenderingContext2D,
+        model: GraphModel,
+        kind: GraphEdgeKind,
+        hoveredIndex: number,
+        scale: number,
+    ): void {
+        const hierarchy = kind === 'hierarchy';
+        ctx.lineWidth = (hierarchy ? HIERARCHY_WIDTH : LINK_WIDTH) / scale;
+        for (const edge of model.edges) {
+            if (edge.kind !== kind) continue;
+            const lit = hoveredIndex >= 0 && (edge.a === hoveredIndex || edge.b === hoveredIndex);
+            const dimmed = hoveredIndex >= 0 && !lit;
+            if (hierarchy && !lit) {
+                ctx.globalAlpha = 1;
+                ctx.strokeStyle = dimmed ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.09)';
+            } else {
+                ctx.strokeStyle = this.accent;
+                ctx.globalAlpha = lit ? 1 : 0.5;
+                if (dimmed) ctx.globalAlpha = 0.12;
+            }
+            const a = model.nodes[edge.a];
+            const b = model.nodes[edge.b];
+            ctx.beginPath();
+            ctx.moveTo(a.x, a.y);
+            ctx.lineTo(b.x, b.y);
+            ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
     }
 }
 
