@@ -31,6 +31,8 @@ export class ChannelListItemsComponent {
     readonly canReorder = input.required<boolean>();
     /** Channels the view-as preview cannot see. Empty outside the preview. */
     readonly hiddenIds = input<ReadonlySet<string>>(new Set());
+    /** Voice channels the preview can see but not join: `Connect` denied while `ViewChannel` holds. */
+    readonly unjoinableIds = input<ReadonlySet<string>>(new Set());
 
     readonly openTextChannel = output<ChannelDto>();
     readonly openVoiceChannel = output<ChannelDto>();

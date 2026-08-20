@@ -172,7 +172,9 @@
         <!-- A preview, not a lock: the real caller can still post, so the composer is only ever disabled here for the subject being previewed. -->
         <div class="mx-4 mb-4 flex items-center gap-2.5 rounded-xl border border-border-subtle bg-card/60 px-4 py-3">
             <i class="pi pi-eye-slash text-connecting text-[0.875rem] shrink-0"></i>
-            <p class="text-[0.8125rem] text-text-primary m-0">{{ 'VIEW_AS.CANNOT_SEND' | translate }}</p>
+            <p class="text-[0.8125rem] text-text-primary m-0">
+                {{ 'VIEW_AS.CANNOT_SEND' | translate: {name: viewAsSubjectName()} }}
+            </p>
         </div>
     } @else {
         <app-composer

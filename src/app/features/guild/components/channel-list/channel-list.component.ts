@@ -333,6 +333,25 @@ export class ChannelListComponent {
         return this.viewAs.can(this.guild().id, channel.id, Permissions.ViewChannel);
     }
 
+    /**
+     * Voice channels visible to the subject but not joinable: `Connect` implies `ViewChannel`, not
+     * the reverse, so this is a real, distinct state from "hidden" and must read as its own thing
+     * rather than as full access.
+     */
+    protected readonly viewAsUnjoinableIds = computed(() => {
+        if (!this.viewAsActive()) return new Set<string>();
+        return new Set(
+            this.localChannels()
+                .filter(
+                    c =>
+                        c.type === ChannelType.Voice &&
+                        this.canSee(c) &&
+                        !this.viewAs.can(this.guild().id, c.id, Permissions.Connect),
+                )
+                .map(c => c.id),
+        );
+    });
+
     /** Set only between a move's `hide` and the `show` that follows it. @see openInvitePanel */
     private invitePanelMovingTo: ChannelDto | null = null;
     // ── Collapse state ────────────────────────────────────────────────────────

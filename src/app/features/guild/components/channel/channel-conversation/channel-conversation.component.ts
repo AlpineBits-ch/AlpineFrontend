@@ -115,6 +115,8 @@ export class ChannelConversationComponent implements AfterViewInit {
             this.viewAs.active(this.guildId())() &&
             !this.viewAs.can(this.guildId(), this.channel().id, Permissions.SendMessages),
     );
+    /** For an interpolated reason string. Empty when nobody is being previewed. */
+    protected readonly viewAsSubjectName = computed(() => this.viewAs.subject(this.guildId())()?.name ?? '');
 
     protected readonly guildRoles = computed(() => {
         const ws = this.navService.workspace();

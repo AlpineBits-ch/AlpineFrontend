@@ -1,3 +1,4 @@
+import {effect, Injector, runInInjectionContext} from '@angular/core';
 import {TestBed} from '@angular/core/testing';
 import {of, Subject} from 'rxjs';
 import {vi} from 'vitest';
@@ -155,5 +156,40 @@ describe('ViewAsService', () => {
         service.enter(GUILD, {kind: 'role', id: 'role_2', name: 'Officer'});
 
         expect(service.can(GUILD, 'chan_1', Permissions.ViewChannel)).toBe(false);
+    });
+
+    /**
+     * Mirrors `channel-list.component.ts`'s `viewAsRequests`: one effect that walks every channel
+     * and calls `request()` for each. If `request()`'s guard reads were tracked, every trace
+     * landing would re-schedule this effect over the whole channel list again - O(channels²) work
+     * for a preview session instead of O(channels).
+     */
+    it('does not re-run the requesting effect once per resolved trace', () => {
+        const channelIds = Array.from({length: 20}, (_, i) => `chan_${i}`);
+        const pending = new Map(channelIds.map(id => [id, new Subject<EffectivePermissionsDto>()]));
+        const guildService = {
+            getEffectivePermissions: vi.fn((channelId: string) => pending.get(channelId)!),
+        };
+        TestBed.configureTestingModule({
+            providers: [ViewAsService, {provide: GuildService, useValue: guildService}],
+        });
+        const service = TestBed.inject(ViewAsService);
+        const injector = TestBed.inject(Injector);
+        service.enter(GUILD, SUBJECT);
+
+        let runs = 0;
+        runInInjectionContext(injector, () =>
+            effect(() => {
+                runs++;
+                for (const id of channelIds) service.request(GUILD, id);
+            }),
+        );
+        TestBed.tick();
+        expect(runs).toBe(1);
+
+        for (const id of channelIds) pending.get(id)!.next(trace('ViewChannel'));
+        TestBed.tick();
+
+        expect(runs).toBe(1);
     });
 });

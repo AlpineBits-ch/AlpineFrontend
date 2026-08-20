@@ -1,4 +1,4 @@
-import {computed, inject, Injectable, Signal, signal} from '@angular/core';
+import {computed, inject, Injectable, Signal, signal, untracked} from '@angular/core';
 import {GuildService} from '../../../services/guild.service';
 import {EffectivePermissionsDto} from '../../../dtos/response/effective-permissions.dto';
 import {hasPermission, parsePermissions, PermissionValue} from '../../../enums/permissions.enum';
@@ -50,13 +50,19 @@ export class ViewAsService {
         return computed(() => this.traces()[this.key(guildId, channelId)] ?? null);
     }
 
-    /** Fetches one channel's trace, once. Safe to call from a template-driven render. */
+    /**
+     * Fetches one channel's trace, once. Safe to call from a template-driven render.
+     *
+     * The guard reads are untracked: a caller driving this from an effect (the channel list does,
+     * once per channel) must not pick up `subjects`/`traces` as dependencies through this call, or
+     * every trace landing would re-run that effect over every channel again.
+     */
     request(guildId: string, channelId: string): void {
-        const subject = this.subjects()[guildId];
+        const subject = untracked(() => this.subjects()[guildId]);
         if (!subject) return;
 
         const key = this.key(guildId, channelId);
-        if (this.traces()[key] || this.inFlight.has(key)) return;
+        if (untracked(() => this.traces()[key]) || this.inFlight.has(key)) return;
 
         this.inFlight.add(key);
         this.guildService.getEffectivePermissions(channelId, {kind: subject.kind, id: subject.id}).subscribe({

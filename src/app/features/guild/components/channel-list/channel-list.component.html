@@ -110,6 +110,7 @@
                     [canReorder]="canReorder()"
                     [channels]="uncategorizedChannels()"
                     [hiddenIds]="viewAsHiddenIds()"
+                    [unjoinableIds]="viewAsUnjoinableIds()"
                 />
             </div>
         }
@@ -162,6 +163,7 @@
                         [canReorder]="canReorder()"
                         [channels]="categoryChannels(category.id)"
                         [hiddenIds]="viewAsHiddenIds()"
+                        [unjoinableIds]="viewAsUnjoinableIds()"
                     />
                 }
             </div>

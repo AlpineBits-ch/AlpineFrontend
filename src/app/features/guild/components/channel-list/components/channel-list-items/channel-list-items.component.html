@@ -13,6 +13,7 @@
             [canReorder]="canReorder()"
             [channel]="channel"
             [hidden]="hiddenIds().has(channel.id)"
+            [unjoinable]="unjoinableIds().has(channel.id)"
         />
     } @else {
         <app-text-channel-item

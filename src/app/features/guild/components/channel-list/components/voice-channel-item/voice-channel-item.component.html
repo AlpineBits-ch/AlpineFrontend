@@ -27,6 +27,16 @@
                 {{ 'VIEW_AS.HIDDEN' | translate }}
             </span>
         }
+        <!-- Listed but not joinable: `Connect` was denied while `ViewChannel` still holds, which is
+             a different fact than "hidden" and must not read as full access. -->
+        @if (unjoinable()) {
+            <i
+                [pTooltip]="'VIEW_AS.CANNOT_JOIN' | translate"
+                aria-hidden="true"
+                class="pi pi-lock text-connecting text-[0.6875rem] shrink-0"
+                tooltipPosition="right"
+            ></i>
+        }
         <!-- Lock first: a permission fact, must not be displaced by a transient one. LIVE then outranks the participant count (redundant anyway, since every participant is listed as a row below). -->
         @if (channel().isPrivate) {
             <i class="pi pi-lock chan-lock"></i>

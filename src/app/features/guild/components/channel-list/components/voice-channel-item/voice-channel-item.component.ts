@@ -33,6 +33,8 @@ export class VoiceChannelItemComponent {
     readonly canReorder = input.required<boolean>();
     /** True while previewing a subject who cannot see this channel; dims the row, never hides it. */
     readonly hidden = input(false);
+    /** True while previewing a subject who can see this channel but holds no `Connect`. Full opacity: this is not the "hidden" state, it needs its own read. */
+    readonly unjoinable = input(false);
 
     readonly open = output<void>();
     readonly openMenu = output<MouseEvent>();
