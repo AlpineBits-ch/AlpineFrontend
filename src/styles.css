@@ -230,6 +230,18 @@ body {
     line-height: 1;
 }
 
+/* A chosen colour is a signal, not chrome, so it sits at 78% where the default sits at 32%:
+   a saturated hue at the default's alpha is close to invisible on this surface. */
+.chan-icon-tinted {
+    color: color-mix(in srgb, var(--chan-icon-tint) 78%, transparent);
+}
+
+.chan-row:hover .chan-icon-tinted,
+.chan-row.is-active .chan-icon-tinted,
+.chan-row.is-unread .chan-icon-tinted {
+    color: var(--chan-icon-tint);
+}
+
 /* House, Wiki, Events and Channels & Roles are places the app provides, not channels
    anyone in the guild created, and the list has to say so. The chip behind the icon is
    what says it: a channel's glyph sits bare on the surface, a module's sits on a tile.
