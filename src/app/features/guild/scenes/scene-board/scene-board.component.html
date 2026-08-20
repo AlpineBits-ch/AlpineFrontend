@@ -39,26 +39,17 @@
 } @else {
     <div class="flex min-h-0 flex-1 overflow-hidden">
         @if (railVisible() && tree().length) {
-            <aside class="board-rail thin-scrollbar">
-                <app-scene-folder-rail
-                    (createFolder)="editing.set({folder: null, seedParentId: $event})"
-                    (createScene)="createIn($event)"
-                    (deleteFolder)="editing.set({folder: $event.folder, seedParentId: null})"
-                    (filed)="file($event.channelId, $event.folderId)"
-                    (openScene)="openScene($event.channelId, $event.fromStart)"
-                    (picked)="folderId.set($event)"
-                    (renameFolder)="editing.set({folder: $event.folder, seedParentId: null})"
-                    (reordered)="reorder($event)"
-                    (showAll)="folderId.set($event)"
-                    (toggled)="toggleShelf($event)"
-                    [canManage]="canManage()"
-                    [expandedIds]="expandedIds()"
-                    [recent]="recent()"
-                    [scenesByFolder]="scenesByFolder()"
-                    [selected]="folderId()"
-                    [tree]="tree()"
-                />
-            </aside>
+            <app-scene-folder-panel
+                (createScene)="createIn($event)"
+                (filed)="file($event.channelId, $event.folderId)"
+                (picked)="folderId.set($event)"
+                [canManage]="canManage()"
+                [guildId]="guildId()"
+                [recent]="recent()"
+                [scenesByFolder]="scenesByFolder()"
+                [selected]="folderId()"
+                [tree]="tree()"
+            />
         }
 
         <div class="min-h-0 flex-1 overflow-y-auto thin-scrollbar">
@@ -161,15 +152,5 @@
         [guildChannels]="textChannels()"
         [guildId]="guildId()"
         [seedFolderId]="seedFolderId()"
-    />
-}
-
-<!-- Delete comes through here too: the editor holds the only confirm. -->
-@if (editing(); as target) {
-    <app-scene-folder-editor
-        (closed)="editing.set(null)"
-        [folder]="target.folder"
-        [guildId]="guildId()"
-        [seedParentId]="target.seedParentId"
     />
 }

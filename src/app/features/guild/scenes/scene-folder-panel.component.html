@@ -1,0 +1,34 @@
+<aside #rail class="folder-panel thin-scrollbar">
+    <app-scene-folder-rail
+        (createFolder)="editing.set({folder: null, seedParentId: $event})"
+        (createScene)="createScene.emit($event)"
+        (deleteFolder)="editing.set({folder: $event.folder, seedParentId: null})"
+        (filed)="filed.emit($event)"
+        (openScene)="onOpenScene($event.channelId, $event.fromStart)"
+        (picked)="picked.emit($event)"
+        (renameFolder)="editing.set({folder: $event.folder, seedParentId: null})"
+        (reordered)="reorder($event)"
+        (showAll)="picked.emit($event)"
+        (toggled)="toggleShelf($event)"
+        [canManage]="canManage()"
+        [expandedIds]="expandedIds()"
+        [loadingFolderIds]="loadingFolderIds()"
+        [partialFolderIds]="partialFolderIds()"
+        [recent]="recent()"
+        [scenesByFolder]="scenesByFolder()"
+        [selected]="selected()"
+        [tree]="tree()"
+    />
+
+    <div [target]="rail" appRailResize class="folder-panel-handle"></div>
+</aside>
+
+<!-- Delete comes through here too: the editor holds the only confirm. -->
+@if (editing(); as target) {
+    <app-scene-folder-editor
+        (closed)="editing.set(null)"
+        [folder]="target.folder"
+        [guildId]="guildId()"
+        [seedParentId]="target.seedParentId"
+    />
+}

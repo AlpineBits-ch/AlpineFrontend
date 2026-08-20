@@ -13,8 +13,7 @@ import {RelativeTimePipe} from '../../../../pipes/relative-time.pipe';
 import {TurnClockRingComponent} from '../turn-clock-ring/turn-clock-ring.component';
 import {SceneDialogComponent} from '../scene-dialog/scene-dialog.component';
 import {SceneArchiveComponent} from '../scene-archive/scene-archive.component';
-import {SceneFolderRailComponent} from '../scene-archive/scene-folder-rail.component';
-import {SceneFolderEditorComponent} from '../scene-archive/scene-folder-editor.component';
+import {SceneFolderPanelComponent} from '../scene-folder-panel.component';
 import {countByFolder, FolderNode, folderTree} from '../scene-archive/folder-tree';
 import {leavesByFolder, recentScenes} from '../scene-leaf';
 import {SceneService} from '../../../../services/scene.service';
@@ -25,7 +24,7 @@ import {ToastService} from '../../../../services/toast.service';
 import {SceneRailStateService} from '../../../../services/scene-rail-state.service';
 import {SceneTaxonomyService} from '../../../../services/scene-taxonomy.service';
 import {NavigationService, SceneBoardMode} from '../../../main-page/navigation.service';
-import {SceneFolderDto, SceneListItemDto, SceneStatus} from '../../../../dtos/response/scene.dto';
+import {SceneListItemDto, SceneStatus} from '../../../../dtos/response/scene.dto';
 import {ChannelType} from '../../../../dtos/response/guild.dto';
 import {SelfGuildMemberDto} from '../../../../dtos/response/member.dto';
 import {ModulePermissions} from '../../../../enums/module-permissions.enum';
@@ -55,12 +54,6 @@ export interface SceneGroup {
     accent?: string | null;
 }
 
-/** A folder being edited, plus the parent a new one should start on. */
-interface FolderEdit {
-    folder: SceneFolderDto | null;
-    seedParentId: string | null;
-}
-
 /**
  * Every scene in the guild, in the order that answers the only question worth asking on opening the
  * app: is a game waiting on me. Correspondence chess has had this list for thirty years; chat has not.
@@ -74,8 +67,7 @@ interface FolderEdit {
         TurnClockRingComponent,
         SceneDialogComponent,
         SceneArchiveComponent,
-        SceneFolderRailComponent,
-        SceneFolderEditorComponent,
+        SceneFolderPanelComponent,
     ],
     templateUrl: './scene-board.component.html',
     styleUrl: './scene-board.component.css',
@@ -101,7 +93,6 @@ export class SceneBoardComponent {
     }
 
     protected readonly creating = signal(false);
-    protected readonly editing = signal<FolderEdit | null>(null);
 
     protected readonly folderId = signal<string | null>(null);
     protected readonly seedFolderId = signal<string | null>(null);
@@ -133,8 +124,6 @@ export class SceneBoardComponent {
     protected readonly tree = computed(() =>
         folderTree(this.taxonomy.folders(this.guildId()), countByFolder(this.scenes.scenes(this.guildId()))),
     );
-
-    protected readonly expandedIds = computed(() => this.railState.expanded(this.guildId()));
 
     protected readonly scenesByFolder = computed(() =>
         leavesByFolder(this.scenes.scenes(this.guildId()), this.scenes.speakableIds(this.guildId())),
@@ -323,36 +312,14 @@ export class SceneBoardComponent {
         this.railState.setRailVisible(this.guildId(), !this.railVisible());
     }
 
-    protected toggleShelf(folderId: string): void {
-        this.railState.toggle(this.guildId(), folderId);
-    }
-
     protected createIn(folderId: string | null): void {
         this.seedFolderId.set(folderId);
         this.creating.set(true);
     }
 
-    protected openScene(channelId: string, fromStart: boolean): void {
-        const channel = this.guild()?.channels.find(c => c.id === channelId);
-        if (!channel) {
-            this.toast.error(this.translate.instant('SCENE.ARCHIVE.OPEN_ERROR'), {
-                detail: this.translate.instant('SCENE.ARCHIVE.OPEN_ERROR_DETAIL'),
-            });
-            return;
-        }
-        if (fromStart) this.nav.openChannelFromStart(channel);
-        else this.nav.openChannel(channel);
-    }
-
     protected file(channelId: string, folderId: string | null): void {
         this.scenes.update(this.guildId(), channelId, {folderId}).subscribe({
             error: err => this.toast.httpError(this.translate.instant('SCENE.ARCHIVE.FILE_ERROR'), err),
-        });
-    }
-
-    protected reorder(folderIds: string[]): void {
-        this.taxonomy.reorderFolders(this.guildId(), folderIds).subscribe({
-            error: err => this.toast.httpError(this.translate.instant('SCENE.ARCHIVE.REORDER_ERROR'), err),
         });
     }
 }

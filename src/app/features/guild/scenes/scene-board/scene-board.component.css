@@ -211,17 +211,6 @@
 }
 
 /* ── Folder rail ────────────────────────────────────────────────────────── */
-.board-rail {
-    display: flex;
-    flex-direction: column;
-    gap: 0.125rem;
-    flex-shrink: 0;
-    width: 11.75rem;
-    border-right: 1px solid rgba(255, 255, 255, 0.06);
-    padding: 0.5625rem 0.4375rem;
-    overflow-y: auto;
-}
-
 .board-rail-toggle {
     display: flex;
     align-items: center;

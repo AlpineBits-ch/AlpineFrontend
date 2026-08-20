@@ -1,32 +1,3 @@
-.archive-rail {
-    position: relative;
-    width: var(--rail-width, 17.5rem);
-    min-width: 0;
-    flex-shrink: 0;
-    border-right: 1px solid rgba(255, 255, 255, 0.06);
-    padding: 1.25rem 0.625rem;
-    overflow-y: auto;
-}
-
-/* Sits above the border, invisible until it has a reason to be seen. */
-.archive-rail-handle {
-    position: absolute;
-    top: 0;
-    right: -0.125rem;
-    width: 0.25rem;
-    height: 100%;
-    background: transparent;
-    cursor: col-resize;
-    outline: none;
-    transition: background-color var(--duration-base) var(--ease-brand);
-}
-
-.archive-rail-handle:hover,
-.archive-rail-handle:focus-visible,
-.archive-rail-handle.is-dragging {
-    background: color-mix(in srgb, var(--color-brand) 45%, transparent);
-}
-
 .archive-filters {
     display: flex;
     flex-wrap: wrap;
@@ -192,12 +163,4 @@
     font-size: 0.8125rem;
     line-height: 1.65;
     color: var(--color-text-muted);
-}
-
-@media (max-width: 720px) {
-    .archive-rail {
-        /* Still resizable when the window is small, just never more than half of it. */
-        width: min(var(--rail-width, 13rem), 60vw);
-        padding: 1rem 0.5rem;
-    }
 }

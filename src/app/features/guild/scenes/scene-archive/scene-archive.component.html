@@ -1,28 +1,17 @@
 <div class="flex min-h-0 flex-1 overflow-hidden">
-    <aside #rail class="archive-rail thin-scrollbar">
-        <app-scene-folder-rail
-            (createFolder)="editing.set({folder: null, seedParentId: $event})"
-            (createScene)="createSceneIn.emit($event)"
-            (deleteFolder)="editing.set({folder: $event.folder, seedParentId: null})"
-            (filed)="file($event.channelId, $event.folderId)"
-            (openScene)="openScene($event.channelId, $event.fromStart)"
-            (picked)="folderId.set($event)"
-            (renameFolder)="editing.set({folder: $event.folder, seedParentId: null})"
-            (reordered)="reorder($event)"
-            (showAll)="folderId.set($event)"
-            (toggled)="toggleShelf($event)"
-            [canManage]="canManage()"
-            [expandedIds]="expandedIds()"
-            [loadingFolderIds]="loadingFolderIds()"
-            [partialFolderIds]="partialFolderIds()"
-            [recent]="recent()"
-            [scenesByFolder]="scenesByFolder()"
-            [selected]="folderId()"
-            [tree]="tree()"
-        />
-
-        <div [target]="rail" appRailResize class="archive-rail-handle"></div>
-    </aside>
+    <app-scene-folder-panel
+        (createScene)="createSceneIn.emit($event)"
+        (filed)="file($event.channelId, $event.folderId)"
+        (picked)="folderId.set($event)"
+        [canManage]="canManage()"
+        [guildId]="guildId()"
+        [loadingFolderIds]="loadingFolderIds()"
+        [partialFolderIds]="partialFolderIds()"
+        [recent]="recent()"
+        [scenesByFolder]="scenesByFolder()"
+        [selected]="folderId()"
+        [tree]="tree()"
+    />
 
     <div class="flex min-w-0 flex-1 flex-col">
         <div class="archive-filters">
@@ -171,16 +160,6 @@
         [canManage]="canManage()"
         [guildId]="guildId()"
         [scene]="scene"
-    />
-}
-
-<!-- Delete comes through here too: the editor holds the only confirm. -->
-@if (editing(); as target) {
-    <app-scene-folder-editor
-        (closed)="editing.set(null)"
-        [folder]="target.folder"
-        [guildId]="guildId()"
-        [seedParentId]="target.seedParentId"
     />
 }
 

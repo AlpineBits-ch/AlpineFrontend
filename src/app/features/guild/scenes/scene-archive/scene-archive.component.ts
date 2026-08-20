@@ -17,11 +17,9 @@ import {Popover} from 'primeng/popover';
 import {MenuItem} from 'primeng/api';
 import {debounceTime, distinctUntilChanged, map} from 'rxjs';
 
-import {SceneFolderRailComponent} from './scene-folder-rail.component';
-import {RailResizeDirective} from './rail-resize.directive';
+import {SceneFolderPanelComponent} from '../scene-folder-panel.component';
 import {SceneArchiveCardComponent} from './scene-archive-card.component';
 import {SceneDetailSheetComponent} from './scene-detail-sheet.component';
-import {SceneFolderEditorComponent} from './scene-folder-editor.component';
 import {SceneTagEditorComponent} from './scene-tag-editor.component';
 import {FolderNode, folderTree} from './folder-tree';
 import {TagChipComponent} from '../../../../components/tag-chip/tag-chip.component';
@@ -29,12 +27,10 @@ import {ArchiveStatus, SceneArchiveService} from '../../../../services/scene-arc
 import {SceneRailStateService} from '../../../../services/scene-rail-state.service';
 import {SceneTaxonomyService} from '../../../../services/scene-taxonomy.service';
 import {SceneService} from '../../../../services/scene.service';
-import {GuildService} from '../../../../services/guild.service';
 import {ToastService} from '../../../../services/toast.service';
-import {SceneFolderDto, SceneListItemDto} from '../../../../dtos/response/scene.dto';
+import {SceneListItemDto} from '../../../../dtos/response/scene.dto';
 import {SceneSort, UNFILED} from '../../../../dtos/request/scene.dto';
 import {leavesByFolder, recentScenes, SceneLeaf} from '../scene-leaf';
-import {NavigationService} from '../../../main-page/navigation.service';
 
 /** Long enough that a typed word is one request, short enough that the results still feel live. */
 const SEARCH_DEBOUNCE_MS = 300;
@@ -53,12 +49,6 @@ const STATUS_LABELS: Record<ArchiveStatus, string> = {
     finished: 'SCENE.ARCHIVE.STATUS_FINISHED',
 };
 
-/** A folder being edited, plus the parent a new one should start on. */
-interface FolderEdit {
-    folder: SceneFolderDto | null;
-    seedParentId: string | null;
-}
-
 /**
  * The archive: shelves down the left, labels across the top, finished scenes in the middle. A
  * sibling of the board rather than a mode inside it, so the board's "is it my move" grouping is
@@ -72,11 +62,9 @@ interface FolderEdit {
         FormsModule,
         Menu,
         Popover,
-        SceneFolderRailComponent,
-        RailResizeDirective,
+        SceneFolderPanelComponent,
         SceneArchiveCardComponent,
         SceneDetailSheetComponent,
-        SceneFolderEditorComponent,
         SceneTagEditorComponent,
         TagChipComponent,
     ],
@@ -99,8 +87,6 @@ export class SceneArchiveComponent {
     private readonly toast = inject(ToastService);
     private readonly translate = inject(TranslateService);
     private readonly railState = inject(SceneRailStateService);
-    private readonly nav = inject(NavigationService);
-    private readonly guilds = inject(GuildService);
 
     protected readonly status = signal<ArchiveStatus>('all');
 
@@ -110,7 +96,6 @@ export class SceneArchiveComponent {
     protected readonly sort = signal<SceneSort>('ended');
     protected readonly tagSearch = signal('');
     protected readonly opened = signal<SceneListItemDto | null>(null);
-    protected readonly editing = signal<FolderEdit | null>(null);
     protected readonly managingTags = signal(false);
 
     protected readonly UNFILED = UNFILED;
@@ -161,14 +146,12 @@ export class SceneArchiveComponent {
         folderTree(this.taxonomy.folders(this.guildId()), this.folderCounts()),
     );
 
-    protected readonly expandedIds = computed(() => this.railState.expanded(this.guildId()));
-
     /** Only shelves the archive has read. An unopened folder contributes nothing rather than a guess. */
     protected readonly folderCounts = computed(() => {
         const guildId = this.guildId();
         const status = this.status();
         const counts: Record<string, number> = {};
-        for (const folderId of this.expandedIds()) {
+        for (const folderId of this.railState.expanded(guildId)) {
             counts[folderId] = this.archive.peeked(guildId, folderId, status).length;
         }
         return counts;
@@ -178,7 +161,7 @@ export class SceneArchiveComponent {
     protected readonly partialFolderIds = computed(() => {
         const guildId = this.guildId();
         const status = this.status();
-        const open = new Set(this.expandedIds());
+        const open = new Set(this.railState.expanded(guildId));
         const read = (id: string) => open.has(id) && this.archive.peekExhausted(guildId, id, status);
 
         const partial = new Set<string>();
@@ -194,7 +177,9 @@ export class SceneArchiveComponent {
     });
 
     protected readonly loadingFolderIds = computed(() =>
-        this.expandedIds().filter(id => this.archive.peekLoading(this.guildId(), id, this.status())),
+        this.railState
+            .expanded(this.guildId())
+            .filter(id => this.archive.peekLoading(this.guildId(), id, this.status())),
     );
 
     protected readonly scenesByFolder = computed((): Record<string, SceneLeaf[]> => {
@@ -202,7 +187,7 @@ export class SceneArchiveComponent {
         const status = this.status();
         const speakable = this.scenes.speakableIds(guildId);
         const grouped: Record<string, SceneLeaf[]> = {};
-        for (const folderId of this.expandedIds()) {
+        for (const folderId of this.railState.expanded(guildId)) {
             grouped[folderId] =
                 leavesByFolder(this.archive.peeked(guildId, folderId, status), speakable)[folderId] ?? [];
         }
@@ -278,31 +263,6 @@ export class SceneArchiveComponent {
         // The filter is ANDed, so losing any one of its tags takes the row out of this list.
         const filtering = this.tagIds();
         if (filtering.length && !filtering.every(id => tagIds.includes(id))) this.archive.drop(channelId);
-    }
-
-    protected reorder(folderIds: string[]): void {
-        this.taxonomy.reorderFolders(this.guildId(), folderIds).subscribe({
-            error: err => this.toast.httpError(this.translate.instant('SCENE.ARCHIVE.REORDER_ERROR'), err),
-        });
-    }
-
-    protected toggleShelf(folderId: string): void {
-        this.railState.toggle(this.guildId(), folderId);
-    }
-
-    protected openScene(channelId: string, fromStart: boolean): void {
-        const channel = this.guilds
-            .guilds()
-            .find(g => g.id === this.guildId())
-            ?.channels.find(c => c.id === channelId);
-        if (!channel) {
-            this.toast.error(this.translate.instant('SCENE.ARCHIVE.OPEN_ERROR'), {
-                detail: this.translate.instant('SCENE.ARCHIVE.OPEN_ERROR_DETAIL'),
-            });
-            return;
-        }
-        if (fromStart) this.nav.openChannelFromStart(channel);
-        else this.nav.openChannel(channel);
     }
 
     protected readonly statusItems = computed<MenuItem[]>(() =>
