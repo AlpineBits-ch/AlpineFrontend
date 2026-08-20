@@ -209,7 +209,9 @@ export class ChannelConversationComponent implements AfterViewInit {
         const ws = this.navService.workspace();
         if (ws.type !== 'server') return false;
         if (!guildHasFeature(ws.guild, GuildFeature.Threads)) return false;
-        if (this.channel().type !== ChannelType.Text) return false;
+        // Text, plus either half of a scene. Both hang directly off a text channel, which is as
+        // deep as the server will start one; an ordinary thread does not offer it again.
+        if (this.channel().type !== ChannelType.Text && !this.scene()) return false;
         if (this.encryptionState() !== 'plain') return false;
         const perms = this.threadPermissions();
         return (

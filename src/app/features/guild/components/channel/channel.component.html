@@ -49,7 +49,7 @@
                         </button>
                     }
                 </div>
-                @if (channel().type === ChannelType.Text && hasThreads()) {
+                @if ((channel().type === ChannelType.Text || scene()) && hasThreads()) {
                     <p-button
                         (onClick)="toggleThreadList()"
                         icon="pi pi-comments"
