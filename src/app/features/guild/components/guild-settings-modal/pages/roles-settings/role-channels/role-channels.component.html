@@ -1,0 +1,80 @@
+<div class="flex flex-col gap-3 flex-1 min-h-0">
+    <div class="flex items-center justify-between gap-3 shrink-0">
+        <p class="text-xs text-text-secondary">
+            {{ 'ROLE_CHANNELS.SUMMARY' | translate: {count: overrideCount(), total: totalChannels()} }}
+        </p>
+        <div class="flex items-center gap-3 text-[0.6875rem] text-text-secondary">
+            <span class="flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-online/70"></span>
+                {{ 'ROLE_CHANNELS.LEGEND_ALLOW' | translate }}
+            </span>
+            <span class="flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-offline/70"></span>
+                {{ 'ROLE_CHANNELS.LEGEND_DENY' | translate }}
+            </span>
+            <span class="flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-white/15"></span>
+                {{ 'ROLE_CHANNELS.LEGEND_INHERIT' | translate }}
+            </span>
+        </div>
+    </div>
+
+    <div class="flex-1 min-h-0 overflow-auto thin-scrollbar rounded-xl border border-border-subtle">
+        <table class="w-full text-xs border-collapse">
+            <thead>
+                <tr class="sticky top-0 z-10 bg-card">
+                    <th class="sticky left-0 z-20 bg-card text-left font-semibold text-text-secondary px-3 py-2 whitespace-nowrap">
+                        {{ 'ROLE_CHANNELS.TAB' | translate }}
+                    </th>
+                    @for (col of columns; track col) {
+                        <th class="font-semibold text-text-secondary px-2 py-2 text-center whitespace-nowrap">
+                            {{ label(col) }}
+                        </th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @for (row of rows(); track row.channel.id) {
+                    <tr class="border-t border-border-subtle hover:bg-white/[0.03]">
+                        <td class="sticky left-0 z-10 bg-app-bg px-3 py-1.5 whitespace-nowrap">
+                            @if (row.categoryLabel) {
+                                <span class="text-text-muted">{{ row.categoryLabel }} /</span>
+                            }
+                            <span class="text-text-primary">{{ row.channel.name }}</span>
+                        </td>
+                        @for (col of columns; track col) {
+                            <td class="px-2 py-1.5 text-center">
+                                @if (applies(row.channel.id, col)) {
+                                    <button
+                                        (click)="cycleCell(row.channel.id, col)"
+                                        [attr.aria-label]="label(col)"
+                                        [ngClass]="{
+                                            'bg-online/20 text-online': cellState(row.channel.id, col) === 'allow',
+                                            'bg-offline/20 text-offline': cellState(row.channel.id, col) === 'deny',
+                                            'bg-white/[0.06] text-text-muted': cellState(row.channel.id, col) === 'inherit',
+                                        }"
+                                        [pTooltip]="'ROLE_CHANNELS.LEGEND_' + cellState(row.channel.id, col).toUpperCase() | translate"
+                                        class="w-5 h-5 rounded-full inline-flex items-center justify-center border-0 cursor-pointer transition-colors"
+                                        tooltipPosition="top"
+                                        type="button"
+                                    >
+                                        @switch (cellState(row.channel.id, col)) {
+                                            @case ('allow') {
+                                                <i class="pi pi-check text-[0.55rem]"></i>
+                                            }
+                                            @case ('deny') {
+                                                <i class="pi pi-times text-[0.55rem]"></i>
+                                            }
+                                        }
+                                    </button>
+                                } @else {
+                                    <span class="text-text-muted">&#8195;</span>
+                                }
+                            </td>
+                        }
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

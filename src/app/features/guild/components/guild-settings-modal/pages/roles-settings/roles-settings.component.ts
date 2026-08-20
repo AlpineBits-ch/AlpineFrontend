@@ -27,6 +27,7 @@ import {EMPTY_CARRIER, FlagCarrier} from '../../../../../../enums/flag-mask';
 import {PermissionToggleComponent} from '../../../../shared/permission-toggle/permission-toggle.component';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {guildFeatures} from '../../../../guild-features';
+import {RoleChannelsComponent} from './role-channels/role-channels.component';
 
 interface RoleMemberDisplay {
     roleMember: RoleMemberDto;
@@ -49,6 +50,7 @@ const HEX_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
         PermissionToggleComponent,
         PrimeTemplate,
         TranslateModule,
+        RoleChannelsComponent,
     ],
     templateUrl: './roles-settings.component.html',
 })
@@ -59,7 +61,7 @@ export class RolesSettingsComponent implements OnInit {
     dirtyChange = output<boolean>();
     readonly roles = signal<RoleDto[]>([]);
     readonly selectedRole = signal<RoleDto | null>(null);
-    readonly activeTab = signal<'settings' | 'members'>('settings');
+    readonly activeTab = signal<'settings' | 'members' | 'channels'>('settings');
     // Settings tab
     readonly editName = signal('');
     readonly editDescription = signal('');
@@ -290,7 +292,7 @@ export class RolesSettingsComponent implements OnInit {
         this.resetMembersTab();
     }
 
-    switchTab(tab: 'settings' | 'members'): void {
+    switchTab(tab: 'settings' | 'members' | 'channels'): void {
         this.activeTab.set(tab);
         if (tab === 'members' && !this.roleMembersLoaded()) {
             this.loadRoleMembers();

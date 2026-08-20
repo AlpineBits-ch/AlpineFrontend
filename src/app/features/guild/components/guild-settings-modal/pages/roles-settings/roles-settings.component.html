@@ -135,6 +135,17 @@
                 >
                     {{ 'GUILD_SETTINGS.ROLES.TAB_MEMBERS' | translate }}
                 </button>
+                <button
+                    (click)="switchTab('channels')"
+                    [ngClass]="
+                        activeTab() === 'channels'
+                            ? 'bg-[color-mix(in_srgb,var(--color-brand)_15%,transparent)] text-[var(--color-brand-dim)]'
+                            : 'text-text-secondary hover:bg-white/[0.05]'
+                    "
+                    class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all border-0 cursor-pointer"
+                >
+                    {{ 'ROLE_CHANNELS.TAB' | translate }}
+                </button>
             </div>
 
             <!-- Settings tab -->
@@ -386,6 +397,16 @@
                         </div>
                     }
                 </div>
+            }
+
+            <!-- Channels tab -->
+            @if (activeTab() === 'channels') {
+                <app-role-channels
+                    [categories]="guild().categories"
+                    [channels]="guild().channels"
+                    [guild]="guild()"
+                    [role]="selectedRole()!"
+                />
             }
         } @else {
             <div class="flex flex-col items-center justify-center h-full text-center gap-2 text-text-secondary">
