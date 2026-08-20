@@ -107,7 +107,9 @@ describe('SceneBoardComponent grouping', () => {
     afterEach(() => restoreStorage());
 
     it('groups by status while the rail is hidden', () => {
-        const {component} = setup();
+        const {fixture, component} = setup();
+        TestBed.inject(SceneRailStateService).setRailVisible('g1', false);
+        fixture.detectChanges();
 
         expect(component.groups().map(g => g.key)).toEqual(['yours', 'running']);
     });

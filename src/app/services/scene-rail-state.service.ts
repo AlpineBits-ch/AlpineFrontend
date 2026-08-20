@@ -36,9 +36,10 @@ export class SceneRailStateService {
         this.persist();
     }
 
+    /** Shown unless the reader has hidden it. An unset guild is a new one, not a hidden one. */
     railVisible(guildId: string | null | undefined): boolean {
         if (!guildId) return false;
-        return !!this.state().visible[guildId];
+        return this.state().visible[guildId] ?? true;
     }
 
     setRailVisible(guildId: string, visible: boolean): void {
