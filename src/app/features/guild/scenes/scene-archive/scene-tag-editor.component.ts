@@ -6,6 +6,7 @@ import {TagChipComponent} from '../../../../components/tag-chip/tag-chip.compone
 import {SceneTaxonomyService} from '../../../../services/scene-taxonomy.service';
 import {ToastService} from '../../../../services/toast.service';
 import {SceneTagDto} from '../../../../dtos/response/scene.dto';
+import {ARCHIVE_COLOR_FALLBACK, ARCHIVE_COLORS, isNoColor, NO_COLOR} from './archive-colors';
 
 const MAX_TAGS_PER_GUILD = 40;
 
@@ -33,6 +34,9 @@ export class SceneTagEditorComponent {
     protected readonly saving = signal(false);
     protected readonly editingId = signal<string | null>(null);
 
+    protected readonly swatches = ARCHIVE_COLORS;
+    protected readonly fallbackColor = ARCHIVE_COLOR_FALLBACK;
+
     protected readonly tags = computed(() => this.taxonomy.tags(this.guildId()));
 
     protected readonly full = computed(() => this.tags().length >= MAX_TAGS_PER_GUILD);
@@ -42,13 +46,13 @@ export class SceneTagEditorComponent {
     /** What the chip will look like once saved, so a colour is picked by eye rather than by hex. */
     protected readonly preview = computed(() => ({
         name: this.name().trim() || this.translate.instant('SCENE.ARCHIVE.NEW_TAG'),
-        color: this.color().trim() || '#000000',
+        color: this.color().trim() || NO_COLOR,
     }));
 
     protected edit(tag: SceneTagDto): void {
         this.editingId.set(tag.id);
         this.name.set(tag.name);
-        this.color.set(tag.color === '#000000' ? '' : tag.color);
+        this.color.set(isNoColor(tag.color) ? '' : tag.color);
         this.moderated.set(tag.moderated);
     }
 
@@ -79,7 +83,7 @@ export class SceneTagEditorComponent {
             this.taxonomy
                 .updateTag(this.guildId(), editingId, {
                     name: this.name().trim(),
-                    color: this.color().trim() || '#000000',
+                    color: this.color().trim() || NO_COLOR,
                     moderated: this.moderated(),
                 })
                 .subscribe(done);

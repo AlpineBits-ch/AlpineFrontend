@@ -31,16 +31,38 @@
             <app-tag-chip [tag]="preview()" size="sm" />
         </div>
 
-        <div class="flex gap-2">
-            <label class="editor-field flex-1">
-                <span class="editor-label">{{ 'SCENE.ARCHIVE.TAG_NAME' | translate }}</span>
-                <input [ngModel]="name()" (ngModelChange)="name.set($event)" maxlength="20" type="text" />
-            </label>
+        <label class="editor-field">
+            <span class="editor-label">{{ 'SCENE.ARCHIVE.TAG_NAME' | translate }}</span>
+            <input [ngModel]="name()" (ngModelChange)="name.set($event)" maxlength="20" type="text" />
+        </label>
 
-            <label class="editor-field w-28">
-                <span class="editor-label">{{ 'SCENE.ARCHIVE.FOLDER_COLOR' | translate }}</span>
-                <input [ngModel]="color()" (ngModelChange)="color.set($event)" placeholder="#8899aa" type="text" />
-            </label>
+        <div class="editor-field">
+            <span class="editor-label">{{ 'SCENE.ARCHIVE.FOLDER_COLOR' | translate }}</span>
+            <div class="color-row">
+                @for (swatch of swatches; track swatch) {
+                    <button
+                        (click)="color.set(swatch)"
+                        [attr.aria-label]="swatch"
+                        [class.is-on]="color() === swatch"
+                        [style.background]="swatch"
+                        class="color-dot"
+                        type="button"
+                    ></button>
+                }
+
+                <span class="color-custom">
+                    <input
+                        (input)="color.set($any($event.target).value)"
+                        [attr.aria-label]="'SCENE.ARCHIVE.COLOR_CUSTOM' | translate"
+                        [value]="color() || fallbackColor"
+                        type="color"
+                    />
+                </span>
+
+                <button (click)="color.set('')" [class.is-on]="!color()" class="color-none" type="button">
+                    {{ 'SCENE.ARCHIVE.COLOR_NONE' | translate }}
+                </button>
+            </div>
         </div>
 
         <label class="editor-check">

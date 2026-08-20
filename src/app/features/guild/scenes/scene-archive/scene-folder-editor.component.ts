@@ -15,6 +15,7 @@ import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {SceneTaxonomyService} from '../../../../services/scene-taxonomy.service';
 import {ToastService} from '../../../../services/toast.service';
 import {SceneFolderDto} from '../../../../dtos/response/scene.dto';
+import {ARCHIVE_COLOR_FALLBACK, ARCHIVE_COLORS} from './archive-colors';
 
 /** Creates or edits one shelf. Deleting from here removes the shelf, never the scenes on it. */
 @Component({
@@ -43,6 +44,9 @@ export class SceneFolderEditorComponent {
     protected readonly saving = signal(false);
     protected readonly confirmingDelete = signal(false);
     private seeded = false;
+
+    protected readonly swatches = ARCHIVE_COLORS;
+    protected readonly fallbackColor = ARCHIVE_COLOR_FALLBACK;
 
     protected readonly isNew = computed(() => !this.folder());
 
