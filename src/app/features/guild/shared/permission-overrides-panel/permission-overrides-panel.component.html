@@ -122,6 +122,29 @@
                         />
                     }
                 </div>
+                @if (pendingPresetFor() === entry.id && presets().length > 0) {
+                    <div class="px-4 pt-3">
+                        <p class="text-[0.625rem] font-semibold text-text-muted uppercase tracking-widest mb-2">
+                            {{ 'PERM_PRESET.TITLE' | translate }}
+                        </p>
+                        <div class="grid grid-cols-2 gap-2">
+                            @for (preset of presets(); track preset.id) {
+                                <button
+                                    (click)="pickPreset(preset)"
+                                    class="text-left px-3 py-2 rounded-xl bg-card border border-border-subtle hover:border-brand transition-colors cursor-pointer"
+                                >
+                                    <span class="text-sm font-medium text-text-primary">{{ preset.labelKey | translate }}</span>
+                                </button>
+                            }
+                        </div>
+                        <button
+                            (click)="dismissPresets()"
+                            class="mt-2 text-xs text-text-muted hover:text-text-secondary cursor-pointer border-0 bg-transparent p-0"
+                        >
+                            {{ 'PERM_PRESET.START_BLANK' | translate }}
+                        </button>
+                    </div>
+                }
                 <div class="flex-1 min-h-0 overflow-y-auto thin-scrollbar px-4 py-3">
                     <app-permission-override-editor
                         (overrideChange)="change.emit({id: entry.id, override: $event})"

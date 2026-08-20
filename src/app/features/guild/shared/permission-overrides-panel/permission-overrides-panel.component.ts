@@ -21,6 +21,7 @@ import {
 import {ChannelType} from '../../../../dtos/response/guild.dto';
 import {BrokenImageService} from '../../../../services/broken-image.service';
 import {EffectivePermissionsDto} from '../../../../dtos/response/effective-permissions.dto';
+import {PermissionPreset, presetOverride} from '../permission-presets';
 
 export interface OverrideEntry {
     id: string;
@@ -56,6 +57,7 @@ export class PermissionOverridesPanelComponent {
     readonly resolved = input<EffectivePermissionsDto | null>(null);
     /** What the server last stored, keyed by subject id. The trace describes this, not a live edit. */
     readonly savedOverrides = input<Record<string, PermOverride | undefined>>({});
+    readonly presets = input<readonly PermissionPreset[]>([]);
 
     add = output<string>();
     change = output<{id: string; override: PermOverride}>();
@@ -72,6 +74,9 @@ export class PermissionOverridesPanelComponent {
         if (list.length === 0) return null;
         return list.find(e => e.id === this.selectedId()) ?? list[0];
     });
+
+    /** The entry whose preset row is showing, cleared once one is picked or dismissed. */
+    protected readonly pendingPresetFor = signal<string | null>(null);
 
     @ViewChild('addPopover') private addPopoverRef!: Popover;
 
@@ -103,11 +108,23 @@ export class PermissionOverridesPanelComponent {
         this.addPopoverRef.hide();
         this.selectedId.set(id);
         this.add.emit(id);
+        this.pendingPresetFor.set(id);
         this.selectionChange.emit(id);
     }
 
     protected get emptyOverride(): PermOverride {
         return EMPTY_OVERRIDE;
+    }
+
+    protected pickPreset(preset: PermissionPreset): void {
+        const id = this.pendingPresetFor();
+        if (!id) return;
+        this.change.emit({id, override: presetOverride(preset)});
+        this.pendingPresetFor.set(null);
+    }
+
+    protected dismissPresets(): void {
+        this.pendingPresetFor.set(null);
     }
 
     initial(name: string): string {
