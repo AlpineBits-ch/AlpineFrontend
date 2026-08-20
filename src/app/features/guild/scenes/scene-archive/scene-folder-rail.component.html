@@ -1,13 +1,25 @@
+@if (recent().length) {
+    <span class="rail-label">{{ 'SCENE.ARCHIVE.RECENT' | translate }}</span>
+
+    @for (leaf of recent(); track leaf.channelId) {
+        <button (click)="open(leaf.channelId)" class="rail-row rail-leaf" type="button">
+            <span [class]="'rail-dot ' + dotClass(leaf)"></span>
+            <span class="rail-name">{{ leaf.name }}</span>
+            @if (leaf.mine) {
+                <span class="rail-mine">{{ 'SCENE.RAIL.YOUR_MOVE' | translate }}</span>
+            }
+        </button>
+    }
+
+    <div class="rail-rule"></div>
+}
+
 <button (click)="picked.emit(null)" [class.is-selected]="selected() === null" class="rail-row rail-row-all" type="button">
     <span class="rail-name">{{ 'SCENE.ARCHIVE.ALL' | translate }}</span>
 </button>
 
 @for (node of tree(); track node.folder.id) {
-    <ng-container *ngTemplateOutlet="row; context: {$implicit: node, child: false}"></ng-container>
-
-    @for (child of node.children; track child.folder.id) {
-        <ng-container *ngTemplateOutlet="row; context: {$implicit: child, child: true}"></ng-container>
-    }
+    <ng-container *ngTemplateOutlet="shelf; context: {$implicit: node, depth: 0}"></ng-container>
 }
 
 <button
@@ -32,39 +44,83 @@
 
 <p-context-menu #folderMenu [model]="menuItems()" appendTo="body" />
 
-<ng-template #row let-node let-child="child">
-    <div
-        (contextmenu)="openMenu($event, node)"
-        (dragend)="onDragEnd()"
-        (dragleave)="onDragLeave()"
-        (dragover)="onDragOver($event, node.folder.id)"
-        (dragstart)="onFolderDragStart($event, node)"
-        (drop)="onDrop($event, node.folder.id)"
-        [attr.draggable]="canManage() ? true : null"
-        [class.is-drop-target]="dragOver() === node.folder.id"
-        [class.is-reorder-after]="reorderOver()?.id === node.folder.id && reorderOver()?.after"
-        [class.is-reorder-before]="reorderOver()?.id === node.folder.id && !reorderOver()?.after"
-        [class.is-selected]="selected() === node.folder.id"
-        [class.rail-row-child]="child"
-        [style.--rail-accent]="node.folder.color"
-        class="rail-row"
-    >
-        <button (click)="picked.emit(node.folder.id)" (keydown)="onRowKeydown($event, node)" class="rail-pick" type="button">
-            @if (node.folder.icon) {
-                <span class="rail-icon">{{ node.folder.icon }}</span>
-            }
-            <span class="rail-name">{{ node.folder.name }}</span>
-        </button>
-
-        @if (canManage()) {
+<ng-template #shelf let-node let-depth="depth">
+    <div [class.is-open]="isOpen(node.folder.id)" [class.rail-shelf-root]="depth === 0" class="rail-shelf">
+        <div
+            (contextmenu)="openMenu($event, node)"
+            (dragend)="onDragEnd()"
+            (dragleave)="onDragLeave()"
+            (dragover)="onDragOver($event, node.folder.id)"
+            (dragstart)="onFolderDragStart($event, node)"
+            (drop)="onDrop($event, node.folder.id)"
+            [attr.draggable]="canManage() ? true : null"
+            [class.is-drop-target]="dragOver() === node.folder.id"
+            [class.is-reorder-after]="reorderOver()?.id === node.folder.id && reorderOver()?.after"
+            [class.is-reorder-before]="reorderOver()?.id === node.folder.id && !reorderOver()?.after"
+            [class.is-selected]="selected() === node.folder.id"
+            [style.--rail-accent]="node.folder.color"
+            class="rail-row rail-head"
+        >
             <button
-                (click)="openMenu($event, node)"
-                [attr.aria-label]="'SCENE.ARCHIVE.FOLDER_ACTIONS' | translate"
-                class="rail-menu"
+                (click)="toggle(node.folder.id)"
+                [attr.aria-expanded]="isOpen(node.folder.id)"
+                [attr.aria-label]="(isOpen(node.folder.id) ? 'SCENE.ARCHIVE.COLLAPSE_FOLDER' : 'SCENE.ARCHIVE.EXPAND_FOLDER') | translate"
+                class="rail-chevron"
                 type="button"
             >
-                <i class="pi pi-ellipsis-h text-[0.5625rem]"></i>
+                <i [class]="isOpen(node.folder.id) ? 'pi pi-chevron-down' : 'pi pi-chevron-right'" class="text-[0.4375rem]"></i>
             </button>
+
+            <button (click)="picked.emit(node.folder.id)" (keydown)="onRowKeydown($event, node)" class="rail-pick" type="button">
+                @if (node.folder.icon) {
+                    <span class="rail-icon">{{ node.folder.icon }}</span>
+                }
+                <span class="rail-name">{{ node.folder.name }}</span>
+            </button>
+
+            @if (node.count) {
+                <span class="rail-count">{{ node.count }}</span>
+            }
+
+            @if (canManage()) {
+                <button
+                    (click)="openMenu($event, node)"
+                    [attr.aria-label]="'SCENE.ARCHIVE.FOLDER_ACTIONS' | translate"
+                    class="rail-menu"
+                    type="button"
+                >
+                    <i class="pi pi-ellipsis-h text-[0.5625rem]"></i>
+                </button>
+            }
+        </div>
+
+        @if (isOpen(node.folder.id)) {
+            <div class="rail-body">
+                @for (child of node.children; track child.folder.id) {
+                    <ng-container *ngTemplateOutlet="shelf; context: {$implicit: child, depth: depth + 1}"></ng-container>
+                }
+
+                @for (leaf of leavesOf(node.folder.id); track leaf.channelId) {
+                    <button (click)="open(leaf.channelId)" class="rail-row rail-leaf" type="button">
+                        <span [class]="'rail-dot ' + dotClass(leaf)"></span>
+                        <span class="rail-name">{{ leaf.name }}</span>
+                        @if (leaf.mine) {
+                            <span class="rail-mine">{{ 'SCENE.RAIL.YOUR_MOVE' | translate }}</span>
+                        }
+                    </button>
+                }
+
+                @if (overflowOf(node.folder.id); as rest) {
+                    <button (click)="showAll.emit(node.folder.id)" class="rail-row rail-leaf rail-more" type="button">
+                        {{ 'SCENE.ARCHIVE.SHOW_ALL_IN_FOLDER' | translate: {count: rest + leafCap()} }}
+                    </button>
+                }
+
+                @if (isLoading(node.folder.id)) {
+                    <div class="rail-leaf-skeleton"></div>
+                    <div class="rail-leaf-skeleton"></div>
+                }
+            </div>
         }
     </div>
 </ng-template>

@@ -6,10 +6,20 @@ import {MenuItem} from 'primeng/api';
 
 import {FolderNode} from './folder-tree';
 import {UNFILED} from '../../../../dtos/request/scene.dto';
+import {SceneStatus} from '../../../../dtos/response/scene.dto';
+import {SceneLeaf} from '../scene-leaf';
 
 const SCENE_DRAG = 'text/scene-channel-id';
 /** Kept apart from the scene type so a folder drop can never be read as a filing. */
 const FOLDER_DRAG = 'text/scene-folder-id';
+
+/** Only the colour half of the status table: the dot is a colour, not a chip. */
+const DOT_COLOUR: Readonly<Record<SceneStatus, string>> = {
+    [SceneStatus.Open]: 'text-text-muted',
+    [SceneStatus.Active]: 'text-online',
+    [SceneStatus.Paused]: 'text-connecting',
+    [SceneStatus.Concluded]: 'text-text-faint',
+};
 
 /** Where a sibling group has been reshuffled, so the rest of the rail can be flattened around it. */
 interface SiblingSwap {
@@ -30,12 +40,21 @@ interface SiblingSwap {
     host: {class: 'flex shrink-0 flex-col gap-0.5'},
 })
 export class SceneFolderRailComponent {
-    // TODO(dominic): restore shelf counts once the taxonomy route carries them.
+    // TODO(dominic): the archive can only count a shelf it has opened, until the taxonomy route
+    // carries counts. The board's are exact.
 
     readonly tree = input.required<FolderNode[]>();
     /** null is ALL. `UNFILED` is the bucket for scenes on no shelf. */
     readonly selected = input<string | null>(null);
     readonly canManage = input(false);
+    /** Scenes filed on each folder, by folder id. A shelf with no entry simply has none loaded. */
+    readonly scenesByFolder = input<Readonly<Record<string, readonly SceneLeaf[]>>>({});
+    readonly recent = input<readonly SceneLeaf[]>([]);
+    /** Open shelves. The rail does not own this: the host remembers it. */
+    readonly expandedIds = input<readonly string[]>([]);
+    readonly loadingFolderIds = input<readonly string[]>([]);
+    /** A shelf is not a list. Past this it offers the folder instead. */
+    readonly leafCap = input(12);
 
     readonly picked = output<string | null>();
     /** The folder to create inside, or null for the root. */
@@ -46,6 +65,11 @@ export class SceneFolderRailComponent {
     readonly reordered = output<string[]>();
     /** A scene was dropped onto a shelf: the channel id, and where it should land. */
     readonly filed = output<{channelId: string; folderId: string | null}>();
+    readonly toggled = output<string>();
+    readonly openScene = output<string>();
+    /** The folder a new scene should be filed on, or null for none. */
+    readonly createScene = output<string | null>();
+    readonly showAll = output<string>();
 
     private readonly translate = inject(TranslateService);
     private readonly menu = viewChild<ContextMenu>('folderMenu');
@@ -69,6 +93,12 @@ export class SceneFolderRailComponent {
         const index = group?.order.findIndex(n => n.folder.id === node.folder.id) ?? -1;
 
         this.menuItems.set([
+            {
+                label: this.translate.instant('SCENE.ARCHIVE.NEW_SCENE_HERE'),
+                icon: 'pi pi-sparkles',
+                command: () => this.createScene.emit(node.folder.id),
+            },
+            {separator: true},
             {
                 label: this.translate.instant('SCENE.ARCHIVE.NEW_FOLDER_HERE'),
                 icon: 'pi pi-folder-plus',
@@ -102,6 +132,34 @@ export class SceneFolderRailComponent {
         ]);
 
         this.menu()?.show(event);
+    }
+
+    protected isOpen(folderId: string): boolean {
+        return this.expandedIds().includes(folderId);
+    }
+
+    protected isLoading(folderId: string): boolean {
+        return this.loadingFolderIds().includes(folderId);
+    }
+
+    protected leavesOf(folderId: string): readonly SceneLeaf[] {
+        return (this.scenesByFolder()[folderId] ?? []).slice(0, this.leafCap());
+    }
+
+    protected overflowOf(folderId: string): number {
+        return Math.max(0, (this.scenesByFolder()[folderId] ?? []).length - this.leafCap());
+    }
+
+    protected toggle(folderId: string): void {
+        this.toggled.emit(folderId);
+    }
+
+    protected open(channelId: string): void {
+        this.openScene.emit(channelId);
+    }
+
+    protected dotClass(leaf: SceneLeaf): string {
+        return DOT_COLOUR[leaf.status];
     }
 
     protected onRowKeydown(event: KeyboardEvent, node: FolderNode): void {

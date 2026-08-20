@@ -8,7 +8,7 @@ import {beforeEach, describe, expect, it} from 'vitest';
 
 import {SceneFolderRailComponent} from './scene-folder-rail.component';
 import {folderTree} from './folder-tree';
-import {SceneFolderDto} from '../../../../dtos/response/scene.dto';
+import {SceneFolderDto, SceneStatus} from '../../../../dtos/response/scene.dto';
 
 // jsdom implements no `matchMedia`, and PrimeNG's ContextMenu binds a listener to it in
 // `ngOnInit`. Same stub `conversation-list-paging.spec.ts` uses.
@@ -115,5 +115,99 @@ describe('SceneFolderRailComponent menu', () => {
 
         const labels = (component as unknown as {menuItems: () => {label?: string}[]}).menuItems();
         expect(labels.length).toBeGreaterThan(4);
+    });
+});
+
+describe('SceneFolderRailComponent tree', () => {
+    it('says nothing about a shelf nobody has opened', () => {
+        const {fixture} = setup();
+        fixture.componentRef.setInput('scenesByFolder', {
+            a: [{channelId: 'ch_1', name: 'The Ford at Dawn', status: SceneStatus.Active, mine: false}],
+        });
+        fixture.detectChanges();
+
+        expect(fixture.nativeElement.textContent).not.toContain('The Ford at Dawn');
+    });
+
+    it('draws the scenes of a shelf once it is open', () => {
+        const {fixture} = setup();
+        fixture.componentRef.setInput('scenesByFolder', {
+            a: [{channelId: 'ch_1', name: 'The Ford at Dawn', status: SceneStatus.Active, mine: false}],
+        });
+        fixture.componentRef.setInput('expandedIds', ['a']);
+        fixture.detectChanges();
+
+        expect(fixture.nativeElement.textContent).toContain('The Ford at Dawn');
+    });
+
+    it('draws the recent block above everything', () => {
+        const {fixture} = setup();
+        fixture.componentRef.setInput('recent', [
+            {channelId: 'ch_9', name: 'Nightwatch', status: SceneStatus.Active, mine: true},
+        ]);
+        fixture.detectChanges();
+
+        expect(fixture.nativeElement.textContent).toContain('Nightwatch');
+    });
+
+    it('reports a shelf being opened rather than opening it itself', () => {
+        const {fixture, component} = setup();
+        const toggles: string[] = [];
+        component.toggled.subscribe(id => toggles.push(id));
+
+        reach(component)['toggle']('a' as never);
+
+        expect(toggles).toEqual(['a']);
+        // The rail does not hold the state: the host does, and hands it back through expandedIds.
+        expect(fixture.componentInstance.expandedIds()).toEqual([]);
+    });
+
+    it('offers new scene here at the top of a folder menu', () => {
+        const {component} = setup();
+
+        reach(component)['openMenu'](new MouseEvent('contextmenu') as never, component.tree()[0] as never);
+
+        const items = (component as unknown as {menuItems: () => {label?: string}[]}).menuItems();
+        expect(items[0].label).toBe('SCENE.ARCHIVE.NEW_SCENE_HERE');
+    });
+
+    it('names the folder when new scene here is chosen', () => {
+        const {component} = setup();
+        const asked: (string | null)[] = [];
+        component.createScene.subscribe(id => asked.push(id));
+
+        reach(component)['openMenu'](new MouseEvent('contextmenu') as never, component.tree()[0] as never);
+        const items = (component as unknown as {menuItems: () => {command?: () => void}[]}).menuItems();
+        items[0].command?.();
+
+        expect(asked).toEqual(['a']);
+    });
+
+    it('stops a shelf at the leaf cap and offers the rest', () => {
+        const {fixture, component} = setup();
+        const many = Array.from({length: 20}, (_, i) => ({
+            channelId: `ch_${i}`,
+            name: `Scene ${i}`,
+            status: SceneStatus.Active,
+            mine: false,
+        }));
+        fixture.componentRef.setInput('scenesByFolder', {a: many});
+        fixture.componentRef.setInput('expandedIds', ['a']);
+        fixture.componentRef.setInput('leafCap', 3);
+        fixture.detectChanges();
+
+        expect(reach(component)['leavesOf']('a' as never)).toHaveLength(3);
+        expect(reach(component)['overflowOf']('a' as never)).toBe(17);
+        expect(fixture.nativeElement.textContent).not.toContain('Scene 19');
+    });
+
+    it('reports a leaf click as a scene to open', () => {
+        const {component} = setup();
+        const opened: string[] = [];
+        component.openScene.subscribe(id => opened.push(id));
+
+        reach(component)['open']('ch_1' as never);
+
+        expect(opened).toEqual(['ch_1']);
     });
 });

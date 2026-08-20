@@ -41,10 +41,6 @@
     box-shadow: inset 0 -2px 0 0 var(--color-connecting);
 }
 
-.rail-row-child {
-    padding-left: 1.375rem;
-}
-
 .rail-row-all,
 .rail-row-unfiled {
     font-size: 0.5625rem;
@@ -142,4 +138,119 @@
 
 .rail-add:hover {
     color: var(--color-text-secondary);
+}
+
+.rail-shelf {
+    border-radius: 0.625rem;
+    overflow: hidden;
+    margin-bottom: 0.1875rem;
+}
+
+.rail-shelf.is-open {
+    margin-bottom: 0.5rem;
+}
+
+/* A root folder is a labelled shelf, which is what makes two levels read as two levels. */
+.rail-shelf-root > .rail-head {
+    border-left: 2px solid var(--rail-accent, transparent);
+    border-radius: 0;
+    background: rgba(255, 255, 255, 0.035);
+    font-size: 0.59375rem;
+    font-weight: 700;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--color-text-secondary);
+}
+
+.rail-shelf-root.is-open > .rail-head {
+    background: rgba(255, 255, 255, 0.055);
+    color: var(--color-text-primary);
+}
+
+.rail-shelf-root > .rail-head .rail-name {
+    font-size: inherit;
+}
+
+.rail-body {
+    padding: 0.1875rem 0 0.125rem 0.375rem;
+}
+
+.rail-chevron {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 0.75rem;
+    height: 0.75rem;
+    border: 0;
+    background: transparent;
+    padding: 0;
+    color: var(--color-text-faint);
+    cursor: pointer;
+}
+
+.rail-count {
+    flex-shrink: 0;
+    font-size: 0.625rem;
+    font-weight: 600;
+    letter-spacing: 0;
+    color: var(--color-text-faint);
+}
+
+.rail-leaf {
+    gap: 0.4375rem;
+    font-size: 0.78125rem;
+}
+
+.rail-dot {
+    flex-shrink: 0;
+    width: 0.3125rem;
+    height: 0.3125rem;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+.rail-mine {
+    flex-shrink: 0;
+    font-size: 0.53125rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--color-connecting);
+}
+
+.rail-more {
+    color: var(--color-text-faint);
+    font-size: 0.6875rem;
+}
+
+.rail-label {
+    display: block;
+    padding: 0 0.5rem;
+    margin: 0.125rem 0 0.3125rem;
+    font-size: 0.5625rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--color-text-faint);
+}
+
+.rail-rule {
+    height: 1px;
+    margin: 0.5rem 0.5rem;
+    background: rgba(255, 255, 255, 0.07);
+}
+
+.rail-leaf-skeleton {
+    height: 1.25rem;
+    margin: 0.125rem 0.5rem;
+    border-radius: 0.375rem;
+    background: rgba(255, 255, 255, 0.03);
+    animation: rail-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes rail-pulse {
+    50% {
+        opacity: 0.45;
+    }
 }
