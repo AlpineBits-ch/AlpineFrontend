@@ -141,7 +141,7 @@
                     class="flex items-center gap-2.5 px-3 py-2 cursor-pointer transition-colors"
                 >
                     <span class="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center shrink-0">
-                        <i [class]="channelIcon(c.type)" class="text-xs text-text-secondary"></i>
+                        <app-channel-icon class="text-xs text-text-secondary" [channel]="{type: c.type}" />
                     </span>
                     <span class="text-sm font-semibold text-text-primary">{{ c.name }}</span>
                 </div>

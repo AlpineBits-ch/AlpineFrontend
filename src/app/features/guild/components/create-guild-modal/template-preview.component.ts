@@ -1,17 +1,16 @@
 import {ChangeDetectionStrategy, Component, computed, input} from '@angular/core';
 import {TranslateModule} from '@ngx-translate/core';
-import {ChannelType} from '../../../../dtos/response/guild.dto';
 import {
     GuildTemplateDto,
     TemplateCategory,
     TemplateChannel,
     TemplateRole,
 } from '../../../../dtos/response/guild-template.dto';
-import {channelIcon as iconForType} from '../../channel-types';
+import {ChannelIconComponent} from '../channel-icon/channel-icon.component';
 
 @Component({
     selector: 'app-template-preview',
-    imports: [TranslateModule],
+    imports: [TranslateModule, ChannelIconComponent],
     templateUrl: './template-preview.component.html',
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -37,9 +36,4 @@ export class TemplatePreviewComponent {
             this.categories().reduce((sum, c) => sum + c.channels.length, 0) +
             this.uncategorizedChannels().length,
     );
-
-    /** The shared table, with a hash for anything it has no glyph for: Text returns null by design, and a template from a newer server may name a type this build lacks. */
-    channelIcon(type: ChannelType): string {
-        return iconForType(type) ?? 'pi pi-hashtag';
-    }
 }

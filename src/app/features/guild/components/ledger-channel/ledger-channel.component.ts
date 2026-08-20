@@ -39,7 +39,7 @@ import {LedgerService} from '../../../../services/ledger.service';
 import {ProfileService} from '../../../../services/profile.service';
 import {ToastService} from '../../../../services/toast.service';
 import {NavigationService} from '../../../main-page/navigation.service';
-import {channelIcon} from '../../channel-types';
+import {ChannelIconComponent} from '../channel-icon/channel-icon.component';
 import {GuildFeature, guildHasFeature} from '../../guild-features';
 import {guildAbilities} from '../../guild-permissions';
 
@@ -100,6 +100,7 @@ interface SuggestionRow {
         ReceiptGalleryComponent,
         PaySheetComponent,
         PaymentHandlesEditorComponent,
+        ChannelIconComponent,
     ],
     templateUrl: './ledger-channel.component.html',
 })
@@ -120,7 +121,6 @@ export class LedgerChannelComponent {
     private readonly ownMember = signal<SelfGuildMemberDto | null>(null);
     private readonly members = signal<GuildMemberDto[]>([]);
 
-    protected readonly icon = computed(() => channelIcon(this.channel().type) ?? 'pi pi-wallet');
     protected readonly state = computed(() => this.ledger.stateFor(this.channel().id));
     protected readonly currency = computed(() => this.ledger.currencyFor(this.channel().id));
     protected readonly ownUserId = computed(() => this.profileService.ownProfile()?.userId ?? null);

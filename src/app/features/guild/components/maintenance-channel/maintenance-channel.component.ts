@@ -37,7 +37,7 @@ import {MaintenanceService} from '../../../../services/maintenance.service';
 import {ProfileService} from '../../../../services/profile.service';
 import {ToastService} from '../../../../services/toast.service';
 import {NavigationService} from '../../../main-page/navigation.service';
-import {channelIcon} from '../../channel-types';
+import {ChannelIconComponent} from '../channel-icon/channel-icon.component';
 import {GuildFeature, guildHasFeature} from '../../guild-features';
 import {guildAbilities} from '../../guild-permissions';
 
@@ -77,7 +77,17 @@ interface Option {
 @Component({
     selector: 'app-maintenance-channel',
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [Button, Dialog, InputText, Select, Tooltip, FormsModule, PrimeTemplate, TranslateModule],
+    imports: [
+        Button,
+        Dialog,
+        InputText,
+        Select,
+        Tooltip,
+        FormsModule,
+        PrimeTemplate,
+        TranslateModule,
+        ChannelIconComponent,
+    ],
     templateUrl: './maintenance-channel.component.html',
 })
 export class MaintenanceChannelComponent {
@@ -101,7 +111,6 @@ export class MaintenanceChannelComponent {
     private readonly members = signal<GuildMemberDto[]>([]);
     private readonly memberById = computed(() => new Map(this.members().map(m => [m.userId, m])));
 
-    protected readonly icon = computed(() => channelIcon(this.channel().type) ?? 'pi pi-wrench');
     protected readonly state = computed(() => this.maintenance.stateFor(this.channel().id));
     protected readonly attention = computed(() => this.maintenance.attentionFor(this.channel().guildId));
     protected readonly ownUserId = computed(() => this.profileService.ownProfile()?.userId ?? null);

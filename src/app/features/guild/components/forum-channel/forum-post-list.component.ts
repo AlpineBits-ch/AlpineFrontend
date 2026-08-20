@@ -42,7 +42,7 @@ import {hasPermission, Permissions} from '../../../../enums/permissions.enum';
 import {TagChipComponent} from '../../../../components/tag-chip/tag-chip.component';
 import {ForumTagPickerComponent} from './forum-tag-picker.component';
 import {ForumPostCardComponent, PostAction} from './forum-post-card.component';
-import {channelIcon} from '../../channel-types';
+import {ChannelIconComponent} from '../channel-icon/channel-icon.component';
 
 /** A forum's post list: filter/sort toolbar, tag filter bar, posts, create-post dialog. Mounted full-width and again compact beside an open post; both share one list via ForumPostListService, so switching between them neither refetches nor flashes a spinner. */
 @Component({
@@ -61,6 +61,7 @@ import {channelIcon} from '../../channel-types';
         TagChipComponent,
         ForumTagPickerComponent,
         ForumPostCardComponent,
+        ChannelIconComponent,
     ],
     templateUrl: './forum-post-list.component.html',
     // The list scrolls internally at every mount point, so the host has to be a sized flex item rather than inheriting whatever the mount site happens to be.
@@ -103,8 +104,6 @@ export class ForumPostListComponent implements OnDestroy {
     private tickIntervalId = setInterval(() => this.nowTick.update(n => n + 1), 60_000);
 
     protected readonly isMedia = computed(() => this.forum().type === ChannelType.Media);
-    /** From the shared table, so Forum and Media never drift from the rest of the app. */
-    protected readonly icon = computed(() => channelIcon(this.forum().type));
 
     // ── Post list. All of it is held per forum in ForumPostListService. ───────
     protected readonly posts = computed(() => this.postList.stateFor(this.forum().id).posts);

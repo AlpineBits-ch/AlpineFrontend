@@ -8,11 +8,12 @@ import {TranslateModule} from '@ngx-translate/core';
 import {ChannelType} from '../../../../../../dtos/response/guild.dto';
 import {GuildService} from '../../../../../../services/guild.service';
 import {GuildFeature, GuildFeatureSet} from '../../../../guild-features';
-import {channelIcon, HOUSEHOLD_CHANNEL_META, householdFeatureFor} from '../../../../channel-types';
+import {HOUSEHOLD_CHANNEL_META, householdFeatureFor} from '../../../../channel-types';
+import {ChannelIconComponent} from '../../../channel-icon/channel-icon.component';
 
 @Component({
     selector: 'app-create-channel-modal',
-    imports: [NgClass, Dialog, Button, InputText, PrimeTemplate, TranslateModule],
+    imports: [NgClass, Dialog, Button, InputText, PrimeTemplate, TranslateModule, ChannelIconComponent],
     templateUrl: './create-channel-modal.component.html',
 })
 export class CreateChannelModalComponent {
@@ -22,8 +23,6 @@ export class CreateChannelModalComponent {
     readonly guildFeatures = input.required<GuildFeatureSet>();
 
     protected readonly ChannelType = ChannelType;
-    /** Each type button draws its own glyph from the table, so none of them can drift from it. */
-    protected readonly channelIcon = channelIcon;
     /** Text has no module behind it (a guild without text channels would be an empty room), so it is always offered; the rest each answer to one flag. */
     protected readonly canVoice = computed(() => this.guildFeatures().has(GuildFeature.VoiceChannels));
     /** One flag covers Forum *and* Media; they are the same channel drawn two ways. */
@@ -40,8 +39,6 @@ export class CreateChannelModalComponent {
     protected readonly hasTypeChoice = computed(
         () => this.canVoice() || this.canForum() || this.canAnnouncement() || this.hasHouseholdTypes(),
     );
-    /** The glyph inside the name field; the same table the sidebar row reads. */
-    protected readonly selectedIcon = computed(() => channelIcon(this.type()));
     protected readonly name = signal('');
     protected readonly type = signal<ChannelType>(ChannelType.Text);
     protected readonly creating = signal(false);

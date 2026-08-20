@@ -6,10 +6,10 @@ import {EmojiSuggestion} from '../../../../../../services/emoji-data.service';
 import {MentionCandidate, mentionCandidateId} from '../composer-utils';
 import {TwemojiComponent} from '../../../../../../components/twemoji/twemoji.component';
 import {UserNameStyleDirective} from '../../../../../../directives/user-name-style.directive';
-import {ChannelDto, ChannelType} from '../../../../../../dtos/response/guild.dto';
+import {ChannelDto} from '../../../../../../dtos/response/guild.dto';
 import {WikiPageSummaryDto} from '../../../../../../dtos/response/wiki.dto';
-import {channelIcon as iconForType} from '../../../../../guild/channel-types';
 import {PersonaAvatarComponent} from '../../../../../guild/personas/persona-avatar/persona-avatar.component';
+import {ChannelIconComponent} from '../../../../../guild/components/channel-icon/channel-icon.component';
 import {TranslateModule} from '@ngx-translate/core';
 
 @Component({
@@ -20,6 +20,7 @@ import {TranslateModule} from '@ngx-translate/core';
         TwemojiComponent,
         UserNameStyleDirective,
         PersonaAvatarComponent,
+        ChannelIconComponent,
         TranslateModule,
     ],
     templateUrl: './suggestion-overlay.component.html',
@@ -42,10 +43,4 @@ export class SuggestionOverlayComponent {
     wikiPageSelected = output<WikiPageSummaryDto>();
 
     protected readonly mentionCandidateId = mentionCandidateId;
-    protected readonly ChannelType = ChannelType;
-
-    /** Text has no glyph of its own, so it falls back to the hash it renders everywhere else. */
-    protected channelIcon(type: ChannelType): string {
-        return iconForType(type) ?? 'pi pi-hashtag';
-    }
 }

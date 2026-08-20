@@ -15,9 +15,11 @@
         class="chan-row"
     >
         <!-- The speaker gives way to a spinner while this row's join is in flight, in the icon slot rather than beside it since the row has no spare width. -->
-        <span class="chan-icon">
-            <i [class]="isJoining() ? 'pi pi-spinner pi-spin' : 'pi pi-volume-up'"></i>
-        </span>
+        @if (isJoining()) {
+            <span class="chan-icon"><i class="pi pi-spinner pi-spin"></i></span>
+        } @else {
+            <app-channel-icon [channel]="channel()" />
+        }
         <span class="chan-label">{{ channel().name }}</span>
         <!-- Lock first: a permission fact, must not be displaced by a transient one. LIVE then outranks the participant count (redundant anyway, since every participant is listed as a row below). -->
         @if (channel().isPrivate) {

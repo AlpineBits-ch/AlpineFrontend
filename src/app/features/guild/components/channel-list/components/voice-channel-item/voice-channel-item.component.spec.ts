@@ -106,20 +106,20 @@ describe('VoiceChannelItemComponent watch forwarding', () => {
 
 /** The row is the only part of the sidebar on screen for the whole of a join; without a mark here, nothing tells a user who clicked and looked away that a join is still running. */
 describe('VoiceChannelItemComponent while its join is in flight', () => {
-    const icon = (fixture: ComponentFixture<VoiceChannelItemComponent>) =>
-        fixture.nativeElement.querySelector('.chan-icon i') as HTMLElement;
+    const spinner = (fixture: ComponentFixture<VoiceChannelItemComponent>) =>
+        fixture.nativeElement.querySelector('.chan-icon i') as HTMLElement | null;
 
     it('spins its icon for a join of this channel', () => {
         const fixture = render([], {pendingJoinId: CHANNEL.id});
 
-        expect(icon(fixture).className).toContain('pi-spin');
+        expect(spinner(fixture)?.className).toContain('pi-spin');
     });
 
     /** Somebody else's join is not this row's business; see the guard in joinChannel. */
     it('leaves the icon alone for a join of a different channel', () => {
         const fixture = render([], {pendingJoinId: 'chan-other'});
 
-        expect(icon(fixture).className).not.toContain('pi-spin');
-        expect(icon(fixture).className).toContain('pi-volume-up');
+        expect(spinner(fixture)).toBeNull();
+        expect(fixture.nativeElement.querySelector('app-channel-icon svg')).not.toBeNull();
     });
 });

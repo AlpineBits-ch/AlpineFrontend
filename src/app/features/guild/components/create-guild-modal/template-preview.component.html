@@ -18,7 +18,7 @@
                 <div class="space-y-1 pl-2">
                     @for (channel of category.channels; track channel.name) {
                         <div class="flex items-center gap-2 text-xs text-text-secondary">
-                            <i [class]="channelIcon(channel.type)" class="text-[0.6875rem] shrink-0"></i>
+                            <app-channel-icon class="text-[0.6875rem] shrink-0" [channel]="{type: channel.type}" />
                             <span class="truncate">{{ channel.name }}</span>
                         </div>
                     }
@@ -33,7 +33,7 @@
                 <div class="space-y-1 pl-2">
                     @for (channel of uncategorizedChannels(); track channel.name) {
                         <div class="flex items-center gap-2 text-xs text-text-secondary">
-                            <i [class]="channelIcon(channel.type)" class="text-[0.6875rem] shrink-0"></i>
+                            <app-channel-icon class="text-[0.6875rem] shrink-0" [channel]="{type: channel.type}" />
                             <span class="truncate">{{ channel.name }}</span>
                         </div>
                     }

@@ -13,12 +13,19 @@ import {ParticipantMenuRequest} from '../channel-item.types';
 import {InviteFriendsRowComponent} from '../invite-friends-row/invite-friends-row.component';
 import {VoiceParticipantRowComponent} from '../voice-participant-row/voice-participant-row.component';
 import {phaseOf} from '../../../events-panel/event-timing';
+import {ChannelIconComponent} from '../../../channel-icon/channel-icon.component';
 
 /** A voice channel row plus the members currently connected to it. */
 @Component({
     selector: 'app-voice-channel-item',
     host: {class: 'contents'},
-    imports: [VoiceParticipantRowComponent, InviteFriendsRowComponent, TranslateModule, Tooltip],
+    imports: [
+        VoiceParticipantRowComponent,
+        InviteFriendsRowComponent,
+        TranslateModule,
+        Tooltip,
+        ChannelIconComponent,
+    ],
     templateUrl: './voice-channel-item.component.html',
 })
 export class VoiceChannelItemComponent {

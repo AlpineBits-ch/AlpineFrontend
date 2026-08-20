@@ -25,7 +25,7 @@ import {NavigationService} from '../../../main-page/navigation.service';
 import {guildAbilities} from '../../guild-permissions';
 import {ModulePermissions} from '../../../../enums/module-permissions.enum';
 import {GuildFeature, guildHasFeature} from '../../guild-features';
-import {channelIcon} from '../../channel-types';
+import {ChannelIconComponent} from '../channel-icon/channel-icon.component';
 
 /** One rendered group of rows under a `section` heading, or under no heading at all. */
 interface ListSection {
@@ -38,7 +38,7 @@ interface ListSection {
 @Component({
     selector: 'app-list-channel',
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [Button, InputText, Checkbox, Tooltip, FormsModule, TranslateModule],
+    imports: [Button, InputText, Checkbox, Tooltip, FormsModule, TranslateModule, ChannelIconComponent],
     templateUrl: './list-channel.component.html',
 })
 export class ListChannelComponent {
@@ -72,8 +72,6 @@ export class ListChannelComponent {
     /** Index of the row being dragged, or `null`. Native HTML5 drag; the app pulls in no CDK. */
     protected readonly dragIndex = signal<number | null>(null);
     protected readonly dragOverIndex = signal<number | null>(null);
-
-    protected readonly icon = computed(() => channelIcon(this.channel().type));
 
     private readonly state = computed(() => this.listService.stateFor(this.channel().id));
     protected readonly items = computed(() => this.state().items);

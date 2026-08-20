@@ -39,7 +39,7 @@ import {MealService} from '../../../../services/meal.service';
 import {ProfileService} from '../../../../services/profile.service';
 import {ToastService} from '../../../../services/toast.service';
 import {NavigationService} from '../../../main-page/navigation.service';
-import {channelIcon} from '../../channel-types';
+import {ChannelIconComponent} from '../channel-icon/channel-icon.component';
 import {GuildFeature, guildHasFeature} from '../../guild-features';
 import {guildAbilities} from '../../guild-permissions';
 
@@ -77,7 +77,17 @@ type MealsView = 'plan' | 'recipes' | 'cookable';
 @Component({
     selector: 'app-meals-channel',
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [Button, Dialog, InputText, Select, Tooltip, FormsModule, PrimeTemplate, TranslateModule],
+    imports: [
+        Button,
+        Dialog,
+        InputText,
+        Select,
+        Tooltip,
+        FormsModule,
+        PrimeTemplate,
+        TranslateModule,
+        ChannelIconComponent,
+    ],
     templateUrl: './meals-channel.component.html',
 })
 export class MealsChannelComponent {
@@ -100,7 +110,6 @@ export class MealsChannelComponent {
     private readonly members = signal<GuildMemberDto[]>([]);
     private readonly memberById = computed(() => new Map(this.members().map(m => [m.userId, m])));
 
-    protected readonly icon = computed(() => channelIcon(this.channel().type) ?? 'pi pi-book');
     protected readonly state = computed(() => this.meals.stateFor(this.channel().id));
     protected readonly ownUserId = computed(() => this.profileService.ownProfile()?.userId ?? null);
 

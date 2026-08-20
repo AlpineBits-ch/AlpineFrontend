@@ -43,7 +43,7 @@ import {AppAvatarComponent} from '../../../../components/avatar/avatar.component
 import {RelativeTimePipe} from '../../../../pipes/relative-time.pipe';
 import {ModulePermissions} from '../../../../enums/module-permissions.enum';
 import {guildAbilities} from '../../guild-permissions';
-import {channelIcon} from '../../channel-types';
+import {ChannelIconComponent} from '../channel-icon/channel-icon.component';
 import {GuildFeature, guildHasFeature} from '../../guild-features';
 import {
     blocksForOption,
@@ -90,6 +90,7 @@ interface BlockTarget {
         AppAvatarComponent,
         RelativeTimePipe,
         ModuleNotInPlanComponent,
+        ChannelIconComponent,
     ],
     templateUrl: './decisions-channel.component.html',
 })
@@ -116,8 +117,6 @@ export class DecisionsChannelComponent implements OnDestroy {
     /** Ticked so deadlines age and the past-`closesAt` notice appears without reading the clock in a pipe. */
     protected readonly nowTick = signal(Date.now());
     private tickId = setInterval(() => this.nowTick.set(Date.now()), CLOCK_TICK_MS);
-
-    protected readonly icon = computed(() => channelIcon(this.channel().type) ?? 'pi pi-flag');
 
     // ── List ────────────────────────────────────────────────────────────────
     private readonly channelState = computed(() => this.decisions.stateFor(this.channel().id));

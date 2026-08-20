@@ -98,7 +98,7 @@
                 </div>
             } @else if (posts().length === 0) {
                 <div class="flex flex-col items-center justify-center py-16 gap-3 text-center">
-                    <i [class]="icon()" class="text-3xl text-white/10"></i>
+                    <app-channel-icon class="text-3xl text-white/10" [channel]="forum()" />
                     @if (selectedTagIds().length > 0) {
                         <p class="text-sm text-text-muted m-0">{{ 'FORUM.EMPTY_FILTERED' | translate }}</p>
                         <p-button

@@ -16,14 +16,7 @@
         [class.is-unread]="!isActive() && showsReadState() && rs.isUnread"
         class="chan-row"
     >
-        <!-- The `#` is a text glyph where the others are icon-font characters, so it carries its own size to land at the same optical weight inside the shared slot. -->
-        <span class="chan-icon pointer-events-none" [class.chan-icon-hash]="!icon()">
-            @if (icon(); as iconClass) {
-                <i [class]="iconClass"></i>
-            } @else {
-                #
-            }
-        </span>
+        <app-channel-icon [channel]="channel()" />
         <span class="chan-label pointer-events-none">{{ channel().name }}</span>
         @if (showsReadState() && rs.mentionCount > 0) {
             <span class="chan-badge chan-badge-mention pointer-events-none">{{ rs.mentionCount }}</span>

@@ -43,7 +43,7 @@ import {MinuteClockService} from '../../../../services/minute-clock.service';
 import {ProfileService} from '../../../../services/profile.service';
 import {ToastService} from '../../../../services/toast.service';
 import {NavigationService} from '../../../main-page/navigation.service';
-import {channelIcon} from '../../channel-types';
+import {ChannelIconComponent} from '../channel-icon/channel-icon.component';
 import {GuildFeature, guildHasFeature} from '../../guild-features';
 import {guildAbilities} from '../../guild-permissions';
 import {defaultRotationRoleId} from '../../household-roles';
@@ -74,6 +74,7 @@ const MEMBER_PAGE = 200;
         ToggleSwitch,
         Tooltip,
         ModuleNotInPlanComponent,
+        ChannelIconComponent,
     ],
     templateUrl: './chores-channel.component.html',
 })
@@ -98,8 +99,6 @@ export class ChoresChannelComponent {
 
     private readonly ownMember = signal<SelfGuildMemberDto | null>(null);
     private readonly members = signal<readonly GuildMemberDto[]>([]);
-
-    protected readonly icon = computed(() => channelIcon(this.channel().type) ?? 'pi pi-sync');
 
     private readonly guild = computed(
         () => this.guildService.guilds().find(g => g.id === this.channel().guildId) ?? null,

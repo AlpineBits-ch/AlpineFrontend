@@ -44,7 +44,7 @@ import {GuildService} from '../../../../services/guild.service';
 import {ToastService} from '../../../../services/toast.service';
 import {ProfileService} from '../../../../services/profile.service';
 import {NavigationService} from '../../../main-page/navigation.service';
-import {channelIcon} from '../../channel-types';
+import {ChannelIconComponent} from '../channel-icon/channel-icon.component';
 import {GuildFeature, guildHasFeature} from '../../guild-features';
 import {guildAbilities} from '../../guild-permissions';
 import {ModulePermissions} from '../../../../enums/module-permissions.enum';
@@ -72,6 +72,7 @@ const EXPIRING_WINDOWS = [3, 7, 14, 30] as const;
         PrimeTemplate,
         PantryScanComponent,
         ModuleNotInPlanComponent,
+        ChannelIconComponent,
     ],
     templateUrl: './pantry-channel.component.html',
 })
@@ -98,8 +99,6 @@ export class PantryChannelComponent implements OnDestroy {
     protected readonly view = signal<'stock' | 'expiring' | 'scan'>('stock');
     /** `null` (the default) is "each pantry's own window", not "no window". */
     protected readonly expiringDays = signal<number | null>(DEFAULT_EXPIRING_DAYS);
-
-    protected readonly icon = computed(() => channelIcon(this.channel().type));
 
     private readonly guild = computed(
         () => this.guildService.guilds().find(g => g.id === this.channel().guildId) ?? null,

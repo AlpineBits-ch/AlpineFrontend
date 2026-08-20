@@ -3,19 +3,20 @@
     <div class="flex items-center gap-2">
         @if (channel().type === ChannelType.Text) {
             <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.06] text-xs text-text-secondary">
-                <span class="font-bold text-base leading-none text-text-muted">#</span> Text Channel
+                <app-channel-icon class="text-text-muted" [channel]="{type: ChannelType.Text}" /> Text Channel
             </span>
         } @else if (channel().type === ChannelType.Forum) {
             <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.06] text-xs text-text-secondary">
-                <i [class]="channelIcon(ChannelType.Forum)" class="text-text-muted"></i> Forum Channel
+                <app-channel-icon class="text-text-muted" [channel]="{type: ChannelType.Forum}" [fallbackHash]="false" /> Forum Channel
             </span>
         } @else if (channel().type === ChannelType.Announcement) {
             <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.06] text-xs text-text-secondary">
-                <i class="pi pi-megaphone text-text-muted"></i> {{ 'GUILD.CHANNEL_TYPE_ANNOUNCEMENT_BADGE' | translate }}
+                <app-channel-icon class="text-text-muted" [channel]="{type: ChannelType.Announcement}" [fallbackHash]="false" />
+                {{ 'GUILD.CHANNEL_TYPE_ANNOUNCEMENT_BADGE' | translate }}
             </span>
         } @else {
             <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.06] text-xs text-text-secondary">
-                <i class="pi pi-volume-up text-text-muted"></i> Voice Channel
+                <app-channel-icon class="text-text-muted" [channel]="{type: ChannelType.Voice}" [fallbackHash]="false" /> Voice Channel
             </span>
         }
         @if (channel().categoryId) {

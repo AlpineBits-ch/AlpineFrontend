@@ -38,7 +38,11 @@
                                 "
                                 class="flex flex-col items-start gap-1 p-3 rounded-xl border transition-all cursor-pointer"
                             >
-                                <i [class]="channelIcon(ChannelType.Voice)" class="text-text-secondary"></i>
+                                <app-channel-icon
+                                    class="text-text-secondary"
+                                    [channel]="{type: ChannelType.Voice}"
+                                    [fallbackHash]="false"
+                                />
                                 <span class="text-sm font-medium text-text-primary">{{ 'GUILD.CHANNEL_TYPE_VOICE' | translate }}</span>
                                 <span class="text-[11px] text-text-muted">{{ 'GUILD.CHANNEL_TYPE_VOICE_DESC' | translate }}</span>
                             </button>
@@ -51,7 +55,11 @@
                                 "
                                 class="flex flex-col items-start gap-1 p-3 rounded-xl border transition-all cursor-pointer"
                             >
-                                <i [class]="channelIcon(ChannelType.Forum)" class="text-text-secondary"></i>
+                                <app-channel-icon
+                                    class="text-text-secondary"
+                                    [channel]="{type: ChannelType.Forum}"
+                                    [fallbackHash]="false"
+                                />
                                 <span class="text-sm font-medium text-text-primary">{{ 'GUILD.CHANNEL_TYPE_FORUM' | translate }}</span>
                                 <span class="text-[11px] text-text-muted">{{ 'GUILD.CHANNEL_TYPE_FORUM_DESC' | translate }}</span>
                             </button>
@@ -66,7 +74,11 @@
                                 "
                                 class="flex flex-col items-start gap-1 p-3 rounded-xl border transition-all cursor-pointer"
                             >
-                                <i [class]="channelIcon(ChannelType.Announcement)" class="text-text-secondary"></i>
+                                <app-channel-icon
+                                    class="text-text-secondary"
+                                    [channel]="{type: ChannelType.Announcement}"
+                                    [fallbackHash]="false"
+                                />
                                 <span class="text-sm font-medium text-text-primary">{{
                                     'GUILD.CHANNEL_TYPE_ANNOUNCEMENT' | translate
                                 }}</span>
@@ -81,7 +93,11 @@
                                 "
                                 class="flex flex-col items-start gap-1 p-3 rounded-xl border transition-all cursor-pointer"
                             >
-                                <i [class]="channelIcon(ChannelType.Media)" class="text-text-secondary"></i>
+                                <app-channel-icon
+                                    class="text-text-secondary"
+                                    [channel]="{type: ChannelType.Media}"
+                                    [fallbackHash]="false"
+                                />
                                 <span class="text-sm font-medium text-text-primary">{{ 'GUILD.CHANNEL_TYPE_MEDIA' | translate }}</span>
                                 <span class="text-[11px] text-text-muted">{{ 'GUILD.CHANNEL_TYPE_MEDIA_DESC' | translate }}</span>
                             </button>
@@ -102,7 +118,7 @@
                                     [ngClass]="type() === meta.type ? 'border-brand/50 bg-brand/10' : 'border-white/[0.08] bg-white/[0.03]'"
                                     class="flex flex-col items-start gap-1 p-3 rounded-xl border transition-all cursor-pointer"
                                 >
-                                    <i [class]="meta.icon" class="text-text-secondary"></i>
+                                    <app-channel-icon class="text-text-secondary" [channel]="{type: meta.type}" [fallbackHash]="false" />
                                     <span class="text-sm font-medium text-text-primary">{{ meta.labelKey | translate }}</span>
                                     <span class="text-[11px] text-text-muted">{{ meta.descKey | translate }}</span>
                                 </button>
@@ -120,11 +136,7 @@
             }}</label>
             <div class="relative">
                 <span class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted font-bold text-sm pointer-events-none">
-                    @if (selectedIcon(); as iconClass) {
-                        <i [class]="iconClass" class="text-xs"></i>
-                    } @else {
-                        #
-                    }
+                    <app-channel-icon class="text-xs" [channel]="{type: type()}" />
                 </span>
                 <input
                     (input)="onNameInput($event)"

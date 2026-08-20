@@ -12,19 +12,21 @@ import {GuildService} from '../../../../../services/guild.service';
 import {ConversationStore} from '../../../../../stores/conversation.store';
 import {ConversationUtilsService} from '../../../../../services/conversation-utils.service';
 import {ToastService} from '../../../../../services/toast.service';
-import {channelIcon as iconForType} from '../../../channel-types';
 import {EncryptionUnavailableError, MessageSendService} from '../../../../messaging/message-send.service';
 import {wikiShareLink} from '../../../../messaging/wiki-link';
+import {ChannelIconComponent} from '../../channel-icon/channel-icon.component';
 
-/** Somewhere a page can be posted. Channels and conversations are one list on purpose: the choice a person is making is "who sees this", and that question doesn't care which of the two it is. */
-export interface ShareTarget {
-    kind: 'channel' | 'conversation';
+interface ShareTargetBase {
     id: string;
     label: string;
-    icon: string;
     /** Only for channels: what it sits under, so two `#general`s are tellable apart. */
     context?: string;
 }
+
+/** Somewhere a page can be posted. Channels and conversations are one list on purpose: the choice a person is making is "who sees this", and that question doesn't care which of the two it is. */
+export type ShareTarget =
+    | (ShareTargetBase & {kind: 'channel'; channelType: ChannelType})
+    | (ShareTargetBase & {kind: 'conversation'});
 
 type ShareState = 'idle' | 'sending' | 'sent';
 
@@ -35,7 +37,16 @@ type ShareState = 'idle' | 'sending' | 'sent';
  */
 @Component({
     selector: 'app-wiki-share-dialog',
-    imports: [Dialog, Button, InputText, FormsModule, NgClass, PrimeTemplate, TranslateModule],
+    imports: [
+        Dialog,
+        Button,
+        InputText,
+        FormsModule,
+        NgClass,
+        PrimeTemplate,
+        TranslateModule,
+        ChannelIconComponent,
+    ],
     templateUrl: './wiki-share-dialog.component.html',
 })
 export class WikiShareDialogComponent {
@@ -67,7 +78,7 @@ export class WikiShareDialogComponent {
                 kind: 'channel' as const,
                 id: c.id,
                 label: c.name,
-                icon: iconForType(c.type) ?? 'pi pi-hashtag',
+                channelType: c.type,
                 context: guild?.name,
             }));
 
@@ -75,7 +86,6 @@ export class WikiShareDialogComponent {
             kind: 'conversation' as const,
             id: conv.id,
             label: this.convUtils.getChatTitle(conv),
-            icon: 'pi pi-comment',
         }));
 
         return [...channels, ...conversations];

@@ -13,7 +13,7 @@
             />
 
             <div class="flex items-center gap-2 sm:gap-3 min-w-0">
-                <i [class]="icon()" class="text-text-muted shrink-0"></i>
+                <app-channel-icon class="text-text-muted shrink-0" [channel]="channel()" />
                 <span class="text-sm font-semibold text-text-primary truncate">{{ channel().name }}</span>
                 @if (hasLoaded()) {
                     <span class="hidden sm:block text-text-muted text-xs border-l border-border-default pl-3 shrink-0">
@@ -107,7 +107,7 @@
             } @else if (items().length === 0) {
                 <div class="flex flex-col items-center justify-center h-full gap-3 text-center">
                     <div class="w-14 h-14 rounded-2xl bg-card border border-border flex items-center justify-center">
-                        <i [class]="icon()" class="text-[1.5rem] text-text-muted"></i>
+                        <app-channel-icon class="text-[1.5rem] text-text-muted" [channel]="channel()" />
                     </div>
                     <div class="max-w-sm space-y-1.5">
                         <p class="text-sm font-semibold text-text-primary m-0">{{ 'LIST.EMPTY_TITLE' | translate }}</p>

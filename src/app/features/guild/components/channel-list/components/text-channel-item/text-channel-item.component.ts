@@ -3,15 +3,16 @@ import {ChannelDto, isForumLike} from '../../../../../../dtos/response/guild.dto
 import {GuildReadStateService} from '../../../../../../services/guild-read-state.service';
 import {NavigationService} from '../../../../../main-page/navigation.service';
 import {ChannelListDragService} from '../../channel-list-drag.service';
-import {channelIcon, isHouseholdChannel} from '../../../../channel-types';
+import {isHouseholdChannel} from '../../../../channel-types';
 import {DraftService} from '../../../../../../services/draft.service';
 import {TranslateModule} from '@ngx-translate/core';
+import {ChannelIconComponent} from '../../../channel-icon/channel-icon.component';
 
 /** A channel row in the channel sidebar: every type except Voice, which has its own row. */
 @Component({
     selector: 'app-text-channel-item',
     host: {class: 'contents'},
-    imports: [TranslateModule],
+    imports: [TranslateModule, ChannelIconComponent],
     templateUrl: './text-channel-item.component.html',
 })
 export class TextChannelItemComponent {
@@ -39,9 +40,6 @@ export class TextChannelItemComponent {
         this.readStateService.aggregate([this.channel().id, ...this.rollupIds()]),
     );
     protected readonly isActive = computed(() => this.navService.isChannelActive(this.channel().id));
-
-    /** `null` for Text, which renders a literal `#`. One table, no per-type ladder. */
-    protected readonly icon = computed(() => channelIcon(this.channel().type));
 
     /** Household channels carry no messages, so read state for them is meaningless: an unread weight or mention count on a shopping list could only ever be wrong. */
     protected readonly showsReadState = computed(() => !isHouseholdChannel(this.channel().type));

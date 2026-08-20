@@ -6,12 +6,12 @@ import {InputText} from 'primeng/inputtext';
 import {Textarea} from 'primeng/textarea';
 import {ChannelDto, ChannelType} from '../../../../../../dtos/response/guild.dto';
 import {GuildService, UpdateChannelDto} from '../../../../../../services/guild.service';
-import {channelIcon} from '../../../../channel-types';
 import {TranslateModule} from '@ngx-translate/core';
+import {ChannelIconComponent} from '../../../channel-icon/channel-icon.component';
 
 @Component({
     selector: 'app-channel-overview',
-    imports: [FormsModule, ToggleSwitch, Button, InputText, Textarea, TranslateModule],
+    imports: [FormsModule, ToggleSwitch, Button, InputText, Textarea, TranslateModule, ChannelIconComponent],
     templateUrl: './channel-overview.component.html',
 })
 export class ChannelOverviewComponent implements OnInit {
@@ -25,7 +25,6 @@ export class ChannelOverviewComponent implements OnInit {
     readonly saving = signal(false);
     readonly dirty = signal(false);
     protected readonly ChannelType = ChannelType;
-    protected readonly channelIcon = channelIcon;
     private guildService = inject(GuildService);
 
     ngOnInit(): void {

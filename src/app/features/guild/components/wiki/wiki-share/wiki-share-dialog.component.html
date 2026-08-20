@@ -51,7 +51,15 @@
                 type="button"
             >
                 <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/10">
-                    <i [class]="target.icon" class="text-xs text-text-secondary"></i>
+                    @if (target.kind === 'channel') {
+                        <app-channel-icon
+                            class="text-xs text-text-secondary"
+                            [channel]="{type: target.channelType}"
+                            [fallbackHash]="false"
+                        />
+                    } @else {
+                        <i class="pi pi-comment text-xs text-text-secondary"></i>
+                    }
                 </span>
                 <span
                     [ngClass]="selectedId() === target.id ? 'text-brand-dim' : 'text-text-primary'"
