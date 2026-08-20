@@ -9,6 +9,7 @@ import {
     RoleDto,
 } from '../dtos/response/guild.dto';
 import {GuildVerificationLevel} from '../dtos/response/guild-safety.dto';
+import {EffectivePermissionsDto} from '../dtos/response/effective-permissions.dto';
 import {GuildFeatureResolutionDto} from '../dtos/response/entitlement.dto';
 import {environment} from '../../environments/environment';
 import {catchError, finalize, map, Observable, of, shareReplay, Subject, tap, throwError} from 'rxjs';
@@ -517,6 +518,29 @@ export class GuildService {
 
     deleteChannelMemberPermission(channelId: string, memberId: string): Observable<void> {
         return this.http.delete<void>(`${this.base}/channels/${channelId}/permissions/members/${memberId}`);
+    }
+
+    /**
+     * What a role or member actually ends up with here, plus which of the four layers wrote each
+     * bit. Needs ManagePermissions. Uncached server-side, so call it once per subject and hold it.
+     */
+    getEffectivePermissions(
+        channelId: string,
+        subject: {kind: 'role' | 'member'; id: string},
+    ): Observable<EffectivePermissionsDto> {
+        const param = subject.kind === 'role' ? 'roleId' : 'memberId';
+        return this.http.get<EffectivePermissionsDto>(
+            `${this.base}/channels/${encodeURIComponent(channelId)}/effective-permissions` +
+                `?${param}=${encodeURIComponent(subject.id)}`,
+        );
+    }
+
+    /** Replaces the channel's overwrites with its category's, atomically. 404 if it has no category. */
+    syncChannelPermissions(channelId: string): Observable<ChannelPermission[]> {
+        return this.http.post<ChannelPermission[]>(
+            `${this.base}/channels/${encodeURIComponent(channelId)}/permissions/sync`,
+            {},
+        );
     }
 
     // ── Categories ───────────────────────────────────────────────────────────
