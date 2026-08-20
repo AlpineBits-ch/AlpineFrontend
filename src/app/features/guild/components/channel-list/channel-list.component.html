@@ -154,32 +154,10 @@
 </div>
 
 <!-- ── Popup menus ──────────────────────────────────────────────────────────── -->
-<p-menu #guildMenu [model]="guildMenuItems()" [popup]="true" appendTo="body" />
-
-<!-- Only the link inside each item is replaced; PrimeNG keeps the surrounding row so command/close still work. Keep the class names: the theme styles them and the menu's Enter handling looks for the anchor. -->
-<p-menu #channelMenu [model]="[]" [popup]="true" appendTo="body">
-    <ng-template let-item pTemplate="item">
-        @if (item.id === 'invite') {
-            <a
-                (click)="openInvitePanel($event, contextChannel())"
-                (mouseenter)="openInvitePanel($event, contextChannel())"
-                class="p-menu-item-link"
-            >
-                <span [class]="item.icon" class="p-menu-item-icon"></span>
-                <span class="p-menu-item-label">{{ item.label }}</span>
-                <i class="pi pi-angle-right ml-auto text-[0.625rem] opacity-40"></i>
-            </a>
-        } @else {
-            <a class="p-menu-item-link">
-                <span [class]="item.icon" class="p-menu-item-icon"></span>
-                <span class="p-menu-item-label">{{ item.label }}</span>
-            </a>
-        }
-    </ng-template>
-</p-menu>
-
-<p-menu #categoryMenu [model]="[]" [popup]="true" appendTo="body" />
-<p-contextMenu #listMenu [model]="guildMenuItems()" appendTo="body" />
+<app-context-menu #guildMenu [model]="guildMenuItems()" />
+<app-context-menu #channelMenu />
+<app-context-menu #categoryMenu />
+<app-context-menu #listMenu [model]="guildMenuItems()" />
 
 <!-- ── Per-person invite panel ─────────────────────────────────────────────── -->
 <p-popover #invitePopover (onHide)="onInvitePanelHide()" appendTo="body" styleClass="channel-invite-popover">

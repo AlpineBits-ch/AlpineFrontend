@@ -9,17 +9,18 @@ import {
     signal,
     untracked,
     ViewChild,
+    viewChild,
 } from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {firstValueFrom} from 'rxjs';
 import {NgClass} from '@angular/common';
-import {Menu} from 'primeng/menu';
-import {ContextMenu} from 'primeng/contextmenu';
+import {ContextMenuComponent} from '../../../../shared/context-menu/context-menu.component';
 import {Popover} from 'primeng/popover';
 import {Button} from 'primeng/button';
 import {Dialog} from 'primeng/dialog';
 import {InputText} from 'primeng/inputtext';
-import {MenuItem, PrimeTemplate} from 'primeng/api';
+import {PrimeTemplate} from 'primeng/api';
+import {MenuItem, MenuItemCommandEvent} from '../../../../shared/context-menu/context-menu.model';
 import {CategoryDto, ChannelDto, ChannelType, GuildDto} from '../../../../dtos/response/guild.dto';
 import {NavigationService} from '../../../main-page/navigation.service';
 import {GuildService} from '../../../../services/guild.service';
@@ -72,8 +73,7 @@ import {phaseOf} from '../events-panel/event-timing';
     providers: [ChannelListDragService],
     imports: [
         NgClass,
-        Menu,
-        ContextMenu,
+        ContextMenuComponent,
         Popover,
         Button,
         Dialog,
@@ -97,10 +97,10 @@ import {phaseOf} from '../events-panel/event-timing';
 export class ChannelListComponent {
     readonly guild = input.required<GuildDto>();
     // ── Context menu refs ─────────────────────────────────────────────────────
-    @ViewChild('guildMenu') guildMenu!: Menu;
-    @ViewChild('channelMenu') channelMenu!: Menu;
-    @ViewChild('categoryMenu') categoryMenu!: Menu;
-    @ViewChild('listMenu') listMenu!: ContextMenu;
+    readonly guildMenu = viewChild.required<ContextMenuComponent>('guildMenu');
+    readonly channelMenu = viewChild.required<ContextMenuComponent>('channelMenu');
+    readonly categoryMenu = viewChild.required<ContextMenuComponent>('categoryMenu');
+    readonly listMenu = viewChild.required<ContextMenuComponent>('listMenu');
     @ViewChild('invitePopover') invitePopover!: Popover;
     @ViewChild(GuildSettingsModalComponent) guildSettingsModal?: GuildSettingsModalComponent;
     @ViewChild(ChannelSettingsModalComponent) channelSettingsModal?: ChannelSettingsModalComponent;
@@ -574,13 +574,18 @@ export class ChannelListComponent {
                 icon: 'pi pi-pencil',
                 command: () => this.channelSettingsModal?.open(channel, this.guild()),
             },
-            // Voice channels only: the endpoint behind it answers 400 for anything else. Carries no command since the item template opens its panel on hover instead.
+            // Voice channels only: the endpoint behind it answers 400 for anything else. Opens its panel on hover as well as on click, so it carries both.
             ...(channel.type === ChannelType.Voice
                 ? [
                       {
                           id: 'invite',
                           label: 'Invite People',
                           icon: 'pi pi-user-plus',
+                          chevron: true,
+                          hover: (e: MenuItemCommandEvent) =>
+                              this.openInvitePanel(e.originalEvent as MouseEvent, channel),
+                          command: (e: MenuItemCommandEvent) =>
+                              this.openInvitePanel(e.originalEvent as MouseEvent, channel),
                       },
                   ]
                 : []),
@@ -599,7 +604,7 @@ export class ChannelListComponent {
             {
                 label: 'Delete Channel',
                 icon: 'pi pi-trash',
-                styleClass: 'text-rose-400',
+                danger: true,
                 command: () => this.channelSettingsModal?.open(channel, this.guild()),
             },
         ];
@@ -621,34 +626,32 @@ export class ChannelListComponent {
             {
                 label: 'Delete Category',
                 icon: 'pi pi-trash',
-                styleClass: 'text-rose-400',
+                danger: true,
                 command: () => this.categorySettingsModal?.open(category, this.guild()),
             },
         ];
     }
 
     protected toggleGuildMenu(event: MouseEvent): void {
-        this.guildMenu.toggle(event);
+        this.guildMenu().toggle(event);
     }
 
     protected onChannelContextMenu(event: MouseEvent, channel: ChannelDto): void {
         event.preventDefault();
         event.stopPropagation();
         this.contextChannel.set(channel);
-        this.channelMenu.model = this.buildChannelMenuItems(channel);
-        this.channelMenu.show(event);
+        this.channelMenu().show(event, this.buildChannelMenuItems(channel));
     }
 
     protected onCategoryContextMenu(event: MouseEvent, category: CategoryDto): void {
         event.preventDefault();
         event.stopPropagation();
         this.contextCategory.set(category);
-        this.categoryMenu.model = this.buildCategoryMenuItems(category);
-        this.categoryMenu.show(event);
+        this.categoryMenu().show(event, this.buildCategoryMenuItems(category));
     }
 
     protected onListContextMenu(event: MouseEvent): void {
-        this.listMenu.show(event);
+        this.listMenu().show(event);
     }
 
     // ── Per-person invite panel ───────────────────────────────────────────────
