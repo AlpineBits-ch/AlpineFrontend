@@ -194,6 +194,24 @@
     color: var(--color-text-faint);
 }
 
+.scene-folder-pick {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 0.5rem;
+    padding: 0.375rem 0.625rem;
+    font-size: 0.75rem;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+}
+
+.scene-folder-pick:hover {
+    background: rgba(255, 255, 255, 0.04);
+}
+
 /* ── Footer buttons ─────────────────────────────────────────────────────── */
 .scene-primary,
 .scene-secondary {

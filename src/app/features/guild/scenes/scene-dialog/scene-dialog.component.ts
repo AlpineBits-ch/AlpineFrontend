@@ -14,9 +14,12 @@ import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {Dialog} from 'primeng/dialog';
 import {Select} from 'primeng/select';
 import {PrimeTemplate} from 'primeng/api';
+import {catchError, Observable, of, switchMap} from 'rxjs';
 import {PersonaAvatarComponent} from '../../personas/persona-avatar/persona-avatar.component';
+import {SceneFolderPickerComponent} from '../scene-archive/scene-folder-picker.component';
 import {PersonaService} from '../../../../services/persona.service';
 import {SceneService} from '../../../../services/scene.service';
+import {SceneTaxonomyService} from '../../../../services/scene-taxonomy.service';
 import {ToastService} from '../../../../services/toast.service';
 import {SceneDto, SceneStatus} from '../../../../dtos/response/scene.dto';
 import {ChannelDto} from '../../../../dtos/response/guild.dto';
@@ -54,7 +57,15 @@ interface DerivedTurnLength {
 @Component({
     selector: 'app-scene-dialog',
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [FormsModule, TranslateModule, Dialog, Select, PrimeTemplate, PersonaAvatarComponent],
+    imports: [
+        FormsModule,
+        TranslateModule,
+        Dialog,
+        Select,
+        PrimeTemplate,
+        PersonaAvatarComponent,
+        SceneFolderPickerComponent,
+    ],
     templateUrl: './scene-dialog.component.html',
     styleUrl: './scene-dialog.component.css',
 })
@@ -64,10 +75,13 @@ export class SceneDialogComponent {
     readonly scene = input<SceneDto | null>(null);
     /** Offered as the scene's home. A scene opens as a thread under one of them. */
     readonly guildChannels = input<ChannelDto[]>([]);
+    /** The shelf a new scene should land on. Only read when creating. */
+    readonly seedFolderId = input<string | null>(null);
     readonly closed = output<void>();
 
     private readonly personas = inject(PersonaService);
     private readonly scenes = inject(SceneService);
+    private readonly taxonomy = inject(SceneTaxonomyService);
     private readonly toast = inject(ToastService);
     private readonly translate = inject(TranslateService);
 
@@ -85,10 +99,23 @@ export class SceneDialogComponent {
     protected readonly query = signal('');
     protected readonly saving = signal(false);
     protected readonly homeChannelId = signal<string | null>(null);
+    /** Undefined means the game master has not touched it: the seed still wins. */
+    protected readonly folderOverride = signal<string | null | undefined>(undefined);
+    protected readonly pickingFolder = signal(false);
 
     private seeded = false;
 
     protected readonly isEdit = computed(() => !!this.scene());
+
+    /** The seed until the game master picks a shelf by hand, then whatever they picked, null included. */
+    protected readonly folderId = computed(() => {
+        const override = this.folderOverride();
+        return override !== undefined ? override : this.seedFolderId();
+    });
+
+    protected readonly folderName = computed(
+        () => this.taxonomy.folder(this.guildId(), this.folderId())?.name ?? null,
+    );
 
     /** Where the scene thread opens. One candidate channel needs no choosing. */
     protected readonly home = computed(() => {
@@ -200,6 +227,11 @@ export class SceneDialogComponent {
         this.order.update(ids => ids.filter(id => id !== personaId));
     }
 
+    protected chooseFolder(folderId: string | null): void {
+        this.folderOverride.set(folderId);
+        this.pickingFolder.set(false);
+    }
+
     protected move(personaId: string, by: number): void {
         this.order.update(ids => {
             const at = ids.indexOf(personaId);
@@ -224,15 +256,17 @@ export class SceneDialogComponent {
                   // Omitted rather than null: the PATCH would otherwise wipe a clock nobody touched.
                   ...(this.deadlineTouched() ? {turnLengthHours: this.deadlineHours()} : {}),
               })
-            : this.scenes.create(this.guildId(), this.home() ?? '', {
-                  name: this.name().trim(),
-                  description: this.description().trim() || null,
-                  oocName: this.oocName().trim() || null,
-                  participantPersonaIds: this.order(),
-                  turnOrder: this.order(),
-                  turnLengthHours: this.deadlineHours(),
-                  status: start ? SceneStatus.Active : SceneStatus.Open,
-              });
+            : this.scenes
+                  .create(this.guildId(), this.home() ?? '', {
+                      name: this.name().trim(),
+                      description: this.description().trim() || null,
+                      oocName: this.oocName().trim() || null,
+                      participantPersonaIds: this.order(),
+                      turnOrder: this.order(),
+                      turnLengthHours: this.deadlineHours(),
+                      status: start ? SceneStatus.Active : SceneStatus.Open,
+                  })
+                  .pipe(switchMap(scene => this.fileNew(scene)));
 
         work.subscribe({
             next: () => {
@@ -247,6 +281,21 @@ export class SceneDialogComponent {
                 this.toast.httpError(this.translate.instant('SCENE.TOAST.FAILED'), err);
             },
         });
+    }
+
+    /**
+     * Filing is a second call, so it can fail on its own. The scene still exists when it does, and
+     * reporting that as a failed create sends the game master off to make a duplicate.
+     */
+    private fileNew(scene: SceneDto): Observable<SceneDto> {
+        const folderId = this.folderId();
+        if (!folderId) return of(scene);
+        return this.scenes.update(this.guildId(), scene.channelId, {folderId}).pipe(
+            catchError(() => {
+                this.toast.warn(this.translate.instant('SCENE.TOAST.CREATED_NOT_FILED'));
+                return of(scene);
+            }),
+        );
     }
 }
 

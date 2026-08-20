@@ -180,6 +180,25 @@
         <p class="scene-hint">{{ lengthNote().key | translate: lengthNote().params }}</p>
     </div>
 
+    @if (!isEdit()) {
+        <div class="mt-5">
+            <span class="scene-field-label">{{ 'SCENE.ARCHIVE.FILE_INTO' | translate }}</span>
+            <button (click)="pickingFolder.set(!pickingFolder())" class="scene-folder-pick mt-1.5" type="button">
+                <span>{{ folderName() ?? ('SCENE.ARCHIVE.UNFILED' | translate) }}</span>
+                <i class="pi pi-chevron-down text-[0.5rem]"></i>
+            </button>
+
+            @if (pickingFolder()) {
+                <app-scene-folder-picker
+                    (picked)="chooseFolder($event)"
+                    [guildId]="guildId()"
+                    [selected]="folderId()"
+                    class="mt-1.5 block"
+                />
+            }
+        </div>
+    }
+
     <ng-template pTemplate="footer">
         <div class="flex w-full items-center gap-2">
             @if (!isEdit()) {
