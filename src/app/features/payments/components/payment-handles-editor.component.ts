@@ -51,27 +51,12 @@ interface KindOption {
         RecipientTrustReviewComponent,
     ],
     template: `
-        <!--
-          Two halves, gated separately, because only one of them needs a key.
-
-          Everything sealed - the handles, the address, the seal plan - is unreadable and unwritable
-          without this device's Ed25519 seed, so on a host with no keychain it is replaced by a line
-          saying so. The phone-number opt-in below is not part of that: it is a consent flag on the
-          guild member row and a plaintext number the server already holds, so no key is involved at
-          any point and it works exactly as well in a browser. Gating the two together hid a control
-          that works, which is the inverse of the mistake the capability pass was cleaning up.
-        -->
         <div class="flex flex-col gap-3">
             @if (available()) {
                 <div>
                     <h3 class="m-0 text-sm font-semibold text-text-primary">
                         {{ 'PAY.EDITOR.TITLE' | translate }}
                     </h3>
-                    <!--
-                      The guarantee, stated exactly and no further. Encryption here defends against
-                      the database being disclosed. It does not defend against a malicious server,
-                      because the server serves the key directory and could substitute a key.
-                    -->
                     <p class="m-0 mt-1 text-xs text-text-muted">
                         {{ 'PAY.EDITOR.GUARANTEE' | translate }}
                     </p>
@@ -210,35 +195,11 @@ interface KindOption {
                     </div>
                 }
             } @else {
-                <!--
-                  The browser build has no keychain, so there is no device key to unseal with.
-                  Rendering an empty list would read as "nobody has shared anything", which is a
-                  different and wrong statement.
-
-                  Note what this replaces: the sealed editor, and only that. The phone card below
-                  keeps rendering, because none of the reasons above apply to it.
-                -->
                 <p class="m-0 text-[0.8125rem] text-text-muted" data-testid="unavailable">
                     {{ 'PAY.EDITOR.DESKTOP_ONLY' | translate }}
                 </p>
             }
 
-            <!--
-              Its own card, visually apart from everything above, because it is a different kind
-              of thing. Everything above is sealed on this device and the server cannot read it.
-              This is a plaintext number the server reads out of the account and hands to the
-              household - and somebody deciding whether to agree to that is entitled to be told
-              which of the two they are agreeing to.
-
-              That difference is also why it is outside the gate above. There is no key here to
-              be missing: the switch writes a consent flag on the guild member row, and the
-              number itself was already in the account. A browser can do both.
-
-              The consent is here rather than in account settings, because it is per household:
-              a number entered once must not follow the account into every server it joins. The
-              number itself is the other way round - one value on the account, edited in profile
-              settings, which is where the link below points.
-            -->
             <div
                 class="rounded-lg border border-amber-500/25 bg-amber-500/[0.04] p-3
                         flex flex-col gap-2"
@@ -261,39 +222,17 @@ interface KindOption {
                     />
                 </div>
 
-                <!-- The distinction this card exists to make. -->
                 <p class="m-0 text-xs text-text-muted">{{ 'PAY.PHONE.PLAINTEXT' | translate }}</p>
-                <!-- Never "verified". Nothing checked it, and nothing ever will. -->
                 <p class="m-0 text-xs text-text-muted">{{ 'PAY.PHONE.UNVERIFIED' | translate }}</p>
 
-                <!--
-                  Nothing below is said until the account has actually been read. "There is no
-                  number on your account" is a statement of fact, and a component that has not
-                  been told yet is not entitled to make it.
-                -->
                 @if (accountLoaded()) {
                     @if (accountPhoneNumber(); as number) {
                         @if (sharingPhone()) {
-                            <!--
-                              The exact string this house is being given, not a reassurance that
-                              something is being given. It is also the number the payer will type
-                              into TWINT, so seeing it here is the last chance to spot a typo.
-                            -->
                             <p class="m-0 text-xs text-text-muted" data-testid="phone-shared-value">
                                 {{ 'PAY.PHONE.SHARED_NOW' | translate: {number: number} }}
                             </p>
                         }
                     } @else {
-                        <!--
-                          Said whether the switch is on or off, because it is the reason the
-                          switch appears to do nothing. GET /users/self projects the account's
-                          own number, so this is a fact the client knows for itself - the older
-                          wording hedged only because nothing here had ever read it.
-
-                          Note this says nothing about anybody else. A housemate's absent number
-                          remains indistinguishable from a housemate who opted out; the only
-                          account we may make a statement about is our own.
-                        -->
                         <div class="flex flex-col gap-1.5 items-start" data-testid="phone-no-account-number">
                             <p class="m-0 text-xs text-amber-300">
                                 {{ 'PAY.PHONE.ACCOUNT_HAS_NONE' | translate }}
@@ -341,10 +280,6 @@ interface KindOption {
                     }
                 </div>
 
-                <!--
-                  Never worded as a confirmation of anything. What is shared is a claim about where
-                  to send money, and the app has verified none of it.
-                -->
                 <p class="m-0 text-xs text-text-muted">
                     {{ 'PAY.EDITOR.FOOTNOTE' | translate }}
                 </p>
