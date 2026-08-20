@@ -102,6 +102,10 @@ export class SceneService {
         ws.sceneTurnNudgeObservable
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe(event => this.noteNudge(event));
+
+        ws.sceneTagsChangedObservable
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe(event => this.patch(event.guildId, event.channelId, {tagIds: event.tagIds}));
     }
 
     // ── Reads ───────────────────────────────────────────────────────────────

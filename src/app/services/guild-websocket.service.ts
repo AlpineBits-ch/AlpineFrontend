@@ -26,6 +26,8 @@ import {
 import {
     SceneConcludedDto,
     SceneCreatedDto,
+    SceneTagsChangedDto,
+    SceneTaxonomyDto,
     SceneTurnChangedDto,
     SceneTurnNudgeDto,
     SceneUpdatedDto,
@@ -407,6 +409,12 @@ export type WsSceneTurnChanged = SceneTurnChangedDto;
 
 /** Status, cast or rotation moved. Carries no display data for the cast. */
 export type WsSceneUpdated = SceneUpdatedDto;
+
+/** The guild's whole archive vocabulary, replaced. Never a delta. */
+export type WsSceneTaxonomyChanged = SceneTaxonomyDto;
+
+/** One scene's labels were rewritten. */
+export type WsSceneTagsChanged = SceneTagsChangedDto;
 
 export interface WsMemberBanned {
     guildId: string;
@@ -924,6 +932,8 @@ export class GuildWebsocketService {
     readonly sceneTurnChangedObservable = new Subject<WsSceneTurnChanged>();
     readonly sceneUpdatedObservable = new Subject<WsSceneUpdated>();
     readonly sceneTurnNudgeObservable = new Subject<WsSceneTurnNudge>();
+    readonly sceneTaxonomyChangedObservable = new Subject<WsSceneTaxonomyChanged>();
+    readonly sceneTagsChangedObservable = new Subject<WsSceneTagsChanged>();
     // ── Dice ───────────────────────────────────────────────────────────────────
     readonly diceRolledObservable = new Subject<WsDiceRolled>();
     // ── Member moderation ──────────────────────────────────────────────────────────
@@ -1214,6 +1224,12 @@ export class GuildWebsocketService {
             this.sceneTurnChangedObservable.next(d),
         );
         this.realtime.on('guild.SceneUpdated', (d: WsSceneUpdated) => this.sceneUpdatedObservable.next(d));
+        this.realtime.on('guild.SceneTaxonomyChanged', (d: WsSceneTaxonomyChanged) =>
+            this.sceneTaxonomyChangedObservable.next(d),
+        );
+        this.realtime.on('guild.SceneTagsChanged', (d: WsSceneTagsChanged) =>
+            this.sceneTagsChangedObservable.next(d),
+        );
         this.realtime.on('guild.SceneTurnNudge', (d: WsSceneTurnNudge) =>
             this.sceneTurnNudgeObservable.next(d),
         );

@@ -51,12 +51,16 @@ export interface SceneDto {
     nudgeCount?: number | null;
     /** The cast the rotation is stepping over. Characters, never players. */
     awayPersonaIds?: string[];
+    /** The archive shelf this scene is filed on. Null means unfiled. */
+    folderId?: string | null;
+    tagIds?: string[];
+    createdAt?: string | null;
+    /** Null on a scene still running, and on one that ended before the column did. */
+    concludedAt?: string | null;
 
-    // ── Local only. The server sends none of these; `notePost` fills lastPostAt. ───
+    // ── Local only. The server does not send this; `notePost` fills it. ───────
     /** When the last post landed, as a fallback for a turn with no `turnStartedAt`. */
     lastPostAt?: string | null;
-    createdAt?: string | null;
-    concludedAt?: string | null;
 }
 
 /**
@@ -85,6 +89,12 @@ export interface SceneListItemDto {
     oocThreadId?: string | null;
     nudgeCount?: number | null;
     updatedAt?: string | null;
+    /** The archive shelf this scene is filed on. Null means unfiled. */
+    folderId?: string | null;
+    tagIds?: string[];
+    /** Null on a scene still running, and on one that ended before the column did. */
+    concludedAt?: string | null;
+    createdAt?: string | null;
 }
 
 /** `GET /guilds/{id}/scenes`. Not a bare array. */
@@ -124,11 +134,55 @@ export interface SceneTurnChangedDto {
     status: SceneStatus;
 }
 
+/** One shelf of the guild's scene archive. Nests two deep, never more. */
+export interface SceneFolderDto {
+    id: string;
+    guildId: string;
+    name: string;
+    position: number;
+    parentFolderId?: string | null;
+    /** A single emoji shown on the rail row. */
+    icon?: string | null;
+    color?: string | null;
+}
+
+/** A label applied to scenes. `ForumTag` in every respect but scope. */
+export interface SceneTagDto {
+    id: string;
+    guildId: string;
+    name: string;
+    /** `#000000` is the server's "no colour chosen" default, not real black. */
+    color: string;
+    emojiId?: string | null;
+    emojiName?: string | null;
+    position: number;
+    /** Only a ManageScenes holder may apply or remove it. */
+    moderated: boolean;
+}
+
+/**
+ * The guild's whole archive vocabulary. Read and replaced as one set, which is why
+ * `guild.SceneTaxonomyChanged` carries all of it rather than a delta.
+ */
+export interface SceneTaxonomyDto {
+    guildId: string;
+    folders: SceneFolderDto[];
+    tags: SceneTagDto[];
+}
+
+/** `guild.SceneTagsChanged`: one scene's labels were rewritten. */
+export interface SceneTagsChangedDto {
+    guildId: string;
+    channelId: string;
+    tagIds: string[];
+}
+
 /** `guild.SceneUpdated`: status, cast or rotation moved. Carries no display data for the cast. */
 export interface SceneUpdatedDto {
     guildId: string;
     channelId: string;
     status: SceneStatus;
+    folderId?: string | null;
     participantPersonaIds?: string[];
     turnOrder?: string[];
     currentTurnPersonaId?: string | null;

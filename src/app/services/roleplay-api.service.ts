@@ -2,15 +2,27 @@ import {inject, Injectable} from '@angular/core';
 import {HttpClient, HttpParams} from '@angular/common/http';
 import {Observable} from 'rxjs';
 import {ApiConfigService} from './api-config.service';
-import {SceneDto, SceneListDto} from '../dtos/response/scene.dto';
+import {
+    SceneDto,
+    SceneFolderDto,
+    SceneListDto,
+    SceneTagDto,
+    SceneTaxonomyDto,
+} from '../dtos/response/scene.dto';
 import {DiceRollDto} from '../dtos/response/dice.dto';
 import {
     AddSceneParticipantDto,
     AdvanceTurnDto,
     CreateSceneDto,
+    CreateSceneFolderDto,
+    CreateSceneTagDto,
+    ReorderSceneFoldersDto,
     SceneListParams,
+    SetSceneTagsDto,
     SkipTurnDto,
     UpdateSceneDto,
+    UpdateSceneFolderDto,
+    UpdateSceneTagDto,
 } from '../dtos/request/scene.dto';
 import {RollDiceDto} from '../dtos/request/dice.dto';
 
@@ -61,6 +73,31 @@ export abstract class RoleplayApi {
     abstract skipTurn(guildId: string, sceneChannelId: string, dto: SkipTurnDto): Observable<SceneDto>;
 
     abstract roll(guildId: string, channelId: string, dto: RollDiceDto): Observable<DiceRollDto>;
+
+    // ── Archive taxonomy ────────────────────────────────────────────────────
+
+    /** Folders and tags in one call: they are always read together and replaced together. */
+    abstract getTaxonomy(guildId: string): Observable<SceneTaxonomyDto>;
+
+    abstract createFolder(guildId: string, dto: CreateSceneFolderDto): Observable<SceneFolderDto>;
+
+    abstract updateFolder(folderId: string, dto: UpdateSceneFolderDto): Observable<SceneFolderDto>;
+
+    abstract deleteFolder(folderId: string): Observable<void>;
+
+    abstract reorderFolders(guildId: string, dto: ReorderSceneFoldersDto): Observable<void>;
+
+    abstract createTag(guildId: string, dto: CreateSceneTagDto): Observable<SceneTagDto>;
+
+    abstract updateTag(tagId: string, dto: UpdateSceneTagDto): Observable<SceneTagDto>;
+
+    abstract deleteTag(tagId: string): Observable<void>;
+
+    abstract setSceneTags(
+        guildId: string,
+        sceneChannelId: string,
+        dto: SetSceneTagsDto,
+    ): Observable<{tagIds: string[]}>;
 }
 
 @Injectable()
@@ -116,5 +153,45 @@ export class HttpRoleplayApi extends RoleplayApi {
 
     roll(guildId: string, channelId: string, dto: RollDiceDto): Observable<DiceRollDto> {
         return this.http.post<DiceRollDto>(`${this.base}/guilds/${guildId}/channels/${channelId}/rolls`, dto);
+    }
+
+    getTaxonomy(guildId: string): Observable<SceneTaxonomyDto> {
+        return this.http.get<SceneTaxonomyDto>(`${this.base}/guilds/${guildId}/scene-taxonomy`);
+    }
+
+    createFolder(guildId: string, dto: CreateSceneFolderDto): Observable<SceneFolderDto> {
+        return this.http.post<SceneFolderDto>(`${this.base}/guilds/${guildId}/scene-folders`, dto);
+    }
+
+    updateFolder(folderId: string, dto: UpdateSceneFolderDto): Observable<SceneFolderDto> {
+        return this.http.patch<SceneFolderDto>(`${this.base}/scene-folders/${folderId}`, dto);
+    }
+
+    deleteFolder(folderId: string): Observable<void> {
+        return this.http.delete<void>(`${this.base}/scene-folders/${folderId}`);
+    }
+
+    reorderFolders(guildId: string, dto: ReorderSceneFoldersDto): Observable<void> {
+        return this.http.patch<void>(`${this.base}/guilds/${guildId}/scene-folders/reorder`, dto);
+    }
+
+    createTag(guildId: string, dto: CreateSceneTagDto): Observable<SceneTagDto> {
+        return this.http.post<SceneTagDto>(`${this.base}/guilds/${guildId}/scene-tags`, dto);
+    }
+
+    updateTag(tagId: string, dto: UpdateSceneTagDto): Observable<SceneTagDto> {
+        return this.http.patch<SceneTagDto>(`${this.base}/scene-tags/${tagId}`, dto);
+    }
+
+    deleteTag(tagId: string): Observable<void> {
+        return this.http.delete<void>(`${this.base}/scene-tags/${tagId}`);
+    }
+
+    setSceneTags(
+        guildId: string,
+        sceneChannelId: string,
+        dto: SetSceneTagsDto,
+    ): Observable<{tagIds: string[]}> {
+        return this.http.put<{tagIds: string[]}>(`${this.scene(guildId, sceneChannelId)}/tags`, dto);
     }
 }

@@ -47,6 +47,7 @@ function wsStub() {
         sceneTurnChangedObservable: new Subject<any>(),
         sceneUpdatedObservable: new Subject<any>(),
         sceneTurnNudgeObservable: new Subject<any>(),
+        sceneTagsChangedObservable: new Subject<any>(),
     };
 }
 

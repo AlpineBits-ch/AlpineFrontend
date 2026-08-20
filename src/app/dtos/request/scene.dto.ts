@@ -38,8 +38,58 @@ export interface CreateSceneDto {
     status?: SceneStatus;
 }
 
+export interface CreateSceneFolderDto {
+    name: string;
+    parentFolderId?: string | null;
+    /** A single emoji. */
+    icon?: string | null;
+    color?: string | null;
+}
+
+/** Every field is optional and an omitted one is left alone. */
+export interface UpdateSceneFolderDto {
+    name?: string;
+    /** Empty string moves it to the root; omitting it leaves it where it is. */
+    parentFolderId?: string;
+    /** Empty string clears it. */
+    icon?: string;
+    color?: string;
+}
+
+export interface ReorderSceneFoldersDto {
+    /** Every folder in the guild, exactly once. Position comes from the index. */
+    folderIds: string[];
+}
+
+export interface CreateSceneTagDto {
+    name: string;
+    color?: string | null;
+    emojiId?: string | null;
+    emojiName?: string | null;
+    moderated?: boolean;
+}
+
+export interface UpdateSceneTagDto {
+    name?: string;
+    color?: string;
+    /** Empty string clears the emoji. */
+    emojiId?: string;
+    emojiName?: string;
+    moderated?: boolean;
+}
+
+/** Replaces a scene's whole tag set, so removing one is the same call as adding one. */
+export interface SetSceneTagsDto {
+    tagIds: string[];
+}
+
 export interface UpdateSceneDto {
     status?: SceneStatus;
+    /**
+     * Files the scene on a shelf. Omit the key to leave it alone, send null to unfile. The two are
+     * different requests, so this must never be spread in from an object with the key present.
+     */
+    folderId?: string | null;
     /** Replaces the cast. A character it drops leaves the scene. */
     participantPersonaIds?: string[];
     /** Checked against the cast as this same call leaves it. */
