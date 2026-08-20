@@ -10,6 +10,7 @@ import {GuildWebsocketService} from './guild-websocket.service';
 import {GuildService} from './guild.service';
 import {NavigationService} from '../features/main-page/navigation.service';
 import {SceneListDto, SceneListItemDto, SceneStatus} from '../dtos/response/scene.dto';
+import {SceneListParams} from '../dtos/request/scene.dto';
 import {GuildDto} from '../dtos/response/guild.dto';
 
 function row(over: Partial<SceneListItemDto> = {}): SceneListItemDto {
@@ -26,9 +27,12 @@ function row(over: Partial<SceneListItemDto> = {}): SceneListItemDto {
 
 function apiStub() {
     const lists: Subject<SceneListDto>[] = [];
+    const listCalls: (SceneListParams | undefined)[] = [];
     return {
         lists,
-        listScenes: () => {
+        listCalls,
+        listScenes: (_guildId: string, params?: SceneListParams) => {
+            listCalls.push(params);
             const subject = new Subject<SceneListDto>();
             lists.push(subject);
             return subject;
@@ -94,6 +98,14 @@ const CREATED = {
     turnOrder: ['per_1', 'per_2'],
     turnLengthHours: 48,
 };
+
+describe('SceneService board read', () => {
+    it('asks for concluded and archived scenes, which the server excludes by default', () => {
+        const {api} = setup();
+
+        expect(api.listCalls[0]).toEqual({includeConcluded: true, includeArchived: true});
+    });
+});
 
 describe('SceneService scene lifecycle events', () => {
     it('puts a created scene on a board that has been read', () => {

@@ -176,7 +176,9 @@ export class SceneService {
         if (this.requestedGuilds.has(guildId) && !force) return;
         this.requestedGuilds.add(guildId);
         this.loadingGuilds.update(map => ({...map, [guildId]: true}));
-        this.api.listScenes(guildId).subscribe({
+        // Both flags default to false on the server, so without them a concluded scene is on the
+        // board until the next reload and gone after it.
+        this.api.listScenes(guildId, {includeConcluded: true, includeArchived: true}).subscribe({
             next: page => {
                 this.byGuild.update(map => ({...map, [guildId]: page.scenes ?? []}));
                 this.learnChannels(

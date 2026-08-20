@@ -1,5 +1,5 @@
 import {inject, Injectable} from '@angular/core';
-import {HttpClient} from '@angular/common/http';
+import {HttpClient, HttpParams} from '@angular/common/http';
 import {Observable} from 'rxjs';
 import {ApiConfigService} from './api-config.service';
 import {SceneDto, SceneListDto} from '../dtos/response/scene.dto';
@@ -8,16 +8,34 @@ import {
     AddSceneParticipantDto,
     AdvanceTurnDto,
     CreateSceneDto,
+    SceneListParams,
     SkipTurnDto,
     UpdateSceneDto,
 } from '../dtos/request/scene.dto';
 import {RollDiceDto} from '../dtos/request/dice.dto';
 
+/** An absent value is left off the wire entirely, so the server's own default applies. */
+function sceneListParams(params?: SceneListParams): HttpParams {
+    let query = new HttpParams();
+    if (!params) return query;
+
+    for (const [key, value] of Object.entries(params)) {
+        if (value === undefined || value === null || value === '') continue;
+        if (Array.isArray(value)) {
+            if (value.length === 0) continue;
+            query = query.set(key, value.join(','));
+            continue;
+        }
+        query = query.set(key, String(value));
+    }
+    return query;
+}
+
 /** Scenes and dice, as one injectable seam. `app.config.ts` binds the implementation. */
 @Injectable()
 export abstract class RoleplayApi {
     /** The guild's scene board, newest activity first. Answers in an envelope, not a bare array. */
-    abstract listScenes(guildId: string): Observable<SceneListDto>;
+    abstract listScenes(guildId: string, params?: SceneListParams): Observable<SceneListDto>;
 
     abstract getScene(guildId: string, sceneChannelId: string): Observable<SceneDto>;
 
@@ -58,8 +76,10 @@ export class HttpRoleplayApi extends RoleplayApi {
         return `${this.base}/guilds/${guildId}/scenes/${sceneChannelId}`;
     }
 
-    listScenes(guildId: string): Observable<SceneListDto> {
-        return this.http.get<SceneListDto>(`${this.base}/guilds/${guildId}/scenes`);
+    listScenes(guildId: string, params?: SceneListParams): Observable<SceneListDto> {
+        return this.http.get<SceneListDto>(`${this.base}/guilds/${guildId}/scenes`, {
+            params: sceneListParams(params),
+        });
     }
 
     getScene(guildId: string, sceneChannelId: string): Observable<SceneDto> {

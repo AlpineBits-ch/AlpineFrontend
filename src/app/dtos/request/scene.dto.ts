@@ -1,5 +1,29 @@
 import {SceneStatus} from '../response/scene.dto';
 
+/** The folder filter value that means "filed nowhere". A real folder id never collides with it. */
+export const UNFILED = 'unfiled';
+
+export type SceneSort = 'board' | 'name' | 'ended';
+
+/**
+ * Query for `GET /guilds/{id}/scenes`. The server excludes concluded and archived scenes unless
+ * asked, so a caller that omits the flags gets the live board and nothing else.
+ */
+export interface SceneListParams {
+    waitingOnMe?: boolean;
+    includeConcluded?: boolean;
+    includeArchived?: boolean;
+    /** A folder id, or `UNFILED`. */
+    folderId?: string | null;
+    /** ANDed: a scene must carry every one of them. */
+    tagIds?: string[];
+    /** Scene name only. Never message content. */
+    q?: string;
+    sort?: SceneSort;
+    offset?: number;
+    limit?: number;
+}
+
 /** Creates the scene thread and its OOC companion in one call. */
 export interface CreateSceneDto {
     name: string;
