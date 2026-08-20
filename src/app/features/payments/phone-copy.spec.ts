@@ -36,7 +36,6 @@ describe('phone-number copy', () => {
             'PAY.SHEET.PHONE_PLAINTEXT',
             'PAY.SHEET.PHONE_ENTERED',
             'ACCOUNT.PHONE.TITLE',
-            'ACCOUNT.PHONE.DESC',
             'ACCOUNT.PHONE.PLACEHOLDER',
             'ACCOUNT.PHONE.FORMAT_HELP',
             'ACCOUNT.PHONE.PLAINTEXT',
@@ -105,14 +104,6 @@ describe('phone-number copy', () => {
         expect(COPY['PAY.PHONE.TITLE'].toLowerCase()).toContain('this house');
     });
 
-    it('says the account field is one number for the account and shared nowhere by default', () => {
-        // The mirror image of the rule above, and the reason this field is not in the ledger. Get
-        // this wrong and somebody types a number expecting it to reach one house.
-        const desc = COPY['ACCOUNT.PHONE.DESC'].toLowerCase();
-        expect(desc).toContain('account');
-        expect(desc).toMatch(/no house can see it|until you turn sharing on/);
-    });
-
     it('explains the + rather than offering to guess at a dialling plan', () => {
         // The server refuses a leading 00 instead of rewriting it, because that rewrite silently
         // produces a stranger's number in some countries. The field has to carry the reason, or the
@@ -170,7 +161,6 @@ describe('phone-number copy', () => {
         // sentence-level assertions are not.
         const accounted = new Set([
             'ACCOUNT.PHONE.TITLE',
-            'ACCOUNT.PHONE.DESC',
             'ACCOUNT.PHONE.PLACEHOLDER',
             'ACCOUNT.PHONE.FORMAT_HELP',
             'ACCOUNT.PHONE.PLAINTEXT',

@@ -16,10 +16,7 @@ import {UserService} from '../../../services/user.service';
     imports: [Button, InputText, FormsModule, TranslateModule],
     template: `
         <div class="flex flex-col gap-3" data-testid="account-phone">
-            <div>
-                <p class="text-sm text-text-primary">{{ 'ACCOUNT.PHONE.TITLE' | translate }}</p>
-                <p class="text-xs text-text-muted mt-0.5">{{ 'ACCOUNT.PHONE.DESC' | translate }}</p>
-            </div>
+            <p class="text-sm text-text-primary">{{ 'ACCOUNT.PHONE.TITLE' | translate }}</p>
 
             @if (loading()) {
                 <div class="h-9 w-full bg-white/[0.06] rounded animate-pulse"></div>
@@ -42,22 +39,12 @@ import {UserService} from '../../../services/user.service';
                             {{ key | translate }}
                         </p>
                     } @else {
-                        <!--
-                          Shown while the box is right as well as while it is wrong: the "+" rule is
-                          the thing people get wrong, and it is cheaper to state than to correct.
-                        -->
                         <p class="m-0 text-xs text-text-muted">
                             {{ 'ACCOUNT.PHONE.FORMAT_HELP' | translate }}
                         </p>
                     }
                 </div>
 
-                <!--
-                  The two sentences that keep this field honest. Neither is conditional: the
-                  plaintext one is what somebody weighs before typing a number at all, and the
-                  unchecked one is what stops the absence of a tick being read as the presence of
-                  one.
-                -->
                 <p class="m-0 text-xs text-text-muted">{{ 'ACCOUNT.PHONE.PLAINTEXT' | translate }}</p>
                 <p class="m-0 text-xs text-text-muted">{{ 'ACCOUNT.PHONE.UNVERIFIED' | translate }}</p>
 
@@ -72,10 +59,6 @@ import {UserService} from '../../../services/user.service';
                     />
 
                     @if (stored()) {
-                        <!--
-                          A first-class action rather than a hidden one. Somebody who shared a number
-                          and changed their mind needs the way out to be as visible as the way in.
-                        -->
                         <p-button
                             (onClick)="remove()"
                             [text]="true"
