@@ -74,7 +74,7 @@ export class RailResizeDirective implements OnInit, OnDestroy {
 
     protected onPointerMove(event: PointerEvent): void {
         if (!this.dragging()) return;
-        this.setWidthPx(this.clamp(this.dragStartWidth + (event.clientX - this.dragStartX)));
+        this.applyDragPosition(event.clientX);
     }
 
     protected onPointerUp(event: PointerEvent): void {
@@ -82,7 +82,7 @@ export class RailResizeDirective implements OnInit, OnDestroy {
         this.dragging.set(false);
         // The release position is authoritative even if the browser never fires a pointermove
         // exactly there.
-        this.setWidthPx(this.clamp(this.dragStartWidth + (event.clientX - this.dragStartX)));
+        this.applyDragPosition(event.clientX);
         if (this.host.hasPointerCapture?.(event.pointerId)) this.host.releasePointerCapture(event.pointerId);
         document.body.style.removeProperty('user-select');
         this.persist();
@@ -103,6 +103,10 @@ export class RailResizeDirective implements OnInit, OnDestroy {
             event.preventDefault();
             this.reset();
         }
+    }
+
+    private applyDragPosition(clientX: number): void {
+        this.setWidthPx(this.clamp(this.dragStartWidth + (clientX - this.dragStartX)));
     }
 
     private nudge(deltaPx: number): void {

@@ -196,7 +196,8 @@
 
 @media (max-width: 720px) {
     .archive-rail {
-        width: 13rem;
+        /* Still resizable when the window is small, just never more than half of it. */
+        width: min(var(--rail-width, 13rem), 60vw);
         padding: 1rem 0.5rem;
     }
 }

@@ -60,7 +60,10 @@ function widthOf(box: HTMLElement): string {
 }
 
 describe('RailResizeDirective', () => {
-    beforeEach(() => localStore.clear());
+    beforeEach(() => {
+        localStore.clear();
+        document.body.style.removeProperty('user-select');
+    });
 
     it('sets the width on pointerdown then pointermove', () => {
         const {strip, box} = setup();
@@ -120,5 +123,38 @@ describe('RailResizeDirective', () => {
 
         expect(widthOf(box)).toBe('');
         expect(JSON.parse(localStore.get(SCENE_RAIL_STORAGE_KEY) ?? '{}').width).toBeNull();
+    });
+
+    it('resets to the default on Home', () => {
+        const {strip, box} = setup();
+        box.style.setProperty('--rail-width', '300px');
+
+        strip.dispatchEvent(new KeyboardEvent('keydown', {key: 'Home', bubbles: true}));
+
+        expect(widthOf(box)).toBe('');
+        expect(JSON.parse(localStore.get(SCENE_RAIL_STORAGE_KEY) ?? '{}').width).toBeNull();
+    });
+
+    it('labels the strip from the translation key', () => {
+        const {strip} = setup();
+
+        expect(strip.getAttribute('aria-label')).toBe('SCENE.ARCHIVE.RESIZE_RAIL');
+    });
+
+    it('blocks text selection across the page while dragging', () => {
+        const {strip} = setup();
+
+        strip.dispatchEvent(pointer('pointerdown', 100));
+
+        expect(document.body.style.userSelect).toBe('none');
+    });
+
+    it('clears the selection block when a drag is cancelled rather than released', () => {
+        const {strip} = setup();
+        strip.dispatchEvent(pointer('pointerdown', 100));
+
+        strip.dispatchEvent(pointer('pointercancel', 130));
+
+        expect(document.body.style.userSelect).toBe('');
     });
 });
