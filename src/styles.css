@@ -157,7 +157,7 @@ body {
     color: #fff;
 }
 
-.chan-row.is-unread /* A module row that owns a tree: the twisty and the row are siblings, never nested buttons.
+/* A module row that owns a tree: the twisty and the row are siblings, never nested buttons.
    The row keeps its own padding, so the label column does not shift against the rows above it. */
 .chan-row-parent {
     padding-left: 0.25rem;
