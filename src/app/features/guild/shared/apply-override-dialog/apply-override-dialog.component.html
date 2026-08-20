@@ -73,6 +73,12 @@
                         <span class="break-words">{{ incomingDenyModuleLabel() }}</span>
                     </div>
                 }
+                @if (clearsModules()) {
+                    <div class="flex items-start gap-1.5 text-text-muted">
+                        <i class="pi pi-info-circle mt-0.5 shrink-0"></i>
+                        <span class="break-words">{{ 'APPLY_OVERRIDE.MODULE_CLEARED' | translate }}</span>
+                    </div>
+                }
             </div>
         </div>
 

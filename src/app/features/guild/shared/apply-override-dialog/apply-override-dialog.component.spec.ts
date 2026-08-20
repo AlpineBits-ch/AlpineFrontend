@@ -186,4 +186,46 @@ describe('ApplyOverrideDialogComponent module mask body', () => {
             denyModulePermissions: 'None',
         });
     });
+
+    // Replace means replace: omitting the pair would leave the target's module grant standing.
+    it('clears a target module mask the replacement does not carry', async () => {
+        const {component, guildService} = setup({
+            channels: [channel('c1')],
+            existing: {c1: {allow: 0n, deny: 0n, allowModule: 1n << 10n, denyModule: 0n}},
+            override: {allow: 2n, deny: 0n, allowModule: 0n, denyModule: 0n},
+        });
+
+        component.toggleChannel('c1');
+        await component.apply();
+
+        expect(guildService.upsertChannelRolePermission).toHaveBeenCalledWith('c1', ROLE_ID, {
+            allowPermissions: 'SendMessages',
+            denyPermissions: 'None',
+            allowModulePermissions: 'None',
+            denyModulePermissions: 'None',
+        });
+    });
+
+    it('warns in the preview that a target loses module permissions', () => {
+        const {component} = setup({
+            channels: [channel('c1')],
+            existing: {c1: {allow: 0n, deny: 0n, allowModule: 1n << 10n, denyModule: 0n}},
+            override: {allow: 2n, deny: 0n, allowModule: 0n, denyModule: 0n},
+        });
+
+        component.toggleChannel('c1');
+
+        expect(component['clearsModules']()).toBe(true);
+    });
+
+    it('keeps the preview quiet when no target has module permissions to lose', () => {
+        const {component} = setup({
+            channels: [channel('c1')],
+            override: {allow: 2n, deny: 0n, allowModule: 0n, denyModule: 0n},
+        });
+
+        component.toggleChannel('c1');
+
+        expect(component['clearsModules']()).toBe(false);
+    });
 });

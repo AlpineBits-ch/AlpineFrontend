@@ -80,6 +80,17 @@ export class ApplyOverrideDialogComponent {
         return planApply(targets, this.override(), this.mode());
     });
 
+    /** True when at least one selected channel loses module bits it already has. */
+    protected readonly clearsModules = computed(() =>
+        this.steps().some(
+            step =>
+                !step.skipped &&
+                step.existing !== null &&
+                ((step.existing.allowModule & ~step.result.allowModule) !== 0n ||
+                    (step.existing.denyModule & ~step.result.denyModule) !== 0n),
+        ),
+    );
+
     readonly selectedCount = computed(() => this.selected().size);
     readonly skippedCount = computed(() => this.steps().filter(s => s.skipped).length);
     readonly writeCount = computed(() => this.steps().filter(s => !s.skipped).length);
@@ -157,7 +168,7 @@ export class ApplyOverrideDialogComponent {
                         this.guildService.upsertChannelRolePermission(
                             step.channelId,
                             this.roleId(),
-                            this.body(step.result),
+                            this.body(step.result, step.existing),
                         ),
                     );
                     succeeded.push(step.channelId);
@@ -178,14 +189,19 @@ export class ApplyOverrideDialogComponent {
         return result;
     }
 
-    /** Omitting the module pair tells the server to carry it over; sending 'None' would clear it. */
-    private body(result: PermOverride): OverridePermissionsDto {
+    // Omitting the module pair tells the server to carry it over, so a replace that clears one has
+    // to send it explicitly or the target keeps a grant this dialog said it was replacing.
+    private body(result: PermOverride, existing: PermOverride | null): OverridePermissionsDto {
         const dto: OverridePermissionsDto = {
             allowPermissions: stringifyPermissions(result.allow),
             denyPermissions: stringifyPermissions(result.deny),
         };
 
-        if (result.allowModule !== 0n || result.denyModule !== 0n) {
+        const cleared =
+            existing !== null &&
+            (existing.allowModule !== result.allowModule || existing.denyModule !== result.denyModule);
+
+        if (result.allowModule !== 0n || result.denyModule !== 0n || cleared) {
             dto.allowModulePermissions = stringifyModulePermissions(result.allowModule);
             dto.denyModulePermissions = stringifyModulePermissions(result.denyModule);
         }

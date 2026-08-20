@@ -10,6 +10,8 @@ export interface ApplyTarget {
 export interface ApplyStep {
     channelId: string;
     result: PermOverride;
+    /** What the target already had, so the write can tell an unchanged module half from a cleared one. */
+    existing: PermOverride | null;
     /** Writing this would change nothing, so it is counted and not sent. */
     skipped: boolean;
 }
@@ -47,6 +49,7 @@ export function planApply(targets: ApplyTarget[], incoming: PermOverride, mode: 
         return {
             channelId: target.channelId,
             result,
+            existing: target.existing,
             skipped: target.existing !== null && same(target.existing, result),
         };
     });
