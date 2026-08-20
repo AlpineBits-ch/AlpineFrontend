@@ -5,9 +5,9 @@
 
 .titlebar {
     position: relative;
-    /* Mirrored by WindowChromeService.TITLEBAR_HEIGHT and by the onboarding overlay's own drag
-       strip; all three have to move together. */
-    height: 38px;
+    /* --spacing-titlebar is the shared token; WindowChromeService.TITLEBAR_HEIGHT mirrors it in
+       TS for window-drag hit testing, and the onboarding overlay's own drag strip reads it too. */
+    height: var(--spacing-titlebar);
     background: var(--color-app-bg);
     display: flex;
     align-items: center;

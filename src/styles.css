@@ -1184,6 +1184,11 @@ label {
      land on the same line no matter which pane you are looking at. */
     --spacing-header: 3.125rem;
 
+    /* The custom titlebar's own height (WindowChromeService.TITLEBAR_HEIGHT mirrors it in TS,
+     since window-drag hit testing needs a plain number). Anything that goes full screen over
+     the app shell insets by this so the window controls stay reachable. */
+    --spacing-titlebar: 2.375rem;
+
     /* The room the floating call controls need at the bottom of a stage.
      Both call views reserve it with `pb-call-controls`. The DM panel used
      to hardcode `padding-bottom: 114px` and the screen-share layout
