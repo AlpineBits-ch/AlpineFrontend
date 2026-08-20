@@ -26,7 +26,7 @@
                     <th class="sticky left-0 z-20 bg-card text-left font-semibold text-text-secondary px-3 py-2 whitespace-nowrap">
                         {{ 'ROLE_CHANNELS.TAB' | translate }}
                     </th>
-                    @for (col of columns; track col) {
+                    @for (col of columns(); track col) {
                         <th class="font-semibold text-text-secondary px-2 py-2 text-center whitespace-nowrap">
                             {{ label(col) }}
                         </th>
@@ -34,57 +34,68 @@
                 </tr>
             </thead>
             <tbody>
-                @for (row of rows(); track row.channel.id) {
-                    <tr class="border-t border-border-subtle hover:bg-white/[0.03]">
-                        <td class="sticky left-0 z-10 bg-app-bg px-3 py-1.5 whitespace-nowrap">
-                            <div class="flex items-center gap-1.5 group">
-                                @if (row.categoryLabel) {
-                                    <span class="text-text-muted">{{ row.categoryLabel }} /</span>
-                                }
-                                <span class="text-text-primary">{{ row.channel.name }}</span>
-                                <button
-                                    (click)="openApplyDialog(row.channel.id)"
-                                    [attr.aria-label]="'ROLE_CHANNELS.APPLY' | translate"
-                                    [pTooltip]="'ROLE_CHANNELS.APPLY' | translate"
-                                    class="opacity-0 group-hover:opacity-100 shrink-0 w-5 h-5 rounded flex items-center justify-center border-0 bg-transparent text-text-muted hover:text-text-primary hover:bg-white/[0.06] cursor-pointer transition-all"
-                                    tooltipPosition="top"
-                                    type="button"
-                                >
-                                    <i class="pi pi-share-alt text-[0.6rem]"></i>
-                                </button>
-                            </div>
-                        </td>
-                        @for (col of columns; track col) {
-                            <td class="px-2 py-1.5 text-center">
-                                @if (applies(row.channel.id, col)) {
+                @for (group of groups(); track group.category?.id ?? '') {
+                    @if (group.category; as category) {
+                        <tr>
+                            <td
+                                [attr.colspan]="columns().length + 1"
+                                class="bg-white/[0.03] px-3 py-1 text-[0.625rem] font-semibold uppercase tracking-widest text-text-muted"
+                            >
+                                {{ category.name }}
+                            </td>
+                        </tr>
+                    }
+                    @for (channel of group.channels; track channel.id) {
+                        <tr class="border-t border-border-subtle hover:bg-white/[0.03]">
+                            <td class="sticky left-0 z-10 bg-app-bg px-3 py-1.5 whitespace-nowrap">
+                                <div class="flex items-center gap-1.5 group">
+                                    <span class="text-text-primary">{{ channel.name }}</span>
                                     <button
-                                        (click)="cycleCell(row.channel.id, col)"
-                                        [attr.aria-label]="label(col)"
-                                        [ngClass]="{
-                                            'bg-online/20 text-online': cellState(row.channel.id, col) === 'allow',
-                                            'bg-offline/20 text-offline': cellState(row.channel.id, col) === 'deny',
-                                            'bg-white/[0.06] text-text-muted': cellState(row.channel.id, col) === 'inherit',
-                                        }"
-                                        [pTooltip]="'ROLE_CHANNELS.LEGEND_' + cellState(row.channel.id, col).toUpperCase() | translate"
-                                        class="w-5 h-5 rounded-full inline-flex items-center justify-center border-0 cursor-pointer transition-colors"
+                                        (click)="openApplyDialog(channel.id)"
+                                        [attr.aria-label]="'ROLE_CHANNELS.APPLY' | translate"
+                                        [pTooltip]="'ROLE_CHANNELS.APPLY' | translate"
+                                        class="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 shrink-0 w-5 h-5 rounded flex items-center justify-center border-0 bg-transparent text-text-muted hover:text-text-primary hover:bg-white/[0.06] cursor-pointer transition-all outline-none focus-visible:ring-1 focus-visible:ring-brand"
                                         tooltipPosition="top"
                                         type="button"
                                     >
-                                        @switch (cellState(row.channel.id, col)) {
-                                            @case ('allow') {
-                                                <i class="pi pi-check text-[0.55rem]"></i>
-                                            }
-                                            @case ('deny') {
-                                                <i class="pi pi-times text-[0.55rem]"></i>
-                                            }
-                                        }
+                                        <i class="pi pi-share-alt text-[0.6rem]"></i>
                                     </button>
-                                } @else {
-                                    <span class="text-text-muted">&#8195;</span>
-                                }
+                                </div>
                             </td>
-                        }
-                    </tr>
+                            @for (col of columns(); track col) {
+                                <td class="px-2 py-1.5 text-center">
+                                    @if (applies(channel.id, col)) {
+                                        <button
+                                            (click)="cycleCell(channel.id, col)"
+                                            [attr.aria-label]="label(col)"
+                                            [ngClass]="{
+                                                'bg-online/20 text-online': cellState(channel.id, col) === 'allow',
+                                                'bg-offline/20 text-offline': cellState(channel.id, col) === 'deny',
+                                                'bg-white/[0.06] text-text-muted': cellState(channel.id, col) === 'inherit',
+                                            }"
+                                            [pTooltip]="'ROLE_CHANNELS.LEGEND_' + cellState(channel.id, col).toUpperCase() | translate"
+                                            class="w-5 h-5 rounded-full inline-flex items-center justify-center border-0 cursor-pointer transition-colors"
+                                            tooltipPosition="top"
+                                            type="button"
+                                        >
+                                            @switch (cellState(channel.id, col)) {
+                                                @case ('allow') {
+                                                    <i class="pi pi-check text-[0.55rem]"></i>
+                                                }
+                                                @case ('deny') {
+                                                    <i class="pi pi-times text-[0.55rem]"></i>
+                                                }
+                                            }
+                                        </button>
+                                    } @else {
+                                        <span [title]="'ROLE_CHANNELS.NOT_APPLICABLE' | translate" class="text-text-muted/50 select-none">
+                                            -
+                                        </span>
+                                    }
+                                </td>
+                            }
+                        </tr>
+                    }
                 }
             </tbody>
         </table>

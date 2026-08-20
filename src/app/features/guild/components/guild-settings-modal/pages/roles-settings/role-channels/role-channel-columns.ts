@@ -39,3 +39,15 @@ export const ALL_CHANNEL_COLUMNS: PermissionKey[] = [
     'Stream',
     'ManageChannel',
 ];
+
+/**
+ * The header for a real guild: only the columns its channel types actually use, still in
+ * {@link ALL_CHANNEL_COLUMNS} order so the grid never reshuffles as channels change.
+ */
+export function columnsPresent(types: ChannelType[]): PermissionKey[] {
+    const present = new Set<PermissionKey>();
+    for (const type of types) {
+        for (const key of columnsFor(type)) present.add(key);
+    }
+    return ALL_CHANNEL_COLUMNS.filter(key => present.has(key));
+}

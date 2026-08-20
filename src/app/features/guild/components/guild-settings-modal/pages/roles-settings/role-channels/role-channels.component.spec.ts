@@ -1,7 +1,7 @@
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {provideHttpClient} from '@angular/common/http';
 import {provideHttpClientTesting} from '@angular/common/http/testing';
-import {provideTranslateService} from '@ngx-translate/core';
+import {provideTranslateService, TranslateService} from '@ngx-translate/core';
 import {of, throwError} from 'rxjs';
 import {vi} from 'vitest';
 import {RoleChannelsComponent} from './role-channels.component';
@@ -9,6 +9,7 @@ import {GuildService, OverridePermissionsDto} from '../../../../../../../service
 import {ToastService} from '../../../../../../../services/toast.service';
 import {Permissions} from '../../../../../../../enums/permissions.enum';
 import {
+    CategoryDto,
     ChannelDto,
     ChannelPermission,
     ChannelType,
@@ -59,8 +60,21 @@ function channel(id: string, type: ChannelType, override?: Partial<ChannelPermis
     } as ChannelDto;
 }
 
+function category(id: string, name: string, position: number): CategoryDto {
+    return {
+        id,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        name,
+        description: '',
+        permissions: [],
+        position,
+    };
+}
+
 interface SetupOptions {
     channels: ChannelDto[];
+    categories?: CategoryDto[];
 }
 
 function setup(options: SetupOptions) {
@@ -100,10 +114,13 @@ function setup(options: SetupOptions) {
     fixture.componentRef.setInput('guild', guild());
     fixture.componentRef.setInput('role', role());
     fixture.componentRef.setInput('channels', options.channels);
-    fixture.componentRef.setInput('categories', []);
+    fixture.componentRef.setInput('categories', options.categories ?? []);
     fixture.detectChanges();
 
-    return {fixture, component: fixture.componentInstance, guildService, toastService};
+    const translate = TestBed.inject(TranslateService);
+    vi.spyOn(translate, 'instant');
+
+    return {fixture, component: fixture.componentInstance, guildService, toastService, translate};
 }
 
 describe('RoleChannelsComponent', () => {
@@ -201,6 +218,54 @@ describe('RoleChannelsComponent', () => {
         component.onApplied({succeeded: [], failed: ['c9']});
 
         expect(toastService.error).toHaveBeenCalled();
+    });
+
+    it('chooses the singular apply-failure key for exactly one failed channel', () => {
+        const {component, translate} = setup({channels: [channel('c1', ChannelType.Text)]});
+
+        component.onApplied({succeeded: [], failed: ['c9']});
+
+        expect(translate.instant).toHaveBeenCalledWith('ROLE_CHANNELS.APPLY_PARTIAL_FAILURE_ONE', {count: 1});
+    });
+
+    it('chooses the plural apply-failure key for more than one failed channel', () => {
+        const {component, translate} = setup({channels: [channel('c1', ChannelType.Text)]});
+
+        component.onApplied({succeeded: [], failed: ['c8', 'c9']});
+
+        expect(translate.instant).toHaveBeenCalledWith('ROLE_CHANNELS.APPLY_PARTIAL_FAILURE', {count: 2});
+    });
+
+    it('drops voice columns from the header when the guild has no voice channels', () => {
+        const {component} = setup({channels: [channel('c1', ChannelType.Text)]});
+
+        expect(component['columns']()).not.toContain('Connect');
+    });
+
+    it('adds voice columns to the header once the guild has a voice channel', () => {
+        const {component} = setup({
+            channels: [channel('c1', ChannelType.Text), channel('c2', ChannelType.Voice)],
+        });
+
+        expect(component['columns']()).toContain('Connect');
+    });
+
+    it('groups channels under their category, with uncategorised channels leading', () => {
+        const cat = category('cat_1', 'Voice Channels', 0);
+        const {component} = setup({
+            channels: [
+                {...channel('c1', ChannelType.Text), categoryId: 'cat_1', position: 0},
+                {...channel('c2', ChannelType.Text), categoryId: undefined, position: 0},
+            ],
+            categories: [cat],
+        });
+
+        const groups = component['groups']();
+
+        expect(groups).toEqual([
+            {category: null, channels: [expect.objectContaining({id: 'c2'})]},
+            {category: cat, channels: [expect.objectContaining({id: 'c1'})]},
+        ]);
     });
 
     it('reports a failed cell write via a toast and leaves the cell as it was', () => {

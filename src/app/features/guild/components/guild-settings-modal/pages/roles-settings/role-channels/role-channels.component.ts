@@ -2,7 +2,7 @@ import {ChangeDetectionStrategy, Component, computed, effect, inject, input, sig
 import {NgClass} from '@angular/common';
 import {Tooltip} from 'primeng/tooltip';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
-import {ALL_CHANNEL_COLUMNS, columnsFor} from './role-channel-columns';
+import {columnsFor, columnsPresent} from './role-channel-columns';
 import {
     EMPTY_OVERRIDE,
     OverrideState,
@@ -27,9 +27,10 @@ import {parseModulePermissions} from '../../../../../../../enums/module-permissi
 import {GuildService} from '../../../../../../../services/guild.service';
 import {ToastService} from '../../../../../../../services/toast.service';
 
-interface RoleChannelRow {
-    channel: ChannelDto;
-    categoryLabel: string;
+/** One category's channels, in position order. `category` is null for the leading uncategorised group. */
+interface RoleChannelGroup {
+    category: CategoryDto | null;
+    channels: ChannelDto[];
 }
 
 function toOverride(perm: ChannelPermission): PermOverride {
@@ -75,14 +76,21 @@ export class RoleChannelsComponent {
         return this.channels().filter(c => c.id !== channelId);
     });
 
-    protected readonly rows = computed<RoleChannelRow[]>(() => {
-        const categoryNames = new Map(this.categories().map(c => [c.id, c.name]));
-        return [...this.channels()]
-            .sort((a, b) => a.position - b.position)
-            .map(channel => ({
-                channel,
-                categoryLabel: channel.categoryId ? (categoryNames.get(channel.categoryId) ?? '') : '',
-            }));
+    /** Uncategorised channels lead, unlabelled, matching the channel list sidebar; each category then gets its own header row. Empty categories are skipped, there is nothing to show under them. */
+    protected readonly groups = computed<RoleChannelGroup[]>(() => {
+        const channels = this.channels();
+        const byPosition = (a: ChannelDto, b: ChannelDto): number => a.position - b.position;
+
+        const groups: RoleChannelGroup[] = [];
+        const uncategorized = channels.filter(c => !c.categoryId).sort(byPosition);
+        if (uncategorized.length > 0) groups.push({category: null, channels: uncategorized});
+
+        for (const category of [...this.categories()].sort((a, b) => a.position - b.position)) {
+            const inCategory = channels.filter(c => c.categoryId === category.id).sort(byPosition);
+            if (inCategory.length > 0) groups.push({category, channels: inCategory});
+        }
+
+        return groups;
     });
 
     protected readonly overrideCount = computed(() => this.overrides().size);
@@ -101,9 +109,10 @@ export class RoleChannelsComponent {
         });
     }
 
-    protected get columns(): PermissionKey[] {
-        return ALL_CHANNEL_COLUMNS;
-    }
+    /** Only the columns this guild's own channel types use, so the grid never clips on types it doesn't have. */
+    protected readonly columns = computed<PermissionKey[]>(() =>
+        columnsPresent(this.channels().map(c => c.type)),
+    );
 
     label(key: PermissionKey): string {
         return permissionLabel(key);
@@ -176,9 +185,11 @@ export class RoleChannelsComponent {
             });
         }
         if (result.failed.length > 0) {
-            this.toastService.error(
-                this.translate.instant('ROLE_CHANNELS.APPLY_PARTIAL_FAILURE', {count: result.failed.length}),
-            );
+            const key =
+                result.failed.length === 1
+                    ? 'ROLE_CHANNELS.APPLY_PARTIAL_FAILURE_ONE'
+                    : 'ROLE_CHANNELS.APPLY_PARTIAL_FAILURE';
+            this.toastService.error(this.translate.instant(key, {count: result.failed.length}));
         }
     }
 
