@@ -1,7 +1,7 @@
 import {ChangeDetectionStrategy, Component, computed, effect, inject, input, signal} from '@angular/core';
 import {NgClass} from '@angular/common';
 import {Tooltip} from 'primeng/tooltip';
-import {TranslateModule} from '@ngx-translate/core';
+import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {ALL_CHANNEL_COLUMNS, columnsFor} from './role-channel-columns';
 import {
     EMPTY_OVERRIDE,
@@ -24,6 +24,7 @@ import {
 } from '../../../../../../../enums/permissions.enum';
 import {parseModulePermissions} from '../../../../../../../enums/module-permissions.enum';
 import {GuildService} from '../../../../../../../services/guild.service';
+import {ToastService} from '../../../../../../../services/toast.service';
 
 interface RoleChannelRow {
     channel: ChannelDto;
@@ -52,6 +53,8 @@ export class RoleChannelsComponent {
     readonly categories = input.required<CategoryDto[]>();
 
     private readonly guildService = inject(GuildService);
+    private readonly toastService = inject(ToastService);
+    private readonly translate = inject(TranslateService);
 
     /** Keyed by channel id, holding only this role's override on that channel. */
     private readonly overrides = signal<Map<string, PermOverride>>(new Map());
@@ -123,6 +126,7 @@ export class RoleChannelsComponent {
         if (allow === 0n && deny === 0n && current.allowModule === 0n && current.denyModule === 0n) {
             this.guildService.deleteChannelRolePermission(channelId, this.role().id).subscribe({
                 next: () => this.forget(channelId),
+                error: err => this.reportCellError(err),
             });
             return;
         }
@@ -132,7 +136,15 @@ export class RoleChannelsComponent {
                 allowPermissions: stringifyPermissions(allow),
                 denyPermissions: stringifyPermissions(deny),
             })
-            .subscribe({next: perm => this.remember(channelId, perm)});
+            .subscribe({
+                next: perm => this.remember(channelId, perm),
+                error: err => this.reportCellError(err),
+            });
+    }
+
+    /** Never left showing the edit as saved: overrides only changes from remember/forget, never optimistically. */
+    private reportCellError(err: unknown): void {
+        this.toastService.httpError(this.translate.instant('ROLE_CHANNELS.CELL_ERROR'), err);
     }
 
     private overrideFor(channelId: string): PermOverride {

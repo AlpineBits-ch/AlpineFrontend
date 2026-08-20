@@ -2,10 +2,11 @@ import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {provideHttpClient} from '@angular/common/http';
 import {provideHttpClientTesting} from '@angular/common/http/testing';
 import {provideTranslateService} from '@ngx-translate/core';
-import {of} from 'rxjs';
+import {of, throwError} from 'rxjs';
 import {vi} from 'vitest';
 import {RoleChannelsComponent} from './role-channels.component';
 import {GuildService, OverridePermissionsDto} from '../../../../../../../services/guild.service';
+import {ToastService} from '../../../../../../../services/toast.service';
 import {
     ChannelDto,
     ChannelPermission,
@@ -77,6 +78,11 @@ function setup(options: SetupOptions) {
         deleteChannelRolePermission: vi.fn(() => of(undefined)),
     };
 
+    const toastService = {
+        error: vi.fn(),
+        httpError: vi.fn(),
+    };
+
     TestBed.configureTestingModule({
         imports: [RoleChannelsComponent],
         providers: [
@@ -84,6 +90,7 @@ function setup(options: SetupOptions) {
             provideHttpClientTesting(),
             provideTranslateService(),
             {provide: GuildService, useValue: guildService},
+            {provide: ToastService, useValue: toastService},
         ],
     });
 
@@ -94,7 +101,7 @@ function setup(options: SetupOptions) {
     fixture.componentRef.setInput('categories', []);
     fixture.detectChanges();
 
-    return {fixture, component: fixture.componentInstance, guildService};
+    return {fixture, component: fixture.componentInstance, guildService, toastService};
 }
 
 describe('RoleChannelsComponent', () => {
@@ -147,5 +154,15 @@ describe('RoleChannelsComponent', () => {
 
         expect(component.applies('c1', 'SendMessages')).toBe(false);
         expect(component.applies('c1', 'Connect')).toBe(true);
+    });
+
+    it('reports a failed cell write via a toast and leaves the cell as it was', () => {
+        const {component, guildService, toastService} = setup({channels: [channel('c1', ChannelType.Text)]});
+        guildService.upsertChannelRolePermission.mockReturnValue(throwError(() => new Error('403')));
+
+        component.setCell('c1', 'SendMessages', 'deny');
+
+        expect(toastService.httpError).toHaveBeenCalled();
+        expect(component.cellState('c1', 'SendMessages')).toBe('inherit');
     });
 });
