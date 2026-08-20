@@ -61,7 +61,9 @@ export interface SceneGroup {
     ],
     templateUrl: './scene-board.component.html',
     styleUrl: './scene-board.component.css',
-    host: {class: 'flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden'},
+    // `h-full` rather than `flex-1` alone: main-page drops this into a plain block container, so
+    // there is no flex parent to stretch against and the board would take its content's height.
+    host: {class: 'flex flex-col flex-1 min-w-0 min-h-0 h-full overflow-hidden'},
 })
 export class SceneBoardComponent {
     readonly guildId = input.required<string>();
