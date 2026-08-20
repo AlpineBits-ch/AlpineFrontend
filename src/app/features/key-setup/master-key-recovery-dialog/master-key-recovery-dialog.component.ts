@@ -1,6 +1,8 @@
 import {Component, computed, EventEmitter, inject, Input, Output, signal} from '@angular/core';
+import {FormsModule} from '@angular/forms';
 import {Dialog} from 'primeng/dialog';
 import {Button} from 'primeng/button';
+import {Checkbox} from 'primeng/checkbox';
 import {PasswordDirective} from 'primeng/password';
 import {MasterKeyRepair, MasterKeyStateService} from '../../../services/master-key-state.service';
 
@@ -37,11 +39,18 @@ function unexpected(err: unknown): string {
     return 'Something went wrong. Please try again.';
 }
 
-/** The two repairs a master key can need, and the one loss it cannot. */
+/**
+ * Where the re-key sits relative to the state the account is actually in.
+ *
+ * Empty means the panel for {@link MasterKeyStateService.action} is showing.
+ */
+type ResetStep = '' | 'confirm' | 'orphans';
+
+/** The two repairs a master key can need, the one loss it cannot, and the way out of that loss. */
 @Component({
     selector: 'app-master-key-recovery-dialog',
     standalone: true,
-    imports: [Dialog, Button, PasswordDirective],
+    imports: [Dialog, Button, Checkbox, FormsModule, PasswordDirective],
     templateUrl: './master-key-recovery-dialog.component.html',
 })
 export class MasterKeyRecoveryDialogComponent {
@@ -56,8 +65,12 @@ export class MasterKeyRecoveryDialogComponent {
     protected readonly recoveryCode = signal('');
     protected readonly newPassword = signal('');
     protected readonly password = signal('');
-    /** Set once a retrofit produced a code, so it can be shown exactly once. */
+    /** Set once a retrofit or a re-key produced a code, so it can be shown exactly once. */
     protected readonly generatedCode = signal('');
+    protected readonly resetStep = signal<ResetStep>('');
+    protected readonly resetAcknowledged = signal(false);
+    /** Devices whose stored backups the re-key would strand, as the server named them. */
+    protected readonly orphanedDevices = signal<string[]>([]);
 
     protected onRecoveryCodeInput(event: Event): void {
         this.recoveryCode.set((event.target as HTMLInputElement).value);
@@ -123,6 +136,66 @@ export class MasterKeyRecoveryDialogComponent {
         }
     }
 
+    /** Opens the re-key branch: for a user with no recovery code, the only remaining move. */
+    protected startReset(): void {
+        this.password.set('');
+        this.errorMsg.set('');
+        this.resetAcknowledged.set(false);
+        this.orphanedDevices.set([]);
+        this.resetStep.set('confirm');
+    }
+
+    protected cancelReset(): void {
+        this.password.set('');
+        this.errorMsg.set('');
+        this.resetAcknowledged.set(false);
+        this.orphanedDevices.set([]);
+        this.resetStep.set('');
+    }
+
+    /**
+     * Replaces the master key, giving up everything sealed under the old one.
+     *
+     * Called twice at most: once from the warning, and once more with `acknowledgeOrphans` after
+     * the server has named the device backups that would be stranded.
+     */
+    protected async onReset(acknowledgeOrphans = false): Promise<void> {
+        if (this.busy()) return;
+        if (!this.password()) {
+            this.errorMsg.set('Your password is required.');
+            return;
+        }
+        if (!this.resetAcknowledged()) {
+            this.errorMsg.set('Please confirm you understand what this deletes.');
+            return;
+        }
+        this.busy.set(true);
+        try {
+            const result = await this.state.resetEncryption(this.password(), acknowledgeOrphans);
+            if (result.outcome === 'ok') {
+                this.resetStep.set('');
+                this.generatedCode.set(result.recoveryCode!);
+                return;
+            }
+            if (result.outcome === 'orphans-pending') {
+                // Nothing has been written yet. The server refuses to strand a stored backup
+                // silently, and the user has not been told which devices those are.
+                this.orphanedDevices.set(result.deviceIds);
+                this.resetStep.set('orphans');
+                return;
+            }
+            if (result.outcome === 'server-refused') {
+                this.errorMsg.set(`The server refused the reset: ${result.detail}`);
+                return;
+            }
+            this.errorMsg.set(describeRepairFailure(result, 'password'));
+        } catch (err) {
+            this.errorMsg.set(unexpected(err));
+        } finally {
+            this.busy.set(false);
+        }
+    }
+
     protected async copyCode(): Promise<void> {
         try {
             await navigator.clipboard.writeText(this.generatedCode());
@@ -137,6 +210,9 @@ export class MasterKeyRecoveryDialogComponent {
         this.password.set('');
         this.generatedCode.set('');
         this.errorMsg.set('');
+        this.resetStep.set('');
+        this.resetAcknowledged.set(false);
+        this.orphanedDevices.set([]);
         this.dismissed.emit();
     }
 }

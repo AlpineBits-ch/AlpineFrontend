@@ -2,6 +2,7 @@ import {TestBed} from '@angular/core/testing';
 import {HttpErrorResponse} from '@angular/common/http';
 import {Observable, of, throwError} from 'rxjs';
 import {MasterKeyStateService} from './master-key-state.service';
+import {UserService} from './user.service';
 import {BackupService, MasterKeyWrappingDto, PutRecoveryKeyDto, RecoveryKeyDto} from './backup.service';
 import {
     CredentialKind,
@@ -38,9 +39,9 @@ function envelope(overrides: Partial<RecoveryKeyDto> = {}): RecoveryKeyDto {
 function setup() {
     const backup = {
         getRecoveryKey: vi.fn<() => Observable<RecoveryKeyDto>>(() => of(envelope())),
-        putRecoveryKey: vi.fn<(dto: PutRecoveryKeyDto) => Observable<{version: number}>>(() =>
-            of({version: 1}),
-        ),
+        putRecoveryKey: vi.fn<
+            (dto: PutRecoveryKeyDto, acknowledgeOrphans?: boolean) => Observable<{version: number}>
+        >(() => of({version: 1})),
         rewrapPassword: vi.fn<
             (
                 version: number,
@@ -71,17 +72,42 @@ function setup() {
             }),
         ),
         generateRecoveryCode: vi.fn(async () => 'AAAA-BBBB-CCCC-DDDD-EEEE-FFFF-GGGG-HHHH'),
+        setupDualWrapped: vi.fn(async (_password: string, _recoveryCode: string) => ({
+            passwordWrapping: {
+                cipherText: 'ZnJlc2g=',
+                salt: 'ZnJlc2hzYWx0',
+                iv: 'ZnJlc2hpdg==',
+                argon2Iterations: 3,
+                argon2Memory: 65536,
+                argon2Parallelism: 1,
+                version: 1,
+                publicVerifier: 'ZnJlc2h2ZXJpZmllcg==',
+            },
+            recoveryCodeWrapping: {
+                cipherText: 'ZnJlc2hyYw==',
+                salt: 'ZnJlc2hyY3NhbHQ=',
+                iv: 'ZnJlc2hyY2l2',
+                argon2Iterations: 3,
+                argon2Memory: 65536,
+                argon2Parallelism: 1,
+                version: 1,
+                publicVerifier: 'ZnJlc2h2ZXJpZmllcg==',
+            },
+        })),
     };
+
+    const user = {verifyPassword: vi.fn<(password: string) => Observable<boolean>>(() => of(true))};
 
     TestBed.configureTestingModule({
         providers: [
             MasterKeyStateService,
             {provide: BackupService, useValue: backup},
             {provide: MasterKeyService, useValue: masterKey},
+            {provide: UserService, useValue: user},
         ],
     });
 
-    return {state: TestBed.inject(MasterKeyStateService), backup, masterKey};
+    return {state: TestBed.inject(MasterKeyStateService), backup, masterKey, user};
 }
 
 describe('MasterKeyStateService', () => {
@@ -382,6 +408,95 @@ describe('MasterKeyStateService', () => {
 
             expect(result.outcome).toBe('engine-failed');
             expect(backup.putRecoveryKey).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('starting over without a recovery code', () => {
+        /** Puts the account in the state the branch exists for, with the re-read seeing a rotation. */
+        async function stuckAfterReset() {
+            const kit = setup();
+            kit.backup.getRecoveryKey.mockReturnValue(
+                of(envelope({passwordWrappingInvalidatedAt: '2026-08-01T10:00:00Z'})),
+            );
+            await kit.state.refresh();
+            kit.backup.getRecoveryKey.mockReturnValue(of(envelope({version: 2})));
+            return kit;
+        }
+
+        it('rotates to a new key and hands back the new code', async () => {
+            const {state, backup} = await stuckAfterReset();
+
+            const result = await state.resetEncryption('new-password');
+
+            expect(result).toEqual({
+                outcome: 'ok',
+                recoveryCode: 'AAAA-BBBB-CCCC-DDDD-EEEE-FFFF-GGGG-HHHH',
+            });
+            const [dto] = backup.putRecoveryKey.mock.calls[0]!;
+            // The whole point of this path: a different key, so the version has to move. At the
+            // stored version the server reads the write as a claim that the bytes seal the same key
+            // and refuses it.
+            expect(dto.version).toBe(2);
+            expect(dto.cipherText).toBe('ZnJlc2g=');
+            expect(dto.recoveryCodeWrapping!.cipherText).toBe('ZnJlc2hyYw==');
+        });
+
+        it('does not silently strand the backups the server warned about', async () => {
+            const {state, backup} = await stuckAfterReset();
+            backup.putRecoveryKey.mockReturnValue(
+                throwError(
+                    () =>
+                        new HttpErrorResponse({
+                            status: 409,
+                            error: {version: 1, orphanedBlobDeviceIds: ['device-a', 'device-b']},
+                        }),
+                ),
+            );
+
+            const result = await state.resetEncryption('new-password');
+
+            expect(result).toEqual({outcome: 'orphans-pending', deviceIds: ['device-a', 'device-b']});
+            expect(backup.putRecoveryKey.mock.calls[0]![1]).toBe(false);
+        });
+
+        it('acknowledges the orphans on the second attempt', async () => {
+            const {state, backup} = await stuckAfterReset();
+
+            await state.resetEncryption('new-password', true);
+
+            expect(backup.putRecoveryKey.mock.calls[0]![1]).toBe(true);
+        });
+
+        it('checks the password before anything is generated', async () => {
+            const {state, backup, masterKey, user} = await stuckAfterReset();
+            user.verifyPassword.mockReturnValue(of(false));
+
+            const result = await state.resetEncryption('wrong');
+
+            expect(result.outcome).toBe('credential-rejected');
+            expect(masterKey.setupDualWrapped).not.toHaveBeenCalled();
+            expect(backup.putRecoveryKey).not.toHaveBeenCalled();
+        });
+
+        it('repeats what the server said rather than blaming the password', async () => {
+            const {state, backup} = await stuckAfterReset();
+            backup.putRecoveryKey.mockReturnValue(
+                throwError(() => new HttpErrorResponse({status: 400, error: 'publicVerifier is required'})),
+            );
+
+            const result = await state.resetEncryption('new-password');
+
+            expect(result).toEqual({outcome: 'server-refused', detail: 'publicVerifier is required'});
+        });
+
+        it('does not hand back a code the rotation did not take', async () => {
+            const {state, backup} = await stuckAfterReset();
+            // The re-read still shows the old version, so the new code opens nothing.
+            backup.getRecoveryKey.mockReturnValue(of(envelope()));
+
+            const result = await state.resetEncryption('new-password');
+
+            expect(result.outcome).toBe('not-stored');
         });
     });
 });

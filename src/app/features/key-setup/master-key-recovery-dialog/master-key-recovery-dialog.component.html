@@ -35,6 +35,96 @@
                 <p-button (onClick)="close()" label="I've saved it" size="small" />
             </div>
         </div>
+    } @else if (resetStep() === 'confirm') {
+        <div class="p-1">
+            <h2 class="m-0 text-lg font-semibold text-text-primary">Start over with a new key</h2>
+            @if (action() === 'unrecoverable') {
+                <p class="mt-1 text-[0.8125rem] leading-snug text-text-secondary">
+                    A new key puts your account back under encryption you can recover. It cannot open anything the old key protected, so
+                    this is a fresh start rather than a repair.
+                </p>
+            } @else {
+                <p class="mt-1 text-[0.8125rem] leading-snug text-text-secondary">
+                    Your recovery code is the only thing that can unlock the key your encrypted history is sealed with. If it is gone, a new
+                    key gets the account working again, but it cannot open anything the old one protected.
+                </p>
+            }
+
+            <div class="mt-4 rounded-xl border border-red-500/30 bg-red-500/[0.08] px-4 py-3">
+                <p class="m-0 text-[0.8125rem] font-medium text-red-200">
+                    Every message and backup encrypted before now becomes permanently unreadable, on this device and on every other. This
+                    cannot be undone.
+                </p>
+                <p class="mt-2 mb-0 text-[0.8125rem] leading-snug text-text-secondary">
+                    Messages on devices that are still signed in are unaffected, and everything from here on is protected by the new key.
+                </p>
+            </div>
+
+            <div class="mt-4">
+                <label class="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-text-muted"> Password </label>
+                <input
+                    (input)="onPasswordInput($event)"
+                    [feedback]="false"
+                    [value]="password()"
+                    pPassword
+                    placeholder="Your account password"
+                    type="password"
+                />
+            </div>
+
+            <div class="mt-3 flex items-start gap-2">
+                <p-checkbox
+                    (ngModelChange)="resetAcknowledged.set($event)"
+                    [binary]="true"
+                    [ngModel]="resetAcknowledged()"
+                    inputId="reset-encryption-ack"
+                    size="small"
+                />
+                <label class="cursor-pointer text-[0.8125rem] leading-snug text-text-secondary" for="reset-encryption-ack">
+                    I understand my encrypted history will be lost.
+                </label>
+            </div>
+
+            @if (errorMsg()) {
+                <p class="mt-2 text-[0.8125rem] text-red-300">{{ errorMsg() }}</p>
+            }
+
+            <div class="mt-4 flex justify-end gap-2">
+                <p-button (onClick)="cancelReset()" [text]="true" label="Back" severity="secondary" size="small" />
+                <p-button
+                    (onClick)="onReset()"
+                    [disabled]="!resetAcknowledged()"
+                    [loading]="busy()"
+                    label="Reset encryption"
+                    severity="danger"
+                    size="small"
+                />
+            </div>
+        </div>
+    } @else if (resetStep() === 'orphans') {
+        <!-- The server refuses to strand a stored backup silently, so nothing is written yet. -->
+        <div class="p-1">
+            <h2 class="m-0 text-lg font-semibold text-text-primary">Backups on other devices will stop working</h2>
+            <p class="mt-1 text-[0.8125rem] leading-snug text-text-secondary">
+                These devices hold a backup sealed with the old key. Resetting leaves those backups unreadable, and each device has to be
+                set up again from a device that is still signed in.
+            </p>
+
+            <ul class="my-4 max-h-40 list-none overflow-y-auto rounded-xl border border-white/[0.08] bg-black/30 px-4 py-3 thin-scrollbar">
+                @for (device of orphanedDevices(); track device) {
+                    <li class="break-all font-mono text-[0.75rem] leading-6 text-text-secondary">{{ device }}</li>
+                }
+            </ul>
+
+            @if (errorMsg()) {
+                <p class="mt-2 text-[0.8125rem] text-red-300">{{ errorMsg() }}</p>
+            }
+
+            <div class="mt-4 flex justify-end gap-2">
+                <p-button (onClick)="cancelReset()" [text]="true" label="Back" severity="secondary" size="small" />
+                <p-button (onClick)="onReset(true)" [loading]="busy()" label="Reset anyway" severity="danger" size="small" />
+            </div>
+        </div>
     } @else {
         @switch (action()) {
             <!-- A reset already happened and there was no recovery-code wrapping to fall back on. -->
@@ -49,8 +139,9 @@
                         Messages on devices that are still signed in are unaffected, and new conversations are fine. To protect future
                         backups, set up encryption again with a recovery code.
                     </p>
-                    <div class="mt-4 flex justify-end">
-                        <p-button (onClick)="close()" label="I understand" severity="secondary" size="small" />
+                    <div class="mt-4 flex justify-end gap-2">
+                        <p-button (onClick)="close()" [text]="true" label="I understand" severity="secondary" size="small" />
+                        <p-button (onClick)="startReset()" label="Set up encryption again" size="small" />
                     </div>
                 </div>
             }
@@ -99,9 +190,18 @@
                         <p class="mt-2 text-[0.8125rem] text-red-300">{{ errorMsg() }}</p>
                     }
 
-                    <div class="mt-4 flex justify-end gap-2">
-                        <p-button (onClick)="close()" [text]="true" label="Later" severity="secondary" size="small" />
-                        <p-button (onClick)="onRewrap()" [loading]="busy()" label="Reconnect" size="small" />
+                    <div class="mt-4 flex items-center justify-between gap-2">
+                        <button
+                            (click)="startReset()"
+                            class="text-[0.8125rem] text-text-muted underline hover:text-text-secondary"
+                            type="button"
+                        >
+                            I don't have my recovery code
+                        </button>
+                        <div class="flex gap-2">
+                            <p-button (onClick)="close()" [text]="true" label="Later" severity="secondary" size="small" />
+                            <p-button (onClick)="onRewrap()" [loading]="busy()" label="Reconnect" size="small" />
+                        </div>
                     </div>
                 </div>
             }

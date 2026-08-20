@@ -1,5 +1,5 @@
 import {inject, Injectable} from '@angular/core';
-import {HttpClient} from '@angular/common/http';
+import {HttpClient, HttpErrorResponse} from '@angular/common/http';
 import {Observable} from 'rxjs';
 import {ApiConfigService} from './api-config.service';
 import {EncryptedMasterKey} from '../dtos/response/UserDto';
@@ -114,6 +114,20 @@ export class BackupService {
             {version, passwordWrapping},
         );
     }
+}
+
+/**
+ * What the server said when it refused a write, or null when the failure was not an HTTP one.
+ *
+ * The envelope routes answer a 400 with the exact reason - a mismatched verifier, a rotation
+ * without one, a wrapping that differs at an unchanged version - and every one of those is a
+ * different thing for the user to do about it.
+ */
+export function serverRefusalDetail(err: unknown): string | null {
+    if (!(err instanceof HttpErrorResponse)) return null;
+    const body = err.error as {detail?: string; title?: string; message?: string} | string | null;
+    const served = typeof body === 'string' ? body : (body?.detail ?? body?.message ?? body?.title);
+    return served || `HTTP ${err.status}`;
 }
 
 /**

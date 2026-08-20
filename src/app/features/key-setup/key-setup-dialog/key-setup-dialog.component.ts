@@ -3,10 +3,9 @@ import {Dialog} from 'primeng/dialog';
 import {Button} from 'primeng/button';
 import {PasswordDirective} from 'primeng/password';
 import {EntropyModalComponent} from '../entropy-modal/entropy-modal.component';
-import {HttpErrorResponse} from '@angular/common/http';
 import {UserService} from '../../../services/user.service';
 import {MasterKeyEngineError, MasterKeyService} from '../../../services/master-key.service';
-import {BackupService, toWrappingDto} from '../../../services/backup.service';
+import {BackupService, serverRefusalDetail, toWrappingDto} from '../../../services/backup.service';
 import {OsInfo} from '../../../platform/ports/os-info.port';
 import {AppInfoService} from '../../../services/app-info.service';
 import {catchError, EMPTY, filter, from, switchMap, take, tap} from 'rxjs';
@@ -202,11 +201,7 @@ function describeSetupFailure(err: unknown): string {
     if (err instanceof MasterKeyEngineError) {
         return `This device could not prepare the keys. ${err.detail}`;
     }
-    if (err instanceof HttpErrorResponse) {
-        const body = err.error as {detail?: string; title?: string; message?: string} | string | null;
-        const served = typeof body === 'string' ? body : (body?.detail ?? body?.message ?? body?.title);
-        if (served) return `The server refused the setup: ${served}`;
-        return `The server refused the setup (HTTP ${err.status}). Please try again.`;
-    }
+    const refusal = serverRefusalDetail(err);
+    if (refusal) return `The server refused the setup: ${refusal}`;
     return 'Something went wrong. Please try again.';
 }

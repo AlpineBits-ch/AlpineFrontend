@@ -1,7 +1,16 @@
 import {computed, inject, Injectable, signal} from '@angular/core';
+import {HttpErrorResponse} from '@angular/common/http';
 import {firstValueFrom} from 'rxjs';
-import {BackupService, fromWrappingDto, RecoveryKeyDto, toWrappingDto} from './backup.service';
+import {
+    BackupService,
+    fromWrappingDto,
+    PutRecoveryKeyResultDto,
+    RecoveryKeyDto,
+    serverRefusalDetail,
+    toWrappingDto,
+} from './backup.service';
 import {CredentialRejectedError, MasterKeyService} from './master-key.service';
+import {UserService} from './user.service';
 
 /**
  * How a repair ended, in terms the UI can act on.
@@ -25,6 +34,17 @@ export type MasterKeyRepair =
     /** The local engine could not run the operation. Not the user's credential, and not their fault. */
     | {outcome: 'engine-failed'; detail: string};
 
+/**
+ * How a re-key ended. A superset of {@link MasterKeyRepair}, because two of its outcomes only exist
+ * for an operation that abandons the key the account already has.
+ */
+export type MasterKeyReset =
+    | MasterKeyRepair
+    /** Nothing was written. These devices' stored backups die with the old key. Ask, then retry. */
+    | {outcome: 'orphans-pending'; deviceIds: string[]}
+    /** The server refused the write and said why. Neither a local fault nor a wrong credential. */
+    | {outcome: 'server-refused'; detail: string};
+
 /** What, if anything, the account needs the user to do about its master key. */
 export type MasterKeyAction =
     /** Nothing. Both wrappings present and current. */
@@ -42,7 +62,8 @@ export type MasterKeyAction =
     | 'not-set-up';
 
 /**
- * The account master key's health, and the two repairs it can need.
+ * The account master key's health, the two repairs it can need, and the re-key it cannot avoid when
+ * neither repair is open.
  *
  * <p>Split from {@link MasterKeyService}, which does the cryptography, because this is entirely
  * about *state the user has to be told about*. Contract §C.1.1 exists because the previous
@@ -54,6 +75,7 @@ export type MasterKeyAction =
 export class MasterKeyStateService {
     private readonly backup = inject(BackupService);
     private readonly masterKey = inject(MasterKeyService);
+    private readonly user = inject(UserService);
 
     private readonly _envelope = signal<RecoveryKeyDto | null>(null);
     private readonly _action = signal<MasterKeyAction>('ok');
@@ -209,6 +231,82 @@ export class MasterKeyStateService {
         // being told they are protected. Re-read and check before showing it to them.
         await this.refresh();
         if (!this._envelope()?.recoveryCodeWrapping) return {outcome: 'not-stored'};
+
+        return {outcome: 'ok', recoveryCode: code};
+    }
+
+    /**
+     * Abandons the master key and writes a fresh one. **Everything sealed under the old key is
+     * lost.**
+     *
+     * <p>The way out of `rewrap-required` for a user who no longer has their recovery code, and out
+     * of `unrecoverable` for one whose key is already beyond reach. Neither state has a credential
+     * left that opens the old key, so there is nothing to re-wrap: the account either gets a new key
+     * or stays stuck. Only a caller that has told the user what they are giving up may call this.</p>
+     *
+     * <p>The version is raised, which is what makes it a rotation rather than the additive write
+     * {@link addRecoveryCode} performs. The server refuses the first attempt with the devices whose
+     * stored backups the rotation would strand; pass `acknowledgeOrphans` once the user has seen
+     * them.</p>
+     *
+     * @returns `ok` with the new code to show exactly once.
+     */
+    async resetEncryption(password: string, acknowledgeOrphans = false): Promise<MasterKeyReset> {
+        const envelope = this._envelope();
+        if (!envelope) return {outcome: 'not-applicable'};
+
+        // Checked here rather than left to the server's 400: that refusal arrives as prose, and this
+        // is the one operation where "incorrect password" must not be guessed at from a message that
+        // also carries every envelope-shaped rejection.
+        if (!(await firstValueFrom(this.user.verifyPassword(password)))) {
+            return {outcome: 'credential-rejected'};
+        }
+
+        // A second attempt after an orphan warning mints a new key and a new code rather than
+        // holding the first pair. Nothing was written, so nothing depends on them, and keeping a
+        // wrapped key alive in a service field across a user decision buys only a way to get it out
+        // of step with the code on screen.
+        const code = await this.masterKey.generateRecoveryCode();
+
+        let dual;
+        try {
+            dual = await this.masterKey.setupDualWrapped(password, code);
+        } catch (err) {
+            return {outcome: 'engine-failed', detail: (err as Error)?.message ?? String(err)};
+        }
+
+        try {
+            await firstValueFrom(
+                this.backup.putRecoveryKey(
+                    {
+                        ...toWrappingDto(dual.passwordWrapping),
+                        // Not the engine's version. This key replaces the account's, and the server
+                        // reads anything but a bump as a claim that the bytes seal the same key.
+                        version: envelope.version + 1,
+                        password,
+                        recoveryCodeWrapping: toWrappingDto(dual.recoveryCodeWrapping),
+                    },
+                    acknowledgeOrphans,
+                ),
+            );
+        } catch (err) {
+            if (err instanceof HttpErrorResponse && err.status === 409) {
+                const body = err.error as PutRecoveryKeyResultDto | null;
+                return {outcome: 'orphans-pending', deviceIds: body?.orphanedBlobDeviceIds ?? []};
+            }
+            const refusal = serverRefusalDetail(err);
+            if (refusal) return {outcome: 'server-refused', detail: refusal};
+            return {outcome: 'engine-failed', detail: (err as Error)?.message ?? String(err)};
+        }
+
+        // Same rule as the retrofit: a code is shown only once the server is known to hold the
+        // wrapping it opens. Here the version is the tell - an envelope still at the old one means
+        // the rotation did not take, and the code on screen would open nothing.
+        await this.refresh();
+        const written = this._envelope();
+        if (!written?.recoveryCodeWrapping || written.version <= envelope.version) {
+            return {outcome: 'not-stored'};
+        }
 
         return {outcome: 'ok', recoveryCode: code};
     }
