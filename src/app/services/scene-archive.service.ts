@@ -24,6 +24,7 @@ const PAGE_SIZE = 50;
 const DEFAULT_SORT: SceneSort = 'ended';
 const DEFAULT_STATUS: ArchiveStatus = 'all';
 const EMPTY_ROWS: readonly SceneListItemDto[] = [];
+const ARCHIVE_STATUSES: readonly ArchiveStatus[] = ['all', 'running', 'finished'];
 
 export function archiveKey(filter: ArchiveFilter): string {
     return [
@@ -131,6 +132,37 @@ export class SceneArchiveService {
             for (const [key, rows] of Object.entries(map)) {
                 next[key] = rows.filter(row => row.channelId !== channelId);
             }
+            return next;
+        });
+    }
+
+    /** The freshest cached copy of a row, wherever it is held. Reads ahead of `patch`, which only
+     *  rewrites a row where it already sits, never moves it. */
+    cachedRow(channelId: string): SceneListItemDto | undefined {
+        for (const rows of Object.values(this.pages())) {
+            const row = rows.find(r => r.channelId === channelId);
+            if (row) return row;
+        }
+        return undefined;
+    }
+
+    /** Drops both shelves' cached pages so an open one re-reads. Filing moves a row between keys, and
+     *  `patch` only rewrites it in place. */
+    invalidateShelves(guildId: string, ...folderIds: (string | null)[]): void {
+        const keys = new Set<string>();
+        for (const folderId of folderIds) {
+            for (const status of ARCHIVE_STATUSES) {
+                keys.add(archiveKey(shelfFilter(guildId, folderId, status)));
+            }
+        }
+        this.pages.update(map => {
+            const next = {...map};
+            for (const key of keys) delete next[key];
+            return next;
+        });
+        this.exhausted.update(map => {
+            const next = {...map};
+            for (const key of keys) delete next[key];
             return next;
         });
     }

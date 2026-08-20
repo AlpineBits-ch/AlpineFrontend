@@ -229,6 +229,45 @@ describe('SceneArchiveService', () => {
 
         expect(service.peekExhausted('g1', 'f1')).toBe(false);
     });
+
+    it('re-reads an invalidated shelf instead of answering from the stale cache', () => {
+        const {service, calls, responses} = setup();
+
+        service.peek('g1', 'f1');
+        responses[0].next(page(2, {folderId: 'f1'}));
+
+        service.invalidateShelves('g1', 'f1');
+        service.peek('g1', 'f1');
+
+        expect(calls).toHaveLength(2);
+    });
+
+    it('invalidates a shelf under every status, since each is cached apart', () => {
+        const {service, calls, responses} = setup();
+
+        service.peek('g1', 'f1', 'finished');
+        responses[0].next(page(2, {folderId: 'f1'}));
+
+        service.invalidateShelves('g1', 'f1');
+        service.peek('g1', 'f1', 'finished');
+
+        expect(calls).toHaveLength(2);
+    });
+
+    it('leaves a shelf that was not named untouched', () => {
+        const {service, calls, responses} = setup();
+
+        service.peek('g1', 'f1');
+        responses[0].next(page(2, {folderId: 'f1'}));
+        service.peek('g1', 'f2');
+        responses[1].next(page(1, {folderId: 'f2'}));
+
+        service.invalidateShelves('g1', 'f1');
+        service.peek('g1', 'f2');
+
+        expect(calls).toHaveLength(2);
+        expect(service.peeked('g1', 'f2')).toHaveLength(1);
+    });
 });
 
 describe('archiveKey', () => {
