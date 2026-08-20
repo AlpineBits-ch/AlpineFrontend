@@ -249,7 +249,7 @@ export function permissionLabel(key: PermissionKey): string {
  * Mirrors `ImpliedPermissions` in `Guild.Application/Services/GuildPermissionService.cs`.
  * A change here without the matching change there makes the UI lie about what a deny costs.
  */
-export const IMPLIED_PERMISSIONS: ReadonlyArray<readonly [PermissionKey, PermissionKey]> = [
+export const IMPLIED_PERMISSIONS: readonly (readonly [PermissionKey, PermissionKey])[] = [
     ['EditAnyMessage', 'EditOwnMessages'],
     ['DeleteAnyMessage', 'DeleteOwnMessages'],
     ['ManageAnyThread', 'ManageOwnThreads'],
@@ -273,7 +273,7 @@ export const IMPLIED_PERMISSIONS: ReadonlyArray<readonly [PermissionKey, Permiss
     ['ManageChannel', 'ViewChannel'],
 ];
 
-function closeOver(mask: PermissionValue, edges: ReadonlyArray<readonly [bigint, bigint]>): PermissionValue {
+function closeOver(mask: PermissionValue, edges: readonly (readonly [bigint, bigint])[]): PermissionValue {
     let result = mask;
     let changed = true;
     while (changed) {
@@ -288,11 +288,11 @@ function closeOver(mask: PermissionValue, edges: ReadonlyArray<readonly [bigint,
     return result;
 }
 
-const FORWARD_EDGES: ReadonlyArray<readonly [bigint, bigint]> = IMPLIED_PERMISSIONS.map(
+const FORWARD_EDGES: readonly (readonly [bigint, bigint])[] = IMPLIED_PERMISSIONS.map(
     ([holder, implied]) => [Permissions[holder], Permissions[implied]] as const,
 );
 
-const REVERSE_EDGES: ReadonlyArray<readonly [bigint, bigint]> = IMPLIED_PERMISSIONS.map(
+const REVERSE_EDGES: readonly (readonly [bigint, bigint])[] = IMPLIED_PERMISSIONS.map(
     ([holder, implied]) => [Permissions[implied], Permissions[holder]] as const,
 );
 

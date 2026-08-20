@@ -7,7 +7,7 @@ import {
 
 // Mirrors Guild.Application/Services/GuildPermissionService.cs ImpliedPermissions.
 // See docs/specs/channel-permissions-ux.md, "Golden list".
-const GOLDEN: ReadonlyArray<readonly [keyof typeof Permissions, keyof typeof Permissions]> = [
+const GOLDEN: readonly (readonly [keyof typeof Permissions, keyof typeof Permissions])[] = [
     ['EditAnyMessage', 'EditOwnMessages'],
     ['DeleteAnyMessage', 'DeleteOwnMessages'],
     ['ManageAnyThread', 'ManageOwnThreads'],
