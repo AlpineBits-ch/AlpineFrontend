@@ -11,19 +11,40 @@ import {GuildService} from '../../../../../../services/guild.service';
 import {ProfileService} from '../../../../../../services/profile.service';
 import {ToastService} from '../../../../../../services/toast.service';
 import {MainView, NavigationService} from '../../../../../main-page/navigation.service';
-import {SceneFolderDto, SceneListItemDto, SceneStatus} from '../../../../../../dtos/response/scene.dto';
+import {
+    SceneFolderDto,
+    SceneListDto,
+    SceneListItemDto,
+    SceneStatus,
+} from '../../../../../../dtos/response/scene.dto';
 import {installMemoryStorage} from '../../../../../../testing/memory-storage';
 import {RoleplayApi} from '../../../../../../services/roleplay-api.service';
 import {SceneRailStateService} from '../../../../../../services/scene-rail-state.service';
-import {SceneListDto} from '../../../../../../dtos/response/scene.dto';
 import {SceneListParams} from '../../../../../../dtos/request/scene.dto';
 
 function scene(over: Partial<SceneListItemDto> = {}): SceneListItemDto {
     return {channelId: 'ch_1', name: 'Scene', status: SceneStatus.Active, ...over};
 }
 
-function folder(id: string, name: string, position = 0): SceneFolderDto {
-    return {id, guildId: 'g1', name, position, parentFolderId: null};
+function folder(
+    id: string,
+    name: string,
+    position = 0,
+    parentFolderId: string | null = null,
+): SceneFolderDto {
+    return {id, guildId: 'g1', name, position, parentFolderId};
+}
+
+/** A page of scenes, `PAGE_SIZE` (50) rows or fewer. A full page leaves the shelf unexhausted. */
+function page(count: number): SceneListDto {
+    return {
+        scenes: Array.from({length: count}, (_, i): SceneListItemDto => ({
+            channelId: `ch_${i}`,
+            name: `Scene ${i}`,
+            status: SceneStatus.Concluded,
+        })),
+        truncated: false,
+    };
 }
 
 const SCENES = [
@@ -115,8 +136,8 @@ function setup(options: Options = {}) {
     return {fixture, nav, view, shelves, calls};
 }
 
-function reach(fixture: ComponentFixture<SceneNavComponent>): Record<string, () => unknown> {
-    return fixture.componentInstance as unknown as Record<string, () => unknown>;
+function reach(fixture: ComponentFixture<SceneNavComponent>): Record<string, (...args: never[]) => unknown> {
+    return fixture.componentInstance as unknown as Record<string, (...args: never[]) => unknown>;
 }
 
 function openSection(fixture: ComponentFixture<SceneNavComponent>): void {
@@ -265,5 +286,111 @@ describe('SceneNavComponent', () => {
         (fixture.nativeElement.querySelector('.rail-leaf') as HTMLElement).click();
 
         expect(nav.openSceneChannel).toHaveBeenCalledWith('g1', 'mine', false);
+    });
+
+    it('leaves a concluded scene out of recent', () => {
+        const {fixture} = setup();
+
+        const recent = reach(fixture)['recent']() as {channelId: string}[];
+        expect(recent.map(leaf => leaf.channelId)).not.toContain('done');
+    });
+
+    it('does not mark a childless shelf partial once its own page is exhausted', () => {
+        const {fixture, shelves} = setup({folders: [folder('a', 'Act I')]});
+        openSection(fixture);
+        expandShelf(fixture, 'a');
+
+        shelves['a'].next(page(5));
+        fixture.detectChanges();
+
+        expect(reach(fixture)['partialFolderIds']()).not.toContain('a');
+    });
+
+    it('marks a parent partial while an unexpanded child has never been read', () => {
+        const {fixture, shelves} = setup({folders: [folder('a', 'Act I'), folder('a1', 'Greyford', 0, 'a')]});
+        openSection(fixture);
+        expandShelf(fixture, 'a');
+        // 'a1' is never expanded, so its own peek never fires and it stays unread.
+
+        shelves['a'].next(page(5));
+        fixture.detectChanges();
+
+        expect(reach(fixture)['partialFolderIds']()).toContain('a');
+    });
+
+    it('marks a childless shelf partial while its own page is still capped', () => {
+        const {fixture, shelves} = setup({folders: [folder('a', 'Act I')]});
+        openSection(fixture);
+        expandShelf(fixture, 'a');
+
+        shelves['a'].next(page(50));
+        fixture.detectChanges();
+
+        expect(reach(fixture)['partialFolderIds']()).toContain('a');
+    });
+
+    it('re-peeks both shelves after filing, so an open one refills itself', () => {
+        const {fixture, shelves, calls} = setup({folders: FOLDERS});
+        openSection(fixture);
+        expandShelf(fixture, 'a');
+        shelves['a'].next({
+            scenes: [
+                scene({
+                    channelId: 'mine',
+                    name: 'The Ford at Dawn',
+                    folderId: 'a',
+                    currentTurnPersonaId: 'p1',
+                }),
+                scene({channelId: 'other', name: 'Nightwatch', folderId: 'a'}),
+            ],
+            truncated: false,
+        });
+        fixture.detectChanges();
+        expandShelf(fixture, 'b');
+        shelves['b'].next({scenes: [], truncated: false});
+        fixture.detectChanges();
+
+        const readsOf = (folderId: string) => calls.filter(params => params.folderId === folderId).length;
+        const beforeA = readsOf('a');
+        const beforeB = readsOf('b');
+
+        reach(fixture)['file']('other' as never, 'b' as never);
+
+        expect(readsOf('a')).toBe(beforeA + 1);
+        expect(readsOf('b')).toBe(beforeB + 1);
+
+        shelves['a'].next({
+            scenes: [
+                scene({
+                    channelId: 'mine',
+                    name: 'The Ford at Dawn',
+                    folderId: 'a',
+                    currentTurnPersonaId: 'p1',
+                }),
+            ],
+            truncated: false,
+        });
+        shelves['b'].next({
+            scenes: [scene({channelId: 'other', name: 'Nightwatch', folderId: 'b'})],
+            truncated: false,
+        });
+        fixture.detectChanges();
+
+        const scenesByFolder = reach(fixture)['scenesByFolder']() as Record<string, {channelId: string}[]>;
+        expect(scenesByFolder['b'].map(leaf => leaf.channelId)).toContain('other');
+        expect(scenesByFolder['a'].map(leaf => leaf.channelId)).not.toContain('other');
+    });
+
+    it('does not fetch a shelf that is closed, even if a scene was filed through it', () => {
+        const {fixture, calls} = setup({folders: FOLDERS});
+        openSection(fixture);
+        expandShelf(fixture, 'a');
+
+        const readsOfB = () => calls.filter(params => params.folderId === 'b').length;
+        const before = readsOfB();
+
+        reach(fixture)['file']('mine' as never, 'b' as never);
+
+        expect(readsOfB()).toBe(before);
     });
 });
