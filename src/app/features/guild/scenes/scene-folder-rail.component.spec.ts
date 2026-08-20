@@ -7,8 +7,8 @@ import {provideTranslateService} from '@ngx-translate/core';
 import {beforeEach, describe, expect, it} from 'vitest';
 
 import {SceneFolderRailComponent} from './scene-folder-rail.component';
-import {folderTree} from './folder-tree';
-import {SceneFolderDto, SceneStatus} from '../../../../dtos/response/scene.dto';
+import {folderTree} from './scene-archive/folder-tree';
+import {SceneFolderDto, SceneStatus} from '../../../dtos/response/scene.dto';
 
 function folder(id: string, parentFolderId: string | null = null, position = 0): SceneFolderDto {
     return {id, guildId: 'g1', name: id.toUpperCase(), position, parentFolderId};

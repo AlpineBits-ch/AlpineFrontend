@@ -1,9 +1,9 @@
 import {ChangeDetectionStrategy, Component, computed, inject, input, output, signal} from '@angular/core';
 import {TranslateService} from '@ngx-translate/core';
 
-import {SceneFolderRailComponent} from './scene-archive/scene-folder-rail.component';
-import {RailResizeDirective} from './scene-archive/rail-resize.directive';
-import {SceneFolderEditorComponent} from './scene-archive/scene-folder-editor.component';
+import {SceneFolderRailComponent} from './scene-folder-rail.component';
+import {RailResizeDirective} from '../../../shared/rail-resize.directive';
+import {SceneFolderEditorComponent} from './scene-folder-editor.component';
 import {FolderNode} from './scene-archive/folder-tree';
 import {SceneLeaf} from './scene-leaf';
 import {SceneFolderDto} from '../../../dtos/response/scene.dto';

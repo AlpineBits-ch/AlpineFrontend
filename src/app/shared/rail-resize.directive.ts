@@ -1,7 +1,7 @@
 import {Directive, ElementRef, inject, input, OnDestroy, OnInit, signal} from '@angular/core';
 import {TranslateService} from '@ngx-translate/core';
 
-import {SceneRailStateService} from '../../../../services/scene-rail-state.service';
+import {SceneRailStateService} from '../services/scene-rail-state.service';
 
 const CSS_VAR = '--rail-width';
 

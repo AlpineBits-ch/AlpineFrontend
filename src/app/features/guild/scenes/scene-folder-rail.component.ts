@@ -2,12 +2,12 @@ import {ChangeDetectionStrategy, Component, inject, input, output, signal, viewC
 import {NgTemplateOutlet} from '@angular/common';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 
-import {ContextMenuComponent} from '../../../../shared/context-menu/context-menu.component';
-import {MenuItem} from '../../../../shared/context-menu/context-menu.model';
-import {FolderNode} from './folder-tree';
-import {UNFILED} from '../../../../dtos/request/scene.dto';
-import {SceneStatus} from '../../../../dtos/response/scene.dto';
-import {SceneLeaf} from '../scene-leaf';
+import {ContextMenuComponent} from '../../../shared/context-menu/context-menu.component';
+import {MenuItem} from '../../../shared/context-menu/context-menu.model';
+import {FolderNode} from './scene-archive/folder-tree';
+import {UNFILED} from '../../../dtos/request/scene.dto';
+import {SceneStatus} from '../../../dtos/response/scene.dto';
+import {SceneLeaf} from './scene-leaf';
 
 const SCENE_DRAG = 'text/scene-channel-id';
 /** Kept apart from the scene type so a folder drop can never be read as a filing. */

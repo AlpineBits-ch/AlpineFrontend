@@ -4,7 +4,7 @@ import {provideTranslateService} from '@ngx-translate/core';
 import {beforeAll, beforeEach, describe, expect, it} from 'vitest';
 
 import {RailResizeDirective} from './rail-resize.directive';
-import {SCENE_RAIL_STORAGE_KEY} from '../../../../services/scene-rail-state.service';
+import {SCENE_RAIL_STORAGE_KEY} from '../services/scene-rail-state.service';
 
 // This runner's `localStorage` global has no methods. Same Map-backed stand-in
 // `scene-rail-state.service.spec.ts` uses.

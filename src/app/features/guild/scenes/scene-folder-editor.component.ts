@@ -15,11 +15,11 @@ import {PrimeTemplate} from 'primeng/api';
 import {Dialog} from 'primeng/dialog';
 import {Select} from 'primeng/select';
 
-import {EmojiPickerButtonComponent} from '../../../messaging/components/conversation/composer/emoji-picker-button/emoji-picker-button.component';
-import {SceneTaxonomyService} from '../../../../services/scene-taxonomy.service';
-import {ToastService} from '../../../../services/toast.service';
-import {SceneFolderDto} from '../../../../dtos/response/scene.dto';
-import {ARCHIVE_COLOR_FALLBACK, ARCHIVE_COLORS, isNoColor} from './archive-colors';
+import {EmojiPickerButtonComponent} from '../../messaging/components/conversation/composer/emoji-picker-button/emoji-picker-button.component';
+import {SceneTaxonomyService} from '../../../services/scene-taxonomy.service';
+import {ToastService} from '../../../services/toast.service';
+import {SceneFolderDto} from '../../../dtos/response/scene.dto';
+import {ARCHIVE_COLOR_FALLBACK, ARCHIVE_COLORS, isNoColor} from './scene-archive/archive-colors';
 
 /** Creates or edits one shelf. Deleting from here removes the shelf, never the scenes on it. */
 @Component({
@@ -27,7 +27,7 @@ import {ARCHIVE_COLOR_FALLBACK, ARCHIVE_COLORS, isNoColor} from './archive-color
     changeDetection: ChangeDetectionStrategy.OnPush,
     imports: [TranslateModule, FormsModule, Dialog, PrimeTemplate, Select, EmojiPickerButtonComponent],
     templateUrl: './scene-folder-editor.component.html',
-    styleUrl: './scene-editor.component.css',
+    styleUrl: './scene-archive/scene-editor.component.css',
 })
 export class SceneFolderEditorComponent {
     readonly guildId = input.required<string>();
