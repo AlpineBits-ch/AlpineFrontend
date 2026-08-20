@@ -4,56 +4,87 @@
             <p class="text-[0.625rem] font-semibold text-text-muted uppercase tracking-widest mb-2">{{ group.labelKey | translate }}</p>
             <div class="space-y-1">
                 @for (key of group.perms; track key) {
-                    <div class="flex items-center justify-between gap-3 px-3 py-2 rounded-xl bg-card/60 hover:bg-hover transition-colors">
-                        <span class="text-sm text-text-secondary truncate">{{ label(key) }}</span>
-                        <!-- Deny, neutral, allow: worst to best, left to right, the way Discord reads. -->
-                        <div class="flex items-center gap-1 shrink-0" role="group">
-                            <button
-                                (click)="setState(key, getState(key) === 'deny' ? 'inherit' : 'deny')"
-                                [attr.aria-label]="'PERM_OVERRIDE.DENY' | translate"
-                                [attr.aria-pressed]="getState(key) === 'deny'"
-                                [ngClass]="
-                                    getState(key) === 'deny'
-                                        ? 'bg-offline/20 text-offline'
-                                        : 'bg-hover text-text-muted hover:bg-offline/10 hover:text-offline/70'
-                                "
-                                [pTooltip]="'PERM_OVERRIDE.DENY' | translate"
-                                class="w-7 h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer border-0 text-xs"
-                                tooltipPosition="top"
-                            >
-                                <i class="pi pi-times"></i>
-                            </button>
-                            <button
-                                (click)="setState(key, 'inherit')"
-                                [attr.aria-label]="'PERM_OVERRIDE.INHERIT' | translate"
-                                [attr.aria-pressed]="getState(key) === 'inherit'"
-                                [ngClass]="
-                                    getState(key) === 'inherit'
-                                        ? 'bg-hover text-text-secondary'
-                                        : 'bg-card text-text-muted hover:bg-hover hover:text-text-secondary'
-                                "
-                                [pTooltip]="'PERM_OVERRIDE.INHERIT' | translate"
-                                class="w-7 h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer border-0 text-xs"
-                                tooltipPosition="top"
-                            >
-                                <i class="pi pi-minus"></i>
-                            </button>
-                            <button
-                                (click)="setState(key, getState(key) === 'allow' ? 'inherit' : 'allow')"
-                                [attr.aria-label]="'PERM_OVERRIDE.ALLOW' | translate"
-                                [attr.aria-pressed]="getState(key) === 'allow'"
-                                [ngClass]="
-                                    getState(key) === 'allow'
-                                        ? 'bg-online/20 text-online'
-                                        : 'bg-hover text-text-muted hover:bg-online/10 hover:text-online/70'
-                                "
-                                [pTooltip]="'PERM_OVERRIDE.ALLOW' | translate"
-                                class="w-7 h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer border-0 text-xs"
-                                tooltipPosition="top"
-                            >
-                                <i class="pi pi-check"></i>
-                            </button>
+                    <div>
+                        <div
+                            [ngClass]="impliedOff(key) ? 'opacity-40' : ''"
+                            class="flex items-center justify-between gap-3 px-3 py-2 rounded-xl bg-card/60 hover:bg-hover transition-colors"
+                        >
+                            <span class="text-sm text-text-secondary truncate">{{ label(key) }}</span>
+                            <!-- Deny, neutral, allow: worst to best, left to right, the way Discord reads. -->
+                            <div class="flex items-center gap-1.5 shrink-0" role="group">
+                                @if (inheritedState(key); as inherited) {
+                                    <span
+                                        [ngClass]="inherited.granted ? 'text-online/60' : 'text-offline/60'"
+                                        class="text-[0.625rem] font-mono border border-border-subtle rounded px-1.5 py-0.5 shrink-0"
+                                    >
+                                        {{ 'PERM_SOURCE.' + inherited.decidedBy | translate }}
+                                    </span>
+                                }
+                                <button
+                                    (click)="setState(key, getState(key) === 'deny' ? 'inherit' : 'deny')"
+                                    [attr.aria-label]="'PERM_OVERRIDE.DENY' | translate"
+                                    [attr.aria-pressed]="getState(key) === 'deny'"
+                                    [ngClass]="
+                                        getState(key) === 'deny'
+                                            ? 'bg-offline/20 text-offline'
+                                            : 'bg-hover text-text-muted hover:bg-offline/10 hover:text-offline/70'
+                                    "
+                                    [pTooltip]="'PERM_OVERRIDE.DENY' | translate"
+                                    class="w-7 h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer border-0 text-xs"
+                                    tooltipPosition="top"
+                                >
+                                    <i class="pi pi-times"></i>
+                                </button>
+                                <button
+                                    (click)="setState(key, 'inherit')"
+                                    [attr.aria-label]="'PERM_OVERRIDE.INHERIT' | translate"
+                                    [attr.aria-pressed]="getState(key) === 'inherit'"
+                                    [ngClass]="
+                                        getState(key) !== 'inherit'
+                                            ? 'bg-card text-text-muted hover:bg-hover hover:text-text-secondary'
+                                            : inheritedState(key)?.granted === true
+                                              ? 'bg-hover text-online/40'
+                                              : inheritedState(key)?.granted === false
+                                                ? 'bg-hover text-offline/40'
+                                                : 'bg-hover text-text-secondary'
+                                    "
+                                    [pTooltip]="'PERM_OVERRIDE.INHERIT' | translate"
+                                    class="w-7 h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer border-0 text-xs"
+                                    tooltipPosition="top"
+                                >
+                                    @if (getState(key) === 'inherit' && inheritedState(key); as inherited) {
+                                        <i [ngClass]="inherited.granted ? 'pi pi-check' : 'pi pi-times'"></i>
+                                    } @else {
+                                        <i class="pi pi-minus"></i>
+                                    }
+                                </button>
+                                <button
+                                    (click)="setState(key, getState(key) === 'allow' ? 'inherit' : 'allow')"
+                                    [attr.aria-label]="'PERM_OVERRIDE.ALLOW' | translate"
+                                    [attr.aria-pressed]="getState(key) === 'allow'"
+                                    [ngClass]="
+                                        getState(key) === 'allow'
+                                            ? 'bg-online/20 text-online'
+                                            : 'bg-hover text-text-muted hover:bg-online/10 hover:text-online/70'
+                                    "
+                                    [pTooltip]="'PERM_OVERRIDE.ALLOW' | translate"
+                                    class="w-7 h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer border-0 text-xs"
+                                    tooltipPosition="top"
+                                >
+                                    <i class="pi pi-check"></i>
+                                </button>
+                            </div>
                         </div>
+                        @if (getState(key) === 'deny' && denyCollateral(key).length > 0) {
+                            <div
+                                class="flex gap-2 items-start mt-1 mb-2 px-3 py-2 rounded-xl bg-connecting/[0.07] border border-connecting/25"
+                            >
+                                <i class="pi pi-exclamation-triangle text-connecting text-xs mt-0.5"></i>
+                                <p class="text-xs text-text-secondary m-0">
+                                    {{ 'PERM_OVERRIDE.DENY_ALSO_REMOVES' | translate: {names: denyCollateral(key).join(', ')} }}
+                                </p>
+                            </div>
+                        }
                     </div>
                 }
             </div>

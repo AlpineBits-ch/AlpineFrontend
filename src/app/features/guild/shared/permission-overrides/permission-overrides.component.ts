@@ -17,6 +17,7 @@ import {GuildMemberDto} from '../../../../dtos/response/member.dto';
 import {ProfileDto} from '../../../../dtos/response/profile.dto';
 import {GuildService, OverridePermissionsDto} from '../../../../services/guild.service';
 import {ProfileService} from '../../../../services/profile.service';
+import {EffectivePermissionsDto} from '../../../../dtos/response/effective-permissions.dto';
 import {parsePermissions, stringifyPermissions} from '../../../../enums/permissions.enum';
 import {parseModulePermissions, stringifyModulePermissions} from '../../../../enums/module-permissions.enum';
 import {
@@ -68,6 +69,8 @@ export class PermissionOverridesComponent implements OnInit {
     protected readonly memberSearch = signal('');
     protected readonly hasMoreMembers = signal(false);
     protected readonly roleSearch = signal('');
+    protected readonly selectedSubjectId = signal<string | null>(null);
+    private readonly traces = signal<Record<string, EffectivePermissionsDto>>({});
 
     private gateway = inject(PermissionScopeGateway);
     private guildService = inject(GuildService);
@@ -92,6 +95,15 @@ export class PermissionOverridesComponent implements OnInit {
     protected readonly introKey = computed(() =>
         this.scope().kind === 'category' ? 'PERM_OVERRIDE.INTRO_CATEGORY' : 'PERM_OVERRIDE.INTRO',
     );
+
+    protected readonly selectedTrace = computed(() => this.traces()[this.selectedSubjectId() ?? ''] ?? null);
+
+    protected readonly savedOverrides = computed<Record<string, PermOverride>>(() => {
+        const map: Record<string, PermOverride> = {};
+        for (const row of this.roleRows()) map[row.subject.id] = this.toOverride(row.perm);
+        for (const row of this.memberRows()) map[row.subject.id] = this.toOverride(row.perm);
+        return map;
+    });
 
     protected readonly roleEntries = computed<OverrideEntry[]>(() => {
         const everyoneId = this.everyoneRoleId();
@@ -144,6 +156,16 @@ export class PermissionOverridesComponent implements OnInit {
 
     searchRoles(term: string): void {
         this.roleSearch.set(term);
+    }
+
+    onRoleSelectionChange(subjectId: string): void {
+        this.selectedSubjectId.set(subjectId);
+        this.loadTrace(subjectId, 'role');
+    }
+
+    onMemberSelectionChange(subjectId: string): void {
+        this.selectedSubjectId.set(subjectId);
+        this.loadTrace(subjectId, 'member');
     }
 
     /** Bound to the search box; debounces before actually searching. */
@@ -206,6 +228,7 @@ export class PermissionOverridesComponent implements OnInit {
                             r.subject.id === roleId ? {...r, perm, dirty: false, saving: false} : r,
                         ),
                     );
+                    this.forgetTrace(roleId);
                     this.emitOverrides();
                 },
                 error: () => this.setRoleSaving(roleId, false),
@@ -225,6 +248,7 @@ export class PermissionOverridesComponent implements OnInit {
                             : r,
                     ),
                 );
+                this.forgetTrace(roleId);
                 this.emitOverrides();
             },
         });
@@ -258,6 +282,7 @@ export class PermissionOverridesComponent implements OnInit {
                             r.subject.id === memberId ? {...r, perm, dirty: false, saving: false} : r,
                         ),
                     );
+                    this.forgetTrace(memberId);
                     this.emitOverrides();
                 },
                 error: () => this.setMemberSaving(memberId, false),
@@ -277,6 +302,7 @@ export class PermissionOverridesComponent implements OnInit {
                             : r,
                     ),
                 );
+                this.forgetTrace(memberId);
                 this.emitOverrides();
             },
         });
@@ -309,6 +335,25 @@ export class PermissionOverridesComponent implements OnInit {
 
     private setMemberSaving(memberId: string, saving: boolean): void {
         this.memberRows.update(list => list.map(r => (r.subject.id === memberId ? {...r, saving} : r)));
+    }
+
+    /** Reads the saved state, so a save has to drop the entry rather than patch it. */
+    private loadTrace(subjectId: string, kind: 'role' | 'member'): void {
+        const scope = this.scope();
+        if (scope.kind !== 'channel' || this.traces()[subjectId]) return;
+
+        this.guildService.getEffectivePermissions(scope.id, {kind, id: subjectId}).subscribe({
+            next: dto => this.traces.update(map => ({...map, [subjectId]: dto})),
+            error: () => undefined,
+        });
+    }
+
+    private forgetTrace(subjectId: string): void {
+        this.traces.update(map => {
+            const next = {...map};
+            delete next[subjectId];
+            return next;
+        });
     }
 
     private everyoneRoleId(): string | undefined {

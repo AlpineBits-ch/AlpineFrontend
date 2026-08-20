@@ -4,6 +4,7 @@ import {Tooltip} from 'primeng/tooltip';
 import {TranslateModule} from '@ngx-translate/core';
 import {
     CHANNEL_PERM_GROUPS,
+    expandDeniedPermissions,
     PermissionKey,
     permissionLabel,
     Permissions,
@@ -14,6 +15,11 @@ import {
     ModulePermissions,
 } from '../../../../enums/module-permissions.enum';
 import {ChannelType} from '../../../../dtos/response/guild.dto';
+import {
+    EffectivePermissionsDto,
+    PermissionSourceEntry,
+    PermissionSourceKey,
+} from '../../../../dtos/response/effective-permissions.dto';
 
 export type OverrideState = 'allow' | 'deny' | 'inherit';
 
@@ -48,7 +54,19 @@ export class PermissionOverrideEditorComponent {
     /** The channel being edited, or null for a category; household permissions resolve per channel, so a category offers none of them (avoiding a category-wide "controls every list" grant). */
     readonly channelType = input<ChannelType | null>(null);
 
+    /** The saved trace for the selected subject, or null while it is in flight. */
+    readonly resolved = input<EffectivePermissionsDto | null>(null);
+
+    /** What the server last stored for this subject. The trace describes this, not the live edit. */
+    readonly savedOverride = input<PermOverride>(EMPTY_OVERRIDE);
+
     protected readonly groups = CHANNEL_PERM_GROUPS;
+
+    private readonly sourceByPermission = computed(() => {
+        const map = new Map<PermissionKey, PermissionSourceEntry>();
+        for (const entry of this.resolved()?.sources ?? []) map.set(entry.permission, entry);
+        return map;
+    });
 
     /** The module permissions this channel type can override. */
     protected readonly moduleGroup = computed(() => {
@@ -88,6 +106,33 @@ export class PermissionOverrideEditorComponent {
         if (state === 'allow') allowModule |= val;
         else if (state === 'deny') denyModule |= val;
         this.overrideChange.emit({...current, allowModule, denyModule});
+    }
+
+    /** What leaving this row on inherit resolves to, or null when there is nothing honest to show. */
+    inheritedState(key: PermissionKey): {granted: boolean; decidedBy: PermissionSourceKey} | null {
+        const val = Permissions[key];
+        const saved = this.savedOverride();
+        if ((saved.allow & val) === val || (saved.deny & val) === val) return null;
+
+        const entry = this.sourceByPermission().get(key);
+        return entry ? {granted: entry.granted, decidedBy: entry.decidedBy} : null;
+    }
+
+    /** Everything denying this permission would take with it, itself excluded. */
+    denyCollateral(key: PermissionKey): PermissionKey[] {
+        const val = Permissions[key];
+        const expanded = expandDeniedPermissions(val) & ~val;
+        return CHANNEL_PERM_GROUPS.flatMap(group => group.perms).filter(
+            k => (expanded & Permissions[k]) === Permissions[k],
+        );
+    }
+
+    /** Whether the edit in progress already removes this row through some other deny. */
+    impliedOff(key: PermissionKey): boolean {
+        const val = Permissions[key];
+        const current = this.override();
+        if ((current.deny & val) === val) return false;
+        return (expandDeniedPermissions(current.deny) & val) === val;
     }
 
     label(key: string): string {

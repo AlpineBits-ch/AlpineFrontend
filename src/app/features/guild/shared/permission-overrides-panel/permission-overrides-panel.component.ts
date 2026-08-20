@@ -14,11 +14,13 @@ import {Button} from 'primeng/button';
 import {Tooltip} from 'primeng/tooltip';
 import {TranslateModule} from '@ngx-translate/core';
 import {
+    EMPTY_OVERRIDE,
     PermissionOverrideEditorComponent,
     PermOverride,
 } from '../permission-override-editor/permission-override-editor.component';
 import {ChannelType} from '../../../../dtos/response/guild.dto';
 import {BrokenImageService} from '../../../../services/broken-image.service';
+import {EffectivePermissionsDto} from '../../../../dtos/response/effective-permissions.dto';
 
 export interface OverrideEntry {
     id: string;
@@ -50,6 +52,10 @@ export class PermissionOverridesPanelComponent {
     readonly hasMore = input(false);
     /** A further page loading, as opposed to the first: spins the "load more" row, not the panel. */
     readonly loadingMore = input(false);
+    /** The trace for the selected subject, or null while it is in flight. */
+    readonly resolved = input<EffectivePermissionsDto | null>(null);
+    /** What the server last stored, keyed by subject id. The trace describes this, not a live edit. */
+    readonly savedOverrides = input<Record<string, PermOverride | undefined>>({});
 
     add = output<string>();
     change = output<{id: string; override: PermOverride}>();
@@ -58,6 +64,7 @@ export class PermissionOverridesPanelComponent {
     // Not named `search`: that collides with the native DOM search event and trips no-output-native.
     queryChange = output<string>();
     loadMore = output<void>();
+    selectionChange = output<string>();
 
     protected readonly selectedId = signal<string | null>(null);
     protected readonly selected = computed<OverrideEntry | null>(() => {
@@ -81,6 +88,7 @@ export class PermissionOverridesPanelComponent {
 
     select(id: string): void {
         this.selectedId.set(id);
+        this.selectionChange.emit(id);
     }
 
     protected onSearch(value: string): void {
@@ -95,6 +103,11 @@ export class PermissionOverridesPanelComponent {
         this.addPopoverRef.hide();
         this.selectedId.set(id);
         this.add.emit(id);
+        this.selectionChange.emit(id);
+    }
+
+    protected get emptyOverride(): PermOverride {
+        return EMPTY_OVERRIDE;
     }
 
     initial(name: string): string {

@@ -127,6 +127,8 @@
                         (overrideChange)="change.emit({id: entry.id, override: $event})"
                         [channelType]="channelType()"
                         [override]="entry.override"
+                        [resolved]="resolved()"
+                        [savedOverride]="savedOverrides()[entry.id] ?? emptyOverride"
                     />
                 </div>
             } @else {
