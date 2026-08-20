@@ -1,9 +1,18 @@
-import {ChangeDetectionStrategy, Component, computed, inject, input, output, signal} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    inject,
+    input,
+    linkedSignal,
+    output,
+    signal,
+} from '@angular/core';
 import {NgClass} from '@angular/common';
 import {ToggleSwitch} from 'primeng/toggleswitch';
 import {FormsModule} from '@angular/forms';
 import {Button} from 'primeng/button';
-import {TranslateModule} from '@ngx-translate/core';
+import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {
     CategoryDto,
     ChannelDto,
@@ -12,6 +21,7 @@ import {
     RoleType,
 } from '../../../../../../dtos/response/guild.dto';
 import {GuildService} from '../../../../../../services/guild.service';
+import {ToastService} from '../../../../../../services/toast.service';
 import {hasPermission, parsePermissions, Permissions} from '../../../../../../enums/permissions.enum';
 import {PermissionOverridesComponent} from '../../../../shared/permission-overrides/permission-overrides.component';
 import {channelScope} from '../../../../shared/permission-overrides/permission-scope';
@@ -38,6 +48,8 @@ export class ChannelPermissionsComponent {
     protected readonly overrides = signal<ChannelPermission[] | null>(null);
 
     private guildService = inject(GuildService);
+    private toastService = inject(ToastService);
+    private translate = inject(TranslateService);
     private roster = injectGuildRoster(() => this.guild().id, 'CHANNEL_PERMS.UNKNOWN_MEMBER');
 
     /** Carries the live overwrites, not the channel input's snapshot: a save or a sync must be
@@ -68,6 +80,21 @@ export class ChannelPermissionsComponent {
         ).length;
     });
 
+    /**
+     * The @everyone ViewChannel deny is the flag, so an edit to that row down in the grid has to move
+     * the switch. Until anything on this page has saved there is nothing better than the input.
+     */
+    readonly isPrivate = computed(() => {
+        const live = this.overrides();
+        return live ? this.derivedIsPrivate(live) : this.channel().isPrivate;
+    });
+
+    /**
+     * What the switch shows. PrimeNG flips its own state on click and a one-way `[ngModel]` that did
+     * not change will not push the old value back, so a rejected write has to move this itself.
+     */
+    protected readonly privateSwitch = linkedSignal(() => this.isPrivate());
+
     readonly diffRows = computed(() => {
         const category = this.category();
         if (!category) return [];
@@ -77,10 +104,15 @@ export class ChannelPermissionsComponent {
     });
 
     setPrivate(isPrivate: boolean): void {
+        this.privateSwitch.set(isPrivate);
         this.guildService.updateChannel(this.channel().id, {isPrivate}).subscribe({
             next: updated => {
                 this.overrides.set(updated.permissions);
                 this.channelUpdated.emit(updated);
+            },
+            error: err => {
+                this.privateSwitch.set(this.isPrivate());
+                this.toastService.httpError(this.translate.instant('CHANNEL_PERMS.PRIVATE_ERROR'), err);
             },
         });
     }
@@ -105,8 +137,14 @@ export class ChannelPermissionsComponent {
         });
     }
 
+    /** The grid can deny @everyone ViewChannel, which is the private flag; the switch has to follow. */
     onOverridesChanged(rows: ChannelPermission[]): void {
         this.overrides.set(rows);
+        this.channelUpdated.emit({
+            ...this.channel(),
+            permissions: rows,
+            isPrivate: this.derivedIsPrivate(rows),
+        });
     }
 
     toggleAdvanced(): void {

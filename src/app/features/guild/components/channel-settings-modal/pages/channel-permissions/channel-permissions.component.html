@@ -10,7 +10,7 @@
             <p class="text-sm font-medium text-text-primary">{{ 'CHANNEL_PERMS.PRIVATE' | translate }}</p>
             <p class="text-xs text-text-muted mt-0.5">{{ 'CHANNEL_PERMS.PRIVATE_HINT' | translate }}</p>
         </div>
-        <p-toggleswitch (ngModelChange)="setPrivate($event)" [ngModel]="channel().isPrivate" />
+        <p-toggleswitch (ngModelChange)="setPrivate($event)" [ngModel]="privateSwitch()" />
     </div>
 
     <!-- Synced with category -->

@@ -1,12 +1,15 @@
 import {ComponentFixture, TestBed} from '@angular/core/testing';
+import {By} from '@angular/platform-browser';
 import {provideHttpClient} from '@angular/common/http';
 import {provideHttpClientTesting} from '@angular/common/http/testing';
 import {provideTranslateService} from '@ngx-translate/core';
-import {of} from 'rxjs';
+import {Observable, of, throwError} from 'rxjs';
 import {vi} from 'vitest';
 import {ChannelPermissionsComponent} from './channel-permissions.component';
+import {PermissionOverridesComponent} from '../../../../shared/permission-overrides/permission-overrides.component';
 import {GuildService} from '../../../../../../services/guild.service';
 import {ProfileService} from '../../../../../../services/profile.service';
+import {ToastService} from '../../../../../../services/toast.service';
 import {
     CategoryDto,
     ChannelDto,
@@ -89,11 +92,29 @@ function setup(options: SetupOptions = {}) {
     const categoryDto = category(options.categoryOverrides ?? []);
 
     const guildService = {
-        updateChannel: vi.fn(() => of({...channelDto, isPrivate: true})),
+        updateChannel: vi.fn((): Observable<ChannelDto> => of({...channelDto, isPrivate: true})),
         syncChannelPermissions: vi.fn(() => of([] as ChannelPermission[])),
         // injectGuildRoster's own reads, not exercised by most cases here.
         getMembers: vi.fn(() => of(options.members ?? ([] as GuildMemberDto[]))),
         getOwnMember: vi.fn(() => of(null)),
+        // The editor underneath writes through these; only the integration cases drive them.
+        upsertChannelRolePermission: vi.fn((): Observable<ChannelPermission> =>
+            of(perm({id: 'p_r1', roleId: 'r1'})),
+        ),
+        deleteChannelRolePermission: vi.fn(() => of(void 0)),
+        upsertChannelMemberPermission: vi.fn((): Observable<ChannelPermission> => of(perm({}))),
+        deleteChannelMemberPermission: vi.fn(() => of(void 0)),
+        searchMembers: vi.fn(() => of([] as GuildMemberDto[])),
+        getEffectivePermissions: vi.fn((_channelId: string, target: {id: string}) =>
+            of({
+                channelId: CHANNEL,
+                subjectKind: 'Role',
+                subjectId: target.id,
+                permissions: 'None',
+                modulePermissions: 'None',
+                sources: [],
+            }),
+        ),
     };
 
     // The advanced disclosure now stays mounted (Finding 4), so app-permission-overrides is
@@ -104,6 +125,8 @@ function setup(options: SetupOptions = {}) {
         resolveByUserId: vi.fn(),
     };
 
+    const toastService = {error: vi.fn(), httpError: vi.fn()};
+
     TestBed.configureTestingModule({
         imports: [ChannelPermissionsComponent],
         providers: [
@@ -112,6 +135,7 @@ function setup(options: SetupOptions = {}) {
             provideTranslateService(),
             {provide: GuildService, useValue: guildService},
             {provide: ProfileService, useValue: profileService},
+            {provide: ToastService, useValue: toastService},
         ],
     });
 
@@ -123,7 +147,12 @@ function setup(options: SetupOptions = {}) {
     fixture.detectChanges();
     TestBed.tick();
 
-    return {fixture, component: fixture.componentInstance, guildService};
+    return {fixture, component: fixture.componentInstance, guildService, toastService};
+}
+
+function editor(fixture: ComponentFixture<ChannelPermissionsComponent>): PermissionOverridesComponent {
+    return fixture.debugElement.query(By.directive(PermissionOverridesComponent))
+        .componentInstance as PermissionOverridesComponent;
 }
 
 describe('ChannelPermissionsComponent page', () => {
@@ -241,5 +270,66 @@ describe('ChannelPermissionsComponent page', () => {
         const {component} = setup();
 
         expect(component.nameOf({targetId: 'mem_missing', kind: 'member'})).not.toBe('mem_missing');
+    });
+
+    it('reports a rejected private toggle instead of leaving the switch showing it landed', () => {
+        const {component, guildService, toastService} = setup();
+        guildService.updateChannel.mockReturnValue(throwError(() => new Error('403')));
+
+        component.setPrivate(true);
+
+        expect(toastService.httpError).toHaveBeenCalled();
+        expect(component['privateSwitch']()).toBe(false);
+    });
+});
+
+// The page and the editor underneath it, driven together. Every earlier spec in this feature set
+// its component's inputs once and never looked at what a child emitted.
+describe('ChannelPermissionsComponent with the real override editor', () => {
+    it('keeps a member overwrite no row has loaded when a role is saved on the roles tab', () => {
+        const ash = perm({id: 'p_ash', memberId: 'mem_ash', allowPermissions: 'ViewChannel'});
+        const r1 = perm({id: 'p_r1', roleId: 'r1', allowPermissions: 'SendMessages'});
+        const {fixture, component, guildService} = setup({
+            channelOverrides: [ash],
+            categoryOverrides: [ash, r1],
+        });
+        guildService.upsertChannelRolePermission.mockReturnValue(of(r1));
+
+        expect(component.synced()).toBe(false);
+
+        const child = editor(fixture);
+        // The members tab was never opened, so no row covers Ash.
+        expect(child['memberRows']()).toEqual([]);
+
+        child.onRoleChange('r1', {allow: 2n, deny: 0n, allowModule: 0n, denyModule: 0n});
+        child.saveRole('r1');
+        fixture.detectChanges();
+
+        expect(
+            component['channelOverrides']()
+                .map(p => p.id)
+                .sort(),
+        ).toEqual(['p_ash', 'p_r1']);
+        expect(component.synced()).toBe(true);
+    });
+
+    it('moves the private switch when the grid denies @everyone ViewChannel', () => {
+        const everyone = perm({
+            id: 'p_every',
+            roleId: 'role_everyone',
+            denyPermissions: 'ViewChannel',
+        });
+        const {fixture, component, guildService} = setup({channelOverrides: []});
+        guildService.upsertChannelRolePermission.mockReturnValue(of(everyone));
+
+        expect(component.isPrivate()).toBe(false);
+
+        const child = editor(fixture);
+        child.onRoleChange('role_everyone', {allow: 0n, deny: 1n, allowModule: 0n, denyModule: 0n});
+        child.saveRole('role_everyone');
+        fixture.detectChanges();
+
+        expect(component.isPrivate()).toBe(true);
+        expect(component['privateSwitch']()).toBe(true);
     });
 });
