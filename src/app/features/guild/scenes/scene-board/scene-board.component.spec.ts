@@ -135,7 +135,6 @@ function setup(scenes = SCENES, folders = FOLDERS, channels: ChannelDto[] = []) 
             groups: () => SceneGroup[];
             tree: () => {folder: {id: string}; count: number}[];
             sceneChannel: () => {id: string} | null;
-            pick: (folderId: string | null) => void;
         },
     };
 }
@@ -195,8 +194,8 @@ describe('SceneBoardComponent grouping', () => {
     });
 
     it('shows only the chosen folder when one is selected', () => {
-        const {fixture, component} = setup();
-        component.pick('b');
+        const {fixture, component, view} = setup();
+        view.update(held => ({...held, folderId: 'b'}));
         fixture.detectChanges();
 
         const keys = component.groups().map(g => g.key);
@@ -204,8 +203,8 @@ describe('SceneBoardComponent grouping', () => {
     });
 
     it('keeps a scene waiting on you visible when its own folder is selected', () => {
-        const {fixture, component} = setup();
-        component.pick('a');
+        const {fixture, component, view} = setup();
+        view.update(held => ({...held, folderId: 'a'}));
         fixture.detectChanges();
 
         const rows = component.groups().flatMap(g => g.rows.map(r => r.scene.channelId));
@@ -213,8 +212,8 @@ describe('SceneBoardComponent grouping', () => {
     });
 
     it('shows only the unfiled scene when the unfiled bucket is selected', () => {
-        const {fixture, component} = setup();
-        component.pick('unfiled');
+        const {fixture, component, view} = setup();
+        view.update(held => ({...held, folderId: 'unfiled'}));
         fixture.detectChanges();
 
         const groups = component.groups();

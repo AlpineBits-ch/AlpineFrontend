@@ -335,10 +335,6 @@ export class SceneBoardComponent {
         }
         this.nav.openSceneChannel(this.guildId(), channel.id);
     }
-
-    protected pick(folderId: string | null): void {
-        this.nav.openSceneFolder(this.guildId(), folderId, this.mode());
-    }
 }
 
 /** Every node depth first, parents before their children. */
