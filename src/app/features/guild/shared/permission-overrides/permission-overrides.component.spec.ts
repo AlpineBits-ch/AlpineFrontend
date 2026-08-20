@@ -248,7 +248,10 @@ describe('PermissionOverridesComponent members tab', () => {
     });
 
     it('appends the next page rather than replacing the list', () => {
-        const {component, guildService} = setup({members: [memberDto('ada')]});
+        // A full 50-row page: production reads a shorter page as the last one, so a mock that
+        // returns fewer than the page size would make `loadMoreMembers` correctly decline to fetch.
+        const fullPage = Array.from({length: 50}, (_, i) => memberDto(`m${i}`));
+        const {component, guildService} = setup({members: fullPage});
 
         component.switchTab('members');
         component.loadMoreMembers();
@@ -274,6 +277,25 @@ describe('PermissionOverridesComponent members tab', () => {
         component.searchMembers('');
 
         expect(guildService.getMembers).toHaveBeenCalledWith('guild_1', 0, 50);
+    });
+
+    it('debounces the search box 250ms before searching', async () => {
+        vi.useFakeTimers();
+        try {
+            const {component, guildService} = setup();
+
+            component.switchTab('members');
+            component.onMemberQuery('a');
+            component.onMemberQuery('ad');
+            expect(guildService.searchMembers).not.toHaveBeenCalled();
+
+            await vi.advanceTimersByTimeAsync(250);
+
+            expect(guildService.searchMembers).toHaveBeenCalledTimes(1);
+            expect(guildService.searchMembers).toHaveBeenCalledWith('guild_1', 'ad');
+        } finally {
+            vi.useRealTimers();
+        }
     });
 });
 

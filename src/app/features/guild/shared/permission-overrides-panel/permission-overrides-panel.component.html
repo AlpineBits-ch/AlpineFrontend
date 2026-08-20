@@ -69,9 +69,14 @@
                 @if (hasMore()) {
                     <button
                         (click)="loadMore.emit()"
-                        class="w-full px-2.5 py-1.5 rounded-lg text-xs text-text-muted hover:bg-hover hover:text-text-secondary transition-colors cursor-pointer border-0 text-left"
+                        [disabled]="loadingMore()"
+                        class="w-full px-2.5 py-1.5 rounded-lg text-xs text-text-muted hover:bg-hover hover:text-text-secondary transition-colors cursor-pointer border-0 text-left disabled:cursor-default"
                     >
-                        {{ 'PERM_OVERRIDE.LOAD_MORE' | translate }}
+                        @if (loadingMore()) {
+                            <i class="pi pi-spin pi-spinner text-xs"></i>
+                        } @else {
+                            {{ 'PERM_OVERRIDE.LOAD_MORE' | translate }}
+                        }
                     </button>
                 }
                 @if (entries().length === 0) {

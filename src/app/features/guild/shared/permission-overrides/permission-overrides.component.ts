@@ -8,8 +8,10 @@ import {
     output,
     signal,
 } from '@angular/core';
+import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {NgClass} from '@angular/common';
 import {TranslateModule} from '@ngx-translate/core';
+import {debounceTime, Subject} from 'rxjs';
 import {ChannelPermission, GuildDto, RoleDto, RoleType} from '../../../../dtos/response/guild.dto';
 import {GuildMemberDto} from '../../../../dtos/response/member.dto';
 import {ProfileDto} from '../../../../dtos/response/profile.dto';
@@ -27,6 +29,9 @@ import {
 } from '../permission-override-editor/permission-override-editor.component';
 import {OverrideTarget, PermissionScopeGateway} from './permission-scope.gateway';
 import {PermissionScope} from './permission-scope';
+
+/** Long enough that a typed word is one request, short enough the results still feel live. */
+const MEMBER_SEARCH_DEBOUNCE_MS = 250;
 
 interface Row<T> {
     subject: T;
@@ -58,6 +63,8 @@ export class PermissionOverridesComponent implements OnInit {
     protected readonly roleRows = signal<RoleRow[]>([]);
     protected readonly memberRows = signal<MemberRow[]>([]);
     protected readonly membersLoading = signal(false);
+    /** Loading a further page, as opposed to the first: the panel stays mounted, only the row spins. */
+    protected readonly loadingMoreMembers = signal(false);
     protected readonly memberSearch = signal('');
     protected readonly hasMoreMembers = signal(false);
     protected readonly roleSearch = signal('');
@@ -66,6 +73,13 @@ export class PermissionOverridesComponent implements OnInit {
     private guildService = inject(GuildService);
     private profiles = inject(ProfileService);
     private memberSkip = 0;
+    private memberQuerySubject = new Subject<string>();
+
+    constructor() {
+        this.memberQuerySubject
+            .pipe(debounceTime(MEMBER_SEARCH_DEBOUNCE_MS), takeUntilDestroyed())
+            .subscribe(term => this.searchMembers(term));
+    }
 
     protected get memberPageSize(): number {
         return PermissionOverridesComponent.MEMBER_PAGE_SIZE;
@@ -132,6 +146,11 @@ export class PermissionOverridesComponent implements OnInit {
         this.roleSearch.set(term);
     }
 
+    /** Bound to the search box; debounces before actually searching. */
+    onMemberQuery(term: string): void {
+        this.memberQuerySubject.next(term);
+    }
+
     searchMembers(term: string): void {
         this.memberSearch.set(term);
 
@@ -155,7 +174,7 @@ export class PermissionOverridesComponent implements OnInit {
     }
 
     loadMoreMembers(): void {
-        if (this.membersLoading() || !this.hasMoreMembers()) return;
+        if (this.loadingMoreMembers() || !this.hasMoreMembers()) return;
         this.loadMemberPage(true);
     }
 
@@ -352,21 +371,22 @@ export class PermissionOverridesComponent implements OnInit {
     }
 
     private loadMemberPage(append: boolean): void {
-        this.membersLoading.set(true);
+        // The initial load blanks the whole panel; an append only spins the "load more" row, so the
+        // sidebar and the open editor stay mounted and the user doesn't lose their place.
+        const loading = append ? this.loadingMoreMembers : this.membersLoading;
+        loading.set(true);
         const size = this.memberPageSize;
 
         this.guildService.getMembers(this.guild().id, this.memberSkip, size).subscribe({
             next: members => {
                 const rows = members.map(m => this.toMemberRow(m));
                 this.memberRows.update(list => (append ? [...list, ...rows] : rows));
-                // Skip advances by the requested page size, not the count actually returned: a page
-                // shorter than requested still leaves more to ask for until an empty page arrives.
-                this.memberSkip += size;
-                this.hasMoreMembers.set(members.length > 0);
-                this.membersLoading.set(false);
+                this.memberSkip += members.length;
+                this.hasMoreMembers.set(members.length === size);
+                loading.set(false);
                 this.hydrateProfiles();
             },
-            error: () => this.membersLoading.set(false),
+            error: () => loading.set(false),
         });
     }
 

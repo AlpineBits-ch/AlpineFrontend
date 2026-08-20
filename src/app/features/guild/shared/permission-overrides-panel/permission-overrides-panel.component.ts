@@ -48,6 +48,8 @@ export class PermissionOverridesPanelComponent {
     readonly channelType = input<ChannelType | null>(null);
     readonly searchable = input(false);
     readonly hasMore = input(false);
+    /** A further page loading, as opposed to the first: spins the "load more" row, not the panel. */
+    readonly loadingMore = input(false);
 
     add = output<string>();
     change = output<{id: string; override: PermOverride}>();
