@@ -1,4 +1,4 @@
-import {ChangeDetectionStrategy, Component, computed, effect, inject, input, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, inject, input, signal} from '@angular/core';
 import {NgClass} from '@angular/common';
 import {Tooltip} from 'primeng/tooltip';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
@@ -58,8 +58,34 @@ export class RoleChannelsComponent {
     private readonly toastService = inject(ToastService);
     private readonly translate = inject(TranslateService);
 
+    /**
+     * The cells this component saved itself, and the role they belong to. `channels` comes from the
+     * workspace guild, which is re-pointed on every realtime guild patch and never carries a matrix
+     * save back, so a saved cell has to outlive a new `channels` array or it reverts under the user.
+     */
+    private readonly localEdits = signal<{
+        roleId: string;
+        cells: ReadonlyMap<string, PermOverride | null>;
+    }>({roleId: '', cells: new Map()});
+
     /** Keyed by channel id, holding only this role's override on that channel. */
-    private readonly overrides = signal<Map<string, PermOverride>>(new Map());
+    private readonly overrides = computed<ReadonlyMap<string, PermOverride>>(() => {
+        const roleId = this.role().id;
+        const map = new Map<string, PermOverride>();
+        for (const channel of this.channels()) {
+            const perm = channel.permissions.find(p => p.roleId === roleId);
+            if (perm) map.set(channel.id, toOverride(perm));
+        }
+
+        const local = this.localEdits();
+        if (local.roleId !== roleId) return map;
+
+        for (const [channelId, override] of local.cells) {
+            if (override) map.set(channelId, override);
+            else map.delete(channelId);
+        }
+        return map;
+    });
 
     /** The row that opened the apply dialog; also its source override. Null means the dialog is closed. */
     protected readonly applyChannelId = signal<string | null>(null);
@@ -95,19 +121,6 @@ export class RoleChannelsComponent {
 
     protected readonly overrideCount = computed(() => this.overrides().size);
     protected readonly totalChannels = computed(() => this.channels().length);
-
-    constructor() {
-        // Role or channel list changed: rebuild the map from what the server has, dropping any edits.
-        effect(() => {
-            const roleId = this.role().id;
-            const map = new Map<string, PermOverride>();
-            for (const channel of this.channels()) {
-                const perm = channel.permissions.find(p => p.roleId === roleId);
-                if (perm) map.set(channel.id, toOverride(perm));
-            }
-            this.overrides.set(map);
-        });
-    }
 
     /** Only the columns this guild's own channel types use, so the grid never clips on types it doesn't have. */
     protected readonly columns = computed<PermissionKey[]>(() =>
@@ -203,18 +216,19 @@ export class RoleChannelsComponent {
     }
 
     private remember(channelId: string, perm: ChannelPermission): void {
-        this.overrides.update(map => {
-            const next = new Map(map);
-            next.set(channelId, toOverride(perm));
-            return next;
-        });
+        this.recordEdit(channelId, toOverride(perm));
     }
 
     private forget(channelId: string): void {
-        this.overrides.update(map => {
-            const next = new Map(map);
-            next.delete(channelId);
-            return next;
+        this.recordEdit(channelId, null);
+    }
+
+    private recordEdit(channelId: string, override: PermOverride | null): void {
+        const roleId = this.role().id;
+        this.localEdits.update(current => {
+            const cells = new Map(current.roleId === roleId ? current.cells : []);
+            cells.set(channelId, override);
+            return {roleId, cells};
         });
     }
 }

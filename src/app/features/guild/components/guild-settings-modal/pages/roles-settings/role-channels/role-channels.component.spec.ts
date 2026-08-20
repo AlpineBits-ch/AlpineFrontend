@@ -268,6 +268,62 @@ describe('RoleChannelsComponent', () => {
         ]);
     });
 
+    // A realtime guildUpdated re-points `channels` from the workspace guild, which never carries a
+    // matrix save back. Rebuilding from it would revert every cell the admin just wrote.
+    it('keeps a saved cell when the channels input is re-pointed to a new array', () => {
+        const {fixture, component} = setup({channels: [channel('c1', ChannelType.Text)]});
+
+        component.setCell('c1', 'SendMessages', 'deny');
+        expect(component.cellState('c1', 'SendMessages')).toBe('deny');
+
+        // Same channel, same server state, new array and new object identity.
+        fixture.componentRef.setInput('channels', [channel('c1', ChannelType.Text)]);
+        fixture.detectChanges();
+
+        expect(component.cellState('c1', 'SendMessages')).toBe('deny');
+    });
+
+    it('keeps a deleted cell cleared when the channels input is re-pointed', () => {
+        const {fixture, component} = setup({
+            channels: [
+                channel('c1', ChannelType.Text, {allowPermissions: 'SendMessages', denyPermissions: 'None'}),
+            ],
+        });
+
+        component.setCell('c1', 'SendMessages', 'inherit');
+
+        fixture.componentRef.setInput('channels', [
+            channel('c1', ChannelType.Text, {allowPermissions: 'SendMessages', denyPermissions: 'None'}),
+        ]);
+        fixture.detectChanges();
+
+        expect(component.cellState('c1', 'SendMessages')).toBe('inherit');
+    });
+
+    it('drops the previous role edits when a different role is selected', () => {
+        const {fixture, component} = setup({channels: [channel('c1', ChannelType.Text)]});
+
+        component.setCell('c1', 'SendMessages', 'deny');
+        fixture.componentRef.setInput('role', {...role(), id: 'role_2'});
+        fixture.detectChanges();
+
+        expect(component.cellState('c1', 'SendMessages')).toBe('inherit');
+    });
+
+    it('cycles from the state the server confirmed, not from an optimistic one', () => {
+        const {component, guildService} = setup({channels: [channel('c1', ChannelType.Text)]});
+
+        component.cycleCell('c1', 'SendMessages');
+        expect(component.cellState('c1', 'SendMessages')).toBe('allow');
+
+        component.cycleCell('c1', 'SendMessages');
+
+        expect(guildService.upsertChannelRolePermission).toHaveBeenLastCalledWith('c1', ROLE, {
+            allowPermissions: 'None',
+            denyPermissions: 'SendMessages',
+        });
+    });
+
     it('reports a failed cell write via a toast and leaves the cell as it was', () => {
         const {component, guildService, toastService} = setup({channels: [channel('c1', ChannelType.Text)]});
         guildService.upsertChannelRolePermission.mockReturnValue(throwError(() => new Error('403')));
