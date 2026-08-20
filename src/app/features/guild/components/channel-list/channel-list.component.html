@@ -42,10 +42,7 @@
                         class="chan-twisty"
                         type="button"
                     >
-                        <i
-                            [class]="sceneTreeOpen() ? 'pi-chevron-down' : 'pi-chevron-right'"
-                            class="pi text-[0.5625rem]"
-                        ></i>
+                        <i [class]="sceneTreeOpen() ? 'pi-chevron-down' : 'pi-chevron-right'" class="pi text-[0.5625rem]"></i>
                     </button>
                     <button (click)="openScenes()" class="chan-row-main" type="button">
                         <span class="chan-icon"><i class="pi pi-bookmark"></i></span>
@@ -122,6 +119,7 @@
                     (dragover)="drag.onItemDragOver($event, category.id)"
                     (dragstart)="drag.onCategoryDragStart($event, category)"
                     [attr.draggable]="canReorder() ? 'true' : null"
+                    [class.is-collapsed]="isCollapsed(category.id)"
                     [ngClass]="drag.dropTargetId() === category.id ? 'bg-white/[0.04] rounded-lg' : ''"
                     class="chan-section"
                 >
@@ -132,12 +130,10 @@
                         [class.cursor-grab]="canReorder()"
                         class="chan-section-toggle"
                     >
-                        <i
-                            [ngClass]="isCollapsed(category.id) ? 'pi-chevron-right' : 'pi-chevron-down'"
-                            class="pi text-[0.5625rem] opacity-70 shrink-0 transition-transform duration-150"
-                        ></i>
+                        <span class="chan-section-chevron">
+                            <i [ngClass]="isCollapsed(category.id) ? 'pi-chevron-right' : 'pi-chevron-down'" class="pi"></i>
+                        </span>
                         <span class="chan-section-label">{{ category.name }}</span>
-                        <span class="chan-section-rule"></span>
                     </button>
                     <button
                         (click)="openCreateChannel(category.id)"

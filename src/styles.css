@@ -311,9 +311,12 @@ body {
     display: flex;
     width: 100%;
     align-items: center;
-    gap: 0.375rem;
-    height: 1.75rem;
-    margin-top: 0.625rem;
+    /* Matches .chan-row's gap, so the chevron slot and the icon slot put their
+     labels on the same x. */
+    gap: 0.5rem;
+    height: 1.5rem;
+    margin-top: 1rem;
+    margin-bottom: 0.125rem;
     padding-left: 0.75rem;
     padding-right: 0.5rem;
     color: rgb(255 255 255 / 0.34);
@@ -334,7 +337,7 @@ body {
     min-width: 0;
     height: 100%;
     align-items: center;
-    gap: 0.375rem;
+    gap: 0.5rem;
     padding: 0;
     border: 0;
     background: transparent;
@@ -373,21 +376,36 @@ body {
     opacity: 1;
 }
 
+/* Exactly .chan-icon's width. That is the whole point of the slot: a category label
+   and a channel label land on one x instead of the label sitting 0.6875rem adrift,
+   overlapping the icon column without joining it. */
+.chan-section-chevron {
+    display: flex;
+    width: 1.125rem;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.5625rem;
+    opacity: 0;
+    transition: opacity var(--duration-fast) var(--ease-brand);
+}
+
+/* Collapsed has to be readable without hovering, so the chevron stays up for it. */
+.chan-section:hover .chan-section-chevron,
+.chan-section-toggle:focus-visible .chan-section-chevron,
+.chan-section.is-collapsed .chan-section-chevron {
+    opacity: 0.7;
+}
+
 .chan-section-label {
     overflow: hidden;
     font-size: 0.6875rem;
     font-weight: 600;
-    letter-spacing: 0.11em;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
     text-overflow: ellipsis;
     white-space: nowrap;
-}
-
-.chan-section-rule {
-    flex: 1;
-    height: 1px;
-    margin: 0 0.25rem;
-    background: rgb(255 255 255 / 0.07);
+    transition: color var(--duration-fast) var(--ease-brand);
 }
 
 /* Nesting. One guide line for both voice members and forum posts - they used to
