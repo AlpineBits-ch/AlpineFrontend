@@ -10,23 +10,6 @@ import {SceneFolderRailComponent} from './scene-folder-rail.component';
 import {folderTree} from './folder-tree';
 import {SceneFolderDto, SceneStatus} from '../../../../dtos/response/scene.dto';
 
-// jsdom implements no `matchMedia`, and PrimeNG's ContextMenu binds a listener to it in
-// `ngOnInit`. Same stub `conversation-list-paging.spec.ts` uses.
-beforeEach(() => {
-    if (!window.matchMedia) {
-        window.matchMedia = ((query: string) => ({
-            matches: false,
-            media: query,
-            onchange: null,
-            addEventListener: () => undefined,
-            removeEventListener: () => undefined,
-            addListener: () => undefined,
-            removeListener: () => undefined,
-            dispatchEvent: () => false,
-        })) as unknown as typeof window.matchMedia;
-    }
-});
-
 function folder(id: string, parentFolderId: string | null = null, position = 0): SceneFolderDto {
     return {id, guildId: 'g1', name: id.toUpperCase(), position, parentFolderId};
 }

@@ -14,23 +14,6 @@ import {NavigationService} from '../../main-page/navigation.service';
 import {SceneFolderDto} from '../../../dtos/response/scene.dto';
 import {installMemoryStorage} from '../../../testing/memory-storage';
 
-// jsdom implements no `matchMedia`, and PrimeNG's ContextMenu binds a listener to it in
-// `ngOnInit`. Same stub `scene-folder-rail.component.spec.ts` uses.
-beforeEach(() => {
-    if (!window.matchMedia) {
-        window.matchMedia = ((query: string) => ({
-            matches: false,
-            media: query,
-            onchange: null,
-            addEventListener: () => undefined,
-            removeEventListener: () => undefined,
-            addListener: () => undefined,
-            removeListener: () => undefined,
-            dispatchEvent: () => false,
-        })) as unknown as typeof window.matchMedia;
-    }
-});
-
 function folder(id: string, parentFolderId: string | null = null, position = 0): SceneFolderDto {
     return {id, guildId: 'g1', name: id.toUpperCase(), position, parentFolderId};
 }
