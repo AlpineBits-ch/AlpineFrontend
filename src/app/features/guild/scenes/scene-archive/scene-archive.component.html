@@ -1,5 +1,5 @@
 <div class="flex min-h-0 flex-1 overflow-hidden">
-    <aside class="archive-rail thin-scrollbar">
+    <aside #rail class="archive-rail thin-scrollbar">
         <app-scene-folder-rail
             (createFolder)="editing.set({folder: null, seedParentId: $event})"
             (createScene)="createSceneIn.emit($event)"
@@ -20,6 +20,8 @@
             [selected]="folderId()"
             [tree]="tree()"
         />
+
+        <div [target]="rail" appRailResize class="archive-rail-handle"></div>
     </aside>
 
     <div class="flex min-w-0 flex-1 flex-col">

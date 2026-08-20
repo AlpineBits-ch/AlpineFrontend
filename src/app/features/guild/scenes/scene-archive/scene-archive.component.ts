@@ -18,6 +18,7 @@ import {MenuItem} from 'primeng/api';
 import {debounceTime, distinctUntilChanged, map} from 'rxjs';
 
 import {SceneFolderRailComponent} from './scene-folder-rail.component';
+import {RailResizeDirective} from './rail-resize.directive';
 import {SceneArchiveCardComponent} from './scene-archive-card.component';
 import {SceneDetailSheetComponent} from './scene-detail-sheet.component';
 import {SceneFolderEditorComponent} from './scene-folder-editor.component';
@@ -72,6 +73,7 @@ interface FolderEdit {
         Menu,
         Popover,
         SceneFolderRailComponent,
+        RailResizeDirective,
         SceneArchiveCardComponent,
         SceneDetailSheetComponent,
         SceneFolderEditorComponent,

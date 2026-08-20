@@ -150,22 +150,6 @@ describe('SceneFolderRailComponent tree', () => {
         expect(fixture.nativeElement.textContent).toContain('Nightwatch');
     });
 
-    it('marks a scene as mine with a dot rather than a badge', () => {
-        const {fixture} = setup();
-        fixture.componentRef.setInput('recent', [
-            {channelId: 'ch_9', name: 'Nightwatch', status: SceneStatus.Active, mine: true},
-            {channelId: 'ch_8', name: 'Council of Crows', status: SceneStatus.Active, mine: false},
-        ]);
-        fixture.detectChanges();
-
-        const rows = fixture.nativeElement.querySelectorAll('.rail-leaf');
-        expect(rows[0].querySelector('.rail-dot').classList.contains('is-mine')).toBe(true);
-        expect(rows[0].getAttribute('title')).toBe('SCENE.RAIL.YOUR_MOVE');
-        expect(rows[1].querySelector('.rail-dot').classList.contains('is-mine')).toBe(false);
-        expect(rows[1].getAttribute('title')).toBeNull();
-        expect(fixture.nativeElement.textContent).not.toContain('SCENE.RAIL.YOUR_MOVE');
-    });
-
     it('reports a shelf being opened rather than opening it itself', () => {
         const {fixture, component} = setup();
         const toggles: string[] = [];

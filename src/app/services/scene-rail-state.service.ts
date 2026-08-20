@@ -9,6 +9,8 @@ interface RailState {
     expanded: Record<string, string[]>;
     /** Whether the playing screen shows the rail, per guild. */
     visible: Record<string, boolean>;
+    /** Pixels, not per guild: a person wants one rail width everywhere. Null uses the default. */
+    width: number | null;
 }
 
 /** What the folder rail remembers between visits: which shelves are open, and whether it is shown. */
@@ -44,6 +46,15 @@ export class SceneRailStateService {
         this.persist();
     }
 
+    railWidth(): number | null {
+        return this.state().width;
+    }
+
+    setRailWidth(width: number | null): void {
+        this.state.update(state => ({...state, width}));
+        this.persist();
+    }
+
     private persist(): void {
         try {
             localStorage.setItem(SCENE_RAIL_STORAGE_KEY, JSON.stringify(this.state()));
@@ -54,12 +65,16 @@ export class SceneRailStateService {
 }
 
 function read(): RailState {
-    const empty: RailState = {expanded: {}, visible: {}};
+    const empty: RailState = {expanded: {}, visible: {}, width: null};
     try {
         const raw = localStorage.getItem(SCENE_RAIL_STORAGE_KEY);
         if (!raw) return empty;
         const parsed = JSON.parse(raw) as Partial<RailState>;
-        return {expanded: parsed.expanded ?? {}, visible: parsed.visible ?? {}};
+        return {
+            expanded: parsed.expanded ?? {},
+            visible: parsed.visible ?? {},
+            width: typeof parsed.width === 'number' ? parsed.width : null,
+        };
     } catch {
         return empty;
     }

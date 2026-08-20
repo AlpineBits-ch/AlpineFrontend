@@ -81,4 +81,37 @@ describe('SceneRailStateService', () => {
 
         expect(service().expanded('g1')).toEqual([]);
     });
+
+    it('starts with no remembered rail width', () => {
+        expect(service().railWidth()).toBeNull();
+    });
+
+    it('round-trips a rail width', () => {
+        service().setRailWidth(320);
+
+        expect(service().railWidth()).toBe(320);
+    });
+
+    it('is not per guild: one width follows a person everywhere', () => {
+        const state = service();
+
+        state.setRailWidth(280);
+
+        expect(state.railWidth()).toBe(280);
+    });
+
+    it('clears back to the default', () => {
+        const state = service();
+        state.setRailWidth(320);
+
+        state.setRailWidth(null);
+
+        expect(state.railWidth()).toBeNull();
+    });
+
+    it('reads a corrupt width as nothing remembered', () => {
+        localStorage.setItem(SCENE_RAIL_STORAGE_KEY, JSON.stringify({width: 'wide'}));
+
+        expect(service().railWidth()).toBeNull();
+    });
 });
