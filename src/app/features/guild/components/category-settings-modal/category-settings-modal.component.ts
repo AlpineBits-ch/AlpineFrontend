@@ -1,10 +1,11 @@
-import {Component, inject, model, output, signal} from '@angular/core';
+import {Component, computed, inject, model, output, signal} from '@angular/core';
 import {NgClass} from '@angular/common';
 import {Dialog} from 'primeng/dialog';
 import {Button} from 'primeng/button';
 import {CategoryDto, GuildDto} from '../../../../dtos/response/guild.dto';
 import {CategoryOverviewComponent} from './pages/category-overview/category-overview.component';
-import {CategoryPermissionsComponent} from './pages/category-permissions/category-permissions.component';
+import {PermissionOverridesComponent} from '../../shared/permission-overrides/permission-overrides.component';
+import {categoryScope} from '../../shared/permission-overrides/permission-scope';
 import {GuildService} from '../../../../services/guild.service';
 import {PrimeTemplate} from 'primeng/api';
 import {TranslateModule} from '@ngx-translate/core';
@@ -22,7 +23,7 @@ interface NavItem {
         Dialog,
         Button,
         CategoryOverviewComponent,
-        CategoryPermissionsComponent,
+        PermissionOverridesComponent,
         PrimeTemplate,
         TranslateModule,
     ],
@@ -33,6 +34,10 @@ export class CategorySettingsModalComponent {
 
     readonly category = signal<CategoryDto | null>(null);
     readonly guild = signal<GuildDto | null>(null);
+    protected readonly scope = computed(() => {
+        const category = this.category();
+        return category ? categoryScope(category) : null;
+    });
 
     categoryUpdated = output<CategoryDto>();
     categoryDeleted = output<string>();

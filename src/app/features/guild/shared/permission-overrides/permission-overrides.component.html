@@ -1,5 +1,5 @@
 <div class="space-y-4">
-    <p class="text-xs text-text-muted max-w-prose">{{ 'PERM_OVERRIDE.INTRO_CATEGORY' | translate }}</p>
+    <p class="text-xs text-text-muted max-w-prose">{{ introKey() | translate }}</p>
 
     <div class="flex gap-1 p-1 bg-card rounded-xl w-fit" role="tablist">
         <button
@@ -22,6 +22,7 @@
         </button>
     </div>
 
+    <!-- Roles Tab -->
     @if (activeTab() === 'roles') {
         <app-permission-overrides-panel
             (add)="onAddRole($event)"
@@ -29,11 +30,13 @@
             (delete)="deleteRole($event)"
             (save)="saveRole($event)"
             [addable]="addableRoles()"
+            [channelType]="scope().channelType"
             [entries]="roleEntries()"
             kind="role"
         />
     }
 
+    <!-- Members Tab -->
     @if (activeTab() === 'members') {
         <app-permission-overrides-panel
             (add)="onAddMember($event)"
@@ -41,6 +44,7 @@
             (delete)="deleteMember($event)"
             (save)="saveMember($event)"
             [addable]="addableMembers()"
+            [channelType]="scope().channelType"
             [entries]="memberEntries()"
             [loading]="membersLoading()"
             kind="member"
