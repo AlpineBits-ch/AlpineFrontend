@@ -2,12 +2,20 @@
     <aside class="archive-rail thin-scrollbar">
         <app-scene-folder-rail
             (createFolder)="editing.set({folder: null, seedParentId: $event})"
+            (createScene)="createSceneIn.emit($event)"
             (deleteFolder)="editing.set({folder: $event.folder, seedParentId: null})"
             (filed)="file($event.channelId, $event.folderId)"
+            (openScene)="openScene($event)"
             (picked)="folderId.set($event)"
             (renameFolder)="editing.set({folder: $event.folder, seedParentId: null})"
             (reordered)="reorder($event)"
+            (showAll)="folderId.set($event)"
+            (toggled)="toggleShelf($event)"
             [canManage]="canManage()"
+            [expandedIds]="expandedIds()"
+            [loadingFolderIds]="loadingFolderIds()"
+            [recent]="recent()"
+            [scenesByFolder]="scenesByFolder()"
             [selected]="folderId()"
             [tree]="tree()"
         />
@@ -27,6 +35,11 @@
 
             <button (click)="sortMenu.toggle($event)" class="archive-clear archive-sort" type="button">
                 {{ sortLabel() | translate }}
+                <i class="pi pi-chevron-down text-[0.5rem]"></i>
+            </button>
+
+            <button (click)="statusMenu.toggle($event)" class="archive-clear archive-sort" type="button">
+                {{ statusLabel() | translate }}
                 <i class="pi pi-chevron-down text-[0.5rem]"></i>
             </button>
 
@@ -124,6 +137,7 @@
 </div>
 
 <p-menu #sortMenu [model]="sortItems()" [popup]="true" appendTo="body" />
+<p-menu #statusMenu [model]="statusItems()" [popup]="true" appendTo="body" />
 
 <p-popover #tagPicker [style]="{width: '15rem'}" appendTo="body">
     <div class="flex flex-col gap-2">

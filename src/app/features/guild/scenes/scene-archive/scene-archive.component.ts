@@ -5,6 +5,7 @@ import {
     effect,
     inject,
     input,
+    output,
     signal,
     untracked,
 } from '@angular/core';
@@ -23,12 +24,16 @@ import {SceneFolderEditorComponent} from './scene-folder-editor.component';
 import {SceneTagEditorComponent} from './scene-tag-editor.component';
 import {folderTree} from './folder-tree';
 import {TagChipComponent} from '../../../../components/tag-chip/tag-chip.component';
-import {SceneArchiveService} from '../../../../services/scene-archive.service';
+import {ArchiveStatus, SceneArchiveService} from '../../../../services/scene-archive.service';
+import {SceneRailStateService} from '../../../../services/scene-rail-state.service';
 import {SceneTaxonomyService} from '../../../../services/scene-taxonomy.service';
 import {SceneService} from '../../../../services/scene.service';
+import {GuildService} from '../../../../services/guild.service';
 import {ToastService} from '../../../../services/toast.service';
 import {SceneFolderDto, SceneListItemDto} from '../../../../dtos/response/scene.dto';
 import {SceneSort, UNFILED} from '../../../../dtos/request/scene.dto';
+import {leavesByFolder, recentScenes, SceneLeaf} from '../scene-leaf';
+import {NavigationService} from '../../../main-page/navigation.service';
 
 /** Long enough that a typed word is one request, short enough that the results still feel live. */
 const SEARCH_DEBOUNCE_MS = 300;
@@ -39,6 +44,12 @@ const SORT_LABELS: Record<SceneSort, string> = {
     ended: 'SCENE.ARCHIVE.SORT_ENDED',
     name: 'SCENE.ARCHIVE.SORT_NAME',
     board: 'SCENE.ARCHIVE.SORT_BOARD',
+};
+
+const STATUS_LABELS: Record<ArchiveStatus, string> = {
+    all: 'SCENE.ARCHIVE.STATUS_ALL',
+    running: 'SCENE.ARCHIVE.STATUS_RUNNING',
+    finished: 'SCENE.ARCHIVE.STATUS_FINISHED',
 };
 
 /** A folder being edited, plus the parent a new one should start on. */
@@ -77,11 +88,19 @@ export class SceneArchiveComponent {
     readonly guildId = input.required<string>();
     readonly canManage = input(false);
 
+    /** The folder a new scene should open in, for the board to act on: the dialog lives there. */
+    readonly createSceneIn = output<string | null>();
+
     protected readonly archive = inject(SceneArchiveService);
     protected readonly taxonomy = inject(SceneTaxonomyService);
     private readonly scenes = inject(SceneService);
     private readonly toast = inject(ToastService);
     private readonly translate = inject(TranslateService);
+    private readonly railState = inject(SceneRailStateService);
+    private readonly nav = inject(NavigationService);
+    private readonly guilds = inject(GuildService);
+
+    protected readonly status = signal<ArchiveStatus>('all');
 
     protected readonly folderId = signal<string | null>(null);
     protected readonly tagIds = signal<string[]>([]);
@@ -107,7 +126,10 @@ export class SceneArchiveComponent {
     constructor() {
         effect(() => {
             const guildId = this.guildId();
-            untracked(() => this.taxonomy.ensureGuild(guildId));
+            untracked(() => {
+                this.taxonomy.ensureGuild(guildId);
+                this.scenes.ensureGuild(guildId);
+            });
         });
 
         effect(() => {
@@ -117,12 +139,45 @@ export class SceneArchiveComponent {
                 tagIds: this.tagIds(),
                 q: this.settledQuery(),
                 sort: this.sort(),
+                status: this.status(),
             };
             untracked(() => this.archive.apply(filter));
+        });
+
+        // Every open shelf reads its own page. The service dedupes, so reopening one is free.
+        effect(() => {
+            const guildId = this.guildId();
+            const status = this.status();
+            const open = this.railState.expanded(guildId);
+            untracked(() => {
+                for (const folderId of open) this.archive.peek(guildId, folderId, status);
+            });
         });
     }
 
     protected readonly tree = computed(() => folderTree(this.taxonomy.folders(this.guildId()), {}));
+
+    protected readonly expandedIds = computed(() => this.railState.expanded(this.guildId()));
+
+    protected readonly loadingFolderIds = computed(() =>
+        this.expandedIds().filter(id => this.archive.peekLoading(this.guildId(), id, this.status())),
+    );
+
+    protected readonly scenesByFolder = computed((): Record<string, SceneLeaf[]> => {
+        const guildId = this.guildId();
+        const status = this.status();
+        const speakable = this.scenes.speakableIds(guildId);
+        const grouped: Record<string, SceneLeaf[]> = {};
+        for (const folderId of this.expandedIds()) {
+            grouped[folderId] =
+                leavesByFolder(this.archive.peeked(guildId, folderId, status), speakable)[folderId] ?? [];
+        }
+        return grouped;
+    });
+
+    protected readonly recent = computed(() =>
+        recentScenes(this.scenes.scenes(this.guildId()), this.scenes.speakableIds(this.guildId())),
+    );
 
     protected readonly tags = computed(() => this.taxonomy.tags(this.guildId()));
 
@@ -196,4 +251,30 @@ export class SceneArchiveComponent {
             error: err => this.toast.httpError(this.translate.instant('SCENE.ARCHIVE.REORDER_ERROR'), err),
         });
     }
+
+    protected toggleShelf(folderId: string): void {
+        this.railState.toggle(this.guildId(), folderId);
+    }
+
+    protected openScene(channelId: string): void {
+        const channel = this.guilds
+            .guilds()
+            .find(g => g.id === this.guildId())
+            ?.channels.find(c => c.id === channelId);
+        if (!channel) {
+            this.toast.error(this.translate.instant('SCENE.ARCHIVE.OPEN_ERROR'));
+            return;
+        }
+        this.nav.openChannel(channel);
+    }
+
+    protected readonly statusItems = computed<MenuItem[]>(() =>
+        (['all', 'running', 'finished'] as ArchiveStatus[]).map(value => ({
+            label: this.translate.instant(STATUS_LABELS[value]),
+            icon: this.status() === value ? 'pi pi-check' : 'pi pi-fw',
+            command: () => this.status.set(value),
+        })),
+    );
+
+    protected readonly statusLabel = computed(() => STATUS_LABELS[this.status()]);
 }
