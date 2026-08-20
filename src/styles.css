@@ -320,7 +320,11 @@ body {
     transition: color var(--duration-fast) var(--ease-brand);
 }
 
-.chan-section:hover {
+/* Only the label brightens. Hovering the strip used to lift the chevron, the label and
+   the rule together, which read as four things moving for one pointer crossing. The
+   add button is opacity, not colour, so it still keys off the section. */
+.chan-section-toggle:hover .chan-section-label,
+.chan-section-toggle:focus-visible .chan-section-label {
     color: rgb(255 255 255 / 0.62);
 }
 
