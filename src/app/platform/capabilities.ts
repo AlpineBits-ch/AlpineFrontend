@@ -28,6 +28,14 @@ export abstract class PlatformCapabilities {
     abstract readonly selfUpdate: boolean;
     /** The app draws its own titlebar and frame. */
     abstract readonly customWindowChrome: boolean;
+    /**
+     * Whether the sign-in screen may point at another instance.
+     *
+     * <p>A web build is served by one instance and talks to that origin; sending its credentials
+     * somewhere else is a cross-origin request that instance never allowed. The desktop app has no
+     * origin of its own, so choosing is the only way it learns where to go.</p>
+     */
+    abstract readonly instanceSelection: boolean;
     abstract readonly nativeToasts: boolean;
     /**
      * Whether a notification can arrive while the app is closed. Distinct from {@link nativeToasts}:
@@ -61,6 +69,7 @@ export function tauriCapabilities(): PlatformCapabilities {
         autostart: true,
         selfUpdate: true,
         customWindowChrome: true,
+        instanceSelection: true,
         nativeToasts: true,
         backgroundPush: true,
         hardwareBackedKeys: true,
@@ -85,6 +94,7 @@ export function webCapabilities(): PlatformCapabilities {
         autostart: false,
         selfUpdate: false,
         customWindowChrome: false,
+        instanceSelection: false,
         nativeToasts: false,
         // Blocked on the server accepting a `WebPush` token kind, not on client work.
         backgroundPush: false,

@@ -8,6 +8,9 @@ import {activeSlotId, scopedOAuthKey} from './scoped-oauth-storage';
 
 const STORAGE_KEY = 'server_url';
 
+/** What the compiled-in default is called in the UI. Its API host is a subdomain of it. */
+const HOME_DOMAIN = 'venta.gg';
+
 /**
  * The server this account is on, kept per slot.
  *
@@ -58,45 +61,9 @@ export class ApiConfigService {
         return url.startsWith(this.baseUrl()) || url.startsWith(environment.apiUrl);
     }
 
-    /**
-     * Parses `user` or `user@server.com`, updates the base URL, persists it,
-     * re-configures OAuth, and returns the bare username.
-     */
-    applyLoginInput(input: string): string {
-        const atIdx = input.lastIndexOf('@');
-        let username: string;
-        let apiUrl: string;
-
-        if (atIdx > 0) {
-            username = input.slice(0, atIdx);
-            const domain = input.slice(atIdx + 1);
-            apiUrl = `https://${domain}`;
-        } else {
-            username = input;
-            apiUrl = environment.apiUrl;
-        }
-
-        this.baseUrl.set(apiUrl);
-        writeServerUrl(apiUrl);
-        this.oauthService.configure({
-            ...authConfig,
-            issuer: apiUrl,
-            tokenEndpoint: `${apiUrl}/connect/token`,
-        });
-
-        return username;
-    }
-
-    /** Returns the display hostname for a login input string. */
-    static serverLabel(input: string): string {
-        const atIdx = input.lastIndexOf('@');
-        if (atIdx > 0) return input.slice(atIdx + 1);
-        return 'venta.gg';
-    }
-
     /** Set the active server from a bare domain name (e.g. `selfhosted.com` or `venta.gg`). */
     setServer(domain: string): void {
-        const url = domain === 'venta.gg' ? environment.apiUrl : `https://${domain}`;
+        const url = ApiConfigService.domainToUrl(domain);
         this.baseUrl.set(url);
         writeServerUrl(url);
         this.oauthService.configure({
@@ -122,7 +89,27 @@ export class ApiConfigService {
 
     /** Derive the API base URL from a bare domain name. */
     static domainToUrl(domain: string): string {
-        return domain === 'venta.gg' ? environment.apiUrl : `https://${domain}`;
+        return domain === HOME_DOMAIN ? environment.apiUrl : `https://${domain}`;
+    }
+
+    /**
+     * The inverse of {@link domainToUrl}: what the instance picker shows for a base URL.
+     *
+     * <p>The home instance is not a plain host round-trip - its API lives on a subdomain of the
+     * name people know it by.</p>
+     */
+    static urlToDomain(url: string): string {
+        if (url === environment.apiUrl) return HOME_DOMAIN;
+        try {
+            return new URL(url).host;
+        } catch {
+            return HOME_DOMAIN;
+        }
+    }
+
+    /** The instance the app ships pointed at. */
+    static get homeDomain(): string {
+        return HOME_DOMAIN;
     }
 
     public getServerConfiguration(domain: string): Observable<ServerConfiguration> {

@@ -25,7 +25,7 @@ function configure(deviceId: () => Promise<string>) {
             provideHttpClient(),
             provideHttpClientTesting(),
             {provide: OAuthService, useValue: oauth},
-            {provide: ApiConfigService, useValue: {applyLoginInput: (i: string) => i}},
+            {provide: ApiConfigService, useValue: {baseUrl: () => 'https://api.venta.gg'}},
             {provide: DeviceIdentityService, useValue: {deviceId}},
         ],
     });
@@ -60,6 +60,17 @@ it('still logs in when the device id cannot be resolved', async () => {
     const [, params] = oauth.fetchTokenUsingGrant.mock.calls[0];
     expect(params['device_id']).toBeUndefined();
     expect(params['username']).toBe('alice');
+});
+
+// The server resolves a username or an email itself. Splitting on `@` here used to re-point the
+// whole client at the mail host.
+it('sends an email identity to the server whole', async () => {
+    const {service, oauth} = setup();
+
+    await firstValueFrom(service.login('ada@fastmail.com', 'hunter2'));
+
+    const [, params] = oauth.fetchTokenUsingGrant.mock.calls[0];
+    expect(params['username']).toBe('ada@fastmail.com');
 });
 
 it('passes the mfa code through unchanged', async () => {

@@ -72,6 +72,25 @@
                     </div>
                 }
 
+                <!-- Above the tabs on purpose: it scopes every mode below it rather than being a
+                 field inside one of them. No label: the value names itself. -->
+                @if (capabilities.instanceSelection) {
+                    <div class="flex flex-col gap-1 mb-3">
+                        <app-instance-picker
+                            (domainChange)="onInstanceChange($event)"
+                            [domain]="serverDomain()"
+                            [recents]="recentInstances()"
+                            [state]="instanceState()"
+                        />
+                        @if (serverConfigError() && !serverConfigLoading()) {
+                            <p class="field-hint text-rose-400/80" data-testid="server-config-error">
+                                <i class="pi pi-exclamation-circle text-[0.625rem]"></i>
+                                {{ 'LOGIN.SERVER.UNREACHABLE' | translate }}
+                            </p>
+                        }
+                    </div>
+                }
+
                 <!-- Mode toggle. QR keeps "Sign in" lit: it is a way of signing in, not a third account action. -->
                 <div class="flex bg-white/[0.05] border border-white/[0.06] rounded-[12px] p-[3px] gap-[3px] mb-5">
                     <button
@@ -109,39 +128,15 @@
                         <div class="flex flex-col gap-1">
                             <label class="field-label">{{ 'LOGIN.LOGIN.USERNAME' | translate }}</label>
                             <input
+                                (input)="clearSuggestion()"
                                 (keydown.enter)="login()"
                                 [formField]="loginForm.username"
+                                [placeholder]="'LOGIN.LOGIN.IDENTITY_PLACEHOLDER' | translate"
                                 autocomplete="username"
                                 data-testid="login-username"
-                                placeholder="username or user@selfhosted.com"
                                 pInputText
                                 type="text"
                             />
-                            <div class="flex items-center gap-1.5 mt-0.5">
-                                <span
-                                    [class]="
-                                        loginServerConfigError()
-                                            ? 'bg-rose-500/15 text-rose-400 border-rose-500/25'
-                                            : isCustomServer()
-                                              ? 'bg-[color-mix(in_srgb,var(--color-brand)_15%,transparent)] text-[var(--color-brand-dim)] border-[color-mix(in_srgb,var(--color-brand)_25%,transparent)]'
-                                              : 'bg-white/[0.04] text-slate-500 border-white/[0.08]'
-                                    "
-                                    class="inline-flex items-center gap-1.5 text-[0.625rem] font-medium border rounded-full px-2 py-0.5 transition-colors"
-                                >
-                                    @if (loginServerConfigLoading()) {
-                                        <i class="pi pi-spin pi-spinner text-[0.5625rem]"></i>
-                                    } @else if (loginServerConfigError()) {
-                                        <i class="pi pi-exclamation-circle text-[0.5625rem]"></i>
-                                    } @else {
-                                        <i [class]="isCustomServer() ? 'pi pi-server' : 'pi pi-cloud'" class="text-[0.5625rem]"></i>
-                                    }
-                                    @if (loginServerConfigError()) {
-                                        {{ 'LOGIN.SERVER.UNREACHABLE_NAMED' | translate: {server: serverLabel()} }}
-                                    } @else {
-                                        {{ serverLabel() }}
-                                    }
-                                </span>
-                            </div>
                         </div>
 
                         <!-- Password -->
@@ -165,7 +160,27 @@
                             </button>
                         </div>
 
-                        @if (!loginEnabled() && !loginServerConfigLoading()) {
+                        @if (suggestedInstance(); as suggestion) {
+                            <div
+                                class="flex flex-col gap-2 bg-amber-500/[0.08] border border-amber-500/25 rounded-xl px-3 py-2.5"
+                                data-testid="instance-suggestion"
+                            >
+                                <span class="flex items-start gap-2 text-xs text-amber-400/90">
+                                    <i class="pi pi-exclamation-triangle text-xs shrink-0 mt-0.5"></i>
+                                    {{ 'LOGIN.INSTANCE.SUGGEST' | translate: {current: serverDomain(), suggested: suggestion} }}
+                                </span>
+                                <p-button
+                                    (onClick)="takeSuggestion()"
+                                    [label]="'LOGIN.INSTANCE.SUGGEST_ACTION' | translate"
+                                    data-testid="instance-suggestion-accept"
+                                    severity="secondary"
+                                    size="small"
+                                    styleClass="self-start"
+                                />
+                            </div>
+                        }
+
+                        @if (!loginEnabled() && !serverConfigLoading()) {
                             <div
                                 class="flex items-center gap-2 bg-amber-500/[0.08] border border-amber-500/25 rounded-xl px-3 py-2.5 text-xs text-amber-400"
                             >
@@ -204,78 +219,6 @@
                                 <p class="text-xs text-slate-500 mt-0.5">{{ 'LOGIN.REGISTER.SUBTITLE' | translate }}</p>
                             </div>
                         }
-
-                        <!-- Server selector: shared by register and QR, both of which pick a
-                         server outright rather than reading one off a typed identity. -->
-                        <div class="flex flex-col gap-1">
-                            <label class="field-label">{{ 'LOGIN.SERVER.LABEL' | translate }}</label>
-                            @if (!isEditingServer()) {
-                                <div class="flex items-center gap-2 bg-white/[0.04] border border-white/[0.09] rounded-xl px-3 py-2.5">
-                                    @if (serverConfigLoading()) {
-                                        <i class="pi pi-spin pi-spinner text-xs text-text-muted shrink-0"></i>
-                                    } @else {
-                                        <i
-                                            [class]="serverDomain() === 'venta.gg' ? 'pi pi-cloud' : 'pi pi-server'"
-                                            class="text-sm text-text-muted shrink-0"
-                                        ></i>
-                                    }
-                                    <span class="flex-1 text-sm text-text-secondary" data-testid="server-chip">{{ serverDomain() }}</span>
-                                    <button
-                                        (click)="startEditServer()"
-                                        data-testid="server-edit-button"
-                                        class="text-[0.6875rem] text-[color-mix(in_srgb,var(--color-brand-dim)_60%,transparent)] hover:text-[var(--color-brand-dim)] bg-transparent border-0 cursor-pointer transition-colors px-0 shrink-0"
-                                        type="button"
-                                    >
-                                        {{ 'LOGIN.SERVER.CHANGE' | translate }}
-                                    </button>
-                                </div>
-                            } @else {
-                                <div class="flex items-center gap-1.5">
-                                    <div
-                                        class="flex-1 flex items-center gap-2 bg-white/[0.05] border border-[color-mix(in_srgb,var(--color-brand)_30%,transparent)] rounded-xl px-3 focus-within:border-[color-mix(in_srgb,var(--color-brand)_50%,transparent)] transition-colors"
-                                    >
-                                        <i class="pi pi-globe text-sm text-text-muted shrink-0"></i>
-                                        <input
-                                            (keydown.enter)="confirmServer()"
-                                            (keydown.escape)="cancelServerEdit()"
-                                            [(ngModel)]="serverInputValue"
-                                            autocomplete="off"
-                                            class="flex-1 bg-transparent border-0 outline-none py-2.5 text-sm text-text-primary placeholder:text-text-muted"
-                                            data-testid="server-input"
-                                            placeholder="selfhosted.com"
-                                            type="text"
-                                        />
-                                    </div>
-                                    <button
-                                        (click)="confirmServer()"
-                                        data-testid="server-confirm"
-                                        class="w-9 h-9 flex items-center justify-center rounded-xl bg-[color-mix(in_srgb,var(--color-brand)_20%,transparent)] hover:bg-[color-mix(in_srgb,var(--color-brand)_30%,transparent)] text-[var(--color-brand-dim)] border-0 cursor-pointer transition-colors shrink-0"
-                                        type="button"
-                                    >
-                                        <i class="pi pi-check text-sm"></i>
-                                    </button>
-                                    <button
-                                        (click)="cancelServerEdit()"
-                                        data-testid="server-cancel"
-                                        class="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-white/[0.06] text-text-muted border-0 cursor-pointer transition-colors shrink-0"
-                                        type="button"
-                                    >
-                                        <i class="pi pi-times text-sm"></i>
-                                    </button>
-                                </div>
-                            }
-                            @if (serverConfigError() && !serverConfigLoading()) {
-                                <p class="field-hint text-rose-400/80" data-testid="server-config-error">
-                                    <i class="pi pi-exclamation-circle text-[0.625rem]"></i>
-                                    {{ 'LOGIN.SERVER.UNREACHABLE' | translate }}
-                                </p>
-                            } @else if (mode() === 'register' && !registerEnabled() && !serverConfigLoading()) {
-                                <p class="field-hint text-amber-400/80">
-                                    <i class="pi pi-exclamation-triangle text-[0.625rem]"></i>
-                                    {{ 'LOGIN.SERVER.REGISTER_DISABLED' | translate }}
-                                </p>
-                            }
-                        </div>
 
                         @if (mode() === 'qr') {
                             <app-qr-login-panel
@@ -392,6 +335,15 @@
                                     <span class="field-error">{{ 'LOGIN.REGISTER.PASSWORD_MISMATCH' | translate }}</span>
                                 }
                             </div>
+
+                            @if (!registerEnabled() && !serverConfigLoading()) {
+                                <div
+                                    class="flex items-center gap-2 bg-amber-500/[0.08] border border-amber-500/25 rounded-xl px-3 py-2.5 text-xs text-amber-400"
+                                >
+                                    <i class="pi pi-exclamation-triangle text-xs shrink-0"></i>
+                                    {{ 'LOGIN.SERVER.REGISTER_DISABLED' | translate }}
+                                </div>
+                            }
 
                             <p-button
                                 (onClick)="register()"

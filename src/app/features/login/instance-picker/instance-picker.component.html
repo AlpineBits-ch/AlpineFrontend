@@ -1,0 +1,81 @@
+@if (!adding()) {
+    <p-select
+        #instanceSelect
+        (ngModelChange)="choose($event)"
+        [ariaLabel]="'LOGIN.INSTANCE.LABEL' | translate"
+        [ngModel]="domain()"
+        [options]="options()"
+        [style]="{width: '100%'}"
+        data-testid="instance-select"
+        optionLabel="label"
+        optionValue="value"
+        size="small"
+    >
+        <ng-template #selectedItem let-selected>
+            <span class="flex items-center gap-2">
+                @if (state() === 'loading') {
+                    <i class="pi pi-spin pi-spinner text-[0.625rem] text-text-muted"></i>
+                } @else if (state() === 'error') {
+                    <i class="pi pi-exclamation-circle text-[0.625rem] text-rose-400"></i>
+                } @else {
+                    <i [class]="selected.value === home ? 'pi pi-cloud' : 'pi pi-server'" class="text-[0.625rem] text-text-muted"></i>
+                }
+                <span class="truncate">{{ selected.label }}</span>
+            </span>
+        </ng-template>
+
+        <ng-template #item let-option>
+            <span class="flex w-full items-center gap-2">
+                <i [class]="option.value === home ? 'pi pi-cloud' : 'pi pi-server'" class="text-[0.625rem] text-text-muted"></i>
+                <span class="truncate">{{ option.label }}</span>
+            </span>
+        </ng-template>
+
+        <!-- The way to a new instance lives in the panel, so the resting card is one control. -->
+        <ng-template #footer>
+            <p-button
+                (onClick)="startAdd(instanceSelect)"
+                [label]="'LOGIN.INSTANCE.ADD' | translate"
+                [text]="true"
+                data-testid="instance-add"
+                icon="pi pi-plus"
+                severity="secondary"
+                size="small"
+                styleClass="w-full !justify-start"
+            />
+        </ng-template>
+    </p-select>
+} @else {
+    <div class="flex items-center gap-1.5">
+        <input
+            #instanceInput
+            (keydown.enter)="confirmAdd()"
+            (keydown.escape)="cancelAdd()"
+            [(ngModel)]="draft"
+            [placeholder]="'LOGIN.INSTANCE.ADD_PLACEHOLDER' | translate"
+            autocomplete="off"
+            class="flex-1 min-w-0"
+            data-testid="instance-input"
+            pInputText
+            type="text"
+        />
+        <p-button
+            (onClick)="confirmAdd()"
+            [ariaLabel]="'LOGIN.INSTANCE.ADD_CONFIRM' | translate"
+            [disabled]="!draft.trim()"
+            data-testid="instance-confirm"
+            icon="pi pi-check"
+            severity="primary"
+            size="small"
+        />
+        <p-button
+            (onClick)="cancelAdd()"
+            [ariaLabel]="'LOGIN.INSTANCE.ADD_CANCEL' | translate"
+            [text]="true"
+            data-testid="instance-cancel"
+            icon="pi pi-times"
+            severity="secondary"
+            size="small"
+        />
+    </div>
+}

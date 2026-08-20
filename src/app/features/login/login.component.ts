@@ -1,14 +1,14 @@
 import {Component, computed, DestroyRef, inject, signal} from '@angular/core';
-import {takeUntilDestroyed, toObservable} from '@angular/core/rxjs-interop';
+import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {InputText} from 'primeng/inputtext';
 import {PasswordDirective} from 'primeng/password';
 import {Button} from 'primeng/button';
 import {AuthService} from '../../services/auth.service';
-import {catchError, debounceTime, distinctUntilChanged, EMPTY, of, switchMap, tap} from 'rxjs';
+import {catchError, EMPTY, of, tap} from 'rxjs';
 import {email, form, FormField, pattern, required} from '@angular/forms/signals';
 import {Router} from '@angular/router';
 import {NgClass} from '@angular/common';
-import {FormsModule} from '@angular/forms';
+
 import {UserSettingsService} from '../../services/user-settings.service';
 import {ToastService} from '../../services/toast.service';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
@@ -20,11 +20,13 @@ import {ExternalLinkService} from '../../services/external-link.service';
 import {ApiConfigService, ServerConfiguration} from '../../services/api-config.service';
 import {environment} from '../../../environments/environment';
 import {QrLoginPanelComponent} from './qr-login-panel/qr-login-panel.component';
+import {InstancePickerComponent} from './instance-picker/instance-picker.component';
 import {AccountRegistryService, AccountSlot} from '../../services/account-registry.service';
 import {AccountSwitchService} from '../../services/account-switch.service';
 import {signInBlocked} from './sign-in-blocked';
 import {BlockedSignInComponent} from './blocked-sign-in/blocked-sign-in.component';
 import {SupportService} from '../../services/support.service';
+import {PlatformCapabilities} from '../../platform/capabilities';
 
 /** `qr` is a peer of `login`, not a sub-step of it: it produces its own token pair. */
 type AuthMode = 'login' | 'register' | 'qr';
@@ -50,10 +52,10 @@ interface RegisterModel {
         Button,
         FormField,
         NgClass,
-        FormsModule,
         TranslateModule,
         QrLoginPanelComponent,
         BlockedSignInComponent,
+        InstancePickerComponent,
     ],
     templateUrl: './login.component.html',
     styleUrl: './login.component.css',
@@ -65,6 +67,8 @@ export class Login {
     }
 
     protected readonly mode = signal<AuthMode>('login');
+    /** A web build is served by one instance, so it never offers a choice of them. */
+    protected readonly capabilities = inject(PlatformCapabilities);
     protected externalLinkService = inject(ExternalLinkService);
     protected authService = inject(AuthService);
     protected router = inject(Router);
@@ -81,12 +85,14 @@ export class Login {
     // ── Login form ────────────────────────────────────────────────────────────
     protected readonly loginModel = signal<LoginModel>({username: '', password: ''});
     protected loginForm = form(this.loginModel, _schema => {});
-    protected readonly serverLabel = computed(() => ApiConfigService.serverLabel(this.loginModel().username));
-    protected readonly isCustomServer = computed(() => this.loginModel().username.includes('@'));
-    protected readonly loginServerConfig = signal<ServerConfiguration | null>(null);
-    protected readonly loginServerConfigLoading = signal(false);
-    protected readonly loginServerConfigError = signal(false);
-    protected readonly loginEnabled = computed(() => this.loginServerConfig()?.isLoginEnabled !== false);
+
+    /**
+     * An instance the identity points at that is not the selected one, offered after a refusal.
+     *
+     * <p>The only place the client reads a `@` as a host, and it never acts on its own.</p>
+     */
+    protected readonly suggestedInstance = signal<string | null>(null);
+    private readonly suggestionTried = signal(false);
 
     // ── Register form ─────────────────────────────────────────────────────────
     protected readonly registerModel = signal<RegisterModel>({
@@ -112,18 +118,22 @@ export class Login {
         });
     });
 
-    // ── Server selector ───────────────────────────────────────────────────────
-    // Shared by register and QR. The sign-in tab has its own, derived from the
-    // `user@server` form of the username field, because there the server is part of
-    // the identity being typed rather than a separate choice.
-    protected readonly serverDomain = signal('venta.gg');
-    protected readonly isEditingServer = signal(false);
-    protected serverInputValue = 'venta.gg';
+    // ── Instance ──────────────────────────────────────────────────────────────
+    // One selection for the whole card. Sign-in used to derive its own from the `user@server`
+    // form of the username, which is what made an email address re-point the client at its
+    // mail host.
+    protected readonly serverDomain = signal(ApiConfigService.homeDomain);
     protected readonly serverConfig = signal<ServerConfiguration | null>(null);
     protected readonly serverConfigLoading = signal(false);
     protected readonly serverConfigError = signal(false);
     protected readonly serverUrl = computed(() => ApiConfigService.domainToUrl(this.serverDomain()));
     protected readonly registerEnabled = computed(() => this.serverConfig()?.isRegisterEnabled !== false);
+    protected readonly loginEnabled = computed(() => this.serverConfig()?.isLoginEnabled !== false);
+
+    protected readonly instanceState = computed<'idle' | 'loading' | 'error'>(() => {
+        if (this.serverConfigLoading()) return 'loading';
+        return this.serverConfigError() ? 'error' : 'idle';
+    });
 
     private apiConfigService = inject(ApiConfigService);
     private userSettings = inject(UserSettingsService);
@@ -140,6 +150,17 @@ export class Login {
     /** Accounts already signed in on this machine, offered as a way back. */
     protected readonly returnableAccounts = signal<AccountSlot[]>([]);
 
+    /**
+     * Instances this machine has signed in to, newest first.
+     *
+     * <p>Read off the account slots rather than a list of its own: a slot is per-server by
+     * construction and already records when it was last used.</p>
+     */
+    protected readonly recentInstances = computed(() => {
+        const newestFirst = [...this.returnableAccounts()].sort((a, b) => b.lastUsedAt - a.lastUsedAt);
+        return [...new Set(newestFirst.map(slot => ApiConfigService.urlToDomain(slot.serverUrl)))];
+    });
+
     constructor() {
         // No "am I already signed in, take me back" check here, and it must not come back:
         // {@link hasSession} answers that before any screen is matched, and a redirect here would
@@ -147,43 +168,28 @@ export class Login {
 
         void this.accounts.list().then(slots => this.returnableAccounts.set(slots));
 
-        // Watch the server derived from the login username and fetch config
-        const loginServerUrl = computed(() => {
-            const u = this.loginModel().username;
-            const atIdx = u.lastIndexOf('@');
-            return atIdx > 0 ? `https://${u.slice(atIdx + 1)}` : environment.apiUrl;
-        });
+        // The instance this install was last pointed at. During "Add Account" the slot-scoped key
+        // misses on purpose and this falls back to the shared last-server-used.
+        this.serverDomain.set(ApiConfigService.urlToDomain(this.apiConfigService.baseUrl()));
+        this.fetchServerConfig(this.serverUrl());
+    }
 
-        toObservable(loginServerUrl)
-            .pipe(
-                debounceTime(500),
-                distinctUntilChanged(),
-                switchMap(url => {
-                    this.loginServerConfigLoading.set(true);
-                    this.loginServerConfigError.set(false);
-                    return this.apiConfigService.getServerConfiguration(url).pipe(
-                        catchError(() => {
-                            this.loginServerConfigError.set(true);
-                            return of(null);
-                        }),
-                    );
-                }),
-                takeUntilDestroyed(this.destroyRef),
-            )
-            .subscribe(config => {
-                this.loginServerConfig.set(config);
-                this.loginServerConfigLoading.set(false);
-            });
-
-        // Fetch server config on init (default server)
-        this.fetchServerConfig(environment.apiUrl);
+    /**
+     * Applies a pick straight away rather than at submit.
+     *
+     * <p>QR mints its pairing against whatever `ApiConfigService` points at, and the password
+     * reset request has nothing else to derive a host from, so both need it applied before they
+     * are reached.</p>
+     */
+    protected onInstanceChange(domain: string): void {
+        if (domain === this.serverDomain()) return;
+        this.serverDomain.set(domain);
+        this.clearSuggestion();
+        this.apiConfigService.setServer(domain);
+        this.fetchServerConfig(this.serverUrl());
     }
 
     protected switchToMode(mode: AuthMode): void {
-        // QR pairing is minted by whichever server ApiConfigService currently points at, and
-        // the token exchange rides the OAuth config alongside it. Applying the selection on
-        // the way in keeps both pointing at the server shown next to the code.
-        if (mode === 'qr') this.apiConfigService.setServer(this.serverDomain());
         this.mode.set(mode);
     }
 
@@ -207,10 +213,6 @@ export class Login {
 
     protected openPasswordReset(): void {
         const value = this.loginModel().username;
-        // Must run before the reset: ApiConfigService.baseUrl() only points at a self-hosted server
-        // once applyLoginInput() has parsed `user@server`, so a fresh install would otherwise send
-        // the request to the default server and silently do nothing.
-        if (this.isCustomServer()) this.apiConfigService.applyLoginInput(value);
         this.passwordResetDialog.show(this.looksLikeEmail(value) ? value : '');
     }
 
@@ -243,11 +245,63 @@ export class Login {
                         this.emailVerification.show(username, {credentials: {loginId: username, password}});
                         return EMPTY;
                     }
+                    if (this.offerOtherInstance(err)) return EMPTY;
                     this.toast.httpError('Sign in failed', err, {detail: 'Invalid username or password.'});
                     return EMPTY;
                 }),
             )
             .subscribe();
+    }
+
+    /**
+     * Probes the instance the identity names, once, and offers it if it answers.
+     *
+     * <p>Returns whether the refusal has been taken over, so the caller knows to hold the generic
+     * toast back until the probe has decided.</p>
+     */
+    private offerOtherInstance(err: unknown): boolean {
+        const domain = this.otherInstanceIn(this.loginModel().username);
+        if (!domain || this.suggestionTried()) return false;
+        this.suggestionTried.set(true);
+
+        this.apiConfigService
+            .getServerConfiguration(ApiConfigService.domainToUrl(domain))
+            .pipe(
+                catchError(() => of(null)),
+                takeUntilDestroyed(this.destroyRef),
+            )
+            .subscribe(config => {
+                if (config) this.suggestedInstance.set(domain);
+                else this.toast.httpError('Sign in failed', err, {detail: 'Invalid username or password.'});
+            });
+
+        return true;
+    }
+
+    /** The host half of a `user@host` identity, when it is not already the selected instance. */
+    private otherInstanceIn(identity: string): string | null {
+        const atIdx = identity.lastIndexOf('@');
+        if (atIdx <= 0) return null;
+        const domain = identity.slice(atIdx + 1);
+        if (!domain.includes('.') || domain === this.serverDomain()) return null;
+        return domain;
+    }
+
+    /** Switches to the offered instance and tries the same credentials once more. */
+    protected takeSuggestion(): void {
+        const domain = this.suggestedInstance();
+        if (!domain) return;
+        this.suggestedInstance.set(null);
+        this.serverDomain.set(domain);
+        this.apiConfigService.setServer(domain);
+        this.fetchServerConfig(this.serverUrl());
+        this.login();
+    }
+
+    /** A changed identity is a new attempt, so the instance may be worth offering again. */
+    protected clearSuggestion(): void {
+        this.suggestedInstance.set(null);
+        this.suggestionTried.set(false);
     }
 
     protected register(): void {
@@ -271,10 +325,6 @@ export class Login {
         }
         if (!this.registerForm().valid()) return;
 
-        // Apply the selected server before the API call
-        const domain = this.serverDomain();
-        this.apiConfigService.setServer(domain);
-
         this.passwordMismatch.set(false);
         this.serverErrors.set({general: []});
         this.authService
@@ -285,13 +335,13 @@ export class Login {
                     // account, and the response is identical either way by design. So no "account
                     // created" - what is true for every outcome is that mail is on the way if that
                     // address could be registered, and the next step is the code from it.
-                    const handle = domain !== 'venta.gg' ? `${model.username}@${domain}` : model.username;
-                    // Ready on the sign-in tab behind the dialog, for the user whose auto-sign-in does
-                    // not happen: on a self-hosted server the bare username would reach the wrong one.
-                    this.loginModel.update(m => ({...m, username: handle}));
+                    // Ready on the sign-in tab behind the dialog, for the user whose auto-sign-in
+                    // does not happen. The bare username is enough: the picker still points at the
+                    // instance just registered against.
+                    this.loginModel.update(m => ({...m, username: model.username}));
                     this.emailVerification.show(model.email, {
                         certainty: 'unknown',
-                        credentials: {loginId: handle, password: model.password},
+                        credentials: {loginId: model.username, password: model.password},
                     });
                     this.switchToMode('login');
                 }),
@@ -316,29 +366,6 @@ export class Login {
     protected clearServerError(field: 'username' | 'email' | 'birthdate'): void {
         if (!this.serverErrors()[field]) return;
         this.serverErrors.update(errors => ({...errors, [field]: undefined}));
-    }
-
-    protected startEditServer(): void {
-        this.serverInputValue = this.serverDomain();
-        this.isEditingServer.set(true);
-    }
-
-    protected confirmServer(): void {
-        const raw = this.serverInputValue.trim();
-        if (!raw) return;
-        // Strip any protocol prefix and trailing slash
-        const domain = raw.replace(/^https?:\/\//, '').replace(/\/$/, '');
-        this.serverDomain.set(domain);
-        this.isEditingServer.set(false);
-        // In QR mode the pairing is already bound to the old server, so re-point
-        // ApiConfigService now; the panel restarts off the changed `serverUrl`.
-        if (this.mode() === 'qr') this.apiConfigService.setServer(domain);
-        this.fetchServerConfig(ApiConfigService.domainToUrl(domain));
-    }
-
-    protected cancelServerEdit(): void {
-        this.isEditingServer.set(false);
-        this.serverInputValue = this.serverDomain();
     }
 
     private fetchServerConfig(url: string): void {

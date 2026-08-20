@@ -36,9 +36,13 @@ export class AuthService {
         });
     }
 
-    /** Accepts `username` or `user@server.com`, resolves the server, then logs in. */
-    public login(input: string, password: string, mfaCode?: string): Observable<TokenResponse> {
-        const username = this.apiConfig.applyLoginInput(input);
+    /**
+     * Signs in against whichever instance is currently selected.
+     *
+     * <p>The identity goes to the server verbatim: it resolves a username or an email address
+     * itself, and a `@` here is not a server address.</p>
+     */
+    public login(username: string, password: string, mfaCode?: string): Observable<TokenResponse> {
         // fetchTokenUsingPasswordFlow is exactly fetchTokenUsingGrant('password', {username, password});
         // going through the grant call directly is the only way to add the mfa_code field the
         // backend reads off the token request.
