@@ -4,6 +4,9 @@ import {RoleplayApi} from './roleplay-api.service';
 import {SceneListItemDto} from '../dtos/response/scene.dto';
 import {SceneListParams, SceneSort, UNFILED} from '../dtos/request/scene.dto';
 
+/** Which slice of a guild's scenes the archive is showing. */
+export type ArchiveStatus = 'all' | 'running' | 'finished';
+
 /** What the archive is currently asking for. Every field is part of the cache key. */
 export interface ArchiveFilter {
     guildId: string;
@@ -13,16 +16,21 @@ export interface ArchiveFilter {
     q: string;
     /** Defaults to `ended` when a caller does not choose. */
     sort?: SceneSort;
+    /** Defaults to `all`: the archive holds running scenes now, not only finished ones. */
+    status?: ArchiveStatus;
 }
 
 const PAGE_SIZE = 50;
 const DEFAULT_SORT: SceneSort = 'ended';
+const DEFAULT_STATUS: ArchiveStatus = 'all';
+const EMPTY_ROWS: readonly SceneListItemDto[] = [];
 
 export function archiveKey(filter: ArchiveFilter): string {
     return [
         filter.guildId,
         filter.folderId ?? '*',
         filter.sort ?? DEFAULT_SORT,
+        filter.status ?? DEFAULT_STATUS,
         [...filter.tagIds].sort().join('+'),
         filter.q,
     ].join('|');
@@ -155,11 +163,29 @@ export class SceneArchiveService {
         });
     }
 
+    /** Reads a shelf's scenes into the cache without moving the selection. */
+    peek(guildId: string, folderId: string | null, status: ArchiveStatus = DEFAULT_STATUS): void {
+        const filter = shelfFilter(guildId, folderId, status);
+        const key = archiveKey(filter);
+        if (this.pages()[key] || this.loadingKeys()[key]) return;
+        this.read(filter, 0);
+    }
+
+    peeked(
+        guildId: string,
+        folderId: string | null,
+        status: ArchiveStatus = DEFAULT_STATUS,
+    ): readonly SceneListItemDto[] {
+        return this.pages()[archiveKey(shelfFilter(guildId, folderId, status))] ?? EMPTY_ROWS;
+    }
+
+    peekLoading(guildId: string, folderId: string | null, status: ArchiveStatus = DEFAULT_STATUS): boolean {
+        return !!this.loadingKeys()[archiveKey(shelfFilter(guildId, folderId, status))];
+    }
+
     private params(filter: ArchiveFilter, offset: number): SceneListParams {
         return {
-            includeConcluded: true,
-            includeArchived: true,
-            archivedOnly: true,
+            ...statusFlags(filter.status ?? DEFAULT_STATUS),
             sort: filter.sort ?? DEFAULT_SORT,
             limit: PAGE_SIZE,
             offset,
@@ -168,6 +194,18 @@ export class SceneArchiveService {
             q: filter.q || undefined,
         };
     }
+}
+
+/** `running` sends no flags at all: the live board is what the route returns by default. */
+function statusFlags(status: ArchiveStatus): Partial<SceneListParams> {
+    if (status === 'running') return {};
+    const both = {includeConcluded: true, includeArchived: true};
+    return status === 'finished' ? {...both, archivedOnly: true} : both;
+}
+
+/** No tags and no query, so a shelf and the same shelf selected unfiltered are one cache entry. */
+function shelfFilter(guildId: string, folderId: string | null, status: ArchiveStatus): ArchiveFilter {
+    return {guildId, folderId, tagIds: [], q: '', sort: DEFAULT_SORT, status};
 }
 
 export {UNFILED};

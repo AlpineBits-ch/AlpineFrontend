@@ -41,12 +41,18 @@ function setup() {
 const BASE = {guildId: 'g1', folderId: null, tagIds: [] as string[], q: ''};
 
 describe('SceneArchiveService', () => {
-    it('asks only for scenes that ended, newest first', () => {
+    it('asks for every scene by default, newest first', () => {
         const {service, calls} = setup();
 
         service.apply(BASE);
 
-        expect(calls[0]).toMatchObject({archivedOnly: true, sort: 'ended', offset: 0});
+        expect(calls[0]).toMatchObject({
+            includeConcluded: true,
+            includeArchived: true,
+            sort: 'ended',
+            offset: 0,
+        });
+        expect(calls[0].archivedOnly).toBeUndefined();
     });
 
     it('ANDs the selected tags into one request', () => {
@@ -144,6 +150,66 @@ describe('SceneArchiveService', () => {
         service.drop('ch_0');
 
         expect(service.scenes().map(s => s.channelId)).toEqual(['ch_1']);
+    });
+
+    it('asks only for finished scenes when the filter says so', () => {
+        const {service, calls} = setup();
+
+        service.apply({...BASE, status: 'finished'});
+
+        expect(calls[0]).toMatchObject({archivedOnly: true, includeConcluded: true, includeArchived: true});
+    });
+
+    it('asks for the live board alone when the filter says running', () => {
+        const {service, calls} = setup();
+
+        service.apply({...BASE, status: 'running'});
+
+        expect(calls[0].archivedOnly).toBeUndefined();
+        expect(calls[0].includeConcluded).toBeUndefined();
+        expect(calls[0].includeArchived).toBeUndefined();
+    });
+
+    it('caches each status apart', () => {
+        expect(archiveKey({...BASE, status: 'running'})).not.toBe(archiveKey({...BASE, status: 'finished'}));
+    });
+
+    it('treats an absent status as all', () => {
+        expect(archiveKey(BASE)).toBe(archiveKey({...BASE, status: 'all'}));
+    });
+
+    it('reads a shelf without moving the selection', () => {
+        const {service, calls, responses} = setup();
+
+        service.apply(BASE);
+        service.peek('g1', 'f1');
+        responses[1].next(page(2, {folderId: 'f1'}));
+
+        expect(calls[1]).toMatchObject({folderId: 'f1'});
+        expect(service.peeked('g1', 'f1')).toHaveLength(2);
+        // The selection is still every shelf, not the one that was peeked.
+        expect(service.current()?.folderId).toBeNull();
+    });
+
+    it('does not re-read a shelf it already holds', () => {
+        const {service, calls, responses} = setup();
+
+        service.peek('g1', 'f1');
+        responses[0].next(page(1, {folderId: 'f1'}));
+        service.peek('g1', 'f1');
+
+        expect(calls).toHaveLength(1);
+    });
+
+    it('shares one request between a peeked shelf and the same shelf selected', () => {
+        const {service, calls, responses} = setup();
+
+        service.peek('g1', 'f1');
+        responses[0].next(page(3, {folderId: 'f1'}));
+        service.apply({...BASE, folderId: 'f1'});
+
+        expect(calls).toHaveLength(1);
+        expect(service.scenes()).toHaveLength(3);
     });
 });
 
