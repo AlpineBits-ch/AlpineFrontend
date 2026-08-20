@@ -28,6 +28,7 @@ const SCENES = [
     scene({channelId: 'other', name: 'Nightwatch', folderId: 'a'}),
     scene({channelId: 'second', name: 'The Burning Gate', folderId: 'b'}),
     scene({channelId: 'loose', name: 'Council of Crows'}),
+    scene({channelId: 'done', name: 'The Last Muster', folderId: 'a', status: SceneStatus.Concluded}),
 ];
 
 function setup() {
@@ -77,25 +78,17 @@ function setup() {
     const fixture: ComponentFixture<SceneBoardComponent> = TestBed.createComponent(SceneBoardComponent);
     fixture.componentRef.setInput('guildId', 'g1');
     fixture.detectChanges();
-    return {fixture, component: fixture.componentInstance as unknown as {groups: () => SceneGroup[]}};
+    return {
+        fixture,
+        component: fixture.componentInstance as unknown as {
+            groups: () => SceneGroup[];
+            tree: () => {folder: {id: string}; count: number}[];
+            scenesByFolder: () => Record<string, {channelId: string}[]>;
+            recent: () => {channelId: string}[];
+            folderId: {set: (v: string | null) => void};
+        },
+    };
 }
-
-// jsdom implements no `matchMedia`, and PrimeNG's ContextMenu binds a listener to it in
-// `ngOnInit`. Same stub `scene-folder-rail.component.spec.ts` uses.
-beforeEach(() => {
-    if (!window.matchMedia) {
-        window.matchMedia = ((query: string) => ({
-            matches: false,
-            media: query,
-            onchange: null,
-            addEventListener: () => undefined,
-            removeEventListener: () => undefined,
-            addListener: () => undefined,
-            removeListener: () => undefined,
-            dispatchEvent: () => false,
-        })) as unknown as typeof window.matchMedia;
-    }
-});
 
 describe('SceneBoardComponent grouping', () => {
     let restoreStorage: () => void;
@@ -166,5 +159,57 @@ describe('SceneBoardComponent grouping', () => {
 
         const rows = component.groups().flatMap(g => g.rows.map(r => r.scene.channelId));
         expect(rows).toContain('mine');
+    });
+
+    it('shows only the unfiled scene when the unfiled bucket is selected', () => {
+        const {fixture, component} = setup();
+        TestBed.inject(SceneRailStateService).setRailVisible('g1', true);
+        component.folderId.set('unfiled');
+        fixture.detectChanges();
+
+        const groups = component.groups();
+        expect(groups.some(g => g.key.startsWith('folder:'))).toBe(false);
+        expect(groups.flatMap(g => g.rows.map(r => r.scene.channelId))).toEqual(['loose']);
+    });
+});
+
+describe('SceneBoardComponent concluded scenes', () => {
+    let restoreStorage: () => void;
+
+    beforeEach(() => {
+        restoreStorage = installMemoryStorage();
+    });
+
+    afterEach(() => restoreStorage());
+
+    it('leaves a concluded scene out of the folder counts', () => {
+        const {fixture, component} = setup();
+        fixture.detectChanges();
+
+        const folderA = component.tree().find(node => node.folder.id === 'a');
+        expect(folderA?.count).toBe(2);
+    });
+
+    it('leaves a concluded scene out of the rail leaves', () => {
+        const {fixture, component} = setup();
+        fixture.detectChanges();
+
+        expect(component.scenesByFolder()['a']?.map(leaf => leaf.channelId)).not.toContain('done');
+    });
+
+    it('leaves a concluded scene out of the board groups', () => {
+        const {fixture, component} = setup();
+        TestBed.inject(SceneRailStateService).setRailVisible('g1', true);
+        fixture.detectChanges();
+
+        const channelIds = component.groups().flatMap(g => g.rows.map(r => r.scene.channelId));
+        expect(channelIds).not.toContain('done');
+    });
+
+    it('leaves a concluded scene out of recent', () => {
+        const {fixture, component} = setup();
+        fixture.detectChanges();
+
+        expect(component.recent().map(leaf => leaf.channelId)).not.toContain('done');
     });
 });

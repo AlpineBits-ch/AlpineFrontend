@@ -25,6 +25,7 @@ import {SceneRailStateService} from '../../../../services/scene-rail-state.servi
 import {SceneTaxonomyService} from '../../../../services/scene-taxonomy.service';
 import {NavigationService, SceneBoardMode} from '../../../main-page/navigation.service';
 import {SceneListItemDto, SceneStatus} from '../../../../dtos/response/scene.dto';
+import {UNFILED} from '../../../../dtos/request/scene.dto';
 import {ChannelType} from '../../../../dtos/response/guild.dto';
 import {SelfGuildMemberDto} from '../../../../dtos/response/member.dto';
 import {ModulePermissions} from '../../../../enums/module-permissions.enum';
@@ -121,16 +122,22 @@ export class SceneBoardComponent {
 
     protected readonly railVisible = computed(() => this.railState.railVisible(this.guildId()));
 
+    /** The board is the live board: a concluded scene belongs to the archive, not to a count or a
+     *  leaf here. Shared so the tree, the rail and the rows never disagree with each other. */
+    private readonly liveScenes = computed(() =>
+        this.scenes.scenes(this.guildId()).filter(scene => scene.status !== SceneStatus.Concluded),
+    );
+
     protected readonly tree = computed(() =>
-        folderTree(this.taxonomy.folders(this.guildId()), countByFolder(this.scenes.scenes(this.guildId()))),
+        folderTree(this.taxonomy.folders(this.guildId()), countByFolder(this.liveScenes())),
     );
 
     protected readonly scenesByFolder = computed(() =>
-        leavesByFolder(this.scenes.scenes(this.guildId()), this.scenes.speakableIds(this.guildId())),
+        leavesByFolder(this.liveScenes(), this.scenes.speakableIds(this.guildId())),
     );
 
     protected readonly recent = computed(() =>
-        recentScenes(this.scenes.scenes(this.guildId()), this.scenes.speakableIds(this.guildId())),
+        recentScenes(this.liveScenes(), this.scenes.speakableIds(this.guildId())),
     );
 
     constructor() {
@@ -151,8 +158,7 @@ export class SceneBoardComponent {
         const guildId = this.guildId();
         const speakable = this.scenes.speakableIds(guildId);
         const now = this.scenes.now();
-        return [...this.scenes.scenes(guildId)]
-            .filter(scene => scene.status !== SceneStatus.Concluded)
+        return [...this.liveScenes()]
             .sort((a, b) => compareScenes(a, b, speakable, now))
             .map(scene => ({
                 scene,
@@ -219,9 +225,10 @@ export class SceneBoardComponent {
         taken: Set<string>,
     ): SceneGroup[] {
         const chosen = this.folderId();
-        const wanted = chosen ? this.subtreeOf(chosen) : null;
-        const names = this.folderNames();
-        const path = (row: SceneRow) => (row.scene.folderId ? (names.get(row.scene.folderId) ?? null) : null);
+        const unfiledOnly = chosen === UNFILED;
+        const wanted = chosen && !unfiledOnly ? this.subtreeOf(chosen) : null;
+        const paths = this.folderPaths();
+        const path = (row: SceneRow) => (row.scene.folderId ? (paths.get(row.scene.folderId) ?? null) : null);
         // A chosen folder pins nothing above the sections, so its rows must not be filtered by
         // `taken`: that set only excludes what a pinned row already carries.
         const excluded = chosen ? new Set<string>() : taken;
@@ -244,25 +251,30 @@ export class SceneBoardComponent {
               ];
 
         const sections: SceneGroup[] = [];
-        for (const node of flattenTree(this.tree())) {
-            if (wanted && !wanted.has(node.folder.id)) continue;
-            sections.push({
-                key: `folder:${node.folder.id}`,
-                titleKey: '',
-                title: node.folder.name,
-                accent: node.folder.color,
-                tone: 'normal',
-                rows: rows.filter(
-                    row => !excluded.has(row.scene.channelId) && row.scene.folderId === node.folder.id,
-                ),
-            });
+        if (!unfiledOnly) {
+            for (const node of flattenTree(this.tree())) {
+                if (wanted && !wanted.has(node.folder.id)) continue;
+                sections.push({
+                    key: `folder:${node.folder.id}`,
+                    titleKey: '',
+                    title: node.folder.name,
+                    accent: node.folder.color,
+                    tone: 'normal',
+                    rows: rows.filter(
+                        row => !excluded.has(row.scene.channelId) && row.scene.folderId === node.folder.id,
+                    ),
+                });
+            }
         }
 
         const unfiled: SceneGroup = {
             key: 'unfiled',
             titleKey: 'SCENE.BOARD.FOLDER_UNFILED',
             tone: 'quiet',
-            rows: chosen ? [] : rows.filter(row => !excluded.has(row.scene.channelId) && !row.scene.folderId),
+            rows:
+                !chosen || unfiledOnly
+                    ? rows.filter(row => !excluded.has(row.scene.channelId) && !row.scene.folderId)
+                    : [],
         };
 
         return [...pinned, ...sections, unfiled].filter(group => group.rows.length > 0);
@@ -283,10 +295,18 @@ export class SceneBoardComponent {
         return ids;
     }
 
-    private readonly folderNames = computed(() => {
-        const names = new Map<string, string>();
-        for (const node of flattenTree(this.tree())) names.set(node.folder.id, node.folder.name);
-        return names;
+    /** "Act I / Greyford" style, matching the rail's move-to-folder targets. */
+    private readonly folderPaths = computed(() => {
+        const paths = new Map<string, string>();
+        const walk = (nodes: FolderNode[], parentPath: string | null) => {
+            for (const node of nodes) {
+                const path = parentPath ? `${parentPath} / ${node.folder.name}` : node.folder.name;
+                paths.set(node.folder.id, path);
+                walk(node.children, path);
+            }
+        };
+        walk(this.tree(), null);
+        return paths;
     });
 
     protected readonly isEmpty = computed(() => !this.loading() && this.rows().length === 0);
