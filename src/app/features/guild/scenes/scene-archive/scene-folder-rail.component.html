@@ -14,7 +14,7 @@
     <div class="rail-rule"></div>
 }
 
-<button (click)="picked.emit(null)" [class.is-selected]="selected() === null" class="rail-row rail-row-all" type="button">
+<button (click)="picked.emit(null)" [class.is-selected]="selected() === null" class="rail-row" type="button">
     <span class="rail-name">{{ 'SCENE.ARCHIVE.ALL' | translate }}</span>
 </button>
 
@@ -31,7 +31,7 @@
     (drop)="onDrop($event, null)"
     [class.is-drop-target]="dragOver() === UNFILED"
     [class.is-selected]="selected() === UNFILED"
-    class="rail-row rail-row-unfiled"
+    class="rail-row"
     type="button"
 >
     <span class="rail-name">{{ 'SCENE.ARCHIVE.UNFILED' | translate }}</span>
