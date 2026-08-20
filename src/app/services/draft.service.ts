@@ -1,5 +1,5 @@
 import {DestroyRef, inject, Injectable, Injector, signal} from '@angular/core';
-import {Subject} from 'rxjs';
+import {Subject, Subscription} from 'rxjs';
 import {debounceTime, groupBy, mergeMap} from 'rxjs/operators';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {DraftApi} from './draft-api.service';
@@ -7,8 +7,6 @@ import {MessageDraftDto} from '../dtos/response/draft.dto';
 
 /** How long typing has to stop before the draft goes up. */
 const SAVE_DEBOUNCE_MS = 1_200;
-
-export type DraftSaveState = 'idle' | 'saving' | 'saved' | 'failed';
 
 /**
  * Unsent messages, per channel, held by the server so a refresh cannot take one away.
@@ -23,10 +21,17 @@ export class DraftService {
 
     private readonly drafts = signal<Record<string, MessageDraftDto | null>>({});
     private readonly loaded = signal<Record<string, boolean>>({});
-    private readonly saveState = signal<Record<string, DraftSaveState>>({});
 
-    private readonly pending = new Subject<{channelId: string; content: string; attachments: string[]}>();
+    private readonly pending = new Subject<{
+        channelId: string;
+        content: string;
+        attachments: string[];
+        epoch: number;
+    }>();
     private readonly requested = new Set<string>();
+    /** Bumped by {@link clear}. Anything recorded under an older one is no longer wanted. */
+    private readonly epochs = new Map<string, number>();
+    private readonly inFlight = new Map<string, Subscription>();
     private indexRequested = false;
 
     constructor() {
@@ -36,7 +41,7 @@ export class DraftService {
                 mergeMap(group => group.pipe(debounceTime(SAVE_DEBOUNCE_MS))),
                 takeUntilDestroyed(this.destroyRef),
             )
-            .subscribe(entry => this.flush(entry.channelId, entry.content, entry.attachments));
+            .subscribe(entry => this.flush(entry.channelId, entry.content, entry.attachments, entry.epoch));
     }
 
     private get api(): DraftApi {
@@ -56,10 +61,6 @@ export class DraftService {
     hasDraft(channelId: string | null | undefined): boolean {
         const draft = this.draft(channelId);
         return !!draft?.content.trim() || !!draft?.attachments?.length;
-    }
-
-    state(channelId: string | null | undefined): DraftSaveState {
-        return channelId ? (this.saveState()[channelId] ?? 'idle') : 'idle';
     }
 
     /** The whole set, once, so the channel list can mark channels nobody has opened this session. */
@@ -98,29 +99,34 @@ export class DraftService {
     /** Called on every keystroke. The write itself is debounced. */
     record(channelId: string | null | undefined, content: string, attachments: string[] = []): void {
         if (!channelId) return;
-        // Guarded rather than set unconditionally: this runs per keystroke, and a fresh map object
-        // each time is a change-detection pass per character for a value that did not move.
-        if (this.saveState()[channelId] !== 'saving') {
-            this.saveState.update(map => ({...map, [channelId]: 'saving'}));
-        }
-        this.pending.next({channelId, content, attachments});
+        this.pending.next({channelId, content, attachments, epoch: this.epochOf(channelId)});
     }
 
     /** Writes now rather than on the debounce, for a view about to go away. */
     flushNow(channelId: string | null | undefined, content: string, attachments: string[] = []): void {
         if (!channelId) return;
-        this.flush(channelId, content, attachments);
+        this.flush(channelId, content, attachments, this.epochOf(channelId));
     }
 
     /** After a successful send, and when somebody throws the draft away by hand. */
     clear(channelId: string | null | undefined): void {
         if (!channelId) return;
+        // Enter usually beats the debounce, so the keystrokes that made the post are still queued
+        // for a save. The bump makes that write, and any save already on the wire, land nowhere.
+        this.epochs.set(channelId, this.epochOf(channelId) + 1);
+        this.inFlight.get(channelId)?.unsubscribe();
+        this.inFlight.delete(channelId);
         this.drafts.update(map => ({...map, [channelId]: null}));
-        this.saveState.update(map => ({...map, [channelId]: 'idle'}));
         this.api.discard(channelId).subscribe({error: () => undefined});
     }
 
-    private flush(channelId: string, content: string, attachments: string[] = []): void {
+    private epochOf(channelId: string): number {
+        return this.epochs.get(channelId) ?? 0;
+    }
+
+    private flush(channelId: string, content: string, attachments: string[], epoch: number): void {
+        if (epoch !== this.epochOf(channelId)) return;
+
         // An attachment with no text is still a draft: losing the upload is what costs somebody
         // the transfer, not losing the sentence they had not written yet.
         if (!content.trim() && attachments.length === 0) {
@@ -128,12 +134,15 @@ export class DraftService {
             return;
         }
 
-        this.api.save(channelId, {content, attachments}).subscribe({
+        this.inFlight.get(channelId)?.unsubscribe();
+        const sub = this.api.save(channelId, {content, attachments}).subscribe({
             next: draft => {
+                this.inFlight.delete(channelId);
+                if (epoch !== this.epochOf(channelId)) return;
                 this.drafts.update(map => ({...map, [channelId]: draft}));
-                this.saveState.update(map => ({...map, [channelId]: 'saved'}));
             },
-            error: () => this.saveState.update(map => ({...map, [channelId]: 'failed'})),
+            error: () => this.inFlight.delete(channelId),
         });
+        this.inFlight.set(channelId, sub);
     }
 }

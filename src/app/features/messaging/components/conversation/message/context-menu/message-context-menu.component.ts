@@ -1,6 +1,6 @@
 import {ChangeDetectionStrategy, Component, viewChild} from '@angular/core';
-import {MenuItem} from 'primeng/api';
-import {Menu} from 'primeng/menu';
+import {ContextMenuComponent} from '../../../../../../shared/context-menu/context-menu.component';
+import {MenuItem} from '../../../../../../shared/context-menu/context-menu.model';
 
 export interface MessageMenuAbilities {
     isOwn: boolean;
@@ -42,7 +42,12 @@ export function buildMessageMenuItems(a: MessageMenuAbilities): MenuItem[] {
 
     if (a.isOwn) {
         items.push({label: a.label('COMMON.EDIT'), icon: 'pi pi-pencil', command: a.onEdit});
-        items.push({label: a.label('COMMON.DELETE'), icon: 'pi pi-trash', command: a.onDelete});
+        items.push({
+            label: a.label('COMMON.DELETE'),
+            icon: 'pi pi-trash',
+            danger: true,
+            command: a.onDelete,
+        });
     } else {
         items.push({label: a.label('REPORT.TITLE_MESSAGE'), icon: 'pi pi-flag', command: a.onReport});
     }
@@ -52,17 +57,14 @@ export function buildMessageMenuItems(a: MessageMenuAbilities): MenuItem[] {
 
 @Component({
     selector: 'app-message-context-menu',
-    imports: [Menu],
-    template: '<p-menu #menu [popup]="true" appendTo="body" />',
+    imports: [ContextMenuComponent],
+    template: '<app-context-menu #menu />',
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class MessageContextMenuComponent {
-    private readonly menu = viewChild.required<Menu>('menu');
+    private readonly menu = viewChild.required<ContextMenuComponent>('menu');
 
     open(event: MouseEvent, items: MenuItem[]): void {
-        event.preventDefault();
-        const menu = this.menu();
-        menu.model = items;
-        menu.show(event);
+        this.menu().show(event, items);
     }
 }

@@ -1,5 +1,5 @@
 <div class="flex flex-col w-60 bg-sidebar border-l border-white/[0.08] h-full shrink-0">
-    <p-menu #memberMenu [popup]="true" appendTo="body" />
+    <app-context-menu #memberMenu />
 
     <!-- Above the roster, not folded into it: "in the flat" and "app connected" are different questions. Renders nothing without the Presence module. -->
     <app-home-status-board [guild]="guild()" />

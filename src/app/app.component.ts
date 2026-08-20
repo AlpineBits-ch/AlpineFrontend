@@ -49,6 +49,11 @@ import {PlatformStatusService} from './services/platform-status.service';
 import {VoiceRingCardComponent} from './shared/call/voice-ring-card/voice-ring-card.component';
 import {VoiceRingStateService} from './services/voice-ring-state.service';
 
+function isEditableTarget(target: EventTarget | null): boolean {
+    const element = target instanceof Element ? target : null;
+    return !!element?.closest('input, textarea, [contenteditable="true"]');
+}
+
 @Component({
     selector: 'app-root',
     imports: [
@@ -110,11 +115,16 @@ export class AppComponent implements OnInit, OnDestroy {
         });
     }
 
+    /**
+     * Right-click belongs to the app, not the webview. Two rows are left to the native menu: an
+     * editable field, whose paste and spellcheck entries nothing here replaces, and a shift-click
+     * in a dev build, which is the only way left to reach Inspect Element.
+     */
     @HostListener('document:contextmenu', ['$event'])
     onContextMenu(event: MouseEvent) {
-        if (environment.production) {
-            event.preventDefault();
-        }
+        if (!environment.production && event.shiftKey) return;
+        if (isEditableTarget(event.target)) return;
+        event.preventDefault();
     }
 
     // iOS: the visual viewport scrolls when the keyboard opens, shifting position:fixed elements.

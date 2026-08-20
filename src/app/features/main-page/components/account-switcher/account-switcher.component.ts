@@ -2,6 +2,7 @@ import {ChangeDetectionStrategy, Component, computed, inject, OnInit, output, si
 import {TranslateModule} from '@ngx-translate/core';
 import {AccountRegistryService, AccountSlot} from '../../../../services/account-registry.service';
 import {AccountSwitchService} from '../../../../services/account-switch.service';
+import {BrokenImageService} from '../../../../services/broken-image.service';
 import {CallSessionService} from '../../../../services/call-session.service';
 
 /** The accounts this machine holds, and the two things you can do with them. */
@@ -18,6 +19,7 @@ export class AccountSwitcherComponent implements OnInit {
     private readonly accounts = inject(AccountRegistryService);
     private readonly switcher = inject(AccountSwitchService);
     private readonly callSession = inject(CallSessionService);
+    private readonly brokenImages = inject(BrokenImageService);
 
     protected readonly slots = this.accounts.slots;
     protected readonly activeSlotId = this.accounts.activeSlotIdSnapshot;
@@ -57,6 +59,17 @@ export class AccountSwitcherComponent implements OnInit {
         } catch {
             return slot.serverUrl;
         }
+    }
+
+    // The API mints an avatarUrl for every profile, uploaded or not, so a URL that has already
+    // failed is the only signal that this account has no picture. See BrokenImageService.
+    protected avatarUrl(slot: AccountSlot): string | undefined {
+        const url = slot.avatarUrl ?? undefined;
+        return this.brokenImages.isBroken(url) ? undefined : url;
+    }
+
+    protected onAvatarError(url: string): void {
+        this.brokenImages.markBroken(url);
     }
 
     protected initial(slot: AccountSlot): string {

@@ -22,7 +22,7 @@
             size="small"
             tooltipPosition="bottom"
         />
-        <p-menu #sortMenu [model]="sortMenuItems()" [popup]="true" appendTo="body" />
+        <app-context-menu #sortMenu [model]="sortMenuItems()" />
 
         <!-- Layout toggle -->
         @if (!compact()) {

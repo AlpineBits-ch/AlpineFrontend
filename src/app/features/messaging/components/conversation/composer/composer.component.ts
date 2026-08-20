@@ -251,7 +251,6 @@ export class ComposerComponent {
     // ── Drafts ───────────────────────────────────────────────────────────────
     protected readonly drafts = inject(DraftService);
     protected readonly draftRestored = signal(false);
-    protected readonly draftState = computed(() => this.drafts.state(this.channelId()));
     /** Which channel's draft has already been put on screen, so a restore happens once. */
     private restoredFor: string | null = null;
     private lastChannelId: string | null = null;

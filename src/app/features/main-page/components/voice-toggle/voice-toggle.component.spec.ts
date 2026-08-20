@@ -1,7 +1,7 @@
 /** The device chevron's menu, and the one thing it could not previously explain. */
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {provideTranslateService} from '@ngx-translate/core';
-import {MenuItem} from 'primeng/api';
+import {MenuItem} from '../../../../shared/context-menu/context-menu.model';
 import {describe, expect, it} from 'vitest';
 import {VoiceToggleComponent} from './voice-toggle.component';
 import {DeviceOption} from '../../../../services/media-device-catalog.service';
@@ -27,10 +27,12 @@ function render(devices: DeviceOption[], namesWithheld: boolean): ComponentFixtu
     return fixture;
 }
 
-/** Every row inside the device group, which is where the hint belongs. */
+/** Every row under the device header, which is where the hint belongs. */
 function deviceRows(fixture: ComponentFixture<VoiceToggleComponent>): MenuItem[] {
     const items = (fixture.componentInstance as unknown as {menuItems: () => MenuItem[]}).menuItems();
-    return items.find(item => item.items)?.items ?? [];
+    const header = items.findIndex(item => item.header);
+    if (header < 0) return [];
+    return items.slice(header + 1).filter(item => item.label !== 'QUICK_SETTINGS.VOICE_SETTINGS');
 }
 
 describe('VoiceToggleComponent device names', () => {

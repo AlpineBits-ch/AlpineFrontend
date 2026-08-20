@@ -3,7 +3,7 @@ import {signal} from '@angular/core';
 import {provideTranslateService} from '@ngx-translate/core';
 import {of, Subject} from 'rxjs';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
-import {MenuItem} from 'primeng/api';
+import {MenuItem} from '../../../../shared/context-menu/context-menu.model';
 import {GuildMemberListComponent} from './guild-member-list.component';
 import {GuildService} from '../../../../services/guild.service';
 import {GuildWebsocketService} from '../../../../services/guild-websocket.service';
@@ -287,16 +287,17 @@ describe('GuildMemberListComponent - streaming badge', () => {
     });
 });
 
-/** Swaps the popup menu for a plain capture object: the assertions are about the model that gets built, not PrimeNG's overlay. */
+/** Swaps the menu for a plain capture object: the assertions are about the rows that get built, not the overlay. */
 function menuFor(fixture: ComponentFixture<GuildMemberListComponent>, name: string): MenuItem[] {
-    const stub = {model: [] as MenuItem[], show: () => undefined};
-    (fixture.componentInstance as never as {memberMenu: unknown}).memberMenu = stub;
+    let captured: MenuItem[] = [];
+    const stub = {show: (_event: MouseEvent, items: MenuItem[] = []) => (captured = items)};
+    (fixture.componentInstance as never as {memberMenu: unknown}).memberMenu = () => stub;
 
     const row = [...fixture.nativeElement.querySelectorAll('div.cursor-pointer')].find((el: HTMLElement) =>
         el.textContent?.includes(name),
     ) as HTMLElement;
     row.dispatchEvent(new MouseEvent('contextmenu', {bubbles: true}));
-    return stub.model;
+    return captured;
 }
 
 function labels(items: MenuItem[]): string[] {

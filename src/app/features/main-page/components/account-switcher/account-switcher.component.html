@@ -8,8 +8,8 @@
             class="flex w-full items-center gap-3 px-3 py-2 text-left transition-colors duration-[120ms] ease-out hover:bg-hover disabled:opacity-50 border-0 bg-transparent cursor-pointer"
             type="button"
         >
-            @if (slot.avatarUrl) {
-                <img [src]="slot.avatarUrl" alt="" class="size-7 shrink-0 rounded-full object-cover" />
+            @if (avatarUrl(slot); as url) {
+                <img (error)="onAvatarError(url)" [src]="url" alt="" class="size-7 shrink-0 rounded-full object-cover" />
             } @else {
                 <span
                     class="flex size-7 shrink-0 items-center justify-center rounded-full bg-brand-dark text-[0.6875rem] text-text-primary"

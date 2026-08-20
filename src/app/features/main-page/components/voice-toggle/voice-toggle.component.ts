@@ -1,13 +1,13 @@
-import {ChangeDetectionStrategy, Component, computed, inject, input, output, ViewChild} from '@angular/core';
-import {Menu} from 'primeng/menu';
-import {MenuItem} from 'primeng/api';
+import {ChangeDetectionStrategy, Component, computed, inject, input, output, viewChild} from '@angular/core';
+import {ContextMenuComponent} from '../../../../shared/context-menu/context-menu.component';
+import {MenuItem} from '../../../../shared/context-menu/context-menu.model';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {DeviceOption} from '../../../../services/media-device-catalog.service';
 
 /** One of the bottom bar's audio controls: a toggle, and a chevron onto the devices it applies to. */
 @Component({
     selector: 'app-voice-toggle',
-    imports: [Menu, TranslateModule],
+    imports: [ContextMenuComponent, TranslateModule],
     templateUrl: './voice-toggle.component.html',
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -29,7 +29,7 @@ export class VoiceToggleComponent {
     deviceChosen = output<string>();
     openSettings = output<void>();
 
-    @ViewChild('menu') private menuRef!: Menu;
+    private readonly menuRef = viewChild.required<ContextMenuComponent>('menu');
 
     private readonly translate = inject(TranslateService);
 
@@ -58,7 +58,7 @@ export class VoiceToggleComponent {
 
         return [
             ...(deviceItems.length
-                ? [{label: this.translate.instant(this.deviceLabel()), items: deviceItems}]
+                ? [{header: this.translate.instant(this.deviceLabel())}, ...deviceItems]
                 : []),
             {
                 label: this.translate.instant('QUICK_SETTINGS.VOICE_SETTINGS'),
@@ -68,7 +68,7 @@ export class VoiceToggleComponent {
         ];
     });
 
-    protected openMenu(event: Event): void {
-        this.menuRef.toggle(event);
+    protected openMenu(event: MouseEvent): void {
+        this.menuRef().toggle(event);
     }
 }

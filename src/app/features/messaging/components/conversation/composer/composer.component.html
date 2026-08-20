@@ -272,7 +272,7 @@
         }
 
         <!-- The long-form footer. Nothing here is drawn for a one-line reply. -->
-        @if (canExpand() || length().visible || draftState() !== 'idle') {
+        @if (canExpand() || length().visible) {
             <div class="flex items-center gap-2 px-3 pb-1.5 text-[0.6875rem]">
                 @if (canExpand()) {
                     <button
@@ -301,20 +301,6 @@
                 }
 
                 <span class="ml-auto flex items-center gap-2.5">
-                    @if (draftState() === 'saving') {
-                        <span aria-live="polite" class="flex items-center gap-1 text-text-faint">
-                            <i class="pi pi-spin pi-spinner text-[0.5rem]"></i>
-                            {{ 'COMPOSER.DRAFT_SAVING' | translate }}
-                        </span>
-                    } @else if (draftState() === 'saved') {
-                        <span class="flex items-center gap-1 text-text-faint">
-                            <i class="pi pi-check text-[0.5rem]"></i>
-                            {{ 'COMPOSER.DRAFT_SAVED' | translate }}
-                        </span>
-                    } @else if (draftState() === 'failed') {
-                        <span class="text-offline">{{ 'COMPOSER.DRAFT_SAVE_FAILED' | translate }}</span>
-                    }
-
                     @if (length().visible) {
                         <span [class]="counterClass()" aria-live="polite">
                             @if (length().max) {

@@ -173,5 +173,5 @@
         <app-inbox-panel (navigated)="inboxPopover.hide()" />
     </p-popover>
 
-    <p-menu #helpMenu [model]="helpItems()" [popup]="true" appendTo="body" />
+    <app-context-menu #helpMenu [model]="helpItems()" />
 }

@@ -7,7 +7,7 @@ import {
     OnChanges,
     signal,
     SimpleChanges,
-    ViewChild,
+    viewChild,
 } from '@angular/core';
 import {NgClass, NgTemplateOutlet} from '@angular/common';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
@@ -27,8 +27,9 @@ import {MemberType} from '../../../../enums/member-type.enum';
 import {GuildService} from '../../../../services/guild.service';
 import {ApiConfigService} from '../../../../services/api-config.service';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
-import {Menu} from 'primeng/menu';
-import {MenuItem, PrimeTemplate} from 'primeng/api';
+import {ContextMenuComponent} from '../../../../shared/context-menu/context-menu.component';
+import {PrimeTemplate} from 'primeng/api';
+import {MenuItem} from '../../../../shared/context-menu/context-menu.model';
 import {Dialog} from 'primeng/dialog';
 import {Button} from 'primeng/button';
 import {InputText} from 'primeng/inputtext';
@@ -86,7 +87,7 @@ export interface MemberRoleGroup {
     selector: 'app-guild-member-list',
     imports: [
         TranslateModule,
-        Menu,
+        ContextMenuComponent,
         UserStatusDotComponent,
         UserNameStyleDirective,
         NgClass,
@@ -129,7 +130,7 @@ export class GuildMemberListComponent implements OnChanges {
     });
     readonly onlineRows = computed(() => this.rows().filter(m => !this.hasRole(m) && this.isActive(m)));
     readonly offlineRows = computed(() => this.rows().filter(m => !this.hasRole(m) && !this.isActive(m)));
-    @ViewChild('memberMenu') memberMenu!: Menu;
+    readonly memberMenu = viewChild.required<ContextMenuComponent>('memberMenu');
     protected readonly contextMember = signal<GuildMemberDto | null>(null);
     private readonly ownMember = signal<SelfGuildMemberDto | null>(null);
     private guildService = inject(GuildService);
@@ -375,8 +376,7 @@ export class GuildMemberListComponent implements OnChanges {
     protected onMemberContextMenu(event: MouseEvent, member: GuildMemberDto): void {
         event.preventDefault();
         this.contextMember.set(member);
-        this.memberMenu.model = this.buildMemberMenuItems(member);
-        this.memberMenu.show(event);
+        this.memberMenu().show(event, this.buildMemberMenuItems(member));
     }
 
     private buildMemberMenuItems(member: GuildMemberDto): MenuItem[] {
@@ -417,7 +417,7 @@ export class GuildMemberListComponent implements OnChanges {
             items.push({
                 label: this.translate.instant('MEMBER_ACTIONS.BAN'),
                 icon: 'pi pi-ban',
-                styleClass: 'text-rose-400',
+                danger: true,
                 command: () => this.openBan(member),
             });
         }

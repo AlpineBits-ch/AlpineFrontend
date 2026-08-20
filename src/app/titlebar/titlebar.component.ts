@@ -4,8 +4,8 @@ import {takeUntilDestroyed, toSignal} from '@angular/core/rxjs-interop';
 import {filter} from 'rxjs';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {Popover} from 'primeng/popover';
-import {Menu} from 'primeng/menu';
-import {MenuItem} from 'primeng/api';
+import {ContextMenuComponent} from '../shared/context-menu/context-menu.component';
+import {MenuItem} from '../shared/context-menu/context-menu.model';
 import {NavigationService} from '../features/main-page/navigation.service';
 import {InboxService} from '../services/inbox.service';
 import {IdentityWebsocketService} from '../services/identity-websocket.service';
@@ -35,7 +35,7 @@ interface TitlebarContext {
 
 @Component({
     selector: 'app-titlebar',
-    imports: [TranslateModule, Popover, Menu, InboxPanelComponent],
+    imports: [TranslateModule, Popover, ContextMenuComponent, InboxPanelComponent],
     templateUrl: './titlebar.component.html',
     styleUrl: './titlebar.component.css',
 })

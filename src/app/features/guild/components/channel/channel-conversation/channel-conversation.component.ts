@@ -280,6 +280,9 @@ export class ChannelConversationComponent implements AfterViewInit {
 
     private readonly destroyRef = inject(DestroyRef);
 
+    /** `channelId:messageId` of the last read cursor sent. Not a signal: nothing reads it. */
+    private lastAck: string | null = null;
+
     constructor() {
         effect(onCleanup => {
             const channelId = this.channel().id;
@@ -348,7 +351,17 @@ export class ChannelConversationComponent implements AfterViewInit {
             if (msgs.length === 0) return;
             const latest = msgs[msgs.length - 1];
             if (latest.isPending || latest.isFailed) return;
-            void this.guildWs.updateLastReadMessageByChannel(latest.id, channelId);
+
+            // The store holds every channel, so this effect re-runs on a message that arrived
+            // somewhere else entirely. Two acks in flight at once for a channel with no read state
+            // yet each insert their own row server-side, and the stale one keeps the channel unread
+            // for good.
+            const ack = `${channelId}:${latest.id}`;
+            if (this.lastAck !== ack) {
+                this.lastAck = ack;
+                void this.guildWs.updateLastReadMessageByChannel(latest.id, channelId);
+            }
+
             this.readStateService.markChannelRead(channelId);
         });
 

@@ -67,6 +67,8 @@ function inner(component: AccountSwitcherComponent) {
         choose: (s: AccountSlot) => Promise<void>;
         serverLabel: (s: AccountSlot) => string;
         initial: (s: AccountSlot) => string;
+        avatarUrl: (s: AccountSlot) => string | undefined;
+        onAvatarError: (url: string) => void;
     };
 }
 
@@ -177,5 +179,24 @@ describe('labels', () => {
         const component = build();
 
         expect(inner(component).initial(slot({id: 'a', username: '', displayName: ''}))).toBe('?');
+    });
+});
+
+describe('avatars', () => {
+    it('has no image for an account that never got one', () => {
+        const component = build();
+
+        expect(inner(component).avatarUrl(slot({id: 'a', avatarUrl: null}))).toBeUndefined();
+    });
+
+    it('drops to the initial once a minted url turns out to serve nothing', () => {
+        const component = build();
+        // The API mints one for every profile, so the 404 is the only signal there is no picture.
+        const row = slot({id: 'b', avatarUrl: 'https://venta.gg/avatars/b.png'});
+
+        expect(inner(component).avatarUrl(row)).toBe('https://venta.gg/avatars/b.png');
+        inner(component).onAvatarError(row.avatarUrl!);
+
+        expect(inner(component).avatarUrl(row)).toBeUndefined();
     });
 });

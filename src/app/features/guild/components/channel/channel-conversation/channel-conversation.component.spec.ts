@@ -103,4 +103,35 @@ describe('ChannelConversationComponent read tracking', () => {
 
         expect(guildWs.updateLastReadMessageByChannel).not.toHaveBeenCalled();
     });
+
+    /**
+     * Two acks in flight at once for a channel with no read state yet each insert their own row
+     * server-side, and the stale one keeps the channel unread through every reload after.
+     */
+    it('sends one ack per message, not one per store change', async () => {
+        const {guildWs, store, fixture} = await setup('ok', [messageFixture({id: 'mesg_new'})]);
+
+        store.entities.update(msgs => [
+            ...msgs,
+            messageFixture({id: 'mesg_elsewhere', channelId: 'chan_other'}),
+        ]);
+        fixture.detectChanges();
+        await fixture.whenStable();
+
+        expect(guildWs.updateLastReadMessageByChannel).toHaveBeenCalledOnce();
+    });
+
+    it('acks again once a newer message lands in the open channel', async () => {
+        const {guildWs, store, fixture} = await setup('ok', [messageFixture({id: 'mesg_new'})]);
+
+        store.entities.update(msgs => [
+            ...msgs,
+            messageFixture({id: 'mesg_newer', createdAt: new Date('2026-08-19T02:00:00Z')}),
+        ]);
+        fixture.detectChanges();
+        await fixture.whenStable();
+
+        expect(guildWs.updateLastReadMessageByChannel).toHaveBeenLastCalledWith('mesg_newer', 'chan1');
+        expect(guildWs.updateLastReadMessageByChannel).toHaveBeenCalledTimes(2);
+    });
 });

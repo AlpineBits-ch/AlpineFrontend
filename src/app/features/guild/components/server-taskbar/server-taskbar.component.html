@@ -53,7 +53,7 @@
     </button>
 </div>
 
-<p-contextMenu #guildContextMenu appendTo="body" />
+<app-context-menu #guildContextMenu />
 
 <app-create-guild-modal (guildCreated)="onGuildCreated($event)" [(visible)]="showCreateModal" />
 

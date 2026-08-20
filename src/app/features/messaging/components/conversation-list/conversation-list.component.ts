@@ -9,14 +9,14 @@ import {
     output,
     signal,
     viewChild,
-    ViewChild,
 } from '@angular/core';
 import {toObservable} from '@angular/core/rxjs-interop';
 import {filter, take} from 'rxjs';
 import {DatePipe, NgClass} from '@angular/common';
-import {ContextMenu} from 'primeng/contextmenu';
+import {ContextMenuComponent} from '../../../../shared/context-menu/context-menu.component';
 import {ConfirmDialog} from 'primeng/confirmdialog';
-import {ConfirmationService, MenuItem} from 'primeng/api';
+import {ConfirmationService} from 'primeng/api';
+import {MenuItem} from '../../../../shared/context-menu/context-menu.model';
 
 import {ConversationDto} from '../../../../dtos/response/conversation.dto';
 import {MessageDto} from '../../../../dtos/response/message.dto';
@@ -55,7 +55,7 @@ const PREVIEW_SIZE = 30;
         UserStatusDotComponent,
         TypingDotsComponent,
         EmptyStateComponent,
-        ContextMenu,
+        ContextMenuComponent,
         ConfirmDialog,
         TranslateModule,
     ],
@@ -100,7 +100,7 @@ export class ConversationListComponent {
     // messages and via direct decode for WS-received messages (already decrypted in content).
     readonly decryptedPreviews = signal<Map<string, string>>(new Map());
     // ── Conversation context menu ─────────────────────────────────────────────
-    @ViewChild('convMenu') convMenu!: ContextMenu;
+    readonly convMenu = viewChild.required<ContextMenuComponent>('convMenu');
     /** The mobile paging sentinel, present only while `hasMore()` is true. */
     private readonly loadMoreSentinel = viewChild<ElementRef<HTMLElement>>('loadMoreSentinel');
     protected conversationStore = inject(ConversationStore);
@@ -339,8 +339,7 @@ export class ConversationListComponent {
         event.preventDefault();
         event.stopPropagation();
         this.contextConv.set(conv);
-        this.convMenu.model = this.buildConvMenuItems(conv);
-        this.convMenu.show(event);
+        this.convMenu().show(event, this.buildConvMenuItems(conv));
     }
 
     private buildConvMenuItems(conv: ConversationDto): MenuItem[] {
@@ -363,7 +362,7 @@ export class ConversationListComponent {
             {
                 label: 'Delete Conversation',
                 icon: 'pi pi-trash',
-                styleClass: '!text-rose-400',
+                danger: true,
                 command: () => this.deleteConversation(conv),
             },
         ];

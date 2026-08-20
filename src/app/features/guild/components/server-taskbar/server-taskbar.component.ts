@@ -6,21 +6,22 @@ import {
     inject,
     OnInit,
     signal,
-    ViewChild,
+    viewChild,
 } from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
-import {switchMap} from 'rxjs';
+import {forkJoin, switchMap} from 'rxjs';
 import {ServerData, ServerIconComponent} from '../server-icon/server-icon.component';
 import {NavigationService} from '../../../main-page/navigation.service';
 import {GuildDto} from '../../../../dtos/response/guild.dto';
 import {GuildService} from '../../../../services/guild.service';
 import {GuildReadStateService} from '../../../../services/guild-read-state.service';
 import {GuildUiActionsService} from '../../../../services/guild-ui-actions.service';
+import {InboxApiService} from '../../../../services/inbox-api.service';
 import {CreateGuildModalComponent} from '../create-guild-modal/create-guild-modal.component';
 import {NgClass} from '@angular/common';
 import {environment} from '../../../../../environments/environment';
-import {ContextMenu} from 'primeng/contextmenu';
-import {MenuItem} from 'primeng/api';
+import {ContextMenuComponent} from '../../../../shared/context-menu/context-menu.component';
+import {MenuItem} from '../../../../shared/context-menu/context-menu.model';
 import {TranslateService} from '@ngx-translate/core';
 import {ReportDialogService} from '../../../../services/report-dialog.service';
 import {GuildSettingsModalComponent} from '../guild-settings-modal/guild-settings-modal.component';
@@ -38,7 +39,7 @@ import {memberCanManageGuild} from '../../guild-permissions';
         ServerIconComponent,
         CreateGuildModalComponent,
         NgClass,
-        ContextMenu,
+        ContextMenuComponent,
         GuildSettingsModalComponent,
     ],
     templateUrl: './server-taskbar.component.html',
@@ -59,6 +60,7 @@ export class ServerTaskbarComponent implements OnInit {
     protected guilds = this.guildService.guilds;
     private profileService = inject(ProfileService);
     private readStateService = inject(GuildReadStateService);
+    private inboxApi = inject(InboxApiService);
     private voiceActivity = inject(GuildVoiceActivityService);
     protected readonly serverIcons = computed<ServerData[]>(() => {
         const workspace = this.navService.workspace();
@@ -91,7 +93,7 @@ export class ServerTaskbarComponent implements OnInit {
     private reportDialog = inject(ReportDialogService);
     private translate = inject(TranslateService);
     private destroyRef = inject(DestroyRef);
-    @ViewChild('guildContextMenu') private guildContextMenu!: ContextMenu;
+    private readonly guildContextMenu = viewChild.required<ContextMenuComponent>('guildContextMenu');
 
     ngOnInit(): void {
         // Before anything touches the network: `GuildService` hydrates its list from this account's last known layout while under construction, so on a warm start the rail, channel list, and channel are already on screen by the time the request below is issued.
@@ -167,8 +169,7 @@ export class ServerTaskbarComponent implements OnInit {
         event.preventDefault();
         event.stopPropagation();
         this.contextGuild.set(guild);
-        this.guildContextMenu.model = this.buildGuildMenuItems(guild);
-        this.guildContextMenu.show(event);
+        this.guildContextMenu().show(event, this.buildGuildMenuItems(guild));
     }
 
     /** Warms the member row behind "Server Settings": the menu's model is assigned imperatively at show time, so the permission must be known before the right-click; hover is the last moment available. */
@@ -297,7 +298,7 @@ export class ServerTaskbarComponent implements OnInit {
             {
                 label: 'Leave Server',
                 icon: 'pi pi-sign-out',
-                styleClass: 'text-rose-400',
+                danger: true,
                 command: () => this.leaveServer(guild),
             },
         ];
@@ -313,10 +314,16 @@ export class ServerTaskbarComponent implements OnInit {
         });
     }
 
+    /** The local pass is what clears the rail; without the requests every dot is back on reload. */
     private markGuildAsRead(guild: GuildDto): void {
-        for (const channel of guild.channels) {
-            this.readStateService.markChannelRead(channel.id);
-        }
+        const unread = guild.channels.filter(c => this.readStateService.getChannelState(c.id).isUnread);
+        if (unread.length === 0) return;
+
+        for (const channel of unread) this.readStateService.markChannelRead(channel.id);
+
+        forkJoin(unread.map(c => this.inboxApi.markChannelRead(c.id))).subscribe({
+            error: err => this.toastService.httpError('Failed to mark server as read', err),
+        });
     }
 
     private inviteToServer(guild: GuildDto): void {

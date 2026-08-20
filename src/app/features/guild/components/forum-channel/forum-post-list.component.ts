@@ -15,9 +15,10 @@ import {Button} from 'primeng/button';
 import {InputText} from 'primeng/inputtext';
 import {Textarea} from 'primeng/textarea';
 import {Dialog} from 'primeng/dialog';
-import {Menu} from 'primeng/menu';
+import {ContextMenuComponent} from '../../../../shared/context-menu/context-menu.component';
 import {Tooltip} from 'primeng/tooltip';
-import {MenuItem, PrimeTemplate} from 'primeng/api';
+import {PrimeTemplate} from 'primeng/api';
+import {MenuItem} from '../../../../shared/context-menu/context-menu.model';
 import {ChannelDto, ChannelType} from '../../../../dtos/response/guild.dto';
 import {
     FORUM_LIMITS,
@@ -52,7 +53,7 @@ import {channelIcon} from '../../channel-types';
         InputText,
         Textarea,
         Dialog,
-        Menu,
+        ContextMenuComponent,
         Tooltip,
         FormsModule,
         PrimeTemplate,
