@@ -1,0 +1,64 @@
+<div #root (keydown)="onKeydown($event)" class="cm-root" popover="manual" tabindex="-1">
+    @for (panel of panels(); track panel.id; let p = $index) {
+        <div
+            #panelEl
+            (pointerenter)="onPanelEnter(p)"
+            class="cm-panel thin-scrollbar"
+            [class.cm-panel--sub]="p > 0"
+            role="menu"
+            tabindex="-1"
+        >
+            @for (item of panel.items; track $index; let i = $index) {
+                @if (item.separator) {
+                    <div class="cm-sep" role="separator"></div>
+                } @else if (item.header) {
+                    <div class="cm-header">{{ item.header }}</div>
+                } @else if (item.slot) {
+                    @if (slotTemplate(item.slot); as slot) {
+                        <!-- eslint-disable-next-line @angular-eslint/template/click-events-have-key-events -- Enter and Space are handled once at the menu root, for every row. -->
+                        <div
+                            (click)="onRowClick($event, p, i)"
+                            (pointerenter)="onRowEnter($event, p, i)"
+                            [attr.data-index]="i"
+                            [class]="itemClass(item)"
+                            [class.is-active]="isActive(p, i)"
+                            class="cm-item--slot"
+                            role="menuitem"
+                            tabindex="-1"
+                        >
+                            <ng-container [ngTemplateOutletContext]="{$implicit: item}" [ngTemplateOutlet]="slot" />
+                        </div>
+                    }
+                } @else {
+                    <button
+                        (click)="onRowClick($event, p, i)"
+                        (pointerenter)="onRowEnter($event, p, i)"
+                        [attr.aria-disabled]="item.disabled ? true : null"
+                        [attr.aria-expanded]="hasSubmenu(item) ? isExpanded(p, i) : null"
+                        [attr.aria-haspopup]="hasSubmenu(item) ? 'menu' : item.chevron ? true : null"
+                        [attr.data-index]="i"
+                        [class]="itemClass(item)"
+                        [class.is-active]="isActive(p, i)"
+                        [disabled]="item.disabled"
+                        role="menuitem"
+                        tabindex="-1"
+                        type="button"
+                    >
+                        @if (item.icon) {
+                            <i [class]="item.icon" class="cm-icon" aria-hidden="true"></i>
+                        } @else {
+                            <span class="cm-icon" aria-hidden="true"></span>
+                        }
+                        <span class="cm-label">{{ item.label }}</span>
+                        @if (item.key) {
+                            <span class="cm-key">{{ item.key }}</span>
+                        }
+                        @if (hasSubmenu(item) || item.chevron) {
+                            <i class="pi pi-angle-right cm-chevron" aria-hidden="true"></i>
+                        }
+                    </button>
+                }
+            }
+        </div>
+    }
+</div>
