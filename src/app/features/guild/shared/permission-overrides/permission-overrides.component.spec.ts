@@ -37,7 +37,18 @@ function channel(overrides: ChannelDto['permissions'] = []): ChannelDto {
     } as ChannelDto;
 }
 
-function setup(channelDto = channel()) {
+function memberDto(userId: string): GuildMemberDto {
+    return {id: `mem_${userId}`, guildId: 'guild_1', userId} as GuildMemberDto;
+}
+
+interface SetupOptions {
+    channelDto?: ChannelDto;
+    members?: GuildMemberDto[];
+    cached?: string[];
+}
+
+function setup(options: SetupOptions = {}) {
+    const channelDto = options.channelDto ?? channel();
     const guildService = {
         upsertChannelRolePermission: vi.fn(() =>
             of({
@@ -51,7 +62,16 @@ function setup(channelDto = channel()) {
         deleteChannelRolePermission: vi.fn(() => of(void 0)),
         upsertChannelMemberPermission: vi.fn(() => of({id: 'p2'})),
         deleteChannelMemberPermission: vi.fn(() => of(void 0)),
-        getMembers: vi.fn(() => of([] as GuildMemberDto[])),
+        getMembers: vi.fn(() => of(options.members ?? ([] as GuildMemberDto[]))),
+        searchMembers: vi.fn(() => of([] as GuildMemberDto[])),
+    };
+
+    const profileService = {
+        fetchByUserId: vi.fn(() => of({userName: 'ada'})),
+        getCachedByUserId: vi.fn((userId: string) =>
+            (options.cached ?? []).includes(userId) ? {userName: userId} : undefined,
+        ),
+        resolveByUserId: vi.fn(),
     };
 
     TestBed.configureTestingModule({
@@ -61,7 +81,7 @@ function setup(channelDto = channel()) {
             provideHttpClientTesting(),
             provideTranslateService(),
             {provide: GuildService, useValue: guildService},
-            {provide: ProfileService, useValue: {fetchByUserId: vi.fn(() => of({userName: 'ada'}))}},
+            {provide: ProfileService, useValue: profileService},
         ],
     });
 
@@ -72,7 +92,7 @@ function setup(channelDto = channel()) {
     fixture.componentRef.setInput('guild', guild());
     fixture.detectChanges();
 
-    return {fixture, component: fixture.componentInstance, guildService};
+    return {fixture, component: fixture.componentInstance, guildService, profileService};
 }
 
 function setupCategory() {
@@ -105,8 +125,8 @@ function setupCategory() {
 
 describe('PermissionOverridesComponent', () => {
     it('lists only roles that already carry an override, plus @everyone pinned last', () => {
-        const {component} = setup(
-            channel([
+        const {component} = setup({
+            channelDto: channel([
                 {
                     id: 'p1',
                     channelId: CHANNEL,
@@ -115,7 +135,7 @@ describe('PermissionOverridesComponent', () => {
                     denyPermissions: 'None',
                 } as ChannelDto['permissions'][number],
             ]),
-        );
+        });
 
         const entries = component['roleEntries']();
 
@@ -156,8 +176,8 @@ describe('PermissionOverridesComponent', () => {
     });
 
     it('clears the row back to inherit when the override is deleted', () => {
-        const {component, guildService} = setup(
-            channel([
+        const {component, guildService} = setup({
+            channelDto: channel([
                 {
                     id: 'p1',
                     channelId: CHANNEL,
@@ -166,7 +186,7 @@ describe('PermissionOverridesComponent', () => {
                     denyPermissions: 'None',
                 } as ChannelDto['permissions'][number],
             ]),
-        );
+        });
 
         component.deleteRole(PLAYER);
 
@@ -194,5 +214,65 @@ describe('PermissionOverridesComponent', () => {
             allowPermissions: 'SendMessages',
             denyPermissions: 'None',
         });
+    });
+});
+
+describe('PermissionOverridesComponent members tab', () => {
+    it('reads one page of members, not the whole guild', () => {
+        const {component, guildService} = setup();
+
+        component.switchTab('members');
+
+        expect(guildService.getMembers).toHaveBeenCalledWith('guild_1', 0, 50);
+    });
+
+    it('never uses the cache-bypassing profile read', () => {
+        const {component, profileService} = setup({members: [memberDto('ada'), memberDto('bo')]});
+
+        component.switchTab('members');
+
+        expect(profileService.fetchByUserId).not.toHaveBeenCalled();
+        expect(profileService.getCachedByUserId).toHaveBeenCalledTimes(2);
+    });
+
+    it('asks the resolver only for the ids the cache missed', () => {
+        const {component, profileService} = setup({
+            members: [memberDto('ada'), memberDto('bo')],
+            cached: ['ada'],
+        });
+
+        component.switchTab('members');
+
+        expect(profileService.resolveByUserId).toHaveBeenCalledTimes(1);
+        expect(profileService.resolveByUserId).toHaveBeenCalledWith('bo');
+    });
+
+    it('appends the next page rather than replacing the list', () => {
+        const {component, guildService} = setup({members: [memberDto('ada')]});
+
+        component.switchTab('members');
+        component.loadMoreMembers();
+
+        expect(guildService.getMembers).toHaveBeenLastCalledWith('guild_1', 50, 50);
+    });
+
+    it('replaces the list with search results while a term is set', () => {
+        const {component, guildService} = setup();
+
+        component.switchTab('members');
+        component.searchMembers('ad');
+
+        expect(guildService.searchMembers).toHaveBeenCalledWith('guild_1', 'ad');
+    });
+
+    it('goes back to the paged list when the term is cleared', () => {
+        const {component, guildService} = setup();
+
+        component.switchTab('members');
+        component.searchMembers('ad');
+        guildService.getMembers.mockClear();
+        component.searchMembers('');
+
+        expect(guildService.getMembers).toHaveBeenCalledWith('guild_1', 0, 50);
     });
 });

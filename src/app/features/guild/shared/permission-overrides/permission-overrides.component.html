@@ -28,10 +28,12 @@
             (add)="onAddRole($event)"
             (change)="onRoleChange($event.id, $event.override)"
             (delete)="deleteRole($event)"
+            (queryChange)="searchRoles($event)"
             (save)="saveRole($event)"
             [addable]="addableRoles()"
             [channelType]="scope().channelType"
             [entries]="roleEntries()"
+            [searchable]="true"
             kind="role"
         />
     }
@@ -42,11 +44,15 @@
             (add)="onAddMember($event)"
             (change)="onMemberChange($event.id, $event.override)"
             (delete)="deleteMember($event)"
+            (loadMore)="loadMoreMembers()"
+            (queryChange)="searchMembers($event)"
             (save)="saveMember($event)"
             [addable]="addableMembers()"
             [channelType]="scope().channelType"
             [entries]="memberEntries()"
+            [hasMore]="hasMoreMembers()"
             [loading]="membersLoading()"
+            [searchable]="true"
             kind="member"
         />
     }

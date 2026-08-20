@@ -52,14 +52,24 @@ export class PermissionOverridesComponent implements OnInit {
     /** The scope's overwrites after a save or delete, so the host can keep its own copy honest. */
     readonly overridesChanged = output<ChannelPermission[]>();
 
+    private static readonly MEMBER_PAGE_SIZE = 50;
+
     protected readonly activeTab = signal<'roles' | 'members'>('roles');
     protected readonly roleRows = signal<RoleRow[]>([]);
     protected readonly memberRows = signal<MemberRow[]>([]);
     protected readonly membersLoading = signal(false);
+    protected readonly memberSearch = signal('');
+    protected readonly hasMoreMembers = signal(false);
+    protected readonly roleSearch = signal('');
 
     private gateway = inject(PermissionScopeGateway);
     private guildService = inject(GuildService);
     private profiles = inject(ProfileService);
+    private memberSkip = 0;
+
+    protected get memberPageSize(): number {
+        return PermissionOverridesComponent.MEMBER_PAGE_SIZE;
+    }
 
     protected get emptyOverride(): PermOverride {
         return EMPTY_OVERRIDE;
@@ -73,7 +83,12 @@ export class PermissionOverridesComponent implements OnInit {
         const everyoneId = this.everyoneRoleId();
         const rows = this.roleRows();
         const overridden = rows
-            .filter(r => (r.perm !== null || r.dirty) && r.subject.id !== everyoneId)
+            .filter(
+                r =>
+                    (r.perm !== null || r.dirty) &&
+                    r.subject.id !== everyoneId &&
+                    this.matchesRoleSearch(r.subject),
+            )
             .map(r => this.toRoleEntry(r, false));
         const everyone = rows.find(r => r.subject.id === everyoneId);
         return everyone ? [...overridden, this.toRoleEntry(everyone, true)] : overridden;
@@ -82,7 +97,13 @@ export class PermissionOverridesComponent implements OnInit {
     protected readonly addableRoles = computed<OverrideEntry[]>(() => {
         const everyoneId = this.everyoneRoleId();
         return this.roleRows()
-            .filter(r => r.perm === null && !r.dirty && r.subject.id !== everyoneId)
+            .filter(
+                r =>
+                    r.perm === null &&
+                    !r.dirty &&
+                    r.subject.id !== everyoneId &&
+                    this.matchesRoleSearch(r.subject),
+            )
             .map(r => this.toRoleEntry(r, false));
     });
 
@@ -105,6 +126,37 @@ export class PermissionOverridesComponent implements OnInit {
     switchTab(tab: 'roles' | 'members'): void {
         this.activeTab.set(tab);
         if (tab === 'members' && this.memberRows().length === 0) this.loadMembers();
+    }
+
+    searchRoles(term: string): void {
+        this.roleSearch.set(term);
+    }
+
+    searchMembers(term: string): void {
+        this.memberSearch.set(term);
+
+        if (term.trim() === '') {
+            this.memberSkip = 0;
+            this.memberRows.set([]);
+            this.loadMemberPage(false);
+            return;
+        }
+
+        this.membersLoading.set(true);
+        this.guildService.searchMembers(this.guild().id, term).subscribe({
+            next: members => {
+                this.memberRows.set(members.map(m => this.toMemberRow(m)));
+                this.hasMoreMembers.set(false);
+                this.membersLoading.set(false);
+                this.hydrateProfiles();
+            },
+            error: () => this.membersLoading.set(false),
+        });
+    }
+
+    loadMoreMembers(): void {
+        if (this.membersLoading() || !this.hasMoreMembers()) return;
+        this.loadMemberPage(true);
     }
 
     onRoleChange(roleId: string, override: PermOverride): void {
@@ -260,10 +312,11 @@ export class PermissionOverridesComponent implements OnInit {
     }
 
     private toMemberEntry(row: MemberRow): OverrideEntry {
+        const profile = row.profile ?? this.profiles.getCachedByUserId(row.subject.userId) ?? null;
         return {
             id: row.subject.id,
-            name: row.profile?.userName ?? row.subject.userId.slice(0, 8) + '…',
-            avatarUrl: row.profile?.avatarUrl ?? null,
+            name: profile?.userName ?? row.subject.userId.slice(0, 8) + '…',
+            avatarUrl: profile?.avatarUrl ?? null,
             hasOverride: row.perm !== null,
             dirty: row.dirty,
             saving: row.saving,
@@ -281,24 +334,28 @@ export class PermissionOverridesComponent implements OnInit {
         );
     }
 
+    private matchesRoleSearch(role: RoleDto): boolean {
+        const term = this.roleSearch().trim().toLowerCase();
+        return term === '' || role.name.toLowerCase().includes(term);
+    }
+
     private loadMembers(): void {
+        this.memberSkip = 0;
+        this.loadMemberPage(false);
+    }
+
+    private loadMemberPage(append: boolean): void {
         this.membersLoading.set(true);
-        this.guildService.getMembers(this.guild().id, 0, 1000).subscribe({
+        const size = this.memberPageSize;
+
+        this.guildService.getMembers(this.guild().id, this.memberSkip, size).subscribe({
             next: members => {
-                const overrides = this.scope().overrides;
-                this.memberRows.set(
-                    members.map(subject => {
-                        const perm = overrides.find(p => p.memberId === subject.id) ?? null;
-                        return {
-                            subject,
-                            profile: null,
-                            perm,
-                            override: this.toOverride(perm),
-                            dirty: false,
-                            saving: false,
-                        };
-                    }),
-                );
+                const rows = members.map(m => this.toMemberRow(m));
+                this.memberRows.update(list => (append ? [...list, ...rows] : rows));
+                // Skip advances by the requested page size, not the count actually returned: a page
+                // shorter than requested still leaves more to ask for until an empty page arrives.
+                this.memberSkip += size;
+                this.hasMoreMembers.set(members.length > 0);
                 this.membersLoading.set(false);
                 this.hydrateProfiles();
             },
@@ -306,18 +363,24 @@ export class PermissionOverridesComponent implements OnInit {
         });
     }
 
-    // Replaced wholesale in Task 3. Kept identical to the old pages here so this task is a pure move.
+    private toMemberRow(subject: GuildMemberDto): MemberRow {
+        const perm = this.scope().overrides.find(p => p.memberId === subject.id) ?? null;
+        return {
+            subject,
+            profile: this.profiles.getCachedByUserId(subject.userId) ?? null,
+            perm,
+            override: this.toOverride(perm),
+            dirty: false,
+            saving: false,
+        };
+    }
+
+    // getCachedByUserId, never fetchByUserId: that one bypasses the cache by design, which is what
+    // turned this tab into one request per member.
     private hydrateProfiles(): void {
-        this.memberRows().forEach((row, i) => {
-            this.profiles.fetchByUserId(row.subject.userId).subscribe({
-                next: profile => {
-                    this.memberRows.update(list => {
-                        const next = [...list];
-                        next[i] = {...next[i], profile};
-                        return next;
-                    });
-                },
-            });
-        });
+        for (const row of this.memberRows()) {
+            if (row.profile) continue;
+            this.profiles.resolveByUserId(row.subject.userId);
+        }
     }
 }

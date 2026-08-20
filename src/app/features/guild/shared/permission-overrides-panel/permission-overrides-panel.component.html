@@ -21,6 +21,16 @@
                 </button>
             </div>
 
+            @if (searchable()) {
+                <input
+                    (input)="onSearch($any($event.target).value)"
+                    [attr.aria-label]="'PERM_OVERRIDE.SEARCH' | translate"
+                    [placeholder]="'PERM_OVERRIDE.SEARCH' | translate"
+                    class="w-full px-2.5 py-1.5 rounded-lg bg-card text-sm text-text-primary placeholder:text-text-faint border-0 outline-none focus-visible:ring-1 focus-visible:ring-brand"
+                    type="text"
+                />
+            }
+
             <div class="flex-1 min-h-0 overflow-y-auto thin-scrollbar space-y-0.5">
                 @for (entry of entries(); track entry.id; let i = $index) {
                     @if (entry.pinned && i > 0) {
@@ -54,6 +64,14 @@
                                 tooltipPosition="right"
                             ></span>
                         }
+                    </button>
+                }
+                @if (hasMore()) {
+                    <button
+                        (click)="loadMore.emit()"
+                        class="w-full px-2.5 py-1.5 rounded-lg text-xs text-text-muted hover:bg-hover hover:text-text-secondary transition-colors cursor-pointer border-0 text-left"
+                    >
+                        {{ 'PERM_OVERRIDE.LOAD_MORE' | translate }}
                     </button>
                 }
                 @if (entries().length === 0) {

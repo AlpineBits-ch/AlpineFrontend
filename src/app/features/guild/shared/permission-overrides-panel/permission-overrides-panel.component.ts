@@ -1,4 +1,13 @@
-import {Component, computed, inject, input, output, signal, ViewChild} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    inject,
+    input,
+    output,
+    signal,
+    ViewChild,
+} from '@angular/core';
 import {NgClass} from '@angular/common';
 import {Popover} from 'primeng/popover';
 import {Button} from 'primeng/button';
@@ -28,6 +37,7 @@ export interface OverrideEntry {
     imports: [NgClass, Popover, Button, Tooltip, TranslateModule, PermissionOverrideEditorComponent],
     templateUrl: './permission-overrides-panel.component.html',
     styleUrl: './permission-overrides-panel.component.css',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PermissionOverridesPanelComponent {
     readonly entries = input.required<OverrideEntry[]>();
@@ -36,11 +46,16 @@ export class PermissionOverridesPanelComponent {
     readonly loading = input(false);
     /** Forwarded to the editor so channel-scoped household groups appear on the right channel. */
     readonly channelType = input<ChannelType | null>(null);
+    readonly searchable = input(false);
+    readonly hasMore = input(false);
 
     add = output<string>();
     change = output<{id: string; override: PermOverride}>();
     save = output<string>();
     delete = output<string>();
+    // Not named `search`: that collides with the native DOM search event and trips no-output-native.
+    queryChange = output<string>();
+    loadMore = output<void>();
 
     protected readonly selectedId = signal<string | null>(null);
     protected readonly selected = computed<OverrideEntry | null>(() => {
@@ -64,6 +79,10 @@ export class PermissionOverridesPanelComponent {
 
     select(id: string): void {
         this.selectedId.set(id);
+    }
+
+    protected onSearch(value: string): void {
+        this.queryChange.emit(value);
     }
 
     toggleAddPopover(event: Event): void {
