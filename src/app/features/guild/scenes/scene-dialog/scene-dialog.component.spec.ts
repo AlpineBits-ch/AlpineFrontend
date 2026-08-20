@@ -60,6 +60,7 @@ function setup(fileResult: 'ok' | 'fail' = 'ok') {
         name: {set: (v: string) => void};
         order: {set: (v: string[]) => void};
         save: (start: boolean) => void;
+        chooseFolder: (folderId: string | null) => void;
     };
     component.name.set('The Ford at Dawn');
     component.order.set(['p1']);
@@ -106,5 +107,33 @@ describe('SceneDialogComponent creating into a folder', () => {
         component.save(false);
 
         expect(closes).toHaveLength(1);
+    });
+
+    it('keeps a hand-picked folder when the seed arrives again', () => {
+        const {fixture, component, scenes} = setup();
+        fixture.componentRef.setInput('seedFolderId', 'f1');
+        fixture.detectChanges();
+
+        component.chooseFolder('f2');
+
+        // A late-arriving or repeated seed must not undo the game master's own pick.
+        fixture.componentRef.setInput('seedFolderId', 'f1');
+        fixture.detectChanges();
+
+        component.save(false);
+
+        expect(scenes.update).toHaveBeenCalledWith('g1', 'ch_new', {folderId: 'f2'});
+    });
+
+    it('honours an explicit unfiled over the seed', () => {
+        const {fixture, component, scenes} = setup();
+        fixture.componentRef.setInput('seedFolderId', 'f1');
+        fixture.detectChanges();
+
+        component.chooseFolder(null);
+
+        component.save(false);
+
+        expect(scenes.update).not.toHaveBeenCalled();
     });
 });
