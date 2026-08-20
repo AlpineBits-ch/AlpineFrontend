@@ -181,6 +181,9 @@ export class RolesSettingsComponent implements OnInit {
         return role ? (this.memberCounts().get(role.id) ?? 0) : 0;
     });
 
+    // injectGuildRoster pages at 200, so a guild past that undercounts and the number needs a "+".
+    protected readonly memberCountAtCap = computed(() => this.roster.members().length >= 200);
+
     protected readonly totalChannels = computed(() => this.guild().channels.length);
 
     protected readonly overrideCount = computed(() => {

@@ -16,7 +16,7 @@
                 <span [style.background]="role.color || '#4B5BC4'" class="w-3.5 h-3.5 rounded-full shrink-0"></span>
                 <h3 class="text-sm font-semibold text-text-primary">{{ role.name }}</h3>
 
-                <div class="flex items-center gap-1 ml-auto">
+                <div class="flex items-center gap-0.5 ml-auto rounded-xl bg-card p-1">
                     <button
                         (click)="switchTab('display')"
                         [ngClass]="
@@ -80,19 +80,43 @@
             <div class="flex items-center gap-6 shrink-0 py-2.5 border-b border-white/[0.08]">
                 <div class="flex flex-col gap-0.5">
                     <span class="font-mono text-sm text-text-primary tabular-nums">{{ overrideCount() }}</span>
-                    <span class="text-[0.625rem] text-text-muted">{{ 'GUILD_SETTINGS.ROLES.STAT_OVERRIDES' | translate }}</span>
+                    <span class="text-[0.625rem] text-text-muted">
+                        {{
+                            (overrideCount() === 1 ? 'GUILD_SETTINGS.ROLES.STAT_OVERRIDES_ONE' : 'GUILD_SETTINGS.ROLES.STAT_OVERRIDES')
+                                | translate
+                        }}
+                    </span>
                 </div>
                 <div class="flex flex-col gap-0.5">
                     <span class="font-mono text-sm text-text-primary tabular-nums">{{ totalChannels() }}</span>
-                    <span class="text-[0.625rem] text-text-muted">{{ 'GUILD_SETTINGS.ROLES.STAT_CHANNELS' | translate }}</span>
+                    <span class="text-[0.625rem] text-text-muted">
+                        {{
+                            (totalChannels() === 1 ? 'GUILD_SETTINGS.ROLES.STAT_CHANNELS_ONE' : 'GUILD_SETTINGS.ROLES.STAT_CHANNELS')
+                                | translate
+                        }}
+                    </span>
                 </div>
+                <!-- Resolves this role alone, so it cannot account for @everyone stacking or a member's own overwrites; the tooltip is the only thing stopping that being read as a member's view. -->
                 <div class="flex flex-col gap-0.5">
                     <span class="font-mono text-sm text-text-primary tabular-nums">{{ visibleChannelCount() }}</span>
-                    <span class="text-[0.625rem] text-text-muted">{{ 'GUILD_SETTINGS.ROLES.STAT_VISIBLE' | translate }}</span>
+                    <span
+                        [pTooltip]="'GUILD_SETTINGS.ROLES.STAT_VISIBLE_HINT' | translate"
+                        class="text-[0.625rem] text-text-muted underline decoration-dotted decoration-text-faint underline-offset-2"
+                        tooltipPosition="bottom"
+                    >
+                        {{ 'GUILD_SETTINGS.ROLES.STAT_VISIBLE' | translate }}
+                    </span>
                 </div>
                 <div class="flex flex-col gap-0.5">
-                    <span class="font-mono text-sm text-text-primary tabular-nums">{{ selectedMemberCount() }}</span>
-                    <span class="text-[0.625rem] text-text-muted">{{ 'GUILD_SETTINGS.ROLES.STAT_MEMBERS' | translate }}</span>
+                    <span class="font-mono text-sm text-text-primary tabular-nums"
+                        >{{ selectedMemberCount() }}{{ memberCountAtCap() ? '+' : '' }}</span
+                    >
+                    <span class="text-[0.625rem] text-text-muted">
+                        {{
+                            (selectedMemberCount() === 1 ? 'GUILD_SETTINGS.ROLES.STAT_MEMBERS_ONE' : 'GUILD_SETTINGS.ROLES.STAT_MEMBERS')
+                                | translate
+                        }}
+                    </span>
                 </div>
             </div>
 
