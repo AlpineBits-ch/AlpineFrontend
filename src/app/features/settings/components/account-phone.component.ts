@@ -38,15 +38,8 @@ import {UserService} from '../../../services/user.service';
                         <p class="m-0 text-xs text-rose-300" data-testid="phone-problem">
                             {{ key | translate }}
                         </p>
-                    } @else {
-                        <p class="m-0 text-xs text-text-muted">
-                            {{ 'ACCOUNT.PHONE.FORMAT_HELP' | translate }}
-                        </p>
                     }
                 </div>
-
-                <p class="m-0 text-xs text-text-muted">{{ 'ACCOUNT.PHONE.PLAINTEXT' | translate }}</p>
-                <p class="m-0 text-xs text-text-muted">{{ 'ACCOUNT.PHONE.UNVERIFIED' | translate }}</p>
 
                 <div class="flex items-center gap-2 flex-wrap">
                     <p-button

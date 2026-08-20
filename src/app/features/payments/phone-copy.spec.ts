@@ -37,9 +37,6 @@ describe('phone-number copy', () => {
             'PAY.SHEET.PHONE_ENTERED',
             'ACCOUNT.PHONE.TITLE',
             'ACCOUNT.PHONE.PLACEHOLDER',
-            'ACCOUNT.PHONE.FORMAT_HELP',
-            'ACCOUNT.PHONE.PLAINTEXT',
-            'ACCOUNT.PHONE.UNVERIFIED',
             'ACCOUNT.PHONE.NONE',
             'ACCOUNT.PHONE.SAVE',
             'ACCOUNT.PHONE.SAVED',
@@ -70,12 +67,10 @@ describe('phone-number copy', () => {
     });
 
     it('says outright that nothing has checked the number', () => {
-        // The absence of a "verified" badge is not the same as saying so. All three screens - the
-        // person sharing, the person about to send money, and the person typing it in - are told
-        // explicitly.
+        // The absence of a "verified" badge is not the same as saying so. Both screens that show a
+        // number say it outright.
         expect(COPY['PAY.PHONE.UNVERIFIED'].toLowerCase()).toContain('nothing has checked');
         expect(COPY['PAY.SHEET.PHONE_ENTERED'].toLowerCase()).toContain('nothing has checked');
-        expect(COPY['ACCOUNT.PHONE.UNVERIFIED'].toLowerCase()).toContain('nothing has checked');
     });
 
     it('never asserts that somebody has a number they have not shown', () => {
@@ -86,16 +81,12 @@ describe('phone-number copy', () => {
         }
     });
 
-    it('keeps the plaintext and ciphertext distinction visible on all three screens', () => {
+    it('keeps the plaintext and ciphertext distinction visible where a number is shown', () => {
         // The lists are separate in the response on purpose. If the copy stops drawing the line,
-        // merging them in the UI becomes the obvious next tidy-up and nothing stops it. The account
-        // field says it too, because that is where somebody first decides to hand a number over.
+        // merging them in the UI becomes the obvious next tidy-up and nothing stops it.
         expect(COPY['PAY.PHONE.PLAINTEXT'].toLowerCase()).toContain('not encrypted');
         expect(COPY['PAY.PHONE.PLAINTEXT'].toLowerCase()).toContain('plain text');
         expect(COPY['PAY.SHEET.PHONE_PLAINTEXT'].toLowerCase()).toContain('plain text');
-        expect(COPY['ACCOUNT.PHONE.PLAINTEXT'].toLowerCase()).toContain('plain text');
-        expect(COPY['ACCOUNT.PHONE.PLAINTEXT'].toLowerCase()).toContain('not encrypted');
-        expect(COPY['ACCOUNT.PHONE.PLAINTEXT'].toLowerCase()).toContain('server can read');
     });
 
     it('says the sharing is for this household rather than everywhere', () => {
@@ -104,15 +95,9 @@ describe('phone-number copy', () => {
         expect(COPY['PAY.PHONE.TITLE'].toLowerCase()).toContain('this house');
     });
 
-    it('explains the + rather than offering to guess at a dialling plan', () => {
+    it('says what a refused number is missing rather than guessing at a dialling plan', () => {
         // The server refuses a leading 00 instead of rewriting it, because that rewrite silently
-        // produces a stranger's number in some countries. The field has to carry the reason, or the
-        // refusal reads as pedantry and somebody "fixes" it by rewriting client-side.
-        const help = COPY['ACCOUNT.PHONE.FORMAT_HELP'].toLowerCase();
-        expect(help).toContain('+');
-        expect(help).toContain('country code');
-        expect(help).toContain('00');
-
+        // produces a stranger's number in some countries.
         expect(COPY['ACCOUNT.PHONE.PROBLEM.NO_PLUS']).toContain('+');
         expect(COPY['ACCOUNT.PHONE.PLACEHOLDER']).toMatch(/^\+/);
     });
@@ -162,9 +147,6 @@ describe('phone-number copy', () => {
         const accounted = new Set([
             'ACCOUNT.PHONE.TITLE',
             'ACCOUNT.PHONE.PLACEHOLDER',
-            'ACCOUNT.PHONE.FORMAT_HELP',
-            'ACCOUNT.PHONE.PLAINTEXT',
-            'ACCOUNT.PHONE.UNVERIFIED',
             'ACCOUNT.PHONE.NONE',
             'ACCOUNT.PHONE.SAVE',
             'ACCOUNT.PHONE.SAVED',
