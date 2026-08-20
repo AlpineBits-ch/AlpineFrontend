@@ -36,6 +36,7 @@ import {GuestAccessSettingsComponent} from './pages/guest-access-settings/guest-
 import {GuildFeature, guildFeatures} from '../../guild-features';
 import {PlanPanelComponent} from '../../../settings/plan-panel/plan-panel.component';
 import {EntitlementStore, EntitlementSubjectRef, MY_ENTITLEMENTS} from '../../../../stores/entitlement.store';
+import {WindowChrome} from '../../../../platform/ports/window-chrome.port';
 import {TranslateModule} from '@ngx-translate/core';
 import {PrimeTemplate} from 'primeng/api';
 import {GuildService} from '../../../../services/guild.service';
@@ -57,6 +58,20 @@ interface NavGroup {
     titleKey: string;
     items: NavItem[];
 }
+
+/** Reading-and-form pages get a capped measure; anything data-dense (a table, a list, the role permission matrix) is left at the default full width. */
+const FORM_PAGE_IDS = new Set([
+    'overview',
+    'modules',
+    'moderation',
+    'onboarding',
+    'wiki',
+    'templates',
+    'discord-sync',
+    'plan',
+    'quiet-hours',
+    'guest-access',
+]);
 
 /** Modules a guild has switched off are absent from this nav, not disabled, and `modules` itself is never gated. `billingAvailable` (default false) hides the Plan page when this instance sells nothing. */
 export function buildGuildNavGroups(
@@ -149,6 +164,7 @@ export function buildGuildNavGroups(
         PrimeTemplate,
     ],
     templateUrl: './guild-settings-modal.component.html',
+    styleUrl: './guild-settings-modal.component.css',
 })
 export class GuildSettingsModalComponent {
     readonly isVisible = model.required<boolean>();
@@ -173,10 +189,17 @@ export class GuildSettingsModalComponent {
     private guildService = inject(GuildService);
     private profileService = inject(ProfileService);
     private entitlements = inject(EntitlementStore);
+    private readonly chrome = inject(WindowChrome);
     private readonly ownMember = signal<SelfGuildMemberDto | null>(null);
     private readonly memberLoaded = signal(false);
     /** Guild the cached member row belongs to, so reopening on another guild re-checks. */
     private loadedGuildId: string | null = null;
+
+    /** True on desktop, where the app draws its own titlebar above this dialog; false on web, where there is none to clear. Constant for the component's life, so a plain field, not a signal. */
+    protected readonly hasTitlebar = this.chrome.supported;
+    /** `--inset` clears the titlebar so its window controls stay clickable while settings are open; skipped on web, which has no titlebar. */
+    protected readonly dialogStyleClass = `guild-settings-dialog${this.hasTitlebar ? ' guild-settings-dialog--inset' : ''}`;
+    protected readonly dialogMaskStyleClass = `guild-settings-mask${this.hasTitlebar ? ' guild-settings-mask--inset' : ''}`;
 
     /** Last line of defence: every entry point hides its "Server Settings" item, but this modal is the single place they all funnel through, so the check lives here too. The server enforces this independently; this only stops the app offering controls that were never going to work. */
     protected readonly access = computed<Access>(() => {
@@ -191,6 +214,16 @@ export class GuildSettingsModalComponent {
     );
     readonly navGroups = computed<NavGroup[]>(() =>
         buildGuildNavGroups(this.guild(), this.entitlements.upgradesAvailable()),
+    );
+
+    /**
+     * Caps the reading-and-form pages to a comfortable measure; data-dense pages (Members, Roles, Bans, Invites,
+     * Emojis, Audit Log) keep the full width the shell already gives them. `h-full` is on both branches: several
+     * pages (members, roles, bans, audit-log) size their own internal scroll region off a full-height parent, and
+     * this wrapper sits between them and that parent now.
+     */
+    readonly pageContentClasses = computed(() =>
+        FORM_PAGE_IDS.has(this.activePage()) ? 'max-w-[720px] h-full' : 'h-full',
     );
 
     /** What the Plan page reads. Rebuilt only when the guild changes, so the input holds still. */

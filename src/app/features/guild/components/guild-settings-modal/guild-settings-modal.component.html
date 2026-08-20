@@ -2,16 +2,16 @@
 <p-dialog
     #mainDialog
     [(visible)]="isVisible"
-    [breakpoints]="{'960px': '92vw', '640px': '100vw'}"
     [closable]="false"
     [closeOnEscape]="false"
     [dismissableMask]="false"
     [draggable]="false"
+    [maskStyleClass]="dialogMaskStyleClass"
     [modal]="true"
     [resizable]="false"
-    [style]="{width: '990px', height: '620px', maxHeight: '90dvh'}"
+    [style]="{width: '100vw', height: '100dvh', maxHeight: '100dvh'}"
+    [styleClass]="dialogStyleClass"
     appendTo="body"
-    styleClass="settings-dialog"
 >
     @if (access() === 'checking') {
         <div class="flex h-full items-center justify-center bg-app-bg">
@@ -120,65 +120,67 @@
 
                 <!-- Page content -->
                 <div class="flex-1 overflow-y-auto px-6 sm:px-8 py-6 min-h-0 thin-scrollbar">
-                    @switch (activePage()) {
-                        @case ('overview') {
-                            <app-overview-settings
-                                (dirtyChange)="onPageDirtyChange($event)"
-                                (guildDeleted)="guildDeleted.emit($event)"
-                                (guildUpdated)="onGuildUpdated($event)"
-                                [guild]="guild()"
-                            />
+                    <div [class]="pageContentClasses()">
+                        @switch (activePage()) {
+                            @case ('overview') {
+                                <app-overview-settings
+                                    (dirtyChange)="onPageDirtyChange($event)"
+                                    (guildDeleted)="guildDeleted.emit($event)"
+                                    (guildUpdated)="onGuildUpdated($event)"
+                                    [guild]="guild()"
+                                />
+                            }
+                            @case ('modules') {
+                                <app-modules-settings (guildUpdated)="onGuildUpdated($event)" [guild]="guild()" />
+                            }
+                            @case ('members') {
+                                <app-members-settings [guild]="guild()" />
+                            }
+                            @case ('roles') {
+                                <app-roles-settings
+                                    (dirtyChange)="onPageDirtyChange($event)"
+                                    (rolesChanged)="onRolesChanged($event)"
+                                    [guild]="guild()"
+                                />
+                            }
+                            @case ('invites') {
+                                <app-invites-settings [guild]="guild()" />
+                            }
+                            @case ('emojis') {
+                                <app-emoji-settings [guild]="guild()" />
+                            }
+                            @case ('wiki') {
+                                <app-wiki-settings [guild]="guild()" />
+                            }
+                            @case ('templates') {
+                                <app-templates-settings [guild]="guild()" />
+                            }
+                            @case ('discord-sync') {
+                                <app-discord-sync-settings [guild]="guild()" />
+                            }
+                            @case ('bans') {
+                                <app-bans-settings [guild]="guild()" />
+                            }
+                            @case ('moderation') {
+                                <app-moderation-settings [guild]="guild()" />
+                            }
+                            @case ('audit-log') {
+                                <app-audit-log-settings [guild]="guild()" />
+                            }
+                            @case ('onboarding') {
+                                <app-onboarding-settings (dirtyChange)="onPageDirtyChange($event)" [guild]="guild()" />
+                            }
+                            @case ('quiet-hours') {
+                                <app-quiet-hours-settings (dirtyChange)="onPageDirtyChange($event)" [guild]="guild()" />
+                            }
+                            @case ('guest-access') {
+                                <app-guest-access-settings [guild]="guild()" />
+                            }
+                            @case ('plan') {
+                                <app-plan-panel [subject]="planSubject()" />
+                            }
                         }
-                        @case ('modules') {
-                            <app-modules-settings (guildUpdated)="onGuildUpdated($event)" [guild]="guild()" />
-                        }
-                        @case ('members') {
-                            <app-members-settings [guild]="guild()" />
-                        }
-                        @case ('roles') {
-                            <app-roles-settings
-                                (dirtyChange)="onPageDirtyChange($event)"
-                                (rolesChanged)="onRolesChanged($event)"
-                                [guild]="guild()"
-                            />
-                        }
-                        @case ('invites') {
-                            <app-invites-settings [guild]="guild()" />
-                        }
-                        @case ('emojis') {
-                            <app-emoji-settings [guild]="guild()" />
-                        }
-                        @case ('wiki') {
-                            <app-wiki-settings [guild]="guild()" />
-                        }
-                        @case ('templates') {
-                            <app-templates-settings [guild]="guild()" />
-                        }
-                        @case ('discord-sync') {
-                            <app-discord-sync-settings [guild]="guild()" />
-                        }
-                        @case ('bans') {
-                            <app-bans-settings [guild]="guild()" />
-                        }
-                        @case ('moderation') {
-                            <app-moderation-settings [guild]="guild()" />
-                        }
-                        @case ('audit-log') {
-                            <app-audit-log-settings [guild]="guild()" />
-                        }
-                        @case ('onboarding') {
-                            <app-onboarding-settings (dirtyChange)="onPageDirtyChange($event)" [guild]="guild()" />
-                        }
-                        @case ('quiet-hours') {
-                            <app-quiet-hours-settings (dirtyChange)="onPageDirtyChange($event)" [guild]="guild()" />
-                        }
-                        @case ('guest-access') {
-                            <app-guest-access-settings [guild]="guild()" />
-                        }
-                        @case ('plan') {
-                            <app-plan-panel [subject]="planSubject()" />
-                        }
-                    }
+                    </div>
                 </div>
             </div>
         </div>

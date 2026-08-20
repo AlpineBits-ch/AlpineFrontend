@@ -1,0 +1,72 @@
+/* Own class, not shared with the user settings dialog: ::ng-deep with nothing before it compiles to a global rule, so a shared class name would have leaked styling between the two dialogs. */
+::ng-deep .guild-settings-dialog.p-dialog {
+    background: var(--color-app-bg) !important;
+    border: 1px solid rgba(255, 255, 255, 0.07) !important;
+    border-radius: 0 !important;
+    overflow: hidden !important;
+    padding: 0 !important;
+    width: 100vw !important;
+    height: 100dvh !important;
+    max-width: 100vw !important;
+    max-height: 100dvh !important;
+    margin: 0 !important;
+}
+
+/* Desktop only (see `hasTitlebar` in the component): the app draws its own titlebar,
+   --spacing-titlebar tall, above this dialog. Insetting the panel and its mask below it keeps
+   the window's close/minimize/maximize controls clickable while settings are open. The browser
+   build has no titlebar, so it never gets this modifier and the dialog stays truly full screen. */
+::ng-deep .guild-settings-dialog.p-dialog.guild-settings-dialog--inset {
+    height: calc(100dvh - var(--spacing-titlebar)) !important;
+    max-height: calc(100dvh - var(--spacing-titlebar)) !important;
+}
+
+::ng-deep .guild-settings-mask.guild-settings-mask--inset {
+    top: var(--spacing-titlebar) !important;
+    height: calc(100dvh - var(--spacing-titlebar)) !important;
+}
+
+::ng-deep .guild-settings-dialog .p-dialog-header {
+    display: none !important;
+}
+
+::ng-deep .guild-settings-dialog .p-dialog-content {
+    background: var(--color-app-bg) !important;
+    padding: 0 !important;
+    height: 100% !important;
+    overflow: hidden !important;
+    border-radius: 0 !important;
+}
+
+/* PrimeNG's own dialog motion is 300ms cubic-bezier(.19,1,.22,1); replaced with the app's one
+   duration/curve pair so a full-screen surface opens and closes like everything else does.
+   Higher specificity than the library's `.p-dialog-enter/leave-active` beats it without needing
+   load-order luck. */
+::ng-deep .guild-settings-dialog.p-dialog-enter-active {
+    animation: guild-settings-dialog-enter var(--duration-base) var(--ease-brand);
+}
+
+::ng-deep .guild-settings-dialog.p-dialog-leave-active {
+    animation: guild-settings-dialog-leave var(--duration-base) var(--ease-brand);
+}
+
+@keyframes guild-settings-dialog-enter {
+    from {
+        opacity: 0;
+        transform: scale(0.97);
+    }
+}
+
+@keyframes guild-settings-dialog-leave {
+    to {
+        opacity: 0;
+        transform: scale(0.97);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    ::ng-deep .guild-settings-dialog.p-dialog-enter-active,
+    ::ng-deep .guild-settings-dialog.p-dialog-leave-active {
+        animation: none !important;
+    }
+}
