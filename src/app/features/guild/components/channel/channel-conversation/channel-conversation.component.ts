@@ -24,11 +24,16 @@ import {ModulePermissions} from '../../../../../enums/module-permissions.enum';
 import {GuildFeature, guildHasFeature} from '../../../guild-features';
 import {PersonaService} from '../../../../../services/persona.service';
 import {SceneService} from '../../../../../services/scene.service';
-import {SceneStatus} from '../../../../../dtos/response/scene.dto';
+import {SceneJoinRequestStatus, SceneStatus} from '../../../../../dtos/response/scene.dto';
 import {isWaitingOnMe} from '../../../scenes/scene-status';
+import {needsPermission} from '../../../scenes/scene-access';
 import {turnClock} from '../../../scenes/scene-clock';
 import {SceneConclusionComponent} from '../../../scenes/scene-conclusion/scene-conclusion.component';
-import {SceneTurnPrompt} from '../../../../messaging/components/conversation/composer/composer.component';
+import {SceneJoinDialogComponent} from '../../../scenes/scene-join-dialog/scene-join-dialog.component';
+import {
+    SceneJoinPrompt,
+    SceneTurnPrompt,
+} from '../../../../messaging/components/conversation/composer/composer.component';
 import {buildMessageRows} from '../../../../messaging/components/conversation/message-utils';
 import {sceneChannelIdFor} from '../channel-utils';
 import {ChannelAccessBannerComponent} from '../channel-access-banner.component';
@@ -74,6 +79,7 @@ import {ChannelMessageDraft, ChannelSendService} from './channel-send.service';
         MlsUnreadableBannerComponent,
         JumpToPresentComponent,
         SceneConclusionComponent,
+        SceneJoinDialogComponent,
         CreateThreadDialogComponent,
         TranslateModule,
     ],
@@ -95,6 +101,8 @@ export class ChannelConversationComponent implements AfterViewInit {
     protected readonly sending = inject(ChannelSendService);
     protected readonly scenes = inject(SceneService);
     protected readonly passing = signal(false);
+    protected readonly joining = signal(false);
+    protected readonly joinBusy = signal(false);
 
     protected readonly guildId = computed(() => this.channel().guildId);
     protected readonly guildRoles = computed(() => {
@@ -142,6 +150,49 @@ export class ChannelConversationComponent implements AfterViewInit {
         return scene?.status === SceneStatus.Concluded && this.sceneSide() === 'ic' ? scene : null;
     });
 
+    /** Whether this reader answers for any character in the scene. Decides which strip they get. */
+    private readonly inCast = computed(() => {
+        const scene = this.scene();
+        if (!scene) return false;
+        const speakable = this.scenes.speakableIds(this.guildId());
+        return scene.participants.some(participant => speakable.has(participant.personaId));
+    });
+
+    /**
+     * The way into a scene this reader is not in. Null for the cast, who have a turn strip instead,
+     * and for the companion thread, which anyone who can see the scene may already talk in.
+     */
+    protected readonly sceneJoin = computed((): SceneJoinPrompt | null => {
+        const scene = this.scene();
+        if (!scene || this.sceneSide() !== 'ic') return null;
+        if (scene.status === SceneStatus.Concluded || this.inCast()) return null;
+
+        const busy = this.joinBusy();
+        const open = () => this.joining.set(true);
+
+        if (!needsPermission(scene)) {
+            return {state: 'open', reason: null, open, withdraw: null, busy};
+        }
+
+        const request = this.scenes.myRequest(scene.channelId);
+
+        if (request?.status === SceneJoinRequestStatus.Pending) {
+            return {
+                state: 'pending',
+                reason: null,
+                open: null,
+                withdraw: () => this.withdrawJoin(request.id),
+                busy,
+            };
+        }
+
+        if (request?.status === SceneJoinRequestStatus.Denied) {
+            return {state: 'denied', reason: request.decisionReason ?? null, open, withdraw: null, busy};
+        }
+
+        return {state: 'ask', reason: null, open, withdraw: null, busy};
+    });
+
     /** The out-of-character thread is deliberately unconstrained, so it never gets a strip. */
     protected readonly sceneTurn = computed((): SceneTurnPrompt | null => {
         const scene = this.scene();
@@ -187,7 +238,9 @@ export class ChannelConversationComponent implements AfterViewInit {
     protected readonly resolvePersonaLocally = computed(() => this.encryption.state() === 'joined');
     protected readonly replyingTo = signal<MessageDto | null>(null);
 
-    protected readonly MessageType = MessageType;
+    protected get MessageType() {
+        return MessageType;
+    }
 
     private messageStore = inject(MessageStore);
     private readonly ownMember = signal<SelfGuildMemberDto | null>(null);
@@ -326,6 +379,14 @@ export class ChannelConversationComponent implements AfterViewInit {
         });
 
         effect(() => {
+            // Only a closed scene has a queue. The route narrows it, so a player gets their own row
+            // and a GM the whole thing without either asking a different question.
+            const scene = this.scene();
+            if (!scene || !needsPermission(scene)) return;
+            untracked(() => this.scenes.ensureRequests(this.guildId(), scene.channelId));
+        });
+
+        effect(() => {
             this.scroll.setAnchored(this.anchored());
         });
 
@@ -397,6 +458,20 @@ export class ChannelConversationComponent implements AfterViewInit {
             next: () => this.passing.set(false),
             error: err => {
                 this.passing.set(false);
+                this.toastService.httpError(this.translate.instant('SCENE.TOAST.FAILED'), err);
+            },
+        });
+    }
+
+    /** Takes back an ask the GM has not answered. The event clears the row; this clears the wait. */
+    protected withdrawJoin(requestId: string): void {
+        const scene = this.scene();
+        if (!scene || this.joinBusy()) return;
+        this.joinBusy.set(true);
+        this.scenes.withdrawRequest(this.guildId(), scene.channelId, requestId).subscribe({
+            next: () => this.joinBusy.set(false),
+            error: err => {
+                this.joinBusy.set(false);
                 this.toastService.httpError(this.translate.instant('SCENE.TOAST.FAILED'), err);
             },
         });

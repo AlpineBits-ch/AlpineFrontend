@@ -5,6 +5,9 @@ import {ApiConfigService} from './api-config.service';
 import {
     SceneDto,
     SceneFolderDto,
+    SceneJoinRequestDto,
+    SceneJoinRequestListDto,
+    SceneJoinRequestStatus,
     SceneListDto,
     SceneTagDto,
     SceneTaxonomyDto,
@@ -15,7 +18,10 @@ import {
     AdvanceTurnDto,
     CreateSceneDto,
     CreateSceneFolderDto,
+    CreateSceneJoinRequestDto,
     CreateSceneTagDto,
+    DenySceneJoinRequestDto,
+    JoinSceneDto,
     ReorderSceneFoldersDto,
     SceneListParams,
     SetSceneTagsDto,
@@ -41,6 +47,11 @@ function sceneListParams(params?: SceneListParams): HttpParams {
         query = query.set(key, String(value));
     }
     return query;
+}
+
+/** Omitted means every status, which is what the GM's queue asks for after a decision. */
+function statusParams(status?: SceneJoinRequestStatus): HttpParams {
+    return status ? new HttpParams().set('status', status) : new HttpParams();
 }
 
 /** Scenes and dice, as one injectable seam. `app.config.ts` binds the implementation. */
@@ -74,6 +85,54 @@ export abstract class RoleplayApi {
 
     /** Chases whoever is on the clock. Answers no scene: the nudge arrives back over the hub. */
     abstract nudgeTurn(guildId: string, sceneChannelId: string): Observable<void>;
+
+    // ── Joining ─────────────────────────────────────────────────────────────
+
+    /**
+     * Walks a character into an open scene. Not `addParticipant`: that one is the GM adding
+     * anybody, this one takes only a character the caller may speak as.
+     */
+    abstract join(guildId: string, sceneChannelId: string, dto: JoinSceneDto): Observable<SceneDto>;
+
+    abstract leave(guildId: string, sceneChannelId: string, personaId: string): Observable<SceneDto>;
+
+    abstract requestJoin(
+        guildId: string,
+        sceneChannelId: string,
+        dto: CreateSceneJoinRequestDto,
+    ): Observable<SceneJoinRequestDto>;
+
+    /** The whole queue for a GM, the caller's own rows for everybody else. */
+    abstract listJoinRequests(
+        guildId: string,
+        sceneChannelId: string,
+        status?: SceneJoinRequestStatus,
+    ): Observable<SceneJoinRequestListDto>;
+
+    /** Every scene's asks in one call, for the GM's queue across the guild. */
+    abstract listGuildJoinRequests(
+        guildId: string,
+        status?: SceneJoinRequestStatus,
+    ): Observable<SceneJoinRequestListDto>;
+
+    abstract approveJoinRequest(
+        guildId: string,
+        sceneChannelId: string,
+        requestId: string,
+    ): Observable<SceneJoinRequestDto>;
+
+    abstract denyJoinRequest(
+        guildId: string,
+        sceneChannelId: string,
+        requestId: string,
+        dto: DenySceneJoinRequestDto,
+    ): Observable<SceneJoinRequestDto>;
+
+    abstract withdrawJoinRequest(
+        guildId: string,
+        sceneChannelId: string,
+        requestId: string,
+    ): Observable<SceneJoinRequestDto>;
 
     abstract roll(guildId: string, channelId: string, dto: RollDiceDto): Observable<DiceRollDto>;
 
@@ -156,6 +215,82 @@ export class HttpRoleplayApi extends RoleplayApi {
 
     nudgeTurn(guildId: string, sceneChannelId: string): Observable<void> {
         return this.http.post<void>(`${this.scene(guildId, sceneChannelId)}/turn/nudge`, {});
+    }
+
+    join(guildId: string, sceneChannelId: string, dto: JoinSceneDto): Observable<SceneDto> {
+        return this.http.post<SceneDto>(`${this.scene(guildId, sceneChannelId)}/join`, dto);
+    }
+
+    leave(guildId: string, sceneChannelId: string, personaId: string): Observable<SceneDto> {
+        return this.http.delete<SceneDto>(`${this.scene(guildId, sceneChannelId)}/join/${personaId}`);
+    }
+
+    requestJoin(
+        guildId: string,
+        sceneChannelId: string,
+        dto: CreateSceneJoinRequestDto,
+    ): Observable<SceneJoinRequestDto> {
+        return this.http.post<SceneJoinRequestDto>(
+            `${this.requests(guildId, sceneChannelId)}`,
+            dto,
+        );
+    }
+
+    listJoinRequests(
+        guildId: string,
+        sceneChannelId: string,
+        status?: SceneJoinRequestStatus,
+    ): Observable<SceneJoinRequestListDto> {
+        return this.http.get<SceneJoinRequestListDto>(this.requests(guildId, sceneChannelId), {
+            params: statusParams(status),
+        });
+    }
+
+    listGuildJoinRequests(
+        guildId: string,
+        status?: SceneJoinRequestStatus,
+    ): Observable<SceneJoinRequestListDto> {
+        return this.http.get<SceneJoinRequestListDto>(
+            `${this.base}/guilds/${guildId}/scene-join-requests`,
+            {params: statusParams(status)},
+        );
+    }
+
+    approveJoinRequest(
+        guildId: string,
+        sceneChannelId: string,
+        requestId: string,
+    ): Observable<SceneJoinRequestDto> {
+        return this.http.post<SceneJoinRequestDto>(
+            `${this.requests(guildId, sceneChannelId)}/${requestId}/approve`,
+            {},
+        );
+    }
+
+    denyJoinRequest(
+        guildId: string,
+        sceneChannelId: string,
+        requestId: string,
+        dto: DenySceneJoinRequestDto,
+    ): Observable<SceneJoinRequestDto> {
+        return this.http.post<SceneJoinRequestDto>(
+            `${this.requests(guildId, sceneChannelId)}/${requestId}/deny`,
+            dto,
+        );
+    }
+
+    withdrawJoinRequest(
+        guildId: string,
+        sceneChannelId: string,
+        requestId: string,
+    ): Observable<SceneJoinRequestDto> {
+        return this.http.delete<SceneJoinRequestDto>(
+            `${this.requests(guildId, sceneChannelId)}/${requestId}`,
+        );
+    }
+
+    private requests(guildId: string, sceneChannelId: string): string {
+        return `${this.scene(guildId, sceneChannelId)}/join-requests`;
     }
 
     roll(guildId: string, channelId: string, dto: RollDiceDto): Observable<DiceRollDto> {

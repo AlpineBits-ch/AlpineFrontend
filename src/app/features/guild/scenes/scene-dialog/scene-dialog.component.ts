@@ -13,6 +13,7 @@ import {FormsModule} from '@angular/forms';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {Dialog} from 'primeng/dialog';
 import {Select} from 'primeng/select';
+import {RadioButton} from 'primeng/radiobutton';
 import {PrimeTemplate} from 'primeng/api';
 import {catchError, Observable, of, switchMap} from 'rxjs';
 import {PersonaAvatarComponent} from '../../personas/persona-avatar/persona-avatar.component';
@@ -28,6 +29,7 @@ import {
     matchesCastMemberQuery,
     PersonaIdentity,
 } from '../../personas/persona-identity';
+import {accessMeta, presetOf, SCENE_ACCESS_PRESETS, SceneAccessPreset} from '../scene-access';
 
 /** The deadlines a play-by-post game actually uses, rather than a number field. */
 export const TURN_LENGTHS: readonly {hours: number | null; labelKey: string}[] = [
@@ -62,6 +64,7 @@ interface DerivedTurnLength {
         TranslateModule,
         Dialog,
         Select,
+        RadioButton,
         PrimeTemplate,
         PersonaAvatarComponent,
         SceneFolderPickerComponent,
@@ -89,11 +92,16 @@ export class SceneDialogComponent {
         return TURN_LENGTHS;
     }
 
+    protected get ACCESS_PRESETS() {
+        return SCENE_ACCESS_PRESETS;
+    }
+
     protected readonly name = signal('');
     protected readonly description = signal('');
     protected readonly oocName = signal('');
     protected readonly order = signal<string[]>([]);
     protected readonly deadlineHours = signal<number | null>(48);
+    protected readonly preset = signal<SceneAccessPreset>(SceneAccessPreset.OpenTable);
     /** Whether the turn length was chosen here. Untouched, the PATCH leaves the scene's own alone. */
     protected readonly deadlineTouched = signal(false);
     protected readonly query = signal('');
@@ -146,6 +154,7 @@ export class SceneDialogComponent {
                 if (this.seeded || !scene) return;
                 this.seeded = true;
                 this.name.set(scene.name);
+                this.preset.set(presetOf(scene.joinPolicy, scene.visibility));
                 // The rotation is the cast here, and an empty turn order means the cast in join order.
                 this.order.set(
                     scene.turnOrder.length
@@ -249,10 +258,15 @@ export class SceneDialogComponent {
         this.saving.set(true);
 
         const existing = this.scene();
+        const access = accessMeta(this.preset());
         const work = existing
             ? this.scenes.update(this.guildId(), existing.channelId, {
                   participantPersonaIds: this.order(),
                   turnOrder: this.order(),
+                  // Both, always: the server judges the pair where the scene lands, so sending one
+                  // of them against a stored value it no longer agrees with is refused.
+                  joinPolicy: access.joinPolicy,
+                  visibility: access.visibility,
                   // Omitted rather than null: the PATCH would otherwise wipe a clock nobody touched.
                   ...(this.deadlineTouched() ? {turnLengthHours: this.deadlineHours()} : {}),
               })
@@ -265,6 +279,8 @@ export class SceneDialogComponent {
                       turnOrder: this.order(),
                       turnLengthHours: this.deadlineHours(),
                       status: start ? SceneStatus.Active : SceneStatus.Open,
+                      joinPolicy: access.joinPolicy,
+                      visibility: access.visibility,
                   })
                   .pipe(switchMap(scene => this.fileNew(scene)));
 

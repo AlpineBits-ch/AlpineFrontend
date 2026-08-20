@@ -180,6 +180,33 @@
         <p class="scene-hint">{{ lengthNote().key | translate: lengthNote().params }}</p>
     </div>
 
+    <!-- ── Who plays here ─────────────────────────────────────────────────
+         Three tables rather than two switches. The pair the two fields could
+         also express, hidden but open to anyone, is refused by the server. -->
+    <div class="mt-5">
+        <span class="scene-field-label">{{ 'SCENE.ACCESS.TITLE' | translate }}</span>
+        <div class="mt-1.5 flex flex-col gap-1.5">
+            @for (option of ACCESS_PRESETS; track option.preset) {
+                <label [class.is-on]="preset() === option.preset" class="scene-access-row">
+                    <p-radiobutton
+                        [inputId]="'scene-access-' + option.preset"
+                        [ngModel]="preset()"
+                        (ngModelChange)="preset.set($event)"
+                        [value]="option.preset"
+                        name="sceneAccess"
+                    />
+                    <span class="min-w-0">
+                        <span class="scene-access-name">
+                            <i [class]="option.icon" class="text-[0.6875rem]"></i>
+                            {{ option.labelKey | translate }}
+                        </span>
+                        <span class="scene-access-hint">{{ option.hintKey | translate }}</span>
+                    </span>
+                </label>
+            }
+        </div>
+    </div>
+
     @if (!isEdit()) {
         <div class="mt-5">
             <span class="scene-field-label">{{ 'SCENE.ARCHIVE.FILE_INTO' | translate }}</span>

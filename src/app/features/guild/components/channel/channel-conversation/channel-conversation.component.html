@@ -177,6 +177,7 @@
             [canUsePersonas]="canUsePersonas()"
             [canRollDice]="canRollDice()"
             [sceneTurn]="sceneTurn()"
+            [sceneJoin]="sceneJoin()"
             [channelId]="channel().id"
             [guildChannels]="guildChannels()"
             [guildRoles]="guildRoles()"
@@ -187,6 +188,10 @@
         ></app-composer>
     }
 </footer>
+
+@if (joining() && scene(); as joinScene) {
+    <app-scene-join-dialog (closed)="joining.set(false)" [guildId]="guildId()" [scene]="joinScene" />
+}
 
 <app-create-thread-dialog
     (created)="openThreadById($event)"

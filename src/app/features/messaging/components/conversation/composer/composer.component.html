@@ -83,7 +83,49 @@
         [class.composer-your-turn]="sceneTurn()?.state === 'yours'"
         class="relative flex flex-col bg-white/[0.05] border border-white/[0.08] rounded-2xl focus-within:border-white/[0.15] transition-colors"
     >
-        @if (sceneTurn(); as turn) {
+        <!-- The way in, for somebody who is not in the cast. Same slot as the turn strip: the
+             notice belongs on the thing you would use to answer it. -->
+        @if (sceneJoin(); as join) {
+            <div [class.composer-turn-quiet]="join.state === 'pending'" class="composer-turn-strip" role="status">
+                @switch (join.state) {
+                    @case ('open') {
+                        <i aria-hidden="true" class="pi pi-user-plus"></i>
+                        <span>{{ 'SCENE.COMPOSER.BRING_CHARACTER' | translate }}</span>
+                    }
+                    @case ('ask') {
+                        <i aria-hidden="true" class="pi pi-hand"></i>
+                        <span>{{ 'SCENE.COMPOSER.ASK_TO_JOIN' | translate }}</span>
+                    }
+                    @case ('pending') {
+                        <i aria-hidden="true" class="pi pi-hourglass"></i>
+                        <span>{{ 'SCENE.COMPOSER.WAITING_ON_GM' | translate }}</span>
+                    }
+                    @case ('denied') {
+                        <i aria-hidden="true" class="pi pi-times-circle"></i>
+                        <span>
+                            {{
+                                join.reason
+                                    ? ('SCENE.COMPOSER.DENIED_WITH_REASON' | translate: {reason: join.reason})
+                                    : ('SCENE.COMPOSER.DENIED' | translate)
+                            }}
+                        </span>
+                    }
+                }
+
+                @if (join.withdraw; as withdraw) {
+                    <button (click)="withdraw()" [disabled]="join.busy" class="composer-turn-pass ml-auto" type="button">
+                        {{ 'SCENE.COMPOSER.WITHDRAW' | translate }}
+                    </button>
+                } @else if (join.open; as open) {
+                    <button (click)="open()" [disabled]="join.busy" class="composer-turn-pass ml-auto" type="button">
+                        {{
+                            (join.state === 'open' ? 'SCENE.COMPOSER.CHOOSE' : 'SCENE.COMPOSER.ASK')
+                                | translate
+                        }}
+                    </button>
+                }
+            </div>
+        } @else if (sceneTurn(); as turn) {
             @if (turn.state === 'yours') {
                 <div class="composer-turn-strip" role="status">
                     <span class="composer-turn-mark">{{ 'SCENE.COMPOSER.YOUR_TURN' | translate: {name: turn.characterName} }}</span>

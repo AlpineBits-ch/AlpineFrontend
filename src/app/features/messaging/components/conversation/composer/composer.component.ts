@@ -98,6 +98,23 @@ export type SceneTurnState = 'yours' | 'waiting' | 'paused' | 'concluded';
  * use to answer it, which is the only place it cannot be missed and the only place it is not nagging.
  * None of it blocks a send: the server owns that rule.
  */
+/**
+ * What a reader outside the cast is offered. Mutually exclusive with `SceneTurnPrompt`: somebody who
+ * is not in the scene has no turn, and somebody who is has nothing to join.
+ */
+export type SceneJoinState = 'open' | 'ask' | 'pending' | 'denied';
+
+export interface SceneJoinPrompt {
+    state: SceneJoinState;
+    /** The GM's words on a refusal, when they left any. */
+    reason: string | null;
+    /** Opens the character picker. Null while an ask is waiting on an answer. */
+    open: (() => void) | null;
+    /** Takes the ask back. Only set while one is pending. */
+    withdraw: (() => void) | null;
+    busy: boolean;
+}
+
 export interface SceneTurnPrompt {
     state: SceneTurnState;
     /** Who is up: your character for 'yours', theirs for 'waiting'. Empty otherwise. */
@@ -147,6 +164,8 @@ export class ComposerComponent {
     readonly canRollDice = input(false);
     /** Set while this channel is the in-character half of a scene. Null everywhere else. */
     readonly sceneTurn = input<SceneTurnPrompt | null>(null);
+    /** Takes the strip when set: the actionable notice wins the slot over the quiet one. */
+    readonly sceneJoin = input<SceneJoinPrompt | null>(null);
     /** The server cannot read ciphertext, so proxy tags have to be resolved here instead. */
     readonly resolvePersonaLocally = input(false);
     message = output<{

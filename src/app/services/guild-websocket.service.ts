@@ -26,6 +26,8 @@ import {
 import {
     SceneConcludedDto,
     SceneCreatedDto,
+    SceneJoinRequestedDto,
+    SceneJoinRequestResolvedDto,
     SceneTagsChangedDto,
     SceneTaxonomyDto,
     SceneTurnChangedDto,
@@ -415,6 +417,12 @@ export type WsSceneTaxonomyChanged = SceneTaxonomyDto;
 
 /** One scene's labels were rewritten. */
 export type WsSceneTagsChanged = SceneTagsChangedDto;
+
+/** Somebody wants a character in a closed scene. Reaches ManageScenes holders only. */
+export type WsSceneJoinRequested = SceneJoinRequestedDto;
+
+/** The answer to an ask. `decisionReason` travels here and nowhere else. */
+export type WsSceneJoinRequestResolved = SceneJoinRequestResolvedDto;
 
 export interface WsMemberBanned {
     guildId: string;
@@ -942,6 +950,8 @@ export class GuildWebsocketService {
     readonly sceneTurnNudgeObservable = new Subject<WsSceneTurnNudge>();
     readonly sceneTaxonomyChangedObservable = new Subject<WsSceneTaxonomyChanged>();
     readonly sceneTagsChangedObservable = new Subject<WsSceneTagsChanged>();
+    readonly sceneJoinRequestedObservable = new Subject<WsSceneJoinRequested>();
+    readonly sceneJoinRequestResolvedObservable = new Subject<WsSceneJoinRequestResolved>();
     // ── Dice ───────────────────────────────────────────────────────────────────
     readonly diceRolledObservable = new Subject<WsDiceRolled>();
     // ── Member moderation ──────────────────────────────────────────────────────────
@@ -1241,6 +1251,12 @@ export class GuildWebsocketService {
         );
         this.realtime.on('guild.SceneTurnNudge', (d: WsSceneTurnNudge) =>
             this.sceneTurnNudgeObservable.next(d),
+        );
+        this.realtime.on('guild.SceneJoinRequested', (d: WsSceneJoinRequested) =>
+            this.sceneJoinRequestedObservable.next(d),
+        );
+        this.realtime.on('guild.SceneJoinRequestResolved', (d: WsSceneJoinRequestResolved) =>
+            this.sceneJoinRequestResolvedObservable.next(d),
         );
         this.realtime.on('guild.MemberBanned', (d: WsMemberBanned) => this.memberBannedObservable.next(d));
         this.realtime.on('guild.MemberKicked', (d: WsMemberKicked) => this.memberKickedObservable.next(d));

@@ -31,7 +31,9 @@ export function isSystemMessageType(type: MessageType): boolean {
         type === MessageType.CallEnded ||
         type === MessageType.CallMissed ||
         type === MessageType.GroupNameChanged ||
-        type === MessageType.GroupIconChanged
+        type === MessageType.GroupIconChanged ||
+        type === MessageType.SceneCharacterJoined ||
+        type === MessageType.SceneCharacterLeft
     );
 }
 

@@ -38,7 +38,9 @@ export class TurnRailComponent {
     private readonly personas = inject(PersonaService);
     protected readonly scenes = inject(SceneService);
 
-    protected readonly SceneStatus = SceneStatus;
+    protected get SceneStatus() {
+        return SceneStatus;
+    }
 
     constructor() {
         effect(() => {

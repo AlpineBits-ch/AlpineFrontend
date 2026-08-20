@@ -1,0 +1,101 @@
+<p-dialog
+    (visibleChange)="!$event && closed.emit()"
+    [closable]="true"
+    [draggable]="false"
+    [modal]="true"
+    [resizable]="false"
+    [style]="{width: '26rem'}"
+    [visible]="true"
+    appendTo="body"
+    maskStyleClass="backdrop-blur-sm"
+    styleClass="!bg-card !border !border-white/[0.08] !rounded-2xl"
+>
+    <ng-template pTemplate="header">
+        <span class="text-base font-semibold text-text-primary">
+            {{ (asking() ? 'SCENE.JOIN.ASK_TITLE' : 'SCENE.JOIN.TITLE') | translate: {name: scene().name} }}
+        </span>
+    </ng-template>
+
+    @if (hasNone()) {
+        <p class="join-empty">{{ 'SCENE.JOIN.NO_CHARACTERS' | translate }}</p>
+    } @else {
+        <input
+            (ngModelChange)="query.set($event)"
+            [ngModel]="query()"
+            [placeholder]="'SCENE.JOIN.SEARCH' | translate"
+            class="join-search"
+            type="text"
+        />
+
+        <div class="join-list thin-scrollbar">
+            @for (row of rows(); track row.personaId) {
+                <button
+                    (click)="pick(row.personaId)"
+                    [attr.aria-pressed]="chosen() === row.personaId"
+                    [class.is-on]="chosen() === row.personaId"
+                    class="join-row"
+                    type="button"
+                >
+                    <app-persona-avatar
+                        [avatarUrl]="row.identity.avatarUrl"
+                        [color]="row.identity.color"
+                        [name]="row.identity.name"
+                        size="sm"
+                    />
+                    <span class="min-w-0">
+                        <span [style.color]="row.identity.color ?? 'var(--color-text-primary)'" class="join-name">
+                            {{ row.identity.name }}
+                        </span>
+                        @if (row.identity.pronouns) {
+                            <span class="join-meta">{{ row.identity.pronouns }}</span>
+                        }
+                    </span>
+                </button>
+            } @empty {
+                <p class="join-empty">{{ 'SCENE.JOIN.NO_MATCHES' | translate }}</p>
+            }
+        </div>
+
+        @if (asking()) {
+            <label class="mt-3 block">
+                <span class="join-label">{{ 'SCENE.JOIN.NOTE' | translate }}</span>
+                <textarea
+                    (ngModelChange)="note.set($event)"
+                    [maxlength]="NOTE_MAX"
+                    [ngModel]="note()"
+                    [placeholder]="'SCENE.JOIN.NOTE_PLACEHOLDER' | translate"
+                    class="join-note"
+                    rows="3"
+                ></textarea>
+            </label>
+        }
+
+        <!-- Said before it happens: joining is not only being in the scene, it is being in the
+             rotation, and where in it decides how long the wait is. -->
+        <p class="join-hint">
+            @if (asking()) {
+                {{ 'SCENE.JOIN.ASK_HINT' | translate }}
+            } @else if (lastInOrder(); as last) {
+                {{ 'SCENE.JOIN.HINT_AFTER' | translate: {name: last} }}
+            } @else {
+                {{ 'SCENE.JOIN.HINT_FIRST' | translate }}
+            }
+        </p>
+    }
+
+    <ng-template pTemplate="footer">
+        <div class="flex w-full items-center justify-end gap-2">
+            <button (click)="closed.emit()" class="join-secondary" type="button">
+                {{ 'PERSONA.CANCEL' | translate }}
+            </button>
+            <button
+                (click)="confirm()"
+                [disabled]="!chosen() || saving()"
+                class="join-primary"
+                type="button"
+            >
+                {{ (asking() ? 'SCENE.JOIN.ASK_CONFIRM' : 'SCENE.JOIN.CONFIRM') | translate }}
+            </button>
+        </div>
+    </ng-template>
+</p-dialog>

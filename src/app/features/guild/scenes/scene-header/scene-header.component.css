@@ -204,3 +204,103 @@
         font-size: 0.625rem;
     }
 }
+
+/* ── Asks ───────────────────────────────────────────────────────────────── */
+.scene-requests {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    margin: 0 0.75rem 0.5rem;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid color-mix(in srgb, var(--color-brand) 35%, transparent);
+    border-radius: 0.75rem;
+    background: color-mix(in srgb, var(--color-brand) 10%, transparent);
+}
+
+.scene-requests-title {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--color-brand-dim);
+}
+
+.scene-request-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.scene-request-name {
+    display: block;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.scene-request-note {
+    display: block;
+    font-size: 0.6875rem;
+    color: var(--color-text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.scene-request-approve,
+.scene-request-confirm {
+    flex: none;
+    padding: 0.25rem 0.7rem;
+    border: 0;
+    border-radius: 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #fff;
+    cursor: pointer;
+    transition: background-color var(--duration-base) var(--ease-brand);
+}
+
+.scene-request-approve {
+    background: var(--color-brand);
+}
+
+.scene-request-approve:hover:not(:disabled) {
+    background: var(--color-brand-hover);
+}
+
+.scene-request-confirm {
+    background: var(--color-offline);
+}
+
+.scene-request-approve:disabled,
+.scene-request-confirm:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
+.scene-request-label {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+}
+
+.scene-request-reason {
+    width: 100%;
+    padding: 0.4rem 0.55rem;
+    border: 1px solid var(--color-border-subtle);
+    border-radius: 0.5rem;
+    background: rgb(255 255 255 / 0.04);
+    color: var(--color-text-primary);
+    font-family: inherit;
+    font-size: 0.8125rem;
+    resize: none;
+    outline: none;
+}
+
+.scene-request-reason:focus {
+    border-color: var(--color-brand-dim);
+}

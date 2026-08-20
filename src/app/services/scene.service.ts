@@ -1,3 +1,4 @@
+import {HttpErrorResponse} from '@angular/common/http';
 import {DestroyRef, inject, Injectable, Injector, signal} from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {Observable, tap} from 'rxjs';
@@ -9,17 +10,26 @@ import {NavigationService} from '../features/main-page/navigation.service';
 import {
     SceneCreatedDto,
     SceneDto,
+    SceneJoinRequestDto,
+    SceneJoinRequestedDto,
+    SceneJoinRequestResolvedDto,
+    SceneJoinPolicy,
+    SceneJoinRequestStatus,
     SceneListItemDto,
     SceneStatus,
     SceneTurnNudgeDto,
+    SceneVisibility,
 } from '../dtos/response/scene.dto';
 import {
     AddSceneParticipantDto,
     AdvanceTurnDto,
     CreateSceneDto,
+    CreateSceneJoinRequestDto,
+    DenySceneJoinRequestDto,
     SkipTurnDto,
     UpdateSceneDto,
 } from '../dtos/request/scene.dto';
+import {ProfileService} from './profile.service';
 import {compareScenes, isWaitingOnMe, queueFromCurrent} from '../features/guild/scenes/scene-status';
 
 /** How often the clocks redraw. A play-by-post deadline is measured in days; this is plenty. */
@@ -57,8 +67,11 @@ export class SceneService {
     private readonly truncatedGuilds = signal<Record<string, boolean>>({});
     private readonly loadingGuilds = signal<Record<string, boolean>>({});
     private readonly nudgesByChannel = signal<Record<string, SceneNudge>>({});
+    /** Join requests per scene channel. A GM holds the queue here, a player only their own rows. */
+    private readonly requestsByScene = signal<Record<string, SceneJoinRequestDto[]>>({});
 
     private readonly requestedGuilds = new Set<string>();
+    private readonly requestedQueues = new Set<string>();
     /** Guilds with a channel-list read in flight, so a board of new scenes costs one of them. */
     private readonly learningGuilds = new Set<string>();
 
@@ -106,6 +119,14 @@ export class SceneService {
         ws.sceneTagsChangedObservable
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe(event => this.patch(event.guildId, event.channelId, {tagIds: event.tagIds}));
+
+        ws.sceneJoinRequestedObservable
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe(event => this.noteRequested(event));
+
+        ws.sceneJoinRequestResolvedObservable
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe(event => this.noteResolved(event));
     }
 
     // ── Reads ───────────────────────────────────────────────────────────────
@@ -171,6 +192,38 @@ export class SceneService {
         return channelId ? (this.nudgesByChannel()[channelId] ?? null) : null;
     }
 
+    /** Everything the GM's banner draws: the asks still waiting on an answer. */
+    pendingRequests(channelId: string | null | undefined): SceneJoinRequestDto[] {
+        if (!channelId) return [];
+        return (this.requestsByScene()[channelId] ?? []).filter(
+            request => request.status === SceneJoinRequestStatus.Pending,
+        );
+    }
+
+    /**
+     * The caller's own last word on this scene: an ask still waiting, or the refusal it came back
+     * as. A denial is kept so the composer can say why rather than silently offering to ask again.
+     */
+    myRequest(channelId: string | null | undefined): SceneJoinRequestDto | null {
+        if (!channelId) return null;
+        const ownUserId = this.injector.get(ProfileService).ownProfile()?.userId;
+        if (!ownUserId) return null;
+
+        const mine = (this.requestsByScene()[channelId] ?? []).filter(
+            request =>
+                request.requestedByUserId === ownUserId &&
+                (request.status === SceneJoinRequestStatus.Pending ||
+                    request.status === SceneJoinRequestStatus.Denied),
+        );
+
+        // Pending outranks a denial: a character asking again is not still refused.
+        return (
+            mine.find(request => request.status === SceneJoinRequestStatus.Pending) ??
+            mine.sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0] ??
+            null
+        );
+    }
+
     // ── Loading ─────────────────────────────────────────────────────────────
 
     ensureGuild(guildId: string | null | undefined, force = false): void {
@@ -201,7 +254,11 @@ export class SceneService {
         this.wire();
         this.api.getScene(guildId, channelId).subscribe({
             next: scene => this.absorb(guildId, scene),
-            error: () => undefined,
+            // A refusal is the server saying this scene is no longer this reader's, which a scene
+            // left in the cache would keep drawing. Anything else is a bad connection: keep it.
+            error: (err: unknown) => {
+                if (err instanceof HttpErrorResponse && err.status === 403) this.forget(channelId);
+            },
         });
     }
 
@@ -243,6 +300,73 @@ export class SceneService {
         return this.api.nudgeTurn(guildId, channelId);
     }
 
+    // ── Joining ─────────────────────────────────────────────────────────────
+
+    join(guildId: string, channelId: string, personaId: string): Observable<SceneDto> {
+        this.wire();
+        return this.api
+            .join(guildId, channelId, {personaId})
+            .pipe(tap(scene => this.absorb(guildId, scene)));
+    }
+
+    leave(guildId: string, channelId: string, personaId: string): Observable<SceneDto> {
+        return this.api.leave(guildId, channelId, personaId).pipe(tap(scene => this.absorb(guildId, scene)));
+    }
+
+    requestJoin(
+        guildId: string,
+        channelId: string,
+        dto: CreateSceneJoinRequestDto,
+    ): Observable<SceneJoinRequestDto> {
+        this.wire();
+        return this.api.requestJoin(guildId, channelId, dto).pipe(tap(request => this.absorbRequest(request)));
+    }
+
+    approveRequest(guildId: string, channelId: string, requestId: string): Observable<SceneJoinRequestDto> {
+        return this.api.approveJoinRequest(guildId, channelId, requestId).pipe(
+            tap(request => {
+                this.absorbRequest(request);
+                // Approving is also a cast change, and the scene event that says so carries no
+                // display data for the character that just walked in.
+                this.refreshScene(guildId, channelId);
+            }),
+        );
+    }
+
+    denyRequest(
+        guildId: string,
+        channelId: string,
+        requestId: string,
+        dto: DenySceneJoinRequestDto,
+    ): Observable<SceneJoinRequestDto> {
+        return this.api
+            .denyJoinRequest(guildId, channelId, requestId, dto)
+            .pipe(tap(request => this.absorbRequest(request)));
+    }
+
+    withdrawRequest(guildId: string, channelId: string, requestId: string): Observable<SceneJoinRequestDto> {
+        return this.api
+            .withdrawJoinRequest(guildId, channelId, requestId)
+            .pipe(tap(request => this.absorbRequest(request)));
+    }
+
+    /**
+     * Reads one scene's queue. The route narrows it for the caller, so a player gets their own rows
+     * and a GM the whole thing; neither has to ask a different question.
+     */
+    ensureRequests(guildId: string | null | undefined, channelId: string | null | undefined): void {
+        if (!guildId || !channelId || this.requestedQueues.has(channelId)) return;
+        this.wire();
+        this.requestedQueues.add(channelId);
+        this.api.listJoinRequests(guildId, channelId).subscribe({
+            next: page =>
+                this.requestsByScene.update(map => ({...map, [channelId]: page.requests ?? []})),
+            // Dropped rather than retried: the banner is not worth a second call, and the events
+            // keep it current from here.
+            error: () => this.requestedQueues.delete(channelId),
+        });
+    }
+
     // ── Turn tracking ───────────────────────────────────────────────────────
 
     /**
@@ -276,6 +400,24 @@ export class SceneService {
         this.clearNudge(channelId);
     }
 
+    /** Drops every trace of one scene, for a reader who may no longer see it. */
+    private forget(channelId: string): void {
+        this.sceneByChannel.update(map => {
+            if (!map[channelId]) return map;
+            const next = {...map};
+            delete next[channelId];
+            return next;
+        });
+        this.requestsByScene.update(map => {
+            if (!map[channelId]) return map;
+            const next = {...map};
+            delete next[channelId];
+            return next;
+        });
+        this.requestedQueues.delete(channelId);
+        this.clearNudge(channelId);
+    }
+
     clearNudge(channelId: string): void {
         this.nudgesByChannel.update(map => {
             if (!map[channelId]) return map;
@@ -304,6 +446,7 @@ export class SceneService {
      * so a channel nobody has opened has no scene to patch and is left to the next read.
      */
     private patch(guildId: string, channelId: string, patch: Partial<SceneDto>): void {
+        this.noteVisibility(guildId, channelId, patch.visibility);
         const scene = this.scene(guildId, channelId);
         if (scene) {
             this.absorb(guildId, {...scene, ...patch});
@@ -355,6 +498,95 @@ export class SceneService {
         });
     }
 
+    /**
+     * A scene turning private stops being most readers' to see, and the client cannot answer that
+     * on its own: a GM outside the cast keeps it. So the server is re-asked instead of guessed at,
+     * and whatever it leaves out is what this reader has lost.
+     */
+    private noteVisibility(
+        guildId: string,
+        channelId: string,
+        visibility: SceneVisibility | undefined,
+    ): void {
+        if (visibility !== SceneVisibility.Cast) return;
+
+        const known =
+            this.scene(guildId, channelId)?.visibility ??
+            this.scenes(guildId).find(row => row.channelId === channelId)?.visibility;
+        if (known === SceneVisibility.Cast) return;
+
+        this.ensureGuild(guildId, true);
+        this.refreshScene(guildId, channelId);
+    }
+
+    /** Keyed on the request id, so a decision replaces the row it decided rather than adding one. */
+    private absorbRequest(request: SceneJoinRequestDto): void {
+        this.requestsByScene.update(map => {
+            const rows = map[request.sceneChannelId] ?? [];
+            const at = rows.findIndex(r => r.id === request.id);
+            return {
+                ...map,
+                [request.sceneChannelId]:
+                    at === -1 ? [...rows, request] : rows.map((r, i) => (i === at ? request : r)),
+            };
+        });
+    }
+
+    /**
+     * A GM's copy of an ask. The event carries the character's display fields because the GM may
+     * hold no grant on it and so never sees it in the guild cast.
+     */
+    private noteRequested(event: SceneJoinRequestedDto): void {
+        this.absorbRequest({
+            id: event.requestId,
+            guildId: event.guildId,
+            sceneChannelId: event.channelId,
+            personaId: event.personaId,
+            personaName: event.personaName ?? '',
+            personaAvatarUrl: event.personaAvatarUrl,
+            personaColor: event.personaColor,
+            requestedByUserId: event.requestedByUserId,
+            note: event.note,
+            status: SceneJoinRequestStatus.Pending,
+            createdAt: event.createdAt,
+            updatedAt: event.createdAt,
+        });
+    }
+
+    /**
+     * The answer. A withdrawal and an approval leave nothing to say, so their rows go; a denial
+     * stays, because the reason is the whole point of it.
+     */
+    private noteResolved(event: SceneJoinRequestResolvedDto): void {
+        this.requestsByScene.update(map => {
+            const rows = map[event.channelId] ?? [];
+            const at = rows.findIndex(r => r.id === event.requestId);
+            if (at === -1) return map;
+
+            if (event.status !== SceneJoinRequestStatus.Denied) {
+                return {...map, [event.channelId]: rows.filter((_, i) => i !== at)};
+            }
+
+            return {
+                ...map,
+                [event.channelId]: rows.map((r, i) =>
+                    i === at
+                        ? {
+                              ...r,
+                              status: event.status,
+                              decisionReason: event.decisionReason,
+                              decidedByUserId: event.decidedByUserId,
+                          }
+                        : r,
+                ),
+            };
+        });
+
+        if (event.status === SceneJoinRequestStatus.Approved) {
+            this.refreshScene(event.guildId, event.channelId);
+        }
+    }
+
     private noteNudge(event: SceneTurnNudgeDto): void {
         this.nudgesByChannel.update(map => ({
             ...map,
@@ -389,6 +621,8 @@ function rowFromScene(scene: SceneDto, previous: SceneListItemDto | null): Scene
         name: scene.name,
         parentChannelId: scene.parentChannelId,
         status: scene.status,
+        joinPolicy: scene.joinPolicy,
+        visibility: scene.visibility,
         currentTurnPersonaId: scene.currentTurnPersonaId,
         currentTurnName: current?.name ?? previous?.currentTurnName ?? null,
         currentTurnAvatarUrl: current?.avatarUrl ?? previous?.currentTurnAvatarUrl ?? null,
@@ -417,6 +651,9 @@ function rowFromCreated(event: SceneCreatedDto): SceneListItemDto {
         name: event.name,
         parentChannelId: event.parentChannelId,
         status: event.status,
+        // An older server omits both, and its scenes behave exactly as these defaults say.
+        joinPolicy: event.joinPolicy ?? SceneJoinPolicy.Open,
+        visibility: event.visibility ?? SceneVisibility.Everyone,
         currentTurnPersonaId: event.currentTurnPersonaId,
         turnStartedAt: event.turnStartedAt,
         turnDeadlineAt: event.turnDeadlineAt,
@@ -432,6 +669,8 @@ function rowFromCreated(event: SceneCreatedDto): SceneListItemDto {
 function rowPatch(patch: Partial<SceneDto>): Partial<SceneListItemDto> {
     const {
         status,
+        joinPolicy,
+        visibility,
         currentTurnPersonaId,
         turnStartedAt,
         turnDeadlineAt,
@@ -443,6 +682,8 @@ function rowPatch(patch: Partial<SceneDto>): Partial<SceneListItemDto> {
     return Object.fromEntries(
         Object.entries({
             status,
+            joinPolicy,
+            visibility,
             currentTurnPersonaId,
             turnStartedAt,
             turnDeadlineAt,

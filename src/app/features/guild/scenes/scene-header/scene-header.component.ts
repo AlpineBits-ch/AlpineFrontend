@@ -9,10 +9,13 @@ import {
     signal,
     viewChild,
 } from '@angular/core';
+import {FormsModule} from '@angular/forms';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {Observable} from 'rxjs';
 import {Dialog} from 'primeng/dialog';
+import {Popover} from 'primeng/popover';
 import {PrimeTemplate} from 'primeng/api';
+import {PersonaAvatarComponent} from '../../personas/persona-avatar/persona-avatar.component';
 import {RelativeTimePipe} from '../../../../pipes/relative-time.pipe';
 import {TurnRailComponent} from '../turn-rail/turn-rail.component';
 import {SceneDialogComponent} from '../scene-dialog/scene-dialog.component';
@@ -33,10 +36,13 @@ import {sceneStatusMeta} from '../scene-status';
     selector: 'app-scene-header',
     changeDetection: ChangeDetectionStrategy.OnPush,
     imports: [
+        FormsModule,
         TranslateModule,
         RelativeTimePipe,
         Dialog,
+        Popover,
         PrimeTemplate,
+        PersonaAvatarComponent,
         TurnRailComponent,
         SceneDialogComponent,
         SceneConcludeDialogComponent,
@@ -68,6 +74,11 @@ export class SceneHeaderComponent {
     protected readonly concluding = signal(false);
     protected readonly reopening = signal(false);
     protected readonly menuOpen = signal(false);
+    protected readonly denyReason = signal('');
+    private readonly denying = signal<string | null>(null);
+
+    /** The asks still waiting on this game master. Empty for everybody else. */
+    protected readonly requests = computed(() => this.scenes.pendingRequests(this.scene().channelId));
 
     private readonly menuRef = viewChild<ElementRef<HTMLElement>>('menu');
     private readonly triggerRef = viewChild<ElementRef<HTMLElement>>('menuTrigger');
@@ -200,6 +211,32 @@ export class SceneHeaderComponent {
             default:
                 return 'SCENE.TOAST.RESUMED';
         }
+    }
+
+    protected approve(requestId: string): void {
+        this.run(
+            this.scenes.approveRequest(this.guildId(), this.scene().channelId, requestId),
+            'SCENE.REQUEST.APPROVED',
+        );
+    }
+
+    /** A reason is worth one panel, not one dialog. Opening it clears whatever the last one held. */
+    protected openDeny(requestId: string, panel: Popover, event: Event): void {
+        this.denying.set(requestId);
+        this.denyReason.set('');
+        panel.toggle(event);
+    }
+
+    protected deny(panel: Popover): void {
+        const requestId = this.denying();
+        if (!requestId) return;
+        panel.hide();
+        this.run(
+            this.scenes.denyRequest(this.guildId(), this.scene().channelId, requestId, {
+                reason: this.denyReason().trim() || null,
+            }),
+            'SCENE.REQUEST.DENIED',
+        );
     }
 
     private run(work: Observable<unknown>, successKey: string): void {

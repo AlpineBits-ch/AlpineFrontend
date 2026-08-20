@@ -58,6 +58,17 @@ export class SystemMessageComponent {
                 : 'MESSAGE.SYSTEM.GROUP_ICON_CHANGED';
         }
 
+        if (msg.type === MessageType.SceneCharacterJoined) {
+            return 'MESSAGE.SYSTEM.SCENE_CHARACTER_JOINED';
+        }
+        // `removed` distinguishes a game master taking a character out from its player walking it
+        // out, the way GroupIconChanged distinguishes its two cases.
+        if (msg.type === MessageType.SceneCharacterLeft) {
+            return this.groupName() === 'removed'
+                ? 'MESSAGE.SYSTEM.SCENE_CHARACTER_REMOVED'
+                : 'MESSAGE.SYSTEM.SCENE_CHARACTER_LEFT';
+        }
+
         if (msg.type === MessageType.CallMissed) {
             return this.isOwnCall() ? 'MESSAGE.SYSTEM.CALL_MISSED_OWN' : 'MESSAGE.SYSTEM.CALL_MISSED';
         }
@@ -78,8 +89,20 @@ export class SystemMessageComponent {
     public readonly translateParams = computed(() => {
         if (this.isCall()) return {duration: this.duration()};
         if (this.message().type === MessageType.GroupNameChanged) return {name: this.groupName()};
+        if (this.isSceneCast()) return {name: this.characterName()};
         return {};
     });
+
+    private readonly isSceneCast = computed(() => {
+        const type = this.message().type;
+        return type === MessageType.SceneCharacterJoined || type === MessageType.SceneCharacterLeft;
+    });
+
+    /**
+     * The character's name as it stood when this landed, off the message rather than the persona.
+     * Never the account behind it: a scene line must not out the player.
+     */
+    private readonly characterName = computed(() => this.message().authorDisplayName ?? '');
 
     /** The call's length, from the whole seconds the server puts in `content`. */
     public readonly duration = computed(() => {

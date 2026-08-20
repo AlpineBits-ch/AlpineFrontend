@@ -49,6 +49,8 @@ function wsStub() {
         sceneUpdatedObservable: new Subject<any>(),
         sceneTurnNudgeObservable: new Subject<any>(),
         sceneTagsChangedObservable: new Subject<any>(),
+        sceneJoinRequestedObservable: new Subject<any>(),
+        sceneJoinRequestResolvedObservable: new Subject<any>(),
     };
 }
 
@@ -222,7 +224,12 @@ describe('SceneArchiveService sorting and truncation', () => {
 
     function archiveSetup() {
         const api = apiStub();
-        TestBed.configureTestingModule({providers: [{provide: RoleplayApi, useValue: api}]});
+        TestBed.configureTestingModule({
+            providers: [
+                {provide: RoleplayApi, useValue: api},
+                {provide: GuildWebsocketService, useValue: wsStub()},
+            ],
+        });
         return {archive: TestBed.inject(SceneArchiveService), api};
     }
 

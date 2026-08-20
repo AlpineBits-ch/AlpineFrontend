@@ -28,4 +28,13 @@ export enum MessageType {
      * roll; a client that reads neither still shows the text.
      */
     DiceRoll = 'DiceRoll',
+
+    /**
+     * A character walked into a scene. Carries the character on `personaId` and its display fields,
+     * so a rename later does not rewrite what the log said at the time.
+     */
+    SceneCharacterJoined = 'SceneCharacterJoined',
+
+    /** A character left a scene. `content` is `removed` when a game master took them out. */
+    SceneCharacterLeft = 'SceneCharacterLeft',
 }

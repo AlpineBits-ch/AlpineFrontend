@@ -148,6 +148,79 @@
     </div>
 </div>
 
+<!-- ── Asks ────────────────────────────────────────────────────────────────
+     Only the game master sees this, and the answer is one click in the room
+     the decision is about. Denying opens for a reason rather than a modal. -->
+@if (canManage() && requests().length) {
+    <div class="scene-requests">
+        <span class="scene-requests-title">
+            {{ 'SCENE.REQUEST.TITLE' | translate: {count: requests().length} }}
+        </span>
+
+        @for (request of requests(); track request.id) {
+            <div class="scene-request-row">
+                <app-persona-avatar
+                    [avatarUrl]="request.personaAvatarUrl ?? null"
+                    [color]="request.personaColor ?? null"
+                    [name]="request.personaName"
+                    size="sm"
+                />
+                <span class="min-w-0 flex-1">
+                    <span [style.color]="request.personaColor || 'var(--color-text-primary)'" class="scene-request-name">
+                        {{ request.personaName || ('SCENE.RAIL.UNKNOWN_CHARACTER' | translate) }}
+                    </span>
+                    <span class="scene-request-note">
+                        {{ request.note || ('SCENE.REQUEST.NO_NOTE' | translate) }}
+                    </span>
+                </span>
+                <button
+                    (click)="approve(request.id)"
+                    [disabled]="busy()"
+                    class="scene-request-approve"
+                    type="button"
+                >
+                    {{ 'SCENE.REQUEST.APPROVE' | translate }}
+                </button>
+                <button
+                    (click)="openDeny(request.id, denyPanel, $event)"
+                    [disabled]="busy()"
+                    class="scene-stalled-action"
+                    type="button"
+                >
+                    {{ 'SCENE.REQUEST.DENY' | translate }}
+                </button>
+            </div>
+        }
+    </div>
+
+    <p-popover #denyPanel [style]="{width: '17rem'}" appendTo="body">
+        <div class="flex flex-col gap-2">
+            <span class="scene-request-label">{{ 'SCENE.REQUEST.REASON' | translate }}</span>
+            <textarea
+                (ngModelChange)="denyReason.set($event)"
+                [ngModel]="denyReason()"
+                [placeholder]="'SCENE.REQUEST.REASON_PLACEHOLDER' | translate"
+                class="scene-request-reason"
+                maxlength="300"
+                rows="3"
+            ></textarea>
+            <div class="flex items-center justify-end gap-2">
+                <button (click)="denyPanel.hide()" class="scene-stalled-action" type="button">
+                    {{ 'PERSONA.CANCEL' | translate }}
+                </button>
+                <button
+                    (click)="deny(denyPanel)"
+                    [disabled]="busy()"
+                    class="scene-request-confirm"
+                    type="button"
+                >
+                    {{ 'SCENE.REQUEST.DENY' | translate }}
+                </button>
+            </div>
+        </div>
+    </p-popover>
+}
+
 <!-- ── Stalled ─────────────────────────────────────────────────────────────
      Only the game master sees this, and only after the sweep has already told
      the players. It states the fact and offers the verbs that move a scene. -->

@@ -1,4 +1,7 @@
-import {SceneStatus} from '../response/scene.dto';
+import {SceneJoinPolicy, SceneStatus, SceneVisibility} from '../response/scene.dto';
+
+/** What the server truncates a join request's note to. */
+export const JOIN_NOTE_MAX = 300;
 
 /** The folder filter value that means "filed nowhere". A real folder id never collides with it. */
 export const UNFILED = 'unfiled';
@@ -40,6 +43,8 @@ export interface CreateSceneDto {
     turnLengthHours?: number | null;
     /** Scenes usually open `Open` and are started once the cast has arrived. */
     status?: SceneStatus;
+    joinPolicy?: SceneJoinPolicy;
+    visibility?: SceneVisibility;
 }
 
 export interface CreateSceneFolderDto {
@@ -101,6 +106,29 @@ export interface UpdateSceneDto {
     turnLengthHours?: number | null;
     /** Sent when concluding. */
     conclusionNote?: string | null;
+    /**
+     * The pair is judged on where the scene lands, so flipping only one of them on a private scene
+     * is refused with `scene_visibility_conflict`. Send both, or send the one that stays legal.
+     */
+    joinPolicy?: SceneJoinPolicy;
+    visibility?: SceneVisibility;
+}
+
+/** Walking into an open scene with one of your own characters. */
+export interface JoinSceneDto {
+    personaId: string;
+}
+
+/** Asking a GM to let a character into a closed scene. */
+export interface CreateSceneJoinRequestDto {
+    personaId: string;
+    /** The player's pitch. Trimmed to `JOIN_NOTE_MAX` by the server. */
+    note?: string | null;
+}
+
+export interface DenySceneJoinRequestDto {
+    /** Shown to the player. Absent is a refusal without one. */
+    reason?: string | null;
 }
 
 export interface AddSceneParticipantDto {

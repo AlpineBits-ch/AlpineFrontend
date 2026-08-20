@@ -12,6 +12,32 @@ export const SceneStatus = {
 
 export type SceneStatus = (typeof SceneStatus)[keyof typeof SceneStatus];
 
+/** Whether a character can walk into the scene or has to be let in. */
+export const SceneJoinPolicy = {
+    Open: 'Open',
+    Ask: 'Ask',
+} as const;
+
+export type SceneJoinPolicy = (typeof SceneJoinPolicy)[keyof typeof SceneJoinPolicy];
+
+/** Who the scene exists for. `Cast` hides it from everyone else, its OOC thread included. */
+export const SceneVisibility = {
+    Everyone: 'Everyone',
+    Cast: 'Cast',
+} as const;
+
+export type SceneVisibility = (typeof SceneVisibility)[keyof typeof SceneVisibility];
+
+export const SceneJoinRequestStatus = {
+    Pending: 'Pending',
+    Approved: 'Approved',
+    Denied: 'Denied',
+    Withdrawn: 'Withdrawn',
+} as const;
+
+export type SceneJoinRequestStatus =
+    (typeof SceneJoinRequestStatus)[keyof typeof SceneJoinRequestStatus];
+
 export interface SceneParticipantDto {
     personaId: string;
     /** The per-guild display name. Empty for a character the guild no longer adopts. */
@@ -34,6 +60,9 @@ export interface SceneDto {
     createdByUserId?: string | null;
     isArchived?: boolean;
     status: SceneStatus;
+    /** Absent from a server that predates the access settings, where every scene is an open table. */
+    joinPolicy?: SceneJoinPolicy;
+    visibility?: SceneVisibility;
     /** The cast, ids only. `participants` is the same set with the display data attached. */
     participantPersonaIds?: string[];
     /** Persona ids, in the order they take turns. Empty means the cast as it was assembled. */
@@ -72,6 +101,8 @@ export interface SceneListItemDto {
     name: string;
     parentChannelId?: string | null;
     status: SceneStatus;
+    joinPolicy?: SceneJoinPolicy;
+    visibility?: SceneVisibility;
     currentTurnPersonaId?: string | null;
     currentTurnName?: string | null;
     currentTurnAvatarUrl?: string | null;
@@ -182,6 +213,8 @@ export interface SceneUpdatedDto {
     guildId: string;
     channelId: string;
     status: SceneStatus;
+    joinPolicy?: SceneJoinPolicy;
+    visibility?: SceneVisibility;
     folderId?: string | null;
     participantPersonaIds?: string[];
     turnOrder?: string[];
@@ -202,6 +235,8 @@ export interface SceneCreatedDto {
     name: string;
     oocThreadId?: string | null;
     status: SceneStatus;
+    joinPolicy?: SceneJoinPolicy;
+    visibility?: SceneVisibility;
     participantPersonaIds?: string[];
     turnOrder?: string[];
     currentTurnPersonaId?: string | null;
@@ -220,4 +255,58 @@ export interface SceneConcludedDto {
     turnNumber?: number | null;
     postCount?: number | null;
     concludedAt?: string | null;
+}
+
+/**
+ * One character waiting on a GM. Carries its own display fields, the way a message does: the
+ * caller may hold no grant on the character and so never sees it in the guild cast.
+ */
+export interface SceneJoinRequestDto {
+    id: string;
+    guildId: string;
+    sceneChannelId: string;
+    personaId: string;
+    /** The per-guild display name. Empty for a character the guild no longer adopts. */
+    personaName: string;
+    personaAvatarUrl?: string | null;
+    personaColor?: string | null;
+    /** Who asked. Named here because approving is a decision about a member, not about a character. */
+    requestedByUserId: string;
+    note?: string | null;
+    status: SceneJoinRequestStatus;
+    decidedByUserId?: string | null;
+    decidedAt?: string | null;
+    decisionReason?: string | null;
+    createdAt: string;
+    updatedAt: string;
+}
+
+/** Both join-request reads answer this envelope, not a bare array. */
+export interface SceneJoinRequestListDto {
+    requests: SceneJoinRequestDto[];
+}
+
+/** `guild.SceneJoinRequested`: somebody wants a character in a closed scene. GMs only. */
+export interface SceneJoinRequestedDto {
+    guildId: string;
+    channelId: string;
+    requestId: string;
+    personaId: string;
+    personaName?: string | null;
+    personaAvatarUrl?: string | null;
+    personaColor?: string | null;
+    requestedByUserId: string;
+    note?: string | null;
+    createdAt: string;
+}
+
+/** `guild.SceneJoinRequestResolved`: the answer. `decisionReason` travels on this event only. */
+export interface SceneJoinRequestResolvedDto {
+    guildId: string;
+    channelId: string;
+    requestId: string;
+    personaId: string;
+    status: SceneJoinRequestStatus;
+    decisionReason?: string | null;
+    decidedByUserId?: string | null;
 }
