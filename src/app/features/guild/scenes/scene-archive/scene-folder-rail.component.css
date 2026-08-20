@@ -1,4 +1,5 @@
 .rail-row {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 0.4375rem;
@@ -57,9 +58,11 @@
     text-transform: inherit;
 }
 
+/* Out of the flow: invisible, it was still holding its own width open on every folder row. */
 .rail-menu {
+    position: absolute;
+    right: 0.3125rem;
     display: flex;
-    flex-shrink: 0;
     align-items: center;
     justify-content: center;
     width: 1.125rem;
@@ -164,12 +167,12 @@
 }
 
 .rail-body {
-    padding: 0.125rem 0 0.125rem 0.6875rem;
+    padding: 0.125rem 0 0.125rem 0.5rem;
 }
 
 /* A scene sits inside its folder, not beside it. */
 .rail-body > .rail-leaf {
-    padding-left: 1.125rem;
+    padding-left: 0.75rem;
 }
 
 .rail-chevron {
@@ -207,13 +210,10 @@
     background: currentColor;
 }
 
-.rail-mine {
-    flex-shrink: 0;
-    font-size: 0.53125rem;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--color-connecting);
+/* Amber is what waiting on you means everywhere else, and a dot costs no width. */
+.rail-dot.is-mine {
+    background: var(--color-connecting);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-connecting) 22%, transparent);
 }
 
 .rail-more {

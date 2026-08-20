@@ -1,5 +1,5 @@
 .archive-rail {
-    width: 13.75rem;
+    width: 15rem;
     flex-shrink: 0;
     border-right: 1px solid rgba(255, 255, 255, 0.06);
     padding: 1.25rem 0.625rem;
@@ -175,7 +175,7 @@
 
 @media (max-width: 720px) {
     .archive-rail {
-        width: 9.5rem;
+        width: 12rem;
         padding: 1rem 0.5rem;
     }
 }

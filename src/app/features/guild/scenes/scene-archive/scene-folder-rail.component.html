@@ -2,12 +2,15 @@
     <span class="rail-label">{{ 'SCENE.ARCHIVE.RECENT' | translate }}</span>
 
     @for (leaf of recent(); track leaf.channelId) {
-        <button (click)="open(leaf.channelId)" (contextmenu)="openSceneMenu($event, leaf)" class="rail-row rail-leaf" type="button">
-            <span [class]="'rail-dot ' + dotClass(leaf)"></span>
+        <button
+            (click)="open(leaf.channelId)"
+            (contextmenu)="openSceneMenu($event, leaf)"
+            [attr.title]="leaf.mine ? ('SCENE.RAIL.YOUR_MOVE' | translate) : null"
+            class="rail-row rail-leaf"
+            type="button"
+        >
+            <span [class]="'rail-dot ' + dotClass(leaf)" [class.is-mine]="leaf.mine"></span>
             <span class="rail-name">{{ leaf.name }}</span>
-            @if (leaf.mine) {
-                <span class="rail-mine">{{ 'SCENE.RAIL.YOUR_MOVE' | translate }}</span>
-            }
         </button>
     }
 
@@ -106,14 +109,12 @@
                     <button
                         (click)="open(leaf.channelId)"
                         (contextmenu)="openSceneMenu($event, leaf)"
+                        [attr.title]="leaf.mine ? ('SCENE.RAIL.YOUR_MOVE' | translate) : null"
                         class="rail-row rail-leaf"
                         type="button"
                     >
-                        <span [class]="'rail-dot ' + dotClass(leaf)"></span>
+                        <span [class]="'rail-dot ' + dotClass(leaf)" [class.is-mine]="leaf.mine"></span>
                         <span class="rail-name">{{ leaf.name }}</span>
-                        @if (leaf.mine) {
-                            <span class="rail-mine">{{ 'SCENE.RAIL.YOUR_MOVE' | translate }}</span>
-                        }
                     </button>
                 }
 
