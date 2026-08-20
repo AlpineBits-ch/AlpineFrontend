@@ -99,45 +99,12 @@
             </button>
 
             @if (picking()) {
-                <div class="sheet-pick-list">
-                    <label class="sheet-pick-search">
-                        <i aria-hidden="true" class="pi pi-search text-[0.625rem]"></i>
-                        <input
-                            (ngModelChange)="folderQuery.set($event)"
-                            [ngModel]="folderQuery()"
-                            [placeholder]="'SCENE.ARCHIVE.FOLDER_SEARCH' | translate"
-                            type="search"
-                        />
-                    </label>
-
-                    <div class="sheet-pick-rows thin-scrollbar">
-                        @if (!searchingFolders()) {
-                            <button (click)="file(null)" class="sheet-pick-row" type="button">
-                                {{ 'SCENE.ARCHIVE.UNFILED' | translate }}
-                            </button>
-                        }
-                        @for (row of folderMatches(); track row.folder.id) {
-                            <button
-                                (click)="file(row.folder.id)"
-                                [class.is-current]="folder()?.id === row.folder.id"
-                                [class.is-child]="row.child && !searchingFolders()"
-                                class="sheet-pick-row"
-                                type="button"
-                            >
-                                @if (row.folder.icon) {
-                                    <span>{{ row.folder.icon }}</span>
-                                }
-                                @if (row.parentName && searchingFolders()) {
-                                    <span class="sheet-pick-parent">{{ row.parentName }} /</span>
-                                }
-                                <span class="truncate">{{ row.folder.name }}</span>
-                            </button>
-                        }
-                        @if (!folderMatches().length) {
-                            <span class="sheet-hint px-2 py-1">{{ 'SCENE.ARCHIVE.NO_FOLDER_MATCH' | translate }}</span>
-                        }
-                    </div>
-                </div>
+                <app-scene-folder-picker
+                    (picked)="file($event)"
+                    [guildId]="guildId()"
+                    [selected]="folder()?.id ?? null"
+                    class="sheet-pick-list"
+                />
             }
         </div>
     }

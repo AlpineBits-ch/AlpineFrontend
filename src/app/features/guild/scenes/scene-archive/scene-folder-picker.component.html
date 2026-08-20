@@ -1,0 +1,39 @@
+<label class="pick-search">
+    <i aria-hidden="true" class="pi pi-search text-[0.625rem]"></i>
+    <input
+        (ngModelChange)="folderQuery.set($event)"
+        [ngModel]="folderQuery()"
+        [placeholder]="'SCENE.ARCHIVE.FOLDER_SEARCH' | translate"
+        type="search"
+    />
+</label>
+
+<div class="pick-rows thin-scrollbar">
+    @if (!searching()) {
+        <button (click)="choose(null)" [class.is-current]="selected() === null" class="pick-row" type="button">
+            {{ 'SCENE.ARCHIVE.UNFILED' | translate }}
+        </button>
+    }
+
+    @for (row of folderMatches(); track row.folder.id) {
+        <button
+            (click)="choose(row.folder.id)"
+            [class.is-child]="row.child && !searching()"
+            [class.is-current]="selected() === row.folder.id"
+            class="pick-row"
+            type="button"
+        >
+            @if (row.folder.icon) {
+                <span>{{ row.folder.icon }}</span>
+            }
+            @if (row.parentName && searching()) {
+                <span class="pick-parent">{{ row.parentName }} /</span>
+            }
+            <span class="truncate">{{ row.folder.name }}</span>
+        </button>
+    }
+
+    @if (!folderMatches().length) {
+        <span class="pick-empty">{{ 'SCENE.ARCHIVE.NO_FOLDER_MATCH' | translate }}</span>
+    }
+</div>

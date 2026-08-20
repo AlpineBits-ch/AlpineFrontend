@@ -19,26 +19,20 @@ import {TranslateModule, TranslateService} from '@ngx-translate/core';
 
 import {TagChipComponent} from '../../../../components/tag-chip/tag-chip.component';
 import {PersonaAvatarComponent} from '../../personas/persona-avatar/persona-avatar.component';
+import {SceneFolderPickerComponent} from './scene-folder-picker.component';
 import {SceneTaxonomyService} from '../../../../services/scene-taxonomy.service';
 import {SceneService} from '../../../../services/scene.service';
 import {RoleplayApi} from '../../../../services/roleplay-api.service';
 import {ToastService} from '../../../../services/toast.service';
 import {NavigationService} from '../../../main-page/navigation.service';
 import {GuildService} from '../../../../services/guild.service';
-import {SceneFolderDto, SceneListItemDto} from '../../../../dtos/response/scene.dto';
+import {SceneListItemDto} from '../../../../dtos/response/scene.dto';
 import {sceneTally} from '../scene-tally';
 
 /** How many tags the sheet shows before it asks to be opened up. */
 const TAG_PREVIEW = 8;
 
 let nextTitleId = 0;
-
-/** One folder as the picker lists it, carrying the nesting a flat list cannot show. */
-interface FolderRow {
-    folder: SceneFolderDto;
-    child: boolean;
-    parentName: string | null;
-}
 
 /**
  * One finished scene, opened beside the archive rather than over it: browsing survives reading a
@@ -47,7 +41,14 @@ interface FolderRow {
 @Component({
     selector: 'app-scene-detail-sheet',
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [TranslateModule, DatePipe, FormsModule, TagChipComponent, PersonaAvatarComponent],
+    imports: [
+        TranslateModule,
+        DatePipe,
+        FormsModule,
+        TagChipComponent,
+        PersonaAvatarComponent,
+        SceneFolderPickerComponent,
+    ],
     templateUrl: './scene-detail-sheet.component.html',
     styleUrl: './scene-detail-sheet.component.css',
     host: {'(document:keydown.escape)': 'closed.emit()'},
@@ -74,7 +75,6 @@ export class SceneDetailSheetComponent {
 
     protected readonly saving = signal(false);
     protected readonly picking = signal(false);
-    protected readonly folderQuery = signal('');
     protected readonly tagsOpen = signal(false);
 
     protected readonly titleId = `scene-sheet-title-${nextTitleId++}`;
@@ -120,42 +120,6 @@ export class SceneDetailSheetComponent {
     protected readonly folder = computed(() =>
         this.taxonomy.folder(this.guildId(), this.full()?.folderId ?? this.scene().folderId),
     );
-
-    protected readonly folders = computed(() => this.taxonomy.folders(this.guildId()));
-
-    /** Every parent in order, each followed by its own children. */
-    private readonly folderRows = computed<FolderRow[]>(() => {
-        const all = this.folders();
-        const rows: FolderRow[] = [];
-        const placed = new Set<string>();
-
-        for (const parent of all.filter(f => !f.parentFolderId)) {
-            rows.push({folder: parent, child: false, parentName: null});
-            placed.add(parent.id);
-            for (const child of all.filter(f => f.parentFolderId === parent.id)) {
-                rows.push({folder: child, child: true, parentName: parent.name});
-                placed.add(child.id);
-            }
-        }
-
-        // A folder whose parent is not in the local copy would otherwise drop out of the picker.
-        for (const folder of all) {
-            if (!placed.has(folder.id)) rows.push({folder, child: false, parentName: null});
-        }
-        return rows;
-    });
-
-    protected readonly folderMatches = computed(() => {
-        const query = this.folderQuery().trim().toLowerCase();
-        if (!query) return this.folderRows();
-        return this.folderRows().filter(
-            row =>
-                row.folder.name.toLowerCase().includes(query) ||
-                !!row.parentName?.toLowerCase().includes(query),
-        );
-    });
-
-    protected readonly searchingFolders = computed(() => !!this.folderQuery().trim());
 
     protected readonly cast = computed(() => this.full()?.participants ?? []);
 
@@ -212,12 +176,10 @@ export class SceneDetailSheetComponent {
 
     protected file(folderId: string | null): void {
         this.picking.set(false);
-        this.folderQuery.set('');
         this.filed.emit(folderId);
     }
 
     protected togglePicking(): void {
-        this.folderQuery.set('');
         this.picking.set(!this.picking());
     }
 
