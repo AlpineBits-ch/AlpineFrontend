@@ -8,10 +8,20 @@ import {ChannelDto, ChannelType} from '../../../../../../dtos/response/guild.dto
 import {GuildService, UpdateChannelDto} from '../../../../../../services/guild.service';
 import {TranslateModule} from '@ngx-translate/core';
 import {ChannelIconComponent} from '../../../channel-icon/channel-icon.component';
+import {ChannelIconPickerComponent} from './channel-icon-picker.component';
 
 @Component({
     selector: 'app-channel-overview',
-    imports: [FormsModule, ToggleSwitch, Button, InputText, Textarea, TranslateModule, ChannelIconComponent],
+    imports: [
+        FormsModule,
+        ToggleSwitch,
+        Button,
+        InputText,
+        Textarea,
+        TranslateModule,
+        ChannelIconComponent,
+        ChannelIconPickerComponent,
+    ],
     templateUrl: './channel-overview.component.html',
 })
 export class ChannelOverviewComponent implements OnInit {
@@ -21,6 +31,8 @@ export class ChannelOverviewComponent implements OnInit {
     readonly description = signal('');
     readonly isAgeRestricted = signal(false);
     readonly slowModeSeconds = signal(0);
+    readonly icon = signal('');
+    readonly iconColor = signal('');
     readonly saving = signal(false);
     readonly dirty = signal(false);
     protected readonly ChannelType = ChannelType;
@@ -32,6 +44,8 @@ export class ChannelOverviewComponent implements OnInit {
         this.description.set(c.description ?? '');
         this.isAgeRestricted.set(c.isAgeRestricted);
         this.slowModeSeconds.set(c.slowModeSeconds);
+        this.icon.set(c.icon ?? '');
+        this.iconColor.set(c.iconColor ?? '');
         this.dirty.set(false);
     }
 
@@ -41,7 +55,9 @@ export class ChannelOverviewComponent implements OnInit {
             this.name() !== c.name ||
                 this.description() !== (c.description ?? '') ||
                 this.isAgeRestricted() !== c.isAgeRestricted ||
-                this.slowModeSeconds() !== c.slowModeSeconds,
+                this.slowModeSeconds() !== c.slowModeSeconds ||
+                this.icon() !== (c.icon ?? '') ||
+                this.iconColor() !== (c.iconColor ?? ''),
         );
     }
 
@@ -54,6 +70,8 @@ export class ChannelOverviewComponent implements OnInit {
             isPrivate: this.channel().isPrivate,
             isAgeRestricted: this.isAgeRestricted(),
             slowModeSeconds: this.slowModeSeconds(),
+            icon: this.icon(),
+            iconColor: this.iconColor(),
         };
         this.guildService.updateChannel(this.channel().id, dto).subscribe({
             next: updated => {

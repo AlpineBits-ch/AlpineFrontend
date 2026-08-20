@@ -24,6 +24,20 @@
         }
     </div>
 
+    <!-- Icon and colour -->
+    <div>
+        <label class="block text-xs font-semibold text-text-muted uppercase tracking-widest mb-2">
+            {{ 'CHANNEL_SETTINGS.APPEARANCE.LABEL' | translate }}
+        </label>
+        <app-channel-icon-picker
+            (iconChange)="icon.set($event); onChange()"
+            (iconColorChange)="iconColor.set($event); onChange()"
+            [icon]="icon()"
+            [iconColor]="iconColor()"
+            [channelType]="channel().type"
+        />
+    </div>
+
     <!-- Name -->
     <div>
         <label class="block text-xs font-semibold text-text-muted uppercase tracking-widest mb-2">
