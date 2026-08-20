@@ -6,6 +6,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 
 import {SceneNavComponent} from './scene-nav.component';
 import {SceneService} from '../../../../../../services/scene.service';
+import {GuildWebsocketService} from '../../../../../../services/guild-websocket.service';
 import {SceneTaxonomyService} from '../../../../../../services/scene-taxonomy.service';
 import {GuildService} from '../../../../../../services/guild.service';
 import {ProfileService} from '../../../../../../services/profile.service';
@@ -92,6 +93,15 @@ function setup(options: Options = {}) {
         providers: [
             provideTranslateService(),
             {provide: RoleplayApi, useValue: api},
+            // The archive service follows the scene events to keep its shelves honest.
+            {
+                provide: GuildWebsocketService,
+                useValue: {
+                    sceneCreatedObservable: new Subject<never>(),
+                    sceneUpdatedObservable: new Subject<never>(),
+                    sceneConcludedObservable: new Subject<never>(),
+                },
+            },
             {
                 provide: SceneService,
                 useValue: {

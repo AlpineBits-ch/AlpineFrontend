@@ -7,6 +7,7 @@ import {beforeAll, beforeEach, describe, expect, it, vi} from 'vitest';
 import {SceneArchiveComponent} from './scene-archive.component';
 import {RoleplayApi} from '../../../../services/roleplay-api.service';
 import {SceneArchiveService} from '../../../../services/scene-archive.service';
+import {GuildWebsocketService} from '../../../../services/guild-websocket.service';
 import {SceneTaxonomyService} from '../../../../services/scene-taxonomy.service';
 import {SceneService} from '../../../../services/scene.service';
 import {GuildService} from '../../../../services/guild.service';
@@ -62,6 +63,15 @@ function setup(folders: SceneFolderDto[]) {
         providers: [
             provideTranslateService(),
             {provide: RoleplayApi, useValue: api},
+            // The archive service follows the scene events to keep its shelves honest.
+            {
+                provide: GuildWebsocketService,
+                useValue: {
+                    sceneCreatedObservable: new Subject<never>(),
+                    sceneUpdatedObservable: new Subject<never>(),
+                    sceneConcludedObservable: new Subject<never>(),
+                },
+            },
             {
                 provide: SceneTaxonomyService,
                 useValue: {

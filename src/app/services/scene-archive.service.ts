@@ -1,5 +1,8 @@
-import {computed, inject, Injectable, signal} from '@angular/core';
+import {computed, DestroyRef, inject, Injectable, Injector, signal} from '@angular/core';
+import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {map, Observable, tap} from 'rxjs';
+
+import {GuildWebsocketService} from './guild-websocket.service';
 
 import {RoleplayApi} from './roleplay-api.service';
 import {SceneListItemDto} from '../dtos/response/scene.dto';
@@ -45,6 +48,9 @@ export function archiveKey(filter: ArchiveFilter): string {
 @Injectable({providedIn: 'root'})
 export class SceneArchiveService {
     private readonly api = inject(RoleplayApi);
+    private readonly injector = inject(Injector);
+    private readonly destroyRef = inject(DestroyRef);
+    private wired = false;
 
     private readonly pages = signal<Record<string, SceneListItemDto[]>>({});
     private readonly loadingKeys = signal<Record<string, boolean>>({});
@@ -91,7 +97,60 @@ export class SceneArchiveService {
     });
 
     /** Points the archive at a filter, reading its first page unless it is already held. */
+    /**
+     * A shelf is a page read once and then held, so a scene that appears, moves or ends elsewhere
+     * leaves it wrong until a reload. Lazy, like the scene store: most guilds have no scenes.
+     */
+    private wire(): void {
+        if (this.wired) return;
+        this.wired = true;
+        const ws = this.injector.get(GuildWebsocketService);
+
+        // A new scene is unfiled until the create dialog files it, so both shelves it could land on
+        // have to re-read. Inserting a row instead would guess at the page's sort position.
+        ws.sceneCreatedObservable
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe(event => this.reshelve(event.guildId, null));
+
+        ws.sceneUpdatedObservable.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(event => {
+            const from = this.cachedRow(event.channelId)?.folderId ?? null;
+            const to = event.folderId === undefined ? from : event.folderId;
+
+            this.patch(event.channelId, {status: event.status, folderId: to});
+            if (to !== from) this.reshelve(event.guildId, from, to);
+        });
+
+        // Concluding moves the row between the running and finished shelves, which patch cannot do.
+        ws.sceneConcludedObservable.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(event => {
+            const folderId = this.cachedRow(event.channelId)?.folderId ?? null;
+            this.patch(event.channelId, {status: event.status, concludedAt: event.concludedAt});
+            this.reshelve(event.guildId, folderId);
+        });
+    }
+
+    /**
+     * Drops the shelves a scene moved between and re-reads whichever of them were already held.
+     * Invalidating alone is not enough: the rail reads its shelves through `peeked`, and nothing
+     * asks for one a second time.
+     */
+    private reshelve(guildId: string, ...folderIds: (string | null)[]): void {
+        const shelves = [...new Set(folderIds.flatMap(shelvesFor))];
+        const held: {folderId: string | null; status: ArchiveStatus}[] = [];
+
+        for (const folderId of shelves) {
+            for (const status of ARCHIVE_STATUSES) {
+                if (this.pages()[archiveKey(shelfFilter(guildId, folderId, status))]) {
+                    held.push({folderId, status});
+                }
+            }
+        }
+
+        this.invalidateShelves(guildId, ...shelves);
+        for (const shelf of held) this.peek(guildId, shelf.folderId, shelf.status);
+    }
+
     apply(filter: ArchiveFilter): void {
+        this.wire();
         this.filter.set(filter);
         const key = archiveKey(filter);
         if (this.pages()[key] || this.loadingKeys()[key]) return;
@@ -99,6 +158,7 @@ export class SceneArchiveService {
     }
 
     refresh(): void {
+        this.wire();
         const filter = this.filter();
         if (!filter) return;
         this.pages.update(map => {
@@ -221,6 +281,7 @@ export class SceneArchiveService {
 
     /** Reads a shelf's scenes into the cache without moving the selection. */
     peek(guildId: string, folderId: string | null, status: ArchiveStatus = DEFAULT_STATUS): void {
+        this.wire();
         const filter = shelfFilter(guildId, folderId, status);
         const key = archiveKey(filter);
         if (this.pages()[key] || this.loadingKeys()[key]) return;
@@ -262,6 +323,11 @@ function statusFlags(status: ArchiveStatus): Partial<SceneListParams> {
     if (status === 'running') return {};
     const both = {includeConcluded: true, includeArchived: true};
     return status === 'finished' ? {...both, archivedOnly: true} : both;
+}
+
+/** A scene with no folder sits on the unfiled shelf and on the everything shelf alike. */
+function shelvesFor(folderId: string | null | undefined): (string | null)[] {
+    return folderId ? [folderId, null] : [UNFILED, null];
 }
 
 /** No tags and no query, so a shelf and the same shelf selected unfiltered are one cache entry. */

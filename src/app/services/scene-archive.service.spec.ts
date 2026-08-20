@@ -4,7 +4,15 @@ import {describe, expect, it} from 'vitest';
 
 import {archiveKey, SceneArchiveService} from './scene-archive.service';
 import {RoleplayApi} from './roleplay-api.service';
-import {SceneListDto, SceneListItemDto, SceneStatus} from '../dtos/response/scene.dto';
+import {GuildWebsocketService} from './guild-websocket.service';
+import {
+    SceneConcludedDto,
+    SceneCreatedDto,
+    SceneListDto,
+    SceneListItemDto,
+    SceneStatus,
+    SceneUpdatedDto,
+} from '../dtos/response/scene.dto';
 import {SceneListParams} from '../dtos/request/scene.dto';
 
 function row(over: Partial<SceneListItemDto> = {}): SceneListItemDto {
@@ -34,8 +42,19 @@ function setup() {
             return subject;
         },
     };
-    TestBed.configureTestingModule({providers: [{provide: RoleplayApi, useValue: api}]});
-    return {service: TestBed.inject(SceneArchiveService), calls, responses};
+    const ws = {
+        sceneCreatedObservable: new Subject<SceneCreatedDto>(),
+        sceneUpdatedObservable: new Subject<SceneUpdatedDto>(),
+        sceneConcludedObservable: new Subject<SceneConcludedDto>(),
+    };
+
+    TestBed.configureTestingModule({
+        providers: [
+            {provide: RoleplayApi, useValue: api},
+            {provide: GuildWebsocketService, useValue: ws},
+        ],
+    });
+    return {service: TestBed.inject(SceneArchiveService), calls, responses, ws};
 }
 
 const BASE = {guildId: 'g1', folderId: null, tagIds: [] as string[], q: ''};

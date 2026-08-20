@@ -400,6 +400,13 @@ function rowFromScene(scene: SceneDto, previous: SceneListItemDto | null): Scene
         participantCount: scene.participants.length || previous?.participantCount || 0,
         oocThreadId: scene.oocThreadId,
         nudgeCount: scene.nudgeCount,
+        folderId: scene.folderId ?? previous?.folderId ?? null,
+        tagIds: scene.tagIds ?? previous?.tagIds,
+        createdAt: scene.createdAt ?? previous?.createdAt ?? null,
+        concludedAt: scene.concludedAt ?? previous?.concludedAt ?? null,
+        // A write just landed and a scene carries no stamp for it. Without this the row sorts
+        // behind every scene that has one, and the Recent block's cap drops it.
+        updatedAt: new Date().toISOString(),
     };
 }
 
