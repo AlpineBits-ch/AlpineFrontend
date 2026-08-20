@@ -259,6 +259,20 @@ describe('PermissionOverridesComponent members tab', () => {
         expect(guildService.getMembers).toHaveBeenLastCalledWith('guild_1', 50, 50);
     });
 
+    // A short first page (fewer rows than the page size) against a page size of 50: skip += size and
+    // hasMore = length > 0 both also produce hasMore = true here, which is the regression this guards.
+    it('offers no more pages once a short page comes back', () => {
+        const {component, guildService} = setup({members: [memberDto('ada'), memberDto('bo')]});
+
+        component.switchTab('members');
+
+        expect(component['hasMoreMembers']()).toBe(false);
+
+        component.loadMoreMembers();
+
+        expect(guildService.getMembers).toHaveBeenCalledTimes(1);
+    });
+
     it('replaces the list with search results while a term is set', () => {
         const {component, guildService} = setup();
 
