@@ -10,6 +10,7 @@
         (reordered)="reorder($event)"
         (showAll)="picked.emit($event)"
         (toggled)="toggleShelf($event)"
+        [activeChannelId]="activeChannelId()"
         [canManage]="canManage()"
         [expandedIds]="expandedIds()"
         [loadingFolderIds]="loadingFolderIds()"

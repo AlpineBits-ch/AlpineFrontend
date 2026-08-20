@@ -14,7 +14,7 @@ import {SceneFolderDto} from '../../../dtos/response/scene.dto';
     imports: [TranslateModule],
     templateUrl: './scene-breadcrumb.component.html',
     styleUrl: './scene-breadcrumb.component.css',
-    host: {class: 'block shrink-0'},
+    host: {class: 'flex min-w-0 items-center'},
 })
 export class SceneBreadcrumbComponent {
     readonly guildId = input.required<string>();

@@ -2,7 +2,7 @@
     <app-scene-folder-panel
         (createScene)="createSceneIn.emit($event)"
         (filed)="file($event.channelId, $event.folderId)"
-        (picked)="folderId.set($event)"
+        (picked)="pick($event)"
         [canManage]="canManage()"
         [guildId]="guildId()"
         [loadingFolderIds]="loadingFolderIds()"

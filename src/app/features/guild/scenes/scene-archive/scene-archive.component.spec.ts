@@ -1,3 +1,4 @@
+import {signal} from '@angular/core';
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {provideTranslateService} from '@ngx-translate/core';
 import {of, Subject} from 'rxjs';
@@ -11,7 +12,7 @@ import {SceneService} from '../../../../services/scene.service';
 import {GuildService} from '../../../../services/guild.service';
 import {ToastService} from '../../../../services/toast.service';
 import {SceneRailStateService} from '../../../../services/scene-rail-state.service';
-import {NavigationService} from '../../../main-page/navigation.service';
+import {MainView, NavigationService} from '../../../main-page/navigation.service';
 import {
     SceneDto,
     SceneFolderDto,
@@ -56,6 +57,13 @@ function page(count: number): SceneListDto {
 }
 
 function setup(folders: SceneFolderDto[]) {
+    const view = signal<MainView>({
+        type: 'scenes',
+        guildId: 'g1',
+        mode: 'archive',
+        folderId: null,
+        sceneChannelId: null,
+    });
     const responses: Record<string, Subject<SceneListDto>> = {};
     const calls: SceneListParams[] = [];
     const api = {
@@ -94,7 +102,16 @@ function setup(folders: SceneFolderDto[]) {
             },
             {provide: GuildService, useValue: {guilds: () => []}},
             {provide: ToastService, useValue: {error: vi.fn(), httpError: vi.fn()}},
-            {provide: NavigationService, useValue: {openChannel: vi.fn(), openChannelFromStart: vi.fn()}},
+            {
+                provide: NavigationService,
+                useValue: {
+                    mainView: view,
+                    openSceneChannel: vi.fn(),
+                    openSceneFolder: vi.fn((_g: string, folderId: string | null) =>
+                        view.update(held => ({...held, folderId})),
+                    ),
+                },
+            },
         ],
     });
 
@@ -102,7 +119,7 @@ function setup(folders: SceneFolderDto[]) {
     fixture.componentRef.setInput('guildId', 'g1');
     fixture.detectChanges();
 
-    return {fixture, responses, calls};
+    return {fixture, responses, calls, view};
 }
 
 /** Expands a shelf and lets the peek effect fire, so a response subject exists for it. */
@@ -171,7 +188,7 @@ describe('SceneArchiveComponent filing', () => {
     /** A shelf and that shelf selected unfiltered are one cache key, so invalidation can empty the
      *  list on screen. Two scenes on the shelf is what tells "re-read" apart from "wiped". */
     it('keeps the rest of the shelf on screen when a card is filed out of the one being browsed', () => {
-        const {fixture, responses, calls} = setup([folder('a'), folder('b')]);
+        const {fixture, responses, calls, view} = setup([folder('a'), folder('b')]);
         expand(fixture, 'a');
         responses['a'].next({
             scenes: [
@@ -183,9 +200,7 @@ describe('SceneArchiveComponent filing', () => {
         fixture.detectChanges();
 
         const archive = TestBed.inject(SceneArchiveService);
-        (fixture.componentInstance as unknown as {folderId: {set: (v: string | null) => void}}).folderId.set(
-            'a',
-        );
+        view.update(held => ({...held, folderId: 'a'}));
         fixture.detectChanges();
         expect(archive.scenes()).toHaveLength(2);
 

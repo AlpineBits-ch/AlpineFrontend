@@ -52,6 +52,8 @@ export class SceneFolderRailComponent {
     readonly tree = input.required<FolderNode[]>();
     /** null is ALL. `UNFILED` is the bucket for scenes on no shelf. */
     readonly selected = input<string | null>(null);
+    /** The scene open beside the rail, if any. */
+    readonly activeChannelId = input<string | null>(null);
     readonly canManage = input(false);
     /** Scenes filed on each folder, by folder id. A shelf with no entry simply has none loaded. */
     readonly scenesByFolder = input<Readonly<Record<string, readonly SceneLeaf[]>>>({});

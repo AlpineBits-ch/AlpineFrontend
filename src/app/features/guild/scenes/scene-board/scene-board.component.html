@@ -1,40 +1,77 @@
-<header class="app-header flex shrink-0 items-center gap-3 border-b border-white/[0.06] bg-app-bg px-4">
-    <span class="text-[0.8125rem] font-semibold text-text-primary">{{ 'SCENE.BOARD.TITLE' | translate }}</span>
+@if (!sceneChannel()) {
+    <header class="app-header flex shrink-0 items-center gap-3 border-b border-white/[0.06] bg-app-bg px-4">
+        <span class="text-[0.8125rem] font-semibold text-text-primary">{{ 'SCENE.BOARD.TITLE' | translate }}</span>
 
-    <div class="board-modes">
-        <button (click)="setMode('playing')" [class.is-on]="mode() === 'playing'" type="button">
-            {{ 'SCENE.ARCHIVE.PLAYING' | translate }}
-        </button>
-        <button (click)="setMode('archive')" [class.is-on]="mode() === 'archive'" type="button">
-            {{ 'SCENE.ARCHIVE.ARCHIVE' | translate }}
-        </button>
+        <div class="board-modes">
+            <button (click)="setMode('playing')" [class.is-on]="mode() === 'playing'" type="button">
+                {{ 'SCENE.ARCHIVE.PLAYING' | translate }}
+            </button>
+            <button (click)="setMode('archive')" [class.is-on]="mode() === 'archive'" type="button">
+                {{ 'SCENE.ARCHIVE.ARCHIVE' | translate }}
+            </button>
+        </div>
+
+        @if (mode() === 'playing' && tree().length) {
+            <button
+                (click)="toggleRail()"
+                [attr.aria-pressed]="railVisible()"
+                [class.is-on]="railVisible()"
+                class="board-rail-toggle"
+                type="button"
+            >
+                <i class="pi pi-folder text-[0.5625rem]"></i>
+                {{ 'SCENE.ARCHIVE.SHOW_FOLDERS' | translate }}
+            </button>
+        }
+
+        @if (mode() === 'playing' && waitingCount(); as count) {
+            <span class="board-waiting-badge">{{ 'SCENE.BOARD.WAITING_COUNT' | translate: {count: count} }}</span>
+        }
+        @if (canManage() && textChannels().length) {
+            <button (click)="creating.set(true)" class="board-new ml-auto" type="button">
+                <i class="pi pi-plus text-[0.5625rem]"></i>
+                {{ 'SCENE.BOARD.NEW' | translate }}
+            </button>
+        }
+    </header>
+}
+
+@if (sceneChannel(); as scene) {
+    <div class="flex min-h-0 flex-1 overflow-hidden">
+        @if (railVisible() && tree().length) {
+            <app-scene-folder-panel
+                (createScene)="createIn($event)"
+                (filed)="file($event.channelId, $event.folderId)"
+                (picked)="pick($event)"
+                [activeChannelId]="scene.id"
+                [canManage]="canManage()"
+                [guildId]="guildId()"
+                [recent]="recent()"
+                [scenesByFolder]="scenesByFolder()"
+                [selected]="folderId()"
+                [tree]="tree()"
+            />
+        }
+
+        <app-channel [channel]="scene" class="min-w-0 min-h-0 flex-1">
+            <div channelTitle class="flex min-w-0 items-center gap-1">
+                @if (tree().length) {
+                    <button
+                        (click)="toggleRail()"
+                        [attr.aria-label]="'SCENE.ARCHIVE.SHOW_FOLDERS' | translate"
+                        [attr.aria-pressed]="railVisible()"
+                        [class.is-on]="railVisible()"
+                        class="board-rail-pin"
+                        type="button"
+                    >
+                        <i class="pi pi-folder text-[0.625rem]"></i>
+                    </button>
+                }
+                <app-scene-breadcrumb [channel]="scene" [guildId]="guildId()" />
+            </div>
+        </app-channel>
     </div>
-
-    @if (mode() === 'playing' && tree().length) {
-        <button
-            (click)="toggleRail()"
-            [attr.aria-pressed]="railVisible()"
-            [class.is-on]="railVisible()"
-            class="board-rail-toggle"
-            type="button"
-        >
-            <i class="pi pi-folder text-[0.5625rem]"></i>
-            {{ 'SCENE.ARCHIVE.SHOW_FOLDERS' | translate }}
-        </button>
-    }
-
-    @if (mode() === 'playing' && waitingCount(); as count) {
-        <span class="board-waiting-badge">{{ 'SCENE.BOARD.WAITING_COUNT' | translate: {count: count} }}</span>
-    }
-    @if (canManage() && textChannels().length) {
-        <button (click)="creating.set(true)" class="board-new ml-auto" type="button">
-            <i class="pi pi-plus text-[0.5625rem]"></i>
-            {{ 'SCENE.BOARD.NEW' | translate }}
-        </button>
-    }
-</header>
-
-@if (mode() === 'archive') {
+} @else if (mode() === 'archive') {
     <app-scene-archive (createSceneIn)="createIn($event)" [canManage]="canManage()" [guildId]="guildId()" />
 } @else {
     <div class="flex min-h-0 flex-1 overflow-hidden">
@@ -42,7 +79,7 @@
             <app-scene-folder-panel
                 (createScene)="createIn($event)"
                 (filed)="file($event.channelId, $event.folderId)"
-                (picked)="folderId.set($event)"
+                (picked)="pick($event)"
                 [canManage]="canManage()"
                 [guildId]="guildId()"
                 [recent]="recent()"

@@ -30,6 +30,7 @@ import {SceneService} from '../../../../services/scene.service';
 import {ToastService} from '../../../../services/toast.service';
 import {SceneListItemDto} from '../../../../dtos/response/scene.dto';
 import {SceneSort, UNFILED} from '../../../../dtos/request/scene.dto';
+import {NavigationService} from '../../../main-page/navigation.service';
 import {leavesByFolder, recentScenes, SceneLeaf} from '../scene-leaf';
 
 /** Long enough that a typed word is one request, short enough that the results still feel live. */
@@ -87,10 +88,16 @@ export class SceneArchiveComponent {
     private readonly toast = inject(ToastService);
     private readonly translate = inject(TranslateService);
     private readonly railState = inject(SceneRailStateService);
+    private readonly nav = inject(NavigationService);
 
     protected readonly status = signal<ArchiveStatus>('all');
 
-    protected readonly folderId = signal<string | null>(null);
+    /** Navigation holds it so a shelf is linkable, and so both halves agree on which one is shown. */
+    protected readonly folderId = computed(() => {
+        const view = this.nav.mainView();
+        return view.type === 'scenes' && view.guildId === this.guildId() ? (view.folderId ?? null) : null;
+    });
+
     protected readonly tagIds = signal<string[]>([]);
     protected readonly query = signal('');
     protected readonly sort = signal<SceneSort>('ended');
@@ -245,8 +252,12 @@ export class SceneArchiveComponent {
         );
     }
 
+    protected pick(folderId: string | null): void {
+        this.nav.openSceneFolder(this.guildId(), folderId, 'archive');
+    }
+
     protected clearFilters(): void {
-        this.folderId.set(null);
+        this.pick(null);
         this.tagIds.set([]);
         this.query.set('');
         this.status.set('all');

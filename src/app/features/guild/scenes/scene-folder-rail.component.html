@@ -2,7 +2,13 @@
     <span class="rail-label">{{ 'SCENE.ARCHIVE.RECENT' | translate }}</span>
 
     @for (leaf of recent(); track leaf.channelId) {
-        <button (click)="open(leaf.channelId)" (contextmenu)="openSceneMenu($event, leaf)" class="rail-row rail-leaf" type="button">
+        <button
+            (click)="open(leaf.channelId)"
+            (contextmenu)="openSceneMenu($event, leaf)"
+            [class.is-selected]="activeChannelId() === leaf.channelId"
+            class="rail-row rail-leaf"
+            type="button"
+        >
             <span [class]="'rail-dot ' + dotClass(leaf)"></span>
             <span class="rail-name">{{ leaf.name }}</span>
             @if (leaf.mine) {
@@ -106,6 +112,7 @@
                     <button
                         (click)="open(leaf.channelId)"
                         (contextmenu)="openSceneMenu($event, leaf)"
+                        [class.is-selected]="activeChannelId() === leaf.channelId"
                         class="rail-row rail-leaf"
                         type="button"
                     >

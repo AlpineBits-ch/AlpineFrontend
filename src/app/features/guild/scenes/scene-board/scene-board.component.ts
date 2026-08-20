@@ -14,6 +14,10 @@ import {TurnClockRingComponent} from '../turn-clock-ring/turn-clock-ring.compone
 import {SceneDialogComponent} from '../scene-dialog/scene-dialog.component';
 import {SceneArchiveComponent} from '../scene-archive/scene-archive.component';
 import {SceneFolderPanelComponent} from '../scene-folder-panel.component';
+import {SceneBreadcrumbComponent} from '../scene-breadcrumb.component';
+// One way only: `channel` imports `scene-header` from this folder, so `scene-header` and anything
+// it pulls in must never import the board. A cycle here is silent until the bundler complains.
+import {ChannelComponent} from '../../components/channel/channel.component';
 import {countByFolder, FolderNode, folderTree} from '../scene-archive/folder-tree';
 import {leavesByFolder, recentScenes} from '../scene-leaf';
 import {SceneService} from '../../../../services/scene.service';
@@ -69,6 +73,8 @@ export interface SceneGroup {
         SceneDialogComponent,
         SceneArchiveComponent,
         SceneFolderPanelComponent,
+        SceneBreadcrumbComponent,
+        ChannelComponent,
     ],
     templateUrl: './scene-board.component.html',
     styleUrl: './scene-board.component.css',
@@ -95,14 +101,19 @@ export class SceneBoardComponent {
 
     protected readonly creating = signal(false);
 
-    protected readonly folderId = signal<string | null>(null);
     protected readonly seedFolderId = signal<string | null>(null);
 
-    /** Held by the navigation service so it survives leaving the board and restoring the app. */
-    protected readonly mode = computed((): SceneBoardMode => {
+    /** The scenes view this board is drawing, or null while the main view is somewhere else. */
+    private readonly view = computed(() => {
         const view = this.nav.mainView();
-        return view.type === 'scenes' && view.guildId === this.guildId() ? view.mode : 'playing';
+        return view.type === 'scenes' && view.guildId === this.guildId() ? view : null;
     });
+
+    /** Held by the navigation service so it survives leaving the board and restoring the app. */
+    protected readonly mode = computed((): SceneBoardMode => this.view()?.mode ?? 'playing');
+
+    /** Navigation holds it so a shelf is linkable, and so both halves agree on which one is shown. */
+    protected readonly folderId = computed(() => this.view()?.folderId ?? null);
 
     private readonly ownMember = signal<SelfGuildMemberDto | null>(null);
 
@@ -121,6 +132,13 @@ export class SceneBoardComponent {
     protected readonly loading = computed(() => this.scenes.isLoading(this.guildId()));
 
     protected readonly railVisible = computed(() => this.railState.railVisible(this.guildId()));
+
+    /** The scene filling the content pane. A channel that has since gone falls back to the board. */
+    protected readonly sceneChannel = computed(() => {
+        const channelId = this.view()?.sceneChannelId;
+        if (!channelId) return null;
+        return this.guild()?.channels.find(c => c.id === channelId) ?? null;
+    });
 
     /** The board is the live board: a concluded scene belongs to the archive, not to a count or a
      *  leaf here. Shared so the tree, the rail and the rows never disagree with each other. */
@@ -327,7 +345,11 @@ export class SceneBoardComponent {
             });
             return;
         }
-        this.nav.openChannel(channel);
+        this.nav.openSceneChannel(this.guildId(), channel.id);
+    }
+
+    protected pick(folderId: string | null): void {
+        this.nav.openSceneFolder(this.guildId(), folderId, this.mode());
     }
 
     protected toggleRail(): void {

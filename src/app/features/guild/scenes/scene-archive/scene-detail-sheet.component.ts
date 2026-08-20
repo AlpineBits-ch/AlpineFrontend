@@ -197,7 +197,6 @@ export class SceneDetailSheetComponent {
         }
 
         this.closed.emit();
-        if (fromStart) this.nav.openChannelFromStart(channel);
-        else this.nav.openChannel(channel);
+        this.nav.openSceneChannel(this.guildId(), channel.id, fromStart);
     }
 }

@@ -22,7 +22,7 @@ const CHANNEL = {id: 'ch_1', type: 0};
 
 function setup(options?: {reorderFolders?: ReturnType<typeof vi.fn>; channels?: {id: string}[]}) {
     const toast = {error: vi.fn(), httpError: vi.fn(), success: vi.fn(), warn: vi.fn()};
-    const nav = {openChannel: vi.fn(), openChannelFromStart: vi.fn()};
+    const nav = {openSceneChannel: vi.fn()};
     const reorderFolders = options?.reorderFolders ?? vi.fn(() => of(undefined));
 
     TestBed.configureTestingModule({
@@ -98,8 +98,7 @@ describe('SceneFolderPanelComponent', () => {
 
         reach(component)['onOpenScene']('ch_1' as never, true as never);
 
-        expect(nav.openChannelFromStart).toHaveBeenCalledWith(CHANNEL);
-        expect(nav.openChannel).not.toHaveBeenCalled();
+        expect(nav.openSceneChannel).toHaveBeenCalledWith('g1', 'ch_1', true);
     });
 
     it('jumps to the latest post when the request does not ask for the start', () => {
@@ -107,8 +106,7 @@ describe('SceneFolderPanelComponent', () => {
 
         reach(component)['onOpenScene']('ch_1' as never, false as never);
 
-        expect(nav.openChannel).toHaveBeenCalledWith(CHANNEL);
-        expect(nav.openChannelFromStart).not.toHaveBeenCalled();
+        expect(nav.openSceneChannel).toHaveBeenCalledWith('g1', 'ch_1', false);
     });
 
     it('raises a toast and never navigates for a channel that is not in the guild', () => {
@@ -119,7 +117,6 @@ describe('SceneFolderPanelComponent', () => {
         expect(toast.error).toHaveBeenCalledWith('SCENE.ARCHIVE.OPEN_ERROR', {
             detail: 'SCENE.ARCHIVE.OPEN_ERROR_DETAIL',
         });
-        expect(nav.openChannel).not.toHaveBeenCalled();
-        expect(nav.openChannelFromStart).not.toHaveBeenCalled();
+        expect(nav.openSceneChannel).not.toHaveBeenCalled();
     });
 });

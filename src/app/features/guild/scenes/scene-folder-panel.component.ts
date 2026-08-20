@@ -43,6 +43,8 @@ export class SceneFolderPanelComponent {
     readonly partialFolderIds = input<readonly string[]>([]);
     /** null is every shelf, `UNFILED` is the no-shelf bucket. */
     readonly selected = input<string | null>(null);
+    /** The scene the shell is hosting, marked in the rail so the reader keeps their place. */
+    readonly activeChannelId = input<string | null>(null);
 
     readonly picked = output<string | null>();
     readonly createScene = output<string | null>();
@@ -80,7 +82,6 @@ export class SceneFolderPanelComponent {
             });
             return;
         }
-        if (fromStart) this.nav.openChannelFromStart(channel);
-        else this.nav.openChannel(channel);
+        this.nav.openSceneChannel(this.guildId(), channel.id, fromStart);
     }
 }
