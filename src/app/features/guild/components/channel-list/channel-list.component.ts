@@ -61,6 +61,7 @@ import {CreateChannelModalComponent} from './components/create-channel-modal/cre
 import {CreateCategoryModalComponent} from './components/create-category-modal/create-category-modal.component';
 import {ChannelListItemsComponent} from './components/channel-list-items/channel-list-items.component';
 import {ChannelDropIndicatorComponent} from './components/channel-drop-indicator/channel-drop-indicator.component';
+import {SceneNavComponent} from './components/scene-nav/scene-nav.component';
 import {ChannelsAndRolesModalComponent} from '../channels-and-roles/channels-and-roles-modal.component';
 import {GuildOnboardingStateService} from '../../../../services/guild-onboarding-state.service';
 import {ScheduledEventStore} from '../../../../stores/scheduled-event.store';
@@ -80,6 +81,7 @@ import {phaseOf} from '../events-panel/event-timing';
         InputText,
         ChannelListItemsComponent,
         ChannelDropIndicatorComponent,
+        SceneNavComponent,
         GuildSettingsModalComponent,
         ChannelSettingsModalComponent,
         CategorySettingsModalComponent,

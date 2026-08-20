@@ -1,4 +1,24 @@
-<aside #rail class="folder-panel thin-scrollbar">
+@if (bare()) {
+    <ng-container *ngTemplateOutlet="railTree"></ng-container>
+} @else {
+    <aside #rail class="folder-panel thin-scrollbar">
+        <ng-container *ngTemplateOutlet="railTree"></ng-container>
+
+        <div [target]="rail" appRailResize class="folder-panel-handle"></div>
+    </aside>
+}
+
+<!-- Delete comes through here too: the editor holds the only confirm. -->
+@if (editing(); as target) {
+    <app-scene-folder-editor
+        (closed)="editing.set(null)"
+        [folder]="target.folder"
+        [guildId]="guildId()"
+        [seedParentId]="target.seedParentId"
+    />
+}
+
+<ng-template #railTree>
     <app-scene-folder-rail
         (createFolder)="editing.set({folder: null, seedParentId: $event})"
         (createScene)="createScene.emit($event)"
@@ -16,20 +36,9 @@
         [loadingFolderIds]="loadingFolderIds()"
         [partialFolderIds]="partialFolderIds()"
         [recent]="recent()"
+        [rootCap]="rootCap()"
         [scenesByFolder]="scenesByFolder()"
         [selected]="selected()"
         [tree]="tree()"
     />
-
-    <div [target]="rail" appRailResize class="folder-panel-handle"></div>
-</aside>
-
-<!-- Delete comes through here too: the editor holds the only confirm. -->
-@if (editing(); as target) {
-    <app-scene-folder-editor
-        (closed)="editing.set(null)"
-        [folder]="target.folder"
-        [guildId]="guildId()"
-        [seedParentId]="target.seedParentId"
-    />
-}
+</ng-template>

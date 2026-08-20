@@ -9,6 +9,8 @@ interface RailState {
     expanded: Record<string, string[]>;
     /** Whether the playing screen shows the rail, per guild. */
     visible: Record<string, boolean>;
+    /** Whether the sidebar's scenes section is open, per guild. */
+    navOpen: Record<string, boolean>;
     /** Pixels, not per guild: a person wants one rail width everywhere. Null uses the default. */
     width: number | null;
 }
@@ -47,6 +49,17 @@ export class SceneRailStateService {
         this.persist();
     }
 
+    /** Closed until the reader opens it: expanded, it pushes the channels below the fold. */
+    navOpen(guildId: string | null | undefined): boolean {
+        if (!guildId) return false;
+        return this.state().navOpen[guildId] ?? false;
+    }
+
+    setNavOpen(guildId: string, open: boolean): void {
+        this.state.update(state => ({...state, navOpen: {...state.navOpen, [guildId]: open}}));
+        this.persist();
+    }
+
     railWidth(): number | null {
         return this.state().width;
     }
@@ -66,7 +79,7 @@ export class SceneRailStateService {
 }
 
 function read(): RailState {
-    const empty: RailState = {expanded: {}, visible: {}, width: null};
+    const empty: RailState = {expanded: {}, visible: {}, navOpen: {}, width: null};
     try {
         const raw = localStorage.getItem(SCENE_RAIL_STORAGE_KEY);
         if (!raw) return empty;
@@ -74,6 +87,7 @@ function read(): RailState {
         return {
             expanded: parsed.expanded ?? {},
             visible: parsed.visible ?? {},
+            navOpen: parsed.navOpen ?? {},
             width: typeof parsed.width === 'number' ? parsed.width : null,
         };
     } catch {

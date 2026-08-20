@@ -1,4 +1,5 @@
 import {ChangeDetectionStrategy, Component, computed, inject, input, output, signal} from '@angular/core';
+import {NgTemplateOutlet} from '@angular/common';
 import {TranslateService} from '@ngx-translate/core';
 
 import {SceneFolderRailComponent} from './scene-folder-rail.component';
@@ -27,7 +28,7 @@ interface FolderEdit {
 @Component({
     selector: 'app-scene-folder-panel',
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [SceneFolderRailComponent, RailResizeDirective, SceneFolderEditorComponent],
+    imports: [NgTemplateOutlet, SceneFolderRailComponent, RailResizeDirective, SceneFolderEditorComponent],
     templateUrl: './scene-folder-panel.component.html',
     styleUrl: './scene-folder-panel.component.css',
     host: {class: 'contents'},
@@ -45,6 +46,10 @@ export class SceneFolderPanelComponent {
     readonly selected = input<string | null>(null);
     /** The scene the shell is hosting, marked in the rail so the reader keeps their place. */
     readonly activeChannelId = input<string | null>(null);
+    /** Root shelves before the rest go behind one row. 0 draws them all. */
+    readonly rootCap = input(0);
+    /** The sidebar has a column of its own, so it takes the tree without the aside around it. */
+    readonly bare = input(false);
 
     readonly picked = output<string | null>();
     readonly createScene = output<string | null>();

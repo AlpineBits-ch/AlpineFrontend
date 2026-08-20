@@ -1,0 +1,7 @@
+/* The tree sits on the same left gutter the channel rows use, so a shelf name and a
+   channel name start on one column. */
+.scene-nav-body {
+    display: flex;
+    flex-direction: column;
+    padding-left: 0.25rem;
+}

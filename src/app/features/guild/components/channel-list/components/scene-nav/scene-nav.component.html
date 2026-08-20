@@ -1,0 +1,45 @@
+@if (hasScenes()) {
+    <div class="chan-section">
+        <button (click)="toggle()" [attr.aria-expanded]="open()" class="chan-section-toggle" type="button">
+            <i
+                [class]="open() ? 'pi-chevron-down' : 'pi-chevron-right'"
+                class="pi text-[0.5625rem] opacity-70 shrink-0 transition-transform duration-150"
+            ></i>
+            <span class="chan-section-label">{{ 'SCENE.BOARD.TITLE' | translate }}</span>
+            <span class="chan-section-rule"></span>
+        </button>
+        @if (canManage() && textChannels().length) {
+            <button (click)="createIn(null)" [attr.aria-label]="'SCENE.BOARD.NEW' | translate" class="chan-section-add">
+                <i class="pi pi-plus"></i>
+            </button>
+        }
+    </div>
+
+    @if (open()) {
+        <div class="scene-nav-body">
+            <app-scene-folder-panel
+                (createScene)="createIn($event)"
+                (filed)="file($event.channelId, $event.folderId)"
+                (picked)="pick($event)"
+                [activeChannelId]="activeChannelId()"
+                [bare]="true"
+                [canManage]="canManage()"
+                [guildId]="guildId()"
+                [recent]="recent()"
+                [rootCap]="ROOT_CAP"
+                [scenesByFolder]="scenesByFolder()"
+                [selected]="folderId()"
+                [tree]="tree()"
+            />
+        </div>
+    }
+
+    @if (creating()) {
+        <app-scene-dialog
+            (closed)="creating.set(false); seedFolderId.set(null)"
+            [guildChannels]="textChannels()"
+            [guildId]="guildId()"
+            [seedFolderId]="seedFolderId()"
+        />
+    }
+}

@@ -1,4 +1,13 @@
-import {ChangeDetectionStrategy, Component, inject, input, output, signal, viewChild} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    inject,
+    input,
+    output,
+    signal,
+    viewChild,
+} from '@angular/core';
 import {NgTemplateOutlet} from '@angular/common';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 
@@ -65,6 +74,8 @@ export class SceneFolderRailComponent {
     readonly partialFolderIds = input<readonly string[]>([]);
     /** A shelf is not a list. Past this it offers the folder instead. */
     readonly leafCap = input(12);
+    /** Root shelves drawn before the rest go behind one row. 0 draws them all. */
+    readonly rootCap = input(0);
 
     readonly picked = output<string | null>();
     /** The folder to create inside, or null for the root. */
@@ -85,6 +96,13 @@ export class SceneFolderRailComponent {
     private readonly menu = viewChild<ContextMenuComponent>('folderMenu');
 
     protected readonly UNFILED = UNFILED;
+    protected readonly allRootsShown = signal(false);
+    protected readonly roots = computed(() => {
+        const cap = this.rootCap();
+        const tree = this.tree();
+        return cap > 0 && !this.allRootsShown() ? tree.slice(0, cap) : tree;
+    });
+    protected readonly hiddenRootCount = computed(() => this.tree().length - this.roots().length);
     protected readonly dragOver = signal<string | null>(null);
     /** The row a folder drag would land against, and which side of it. */
     protected readonly reorderOver = signal<{id: string; after: boolean} | null>(null);

@@ -276,3 +276,44 @@ describe('SceneFolderRailComponent tree', () => {
         expect(items.every(item => item.items === undefined)).toBe(true);
     });
 });
+
+describe('SceneFolderRailComponent root cap', () => {
+    function capped(cap: number): ComponentFixture<SceneFolderRailComponent> {
+        TestBed.resetTestingModule();
+        TestBed.configureTestingModule({
+            imports: [SceneFolderRailComponent],
+            providers: [provideTranslateService()],
+        });
+        const fixture = TestBed.createComponent(SceneFolderRailComponent);
+        const twelve = Array.from({length: 12}, (_, i) => folder(`f${i}`, null, i));
+        fixture.componentRef.setInput('tree', folderTree(twelve, {}));
+        fixture.componentRef.setInput('rootCap', cap);
+        fixture.detectChanges();
+        return fixture;
+    }
+
+    function shelves(fixture: ComponentFixture<SceneFolderRailComponent>): number {
+        return fixture.nativeElement.querySelectorAll('.rail-shelf-root').length;
+    }
+
+    it('draws every root shelf when nothing caps them', () => {
+        expect(shelves(capped(0))).toBe(12);
+    });
+
+    it('stops at the cap and puts the rest behind one row', () => {
+        const fixture = capped(5);
+
+        expect(shelves(fixture)).toBe(5);
+        expect(fixture.nativeElement.textContent).toContain('SCENE.NAV.MORE_FOLDERS');
+    });
+
+    it('draws the rest once that row is pressed', () => {
+        const fixture = capped(5);
+
+        (fixture.nativeElement.querySelector('.rail-roots-more') as HTMLElement).click();
+        fixture.detectChanges();
+
+        expect(shelves(fixture)).toBe(12);
+        expect(fixture.nativeElement.querySelector('.rail-roots-more')).toBeNull();
+    });
+});

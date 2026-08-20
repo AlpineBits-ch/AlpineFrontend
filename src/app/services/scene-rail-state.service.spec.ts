@@ -76,6 +76,24 @@ describe('SceneRailStateService', () => {
         expect(state.railVisible(undefined)).toBe(false);
     });
 
+    it('starts the sidebar section closed', () => {
+        expect(service().navOpen('g1')).toBe(false);
+    });
+
+    it('remembers an opened sidebar section across a restart', () => {
+        service().setNavOpen('g1', true);
+
+        expect(service().navOpen('g1')).toBe(true);
+    });
+
+    it('keeps the sidebar section per guild', () => {
+        const state = service();
+
+        state.setNavOpen('g1', true);
+
+        expect(state.navOpen('g2')).toBe(false);
+    });
+
     it('reads a corrupt blob as nothing remembered', () => {
         localStorage.setItem(SCENE_RAIL_STORAGE_KEY, '{not json');
 

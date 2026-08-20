@@ -24,8 +24,14 @@
     <span class="rail-name">{{ 'SCENE.ARCHIVE.ALL' | translate }}</span>
 </button>
 
-@for (node of tree(); track node.folder.id) {
+@for (node of roots(); track node.folder.id) {
     <ng-container *ngTemplateOutlet="shelf; context: {$implicit: node, depth: 0}"></ng-container>
+}
+
+@if (hiddenRootCount(); as rest) {
+    <button (click)="allRootsShown.set(true)" class="rail-row rail-more rail-roots-more" type="button">
+        {{ 'SCENE.NAV.MORE_FOLDERS' | translate: {count: rest} }}
+    </button>
 }
 
 <div class="rail-rule"></div>
