@@ -22,7 +22,7 @@ export class ViewAsService {
     private readonly traces = signal<Record<string, EffectivePermissionsDto>>({});
     private readonly inFlight = new Set<string>();
 
-    private guildService = inject(GuildService);
+    private readonly guildService = inject(GuildService);
 
     subject(guildId: string): Signal<ViewAsSubject | null> {
         return computed(() => this.subjects()[guildId] ?? null);

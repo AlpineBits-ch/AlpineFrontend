@@ -1,5 +1,5 @@
 import {TestBed} from '@angular/core/testing';
-import {of} from 'rxjs';
+import {of, Subject} from 'rxjs';
 import {vi} from 'vitest';
 import {ViewAsService} from './view-as.service';
 import {GuildService} from '../../../services/guild.service';
@@ -100,6 +100,59 @@ describe('ViewAsService', () => {
         service.exit(GUILD);
         guildService.getEffectivePermissions.mockReturnValue(of(trace('')));
         service.enter(GUILD, {kind: 'member', id: 'member_1', name: 'Ash'});
+
+        expect(service.can(GUILD, 'chan_1', Permissions.ViewChannel)).toBe(false);
+    });
+
+    it('does not issue a second request while the first is still in flight', () => {
+        const pending = new Subject<EffectivePermissionsDto>();
+        const guildService = {getEffectivePermissions: vi.fn(() => pending)};
+        TestBed.configureTestingModule({
+            providers: [ViewAsService, {provide: GuildService, useValue: guildService}],
+        });
+        const service = TestBed.inject(ViewAsService);
+        service.enter(GUILD, SUBJECT);
+
+        service.request(GUILD, 'chan_1');
+        service.request(GUILD, 'chan_1');
+
+        expect(guildService.getEffectivePermissions).toHaveBeenCalledTimes(1);
+        expect(service.can(GUILD, 'chan_1', Permissions.ViewChannel)).toBe(false);
+
+        pending.next(trace('ViewChannel'));
+        pending.complete();
+
+        expect(service.can(GUILD, 'chan_1', Permissions.ViewChannel)).toBe(true);
+    });
+
+    it('releases the in-flight marker on error, so a retry reaches the service', () => {
+        const first = new Subject<EffectivePermissionsDto>();
+        const second = new Subject<EffectivePermissionsDto>();
+        const guildService = {
+            getEffectivePermissions: vi.fn().mockReturnValueOnce(first).mockReturnValueOnce(second),
+        };
+        TestBed.configureTestingModule({
+            providers: [ViewAsService, {provide: GuildService, useValue: guildService}],
+        });
+        const service = TestBed.inject(ViewAsService);
+        service.enter(GUILD, SUBJECT);
+
+        service.request(GUILD, 'chan_1');
+        first.error(new Error('boom'));
+
+        service.request(GUILD, 'chan_1');
+
+        expect(guildService.getEffectivePermissions).toHaveBeenCalledTimes(2);
+    });
+
+    it('drops the first subject trace on a direct switch, with no exit in between', () => {
+        const {service, guildService} = setup('ViewChannel');
+        service.enter(GUILD, SUBJECT);
+        service.request(GUILD, 'chan_1');
+        expect(service.can(GUILD, 'chan_1', Permissions.ViewChannel)).toBe(true);
+
+        guildService.getEffectivePermissions.mockReturnValue(of(trace('')));
+        service.enter(GUILD, {kind: 'role', id: 'role_2', name: 'Officer'});
 
         expect(service.can(GUILD, 'chan_1', Permissions.ViewChannel)).toBe(false);
     });
