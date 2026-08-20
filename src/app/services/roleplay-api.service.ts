@@ -72,6 +72,9 @@ export abstract class RoleplayApi {
 
     abstract skipTurn(guildId: string, sceneChannelId: string, dto: SkipTurnDto): Observable<SceneDto>;
 
+    /** Chases whoever is on the clock. Answers no scene: the nudge arrives back over the hub. */
+    abstract nudgeTurn(guildId: string, sceneChannelId: string): Observable<void>;
+
     abstract roll(guildId: string, channelId: string, dto: RollDiceDto): Observable<DiceRollDto>;
 
     // ── Archive taxonomy ────────────────────────────────────────────────────
@@ -149,6 +152,10 @@ export class HttpRoleplayApi extends RoleplayApi {
 
     skipTurn(guildId: string, sceneChannelId: string, dto: SkipTurnDto): Observable<SceneDto> {
         return this.http.post<SceneDto>(`${this.scene(guildId, sceneChannelId)}/turn/skip`, dto);
+    }
+
+    nudgeTurn(guildId: string, sceneChannelId: string): Observable<void> {
+        return this.http.post<void>(`${this.scene(guildId, sceneChannelId)}/turn/nudge`, {});
     }
 
     roll(guildId: string, channelId: string, dto: RollDiceDto): Observable<DiceRollDto> {

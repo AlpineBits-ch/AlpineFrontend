@@ -11,26 +11,30 @@ import {
 } from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
+import {PrimeTemplate} from 'primeng/api';
+import {Dialog} from 'primeng/dialog';
 import {Select} from 'primeng/select';
 
+import {EmojiPickerButtonComponent} from '../../../messaging/components/conversation/composer/emoji-picker-button/emoji-picker-button.component';
 import {SceneTaxonomyService} from '../../../../services/scene-taxonomy.service';
 import {ToastService} from '../../../../services/toast.service';
 import {SceneFolderDto} from '../../../../dtos/response/scene.dto';
-import {ARCHIVE_COLOR_FALLBACK, ARCHIVE_COLORS} from './archive-colors';
+import {ARCHIVE_COLOR_FALLBACK, ARCHIVE_COLORS, isNoColor} from './archive-colors';
 
 /** Creates or edits one shelf. Deleting from here removes the shelf, never the scenes on it. */
 @Component({
     selector: 'app-scene-folder-editor',
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [TranslateModule, FormsModule, Select],
+    imports: [TranslateModule, FormsModule, Dialog, PrimeTemplate, Select, EmojiPickerButtonComponent],
     templateUrl: './scene-folder-editor.component.html',
     styleUrl: './scene-editor.component.css',
-    host: {'(document:keydown.escape)': 'closed.emit()'},
 })
 export class SceneFolderEditorComponent {
     readonly guildId = input.required<string>();
     /** Null creates a new shelf. */
     readonly folder = input<SceneFolderDto | null>(null);
+    /** Where a new shelf starts out. Ignored once `folder` holds one. */
+    readonly seedParentId = input<string | null>(null);
 
     readonly closed = output<void>();
 
@@ -46,8 +50,13 @@ export class SceneFolderEditorComponent {
     protected readonly confirmingDelete = signal(false);
     private seeded = false;
 
-    protected readonly swatches = ARCHIVE_COLORS;
-    protected readonly fallbackColor = ARCHIVE_COLOR_FALLBACK;
+    protected get swatches(): readonly string[] {
+        return ARCHIVE_COLORS;
+    }
+
+    protected get fallbackColor(): string {
+        return ARCHIVE_COLOR_FALLBACK;
+    }
 
     protected readonly isNew = computed(() => !this.folder());
 
@@ -74,6 +83,7 @@ export class SceneFolderEditorComponent {
     constructor() {
         effect(() => {
             const held = this.folder();
+            const seed = this.seedParentId();
             untracked(() => {
                 // Seeded once. A later patch to the same folder must not throw away what is being
                 // typed into the form.
@@ -81,10 +91,18 @@ export class SceneFolderEditorComponent {
                 this.seeded = true;
                 this.name.set(held?.name ?? '');
                 this.icon.set(held?.icon ?? '');
-                this.color.set(held?.color ?? '');
-                this.parentId.set(held?.parentFolderId ?? '');
+                this.color.set(isNoColor(held?.color) ? '' : (held?.color ?? ''));
+                this.parentId.set(held ? (held.parentFolderId ?? '') : this.seedParent(seed));
             });
         });
+    }
+
+    /** A seed standing on a child resolves to that child's parent: the tree only goes two deep. */
+    private seedParent(seed: string | null): string {
+        if (!seed) return '';
+        const held = this.taxonomy.folders(this.guildId()).find(f => f.id === seed);
+        if (!held) return '';
+        return held.parentFolderId ?? held.id;
     }
 
     protected save(): void {
@@ -107,10 +125,10 @@ export class SceneFolderEditorComponent {
             this.taxonomy
                 .updateFolder(this.guildId(), held.id, {
                     name: this.name().trim(),
+                    // The folder PATCH clears a field with an empty string, never with null or the
+                    // #000000 sentinel. Same for parentFolderId, where "" means the root.
                     icon: this.icon().trim(),
                     color: this.color().trim(),
-                    // Empty string is "move to the root", which is a real instruction here rather
-                    // than an absent one: the field is always sent from this form.
                     parentFolderId: this.mayReparent() ? this.parentId() : undefined,
                 })
                 .subscribe(done);
@@ -120,6 +138,7 @@ export class SceneFolderEditorComponent {
         this.taxonomy
             .createFolder(this.guildId(), {
                 name: this.name().trim(),
+                // Create says "nothing chosen" with null.
                 icon: this.icon().trim() || null,
                 color: this.color().trim() || null,
                 parentFolderId: this.parentId() || null,
@@ -139,6 +158,7 @@ export class SceneFolderEditorComponent {
             },
             error: err => {
                 this.saving.set(false);
+                this.confirmingDelete.set(false);
                 this.toast.httpError(this.translate.instant('SCENE.ARCHIVE.FOLDER_ERROR'), err);
             },
         });

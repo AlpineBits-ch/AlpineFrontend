@@ -53,10 +53,6 @@ export const SCENE_STATUS_ORDER: readonly SceneStatus[] = [
     SceneStatus.Concluded,
 ];
 
-export function isSceneRunning(scene: SceneOrderable): boolean {
-    return scene.status === SceneStatus.Active || scene.status === SceneStatus.Open;
-}
-
 export function participantOf(scene: SceneDto, personaId: string): SceneParticipantDto | null {
     return scene.participants.find(p => p.personaId === personaId) ?? null;
 }

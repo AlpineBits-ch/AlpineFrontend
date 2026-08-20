@@ -1,9 +1,17 @@
 import {ChangeDetectionStrategy, Component, computed, input} from '@angular/core';
 import {PersonaAvatarComponent} from '../../personas/persona-avatar/persona-avatar.component';
 import {PersonaIdentity} from '../../personas/persona-identity';
-import {TurnClock} from '../scene-clock';
+import {ClockPressure, clockPressure, TurnClock} from '../scene-clock';
 
 type RingSize = 'sm' | 'md' | 'lg';
+
+/** Neutral until the turn is actually tight, then amber, then rose. `easy` keeps the ring quiet. */
+const PRESSURE_COLOR: Record<ClockPressure, string> = {
+    easy: 'color-mix(in srgb, var(--color-text-secondary) 60%, transparent)',
+    closing: 'color-mix(in srgb, var(--color-connecting) 55%, transparent)',
+    due: 'var(--color-connecting)',
+    over: 'var(--color-offline)',
+};
 
 /**
  * The gap between the avatar and the arc is deliberate and generous: the avatar carries the
@@ -17,8 +25,8 @@ const BOX: Record<RingSize, {box: number; inset: number; stroke: number; avatar:
 
 /**
  * A character's face with the turn's clock drawn around it. The inner ring is who, the outer arc
- * is when: the arc drains as the turn is spent and takes no colour of its own, so the only loud
- * thing on screen stays "waiting on you".
+ * is when: the arc drains as the turn is spent and stays colourless while there is time left, so
+ * the only loud thing on screen stays "waiting on you".
  */
 @Component({
     selector: 'app-turn-clock-ring',
@@ -39,7 +47,6 @@ const BOX: Record<RingSize, {box: number; inset: number; stroke: number; avatar:
                     [attr.cx]="centre()"
                     [attr.cy]="centre()"
                     [attr.r]="radius()"
-                    [attr.stroke-dasharray]="overdue() ? '2 4' : null"
                     [attr.stroke-width]="metrics().stroke"
                     fill="none"
                     stroke="rgba(255,255,255,0.14)"
@@ -81,20 +88,24 @@ export class TurnClockRingComponent {
     protected readonly radius = computed(() => this.centre() - this.metrics().stroke / 2 - 1);
     protected readonly circumference = computed(() => 2 * Math.PI * this.radius());
 
-    protected readonly overdue = computed(() => !!this.clock()?.overdue);
+    protected readonly pressure = computed((): ClockPressure => {
+        const clock = this.clock();
+        return clock ? clockPressure(clock) : 'easy';
+    });
 
     /**
-     * How much of the arc is drawn. Null when there is no clock at all, and also when the turn's
+     * How much of the arc is drawn. Null when there is no clock at all, and full when the turn's
      * start is unknown: a proportion nobody can compute must not be invented.
      */
     protected readonly dashOffset = computed((): number | null => {
         const clock = this.clock();
-        if (!clock?.hasDeadline || clock.overdue) return null;
-        if (clock.spent === null) return 0;
+        if (!clock?.hasDeadline) return null;
+        if (clock.overdue || clock.spent === null) return 0;
         return this.circumference() * clock.spent;
     });
 
-    protected readonly arcColor = computed(
-        () => this.identity()?.color ?? 'color-mix(in srgb, var(--color-text-secondary) 60%, transparent)',
+    /** Muted rings are away or resting scenes, and must not carry urgency. */
+    protected readonly arcColor = computed(() =>
+        this.muted() ? PRESSURE_COLOR.easy : PRESSURE_COLOR[this.pressure()],
     );
 }

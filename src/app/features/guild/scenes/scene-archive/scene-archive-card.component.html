@@ -26,9 +26,14 @@
                     <span class="card-dot">·</span>
                 }
             }
-            @if (ran().to; as ended) {
+            @let span = ran();
+            @if (span.to) {
                 <span class="card-dot">·</span>
-                <span>{{ ended | date: 'MMM y' }}</span>
+                @if (span.spansMonths) {
+                    <span>{{ span.from | date: 'MMM y' }} &ndash; {{ span.to | date: 'MMM y' }}</span>
+                } @else {
+                    <span>{{ span.to | date: 'd MMM y' }}</span>
+                }
             }
         </div>
 

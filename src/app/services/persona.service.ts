@@ -7,6 +7,7 @@ import {
     AutoproxyMode,
     ChannelAutoproxyDto,
     GuildPersonaDto,
+    PersonaCastMemberDto,
     PersonaDto,
     PersonaPagePullStrategy,
     PersonaScope,
@@ -21,10 +22,12 @@ import {UpdateWikiPageDto} from '../dtos/request/wiki.dto';
 import {WikiCategoryDto, WikiPageDto} from '../dtos/response/wiki.dto';
 import {
     canSpeakAs,
+    identityFromCastMember,
     identityFromHint,
     PersonaDisplayHint,
     PersonaIdentity,
     personaIdentity,
+    sortCastMembers,
     sortPersonas,
 } from '../features/guild/personas/persona-identity';
 import {
@@ -56,6 +59,8 @@ export class PersonaService {
 
     private readonly casts = signal<Record<string, GuildPersonaDto[]>>({});
     private readonly loadingGuilds = signal<Record<string, boolean>>({});
+    private readonly guildCasts = signal<Record<string, PersonaCastMemberDto[]>>({});
+    private readonly loadingGuildCasts = signal<Record<string, boolean>>({});
     private readonly autoproxyByChannel = signal<Record<string, ChannelAutoproxyDto>>({});
     private readonly selectionByChannel = signal<Record<string, string | null>>({});
     private readonly pendingByGuild = signal<Record<string, GuildPersonaDto[]>>({});
@@ -65,6 +70,7 @@ export class PersonaService {
 
     private ownRequested = false;
     private readonly requestedGuilds = new Set<string>();
+    private readonly requestedGuildCasts = new Set<string>();
     private readonly requestedChannels = new Set<string>();
     private readonly requestedPending = new Set<string>();
 
@@ -104,13 +110,15 @@ export class PersonaService {
             if (event.scope === PersonaScope.User) this.ensureOwn(true);
         });
 
-        ws.personaUpdatedObservable
-            .pipe(takeUntilDestroyed(this.destroyRef))
-            .subscribe(event => this.patchPersona(event.personaId, personaPatch(event)));
+        ws.personaUpdatedObservable.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(event => {
+            this.patchPersona(event.personaId, personaPatch(event));
+            this.refreshGuildCast(event.guildId);
+        });
 
         ws.personaDeletedObservable.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(event => {
             if (event.retired) this.patchPersona(event.personaId, {isRetired: true});
             else this.forget(event.personaId);
+            this.refreshGuildCast(event.guildId);
         });
 
         ws.personaAdoptedObservable.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(event => {
@@ -124,11 +132,13 @@ export class PersonaService {
             } else if (this.requestedGuilds.has(event.guildId)) {
                 this.ensureCast(event.guildId, true);
             }
+            this.refreshGuildCast(event.guildId);
         });
 
-        ws.personaUnadoptedObservable
-            .pipe(takeUntilDestroyed(this.destroyRef))
-            .subscribe(event => this.dropEntry(event.guildId, event.personaId));
+        ws.personaUnadoptedObservable.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(event => {
+            this.dropEntry(event.guildId, event.personaId);
+            this.refreshGuildCast(event.guildId);
+        });
 
         ws.personaReviewRequestedObservable.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(event => {
             // Players get this event too, and the queue route is theirs to be refused.
@@ -198,14 +208,35 @@ export class PersonaService {
         return !!guildId && !!this.loadingGuilds()[guildId];
     }
 
+    /**
+     * Every character the guild has adopted, whoever plays them. This is the read behind a turn
+     * order, a cast picker or a `<@pers_...>` token; `cast()` cannot answer for somebody else.
+     */
+    guildCast(guildId: string | null | undefined): PersonaCastMemberDto[] {
+        return guildId ? (this.guildCasts()[guildId] ?? []) : [];
+    }
+
+    guildCastMember(
+        guildId: string | null | undefined,
+        personaId: string | null | undefined,
+    ): PersonaCastMemberDto | null {
+        if (!personaId || !guildId) return null;
+        return (this.guildCasts()[guildId] ?? []).find(m => m.personaId === personaId) ?? null;
+    }
+
+    isGuildCastLoading(guildId: string | null | undefined): boolean {
+        return !!guildId && !!this.loadingGuildCasts()[guildId];
+    }
+
     entry(guildId: string | null | undefined, personaId: string | null | undefined): GuildPersonaDto | null {
         if (!personaId) return null;
         return this.cast(guildId).find(e => e.persona.id === personaId) ?? null;
     }
 
     /**
-     * How a character is drawn, wherever only an id is to hand. The cast wins because it carries
-     * this guild's overrides; a hint stands in for anybody the caller cannot speak as.
+     * How a character is drawn, wherever only an id is to hand. The speakable entry wins because it
+     * carries this guild's overrides, then the guild cast for anybody else's character, then a hint
+     * for a guild whose cast has never been read.
      */
     identity(
         guildId: string | null | undefined,
@@ -214,7 +245,9 @@ export class PersonaService {
     ): PersonaIdentity | null {
         if (!personaId) return null;
         const entry = this.entry(guildId, personaId);
-        return entry ? personaIdentity(entry) : identityFromHint(personaId, hint);
+        if (entry) return personaIdentity(entry);
+        const member = this.guildCastMember(guildId, personaId);
+        return member ? identityFromCastMember(member) : identityFromHint(personaId, hint);
     }
 
     autoproxy(channelId: string | null | undefined): ChannelAutoproxyDto | null {
@@ -288,6 +321,24 @@ export class PersonaService {
             },
             // Keeps whatever cast was already loaded: a failed refresh must not empty the switcher.
             error: () => this.loadingGuilds.update(map => ({...map, [guildId]: false})),
+        });
+    }
+
+    /** Membership is enough for this one, unlike `ensureCast`. */
+    ensureGuildCast(guildId: string | null | undefined, force = false): void {
+        if (!guildId) return;
+        this.wire();
+        if (this.requestedGuildCasts.has(guildId) && !force) return;
+        this.requestedGuildCasts.add(guildId);
+        this.loadingGuildCasts.update(map => ({...map, [guildId]: true}));
+        this.api.getGuildCast(guildId).subscribe({
+            // Sorted once here, so a read hands back the same array every time.
+            next: rows => {
+                this.guildCasts.update(map => ({...map, [guildId]: sortCastMembers(rows)}));
+                this.loadingGuildCasts.update(map => ({...map, [guildId]: false}));
+            },
+            // Keeps whatever was loaded: a failed refresh must not blank every name on screen.
+            error: () => this.loadingGuildCasts.update(map => ({...map, [guildId]: false})),
         });
     }
 
@@ -396,6 +447,28 @@ export class PersonaService {
         return this.api.removeProfile(guildId, personaId).pipe(tap(() => this.dropEntry(guildId, personaId)));
     }
 
+    uploadAvatar(personaId: string, file: File): Observable<PersonaDto> {
+        return this.api.uploadAvatar(personaId, file).pipe(tap(updated => this.absorb(updated)));
+    }
+
+    removeAvatar(personaId: string): Observable<void> {
+        return this.api
+            .removeAvatar(personaId)
+            .pipe(tap(() => this.patchPersona(personaId, {avatarUrl: null})));
+    }
+
+    uploadProfileAvatar(guildId: string, personaId: string, file: File): Observable<GuildPersonaDto> {
+        return this.api
+            .uploadProfileAvatar(guildId, personaId, file)
+            .pipe(tap(entry => this.upsertEntry(guildId, entry)));
+    }
+
+    removeProfileAvatar(guildId: string, personaId: string): Observable<GuildPersonaDto> {
+        return this.api
+            .removeProfileAvatar(guildId, personaId)
+            .pipe(tap(entry => this.upsertEntry(guildId, entry)));
+    }
+
     submit(guildId: string, personaId: string): Observable<GuildPersonaDto> {
         return this.api
             .submitProfile(guildId, personaId)
@@ -447,6 +520,11 @@ export class PersonaService {
     }
 
     // ── Cache maintenance ───────────────────────────────────────────────────
+
+    /** Re-reads the guild-wide cast, but only where something is already showing it. */
+    private refreshGuildCast(guildId: string | null | undefined): void {
+        if (guildId && this.requestedGuildCasts.has(guildId)) this.ensureGuildCast(guildId, true);
+    }
 
     private absorb(persona: PersonaDto): void {
         this.patchPersona(persona.id, persona);

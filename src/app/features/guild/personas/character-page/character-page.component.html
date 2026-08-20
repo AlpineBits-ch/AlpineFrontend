@@ -12,7 +12,7 @@
     </span>
 
     <div class="ml-auto flex shrink-0 items-center gap-1">
-        @if (page()) {
+        @if (page() && canWrite()) {
             <p-button
                 (onClick)="openInfobox()"
                 [label]="'PERSONA.PAGE.EDIT_INFOBOX' | translate"
@@ -83,23 +83,30 @@
                     </div>
 
                     <!-- The one line the whole feature exists for: the character, and who plays them. -->
-                    <p class="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[0.8125rem] text-text-muted">
-                        @if (who.pronouns) {
-                            <span>{{ who.pronouns }}</span>
-                            <span class="text-text-faint">·</span>
-                        }
-                        @if (ownerId()) {
-                            <button
-                                (click)="openOwner()"
-                                class="border-0 bg-transparent p-0 text-[0.8125rem] text-text-muted transition-colors cursor-pointer hover:text-text-secondary"
-                                type="button"
-                            >
-                                {{ 'PERSONA.PAGE.PLAYED_BY' | translate: {name: owner()?.userName ?? '…'} }}
-                            </button>
-                        } @else {
-                            <span>{{ 'PERSONA.PAGE.SHARED_BY_GUILD' | translate }}</span>
-                        }
-                    </p>
+                    @if (who.pronouns || hasEntry()) {
+                        <p class="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[0.8125rem] text-text-muted">
+                            @if (who.pronouns) {
+                                <span>{{ who.pronouns }}</span>
+                                @if (hasEntry()) {
+                                    <span class="text-text-faint">·</span>
+                                }
+                            }
+                            <!-- The cast row carries no owner, so an absent one there is not "shared by the guild". -->
+                            @if (hasEntry()) {
+                                @if (ownerId()) {
+                                    <button
+                                        (click)="openOwner()"
+                                        class="border-0 bg-transparent p-0 text-[0.8125rem] text-text-muted transition-colors cursor-pointer hover:text-text-secondary"
+                                        type="button"
+                                    >
+                                        {{ 'PERSONA.PAGE.PLAYED_BY' | translate: {name: owner()?.userName ?? '…'} }}
+                                    </button>
+                                } @else {
+                                    <span>{{ 'PERSONA.PAGE.SHARED_BY_GUILD' | translate }}</span>
+                                }
+                            }
+                        </p>
+                    }
 
                     @if (entry()?.persona?.shortBio; as bio) {
                         <p class="mt-2 max-w-2xl text-sm leading-relaxed text-text-secondary">{{ bio }}</p>
@@ -134,14 +141,16 @@
                 <p class="min-w-0 flex-1 text-[0.75rem] leading-snug text-text-secondary">
                     {{ (state === 'behind' ? 'PERSONA.PAGE.BEHIND' : 'PERSONA.PAGE.DIVERGED') | translate }}
                 </p>
-                <p-button
-                    (onClick)="pull()"
-                    [label]="'PERSONA.PAGE.PULL' | translate"
-                    [loading]="pulling()"
-                    [outlined]="true"
-                    severity="secondary"
-                    size="small"
-                />
+                @if (canWrite()) {
+                    <p-button
+                        (onClick)="pull()"
+                        [label]="'PERSONA.PAGE.PULL' | translate"
+                        [loading]="pulling()"
+                        [outlined]="true"
+                        severity="secondary"
+                        size="small"
+                    />
+                }
             </div>
         }
 
@@ -156,34 +165,46 @@
                         <div class="h-4 w-full animate-pulse rounded-md bg-white/[0.04]"></div>
                         <div class="h-4 w-5/6 animate-pulse rounded-md bg-white/[0.04]"></div>
                     </div>
+                } @else if (!hasEntry()) {
+                    <!-- The cast row carries no wikiPageId, so there is nothing to fetch from here. -->
+                    <div class="rounded-2xl border border-dashed border-white/[0.10] px-6 py-10 text-center">
+                        <p class="text-sm text-text-secondary">{{ 'PERSONA.PAGE.UNREADABLE' | translate }}</p>
+                        <p class="mx-auto mt-1 max-w-sm text-[0.75rem] leading-relaxed text-text-muted">
+                            {{ 'PERSONA.PAGE.UNREADABLE_HINT' | translate }}
+                        </p>
+                    </div>
                 } @else if (!page()) {
                     <div class="rounded-2xl border border-dashed border-white/[0.10] px-6 py-10 text-center">
                         <p class="text-sm text-text-secondary">{{ 'PERSONA.PAGE.NO_PAGE' | translate }}</p>
                         <p class="mx-auto mt-1 max-w-sm text-[0.75rem] leading-relaxed text-text-muted">
                             {{ 'PERSONA.PAGE.NO_PAGE_HINT' | translate }}
                         </p>
-                        <p-button
-                            (onClick)="createPage()"
-                            [label]="'PERSONA.PAGE.START' | translate"
-                            [loading]="creating()"
-                            class="mt-4 inline-block"
-                            icon="pi pi-plus"
-                            severity="primary"
-                            size="small"
-                        />
+                        @if (canWrite()) {
+                            <p-button
+                                (onClick)="createPage()"
+                                [label]="'PERSONA.PAGE.START' | translate"
+                                [loading]="creating()"
+                                class="mt-4 inline-block"
+                                icon="pi pi-plus"
+                                severity="primary"
+                                size="small"
+                            />
+                        }
                     </div>
                 } @else {
                     <div class="rounded-2xl border border-dashed border-white/[0.10] px-6 py-10 text-center">
                         <p class="text-sm text-text-secondary">{{ 'PERSONA.PAGE.EMPTY_BODY' | translate }}</p>
-                        <p-button
-                            (onClick)="openInWiki()"
-                            [label]="'PERSONA.PAGE.WRITE' | translate"
-                            class="mt-4 inline-block"
-                            icon="pi pi-pencil"
-                            [outlined]="true"
-                            severity="secondary"
-                            size="small"
-                        />
+                        @if (canWrite()) {
+                            <p-button
+                                (onClick)="openInWiki()"
+                                [label]="'PERSONA.PAGE.WRITE' | translate"
+                                class="mt-4 inline-block"
+                                icon="pi pi-pencil"
+                                [outlined]="true"
+                                severity="secondary"
+                                size="small"
+                            />
+                        }
                     </div>
                 }
             </article>
@@ -249,6 +270,19 @@
                     }
                 </aside>
             }
+        </div>
+    } @else if (resolving()) {
+        <div>
+            <div [style.background]="coverGradient()" class="character-cover">
+                <div class="character-cover-scrim"></div>
+            </div>
+            <div class="character-plate">
+                <div class="character-face h-24 w-24 shrink-0 animate-pulse bg-white/[0.06]"></div>
+                <div class="flex min-w-0 flex-1 flex-col gap-2 pb-2">
+                    <div class="h-7 w-56 animate-pulse rounded-lg bg-white/[0.06]"></div>
+                    <div class="h-4 w-40 animate-pulse rounded-md bg-white/[0.04]"></div>
+                </div>
+            </div>
         </div>
     } @else {
         <div class="flex h-full items-center justify-center">

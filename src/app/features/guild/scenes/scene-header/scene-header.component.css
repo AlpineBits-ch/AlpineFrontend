@@ -169,6 +169,35 @@
     cursor: default;
 }
 
+/* ── Reopening ──────────────────────────────────────────────────────────── */
+.scene-reopen-body {
+    margin: 0;
+    font-size: 0.8125rem;
+    line-height: 1.6;
+    color: var(--color-text-secondary);
+}
+
+.scene-reopen-confirm {
+    border: 0;
+    border-radius: 0.625rem;
+    background: var(--color-brand);
+    padding: 0.375rem 0.875rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #fff;
+    cursor: pointer;
+    transition: background-color var(--duration-base) var(--ease-brand);
+}
+
+.scene-reopen-confirm:hover:not(:disabled) {
+    background: var(--color-brand-hover);
+}
+
+.scene-reopen-confirm:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
 @media (max-width: 640px) {
     .scene-pair-tab {
         padding: 0.1875rem 0.5rem;

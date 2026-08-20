@@ -1,4 +1,4 @@
-import {ChangeDetectionStrategy, Component, computed, inject, input} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, effect, inject, input, untracked} from '@angular/core';
 import {TranslateModule} from '@ngx-translate/core';
 import {RelativeTimePipe} from '../../../../pipes/relative-time.pipe';
 import {PersonaAvatarComponent} from '../../personas/persona-avatar/persona-avatar.component';
@@ -8,7 +8,7 @@ import {PersonaService} from '../../../../services/persona.service';
 import {SceneService} from '../../../../services/scene.service';
 import {SceneDto, SceneParticipantDto, SceneStatus} from '../../../../dtos/response/scene.dto';
 import {turnClock} from '../scene-clock';
-import {isWaitingOnMe, queueFromCurrent} from '../scene-status';
+import {isWaitingOnMe, upNext} from '../scene-status';
 
 /** One character in the queue, with everything the rail needs to draw them. */
 interface QueueEntry {
@@ -40,39 +40,56 @@ export class TurnRailComponent {
 
     protected readonly SceneStatus = SceneStatus;
 
+    constructor() {
+        effect(() => {
+            const guildId = this.guildId();
+            untracked(() => this.personas.ensureGuildCast(guildId));
+        });
+    }
+
     protected readonly clock = computed(() => turnClock(this.scene(), this.scenes.now()));
 
     protected readonly isMyTurn = computed(() =>
         isWaitingOnMe(this.scene(), this.scenes.speakableIds(this.guildId())),
     );
 
-    /** The whole queue rotated so the character who is up comes first. */
+    /** An empty turn order means the cast in join order, the same rule the scene dialog applies. */
+    private readonly rotation = computed((): string[] => {
+        const scene = this.scene();
+        return scene.turnOrder?.length ? [...scene.turnOrder] : scene.participants.map(p => p.personaId);
+    });
+
+    /** The whole rotation turned so the character who is up comes first. */
     private readonly queue = computed((): QueueEntry[] => {
         const scene = this.scene();
-        const byId = new Map<string, SceneParticipantDto>(scene.participants.map(p => [p.personaId, p]));
-        return queueFromCurrent(scene).map(personaId => {
-            const participant = byId.get(personaId);
-            return {
-                personaId,
-                identity: this.personas.identity(this.guildId(), personaId, participant),
-                away: !!participant?.isAway,
-            };
-        });
+        const order = this.rotation();
+        const at = scene.currentTurnPersonaId ? order.indexOf(scene.currentTurnPersonaId) : -1;
+        const rotated = at < 0 ? order : [...order.slice(at), ...order.slice(0, at)];
+        return rotated.map(personaId => this.entryFor(personaId));
     });
 
     protected readonly current = computed((): QueueEntry | null => {
         const scene = this.scene();
         if (!scene.currentTurnPersonaId) return null;
-        return this.queue().find(entry => entry.personaId === scene.currentTurnPersonaId) ?? null;
+        return (
+            this.queue().find(entry => entry.personaId === scene.currentTurnPersonaId) ??
+            this.entryFor(scene.currentTurnPersonaId)
+        );
     });
 
     /** A scene of one is a journal. It has a writer, not a queue. */
-    protected readonly isSolo = computed(() => this.scene().turnOrder.length <= 1);
+    protected readonly isSolo = computed(() => this.rotation().length <= 1);
 
-    protected readonly upcoming = computed(() => {
+    /** Who the server will actually hand the turn to, absences skipped. */
+    private readonly next = computed(() => upNext({...this.scene(), turnOrder: this.rotation()}));
+
+    protected readonly upcoming = computed((): QueueEntry[] => {
         if (this.isSolo()) return [];
         const rest = this.current() ? this.queue().slice(1) : this.queue();
-        return rest.slice(0, UPCOMING_SHOWN);
+        const next = this.next();
+        const at = next ? rest.findIndex(entry => entry.personaId === next) : -1;
+        const ordered = at > 0 ? [rest[at], ...rest.slice(0, at), ...rest.slice(at + 1)] : rest;
+        return ordered.slice(0, UPCOMING_SHOWN);
     });
 
     protected readonly overflow = computed(() => {
@@ -88,4 +105,17 @@ export class TurnRailComponent {
     });
 
     protected readonly castCount = computed(() => this.scene().participants.length);
+
+    private readonly byId = computed(
+        () => new Map<string, SceneParticipantDto>(this.scene().participants.map(p => [p.personaId, p])),
+    );
+
+    private entryFor(personaId: string): QueueEntry {
+        const participant = this.byId().get(personaId);
+        return {
+            personaId,
+            identity: this.personas.identity(this.guildId(), personaId, participant),
+            away: !!participant?.isAway,
+        };
+    }
 }

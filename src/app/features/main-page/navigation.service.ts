@@ -8,6 +8,9 @@ import {VisitedThreadsService} from '../../services/visited-threads.service';
 
 export type WorkspaceContext = {type: 'dms'} | {type: 'server'; guild: GuildDto};
 
+/** Which half of the scene board is on screen. Everything to do with folders and tags is in `archive`. */
+export type SceneBoardMode = 'playing' | 'archive';
+
 export type MainView =
     | {type: 'home'}
     | {type: 'conversation'; conversation: ConversationDto}
@@ -19,7 +22,7 @@ export type MainView =
     | {type: 'personas'; guildId: string}
     | {type: 'character'; guildId: string; personaId: string}
     /** Every scene in the guild, ordered by what is waiting on the reader. */
-    | {type: 'scenes'; guildId: string};
+    | {type: 'scenes'; guildId: string; mode: SceneBoardMode};
 
 interface PersistedNav {
     kind:
@@ -33,6 +36,7 @@ interface PersistedNav {
     guildId?: string;
     channelId?: string;
     conversationId?: string;
+    sceneMode?: SceneBoardMode;
 }
 
 const NAV_KEY = 'alpine_nav';
@@ -148,7 +152,8 @@ export class NavigationService {
             } else if (state.kind === 'server-personas' && guildHasFeature(guild, GuildFeature.Personas)) {
                 this.mainView.set({type: 'personas', guildId: guild.id});
             } else if (state.kind === 'server-scenes' && guildHasFeature(guild, GuildFeature.Scenes)) {
-                this.mainView.set({type: 'scenes', guildId: guild.id});
+                this.sceneMode = state.sceneMode ?? 'playing';
+                this.mainView.set({type: 'scenes', guildId: guild.id, mode: this.sceneMode});
             } else {
                 const ch =
                     guild.channels.find(c => c.id === state.channelId) ??
@@ -299,11 +304,15 @@ export class NavigationService {
         this.mobileNavOpen.set(false);
     }
 
+    /** Which half the board was last on, so leaving it and coming back does not reset to playing. */
+    private sceneMode: SceneBoardMode = 'playing';
+
     /** The scene board. Guild-scoped like the wiki, and for the same reason. */
-    openScenes(guildId: string): void {
+    openScenes(guildId: string, mode: SceneBoardMode = this.sceneMode): void {
+        this.sceneMode = mode;
         const current = this.mainView();
-        if (current.type !== 'scenes' || current.guildId !== guildId) {
-            this.mainView.set({type: 'scenes', guildId});
+        if (current.type !== 'scenes' || current.guildId !== guildId || current.mode !== mode) {
+            this.mainView.set({type: 'scenes', guildId, mode});
             this.saveNav();
         }
         this.mobileNavOpen.set(false);
@@ -464,7 +473,7 @@ export class NavigationService {
                 // renamed or dropped from the guild while the app was closed.
                 state = {kind: 'server-personas', guildId: ws.guild.id};
             } else if (view.type === 'scenes') {
-                state = {kind: 'server-scenes', guildId: ws.guild.id};
+                state = {kind: 'server-scenes', guildId: ws.guild.id, sceneMode: view.mode};
             } else if (view.type === 'house') {
                 state = {kind: 'server-house', guildId: ws.guild.id};
             } else if (view.type === 'channel') {

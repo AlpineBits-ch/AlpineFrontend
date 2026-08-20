@@ -8,7 +8,7 @@ import {
     signal,
     untracked,
 } from '@angular/core';
-import {TranslateModule} from '@ngx-translate/core';
+import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {RelativeTimePipe} from '../../../../pipes/relative-time.pipe';
 import {TurnClockRingComponent} from '../turn-clock-ring/turn-clock-ring.component';
 import {SceneDialogComponent} from '../scene-dialog/scene-dialog.component';
@@ -17,7 +17,8 @@ import {SceneService} from '../../../../services/scene.service';
 import {PersonaService} from '../../../../services/persona.service';
 import {GuildService} from '../../../../services/guild.service';
 import {ProfileService} from '../../../../services/profile.service';
-import {NavigationService} from '../../../main-page/navigation.service';
+import {ToastService} from '../../../../services/toast.service';
+import {NavigationService, SceneBoardMode} from '../../../main-page/navigation.service';
 import {SceneListItemDto, SceneStatus} from '../../../../dtos/response/scene.dto';
 import {ChannelType} from '../../../../dtos/response/guild.dto';
 import {SelfGuildMemberDto} from '../../../../dtos/response/member.dto';
@@ -26,7 +27,6 @@ import {guildAbilities} from '../../guild-permissions';
 import {PersonaIdentity} from '../../personas/persona-identity';
 import {turnClock} from '../scene-clock';
 import {compareScenes, isWaitingOnMe, sceneStatusMeta} from '../scene-status';
-import {sceneTally} from '../scene-tally';
 
 /** One row, with everything resolved: the board redraws on a clock and must not resolve per cell. */
 export interface SceneRow {
@@ -34,7 +34,6 @@ export interface SceneRow {
     identity: PersonaIdentity | null;
     clock: ReturnType<typeof turnClock>;
     mine: boolean;
-    tally: ReturnType<typeof sceneTally>;
 }
 
 export interface SceneGroup {
@@ -72,11 +71,18 @@ export class SceneBoardComponent {
     private readonly personas = inject(PersonaService);
     private readonly guilds = inject(GuildService);
     private readonly profiles = inject(ProfileService);
+    private readonly toast = inject(ToastService);
+    private readonly translate = inject(TranslateService);
     protected readonly nav = inject(NavigationService);
 
     protected readonly SceneStatus = SceneStatus;
     protected readonly creating = signal(false);
-    protected readonly mode = signal<'playing' | 'archive'>('playing');
+
+    /** Held by the navigation service so it survives leaving the board and restoring the app. */
+    protected readonly mode = computed((): SceneBoardMode => {
+        const view = this.nav.mainView();
+        return view.type === 'scenes' && view.guildId === this.guildId() ? view.mode : 'playing';
+    });
 
     private readonly ownMember = signal<SelfGuildMemberDto | null>(null);
 
@@ -124,7 +130,6 @@ export class SceneBoardComponent {
                 }),
                 clock: turnClock(scene, now),
                 mine: isWaitingOnMe(scene, speakable),
-                tally: sceneTally(scene),
             }));
     });
 
@@ -170,8 +175,16 @@ export class SceneBoardComponent {
         return sceneStatusMeta(scene.status);
     }
 
+    protected setMode(mode: SceneBoardMode): void {
+        this.nav.openScenes(this.guildId(), mode);
+    }
+
     protected open(row: SceneRow): void {
         const channel = this.guild()?.channels.find(c => c.id === row.scene.channelId);
-        if (channel) this.nav.openChannel(channel);
+        if (!channel) {
+            this.toast.error(this.translate.instant('SCENE.BOARD.OPEN_FAILED'));
+            return;
+        }
+        this.nav.openChannel(channel);
     }
 }

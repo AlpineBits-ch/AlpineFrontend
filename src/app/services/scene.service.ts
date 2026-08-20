@@ -237,6 +237,12 @@ export class SceneService {
         return this.api.skipTurn(guildId, channelId, dto).pipe(tap(scene => this.absorb(guildId, scene)));
     }
 
+    /** The count lands through `guild.SceneTurnNudge`, so nothing is written here. */
+    nudgeTurn(guildId: string, channelId: string): Observable<void> {
+        this.wire();
+        return this.api.nudgeTurn(guildId, channelId);
+    }
+
     // ── Turn tracking ───────────────────────────────────────────────────────
 
     /**

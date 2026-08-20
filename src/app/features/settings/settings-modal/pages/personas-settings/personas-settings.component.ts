@@ -59,6 +59,22 @@ export class PersonasSettingsComponent {
         });
     }
 
+    protected retire(persona: PersonaDto): void {
+        this.busyId.set(persona.id);
+        this.personas.updateOwn(persona.id, {isRetired: true}).subscribe({
+            next: () => {
+                this.busyId.set(null);
+                this.toast.success(
+                    this.translate.instant('PERSONA.ACCOUNT.RETIRED_TOAST', {name: persona.name}),
+                );
+            },
+            error: err => {
+                this.busyId.set(null);
+                this.toast.httpError(this.translate.instant('PERSONA.ACCOUNT.RETIRE_FAILED'), err);
+            },
+        });
+    }
+
     protected confirmDelete(persona: PersonaDto): void {
         this.confirming.set(persona);
     }

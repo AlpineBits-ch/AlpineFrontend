@@ -1,15 +1,19 @@
 import {describe, expect, it} from 'vitest';
 import {
     canSpeakAs,
+    identityFromCastMember,
+    matchesCastMemberQuery,
     matchesPersonaQuery,
     messageAuthorIdentity,
     personaIdentity,
     sameSpeaker,
+    sortCastMembers,
     sortPersonas,
 } from './persona-identity';
 import {
     GuildPersonaDto,
     PersonaApprovalState,
+    PersonaCastMemberDto,
     PersonaDto,
     PersonaScope,
 } from '../../../dtos/response/persona.dto';
@@ -144,6 +148,67 @@ describe('matchesPersonaQuery', () => {
 
     it('does not match an unrelated word', () => {
         expect(matchesPersonaQuery(row, 'harbour')).toBe(false);
+    });
+});
+
+describe('the guild-wide cast', () => {
+    function member(over: Partial<PersonaCastMemberDto> = {}): PersonaCastMemberDto {
+        return {
+            personaId: 'p1',
+            name: 'Mayor Cogsgrove',
+            avatarUrl: 'https://cdn/cast.png',
+            color: '#b08968',
+            pronouns: 'he/him',
+            tag: 'Ashfen',
+            isRetired: false,
+            ...over,
+        };
+    }
+
+    it('builds an identity from the row as the guild sees it', () => {
+        expect(identityFromCastMember(member())).toEqual({
+            personaId: 'p1',
+            name: 'Mayor Cogsgrove',
+            avatarUrl: 'https://cdn/cast.png',
+            tag: 'Ashfen',
+            color: '#b08968',
+            pronouns: 'he/him',
+            initial: 'M',
+            isRetired: false,
+        });
+    });
+
+    it('drops a colour that is not a plain six-digit hex', () => {
+        expect(identityFromCastMember(member({color: 'rebeccapurple'})).color).toBeNull();
+    });
+
+    it('puts retired characters last, and sorts the rest by name', () => {
+        const rows = [
+            member({personaId: 'c', name: 'Zed'}),
+            member({personaId: 'a', name: 'Old One', isRetired: true}),
+            member({personaId: 'b', name: 'Ana'}),
+        ];
+        expect(sortCastMembers(rows).map(r => r.personaId)).toEqual(['b', 'c', 'a']);
+    });
+
+    it('does not sort the array it was handed', () => {
+        const rows = [member({personaId: 'b', name: 'Zed'}), member({personaId: 'a', name: 'Ana'})];
+        sortCastMembers(rows);
+        expect(rows.map(r => r.personaId)).toEqual(['b', 'a']);
+    });
+
+    it('searches the name, the tag and the pronouns', () => {
+        expect(matchesCastMemberQuery(member(), 'cogs')).toBe(true);
+        expect(matchesCastMemberQuery(member(), 'ashfen')).toBe(true);
+        expect(matchesCastMemberQuery(member(), 'he/him')).toBe(true);
+    });
+
+    it('matches everything on an empty query', () => {
+        expect(matchesCastMemberQuery(member(), '   ')).toBe(true);
+    });
+
+    it('does not match an unrelated word', () => {
+        expect(matchesCastMemberQuery(member(), 'harbour')).toBe(false);
     });
 });
 

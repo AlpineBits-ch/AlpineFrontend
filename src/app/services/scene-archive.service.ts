@@ -2,7 +2,7 @@ import {computed, inject, Injectable, signal} from '@angular/core';
 
 import {RoleplayApi} from './roleplay-api.service';
 import {SceneListItemDto} from '../dtos/response/scene.dto';
-import {SceneListParams, UNFILED} from '../dtos/request/scene.dto';
+import {SceneListParams, SceneSort, UNFILED} from '../dtos/request/scene.dto';
 
 /** What the archive is currently asking for. Every field is part of the cache key. */
 export interface ArchiveFilter {
@@ -11,12 +11,21 @@ export interface ArchiveFilter {
     folderId: string | null;
     tagIds: string[];
     q: string;
+    /** Defaults to `ended` when a caller does not choose. */
+    sort?: SceneSort;
 }
 
 const PAGE_SIZE = 50;
+const DEFAULT_SORT: SceneSort = 'ended';
 
 export function archiveKey(filter: ArchiveFilter): string {
-    return [filter.guildId, filter.folderId ?? '*', [...filter.tagIds].sort().join('+'), filter.q].join('|');
+    return [
+        filter.guildId,
+        filter.folderId ?? '*',
+        filter.sort ?? DEFAULT_SORT,
+        [...filter.tagIds].sort().join('+'),
+        filter.q,
+    ].join('|');
 }
 
 /**
@@ -31,6 +40,7 @@ export class SceneArchiveService {
     private readonly loadingKeys = signal<Record<string, boolean>>({});
     private readonly exhausted = signal<Record<string, boolean>>({});
     private readonly failed = signal<Record<string, boolean>>({});
+    private readonly truncatedKeys = signal<Record<string, boolean>>({});
 
     private readonly filter = signal<ArchiveFilter | null>(null);
 
@@ -51,6 +61,12 @@ export class SceneArchiveService {
         if (!filter) return false;
         const key = archiveKey(filter);
         return !!this.pages()[key] && !this.exhausted()[key];
+    });
+
+    /** True when more scenes matched this filter than the route will ever return. */
+    readonly truncated = computed(() => {
+        const filter = this.filter();
+        return !!filter && !!this.truncatedKeys()[archiveKey(filter)];
     });
 
     readonly errored = computed(() => {
@@ -126,6 +142,7 @@ export class SceneArchiveService {
                 // A short page is the end. `truncated` answers a different question: whether more
                 // matched than the route would return at all.
                 this.exhausted.update(map => ({...map, [key]: rows.length < PAGE_SIZE}));
+                this.truncatedKeys.update(map => ({...map, [key]: !!page.truncated}));
                 this.loadingKeys.update(map => ({...map, [key]: false}));
             },
             error: () => {
@@ -143,7 +160,7 @@ export class SceneArchiveService {
             includeConcluded: true,
             includeArchived: true,
             archivedOnly: true,
-            sort: 'ended',
+            sort: filter.sort ?? DEFAULT_SORT,
             limit: PAGE_SIZE,
             offset,
             folderId: filter.folderId ?? undefined,

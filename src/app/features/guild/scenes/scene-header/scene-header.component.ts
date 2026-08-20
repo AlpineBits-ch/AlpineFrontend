@@ -10,6 +10,9 @@ import {
     viewChild,
 } from '@angular/core';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
+import {Observable} from 'rxjs';
+import {Dialog} from 'primeng/dialog';
+import {PrimeTemplate} from 'primeng/api';
 import {RelativeTimePipe} from '../../../../pipes/relative-time.pipe';
 import {TurnRailComponent} from '../turn-rail/turn-rail.component';
 import {SceneDialogComponent} from '../scene-dialog/scene-dialog.component';
@@ -24,7 +27,7 @@ import {sceneStatusMeta} from '../scene-status';
 
 /**
  * The strip under a scene channel's title: the turn rail, the in-character / out-of-character pair,
- * and the two verbs a game master needs when a scene has stopped moving.
+ * and the verbs a game master needs when a scene has stopped moving.
  */
 @Component({
     selector: 'app-scene-header',
@@ -32,6 +35,8 @@ import {sceneStatusMeta} from '../scene-status';
     imports: [
         TranslateModule,
         RelativeTimePipe,
+        Dialog,
+        PrimeTemplate,
         TurnRailComponent,
         SceneDialogComponent,
         SceneConcludeDialogComponent,
@@ -58,23 +63,67 @@ export class SceneHeaderComponent {
     protected readonly busy = signal(false);
     protected readonly editing = signal(false);
     protected readonly concluding = signal(false);
+    protected readonly reopening = signal(false);
     protected readonly menuOpen = signal(false);
 
     private readonly menuRef = viewChild<ElementRef<HTMLElement>>('menu');
+    private readonly triggerRef = viewChild<ElementRef<HTMLElement>>('menuTrigger');
 
     constructor() {
-        // Focused on open so a click elsewhere blurs it; the panel would otherwise never close.
         effect(() => {
-            if (this.menuOpen()) queueMicrotask(() => this.menuRef()?.nativeElement.focus());
+            if (this.menuOpen()) queueMicrotask(() => this.menuItems()[0]?.focus());
         });
     }
 
-    /** Closes only when focus has actually left the panel, not when it moves between its buttons. */
+    /** Closes only when focus has actually left the panel, not when it moves between its items. */
     protected onMenuBlur(event: FocusEvent): void {
         const panel = this.menuRef()?.nativeElement;
         const next = event.relatedTarget as Node | null;
         if (panel && next && panel.contains(next)) return;
         this.menuOpen.set(false);
+    }
+
+    protected onMenuKeydown(event: KeyboardEvent): void {
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            this.closeMenu();
+            return;
+        }
+
+        const items = this.menuItems();
+        if (!items.length) return;
+        const at = items.indexOf(document.activeElement as HTMLElement);
+
+        switch (event.key) {
+            case 'ArrowDown':
+                event.preventDefault();
+                items[(at + 1) % items.length].focus();
+                break;
+            case 'ArrowUp':
+                event.preventDefault();
+                items[(at <= 0 ? items.length : at) - 1].focus();
+                break;
+            case 'Home':
+                event.preventDefault();
+                items[0].focus();
+                break;
+            case 'End':
+                event.preventDefault();
+                items[items.length - 1].focus();
+                break;
+        }
+    }
+
+    /** Closing by keyboard or by picking an item puts focus back where it came from. */
+    protected closeMenu(): void {
+        this.menuOpen.set(false);
+        this.triggerRef()?.nativeElement.focus();
+    }
+
+    private menuItems(): HTMLElement[] {
+        const panel = this.menuRef()?.nativeElement;
+        if (!panel) return [];
+        return Array.from(panel.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])'));
     }
 
     protected readonly status = computed(() => sceneStatusMeta(this.scene().status));
@@ -120,14 +169,37 @@ export class SceneHeaderComponent {
         this.run(this.scenes.skipTurn(this.guildId(), this.scene().channelId), 'SCENE.TOAST.SKIPPED');
     }
 
+    /** Chases the current turn now, ignoring the grace period and quiet hours. */
+    protected nudgeTurn(): void {
+        this.run(this.scenes.nudgeTurn(this.guildId(), this.scene().channelId), 'SCENE.TOAST.NUDGED');
+    }
+
     protected setStatus(status: SceneStatus): void {
         this.run(
             this.scenes.update(this.guildId(), this.scene().channelId, {status}),
-            status === SceneStatus.Paused ? 'SCENE.TOAST.PAUSED' : 'SCENE.TOAST.RESUMED',
+            this.statusToastKey(status),
         );
     }
 
-    private run(work: ReturnType<SceneService['skipTurn']>, successKey: string): void {
+    protected reopen(): void {
+        this.reopening.set(false);
+        this.setStatus(SceneStatus.Active);
+    }
+
+    /** Which verb the button just carried out, which the target status alone cannot say. */
+    private statusToastKey(status: SceneStatus): string {
+        if (status === SceneStatus.Paused) return 'SCENE.TOAST.PAUSED';
+        switch (this.scene().status) {
+            case SceneStatus.Open:
+                return 'SCENE.TOAST.STARTED';
+            case SceneStatus.Concluded:
+                return 'SCENE.TOAST.REOPENED';
+            default:
+                return 'SCENE.TOAST.RESUMED';
+        }
+    }
+
+    private run(work: Observable<unknown>, successKey: string): void {
         this.menuOpen.set(false);
         this.busy.set(true);
         work.subscribe({

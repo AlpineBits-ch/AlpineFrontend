@@ -194,6 +194,15 @@
     color: var(--color-connecting);
 }
 
+.composer-turn-quiet {
+    color: var(--color-text-faint);
+}
+
+.composer-turn-quiet i {
+    flex-shrink: 0;
+    font-size: 0.625rem;
+}
+
 .composer-turn-pass {
     flex-shrink: 0;
     border: 1px solid rgba(255, 255, 255, 0.12);

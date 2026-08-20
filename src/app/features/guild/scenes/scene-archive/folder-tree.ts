@@ -3,15 +3,15 @@ import {SceneFolderDto} from '../../../../dtos/response/scene.dto';
 export interface FolderNode {
     folder: SceneFolderDto;
     children: FolderNode[];
-    /** Scenes filed directly here, plus everything in its children. */
+    /** Scenes filed on this folder plus every scene filed anywhere below it. */
     count: number;
-    /** Filed directly here, which is what the folder's own row is filtered on. */
+    /** Scenes filed on this folder alone, which is what clicking its row filters on. */
     ownCount: number;
 }
 
 /**
- * Builds the rail's two levels. A folder whose parent is missing is treated as a root: a
- * half-applied delete must not hide a guild's scenes.
+ * Builds the rail. A folder whose parent is missing is treated as a root: a half-applied delete
+ * must not hide a guild's scenes.
  */
 export function folderTree(
     folders: readonly SceneFolderDto[],
@@ -21,12 +21,8 @@ export function folderTree(
     const nodes = new Map<string, FolderNode>();
 
     for (const folder of folders) {
-        nodes.set(folder.id, {
-            folder,
-            children: [],
-            count: countsByFolderId[folder.id] ?? 0,
-            ownCount: countsByFolderId[folder.id] ?? 0,
-        });
+        const own = countsByFolderId[folder.id] ?? 0;
+        nodes.set(folder.id, {folder, children: [], count: own, ownCount: own});
     }
 
     const roots: FolderNode[] = [];
@@ -40,19 +36,27 @@ export function folderTree(
         // the root rather than vanishing with it.
         if (parent && parent !== node) {
             parent.children.push(node);
-            parent.count += node.count;
         } else {
             roots.push(node);
         }
     }
 
-    const byPosition = (a: FolderNode, b: FolderNode) =>
-        a.folder.position - b.folder.position || a.folder.name.localeCompare(b.folder.name);
-
+    for (const root of roots) settle(root);
     roots.sort(byPosition);
-    for (const root of roots) root.children.sort(byPosition);
 
     return roots;
+}
+
+function byPosition(a: FolderNode, b: FolderNode): number {
+    return a.folder.position - b.folder.position || a.folder.name.localeCompare(b.folder.name);
+}
+
+/** Sorts a level and rolls its counts up. Returns the subtree total. */
+function settle(node: FolderNode): number {
+    node.children.sort(byPosition);
+    node.count = node.ownCount;
+    for (const child of node.children) node.count += settle(child);
+    return node.count;
 }
 
 /** How many scenes sit on each shelf, counted from the rows the archive is showing. */

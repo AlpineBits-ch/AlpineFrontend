@@ -1,6 +1,8 @@
 import {ChangeDetectionStrategy, Component, computed, inject, input, output, signal} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
+import {PrimeTemplate} from 'primeng/api';
+import {Dialog} from 'primeng/dialog';
 
 import {TagChipComponent} from '../../../../components/tag-chip/tag-chip.component';
 import {SceneTaxonomyService} from '../../../../services/scene-taxonomy.service';
@@ -14,10 +16,9 @@ const MAX_TAGS_PER_GUILD = 40;
 @Component({
     selector: 'app-scene-tag-editor',
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [TranslateModule, FormsModule, TagChipComponent],
+    imports: [TranslateModule, FormsModule, TagChipComponent, Dialog, PrimeTemplate],
     templateUrl: './scene-tag-editor.component.html',
     styleUrl: './scene-editor.component.css',
-    host: {'(document:keydown.escape)': 'closed.emit()'},
 })
 export class SceneTagEditorComponent {
     readonly guildId = input.required<string>();
@@ -33,9 +34,19 @@ export class SceneTagEditorComponent {
     protected readonly moderated = signal(false);
     protected readonly saving = signal(false);
     protected readonly editingId = signal<string | null>(null);
+    protected readonly confirmingDeleteId = signal<string | null>(null);
 
-    protected readonly swatches = ARCHIVE_COLORS;
-    protected readonly fallbackColor = ARCHIVE_COLOR_FALLBACK;
+    protected get swatches(): readonly string[] {
+        return ARCHIVE_COLORS;
+    }
+
+    protected get fallbackColor(): string {
+        return ARCHIVE_COLOR_FALLBACK;
+    }
+
+    protected get maxTags(): number {
+        return MAX_TAGS_PER_GUILD;
+    }
 
     protected readonly tags = computed(() => this.taxonomy.tags(this.guildId()));
 
@@ -50,6 +61,7 @@ export class SceneTagEditorComponent {
     }));
 
     protected edit(tag: SceneTagDto): void {
+        this.confirmingDeleteId.set(null);
         this.editingId.set(tag.id);
         this.name.set(tag.name);
         this.color.set(isNoColor(tag.color) ? '' : tag.color);
@@ -83,6 +95,7 @@ export class SceneTagEditorComponent {
             this.taxonomy
                 .updateTag(this.guildId(), editingId, {
                     name: this.name().trim(),
+                    // The tag PATCH has no "absent" colour: no colour is the #000000 sentinel.
                     color: this.color().trim() || NO_COLOR,
                     moderated: this.moderated(),
                 })
@@ -93,6 +106,7 @@ export class SceneTagEditorComponent {
         this.taxonomy
             .createTag(this.guildId(), {
                 name: this.name().trim(),
+                // Create says "nothing chosen" with null.
                 color: this.color().trim() || null,
                 moderated: this.moderated(),
             })
@@ -106,10 +120,12 @@ export class SceneTagEditorComponent {
         this.taxonomy.deleteTag(this.guildId(), tag.id).subscribe({
             next: () => {
                 this.saving.set(false);
+                this.confirmingDeleteId.set(null);
                 if (this.editingId() === tag.id) this.reset();
             },
             error: err => {
                 this.saving.set(false);
+                this.confirmingDeleteId.set(null);
                 this.toast.httpError(this.translate.instant('SCENE.ARCHIVE.TAG_ERROR'), err);
             },
         });

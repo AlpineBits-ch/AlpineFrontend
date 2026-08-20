@@ -1,90 +1,130 @@
-<button (click)="closed.emit()" [attr.aria-label]="'COMMON.CLOSE' | translate" class="editor-scrim" type="button"></button>
+<p-dialog
+    (visibleChange)="!$event && closed.emit()"
+    [closable]="true"
+    [draggable]="false"
+    [modal]="true"
+    [resizable]="false"
+    [style]="{width: '26rem'}"
+    [visible]="true"
+    appendTo="body"
+    maskStyleClass="backdrop-blur-sm"
+    styleClass="!bg-card !border !border-white/[0.08] !rounded-2xl"
+>
+    <ng-template pTemplate="header">
+        <span class="text-base font-semibold text-text-primary">{{ 'SCENE.ARCHIVE.MANAGE_TAGS' | translate }}</span>
+    </ng-template>
 
-<div class="editor">
-    <h2 class="editor-title">{{ 'SCENE.ARCHIVE.MANAGE_TAGS' | translate }}</h2>
+    <div class="editor-body">
+        @if (tags().length) {
+            <div class="editor-list thin-scrollbar">
+                @for (tag of tags(); track tag.id) {
+                    <div class="editor-row">
+                        <app-tag-chip [tag]="tag" size="xs" />
+                        @if (tag.moderated) {
+                            <span class="editor-badge">{{ 'SCENE.ARCHIVE.MODERATED' | translate }}</span>
+                        }
+                        <button
+                            (click)="edit(tag)"
+                            [attr.aria-label]="'COMMON.EDIT' | translate"
+                            class="editor-row-action ml-auto"
+                            type="button"
+                        >
+                            <i class="pi pi-pencil text-[0.5625rem]"></i>
+                        </button>
+                        <button
+                            (click)="confirmingDeleteId.set(tag.id)"
+                            [attr.aria-label]="'COMMON.DELETE' | translate"
+                            [disabled]="saving()"
+                            class="editor-row-action"
+                            type="button"
+                        >
+                            <i class="pi pi-trash text-[0.5625rem]"></i>
+                        </button>
+                    </div>
 
-    @if (tags().length) {
-        <div class="editor-list thin-scrollbar">
-            @for (tag of tags(); track tag.id) {
-                <div class="editor-row">
-                    <app-tag-chip [tag]="tag" size="xs" />
-                    @if (tag.moderated) {
-                        <span class="editor-badge">{{ 'SCENE.ARCHIVE.MODERATED' | translate }}</span>
+                    @if (confirmingDeleteId() === tag.id) {
+                        <div class="editor-confirm">
+                            <p class="editor-hint">{{ 'SCENE.ARCHIVE.DELETE_TAG_HINT' | translate }}</p>
+                            <div class="editor-confirm-actions">
+                                <button (click)="remove(tag)" [disabled]="saving()" class="editor-danger" type="button">
+                                    {{ 'SCENE.ARCHIVE.DELETE_TAG_CONFIRM' | translate }}
+                                </button>
+                                <button (click)="confirmingDeleteId.set(null)" class="editor-quiet" type="button">
+                                    {{ 'SCENE.ARCHIVE.DELETE_KEEP' | translate }}
+                                </button>
+                            </div>
+                        </div>
                     }
-                    <button (click)="edit(tag)" class="editor-row-action ml-auto" type="button">
-                        <i class="pi pi-pencil text-[0.5625rem]"></i>
-                    </button>
-                    <button (click)="remove(tag)" [disabled]="saving()" class="editor-row-action" type="button">
-                        <i class="pi pi-trash text-[0.5625rem]"></i>
-                    </button>
-                </div>
-            }
-        </div>
-    } @else {
-        <p class="editor-hint">{{ 'SCENE.ARCHIVE.NO_TAGS' | translate }}</p>
-    }
-
-    @if (!full() || editingId()) {
-        <div class="editor-divider"></div>
-
-        <div class="flex items-center gap-2">
-            <app-tag-chip [tag]="preview()" size="sm" />
-        </div>
-
-        <label class="editor-field">
-            <span class="editor-label">{{ 'SCENE.ARCHIVE.TAG_NAME' | translate }}</span>
-            <input [ngModel]="name()" (ngModelChange)="name.set($event)" maxlength="20" type="text" />
-        </label>
-
-        <div class="editor-field">
-            <span class="editor-label">{{ 'SCENE.ARCHIVE.FOLDER_COLOR' | translate }}</span>
-            <div class="color-row">
-                @for (swatch of swatches; track swatch) {
-                    <button
-                        (click)="color.set(swatch)"
-                        [attr.aria-label]="swatch"
-                        [class.is-on]="color() === swatch"
-                        [style.background]="swatch"
-                        class="color-dot"
-                        type="button"
-                    ></button>
                 }
-
-                <span class="color-custom">
-                    <input
-                        (input)="color.set($any($event.target).value)"
-                        [attr.aria-label]="'SCENE.ARCHIVE.COLOR_CUSTOM' | translate"
-                        [value]="color() || fallbackColor"
-                        type="color"
-                    />
-                </span>
-
-                <button (click)="color.set('')" [class.is-on]="!color()" class="color-none" type="button">
-                    {{ 'SCENE.ARCHIVE.COLOR_NONE' | translate }}
-                </button>
             </div>
-        </div>
-
-        <label class="editor-check">
-            <input [ngModel]="moderated()" (ngModelChange)="moderated.set($event)" type="checkbox" />
-            <span>{{ 'SCENE.ARCHIVE.MODERATED_HINT' | translate }}</span>
-        </label>
-    } @else {
-        <p class="editor-hint">{{ 'SCENE.ARCHIVE.TAG_LIMIT' | translate: {count: 40} }}</p>
-    }
-
-    <div class="editor-actions">
-        @if (editingId()) {
-            <button (click)="reset()" class="editor-quiet" type="button">
-                {{ 'SCENE.ARCHIVE.NEW_TAG' | translate }}
-            </button>
+        } @else {
+            <p class="editor-hint">{{ 'SCENE.ARCHIVE.NO_TAGS' | translate }}</p>
         }
 
-        <button (click)="closed.emit()" class="editor-quiet ml-auto" type="button">
-            {{ 'COMMON.CLOSE' | translate }}
-        </button>
-        <button (click)="save()" [disabled]="!valid() || saving() || (full() && !editingId())" class="editor-primary" type="button">
-            {{ 'COMMON.SAVE' | translate }}
-        </button>
+        @if (!full() || editingId()) {
+            <div class="editor-divider"></div>
+
+            <div class="flex items-center gap-2">
+                <app-tag-chip [tag]="preview()" size="sm" />
+            </div>
+
+            <label class="editor-field">
+                <span class="editor-label">{{ 'SCENE.ARCHIVE.TAG_NAME' | translate }}</span>
+                <input [ngModel]="name()" (ngModelChange)="name.set($event)" maxlength="20" type="text" />
+            </label>
+
+            <div class="editor-field">
+                <span class="editor-label">{{ 'SCENE.ARCHIVE.FOLDER_COLOR' | translate }}</span>
+                <div class="color-row">
+                    @for (swatch of swatches; track swatch) {
+                        <button
+                            (click)="color.set(swatch)"
+                            [attr.aria-label]="swatch"
+                            [class.is-on]="color() === swatch"
+                            [style.background]="swatch"
+                            class="color-dot"
+                            type="button"
+                        ></button>
+                    }
+
+                    <span class="color-custom">
+                        <input
+                            (input)="color.set($any($event.target).value)"
+                            [attr.aria-label]="'SCENE.ARCHIVE.COLOR_CUSTOM' | translate"
+                            [value]="color() || fallbackColor"
+                            type="color"
+                        />
+                    </span>
+
+                    <button (click)="color.set('')" [class.is-on]="!color()" class="color-none" type="button">
+                        {{ 'SCENE.ARCHIVE.COLOR_NONE' | translate }}
+                    </button>
+                </div>
+            </div>
+
+            <label class="editor-check">
+                <input [ngModel]="moderated()" (ngModelChange)="moderated.set($event)" type="checkbox" />
+                <span>{{ 'SCENE.ARCHIVE.MODERATED_HINT' | translate }}</span>
+            </label>
+        } @else {
+            <p class="editor-hint">{{ 'SCENE.ARCHIVE.TAG_LIMIT' | translate: {count: maxTags} }}</p>
+        }
     </div>
-</div>
+
+    <ng-template pTemplate="footer">
+        <div class="editor-actions">
+            @if (editingId()) {
+                <button (click)="reset()" class="editor-quiet" type="button">
+                    {{ 'SCENE.ARCHIVE.NEW_TAG' | translate }}
+                </button>
+            }
+
+            <button (click)="closed.emit()" class="editor-quiet ml-auto" type="button">
+                {{ 'COMMON.CLOSE' | translate }}
+            </button>
+            <button (click)="save()" [disabled]="!valid() || saving() || (full() && !editingId())" class="editor-primary" type="button">
+                {{ 'COMMON.SAVE' | translate }}
+            </button>
+        </div>
+    </ng-template>
+</p-dialog>

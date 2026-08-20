@@ -3,10 +3,14 @@ import {
     ApplicationConfig,
     ErrorHandler,
     inject,
+    LOCALE_ID,
     provideAppInitializer,
     provideBrowserGlobalErrorListeners,
     provideZoneChangeDetection,
 } from '@angular/core';
+import {registerLocaleData} from '@angular/common';
+import localeDe from '@angular/common/locales/de';
+import localeFr from '@angular/common/locales/fr';
 import {provideRouter, Router, withHashLocation} from '@angular/router';
 import {provideAnimations} from '@angular/platform-browser/animations';
 import {AuthConfig, OAuthStorage, provideOAuthClient} from 'angular-oauth2-oidc';
@@ -37,6 +41,17 @@ import {HttpPersonaApi, PersonaApi} from './services/persona-api.service';
 import {HttpRoleplayApi, RoleplayApi} from './services/roleplay-api.service';
 import {DraftApi, HttpDraftApi} from './services/draft-api.service';
 import {HttpWikiPublicationApi, WikiPublicationApi} from './services/wiki-publication-api.service';
+
+registerLocaleData(localeDe);
+registerLocaleData(localeFr);
+
+/** Codes the block above covers. `en` needs no registration: Angular ships it. */
+const LOCALES_WITH_DATA = new Set(['en', 'de', 'fr']);
+
+export function localeIdFactory(): string {
+    const code = inject(LanguageService).current();
+    return LOCALES_WITH_DATA.has(code) ? code : DEFAULT_LANGUAGE;
+}
 
 export function authConfigFactory(): AuthConfig {
     const apiService = inject(ApiConfigService);
@@ -96,6 +111,8 @@ export const appConfig: ApplicationConfig = {
             }),
             fallbackLang: DEFAULT_LANGUAGE,
         }),
+        // Resolved once per injector, so a mid-session switch only reaches pipes created after it.
+        {provide: LOCALE_ID, useFactory: localeIdFactory},
         provideZoneChangeDetection({eventCoalescing: true}),
         provideRouter(routes),
         providePrimeNG({

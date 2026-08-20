@@ -80,6 +80,21 @@ export interface GuildPersonaDto {
     canSpeak: boolean;
 }
 
+/**
+ * One character the guild has adopted, as everybody else sees it. `GET .../personas/cast` answers
+ * "what is this character called"; the plain `.../personas` read answers "what may I speak as".
+ * Neither substitutes for the other, and this one says nothing about who plays them.
+ */
+export interface PersonaCastMemberDto {
+    personaId: string;
+    name: string;
+    avatarUrl?: string | null;
+    color?: string | null;
+    pronouns?: string | null;
+    tag?: string | null;
+    isRetired: boolean;
+}
+
 export interface PersonaGrantDto {
     id: string;
     personaId: string;

@@ -39,9 +39,11 @@
         @if (canManage()) {
             <div class="relative">
                 <button
+                    #menuTrigger
                     (click)="menuOpen.set(!menuOpen())"
                     [attr.aria-expanded]="menuOpen()"
                     [attr.aria-label]="'SCENE.MENU.ARIA' | translate"
+                    aria-haspopup="menu"
                     class="scene-icon-button"
                     type="button"
                 >
@@ -49,28 +51,92 @@
                 </button>
 
                 @if (menuOpen()) {
-                    <div #menu (focusout)="onMenuBlur($event)" class="scene-menu" tabindex="-1">
-                        <button (click)="editing.set(true); menuOpen.set(false)" class="scene-menu-item" type="button">
+                    <div
+                        #menu
+                        (focusout)="onMenuBlur($event)"
+                        (keydown)="onMenuKeydown($event)"
+                        [attr.aria-label]="'SCENE.MENU.ARIA' | translate"
+                        class="scene-menu"
+                        role="menu"
+                        tabindex="-1"
+                    >
+                        <button
+                            (click)="menuOpen.set(false); editing.set(true)"
+                            class="scene-menu-item"
+                            role="menuitem"
+                            tabindex="-1"
+                            type="button"
+                        >
                             <i class="pi pi-users"></i>
                             {{ 'SCENE.MENU.EDIT' | translate }}
                         </button>
                         @if (scene().status === SceneStatus.Active) {
-                            <button (click)="skipTurn()" [disabled]="busy()" class="scene-menu-item" type="button">
+                            <button
+                                (click)="closeMenu(); nudgeTurn()"
+                                [disabled]="busy()"
+                                class="scene-menu-item"
+                                role="menuitem"
+                                tabindex="-1"
+                                type="button"
+                            >
+                                <i class="pi pi-bell"></i>
+                                {{ 'SCENE.MENU.NUDGE' | translate }}
+                            </button>
+                            <button
+                                (click)="closeMenu(); skipTurn()"
+                                [disabled]="busy()"
+                                class="scene-menu-item"
+                                role="menuitem"
+                                tabindex="-1"
+                                type="button"
+                            >
                                 <i class="pi pi-forward"></i>
                                 {{ 'SCENE.MENU.SKIP' | translate }}
                             </button>
-                            <button (click)="setStatus(SceneStatus.Paused)" [disabled]="busy()" class="scene-menu-item" type="button">
+                            <button
+                                (click)="closeMenu(); setStatus(SceneStatus.Paused)"
+                                [disabled]="busy()"
+                                class="scene-menu-item"
+                                role="menuitem"
+                                tabindex="-1"
+                                type="button"
+                            >
                                 <i class="pi pi-pause"></i>
                                 {{ 'SCENE.MENU.PAUSE' | translate }}
                             </button>
                         } @else if (scene().status === SceneStatus.Paused || scene().status === SceneStatus.Open) {
-                            <button (click)="setStatus(SceneStatus.Active)" [disabled]="busy()" class="scene-menu-item" type="button">
+                            <button
+                                (click)="closeMenu(); setStatus(SceneStatus.Active)"
+                                [disabled]="busy()"
+                                class="scene-menu-item"
+                                role="menuitem"
+                                tabindex="-1"
+                                type="button"
+                            >
                                 <i class="pi pi-play"></i>
                                 {{ (scene().status === SceneStatus.Open ? 'SCENE.MENU.START' : 'SCENE.MENU.RESUME') | translate }}
                             </button>
                         }
-                        @if (scene().status !== SceneStatus.Concluded) {
-                            <button (click)="concluding.set(true); menuOpen.set(false)" class="scene-menu-item" type="button">
+                        @if (scene().status === SceneStatus.Concluded) {
+                            <button
+                                (click)="menuOpen.set(false); reopening.set(true)"
+                                [disabled]="busy()"
+                                class="scene-menu-item"
+                                role="menuitem"
+                                tabindex="-1"
+                                type="button"
+                            >
+                                <i class="pi pi-replay"></i>
+                                {{ 'SCENE.MENU.REOPEN' | translate }}
+                            </button>
+                        } @else {
+                            <button
+                                (click)="menuOpen.set(false); concluding.set(true)"
+                                class="scene-menu-item"
+                                role="menuitem"
+                                tabindex="-1"
+                                type="button"
+                            >
                                 <i class="pi pi-bookmark-fill"></i>
                                 {{ 'SCENE.MENU.CONCLUDE' | translate }}
                             </button>
@@ -84,7 +150,7 @@
 
 <!-- ── Stalled ─────────────────────────────────────────────────────────────
      Only the game master sees this, and only after the sweep has already told
-     the players. It states the fact and offers the two verbs that move a scene. -->
+     the players. It states the fact and offers the verbs that move a scene. -->
 @if (isStalled() && canManage()) {
     <div class="scene-stalled">
         <i class="pi pi-hourglass scene-stalled-icon"></i>
@@ -98,6 +164,9 @@
                           }
             }}
         </p>
+        <button (click)="nudgeTurn()" [disabled]="busy()" class="scene-stalled-action" type="button">
+            {{ 'SCENE.STALLED.NUDGE' | translate: {name: currentIdentity()?.name ?? ''} }}
+        </button>
         <button (click)="skipTurn()" [disabled]="busy()" class="scene-stalled-action" type="button">
             {{ 'SCENE.STALLED.SKIP' | translate: {name: currentIdentity()?.name ?? ''} }}
         </button>
@@ -113,4 +182,37 @@
 
 @if (concluding()) {
     <app-scene-conclude-dialog (closed)="concluding.set(false)" [guildId]="guildId()" [scene]="scene()" />
+}
+
+<!-- Reopening undoes a deliberate ending, so it asks first. -->
+@if (reopening()) {
+    <p-dialog
+        (visibleChange)="!$event && reopening.set(false)"
+        [closable]="true"
+        [draggable]="false"
+        [modal]="true"
+        [resizable]="false"
+        [style]="{width: '24rem'}"
+        [visible]="true"
+        appendTo="body"
+        maskStyleClass="backdrop-blur-sm"
+        styleClass="!bg-card !border !border-white/[0.08] !rounded-2xl"
+    >
+        <ng-template pTemplate="header">
+            <span class="text-base font-semibold text-text-primary">{{ 'SCENE.REOPEN.TITLE' | translate }}</span>
+        </ng-template>
+
+        <p class="scene-reopen-body">{{ 'SCENE.REOPEN.BODY' | translate: {name: scene().name} }}</p>
+
+        <ng-template pTemplate="footer">
+            <div class="flex w-full items-center justify-end gap-2">
+                <button (click)="reopening.set(false)" class="scene-stalled-action" type="button">
+                    {{ 'PERSONA.CANCEL' | translate }}
+                </button>
+                <button (click)="reopen()" [disabled]="busy()" class="scene-reopen-confirm" type="button">
+                    {{ 'SCENE.REOPEN.CONFIRM' | translate }}
+                </button>
+            </div>
+        </ng-template>
+    </p-dialog>
 }

@@ -1,15 +1,15 @@
 <div class="flex min-h-0 flex-1 overflow-hidden">
     <aside class="archive-rail thin-scrollbar">
         <app-scene-folder-rail
-            (createFolder)="editing.set('new')"
+            (createFolder)="editing.set({folder: null, seedParentId: $event})"
+            (deleteFolder)="editing.set({folder: $event.folder, seedParentId: null})"
             (filed)="file($event.channelId, $event.folderId)"
             (picked)="folderId.set($event)"
-            (renameFolder)="editing.set($event.folder)"
+            (renameFolder)="editing.set({folder: $event.folder, seedParentId: null})"
+            (reordered)="reorder($event)"
             [canManage]="canManage()"
             [selected]="folderId()"
-            [totalCount]="archive.scenes().length"
             [tree]="tree()"
-            [unfiledCount]="unfiledCount()"
         />
     </aside>
 
@@ -25,11 +25,26 @@
                 />
             </div>
 
+            <button (click)="sortMenu.toggle($event)" class="archive-clear archive-sort" type="button">
+                {{ sortLabel() | translate }}
+                <i class="pi pi-chevron-down text-[0.5rem]"></i>
+            </button>
+
             @if (tags().length) {
                 <div class="flex flex-wrap items-center gap-1">
-                    @for (tag of tags(); track tag.id) {
+                    <span [title]="'SCENE.ARCHIVE.TAGS_AND_HINT' | translate" class="archive-tag-label">
+                        {{ (tagIds().length ? 'SCENE.ARCHIVE.TAGS_ALL_OF' : 'SCENE.ARCHIVE.TAGS') | translate }}
+                    </span>
+
+                    @for (tag of inlineTags(); track tag.id) {
                         <button (click)="toggleTag(tag.id)" class="contents" type="button">
                             <app-tag-chip [interactive]="true" [selected]="tagIds().includes(tag.id)" [tag]="tag" />
+                        </button>
+                    }
+
+                    @if (hiddenTagCount() > 0) {
+                        <button (click)="tagPicker.toggle($event)" class="archive-clear" type="button">
+                            {{ 'SCENE.ARCHIVE.MORE_TAGS' | translate: {count: hiddenTagCount()} }}
                         </button>
                     }
                 </div>
@@ -79,6 +94,13 @@
                         }
                     </div>
                 } @else {
+                    @if (archive.truncated()) {
+                        <p class="archive-notice">
+                            <i class="pi pi-info-circle text-[0.6875rem]"></i>
+                            {{ 'SCENE.ARCHIVE.TRUNCATED' | translate }}
+                        </p>
+                    }
+
                     <div class="flex flex-col gap-1.5">
                         @for (scene of archive.scenes(); track scene.channelId) {
                             <app-scene-archive-card
@@ -101,19 +123,48 @@
     </div>
 </div>
 
+<p-menu #sortMenu [model]="sortItems()" [popup]="true" appendTo="body" />
+
+<p-popover #tagPicker [style]="{width: '15rem'}" appendTo="body">
+    <div class="flex flex-col gap-2">
+        <input
+            [ngModel]="tagSearch()"
+            (ngModelChange)="tagSearch.set($event)"
+            [placeholder]="'SCENE.ARCHIVE.TAG_FILTER_SEARCH' | translate"
+            class="archive-tag-search"
+            type="search"
+        />
+        <div class="archive-tag-list thin-scrollbar">
+            @for (tag of tagMatches(); track tag.id) {
+                <button (click)="toggleTag(tag.id)" class="archive-tag-option" type="button">
+                    <app-tag-chip [interactive]="true" [selected]="tagIds().includes(tag.id)" [tag]="tag" />
+                </button>
+            } @empty {
+                <p class="archive-tag-empty">{{ 'SCENE.ARCHIVE.NO_TAG_MATCH' | translate }}</p>
+            }
+        </div>
+    </div>
+</p-popover>
+
 @if (opened(); as scene) {
     <app-scene-detail-sheet
         (closed)="opened.set(null)"
         (filed)="file(scene.channelId, $event)"
-        (tagged)="archive.patch(scene.channelId, {tagIds: $event})"
+        (tagged)="tagged(scene.channelId, $event)"
         [canManage]="canManage()"
         [guildId]="guildId()"
         [scene]="scene"
     />
 }
 
+<!-- Delete comes through here too: the editor holds the only confirm. -->
 @if (editing(); as target) {
-    <app-scene-folder-editor (closed)="editing.set(null)" [folder]="target === 'new' ? null : target" [guildId]="guildId()" />
+    <app-scene-folder-editor
+        (closed)="editing.set(null)"
+        [folder]="target.folder"
+        [guildId]="guildId()"
+        [seedParentId]="target.seedParentId"
+    />
 }
 
 @if (managingTags()) {

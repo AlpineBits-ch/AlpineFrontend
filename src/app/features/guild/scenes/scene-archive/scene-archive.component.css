@@ -62,6 +62,69 @@
     color: var(--color-text-secondary);
 }
 
+.archive-sort {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3125rem;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.archive-tag-label {
+    font-size: 0.5625rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-text-faint);
+    cursor: help;
+}
+
+.archive-tag-search {
+    width: 100%;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 0.5rem;
+    background: rgba(255, 255, 255, 0.03);
+    padding: 0.3125rem 0.5rem;
+    font-size: 0.75rem;
+    color: var(--color-text-primary);
+    outline: none;
+}
+
+.archive-tag-search::placeholder {
+    color: var(--color-text-faint);
+}
+
+.archive-tag-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3125rem;
+    max-height: 14rem;
+    overflow-y: auto;
+}
+
+.archive-tag-option {
+    display: contents;
+    cursor: pointer;
+}
+
+.archive-tag-empty {
+    margin: 0;
+    padding: 0.5rem 0.25rem;
+    font-size: 0.75rem;
+    color: var(--color-text-faint);
+}
+
+.archive-notice {
+    display: flex;
+    align-items: center;
+    gap: 0.4375rem;
+    margin: 0 0 0.75rem;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 0.75rem;
+    padding: 0.4375rem 0.6875rem;
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+}
+
 .archive-more {
     display: block;
     width: 100%;

@@ -50,44 +50,66 @@
                 />
             </label>
 
-            <label class="flex flex-col gap-1">
+            <div class="flex flex-col gap-1.5">
                 <span class="text-[0.75rem] text-text-secondary">{{ 'PERSONA.FIELD.AVATAR' | translate }}</span>
+                <div class="avatar-picker">
+                    <app-persona-avatar [avatarUrl]="globalAvatar() || null" [color]="previewColor()" [name]="name()" size="lg" />
+                    <div class="flex min-w-0 flex-col items-start gap-1">
+                        <label class="avatar-pick">
+                            <i class="pi pi-upload text-[0.6875rem]"></i>
+                            {{ 'PERSONA.FIELD.AVATAR_UPLOAD' | translate }}
+                            <input (change)="onAvatarPicked($event, 'global')" accept="image/*" class="hidden" type="file" />
+                        </label>
+                        @if (hasAvatar('global')) {
+                            <button (click)="clearAvatar('global')" class="avatar-clear" type="button">
+                                <i class="pi pi-trash text-[0.6875rem]"></i>
+                                {{ 'PERSONA.FIELD.AVATAR_REMOVE' | translate }}
+                            </button>
+                        }
+                        <span class="text-[0.625rem] leading-snug text-text-faint">
+                            {{ 'PERSONA.FIELD.AVATAR_HINT' | translate }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <label class="flex flex-col gap-1">
+                <span class="text-[0.75rem] text-text-secondary">{{ 'PERSONA.FIELD.PRONOUNS' | translate }}</span>
                 <input
-                    (ngModelChange)="avatarUrl.set($event)"
-                    [ngModel]="avatarUrl()"
-                    [placeholder]="'PERSONA.FIELD.AVATAR_PLACEHOLDER' | translate"
+                    (ngModelChange)="pronouns.set($event)"
+                    [ngModel]="pronouns()"
+                    [placeholder]="'PERSONA.FIELD.PRONOUNS_PLACEHOLDER' | translate"
                     class="persona-input"
+                    maxlength="32"
                 />
             </label>
 
-            <div class="flex gap-3">
-                <label class="flex min-w-0 flex-1 flex-col gap-1">
-                    <span class="text-[0.75rem] text-text-secondary">{{ 'PERSONA.FIELD.PRONOUNS' | translate }}</span>
-                    <input
-                        (ngModelChange)="pronouns.set($event)"
-                        [ngModel]="pronouns()"
-                        [placeholder]="'PERSONA.FIELD.PRONOUNS_PLACEHOLDER' | translate"
-                        class="persona-input"
-                        maxlength="32"
-                    />
-                </label>
-                <div class="flex flex-col gap-1">
-                    <span class="text-[0.75rem] text-text-secondary">{{ 'PERSONA.FIELD.COLOR' | translate }}</span>
-                    <div class="flex items-center gap-2">
-                        <div class="color-swatch-wrap">
-                            <div [style.background]="previewColor() || 'transparent'" class="color-swatch-bg"></div>
-                            <input (input)="color.set($any($event.target).value)" [value]="color() || '#4B5BC4'" type="color" />
-                        </div>
-                        @if (color()) {
-                            <button
-                                (click)="color.set('')"
-                                class="border-0 bg-transparent text-[0.6875rem] text-text-muted transition-colors cursor-pointer hover:text-text-primary"
-                                type="button"
-                            >
-                                {{ 'PERSONA.EDITOR.CLEAR' | translate }}
-                            </button>
-                        }
-                    </div>
+            <div class="flex flex-col gap-1.5">
+                <span class="text-[0.75rem] text-text-secondary">{{ 'PERSONA.FIELD.COLOR' | translate }}</span>
+                <div class="color-row">
+                    @for (swatch of swatches; track swatch) {
+                        <button
+                            (click)="color.set(swatch)"
+                            [attr.aria-label]="swatch"
+                            [class.is-on]="pickedColor() === swatch"
+                            [style.background]="swatch"
+                            class="color-dot"
+                            type="button"
+                        ></button>
+                    }
+
+                    <span class="color-custom">
+                        <input
+                            (input)="color.set($any($event.target).value)"
+                            [attr.aria-label]="'SCENE.ARCHIVE.COLOR_CUSTOM' | translate"
+                            [value]="color() || fallbackColor"
+                            type="color"
+                        />
+                    </span>
+
+                    <button (click)="color.set('')" [class.is-on]="!pickedColor()" class="color-none" type="button">
+                        {{ 'SCENE.ARCHIVE.COLOR_NONE' | translate }}
+                    </button>
                 </div>
             </div>
 
@@ -140,14 +162,14 @@
                     />
                 </label>
 
-                <label class="flex flex-col gap-1">
+                <div class="flex flex-col gap-1.5">
                     <span class="flex items-center gap-1.5 text-[0.75rem] text-text-secondary">
                         {{ 'PERSONA.FIELD.AVATAR' | translate }}
-                        @if (inherited(guildAvatarUrl())) {
+                        @if (!hasAvatar('guild')) {
                             <span class="text-[0.625rem] text-text-faint">{{ 'PERSONA.EDITOR.INHERITED' | translate }}</span>
                         } @else {
                             <button
-                                (click)="guildAvatarUrl.set('')"
+                                (click)="clearAvatar('guild')"
                                 class="border-0 bg-transparent p-0 text-[0.625rem] text-brand-dim transition-colors cursor-pointer hover:brightness-125"
                                 type="button"
                             >
@@ -155,13 +177,21 @@
                             </button>
                         }
                     </span>
-                    <input
-                        (ngModelChange)="guildAvatarUrl.set($event)"
-                        [ngModel]="guildAvatarUrl()"
-                        [placeholder]="avatarUrl() || ('PERSONA.FIELD.AVATAR_PLACEHOLDER' | translate)"
-                        class="persona-input"
-                    />
-                </label>
+                    <div class="avatar-picker">
+                        <!-- Falls back to the global picture, which is what this guild shows with no override. -->
+                        <app-persona-avatar
+                            [avatarUrl]="guildAvatar() || globalAvatar() || null"
+                            [color]="previewColor()"
+                            [name]="previewName()"
+                            size="lg"
+                        />
+                        <label class="avatar-pick">
+                            <i class="pi pi-upload text-[0.6875rem]"></i>
+                            {{ 'PERSONA.FIELD.AVATAR_UPLOAD' | translate }}
+                            <input (change)="onAvatarPicked($event, 'guild')" accept="image/*" class="hidden" type="file" />
+                        </label>
+                    </div>
+                </div>
 
                 <label class="flex flex-col gap-1">
                     <span class="text-[0.75rem] text-text-secondary">{{ 'PERSONA.FIELD.TAG' | translate }}</span>
@@ -202,6 +232,9 @@
                         <span class="text-[0.6875rem] leading-snug text-text-faint">
                             {{ 'PERSONA.FIELD.PROXY_PREVIEW' | translate: {example: tagPreview(), name: previewName()} }}
                         </span>
+                        <span class="text-[0.6875rem] leading-snug text-text-faint">
+                            {{ 'PERSONA.FIELD.PROXY_UNVERIFIED' | translate }}
+                        </span>
                     } @else {
                         <span class="text-[0.6875rem] leading-snug text-text-faint">{{ 'PERSONA.FIELD.PROXY_HINT' | translate }}</span>
                     }
@@ -209,6 +242,13 @@
             </section>
         }
     </div>
+
+    @if (conflict(); as message) {
+        <p class="mt-4 mb-0 flex items-start gap-1.5 text-[0.75rem] leading-snug text-offline">
+            <i class="pi pi-exclamation-circle mt-[0.1rem] shrink-0 text-[0.75rem]"></i>
+            <span>{{ message }}</span>
+        </p>
+    }
 
     <div class="mt-5 flex items-center justify-end gap-2 border-t border-white/[0.10] pt-4">
         <p-button (onClick)="closed.emit()" [label]="'PERSONA.CANCEL' | translate" [text]="true" severity="secondary" size="small" />
@@ -221,4 +261,28 @@
             size="small"
         />
     </div>
+</p-dialog>
+
+<p-dialog
+    (visibleChange)="!$event && cancelCrop()"
+    [draggable]="false"
+    [header]="'PERSONA.FIELD.AVATAR_CROP' | translate"
+    [modal]="true"
+    [resizable]="false"
+    [style]="{width: '24rem'}"
+    [visible]="!!cropSrc()"
+    appendTo="body"
+    maskStyleClass="backdrop-blur-sm"
+    styleClass="!bg-card !border !border-white/[0.08] !rounded-2xl"
+>
+    @if (cropSrc()) {
+        <app-image-cropper
+            (cancelled)="cancelCrop()"
+            (confirmed)="onCropConfirmed($event)"
+            [circular]="true"
+            [imageSrc]="cropSrc()"
+            [outputHeight]="400"
+            [outputWidth]="400"
+        />
+    }
 </p-dialog>

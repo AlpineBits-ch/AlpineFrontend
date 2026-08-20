@@ -1,9 +1,10 @@
 import {signal} from '@angular/core';
 import {TestBed} from '@angular/core/testing';
-import {Subject} from 'rxjs';
+import {of, Subject} from 'rxjs';
 import {describe, expect, it} from 'vitest';
 
 import {SceneService} from './scene.service';
+import {ArchiveFilter, archiveKey, SceneArchiveService} from './scene-archive.service';
 import {RoleplayApi} from './roleplay-api.service';
 import {PersonaService} from './persona.service';
 import {GuildWebsocketService} from './guild-websocket.service';
@@ -182,5 +183,75 @@ describe('SceneService scene lifecycle events', () => {
         expect(concluded.postCount).toBe(96);
         expect(service.nudge('ch_1')).toBeNull();
         expect(service.waitingOnMe('g1')).toEqual([]);
+    });
+});
+
+describe('SceneService turn writes', () => {
+    it('posts a nudge and leaves the count to the hub event', () => {
+        const nudged: [string, string][] = [];
+        const api = apiStub();
+        TestBed.configureTestingModule({
+            providers: [
+                {
+                    provide: RoleplayApi,
+                    useValue: {
+                        ...api,
+                        nudgeTurn: (guildId: string, channelId: string) => {
+                            nudged.push([guildId, channelId]);
+                            return of(undefined);
+                        },
+                    },
+                },
+                {provide: GuildWebsocketService, useValue: wsStub()},
+                {provide: PersonaService, useValue: {speakable: () => [], ensureCast: () => undefined}},
+                {provide: GuildService, useValue: guildStub(['ch_1'])},
+                {provide: NavigationService, useValue: {updateCurrentGuild: () => undefined}},
+            ],
+        });
+        const service = TestBed.inject(SceneService);
+
+        service.nudgeTurn('g1', 'ch_1').subscribe();
+
+        expect(nudged).toEqual([['g1', 'ch_1']]);
+        expect(service.scenes('g1')).toEqual([]);
+    });
+});
+
+describe('SceneArchiveService sorting and truncation', () => {
+    const FILTER: ArchiveFilter = {guildId: 'g1', folderId: null, tagIds: [], q: '', sort: 'ended'};
+
+    function archiveSetup() {
+        const api = apiStub();
+        TestBed.configureTestingModule({providers: [{provide: RoleplayApi, useValue: api}]});
+        return {archive: TestBed.inject(SceneArchiveService), api};
+    }
+
+    it('keys two sorts apart so they cannot share a cached page', () => {
+        expect(archiveKey({...FILTER, sort: 'name'})).not.toBe(archiveKey(FILTER));
+        expect(archiveKey({...FILTER, sort: 'board'})).not.toBe(archiveKey({...FILTER, sort: 'name'}));
+    });
+
+    it('asks for the sort the filter carries', () => {
+        const {archive, api} = archiveSetup();
+
+        archive.apply({...FILTER, sort: 'name'});
+
+        expect(api.listCalls[0]?.sort).toBe('name');
+    });
+
+    it('holds truncation per filter', () => {
+        const {archive, api} = archiveSetup();
+
+        archive.apply(FILTER);
+        api.lists[0].next({scenes: [row()], truncated: true});
+        expect(archive.truncated()).toBe(true);
+
+        archive.apply({...FILTER, sort: 'name'});
+        api.lists[1].next({scenes: [row()], truncated: false});
+        expect(archive.truncated()).toBe(false);
+
+        // Back to the first filter, answered from cache: its own truncation stands.
+        archive.apply(FILTER);
+        expect(archive.truncated()).toBe(true);
     });
 });

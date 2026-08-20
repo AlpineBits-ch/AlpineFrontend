@@ -16,6 +16,7 @@ import {Dialog} from 'primeng/dialog';
 import {PrimeTemplate} from 'primeng/api';
 import {PersonaAvatarComponent} from '../persona-avatar/persona-avatar.component';
 import {PersonaService} from '../../../../services/persona.service';
+import {GuildService} from '../../../../services/guild.service';
 import {ProfileService} from '../../../../services/profile.service';
 import {ProfilePopoutService} from '../../../../services/profile-popout.service';
 import {ToastService} from '../../../../services/toast.service';
@@ -23,8 +24,11 @@ import {NavigationService} from '../../../main-page/navigation.service';
 import {WikiDeepLinkService} from '../../components/wiki/wiki-share/wiki-deep-link.service';
 import {renderWikiMarkdown} from '../../components/wiki/wiki.utils';
 import {WikiPageDto} from '../../../../dtos/response/wiki.dto';
+import {SelfGuildMemberDto} from '../../../../dtos/response/member.dto';
 import {PersonaPagePullStrategy, PersonaUpstreamState} from '../../../../dtos/response/persona.dto';
-import {personaCoverGradient, personaIdentity} from '../persona-identity';
+import {guildAbilities} from '../../guild-permissions';
+import {ModulePermissions} from '../../../../enums/module-permissions.enum';
+import {personaCoverGradient} from '../persona-identity';
 import {approvalMeta} from '../persona-approval';
 import {
     infoboxEditFields,
@@ -53,6 +57,7 @@ export class CharacterPageComponent {
     readonly personaId = input.required<string>();
 
     private readonly personas = inject(PersonaService);
+    private readonly guilds = inject(GuildService);
     private readonly profiles = inject(ProfileService);
     private readonly sanitizer = inject(DomSanitizer);
     private readonly deepLink = inject(WikiDeepLinkService);
@@ -70,11 +75,35 @@ export class CharacterPageComponent {
     protected readonly savingInfobox = signal(false);
     private readonly templateJson = signal<string | null>(null);
     private readonly categories = signal<{id: string; infoboxTemplateJson?: string | null}[]>([]);
+    private readonly ownMember = signal<SelfGuildMemberDto | null>(null);
+    private readonly requestedFor = signal<string | null>(null);
 
     protected readonly entry = computed(() => this.personas.entry(this.guildId(), this.personaId()));
-    protected readonly identity = computed(() => {
-        const entry = this.entry();
-        return entry ? personaIdentity(entry) : null;
+
+    /** False for somebody else's character: only the cast row resolved, so half the page is missing. */
+    protected readonly hasEntry = computed(() => !!this.entry());
+
+    protected readonly identity = computed(() => this.personas.identity(this.guildId(), this.personaId()));
+
+    /** Neither list has answered yet. "Not found" has to mean a corroborated absence. */
+    protected readonly resolving = computed(() => {
+        const guildId = this.guildId();
+        if (this.requestedFor() !== guildId) return true;
+        return this.personas.isLoading(guildId) || this.personas.isGuildCastLoading(guildId);
+    });
+
+    private readonly guild = computed(() => this.guilds.guilds().find(g => g.id === this.guildId()));
+
+    private readonly abilities = computed(() =>
+        guildAbilities(this.ownMember(), this.guild(), this.profiles.ownProfile()?.userId),
+    );
+
+    /** Ownership, or the guild-wide grant. `guildAbilities` folds the guild owner in for us. */
+    protected readonly canWrite = computed(() => {
+        const ownerId = this.entry()?.persona.ownerUserId;
+        const ownUserId = this.profiles.ownProfile()?.userId;
+        if (ownerId && ownUserId && ownerId === ownUserId) return true;
+        return this.abilities().canModule(ModulePermissions.ManageAnyPersona);
     });
 
     protected readonly approval = computed(() => {
@@ -125,6 +154,13 @@ export class CharacterPageComponent {
             const guildId = this.guildId();
             untracked(() => {
                 this.personas.ensureCast(guildId);
+                // Somebody else's character is only ever in the guild-wide cast, never in `cast()`.
+                this.personas.ensureGuildCast(guildId);
+                this.requestedFor.set(guildId);
+                this.guilds.getOwnMember(guildId).subscribe({
+                    next: member => this.ownMember.set(member),
+                    error: () => this.ownMember.set(null),
+                });
                 this.personas.listCategories(guildId).subscribe({
                     // One category carries the character template; the page names which.
                     next: categories => this.categories.set(categories),
@@ -167,6 +203,7 @@ export class CharacterPageComponent {
     }
 
     protected createPage(): void {
+        if (!this.canWrite()) return;
         this.creating.set(true);
         this.personas.createPage(this.guildId(), this.personaId()).subscribe({
             next: page => {
@@ -182,13 +219,14 @@ export class CharacterPageComponent {
 
     protected openInWiki(): void {
         const page = this.page();
-        if (!page) return;
+        if (!page || !this.canWrite()) return;
         if (!this.deepLink.open(this.guildId(), page.id, {edit: true})) {
             this.toast.error(this.translate.instant('PERSONA.PAGE.WIKI_UNAVAILABLE'));
         }
     }
 
     protected pull(): void {
+        if (!this.canWrite()) return;
         this.pulling.set(true);
         // The merge that keeps whatever this guild edited. Nothing here offers to discard it.
         this.personas
@@ -212,6 +250,7 @@ export class CharacterPageComponent {
     }
 
     protected openInfobox(): void {
+        if (!this.canWrite()) return;
         this.infoboxDraft.set({...parseInfoboxValues(this.page()?.infoboxJson)});
         this.infoboxOpen.set(true);
     }
@@ -228,7 +267,7 @@ export class CharacterPageComponent {
 
     protected saveInfobox(): void {
         const page = this.page();
-        if (!page) return;
+        if (!page || !this.canWrite()) return;
         this.savingInfobox.set(true);
         const infoboxJson = serialiseInfoboxValues(this.infoboxDraft());
         this.personas.savePage(this.guildId(), page.id, {infoboxJson}).subscribe({

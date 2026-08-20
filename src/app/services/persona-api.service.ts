@@ -5,6 +5,7 @@ import {ApiConfigService} from './api-config.service';
 import {
     ChannelAutoproxyDto,
     GuildPersonaDto,
+    PersonaCastMemberDto,
     PersonaDeletionDto,
     PersonaDto,
     PersonaGrantDto,
@@ -24,6 +25,13 @@ import {UpdateWikiPageDto} from '../dtos/request/wiki.dto';
 import {WikiService} from './wiki.service';
 import {map} from 'rxjs/operators';
 
+/** The field name is what the route binds its `IFormFile` from; anything else arrives as no file. */
+function form(file: File): FormData {
+    const fd = new FormData();
+    fd.append('file', file, file.name);
+    return fd;
+}
+
 /** The persona endpoints, as an injectable seam. `app.config.ts` binds the implementation. */
 @Injectable()
 export abstract class PersonaApi {
@@ -36,6 +44,9 @@ export abstract class PersonaApi {
     abstract deleteOwn(personaId: string): Observable<PersonaDeletionDto>;
 
     abstract listGuild(guildId: string): Observable<GuildPersonaDto[]>;
+
+    /** Every character the guild has adopted, not only the ones the caller may speak as. */
+    abstract getGuildCast(guildId: string): Observable<PersonaCastMemberDto[]>;
 
     abstract createGuildPersona(guildId: string, dto: CreatePersonaDto): Observable<GuildPersonaDto>;
 
@@ -64,6 +75,18 @@ export abstract class PersonaApi {
     ): Observable<GuildPersonaDto>;
 
     abstract removeProfile(guildId: string, personaId: string): Observable<void>;
+
+    /**
+     * The server only stores an avatar it hosts itself, so these four are the only way to set one.
+     * The URL they write carries a version stamp, which is what tells a cache the picture changed.
+     */
+    abstract uploadAvatar(personaId: string, file: File): Observable<PersonaDto>;
+
+    abstract removeAvatar(personaId: string): Observable<void>;
+
+    abstract uploadProfileAvatar(guildId: string, personaId: string, file: File): Observable<GuildPersonaDto>;
+
+    abstract removeProfileAvatar(guildId: string, personaId: string): Observable<GuildPersonaDto>;
 
     abstract submitProfile(guildId: string, personaId: string): Observable<GuildPersonaDto>;
 
@@ -136,6 +159,10 @@ export class HttpPersonaApi extends PersonaApi {
         return this.http.get<GuildPersonaDto[]>(`${this.base}/guilds/${guildId}/personas`);
     }
 
+    getGuildCast(guildId: string): Observable<PersonaCastMemberDto[]> {
+        return this.http.get<PersonaCastMemberDto[]>(`${this.base}/guilds/${guildId}/personas/cast`);
+    }
+
     createGuildPersona(guildId: string, dto: CreatePersonaDto): Observable<GuildPersonaDto> {
         return this.http.post<GuildPersonaDto>(`${this.base}/guilds/${guildId}/personas`, dto);
     }
@@ -170,6 +197,25 @@ export class HttpPersonaApi extends PersonaApi {
 
     removeProfile(guildId: string, personaId: string): Observable<void> {
         return this.http.delete<void>(`${this.persona(guildId, personaId)}/profile`);
+    }
+
+    uploadAvatar(personaId: string, file: File): Observable<PersonaDto> {
+        return this.http.post<PersonaDto>(`${this.base}/personas/${personaId}/avatar`, form(file));
+    }
+
+    removeAvatar(personaId: string): Observable<void> {
+        return this.http.delete<void>(`${this.base}/personas/${personaId}/avatar`);
+    }
+
+    uploadProfileAvatar(guildId: string, personaId: string, file: File): Observable<GuildPersonaDto> {
+        return this.http.post<GuildPersonaDto>(
+            `${this.persona(guildId, personaId)}/profile/avatar`,
+            form(file),
+        );
+    }
+
+    removeProfileAvatar(guildId: string, personaId: string): Observable<GuildPersonaDto> {
+        return this.http.delete<GuildPersonaDto>(`${this.persona(guildId, personaId)}/profile/avatar`);
     }
 
     submitProfile(guildId: string, personaId: string): Observable<GuildPersonaDto> {

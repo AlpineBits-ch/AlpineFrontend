@@ -51,7 +51,7 @@ import {TypingDotsComponent} from '../../../../components/typing-dots/typing-dot
 import {HighlightPipe} from '../../../../pipes/highlight.pipe';
 
 import {ConversationSearchService} from './conversation-search.service';
-import {ConversationScrollService} from './conversation-scroll.service';
+import {MessageScrollService} from '../../../../shared/conversation/message-scroll.service';
 import {ProfilePopoutService} from '../../../../services/profile-popout.service';
 import {buildMessageRows, fileIcon, isSystemMessageType} from './message-utils';
 import {DateDividerComponent} from './date-divider/date-divider.component';
@@ -69,7 +69,7 @@ import {ConversationAvatarComponent} from '../conversation-avatar/conversation-a
 
 @Component({
     selector: 'app-conversation',
-    providers: [ConversationSearchService, ConversationScrollService],
+    providers: [ConversationSearchService, MessageScrollService],
     imports: [
         ComposerComponent,
         MessageComponent,
@@ -105,7 +105,7 @@ export class ConversationComponent implements AfterViewInit {
     public back = output();
     protected convUtils = inject(ConversationUtilsService);
     protected search = inject(ConversationSearchService);
-    protected scroll = inject(ConversationScrollService);
+    protected scroll = inject(MessageScrollService);
     protected profilePopout = inject(ProfilePopoutService);
     protected readonly OnlineStatus = OnlineStatus;
     protected readonly ConversationEncryption = ConversationEncryption;
@@ -290,9 +290,11 @@ export class ConversationComponent implements AfterViewInit {
     }
 
     protected onScroll(): void {
-        this.scroll.onScroll(this.hasMore(), this.loadingMore(), () =>
-            this.messageStore.loadMoreForConversation(this.conversation().id),
-        );
+        this.scroll.onScroll({
+            hasMore: this.hasMore(),
+            loadingMore: this.loadingMore(),
+            onLoadMore: () => this.messageStore.loadMoreForConversation(this.conversation().id),
+        });
     }
 
     protected jumpToMessage(messageId: string): void {
@@ -431,11 +433,7 @@ export class ConversationComponent implements AfterViewInit {
             const convId = this.conversationId();
             const _msgs = this.messages();
 
-            if (convId !== this.scroll.lastConvId) {
-                this.scroll.lastConvId = convId;
-                this.scroll.onConversationSwitch();
-            }
-            this.scroll.markNewMessages();
+            this.scroll.onMessagesChanged(convId);
         });
     }
 

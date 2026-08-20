@@ -28,6 +28,28 @@ describe('folderTree', () => {
         expect(tree[0].children[0].count).toBe(3);
     });
 
+    it('rolls counts up through a third level', () => {
+        const tree = folderTree(
+            [folder('f1', 'Arc I'), folder('f2', 'Chapters', 'f1'), folder('f3', 'Beats', 'f2')],
+            {f1: 1, f2: 2, f3: 4},
+        );
+
+        expect(tree[0].count).toBe(7);
+        expect(tree[0].ownCount).toBe(1);
+        expect(tree[0].children[0].count).toBe(6);
+        expect(tree[0].children[0].ownCount).toBe(2);
+        expect(tree[0].children[0].children[0].count).toBe(4);
+    });
+
+    it('rolls up whatever order the folders arrived in', () => {
+        const tree = folderTree(
+            [folder('f3', 'Beats', 'f2'), folder('f2', 'Chapters', 'f1'), folder('f1', 'Arc I')],
+            {f3: 4, f2: 2, f1: 1},
+        );
+
+        expect(tree[0].count).toBe(7);
+    });
+
     it('treats an orphan as a root rather than dropping it', () => {
         // A half-applied delete must never hide a guild's scenes.
         const tree = folderTree([folder('f9', 'Orphan', 'gone')], {});

@@ -30,6 +30,11 @@
     pointer-events: auto;
 }
 
+/* The panel takes focus on open so the keyboard lands inside it, but it is not a control. */
+.sheet:focus {
+    outline: none;
+}
+
 .sheet-head {
     display: flex;
     align-items: flex-start;
@@ -185,9 +190,39 @@
 .sheet-pick-list {
     display: flex;
     flex-direction: column;
+    gap: 0.25rem;
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 0.5rem;
     padding: 0.25rem;
+}
+
+.sheet-pick-search {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    padding: 0.25rem 0.5rem 0.375rem;
+    color: var(--color-text-faint);
+}
+
+.sheet-pick-search input {
+    width: 100%;
+    background: transparent;
+    font-size: 0.75rem;
+    color: var(--color-text-primary);
+    outline: none;
+}
+
+.sheet-pick-rows {
+    display: flex;
+    flex-direction: column;
+    max-height: 12rem;
+    overflow-y: auto;
+}
+
+.sheet-pick-parent {
+    flex-shrink: 0;
+    color: var(--color-text-faint);
 }
 
 .sheet-pick-row {
@@ -212,7 +247,21 @@
 }
 
 .sheet-pick-row.is-child {
-    padding-left: 1.25rem;
+    margin-left: 0.625rem;
+    padding-left: 0.625rem;
+    border-left: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 0 0.375rem 0.375rem 0;
+}
+
+.sheet-link {
+    align-self: flex-start;
+    font-size: 0.6875rem;
+    color: var(--color-text-muted);
+    cursor: pointer;
+}
+
+.sheet-link:hover {
+    color: var(--color-text-primary);
 }
 
 .sheet-actions {

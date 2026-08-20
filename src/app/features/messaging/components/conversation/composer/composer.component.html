@@ -80,23 +80,49 @@
     <!-- Input row. The scene's turn marks the box itself: the notice belongs on the thing you
          would use to answer it, not on a banner somewhere else on screen. -->
     <div
-        [class.composer-your-turn]="!!sceneTurn()"
+        [class.composer-your-turn]="sceneTurn()?.state === 'yours'"
         class="relative flex flex-col bg-white/[0.05] border border-white/[0.08] rounded-2xl focus-within:border-white/[0.15] transition-colors"
     >
         @if (sceneTurn(); as turn) {
-            <div class="composer-turn-strip" role="status">
-                <span class="composer-turn-mark">{{ 'SCENE.COMPOSER.YOUR_TURN' | translate: {name: turn.characterName} }}</span>
-                @if (turn.deadlineAt) {
-                    <span [class.composer-turn-late]="turn.overdue" class="composer-turn-clock">
-                        {{ 'SCENE.RAIL.DUE' | translate: {when: turn.deadlineAt | relativeTime: now()} }}
-                    </span>
-                }
-                @if (turn.pass; as pass) {
-                    <button (click)="pass()" [disabled]="turn.passing" class="composer-turn-pass ml-auto" type="button">
-                        {{ 'SCENE.COMPOSER.PASS' | translate }}
-                    </button>
-                }
-            </div>
+            @if (turn.state === 'yours') {
+                <div class="composer-turn-strip" role="status">
+                    <span class="composer-turn-mark">{{ 'SCENE.COMPOSER.YOUR_TURN' | translate: {name: turn.characterName} }}</span>
+                    @if (turn.deadlineAt) {
+                        <span [class.composer-turn-late]="turn.overdue" class="composer-turn-clock">
+                            {{ 'SCENE.RAIL.DUE' | translate: {when: turn.deadlineAt | relativeTime: now()} }}
+                        </span>
+                    }
+                    @if (turn.pass; as pass) {
+                        <button (click)="pass()" [disabled]="turn.passing" class="composer-turn-pass ml-auto" type="button">
+                            {{ 'SCENE.COMPOSER.PASS' | translate }}
+                        </button>
+                    }
+                </div>
+            } @else {
+                <!-- Said, never enforced: the server decides what it takes, and a stale cache here
+                     must not be what stops somebody writing. -->
+                <div class="composer-turn-strip composer-turn-quiet" role="status">
+                    @switch (turn.state) {
+                        @case ('waiting') {
+                            <i aria-hidden="true" class="pi pi-hourglass"></i>
+                            <span>
+                                {{
+                                    'SCENE.COMPOSER.WAITING_ON'
+                                        | translate: {name: turn.characterName || ('SCENE.RAIL.UNKNOWN_CHARACTER' | translate)}
+                                }}
+                            </span>
+                        }
+                        @case ('paused') {
+                            <i aria-hidden="true" class="pi pi-pause"></i>
+                            <span>{{ 'SCENE.COMPOSER.PAUSED' | translate }}</span>
+                        }
+                        @case ('concluded') {
+                            <i aria-hidden="true" class="pi pi-bookmark-fill"></i>
+                            <span>{{ 'SCENE.COMPOSER.CONCLUDED' | translate }}</span>
+                        }
+                    }
+                </div>
+            }
         }
         <!-- Drop overlay -->
         @if (attachments.isDraggingOver()) {

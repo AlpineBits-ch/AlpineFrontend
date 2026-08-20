@@ -121,6 +121,19 @@ describe('sceneTally', () => {
             {value: 160, labelKey: 'SCENE.TALLY.DAYS'},
         ]);
     });
+
+    it('measures a running scene against the clock it is handed', () => {
+        const running = scene({createdAt: new Date(NOW - 10 * 86_400_000).toISOString()});
+
+        expect(sceneTally(running, NOW)).toEqual([
+            {value: 3, labelKey: 'SCENE.TALLY.CHARACTERS'},
+            {value: 10, labelKey: 'SCENE.TALLY.DAYS'},
+        ]);
+        expect(sceneTally(running, NOW + 5 * 86_400_000)).toContainEqual({
+            value: 15,
+            labelKey: 'SCENE.TALLY.DAYS',
+        });
+    });
 });
 
 describe('board rows', () => {

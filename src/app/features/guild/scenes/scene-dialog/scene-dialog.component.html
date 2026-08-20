@@ -16,33 +16,62 @@
         </span>
     </ng-template>
 
-    @if (canChooseHome()) {
+    @if (isEdit()) {
+        <!-- The name is set when the scene opens and the PATCH does not take one, so it is shown
+             rather than offered. -->
+        <p class="scene-name-static">{{ name() }}</p>
+    } @else {
         <div class="mb-4">
             <span class="scene-field-label">{{ 'SCENE.DIALOG.HOME' | translate }}</span>
             <p-select
                 (ngModelChange)="homeChannelId.set($event)"
                 [ngModel]="home()"
                 [options]="homeOptions()"
+                [placeholder]="'SCENE.DIALOG.HOME_PLACEHOLDER' | translate"
                 [style]="{width: '100%'}"
                 class="mt-1.5 block"
                 optionLabel="label"
                 optionValue="value"
             />
+            <p class="scene-hint">{{ 'SCENE.DIALOG.HOME_HINT' | translate }}</p>
         </div>
-    }
 
-    <!-- The name is the chapter heading, so it is set like one. -->
-    <label class="block">
-        <span class="scene-field-label">{{ 'SCENE.DIALOG.NAME' | translate }}</span>
-        <input
-            (ngModelChange)="name.set($event)"
-            [disabled]="isEdit()"
-            [ngModel]="name()"
-            [placeholder]="'SCENE.DIALOG.NAME_PLACEHOLDER' | translate"
-            class="scene-title-input"
-            maxlength="100"
-        />
-    </label>
+        <!-- The name is the chapter heading, so it is set like one. -->
+        <label class="block">
+            <span class="scene-field-label">{{ 'SCENE.DIALOG.NAME' | translate }}</span>
+            <input
+                (ngModelChange)="name.set($event)"
+                [ngModel]="name()"
+                [placeholder]="'SCENE.DIALOG.NAME_PLACEHOLDER' | translate"
+                class="scene-title-input"
+                maxlength="100"
+            />
+        </label>
+
+        <label class="mt-5 block">
+            <span class="scene-field-label">{{ 'SCENE.DIALOG.DESCRIPTION' | translate }}</span>
+            <textarea
+                (ngModelChange)="description.set($event)"
+                [ngModel]="description()"
+                [placeholder]="'SCENE.DIALOG.DESCRIPTION_PLACEHOLDER' | translate"
+                class="scene-textarea"
+                maxlength="500"
+                rows="3"
+            ></textarea>
+        </label>
+
+        <label class="mt-5 block">
+            <span class="scene-field-label">{{ 'SCENE.DIALOG.OOC_NAME' | translate }}</span>
+            <input
+                (ngModelChange)="oocName.set($event)"
+                [ngModel]="oocName()"
+                [placeholder]="'SCENE.DIALOG.OOC_NAME_PLACEHOLDER' | translate"
+                class="scene-search mt-1.5"
+                maxlength="100"
+            />
+            <span class="scene-hint block">{{ 'SCENE.DIALOG.OOC_NAME_HINT' | translate }}</span>
+        </label>
+    }
 
     <!-- ── Turn order ─────────────────────────────────────────────────────
          Numbered, because the number is the turn a character takes. -->
@@ -122,6 +151,12 @@
                     </button>
                 }
             </div>
+        } @else if (castLoading()) {
+            <p class="scene-cast-empty">{{ 'SCENE.DIALOG.CAST_LOADING' | translate }}</p>
+        } @else if (query().trim()) {
+            <p class="scene-cast-empty">{{ 'SCENE.DIALOG.NO_MATCHES' | translate }}</p>
+        } @else if (!addable().length) {
+            <p class="scene-cast-empty">{{ 'SCENE.DIALOG.CAST_NONE' | translate }}</p>
         } @else {
             <p class="scene-cast-empty">{{ 'SCENE.DIALOG.NOBODY_LEFT' | translate }}</p>
         }
@@ -133,8 +168,8 @@
         <div class="mt-1.5 flex flex-wrap gap-1.5">
             @for (option of TURN_LENGTHS; track option.labelKey) {
                 <button
-                    (click)="deadlineHours.set(option.hours)"
-                    [class.is-on]="deadlineHours() === option.hours"
+                    (click)="pickLength(option.hours)"
+                    [class.is-on]="selectedHours() === option.hours"
                     class="scene-length-chip"
                     type="button"
                 >
@@ -142,7 +177,7 @@
                 </button>
             }
         </div>
-        <p class="scene-hint">{{ 'SCENE.DIALOG.TURN_LENGTH_HINT' | translate }}</p>
+        <p class="scene-hint">{{ lengthNote().key | translate: lengthNote().params }}</p>
     </div>
 
     <ng-template pTemplate="footer">

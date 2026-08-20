@@ -11,7 +11,7 @@ import {
     viewChild,
 } from '@angular/core';
 import {FormsModule} from '@angular/forms';
-import {TranslateModule} from '@ngx-translate/core';
+import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {PersonaAvatarComponent} from '../persona-avatar/persona-avatar.component';
 import {PersonaService} from '../../../../services/persona.service';
 import {ToastService} from '../../../../services/toast.service';
@@ -46,6 +46,7 @@ export class PersonaSwitcherComponent {
 
     protected readonly personas = inject(PersonaService);
     private readonly toast = inject(ToastService);
+    private readonly translate = inject(TranslateService);
 
     protected readonly open = signal(false);
     protected readonly query = signal('');
@@ -210,7 +211,7 @@ export class PersonaSwitcherComponent {
         // on screen is the only one either could sensibly mean.
         const personaId = mode === AutoproxyMode.Off ? null : this.resolution().personaId;
         if (mode === AutoproxyMode.Pinned && !personaId) {
-            this.toast.warn('PERSONA.AUTOPROXY.PINNED_NEEDS_PERSONA');
+            this.toast.warn(this.translate.instant('PERSONA.AUTOPROXY.PINNED_NEEDS_PERSONA'));
             return;
         }
 
@@ -219,7 +220,7 @@ export class PersonaSwitcherComponent {
             next: () => this.savingMode.set(false),
             error: err => {
                 this.savingMode.set(false);
-                this.toast.httpError('PERSONA.AUTOPROXY.SAVE_FAILED', err);
+                this.toast.httpError(this.translate.instant('PERSONA.AUTOPROXY.SAVE_FAILED'), err);
             },
         });
     }

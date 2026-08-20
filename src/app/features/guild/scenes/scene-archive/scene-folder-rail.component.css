@@ -8,6 +8,7 @@
     padding: 0.375rem 0.5rem;
     text-align: left;
     cursor: pointer;
+    user-select: none;
     color: var(--color-text-muted);
     transition:
         background-color var(--duration-base) var(--ease-brand),
@@ -31,6 +32,15 @@
     color: var(--color-text-primary);
 }
 
+/* A folder being reordered lands between rows, so the mark is an edge rather than a fill. */
+.rail-row.is-reorder-before {
+    box-shadow: inset 0 2px 0 0 var(--color-connecting);
+}
+
+.rail-row.is-reorder-after {
+    box-shadow: inset 0 -2px 0 0 var(--color-connecting);
+}
+
 .rail-row-child {
     padding-left: 1.375rem;
 }
@@ -45,6 +55,48 @@
 
 .rail-row-unfiled {
     margin-top: 0.375rem;
+}
+
+.rail-pick {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+    border: 0;
+    background: transparent;
+    padding: 0;
+    text-align: left;
+    color: inherit;
+    cursor: pointer;
+}
+
+.rail-menu {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 1.125rem;
+    height: 1.125rem;
+    border: 0;
+    border-radius: 0.25rem;
+    background: transparent;
+    color: var(--color-text-faint);
+    opacity: 0;
+    cursor: pointer;
+    transition:
+        background-color var(--duration-base) var(--ease-brand),
+        opacity var(--duration-base) var(--ease-brand);
+}
+
+.rail-row:hover .rail-menu,
+.rail-row:focus-within .rail-menu {
+    opacity: 1;
+}
+
+.rail-menu:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--color-text-primary);
 }
 
 .rail-icon {
@@ -72,14 +124,6 @@
 .rail-row-all .rail-name,
 .rail-row-unfiled .rail-name {
     font-size: inherit;
-}
-
-.rail-count {
-    flex-shrink: 0;
-    font-family: 'Fira Code Variable', 'Fira Code', monospace;
-    font-variant-numeric: tabular-nums;
-    font-size: 0.6875rem;
-    color: var(--color-text-faint);
 }
 
 .rail-add {

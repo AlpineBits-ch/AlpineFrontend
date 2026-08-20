@@ -89,13 +89,19 @@ function segmentText(segments: EditorSegment[]): string {
     return segments.map(s => (s.type === 'text' ? s.text : '')).join('');
 }
 
+/** 'yours' is the only loud one. The rest say where the scene stands and nothing more. */
+export type SceneTurnState = 'yours' | 'waiting' | 'paused' | 'concluded';
+
 /**
- * What the composer says when the scene is waiting on you. The notice sits on the thing you would
+ * What the composer says about the scene it is writing into. The notice sits on the thing you would
  * use to answer it, which is the only place it cannot be missed and the only place it is not nagging.
+ * None of it blocks a send: the server owns that rule.
  */
 export interface SceneTurnPrompt {
+    state: SceneTurnState;
+    /** Who is up: your character for 'yours', theirs for 'waiting'. Empty otherwise. */
     characterName: string;
-    /** ISO-8601, or null for a scene with no clock. */
+    /** ISO-8601, or null for a scene with no clock. Only 'yours' carries one. */
     deadlineAt: string | null;
     overdue: boolean;
     /** Passing without posting. Absent when the caller cannot advance the turn. */
@@ -138,7 +144,7 @@ export class ComposerComponent {
     readonly canUsePersonas = input(false);
     /** Guild channels only: the caller holds `RollDice` and the guild has the module on. */
     readonly canRollDice = input(false);
-    /** Set while this channel's scene is waiting on a character the caller speaks as. */
+    /** Set while this channel is the in-character half of a scene. Null everywhere else. */
     readonly sceneTurn = input<SceneTurnPrompt | null>(null);
     /** The server cannot read ciphertext, so proxy tags have to be resolved here instead. */
     readonly resolvePersonaLocally = input(false);

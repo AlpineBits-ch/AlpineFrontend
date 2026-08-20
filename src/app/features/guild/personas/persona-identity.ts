@@ -1,5 +1,10 @@
 import {MessageDto} from '../../../dtos/response/message.dto';
-import {GuildPersonaDto, PersonaDto, PersonaScope} from '../../../dtos/response/persona.dto';
+import {
+    GuildPersonaDto,
+    PersonaCastMemberDto,
+    PersonaDto,
+    PersonaScope,
+} from '../../../dtos/response/persona.dto';
 import {readableAccent} from '../../../models/profile-font.model';
 
 /** What a character looks like in one guild, once the overrides have been laid over the global row. */
@@ -69,6 +74,20 @@ export function personaIdentity(entry: GuildPersonaDto): PersonaIdentity {
         avatarUrl: entry.avatarUrl || base.avatarUrl,
         tag: entry.tag || null,
         initial: personaInitial(entry.displayName || base.name),
+    };
+}
+
+/** The guild-wide cast row, which already carries this guild's overrides resolved. */
+export function identityFromCastMember(member: PersonaCastMemberDto): PersonaIdentity {
+    return {
+        personaId: member.personaId,
+        name: member.name,
+        avatarUrl: member.avatarUrl ?? null,
+        tag: member.tag ?? null,
+        color: readableAccent(member.color),
+        pronouns: member.pronouns ?? null,
+        initial: personaInitial(member.name),
+        isRetired: member.isRetired,
     };
 }
 
@@ -146,5 +165,21 @@ export function matchesPersonaQuery(entry: GuildPersonaDto, query: string): bool
         entry.persona.pronouns,
     ];
 
+    return haystack.some(value => value?.toLowerCase().includes(needle));
+}
+
+export function sortCastMembers(members: readonly PersonaCastMemberDto[]): PersonaCastMemberDto[] {
+    return [...members].sort((a, b) => {
+        if (a.isRetired !== b.isRetired) return a.isRetired ? 1 : -1;
+        return a.name.localeCompare(b.name);
+    });
+}
+
+/** No proxy tags here: the cast read carries display fields only. */
+export function matchesCastMemberQuery(member: PersonaCastMemberDto, query: string): boolean {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return true;
+
+    const haystack = [member.name, member.tag, member.pronouns];
     return haystack.some(value => value?.toLowerCase().includes(needle));
 }

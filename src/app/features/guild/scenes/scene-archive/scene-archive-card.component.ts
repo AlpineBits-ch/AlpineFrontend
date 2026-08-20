@@ -40,7 +40,9 @@ export class SceneArchiveCardComponent {
     protected readonly ran = computed(() => {
         const scene = this.scene();
         const ended = scene.concludedAt ?? scene.updatedAt;
-        return {from: scene.createdAt ?? null, to: ended ?? null};
+        const from = scene.createdAt ?? null;
+        const to = ended ?? null;
+        return {from, to, spansMonths: !!from && !!to && !sameMonth(from, to)};
     });
 
     protected onDragStart(event: DragEvent): void {
@@ -49,4 +51,10 @@ export class SceneArchiveCardComponent {
         event.dataTransfer?.setData('text/scene-channel-id', this.scene().channelId);
         if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
     }
+}
+
+function sameMonth(a: string, b: string): boolean {
+    const from = new Date(a);
+    const to = new Date(b);
+    return from.getFullYear() === to.getFullYear() && from.getMonth() === to.getMonth();
 }

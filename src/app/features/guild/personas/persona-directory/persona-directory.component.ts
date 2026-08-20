@@ -20,16 +20,29 @@ import {GuildService} from '../../../../services/guild.service';
 import {ProfileService} from '../../../../services/profile.service';
 import {ToastService} from '../../../../services/toast.service';
 import {NavigationService} from '../../../main-page/navigation.service';
-import {GuildPersonaDto, PersonaDto} from '../../../../dtos/response/persona.dto';
+import {GuildPersonaDto, PersonaCastMemberDto, PersonaDto} from '../../../../dtos/response/persona.dto';
 import {guildAbilities} from '../../guild-permissions';
 import {ModulePermissions} from '../../../../enums/module-permissions.enum';
 import {SelfGuildMemberDto} from '../../../../dtos/response/member.dto';
-import {matchesPersonaQuery, personaIdentity, sortPersonas} from '../persona-identity';
+import {
+    identityFromCastMember,
+    matchesCastMemberQuery,
+    matchesPersonaQuery,
+    personaIdentity,
+    PersonaIdentity,
+} from '../persona-identity';
 import {readableAccent} from '../../../../models/profile-font.model';
 import {approvalMeta, canSubmit} from '../persona-approval';
 import {hasProxyTags, ProxyTags, proxyTagsOf} from '../persona-proxy';
 
 type DirectoryTab = 'cast' | 'mine' | 'review';
+
+/** A guild-wide cast row. `entry` is only set for a character the caller may itself speak as. */
+interface CastRow {
+    member: PersonaCastMemberDto;
+    who: PersonaIdentity;
+    entry: GuildPersonaDto | null;
+}
 
 /** One of the account's characters, paired with whether it has been adopted into this guild. */
 interface MineRow {
@@ -67,6 +80,7 @@ export class PersonaDirectoryComponent {
     protected readonly query = signal('');
     protected readonly editing = signal<PersonaEditorTarget | null>(null);
     protected readonly reviewing = signal<GuildPersonaDto | null>(null);
+    protected readonly withdrawing = signal<PersonaDto | null>(null);
     protected readonly reviewReason = signal('');
     protected readonly busyId = signal<string | null>(null);
 
@@ -87,8 +101,15 @@ export class PersonaDirectoryComponent {
         this.abilities().canModule(ModulePermissions.ApprovePersonas),
     );
 
-    protected readonly cast = computed(() =>
-        sortPersonas(this.personas.cast(this.guildId())).filter(e => matchesPersonaQuery(e, this.query())),
+    protected readonly cast = computed((): CastRow[] =>
+        this.personas
+            .guildCast(this.guildId())
+            .filter(member => matchesCastMemberQuery(member, this.query()))
+            .map(member => ({
+                member,
+                who: identityFromCastMember(member),
+                entry: this.personas.entry(this.guildId(), member.personaId),
+            })),
     );
 
     protected readonly mine = computed((): MineRow[] =>
@@ -98,22 +119,26 @@ export class PersonaDirectoryComponent {
                 persona,
                 entry: this.personas.entry(this.guildId(), persona.id),
             }))
-            .filter(
-                row => !this.query() || row.persona.name.toLowerCase().includes(this.query().toLowerCase()),
-            ),
+            .filter(row => this.matchesMine(row)),
     );
 
     /** The queue as the service holds it: the review events patch it there, not here. */
     protected readonly pending = computed(() => this.personas.pending(this.guildId()));
+
+    protected readonly reviewQueue = computed(() =>
+        this.pending().filter(entry => matchesPersonaQuery(entry, this.query())),
+    );
+
     protected readonly loadingPending = computed(() => this.personas.isPendingLoading(this.guildId()));
 
-    protected readonly loading = computed(() => this.personas.isLoading(this.guildId()));
+    protected readonly loadingCast = computed(() => this.personas.isGuildCastLoading(this.guildId()));
 
     constructor() {
         effect(() => {
             const guildId = this.guildId();
             untracked(() => {
                 this.personas.ensureCast(guildId);
+                this.personas.ensureGuildCast(guildId);
                 this.personas.ensureOwn();
                 this.guilds.getOwnMember(guildId).subscribe({
                     next: member => this.ownMember.set(member),
@@ -159,8 +184,14 @@ export class PersonaDirectoryComponent {
         return hasProxyTags(tags) ? tags : null;
     }
 
-    protected open(entry: GuildPersonaDto): void {
-        this.nav.openCharacter(this.guildId(), entry.persona.id);
+    protected open(personaId: string): void {
+        this.nav.openCharacter(this.guildId(), personaId);
+    }
+
+    /** A rename lands in the guild cast, an override lands in the speakable entry. Read both back. */
+    protected refreshAfterSave(): void {
+        this.personas.ensureCast(this.guildId(), true);
+        this.personas.ensureGuildCast(this.guildId(), true);
     }
 
     protected createPersonal(): void {
@@ -186,6 +217,7 @@ export class PersonaDirectoryComponent {
         this.personas.saveProfile(this.guildId(), persona.id, {}).subscribe({
             next: () => {
                 this.busyId.set(null);
+                this.personas.ensureGuildCast(this.guildId(), true);
                 this.toast.success(this.translate.instant('PERSONA.DIRECTORY.ADOPTED', {name: persona.name}));
             },
             error: err => {
@@ -195,10 +227,27 @@ export class PersonaDirectoryComponent {
         });
     }
 
-    protected withdraw(persona: PersonaDto): void {
+    protected confirmWithdraw(persona: PersonaDto): void {
+        this.withdrawing.set(persona);
+    }
+
+    protected withdraw(): void {
+        const persona = this.withdrawing();
+        if (!persona) return;
+
         this.busyId.set(persona.id);
         this.personas.removeProfile(this.guildId(), persona.id).subscribe({
-            next: () => this.busyId.set(null),
+            next: () => {
+                this.busyId.set(null);
+                this.withdrawing.set(null);
+                this.personas.ensureGuildCast(this.guildId(), true);
+                this.toast.success(
+                    this.translate.instant('PERSONA.DIRECTORY.WITHDRAWN', {
+                        name: persona.name,
+                        guild: this.guildName(),
+                    }),
+                );
+            },
             error: err => {
                 this.busyId.set(null);
                 this.toast.httpError(this.translate.instant('PERSONA.DIRECTORY.WITHDRAW_FAILED'), err);
@@ -260,5 +309,14 @@ export class PersonaDirectoryComponent {
                 this.toast.httpError(this.translate.instant('PERSONA.REVIEW.REQUEST_FAILED'), err);
             },
         });
+    }
+
+    /** Same search as the Cast tab, falling back to the global row for a character not adopted here. */
+    private matchesMine(row: MineRow): boolean {
+        if (row.entry) return matchesPersonaQuery(row.entry, this.query());
+
+        const needle = this.query().trim().toLowerCase();
+        if (!needle) return true;
+        return [row.persona.name, row.persona.pronouns].some(value => value?.toLowerCase().includes(needle));
     }
 }

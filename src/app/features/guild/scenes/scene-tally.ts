@@ -14,7 +14,7 @@ export interface TallyEntry {
  * What a scene amounted to. Shown when it ends, and on a concluded scene's closing mark: a
  * two-month game deserves a number attached to it, and the numbers are the ones a player remembers.
  */
-export function sceneTally(scene: SceneTallySource): TallyEntry[] {
+export function sceneTally(scene: SceneTallySource, now: number = Date.now()): TallyEntry[] {
     const entries: TallyEntry[] = [];
 
     if (typeof scene.postCount === 'number' && scene.postCount > 0) {
@@ -26,16 +26,16 @@ export function sceneTally(scene: SceneTallySource): TallyEntry[] {
         entries.push({value: scene.turnNumber, labelKey: 'SCENE.TALLY.TURNS'});
     }
 
-    const days = spanInDays(scene);
+    const days = spanInDays(scene, now);
     if (days !== null && days > 0) entries.push({value: days, labelKey: 'SCENE.TALLY.DAYS'});
 
     return entries;
 }
 
-function spanInDays(scene: SceneTallySource): number | null {
+function spanInDays(scene: SceneTallySource, now: number): number | null {
     if (!scene.createdAt) return null;
     const from = new Date(scene.createdAt).getTime();
-    const to = scene.concludedAt ? new Date(scene.concludedAt).getTime() : Date.now();
+    const to = scene.concludedAt ? new Date(scene.concludedAt).getTime() : now;
     if (Number.isNaN(from) || Number.isNaN(to)) return null;
     return Math.max(Math.round((to - from) / 86_400_000), 0);
 }

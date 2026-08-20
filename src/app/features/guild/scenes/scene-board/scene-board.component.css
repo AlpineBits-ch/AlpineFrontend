@@ -121,32 +121,6 @@
     background: color-mix(in srgb, var(--color-connecting) 9%, transparent);
 }
 
-.board-row.is-ended {
-    background: transparent;
-    border-color: rgba(255, 255, 255, 0.04);
-}
-
-/* Concluded scenes carry the same diamond the closing mark does, so a finished scene reads the
-   same in the list as it does at the end of its own timeline. Sized to the clock ring it replaces,
-   so every scene name in the list starts on the same line. */
-.board-ended-mark {
-    position: relative;
-    flex-shrink: 0;
-    width: 46px;
-    height: 46px;
-}
-
-.board-ended-mark::after {
-    content: '';
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    width: 0.5rem;
-    height: 0.5rem;
-    transform: translate(-50%, -50%) rotate(45deg);
-    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2);
-}
-
 /* A scene name is a chapter title. */
 .board-name {
     font-family: 'Lora Variable', Georgia, 'Times New Roman', serif;
@@ -156,10 +130,6 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-}
-
-.is-ended .board-name {
-    color: var(--color-text-muted);
 }
 
 .board-line {

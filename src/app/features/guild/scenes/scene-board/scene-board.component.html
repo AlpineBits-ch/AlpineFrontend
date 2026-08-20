@@ -2,10 +2,10 @@
     <span class="text-[0.8125rem] font-semibold text-text-primary">{{ 'SCENE.BOARD.TITLE' | translate }}</span>
 
     <div class="board-modes">
-        <button (click)="mode.set('playing')" [class.is-on]="mode() === 'playing'" type="button">
+        <button (click)="setMode('playing')" [class.is-on]="mode() === 'playing'" type="button">
             {{ 'SCENE.ARCHIVE.PLAYING' | translate }}
         </button>
-        <button (click)="mode.set('archive')" [class.is-on]="mode() === 'archive'" type="button">
+        <button (click)="setMode('archive')" [class.is-on]="mode() === 'archive'" type="button">
             {{ 'SCENE.ARCHIVE.ARCHIVE' | translate }}
         </button>
     </div>
@@ -55,37 +55,19 @@
 
                         <div class="flex flex-col gap-1.5">
                             @for (row of group.rows; track row.scene.channelId) {
-                                <button
-                                    (click)="open(row)"
-                                    [class.is-ended]="row.scene.status === SceneStatus.Concluded"
-                                    [class.is-yours]="row.mine"
-                                    class="board-row"
-                                    type="button"
-                                >
-                                    @if (row.scene.status === SceneStatus.Concluded) {
-                                        <span aria-hidden="true" class="board-ended-mark"></span>
-                                    } @else {
-                                        <app-turn-clock-ring
-                                            [clock]="row.clock"
-                                            [identity]="row.identity"
-                                            [muted]="row.scene.status !== SceneStatus.Active"
-                                            size="md"
-                                        />
-                                    }
+                                <button (click)="open(row)" [class.is-yours]="row.mine" class="board-row" type="button">
+                                    <app-turn-clock-ring
+                                        [clock]="row.clock"
+                                        [identity]="row.identity"
+                                        [muted]="row.scene.status !== SceneStatus.Active"
+                                        size="md"
+                                    />
 
                                     <span class="flex min-w-0 flex-1 flex-col gap-0.5 text-left">
                                         <span class="board-name">{{ row.scene.name }}</span>
 
                                         <span class="board-line">
-                                            @if (row.scene.status === SceneStatus.Concluded) {
-                                                @for (entry of row.tally; track entry.labelKey; let last = $last) {
-                                                    <span class="board-figure">{{ entry.value }}</span>
-                                                    <span>{{ entry.labelKey | translate }}</span>
-                                                    @if (!last) {
-                                                        <span class="board-dot">·</span>
-                                                    }
-                                                }
-                                            } @else if (row.identity; as who) {
+                                            @if (row.identity; as who) {
                                                 <span [style.color]="who.color ?? 'var(--color-text-secondary)'" class="board-speaker">
                                                     {{ who.name }}
                                                 </span>
@@ -129,10 +111,5 @@
 }
 
 @if (creating()) {
-    <app-scene-dialog
-        (closed)="creating.set(false)"
-        [guildChannels]="textChannels()"
-        [guildId]="guildId()"
-        [parentChannelId]="textChannels()[0]?.id ?? null"
-    />
+    <app-scene-dialog (closed)="creating.set(false)" [guildChannels]="textChannels()" [guildId]="guildId()" />
 }

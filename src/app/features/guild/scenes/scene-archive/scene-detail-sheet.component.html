@@ -1,10 +1,10 @@
-<button (click)="closed.emit()" [attr.aria-label]="'COMMON.CLOSE' | translate" class="sheet-scrim" type="button"></button>
+<div (click)="closed.emit()" aria-hidden="true" class="sheet-scrim"></div>
 
-<aside class="sheet thin-scrollbar">
+<aside (keydown.escape)="onEscape($event)" [attr.aria-labelledby]="titleId" #panel class="sheet thin-scrollbar" role="dialog" tabindex="-1">
     <header class="sheet-head">
         <span aria-hidden="true" class="sheet-mark"></span>
-        <h2 class="sheet-title">{{ scene().name }}</h2>
-        <button (click)="closed.emit()" class="sheet-close" type="button">
+        <h2 [id]="titleId" class="sheet-title">{{ scene().name }}</h2>
+        <button (click)="closed.emit()" [attr.aria-label]="'COMMON.CLOSE' | translate" class="sheet-close" type="button">
             <i class="pi pi-times text-[0.6875rem]"></i>
         </button>
     </header>
@@ -56,7 +56,7 @@
     <div class="sheet-section">
         <h3 class="sheet-section-title">{{ 'SCENE.ARCHIVE.TAGS' | translate }}</h3>
         <div class="flex flex-wrap gap-1">
-            @for (tag of allTags(); track tag.id) {
+            @for (tag of shownTags(); track tag.id) {
                 <button
                     (click)="toggleTag(tag.id)"
                     [disabled]="!mayApply(tag.id) || saving()"
@@ -72,35 +72,71 @@
                 <span class="sheet-hint">{{ 'SCENE.ARCHIVE.NO_TAGS' | translate }}</span>
             }
         </div>
+
+        @if (hiddenTagCount()) {
+            <button (click)="tagsOpen.set(true)" class="sheet-link" type="button">
+                {{ 'SCENE.ARCHIVE.SHOW_MORE_TAGS' | translate: {count: hiddenTagCount()} }}
+            </button>
+        } @else if (tagsOpen()) {
+            <button (click)="tagsOpen.set(false)" class="sheet-link" type="button">
+                {{ 'SCENE.ARCHIVE.SHOW_FEWER_TAGS' | translate }}
+            </button>
+        }
     </div>
 
     @if (canManage()) {
         <div class="sheet-section">
             <h3 class="sheet-section-title">{{ 'SCENE.ARCHIVE.FILE_INTO' | translate }}</h3>
-            <button (click)="picking.set(!picking())" class="sheet-pick" data-testid="file-into-folder" type="button">
+            <button
+                (click)="togglePicking()"
+                [attr.aria-expanded]="picking()"
+                class="sheet-pick"
+                data-testid="file-into-folder"
+                type="button"
+            >
                 <span>{{ folder()?.name ?? ('SCENE.ARCHIVE.UNFILED' | translate) }}</span>
                 <i class="pi pi-chevron-down text-[0.5rem]"></i>
             </button>
 
             @if (picking()) {
                 <div class="sheet-pick-list">
-                    <button (click)="file(null)" class="sheet-pick-row" type="button">
-                        {{ 'SCENE.ARCHIVE.UNFILED' | translate }}
-                    </button>
-                    @for (shelf of folders(); track shelf.id) {
-                        <button
-                            (click)="file(shelf.id)"
-                            [class.is-current]="folder()?.id === shelf.id"
-                            [class.is-child]="!!shelf.parentFolderId"
-                            class="sheet-pick-row"
-                            type="button"
-                        >
-                            @if (shelf.icon) {
-                                <span>{{ shelf.icon }}</span>
-                            }
-                            {{ shelf.name }}
-                        </button>
-                    }
+                    <label class="sheet-pick-search">
+                        <i aria-hidden="true" class="pi pi-search text-[0.625rem]"></i>
+                        <input
+                            (ngModelChange)="folderQuery.set($event)"
+                            [ngModel]="folderQuery()"
+                            [placeholder]="'SCENE.ARCHIVE.FOLDER_SEARCH' | translate"
+                            type="search"
+                        />
+                    </label>
+
+                    <div class="sheet-pick-rows thin-scrollbar">
+                        @if (!searchingFolders()) {
+                            <button (click)="file(null)" class="sheet-pick-row" type="button">
+                                {{ 'SCENE.ARCHIVE.UNFILED' | translate }}
+                            </button>
+                        }
+                        @for (row of folderMatches(); track row.folder.id) {
+                            <button
+                                (click)="file(row.folder.id)"
+                                [class.is-current]="folder()?.id === row.folder.id"
+                                [class.is-child]="row.child && !searchingFolders()"
+                                class="sheet-pick-row"
+                                type="button"
+                            >
+                                @if (row.folder.icon) {
+                                    <span>{{ row.folder.icon }}</span>
+                                }
+                                @if (row.parentName && searchingFolders()) {
+                                    <span class="sheet-pick-parent">{{ row.parentName }} /</span>
+                                }
+                                <span class="truncate">{{ row.folder.name }}</span>
+                            </button>
+                        }
+                        @if (!folderMatches().length) {
+                            <span class="sheet-hint px-2 py-1">{{ 'SCENE.ARCHIVE.NO_FOLDER_MATCH' | translate }}</span>
+                        }
+                    </div>
                 </div>
             }
         </div>

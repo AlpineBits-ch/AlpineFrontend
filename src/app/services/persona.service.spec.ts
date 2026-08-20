@@ -9,6 +9,7 @@ import {
     AutoproxyMode,
     GuildPersonaDto,
     PersonaApprovalState,
+    PersonaCastMemberDto,
     PersonaDto,
     PersonaScope,
     PersonaUpstreamState,
@@ -41,6 +42,19 @@ function entry(over: Partial<GuildPersonaDto> = {}): GuildPersonaDto {
     };
 }
 
+function member(over: Partial<PersonaCastMemberDto> = {}): PersonaCastMemberDto {
+    return {
+        personaId: 'per_2',
+        name: 'Marek',
+        avatarUrl: null,
+        color: '#334455',
+        pronouns: 'he/him',
+        tag: null,
+        isRetired: false,
+        ...over,
+    };
+}
+
 function queued<T>(into: Subject<T>[]): Subject<T> {
     const subject = new Subject<T>();
     into.push(subject);
@@ -52,13 +66,16 @@ function apiStub() {
     const own: Subject<PersonaDto[]>[] = [];
     const guild: Subject<GuildPersonaDto[]>[] = [];
     const pending: Subject<GuildPersonaDto[]>[] = [];
+    const guildCast: Subject<PersonaCastMemberDto[]>[] = [];
     return {
         own,
         guild,
         pending,
+        guildCast,
         listOwn: () => queued(own),
         listGuild: () => queued(guild),
         listPending: () => queued(pending),
+        getGuildCast: () => queued(guildCast),
     };
 }
 
@@ -357,5 +374,109 @@ describe('PersonaService page and autoproxy events', () => {
             mode: AutoproxyMode.Sticky,
             personaId: 'per_1',
         });
+    });
+});
+
+describe('PersonaService guild cast', () => {
+    it('sorts retired characters last and the rest by name', () => {
+        const {service, api} = withCast();
+        service.ensureGuildCast('g1');
+        api.guildCast[0].next([
+            member({personaId: 'c', name: 'Zed'}),
+            member({personaId: 'a', name: 'Old One', isRetired: true}),
+            member({personaId: 'b', name: 'Ana'}),
+        ]);
+
+        expect(service.guildCast('g1').map(m => m.personaId)).toEqual(['b', 'c', 'a']);
+    });
+
+    it('reads once per guild until something forces it', () => {
+        const {service, api} = withCast();
+        service.ensureGuildCast('g1');
+        api.guildCast[0].next([member()]);
+        service.ensureGuildCast('g1');
+
+        expect(api.guildCast.length).toBe(1);
+
+        service.ensureGuildCast('g1', true);
+        expect(api.guildCast.length).toBe(2);
+    });
+
+    it('keeps the list it already had when the read fails', () => {
+        const {service, api} = withCast();
+        service.ensureGuildCast('g1');
+        api.guildCast[0].next([member()]);
+
+        service.ensureGuildCast('g1', true);
+        api.guildCast[1].error(new Error('503'));
+
+        expect(service.guildCast('g1').map(m => m.personaId)).toEqual(['per_2']);
+        expect(service.isGuildCastLoading('g1')).toBe(false);
+    });
+
+    it('reads again when the guild adopts or drops a character', () => {
+        const {service, api, ws} = withCast();
+        service.ensureGuildCast('g1');
+        api.guildCast[0].next([member()]);
+
+        ws.personaAdoptedObservable.next({
+            guildId: 'g1',
+            personaId: 'per_3',
+            name: 'Wren',
+            approvalState: PersonaApprovalState.Draft,
+            canSpeak: false,
+        });
+        expect(api.guildCast.length).toBe(2);
+
+        ws.personaUnadoptedObservable.next({guildId: 'g1', personaId: 'per_3'});
+        expect(api.guildCast.length).toBe(3);
+    });
+
+    it('stays quiet for a guild whose cast nothing has asked for', () => {
+        const {api, ws} = withCast();
+
+        ws.personaAdoptedObservable.next({
+            guildId: 'g1',
+            personaId: 'per_3',
+            name: 'Wren',
+            approvalState: PersonaApprovalState.Draft,
+            canSpeak: false,
+        });
+
+        expect(api.guildCast.length).toBe(0);
+    });
+});
+
+describe('PersonaService identity resolution', () => {
+    it('prefers the speakable entry, which carries the overrides set here', () => {
+        const {service, api} = withCast([entry({displayName: 'The Ranger'})]);
+        service.ensureGuildCast('g1');
+        api.guildCast[0].next([member({personaId: 'per_1', name: 'Alanna'})]);
+
+        expect(service.identity('g1', 'per_1')?.name).toBe('The Ranger');
+    });
+
+    it('falls to the guild cast for a character the caller cannot speak as', () => {
+        const {service, api} = withCast();
+        service.ensureGuildCast('g1');
+        api.guildCast[0].next([member()]);
+
+        expect(service.identity('g1', 'per_2', {name: 'Stale'})).toMatchObject({
+            name: 'Marek',
+            pronouns: 'he/him',
+            initial: 'M',
+        });
+    });
+
+    it('falls to the hint when the cast has never been read', () => {
+        const {service} = withCast();
+
+        expect(service.identity('g1', 'per_9', {name: 'Wren'})?.name).toBe('Wren');
+    });
+
+    it('is null with no entry, no cast member and no hint', () => {
+        const {service} = withCast();
+
+        expect(service.identity('g1', 'per_9')).toBeNull();
     });
 });

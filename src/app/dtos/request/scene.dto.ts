@@ -30,6 +30,8 @@ export interface SceneListParams {
 export interface CreateSceneDto {
     name: string;
     description?: string | null;
+    /** Names the OOC companion thread. Absent lets the server name it after the scene. */
+    oocName?: string | null;
     /** The cast. Omitting it takes the cast from `turnOrder`. */
     participantPersonaIds?: string[];
     /** Personas, in turn order. The first one is up when the scene opens. */

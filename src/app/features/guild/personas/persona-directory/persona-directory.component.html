@@ -41,7 +41,7 @@
             (ngModelChange)="query.set($event)"
             [ngModel]="query()"
             [placeholder]="'PERSONA.DIRECTORY.SEARCH' | translate"
-            class="hidden w-40 rounded-lg border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[0.75rem] text-text-primary outline-none placeholder:text-text-faint sm:block"
+            class="w-24 rounded-lg border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[0.75rem] text-text-primary outline-none placeholder:text-text-faint sm:w-40"
         />
         <p-button
             (onClick)="createPersonal()"
@@ -67,7 +67,7 @@
     @switch (tab()) {
         <!-- ── Cast ────────────────────────────────────────────────────────── -->
         @case ('cast') {
-            @if (loading() && !cast().length) {
+            @if (loadingCast() && !cast().length) {
                 <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                     @for (i of [1, 2, 3, 4, 5, 6]; track i) {
                         <div class="h-28 animate-pulse rounded-2xl bg-white/[0.03]"></div>
@@ -80,10 +80,10 @@
                 </div>
             } @else {
                 <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    @for (entry of cast(); track entry.persona.id) {
-                        @let who = identityOf(entry);
+                    @for (row of cast(); track row.member.personaId) {
+                        @let who = row.who;
                         <button
-                            (click)="open(entry)"
+                            (click)="open(row.member.personaId)"
                             [style.border-color]="
                                 who.color ? 'color-mix(in srgb, ' + who.color + ' 26%, transparent)' : 'rgba(255,255,255,0.07)'
                             "
@@ -115,7 +115,7 @@
                                                 >{{ who.tag }}</span
                                             >
                                         }
-                                        @if (entry.persona.ownerGuildId) {
+                                        @if (row.entry?.persona?.ownerGuildId) {
                                             <span
                                                 class="rounded bg-brand/15 px-1 text-[0.5625rem] font-semibold uppercase tracking-wide text-brand-dim"
                                             >
@@ -124,35 +124,41 @@
                                         }
                                     </span>
                                 </div>
-                                @let state = approvalOf(entry);
-                                <span
-                                    [class]="state.chipClass"
-                                    class="shrink-0 rounded-full px-1.5 py-[2px] text-[0.5625rem] font-semibold"
-                                >
-                                    <i [class]="state.icon" class="text-[0.5rem]"></i>
-                                </span>
+                                @if (row.entry; as entry) {
+                                    @let state = approvalOf(entry);
+                                    <span
+                                        [attr.aria-label]="state.labelKey | translate"
+                                        [attr.title]="state.labelKey | translate"
+                                        [class]="state.chipClass"
+                                        class="shrink-0 rounded-full px-1.5 py-[2px] text-[0.5625rem] font-semibold"
+                                    >
+                                        <i [class]="state.icon" class="text-[0.5rem]"></i>
+                                    </span>
+                                }
                             </div>
 
-                            @if (entry.persona.shortBio) {
-                                <p class="line-clamp-2 text-[0.75rem] leading-relaxed text-text-secondary">{{ entry.persona.shortBio }}</p>
+                            @if (row.entry?.persona?.shortBio; as bio) {
+                                <p class="line-clamp-2 text-[0.75rem] leading-relaxed text-text-secondary">{{ bio }}</p>
                             }
 
                             <div class="mt-auto flex items-center gap-2 pt-1 text-[0.6875rem] text-text-faint">
-                                @if (tagsOf(entry); as tags) {
-                                    <code class="flex items-center gap-1 rounded bg-white/[0.05] px-1 font-mono">
-                                        @if (tags.prefix) {
-                                            <span>{{ tags.prefix }}</span>
-                                        }
-                                        <span class="italic text-text-muted">{{ 'PERSONA.FIELD.PROXY_MIDDLE' | translate }}</span>
-                                        @if (tags.suffix) {
-                                            <span>{{ tags.suffix }}</span>
-                                        }
-                                    </code>
-                                }
-                                @if (entry.wikiPageId) {
-                                    <span class="flex items-center gap-1"
-                                        ><i class="pi pi-book text-[0.5625rem]"></i>{{ 'PERSONA.DIRECTORY.HAS_PAGE' | translate }}</span
-                                    >
+                                @if (row.entry; as entry) {
+                                    @if (tagsOf(entry); as tags) {
+                                        <code class="flex items-center gap-1 rounded bg-white/[0.05] px-1 font-mono">
+                                            @if (tags.prefix) {
+                                                <span>{{ tags.prefix }}</span>
+                                            }
+                                            <span class="italic text-text-muted">{{ 'PERSONA.FIELD.PROXY_MIDDLE' | translate }}</span>
+                                            @if (tags.suffix) {
+                                                <span>{{ tags.suffix }}</span>
+                                            }
+                                        </code>
+                                    }
+                                    @if (entry.wikiPageId) {
+                                        <span class="flex items-center gap-1"
+                                            ><i class="pi pi-book text-[0.5625rem]"></i>{{ 'PERSONA.DIRECTORY.HAS_PAGE' | translate }}</span
+                                        >
+                                    }
                                 }
                                 @if (who.isRetired) {
                                     <span>{{ 'PERSONA.RETIRED' | translate }}</span>
@@ -218,16 +224,15 @@
                                 }
                                 <p-button
                                     (onClick)="edit(entry)"
-                                    [attr.aria-label]="'PERSONA.DIRECTORY.EDIT' | translate"
+                                    [ariaLabel]="'PERSONA.DIRECTORY.EDIT' | translate"
                                     [text]="true"
                                     icon="pi pi-pencil"
                                     severity="secondary"
                                     size="small"
                                 />
                                 <p-button
-                                    (onClick)="withdraw(row.persona)"
-                                    [attr.aria-label]="'PERSONA.DIRECTORY.WITHDRAW' | translate"
-                                    [loading]="busyId() === row.persona.id"
+                                    (onClick)="confirmWithdraw(row.persona)"
+                                    [ariaLabel]="'PERSONA.DIRECTORY.WITHDRAW' | translate"
                                     [text]="true"
                                     icon="pi pi-sign-out"
                                     severity="secondary"
@@ -273,70 +278,77 @@
         <!-- ── Review ──────────────────────────────────────────────────────── -->
         @case ('review') {
             <div class="mx-auto flex max-w-3xl flex-col gap-3">
-                @for (entry of pending(); track entry.persona.id) {
-                    @let who = identityOf(entry);
-                    <div class="flex flex-col gap-3 rounded-2xl border border-white/[0.07] bg-card/60 p-4">
-                        <div class="flex items-start gap-3">
-                            <app-persona-avatar [avatarUrl]="who.avatarUrl" [color]="who.color" [name]="who.name" size="lg" />
-                            <div class="flex min-w-0 flex-1 flex-col gap-0.5">
-                                <span
-                                    [style.color]="who.color ?? 'var(--color-text-primary)'"
-                                    class="truncate text-[0.9375rem] font-semibold"
-                                    >{{ who.name }}</span
-                                >
-                                @if (who.pronouns) {
-                                    <span class="text-[0.6875rem] text-text-muted">{{ who.pronouns }}</span>
-                                }
-                                @if (entry.persona.shortBio) {
-                                    <p class="mt-1 text-[0.75rem] leading-relaxed text-text-secondary">{{ entry.persona.shortBio }}</p>
-                                }
+                @if (loadingPending() && !pending().length) {
+                    @for (i of [1, 2, 3]; track i) {
+                        <div class="h-32 animate-pulse rounded-2xl bg-white/[0.03]"></div>
+                    }
+                } @else {
+                    @for (entry of reviewQueue(); track entry.persona.id) {
+                        @let who = identityOf(entry);
+                        <div class="flex flex-col gap-3 rounded-2xl border border-white/[0.07] bg-card/60 p-4">
+                            <div class="flex items-start gap-3">
+                                <app-persona-avatar [avatarUrl]="who.avatarUrl" [color]="who.color" [name]="who.name" size="lg" />
+                                <div class="flex min-w-0 flex-1 flex-col gap-0.5">
+                                    <span
+                                        [style.color]="who.color ?? 'var(--color-text-primary)'"
+                                        class="truncate text-[0.9375rem] font-semibold"
+                                        >{{ who.name }}</span
+                                    >
+                                    @if (who.pronouns) {
+                                        <span class="text-[0.6875rem] text-text-muted">{{ who.pronouns }}</span>
+                                    }
+                                    @if (entry.persona.shortBio) {
+                                        <p class="mt-1 text-[0.75rem] leading-relaxed text-text-secondary">
+                                            {{ entry.persona.shortBio }}
+                                        </p>
+                                    }
+                                </div>
+                            </div>
+
+                            <div class="flex flex-wrap items-center gap-2">
+                                <p-button
+                                    (onClick)="open(entry.persona.id)"
+                                    [label]="'PERSONA.REVIEW.READ_PAGE' | translate"
+                                    [text]="true"
+                                    icon="pi pi-book"
+                                    severity="secondary"
+                                    size="small"
+                                />
+                                <span class="flex-1"></span>
+                                <p-button
+                                    (onClick)="openReview(entry)"
+                                    [label]="'PERSONA.REVIEW.REQUEST_CHANGES' | translate"
+                                    [outlined]="true"
+                                    severity="secondary"
+                                    size="small"
+                                />
+                                <p-button
+                                    (onClick)="approve(entry)"
+                                    [label]="'PERSONA.REVIEW.APPROVE' | translate"
+                                    [loading]="busyId() === entry.persona.id"
+                                    icon="pi pi-check"
+                                    severity="primary"
+                                    size="small"
+                                />
                             </div>
                         </div>
-
-                        <div class="flex flex-wrap items-center gap-2">
-                            <p-button
-                                (onClick)="open(entry)"
-                                [label]="'PERSONA.REVIEW.READ_PAGE' | translate"
-                                [text]="true"
-                                icon="pi pi-book"
-                                severity="secondary"
-                                size="small"
-                            />
-                            <span class="flex-1"></span>
-                            <p-button
-                                (onClick)="openReview(entry)"
-                                [label]="'PERSONA.REVIEW.REQUEST_CHANGES' | translate"
-                                [outlined]="true"
-                                severity="secondary"
-                                size="small"
-                            />
-                            <p-button
-                                (onClick)="approve(entry)"
-                                [label]="'PERSONA.REVIEW.APPROVE' | translate"
-                                [loading]="busyId() === entry.persona.id"
-                                icon="pi pi-check"
-                                severity="primary"
-                                size="small"
-                            />
+                    } @empty {
+                        <div class="rounded-2xl border border-dashed border-white/[0.10] px-6 py-12 text-center">
+                            @if (pending().length) {
+                                <p class="text-sm text-text-secondary">{{ 'PERSONA.REVIEW.NO_MATCHES' | translate }}</p>
+                            } @else {
+                                <p class="text-sm text-text-secondary">{{ 'PERSONA.REVIEW.EMPTY' | translate }}</p>
+                                <p class="mt-1 text-[0.75rem] text-text-muted">{{ 'PERSONA.REVIEW.EMPTY_HINT' | translate }}</p>
+                            }
                         </div>
-                    </div>
-                } @empty {
-                    <div class="rounded-2xl border border-dashed border-white/[0.10] px-6 py-12 text-center">
-                        <p class="text-sm text-text-secondary">{{ 'PERSONA.REVIEW.EMPTY' | translate }}</p>
-                        <p class="mt-1 text-[0.75rem] text-text-muted">{{ 'PERSONA.REVIEW.EMPTY_HINT' | translate }}</p>
-                    </div>
+                    }
                 }
             </div>
         }
     }
 </div>
 
-<app-persona-editor
-    (closed)="editing.set(null)"
-    (saved)="personas.ensureCast(guildId(), true)"
-    [guildName]="guildName()"
-    [target]="editing()"
-/>
+<app-persona-editor (closed)="editing.set(null)" (saved)="refreshAfterSave()" [guildName]="guildName()" [target]="editing()" />
 
 <!-- ── Request changes ────────────────────────────────────────────────────── -->
 <p-dialog
@@ -374,6 +386,47 @@
             [disabled]="!reviewReason().trim()"
             [label]="'PERSONA.REVIEW.SEND' | translate"
             severity="primary"
+            size="small"
+        />
+    </div>
+</p-dialog>
+
+<!-- ── Take out of this server ────────────────────────────────────────────── -->
+<p-dialog
+    (visibleChange)="!$event && withdrawing.set(null)"
+    [closable]="true"
+    [draggable]="false"
+    [modal]="true"
+    [resizable]="false"
+    [style]="{width: '26rem'}"
+    [visible]="!!withdrawing()"
+    appendTo="body"
+    maskStyleClass="backdrop-blur-sm"
+    styleClass="!bg-card !border !border-white/[0.08] !rounded-2xl"
+>
+    <ng-template pTemplate="header">
+        <span class="text-base font-semibold text-text-primary">
+            {{ 'PERSONA.DIRECTORY.WITHDRAW_TITLE' | translate: {name: withdrawing()?.name ?? '', guild: guildName()} }}
+        </span>
+    </ng-template>
+
+    <p class="py-1 text-sm leading-relaxed text-text-secondary">
+        {{ 'PERSONA.DIRECTORY.WITHDRAW_BODY' | translate: {guild: guildName()} }}
+    </p>
+
+    <div class="mt-4 flex justify-end gap-2 border-t border-white/[0.10] pt-4">
+        <p-button
+            (onClick)="withdrawing.set(null)"
+            [label]="'PERSONA.CANCEL' | translate"
+            [text]="true"
+            severity="secondary"
+            size="small"
+        />
+        <p-button
+            (onClick)="withdraw()"
+            [label]="'PERSONA.DIRECTORY.WITHDRAW_CONFIRM' | translate"
+            [loading]="busyId() === withdrawing()?.id"
+            severity="danger"
             size="small"
         />
     </div>

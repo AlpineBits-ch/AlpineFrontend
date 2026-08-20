@@ -39,7 +39,9 @@
                 class="flex-1 min-h-0 overflow-y-auto"
                 style="scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.08) transparent"
             >
-                <div #messageList data-testid="message-list" class="flex flex-col justify-end min-h-full px-4">
+                <!-- Bottom-aligned so a short channel stacks up from the composer. An anchored
+                     window is read downwards from its first message, so it starts at the top. -->
+                <div #messageList [class.justify-end]="!anchored()" data-testid="message-list" class="flex flex-col min-h-full px-4">
                     <!-- Loading older messages indicator -->
                     @if (loadingMore()) {
                         <div class="flex items-center justify-center py-3 gap-2 text-text-muted text-xs">
@@ -116,7 +118,7 @@
     <div class="absolute bottom-0 left-0 right-0 z-20 flex flex-col pointer-events-none">
         <!-- Always offered while anchored: a short window read from the start can sit at its own
              bottom without being anywhere near the present. -->
-        @if ((isViewingOlder() || anchored()) && showMessages() && !loadError()) {
+        @if ((scroll.isViewingOlder() || anchored()) && showMessages() && !loadError()) {
             <div class="flex justify-center px-4 pb-1.5">
                 <app-jump-to-present (jump)="jumpToPresent()" class="pointer-events-auto" />
             </div>
@@ -135,13 +137,13 @@
     <!-- Says why this device cannot read or send here, including when the server reports the channel unencrypted after this device saw it encrypted: the composer refuses outright rather than downgrading. -->
     <!-- accessOfferedElsewhere: app-channel-access-banner below already covers a device holding no group, so this doesn't duplicate that notice. -->
     <app-mls-unreadable-banner
-        (relink)="relinkDevice()"
-        [accessOfferedElsewhere]="isLockedOut()"
+        (relink)="encryption.relink()"
+        [accessOfferedElsewhere]="encryption.isLockedOut()"
         [contextId]="channel().id"
         [isChannel]="true"
-        [status]="relinkStatus()"
+        [status]="encryption.relinkStatus()"
     />
-    @if (autoModError(); as reason) {
+    @if (sending.autoModError(); as reason) {
         <div
             class="mx-4 mb-2 flex items-center gap-2 rounded-md border border-offline/40 bg-[color-mix(in_srgb,var(--color-offline)_12%,transparent)] px-3 py-2"
         >
@@ -149,7 +151,7 @@
             <span class="text-[0.8125rem] text-text-secondary">
                 {{ (reason === 'rate_limited' ? 'COMPOSER.AUTOMOD_RATE_LIMITED' : 'COMPOSER.AUTOMOD_BLOCKED_WORD') | translate }}
             </span>
-            <button type="button" class="ml-auto text-text-muted hover:text-text-primary" (click)="autoModError.set(null)">
+            <button type="button" class="ml-auto text-text-muted hover:text-text-primary" (click)="sending.autoModError.set(null)">
                 <i class="pi pi-times text-[0.75rem]"></i>
             </button>
         </div>
@@ -163,7 +165,7 @@
                 <p class="text-xs text-text-muted m-0 mt-0.5">{{ 'FORUM.LOCKED_DESC' | translate }}</p>
             </div>
         </div>
-    } @else if (isLockedOut()) {
+    } @else if (encryption.isLockedOut()) {
         <!-- Offering a composer here would only produce sends the server refuses: this device holds no group, so it has nothing to encrypt with. -->
         <app-channel-access-banner [channelId]="channel().id" />
     } @else {
