@@ -76,10 +76,21 @@ The hex pattern matches the one the role editor already uses (`roles-settings.co
 
 ## C. Guild: the aggregate
 
-`Channel.UpdateChannelParams` gains `Icon` and `IconColor` carrying **absolute** values. The sentinel
-is resolved by the endpoint, not the aggregate: wire semantics stay at the wire.
+`Channel.UpdateChannelParams` and `Channel.Update()` do **not** carry these fields. Only the endpoint
+writes them, assigning straight onto the aggregate before calling `Update()`, so `Update()`'s
+existing `ValidateAndThrow` still covers them.
 
-`Update()` assigns both, then validates as it already does.
+The first draft of this design had `Update()` assign both from `UpdateChannelParams`, and it was
+wrong. `Update()` has a second caller: `UpsertChannelFromSyncHandler`, which builds
+`UpdateChannelParams` from an inbound Discord `CHANNEL_UPDATE` and sets only Name, Description,
+IsAgeRestricted and SlowModeSeconds. The two icon fields would arrive `null` there and the
+unconditional write would clear them, so any custom icon on a Discord-linked channel would be wiped
+the next time anything changed on the Discord side.
+
+The rule this leaves: a field whose wire contract is a sentinel belongs to the endpoint that
+understands the sentinel, never to a shared aggregate method whose other callers cannot express it.
+`Guild.Tests` holds a regression test asserting `Update()` with params that omit the icon fields
+leaves them intact.
 
 ## D. Guild: the endpoint
 
@@ -102,7 +113,8 @@ feature depends on.
 No realtime change. `guild.ChannelUpdated` carries `{ChannelId, GuildId}` only and the client
 refetches (`channel-list.component.ts:418`).
 
-`UpsertChannelFromSyncCommand` is left alone: an imported channel gets type defaults.
+`UpsertChannelFromSyncCommand` is left alone: an imported channel gets type defaults, and per
+section C the sync path can no longer clear an icon set through Echo.
 
 ## E. Client: the catalog
 
