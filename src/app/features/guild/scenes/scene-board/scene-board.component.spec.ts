@@ -19,8 +19,13 @@ function scene(over: Partial<SceneListItemDto> = {}): SceneListItemDto {
     return {channelId: 'ch_1', name: 'Scene', status: SceneStatus.Active, ...over};
 }
 
-function folder(id: string, name: string, position = 0): SceneFolderDto {
-    return {id, guildId: 'g1', name, position, parentFolderId: null};
+function folder(
+    id: string,
+    name: string,
+    position = 0,
+    parentFolderId: string | null = null,
+): SceneFolderDto {
+    return {id, guildId: 'g1', name, position, parentFolderId};
 }
 
 const SCENES = [
@@ -31,7 +36,9 @@ const SCENES = [
     scene({channelId: 'done', name: 'The Last Muster', folderId: 'a', status: SceneStatus.Concluded}),
 ];
 
-function setup() {
+const FOLDERS = [folder('a', 'Act I', 0), folder('b', 'Act II', 1)];
+
+function setup(scenes = SCENES, folders = FOLDERS) {
     TestBed.configureTestingModule({
         imports: [SceneBoardComponent],
         providers: [
@@ -39,7 +46,7 @@ function setup() {
             {
                 provide: SceneService,
                 useValue: {
-                    scenes: () => SCENES,
+                    scenes: () => scenes,
                     speakableIds: () => new Set(['p1']),
                     now: () => 0,
                     isLoading: () => false,
@@ -49,7 +56,7 @@ function setup() {
             {
                 provide: SceneTaxonomyService,
                 useValue: {
-                    folders: () => [folder('a', 'Act I', 0), folder('b', 'Act II', 1)],
+                    folders: () => folders,
                     ensureGuild: () => undefined,
                 },
             },
@@ -135,6 +142,18 @@ describe('SceneBoardComponent grouping', () => {
 
         const yours = component.groups().find(g => g.key === 'yours');
         expect(yours?.rows[0].folderPath).toBe('Act I');
+    });
+
+    it('names the whole path, not just the leaf folder, on a pinned row', () => {
+        const {fixture, component} = setup(
+            [scene({channelId: 'deep', name: 'The Long Road', folderId: 'a1', currentTurnPersonaId: 'p1'})],
+            [...FOLDERS, folder('a1', 'Greyford', 0, 'a')],
+        );
+        TestBed.inject(SceneRailStateService).setRailVisible('g1', true);
+        fixture.detectChanges();
+
+        const yours = component.groups().find(g => g.key === 'yours');
+        expect(yours?.rows[0].folderPath).toBe('Act I / Greyford');
     });
 
     it('shows only the chosen folder when one is selected', () => {

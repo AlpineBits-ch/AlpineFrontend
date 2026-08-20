@@ -254,6 +254,46 @@ describe('SceneArchiveService', () => {
         expect(calls).toHaveLength(2);
     });
 
+    // `shelfFilter` builds the same key the selection uses whenever there is no tag filter, no
+    // search text and the default sort, so invalidating can empty the list being looked at.
+    it('re-reads the selection when invalidation clears the key it is showing', () => {
+        const {service, calls, responses} = setup();
+
+        service.apply({...BASE, folderId: 'f1'});
+        responses[0].next(page(2, {folderId: 'f1'}));
+
+        service.invalidateShelves('g1', 'f1', 'f2');
+
+        expect(calls).toHaveLength(2);
+        expect(calls[1]).toMatchObject({folderId: 'f1', offset: 0});
+
+        responses[1].next(page(1, {folderId: 'f1'}));
+        expect(service.scenes()).toHaveLength(1);
+    });
+
+    it('leaves the selection alone when an unrelated shelf is invalidated', () => {
+        const {service, calls, responses} = setup();
+
+        service.apply({...BASE, folderId: 'f1'});
+        responses[0].next(page(2, {folderId: 'f1'}));
+
+        service.invalidateShelves('g1', 'f2', 'f3');
+
+        expect(calls).toHaveLength(1);
+        expect(service.scenes()).toHaveLength(2);
+    });
+
+    it('re-reads the selection once when both folder ids resolve to its key', () => {
+        const {service, calls, responses} = setup();
+
+        service.apply({...BASE, folderId: 'f1'});
+        responses[0].next(page(2, {folderId: 'f1'}));
+
+        service.invalidateShelves('g1', 'f1', 'f1');
+
+        expect(calls).toHaveLength(2);
+    });
+
     it('leaves a shelf that was not named untouched', () => {
         const {service, calls, responses} = setup();
 

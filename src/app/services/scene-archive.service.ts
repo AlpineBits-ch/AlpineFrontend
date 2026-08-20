@@ -165,6 +165,11 @@ export class SceneArchiveService {
             for (const key of keys) delete next[key];
             return next;
         });
+
+        // A shelf key is the selection's own key whenever nothing is filtered, so clearing it takes
+        // the rows out from under the list on screen and no input changes to make `apply` re-read.
+        const current = this.filter();
+        if (current && keys.has(archiveKey(current))) this.read(current, 0);
     }
 
     private read(filter: ArchiveFilter, offset: number): void {

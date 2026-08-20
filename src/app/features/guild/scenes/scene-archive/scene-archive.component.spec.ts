@@ -57,9 +57,11 @@ function page(count: number): SceneListDto {
 
 function setup(folders: SceneFolderDto[]) {
     const responses: Record<string, Subject<SceneListDto>> = {};
+    const calls: SceneListParams[] = [];
     const api = {
         listScenes: (_guildId: string, params?: SceneListParams) => {
             const key = params?.folderId ?? '*';
+            calls.push(params ?? {});
             const subject = new Subject<SceneListDto>();
             responses[key] = subject;
             return subject;
@@ -73,7 +75,13 @@ function setup(folders: SceneFolderDto[]) {
             {provide: RoleplayApi, useValue: api},
             {
                 provide: SceneTaxonomyService,
-                useValue: {folders: () => folders, tags: () => [], ensureGuild: () => undefined},
+                useValue: {
+                    folders: () => folders,
+                    folder: (_guildId: string, id: string) => folders.find(f => f.id === id) ?? null,
+                    tags: () => [],
+                    resolveTags: () => [],
+                    ensureGuild: () => undefined,
+                },
             },
             {
                 provide: SceneService,
@@ -94,7 +102,7 @@ function setup(folders: SceneFolderDto[]) {
     fixture.componentRef.setInput('guildId', 'g1');
     fixture.detectChanges();
 
-    return {fixture, responses};
+    return {fixture, responses, calls};
 }
 
 /** Expands a shelf and lets the peek effect fire, so a response subject exists for it. */
@@ -158,5 +166,41 @@ describe('SceneArchiveComponent filing', () => {
 
         expect(invalidateSpy).toHaveBeenCalledWith('g1', 'a', 'b');
         expect(archive.peeked('g1', 'a')).toHaveLength(0);
+    });
+
+    /** A shelf and that shelf selected unfiltered are one cache key, so invalidation can empty the
+     *  list on screen. Two scenes on the shelf is what tells "re-read" apart from "wiped". */
+    it('keeps the rest of the shelf on screen when a card is filed out of the one being browsed', () => {
+        const {fixture, responses, calls} = setup([folder('a'), folder('b')]);
+        expand(fixture, 'a');
+        responses['a'].next({
+            scenes: [
+                {channelId: 'ch_0', name: 'Scene 0', status: SceneStatus.Active, folderId: 'a'},
+                {channelId: 'ch_1', name: 'Scene 1', status: SceneStatus.Active, folderId: 'a'},
+            ],
+            truncated: false,
+        });
+        fixture.detectChanges();
+
+        const archive = TestBed.inject(SceneArchiveService);
+        (fixture.componentInstance as unknown as {folderId: {set: (v: string | null) => void}}).folderId.set(
+            'a',
+        );
+        fixture.detectChanges();
+        expect(archive.scenes()).toHaveLength(2);
+
+        const readsOfA = () => calls.filter(params => params.folderId === 'a').length;
+        const before = readsOfA();
+
+        reach(fixture.componentInstance)['file']('ch_0' as never, 'b' as never);
+
+        expect(readsOfA()).toBe(before + 1);
+        responses['a'].next({
+            scenes: [{channelId: 'ch_1', name: 'Scene 1', status: SceneStatus.Active, folderId: 'a'}],
+            truncated: false,
+        });
+        fixture.detectChanges();
+
+        expect(archive.scenes().map(s => s.channelId)).toEqual(['ch_1']);
     });
 });
