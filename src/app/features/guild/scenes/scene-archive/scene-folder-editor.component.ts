@@ -11,6 +11,7 @@ import {
 } from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
+import {Select} from 'primeng/select';
 
 import {SceneTaxonomyService} from '../../../../services/scene-taxonomy.service';
 import {ToastService} from '../../../../services/toast.service';
@@ -21,7 +22,7 @@ import {ARCHIVE_COLOR_FALLBACK, ARCHIVE_COLORS} from './archive-colors';
 @Component({
     selector: 'app-scene-folder-editor',
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [TranslateModule, FormsModule],
+    imports: [TranslateModule, FormsModule, Select],
     templateUrl: './scene-folder-editor.component.html',
     styleUrl: './scene-editor.component.css',
     host: {'(document:keydown.escape)': 'closed.emit()'},
@@ -54,6 +55,12 @@ export class SceneFolderEditorComponent {
     protected readonly parentOptions = computed(() =>
         this.taxonomy.folders(this.guildId()).filter(f => !f.parentFolderId && f.id !== this.folder()?.id),
     );
+
+    /** The empty value is a real choice here: it means "keep this one at the top level". */
+    protected readonly parentChoices = computed(() => [
+        {label: this.translate.instant('SCENE.ARCHIVE.FOLDER_NO_PARENT') as string, value: ''},
+        ...this.parentOptions().map(folder => ({label: folder.name, value: folder.id})),
+    ]);
 
     /** A folder holding children cannot itself become a child: that would put its children at depth three. */
     protected readonly mayReparent = computed(() => {

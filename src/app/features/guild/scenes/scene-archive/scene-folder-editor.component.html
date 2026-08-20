@@ -49,12 +49,15 @@
     @if (mayReparent()) {
         <label class="editor-field">
             <span class="editor-label">{{ 'SCENE.ARCHIVE.FOLDER_PARENT' | translate }}</span>
-            <select [ngModel]="parentId()" (ngModelChange)="parentId.set($event)">
-                <option value="">{{ 'SCENE.ARCHIVE.FOLDER_NO_PARENT' | translate }}</option>
-                @for (option of parentOptions(); track option.id) {
-                    <option [value]="option.id">{{ option.name }}</option>
-                }
-            </select>
+            <p-select
+                (ngModelChange)="parentId.set($event)"
+                [ngModel]="parentId()"
+                [options]="parentChoices()"
+                appendTo="body"
+                optionLabel="label"
+                optionValue="value"
+                styleClass="w-full"
+            />
         </label>
     } @else {
         <p class="editor-hint">{{ 'SCENE.ARCHIVE.FOLDER_HAS_CHILDREN' | translate }}</p>
