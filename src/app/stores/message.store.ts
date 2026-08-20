@@ -992,6 +992,11 @@ export const MessageStore = signalStore(
                 (event: MessageUpdatedEvent) => void store.applyRemoteUpdate(event),
             );
 
+            // A guild message deleted by somebody else. Without this it stays on screen until reload.
+            guildWsService.messageDeletedObservable.subscribe(event =>
+                patchState(store, removeEntity(event.messageId)),
+            );
+
             // One patch, not one per id: `removeEntity` in a loop re-renders the list every time.
             guildWsService.messagesBulkDeletedObservable.subscribe(event =>
                 patchState(store, removeEntities(event.messageIds)),

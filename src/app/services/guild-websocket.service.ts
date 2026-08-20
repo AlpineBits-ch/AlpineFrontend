@@ -693,6 +693,14 @@ export function mapGuildMessageUpdatedPayload(data: GuildMessageUpdatedPayload):
 }
 
 /** Moderation deleted a run of messages in one action. */
+/** One guild message was deleted. The conversation hub has always said this; the guild hub now does. */
+export interface WsMessageDeleted {
+    guildId: string;
+    channelId: string;
+    messageId: string;
+    authorId?: string;
+}
+
 export interface WsMessagesBulkDeleted {
     guildId: string;
     channelId: string;
@@ -962,6 +970,7 @@ export class GuildWebsocketService {
     /** A channel message was edited. Same event shape a conversation edit produces. */
     public messageUpdatedObservable = new Subject<MessageUpdatedEvent>();
     /** A moderation action deleted several messages at once. */
+    public messageDeletedObservable = new Subject<WsMessageDeleted>();
     public messagesBulkDeletedObservable = new Subject<WsMessagesBulkDeleted>();
     /** A bot reply only this user can see, and which the server never stored. */
     public ephemeralMessageObservable = new Subject<MessageDto>();
@@ -1305,6 +1314,10 @@ export class GuildWebsocketService {
         // ships in release builds.
         this.realtime.on('guild.MessageUpdated', (d: GuildMessageUpdatedPayload) => {
             this.messageUpdatedObservable.next(mapGuildMessageUpdatedPayload(d));
+        });
+
+        this.realtime.on('guild.MessageDeleted', (d: WsMessageDeleted) => {
+            this.messageDeletedObservable.next(d);
         });
 
         this.realtime.on('guild.MessagesBulkDeleted', (d: WsMessagesBulkDeleted) => {

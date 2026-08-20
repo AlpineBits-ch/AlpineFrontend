@@ -139,6 +139,7 @@ function setup(cached: {conversation?: MessageDto[]; channel?: MessageDto[]} = {
                     messagePinnedObservable: new Subject(),
                     messageUnpinnedObservable: new Subject(),
                     messageUpdatedObservable: new Subject(),
+                    messageDeletedObservable: new Subject(),
                     messagesBulkDeletedObservable: new Subject(),
                     ephemeralMessageObservable: new Subject(),
                 },

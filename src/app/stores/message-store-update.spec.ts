@@ -128,6 +128,7 @@ function setup() {
                     messagePinnedObservable: new Subject(),
                     messageUnpinnedObservable: new Subject(),
                     messageUpdatedObservable: guildMessageUpdated,
+                    messageDeletedObservable: new Subject(),
                     messagesBulkDeletedObservable: guildMessagesBulkDeleted,
                     ephemeralMessageObservable: new Subject(),
                 },
