@@ -150,12 +150,29 @@ export class ChannelConversationComponent implements AfterViewInit {
         return scene?.status === SceneStatus.Concluded && this.sceneSide() === 'ic' ? scene : null;
     });
 
-    /** Whether this reader answers for any character in the scene. Decides which strip they get. */
+    /**
+     * The character the next message would go out as, ignoring any proxy tag still being typed.
+     * The strip is about this one and not the reader's whole roster: somebody playing Kaelen here
+     * still needs the way in for Thessaly.
+     */
+    private readonly speakingAs = computed(
+        () => this.personaService.resolveFor(this.guildId(), this.channel().id, '').personaId,
+    );
+
+    /** Whether the character about to speak is already in the scene. */
     private readonly inCast = computed(() => {
         const scene = this.scene();
         if (!scene) return false;
-        const speakable = this.scenes.speakableIds(this.guildId());
-        return scene.participants.some(participant => speakable.has(participant.personaId));
+
+        const personaId = this.speakingAs();
+        // Nobody chosen means the next message goes out as the account. Fall back to the roster so
+        // a player writing out of character is not offered a way into a scene they are already in.
+        if (!personaId) {
+            const speakable = this.scenes.speakableIds(this.guildId());
+            return scene.participants.some(participant => speakable.has(participant.personaId));
+        }
+
+        return scene.participants.some(participant => participant.personaId === personaId);
     });
 
     /**
