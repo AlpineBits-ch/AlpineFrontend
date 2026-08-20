@@ -157,7 +157,56 @@ body {
     color: #fff;
 }
 
-.chan-row.is-unread .chan-label {
+.chan-row.is-unread /* A module row that owns a tree: the twisty and the row are siblings, never nested buttons.
+   The row keeps its own padding, so the label column does not shift against the rows above it. */
+.chan-row-parent {
+    padding-left: 0.25rem;
+    gap: 0;
+}
+
+.chan-twisty {
+    display: flex;
+    flex-shrink: 0;
+    width: 1.25rem;
+    height: 100%;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 0;
+    border-radius: 0.25rem;
+    background: transparent;
+    color: rgb(255 255 255 / 0.42);
+    cursor: pointer;
+    transition: color var(--duration-fast) var(--ease-brand);
+}
+
+.chan-twisty:hover {
+    color: rgb(255 255 255 / 0.86);
+}
+
+.chan-row-main {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.chan-twisty:focus-visible,
+.chan-row-main:focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: -2px;
+    border-radius: 0.375rem;
+}
+
+.chan-label {
     font-weight: 600;
 }
 

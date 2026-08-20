@@ -30,15 +30,34 @@
                     <span class="chan-label">{{ 'PERSONA.DIRECTORY.TITLE' | translate }}</span>
                 </button>
             }
+            <!-- Scenes owns two things: a board, and a tree of scene channels. One row carries
+                 both, so the word appears once and the tree hangs visibly under it. Sibling
+                 buttons, never nested ones - see the note on .chan-section. -->
             @if (hasScenes()) {
-                <button (click)="openScenes()" [class.is-active]="isScenesActive()" class="chan-row chan-row-module">
-                    <span class="chan-icon"><i class="pi pi-bookmark"></i></span>
-                    <span class="chan-label">{{ 'SCENE.BOARD.TITLE' | translate }}</span>
-                    <!-- The whole nudge design, in one number: no toast, no banner, no interruption. -->
-                    @if (waitingSceneCount(); as waiting) {
-                        <span class="chan-badge chan-badge-count chan-badge-turn">{{ waiting }}</span>
-                    }
-                </button>
+                <div [class.is-active]="isScenesActive()" class="chan-row chan-row-module chan-row-parent">
+                    <button
+                        (click)="toggleSceneTree()"
+                        [attr.aria-expanded]="sceneTreeOpen()"
+                        [attr.aria-label]="'SCENE.BOARD.TREE_ARIA' | translate"
+                        class="chan-twisty"
+                        type="button"
+                    >
+                        <i
+                            [class]="sceneTreeOpen() ? 'pi-chevron-down' : 'pi-chevron-right'"
+                            class="pi text-[0.5625rem]"
+                        ></i>
+                    </button>
+                    <button (click)="openScenes()" class="chan-row-main" type="button">
+                        <span class="chan-icon"><i class="pi pi-bookmark"></i></span>
+                        <span class="chan-label">{{ 'SCENE.BOARD.TITLE' | translate }}</span>
+                        <!-- The whole nudge design, in one number: no toast, no banner, no interruption. -->
+                        @if (waitingSceneCount(); as waiting) {
+                            <span class="chan-badge chan-badge-count chan-badge-turn">{{ waiting }}</span>
+                        }
+                    </button>
+                </div>
+
+                <app-scene-nav [guildId]="guild().id" />
             }
             @if (hasEvents()) {
                 <button (click)="toggleEvents()" [class.is-active]="isEventsActive()" class="chan-row chan-row-module">
@@ -75,8 +94,6 @@
 
     <!-- Channel list -->
     <div (dragover)="$event.preventDefault()" class="flex-1 min-h-0 overflow-y-auto px-2 pt-1 pb-2 thin-scrollbar">
-        <app-scene-nav [guildId]="guild().id" />
-
         <!-- Free-floating channels (no category) -->
         @if (uncategorizedChannels().length > 0) {
             <div (dragover)="$event.preventDefault()">

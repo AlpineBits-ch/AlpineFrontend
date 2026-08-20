@@ -66,6 +66,7 @@ import {ChannelsAndRolesModalComponent} from '../channels-and-roles/channels-and
 import {GuildOnboardingStateService} from '../../../../services/guild-onboarding-state.service';
 import {ScheduledEventStore} from '../../../../stores/scheduled-event.store';
 import {SceneService} from '../../../../services/scene.service';
+import {SceneRailStateService} from '../../../../services/scene-rail-state.service';
 import {MinuteClockService} from '../../../../services/minute-clock.service';
 import {phaseOf} from '../events-panel/event-timing';
 
@@ -143,12 +144,20 @@ export class ChannelListComponent {
     });
     // ── Scenes ────────────────────────────────────────────────────────────────
     protected readonly scenes = inject(SceneService);
+    private readonly sceneRail = inject(SceneRailStateService);
     protected readonly isScenesActive = computed(() => {
         const view = this.navService.mainView();
         return view.type === 'scenes' && view.guildId === this.guild().id;
     });
     /** The one ambient signal that a game is waiting: a count, in the sidebar, and no toast. */
     protected readonly waitingSceneCount = computed(() => this.scenes.waitingOnMeCount(this.guild().id));
+
+    /** Shared with app-scene-nav through the rail state, so both halves of the row agree. */
+    protected readonly sceneTreeOpen = computed(() => this.sceneRail.navOpen(this.guild().id));
+
+    protected toggleSceneTree(): void {
+        this.sceneRail.setNavOpen(this.guild().id, !this.sceneTreeOpen());
+    }
 
     // ── Events ────────────────────────────────────────────────────────────────
     private eventStore = inject(ScheduledEventStore);

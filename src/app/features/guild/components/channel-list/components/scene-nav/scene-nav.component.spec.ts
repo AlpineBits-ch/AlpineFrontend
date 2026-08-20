@@ -150,8 +150,12 @@ function reach(fixture: ComponentFixture<SceneNavComponent>): Record<string, (..
     return fixture.componentInstance as unknown as Record<string, (...args: never[]) => unknown>;
 }
 
+/**
+ * The twisty lives on the Scenes module row, one component up. Both halves read the same rail
+ * state, so opening it here is what pressing it there does.
+ */
 function openSection(fixture: ComponentFixture<SceneNavComponent>): void {
-    (fixture.nativeElement.querySelector('.chan-section-toggle') as HTMLElement).click();
+    TestBed.inject(SceneRailStateService).setNavOpen('g1', true);
     fixture.detectChanges();
 }
 
@@ -171,14 +175,15 @@ describe('SceneNavComponent', () => {
 
     it('draws nothing at all for a guild without the scenes module', () => {
         const {fixture} = setup({features: 'Wiki'});
+        TestBed.inject(SceneRailStateService).setNavOpen('g1', true);
+        fixture.detectChanges();
 
-        expect(fixture.nativeElement.querySelector('.chan-section')).toBeNull();
+        expect(fixture.nativeElement.querySelector('app-scene-folder-rail')).toBeNull();
     });
 
-    it('draws the header closed, with no tree under it, on a first visit', () => {
+    it('draws no tree on a first visit, since the section starts closed', () => {
         const {fixture} = setup();
 
-        expect(fixture.nativeElement.querySelector('.chan-section')).not.toBeNull();
         expect(fixture.nativeElement.querySelector('app-scene-folder-rail')).toBeNull();
     });
 

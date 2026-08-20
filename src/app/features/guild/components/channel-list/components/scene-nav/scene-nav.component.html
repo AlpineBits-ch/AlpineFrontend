@@ -1,20 +1,5 @@
+<!-- No header of its own: the Scenes module row above is the header, and this hangs under it. -->
 @if (hasScenes()) {
-    <div class="chan-section">
-        <button (click)="toggle()" [attr.aria-expanded]="open()" class="chan-section-toggle" type="button">
-            <i
-                [class]="open() ? 'pi-chevron-down' : 'pi-chevron-right'"
-                class="pi text-[0.5625rem] opacity-70 shrink-0 transition-transform duration-150"
-            ></i>
-            <span class="chan-section-label">{{ 'SCENE.BOARD.TITLE' | translate }}</span>
-            <span class="chan-section-rule"></span>
-        </button>
-        @if (canManage() && textChannels().length) {
-            <button (click)="createIn(null)" [attr.aria-label]="'SCENE.BOARD.NEW' | translate" class="chan-section-add">
-                <i class="pi pi-plus"></i>
-            </button>
-        }
-    </div>
-
     @if (open()) {
         <div class="scene-nav-body">
             <app-scene-folder-panel
@@ -32,6 +17,15 @@
                 [selected]="folderId()"
                 [tree]="tree()"
             />
+
+            <!-- The verb lives inside the tree it acts on, rather than on a header shared with the
+                 board, so it cannot read as the next channel's. -->
+            @if (canManage() && textChannels().length) {
+                <button (click)="createIn(null)" class="scene-nav-new" type="button">
+                    <i class="pi pi-plus text-[0.5625rem]"></i>
+                    <span>{{ 'SCENE.BOARD.NEW' | translate }}</span>
+                </button>
+            }
         </div>
     }
 
