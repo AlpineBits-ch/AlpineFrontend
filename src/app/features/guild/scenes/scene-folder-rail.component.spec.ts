@@ -6,6 +6,8 @@ import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {provideTranslateService} from '@ngx-translate/core';
 import {beforeEach, describe, expect, it} from 'vitest';
 
+import {ContextMenuComponent} from '../../../shared/context-menu/context-menu.component';
+import {MenuItem} from '../../../shared/context-menu/context-menu.model';
 import {SceneFolderRailComponent} from './scene-folder-rail.component';
 import {folderTree} from './scene-archive/folder-tree';
 import {SceneFolderDto, SceneStatus} from '../../../dtos/response/scene.dto';
@@ -27,6 +29,18 @@ function setup(): {fixture: ComponentFixture<SceneFolderRailComponent>; componen
     fixture.componentRef.setInput('canManage', true);
     fixture.detectChanges();
     return {fixture, component: fixture.componentInstance};
+}
+
+function folderItems(component: SceneFolderRailComponent, node: unknown): MenuItem[] {
+    return reach(component)['folderMenuItems'](node as never) as MenuItem[];
+}
+
+function sceneItems(component: SceneFolderRailComponent, leaf: unknown): MenuItem[] {
+    return reach(component)['sceneMenuItems'](leaf as never) as MenuItem[];
+}
+
+function menuOf(component: SceneFolderRailComponent): ContextMenuComponent {
+    return (component as unknown as {menu: () => ContextMenuComponent}).menu();
 }
 
 /** Reaches past `protected` on purpose: these are the methods under characterization. */
@@ -80,24 +94,37 @@ describe('SceneFolderRailComponent menu', () => {
         fixture.componentRef.setInput('canManage', false);
         fixture.detectChanges();
 
-        const event = new MouseEvent('contextmenu');
         reach(fixture.componentInstance)['openMenu'](
-            event as never,
+            new MouseEvent('contextmenu') as never,
             fixture.componentInstance.tree()[0] as never,
         );
 
-        expect((fixture.componentInstance as unknown as {menuItems: () => unknown[]}).menuItems()).toEqual(
-            [],
-        );
+        expect(menuOf(fixture.componentInstance).isOpen()).toBe(false);
     });
 
     it('builds a menu for a folder that can be managed', () => {
         const {component} = setup();
 
+        const labels = folderItems(component, component.tree()[0]);
+
+        expect(labels.length).toBeGreaterThan(4);
+    });
+
+    it('opens on the first right click, not the second', () => {
+        const {component} = setup();
+
         reach(component)['openMenu'](new MouseEvent('contextmenu') as never, component.tree()[0] as never);
 
-        const labels = (component as unknown as {menuItems: () => {label?: string}[]}).menuItems();
-        expect(labels.length).toBeGreaterThan(4);
+        expect(menuOf(component).isOpen()).toBe(true);
+    });
+
+    it('opens a scene menu on the first right click', () => {
+        const {component} = setup();
+        const leaf = {channelId: 'ch_1', name: 'The Ford at Dawn', status: SceneStatus.Active, mine: false};
+
+        reach(component)['openSceneMenu'](new MouseEvent('contextmenu') as never, leaf as never);
+
+        expect(menuOf(component).isOpen()).toBe(true);
     });
 });
 
@@ -148,9 +175,8 @@ describe('SceneFolderRailComponent tree', () => {
     it('offers new scene here at the top of a folder menu', () => {
         const {component} = setup();
 
-        reach(component)['openMenu'](new MouseEvent('contextmenu') as never, component.tree()[0] as never);
+        const items = folderItems(component, component.tree()[0]);
 
-        const items = (component as unknown as {menuItems: () => {label?: string}[]}).menuItems();
         expect(items[0].label).toBe('SCENE.ARCHIVE.NEW_SCENE_HERE');
     });
 
@@ -159,9 +185,7 @@ describe('SceneFolderRailComponent tree', () => {
         const asked: (string | null)[] = [];
         component.createScene.subscribe(id => asked.push(id));
 
-        reach(component)['openMenu'](new MouseEvent('contextmenu') as never, component.tree()[0] as never);
-        const items = (component as unknown as {menuItems: () => {command?: () => void}[]}).menuItems();
-        items[0].command?.();
+        folderItems(component, component.tree()[0])[0].command?.({item: {}});
 
         expect(asked).toEqual(['a']);
     });
@@ -216,9 +240,8 @@ describe('SceneFolderRailComponent tree', () => {
         const {component} = setup();
         const leaf = {channelId: 'ch_1', name: 'The Ford at Dawn', status: SceneStatus.Active, mine: false};
 
-        reach(component)['openSceneMenu'](new MouseEvent('contextmenu') as never, leaf as never);
+        const items = sceneItems(component, leaf);
 
-        const items = (component as unknown as {menuItems: () => {label?: string}[]}).menuItems();
         expect(items[0].label).toBe('SCENE.ARCHIVE.READ_FROM_START');
         expect(items[1].label).toBe('SCENE.ARCHIVE.JUMP_TO_LATEST');
     });
@@ -227,11 +250,8 @@ describe('SceneFolderRailComponent tree', () => {
         const {component} = setup();
         const leaf = {channelId: 'ch_1', name: 'The Ford at Dawn', status: SceneStatus.Active, mine: false};
 
-        reach(component)['openSceneMenu'](new MouseEvent('contextmenu') as never, leaf as never);
+        const items = sceneItems(component, leaf);
 
-        const items = (
-            component as unknown as {menuItems: () => {label?: string; items?: {label?: string}[]}[]}
-        ).menuItems();
         const targets = items.at(-1)?.items ?? [];
         expect(targets[0].label).toBe('SCENE.ARCHIVE.UNFILED');
         expect(targets.map(t => t.label?.trim()).filter(Boolean)).toContain('A');
@@ -244,11 +264,7 @@ describe('SceneFolderRailComponent tree', () => {
         component.filed.subscribe(f => filed.push(f));
         const leaf = {channelId: 'ch_1', name: 'The Ford at Dawn', status: SceneStatus.Active, mine: false};
 
-        reach(component)['openSceneMenu'](new MouseEvent('contextmenu') as never, leaf as never);
-        const items = (
-            component as unknown as {menuItems: () => {items?: {command?: () => void}[]}[]}
-        ).menuItems();
-        items.at(-1)?.items?.[0].command?.();
+        sceneItems(component, leaf).at(-1)?.items?.[0].command?.({item: {}});
 
         expect(filed).toEqual([{channelId: 'ch_1', folderId: null}]);
     });
@@ -264,14 +280,8 @@ describe('SceneFolderRailComponent tree', () => {
         fixture.detectChanges();
         const leaf = {channelId: 'ch_1', name: 'The Ford at Dawn', status: SceneStatus.Active, mine: false};
 
-        reach(fixture.componentInstance)['openSceneMenu'](
-            new MouseEvent('contextmenu') as never,
-            leaf as never,
-        );
+        const items = sceneItems(fixture.componentInstance, leaf);
 
-        const items = (
-            fixture.componentInstance as unknown as {menuItems: () => {label?: string; items?: unknown}[]}
-        ).menuItems();
         expect(items).toHaveLength(2);
         expect(items.every(item => item.items === undefined)).toBe(true);
     });

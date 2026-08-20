@@ -106,7 +106,6 @@ export class SceneFolderRailComponent {
     protected readonly dragOver = signal<string | null>(null);
     /** The row a folder drag would land against, and which side of it. */
     protected readonly reorderOver = signal<{id: string; after: boolean} | null>(null);
-    protected readonly menuItems = signal<MenuItem[]>([]);
 
     private draggingId: string | null = null;
 
@@ -114,11 +113,20 @@ export class SceneFolderRailComponent {
 
     protected openMenu(event: MouseEvent, node: FolderNode): void {
         if (!this.canManage()) return;
+        // Handed to show() rather than through an input: a binding set here only lands one
+        // change detection pass later, so the menu would open on the click after this one.
+        this.menu()?.show(event, this.folderMenuItems(node));
+    }
 
+    protected openSceneMenu(event: MouseEvent, leaf: SceneLeaf): void {
+        this.menu()?.show(event, this.sceneMenuItems(leaf));
+    }
+
+    private folderMenuItems(node: FolderNode): MenuItem[] {
         const group = this.siblingsOf(node.folder.id);
         const index = group?.order.findIndex(n => n.folder.id === node.folder.id) ?? -1;
 
-        this.menuItems.set([
+        return [
             {
                 label: this.translate.instant('SCENE.ARCHIVE.NEW_SCENE_HERE'),
                 icon: 'pi pi-sparkles',
@@ -156,12 +164,10 @@ export class SceneFolderRailComponent {
                 danger: true,
                 command: () => this.deleteFolder.emit(node),
             },
-        ]);
-
-        this.menu()?.show(event);
+        ];
     }
 
-    protected openSceneMenu(event: MouseEvent, leaf: SceneLeaf): void {
+    private sceneMenuItems(leaf: SceneLeaf): MenuItem[] {
         const items: MenuItem[] = [
             {
                 label: this.translate.instant('SCENE.ARCHIVE.READ_FROM_START'),
@@ -186,8 +192,7 @@ export class SceneFolderRailComponent {
             );
         }
 
-        this.menuItems.set(items);
-        this.menu()?.show(event);
+        return items;
     }
 
     /** Unfiled first, then every folder depth first, as move targets for one scene. */

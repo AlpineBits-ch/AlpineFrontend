@@ -56,7 +56,7 @@
     </button>
 }
 
-<app-context-menu #folderMenu [model]="menuItems()" />
+<app-context-menu #folderMenu />
 
 <ng-template #shelf let-node let-depth="depth">
     <div [class.is-open]="isOpen(node.folder.id)" [class.rail-shelf-root]="depth === 0" class="rail-shelf">
