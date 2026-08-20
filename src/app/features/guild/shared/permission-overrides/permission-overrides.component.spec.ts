@@ -276,3 +276,38 @@ describe('PermissionOverridesComponent members tab', () => {
         expect(guildService.getMembers).toHaveBeenCalledWith('guild_1', 0, 50);
     });
 });
+
+describe('PermissionOverridesComponent module masks', () => {
+    it('sends the module masks when they carry anything', () => {
+        const {component, guildService} = setup();
+
+        component.onRoleChange(PLAYER, {
+            allow: 0n,
+            deny: 0n,
+            allowModule: 1n << 10n, // AddListItems
+            denyModule: 0n,
+        });
+        component.saveRole(PLAYER);
+
+        expect(guildService.upsertChannelRolePermission).toHaveBeenCalledWith(CHANNEL, PLAYER, {
+            allowPermissions: 'None',
+            denyPermissions: 'None',
+            allowModulePermissions: 'AddListItems',
+            denyModulePermissions: 'None',
+        });
+    });
+
+    // Omitting them means "carry over" on the server, which is the right default for a subject
+    // whose module masks were never touched here.
+    it('omits the module masks when nothing set them', () => {
+        const {component, guildService} = setup();
+
+        component.onRoleChange(PLAYER, {allow: 2n, deny: 0n, allowModule: 0n, denyModule: 0n});
+        component.saveRole(PLAYER);
+
+        expect(guildService.upsertChannelRolePermission).toHaveBeenCalledWith(CHANNEL, PLAYER, {
+            allowPermissions: 'SendMessages',
+            denyPermissions: 'None',
+        });
+    });
+});

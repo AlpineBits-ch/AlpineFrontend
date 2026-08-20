@@ -13,10 +13,10 @@ import {TranslateModule} from '@ngx-translate/core';
 import {ChannelPermission, GuildDto, RoleDto, RoleType} from '../../../../dtos/response/guild.dto';
 import {GuildMemberDto} from '../../../../dtos/response/member.dto';
 import {ProfileDto} from '../../../../dtos/response/profile.dto';
-import {GuildService} from '../../../../services/guild.service';
+import {GuildService, OverridePermissionsDto} from '../../../../services/guild.service';
 import {ProfileService} from '../../../../services/profile.service';
 import {parsePermissions, stringifyPermissions} from '../../../../enums/permissions.enum';
-import {parseModulePermissions} from '../../../../enums/module-permissions.enum';
+import {parseModulePermissions, stringifyModulePermissions} from '../../../../enums/module-permissions.enum';
 import {
     OverrideEntry,
     PermissionOverridesPanelComponent,
@@ -263,11 +263,18 @@ export class PermissionOverridesComponent implements OnInit {
         });
     }
 
-    private body(override: PermOverride) {
-        return {
+    private body(override: PermOverride): OverridePermissionsDto {
+        const dto: OverridePermissionsDto = {
             allowPermissions: stringifyPermissions(override.allow),
             denyPermissions: stringifyPermissions(override.deny),
         };
+
+        if (override.allowModule !== 0n || override.denyModule !== 0n) {
+            dto.allowModulePermissions = stringifyModulePermissions(override.allowModule);
+            dto.denyModulePermissions = stringifyModulePermissions(override.denyModule);
+        }
+
+        return dto;
     }
 
     private emitOverrides(): void {

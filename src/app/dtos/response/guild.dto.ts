@@ -76,10 +76,7 @@ export interface ChannelPermission {
     categoryId: string | undefined;
     allowPermissions: string;
     denyPermissions: string;
-    /**
-     * The module half of the overwrite. Absent on the flat shape nested in guild payloads, which
-     * is why these are optional - and unwritable either way, see `OverridePermissionsDto`.
-     */
+    /** The module half of the overwrite. Absent on the flat shape nested in guild payloads. */
     allowModulePermissions?: string;
     denyModulePermissions?: string;
 }

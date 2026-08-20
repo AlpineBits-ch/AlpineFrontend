@@ -12,7 +12,6 @@ import {
     MODULE_PERM_GROUPS,
     ModulePermissionKey,
     ModulePermissions,
-    stringifyModulePermissions,
 } from '../../../../enums/module-permissions.enum';
 import {ChannelType} from '../../../../dtos/response/guild.dto';
 
@@ -21,7 +20,7 @@ export type OverrideState = 'allow' | 'deny' | 'inherit';
 export interface PermOverride {
     allow: bigint;
     deny: bigint;
-    /** The module half; carried so a core-mask edit can't drop it, rendered read-only since `SetPermissionOverwriteDto` has no field to send it back. */
+    /** The module half; edited the same as the core mask and sent when either bit is nonzero. */
     allowModule: bigint;
     denyModule: bigint;
 }
@@ -51,16 +50,7 @@ export class PermissionOverrideEditorComponent {
 
     protected readonly groups = CHANNEL_PERM_GROUPS;
 
-    /** Module bits already set, as names; shown rather than edited, since the upsert body can't carry a module overwrite and a toggle here would save nothing. */
-    protected readonly moduleSummary = computed(() => {
-        const {allowModule, denyModule} = this.override();
-        const parts: string[] = [];
-        if (allowModule) parts.push(`+ ${stringifyModulePermissions(allowModule)}`);
-        if (denyModule) parts.push(`- ${stringifyModulePermissions(denyModule)}`);
-        return parts.join('  ');
-    });
-
-    /** The module permissions this channel type would offer, once they can be written. */
+    /** The module permissions this channel type can override. */
     protected readonly moduleGroup = computed(() => {
         const label = MODULE_GROUP_BY_CHANNEL[this.channelType() ?? ChannelType.Text];
         return MODULE_PERM_GROUPS.find(g => g.label === label) ?? null;
@@ -88,6 +78,16 @@ export class PermissionOverrideEditorComponent {
         if ((this.override().allowModule & val) === val) return 'allow';
         if ((this.override().denyModule & val) === val) return 'deny';
         return 'inherit';
+    }
+
+    setModuleState(key: ModulePermissionKey, state: OverrideState): void {
+        const val = ModulePermissions[key];
+        const current = this.override();
+        let allowModule = current.allowModule & ~val;
+        let denyModule = current.denyModule & ~val;
+        if (state === 'allow') allowModule |= val;
+        else if (state === 'deny') denyModule |= val;
+        this.overrideChange.emit({...current, allowModule, denyModule});
     }
 
     label(key: string): string {

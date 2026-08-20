@@ -117,16 +117,14 @@ export interface UpdateCategoryDto {
 }
 
 /**
- * Core mask only, deliberately.
- *
- * <p>`ChannelPermission` also stores an allow/deny pair of {@link ModulePermissions}, and the
- * server resolves them, but `SetPermissionOverwriteDto` has no field to carry them - so a module
- * overwrite can be enforced and read, never written. Until the server grows the pair, the editor
- * shows those bits read-only rather than offering a control that saves nothing.</p>
+ * Both mask spaces. The module pair is optional: omitting it tells the server to carry the module
+ * masks over from the row being replaced, so a core-only edit cannot silently clear them.
  */
 export interface OverridePermissionsDto {
     allowPermissions: string;
     denyPermissions: string;
+    allowModulePermissions?: string;
+    denyModulePermissions?: string;
 }
 
 export interface GuildMemberWithProfileDto extends GuildMemberDto {
