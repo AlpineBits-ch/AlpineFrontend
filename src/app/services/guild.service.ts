@@ -98,6 +98,9 @@ export interface UpdateChannelDto {
     isAgeRestricted: boolean;
     isPrivate: boolean;
     slowModeSeconds: number;
+    /** Empty string clears it back to the type default; omitting it leaves the stored value alone. */
+    icon?: string;
+    iconColor?: string;
 }
 
 export interface CreateCategoryDto {

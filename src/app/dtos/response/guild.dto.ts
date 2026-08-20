@@ -44,6 +44,10 @@ export interface ChannelDto {
     permissions: ChannelPermission[];
     position: number;
     slowModeSeconds: number;
+    /** Lucide icon name. Absent means the channel type's own icon. */
+    icon?: string;
+    /** #RRGGBB. Absent means the uniform default colour. */
+    iconColor?: string;
     parentChannelId: string | undefined;
 
     // ── Thread-only, additive. Absent on non-thread channels and on threads

@@ -1,4 +1,6 @@
+import type {IconNode} from 'lucide';
 import {ChannelType, isForumLike} from '../../dtos/response/guild.dto';
+import {lookupChannelIcon} from './channel-icon-catalog';
 import {GuildFeature} from './guild-features';
 
 /** Resolved by {@link channelViewFor}, not a template `@switch`, so an unrecognised type is never drawn as a message. */
@@ -17,7 +19,7 @@ export type ChannelView =
 
 export interface ChannelTypeMeta {
     type: ChannelType;
-    /** PrimeIcons class, or `null` for Text - which renders a literal `#` instead. */
+    /** Lucide icon name, or `null` for Text - which renders a literal `#` instead. */
     icon: string | null;
     /** The module gating this type, or `null` when nothing gates it (Text and Thread). */
     feature: GuildFeature | null;
@@ -47,7 +49,7 @@ const HOUSEHOLD_VIEW_BY_TYPE: ReadonlyMap<string, ChannelView> = new Map<string,
     [ChannelType.Maintenance, 'maintenance'],
 ]);
 
-/** Every channel type this build knows, in sidebar order, as one table; {@link channelIcon} is the only icon lookup in the app. */
+/** Every channel type this build knows, in sidebar order, as one table. */
 export const CHANNEL_META: readonly ChannelTypeMeta[] = [
     // ── Chat types. Their label keys predate this table, hence the GUILD.* stem. ──
     {
@@ -59,7 +61,7 @@ export const CHANNEL_META: readonly ChannelTypeMeta[] = [
     },
     {
         type: ChannelType.Voice,
-        icon: 'pi pi-volume-up',
+        icon: 'volume-2',
         feature: GuildFeature.VoiceChannels,
         labelKey: 'GUILD.CHANNEL_TYPE_VOICE',
         descKey: 'GUILD.CHANNEL_TYPE_VOICE_DESC',
@@ -67,22 +69,22 @@ export const CHANNEL_META: readonly ChannelTypeMeta[] = [
     {
         // A thread is never offered in the create-channel picker (created from a message), so it borrows the text strings only to keep the table total.
         type: ChannelType.Thread,
-        icon: 'pi pi-comments',
+        icon: 'messages-square',
         feature: GuildFeature.Threads,
         labelKey: 'GUILD.CHANNEL_TYPE_TEXT',
         descKey: 'GUILD.CHANNEL_TYPE_TEXT_DESC',
     },
     {
-        // Shares pi-comments with Thread deliberately: a forum post is a thread, and the two never appear as sibling rows.
+        // Shares its icon with Thread deliberately: a forum post is a thread, and the two never appear as sibling rows.
         type: ChannelType.Forum,
-        icon: 'pi pi-comments',
+        icon: 'messages-square',
         feature: GuildFeature.Forums,
         labelKey: 'GUILD.CHANNEL_TYPE_FORUM',
         descKey: 'GUILD.CHANNEL_TYPE_FORUM_DESC',
     },
     {
         type: ChannelType.Media,
-        icon: 'pi pi-images',
+        icon: 'images',
         feature: GuildFeature.Forums,
         labelKey: 'GUILD.CHANNEL_TYPE_MEDIA',
         descKey: 'GUILD.CHANNEL_TYPE_MEDIA_DESC',
@@ -91,14 +93,14 @@ export const CHANNEL_META: readonly ChannelTypeMeta[] = [
         // Never offered in the create-channel picker either: a scene is created from a channel,
         // with its cast, by the scene dialog.
         type: ChannelType.Scene,
-        icon: 'pi pi-bookmark',
+        icon: 'bookmark',
         feature: GuildFeature.Scenes,
         labelKey: 'SCENE.CHANNEL_TYPE',
         descKey: 'SCENE.CHANNEL_TYPE_DESC',
     },
     {
         type: ChannelType.Announcement,
-        icon: 'pi pi-megaphone',
+        icon: 'megaphone',
         feature: GuildFeature.Announcements,
         labelKey: 'GUILD.CHANNEL_TYPE_ANNOUNCEMENT',
         descKey: 'GUILD.CHANNEL_TYPE_ANNOUNCEMENT_DESC',
@@ -107,49 +109,49 @@ export const CHANNEL_META: readonly ChannelTypeMeta[] = [
     // ── Household types: structured rows, no messages, no composer. ──────────────
     {
         type: ChannelType.List,
-        icon: 'pi pi-check-square',
+        icon: 'square-check',
         feature: GuildFeature.Lists,
         labelKey: 'CHANNEL_TYPE.LIST.LABEL',
         descKey: 'CHANNEL_TYPE.LIST.DESC',
     },
     {
         type: ChannelType.Chores,
-        icon: 'pi pi-sync',
+        icon: 'refresh-cw',
         feature: GuildFeature.Chores,
         labelKey: 'CHANNEL_TYPE.CHORES.LABEL',
         descKey: 'CHANNEL_TYPE.CHORES.DESC',
     },
     {
         type: ChannelType.Ledger,
-        icon: 'pi pi-wallet',
+        icon: 'wallet',
         feature: GuildFeature.Ledger,
         labelKey: 'CHANNEL_TYPE.LEDGER.LABEL',
         descKey: 'CHANNEL_TYPE.LEDGER.DESC',
     },
     {
         type: ChannelType.Pantry,
-        icon: 'pi pi-box',
+        icon: 'package',
         feature: GuildFeature.Pantry,
         labelKey: 'CHANNEL_TYPE.PANTRY.LABEL',
         descKey: 'CHANNEL_TYPE.PANTRY.DESC',
     },
     {
         type: ChannelType.Decisions,
-        icon: 'pi pi-flag',
+        icon: 'flag',
         feature: GuildFeature.Decisions,
         labelKey: 'CHANNEL_TYPE.DECISIONS.LABEL',
         descKey: 'CHANNEL_TYPE.DECISIONS.DESC',
     },
     {
         type: ChannelType.Meals,
-        icon: 'pi pi-book',
+        icon: 'book-open',
         feature: GuildFeature.Meals,
         labelKey: 'CHANNEL_TYPE.MEALS.LABEL',
         descKey: 'CHANNEL_TYPE.MEALS.DESC',
     },
     {
         type: ChannelType.Maintenance,
-        icon: 'pi pi-wrench',
+        icon: 'wrench',
         feature: GuildFeature.Maintenance,
         labelKey: 'CHANNEL_TYPE.MAINTENANCE.LABEL',
         descKey: 'CHANNEL_TYPE.MAINTENANCE.DESC',
@@ -159,12 +161,14 @@ export const CHANNEL_META: readonly ChannelTypeMeta[] = [
 /** Keyed by the raw string so an off-enum value from a newer server simply misses. */
 const META_BY_TYPE = new Map<string, ChannelTypeMeta>(CHANNEL_META.map(meta => [meta.type as string, meta]));
 
+const HEX_COLOUR = /^#[0-9a-fA-F]{6}$/;
+
 /** The five whose contents are structured rows rather than messages. */
 export const HOUSEHOLD_CHANNEL_META: readonly ChannelTypeMeta[] = CHANNEL_META.filter(meta =>
     HOUSEHOLD_TYPE_SET.has(meta.type as string),
 );
 
-/** The single icon lookup in the app; `null` means "no icon" (Text renders a literal `#`), and an unknown type gets whatever fallback the caller prefers. */
+/** The type's default icon name; `null` means "no icon" (Text renders a literal `#`), and an unknown type gets whatever fallback the caller prefers. */
 export function channelIcon(type: ChannelType): string | null {
     return META_BY_TYPE.get(type as string)?.icon ?? null;
 }
@@ -199,4 +203,16 @@ export function channelViewFor(type: ChannelType): ChannelView {
     if (household) return household;
     if (MESSAGE_TYPES.includes(type as string)) return 'message';
     return 'unsupported';
+}
+
+/** The tint a channel asks for, or null. Anything that is not #rrggbb is dropped here rather than reaching a style binding. */
+export function channelIconTint(channel: {iconColor?: string}): string | null {
+    const colour = channel.iconColor;
+    if (!colour || !HEX_COLOUR.test(colour)) return null;
+    return colour;
+}
+
+/** The icon a channel actually renders: its own if this build ships it, otherwise its type's. */
+export function channelIconDataFor(channel: {type: ChannelType; icon?: string}): IconNode | null {
+    return lookupChannelIcon(channel.icon) ?? lookupChannelIcon(channelIcon(channel.type));
 }

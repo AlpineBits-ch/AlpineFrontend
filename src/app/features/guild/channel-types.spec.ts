@@ -2,9 +2,12 @@ import {describe, expect, it} from 'vitest';
 import {ChannelType} from '../../dtos/response/guild.dto';
 import {PERM_GROUPS} from '../../enums/permissions.enum';
 import {GuildFeature} from './guild-features';
+import {lookupChannelIcon} from './channel-icon-catalog';
 import {
     CHANNEL_META,
     channelIcon,
+    channelIconDataFor,
+    channelIconTint,
     channelViewFor,
     HOUSEHOLD_CHANNEL_META,
     householdChannelMeta,
@@ -41,31 +44,82 @@ describe('CHANNEL_META', () => {
             if (meta.type === ChannelType.Text) {
                 expect(meta.icon).toBeNull(); // renders a literal '#'
             } else {
-                expect(meta.icon, meta.type).toMatch(/^pi pi-/);
+                expect(meta.icon, meta.type).toMatch(/^[a-z0-9-]{1,48}$/);
             }
         }
     });
 });
 
 describe('channelIcon', () => {
-    it('returns null for Text, which renders a hash instead', () => {
+    it('is null for Text, which renders a literal #', () => {
         expect(channelIcon(ChannelType.Text)).toBeNull();
     });
 
-    it('returns the icon for every other known type', () => {
-        expect(channelIcon(ChannelType.Voice)).toBe('pi pi-volume-up');
-        expect(channelIcon(ChannelType.Forum)).toBe('pi pi-comments');
-        expect(channelIcon(ChannelType.Media)).toBe('pi pi-images');
-        expect(channelIcon(ChannelType.Announcement)).toBe('pi pi-megaphone');
-        expect(channelIcon(ChannelType.List)).toBe('pi pi-check-square');
-        expect(channelIcon(ChannelType.Chores)).toBe('pi pi-sync');
-        expect(channelIcon(ChannelType.Ledger)).toBe('pi pi-wallet');
-        expect(channelIcon(ChannelType.Pantry)).toBe('pi pi-box');
-        expect(channelIcon(ChannelType.Decisions)).toBe('pi pi-flag');
+    it('names a lucide icon for the other types', () => {
+        expect(channelIcon(ChannelType.Voice)).toBe('volume-2');
+        expect(channelIcon(ChannelType.Forum)).toBe('messages-square');
+        expect(channelIcon(ChannelType.Media)).toBe('images');
+        expect(channelIcon(ChannelType.Announcement)).toBe('megaphone');
+        expect(channelIcon(ChannelType.List)).toBe('square-check');
+        expect(channelIcon(ChannelType.Chores)).toBe('refresh-cw');
+        expect(channelIcon(ChannelType.Ledger)).toBe('wallet');
+        expect(channelIcon(ChannelType.Pantry)).toBe('package');
+        expect(channelIcon(ChannelType.Decisions)).toBe('flag');
     });
 
-    it('returns null for an unknown type rather than throwing', () => {
+    it('is null for a type this build does not know', () => {
         expect(channelIcon('Sauna' as ChannelType)).toBeNull();
+    });
+});
+
+describe('channelIconDataFor', () => {
+    it('prefers the channel own icon over the type default', () => {
+        const data = channelIconDataFor({type: ChannelType.Text, icon: 'swords'});
+        expect(data).toBe(lookupChannelIcon('swords'));
+    });
+
+    it('falls back to the type default when the channel sets none', () => {
+        expect(channelIconDataFor({type: ChannelType.Voice})).toBe(lookupChannelIcon('volume-2'));
+    });
+
+    it('falls back to the type default when the stored name is not shipped', () => {
+        expect(channelIconDataFor({type: ChannelType.Voice, icon: 'not-a-real-icon'})).toBe(
+            lookupChannelIcon('volume-2'),
+        );
+    });
+
+    it('is null for a Text channel with no icon, so the row renders its #', () => {
+        expect(channelIconDataFor({type: ChannelType.Text})).toBeNull();
+    });
+
+    it('is null when neither the channel nor the type resolves', () => {
+        expect(channelIconDataFor({type: 'Sauna' as ChannelType, icon: 'nope'})).toBeNull();
+    });
+});
+
+describe('channelIconTint', () => {
+    it('passes a well-formed hex through', () => {
+        expect(channelIconTint({iconColor: '#F87171'})).toBe('#F87171');
+    });
+
+    it('is null when unset', () => {
+        expect(channelIconTint({})).toBeNull();
+        expect(channelIconTint({iconColor: ''})).toBeNull();
+    });
+
+    it('is null for anything that is not #rrggbb, so a bad value cannot reach a style binding', () => {
+        expect(channelIconTint({iconColor: 'red'})).toBeNull();
+        expect(channelIconTint({iconColor: '#fff'})).toBeNull();
+        expect(channelIconTint({iconColor: 'url(javascript:alert(1))'})).toBeNull();
+    });
+});
+
+describe('CHANNEL_META icons are all catalog members', () => {
+    it('resolves every non-null default', () => {
+        for (const meta of CHANNEL_META) {
+            if (meta.icon === null) continue;
+            expect(lookupChannelIcon(meta.icon), meta.type).not.toBeNull();
+        }
     });
 });
 
