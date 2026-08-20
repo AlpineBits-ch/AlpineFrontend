@@ -1,4 +1,5 @@
 import {ComponentFixture, TestBed} from '@angular/core/testing';
+import {By} from '@angular/platform-browser';
 import {provideHttpClient} from '@angular/common/http';
 import {provideHttpClientTesting} from '@angular/common/http/testing';
 import {provideTranslateService} from '@ngx-translate/core';
@@ -10,6 +11,7 @@ import {GuildService} from '../../../../services/guild.service';
 import {ProfileService} from '../../../../services/profile.service';
 import {ChannelDto, ChannelType, GuildDto, RoleDto, RoleType} from '../../../../dtos/response/guild.dto';
 import {GuildMemberDto} from '../../../../dtos/response/member.dto';
+import {PermissionOverridesPanelComponent} from '../permission-overrides-panel/permission-overrides-panel.component';
 
 const CHANNEL = 'chan_1';
 const EVERYONE = 'role_everyone';
@@ -120,7 +122,14 @@ function setupCategory() {
     fixture.componentRef.setInput('guild', guild());
     fixture.detectChanges();
 
-    return {component: fixture.componentInstance, guildService};
+    return {fixture, component: fixture.componentInstance, guildService};
+}
+
+function rolePanel(
+    fixture: ComponentFixture<PermissionOverridesComponent>,
+): PermissionOverridesPanelComponent {
+    return fixture.debugElement.query(By.directive(PermissionOverridesPanelComponent))
+        .componentInstance as PermissionOverridesPanelComponent;
 }
 
 describe('PermissionOverridesComponent', () => {
@@ -402,6 +411,28 @@ describe('PermissionOverridesComponent members tab', () => {
         } finally {
             vi.useRealTimers();
         }
+    });
+});
+
+describe('PermissionOverridesComponent presets', () => {
+    it('offers the voice preset on a voice channel scope', () => {
+        const {fixture} = setup({channelDto: {...channel(), type: ChannelType.Voice}});
+
+        expect(
+            rolePanel(fixture)
+                .presets()
+                .map(p => p.id),
+        ).toContain('listen-only');
+    });
+
+    it('never offers the voice preset on a category scope', () => {
+        const {fixture} = setupCategory();
+
+        const ids = rolePanel(fixture)
+            .presets()
+            .map(p => p.id);
+        expect(ids).not.toContain('listen-only');
+        expect(ids.length).toBeGreaterThan(0);
     });
 });
 

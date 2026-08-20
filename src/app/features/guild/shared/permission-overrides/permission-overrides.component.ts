@@ -13,7 +13,13 @@ import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {NgClass} from '@angular/common';
 import {TranslateModule} from '@ngx-translate/core';
 import {debounceTime, Subject} from 'rxjs';
-import {ChannelPermission, GuildDto, RoleDto, RoleType} from '../../../../dtos/response/guild.dto';
+import {
+    ChannelPermission,
+    ChannelType,
+    GuildDto,
+    RoleDto,
+    RoleType,
+} from '../../../../dtos/response/guild.dto';
 import {GuildMemberDto} from '../../../../dtos/response/member.dto';
 import {ProfileDto} from '../../../../dtos/response/profile.dto';
 import {GuildService, OverridePermissionsDto} from '../../../../services/guild.service';
@@ -31,6 +37,7 @@ import {
 } from '../permission-override-editor/permission-override-editor.component';
 import {OverrideTarget, PermissionScopeGateway} from './permission-scope.gateway';
 import {PermissionScope} from './permission-scope';
+import {PermissionPreset, presetsFor} from '../permission-presets';
 
 /** Long enough that a typed word is one request, short enough the results still feel live. */
 const MEMBER_SEARCH_DEBOUNCE_MS = 250;
@@ -116,6 +123,10 @@ export class PermissionOverridesComponent implements OnInit {
 
     protected get emptyOverride(): PermOverride {
         return EMPTY_OVERRIDE;
+    }
+
+    protected presetsFor(channelType: ChannelType | null): readonly PermissionPreset[] {
+        return presetsFor(channelType);
     }
 
     protected readonly introKey = computed(() =>
