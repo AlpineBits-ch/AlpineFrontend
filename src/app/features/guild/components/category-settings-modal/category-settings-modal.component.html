@@ -75,7 +75,11 @@
                             <app-category-overview (categoryUpdated)="onCategoryUpdated($event)" [category]="category()!" />
                         }
                         @case ('permissions') {
-                            <app-permission-overrides [guild]="guild()!" [scope]="scope()!" />
+                            <app-permission-overrides
+                                (overridesChanged)="onOverridesChanged($event)"
+                                [guild]="guild()!"
+                                [scope]="scope()!"
+                            />
                         }
                     }
                 </div>

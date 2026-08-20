@@ -2,7 +2,7 @@ import {Component, computed, inject, model, output, signal} from '@angular/core'
 import {NgClass} from '@angular/common';
 import {Dialog} from 'primeng/dialog';
 import {Button} from 'primeng/button';
-import {CategoryDto, GuildDto} from '../../../../dtos/response/guild.dto';
+import {CategoryDto, ChannelPermission, GuildDto} from '../../../../dtos/response/guild.dto';
 import {CategoryOverviewComponent} from './pages/category-overview/category-overview.component';
 import {PermissionOverridesComponent} from '../../shared/permission-overrides/permission-overrides.component';
 import {categoryScope} from '../../shared/permission-overrides/permission-scope';
@@ -73,6 +73,13 @@ export class CategorySettingsModalComponent {
     onCategoryUpdated(c: CategoryDto): void {
         this.category.set(c);
         this.categoryUpdated.emit(c);
+    }
+
+    /** Without this the modal rebuilds from the category it was opened with, losing a just-saved override. */
+    onOverridesChanged(permissions: ChannelPermission[]): void {
+        const current = this.category();
+        if (!current) return;
+        this.onCategoryUpdated({...current, permissions});
     }
 
     deleteCategory(): void {
