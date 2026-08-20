@@ -57,6 +57,13 @@ const guild = {
     roles: [],
 } as unknown as GuildDto;
 const conversation = {id: 'c1', name: 'Chat', members: []} as unknown as ConversationDto;
+const scene = chan('scene-one', ChannelType.Scene);
+const otherScene = chan('scene-two', ChannelType.Scene);
+const scenesGuild = {
+    ...guild,
+    features: 'Scenes',
+    channels: [general, random, scene, otherScene],
+} as unknown as GuildDto;
 
 function setup(): NavigationService {
     store.clear();
@@ -119,6 +126,82 @@ describe('NavigationService restoring from the cached layout', () => {
         nav.openChannel(random);
 
         expect(relaunch().tryRestoreGuildNav([])).toBe(false);
+    });
+});
+
+describe('NavigationService scenes shell', () => {
+    it('carries the shelf and the open scene through a relaunch', () => {
+        const nav = setup();
+        nav.selectServer(scenesGuild);
+        nav.openScenes('g1', 'archive');
+        nav.openSceneFolder('g1', 'f1');
+        nav.openSceneChannel('g1', 'scene-one');
+
+        const cold = relaunch();
+        expect(cold.tryRestoreGuildNav([scenesGuild])).toBe(true);
+        expect(cold.mainView()).toEqual({
+            type: 'scenes',
+            guildId: 'g1',
+            mode: 'archive',
+            folderId: 'f1',
+            sceneChannelId: 'scene-one',
+        });
+    });
+
+    it('falls back to the board when the scene it was left on is gone', () => {
+        const nav = setup();
+        nav.selectServer(scenesGuild);
+        nav.openSceneChannel('g1', 'scene-one');
+
+        const withoutScene = {...scenesGuild, channels: [general, random]} as unknown as GuildDto;
+        const cold = relaunch();
+        expect(cold.tryRestoreGuildNav([withoutScene])).toBe(true);
+
+        const view = cold.mainView();
+        expect(view.type).toBe('scenes');
+        expect(view.type === 'scenes' && view.sceneChannelId).toBeNull();
+    });
+
+    it('walks scene to scene rather than out of the shell', () => {
+        const nav = setup();
+        nav.selectServer(scenesGuild);
+        nav.openScenes('g1');
+        nav.openSceneChannel('g1', 'scene-one');
+        nav.openSceneChannel('g1', 'scene-two');
+
+        nav.back();
+
+        const view = nav.mainView();
+        expect(view.type === 'scenes' && view.sceneChannelId).toBe('scene-one');
+    });
+
+    it('leaves the shell in one back step however many scenes were hopped through', () => {
+        const nav = setup();
+        nav.selectServer(scenesGuild);
+        nav.openChannel(random);
+        nav.openScenes('g1');
+        nav.openSceneChannel('g1', 'scene-one');
+        nav.openSceneChannel('g1', 'scene-two');
+        nav.openSceneChannel('g1', 'scene-one');
+
+        nav.closeSceneChannel('g1');
+        expect(nav.mainView().type).toBe('scenes');
+
+        nav.back();
+        const view = nav.mainView();
+        expect(view.type === 'channel' && view.channel.id).toBe('random');
+    });
+
+    it('picking a shelf clears the scene the shell was showing', () => {
+        const nav = setup();
+        nav.selectServer(scenesGuild);
+        nav.openSceneChannel('g1', 'scene-one');
+
+        nav.openSceneFolder('g1', 'f2');
+
+        const view = nav.mainView();
+        expect(view.type === 'scenes' && view.folderId).toBe('f2');
+        expect(view.type === 'scenes' && view.sceneChannelId).toBeNull();
     });
 });
 

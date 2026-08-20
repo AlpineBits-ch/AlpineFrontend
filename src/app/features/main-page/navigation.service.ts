@@ -22,7 +22,15 @@ export type MainView =
     | {type: 'personas'; guildId: string}
     | {type: 'character'; guildId: string; personaId: string}
     /** Every scene in the guild, ordered by what is waiting on the reader. */
-    | {type: 'scenes'; guildId: string; mode: SceneBoardMode};
+    | {
+          type: 'scenes';
+          guildId: string;
+          mode: SceneBoardMode;
+          /** The shelf the board or the archive is filtered to. Null is every shelf. */
+          folderId?: string | null;
+          /** The scene open in the content pane. Null shows the board or the archive instead. */
+          sceneChannelId?: string | null;
+      };
 
 interface PersistedNav {
     kind:
@@ -37,6 +45,8 @@ interface PersistedNav {
     channelId?: string;
     conversationId?: string;
     sceneMode?: SceneBoardMode;
+    sceneFolderId?: string | null;
+    sceneChannelId?: string | null;
 }
 
 const NAV_KEY = 'alpine_nav';
@@ -153,7 +163,16 @@ export class NavigationService {
                 this.mainView.set({type: 'personas', guildId: guild.id});
             } else if (state.kind === 'server-scenes' && guildHasFeature(guild, GuildFeature.Scenes)) {
                 this.sceneMode = state.sceneMode ?? 'playing';
-                this.mainView.set({type: 'scenes', guildId: guild.id, mode: this.sceneMode});
+                this.sceneFolderId = state.sceneFolderId ?? null;
+                // A scene whose channel has gone falls back to the board rather than an empty pane.
+                const scene = guild.channels.find(c => c.id === state.sceneChannelId);
+                this.mainView.set({
+                    type: 'scenes',
+                    guildId: guild.id,
+                    mode: this.sceneMode,
+                    folderId: this.sceneFolderId,
+                    sceneChannelId: scene?.id ?? null,
+                });
             } else {
                 const ch =
                     guild.channels.find(c => c.id === state.channelId) ??
@@ -306,13 +325,52 @@ export class NavigationService {
 
     /** Which half the board was last on, so leaving it and coming back does not reset to playing. */
     private sceneMode: SceneBoardMode = 'playing';
+    /** The shelf both halves were last filtered to, kept for the same reason as {@link sceneMode}. */
+    private sceneFolderId: string | null = null;
 
     /** The scene board. Guild-scoped like the wiki, and for the same reason. */
     openScenes(guildId: string, mode: SceneBoardMode = this.sceneMode): void {
+        this.showScenes(guildId, mode, this.sceneFolderId, null);
+    }
+
+    /** Filters both halves to one shelf. Null is every shelf, `UNFILED` the no-shelf bucket. */
+    openSceneFolder(guildId: string, folderId: string | null, mode: SceneBoardMode = this.sceneMode): void {
+        this.showScenes(guildId, mode, folderId, null);
+    }
+
+    /** Opens a scene inside the shell, with the rail and the breadcrumb beside it. */
+    openSceneChannel(guildId: string, channelId: string): void {
+        this.showScenes(guildId, this.sceneMode, this.sceneFolderId, channelId);
+    }
+
+    /**
+     * Steps out of a hosted scene. Drops the run of scenes it was reached through rather than
+     * pushing another entry, so one Back leaves the shell however many scenes were hopped between.
+     */
+    closeSceneChannel(guildId: string): void {
+        while (this.cursor > 0 && isHostedScene(this.history[this.cursor].mainView)) this.cursor--;
+        this.history.length = this.cursor + 1;
+        this.refreshHistoryFlags();
+        this.showScenes(guildId, this.sceneMode, this.sceneFolderId, null);
+    }
+
+    private showScenes(
+        guildId: string,
+        mode: SceneBoardMode,
+        folderId: string | null,
+        sceneChannelId: string | null,
+    ): void {
         this.sceneMode = mode;
+        this.sceneFolderId = folderId;
         const current = this.mainView();
-        if (current.type !== 'scenes' || current.guildId !== guildId || current.mode !== mode) {
-            this.mainView.set({type: 'scenes', guildId, mode});
+        const same =
+            current.type === 'scenes' &&
+            current.guildId === guildId &&
+            current.mode === mode &&
+            (current.folderId ?? null) === folderId &&
+            (current.sceneChannelId ?? null) === sceneChannelId;
+        if (!same) {
+            this.mainView.set({type: 'scenes', guildId, mode, folderId, sceneChannelId});
             this.saveNav();
         }
         this.mobileNavOpen.set(false);
@@ -415,7 +473,7 @@ export class NavigationService {
             case 'character':
                 return `${ws}|character:${view.personaId}`;
             case 'scenes':
-                return `${ws}|scenes:${view.guildId}`;
+                return `${ws}|scenes:${view.guildId}:${view.folderId ?? ''}:${view.sceneChannelId ?? ''}`;
         }
     }
 
@@ -473,7 +531,13 @@ export class NavigationService {
                 // renamed or dropped from the guild while the app was closed.
                 state = {kind: 'server-personas', guildId: ws.guild.id};
             } else if (view.type === 'scenes') {
-                state = {kind: 'server-scenes', guildId: ws.guild.id, sceneMode: view.mode};
+                state = {
+                    kind: 'server-scenes',
+                    guildId: ws.guild.id,
+                    sceneMode: view.mode,
+                    sceneFolderId: view.folderId ?? null,
+                    sceneChannelId: view.sceneChannelId ?? null,
+                };
             } else if (view.type === 'house') {
                 state = {kind: 'server-house', guildId: ws.guild.id};
             } else if (view.type === 'channel') {
@@ -486,4 +550,9 @@ export class NavigationService {
             localStorage.setItem(this.navKey(), JSON.stringify(state));
         } catch {}
     }
+}
+
+/** A scenes view with a scene in its content pane, as opposed to the board or the archive. */
+function isHostedScene(view: MainView): boolean {
+    return view.type === 'scenes' && !!view.sceneChannelId;
 }
