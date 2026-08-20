@@ -252,7 +252,7 @@ describe('SceneFolderRailComponent tree', () => {
         const targets = items.at(-1)?.items ?? [];
         expect(targets[0].label).toBe('SCENE.ARCHIVE.UNFILED');
         expect(targets.map(t => t.label?.trim()).filter(Boolean)).toContain('A');
-        expect(targets.map(t => t.label?.trim()).filter(Boolean)).toContain('A1');
+        expect(targets.map(t => t.label?.trim()).filter(Boolean)).toContain('A / A1');
     });
 
     it('files a scene on the folder chosen from the menu', () => {

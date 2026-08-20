@@ -184,16 +184,17 @@ export class SceneFolderRailComponent {
             {separator: true},
         ];
 
-        const walk = (nodes: FolderNode[], depth: number): void => {
+        const walk = (nodes: FolderNode[], parentName: string | null): void => {
             for (const node of nodes) {
+                const label = parentName ? `${parentName} / ${node.folder.name}` : node.folder.name;
                 targets.push({
-                    label: `${'  '.repeat(depth)}${node.folder.icon ?? ''} ${node.folder.name}`.trim(),
+                    label: `${node.folder.icon ?? ''} ${label}`.trim(),
                     command: () => this.filed.emit({channelId, folderId: node.folder.id}),
                 });
-                walk(node.children, depth + 1);
+                walk(node.children, node.folder.name);
             }
         };
-        walk(this.tree(), 0);
+        walk(this.tree(), null);
 
         return targets;
     }

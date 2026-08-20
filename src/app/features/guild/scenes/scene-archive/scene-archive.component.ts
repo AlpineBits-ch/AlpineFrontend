@@ -22,7 +22,7 @@ import {SceneArchiveCardComponent} from './scene-archive-card.component';
 import {SceneDetailSheetComponent} from './scene-detail-sheet.component';
 import {SceneFolderEditorComponent} from './scene-folder-editor.component';
 import {SceneTagEditorComponent} from './scene-tag-editor.component';
-import {folderTree} from './folder-tree';
+import {FolderNode, folderTree} from './folder-tree';
 import {TagChipComponent} from '../../../../components/tag-chip/tag-chip.component';
 import {ArchiveStatus, SceneArchiveService} from '../../../../services/scene-archive.service';
 import {SceneRailStateService} from '../../../../services/scene-rail-state.service';
@@ -172,9 +172,24 @@ export class SceneArchiveComponent {
         return counts;
     });
 
-    protected readonly partialFolderIds = computed(() =>
-        this.expandedIds().filter(id => !this.archive.peekExhausted(this.guildId(), id, this.status())),
-    );
+    /** A shelf's total is a floor while its own page is capped, or while anything below it is unread. */
+    protected readonly partialFolderIds = computed(() => {
+        const guildId = this.guildId();
+        const status = this.status();
+        const open = new Set(this.expandedIds());
+        const read = (id: string) => open.has(id) && this.archive.peekExhausted(guildId, id, status);
+
+        const partial = new Set<string>();
+        const walk = (node: FolderNode): boolean => {
+            let unknown = !read(node.folder.id);
+            for (const child of node.children) unknown = walk(child) || unknown;
+            if (unknown) partial.add(node.folder.id);
+            return unknown;
+        };
+        for (const root of this.tree()) walk(root);
+
+        return [...partial];
+    });
 
     protected readonly loadingFolderIds = computed(() =>
         this.expandedIds().filter(id => this.archive.peekLoading(this.guildId(), id, this.status())),
