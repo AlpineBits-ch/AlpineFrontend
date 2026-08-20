@@ -228,7 +228,11 @@ export class SceneArchiveComponent {
     );
 
     protected readonly hasFilters = computed(
-        () => this.folderId() !== null || this.tagIds().length > 0 || this.query().trim().length > 0,
+        () =>
+            this.folderId() !== null ||
+            this.tagIds().length > 0 ||
+            this.query().trim().length > 0 ||
+            this.status() !== 'all',
     );
 
     protected readonly isEmpty = computed(
@@ -245,12 +249,15 @@ export class SceneArchiveComponent {
         this.folderId.set(null);
         this.tagIds.set([]);
         this.query.set('');
+        this.status.set('all');
     }
 
     protected file(channelId: string, folderId: string | null): void {
+        const oldFolderId = this.archive.cachedRow(channelId)?.folderId ?? null;
         this.scenes.update(this.guildId(), channelId, {folderId}).subscribe({
             next: () => {
                 this.archive.patch(channelId, {folderId});
+                this.archive.invalidateShelves(this.guildId(), oldFolderId, folderId);
                 // A row filed elsewhere no longer belongs to the shelf being shown.
                 if (this.folderId() && this.folderId() !== folderId) this.archive.drop(channelId);
             },

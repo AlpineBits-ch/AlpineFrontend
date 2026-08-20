@@ -1,10 +1,11 @@
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {provideTranslateService} from '@ngx-translate/core';
-import {Subject} from 'rxjs';
+import {of, Subject} from 'rxjs';
 import {beforeAll, beforeEach, describe, expect, it, vi} from 'vitest';
 
 import {SceneArchiveComponent} from './scene-archive.component';
 import {RoleplayApi} from '../../../../services/roleplay-api.service';
+import {SceneArchiveService} from '../../../../services/scene-archive.service';
 import {SceneTaxonomyService} from '../../../../services/scene-taxonomy.service';
 import {SceneService} from '../../../../services/scene.service';
 import {GuildService} from '../../../../services/guild.service';
@@ -12,29 +13,13 @@ import {ToastService} from '../../../../services/toast.service';
 import {SceneRailStateService} from '../../../../services/scene-rail-state.service';
 import {NavigationService} from '../../../main-page/navigation.service';
 import {
+    SceneDto,
     SceneFolderDto,
     SceneListDto,
     SceneListItemDto,
     SceneStatus,
 } from '../../../../dtos/response/scene.dto';
 import {SceneListParams} from '../../../../dtos/request/scene.dto';
-
-// jsdom implements no `matchMedia`, and PrimeNG binds a listener to it in `ngOnInit`. Same stub
-// `scene-folder-rail.component.spec.ts` uses.
-beforeEach(() => {
-    if (!window.matchMedia) {
-        window.matchMedia = ((query: string) => ({
-            matches: false,
-            media: query,
-            onchange: null,
-            addEventListener: () => undefined,
-            removeEventListener: () => undefined,
-            addListener: () => undefined,
-            removeListener: () => undefined,
-            dispatchEvent: () => false,
-        })) as unknown as typeof window.matchMedia;
-    }
-});
 
 // This runner's `localStorage` global has no methods, so `SceneRailStateService` would silently
 // no-op every write. Same Map-backed stand-in `scene-rail-state.service.spec.ts` uses.
@@ -96,6 +81,7 @@ function setup(folders: SceneFolderDto[]) {
                     ensureGuild: () => undefined,
                     scenes: () => [],
                     speakableIds: () => new Set<string>(),
+                    update: () => of({} as SceneDto),
                 },
             },
             {provide: GuildService, useValue: {guilds: () => []}},
@@ -117,8 +103,8 @@ function expand(fixture: ComponentFixture<SceneArchiveComponent>, folderId: stri
     fixture.detectChanges();
 }
 
-function reach(component: SceneArchiveComponent): Record<string, () => unknown> {
-    return component as unknown as Record<string, () => unknown>;
+function reach(component: SceneArchiveComponent): Record<string, (...args: never[]) => unknown> {
+    return component as unknown as Record<string, (...args: never[]) => unknown>;
 }
 
 describe('SceneArchiveComponent shelf counts', () => {
@@ -151,5 +137,26 @@ describe('SceneArchiveComponent shelf counts', () => {
         fixture.detectChanges();
 
         expect(reach(fixture.componentInstance)['partialFolderIds']()).toContain('a');
+    });
+});
+
+describe('SceneArchiveComponent filing', () => {
+    it('invalidates both the old and new shelf, and clears the old cache, once a move settles', () => {
+        const {fixture, responses} = setup([folder('a'), folder('b')]);
+        expand(fixture, 'a');
+        responses['a'].next({
+            scenes: [{channelId: 'ch_0', name: 'Scene 0', status: SceneStatus.Active, folderId: 'a'}],
+            truncated: false,
+        });
+        fixture.detectChanges();
+
+        const archive = TestBed.inject(SceneArchiveService);
+        const invalidateSpy = vi.spyOn(archive, 'invalidateShelves');
+
+        reach(fixture.componentInstance)['file']('ch_0' as never, 'b' as never);
+        fixture.detectChanges();
+
+        expect(invalidateSpy).toHaveBeenCalledWith('g1', 'a', 'b');
+        expect(archive.peeked('g1', 'a')).toHaveLength(0);
     });
 });
