@@ -322,7 +322,9 @@ export class SceneBoardComponent {
     protected open(row: SceneRow): void {
         const channel = this.guild()?.channels.find(c => c.id === row.scene.channelId);
         if (!channel) {
-            this.toast.error(this.translate.instant('SCENE.BOARD.OPEN_FAILED'));
+            this.toast.error(this.translate.instant('SCENE.ARCHIVE.OPEN_ERROR'), {
+                detail: this.translate.instant('SCENE.ARCHIVE.OPEN_ERROR_DETAIL'),
+            });
             return;
         }
         this.nav.openChannel(channel);

@@ -173,6 +173,29 @@ describe('SceneBoardComponent grouping', () => {
     });
 });
 
+describe('SceneBoardComponent opening a row', () => {
+    let restoreStorage: () => void;
+
+    beforeEach(() => {
+        restoreStorage = installMemoryStorage();
+    });
+
+    afterEach(() => restoreStorage());
+
+    it('raises the same message the rail raises for a channel that is not in the guild', () => {
+        const {fixture} = setup();
+        const toast = TestBed.inject(ToastService) as unknown as {error: ReturnType<typeof vi.fn>};
+
+        (fixture.componentInstance as unknown as {open: (row: {scene: {channelId: string}}) => void}).open({
+            scene: {channelId: 'gone'},
+        });
+
+        expect(toast.error).toHaveBeenCalledWith('SCENE.ARCHIVE.OPEN_ERROR', {
+            detail: 'SCENE.ARCHIVE.OPEN_ERROR_DETAIL',
+        });
+    });
+});
+
 describe('SceneBoardComponent concluded scenes', () => {
     let restoreStorage: () => void;
 
