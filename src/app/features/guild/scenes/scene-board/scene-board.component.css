@@ -9,6 +9,36 @@
     white-space: nowrap;
 }
 
+/* ── Mode switch ────────────────────────────────────────────────────────── */
+.board-modes {
+    display: inline-flex;
+    gap: 0.125rem;
+    border-radius: 9999px;
+    background: rgba(255, 255, 255, 0.04);
+    padding: 0.125rem;
+}
+
+.board-modes button {
+    border-radius: 9999px;
+    padding: 0.1875rem 0.625rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: var(--color-text-faint);
+    cursor: pointer;
+    transition:
+        background-color var(--duration-base) var(--ease-brand),
+        color var(--duration-base) var(--ease-brand);
+}
+
+.board-modes button:hover {
+    color: var(--color-text-secondary);
+}
+
+.board-modes button.is-on {
+    background: rgba(255, 255, 255, 0.09);
+    color: var(--color-text-primary);
+}
+
 .board-new {
     display: inline-flex;
     align-items: center;

@@ -1,0 +1,175 @@
+:host {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.editor-scrim {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+}
+
+.editor {
+    position: relative;
+    display: flex;
+    width: min(24rem, calc(100vw - 2rem));
+    max-height: calc(100vh - 4rem);
+    flex-direction: column;
+    gap: 0.75rem;
+    overflow-y: auto;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 1rem;
+    background: var(--color-app-bg);
+    padding: 1.25rem;
+}
+
+.editor-title {
+    margin: 0;
+    font-family: 'Lora Variable', Georgia, 'Times New Roman', serif;
+    font-size: 1.0625rem;
+    font-weight: 500;
+    color: var(--color-text-primary);
+}
+
+.editor-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.editor-label {
+    font-size: 0.5625rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-text-faint);
+}
+
+.editor-field input,
+.editor-field select {
+    width: 100%;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 0.5rem;
+    background: rgba(255, 255, 255, 0.03);
+    padding: 0.375rem 0.5rem;
+    font-size: 0.8125rem;
+    color: var(--color-text-primary);
+    outline: none;
+}
+
+.editor-field input:focus,
+.editor-field select:focus {
+    border-color: rgba(255, 255, 255, 0.22);
+}
+
+.editor-check {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    cursor: pointer;
+}
+
+.editor-hint {
+    margin: 0;
+    font-size: 0.75rem;
+    line-height: 1.55;
+    color: var(--color-text-faint);
+}
+
+.editor-list {
+    display: flex;
+    max-height: 12rem;
+    flex-direction: column;
+    gap: 0.125rem;
+    overflow-y: auto;
+}
+
+.editor-row {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    border-radius: 0.5rem;
+    padding: 0.25rem 0.375rem;
+}
+
+.editor-row:hover {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.editor-badge {
+    font-size: 0.5rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-text-faint);
+}
+
+.editor-row-action {
+    border-radius: 0.375rem;
+    padding: 0.25rem;
+    color: var(--color-text-faint);
+    cursor: pointer;
+}
+
+.editor-row-action:hover {
+    color: var(--color-text-primary);
+}
+
+.editor-divider {
+    height: 1px;
+    background: rgba(255, 255, 255, 0.07);
+}
+
+.editor-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding-top: 0.25rem;
+}
+
+.editor-primary {
+    border-radius: 0.5rem;
+    background: rgba(255, 255, 255, 0.1);
+    padding: 0.375rem 0.875rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    cursor: pointer;
+}
+
+.editor-primary:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.16);
+}
+
+.editor-primary:disabled {
+    cursor: default;
+    opacity: 0.5;
+}
+
+.editor-quiet {
+    border-radius: 0.5rem;
+    padding: 0.375rem 0.625rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    cursor: pointer;
+}
+
+.editor-quiet:hover {
+    color: var(--color-text-primary);
+}
+
+.editor-danger {
+    border-radius: 0.5rem;
+    padding: 0.375rem 0.625rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--color-danger, #f87171);
+    cursor: pointer;
+}

@@ -1,6 +1,16 @@
 <header class="app-header flex shrink-0 items-center gap-3 border-b border-white/[0.06] bg-app-bg px-4">
     <span class="text-[0.8125rem] font-semibold text-text-primary">{{ 'SCENE.BOARD.TITLE' | translate }}</span>
-    @if (waitingCount(); as count) {
+
+    <div class="board-modes">
+        <button (click)="mode.set('playing')" [class.is-on]="mode() === 'playing'" type="button">
+            {{ 'SCENE.ARCHIVE.PLAYING' | translate }}
+        </button>
+        <button (click)="mode.set('archive')" [class.is-on]="mode() === 'archive'" type="button">
+            {{ 'SCENE.ARCHIVE.ARCHIVE' | translate }}
+        </button>
+    </div>
+
+    @if (mode() === 'playing' && waitingCount(); as count) {
         <span class="board-waiting-badge">{{ 'SCENE.BOARD.WAITING_COUNT' | translate: {count: count} }}</span>
     }
     @if (canManage() && textChannels().length) {
@@ -11,108 +21,112 @@
     }
 </header>
 
-<div class="min-h-0 flex-1 overflow-y-auto thin-scrollbar">
-    <div class="mx-auto max-w-3xl px-4 py-6">
-        @if (loading() && isEmpty()) {
-            <div class="flex flex-col gap-2">
-                @for (row of [1, 2, 3]; track row) {
-                    <div class="h-[4.25rem] animate-pulse rounded-2xl bg-white/[0.03]"></div>
-                }
-            </div>
-        } @else if (isEmpty()) {
-            <!-- An invitation, not a shrug: it says what a scene is, because most people
+@if (mode() === 'archive') {
+    <app-scene-archive [canManage]="canManage()" [guildId]="guildId()" />
+} @else {
+    <div class="min-h-0 flex-1 overflow-y-auto thin-scrollbar">
+        <div class="mx-auto max-w-3xl px-4 py-6">
+            @if (loading() && isEmpty()) {
+                <div class="flex flex-col gap-2">
+                    @for (row of [1, 2, 3]; track row) {
+                        <div class="h-[4.25rem] animate-pulse rounded-2xl bg-white/[0.03]"></div>
+                    }
+                </div>
+            } @else if (isEmpty()) {
+                <!-- An invitation, not a shrug: it says what a scene is, because most people
                  arriving here have only ever done this by hand. -->
-            <div class="board-empty">
-                <h2 class="board-empty-title">{{ 'SCENE.BOARD.EMPTY_TITLE' | translate }}</h2>
-                <p class="board-empty-body">{{ 'SCENE.BOARD.EMPTY_BODY' | translate }}</p>
-                @if (canManage() && textChannels().length) {
-                    <button (click)="creating.set(true)" class="board-new mt-4" type="button">
-                        <i class="pi pi-plus text-[0.5625rem]"></i>
-                        {{ 'SCENE.BOARD.NEW' | translate }}
-                    </button>
-                }
-            </div>
-        } @else {
-            @for (group of groups(); track group.key) {
-                <section class="mb-7 last:mb-0">
-                    <h2 [class]="'board-group board-group-' + group.tone">
-                        {{ group.titleKey | translate }}
-                        <span class="board-group-count">{{ group.rows.length }}</span>
-                    </h2>
+                <div class="board-empty">
+                    <h2 class="board-empty-title">{{ 'SCENE.BOARD.EMPTY_TITLE' | translate }}</h2>
+                    <p class="board-empty-body">{{ 'SCENE.BOARD.EMPTY_BODY' | translate }}</p>
+                    @if (canManage() && textChannels().length) {
+                        <button (click)="creating.set(true)" class="board-new mt-4" type="button">
+                            <i class="pi pi-plus text-[0.5625rem]"></i>
+                            {{ 'SCENE.BOARD.NEW' | translate }}
+                        </button>
+                    }
+                </div>
+            } @else {
+                @for (group of groups(); track group.key) {
+                    <section class="mb-7 last:mb-0">
+                        <h2 [class]="'board-group board-group-' + group.tone">
+                            {{ group.titleKey | translate }}
+                            <span class="board-group-count">{{ group.rows.length }}</span>
+                        </h2>
 
-                    <div class="flex flex-col gap-1.5">
-                        @for (row of group.rows; track row.scene.channelId) {
-                            <button
-                                (click)="open(row)"
-                                [class.is-ended]="row.scene.status === SceneStatus.Concluded"
-                                [class.is-yours]="row.mine"
-                                class="board-row"
-                                type="button"
-                            >
-                                @if (row.scene.status === SceneStatus.Concluded) {
-                                    <span aria-hidden="true" class="board-ended-mark"></span>
-                                } @else {
-                                    <app-turn-clock-ring
-                                        [clock]="row.clock"
-                                        [identity]="row.identity"
-                                        [muted]="row.scene.status !== SceneStatus.Active"
-                                        size="md"
-                                    />
-                                }
+                        <div class="flex flex-col gap-1.5">
+                            @for (row of group.rows; track row.scene.channelId) {
+                                <button
+                                    (click)="open(row)"
+                                    [class.is-ended]="row.scene.status === SceneStatus.Concluded"
+                                    [class.is-yours]="row.mine"
+                                    class="board-row"
+                                    type="button"
+                                >
+                                    @if (row.scene.status === SceneStatus.Concluded) {
+                                        <span aria-hidden="true" class="board-ended-mark"></span>
+                                    } @else {
+                                        <app-turn-clock-ring
+                                            [clock]="row.clock"
+                                            [identity]="row.identity"
+                                            [muted]="row.scene.status !== SceneStatus.Active"
+                                            size="md"
+                                        />
+                                    }
 
-                                <span class="flex min-w-0 flex-1 flex-col gap-0.5 text-left">
-                                    <span class="board-name">{{ row.scene.name }}</span>
+                                    <span class="flex min-w-0 flex-1 flex-col gap-0.5 text-left">
+                                        <span class="board-name">{{ row.scene.name }}</span>
 
-                                    <span class="board-line">
-                                        @if (row.scene.status === SceneStatus.Concluded) {
-                                            @for (entry of row.tally; track entry.labelKey; let last = $last) {
-                                                <span class="board-figure">{{ entry.value }}</span>
-                                                <span>{{ entry.labelKey | translate }}</span>
-                                                @if (!last) {
+                                        <span class="board-line">
+                                            @if (row.scene.status === SceneStatus.Concluded) {
+                                                @for (entry of row.tally; track entry.labelKey; let last = $last) {
+                                                    <span class="board-figure">{{ entry.value }}</span>
+                                                    <span>{{ entry.labelKey | translate }}</span>
+                                                    @if (!last) {
+                                                        <span class="board-dot">·</span>
+                                                    }
+                                                }
+                                            } @else if (row.identity; as who) {
+                                                <span [style.color]="who.color ?? 'var(--color-text-secondary)'" class="board-speaker">
+                                                    {{ who.name }}
+                                                </span>
+                                                <span class="board-dot">·</span>
+                                                @if (row.mine) {
+                                                    <span class="board-yours">{{ 'SCENE.RAIL.YOUR_MOVE' | translate }}</span>
                                                     <span class="board-dot">·</span>
                                                 }
-                                            }
-                                        } @else if (row.identity; as who) {
-                                            <span [style.color]="who.color ?? 'var(--color-text-secondary)'" class="board-speaker">
-                                                {{ who.name }}
-                                            </span>
-                                            <span class="board-dot">·</span>
-                                            @if (row.mine) {
-                                                <span class="board-yours">{{ 'SCENE.RAIL.YOUR_MOVE' | translate }}</span>
-                                                <span class="board-dot">·</span>
-                                            }
-                                            @if (row.clock.hasDeadline) {
-                                                <span [class.board-late]="row.clock.overdue">
-                                                    {{
-                                                        'SCENE.RAIL.DUE'
-                                                            | translate: {when: row.scene.turnDeadlineAt | relativeTime: scenes.now()}
-                                                    }}
-                                                </span>
+                                                @if (row.clock.hasDeadline) {
+                                                    <span [class.board-late]="row.clock.overdue">
+                                                        {{
+                                                            'SCENE.RAIL.DUE'
+                                                                | translate: {when: row.scene.turnDeadlineAt | relativeTime: scenes.now()}
+                                                        }}
+                                                    </span>
+                                                } @else {
+                                                    <span>{{ 'SCENE.RAIL.NO_DEADLINE' | translate }}</span>
+                                                }
                                             } @else {
-                                                <span>{{ 'SCENE.RAIL.NO_DEADLINE' | translate }}</span>
+                                                <span>{{ statusOf(row.scene).labelKey | translate }}</span>
+                                                <span class="board-dot">·</span>
+                                                <span>{{ 'SCENE.RAIL.CAST_COUNT' | translate: {count: row.scene.participantCount} }}</span>
                                             }
-                                        } @else {
-                                            <span>{{ statusOf(row.scene).labelKey | translate }}</span>
-                                            <span class="board-dot">·</span>
-                                            <span>{{ 'SCENE.RAIL.CAST_COUNT' | translate: {count: row.scene.participantCount} }}</span>
-                                        }
+                                        </span>
                                     </span>
-                                </span>
 
-                                @if (row.scene.turnNumber; as turn) {
-                                    <span class="board-turn">
-                                        <span class="board-figure">{{ turn }}</span>
-                                        <span class="board-turn-label">{{ 'SCENE.RAIL.TURN' | translate }}</span>
-                                    </span>
-                                }
-                            </button>
-                        }
-                    </div>
-                </section>
+                                    @if (row.scene.turnNumber; as turn) {
+                                        <span class="board-turn">
+                                            <span class="board-figure">{{ turn }}</span>
+                                            <span class="board-turn-label">{{ 'SCENE.RAIL.TURN' | translate }}</span>
+                                        </span>
+                                    }
+                                </button>
+                            }
+                        </div>
+                    </section>
+                }
             }
-        }
+        </div>
     </div>
-</div>
+}
 
 @if (creating()) {
     <app-scene-dialog

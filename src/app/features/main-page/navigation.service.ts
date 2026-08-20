@@ -246,6 +246,19 @@ export class NavigationService {
         this.saveNav();
     }
 
+    /**
+     * Opens a channel anchored at its first message rather than its last. Set just before the view
+     * changes and read once by the conversation, so an ordinary reopen of the same channel later
+     * lands at the present the way it always does.
+     */
+    openChannelFromStart(channel: ChannelDto): void {
+        this.readFromStart.set(channel.id);
+        this.openChannel(channel);
+    }
+
+    /** The channel a read-from-the-start was asked for, cleared by whoever acts on it. */
+    readonly readFromStart = signal<string | null>(null);
+
     /** True when the given channel is the one currently shown in the main view. */
     isChannelActive(channelId: string): boolean {
         const view = this.mainView();

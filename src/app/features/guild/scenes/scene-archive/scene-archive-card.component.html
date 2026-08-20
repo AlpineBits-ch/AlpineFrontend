@@ -1,0 +1,44 @@
+<div
+    (click)="opened.emit(scene())"
+    (contextmenu)="menu.emit({scene: scene(), event: $event})"
+    (dragstart)="onDragStart($event)"
+    (keydown.enter)="opened.emit(scene())"
+    (keydown.space)="$event.preventDefault(); opened.emit(scene())"
+    [attr.draggable]="draggable() ? true : null"
+    class="card"
+    role="button"
+    tabindex="0"
+>
+    <span aria-hidden="true" class="card-mark"></span>
+
+    <div class="flex min-w-0 flex-1 flex-col gap-1">
+        <div class="flex min-w-0 items-baseline gap-2">
+            <span class="card-name">{{ scene().name }}</span>
+            @if (folderName(); as folder) {
+                <span class="card-folder">{{ folder }}</span>
+            }
+        </div>
+
+        <div class="card-line">
+            @for (entry of tally(); track entry.labelKey; let last = $last) {
+                <span class="card-figure">{{ entry.value }}</span>
+                <span>{{ entry.labelKey | translate }}</span>
+                @if (!last) {
+                    <span class="card-dot">·</span>
+                }
+            }
+            @if (ran().to; as ended) {
+                <span class="card-dot">·</span>
+                <span>{{ ended | date: 'MMM y' }}</span>
+            }
+        </div>
+
+        @if (tags().length) {
+            <div class="mt-0.5 flex flex-wrap gap-1">
+                @for (tag of tags(); track tag.id) {
+                    <app-tag-chip [tag]="tag" size="xs" />
+                }
+            </div>
+        }
+    </div>
+</div>

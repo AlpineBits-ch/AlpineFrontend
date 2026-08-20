@@ -1,0 +1,67 @@
+<button (click)="picked.emit(null)" [class.is-selected]="selected() === null" class="rail-row rail-row-all" type="button">
+    <span class="rail-name">{{ 'SCENE.ARCHIVE.ALL' | translate }}</span>
+    <span class="rail-count">{{ totalCount() }}</span>
+</button>
+
+@for (node of tree(); track node.folder.id) {
+    <button
+        (click)="picked.emit(node.folder.id)"
+        (dragleave)="onDragLeave()"
+        (dragover)="onDragOver($event, node.folder.id)"
+        (drop)="onDrop($event, node.folder.id)"
+        (contextmenu)="$event.preventDefault(); canManage() && renameFolder.emit(node)"
+        [class.is-drop-target]="dragOver === node.folder.id"
+        [class.is-selected]="selected() === node.folder.id"
+        [style.--rail-accent]="node.folder.color"
+        class="rail-row"
+        type="button"
+    >
+        @if (node.folder.icon) {
+            <span class="rail-icon">{{ node.folder.icon }}</span>
+        }
+        <span class="rail-name">{{ node.folder.name }}</span>
+        <span class="rail-count">{{ node.count }}</span>
+    </button>
+
+    @for (child of node.children; track child.folder.id) {
+        <button
+            (click)="picked.emit(child.folder.id)"
+            (dragleave)="onDragLeave()"
+            (dragover)="onDragOver($event, child.folder.id)"
+            (drop)="onDrop($event, child.folder.id)"
+            (contextmenu)="$event.preventDefault(); canManage() && renameFolder.emit(child)"
+            [class.is-drop-target]="dragOver === child.folder.id"
+            [class.is-selected]="selected() === child.folder.id"
+            [style.--rail-accent]="child.folder.color"
+            class="rail-row rail-row-child"
+            type="button"
+        >
+            @if (child.folder.icon) {
+                <span class="rail-icon">{{ child.folder.icon }}</span>
+            }
+            <span class="rail-name">{{ child.folder.name }}</span>
+            <span class="rail-count">{{ child.count }}</span>
+        </button>
+    }
+}
+
+<button
+    (click)="picked.emit(UNFILED)"
+    (dragleave)="onDragLeave()"
+    (dragover)="onDragOver($event, null)"
+    (drop)="onDrop($event, null)"
+    [class.is-drop-target]="dragOver === UNFILED"
+    [class.is-selected]="selected() === UNFILED"
+    class="rail-row rail-row-unfiled"
+    type="button"
+>
+    <span class="rail-name">{{ 'SCENE.ARCHIVE.UNFILED' | translate }}</span>
+    <span class="rail-count">{{ unfiledCount() }}</span>
+</button>
+
+@if (canManage()) {
+    <button (click)="createFolder.emit()" class="rail-add" type="button">
+        <i class="pi pi-plus text-[0.5rem]"></i>
+        {{ 'SCENE.ARCHIVE.NEW_FOLDER' | translate }}
+    </button>
+}

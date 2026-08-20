@@ -1,0 +1,110 @@
+<button (click)="closed.emit()" [attr.aria-label]="'COMMON.CLOSE' | translate" class="sheet-scrim" type="button"></button>
+
+<aside class="sheet thin-scrollbar">
+    <header class="sheet-head">
+        <span aria-hidden="true" class="sheet-mark"></span>
+        <h2 class="sheet-title">{{ scene().name }}</h2>
+        <button (click)="closed.emit()" class="sheet-close" type="button">
+            <i class="pi pi-times text-[0.6875rem]"></i>
+        </button>
+    </header>
+
+    <div class="sheet-meta">
+        @if (folder(); as shelf) {
+            <span class="sheet-folder">{{ shelf.name }}</span>
+        }
+        @if (started() && ended()) {
+            <span>{{ started() | date: 'd MMM y' }} &ndash; {{ ended() | date: 'd MMM y' }}</span>
+        } @else if (ended()) {
+            <span>{{ ended() | date: 'd MMM y' }}</span>
+        }
+    </div>
+
+    @if (cast().length) {
+        <div class="sheet-cast">
+            @for (member of cast(); track member.personaId) {
+                <app-avatar [authSrc]="member.avatarUrl" [label]="member.name ?? ''" size="normal" />
+            }
+            <span class="sheet-cast-count">
+                {{ 'SCENE.RAIL.CAST_COUNT' | translate: {count: cast().length} }}
+            </span>
+        </div>
+    }
+
+    @if (tally().length) {
+        <div class="sheet-tally">
+            @for (entry of tally(); track entry.labelKey) {
+                <div class="sheet-tally-cell">
+                    <span class="sheet-figure">{{ entry.value }}</span>
+                    <span class="sheet-tally-label">{{ entry.labelKey | translate }}</span>
+                </div>
+            }
+        </div>
+    }
+
+    @if (note(); as closing) {
+        <blockquote class="sheet-note">{{ closing }}</blockquote>
+    }
+
+    <div class="sheet-section">
+        <h3 class="sheet-section-title">{{ 'SCENE.ARCHIVE.TAGS' | translate }}</h3>
+        <div class="flex flex-wrap gap-1">
+            @for (tag of allTags(); track tag.id) {
+                <button
+                    (click)="toggleTag(tag.id)"
+                    [disabled]="!mayApply(tag.id) || saving()"
+                    [attr.data-testid]="'apply-tag'"
+                    [attr.title]="mayApply(tag.id) ? null : ('SCENE.ARCHIVE.MODERATED' | translate)"
+                    class="contents"
+                    type="button"
+                >
+                    <app-tag-chip [interactive]="mayApply(tag.id)" [selected]="appliedIds().has(tag.id)" [tag]="tag" size="xs" />
+                </button>
+            }
+            @if (!allTags().length) {
+                <span class="sheet-hint">{{ 'SCENE.ARCHIVE.NO_TAGS' | translate }}</span>
+            }
+        </div>
+    </div>
+
+    @if (canManage()) {
+        <div class="sheet-section">
+            <h3 class="sheet-section-title">{{ 'SCENE.ARCHIVE.FILE_INTO' | translate }}</h3>
+            <button (click)="picking.set(!picking())" class="sheet-pick" data-testid="file-into-folder" type="button">
+                <span>{{ folder()?.name ?? ('SCENE.ARCHIVE.UNFILED' | translate) }}</span>
+                <i class="pi pi-chevron-down text-[0.5rem]"></i>
+            </button>
+
+            @if (picking()) {
+                <div class="sheet-pick-list">
+                    <button (click)="file(null)" class="sheet-pick-row" type="button">
+                        {{ 'SCENE.ARCHIVE.UNFILED' | translate }}
+                    </button>
+                    @for (shelf of folders(); track shelf.id) {
+                        <button
+                            (click)="file(shelf.id)"
+                            [class.is-current]="folder()?.id === shelf.id"
+                            [class.is-child]="!!shelf.parentFolderId"
+                            class="sheet-pick-row"
+                            type="button"
+                        >
+                            @if (shelf.icon) {
+                                <span>{{ shelf.icon }}</span>
+                            }
+                            {{ shelf.name }}
+                        </button>
+                    }
+                </div>
+            }
+        </div>
+    }
+
+    <div class="sheet-actions">
+        <button (click)="open(true)" class="sheet-primary" type="button">
+            {{ 'SCENE.ARCHIVE.READ_FROM_START' | translate }}
+        </button>
+        <button (click)="open(false)" class="sheet-secondary" type="button">
+            {{ 'SCENE.ARCHIVE.JUMP_TO_LATEST' | translate }}
+        </button>
+    </div>
+</aside>

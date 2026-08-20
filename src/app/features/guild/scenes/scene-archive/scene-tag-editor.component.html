@@ -1,0 +1,68 @@
+<button (click)="closed.emit()" [attr.aria-label]="'COMMON.CLOSE' | translate" class="editor-scrim" type="button"></button>
+
+<div class="editor">
+    <h2 class="editor-title">{{ 'SCENE.ARCHIVE.MANAGE_TAGS' | translate }}</h2>
+
+    @if (tags().length) {
+        <div class="editor-list thin-scrollbar">
+            @for (tag of tags(); track tag.id) {
+                <div class="editor-row">
+                    <app-tag-chip [tag]="tag" size="xs" />
+                    @if (tag.moderated) {
+                        <span class="editor-badge">{{ 'SCENE.ARCHIVE.MODERATED' | translate }}</span>
+                    }
+                    <button (click)="edit(tag)" class="editor-row-action ml-auto" type="button">
+                        <i class="pi pi-pencil text-[0.5625rem]"></i>
+                    </button>
+                    <button (click)="remove(tag)" [disabled]="saving()" class="editor-row-action" type="button">
+                        <i class="pi pi-trash text-[0.5625rem]"></i>
+                    </button>
+                </div>
+            }
+        </div>
+    } @else {
+        <p class="editor-hint">{{ 'SCENE.ARCHIVE.NO_TAGS' | translate }}</p>
+    }
+
+    @if (!full() || editingId()) {
+        <div class="editor-divider"></div>
+
+        <div class="flex items-center gap-2">
+            <app-tag-chip [tag]="preview()" size="sm" />
+        </div>
+
+        <div class="flex gap-2">
+            <label class="editor-field flex-1">
+                <span class="editor-label">{{ 'SCENE.ARCHIVE.TAG_NAME' | translate }}</span>
+                <input [ngModel]="name()" (ngModelChange)="name.set($event)" maxlength="20" type="text" />
+            </label>
+
+            <label class="editor-field w-28">
+                <span class="editor-label">{{ 'SCENE.ARCHIVE.FOLDER_COLOR' | translate }}</span>
+                <input [ngModel]="color()" (ngModelChange)="color.set($event)" placeholder="#8899aa" type="text" />
+            </label>
+        </div>
+
+        <label class="editor-check">
+            <input [ngModel]="moderated()" (ngModelChange)="moderated.set($event)" type="checkbox" />
+            <span>{{ 'SCENE.ARCHIVE.MODERATED_HINT' | translate }}</span>
+        </label>
+    } @else {
+        <p class="editor-hint">{{ 'SCENE.ARCHIVE.TAG_LIMIT' | translate: {count: 40} }}</p>
+    }
+
+    <div class="editor-actions">
+        @if (editingId()) {
+            <button (click)="reset()" class="editor-quiet" type="button">
+                {{ 'SCENE.ARCHIVE.NEW_TAG' | translate }}
+            </button>
+        }
+
+        <button (click)="closed.emit()" class="editor-quiet ml-auto" type="button">
+            {{ 'COMMON.CLOSE' | translate }}
+        </button>
+        <button (click)="save()" [disabled]="!valid() || saving() || (full() && !editingId())" class="editor-primary" type="button">
+            {{ 'COMMON.SAVE' | translate }}
+        </button>
+    </div>
+</div>

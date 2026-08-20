@@ -1,0 +1,118 @@
+.archive-rail {
+    width: 13rem;
+    flex-shrink: 0;
+    border-right: 1px solid rgba(255, 255, 255, 0.06);
+    padding: 1.25rem 0.625rem;
+    overflow-y: auto;
+}
+
+.archive-filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    padding: 0.625rem 1rem;
+}
+
+.archive-search {
+    display: flex;
+    align-items: center;
+    gap: 0.4375rem;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 9999px;
+    background: rgba(255, 255, 255, 0.03);
+    padding: 0.25rem 0.6875rem;
+    color: var(--color-text-faint);
+}
+
+.archive-search:focus-within {
+    border-color: rgba(255, 255, 255, 0.16);
+}
+
+.archive-search input {
+    width: 9rem;
+    border: 0;
+    background: transparent;
+    font-size: 0.75rem;
+    color: var(--color-text-primary);
+    outline: none;
+}
+
+.archive-search input::placeholder {
+    color: var(--color-text-faint);
+}
+
+/* The browser's own clear affordance sits badly in a pill this size. */
+.archive-search input::-webkit-search-cancel-button {
+    display: none;
+}
+
+.archive-clear {
+    border-radius: 9999px;
+    padding: 0.1875rem 0.5rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: var(--color-text-faint);
+    cursor: pointer;
+    transition: color var(--duration-base) var(--ease-brand);
+}
+
+.archive-clear:hover {
+    color: var(--color-text-secondary);
+}
+
+.archive-more {
+    display: block;
+    width: 100%;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 0.75rem;
+    padding: 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    transition:
+        background-color var(--duration-base) var(--ease-brand),
+        color var(--duration-base) var(--ease-brand);
+}
+
+.archive-more:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--color-text-primary);
+}
+
+.archive-more:disabled {
+    cursor: default;
+    opacity: 0.6;
+}
+
+.archive-empty {
+    border: 1px dashed rgba(255, 255, 255, 0.1);
+    border-radius: 1.25rem;
+    padding: 2.5rem 2rem;
+    text-align: center;
+}
+
+.archive-empty-title {
+    margin: 0;
+    font-family: 'Lora Variable', Georgia, 'Times New Roman', serif;
+    font-size: 1.125rem;
+    font-weight: 500;
+    color: var(--color-text-primary);
+}
+
+.archive-empty-body {
+    max-width: 28rem;
+    margin: 0.5rem auto 0;
+    font-size: 0.8125rem;
+    line-height: 1.65;
+    color: var(--color-text-muted);
+}
+
+@media (max-width: 720px) {
+    .archive-rail {
+        width: 9.5rem;
+        padding: 1rem 0.5rem;
+    }
+}

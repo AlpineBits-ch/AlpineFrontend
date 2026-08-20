@@ -1,10 +1,11 @@
-import {Component, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, signal} from '@angular/core';
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {beforeEach, describe, expect, it} from 'vitest';
 
 import {ChipTag, TagChipComponent} from './tag-chip.component';
 
 @Component({
+    changeDetection: ChangeDetectionStrategy.OnPush,
     imports: [TagChipComponent],
     template: `
         <app-tag-chip

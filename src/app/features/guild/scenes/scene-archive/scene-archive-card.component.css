@@ -1,0 +1,83 @@
+.card {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    width: 100%;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 0.875rem;
+    background: transparent;
+    padding: 0.75rem 0.875rem;
+    cursor: pointer;
+    transition:
+        background-color var(--duration-base) var(--ease-brand),
+        border-color var(--duration-base) var(--ease-brand);
+}
+
+.card:hover,
+.card:focus-visible {
+    background: rgba(255, 255, 255, 0.03);
+    border-color: rgba(255, 255, 255, 0.1);
+    outline: none;
+}
+
+/* The same diamond a concluded scene carries at the end of its own timeline, so a finished scene
+   reads the same wherever it appears. */
+.card-mark {
+    position: relative;
+    flex-shrink: 0;
+    width: 1.125rem;
+    height: 1.5rem;
+}
+
+.card-mark::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 0.5rem;
+    width: 0.4375rem;
+    height: 0.4375rem;
+    transform: translateX(-50%) rotate(45deg);
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2);
+}
+
+.card-name {
+    font-family: 'Lora Variable', Georgia, 'Times New Roman', serif;
+    font-size: 0.9375rem;
+    line-height: 1.3;
+    color: var(--color-text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.card:hover .card-name {
+    color: var(--color-text-primary);
+}
+
+.card-folder {
+    flex-shrink: 0;
+    font-size: 0.5625rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-text-faint);
+}
+
+.card-line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.25rem;
+    font-size: 0.6875rem;
+    color: var(--color-text-muted);
+}
+
+.card-figure {
+    font-family: 'Fira Code Variable', 'Fira Code', monospace;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-text-secondary);
+}
+
+.card-dot {
+    color: var(--color-text-faint);
+}

@@ -1,0 +1,121 @@
+<div class="flex min-h-0 flex-1 overflow-hidden">
+    <aside class="archive-rail thin-scrollbar">
+        <app-scene-folder-rail
+            (createFolder)="editing.set('new')"
+            (filed)="file($event.channelId, $event.folderId)"
+            (picked)="folderId.set($event)"
+            (renameFolder)="editing.set($event.folder)"
+            [canManage]="canManage()"
+            [selected]="folderId()"
+            [totalCount]="archive.scenes().length"
+            [tree]="tree()"
+            [unfiledCount]="unfiledCount()"
+        />
+    </aside>
+
+    <div class="flex min-w-0 flex-1 flex-col">
+        <div class="archive-filters">
+            <div class="archive-search">
+                <i class="pi pi-search text-[0.6875rem]"></i>
+                <input
+                    [ngModel]="query()"
+                    (ngModelChange)="query.set($event)"
+                    [placeholder]="'SCENE.ARCHIVE.SEARCH_PLACEHOLDER' | translate"
+                    type="search"
+                />
+            </div>
+
+            @if (tags().length) {
+                <div class="flex flex-wrap items-center gap-1">
+                    @for (tag of tags(); track tag.id) {
+                        <button (click)="toggleTag(tag.id)" class="contents" type="button">
+                            <app-tag-chip [interactive]="true" [selected]="tagIds().includes(tag.id)" [tag]="tag" />
+                        </button>
+                    }
+                </div>
+            }
+
+            @if (hasFilters()) {
+                <button (click)="clearFilters()" class="archive-clear" type="button">
+                    {{ 'SCENE.ARCHIVE.CLEAR_FILTERS' | translate }}
+                </button>
+            }
+
+            @if (canManage()) {
+                <button (click)="managingTags.set(true)" class="archive-clear ml-auto" type="button">
+                    {{ 'SCENE.ARCHIVE.MANAGE_TAGS' | translate }}
+                </button>
+            }
+        </div>
+
+        <div class="min-h-0 flex-1 overflow-y-auto thin-scrollbar">
+            <div class="mx-auto max-w-3xl px-4 py-5">
+                @if (archive.unread() && archive.loading()) {
+                    <div class="flex flex-col gap-1.5">
+                        @for (row of [1, 2, 3, 4]; track row) {
+                            <div class="h-[3.75rem] animate-pulse rounded-[0.875rem] bg-white/[0.03]"></div>
+                        }
+                    </div>
+                } @else if (archive.errored() && isEmpty()) {
+                    <div class="archive-empty">
+                        <p class="archive-empty-body">{{ 'SCENE.ARCHIVE.ERROR_BODY' | translate }}</p>
+                        <button (click)="archive.refresh()" class="archive-more mt-3" type="button">
+                            {{ 'SCENE.ARCHIVE.RETRY' | translate }}
+                        </button>
+                    </div>
+                } @else if (isEmpty()) {
+                    <!-- An invitation, not a shrug: the same treatment the board's empty state has. -->
+                    <div class="archive-empty">
+                        <h2 class="archive-empty-title">
+                            {{ (hasFilters() ? 'SCENE.ARCHIVE.NO_MATCH_TITLE' : 'SCENE.ARCHIVE.EMPTY_TITLE') | translate }}
+                        </h2>
+                        <p class="archive-empty-body">
+                            {{ (hasFilters() ? 'SCENE.ARCHIVE.NO_MATCH_BODY' : 'SCENE.ARCHIVE.EMPTY_BODY') | translate }}
+                        </p>
+                        @if (hasFilters()) {
+                            <button (click)="clearFilters()" class="archive-more mt-3" type="button">
+                                {{ 'SCENE.ARCHIVE.CLEAR_FILTERS' | translate }}
+                            </button>
+                        }
+                    </div>
+                } @else {
+                    <div class="flex flex-col gap-1.5">
+                        @for (scene of archive.scenes(); track scene.channelId) {
+                            <app-scene-archive-card
+                                (opened)="opened.set($event)"
+                                [draggable]="canManage()"
+                                [guildId]="guildId()"
+                                [scene]="scene"
+                            />
+                        }
+                    </div>
+
+                    @if (archive.hasMore()) {
+                        <button (click)="archive.more()" [disabled]="archive.loading()" class="archive-more mt-4" type="button">
+                            {{ (archive.loading() ? 'SCENE.ARCHIVE.LOADING' : 'SCENE.ARCHIVE.MORE') | translate }}
+                        </button>
+                    }
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (opened(); as scene) {
+    <app-scene-detail-sheet
+        (closed)="opened.set(null)"
+        (filed)="file(scene.channelId, $event)"
+        (tagged)="archive.patch(scene.channelId, {tagIds: $event})"
+        [canManage]="canManage()"
+        [guildId]="guildId()"
+        [scene]="scene"
+    />
+}
+
+@if (editing(); as target) {
+    <app-scene-folder-editor (closed)="editing.set(null)" [folder]="target === 'new' ? null : target" [guildId]="guildId()" />
+}
+
+@if (managingTags()) {
+    <app-scene-tag-editor (closed)="managingTags.set(false)" [guildId]="guildId()" />
+}

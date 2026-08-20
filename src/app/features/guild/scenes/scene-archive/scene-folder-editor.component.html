@@ -1,0 +1,59 @@
+<button (click)="closed.emit()" [attr.aria-label]="'COMMON.CLOSE' | translate" class="editor-scrim" type="button"></button>
+
+<div class="editor">
+    <h2 class="editor-title">
+        {{ (isNew() ? 'SCENE.ARCHIVE.NEW_FOLDER' : 'SCENE.ARCHIVE.RENAME_FOLDER') | translate }}
+    </h2>
+
+    <label class="editor-field">
+        <span class="editor-label">{{ 'SCENE.ARCHIVE.FOLDER_NAME' | translate }}</span>
+        <input [ngModel]="name()" (ngModelChange)="name.set($event)" maxlength="32" type="text" />
+    </label>
+
+    <div class="flex gap-2">
+        <label class="editor-field w-20">
+            <span class="editor-label">{{ 'SCENE.ARCHIVE.FOLDER_ICON' | translate }}</span>
+            <input [ngModel]="icon()" (ngModelChange)="icon.set($event)" maxlength="4" type="text" />
+        </label>
+
+        <label class="editor-field flex-1">
+            <span class="editor-label">{{ 'SCENE.ARCHIVE.FOLDER_COLOR' | translate }}</span>
+            <input [ngModel]="color()" (ngModelChange)="color.set($event)" placeholder="#8899aa" type="text" />
+        </label>
+    </div>
+
+    @if (mayReparent()) {
+        <label class="editor-field">
+            <span class="editor-label">{{ 'SCENE.ARCHIVE.FOLDER_PARENT' | translate }}</span>
+            <select [ngModel]="parentId()" (ngModelChange)="parentId.set($event)">
+                <option value="">{{ 'SCENE.ARCHIVE.FOLDER_NO_PARENT' | translate }}</option>
+                @for (option of parentOptions(); track option.id) {
+                    <option [value]="option.id">{{ option.name }}</option>
+                }
+            </select>
+        </label>
+    } @else {
+        <p class="editor-hint">{{ 'SCENE.ARCHIVE.FOLDER_HAS_CHILDREN' | translate }}</p>
+    }
+
+    <div class="editor-actions">
+        @if (!isNew()) {
+            @if (confirmingDelete()) {
+                <button (click)="remove()" [disabled]="saving()" class="editor-danger" type="button">
+                    {{ 'SCENE.ARCHIVE.DELETE_FOLDER_CONFIRM' | translate }}
+                </button>
+            } @else {
+                <button (click)="confirmingDelete.set(true)" class="editor-quiet" type="button">
+                    {{ 'SCENE.ARCHIVE.DELETE_FOLDER' | translate }}
+                </button>
+            }
+        }
+
+        <button (click)="closed.emit()" class="editor-quiet ml-auto" type="button">
+            {{ 'COMMON.CANCEL' | translate }}
+        </button>
+        <button (click)="save()" [disabled]="!valid() || saving()" class="editor-primary" type="button">
+            {{ 'COMMON.SAVE' | translate }}
+        </button>
+    </div>
+</div>

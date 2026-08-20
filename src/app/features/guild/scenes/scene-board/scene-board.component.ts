@@ -12,6 +12,7 @@ import {TranslateModule} from '@ngx-translate/core';
 import {RelativeTimePipe} from '../../../../pipes/relative-time.pipe';
 import {TurnClockRingComponent} from '../turn-clock-ring/turn-clock-ring.component';
 import {SceneDialogComponent} from '../scene-dialog/scene-dialog.component';
+import {SceneArchiveComponent} from '../scene-archive/scene-archive.component';
 import {SceneService} from '../../../../services/scene.service';
 import {PersonaService} from '../../../../services/persona.service';
 import {GuildService} from '../../../../services/guild.service';
@@ -51,7 +52,13 @@ export interface SceneGroup {
 @Component({
     selector: 'app-scene-board',
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [TranslateModule, RelativeTimePipe, TurnClockRingComponent, SceneDialogComponent],
+    imports: [
+        TranslateModule,
+        RelativeTimePipe,
+        TurnClockRingComponent,
+        SceneDialogComponent,
+        SceneArchiveComponent,
+    ],
     templateUrl: './scene-board.component.html',
     styleUrl: './scene-board.component.css',
     host: {class: 'flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden'},
@@ -67,6 +74,7 @@ export class SceneBoardComponent {
 
     protected readonly SceneStatus = SceneStatus;
     protected readonly creating = signal(false);
+    protected readonly mode = signal<'playing' | 'archive'>('playing');
 
     private readonly ownMember = signal<SelfGuildMemberDto | null>(null);
 
@@ -102,6 +110,7 @@ export class SceneBoardComponent {
         const speakable = this.scenes.speakableIds(guildId);
         const now = this.scenes.now();
         return [...this.scenes.scenes(guildId)]
+            .filter(scene => scene.status !== SceneStatus.Concluded)
             .sort((a, b) => compareScenes(a, b, speakable, now))
             .map(scene => ({
                 scene,
@@ -148,12 +157,8 @@ export class SceneBoardComponent {
             },
             {key: 'open', titleKey: 'SCENE.BOARD.OPENING', tone: 'normal', rows: of(SceneStatus.Open)},
             {key: 'paused', titleKey: 'SCENE.BOARD.PAUSED', tone: 'quiet', rows: of(SceneStatus.Paused)},
-            {
-                key: 'ended',
-                titleKey: 'SCENE.BOARD.ENDED',
-                tone: 'quiet',
-                rows: of(SceneStatus.Concluded),
-            },
+            // No concluded group: a finished scene belongs to the archive, which is where it can be
+            // filed, tagged and read back.
         ].filter(group => group.rows.length > 0) as SceneGroup[];
     });
 

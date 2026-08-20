@@ -13,6 +13,8 @@ export interface SceneListParams {
     waitingOnMe?: boolean;
     includeConcluded?: boolean;
     includeArchived?: boolean;
+    /** Only scenes that finished, or whose channel was archived. What the archive asks for. */
+    archivedOnly?: boolean;
     /** A folder id, or `UNFILED`. */
     folderId?: string | null;
     /** ANDed: a scene must carry every one of them. */
