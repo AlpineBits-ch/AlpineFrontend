@@ -124,6 +124,21 @@ describe('ApplyOverrideDialogComponent', () => {
         expect(result.succeeded).toEqual(['c2']);
     });
 
+    // Six channels against a concurrency cap of four: the worker that draws the failing write must
+    // loop back and pull a later item itself, which two channels against four workers never proves.
+    it('keeps a worker pulling from the queue after it catches a rejection', async () => {
+        const channels = ['c1', 'c2', 'c3', 'c4', 'c5', 'c6'].map(id => channel(id));
+        const {component, guildService} = setup({channels});
+        guildService.upsertChannelRolePermission.mockReturnValueOnce(throwError(() => new Error('nope')));
+
+        for (const c of channels) component.toggleChannel(c.id);
+        const result = await component.apply();
+
+        expect(guildService.upsertChannelRolePermission).toHaveBeenCalledTimes(6);
+        expect(result.failed).toEqual(['c1']);
+        expect(result.succeeded).toHaveLength(5);
+    });
+
     it('counts what a sync would skip before anything is sent', () => {
         const {component} = setup({
             channels: [channel('c1')],
@@ -134,5 +149,41 @@ describe('ApplyOverrideDialogComponent', () => {
         component.toggleChannel('c1');
 
         expect(component.skippedCount()).toBe(1);
+    });
+});
+
+describe('ApplyOverrideDialogComponent module mask body', () => {
+    it('omits the module fields entirely when the result carries no module mask', async () => {
+        const {component, guildService} = setup({
+            channels: [channel('c1')],
+            override: {allow: 2n, deny: 0n, allowModule: 0n, denyModule: 0n},
+        });
+
+        component.toggleChannel('c1');
+        await component.apply();
+
+        // toEqual treats a missing key and an undefined-valued key alike, so this only proves
+        // absence if the property is never set - which is what a plain object literal gives us.
+        expect(guildService.upsertChannelRolePermission).toHaveBeenCalledWith('c1', ROLE_ID, {
+            allowPermissions: 'SendMessages',
+            denyPermissions: 'None',
+        });
+    });
+
+    it('sends both module fields when the result carries a module mask', async () => {
+        const {component, guildService} = setup({
+            channels: [channel('c1')],
+            override: {allow: 0n, deny: 0n, allowModule: 1n << 10n, denyModule: 0n},
+        });
+
+        component.toggleChannel('c1');
+        await component.apply();
+
+        expect(guildService.upsertChannelRolePermission).toHaveBeenCalledWith('c1', ROLE_ID, {
+            allowPermissions: 'None',
+            denyPermissions: 'None',
+            allowModulePermissions: 'AddListItems',
+            denyModulePermissions: 'None',
+        });
     });
 });

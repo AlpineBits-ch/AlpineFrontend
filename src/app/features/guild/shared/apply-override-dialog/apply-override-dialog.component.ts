@@ -16,7 +16,7 @@ import {FormsModule} from '@angular/forms';
 import {TranslateModule} from '@ngx-translate/core';
 import {firstValueFrom} from 'rxjs';
 import {CategoryDto, ChannelDto, GuildDto} from '../../../../dtos/response/guild.dto';
-import {GuildService} from '../../../../services/guild.service';
+import {GuildService, OverridePermissionsDto} from '../../../../services/guild.service';
 import {parsePermissions, stringifyPermissions} from '../../../../enums/permissions.enum';
 import {parseModulePermissions, stringifyModulePermissions} from '../../../../enums/module-permissions.enum';
 import {PermOverride} from '../permission-override-editor/permission-override-editor.component';
@@ -84,8 +84,19 @@ export class ApplyOverrideDialogComponent {
     readonly skippedCount = computed(() => this.steps().filter(s => s.skipped).length);
     readonly writeCount = computed(() => this.steps().filter(s => !s.skipped).length);
 
+    protected readonly failedChannelNames = computed(() => {
+        const failed = this.lastResult()?.failed ?? [];
+        if (failed.length === 0) return [];
+        const byId = new Map(this.channels().map(c => [c.id, c.name]));
+        return failed.map(id => byId.get(id) ?? id);
+    });
+
     isSelected(channelId: string): boolean {
         return this.selected().has(channelId);
+    }
+
+    isFailed(channelId: string): boolean {
+        return this.lastResult()?.failed.includes(channelId) ?? false;
     }
 
     isCategorySelected(categoryId: string): boolean {
@@ -143,12 +154,11 @@ export class ApplyOverrideDialogComponent {
 
                 try {
                     await firstValueFrom(
-                        this.guildService.upsertChannelRolePermission(step.channelId, this.roleId(), {
-                            allowPermissions: stringifyPermissions(step.result.allow),
-                            denyPermissions: stringifyPermissions(step.result.deny),
-                            allowModulePermissions: stringifyModulePermissions(step.result.allowModule),
-                            denyModulePermissions: stringifyModulePermissions(step.result.denyModule),
-                        }),
+                        this.guildService.upsertChannelRolePermission(
+                            step.channelId,
+                            this.roleId(),
+                            this.body(step.result),
+                        ),
                     );
                     succeeded.push(step.channelId);
                 } catch {
@@ -166,6 +176,21 @@ export class ApplyOverrideDialogComponent {
         this.lastResult.set(result);
         this.applied.emit(result);
         return result;
+    }
+
+    /** Omitting the module pair tells the server to carry it over; sending 'None' would clear it. */
+    private body(result: PermOverride): OverridePermissionsDto {
+        const dto: OverridePermissionsDto = {
+            allowPermissions: stringifyPermissions(result.allow),
+            denyPermissions: stringifyPermissions(result.deny),
+        };
+
+        if (result.allowModule !== 0n || result.denyModule !== 0n) {
+            dto.allowModulePermissions = stringifyModulePermissions(result.allowModule);
+            dto.denyModulePermissions = stringifyModulePermissions(result.denyModule);
+        }
+
+        return dto;
     }
 
     private existingOverride(channel: ChannelDto): PermOverride | null {
