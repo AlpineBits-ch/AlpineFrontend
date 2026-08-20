@@ -1,11 +1,11 @@
 .rail-row {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.4375rem;
     width: 100%;
     border: 1px solid transparent;
     border-radius: 0.5rem;
-    padding: 0.375rem 0.5rem;
+    padding: 0.3125rem 0.5rem;
     text-align: left;
     cursor: pointer;
     user-select: none;
@@ -41,18 +41,6 @@
     box-shadow: inset 0 -2px 0 0 var(--color-connecting);
 }
 
-.rail-row-all,
-.rail-row-unfiled {
-    font-size: 0.5625rem;
-    font-weight: 700;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-}
-
-.rail-row-unfiled {
-    margin-top: 0.375rem;
-}
-
 .rail-pick {
     display: flex;
     flex: 1;
@@ -65,6 +53,8 @@
     text-align: left;
     color: inherit;
     cursor: pointer;
+    /* A button does not inherit text-transform, so a shelf label would lose its case. */
+    text-transform: inherit;
 }
 
 .rail-menu {
@@ -117,9 +107,11 @@
     margin-left: -0.375rem;
 }
 
-.rail-row-all .rail-name,
-.rail-row-unfiled .rail-name {
-    font-size: inherit;
+/* The head draws the colour on its own edge, so the mark on the name would double it. */
+.rail-head .rail-name {
+    box-shadow: none;
+    padding-left: 0;
+    margin-left: 0;
 }
 
 .rail-add {
@@ -147,7 +139,7 @@
 }
 
 .rail-shelf.is-open {
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.375rem;
 }
 
 /* A root folder is a labelled shelf, which is what makes two levels read as two levels. */
@@ -172,7 +164,12 @@
 }
 
 .rail-body {
-    padding: 0.1875rem 0 0.125rem 0.375rem;
+    padding: 0.125rem 0 0.125rem 0.6875rem;
+}
+
+/* A scene sits inside its folder, not beside it. */
+.rail-body > .rail-leaf {
+    padding-left: 1.125rem;
 }
 
 .rail-chevron {
@@ -237,7 +234,7 @@
 
 .rail-rule {
     height: 1px;
-    margin: 0.5rem 0.5rem;
+    margin: 0.375rem 0.5rem;
     background: rgba(255, 255, 255, 0.07);
 }
 

@@ -5,7 +5,7 @@
             (createScene)="createSceneIn.emit($event)"
             (deleteFolder)="editing.set({folder: $event.folder, seedParentId: null})"
             (filed)="file($event.channelId, $event.folderId)"
-            (openScene)="openScene($event)"
+            (openScene)="openScene($event.channelId, $event.fromStart)"
             (picked)="folderId.set($event)"
             (renameFolder)="editing.set({folder: $event.folder, seedParentId: null})"
             (reordered)="reorder($event)"

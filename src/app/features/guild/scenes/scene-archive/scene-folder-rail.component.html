@@ -2,7 +2,7 @@
     <span class="rail-label">{{ 'SCENE.ARCHIVE.RECENT' | translate }}</span>
 
     @for (leaf of recent(); track leaf.channelId) {
-        <button (click)="open(leaf.channelId)" class="rail-row rail-leaf" type="button">
+        <button (click)="open(leaf.channelId)" (contextmenu)="openSceneMenu($event, leaf)" class="rail-row rail-leaf" type="button">
             <span [class]="'rail-dot ' + dotClass(leaf)"></span>
             <span class="rail-name">{{ leaf.name }}</span>
             @if (leaf.mine) {
@@ -21,6 +21,8 @@
 @for (node of tree(); track node.folder.id) {
     <ng-container *ngTemplateOutlet="shelf; context: {$implicit: node, depth: 0}"></ng-container>
 }
+
+<div class="rail-rule"></div>
 
 <button
     (click)="picked.emit(UNFILED)"
@@ -101,7 +103,12 @@
                 }
 
                 @for (leaf of leavesOf(node.folder.id); track leaf.channelId) {
-                    <button (click)="open(leaf.channelId)" class="rail-row rail-leaf" type="button">
+                    <button
+                        (click)="open(leaf.channelId)"
+                        (contextmenu)="openSceneMenu($event, leaf)"
+                        class="rail-row rail-leaf"
+                        type="button"
+                    >
                         <span [class]="'rail-dot ' + dotClass(leaf)"></span>
                         <span class="rail-name">{{ leaf.name }}</span>
                         @if (leaf.mine) {

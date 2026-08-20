@@ -201,13 +201,77 @@ describe('SceneFolderRailComponent tree', () => {
         expect(fixture.nativeElement.textContent).not.toContain('Scene 19');
     });
 
-    it('reports a leaf click as a scene to open', () => {
+    it('opens a scene at the latest post on a plain click', () => {
         const {component} = setup();
-        const opened: string[] = [];
-        component.openScene.subscribe(id => opened.push(id));
+        const opened: {channelId: string; fromStart: boolean}[] = [];
+        component.openScene.subscribe(r => opened.push(r));
 
         reach(component)['open']('ch_1' as never);
 
-        expect(opened).toEqual(['ch_1']);
+        expect(opened).toEqual([{channelId: 'ch_1', fromStart: false}]);
+    });
+
+    it('offers reading a scene from the start on right click', () => {
+        const {component} = setup();
+        const leaf = {channelId: 'ch_1', name: 'The Ford at Dawn', status: SceneStatus.Active, mine: false};
+
+        reach(component)['openSceneMenu'](new MouseEvent('contextmenu') as never, leaf as never);
+
+        const items = (component as unknown as {menuItems: () => {label?: string}[]}).menuItems();
+        expect(items[0].label).toBe('SCENE.ARCHIVE.READ_FROM_START');
+        expect(items[1].label).toBe('SCENE.ARCHIVE.JUMP_TO_LATEST');
+    });
+
+    it('lists every folder as a move target, unfiled first', () => {
+        const {component} = setup();
+        const leaf = {channelId: 'ch_1', name: 'The Ford at Dawn', status: SceneStatus.Active, mine: false};
+
+        reach(component)['openSceneMenu'](new MouseEvent('contextmenu') as never, leaf as never);
+
+        const items = (
+            component as unknown as {menuItems: () => {label?: string; items?: {label?: string}[]}[]}
+        ).menuItems();
+        const targets = items.at(-1)?.items ?? [];
+        expect(targets[0].label).toBe('SCENE.ARCHIVE.UNFILED');
+        expect(targets.map(t => t.label?.trim()).filter(Boolean)).toContain('A');
+        expect(targets.map(t => t.label?.trim()).filter(Boolean)).toContain('A1');
+    });
+
+    it('files a scene on the folder chosen from the menu', () => {
+        const {component} = setup();
+        const filed: {channelId: string; folderId: string | null}[] = [];
+        component.filed.subscribe(f => filed.push(f));
+        const leaf = {channelId: 'ch_1', name: 'The Ford at Dawn', status: SceneStatus.Active, mine: false};
+
+        reach(component)['openSceneMenu'](new MouseEvent('contextmenu') as never, leaf as never);
+        const items = (
+            component as unknown as {menuItems: () => {items?: {command?: () => void}[]}[]}
+        ).menuItems();
+        items.at(-1)?.items?.[0].command?.();
+
+        expect(filed).toEqual([{channelId: 'ch_1', folderId: null}]);
+    });
+
+    it('offers no move target to a reader who cannot manage scenes', () => {
+        TestBed.configureTestingModule({
+            imports: [SceneFolderRailComponent],
+            providers: [provideTranslateService()],
+        });
+        const fixture = TestBed.createComponent(SceneFolderRailComponent);
+        fixture.componentRef.setInput('tree', folderTree(FOLDERS, {}));
+        fixture.componentRef.setInput('canManage', false);
+        fixture.detectChanges();
+        const leaf = {channelId: 'ch_1', name: 'The Ford at Dawn', status: SceneStatus.Active, mine: false};
+
+        reach(fixture.componentInstance)['openSceneMenu'](
+            new MouseEvent('contextmenu') as never,
+            leaf as never,
+        );
+
+        const items = (
+            fixture.componentInstance as unknown as {menuItems: () => {label?: string; items?: unknown}[]}
+        ).menuItems();
+        expect(items).toHaveLength(2);
+        expect(items.every(item => item.items === undefined)).toBe(true);
     });
 });

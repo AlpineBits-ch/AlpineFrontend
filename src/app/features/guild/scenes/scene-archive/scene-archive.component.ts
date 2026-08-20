@@ -256,16 +256,19 @@ export class SceneArchiveComponent {
         this.railState.toggle(this.guildId(), folderId);
     }
 
-    protected openScene(channelId: string): void {
+    protected openScene(channelId: string, fromStart: boolean): void {
         const channel = this.guilds
             .guilds()
             .find(g => g.id === this.guildId())
             ?.channels.find(c => c.id === channelId);
         if (!channel) {
-            this.toast.error(this.translate.instant('SCENE.ARCHIVE.OPEN_ERROR'));
+            this.toast.error(this.translate.instant('SCENE.ARCHIVE.OPEN_ERROR'), {
+                detail: this.translate.instant('SCENE.ARCHIVE.OPEN_ERROR_DETAIL'),
+            });
             return;
         }
-        this.nav.openChannel(channel);
+        if (fromStart) this.nav.openChannelFromStart(channel);
+        else this.nav.openChannel(channel);
     }
 
     protected readonly statusItems = computed<MenuItem[]>(() =>

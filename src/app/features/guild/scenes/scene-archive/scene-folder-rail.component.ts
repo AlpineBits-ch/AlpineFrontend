@@ -27,6 +27,12 @@ interface SiblingSwap {
     order: FolderNode[];
 }
 
+/** A scene the reader wants opened, and where in it. */
+export interface SceneOpenRequest {
+    channelId: string;
+    fromStart: boolean;
+}
+
 /**
  * The archive's shelves. Two levels, with ALL and Unfiled always present. It scrolls on its own:
  * thirty folders do not fit beside the results.
@@ -66,7 +72,7 @@ export class SceneFolderRailComponent {
     /** A scene was dropped onto a shelf: the channel id, and where it should land. */
     readonly filed = output<{channelId: string; folderId: string | null}>();
     readonly toggled = output<string>();
-    readonly openScene = output<string>();
+    readonly openScene = output<SceneOpenRequest>();
     /** The folder a new scene should be filed on, or null for none. */
     readonly createScene = output<string | null>();
     readonly showAll = output<string>();
@@ -134,6 +140,62 @@ export class SceneFolderRailComponent {
         this.menu()?.show(event);
     }
 
+    protected openSceneMenu(event: MouseEvent, leaf: SceneLeaf): void {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const items: MenuItem[] = [
+            {
+                label: this.translate.instant('SCENE.ARCHIVE.READ_FROM_START'),
+                icon: 'pi pi-book',
+                command: () => this.openScene.emit({channelId: leaf.channelId, fromStart: true}),
+            },
+            {
+                label: this.translate.instant('SCENE.ARCHIVE.JUMP_TO_LATEST'),
+                icon: 'pi pi-arrow-down',
+                command: () => this.openScene.emit({channelId: leaf.channelId, fromStart: false}),
+            },
+        ];
+
+        if (this.canManage()) {
+            items.push(
+                {separator: true},
+                {
+                    label: this.translate.instant('SCENE.ARCHIVE.MOVE_TO_FOLDER'),
+                    icon: 'pi pi-folder',
+                    items: this.folderTargets(leaf.channelId),
+                },
+            );
+        }
+
+        this.menuItems.set(items);
+        this.menu()?.show(event);
+    }
+
+    /** Unfiled first, then every folder depth first, as move targets for one scene. */
+    private folderTargets(channelId: string): MenuItem[] {
+        const targets: MenuItem[] = [
+            {
+                label: this.translate.instant('SCENE.ARCHIVE.UNFILED'),
+                command: () => this.filed.emit({channelId, folderId: null}),
+            },
+            {separator: true},
+        ];
+
+        const walk = (nodes: FolderNode[], depth: number): void => {
+            for (const node of nodes) {
+                targets.push({
+                    label: `${'  '.repeat(depth)}${node.folder.icon ?? ''} ${node.folder.name}`.trim(),
+                    command: () => this.filed.emit({channelId, folderId: node.folder.id}),
+                });
+                walk(node.children, depth + 1);
+            }
+        };
+        walk(this.tree(), 0);
+
+        return targets;
+    }
+
     protected isOpen(folderId: string): boolean {
         return this.expandedIds().includes(folderId);
     }
@@ -155,7 +217,7 @@ export class SceneFolderRailComponent {
     }
 
     protected open(channelId: string): void {
-        this.openScene.emit(channelId);
+        this.openScene.emit({channelId, fromStart: false});
     }
 
     protected dotClass(leaf: SceneLeaf): string {
