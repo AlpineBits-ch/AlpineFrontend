@@ -1,106 +1,71 @@
 <div class="flex gap-4 h-full min-h-0">
-    <!-- Roles list -->
-    <div class="w-52 shrink-0 flex flex-col gap-2">
-        <p-button
-            (onClick)="openCreateDialog()"
-            [label]="'GUILD_SETTINGS.ROLES.NEW_ROLE' | translate"
-            icon="pi pi-plus"
-            severity="secondary"
-            size="small"
-            styleClass="w-full !justify-start"
-        />
-
-        <div class="flex-1 overflow-y-auto space-y-0.5 thin-scrollbar">
-            @for (role of roles(); track role.id; let i = $index) {
-                <div (dragover)="onDragOver($event, i)" (drop)="onDrop(i)" class="relative flex items-center gap-1">
-                    <!-- Insertion line: dragging used to give no hint at all where a role would land -->
-                    @if (dropIndex() === i) {
-                        <div
-                            [ngClass]="dropBefore() ? 'top-0' : 'bottom-0'"
-                            class="absolute inset-x-0 h-0.5 rounded-full bg-brand pointer-events-none"
-                        ></div>
-                    }
-
-                    <!-- Dragging lives on the handle so the row itself is an ordinary click target -->
-                    @if (isPinned(role)) {
-                        <span
-                            [pTooltip]="'GUILD_SETTINGS.ROLES.EVERYONE_PINNED' | translate"
-                            class="w-5 h-6 shrink-0 flex items-center justify-center text-text-muted"
-                            tooltipPosition="right"
-                        >
-                            <i class="pi pi-lock text-[0.5rem]"></i>
-                        </span>
-                    } @else {
-                        <span
-                            (dragend)="onDragEnd()"
-                            (dragstart)="onDragStart(i)"
-                            [draggable]="true"
-                            [pTooltip]="'GUILD_SETTINGS.ROLES.DRAG_HANDLE' | translate"
-                            class="w-5 h-6 shrink-0 flex items-center justify-center rounded text-text-muted hover:text-text-primary cursor-grab active:cursor-grabbing"
-                            tooltipPosition="right"
-                        >
-                            <i class="pi pi-bars text-[0.625rem]"></i>
-                        </span>
-                    }
-
-                    <button
-                        (click)="onRoleClick(role)"
-                        [attr.aria-current]="selectedRole()?.id === role.id ? 'true' : null"
-                        [ngClass]="
-                            selectedRole()?.id === role.id
-                                ? 'bg-[color-mix(in_srgb,var(--color-brand)_15%,transparent)] text-[var(--color-brand-dim)]'
-                                : 'text-text-secondary hover:bg-white/[0.05]'
-                        "
-                        [pTooltip]="role.name"
-                        [showDelay]="500"
-                        class="flex-1 min-w-0 flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-left text-sm font-medium transition-all cursor-pointer border-0"
-                        tooltipPosition="right"
-                    >
-                        <span [style.background]="role.color || '#4B5BC4'" class="w-3 h-3 rounded-full shrink-0"></span>
-                        <span class="truncate">{{ role.name }}</span>
-                        @if (role.type === RoleType.Everyone) {
-                            <i class="pi pi-users text-[0.625rem] ml-auto shrink-0 opacity-50"></i>
-                        }
-                    </button>
-
-                    <!-- Arrow controls: drag-and-drop was the only way to reorder -->
-                    <div class="flex flex-col shrink-0">
-                        <button
-                            (click)="moveRoleBy(i, -1)"
-                            [attr.aria-label]="'GUILD_SETTINGS.ROLES.MOVE_UP' | translate"
-                            [disabled]="!canMove(i, -1)"
-                            class="flex items-center justify-center w-6 h-6 rounded border-0 bg-transparent text-text-muted hover:text-text-primary transition-colors disabled:opacity-40 disabled:cursor-default cursor-pointer p-0"
-                        >
-                            <i class="pi pi-chevron-up text-[0.5rem]"></i>
-                        </button>
-                        <button
-                            (click)="moveRoleBy(i, 1)"
-                            [attr.aria-label]="'GUILD_SETTINGS.ROLES.MOVE_DOWN' | translate"
-                            [disabled]="!canMove(i, 1)"
-                            class="flex items-center justify-center w-6 h-6 rounded border-0 bg-transparent text-text-muted hover:text-text-primary transition-colors disabled:opacity-40 disabled:cursor-default cursor-pointer p-0"
-                        >
-                            <i class="pi pi-chevron-down text-[0.5rem]"></i>
-                        </button>
-                    </div>
-                </div>
-            }
-        </div>
-
-        <p class="text-[0.625rem] text-text-secondary leading-relaxed px-1">{{ 'GUILD_SETTINGS.ROLES.DRAG_HINT' | translate }}</p>
-    </div>
+    <app-role-rail
+        (newRole)="openCreateDialog()"
+        (roleSelect)="onRoleClick($event)"
+        (rolesReordered)="onReorder($event)"
+        [memberCounts]="memberCounts()"
+        [roles]="roles()"
+        [selectedRoleId]="selectedRole()?.id ?? null"
+    />
 
     <!-- Role editor -->
     <div class="flex-1 min-w-0 flex flex-col min-h-0">
-        @if (selectedRole()) {
-            <!-- Header -->
-            <div class="flex items-center justify-between shrink-0 mb-3">
-                <div class="flex items-center gap-3">
-                    <span [style.background]="editColor()" class="w-4 h-4 rounded-full shrink-0"></span>
-                    <h3 class="text-sm font-semibold text-text-primary">{{ selectedRole()!.name }}</h3>
+        @if (selectedRole(); as role) {
+            <!-- Header: colour, name, tabs, delete -->
+            <div class="flex items-center gap-3 shrink-0 pb-3 border-b border-white/[0.08] flex-wrap">
+                <span [style.background]="role.color || '#4B5BC4'" class="w-3.5 h-3.5 rounded-full shrink-0"></span>
+                <h3 class="text-sm font-semibold text-text-primary">{{ role.name }}</h3>
+
+                <div class="flex items-center gap-1 ml-auto">
+                    <button
+                        (click)="switchTab('display')"
+                        [ngClass]="
+                            activeTab() === 'display'
+                                ? 'bg-[color-mix(in_srgb,var(--color-brand)_15%,transparent)] text-[var(--color-brand-dim)]'
+                                : 'text-text-secondary hover:bg-white/[0.05]'
+                        "
+                        class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all border-0 cursor-pointer"
+                    >
+                        {{ 'GUILD_SETTINGS.ROLES.TAB_DISPLAY' | translate }}
+                    </button>
+                    <button
+                        (click)="switchTab('permissions')"
+                        [ngClass]="
+                            activeTab() === 'permissions'
+                                ? 'bg-[color-mix(in_srgb,var(--color-brand)_15%,transparent)] text-[var(--color-brand-dim)]'
+                                : 'text-text-secondary hover:bg-white/[0.05]'
+                        "
+                        class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all border-0 cursor-pointer"
+                    >
+                        {{ 'GUILD_SETTINGS.ROLES.TAB_PERMISSIONS' | translate }}
+                    </button>
+                    <button
+                        (click)="switchTab('members')"
+                        [ngClass]="
+                            activeTab() === 'members'
+                                ? 'bg-[color-mix(in_srgb,var(--color-brand)_15%,transparent)] text-[var(--color-brand-dim)]'
+                                : 'text-text-secondary hover:bg-white/[0.05]'
+                        "
+                        class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all border-0 cursor-pointer"
+                    >
+                        {{ 'GUILD_SETTINGS.ROLES.TAB_MEMBERS' | translate }}
+                    </button>
+                    <button
+                        (click)="switchTab('channels')"
+                        [ngClass]="
+                            activeTab() === 'channels'
+                                ? 'bg-[color-mix(in_srgb,var(--color-brand)_15%,transparent)] text-[var(--color-brand-dim)]'
+                                : 'text-text-secondary hover:bg-white/[0.05]'
+                        "
+                        class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all border-0 cursor-pointer"
+                    >
+                        {{ 'ROLE_CHANNELS.TAB' | translate }}
+                    </button>
                 </div>
-                @if (selectedRole()!.type !== RoleType.Everyone) {
+
+                @if (role.type !== RoleType.Everyone) {
                     <p-button
-                        (onClick)="confirmDeleteRole.set(selectedRole()!); showDeleteDialog.set(true)"
+                        (onClick)="confirmDeleteRole.set(role); showDeleteDialog.set(true)"
                         [pTooltip]="'GUILD_SETTINGS.ROLES.DELETE_ROLE' | translate"
                         [text]="true"
                         icon="pi pi-trash"
@@ -111,302 +76,299 @@
                 }
             </div>
 
-            <!-- Tabs -->
-            <div class="flex gap-1 shrink-0 border-b border-white/[0.08] pb-2 mb-3">
-                <button
-                    (click)="switchTab('settings')"
-                    [ngClass]="
-                        activeTab() === 'settings'
-                            ? 'bg-[color-mix(in_srgb,var(--color-brand)_15%,transparent)] text-[var(--color-brand-dim)]'
-                            : 'text-text-secondary hover:bg-white/[0.05]'
-                    "
-                    class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all border-0 cursor-pointer"
-                >
-                    {{ 'GUILD_SETTINGS.ROLES.TAB_SETTINGS' | translate }}
-                </button>
-                <button
-                    (click)="switchTab('members')"
-                    [ngClass]="
-                        activeTab() === 'members'
-                            ? 'bg-[color-mix(in_srgb,var(--color-brand)_15%,transparent)] text-[var(--color-brand-dim)]'
-                            : 'text-text-secondary hover:bg-white/[0.05]'
-                    "
-                    class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all border-0 cursor-pointer"
-                >
-                    {{ 'GUILD_SETTINGS.ROLES.TAB_MEMBERS' | translate }}
-                </button>
-                <button
-                    (click)="switchTab('channels')"
-                    [ngClass]="
-                        activeTab() === 'channels'
-                            ? 'bg-[color-mix(in_srgb,var(--color-brand)_15%,transparent)] text-[var(--color-brand-dim)]'
-                            : 'text-text-secondary hover:bg-white/[0.05]'
-                    "
-                    class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all border-0 cursor-pointer"
-                >
-                    {{ 'ROLE_CHANNELS.TAB' | translate }}
-                </button>
+            <!-- Stat strip: the numbers an admin actually wants, not the role's edit form -->
+            <div class="flex items-center gap-6 shrink-0 py-2.5 border-b border-white/[0.08]">
+                <div class="flex flex-col gap-0.5">
+                    <span class="font-mono text-sm text-text-primary tabular-nums">{{ overrideCount() }}</span>
+                    <span class="text-[0.625rem] text-text-muted">{{ 'GUILD_SETTINGS.ROLES.STAT_OVERRIDES' | translate }}</span>
+                </div>
+                <div class="flex flex-col gap-0.5">
+                    <span class="font-mono text-sm text-text-primary tabular-nums">{{ totalChannels() }}</span>
+                    <span class="text-[0.625rem] text-text-muted">{{ 'GUILD_SETTINGS.ROLES.STAT_CHANNELS' | translate }}</span>
+                </div>
+                <div class="flex flex-col gap-0.5">
+                    <span class="font-mono text-sm text-text-primary tabular-nums">{{ visibleChannelCount() }}</span>
+                    <span class="text-[0.625rem] text-text-muted">{{ 'GUILD_SETTINGS.ROLES.STAT_VISIBLE' | translate }}</span>
+                </div>
+                <div class="flex flex-col gap-0.5">
+                    <span class="font-mono text-sm text-text-primary tabular-nums">{{ selectedMemberCount() }}</span>
+                    <span class="text-[0.625rem] text-text-muted">{{ 'GUILD_SETTINGS.ROLES.STAT_MEMBERS' | translate }}</span>
+                </div>
             </div>
 
-            <!-- Settings tab -->
-            @if (activeTab() === 'settings') {
-                <div class="flex-1 overflow-y-auto thin-scrollbar">
-                    <div class="space-y-5 pb-4">
-                        <!-- Name -->
-                        <div>
-                            <label class="block text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2">{{
-                                'GUILD_SETTINGS.ROLES.ROLE_NAME' | translate
-                            }}</label>
-                            <input
-                                (ngModelChange)="editName.set($event); onEditField()"
-                                [disabled]="selectedRole()!.type === RoleType.Everyone"
-                                [maxlength]="100"
-                                [ngModel]="editName()"
-                                class="w-full"
-                                pInputText
-                            />
-                            @if (selectedRole()!.type === RoleType.Everyone) {
-                                <p class="text-[0.6875rem] text-text-secondary mt-1.5">
-                                    {{ 'GUILD_SETTINGS.ROLES.EVERYONE_HINT' | translate }}
-                                </p>
-                            }
-                        </div>
+            <!-- Tab content: the full width and height of the sheet -->
+            <div class="flex-1 min-h-0 flex flex-col pt-4">
+                @switch (activeTab()) {
+                    @case ('display') {
+                        <div class="flex-1 overflow-y-auto thin-scrollbar">
+                            <div class="space-y-5 pb-4 max-w-xl">
+                                <!-- Name -->
+                                <div>
+                                    <label class="block text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2">{{
+                                        'GUILD_SETTINGS.ROLES.ROLE_NAME' | translate
+                                    }}</label>
+                                    <input
+                                        (ngModelChange)="editName.set($event); onEditField()"
+                                        [disabled]="role.type === RoleType.Everyone"
+                                        [maxlength]="100"
+                                        [ngModel]="editName()"
+                                        class="w-full"
+                                        pInputText
+                                    />
+                                    @if (role.type === RoleType.Everyone) {
+                                        <p class="text-[0.6875rem] text-text-secondary mt-1.5">
+                                            {{ 'GUILD_SETTINGS.ROLES.EVERYONE_HINT' | translate }}
+                                        </p>
+                                    }
+                                </div>
 
-                        <!-- Description -->
-                        <div>
-                            <label class="block text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2">{{
-                                'GUILD_SETTINGS.ROLES.DESCRIPTION' | translate
-                            }}</label>
-                            <textarea
-                                (ngModelChange)="editDescription.set($event); onEditField()"
-                                [maxlength]="300"
-                                [ngModel]="editDescription()"
-                                class="w-full resize-none"
-                                pTextarea
-                                rows="2"
-                            ></textarea>
-                        </div>
+                                <!-- Description -->
+                                <div>
+                                    <label class="block text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2">{{
+                                        'GUILD_SETTINGS.ROLES.DESCRIPTION' | translate
+                                    }}</label>
+                                    <textarea
+                                        (ngModelChange)="editDescription.set($event); onEditField()"
+                                        [maxlength]="300"
+                                        [ngModel]="editDescription()"
+                                        class="w-full resize-none"
+                                        pTextarea
+                                        rows="2"
+                                    ></textarea>
+                                </div>
 
-                        <!-- Color -->
-                        <div>
-                            <label class="block text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2">{{
-                                'GUILD_SETTINGS.ROLES.ROLE_COLOR' | translate
-                            }}</label>
-                            <div class="flex items-center gap-3">
-                                <input
-                                    (ngModelChange)="editColor.set($event); onEditField()"
-                                    [ngModel]="editColor()"
-                                    class="w-10 h-10 rounded-xl cursor-pointer border border-white/[0.08] bg-transparent p-0.5"
-                                    type="color"
-                                />
-                                <input
-                                    (ngModelChange)="editColor.set($event); onEditField()"
-                                    [attr.aria-invalid]="colorInvalid()"
-                                    [maxlength]="7"
-                                    [ngModel]="editColor()"
-                                    class="w-28 font-mono text-sm"
-                                    pInputText
-                                    placeholder="#4B5BC4"
-                                />
-                            </div>
-                            @if (colorInvalid()) {
-                                <p class="text-[0.6875rem] text-rose-400 mt-1.5">{{ 'GUILD_SETTINGS.ROLES.COLOR_INVALID' | translate }}</p>
-                            }
-                        </div>
-
-                        <div class="border-t border-border-subtle"></div>
-
-                        <div>
-                            <div class="flex items-center justify-between gap-3 mb-3">
-                                <p class="text-xs font-semibold text-text-muted uppercase tracking-widest">
-                                    {{ 'GUILD_SETTINGS.ROLES.PERMISSIONS' | translate }}
-                                </p>
-                                <input
-                                    (ngModelChange)="permQuery.set($event)"
-                                    [ngModel]="permQuery()"
-                                    [placeholder]="'PERM_TOGGLE.SEARCH' | translate"
-                                    class="w-48 text-xs"
-                                    pInputText
-                                    type="search"
-                                />
-                            </div>
-                            <app-permission-toggle
-                                (maskChange)="onPermChange($event)"
-                                [features]="features()"
-                                [mask]="editPermMask()"
-                                [query]="permQuery()"
-                            />
-                        </div>
-
-                        <!-- The second mask. Kept visibly apart from the core one because the two spaces overlap numerically and mean different things, and because these bits stop existing entirely when their module is switched off. -->
-                        @if (hasModuleGroups()) {
-                            <div class="border-t border-border-subtle"></div>
-                            <div>
-                                <p class="text-xs font-semibold text-text-muted uppercase tracking-widest">
-                                    {{ 'PERM_TOGGLE.MODULE_HEADING' | translate }}
-                                </p>
-                                <p class="text-[0.6875rem] text-text-muted mt-1 mb-3">{{ 'PERM_TOGGLE.MODULE_HINT' | translate }}</p>
-                                <app-permission-toggle
-                                    (maskChange)="onModulePermChange($event)"
-                                    [catalog]="moduleCatalog"
-                                    [features]="features()"
-                                    [mask]="editModuleMask()"
-                                    [query]="permQuery()"
-                                />
-                            </div>
-                        }
-
-                        <!-- Save -->
-                        @if (editDirty()) {
-                            <div class="flex items-center gap-3 pt-1 sticky bottom-0 bg-app-bg pb-1">
-                                <p-button
-                                    (onClick)="saveRole()"
-                                    [disabled]="colorInvalid()"
-                                    [label]="'GUILD_SETTINGS.ROLES.SAVE_CHANGES' | translate"
-                                    [loading]="editSaving()"
-                                    severity="primary"
-                                    size="small"
-                                />
-                                <p-button
-                                    (onClick)="resetEdits()"
-                                    [label]="'GUILD_SETTINGS.ROLES.RESET' | translate"
-                                    [text]="true"
-                                    severity="secondary"
-                                    size="small"
-                                />
-                            </div>
-                        }
-                    </div>
-                </div>
-            }
-
-            <!-- Members tab -->
-            @if (activeTab() === 'members') {
-                <div class="flex flex-col flex-1 min-h-0 gap-3">
-                    <!-- Search + Add -->
-                    <div class="flex gap-2 shrink-0">
-                        <div class="relative flex-1">
-                            <i
-                                class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-xs pointer-events-none"
-                            ></i>
-                            <input
-                                (ngModelChange)="onQueryChange($event)"
-                                [ngModel]="roleMembersQuery()"
-                                [placeholder]="'GUILD_SETTINGS.ROLES.SEARCH_PLACEHOLDER' | translate"
-                                class="w-full !pl-9 text-sm"
-                                pInputText
-                            />
-                        </div>
-                        <p-button
-                            (onClick)="openAddDialog()"
-                            [pTooltip]="'GUILD_SETTINGS.ROLES.ADD_MEMBER' | translate"
-                            icon="pi pi-user-plus"
-                            severity="secondary"
-                            size="small"
-                            tooltipPosition="top"
-                        />
-                    </div>
-
-                    <!-- Count. Only the loaded page is known, so an unfinished list says "30+" -->
-                    <p class="text-xs text-text-secondary shrink-0">
-                        @if (roleMembersLoading()) {
-                            {{ 'GUILD_SETTINGS.ROLES.MEMBERS_LOADING' | translate }}
-                        } @else if (roleMembersIsSearch()) {
-                            {{
-                                (roleMembersDisplay().length === 1
-                                    ? 'GUILD_SETTINGS.MEMBERS.RESULTS_SINGLE'
-                                    : 'GUILD_SETTINGS.MEMBERS.RESULTS_PLURAL'
-                                )
-                                    | translate
-                                        : {
-                                              count: roleMembersDisplay().length,
-                                          }
-                            }}
-                        } @else if (roleMembersHasMore()) {
-                            {{ 'GUILD_SETTINGS.MEMBERS.COUNT_MORE' | translate: {count: roleMembersDisplay().length} }}
-                        } @else {
-                            {{
-                                (roleMembersDisplay().length !== 1
-                                    ? 'GUILD_SETTINGS.MEMBERS.COUNT_PLURAL'
-                                    : 'GUILD_SETTINGS.MEMBERS.COUNT_SINGLE'
-                                )
-                                    | translate
-                                        : {
-                                              count: roleMembersDisplay().length,
-                                          }
-                            }}
-                        }
-                    </p>
-
-                    <!-- List -->
-                    @if (roleMembersLoading()) {
-                        <div class="flex items-center justify-center py-8">
-                            <i class="pi pi-spin pi-spinner text-text-secondary text-xl"></i>
-                        </div>
-                    } @else {
-                        <div (scroll)="onMembersScroll($event)" class="flex-1 overflow-y-auto space-y-0.5 min-h-0 thin-scrollbar">
-                            @for (row of roleMembersDisplay(); track row.roleMember.id) {
-                                <div class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-white/[0.04] transition-colors">
-                                    <!-- Avatar -->
-                                    <div class="w-8 h-8 rounded-full overflow-hidden bg-card shrink-0 flex items-center justify-center">
-                                        @if (avatarUrl(row.profile); as url) {
-                                            <img
-                                                (error)="onAvatarError(url)"
-                                                [alt]="displayName(row.profile)"
-                                                [src]="url"
-                                                class="w-full h-full object-cover"
-                                            />
-                                        } @else {
-                                            <span class="text-xs font-semibold text-text-secondary">{{
-                                                displayName(row.profile).charAt(0).toUpperCase()
-                                            }}</span>
-                                        }
-                                    </div>
-
-                                    <!-- Name -->
-                                    <span class="flex-1 min-w-0 text-sm text-text-primary truncate">{{ displayName(row.profile) }}</span>
-
-                                    <!-- Remove button: hiding it until hover made it a blind tap target on touch -->
-                                    <div class="shrink-0">
-                                        <p-button
-                                            (onClick)="removeMember(row.roleMember)"
-                                            [disabled]="removing() !== null"
-                                            [loading]="removing() === row.roleMember.memberId"
-                                            [pTooltip]="'GUILD_SETTINGS.ROLES.REMOVE_FROM_ROLE' | translate"
-                                            [text]="true"
-                                            icon="pi pi-times"
-                                            severity="danger"
-                                            size="small"
-                                            tooltipPosition="top"
+                                <!-- Color -->
+                                <div>
+                                    <label class="block text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2">{{
+                                        'GUILD_SETTINGS.ROLES.ROLE_COLOR' | translate
+                                    }}</label>
+                                    <div class="flex items-center gap-3">
+                                        <input
+                                            (ngModelChange)="editColor.set($event); onEditField()"
+                                            [ngModel]="editColor()"
+                                            class="w-10 h-10 rounded-xl cursor-pointer border border-white/[0.08] bg-transparent p-0.5"
+                                            type="color"
+                                        />
+                                        <input
+                                            (ngModelChange)="editColor.set($event); onEditField()"
+                                            [attr.aria-invalid]="colorInvalid()"
+                                            [maxlength]="7"
+                                            [ngModel]="editColor()"
+                                            class="w-28 font-mono text-sm"
+                                            pInputText
+                                            placeholder="#4B5BC4"
                                         />
                                     </div>
+                                    @if (colorInvalid()) {
+                                        <p class="text-[0.6875rem] text-rose-400 mt-1.5">
+                                            {{ 'GUILD_SETTINGS.ROLES.COLOR_INVALID' | translate }}
+                                        </p>
+                                    }
                                 </div>
-                            }
+                            </div>
+                        </div>
+                    }
 
-                            @if (roleMembers().length === 0) {
-                                <p class="text-sm text-text-secondary text-center py-8">
-                                    {{ 'GUILD_SETTINGS.ROLES.NO_MEMBERS' | translate }}
-                                </p>
-                            }
+                    @case ('permissions') {
+                        <div class="flex-1 overflow-y-auto thin-scrollbar">
+                            <div class="space-y-5 pb-4">
+                                <div>
+                                    <div class="flex items-center justify-between gap-3 mb-3">
+                                        <p class="text-xs font-semibold text-text-muted uppercase tracking-widest">
+                                            {{ 'GUILD_SETTINGS.ROLES.PERMISSIONS' | translate }}
+                                        </p>
+                                        <input
+                                            (ngModelChange)="permQuery.set($event)"
+                                            [ngModel]="permQuery()"
+                                            [placeholder]="'PERM_TOGGLE.SEARCH' | translate"
+                                            class="w-48 text-xs"
+                                            pInputText
+                                            type="search"
+                                        />
+                                    </div>
+                                    <app-permission-toggle
+                                        (maskChange)="onPermChange($event)"
+                                        [features]="features()"
+                                        [mask]="editPermMask()"
+                                        [query]="permQuery()"
+                                    />
+                                </div>
 
-                            @if (roleMembersLoadingMore()) {
-                                <div class="flex items-center justify-center py-3">
-                                    <i class="pi pi-spin pi-spinner text-text-secondary text-sm"></i>
+                                <!-- The second mask. Kept visibly apart from the core one because the two spaces overlap numerically and mean different things, and because these bits stop existing entirely when their module is switched off. -->
+                                @if (hasModuleGroups()) {
+                                    <div class="border-t border-border-subtle"></div>
+                                    <div>
+                                        <p class="text-xs font-semibold text-text-muted uppercase tracking-widest">
+                                            {{ 'PERM_TOGGLE.MODULE_HEADING' | translate }}
+                                        </p>
+                                        <p class="text-[0.6875rem] text-text-muted mt-1 mb-3">
+                                            {{ 'PERM_TOGGLE.MODULE_HINT' | translate }}
+                                        </p>
+                                        <app-permission-toggle
+                                            (maskChange)="onModulePermChange($event)"
+                                            [catalog]="moduleCatalog"
+                                            [features]="features()"
+                                            [mask]="editModuleMask()"
+                                            [query]="permQuery()"
+                                        />
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    }
+
+                    @case ('members') {
+                        <div class="flex flex-col flex-1 min-h-0 gap-3">
+                            <!-- Search + Add -->
+                            <div class="flex gap-2 shrink-0">
+                                <div class="relative flex-1 max-w-sm">
+                                    <i
+                                        class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-xs pointer-events-none"
+                                    ></i>
+                                    <input
+                                        (ngModelChange)="onQueryChange($event)"
+                                        [ngModel]="roleMembersQuery()"
+                                        [placeholder]="'GUILD_SETTINGS.ROLES.SEARCH_PLACEHOLDER' | translate"
+                                        class="w-full !pl-9 text-sm"
+                                        pInputText
+                                    />
+                                </div>
+                                <p-button
+                                    (onClick)="openAddDialog()"
+                                    [pTooltip]="'GUILD_SETTINGS.ROLES.ADD_MEMBER' | translate"
+                                    icon="pi pi-user-plus"
+                                    severity="secondary"
+                                    size="small"
+                                    tooltipPosition="top"
+                                />
+                            </div>
+
+                            <!-- Count. Only the loaded page is known, so an unfinished list says "30+" -->
+                            <p class="text-xs text-text-secondary shrink-0">
+                                @if (roleMembersLoading()) {
+                                    {{ 'GUILD_SETTINGS.ROLES.MEMBERS_LOADING' | translate }}
+                                } @else if (roleMembersIsSearch()) {
+                                    {{
+                                        (roleMembersDisplay().length === 1
+                                            ? 'GUILD_SETTINGS.MEMBERS.RESULTS_SINGLE'
+                                            : 'GUILD_SETTINGS.MEMBERS.RESULTS_PLURAL'
+                                        )
+                                            | translate
+                                                : {
+                                                      count: roleMembersDisplay().length,
+                                                  }
+                                    }}
+                                } @else if (roleMembersHasMore()) {
+                                    {{ 'GUILD_SETTINGS.MEMBERS.COUNT_MORE' | translate: {count: roleMembersDisplay().length} }}
+                                } @else {
+                                    {{
+                                        (roleMembersDisplay().length !== 1
+                                            ? 'GUILD_SETTINGS.MEMBERS.COUNT_PLURAL'
+                                            : 'GUILD_SETTINGS.MEMBERS.COUNT_SINGLE'
+                                        )
+                                            | translate
+                                                : {
+                                                      count: roleMembersDisplay().length,
+                                                  }
+                                    }}
+                                }
+                            </p>
+
+                            <!-- List -->
+                            @if (roleMembersLoading()) {
+                                <div class="flex items-center justify-center py-8">
+                                    <i class="pi pi-spin pi-spinner text-text-secondary text-xl"></i>
+                                </div>
+                            } @else {
+                                <div (scroll)="onMembersScroll($event)" class="flex-1 overflow-y-auto space-y-0.5 min-h-0 thin-scrollbar">
+                                    @for (row of roleMembersDisplay(); track row.roleMember.id) {
+                                        <div class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-white/[0.04] transition-colors">
+                                            <!-- Avatar -->
+                                            <div
+                                                class="w-8 h-8 rounded-full overflow-hidden bg-card shrink-0 flex items-center justify-center"
+                                            >
+                                                @if (avatarUrl(row.profile); as url) {
+                                                    <img
+                                                        (error)="onAvatarError(url)"
+                                                        [alt]="displayName(row.profile)"
+                                                        [src]="url"
+                                                        class="w-full h-full object-cover"
+                                                    />
+                                                } @else {
+                                                    <span class="text-xs font-semibold text-text-secondary">{{
+                                                        displayName(row.profile).charAt(0).toUpperCase()
+                                                    }}</span>
+                                                }
+                                            </div>
+
+                                            <!-- Name -->
+                                            <span class="flex-1 min-w-0 text-sm text-text-primary truncate">{{
+                                                displayName(row.profile)
+                                            }}</span>
+
+                                            <!-- Remove button: hiding it until hover made it a blind tap target on touch -->
+                                            <div class="shrink-0">
+                                                <p-button
+                                                    (onClick)="removeMember(row.roleMember)"
+                                                    [disabled]="removing() !== null"
+                                                    [loading]="removing() === row.roleMember.memberId"
+                                                    [pTooltip]="'GUILD_SETTINGS.ROLES.REMOVE_FROM_ROLE' | translate"
+                                                    [text]="true"
+                                                    icon="pi pi-times"
+                                                    severity="danger"
+                                                    size="small"
+                                                    tooltipPosition="top"
+                                                />
+                                            </div>
+                                        </div>
+                                    }
+
+                                    @if (roleMembers().length === 0) {
+                                        <p class="text-sm text-text-secondary text-center py-8">
+                                            {{ 'GUILD_SETTINGS.ROLES.NO_MEMBERS' | translate }}
+                                        </p>
+                                    }
+
+                                    @if (roleMembersLoadingMore()) {
+                                        <div class="flex items-center justify-center py-3">
+                                            <i class="pi pi-spin pi-spinner text-text-secondary text-sm"></i>
+                                        </div>
+                                    }
                                 </div>
                             }
                         </div>
                     }
-                </div>
-            }
 
-            <!-- Channels tab -->
-            @if (activeTab() === 'channels') {
-                <app-role-channels
-                    [categories]="guild().categories"
-                    [channels]="guild().channels"
-                    [guild]="guild()"
-                    [role]="selectedRole()!"
-                />
+                    @case ('channels') {
+                        <app-role-channels
+                            [categories]="guild().categories"
+                            [channels]="guild().channels"
+                            [guild]="guild()"
+                            [role]="role"
+                        />
+                    }
+                }
+            </div>
+
+            <!-- Save: one bar for every tab, since a dirty edit can be sitting on a tab the admin has since left -->
+            @if (editDirty()) {
+                <div class="flex items-center gap-3 shrink-0 pt-3 mt-1 border-t border-white/[0.08]">
+                    <p-button
+                        (onClick)="saveRole()"
+                        [disabled]="colorInvalid()"
+                        [label]="'GUILD_SETTINGS.ROLES.SAVE_CHANGES' | translate"
+                        [loading]="editSaving()"
+                        severity="primary"
+                        size="small"
+                    />
+                    <p-button
+                        (onClick)="resetEdits()"
+                        [label]="'GUILD_SETTINGS.ROLES.RESET' | translate"
+                        [text]="true"
+                        severity="secondary"
+                        size="small"
+                    />
+                </div>
             }
         } @else {
             <div class="flex flex-col items-center justify-center h-full text-center gap-2 text-text-secondary">

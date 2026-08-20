@@ -1,0 +1,73 @@
+<div class="w-52 shrink-0 h-full flex flex-col gap-2 border-r border-white/[0.08] pr-3">
+    <div class="flex items-center justify-between px-1">
+        <span class="text-[0.625rem] font-semibold uppercase tracking-widest text-text-muted">{{
+            'GUILD_SETTINGS.ROLES.RAIL_HEADING' | translate
+        }}</span>
+        <span class="font-mono text-[0.625rem] text-text-muted">{{ roles().length }}</span>
+    </div>
+
+    <p-button
+        (onClick)="create()"
+        [label]="'GUILD_SETTINGS.ROLES.NEW_ROLE' | translate"
+        icon="pi pi-plus"
+        severity="secondary"
+        size="small"
+        styleClass="w-full !justify-start !border-dashed"
+    />
+
+    <div class="flex-1 overflow-y-auto space-y-0.5 thin-scrollbar">
+        @for (role of roles(); track role.id; let i = $index) {
+            <div (dragover)="onDragOver($event, i)" (drop)="onDrop(i)" class="relative flex items-center gap-1.5">
+                <!-- Insertion line: dragging used to give no hint at all where a role would land -->
+                @if (dropIndex() === i) {
+                    <div
+                        [ngClass]="dropBefore() ? 'top-0' : 'bottom-0'"
+                        class="absolute inset-x-0 h-0.5 rounded-full bg-brand pointer-events-none"
+                    ></div>
+                }
+
+                <!-- The grip is the whole reorder affordance: drag it, or focus it and press the arrow keys. -->
+                @if (isPinned(role)) {
+                    <span
+                        [pTooltip]="'GUILD_SETTINGS.ROLES.EVERYONE_PINNED' | translate"
+                        class="w-4 h-6 shrink-0 flex items-center justify-center text-text-muted"
+                        tooltipPosition="right"
+                    >
+                        <i class="pi pi-lock text-[0.5rem]"></i>
+                    </span>
+                } @else {
+                    <span
+                        (dragend)="onDragEnd()"
+                        (dragstart)="onDragStart(i)"
+                        (keydown)="onGripKeydown($event, i)"
+                        [attr.aria-label]="'GUILD_SETTINGS.ROLES.REORDER_HANDLE' | translate: {name: role.name}"
+                        [draggable]="true"
+                        class="w-4 h-6 shrink-0 flex items-center justify-center rounded text-text-muted hover:text-text-primary cursor-grab active:cursor-grabbing focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-brand)]"
+                        role="button"
+                        tabindex="0"
+                    >
+                        <i class="pi pi-bars text-[0.625rem]"></i>
+                    </span>
+                }
+
+                <button
+                    (click)="selectRole(role)"
+                    [attr.aria-current]="selectedRoleId() === role.id ? 'true' : null"
+                    [ngClass]="
+                        selectedRoleId() === role.id
+                            ? 'bg-[color-mix(in_srgb,var(--color-brand)_15%,transparent)] text-[var(--color-brand-dim)]'
+                            : 'text-text-secondary hover:bg-white/[0.05]'
+                    "
+                    [pTooltip]="role.name"
+                    [showDelay]="500"
+                    class="flex-1 min-w-0 flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-left text-sm font-medium transition-all cursor-pointer border-0"
+                    tooltipPosition="right"
+                >
+                    <span [style.background]="role.color || '#4B5BC4'" class="w-3 h-3 rounded-full shrink-0"></span>
+                    <span class="truncate">{{ role.name }}</span>
+                    <span class="ml-auto shrink-0 font-mono text-[0.625rem] text-text-muted">{{ memberCounts().get(role.id) ?? 0 }}</span>
+                </button>
+            </div>
+        }
+    </div>
+</div>

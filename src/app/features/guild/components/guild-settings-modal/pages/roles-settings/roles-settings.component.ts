@@ -1,4 +1,15 @@
-import {Component, computed, DestroyRef, effect, inject, input, OnInit, output, signal} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    DestroyRef,
+    effect,
+    inject,
+    input,
+    OnInit,
+    output,
+    signal,
+} from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {NgClass} from '@angular/common';
 import {FormsModule} from '@angular/forms';
@@ -28,6 +39,9 @@ import {PermissionToggleComponent} from '../../../../shared/permission-toggle/pe
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {guildFeatures} from '../../../../guild-features';
 import {RoleChannelsComponent} from './role-channels/role-channels.component';
+import {RoleRailComponent} from './role-rail/role-rail.component';
+import {injectGuildRoster} from '../../../../shared/guild-roster';
+import {countRoleOverrides, countVisibleChannels} from './role-stats';
 
 interface RoleMemberDisplay {
     roleMember: RoleMemberDto;
@@ -51,8 +65,10 @@ const HEX_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
         PrimeTemplate,
         TranslateModule,
         RoleChannelsComponent,
+        RoleRailComponent,
     ],
     templateUrl: './roles-settings.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class RolesSettingsComponent implements OnInit {
     readonly guild = input.required<GuildDto>();
@@ -61,7 +77,7 @@ export class RolesSettingsComponent implements OnInit {
     dirtyChange = output<boolean>();
     readonly roles = signal<RoleDto[]>([]);
     readonly selectedRole = signal<RoleDto | null>(null);
-    readonly activeTab = signal<'settings' | 'members' | 'channels'>('settings');
+    readonly activeTab = signal<'display' | 'permissions' | 'members' | 'channels'>('display');
     // Settings tab
     readonly editName = signal('');
     readonly editDescription = signal('');
@@ -101,7 +117,6 @@ export class RolesSettingsComponent implements OnInit {
     readonly adding = signal<string | null>(null);
     /** True while the candidate list is just the first page, so the dialog can say so. */
     readonly addPartial = signal(false);
-    protected readonly RoleType = RoleType;
     private guildService = inject(GuildService);
     private guildWsService = inject(GuildWebsocketService);
     private destroyRef = inject(DestroyRef);
@@ -148,6 +163,40 @@ export class RolesSettingsComponent implements OnInit {
         return MODULE_PERM_GROUPS.some(group => !group.feature || features.has(group.feature));
     });
 
+    private readonly roster = injectGuildRoster(() => this.guild().id, 'GUILD_SETTINGS.ROLES.UNKNOWN_MEMBER');
+
+    /** Per role id, from the roster page the household boards already share; see its own size caveat. */
+    protected readonly memberCounts = computed<ReadonlyMap<string, number>>(() => {
+        const counts = new Map<string, number>();
+        for (const member of this.roster.members()) {
+            for (const rm of member.roleMembers ?? []) {
+                counts.set(rm.role.id, (counts.get(rm.role.id) ?? 0) + 1);
+            }
+        }
+        return counts;
+    });
+
+    protected readonly selectedMemberCount = computed(() => {
+        const role = this.selectedRole();
+        return role ? (this.memberCounts().get(role.id) ?? 0) : 0;
+    });
+
+    protected readonly totalChannels = computed(() => this.guild().channels.length);
+
+    protected readonly overrideCount = computed(() => {
+        const role = this.selectedRole();
+        return role ? countRoleOverrides(role, this.guild().channels) : 0;
+    });
+
+    protected readonly visibleChannelCount = computed(() => {
+        const role = this.selectedRole();
+        return role ? countVisibleChannels(role, this.guild().channels) : 0;
+    });
+
+    protected get RoleType(): typeof RoleType {
+        return RoleType;
+    }
+
     constructor() {
         effect(() => this.dirtyChange.emit(this.editDirty()));
     }
@@ -166,82 +215,14 @@ export class RolesSettingsComponent implements OnInit {
             });
     }
 
-    private readonly dragIndex = signal<number | null>(null);
-    /** Row the pointer is currently over, so the list can draw an insertion line. */
-    readonly dropIndex = signal<number | null>(null);
-
-    /** The line sits above the target when the role is travelling up, below it when down. */
-    readonly dropBefore = computed(() => {
-        const from = this.dragIndex();
-        const to = this.dropIndex();
-        return from !== null && to !== null && to < from;
-    });
-
-    onDragStart(index: number): void {
-        this.dragIndex.set(index);
-    }
-
-    onDragOver(event: DragEvent, index: number): void {
-        const from = this.dragIndex();
-        if (from === null) return;
-        event.preventDefault();
-        this.dropIndex.set(this.canReorder(from, index) ? index : null);
-    }
-
-    onDragEnd(): void {
-        this.dragIndex.set(null);
-        this.dropIndex.set(null);
-    }
-
-    onDrop(targetIndex: number): void {
-        const fromIndex = this.dragIndex();
-        this.dragIndex.set(null);
-        this.dropIndex.set(null);
-        if (fromIndex === null) return;
-        this.moveRole(fromIndex, targetIndex);
-    }
-
-    /** Keyboard path to reordering; drag-and-drop alone left this unusable without a mouse. */
-    moveRoleBy(index: number, delta: number): void {
-        this.moveRole(index, index + delta);
-    }
-
-    canMove(index: number, delta: number): boolean {
-        return this.canReorder(index, index + delta);
-    }
-
-    /** The everyone role is the implicit one every member carries; the editor already refuses to rename or delete it, and it stays where it is in the hierarchy too. */
-    isPinned(role: RoleDto): boolean {
-        return role.type === RoleType.Everyone;
-    }
-
-    /** A move is legal when it neither picks up the pinned role nor steps over it: splicing a role across the pinned one shifts that role's own index, which is the same thing by another route. */
-    private canReorder(fromIndex: number, targetIndex: number): boolean {
-        const roles = this.roles();
-        if (fromIndex === targetIndex) return false;
-        if (fromIndex < 0 || fromIndex >= roles.length) return false;
-        if (targetIndex < 0 || targetIndex >= roles.length) return false;
-        if (this.isPinned(roles[fromIndex])) return false;
-
-        const low = Math.min(fromIndex, targetIndex);
-        const high = Math.max(fromIndex, targetIndex);
-        return !roles.some((r, i) => i >= low && i <= high && i !== fromIndex && this.isPinned(r));
-    }
-
-    private moveRole(fromIndex: number, targetIndex: number): void {
-        if (!this.canReorder(fromIndex, targetIndex)) return;
-
-        // Rolling back to guild().roles threw away every earlier reorder from this session, since the input never carries them; the order we were just showing is the honest fallback.
+    /** The rail already validated the move; this just persists it and rolls back on failure. */
+    onReorder(reordered: RoleDto[]): void {
         const previous = this.roles();
-        const reordered = [...previous];
-        const [moved] = reordered.splice(fromIndex, 1);
-        reordered.splice(targetIndex, 0, moved);
-        const withPositions = reordered.map((r, i) => ({...r, position: i}));
-        this.roles.set(withPositions);
+        this.roles.set(reordered);
 
         this.guildService
             .reorderRoles(this.guild().id, {
-                roles: withPositions.map(r => ({roleId: r.id, position: r.position})),
+                roles: reordered.map(r => ({roleId: r.id, position: r.position})),
             })
             .subscribe({
                 error: err => {
@@ -279,7 +260,7 @@ export class RolesSettingsComponent implements OnInit {
         action?.();
     }
 
-    /** Reset restores the settings fields and nothing else; it must not also empty the Members tab or bounce the user back to Settings. */
+    /** Reset restores the editable fields and nothing else; it must not also empty the Members tab or bounce the user back to Display. */
     resetEdits(): void {
         const role = this.selectedRole();
         if (role) this.applyRoleToFields(role);
@@ -288,11 +269,11 @@ export class RolesSettingsComponent implements OnInit {
     selectRole(role: RoleDto): void {
         this.selectedRole.set(role);
         this.applyRoleToFields(role);
-        this.activeTab.set('settings');
+        this.activeTab.set('display');
         this.resetMembersTab();
     }
 
-    switchTab(tab: 'settings' | 'members' | 'channels'): void {
+    switchTab(tab: 'display' | 'permissions' | 'members' | 'channels'): void {
         this.activeTab.set(tab);
         if (tab === 'members' && !this.roleMembersLoaded()) {
             this.loadRoleMembers();
