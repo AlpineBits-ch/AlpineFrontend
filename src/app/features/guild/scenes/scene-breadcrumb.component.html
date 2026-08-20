@@ -1,0 +1,22 @@
+<nav [attr.aria-label]="'SCENE.BREADCRUMB.LABEL' | translate" class="scene-crumbs thin-scrollbar">
+    <button (click)="toScenes()" [attr.aria-label]="'SCENE.BREADCRUMB.BACK' | translate" class="crumb-back" type="button">
+        <i class="pi pi-chevron-left text-[0.5rem]"></i>
+    </button>
+
+    <button (click)="toScenes()" class="crumb crumb-link" type="button">
+        {{ 'SCENE.BOARD.TITLE' | translate }}
+    </button>
+
+    @for (folder of folders(); track folder.id) {
+        <span aria-hidden="true" class="crumb-sep">/</span>
+        <button (click)="toFolder(folder.id)" class="crumb crumb-link" type="button">
+            @if (folder.icon) {
+                <span class="crumb-icon">{{ folder.icon }}</span>
+            }
+            {{ folder.name }}
+        </button>
+    }
+
+    <span aria-hidden="true" class="crumb-sep">/</span>
+    <span class="crumb crumb-current">{{ name() }}</span>
+</nav>
