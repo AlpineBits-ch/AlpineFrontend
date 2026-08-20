@@ -50,7 +50,7 @@
                         class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-left hover:bg-hover transition-colors cursor-pointer border-0 bg-transparent"
                         type="button"
                     >
-                        <app-avatar [label]="candidate.name.charAt(0).toUpperCase()" [userId]="candidate.userId" />
+                        <app-avatar [userId]="candidate.userId" />
                         <span class="text-sm text-text-secondary truncate">{{ candidate.name }}</span>
                     </button>
                 }
