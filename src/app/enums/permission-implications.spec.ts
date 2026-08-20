@@ -1,9 +1,4 @@
-import {
-    expandDeniedPermissions,
-    expandImpliedPermissions,
-    IMPLIED_PERMISSIONS,
-    Permissions,
-} from './permissions.enum';
+import {expandDeniedPermissions, IMPLIED_PERMISSIONS, Permissions} from './permissions.enum';
 
 // Mirrors Guild.Application/Services/GuildPermissionService.cs ImpliedPermissions.
 // See docs/specs/channel-permissions-ux.md, "Golden list".
@@ -34,13 +29,6 @@ const GOLDEN: readonly (readonly [keyof typeof Permissions, keyof typeof Permiss
 describe('implication table', () => {
     it('matches the golden list exactly', () => {
         expect([...IMPLIED_PERMISSIONS]).toEqual([...GOLDEN]);
-    });
-
-    it('closes a grant forwards', () => {
-        for (const [holder, implied] of GOLDEN) {
-            const expanded = expandImpliedPermissions(Permissions[holder]);
-            expect(expanded & Permissions[implied]).toBe(Permissions[implied]);
-        }
     });
 
     it('closes a deny backwards', () => {

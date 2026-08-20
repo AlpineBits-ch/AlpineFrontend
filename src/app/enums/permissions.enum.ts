@@ -288,19 +288,9 @@ function closeOver(mask: PermissionValue, edges: readonly (readonly [bigint, big
     return result;
 }
 
-const FORWARD_EDGES: readonly (readonly [bigint, bigint])[] = IMPLIED_PERMISSIONS.map(
-    ([holder, implied]) => [Permissions[holder], Permissions[implied]] as const,
-);
-
 const REVERSE_EDGES: readonly (readonly [bigint, bigint])[] = IMPLIED_PERMISSIONS.map(
     ([holder, implied]) => [Permissions[implied], Permissions[holder]] as const,
 );
-
-/** Widens a grant with everything its bits imply. Superadmin short-circuits, as it does server-side. */
-export function expandImpliedPermissions(mask: PermissionValue): PermissionValue {
-    if ((mask & Permissions.Superadmin) === Permissions.Superadmin) return mask;
-    return closeOver(mask, FORWARD_EDGES);
-}
 
 /** Widens a deny with everything that implies its bits, so a deny cannot leave a superset behind. */
 export function expandDeniedPermissions(mask: PermissionValue): PermissionValue {
