@@ -3,13 +3,21 @@ import {By} from '@angular/platform-browser';
 import {provideHttpClient} from '@angular/common/http';
 import {provideHttpClientTesting} from '@angular/common/http/testing';
 import {provideTranslateService} from '@ngx-translate/core';
-import {of} from 'rxjs';
+import {Observable, of, throwError} from 'rxjs';
 import {vi} from 'vitest';
 import {PermissionOverridesComponent} from './permission-overrides.component';
 import {channelScope, categoryScope} from './permission-scope';
 import {GuildService} from '../../../../services/guild.service';
 import {ProfileService} from '../../../../services/profile.service';
-import {ChannelDto, ChannelType, GuildDto, RoleDto, RoleType} from '../../../../dtos/response/guild.dto';
+import {ToastService} from '../../../../services/toast.service';
+import {
+    ChannelDto,
+    ChannelPermission,
+    ChannelType,
+    GuildDto,
+    RoleDto,
+    RoleType,
+} from '../../../../dtos/response/guild.dto';
 import {GuildMemberDto} from '../../../../dtos/response/member.dto';
 import {PermissionOverridesPanelComponent} from '../permission-overrides-panel/permission-overrides-panel.component';
 
@@ -43,6 +51,27 @@ function memberDto(userId: string): GuildMemberDto {
     return {id: `mem_${userId}`, guildId: 'guild_1', userId} as GuildMemberDto;
 }
 
+function perm(over: Partial<ChannelPermission>): ChannelPermission {
+    return {
+        id: 'p',
+        channelId: CHANNEL,
+        allowPermissions: 'None',
+        denyPermissions: 'None',
+        ...over,
+    } as ChannelPermission;
+}
+
+function trace(subjectId: string) {
+    return {
+        channelId: CHANNEL,
+        subjectKind: 'Role',
+        subjectId,
+        permissions: 'None',
+        modulePermissions: 'None',
+        sources: [],
+    };
+}
+
 interface SetupOptions {
     channelDto?: ChannelDto;
     members?: GuildMemberDto[];
@@ -52,20 +81,15 @@ interface SetupOptions {
 function setup(options: SetupOptions = {}) {
     const channelDto = options.channelDto ?? channel();
     const guildService = {
-        upsertChannelRolePermission: vi.fn(() =>
-            of({
-                id: 'p1',
-                channelId: CHANNEL,
-                roleId: PLAYER,
-                allowPermissions: 'SendMessages',
-                denyPermissions: 'None',
-            }),
+        upsertChannelRolePermission: vi.fn((): Observable<ChannelPermission> =>
+            of(perm({id: 'p1', roleId: PLAYER, allowPermissions: 'SendMessages'})),
         ),
         deleteChannelRolePermission: vi.fn(() => of(void 0)),
         upsertChannelMemberPermission: vi.fn(() => of({id: 'p2'})),
         deleteChannelMemberPermission: vi.fn(() => of(void 0)),
         getMembers: vi.fn(() => of(options.members ?? ([] as GuildMemberDto[]))),
         searchMembers: vi.fn(() => of([] as GuildMemberDto[])),
+        getEffectivePermissions: vi.fn((_channelId: string, target: {id: string}) => of(trace(target.id))),
     };
 
     const profileService = {
@@ -76,6 +100,8 @@ function setup(options: SetupOptions = {}) {
         resolveByUserId: vi.fn(),
     };
 
+    const toastService = {error: vi.fn(), httpError: vi.fn()};
+
     TestBed.configureTestingModule({
         imports: [PermissionOverridesComponent],
         providers: [
@@ -84,6 +110,7 @@ function setup(options: SetupOptions = {}) {
             provideTranslateService(),
             {provide: GuildService, useValue: guildService},
             {provide: ProfileService, useValue: profileService},
+            {provide: ToastService, useValue: toastService},
         ],
     });
 
@@ -94,7 +121,7 @@ function setup(options: SetupOptions = {}) {
     fixture.componentRef.setInput('guild', guild());
     fixture.detectChanges();
 
-    return {fixture, component: fixture.componentInstance, guildService, profileService};
+    return {fixture, component: fixture.componentInstance, guildService, profileService, toastService};
 }
 
 function setupCategory() {
@@ -114,6 +141,7 @@ function setupCategory() {
             provideTranslateService(),
             {provide: GuildService, useValue: guildService},
             {provide: ProfileService, useValue: {fetchByUserId: vi.fn(() => of({userName: 'ada'}))}},
+            {provide: ToastService, useValue: {error: vi.fn(), httpError: vi.fn()}},
         ],
     });
 
@@ -468,5 +496,127 @@ describe('PermissionOverridesComponent module masks', () => {
             allowPermissions: 'SendMessages',
             denyPermissions: 'None',
         });
+    });
+
+    // Omitting them here would leave the server carrying the grant the admin just cleared.
+    it('sends both module masks explicitly when a set one is cleared back to inherit', () => {
+        const {component, guildService} = setup({
+            channelDto: channel([
+                perm({roleId: PLAYER, allowModulePermissions: 'AddListItems'}),
+            ] as ChannelDto['permissions']),
+        });
+
+        component.onRoleChange(PLAYER, {allow: 0n, deny: 0n, allowModule: 0n, denyModule: 0n});
+        component.saveRole(PLAYER);
+
+        expect(guildService.upsertChannelRolePermission).toHaveBeenCalledWith(CHANNEL, PLAYER, {
+            allowPermissions: 'None',
+            denyPermissions: 'None',
+            allowModulePermissions: 'None',
+            denyModulePermissions: 'None',
+        });
+    });
+
+    it("shows the server's answer after a save, not the masks that were sent", () => {
+        const {component, guildService} = setup();
+        guildService.upsertChannelRolePermission.mockReturnValue(
+            of(
+                perm({
+                    roleId: PLAYER,
+                    allowPermissions: 'SendMessages',
+                    allowModulePermissions: 'AddListItems',
+                }),
+            ),
+        );
+
+        component.onRoleChange(PLAYER, {allow: 2n, deny: 0n, allowModule: 0n, denyModule: 0n});
+        component.saveRole(PLAYER);
+
+        const row = component['roleEntries']().find(e => e.id === PLAYER);
+        expect(row?.override.allowModule).toBe(1n << 10n);
+        expect(row?.dirty).toBe(false);
+    });
+});
+
+describe('PermissionOverridesComponent emitted overwrites', () => {
+    it('keeps a member overwrite nothing has loaded when a role is saved', () => {
+        const memberRow = perm({id: 'p_mem', memberId: 'mem_ash', allowPermissions: 'ViewChannel'});
+        const {component} = setup({
+            channelDto: channel([memberRow] as ChannelDto['permissions']),
+        });
+        const emitted: ChannelPermission[][] = [];
+        component.overridesChanged.subscribe(rows => emitted.push(rows));
+
+        component.onRoleChange(PLAYER, {allow: 2n, deny: 0n, allowModule: 0n, denyModule: 0n});
+        component.saveRole(PLAYER);
+
+        expect(emitted).toHaveLength(1);
+        expect(emitted[0].map(r => r.memberId ?? r.roleId)).toContain('mem_ash');
+        expect(emitted[0].map(r => r.roleId)).toContain(PLAYER);
+    });
+
+    it('drops only the deleted target from the emitted set', () => {
+        const memberRow = perm({id: 'p_mem', memberId: 'mem_ash', allowPermissions: 'ViewChannel'});
+        const roleRow = perm({id: 'p_role', roleId: PLAYER, allowPermissions: 'SendMessages'});
+        const {component} = setup({
+            channelDto: channel([memberRow, roleRow] as ChannelDto['permissions']),
+        });
+        const emitted: ChannelPermission[][] = [];
+        component.overridesChanged.subscribe(rows => emitted.push(rows));
+
+        component.deleteRole(PLAYER);
+
+        expect(emitted[0].map(r => r.id)).toEqual(['p_mem']);
+    });
+});
+
+describe('PermissionOverridesComponent subject selection', () => {
+    it('never reads the roles tab trace as the selected member on the members tab', () => {
+        const {component, guildService} = setup({members: [memberDto('ada')]});
+
+        component.onRoleSelectionChange(PLAYER);
+        expect(component['selectedTrace']()?.subjectId).toBe(PLAYER);
+
+        component.switchTab('members');
+        guildService.getEffectivePermissions.mockClear();
+
+        expect(component['selectedTrace']()).toBeNull();
+    });
+
+    it('keeps each tab on its own subject', () => {
+        const {component} = setup({members: [memberDto('ada')]});
+
+        component.onRoleSelectionChange(PLAYER);
+        component.switchTab('members');
+        component.onMemberSelectionChange('mem_ada');
+
+        expect(component['selectedTrace']()?.subjectId).toBe('mem_ada');
+
+        component.switchTab('roles');
+
+        expect(component['selectedTrace']()?.subjectId).toBe(PLAYER);
+    });
+
+    it('reports a failed delete instead of leaving the row as if it went through', () => {
+        const {component, guildService, toastService} = setup({
+            channelDto: channel([perm({roleId: PLAYER})] as ChannelDto['permissions']),
+        });
+        guildService.deleteChannelRolePermission.mockReturnValue(throwError(() => new Error('403')));
+
+        component.deleteRole(PLAYER);
+
+        expect(toastService.httpError).toHaveBeenCalled();
+        expect(component['roleEntries']().map(e => e.id)).toContain(PLAYER);
+    });
+
+    it('reports a failed save', () => {
+        const {component, guildService, toastService} = setup();
+        guildService.upsertChannelRolePermission.mockReturnValue(throwError(() => new Error('403')));
+
+        component.onRoleChange(PLAYER, {allow: 2n, deny: 0n, allowModule: 0n, denyModule: 0n});
+        component.saveRole(PLAYER);
+
+        expect(toastService.httpError).toHaveBeenCalled();
+        expect(component['roleEntries']().find(e => e.id === PLAYER)?.dirty).toBe(true);
     });
 });

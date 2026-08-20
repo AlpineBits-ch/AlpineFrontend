@@ -2,10 +2,12 @@ import {
     ChangeDetectionStrategy,
     Component,
     computed,
+    effect,
     inject,
     input,
     output,
     signal,
+    untracked,
     ViewChild,
 } from '@angular/core';
 import {NgClass} from '@angular/common';
@@ -81,6 +83,21 @@ export class PermissionOverridesPanelComponent {
     @ViewChild('addPopover') private addPopoverRef!: Popover;
 
     private brokenImages = inject(BrokenImageService);
+
+    constructor() {
+        // Falling back to the first entry is a real selection. Without the emit the host keeps
+        // whatever it was told last, and this panel renders another subject's resolved values.
+        effect(() => {
+            const list = this.entries();
+            if (list.length === 0) return;
+
+            const current = untracked(this.selectedId);
+            if (current !== null && list.some(e => e.id === current)) return;
+
+            this.selectedId.set(list[0].id);
+            this.selectionChange.emit(list[0].id);
+        });
+    }
 
     // The API sends an avatarUrl for every profile, uploaded or not; a URL that already failed to load is the only signal this entry has no avatar. See BrokenImageService.
     protected avatarUrl(entry: OverrideEntry): string | undefined {

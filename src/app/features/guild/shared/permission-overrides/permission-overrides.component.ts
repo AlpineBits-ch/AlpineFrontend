@@ -11,7 +11,7 @@ import {
 } from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {NgClass} from '@angular/common';
-import {TranslateModule} from '@ngx-translate/core';
+import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {debounceTime, Subject} from 'rxjs';
 import {
     ChannelPermission,
@@ -24,6 +24,7 @@ import {GuildMemberDto} from '../../../../dtos/response/member.dto';
 import {ProfileDto} from '../../../../dtos/response/profile.dto';
 import {GuildService, OverridePermissionsDto} from '../../../../services/guild.service';
 import {ProfileService} from '../../../../services/profile.service';
+import {ToastService} from '../../../../services/toast.service';
 import {EffectivePermissionsDto} from '../../../../dtos/response/effective-permissions.dto';
 import {parsePermissions, stringifyPermissions} from '../../../../enums/permissions.enum';
 import {parseModulePermissions, stringifyModulePermissions} from '../../../../enums/module-permissions.enum';
@@ -63,7 +64,11 @@ export class PermissionOverridesComponent implements OnInit {
     readonly scope = input.required<PermissionScope>();
     readonly guild = input.required<GuildDto>();
 
-    /** The scope's overwrites after a save or delete, so the host can keep its own copy honest. */
+    /**
+     * The scope's complete overwrite set after a save or delete, safe for a host to store as-is.
+     * Built from the scope's own set with the one target patched in or out, never from the rows:
+     * member rows cover one loaded page at most, and roles are only rebuilt from the same set.
+     */
     readonly overridesChanged = output<ChannelPermission[]>();
 
     private static readonly MEMBER_PAGE_SIZE = 50;
@@ -77,12 +82,18 @@ export class PermissionOverridesComponent implements OnInit {
     protected readonly memberSearch = signal('');
     protected readonly hasMoreMembers = signal(false);
     protected readonly roleSearch = signal('');
-    protected readonly selectedSubjectId = signal<string | null>(null);
+    /** One per tab: a role's trace must never be read as a member's, and both tabs stay selected. */
+    protected readonly selectedRoleId = signal<string | null>(null);
+    protected readonly selectedMemberId = signal<string | null>(null);
     private readonly traces = signal<Record<string, EffectivePermissionsDto>>({});
+    /** Every overwrite this scope has, including targets no row on screen covers. */
+    private readonly liveOverrides = signal<ChannelPermission[]>([]);
 
     private gateway = inject(PermissionScopeGateway);
     private guildService = inject(GuildService);
     private profiles = inject(ProfileService);
+    private toastService = inject(ToastService);
+    private translate = inject(TranslateService);
     private memberSkip = 0;
     private memberQuerySubject = new Subject<string>();
 
@@ -112,6 +123,7 @@ export class PermissionOverridesComponent implements OnInit {
         // tracking them, so this never depends on what it writes.
         effect(() => {
             const {overrides} = this.reconcileOn();
+            this.liveOverrides.set(overrides);
             this.reconcileRoleRows(overrides);
             this.reconcileMemberRows(overrides);
         });
@@ -133,7 +145,10 @@ export class PermissionOverridesComponent implements OnInit {
         this.scope().kind === 'category' ? 'PERM_OVERRIDE.INTRO_CATEGORY' : 'PERM_OVERRIDE.INTRO',
     );
 
-    protected readonly selectedTrace = computed(() => this.traces()[this.selectedSubjectId() ?? ''] ?? null);
+    protected readonly selectedTrace = computed(() => {
+        const id = this.activeTab() === 'roles' ? this.selectedRoleId() : this.selectedMemberId();
+        return id ? (this.traces()[id] ?? null) : null;
+    });
 
     protected readonly savedOverrides = computed<Record<string, PermOverride>>(() => {
         const map: Record<string, PermOverride> = {};
@@ -183,6 +198,7 @@ export class PermissionOverridesComponent implements OnInit {
     );
 
     ngOnInit(): void {
+        this.liveOverrides.set(this.scope().overrides);
         this.reconcileRoleRows(this.scope().overrides);
     }
 
@@ -196,12 +212,12 @@ export class PermissionOverridesComponent implements OnInit {
     }
 
     onRoleSelectionChange(subjectId: string): void {
-        this.selectedSubjectId.set(subjectId);
+        this.selectedRoleId.set(subjectId);
         this.loadTrace(subjectId, 'role');
     }
 
     onMemberSelectionChange(subjectId: string): void {
-        this.selectedSubjectId.set(subjectId);
+        this.selectedMemberId.set(subjectId);
         this.loadTrace(subjectId, 'member');
     }
 
@@ -251,24 +267,34 @@ export class PermissionOverridesComponent implements OnInit {
         const row = this.roleRows().find(r => r.subject.id === roleId);
         if (!row || row.saving) return;
 
+        const target = {kind: 'role', id: roleId} satisfies OverrideTarget;
         this.setRoleSaving(roleId, true);
         this.gateway
-            .upsert(
-                this.scope(),
-                {kind: 'role', id: roleId} satisfies OverrideTarget,
-                this.body(row.override),
-            )
+            .upsert(this.scope(), target, this.body(row.override, this.toOverride(row.perm)))
             .subscribe({
                 next: perm => {
+                    // The response is the resolved row, which is not always what was sent: re-derive
+                    // the editor from it rather than showing the intent as if it had landed.
                     this.roleRows.update(list =>
                         list.map(r =>
-                            r.subject.id === roleId ? {...r, perm, dirty: false, saving: false} : r,
+                            r.subject.id === roleId
+                                ? {
+                                      ...r,
+                                      perm,
+                                      override: this.toOverride(perm),
+                                      dirty: false,
+                                      saving: false,
+                                  }
+                                : r,
                         ),
                     );
                     this.forgetTrace(roleId);
-                    this.emitOverrides();
+                    this.emitUpsert(target, perm);
                 },
-                error: () => this.setRoleSaving(roleId, false),
+                error: err => {
+                    this.setRoleSaving(roleId, false);
+                    this.reportError('PERM_OVERRIDE.SAVE_ERROR', err);
+                },
             });
     }
 
@@ -276,7 +302,8 @@ export class PermissionOverridesComponent implements OnInit {
         const row = this.roleRows().find(r => r.subject.id === roleId);
         if (!row?.perm) return;
 
-        this.gateway.remove(this.scope(), {kind: 'role', id: roleId} satisfies OverrideTarget).subscribe({
+        const target = {kind: 'role', id: roleId} satisfies OverrideTarget;
+        this.gateway.remove(this.scope(), target).subscribe({
             next: () => {
                 this.roleRows.update(list =>
                     list.map(r =>
@@ -286,8 +313,9 @@ export class PermissionOverridesComponent implements OnInit {
                     ),
                 );
                 this.forgetTrace(roleId);
-                this.emitOverrides();
+                this.emitRemoval(target);
             },
+            error: err => this.reportError('PERM_OVERRIDE.DELETE_ERROR', err),
         });
     }
 
@@ -305,24 +333,32 @@ export class PermissionOverridesComponent implements OnInit {
         const row = this.memberRows().find(r => r.subject.id === memberId);
         if (!row || row.saving) return;
 
+        const target = {kind: 'member', id: memberId} satisfies OverrideTarget;
         this.setMemberSaving(memberId, true);
         this.gateway
-            .upsert(
-                this.scope(),
-                {kind: 'member', id: memberId} satisfies OverrideTarget,
-                this.body(row.override),
-            )
+            .upsert(this.scope(), target, this.body(row.override, this.toOverride(row.perm)))
             .subscribe({
                 next: perm => {
                     this.memberRows.update(list =>
                         list.map(r =>
-                            r.subject.id === memberId ? {...r, perm, dirty: false, saving: false} : r,
+                            r.subject.id === memberId
+                                ? {
+                                      ...r,
+                                      perm,
+                                      override: this.toOverride(perm),
+                                      dirty: false,
+                                      saving: false,
+                                  }
+                                : r,
                         ),
                     );
                     this.forgetTrace(memberId);
-                    this.emitOverrides();
+                    this.emitUpsert(target, perm);
                 },
-                error: () => this.setMemberSaving(memberId, false),
+                error: err => {
+                    this.setMemberSaving(memberId, false);
+                    this.reportError('PERM_OVERRIDE.SAVE_ERROR', err);
+                },
             });
     }
 
@@ -330,7 +366,8 @@ export class PermissionOverridesComponent implements OnInit {
         const row = this.memberRows().find(r => r.subject.id === memberId);
         if (!row?.perm) return;
 
-        this.gateway.remove(this.scope(), {kind: 'member', id: memberId} satisfies OverrideTarget).subscribe({
+        const target = {kind: 'member', id: memberId} satisfies OverrideTarget;
+        this.gateway.remove(this.scope(), target).subscribe({
             next: () => {
                 this.memberRows.update(list =>
                     list.map(r =>
@@ -340,18 +377,23 @@ export class PermissionOverridesComponent implements OnInit {
                     ),
                 );
                 this.forgetTrace(memberId);
-                this.emitOverrides();
+                this.emitRemoval(target);
             },
+            error: err => this.reportError('PERM_OVERRIDE.DELETE_ERROR', err),
         });
     }
 
-    private body(override: PermOverride): OverridePermissionsDto {
+    // Omitting the module pair means "carry over" server-side, so clearing one has to send it
+    // explicitly. `saved` is what the server last stored for this subject.
+    private body(override: PermOverride, saved: PermOverride): OverridePermissionsDto {
         const dto: OverridePermissionsDto = {
             allowPermissions: stringifyPermissions(override.allow),
             denyPermissions: stringifyPermissions(override.deny),
         };
 
-        if (override.allowModule !== 0n || override.denyModule !== 0n) {
+        const edited = override.allowModule !== saved.allowModule || override.denyModule !== saved.denyModule;
+
+        if (override.allowModule !== 0n || override.denyModule !== 0n || edited) {
             dto.allowModulePermissions = stringifyModulePermissions(override.allowModule);
             dto.denyModulePermissions = stringifyModulePermissions(override.denyModule);
         }
@@ -359,11 +401,27 @@ export class PermissionOverridesComponent implements OnInit {
         return dto;
     }
 
-    private emitOverrides(): void {
-        const rows = [...this.roleRows().map(r => r.perm), ...this.memberRows().map(r => r.perm)].filter(
-            (p): p is ChannelPermission => p !== null,
+    private emitUpsert(target: OverrideTarget, perm: ChannelPermission): void {
+        this.emitOverrides([...this.withoutTarget(target), perm]);
+    }
+
+    private emitRemoval(target: OverrideTarget): void {
+        this.emitOverrides(this.withoutTarget(target));
+    }
+
+    private withoutTarget(target: OverrideTarget): ChannelPermission[] {
+        return this.liveOverrides().filter(p =>
+            target.kind === 'role' ? p.roleId !== target.id : p.memberId !== target.id,
         );
-        this.overridesChanged.emit(rows);
+    }
+
+    private emitOverrides(next: ChannelPermission[]): void {
+        this.liveOverrides.set(next);
+        this.overridesChanged.emit(next);
+    }
+
+    private reportError(key: string, err: unknown): void {
+        this.toastService.httpError(this.translate.instant(key), err);
     }
 
     private setRoleSaving(roleId: string, saving: boolean): void {
