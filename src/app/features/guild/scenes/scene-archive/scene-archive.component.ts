@@ -155,9 +155,26 @@ export class SceneArchiveComponent {
         });
     }
 
-    protected readonly tree = computed(() => folderTree(this.taxonomy.folders(this.guildId()), {}));
+    protected readonly tree = computed(() =>
+        folderTree(this.taxonomy.folders(this.guildId()), this.folderCounts()),
+    );
 
     protected readonly expandedIds = computed(() => this.railState.expanded(this.guildId()));
+
+    /** Only shelves the archive has read. An unopened folder contributes nothing rather than a guess. */
+    protected readonly folderCounts = computed(() => {
+        const guildId = this.guildId();
+        const status = this.status();
+        const counts: Record<string, number> = {};
+        for (const folderId of this.expandedIds()) {
+            counts[folderId] = this.archive.peeked(guildId, folderId, status).length;
+        }
+        return counts;
+    });
+
+    protected readonly partialFolderIds = computed(() =>
+        this.expandedIds().filter(id => !this.archive.peekExhausted(this.guildId(), id, this.status())),
+    );
 
     protected readonly loadingFolderIds = computed(() =>
         this.expandedIds().filter(id => this.archive.peekLoading(this.guildId(), id, this.status())),

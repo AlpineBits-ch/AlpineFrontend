@@ -183,6 +183,11 @@ export class SceneArchiveService {
         return !!this.loadingKeys()[archiveKey(shelfFilter(guildId, folderId, status))];
     }
 
+    /** False while more of this shelf is still unread, so its count is a floor rather than a total. */
+    peekExhausted(guildId: string, folderId: string | null, status: ArchiveStatus = DEFAULT_STATUS): boolean {
+        return !!this.exhausted()[archiveKey(shelfFilter(guildId, folderId, status))];
+    }
+
     private params(filter: ArchiveFilter, offset: number): SceneListParams {
         return {
             ...statusFlags(filter.status ?? DEFAULT_STATUS),

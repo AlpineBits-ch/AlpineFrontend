@@ -211,6 +211,24 @@ describe('SceneArchiveService', () => {
         expect(calls).toHaveLength(1);
         expect(service.scenes()).toHaveLength(3);
     });
+
+    it('marks a peeked shelf exhausted once its page comes back short', () => {
+        const {service, responses} = setup();
+
+        service.peek('g1', 'f1');
+        responses[0].next(page(3, {folderId: 'f1'}));
+
+        expect(service.peekExhausted('g1', 'f1')).toBe(true);
+    });
+
+    it('leaves a peeked shelf unexhausted when a full page comes back', () => {
+        const {service, responses} = setup();
+
+        service.peek('g1', 'f1');
+        responses[0].next(page(50, {folderId: 'f1'}));
+
+        expect(service.peekExhausted('g1', 'f1')).toBe(false);
+    });
 });
 
 describe('archiveKey', () => {

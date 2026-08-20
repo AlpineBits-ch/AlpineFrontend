@@ -201,6 +201,24 @@ describe('SceneFolderRailComponent tree', () => {
         expect(fixture.nativeElement.textContent).not.toContain('Scene 19');
     });
 
+    it('marks a shelf count with a trailing plus while its page is still partial', () => {
+        const {fixture} = setup();
+        fixture.componentRef.setInput('tree', folderTree(FOLDERS, {a: 50}));
+        fixture.componentRef.setInput('partialFolderIds', ['a']);
+        fixture.detectChanges();
+
+        expect(fixture.nativeElement.textContent).toContain('50+');
+    });
+
+    it('shows a bare shelf count once its page is complete', () => {
+        const {fixture} = setup();
+        fixture.componentRef.setInput('tree', folderTree(FOLDERS, {a: 3}));
+        fixture.detectChanges();
+
+        expect(fixture.nativeElement.textContent).toContain('3');
+        expect(fixture.nativeElement.textContent).not.toContain('3+');
+    });
+
     it('opens a scene at the latest post on a plain click', () => {
         const {component} = setup();
         const opened: {channelId: string; fromStart: boolean}[] = [];

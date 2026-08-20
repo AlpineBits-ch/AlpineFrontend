@@ -81,7 +81,7 @@
             </button>
 
             @if (node.count) {
-                <span class="rail-count">{{ node.count }}</span>
+                <span class="rail-count">{{ node.count }}{{ isPartial(node.folder.id) ? '+' : '' }}</span>
             }
 
             @if (canManage()) {

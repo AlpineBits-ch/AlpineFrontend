@@ -59,6 +59,8 @@ export class SceneFolderRailComponent {
     /** Open shelves. The rail does not own this: the host remembers it. */
     readonly expandedIds = input<readonly string[]>([]);
     readonly loadingFolderIds = input<readonly string[]>([]);
+    /** Shelves whose page is capped, so their count is a floor. */
+    readonly partialFolderIds = input<readonly string[]>([]);
     /** A shelf is not a list. Past this it offers the folder instead. */
     readonly leafCap = input(12);
 
@@ -202,6 +204,10 @@ export class SceneFolderRailComponent {
 
     protected isLoading(folderId: string): boolean {
         return this.loadingFolderIds().includes(folderId);
+    }
+
+    protected isPartial(folderId: string): boolean {
+        return this.partialFolderIds().includes(folderId);
     }
 
     protected leavesOf(folderId: string): readonly SceneLeaf[] {
