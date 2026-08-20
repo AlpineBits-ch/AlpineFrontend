@@ -19,7 +19,7 @@ on both the playing screen and the archive. Extends `2026-08-20-scene-archive-de
 | Depth | Two levels, as the server already caps it |
 | Rail treatment | Shelves: root folders are coloured uppercase headers |
 | Shelf default | Closed on first visit, then remembered per guild |
-| Playing screen | Toggleable rail, remembered |
+| Playing screen | Rail shown by default, toggleable, remembered, drag to resize |
 | Board grouping with the rail on | Your move pinned, folder sections below |
 | Recent block | Waiting on you first, then most recently active |
 
@@ -58,7 +58,7 @@ export interface SceneLeaf {
 
 export function sceneLeaf(scene: SceneListItemDto, speakable: ReadonlySet<string>): SceneLeaf;
 export function leavesByFolder(scenes, speakable): Record<string, SceneLeaf[]>;
-export function recentScenes(scenes, speakable, now, limit): SceneLeaf[];
+export function recentScenes(scenes, speakable, limit?): SceneLeaf[];
 ```
 
 `recentScenes` sorts waiting-on-you first, then by `updatedAt` descending, and caps at 5.
@@ -105,7 +105,7 @@ readonly selected = input<string | null>(null);
 readonly canManage = input(false);
 
 readonly toggled = output<string>();          // a shelf was opened or closed
-readonly openScene = output<string>();        // a leaf was clicked: channel id
+readonly openScene = output<SceneOpenRequest>(); // a leaf was clicked: channel id, and whether to read from the start
 readonly createScene = output<string | null>(); // "New scene here"
 readonly showAll = output<string>();          // a shelf hit its leaf cap
 // picked, createFolder, renameFolder, deleteFolder, reordered, filed: unchanged
@@ -127,10 +127,21 @@ expanded(guildId): readonly string[]
 toggle(guildId, folderId): void
 railVisible(guildId): boolean
 setRailVisible(guildId, visible): void
+railWidth(): number | null
+setRailWidth(width: number | null): void
 ```
 
-Closed on first visit. Check how the other services scope `localStorage` under multi-account before
-picking the key shape.
+Shelves are closed on first visit. The rail itself is shown on first visit: an unset guild is a new
+one, not a hidden one, and only an explicit hide turns it off.
+
+The width is one number for the whole app, not one per guild, because a person wants one rail width
+everywhere. `RailResizeDirective` drives it: a grab strip on the rail's right edge, pointer capture
+so a fast drag does not detach, a clamp of 11rem to 26rem off the live root font size, and keyboard
+access through a `role="separator"` with arrows and Home. It writes `--rail-width` on the host so a
+drag never reflows through change detection, and persists only on release.
+
+The key is unscoped, matching the other UI preferences. Only tokens and device identity are scoped
+per account slot here.
 
 ### Board: your move pinned, folders below
 
@@ -195,8 +206,12 @@ is touched.
 ## Risks
 
 **The board's grouping is its whole point.** Folder sections push "is a game waiting on me" down the
-page. Pinning your move and stalled above the folders is what keeps that answer first, and the rail
-stays off by default so nobody gets the new grouping without asking for it.
+page. Pinning your move and stalled above the folders is the only thing keeping that answer first.
+
+That pinning now carries the whole risk on its own. The rail shipped on by default rather than off,
+so every guild gets folder grouping on first open, and the rail takes 17.5rem of board width doing
+it. If the board ever stops answering "is a game waiting on me" at a glance, the pinning is where to
+look, and turning the rail off is a per-guild preference rather than the default it was designed as.
 
 **A shelf is not a list.** Twelve leaves and then a link. Without the cap one arc of a long campaign
 turns the rail into the results pane.
