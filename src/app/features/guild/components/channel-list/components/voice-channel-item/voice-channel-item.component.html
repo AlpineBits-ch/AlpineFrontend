@@ -5,6 +5,7 @@
     data-testid="voice-channel-item"
     [attr.data-channel-id]="channel().id"
     [attr.draggable]="canReorder() ? 'true' : null"
+    [class.opacity-40]="hidden()"
 >
     <button
         (click)="open.emit()"
@@ -21,6 +22,11 @@
             <app-channel-icon [channel]="channel()" />
         }
         <span class="chan-label">{{ channel().name }}</span>
+        @if (hidden()) {
+            <span class="chan-badge text-[0.5625rem] uppercase tracking-wide text-text-faint">
+                {{ 'VIEW_AS.HIDDEN' | translate }}
+            </span>
+        }
         <!-- Lock first: a permission fact, must not be displaced by a transient one. LIVE then outranks the participant count (redundant anyway, since every participant is listed as a row below). -->
         @if (channel().isPrivate) {
             <i class="pi pi-lock chan-lock"></i>

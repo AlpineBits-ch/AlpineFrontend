@@ -29,6 +29,8 @@ import {GuildFeature, guildHasFeature} from '../../../../guild-features';
 export class ChannelListItemsComponent {
     readonly channels = input.required<ChannelDto[]>();
     readonly canReorder = input.required<boolean>();
+    /** Channels the view-as preview cannot see. Empty outside the preview. */
+    readonly hiddenIds = input<ReadonlySet<string>>(new Set());
 
     readonly openTextChannel = output<ChannelDto>();
     readonly openVoiceChannel = output<ChannelDto>();

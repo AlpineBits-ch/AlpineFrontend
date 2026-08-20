@@ -1,0 +1,60 @@
+<p-dialog
+    (visibleChange)="visible.set($event)"
+    [breakpoints]="{'640px': '95vw'}"
+    [draggable]="false"
+    [modal]="true"
+    [resizable]="false"
+    [style]="{width: '420px'}"
+    [visible]="visible()"
+    appendTo="body"
+>
+    <ng-template pTemplate="header">
+        <span class="text-sm font-semibold text-text-primary">{{ 'VIEW_AS.PICK_TITLE' | translate }}</span>
+    </ng-template>
+
+    <div class="flex flex-col gap-4 max-h-[26rem] overflow-y-auto thin-scrollbar">
+        <div>
+            <p class="text-[0.625rem] font-semibold text-text-muted uppercase tracking-widest mb-2 px-1">
+                {{ 'VIEW_AS.PICK_ROLE' | translate }}
+            </p>
+            <div class="flex flex-col gap-0.5">
+                @for (role of roles(); track role.id) {
+                    <button
+                        (click)="pickRole(role)"
+                        class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-left hover:bg-hover transition-colors cursor-pointer border-0 bg-transparent"
+                        type="button"
+                    >
+                        <span [style.background]="role.color || 'var(--color-brand)'" class="w-2.5 h-2.5 rounded-full shrink-0"></span>
+                        <span class="text-sm text-text-secondary truncate">{{ role.name }}</span>
+                    </button>
+                }
+            </div>
+        </div>
+
+        <div>
+            <p class="text-[0.625rem] font-semibold text-text-muted uppercase tracking-widest mb-2 px-1">
+                {{ 'VIEW_AS.PICK_MEMBER' | translate }}
+            </p>
+            <input
+                [(ngModel)]="memberQuery"
+                [attr.aria-label]="'VIEW_AS.PICK_MEMBER' | translate"
+                [placeholder]="'VIEW_AS.PICK_MEMBER' | translate"
+                class="w-full mb-2"
+                pInputText
+                type="text"
+            />
+            <div class="flex flex-col gap-0.5">
+                @for (candidate of memberCandidates(); track candidate.id) {
+                    <button
+                        (click)="pickMember(candidate)"
+                        class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-left hover:bg-hover transition-colors cursor-pointer border-0 bg-transparent"
+                        type="button"
+                    >
+                        <app-avatar [label]="candidate.name.charAt(0).toUpperCase()" [userId]="candidate.userId" />
+                        <span class="text-sm text-text-secondary truncate">{{ candidate.name }}</span>
+                    </button>
+                }
+            </div>
+        </div>
+    </div>
+</p-dialog>

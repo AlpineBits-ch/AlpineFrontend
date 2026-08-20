@@ -1,0 +1,14 @@
+@if (subject(); as who) {
+    <div class="flex items-center gap-3 px-3 py-2 rounded-xl bg-brand/15 border border-brand/40">
+        <span [style.background]="who.color || 'var(--color-brand)'" class="w-2.5 h-2.5 rounded-full shrink-0"></span>
+        <span class="flex-1 text-sm text-text-primary truncate">
+            {{ 'VIEW_AS.BANNER' | translate: {name: who.name, visible: visibleCount(), total: totalCount()} }}
+        </span>
+        <button
+            (click)="exit()"
+            class="px-2.5 py-1 rounded-lg text-xs text-text-secondary hover:bg-hover hover:text-text-primary transition-colors cursor-pointer border-0 bg-transparent"
+        >
+            {{ 'VIEW_AS.EXIT' | translate }}
+        </button>
+    </div>
+}

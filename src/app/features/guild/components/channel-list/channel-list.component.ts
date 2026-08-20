@@ -55,7 +55,7 @@ import {
 } from '../../../../services/guild-websocket.service';
 import {GuildVoiceService} from '../../../../services/guild-voice.service';
 import {GuildUiActionsService} from '../../../../services/guild-ui-actions.service';
-import {TranslateModule} from '@ngx-translate/core';
+import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {ChannelListDragService} from './channel-list-drag.service';
 import {CreateChannelModalComponent} from './components/create-channel-modal/create-channel-modal.component';
 import {CreateCategoryModalComponent} from './components/create-category-modal/create-category-modal.component';
@@ -69,6 +69,9 @@ import {SceneService} from '../../../../services/scene.service';
 import {SceneRailStateService} from '../../../../services/scene-rail-state.service';
 import {MinuteClockService} from '../../../../services/minute-clock.service';
 import {phaseOf} from '../events-panel/event-timing';
+import {ViewAsBannerComponent} from '../../view-as/view-as-banner.component';
+import {ViewAsPickerComponent} from '../../view-as/view-as-picker.component';
+import {ViewAsService} from '../../view-as/view-as.service';
 
 @Component({
     selector: 'app-channel-list',
@@ -93,6 +96,8 @@ import {phaseOf} from '../events-panel/event-timing';
         ChannelsAndRolesModalComponent,
         ChannelInvitePanelComponent,
         VoiceRingPickerComponent,
+        ViewAsBannerComponent,
+        ViewAsPickerComponent,
         TranslateModule,
     ],
     templateUrl: './channel-list.component.html',
@@ -217,14 +222,19 @@ export class ChannelListComponent {
     protected readonly contextCategory = signal<CategoryDto | null>(null);
     // ── Guild header dropdown items ───────────────────────────────────────────
     protected readonly guildMenuItems = computed<MenuItem[]>(() => [
-        // Managing the server is the only entry here that needs elevated permission;
-        // copying the ID, creating channels and inviting are checked by their own flows.
+        // Server Settings and the view-as preview are the only entries here that need elevated
+        // permission; copying the ID, creating channels and inviting are checked by their own flows.
         ...(this.canManageGuild()
             ? [
                   {
                       label: 'Server Settings',
                       icon: 'pi pi-cog',
                       command: () => this.showGuildSettings.set(true),
+                  },
+                  {
+                      label: this.translate.instant('VIEW_AS.MENU'),
+                      icon: 'pi pi-eye',
+                      command: () => this.showViewAsPicker.set(true),
                   },
               ]
             : []),
@@ -261,6 +271,7 @@ export class ChannelListComponent {
     private guildWsService = inject(GuildWebsocketService);
     private settingsUi = inject(SettingsUiService);
     private destroyRef = inject(DestroyRef);
+    private translate = inject(TranslateService);
     // ── Permission checking ───────────────────────────────────────────────────
     private readonly ownMember = signal<SelfGuildMemberDto | null>(null);
     protected readonly getSelfPermissions = computed(() => unionMemberPermissions(this.ownMember()));
@@ -288,6 +299,40 @@ export class ChannelListComponent {
             this.profileService.ownProfile()?.userId,
         ),
     );
+
+    // ── View as ───────────────────────────────────────────────────────────────
+    protected readonly showViewAsPicker = signal(false);
+    protected readonly viewAs = inject(ViewAsService);
+    protected readonly viewAsActive = computed(() => this.viewAs.active(this.guild().id)());
+
+    /** Requests every top-level channel's trace once the mode turns on. */
+    private readonly viewAsRequests = effect(() => {
+        if (!this.viewAsActive()) return;
+        const guildId = this.guild().id;
+        for (const channel of this.localChannels()) this.viewAs.request(guildId, channel.id);
+    });
+
+    protected readonly viewAsVisibleCount = computed(
+        () =>
+            this.localChannels().filter(c => this.viewAs.can(this.guild().id, c.id, Permissions.ViewChannel))
+                .length,
+    );
+
+    /** Channel ids the previewed subject cannot see, dimmed rather than dropped from the list. */
+    protected readonly viewAsHiddenIds = computed(() => {
+        if (!this.viewAsActive()) return new Set<string>();
+        return new Set(
+            this.localChannels()
+                .filter(c => !this.canSee(c))
+                .map(c => c.id),
+        );
+    });
+
+    protected canSee(channel: ChannelDto): boolean {
+        if (!this.viewAsActive()) return true;
+        return this.viewAs.can(this.guild().id, channel.id, Permissions.ViewChannel);
+    }
+
     /** Set only between a move's `hide` and the `show` that follows it. @see openInvitePanel */
     private invitePanelMovingTo: ChannelDto | null = null;
     // ── Collapse state ────────────────────────────────────────────────────────

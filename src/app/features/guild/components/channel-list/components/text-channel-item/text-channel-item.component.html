@@ -7,6 +7,7 @@
     data-testid="channel-list-item"
     [attr.data-channel-id]="channel().id"
     [attr.draggable]="canReorder() ? 'true' : null"
+    [class.opacity-40]="hidden()"
 >
     <button
         (click)="open.emit()"
@@ -31,6 +32,11 @@
         }
         @if (channel().isPrivate) {
             <i class="pi pi-lock chan-lock pointer-events-none"></i>
+        }
+        @if (hidden()) {
+            <span class="chan-badge pointer-events-none text-[0.5625rem] uppercase tracking-wide text-text-faint">
+                {{ 'VIEW_AS.HIDDEN' | translate }}
+            </span>
         }
     </button>
 </div>

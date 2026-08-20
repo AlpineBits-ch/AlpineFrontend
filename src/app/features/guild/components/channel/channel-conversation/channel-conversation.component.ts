@@ -63,6 +63,7 @@ import {CreateThreadDialogComponent} from '../create-thread-dialog/create-thread
 import {MessageScrollService} from '../../../../../shared/conversation/message-scroll.service';
 import {ChannelEncryptionService} from './channel-encryption.service';
 import {ChannelMessageDraft, ChannelSendService} from './channel-send.service';
+import {ViewAsService} from '../../../view-as/view-as.service';
 
 /** The scrollback and the composer for one channel. Mounted twice: the main pane, and a thread panel beside it. */
 @Component({
@@ -105,6 +106,16 @@ export class ChannelConversationComponent implements AfterViewInit {
     protected readonly joinBusy = signal(false);
 
     protected readonly guildId = computed(() => this.channel().guildId);
+
+    // ── View as ───────────────────────────────────────────────────────────────
+    // Rendering only: nothing here gates the composer's own send handler.
+    protected readonly viewAs = inject(ViewAsService);
+    protected readonly viewAsBlocked = computed(
+        () =>
+            this.viewAs.active(this.guildId())() &&
+            !this.viewAs.can(this.guildId(), this.channel().id, Permissions.SendMessages),
+    );
+
     protected readonly guildRoles = computed(() => {
         const ws = this.navService.workspace();
         return ws.type === 'server' ? ws.guild.roles : [];

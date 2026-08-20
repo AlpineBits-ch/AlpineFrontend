@@ -10,6 +10,12 @@
         </button>
     </div>
 
+    @if (viewAsActive()) {
+        <div class="px-2 pt-2 shrink-0">
+            <app-view-as-banner [guildId]="guild().id" [totalCount]="localChannels().length" [visibleCount]="viewAsVisibleCount()" />
+        </div>
+    }
+
     @if (hasHouse() || hasWiki() || hasPersonas() || hasScenes() || hasEvents() || hasSelfServeRoles()) {
         <div class="chan-modules px-2 py-2 shrink-0 flex flex-col">
             @if (hasHouse()) {
@@ -103,6 +109,7 @@
                     (watchVoiceStream)="onWatchStream($event)"
                     [canReorder]="canReorder()"
                     [channels]="uncategorizedChannels()"
+                    [hiddenIds]="viewAsHiddenIds()"
                 />
             </div>
         }
@@ -154,6 +161,7 @@
                         (watchVoiceStream)="onWatchStream($event)"
                         [canReorder]="canReorder()"
                         [channels]="categoryChannels(category.id)"
+                        [hiddenIds]="viewAsHiddenIds()"
                     />
                 }
             </div>
@@ -210,6 +218,9 @@
         [moderationEnabled]="hasModeration()"
     />
 }
+
+<!-- ── View server as picker ──────────────────────────────────────────────── -->
+<app-view-as-picker [(visible)]="showViewAsPicker" [guild]="guild()" />
 
 <!-- ── Guild settings modal ───────────────────────────────────────────────── -->
 <app-guild-settings-modal (guildUpdated)="onGuildUpdated($event)" [(isVisible)]="showGuildSettings" [guild]="guild()" />

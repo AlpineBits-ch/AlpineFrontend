@@ -12,6 +12,7 @@
             (watch)="watchVoiceStream.emit({channel, userId: $event.userId})"
             [canReorder]="canReorder()"
             [channel]="channel"
+            [hidden]="hiddenIds().has(channel.id)"
         />
     } @else {
         <app-text-channel-item
@@ -19,6 +20,7 @@
             (openMenu)="openChannelMenu.emit({event: $event, channel})"
             [canReorder]="canReorder()"
             [channel]="channel"
+            [hidden]="hiddenIds().has(channel.id)"
         />
 
         <!-- A forum's recently-read and still-unread posts hang directly beneath it.

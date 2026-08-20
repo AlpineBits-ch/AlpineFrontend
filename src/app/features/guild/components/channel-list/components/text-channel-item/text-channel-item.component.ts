@@ -18,6 +18,8 @@ import {ChannelIconComponent} from '../../../channel-icon/channel-icon.component
 export class TextChannelItemComponent {
     readonly channel = input.required<ChannelDto>();
     readonly canReorder = input.required<boolean>();
+    /** True while previewing a subject who cannot see this channel; dims the row, never hides it. */
+    readonly hidden = input(false);
 
     readonly open = output<void>();
     readonly openMenu = output<MouseEvent>();
