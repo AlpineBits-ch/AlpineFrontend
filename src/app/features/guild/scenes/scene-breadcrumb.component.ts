@@ -24,11 +24,17 @@ export class SceneBreadcrumbComponent {
     private readonly taxonomy = inject(SceneTaxonomyService);
     private readonly nav = inject(NavigationService);
 
-    /** The board row where there is one, the loaded scene otherwise: the archive's rows are not here. */
+    /**
+     * The board row where there is one, the loaded scene otherwise: the archive's rows are not here.
+     * The out-of-character thread resolves to its scene, so switching sides does not rename the path.
+     */
     private readonly scene = computed(() => {
+        const guildId = this.guildId();
         const channelId = this.channel().id;
-        const row = this.scenes.scenes(this.guildId()).find(s => s.channelId === channelId);
-        return row ?? this.scenes.scene(this.guildId(), channelId);
+        const row =
+            this.scenes.scenes(guildId).find(s => s.channelId === channelId) ??
+            this.scenes.sceneForOoc(guildId, channelId);
+        return row ?? this.scenes.scene(guildId, channelId);
     });
 
     protected readonly name = computed(() => this.scene()?.name ?? this.channel().name);

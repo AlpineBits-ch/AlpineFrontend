@@ -15,14 +15,16 @@ function folder(id: string, name: string, parentFolderId: string | null = null):
 }
 
 const CHANNEL = {id: 'ch_1', name: 'The Office', guildId: 'g1'} as unknown as ChannelDto;
+const OOC = {id: 'ooc_1', name: 'The Office (out of character)', guildId: 'g1'} as unknown as ChannelDto;
 
-function setup(options: {folderId?: string | null; folders?: SceneFolderDto[]} = {}) {
+function setup(options: {folderId?: string | null; folders?: SceneFolderDto[]; channel?: ChannelDto} = {}) {
     const folders = options.folders ?? [];
     const row: SceneListItemDto = {
         channelId: 'ch_1',
         name: 'Act One',
         status: SceneStatus.Active,
         folderId: options.folderId ?? null,
+        oocThreadId: 'ooc_1',
     };
     const nav = {openSceneFolder: vi.fn(), closeSceneChannel: vi.fn()};
 
@@ -30,7 +32,14 @@ function setup(options: {folderId?: string | null; folders?: SceneFolderDto[]} =
         imports: [SceneBreadcrumbComponent],
         providers: [
             provideTranslateService(),
-            {provide: SceneService, useValue: {scenes: () => [row], scene: () => null}},
+            {
+                provide: SceneService,
+                useValue: {
+                    scenes: () => [row],
+                    scene: () => null,
+                    sceneForOoc: (_g: string, threadId: string) => (threadId === 'ooc_1' ? row : null),
+                },
+            },
             {
                 provide: SceneTaxonomyService,
                 useValue: {folder: (_g: string, id: string) => folders.find(f => f.id === id) ?? null},
@@ -42,7 +51,7 @@ function setup(options: {folderId?: string | null; folders?: SceneFolderDto[]} =
     const fixture: ComponentFixture<SceneBreadcrumbComponent> =
         TestBed.createComponent(SceneBreadcrumbComponent);
     fixture.componentRef.setInput('guildId', 'g1');
-    fixture.componentRef.setInput('channel', CHANNEL);
+    fixture.componentRef.setInput('channel', options.channel ?? CHANNEL);
     fixture.detectChanges();
 
     return {fixture, nav};
@@ -74,6 +83,16 @@ describe('SceneBreadcrumbComponent', () => {
         const {fixture} = setup({folderId: 'gone', folders: [folder('root', 'Act I')]});
 
         expect(crumbs(fixture)).toEqual(['SCENE.BOARD.TITLE', 'Act One']);
+    });
+
+    it('names the scene, not the thread, while its out-of-character side is hosted', () => {
+        const {fixture} = setup({
+            channel: OOC,
+            folderId: 'root',
+            folders: [folder('root', 'Act I')],
+        });
+
+        expect(crumbs(fixture)).toEqual(['SCENE.BOARD.TITLE', 'Act I', 'Act One']);
     });
 
     it('a shelf segment lands on the archive filtered to it, with no scene open', () => {

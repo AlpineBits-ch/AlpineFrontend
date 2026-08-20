@@ -59,7 +59,10 @@ export class SceneHeaderComponent {
     private readonly toast = inject(ToastService);
     private readonly translate = inject(TranslateService);
 
-    protected readonly SceneStatus = SceneStatus;
+    protected get SceneStatus() {
+        return SceneStatus;
+    }
+
     protected readonly busy = signal(false);
     protected readonly editing = signal(false);
     protected readonly concluding = signal(false);
@@ -157,12 +160,12 @@ export class SceneHeaderComponent {
 
     protected openIc(): void {
         const channel = this.icChannel();
-        if (channel) this.nav.openChannel(channel);
+        if (channel) this.nav.openSceneSide(channel);
     }
 
     protected openOoc(): void {
         const channel = this.oocChannel();
-        if (channel) this.nav.openChannel(channel);
+        if (channel) this.nav.openSceneSide(channel);
     }
 
     protected skipTurn(): void {

@@ -231,6 +231,15 @@ export class NavigationService {
         this.workspace.set({type: 'server', guild});
 
         const view = this.mainView();
+        // The shell holds a channel id rather than the object, so nothing else notices the channel
+        // going. Closing to the board keeps the reader in scenes instead of bouncing them into
+        // whichever text channel the delete handler would otherwise pick.
+        if (view.type === 'scenes') {
+            const gone = !!view.sceneChannelId && !guild.channels.some(c => c.id === view.sceneChannelId);
+            if (gone) this.replaceHostedScene(view.guildId, null);
+            return;
+        }
+
         if (view.type !== 'channel') return;
         const channel = guild.channels.find(c => c.id === view.channel.id);
         // A channel that has since been deleted is left alone rather than closed: the websocket
@@ -286,6 +295,9 @@ export class NavigationService {
     /** True when the given channel is the one currently shown in the main view. */
     isChannelActive(channelId: string): boolean {
         const view = this.mainView();
+        // A scene hosted in the shell is `scenes`, not `channel`, and callers asking this about a
+        // deleted channel have to be told about it either way.
+        if (view.type === 'scenes') return view.sceneChannelId === channelId;
         return view.type === 'channel' && view.channel.id === channelId;
     }
 
@@ -345,14 +357,48 @@ export class NavigationService {
     }
 
     /**
+     * Opens a channel belonging to a scene, staying in the shell when that is where the reader
+     * already is. The scene header's in-character / out-of-character pair uses this: switching
+     * sides is a lateral move inside one scene, not a navigation to somewhere else.
+     */
+    openSceneSide(channel: ChannelDto): void {
+        const view = this.mainView();
+        if (view.type !== 'scenes' || view.guildId !== channel.guildId) {
+            this.openChannel(channel);
+            return;
+        }
+        // Already reading this side. A no-op, not a replace: the pair marks the side you are on and
+        // pressing it again must cost nothing.
+        if (view.sceneChannelId === channel.id) return;
+        this.replaceHostedScene(view.guildId, channel.id);
+    }
+
+    /**
      * Steps out of a hosted scene. Drops the run of scenes it was reached through rather than
      * pushing another entry, so one Back leaves the shell however many scenes were hopped between.
      */
     closeSceneChannel(guildId: string): void {
-        while (this.cursor > 0 && isHostedScene(this.history[this.cursor].mainView)) this.cursor--;
+        this.dropHostedScenes(true);
+        this.showScenes(guildId, this.sceneMode, this.sceneFolderId, null);
+    }
+
+    /** Swaps what the shell hosts without stacking an entry on the one being left behind. */
+    private replaceHostedScene(guildId: string, sceneChannelId: string | null): void {
+        this.dropHostedScenes(false);
+        this.showScenes(guildId, this.sceneMode, this.sceneFolderId, sceneChannelId);
+    }
+
+    /**
+     * Steps the cursor back over hosted scenes so whatever follows replaces them. `all` collapses
+     * the whole run, which is what leaving the shell needs; one entry is a move within one scene.
+     */
+    private dropHostedScenes(all: boolean): void {
+        while (this.cursor > 0 && isHostedScene(this.history[this.cursor].mainView)) {
+            this.cursor--;
+            if (!all) break;
+        }
         this.history.length = this.cursor + 1;
         this.refreshHistoryFlags();
-        this.showScenes(guildId, this.sceneMode, this.sceneFolderId, null);
     }
 
     private showScenes(

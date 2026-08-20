@@ -59,10 +59,11 @@ const guild = {
 const conversation = {id: 'c1', name: 'Chat', members: []} as unknown as ConversationDto;
 const scene = chan('scene-one', ChannelType.Scene);
 const otherScene = chan('scene-two', ChannelType.Scene);
+const ooc = chan('scene-one-ooc', ChannelType.Thread);
 const scenesGuild = {
     ...guild,
     features: 'Scenes',
-    channels: [general, random, scene, otherScene],
+    channels: [general, random, scene, otherScene, ooc],
 } as unknown as GuildDto;
 
 function setup(): NavigationService {
@@ -190,6 +191,129 @@ describe('NavigationService scenes shell', () => {
         nav.back();
         const view = nav.mainView();
         expect(view.type === 'channel' && view.channel.id).toBe('random');
+    });
+
+    it('switches to the out-of-character side without leaving the shell', () => {
+        const nav = setup();
+        nav.selectServer(scenesGuild);
+        nav.openSceneChannel('g1', 'scene-one');
+
+        nav.openSceneSide(ooc);
+
+        const view = nav.mainView();
+        expect(view.type).toBe('scenes');
+        expect(view.type === 'scenes' && view.sceneChannelId).toBe('scene-one-ooc');
+    });
+
+    it('switches back to the in-character side the same way', () => {
+        const nav = setup();
+        nav.selectServer(scenesGuild);
+        nav.openSceneChannel('g1', 'scene-one');
+        nav.openSceneSide(ooc);
+
+        nav.openSceneSide(scene);
+
+        const view = nav.mainView();
+        expect(view.type).toBe('scenes');
+        expect(view.type === 'scenes' && view.sceneChannelId).toBe('scene-one');
+    });
+
+    it('flipping sides replaces rather than stacks, so back does not walk the flips', () => {
+        const nav = setup();
+        nav.selectServer(scenesGuild);
+        nav.openScenes('g1');
+        nav.openSceneChannel('g1', 'scene-one');
+        nav.openSceneSide(ooc);
+        nav.openSceneSide(scene);
+        nav.openSceneSide(ooc);
+
+        nav.back();
+
+        const view = nav.mainView();
+        expect(view.type === 'scenes' && view.sceneChannelId).toBeNull();
+    });
+
+    it('replaces only the side being switched, leaving the scene it was reached from', () => {
+        const nav = setup();
+        nav.selectServer(scenesGuild);
+        nav.openScenes('g1');
+        nav.openSceneChannel('g1', 'scene-one');
+        nav.openSceneChannel('g1', 'scene-two');
+        nav.openSceneSide(ooc);
+
+        nav.back();
+
+        const view = nav.mainView();
+        expect(view.type === 'scenes' && view.sceneChannelId).toBe('scene-one');
+    });
+
+    it('opens a scene side as a plain channel when the reader is not in the shell', () => {
+        const nav = setup();
+        nav.selectServer(scenesGuild);
+        nav.openChannel(random);
+
+        nav.openSceneSide(scene);
+
+        const view = nav.mainView();
+        expect(view.type).toBe('channel');
+        expect(view.type === 'channel' && view.channel.id).toBe('scene-one');
+    });
+
+    it('reports the hosted scene as the active channel', () => {
+        const nav = setup();
+        nav.selectServer(scenesGuild);
+        nav.openSceneChannel('g1', 'scene-one');
+
+        expect(nav.isChannelActive('scene-one')).toBe(true);
+        expect(nav.isChannelActive('scene-two')).toBe(false);
+    });
+
+    it('reports nothing active while the shell is on the board', () => {
+        const nav = setup();
+        nav.selectServer(scenesGuild);
+        nav.openScenes('g1');
+
+        expect(nav.isChannelActive('scene-one')).toBe(false);
+    });
+
+    it('still answers for a plain channel view the way it always did', () => {
+        const nav = setup();
+        nav.selectServer(scenesGuild);
+        nav.openChannel(random);
+
+        expect(nav.isChannelActive('random')).toBe(true);
+        expect(nav.isChannelActive('general')).toBe(false);
+    });
+
+    /** The shell holds an id, not the channel object, so nothing else notices it going. */
+    it('closes a hosted scene back to the board when its channel is deleted', () => {
+        const nav = setup();
+        nav.selectServer(scenesGuild);
+        nav.openScenes('g1');
+        nav.openSceneChannel('g1', 'scene-one');
+
+        nav.updateCurrentGuild({
+            ...scenesGuild,
+            channels: [general, random, otherScene, ooc],
+        } as unknown as GuildDto);
+
+        const view = nav.mainView();
+        expect(view.type).toBe('scenes');
+        expect(view.type === 'scenes' && view.sceneChannelId).toBeNull();
+    });
+
+    it('leaves the hosted scene alone when some other channel is deleted', () => {
+        const nav = setup();
+        nav.selectServer(scenesGuild);
+        nav.openSceneChannel('g1', 'scene-one');
+
+        nav.updateCurrentGuild({
+            ...scenesGuild,
+            channels: [random, scene, otherScene, ooc],
+        } as unknown as GuildDto);
+
+        const view = nav.mainView();
+        expect(view.type === 'scenes' && view.sceneChannelId).toBe('scene-one');
     });
 
     it('picking a shelf clears the scene the shell was showing', () => {

@@ -14,6 +14,7 @@ import {ProfileService} from '../../../../services/profile.service';
 import {ToastService} from '../../../../services/toast.service';
 import {MainView, NavigationService} from '../../../main-page/navigation.service';
 import {SceneFolderDto, SceneListItemDto, SceneStatus} from '../../../../dtos/response/scene.dto';
+import {ChannelDto, ChannelType} from '../../../../dtos/response/guild.dto';
 import {installMemoryStorage} from '../../../../testing/memory-storage';
 import {ChannelComponent} from '../../components/channel/channel.component';
 
@@ -53,7 +54,11 @@ const SCENES = [
 
 const FOLDERS = [folder('a', 'Act I', 0), folder('b', 'Act II', 1)];
 
-function setup(scenes = SCENES, folders = FOLDERS, channels: {id: string}[] = []) {
+function chan(id: string, type: ChannelType = ChannelType.Scene): ChannelDto {
+    return {id, type, guildId: 'g1', name: id} as unknown as ChannelDto;
+}
+
+function setup(scenes = SCENES, folders = FOLDERS, channels: ChannelDto[] = []) {
     const view = signal<MainView>({
         type: 'scenes',
         guildId: 'g1',
@@ -71,6 +76,8 @@ function setup(scenes = SCENES, folders = FOLDERS, channels: {id: string}[] = []
                 useValue: {
                     scenes: () => scenes,
                     scene: () => null,
+                    sceneForOoc: (_g: string, threadId: string) =>
+                        scenes.find(row => row.oocThreadId === threadId) ?? null,
                     speakableIds: () => new Set(['p1']),
                     now: () => 0,
                     isLoading: () => false,
@@ -131,6 +138,7 @@ function setup(scenes = SCENES, folders = FOLDERS, channels: {id: string}[] = []
             scenesByFolder: () => Record<string, {channelId: string}[]>;
             recent: () => {channelId: string}[];
             sceneChannel: () => {id: string} | null;
+            activeSceneChannelId: () => string | null;
             pick: (folderId: string | null) => void;
         },
     };
@@ -269,7 +277,7 @@ describe('SceneBoardComponent shell', () => {
     });
 
     it('hosts the scene beside the rail once one is open', () => {
-        const {fixture, view, component} = setup(SCENES, FOLDERS, [{id: 'mine'}]);
+        const {fixture, view, component} = setup(SCENES, FOLDERS, [chan('mine')]);
         view.update(held => ({...held, sceneChannelId: 'mine'}));
         fixture.detectChanges();
 
@@ -280,7 +288,7 @@ describe('SceneBoardComponent shell', () => {
 
     /** Four bars stacked above the first post is what this replaced. */
     it('drops its own header while a scene is open, and hands the breadcrumb to the channel', () => {
-        const {fixture, view} = setup(SCENES, FOLDERS, [{id: 'mine'}]);
+        const {fixture, view} = setup(SCENES, FOLDERS, [chan('mine')]);
         view.update(held => ({...held, sceneChannelId: 'mine'}));
         fixture.detectChanges();
 
@@ -289,8 +297,30 @@ describe('SceneBoardComponent shell', () => {
         expect(projected).not.toBeNull();
     });
 
+    it('keeps the rail marking the scene while its out-of-character side is hosted', () => {
+        const {fixture, view, component} = setup(
+            [scene({channelId: 'mine', name: 'The Ford at Dawn', folderId: 'a', oocThreadId: 'mine-ooc'})],
+            FOLDERS,
+            [chan('mine'), chan('mine-ooc', ChannelType.Thread)],
+        );
+        view.update(held => ({...held, sceneChannelId: 'mine-ooc'}));
+        fixture.detectChanges();
+
+        expect(component.sceneChannel()?.id).toBe('mine-ooc');
+        expect(component.activeSceneChannelId()).toBe('mine');
+    });
+
+    it('falls back to the board for a channel whose type is not a message view', () => {
+        const {fixture, view, component} = setup(SCENES, FOLDERS, [chan('mine', ChannelType.Voice)]);
+        view.update(held => ({...held, sceneChannelId: 'mine'}));
+        fixture.detectChanges();
+
+        expect(component.sceneChannel()).toBeNull();
+        expect(fixture.nativeElement.querySelector('.board-row')).not.toBeNull();
+    });
+
     it('falls back to the board when the open scene names a channel that is gone', () => {
-        const {fixture, view, component} = setup(SCENES, FOLDERS, [{id: 'mine'}]);
+        const {fixture, view, component} = setup(SCENES, FOLDERS, [chan('mine')]);
         view.update(held => ({...held, sceneChannelId: 'vanished'}));
         fixture.detectChanges();
 

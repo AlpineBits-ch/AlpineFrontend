@@ -31,6 +31,7 @@ import {NavigationService, SceneBoardMode} from '../../../main-page/navigation.s
 import {SceneListItemDto, SceneStatus} from '../../../../dtos/response/scene.dto';
 import {UNFILED} from '../../../../dtos/request/scene.dto';
 import {ChannelType} from '../../../../dtos/response/guild.dto';
+import {channelViewFor} from '../../channel-types';
 import {SelfGuildMemberDto} from '../../../../dtos/response/member.dto';
 import {ModulePermissions} from '../../../../enums/module-permissions.enum';
 import {guildAbilities} from '../../guild-permissions';
@@ -133,11 +134,22 @@ export class SceneBoardComponent {
 
     protected readonly railVisible = computed(() => this.railState.railVisible(this.guildId()));
 
-    /** The scene filling the content pane. A channel that has since gone falls back to the board. */
+    /**
+     * The channel filling the content pane. A channel that has gone, or one whose type this build
+     * would not draw as a message view, falls back to the board rather than an empty or wrong pane.
+     */
     protected readonly sceneChannel = computed(() => {
         const channelId = this.view()?.sceneChannelId;
         if (!channelId) return null;
-        return this.guild()?.channels.find(c => c.id === channelId) ?? null;
+        const channel = this.guild()?.channels.find(c => c.id === channelId);
+        return channel && channelViewFor(channel.type) === 'message' ? channel : null;
+    });
+
+    /** What the rail marks: the scene itself, which stays current while its OOC side is on screen. */
+    protected readonly activeSceneChannelId = computed(() => {
+        const channel = this.sceneChannel();
+        if (!channel) return null;
+        return this.scenes.sceneForOoc(this.guildId(), channel.id)?.channelId ?? channel.id;
     });
 
     /** The board is the live board: a concluded scene belongs to the archive, not to a count or a

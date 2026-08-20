@@ -43,7 +43,7 @@
                 (createScene)="createIn($event)"
                 (filed)="file($event.channelId, $event.folderId)"
                 (picked)="pick($event)"
-                [activeChannelId]="scene.id"
+                [activeChannelId]="activeSceneChannelId()"
                 [canManage]="canManage()"
                 [guildId]="guildId()"
                 [recent]="recent()"
