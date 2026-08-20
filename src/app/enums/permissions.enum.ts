@@ -243,3 +243,66 @@ export const diffPermissions: (requested: PermissionValue, grantable: Permission
 export function permissionLabel(key: PermissionKey): string {
     return codec.label(key);
 }
+
+/**
+ * Every "holding X means you also hold Y" rule the server enforces.
+ * Mirrors `ImpliedPermissions` in `Guild.Application/Services/GuildPermissionService.cs`.
+ * A change here without the matching change there makes the UI lie about what a deny costs.
+ */
+export const IMPLIED_PERMISSIONS: ReadonlyArray<readonly [PermissionKey, PermissionKey]> = [
+    ['EditAnyMessage', 'EditOwnMessages'],
+    ['DeleteAnyMessage', 'DeleteOwnMessages'],
+    ['ManageAnyThread', 'ManageOwnThreads'],
+    ['Speak', 'Connect'],
+    ['Stream', 'Connect'],
+    ['MuteMembers', 'Connect'],
+    ['DeafenMembers', 'Connect'],
+    ['MoveMembers', 'Connect'],
+    ['PinMessages', 'SendMessages'],
+    ['AttachFiles', 'SendMessages'],
+    ['EmbedLinks', 'SendMessages'],
+    ['AddReactions', 'SendMessages'],
+    ['CreateThreads', 'SendMessages'],
+    ['SendMessages', 'ViewChannel'],
+    ['SendMessagesInThreads', 'ViewChannel'],
+    ['Connect', 'ViewChannel'],
+    ['EditOwnMessages', 'ViewChannel'],
+    ['DeleteOwnMessages', 'ViewChannel'],
+    ['ManageOwnThreads', 'ViewChannel'],
+    ['ManagePermissions', 'ViewChannel'],
+    ['ManageChannel', 'ViewChannel'],
+];
+
+function closeOver(mask: PermissionValue, edges: ReadonlyArray<readonly [bigint, bigint]>): PermissionValue {
+    let result = mask;
+    let changed = true;
+    while (changed) {
+        changed = false;
+        for (const [from, to] of edges) {
+            if ((result & from) === from && (result & to) !== to) {
+                result |= to;
+                changed = true;
+            }
+        }
+    }
+    return result;
+}
+
+const FORWARD_EDGES: ReadonlyArray<readonly [bigint, bigint]> = IMPLIED_PERMISSIONS.map(
+    ([holder, implied]) => [Permissions[holder], Permissions[implied]] as const,
+);
+
+const REVERSE_EDGES: ReadonlyArray<readonly [bigint, bigint]> = IMPLIED_PERMISSIONS.map(
+    ([holder, implied]) => [Permissions[implied], Permissions[holder]] as const,
+);
+
+/** Widens a grant with everything its bits imply. Superadmin short-circuits, as it does server-side. */
+export function expandImpliedPermissions(mask: PermissionValue): PermissionValue {
+    if ((mask & Permissions.Superadmin) === Permissions.Superadmin) return mask;
+    return closeOver(mask, FORWARD_EDGES);
+}
+
+/** Widens a deny with everything that implies its bits, so a deny cannot leave a superset behind. */
+export function expandDeniedPermissions(mask: PermissionValue): PermissionValue {
+    return closeOver(mask, REVERSE_EDGES);
+}
