@@ -32,6 +32,21 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
             aria-hidden="true"
         ></svg>
     `,
+    styles: `
+        /* Two knobs, both overridable per slot.
+
+           Size: lucide's 24 viewBox holds about 2 units of padding, so a glyph drawn at
+           1em covers ~0.83em and lands visibly smaller than the icon font it replaced.
+
+           Stroke: the width is in viewBox units, so it shrinks with the box. At the
+           sidebar's 0.8125rem the shipped 2 renders as 1.08px, which reads as too light
+           beside a text glyph. */
+        svg {
+            width: var(--lucide-size, 1.25em);
+            height: var(--lucide-size, 1.25em);
+            stroke-width: var(--lucide-stroke-width, 2.5);
+        }
+    `,
 })
 export class LucideIconComponent {
     readonly icon = input.required<IconNode>();
