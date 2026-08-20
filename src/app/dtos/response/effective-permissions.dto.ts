@@ -19,7 +19,9 @@ export type PermissionSourceKey =
     | 'ChannelMemberDeny'
     | 'Implied'
     | 'Superadmin'
-    | 'Muted';
+    | 'Muted'
+    | 'ModuleDisabled'
+    | 'SceneRestricted';
 
 export interface PermissionSourceEntry {
     permission: PermissionKey;
