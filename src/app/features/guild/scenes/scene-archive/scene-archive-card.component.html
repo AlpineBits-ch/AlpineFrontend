@@ -1,6 +1,5 @@
 <div
     (click)="opened.emit(scene())"
-    (contextmenu)="menu.emit({scene: scene(), event: $event})"
     (dragstart)="onDragStart($event)"
     (keydown.enter)="opened.emit(scene())"
     (keydown.space)="$event.preventDefault(); opened.emit(scene())"

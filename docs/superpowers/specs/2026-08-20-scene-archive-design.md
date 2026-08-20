@@ -269,9 +269,33 @@ own commit there first.
 - Per-user private folders. The archive is a shared artifact of the guild.
 - A `CharacterSheets` or archive-specific `GuildFeatures` bit. `Scenes` covers it.
 
+## Changed while building
+
+Five things landed differently from the design above. Each is a deviation from what was approved,
+kept because the repo already had a better answer.
+
+- **One taxonomy read, not two.** `GET /guilds/{id}/scene-taxonomy` returns folders and tags
+  together. They are always read together and `guild.SceneTaxonomyChanged` replaces both at once, so
+  two routes only bought a second round trip.
+- **`Optional<string>` for filing, not an empty-string sentinel.** `Guild.Application/Dtos/Optional`
+  already exists for exactly the omit-versus-null distinction, and `UpdateSceneDto` already used it
+  for `TurnDeadlineAt`. Unfiling is `{"folderId": null}`; omitting the key leaves it alone.
+- **`archivedOnly` was missing from the design.** Archive mode needs concluded or channel-archived
+  scenes and nothing else, and filtering that after the page is cut under-fills pages
+  non-deterministically. It is a predicate on the query.
+- **The archive got its own service.** `scene.service.ts` was already 448 lines, and a guild's live
+  board and a filtered archive query are different questions, so `SceneArchiveService` holds the
+  filter-keyed cache rather than growing the board's.
+- **The window edge is a timestamp, not a set of ids.** Messages live in one flat entity map that
+  every view filters, so an anchored window bounds what it draws with `windowEndAt`/`windowEndId` in
+  the server's own `(created_at, id)` order. A live message is still stored, just not drawn.
+
 ## Unverified
 
 - Whether `guild.SceneTaxonomyChanged` as a full-set replace is acceptable to the realtime fan-out at
   40 tags plus folders. It should be, at roughly the size of a channel list, but it has not been measured.
 - The Scylla forward read from a partition's first clustering position is described from the EF Core
-  twin and the comments in `ScyllaMessageRepository`, not from running it.
+  twin and the comments in `ScyllaMessageRepository`, not from running it. Its parity tests need
+  `ECHO_TEST_SCYLLA` and `ECHO_TEST_POSTGRES` set, and were among the skips locally.
+- Nothing here has run against a live server. Both halves of each wire shape were written from this
+  design rather than observed talking to each other.

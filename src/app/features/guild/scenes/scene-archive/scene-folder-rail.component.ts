@@ -27,7 +27,6 @@ export class SceneFolderRailComponent {
     readonly picked = output<string | null>();
     readonly createFolder = output<void>();
     readonly renameFolder = output<FolderNode>();
-    readonly deleteFolder = output<FolderNode>();
     /** A scene was dropped onto a shelf: the channel id, and where it should land. */
     readonly filed = output<{channelId: string; folderId: string | null}>();
 

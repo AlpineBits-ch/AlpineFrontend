@@ -25,7 +25,6 @@ export class SceneArchiveCardComponent {
     readonly draggable = input(false);
 
     readonly opened = output<SceneListItemDto>();
-    readonly menu = output<{scene: SceneListItemDto; event: MouseEvent}>();
 
     private readonly taxonomy = inject(SceneTaxonomyService);
 
