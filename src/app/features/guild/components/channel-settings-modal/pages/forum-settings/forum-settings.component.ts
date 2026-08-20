@@ -31,7 +31,7 @@ import {ForumService} from '../../../../../../services/forum.service';
 import {ForumStateService} from '../../../../../../services/forum-state.service';
 import {GuildEmojiStore} from '../../../../../../stores/guild-emoji.store';
 import {ToastService} from '../../../../../../services/toast.service';
-import {ForumTagChipComponent} from '../../../forum-channel/forum-tag-chip.component';
+import {TagChipComponent} from '../../../../../../components/tag-chip/tag-chip.component';
 
 /** Editor state for one tag: `id` absent means "not saved yet". */
 interface TagDraft {
@@ -58,7 +58,7 @@ const DEFAULT_TAG_COLOR = '#5865f2';
         Dialog,
         Tooltip,
         PrimeTemplate,
-        ForumTagChipComponent,
+        TagChipComponent,
     ],
     templateUrl: './forum-settings.component.html',
 })

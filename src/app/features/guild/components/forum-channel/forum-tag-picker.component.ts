@@ -1,13 +1,13 @@
 import {ChangeDetectionStrategy, Component, computed, input, model} from '@angular/core';
 import {TranslateModule} from '@ngx-translate/core';
 import {ForumTag, FORUM_LIMITS} from '../../../../dtos/response/forum.dto';
-import {ForumTagChipComponent} from './forum-tag-chip.component';
+import {TagChipComponent} from '../../../../components/tag-chip/tag-chip.component';
 
 /** Multi-select chip picker over a forum's tags, capped at 5 per post. Moderated tags are filtered out for users who can't apply them rather than shown and rejected: the backend 403s the whole create/update request when one slips through. */
 @Component({
     selector: 'app-forum-tag-picker',
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [ForumTagChipComponent, TranslateModule],
+    imports: [TagChipComponent, TranslateModule],
     template: `
         @if (visibleTags().length > 0) {
             <div class="flex flex-col gap-2">
@@ -33,7 +33,7 @@ import {ForumTagChipComponent} from './forum-tag-chip.component';
                             class="disabled:opacity-35 disabled:cursor-not-allowed"
                             type="button"
                         >
-                            <app-forum-tag-chip
+                            <app-tag-chip
                                 [emojiUrl]="emojiUrlFor(tag)"
                                 [interactive]="true"
                                 [selected]="isSelected(tag.id)"

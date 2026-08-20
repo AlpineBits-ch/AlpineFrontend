@@ -1,9 +1,18 @@
 import {ChangeDetectionStrategy, Component, computed, input} from '@angular/core';
-import {ForumTag} from '../../../../dtos/response/forum.dto';
 
-/** One tag pill: takes its interactive state from inputs, used in the filter bar, on post cards, and in the picker. A tag colour of #000000 is the server's "no colour chosen" default, not real black; those render in the neutral surface style instead of an unreadable black pill. */
+/** Anything with a name and a colour: a forum tag, a scene tag. */
+export interface ChipTag {
+    name: string;
+    color: string;
+    /** A guild custom emoji id. Mutually exclusive with emojiName. */
+    emojiId?: string | null;
+    /** A unicode emoji. Mutually exclusive with emojiId. */
+    emojiName?: string | null;
+}
+
+/** One tag pill: takes its interactive state from inputs, used in filter bars, on cards, and in pickers. A tag colour of #000000 is the server's "no colour chosen" default, not real black; those render in the neutral surface style instead of an unreadable black pill. */
 @Component({
-    selector: 'app-forum-tag-chip',
+    selector: 'app-tag-chip',
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
         <span
@@ -29,8 +38,8 @@ import {ForumTag} from '../../../../dtos/response/forum.dto';
         </span>
     `,
 })
-export class ForumTagChipComponent {
-    readonly tag = input.required<ForumTag>();
+export class TagChipComponent {
+    readonly tag = input.required<ChipTag>();
     /** Renders in the filled/active treatment: used for filter bar selection and picker state. */
     readonly selected = input(false);
     readonly interactive = input(false);
@@ -38,7 +47,7 @@ export class ForumTagChipComponent {
     readonly size = input<'sm' | 'xs'>('sm');
     /** Resolved guild-emoji image, when the tag points at one. Absent renders no image. */
     readonly emojiUrl = input<string | null>(null);
-    /** A number shows the post-count badge; null hides it. */
+    /** A number shows the count badge; null hides it. */
     readonly count = input<number | null>(null);
 
     protected readonly sizeClasses = computed(() =>

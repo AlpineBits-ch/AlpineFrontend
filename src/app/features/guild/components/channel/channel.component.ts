@@ -20,7 +20,7 @@ import {ForumService} from '../../../../services/forum.service';
 import {ForumStateService} from '../../../../services/forum-state.service';
 import {GuildEmojiStore} from '../../../../stores/guild-emoji.store';
 import {ToastService} from '../../../../services/toast.service';
-import {ForumTagChipComponent} from '../forum-channel/forum-tag-chip.component';
+import {TagChipComponent} from '../../../../components/tag-chip/tag-chip.component';
 import {ForumTagPickerComponent} from '../forum-channel/forum-tag-picker.component';
 import {Dialog} from 'primeng/dialog';
 import {PrimeTemplate} from 'primeng/api';
@@ -88,7 +88,7 @@ function decodeContent(encoded: string): string {
         PinnedMessagesPanelComponent,
         FollowChannelDialogComponent,
         TranslateModule,
-        ForumTagChipComponent,
+        TagChipComponent,
         ForumTagPickerComponent,
         Dialog,
         PrimeTemplate,

@@ -38,7 +38,7 @@ import {ProfileService} from '../../../../services/profile.service';
 import {SelfGuildMemberDto} from '../../../../dtos/response/member.dto';
 import {effectiveGuildPermissions} from '../../guild-permissions';
 import {hasPermission, Permissions} from '../../../../enums/permissions.enum';
-import {ForumTagChipComponent} from './forum-tag-chip.component';
+import {TagChipComponent} from '../../../../components/tag-chip/tag-chip.component';
 import {ForumTagPickerComponent} from './forum-tag-picker.component';
 import {ForumPostCardComponent, PostAction} from './forum-post-card.component';
 import {channelIcon} from '../../channel-types';
@@ -57,7 +57,7 @@ import {channelIcon} from '../../channel-types';
         FormsModule,
         PrimeTemplate,
         TranslateModule,
-        ForumTagChipComponent,
+        TagChipComponent,
         ForumTagPickerComponent,
         ForumPostCardComponent,
     ],

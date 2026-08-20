@@ -67,7 +67,7 @@
             <div class="flex items-center gap-1.5 overflow-x-auto thin-scrollbar py-0.5 flex-1 min-w-0">
                 @for (tag of tags(); track tag.id) {
                     <button (click)="toggleTagFilter(tag.id)" class="shrink-0" type="button">
-                        <app-forum-tag-chip
+                        <app-tag-chip
                             [count]="tag.postCount"
                             [emojiUrl]="emojiUrlFor(tag)"
                             [interactive]="true"

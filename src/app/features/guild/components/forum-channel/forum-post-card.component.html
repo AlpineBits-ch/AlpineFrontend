@@ -48,7 +48,7 @@
         @if (appliedTags().length > 0) {
             <div class="flex flex-wrap gap-1">
                 @for (tag of appliedTags(); track tag.id) {
-                    <app-forum-tag-chip [emojiUrl]="emojiUrlFor(tag)" [tag]="tag" size="xs" />
+                    <app-tag-chip [emojiUrl]="emojiUrlFor(tag)" [tag]="tag" size="xs" />
                 }
             </div>
         }

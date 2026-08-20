@@ -5,7 +5,7 @@ import {AppAvatarComponent} from '../../../../components/avatar/avatar.component
 import {ProfileService} from '../../../../services/profile.service';
 import {ForumLayout, ForumPost, ForumTag} from '../../../../dtos/response/forum.dto';
 import {RelativeTimePipe} from '../../../../pipes/relative-time.pipe';
-import {ForumTagChipComponent} from './forum-tag-chip.component';
+import {TagChipComponent} from '../../../../components/tag-chip/tag-chip.component';
 
 export type PostAction = 'pin' | 'unpin' | 'lock' | 'unlock' | 'archive';
 
@@ -13,7 +13,7 @@ export type PostAction = 'pin' | 'unpin' | 'lock' | 'unlock' | 'archive';
 @Component({
     selector: 'app-forum-post-card',
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [AppAvatarComponent, ForumTagChipComponent, RelativeTimePipe, TranslateModule, Tooltip],
+    imports: [AppAvatarComponent, TagChipComponent, RelativeTimePipe, TranslateModule, Tooltip],
     templateUrl: './forum-post-card.component.html',
 })
 export class ForumPostCardComponent {
