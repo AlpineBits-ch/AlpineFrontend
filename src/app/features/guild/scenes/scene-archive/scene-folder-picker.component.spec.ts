@@ -33,6 +33,23 @@ function reach(component: SceneFolderPickerComponent): Record<string, (...args: 
     return component as unknown as Record<string, (...args: never[]) => unknown>;
 }
 
+function rows(fixture: ComponentFixture<SceneFolderPickerComponent>): HTMLButtonElement[] {
+    return Array.from(fixture.nativeElement.querySelectorAll('.pick-row'));
+}
+
+function rowFor(fixture: ComponentFixture<SceneFolderPickerComponent>, text: string): HTMLButtonElement {
+    const match = rows(fixture).find(row => row.textContent?.trim().includes(text));
+    if (!match) throw new Error(`no row for "${text}"`);
+    return match;
+}
+
+function search(fixture: ComponentFixture<SceneFolderPickerComponent>, query: string): void {
+    const input: HTMLInputElement = fixture.nativeElement.querySelector('input[type="search"]');
+    input.value = query;
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+}
+
 describe('SceneFolderPickerComponent', () => {
     it('lists every parent followed by its own children', () => {
         const {component} = setup();
@@ -74,5 +91,41 @@ describe('SceneFolderPickerComponent', () => {
         reach(component)['choose'](null as never);
 
         expect(picks).toEqual([null]);
+    });
+
+    it('hides the unfiled row once a search is active', () => {
+        const {fixture} = setup();
+
+        expect(() => rowFor(fixture, 'SCENE.ARCHIVE.UNFILED')).not.toThrow();
+
+        search(fixture, 'Greyford');
+
+        expect(rows(fixture).some(row => row.textContent?.includes('SCENE.ARCHIVE.UNFILED'))).toBe(false);
+    });
+
+    it('prefixes a search hit with its parent name', () => {
+        const {fixture} = setup();
+
+        search(fixture, 'Greyford');
+
+        const hit = rowFor(fixture, 'Greyford');
+        const prefix = hit.querySelector('.pick-parent');
+        expect(prefix?.textContent?.trim()).toBe('Act I /');
+    });
+
+    it('marks the row matching the selected input as current', () => {
+        const {fixture} = setup();
+        fixture.componentRef.setInput('selected', 'a1');
+        fixture.detectChanges();
+
+        expect(rowFor(fixture, 'Greyford').classList.contains('is-current')).toBe(true);
+        expect(rowFor(fixture, 'Act I').classList.contains('is-current')).toBe(false);
+        expect(rowFor(fixture, 'SCENE.ARCHIVE.UNFILED').classList.contains('is-current')).toBe(false);
+    });
+
+    it('marks unfiled as current when selected is null', () => {
+        const {fixture} = setup();
+
+        expect(rowFor(fixture, 'SCENE.ARCHIVE.UNFILED').classList.contains('is-current')).toBe(true);
     });
 });
