@@ -13,13 +13,19 @@ import {RelativeTimePipe} from '../../../../pipes/relative-time.pipe';
 import {TurnClockRingComponent} from '../turn-clock-ring/turn-clock-ring.component';
 import {SceneDialogComponent} from '../scene-dialog/scene-dialog.component';
 import {SceneArchiveComponent} from '../scene-archive/scene-archive.component';
+import {SceneFolderRailComponent} from '../scene-archive/scene-folder-rail.component';
+import {SceneFolderEditorComponent} from '../scene-archive/scene-folder-editor.component';
+import {countByFolder, FolderNode, folderTree} from '../scene-archive/folder-tree';
+import {leavesByFolder, recentScenes} from '../scene-leaf';
 import {SceneService} from '../../../../services/scene.service';
 import {PersonaService} from '../../../../services/persona.service';
 import {GuildService} from '../../../../services/guild.service';
 import {ProfileService} from '../../../../services/profile.service';
 import {ToastService} from '../../../../services/toast.service';
+import {SceneRailStateService} from '../../../../services/scene-rail-state.service';
+import {SceneTaxonomyService} from '../../../../services/scene-taxonomy.service';
 import {NavigationService, SceneBoardMode} from '../../../main-page/navigation.service';
-import {SceneListItemDto, SceneStatus} from '../../../../dtos/response/scene.dto';
+import {SceneFolderDto, SceneListItemDto, SceneStatus} from '../../../../dtos/response/scene.dto';
 import {ChannelType} from '../../../../dtos/response/guild.dto';
 import {SelfGuildMemberDto} from '../../../../dtos/response/member.dto';
 import {ModulePermissions} from '../../../../enums/module-permissions.enum';
@@ -34,6 +40,8 @@ export interface SceneRow {
     identity: PersonaIdentity | null;
     clock: ReturnType<typeof turnClock>;
     mine: boolean;
+    /** Named only on a pinned row, which sits outside the folder section it belongs to. */
+    folderPath?: string | null;
 }
 
 export interface SceneGroup {
@@ -42,6 +50,15 @@ export interface SceneGroup {
     /** `yours` carries the one loud colour in the feature; everything else is quiet. */
     tone: 'yours' | 'attention' | 'normal' | 'quiet';
     rows: SceneRow[];
+    /** Set on a folder section: its own name, which no translation key can carry. */
+    title?: string;
+    accent?: string | null;
+}
+
+/** A folder being edited, plus the parent a new one should start on. */
+interface FolderEdit {
+    folder: SceneFolderDto | null;
+    seedParentId: string | null;
 }
 
 /**
@@ -57,6 +74,8 @@ export interface SceneGroup {
         TurnClockRingComponent,
         SceneDialogComponent,
         SceneArchiveComponent,
+        SceneFolderRailComponent,
+        SceneFolderEditorComponent,
     ],
     templateUrl: './scene-board.component.html',
     styleUrl: './scene-board.component.css',
@@ -74,9 +93,18 @@ export class SceneBoardComponent {
     private readonly toast = inject(ToastService);
     private readonly translate = inject(TranslateService);
     protected readonly nav = inject(NavigationService);
+    private readonly railState = inject(SceneRailStateService);
+    private readonly taxonomy = inject(SceneTaxonomyService);
 
-    protected readonly SceneStatus = SceneStatus;
+    protected get SceneStatus() {
+        return SceneStatus;
+    }
+
     protected readonly creating = signal(false);
+    protected readonly editing = signal<FolderEdit | null>(null);
+
+    protected readonly folderId = signal<string | null>(null);
+    protected readonly seedFolderId = signal<string | null>(null);
 
     /** Held by the navigation service so it survives leaving the board and restoring the app. */
     protected readonly mode = computed((): SceneBoardMode => {
@@ -100,11 +128,28 @@ export class SceneBoardComponent {
 
     protected readonly loading = computed(() => this.scenes.isLoading(this.guildId()));
 
+    protected readonly railVisible = computed(() => this.railState.railVisible(this.guildId()));
+
+    protected readonly tree = computed(() =>
+        folderTree(this.taxonomy.folders(this.guildId()), countByFolder(this.scenes.scenes(this.guildId()))),
+    );
+
+    protected readonly expandedIds = computed(() => this.railState.expanded(this.guildId()));
+
+    protected readonly scenesByFolder = computed(() =>
+        leavesByFolder(this.scenes.scenes(this.guildId()), this.scenes.speakableIds(this.guildId())),
+    );
+
+    protected readonly recent = computed(() =>
+        recentScenes(this.scenes.scenes(this.guildId()), this.scenes.speakableIds(this.guildId())),
+    );
+
     constructor() {
         effect(() => {
             const guildId = this.guildId();
             untracked(() => {
                 this.scenes.ensureGuild(guildId);
+                this.taxonomy.ensureGuild(guildId);
                 this.guilds.getOwnMember(guildId).subscribe({
                     next: member => this.ownMember.set(member),
                     error: () => this.ownMember.set(null),
@@ -150,23 +195,109 @@ export class SceneBoardComponent {
             : [];
         stalled.forEach(row => taken.add(row.scene.channelId));
 
+        return this.railVisible() && this.tree().length
+            ? this.folderGroups(rows, yours, stalled, taken)
+            : this.statusGroups(rows, yours, stalled, taken);
+    });
+
+    private statusGroups(
+        rows: SceneRow[],
+        yours: SceneRow[],
+        stalled: SceneRow[],
+        taken: Set<string>,
+    ): SceneGroup[] {
         const of = (status: SceneStatus) =>
             rows.filter(row => !taken.has(row.scene.channelId) && row.scene.status === status);
 
         return [
             {key: 'yours', titleKey: 'SCENE.BOARD.YOUR_MOVE', tone: 'yours', rows: yours},
             {key: 'stalled', titleKey: 'SCENE.BOARD.STALLED', tone: 'attention', rows: stalled},
-            {
-                key: 'running',
-                titleKey: 'SCENE.BOARD.RUNNING',
-                tone: 'normal',
-                rows: of(SceneStatus.Active),
-            },
+            {key: 'running', titleKey: 'SCENE.BOARD.RUNNING', tone: 'normal', rows: of(SceneStatus.Active)},
             {key: 'open', titleKey: 'SCENE.BOARD.OPENING', tone: 'normal', rows: of(SceneStatus.Open)},
             {key: 'paused', titleKey: 'SCENE.BOARD.PAUSED', tone: 'quiet', rows: of(SceneStatus.Paused)},
-            // No concluded group: a finished scene belongs to the archive, which is where it can be
-            // filed, tagged and read back.
+            // No concluded group: a finished scene belongs to the archive.
         ].filter(group => group.rows.length > 0) as SceneGroup[];
+    }
+
+    /**
+     * Your move and stalled keep the top, unless a folder is chosen: then nothing is pinned above
+     * the sections, and every in-scope row, taken or not, has to show up inside its section.
+     */
+    private folderGroups(
+        rows: SceneRow[],
+        yours: SceneRow[],
+        stalled: SceneRow[],
+        taken: Set<string>,
+    ): SceneGroup[] {
+        const chosen = this.folderId();
+        const wanted = chosen ? this.subtreeOf(chosen) : null;
+        const names = this.folderNames();
+        const path = (row: SceneRow) => (row.scene.folderId ? (names.get(row.scene.folderId) ?? null) : null);
+        // A chosen folder pins nothing above the sections, so its rows must not be filtered by
+        // `taken`: that set only excludes what a pinned row already carries.
+        const excluded = chosen ? new Set<string>() : taken;
+
+        const pinned: SceneGroup[] = chosen
+            ? []
+            : [
+                  {
+                      key: 'yours',
+                      titleKey: 'SCENE.BOARD.YOUR_MOVE',
+                      tone: 'yours',
+                      rows: yours.map(row => ({...row, folderPath: path(row)})),
+                  },
+                  {
+                      key: 'stalled',
+                      titleKey: 'SCENE.BOARD.STALLED',
+                      tone: 'attention',
+                      rows: stalled.map(row => ({...row, folderPath: path(row)})),
+                  },
+              ];
+
+        const sections: SceneGroup[] = [];
+        for (const node of flattenTree(this.tree())) {
+            if (wanted && !wanted.has(node.folder.id)) continue;
+            sections.push({
+                key: `folder:${node.folder.id}`,
+                titleKey: '',
+                title: node.folder.name,
+                accent: node.folder.color,
+                tone: 'normal',
+                rows: rows.filter(
+                    row => !excluded.has(row.scene.channelId) && row.scene.folderId === node.folder.id,
+                ),
+            });
+        }
+
+        const unfiled: SceneGroup = {
+            key: 'unfiled',
+            titleKey: 'SCENE.BOARD.FOLDER_UNFILED',
+            tone: 'quiet',
+            rows: chosen ? [] : rows.filter(row => !excluded.has(row.scene.channelId) && !row.scene.folderId),
+        };
+
+        return [...pinned, ...sections, unfiled].filter(group => group.rows.length > 0);
+    }
+
+    /** A folder and everything under it, which is what picking a shelf filters on. */
+    private subtreeOf(folderId: string): Set<string> {
+        const ids = new Set<string>();
+        const walk = (nodes: FolderNode[]): boolean =>
+            nodes.some(node => {
+                if (node.folder.id === folderId) {
+                    collect(node, ids);
+                    return true;
+                }
+                return walk(node.children);
+            });
+        walk(this.tree());
+        return ids;
+    }
+
+    private readonly folderNames = computed(() => {
+        const names = new Map<string, string>();
+        for (const node of flattenTree(this.tree())) names.set(node.folder.id, node.folder.name);
+        return names;
     });
 
     protected readonly isEmpty = computed(() => !this.loading() && this.rows().length === 0);
@@ -187,4 +318,51 @@ export class SceneBoardComponent {
         }
         this.nav.openChannel(channel);
     }
+
+    protected toggleRail(): void {
+        this.railState.setRailVisible(this.guildId(), !this.railVisible());
+    }
+
+    protected toggleShelf(folderId: string): void {
+        this.railState.toggle(this.guildId(), folderId);
+    }
+
+    protected createIn(folderId: string | null): void {
+        this.seedFolderId.set(folderId);
+        this.creating.set(true);
+    }
+
+    protected openScene(channelId: string, fromStart: boolean): void {
+        const channel = this.guild()?.channels.find(c => c.id === channelId);
+        if (!channel) {
+            this.toast.error(this.translate.instant('SCENE.ARCHIVE.OPEN_ERROR'), {
+                detail: this.translate.instant('SCENE.ARCHIVE.OPEN_ERROR_DETAIL'),
+            });
+            return;
+        }
+        if (fromStart) this.nav.openChannelFromStart(channel);
+        else this.nav.openChannel(channel);
+    }
+
+    protected file(channelId: string, folderId: string | null): void {
+        this.scenes.update(this.guildId(), channelId, {folderId}).subscribe({
+            error: err => this.toast.httpError(this.translate.instant('SCENE.ARCHIVE.FILE_ERROR'), err),
+        });
+    }
+
+    protected reorder(folderIds: string[]): void {
+        this.taxonomy.reorderFolders(this.guildId(), folderIds).subscribe({
+            error: err => this.toast.httpError(this.translate.instant('SCENE.ARCHIVE.REORDER_ERROR'), err),
+        });
+    }
+}
+
+/** Every node depth first, parents before their children. */
+function flattenTree(nodes: FolderNode[]): FolderNode[] {
+    return nodes.flatMap(node => [node, ...flattenTree(node.children)]);
+}
+
+function collect(node: FolderNode, into: Set<string>): void {
+    into.add(node.folder.id);
+    for (const child of node.children) collect(child, into);
 }

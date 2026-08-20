@@ -10,6 +10,19 @@
         </button>
     </div>
 
+    @if (mode() === 'playing' && tree().length) {
+        <button
+            (click)="toggleRail()"
+            [attr.aria-pressed]="railVisible()"
+            [class.is-on]="railVisible()"
+            class="board-rail-toggle"
+            type="button"
+        >
+            <i class="pi pi-folder text-[0.5625rem]"></i>
+            {{ 'SCENE.ARCHIVE.SHOW_FOLDERS' | translate }}
+        </button>
+    }
+
     @if (mode() === 'playing' && waitingCount(); as count) {
         <span class="board-waiting-badge">{{ 'SCENE.BOARD.WAITING_COUNT' | translate: {count: count} }}</span>
     }
@@ -22,94 +35,141 @@
 </header>
 
 @if (mode() === 'archive') {
-    <app-scene-archive [canManage]="canManage()" [guildId]="guildId()" />
+    <app-scene-archive (createSceneIn)="createIn($event)" [canManage]="canManage()" [guildId]="guildId()" />
 } @else {
-    <div class="min-h-0 flex-1 overflow-y-auto thin-scrollbar">
-        <div class="mx-auto max-w-3xl px-4 py-6">
-            @if (loading() && isEmpty()) {
-                <div class="flex flex-col gap-2">
-                    @for (row of [1, 2, 3]; track row) {
-                        <div class="h-[4.25rem] animate-pulse rounded-2xl bg-white/[0.03]"></div>
-                    }
-                </div>
-            } @else if (isEmpty()) {
-                <!-- An invitation, not a shrug: it says what a scene is, because most people
-                 arriving here have only ever done this by hand. -->
-                <div class="board-empty">
-                    <h2 class="board-empty-title">{{ 'SCENE.BOARD.EMPTY_TITLE' | translate }}</h2>
-                    <p class="board-empty-body">{{ 'SCENE.BOARD.EMPTY_BODY' | translate }}</p>
-                    @if (canManage() && textChannels().length) {
-                        <button (click)="creating.set(true)" class="board-new mt-4" type="button">
-                            <i class="pi pi-plus text-[0.5625rem]"></i>
-                            {{ 'SCENE.BOARD.NEW' | translate }}
-                        </button>
-                    }
-                </div>
-            } @else {
-                @for (group of groups(); track group.key) {
-                    <section class="mb-7 last:mb-0">
-                        <h2 [class]="'board-group board-group-' + group.tone">
-                            {{ group.titleKey | translate }}
-                            <span class="board-group-count">{{ group.rows.length }}</span>
-                        </h2>
+    <div class="flex min-h-0 flex-1 overflow-hidden">
+        @if (railVisible() && tree().length) {
+            <aside class="board-rail thin-scrollbar">
+                <app-scene-folder-rail
+                    (createFolder)="editing.set({folder: null, seedParentId: $event})"
+                    (createScene)="createIn($event)"
+                    (deleteFolder)="editing.set({folder: $event.folder, seedParentId: null})"
+                    (filed)="file($event.channelId, $event.folderId)"
+                    (openScene)="openScene($event.channelId, $event.fromStart)"
+                    (picked)="folderId.set($event)"
+                    (renameFolder)="editing.set({folder: $event.folder, seedParentId: null})"
+                    (reordered)="reorder($event)"
+                    (showAll)="folderId.set($event)"
+                    (toggled)="toggleShelf($event)"
+                    [canManage]="canManage()"
+                    [expandedIds]="expandedIds()"
+                    [recent]="recent()"
+                    [scenesByFolder]="scenesByFolder()"
+                    [selected]="folderId()"
+                    [tree]="tree()"
+                />
+            </aside>
+        }
 
-                        <div class="flex flex-col gap-1.5">
-                            @for (row of group.rows; track row.scene.channelId) {
-                                <button (click)="open(row)" [class.is-yours]="row.mine" class="board-row" type="button">
-                                    <app-turn-clock-ring
-                                        [clock]="row.clock"
-                                        [identity]="row.identity"
-                                        [muted]="row.scene.status !== SceneStatus.Active"
-                                        size="md"
-                                    />
+        <div class="min-h-0 flex-1 overflow-y-auto thin-scrollbar">
+            <div class="mx-auto max-w-3xl px-4 py-6">
+                @if (loading() && isEmpty()) {
+                    <div class="flex flex-col gap-2">
+                        @for (row of [1, 2, 3]; track row) {
+                            <div class="h-[4.25rem] animate-pulse rounded-2xl bg-white/[0.03]"></div>
+                        }
+                    </div>
+                } @else if (isEmpty()) {
+                    <!-- An invitation, not a shrug: it says what a scene is, because most people
+                     arriving here have only ever done this by hand. -->
+                    <div class="board-empty">
+                        <h2 class="board-empty-title">{{ 'SCENE.BOARD.EMPTY_TITLE' | translate }}</h2>
+                        <p class="board-empty-body">{{ 'SCENE.BOARD.EMPTY_BODY' | translate }}</p>
+                        @if (canManage() && textChannels().length) {
+                            <button (click)="creating.set(true)" class="board-new mt-4" type="button">
+                                <i class="pi pi-plus text-[0.5625rem]"></i>
+                                {{ 'SCENE.BOARD.NEW' | translate }}
+                            </button>
+                        }
+                    </div>
+                } @else {
+                    @for (group of groups(); track group.key) {
+                        <section class="mb-7 last:mb-0">
+                            <h2 [class]="'board-group board-group-' + group.tone" [style.--group-accent]="group.accent">
+                                {{ group.title ?? (group.titleKey | translate) }}
+                                <span class="board-group-count">{{ group.rows.length }}</span>
+                            </h2>
 
-                                    <span class="flex min-w-0 flex-1 flex-col gap-0.5 text-left">
-                                        <span class="board-name">{{ row.scene.name }}</span>
+                            <div class="flex flex-col gap-1.5">
+                                @for (row of group.rows; track row.scene.channelId) {
+                                    <button (click)="open(row)" [class.is-yours]="row.mine" class="board-row" type="button">
+                                        <app-turn-clock-ring
+                                            [clock]="row.clock"
+                                            [identity]="row.identity"
+                                            [muted]="row.scene.status !== SceneStatus.Active"
+                                            size="md"
+                                        />
 
-                                        <span class="board-line">
-                                            @if (row.identity; as who) {
-                                                <span [style.color]="who.color ?? 'var(--color-text-secondary)'" class="board-speaker">
-                                                    {{ who.name }}
-                                                </span>
-                                                <span class="board-dot">·</span>
-                                                @if (row.mine) {
-                                                    <span class="board-yours">{{ 'SCENE.RAIL.YOUR_MOVE' | translate }}</span>
-                                                    <span class="board-dot">·</span>
-                                                }
-                                                @if (row.clock.hasDeadline) {
-                                                    <span [class.board-late]="row.clock.overdue">
-                                                        {{
-                                                            'SCENE.RAIL.DUE'
-                                                                | translate: {when: row.scene.turnDeadlineAt | relativeTime: scenes.now()}
-                                                        }}
+                                        <span class="flex min-w-0 flex-1 flex-col gap-0.5 text-left">
+                                            <span class="board-name">{{ row.scene.name }}</span>
+
+                                            <span class="board-line">
+                                                @if (row.identity; as who) {
+                                                    <span [style.color]="who.color ?? 'var(--color-text-secondary)'" class="board-speaker">
+                                                        {{ who.name }}
                                                     </span>
+                                                    <span class="board-dot">·</span>
+                                                    @if (row.mine) {
+                                                        <span class="board-yours">{{ 'SCENE.RAIL.YOUR_MOVE' | translate }}</span>
+                                                        <span class="board-dot">·</span>
+                                                    }
+                                                    @if (row.clock.hasDeadline) {
+                                                        <span [class.board-late]="row.clock.overdue">
+                                                            {{
+                                                                'SCENE.RAIL.DUE'
+                                                                    | translate
+                                                                        : {when: row.scene.turnDeadlineAt | relativeTime: scenes.now()}
+                                                            }}
+                                                        </span>
+                                                    } @else {
+                                                        <span>{{ 'SCENE.RAIL.NO_DEADLINE' | translate }}</span>
+                                                    }
+                                                    @if (row.folderPath; as arc) {
+                                                        <span class="board-dot">·</span>
+                                                        <span class="board-arc">{{ arc }}</span>
+                                                    }
                                                 } @else {
-                                                    <span>{{ 'SCENE.RAIL.NO_DEADLINE' | translate }}</span>
+                                                    <span>{{ statusOf(row.scene).labelKey | translate }}</span>
+                                                    <span class="board-dot">·</span>
+                                                    <span>{{
+                                                        'SCENE.RAIL.CAST_COUNT' | translate: {count: row.scene.participantCount}
+                                                    }}</span>
                                                 }
-                                            } @else {
-                                                <span>{{ statusOf(row.scene).labelKey | translate }}</span>
-                                                <span class="board-dot">·</span>
-                                                <span>{{ 'SCENE.RAIL.CAST_COUNT' | translate: {count: row.scene.participantCount} }}</span>
-                                            }
+                                            </span>
                                         </span>
-                                    </span>
 
-                                    @if (row.scene.turnNumber; as turn) {
-                                        <span class="board-turn">
-                                            <span class="board-figure">{{ turn }}</span>
-                                            <span class="board-turn-label">{{ 'SCENE.RAIL.TURN' | translate }}</span>
-                                        </span>
-                                    }
-                                </button>
-                            }
-                        </div>
-                    </section>
+                                        @if (row.scene.turnNumber; as turn) {
+                                            <span class="board-turn">
+                                                <span class="board-figure">{{ turn }}</span>
+                                                <span class="board-turn-label">{{ 'SCENE.RAIL.TURN' | translate }}</span>
+                                            </span>
+                                        }
+                                    </button>
+                                }
+                            </div>
+                        </section>
+                    }
                 }
-            }
+            </div>
         </div>
     </div>
 }
 
 @if (creating()) {
-    <app-scene-dialog (closed)="creating.set(false)" [guildChannels]="textChannels()" [guildId]="guildId()" />
+    <app-scene-dialog
+        (closed)="creating.set(false); seedFolderId.set(null)"
+        [guildChannels]="textChannels()"
+        [guildId]="guildId()"
+        [seedFolderId]="seedFolderId()"
+    />
+}
+
+<!-- Delete comes through here too: the editor holds the only confirm. -->
+@if (editing(); as target) {
+    <app-scene-folder-editor
+        (closed)="editing.set(null)"
+        [folder]="target.folder"
+        [guildId]="guildId()"
+        [seedParentId]="target.seedParentId"
+    />
 }

@@ -209,3 +209,50 @@
         display: none;
     }
 }
+
+/* ── Folder rail ────────────────────────────────────────────────────────── */
+.board-rail {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    flex-shrink: 0;
+    width: 11.75rem;
+    border-right: 1px solid rgba(255, 255, 255, 0.06);
+    padding: 0.5625rem 0.4375rem;
+    overflow-y: auto;
+}
+
+.board-rail-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.3125rem;
+    border: 1px solid var(--color-border-subtle);
+    border-radius: 0.4375rem;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.65625rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    transition:
+        background-color var(--duration-base) var(--ease-brand),
+        color var(--duration-base) var(--ease-brand);
+}
+
+.board-rail-toggle:hover {
+    color: var(--color-text-secondary);
+}
+
+.board-rail-toggle.is-on {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--color-text-primary);
+}
+
+/* A folder section wears its own colour, so the arcs stay apart when several are on screen. */
+.board-group[style*='--group-accent'] {
+    padding-left: 0.5rem;
+    box-shadow: inset 2px 0 0 -1px var(--group-accent);
+}
+
+.board-arc {
+    color: var(--color-text-faint);
+}
