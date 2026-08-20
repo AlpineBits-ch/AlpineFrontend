@@ -1,7 +1,7 @@
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {signal} from '@angular/core';
 import {provideTranslateService} from '@ngx-translate/core';
-import {of} from 'rxjs';
+import {of, Subject} from 'rxjs';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 
 import {SceneNavComponent} from './scene-nav.component';
@@ -13,6 +13,10 @@ import {ToastService} from '../../../../../../services/toast.service';
 import {MainView, NavigationService} from '../../../../../main-page/navigation.service';
 import {SceneFolderDto, SceneListItemDto, SceneStatus} from '../../../../../../dtos/response/scene.dto';
 import {installMemoryStorage} from '../../../../../../testing/memory-storage';
+import {RoleplayApi} from '../../../../../../services/roleplay-api.service';
+import {SceneRailStateService} from '../../../../../../services/scene-rail-state.service';
+import {SceneListDto} from '../../../../../../dtos/response/scene.dto';
+import {SceneListParams} from '../../../../../../dtos/request/scene.dto';
 
 function scene(over: Partial<SceneListItemDto> = {}): SceneListItemDto {
     return {channelId: 'ch_1', name: 'Scene', status: SceneStatus.Active, ...over};
@@ -51,11 +55,22 @@ function setup(options: Options = {}) {
         openSceneChannel: vi.fn(),
     };
     const channels = (options.scenes ?? SCENES).map(row => ({id: row.channelId, type: 0}));
+    const shelves: Record<string, Subject<SceneListDto>> = {};
+    const calls: SceneListParams[] = [];
+    const api = {
+        listScenes: (_guildId: string, params?: SceneListParams) => {
+            calls.push(params ?? {});
+            const subject = new Subject<SceneListDto>();
+            shelves[params?.folderId ?? '*'] = subject;
+            return subject;
+        },
+    };
 
     TestBed.configureTestingModule({
         imports: [SceneNavComponent],
         providers: [
             provideTranslateService(),
+            {provide: RoleplayApi, useValue: api},
             {
                 provide: SceneService,
                 useValue: {
@@ -97,7 +112,7 @@ function setup(options: Options = {}) {
     fixture.componentRef.setInput('guildId', 'g1');
     fixture.detectChanges();
 
-    return {fixture, nav, view};
+    return {fixture, nav, view, shelves, calls};
 }
 
 function reach(fixture: ComponentFixture<SceneNavComponent>): Record<string, () => unknown> {
@@ -106,6 +121,11 @@ function reach(fixture: ComponentFixture<SceneNavComponent>): Record<string, () 
 
 function openSection(fixture: ComponentFixture<SceneNavComponent>): void {
     (fixture.nativeElement.querySelector('.chan-section-toggle') as HTMLElement).click();
+    fixture.detectChanges();
+}
+
+function expandShelf(fixture: ComponentFixture<SceneNavComponent>, folderId: string): void {
+    TestBed.inject(SceneRailStateService).toggle('g1', folderId);
     fixture.detectChanges();
 }
 
@@ -168,18 +188,55 @@ describe('SceneNavComponent', () => {
         expect(recent.map(leaf => leaf.channelId)).toEqual(['yours', 'newer']);
     });
 
-    it('leaves a concluded scene out of the tree', () => {
-        const {fixture} = setup();
+    it('keeps a folder in the tree when everything in it has finished', () => {
+        const {fixture} = setup({
+            scenes: [scene({channelId: 'done', name: 'The Last Muster', status: SceneStatus.Concluded})],
+        });
+        openSection(fixture);
+
+        expect(fixture.nativeElement.textContent).toContain('Act I');
+        expect(fixture.nativeElement.textContent).toContain('Act II');
+    });
+
+    it('reads a shelf only once it is opened, and asks for the finished scenes on it', () => {
+        const {fixture, shelves, calls} = setup();
+        openSection(fixture);
+        expect(shelves['a']).toBeUndefined();
+
+        expandShelf(fixture, 'a');
+        expect(calls.find(params => params.folderId === 'a')?.includeConcluded).toBe(true);
+        shelves['a'].next({
+            scenes: [
+                scene({
+                    channelId: 'done',
+                    name: 'The Last Muster',
+                    folderId: 'a',
+                    status: SceneStatus.Concluded,
+                }),
+            ],
+            truncated: false,
+        });
+        fixture.detectChanges();
+
+        expect(fixture.nativeElement.textContent).toContain('The Last Muster');
+    });
+
+    it('counts an opened shelf from what it read, and never guesses at a closed one', () => {
+        const {fixture, shelves} = setup();
+        openSection(fixture);
+        expandShelf(fixture, 'a');
+        shelves['a'].next({
+            scenes: [
+                scene({channelId: 'done', folderId: 'a', status: SceneStatus.Concluded}),
+                scene({channelId: 'other', folderId: 'a'}),
+            ],
+            truncated: false,
+        });
+        fixture.detectChanges();
 
         const tree = reach(fixture)['tree']() as {folder: {id: string}; count: number}[];
         expect(tree.find(node => node.folder.id === 'a')?.count).toBe(2);
-    });
-
-    it('leaves a concluded scene out of the shelf leaves', () => {
-        const {fixture} = setup();
-
-        const byFolder = reach(fixture)['scenesByFolder']() as Record<string, {channelId: string}[]>;
-        expect(byFolder['a'].map(leaf => leaf.channelId)).not.toContain('done');
+        expect(tree.find(node => node.folder.id === 'b')?.count).toBe(0);
     });
 
     it('keeps the scene marked while its out-of-character side is the one hosted', () => {

@@ -1,6 +1,6 @@
 /**
  * `ChannelListComponent.onWatchStream` has no template-driven spec coverage because the template pulls in a heavy dialog/menu/modal dependency chain.
- * `TestBed.createComponent()` without `detectChanges()` sidesteps that: it resolves the component's constructor-time DI and effects but never instantiates the template's child components, so the handler can be called directly instead of clicked through the DOM.
+ * `TestBed.createComponent()` without `detectChanges()` sidesteps most of that: it builds the template's children but never runs an update pass, so the handler can be called directly instead of clicked through the DOM.
  */
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {signal} from '@angular/core';
@@ -23,6 +23,8 @@ import {ScheduledEventStore} from '../../../../stores/scheduled-event.store';
 import {EntitlementStore} from '../../../../stores/entitlement.store';
 import {MinuteClockService} from '../../../../services/minute-clock.service';
 import {GuildOnboardingStateService} from '../../../../services/guild-onboarding-state.service';
+import {RoleplayApi} from '../../../../services/roleplay-api.service';
+import {ToastService} from '../../../../services/toast.service';
 import {ChannelDto, ChannelType, GuildDto} from '../../../../dtos/response/guild.dto';
 
 const GUILD = {
@@ -95,6 +97,10 @@ function render(joinChannel: ReturnType<typeof vi.fn>): ComponentFixture<Channel
                     categoryDeletedObservable: new Subject(),
                 },
             },
+            // The sidebar's scenes section is a child of this template, and the creation pass builds
+            // it whether or not the guild has the module.
+            {provide: RoleplayApi, useValue: {listScenes: () => of({scenes: [], truncated: false})}},
+            {provide: ToastService, useValue: {error: vi.fn(), httpError: vi.fn()}},
             {provide: ScheduledEventStore, useValue: {eventsForGuild: () => [], loadFor: () => undefined}},
             {provide: MinuteClockService, useValue: {retain: () => undefined, now: () => 0}},
             {provide: GuildOnboardingStateService, useValue: {statusFor: () => undefined}},
