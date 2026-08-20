@@ -92,10 +92,9 @@
             <i [ngClass]="advancedOpen() ? 'pi-chevron-up' : 'pi-chevron-down'" class="pi text-text-muted text-xs"></i>
         </button>
 
-        @if (advancedOpen()) {
-            <div class="px-4 pb-4">
-                <app-permission-overrides (overridesChanged)="onOverridesChanged($event)" [guild]="guild()" [scope]="scope()" />
-            </div>
-        }
+        <!-- Stays mounted while collapsed: destroying it on collapse would drop an unsaved row. -->
+        <div [hidden]="!advancedOpen()" class="px-4 pb-4">
+            <app-permission-overrides (overridesChanged)="onOverridesChanged($event)" [guild]="guild()" [scope]="scope()" />
+        </div>
     </div>
 </div>

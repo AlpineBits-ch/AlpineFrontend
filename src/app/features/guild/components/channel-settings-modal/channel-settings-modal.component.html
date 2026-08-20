@@ -84,7 +84,12 @@
                             <app-forum-settings [channel]="channel()!" />
                         }
                         @case ('permissions') {
-                            <app-channel-permissions [categories]="categories()" [channel]="channel()!" [guild]="guild()!" />
+                            <app-channel-permissions
+                                (channelUpdated)="onChannelUpdated($event)"
+                                [categories]="categories()"
+                                [channel]="channel()!"
+                                [guild]="guild()!"
+                            />
                         }
                         @case ('encryption') {
                             <app-channel-encryption [channel]="channel()!" [guild]="guild()!" />
