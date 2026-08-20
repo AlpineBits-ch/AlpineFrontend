@@ -1,9 +1,9 @@
 import {ChangeDetectionStrategy, Component, inject, input, output, signal, viewChild} from '@angular/core';
 import {NgTemplateOutlet} from '@angular/common';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
-import {ContextMenu} from 'primeng/contextmenu';
-import {MenuItem} from 'primeng/api';
 
+import {ContextMenuComponent} from '../../../../shared/context-menu/context-menu.component';
+import {MenuItem} from '../../../../shared/context-menu/context-menu.model';
 import {FolderNode} from './folder-tree';
 import {UNFILED} from '../../../../dtos/request/scene.dto';
 import {SceneStatus} from '../../../../dtos/response/scene.dto';
@@ -40,7 +40,7 @@ export interface SceneOpenRequest {
 @Component({
     selector: 'app-scene-folder-rail',
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [NgTemplateOutlet, TranslateModule, ContextMenu],
+    imports: [NgTemplateOutlet, TranslateModule, ContextMenuComponent],
     templateUrl: './scene-folder-rail.component.html',
     styleUrl: './scene-folder-rail.component.css',
     host: {class: 'flex shrink-0 flex-col gap-0.5'},
@@ -80,7 +80,7 @@ export class SceneFolderRailComponent {
     readonly showAll = output<string>();
 
     private readonly translate = inject(TranslateService);
-    private readonly menu = viewChild<ContextMenu>('folderMenu');
+    private readonly menu = viewChild<ContextMenuComponent>('folderMenu');
 
     protected readonly UNFILED = UNFILED;
     protected readonly dragOver = signal<string | null>(null);
@@ -94,8 +94,6 @@ export class SceneFolderRailComponent {
 
     protected openMenu(event: MouseEvent, node: FolderNode): void {
         if (!this.canManage()) return;
-        event.preventDefault();
-        event.stopPropagation();
 
         const group = this.siblingsOf(node.folder.id);
         const index = group?.order.findIndex(n => n.folder.id === node.folder.id) ?? -1;
@@ -135,6 +133,7 @@ export class SceneFolderRailComponent {
             {
                 label: this.translate.instant('SCENE.ARCHIVE.DELETE_FOLDER'),
                 icon: 'pi pi-trash',
+                danger: true,
                 command: () => this.deleteFolder.emit(node),
             },
         ]);
@@ -143,9 +142,6 @@ export class SceneFolderRailComponent {
     }
 
     protected openSceneMenu(event: MouseEvent, leaf: SceneLeaf): void {
-        event.preventDefault();
-        event.stopPropagation();
-
         const items: MenuItem[] = [
             {
                 label: this.translate.instant('SCENE.ARCHIVE.READ_FROM_START'),
