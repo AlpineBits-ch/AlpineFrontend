@@ -1,4 +1,13 @@
-import {ChangeDetectionStrategy, Component, computed, inject, input, OnInit, output, signal} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    inject,
+    input,
+    OnInit,
+    output,
+    signal,
+} from '@angular/core';
 import {NgClass} from '@angular/common';
 import {TranslateModule} from '@ngx-translate/core';
 import {ChannelPermission, GuildDto, RoleDto, RoleType} from '../../../../dtos/response/guild.dto';
@@ -8,8 +17,14 @@ import {GuildService} from '../../../../services/guild.service';
 import {ProfileService} from '../../../../services/profile.service';
 import {parsePermissions, stringifyPermissions} from '../../../../enums/permissions.enum';
 import {parseModulePermissions} from '../../../../enums/module-permissions.enum';
-import {OverrideEntry, PermissionOverridesPanelComponent} from '../permission-overrides-panel/permission-overrides-panel.component';
-import {EMPTY_OVERRIDE, PermOverride} from '../permission-override-editor/permission-override-editor.component';
+import {
+    OverrideEntry,
+    PermissionOverridesPanelComponent,
+} from '../permission-overrides-panel/permission-overrides-panel.component';
+import {
+    EMPTY_OVERRIDE,
+    PermOverride,
+} from '../permission-override-editor/permission-override-editor.component';
 import {OverrideTarget, PermissionScopeGateway} from './permission-scope.gateway';
 import {PermissionScope} from './permission-scope';
 
@@ -72,11 +87,15 @@ export class PermissionOverridesComponent implements OnInit {
     });
 
     protected readonly memberEntries = computed<OverrideEntry[]>(() =>
-        this.memberRows().filter(r => r.perm !== null || r.dirty).map(r => this.toMemberEntry(r)),
+        this.memberRows()
+            .filter(r => r.perm !== null || r.dirty)
+            .map(r => this.toMemberEntry(r)),
     );
 
     protected readonly addableMembers = computed<OverrideEntry[]>(() =>
-        this.memberRows().filter(r => r.perm === null && !r.dirty).map(r => this.toMemberEntry(r)),
+        this.memberRows()
+            .filter(r => r.perm === null && !r.dirty)
+            .map(r => this.toMemberEntry(r)),
     );
 
     ngOnInit(): void {
@@ -103,22 +122,30 @@ export class PermissionOverridesComponent implements OnInit {
         if (!row || row.saving) return;
 
         this.setRoleSaving(roleId, true);
-        this.gateway.upsert(this.scope(), {kind: 'role', id: roleId}, this.body(row.override)).subscribe({
-            next: perm => {
-                this.roleRows.update(list =>
-                    list.map(r => (r.subject.id === roleId ? {...r, perm, dirty: false, saving: false} : r)),
-                );
-                this.emitOverrides();
-            },
-            error: () => this.setRoleSaving(roleId, false),
-        });
+        this.gateway
+            .upsert(
+                this.scope(),
+                {kind: 'role', id: roleId} satisfies OverrideTarget,
+                this.body(row.override),
+            )
+            .subscribe({
+                next: perm => {
+                    this.roleRows.update(list =>
+                        list.map(r =>
+                            r.subject.id === roleId ? {...r, perm, dirty: false, saving: false} : r,
+                        ),
+                    );
+                    this.emitOverrides();
+                },
+                error: () => this.setRoleSaving(roleId, false),
+            });
     }
 
     deleteRole(roleId: string): void {
         const row = this.roleRows().find(r => r.subject.id === roleId);
         if (!row?.perm) return;
 
-        this.gateway.remove(this.scope(), {kind: 'role', id: roleId}).subscribe({
+        this.gateway.remove(this.scope(), {kind: 'role', id: roleId} satisfies OverrideTarget).subscribe({
             next: () => {
                 this.roleRows.update(list =>
                     list.map(r =>
@@ -147,22 +174,30 @@ export class PermissionOverridesComponent implements OnInit {
         if (!row || row.saving) return;
 
         this.setMemberSaving(memberId, true);
-        this.gateway.upsert(this.scope(), {kind: 'member', id: memberId}, this.body(row.override)).subscribe({
-            next: perm => {
-                this.memberRows.update(list =>
-                    list.map(r => (r.subject.id === memberId ? {...r, perm, dirty: false, saving: false} : r)),
-                );
-                this.emitOverrides();
-            },
-            error: () => this.setMemberSaving(memberId, false),
-        });
+        this.gateway
+            .upsert(
+                this.scope(),
+                {kind: 'member', id: memberId} satisfies OverrideTarget,
+                this.body(row.override),
+            )
+            .subscribe({
+                next: perm => {
+                    this.memberRows.update(list =>
+                        list.map(r =>
+                            r.subject.id === memberId ? {...r, perm, dirty: false, saving: false} : r,
+                        ),
+                    );
+                    this.emitOverrides();
+                },
+                error: () => this.setMemberSaving(memberId, false),
+            });
     }
 
     deleteMember(memberId: string): void {
         const row = this.memberRows().find(r => r.subject.id === memberId);
         if (!row?.perm) return;
 
-        this.gateway.remove(this.scope(), {kind: 'member', id: memberId}).subscribe({
+        this.gateway.remove(this.scope(), {kind: 'member', id: memberId} satisfies OverrideTarget).subscribe({
             next: () => {
                 this.memberRows.update(list =>
                     list.map(r =>
@@ -184,10 +219,9 @@ export class PermissionOverridesComponent implements OnInit {
     }
 
     private emitOverrides(): void {
-        const rows = [
-            ...this.roleRows().map(r => r.perm),
-            ...this.memberRows().map(r => r.perm),
-        ].filter((p): p is ChannelPermission => p !== null);
+        const rows = [...this.roleRows().map(r => r.perm), ...this.memberRows().map(r => r.perm)].filter(
+            (p): p is ChannelPermission => p !== null,
+        );
         this.overridesChanged.emit(rows);
     }
 

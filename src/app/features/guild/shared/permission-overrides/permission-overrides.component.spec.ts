@@ -8,13 +8,7 @@ import {PermissionOverridesComponent} from './permission-overrides.component';
 import {channelScope, categoryScope} from './permission-scope';
 import {GuildService} from '../../../../services/guild.service';
 import {ProfileService} from '../../../../services/profile.service';
-import {
-    ChannelDto,
-    ChannelType,
-    GuildDto,
-    RoleDto,
-    RoleType,
-} from '../../../../dtos/response/guild.dto';
+import {ChannelDto, ChannelType, GuildDto, RoleDto, RoleType} from '../../../../dtos/response/guild.dto';
 import {GuildMemberDto} from '../../../../dtos/response/member.dto';
 
 const CHANNEL = 'chan_1';
@@ -46,7 +40,13 @@ function channel(overrides: ChannelDto['permissions'] = []): ChannelDto {
 function setup(channelDto = channel()) {
     const guildService = {
         upsertChannelRolePermission: vi.fn(() =>
-            of({id: 'p1', channelId: CHANNEL, roleId: PLAYER, allowPermissions: 'SendMessages', denyPermissions: 'None'}),
+            of({
+                id: 'p1',
+                channelId: CHANNEL,
+                roleId: PLAYER,
+                allowPermissions: 'SendMessages',
+                denyPermissions: 'None',
+            }),
         ),
         deleteChannelRolePermission: vi.fn(() => of(void 0)),
         upsertChannelMemberPermission: vi.fn(() => of({id: 'p2'})),
@@ -65,8 +65,9 @@ function setup(channelDto = channel()) {
         ],
     });
 
-    const fixture: ComponentFixture<PermissionOverridesComponent> =
-        TestBed.createComponent(PermissionOverridesComponent);
+    const fixture: ComponentFixture<PermissionOverridesComponent> = TestBed.createComponent(
+        PermissionOverridesComponent,
+    );
     fixture.componentRef.setInput('scope', channelScope(channelDto));
     fixture.componentRef.setInput('guild', guild());
     fixture.detectChanges();
