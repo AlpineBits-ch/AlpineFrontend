@@ -43,8 +43,8 @@ export interface SceneOpenRequest {
 }
 
 /**
- * The archive's shelves. Two levels, with ALL and Unfiled always present. It scrolls on its own:
- * thirty folders do not fit beside the results.
+ * The scene folder tree. Two levels, with ALL and Unfiled always present. It holds no state and no
+ * services: the host remembers what is open and answers what a row asks for.
  */
 @Component({
     selector: 'app-scene-folder-rail',
@@ -61,13 +61,13 @@ export class SceneFolderRailComponent {
     readonly tree = input.required<FolderNode[]>();
     /** null is ALL. `UNFILED` is the bucket for scenes on no shelf. */
     readonly selected = input<string | null>(null);
-    /** The scene open beside the rail, if any. */
+    /** The scene currently on screen, if any. */
     readonly activeChannelId = input<string | null>(null);
     readonly canManage = input(false);
     /** Scenes filed on each folder, by folder id. A shelf with no entry simply has none loaded. */
     readonly scenesByFolder = input<Readonly<Record<string, readonly SceneLeaf[]>>>({});
     readonly recent = input<readonly SceneLeaf[]>([]);
-    /** Open shelves. The rail does not own this: the host remembers it. */
+    /** Open shelves. The tree does not own this: the host remembers it. */
     readonly expandedIds = input<readonly string[]>([]);
     readonly loadingFolderIds = input<readonly string[]>([]);
     /** Shelves whose page is capped, so their count is a floor. */

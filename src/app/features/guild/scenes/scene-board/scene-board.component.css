@@ -210,59 +210,6 @@
     }
 }
 
-/* ── Folder rail ────────────────────────────────────────────────────────── */
-.board-rail-toggle {
-    display: flex;
-    align-items: center;
-    gap: 0.3125rem;
-    border: 1px solid var(--color-border-subtle);
-    border-radius: 0.4375rem;
-    padding: 0.25rem 0.5rem;
-    font-size: 0.65625rem;
-    font-weight: 600;
-    color: var(--color-text-muted);
-    cursor: pointer;
-    transition:
-        background-color var(--duration-base) var(--ease-brand),
-        color var(--duration-base) var(--ease-brand);
-}
-
-.board-rail-toggle:hover {
-    color: var(--color-text-secondary);
-}
-
-.board-rail-toggle.is-on {
-    background: rgba(255, 255, 255, 0.06);
-    color: var(--color-text-primary);
-}
-
-/* The rail's own control, kept beside the rail while a scene takes the header's title region. */
-.board-rail-pin {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex: none;
-    width: 1.5rem;
-    height: 1.5rem;
-    border: 0;
-    border-radius: 0.375rem;
-    background: transparent;
-    color: var(--color-text-muted);
-    cursor: pointer;
-    transition:
-        background-color var(--duration-base) var(--ease-brand),
-        color var(--duration-base) var(--ease-brand);
-}
-
-.board-rail-pin:hover {
-    background: rgba(255, 255, 255, 0.06);
-    color: var(--color-text-primary);
-}
-
-.board-rail-pin.is-on {
-    color: var(--color-text-secondary);
-}
-
 /* A folder section wears its own colour, so the arcs stay apart when several are on screen. */
 .board-group[style*='--group-accent'] {
     padding-left: 0.5rem;

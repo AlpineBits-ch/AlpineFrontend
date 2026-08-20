@@ -13,19 +13,16 @@ import {RelativeTimePipe} from '../../../../pipes/relative-time.pipe';
 import {TurnClockRingComponent} from '../turn-clock-ring/turn-clock-ring.component';
 import {SceneDialogComponent} from '../scene-dialog/scene-dialog.component';
 import {SceneArchiveComponent} from '../scene-archive/scene-archive.component';
-import {SceneFolderPanelComponent} from '../scene-folder-panel.component';
 import {SceneBreadcrumbComponent} from '../scene-breadcrumb.component';
 // One way only: `channel` imports `scene-header` from this folder, so `scene-header` and anything
 // it pulls in must never import the board. A cycle here is silent until the bundler complains.
 import {ChannelComponent} from '../../components/channel/channel.component';
 import {countByFolder, FolderNode, folderTree} from '../scene-archive/folder-tree';
-import {leavesByFolder, recentScenes} from '../scene-leaf';
 import {SceneService} from '../../../../services/scene.service';
 import {PersonaService} from '../../../../services/persona.service';
 import {GuildService} from '../../../../services/guild.service';
 import {ProfileService} from '../../../../services/profile.service';
 import {ToastService} from '../../../../services/toast.service';
-import {SceneRailStateService} from '../../../../services/scene-rail-state.service';
 import {SceneTaxonomyService} from '../../../../services/scene-taxonomy.service';
 import {NavigationService, SceneBoardMode} from '../../../main-page/navigation.service';
 import {SceneListItemDto, SceneStatus} from '../../../../dtos/response/scene.dto';
@@ -73,7 +70,6 @@ export interface SceneGroup {
         TurnClockRingComponent,
         SceneDialogComponent,
         SceneArchiveComponent,
-        SceneFolderPanelComponent,
         SceneBreadcrumbComponent,
         ChannelComponent,
     ],
@@ -93,7 +89,6 @@ export class SceneBoardComponent {
     private readonly toast = inject(ToastService);
     private readonly translate = inject(TranslateService);
     protected readonly nav = inject(NavigationService);
-    private readonly railState = inject(SceneRailStateService);
     private readonly taxonomy = inject(SceneTaxonomyService);
 
     protected get SceneStatus() {
@@ -101,8 +96,6 @@ export class SceneBoardComponent {
     }
 
     protected readonly creating = signal(false);
-
-    protected readonly seedFolderId = signal<string | null>(null);
 
     /** The scenes view this board is drawing, or null while the main view is somewhere else. */
     private readonly view = computed(() => {
@@ -132,8 +125,6 @@ export class SceneBoardComponent {
 
     protected readonly loading = computed(() => this.scenes.isLoading(this.guildId()));
 
-    protected readonly railVisible = computed(() => this.railState.railVisible(this.guildId()));
-
     /**
      * The channel filling the content pane. A channel that has gone, or one whose type this build
      * would not draw as a message view, falls back to the board rather than an empty or wrong pane.
@@ -145,29 +136,14 @@ export class SceneBoardComponent {
         return channel && channelViewFor(channel.type) === 'message' ? channel : null;
     });
 
-    /** What the rail marks: the scene itself, which stays current while its OOC side is on screen. */
-    protected readonly activeSceneChannelId = computed(() => {
-        const channel = this.sceneChannel();
-        if (!channel) return null;
-        return this.scenes.sceneForOoc(this.guildId(), channel.id)?.channelId ?? channel.id;
-    });
-
     /** The board is the live board: a concluded scene belongs to the archive, not to a count or a
-     *  leaf here. Shared so the tree, the rail and the rows never disagree with each other. */
+     *  leaf here. Shared so the tree and the rows never disagree with each other. */
     private readonly liveScenes = computed(() =>
         this.scenes.scenes(this.guildId()).filter(scene => scene.status !== SceneStatus.Concluded),
     );
 
     protected readonly tree = computed(() =>
         folderTree(this.taxonomy.folders(this.guildId()), countByFolder(this.liveScenes())),
-    );
-
-    protected readonly scenesByFolder = computed(() =>
-        leavesByFolder(this.liveScenes(), this.scenes.speakableIds(this.guildId())),
-    );
-
-    protected readonly recent = computed(() =>
-        recentScenes(this.liveScenes(), this.scenes.speakableIds(this.guildId())),
     );
 
     constructor() {
@@ -220,7 +196,7 @@ export class SceneBoardComponent {
             : [];
         stalled.forEach(row => taken.add(row.scene.channelId));
 
-        return this.railVisible() && this.tree().length
+        return this.tree().length
             ? this.folderGroups(rows, yours, stalled, taken)
             : this.statusGroups(rows, yours, stalled, taken);
     });
@@ -325,7 +301,7 @@ export class SceneBoardComponent {
         return ids;
     }
 
-    /** "Act I / Greyford" style, matching the rail's move-to-folder targets. */
+    /** "Act I / Greyford" style, matching the tree's move-to-folder targets. */
     private readonly folderPaths = computed(() => {
         const paths = new Map<string, string>();
         const walk = (nodes: FolderNode[], parentPath: string | null) => {
@@ -362,21 +338,6 @@ export class SceneBoardComponent {
 
     protected pick(folderId: string | null): void {
         this.nav.openSceneFolder(this.guildId(), folderId, this.mode());
-    }
-
-    protected toggleRail(): void {
-        this.railState.setRailVisible(this.guildId(), !this.railVisible());
-    }
-
-    protected createIn(folderId: string | null): void {
-        this.seedFolderId.set(folderId);
-        this.creating.set(true);
-    }
-
-    protected file(channelId: string, folderId: string | null): void {
-        this.scenes.update(this.guildId(), channelId, {folderId}).subscribe({
-            error: err => this.toast.httpError(this.translate.instant('SCENE.ARCHIVE.FILE_ERROR'), err),
-        });
     }
 }
 

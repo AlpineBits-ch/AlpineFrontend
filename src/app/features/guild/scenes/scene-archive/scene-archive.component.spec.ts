@@ -11,19 +11,12 @@ import {SceneTaxonomyService} from '../../../../services/scene-taxonomy.service'
 import {SceneService} from '../../../../services/scene.service';
 import {GuildService} from '../../../../services/guild.service';
 import {ToastService} from '../../../../services/toast.service';
-import {SceneRailStateService} from '../../../../services/scene-rail-state.service';
 import {MainView, NavigationService} from '../../../main-page/navigation.service';
-import {
-    SceneDto,
-    SceneFolderDto,
-    SceneListDto,
-    SceneListItemDto,
-    SceneStatus,
-} from '../../../../dtos/response/scene.dto';
+import {SceneDto, SceneFolderDto, SceneListDto, SceneStatus} from '../../../../dtos/response/scene.dto';
 import {SceneListParams} from '../../../../dtos/request/scene.dto';
 
-// This runner's `localStorage` global has no methods, so `SceneRailStateService` would silently
-// no-op every write. Same Map-backed stand-in `scene-rail-state.service.spec.ts` uses.
+// This runner's `localStorage` global has no methods, so anything reading it would silently see
+// nothing stored. Same Map-backed stand-in `scene-rail-state.service.spec.ts` uses.
 const localStore = new Map<string, string>();
 
 beforeAll(() => {
@@ -42,18 +35,6 @@ beforeEach(() => localStore.clear());
 
 function folder(id: string, parentFolderId: string | null = null, position = 0): SceneFolderDto {
     return {id, guildId: 'g1', name: id.toUpperCase(), position, parentFolderId};
-}
-
-/** A page of scenes, `PAGE_SIZE` (50) rows or fewer. A full page leaves the shelf unexhausted. */
-function page(count: number): SceneListDto {
-    return {
-        scenes: Array.from({length: count}, (_, i): SceneListItemDto => ({
-            channelId: `ch_${i}`,
-            name: `Scene ${i}`,
-            status: SceneStatus.Concluded,
-        })),
-        truncated: false,
-    };
 }
 
 function setup(folders: SceneFolderDto[]) {
@@ -122,74 +103,35 @@ function setup(folders: SceneFolderDto[]) {
     return {fixture, responses, calls, view};
 }
 
-/** Expands a shelf and lets the peek effect fire, so a response subject exists for it. */
-function expand(fixture: ComponentFixture<SceneArchiveComponent>, folderId: string): void {
-    TestBed.inject(SceneRailStateService).toggle('g1', folderId);
-    fixture.detectChanges();
-}
-
 function reach(component: SceneArchiveComponent): Record<string, (...args: never[]) => unknown> {
     return component as unknown as Record<string, (...args: never[]) => unknown>;
 }
 
-describe('SceneArchiveComponent shelf counts', () => {
-    it('does not mark a childless shelf partial once its own page is exhausted', () => {
-        const {fixture, responses} = setup([folder('a')]);
-        expand(fixture, 'a');
-
-        responses['a'].next(page(5));
-        fixture.detectChanges();
-
-        expect(reach(fixture.componentInstance)['partialFolderIds']()).not.toContain('a');
-    });
-
-    it('marks a parent partial while an unexpanded child has never been read', () => {
-        const {fixture, responses} = setup([folder('a'), folder('a1', 'a')]);
-        expand(fixture, 'a');
-        // 'a1' is never expanded, so its own peek never fires and it stays unread.
-
-        responses['a'].next(page(5));
-        fixture.detectChanges();
-
-        expect(reach(fixture.componentInstance)['partialFolderIds']()).toContain('a');
-    });
-
-    it('marks a childless shelf partial while its own page is still capped', () => {
-        const {fixture, responses} = setup([folder('a')]);
-        expand(fixture, 'a');
-
-        responses['a'].next(page(50));
-        fixture.detectChanges();
-
-        expect(reach(fixture.componentInstance)['partialFolderIds']()).toContain('a');
-    });
-});
-
 describe('SceneArchiveComponent filing', () => {
-    it('invalidates both the old and new shelf, and clears the old cache, once a move settles', () => {
-        const {fixture, responses} = setup([folder('a'), folder('b')]);
-        expand(fixture, 'a');
+    it('invalidates both the old and the new shelf once a move settles', () => {
+        const {fixture, responses, view} = setup([folder('a'), folder('b')]);
+        view.update(held => ({...held, folderId: 'a'}));
+        fixture.detectChanges();
         responses['a'].next({
             scenes: [{channelId: 'ch_0', name: 'Scene 0', status: SceneStatus.Active, folderId: 'a'}],
             truncated: false,
         });
         fixture.detectChanges();
 
-        const archive = TestBed.inject(SceneArchiveService);
-        const invalidateSpy = vi.spyOn(archive, 'invalidateShelves');
+        const invalidateSpy = vi.spyOn(TestBed.inject(SceneArchiveService), 'invalidateShelves');
 
         reach(fixture.componentInstance)['file']('ch_0' as never, 'b' as never);
         fixture.detectChanges();
 
         expect(invalidateSpy).toHaveBeenCalledWith('g1', 'a', 'b');
-        expect(archive.peeked('g1', 'a')).toHaveLength(0);
     });
 
     /** A shelf and that shelf selected unfiltered are one cache key, so invalidation can empty the
      *  list on screen. Two scenes on the shelf is what tells "re-read" apart from "wiped". */
     it('keeps the rest of the shelf on screen when a card is filed out of the one being browsed', () => {
         const {fixture, responses, calls, view} = setup([folder('a'), folder('b')]);
-        expand(fixture, 'a');
+        view.update(held => ({...held, folderId: 'a'}));
+        fixture.detectChanges();
         responses['a'].next({
             scenes: [
                 {channelId: 'ch_0', name: 'Scene 0', status: SceneStatus.Active, folderId: 'a'},
@@ -200,8 +142,6 @@ describe('SceneArchiveComponent filing', () => {
         fixture.detectChanges();
 
         const archive = TestBed.inject(SceneArchiveService);
-        view.update(held => ({...held, folderId: 'a'}));
-        fixture.detectChanges();
         expect(archive.scenes()).toHaveLength(2);
 
         const readsOfA = () => calls.filter(params => params.folderId === 'a').length;

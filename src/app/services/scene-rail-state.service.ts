@@ -7,15 +7,13 @@ const EMPTY: readonly string[] = [];
 interface RailState {
     /** Open shelves, per guild. */
     expanded: Record<string, string[]>;
-    /** Whether the playing screen shows the rail, per guild. */
-    visible: Record<string, boolean>;
     /** Whether the sidebar's scenes section is open, per guild. */
     navOpen: Record<string, boolean>;
     /** Pixels, not per guild: a person wants one rail width everywhere. Null uses the default. */
     width: number | null;
 }
 
-/** What the folder rail remembers between visits: which shelves are open, and whether it is shown. */
+/** What the folder tree remembers between visits: the open shelves, the sidebar section, the width. */
 @Injectable({providedIn: 'root'})
 export class SceneRailStateService {
     private readonly state = signal<RailState>(read());
@@ -35,17 +33,6 @@ export class SceneRailStateService {
             const next = open.includes(folderId) ? open.filter(id => id !== folderId) : [...open, folderId];
             return {...state, expanded: {...state.expanded, [guildId]: next}};
         });
-        this.persist();
-    }
-
-    /** Shown unless the reader has hidden it. An unset guild is a new one, not a hidden one. */
-    railVisible(guildId: string | null | undefined): boolean {
-        if (!guildId) return false;
-        return this.state().visible[guildId] ?? true;
-    }
-
-    setRailVisible(guildId: string, visible: boolean): void {
-        this.state.update(state => ({...state, visible: {...state.visible, [guildId]: visible}}));
         this.persist();
     }
 
@@ -79,14 +66,13 @@ export class SceneRailStateService {
 }
 
 function read(): RailState {
-    const empty: RailState = {expanded: {}, visible: {}, navOpen: {}, width: null};
+    const empty: RailState = {expanded: {}, navOpen: {}, width: null};
     try {
         const raw = localStorage.getItem(SCENE_RAIL_STORAGE_KEY);
         if (!raw) return empty;
         const parsed = JSON.parse(raw) as Partial<RailState>;
         return {
             expanded: parsed.expanded ?? {},
-            visible: parsed.visible ?? {},
             navOpen: parsed.navOpen ?? {},
             width: typeof parsed.width === 'number' ? parsed.width : null,
         };

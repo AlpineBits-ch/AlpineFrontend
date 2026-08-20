@@ -60,20 +60,11 @@ describe('SceneRailStateService', () => {
         expect(service().isExpanded('g1', 'f1')).toBe(true);
     });
 
-    it('shows the rail until the reader hides it, and remembers the hiding', () => {
-        const state = service();
-
-        expect(state.railVisible('g1')).toBe(true);
-        state.setRailVisible('g1', false);
-
-        expect(service().railVisible('g1')).toBe(false);
-    });
-
     it('answers for a missing guild id without throwing', () => {
         const state = service();
 
         expect(state.expanded(null)).toEqual([]);
-        expect(state.railVisible(undefined)).toBe(false);
+        expect(state.navOpen(undefined)).toBe(false);
     });
 
     it('starts the sidebar section closed', () => {

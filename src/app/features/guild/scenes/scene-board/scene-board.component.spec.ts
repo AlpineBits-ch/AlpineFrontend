@@ -6,7 +6,6 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 
 import {SceneBoardComponent, SceneGroup} from './scene-board.component';
 import {SceneService} from '../../../../services/scene.service';
-import {SceneRailStateService} from '../../../../services/scene-rail-state.service';
 import {SceneTaxonomyService} from '../../../../services/scene-taxonomy.service';
 import {PersonaService} from '../../../../services/persona.service';
 import {GuildService} from '../../../../services/guild.service';
@@ -135,10 +134,7 @@ function setup(scenes = SCENES, folders = FOLDERS, channels: ChannelDto[] = []) 
         component: fixture.componentInstance as unknown as {
             groups: () => SceneGroup[];
             tree: () => {folder: {id: string}; count: number}[];
-            scenesByFolder: () => Record<string, {channelId: string}[]>;
-            recent: () => {channelId: string}[];
             sceneChannel: () => {id: string} | null;
-            activeSceneChannelId: () => string | null;
             pick: (folderId: string | null) => void;
         },
     };
@@ -153,17 +149,15 @@ describe('SceneBoardComponent grouping', () => {
 
     afterEach(() => restoreStorage());
 
-    it('groups by status while the rail is hidden', () => {
-        const {fixture, component} = setup();
-        TestBed.inject(SceneRailStateService).setRailVisible('g1', false);
+    it('groups by status when the guild files nothing', () => {
+        const {fixture, component} = setup(SCENES, []);
         fixture.detectChanges();
 
         expect(component.groups().map(g => g.key)).toEqual(['yours', 'running']);
     });
 
-    it('groups by folder once the rail is shown', () => {
+    it('groups by folder whenever the guild has folders', () => {
         const {fixture, component} = setup();
-        TestBed.inject(SceneRailStateService).setRailVisible('g1', true);
         fixture.detectChanges();
 
         const keys = component.groups().map(g => g.key);
@@ -175,7 +169,6 @@ describe('SceneBoardComponent grouping', () => {
 
     it('does not repeat a pinned scene inside its folder section', () => {
         const {fixture, component} = setup();
-        TestBed.inject(SceneRailStateService).setRailVisible('g1', true);
         fixture.detectChanges();
 
         const actOne = component.groups().find(g => g.key === 'folder:a');
@@ -184,7 +177,6 @@ describe('SceneBoardComponent grouping', () => {
 
     it('names the folder a pinned scene came from', () => {
         const {fixture, component} = setup();
-        TestBed.inject(SceneRailStateService).setRailVisible('g1', true);
         fixture.detectChanges();
 
         const yours = component.groups().find(g => g.key === 'yours');
@@ -196,7 +188,6 @@ describe('SceneBoardComponent grouping', () => {
             [scene({channelId: 'deep', name: 'The Long Road', folderId: 'a1', currentTurnPersonaId: 'p1'})],
             [...FOLDERS, folder('a1', 'Greyford', 0, 'a')],
         );
-        TestBed.inject(SceneRailStateService).setRailVisible('g1', true);
         fixture.detectChanges();
 
         const yours = component.groups().find(g => g.key === 'yours');
@@ -205,7 +196,6 @@ describe('SceneBoardComponent grouping', () => {
 
     it('shows only the chosen folder when one is selected', () => {
         const {fixture, component} = setup();
-        TestBed.inject(SceneRailStateService).setRailVisible('g1', true);
         component.pick('b');
         fixture.detectChanges();
 
@@ -215,7 +205,6 @@ describe('SceneBoardComponent grouping', () => {
 
     it('keeps a scene waiting on you visible when its own folder is selected', () => {
         const {fixture, component} = setup();
-        TestBed.inject(SceneRailStateService).setRailVisible('g1', true);
         component.pick('a');
         fixture.detectChanges();
 
@@ -225,7 +214,6 @@ describe('SceneBoardComponent grouping', () => {
 
     it('shows only the unfiled scene when the unfiled bucket is selected', () => {
         const {fixture, component} = setup();
-        TestBed.inject(SceneRailStateService).setRailVisible('g1', true);
         component.pick('unfiled');
         fixture.detectChanges();
 
@@ -244,7 +232,7 @@ describe('SceneBoardComponent opening a row', () => {
 
     afterEach(() => restoreStorage());
 
-    it('raises the same message the rail raises for a channel that is not in the guild', () => {
+    it('raises a message for a channel that is not in the guild', () => {
         const {fixture} = setup();
         const toast = TestBed.inject(ToastService) as unknown as {error: ReturnType<typeof vi.fn>};
 
@@ -267,16 +255,17 @@ describe('SceneBoardComponent shell', () => {
 
     afterEach(() => restoreStorage());
 
-    it('draws its own header and grouping while no scene is open', () => {
+    it('draws its own header and grouping while no scene is open, and no folder panel', () => {
         const {fixture, component} = setup();
 
         expect(component.sceneChannel()).toBeNull();
+        expect(fixture.nativeElement.querySelector('app-scene-folder-panel')).toBeNull();
         expect(fixture.nativeElement.querySelector('header.app-header')).not.toBeNull();
         expect(fixture.nativeElement.querySelector('app-scene-breadcrumb')).toBeNull();
         expect(fixture.nativeElement.querySelector('.board-row')).not.toBeNull();
     });
 
-    it('hosts the scene beside the rail once one is open', () => {
+    it('hosts the scene in the shell once one is open', () => {
         const {fixture, view, component} = setup(SCENES, FOLDERS, [chan('mine')]);
         view.update(held => ({...held, sceneChannelId: 'mine'}));
         fixture.detectChanges();
@@ -295,19 +284,6 @@ describe('SceneBoardComponent shell', () => {
         expect(fixture.nativeElement.querySelector('header.app-header')).toBeNull();
         const projected = fixture.nativeElement.querySelector('[channelTitle] app-scene-breadcrumb');
         expect(projected).not.toBeNull();
-    });
-
-    it('keeps the rail marking the scene while its out-of-character side is hosted', () => {
-        const {fixture, view, component} = setup(
-            [scene({channelId: 'mine', name: 'The Ford at Dawn', folderId: 'a', oocThreadId: 'mine-ooc'})],
-            FOLDERS,
-            [chan('mine'), chan('mine-ooc', ChannelType.Thread)],
-        );
-        view.update(held => ({...held, sceneChannelId: 'mine-ooc'}));
-        fixture.detectChanges();
-
-        expect(component.sceneChannel()?.id).toBe('mine-ooc');
-        expect(component.activeSceneChannelId()).toBe('mine');
     });
 
     it('falls back to the board for a channel whose type is not a message view', () => {
@@ -346,26 +322,11 @@ describe('SceneBoardComponent concluded scenes', () => {
         expect(folderA?.count).toBe(2);
     });
 
-    it('leaves a concluded scene out of the rail leaves', () => {
-        const {fixture, component} = setup();
-        fixture.detectChanges();
-
-        expect(component.scenesByFolder()['a']?.map(leaf => leaf.channelId)).not.toContain('done');
-    });
-
     it('leaves a concluded scene out of the board groups', () => {
         const {fixture, component} = setup();
-        TestBed.inject(SceneRailStateService).setRailVisible('g1', true);
         fixture.detectChanges();
 
         const channelIds = component.groups().flatMap(g => g.rows.map(r => r.scene.channelId));
         expect(channelIds).not.toContain('done');
-    });
-
-    it('leaves a concluded scene out of recent', () => {
-        const {fixture, component} = setup();
-        fixture.detectChanges();
-
-        expect(component.recent().map(leaf => leaf.channelId)).not.toContain('done');
     });
 });

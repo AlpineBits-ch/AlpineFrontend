@@ -60,7 +60,8 @@ function setup(options: Options = {}) {
                 provide: SceneService,
                 useValue: {
                     scenes: () => options.scenes ?? SCENES,
-                    sceneForOoc: () => null,
+                    sceneForOoc: (_g: string, threadId: string) =>
+                        (options.scenes ?? SCENES).find(row => row.oocThreadId === threadId) ?? null,
                     speakableIds: () => new Set(['p1']),
                     ensureGuild: () => undefined,
                     update: () => of(undefined),
@@ -172,6 +173,23 @@ describe('SceneNavComponent', () => {
 
         const tree = reach(fixture)['tree']() as {folder: {id: string}; count: number}[];
         expect(tree.find(node => node.folder.id === 'a')?.count).toBe(2);
+    });
+
+    it('leaves a concluded scene out of the shelf leaves', () => {
+        const {fixture} = setup();
+
+        const byFolder = reach(fixture)['scenesByFolder']() as Record<string, {channelId: string}[]>;
+        expect(byFolder['a'].map(leaf => leaf.channelId)).not.toContain('done');
+    });
+
+    it('keeps the scene marked while its out-of-character side is the one hosted', () => {
+        const {fixture, view} = setup({
+            scenes: [scene({channelId: 'mine', name: 'The Ford at Dawn', oocThreadId: 'mine-ooc'})],
+        });
+        view.update(held => ({...held, sceneChannelId: 'mine-ooc'}));
+        fixture.detectChanges();
+
+        expect(reach(fixture)['activeChannelId']()).toBe('mine');
     });
 
     it('filters the scenes view to the shelf that was chosen', () => {

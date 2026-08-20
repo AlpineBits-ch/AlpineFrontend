@@ -350,7 +350,7 @@ export class NavigationService {
         this.showScenes(guildId, mode, folderId, null);
     }
 
-    /** Opens a scene inside the shell, with the rail and the breadcrumb beside it. */
+    /** Opens a scene inside the shell, with the breadcrumb above it. */
     openSceneChannel(guildId: string, channelId: string, fromStart = false): void {
         if (fromStart) this.readFromStart.set(channelId);
         this.showScenes(guildId, this.sceneMode, this.sceneFolderId, channelId);

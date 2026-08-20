@@ -1,12 +1,25 @@
-@if (bare()) {
-    <ng-container *ngTemplateOutlet="railTree"></ng-container>
-} @else {
-    <aside #rail class="folder-panel thin-scrollbar">
-        <ng-container *ngTemplateOutlet="railTree"></ng-container>
-
-        <div [target]="rail" appRailResize class="folder-panel-handle"></div>
-    </aside>
-}
+<app-scene-folder-rail
+    (createFolder)="editing.set({folder: null, seedParentId: $event})"
+    (createScene)="createScene.emit($event)"
+    (deleteFolder)="editing.set({folder: $event.folder, seedParentId: null})"
+    (filed)="filed.emit($event)"
+    (openScene)="onOpenScene($event.channelId, $event.fromStart)"
+    (picked)="picked.emit($event)"
+    (renameFolder)="editing.set({folder: $event.folder, seedParentId: null})"
+    (reordered)="reorder($event)"
+    (showAll)="picked.emit($event)"
+    (toggled)="toggleShelf($event)"
+    [activeChannelId]="activeChannelId()"
+    [canManage]="canManage()"
+    [expandedIds]="expandedIds()"
+    [loadingFolderIds]="loadingFolderIds()"
+    [partialFolderIds]="partialFolderIds()"
+    [recent]="recent()"
+    [rootCap]="rootCap()"
+    [scenesByFolder]="scenesByFolder()"
+    [selected]="selected()"
+    [tree]="tree()"
+/>
 
 <!-- Delete comes through here too: the editor holds the only confirm. -->
 @if (editing(); as target) {
@@ -17,28 +30,3 @@
         [seedParentId]="target.seedParentId"
     />
 }
-
-<ng-template #railTree>
-    <app-scene-folder-rail
-        (createFolder)="editing.set({folder: null, seedParentId: $event})"
-        (createScene)="createScene.emit($event)"
-        (deleteFolder)="editing.set({folder: $event.folder, seedParentId: null})"
-        (filed)="filed.emit($event)"
-        (openScene)="onOpenScene($event.channelId, $event.fromStart)"
-        (picked)="picked.emit($event)"
-        (renameFolder)="editing.set({folder: $event.folder, seedParentId: null})"
-        (reordered)="reorder($event)"
-        (showAll)="picked.emit($event)"
-        (toggled)="toggleShelf($event)"
-        [activeChannelId]="activeChannelId()"
-        [canManage]="canManage()"
-        [expandedIds]="expandedIds()"
-        [loadingFolderIds]="loadingFolderIds()"
-        [partialFolderIds]="partialFolderIds()"
-        [recent]="recent()"
-        [rootCap]="rootCap()"
-        [scenesByFolder]="scenesByFolder()"
-        [selected]="selected()"
-        [tree]="tree()"
-    />
-</ng-template>

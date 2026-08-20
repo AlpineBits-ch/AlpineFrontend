@@ -1,18 +1,4 @@
 <div class="flex min-h-0 flex-1 overflow-hidden">
-    <app-scene-folder-panel
-        (createScene)="createSceneIn.emit($event)"
-        (filed)="file($event.channelId, $event.folderId)"
-        (picked)="pick($event)"
-        [canManage]="canManage()"
-        [guildId]="guildId()"
-        [loadingFolderIds]="loadingFolderIds()"
-        [partialFolderIds]="partialFolderIds()"
-        [recent]="recent()"
-        [scenesByFolder]="scenesByFolder()"
-        [selected]="folderId()"
-        [tree]="tree()"
-    />
-
     <div class="flex min-w-0 flex-1 flex-col">
         <div class="archive-filters">
             <div class="archive-search">

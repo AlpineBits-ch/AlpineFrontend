@@ -1,9 +1,7 @@
 import {ChangeDetectionStrategy, Component, computed, inject, input, output, signal} from '@angular/core';
-import {NgTemplateOutlet} from '@angular/common';
 import {TranslateService} from '@ngx-translate/core';
 
 import {SceneFolderRailComponent} from './scene-folder-rail.component';
-import {RailResizeDirective} from '../../../shared/rail-resize.directive';
 import {SceneFolderEditorComponent} from './scene-folder-editor.component';
 import {FolderNode} from './scene-archive/folder-tree';
 import {SceneLeaf} from './scene-leaf';
@@ -21,16 +19,14 @@ interface FolderEdit {
 }
 
 /**
- * The folder rail's chrome: the resizable aside, expansion state, reordering and the folder
- * editor. Shared by the archive and the board, which draw the tree differently but wrap it the
- * same way.
+ * The folder rail's chrome: expansion state, reordering and the folder editor. The sidebar's
+ * scenes section wraps this; the rail itself stays free of services.
  */
 @Component({
     selector: 'app-scene-folder-panel',
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [NgTemplateOutlet, SceneFolderRailComponent, RailResizeDirective, SceneFolderEditorComponent],
+    imports: [SceneFolderRailComponent, SceneFolderEditorComponent],
     templateUrl: './scene-folder-panel.component.html',
-    styleUrl: './scene-folder-panel.component.css',
     host: {class: 'contents'},
 })
 export class SceneFolderPanelComponent {
@@ -48,8 +44,6 @@ export class SceneFolderPanelComponent {
     readonly activeChannelId = input<string | null>(null);
     /** Root shelves before the rest go behind one row. 0 draws them all. */
     readonly rootCap = input(0);
-    /** The sidebar has a column of its own, so it takes the tree without the aside around it. */
-    readonly bare = input(false);
 
     readonly picked = output<string | null>();
     readonly createScene = output<string | null>();
