@@ -481,6 +481,15 @@ export function renderBlocks(editor: HTMLElement, segments: EditorSegment[]): HT
 }
 
 /**
+ * True when the editor holds no message at all. A `<br>` does not count as content: the browser
+ * leaves one behind on its own when the last character is deleted.
+ */
+export function isEditorBlank(editor: HTMLElement): boolean {
+    if ((editor.textContent ?? '') !== '') return false;
+    return !editor.querySelector('img[data-emoji], .mention-chip, .attachment-chip');
+}
+
+/**
  * Browsers do not render a trailing `<br>` as a visible line unless something follows it, so the
  * cursor cannot land on the empty line after Shift+Enter without this.
  */

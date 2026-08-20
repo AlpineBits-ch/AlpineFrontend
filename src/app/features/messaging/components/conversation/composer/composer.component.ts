@@ -44,6 +44,7 @@ import {
     getEditorSegments,
     getTextCursorOffset,
     highlightBlock,
+    isEditorBlank,
     needsReblock,
     renderBlocks,
     restoreCursorOffset,
@@ -1315,6 +1316,13 @@ export class ComposerComponent {
      * and resets the scroll position, none of which survive an `innerHTML` swap.
      */
     private applyMarkdownHighlighting(editor: HTMLElement): void {
+        // The browser's filler <br> reads as a newline here, so deleting the last character would
+        // otherwise leave the composer a line taller than an untouched one.
+        if (isEditorBlank(editor)) {
+            if (editor.innerHTML !== '') editor.innerHTML = '';
+            return;
+        }
+
         if (needsReblock(editor)) {
             this.rebuildBlocks(editor);
             return;

@@ -288,4 +288,55 @@ describe('ComposerComponent', () => {
             expect(sent.mock.calls[0][0].personaId).toBeUndefined();
         });
     });
+
+    /**
+     * Chrome leaves a filler <br> behind when the last character of a block is deleted. Read as a
+     * newline it gives the empty composer a second line, which is what put the placeholder above
+     * the attach button.
+     */
+    describe('deleting back to empty', () => {
+        function editorEl(): HTMLElement {
+            return fixture.nativeElement.querySelector('[contenteditable]') as HTMLElement;
+        }
+
+        function caretIn(node: Node): void {
+            const range = document.createRange();
+            range.setStart(node, 0);
+            range.collapse(true);
+            const sel = window.getSelection()!;
+            sel.removeAllRanges();
+            sel.addRange(range);
+        }
+
+        it('keeps no line behind after the last character goes', () => {
+            const editor = editorEl();
+            editor.innerHTML = '<span data-block=""><br></span>';
+            caretIn(editor.firstElementChild!);
+
+            component.onInput();
+
+            expect(editor.querySelectorAll('br')).toHaveLength(0);
+            expect(editor.innerHTML).toBe('');
+        });
+
+        it('keeps no empty block behind after select-all delete', () => {
+            const editor = editorEl();
+            editor.innerHTML = '';
+            caretIn(editor);
+
+            component.onInput();
+
+            expect(editor.innerHTML).toBe('');
+        });
+
+        it('still marks the empty line after a trailing newline', () => {
+            const editor = editorEl();
+            editor.innerHTML = '<span data-block="">a<br></span>';
+            caretIn(editor.firstElementChild!);
+
+            component.onInput();
+
+            expect(editor.querySelectorAll('br[data-sentinel]')).toHaveLength(1);
+        });
+    });
 });
