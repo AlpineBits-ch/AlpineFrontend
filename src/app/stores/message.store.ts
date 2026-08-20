@@ -38,6 +38,54 @@ interface ConversationMeta {
     hasMore: boolean;
     loadingMore: boolean;
     error?: number;
+
+    // ── Anchored windows ────────────────────────────────────────────────────
+    // An ordinary window grows backwards from the newest message and has one edge. Reading a
+    // scene from its first post needs the other edge too, so the view can stop short of the
+    // present instead of jumping to it.
+    /** Seeded by a cursor rather than by the newest page. `offset` means nothing while set. */
+    anchored?: boolean;
+    /** Newer messages exist beyond the window. Only meaningful while anchored. */
+    hasNewer?: boolean;
+    loadingNewer?: boolean;
+    /**
+     * The newest message the window reaches, as `createdAt` plus its id. Anything past it is held
+     * but not shown: putting turn 47 under turn 3 is the failure this exists to prevent.
+     */
+    windowEndAt?: string;
+    windowEndId?: string;
+}
+
+/** Total order on a channel's backlog, matching the server's `(created_at, message_id)` ordering. */
+function isAfter(at: string, id: string, endAt: string, endId: string): boolean {
+    const a = new Date(at).getTime();
+    const b = new Date(endAt).getTime();
+    if (a !== b) return a > b;
+    return id > endId;
+}
+
+/**
+ * Whether a message falls inside the window as it currently stands. Everything is inside an
+ * unanchored window, which is what makes this free for every ordinary channel.
+ */
+export function withinWindow(
+    meta: {anchored?: boolean; windowEndAt?: string; windowEndId?: string} | undefined,
+    message: {id: string; createdAt: string | Date},
+): boolean {
+    if (!meta?.anchored || !meta.windowEndAt || !meta.windowEndId) return true;
+    const at = message.createdAt instanceof Date ? message.createdAt.toISOString() : message.createdAt;
+    return !isAfter(at, message.id, meta.windowEndAt, meta.windowEndId);
+}
+
+/** The far end of a page, in the same total order. */
+function newestOf(messages: MessageDto[]): {at: string; id: string} | null {
+    let best: {at: string; id: string} | null = null;
+    for (const message of messages) {
+        const at =
+            message.createdAt instanceof Date ? message.createdAt.toISOString() : String(message.createdAt);
+        if (!best || isAfter(at, message.id, best.at, best.id)) best = {at, id: message.id};
+    }
+    return best;
 }
 
 interface SearchEntry {
@@ -659,6 +707,131 @@ export const MessageStore = signalStore(
                                 });
                             },
                         });
+                },
+
+                /**
+                 * Seeds a window at the channel's first message instead of its last. Never painted
+                 * from the cache: the cache holds the newest page, which is the opposite end.
+                 */
+                loadChannelOldest(channelId: string): void {
+                    const meta = store.channelMeta()[channelId];
+                    if (meta?.loadingMore || meta?.loadingNewer) return;
+
+                    patchState(store, {
+                        channelMeta: {
+                            ...store.channelMeta(),
+                            [channelId]: {
+                                offset: 0,
+                                // Nothing is older than the beginning.
+                                hasMore: false,
+                                loadingMore: true,
+                                anchored: true,
+                                hasNewer: true,
+                            },
+                        },
+                    });
+
+                    messagingService
+                        .getMessagesForChannel(channelId, 0, PAGE_SIZE, {oldest: true})
+                        .pipe(
+                            switchMap(messages =>
+                                from(decryptMessages(messages, mlsService, mlsSync, mlsHealth)),
+                            ),
+                        )
+                        .subscribe({
+                            next: messages => {
+                                const end = newestOf(messages);
+                                patchState(store, addEntities(messages), {
+                                    channelMeta: {
+                                        ...store.channelMeta(),
+                                        [channelId]: {
+                                            offset: 0,
+                                            hasMore: false,
+                                            loadingMore: false,
+                                            anchored: true,
+                                            hasNewer: messages.length === PAGE_SIZE,
+                                            windowEndAt: end?.at,
+                                            windowEndId: end?.id,
+                                        },
+                                    },
+                                });
+                            },
+                            error: (err: HttpErrorResponse) => {
+                                patchState(store, {
+                                    channelMeta: {
+                                        ...store.channelMeta(),
+                                        [channelId]: {
+                                            offset: 0,
+                                            hasMore: false,
+                                            loadingMore: false,
+                                            error: err.status || 0,
+                                        },
+                                    },
+                                });
+                            },
+                        });
+                },
+
+                /** Widens an anchored window forward, toward the present. */
+                loadNewerForChannel(channelId: string): void {
+                    const meta = store.channelMeta()[channelId];
+                    if (!meta?.anchored || meta.loadingNewer || !meta.hasNewer || !meta.windowEndId) return;
+
+                    patchState(store, {
+                        channelMeta: {
+                            ...store.channelMeta(),
+                            [channelId]: {...meta, loadingNewer: true},
+                        },
+                    });
+
+                    messagingService
+                        .getMessagesForChannel(channelId, 0, PAGE_SIZE, {after: meta.windowEndId})
+                        .pipe(
+                            switchMap(messages =>
+                                from(decryptMessages(messages, mlsService, mlsSync, mlsHealth)),
+                            ),
+                        )
+                        .subscribe({
+                            next: messages => {
+                                const held = store.channelMeta()[channelId] ?? meta;
+                                const end = newestOf(messages);
+                                patchState(store, addEntities(messages), {
+                                    channelMeta: {
+                                        ...store.channelMeta(),
+                                        [channelId]: {
+                                            ...held,
+                                            loadingNewer: false,
+                                            hasNewer: messages.length === PAGE_SIZE,
+                                            windowEndAt: end?.at ?? held.windowEndAt,
+                                            windowEndId: end?.id ?? held.windowEndId,
+                                        },
+                                    },
+                                });
+                            },
+                            error: () => {
+                                const held = store.channelMeta()[channelId] ?? meta;
+                                patchState(store, {
+                                    channelMeta: {
+                                        ...store.channelMeta(),
+                                        [channelId]: {...held, loadingNewer: false},
+                                    },
+                                });
+                            },
+                        });
+                },
+
+                /**
+                 * Drops the far edge and puts the channel back at the present. The meta entry goes
+                 * with it so `loadForChannel` reads the newest page again; the messages already
+                 * loaded stay, so the history read so far is not thrown away.
+                 */
+                clearChannelAnchor(channelId: string): void {
+                    const meta = store.channelMeta()[channelId];
+                    if (!meta?.anchored) return;
+
+                    const next = {...store.channelMeta()};
+                    delete next[channelId];
+                    patchState(store, {channelMeta: next});
                 },
 
                 loadMoreForChannel(channelId: string): void {

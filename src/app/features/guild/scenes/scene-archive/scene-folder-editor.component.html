@@ -47,18 +47,21 @@
     </div>
 
     @if (mayReparent()) {
-        <label class="editor-field">
-            <span class="editor-label">{{ 'SCENE.ARCHIVE.FOLDER_PARENT' | translate }}</span>
+        <div class="editor-field">
+            <span class="editor-label" id="folder-parent-label">
+                {{ 'SCENE.ARCHIVE.FOLDER_PARENT' | translate }}
+            </span>
             <p-select
                 (ngModelChange)="parentId.set($event)"
                 [ngModel]="parentId()"
                 [options]="parentChoices()"
                 appendTo="body"
+                ariaLabelledBy="folder-parent-label"
                 optionLabel="label"
                 optionValue="value"
                 styleClass="w-full"
             />
-        </label>
+        </div>
     } @else {
         <p class="editor-hint">{{ 'SCENE.ARCHIVE.FOLDER_HAS_CHILDREN' | translate }}</p>
     }

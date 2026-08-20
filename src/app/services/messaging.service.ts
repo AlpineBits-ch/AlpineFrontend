@@ -12,6 +12,30 @@ import {PublishResponse} from '../dtos/response/channel-follow.dto';
 /** Server caps this at 50 and silently falls back to 25 for anything out of range. */
 const SEARCH_LIMIT = 50;
 
+/**
+ * Where a page sits relative to the backlog. The server ignores `offset` entirely once one of
+ * these is present, and answers the same shape either way.
+ */
+export interface MessageCursor {
+    /** Messages older than this id. */
+    before?: string;
+    /** Messages newer than this id. */
+    after?: string;
+    /** Half a page either side of this id, plus the id itself. */
+    around?: string;
+    /** The channel's first page. Takes precedence over the three above, which need a real anchor. */
+    oldest?: boolean;
+}
+
+function cursorQuery(cursor?: MessageCursor): string {
+    if (!cursor) return '';
+    if (cursor.oldest) return '&oldest=true';
+    if (cursor.before) return '&before=' + encodeURIComponent(cursor.before);
+    if (cursor.after) return '&after=' + encodeURIComponent(cursor.after);
+    if (cursor.around) return '&around=' + encodeURIComponent(cursor.around);
+    return '';
+}
+
 @Injectable({
     providedIn: 'root',
 })
@@ -45,7 +69,12 @@ export class MessagingService {
         );
     }
 
-    public getMessagesForChannel(channelId: string, offset: number, limit: number): Observable<MessageDto[]> {
+    public getMessagesForChannel(
+        channelId: string,
+        offset: number,
+        limit: number,
+        cursor?: MessageCursor,
+    ): Observable<MessageDto[]> {
         return this.httpClient.get<MessageDto[]>(
             this.apiConfig.baseUrl() +
                 '/api/v1/messaging/messaging/channels/' +
@@ -53,7 +82,8 @@ export class MessagingService {
                 '/messages?offset=' +
                 offset +
                 '&limit=' +
-                limit,
+                limit +
+                cursorQuery(cursor),
         );
     }
 

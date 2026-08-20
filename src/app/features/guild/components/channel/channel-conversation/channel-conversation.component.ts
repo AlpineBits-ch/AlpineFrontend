@@ -50,7 +50,7 @@ import {toBase64} from '../../../../../helpers/base64.helper';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 
 import {MessagingService} from '../../../../../services/messaging.service';
-import {MessageStore} from '../../../../../stores/message.store';
+import {MessageStore, withinWindow} from '../../../../../stores/message.store';
 import {ProfileService} from '../../../../../services/profile.service';
 import {GuildService} from '../../../../../services/guild.service';
 import {OwnMemberRevisionService} from '../../../../../services/own-member-revision.service';
@@ -228,17 +228,21 @@ export class ChannelConversationComponent implements AfterViewInit {
         return unionMemberPermissions(member);
     });
 
-    protected readonly messages = computed(() =>
-        this.messageStore
+    private readonly channelWindow = computed(() => this.messageStore.channelMeta()[this.channel().id]);
+
+    protected readonly messages = computed(() => {
+        const meta = this.channelWindow();
+        return this.messageStore
             .entities()
-            .filter(m => m.channelId === this.channel().id)
-            .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()),
-    );
+            .filter(m => m.channelId === this.channel().id && withinWindow(meta, m))
+            .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    });
     protected readonly messageRows = computed(() => buildMessageRows(this.messages()));
 
-    protected readonly hasMore = computed(
-        () => this.messageStore.channelMeta()[this.channel().id]?.hasMore ?? false,
-    );
+    /** True while reading forward from somewhere behind the present. */
+    protected readonly anchored = computed(() => this.channelWindow()?.anchored ?? false);
+
+    protected readonly hasMore = computed(() => this.channelWindow()?.hasMore ?? false);
     protected readonly loadingMore = computed(
         () => this.messageStore.channelMeta()[this.channel().id]?.loadingMore ?? false,
     );
@@ -295,8 +299,21 @@ export class ChannelConversationComponent implements AfterViewInit {
             this.observedListEl?.removeEventListener('load', this.onContentLoad, true);
         });
 
-        effect(() => {
-            this.messageStore.loadForChannel(this.channel().id);
+        effect(onCleanup => {
+            const channelId = this.channel().id;
+
+            // Read-from-the-start is consumed once, here, so the next ordinary open of the same
+            // channel lands at the present the way every other open does.
+            if (untracked(() => this.navService.readFromStart()) === channelId) {
+                this.navService.readFromStart.set(null);
+                this.messageStore.loadChannelOldest(channelId);
+            } else {
+                this.messageStore.loadForChannel(channelId);
+            }
+
+            // Leaving takes the anchor with it: coming back to a channel is coming back to the
+            // present unless read-from-the-start is asked for again.
+            onCleanup(() => this.messageStore.clearChannelAnchor(channelId));
         });
 
         effect(() => {
@@ -647,6 +664,13 @@ export class ChannelConversationComponent implements AfterViewInit {
             this.restoreScroll = true;
             this.messageStore.loadMoreForChannel(this.channel().id);
         }
+
+        // The mirror of the block above, and only while anchored: an ordinary window already ends
+        // at the present, so there is never anything newer to fetch.
+        if (this.anchored()) {
+            const fromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+            if (fromBottom < LOAD_MORE_THRESHOLD) this.messageStore.loadNewerForChannel(this.channel().id);
+        }
     }
 
     public jumpToMessage(messageId: string): void {
@@ -717,6 +741,15 @@ export class ChannelConversationComponent implements AfterViewInit {
 
     /** Jump-to-present. Anything further up hard-cuts first, so the animated part is the same length from any depth. */
     protected jumpToPresent(): void {
+        // From an anchored window the present is not in the DOM to scroll to, so the anchor is
+        // dropped and the newest page read; scrolling within the window would go nowhere.
+        if (this.anchored()) {
+            const channelId = this.channel().id;
+            this.messageStore.clearChannelAnchor(channelId);
+            this.messageStore.loadForChannel(channelId);
+            return;
+        }
+
         if (!this.scrollRef) return;
         const el = this.scrollRef.nativeElement;
         const target = el.scrollHeight - el.clientHeight;

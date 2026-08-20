@@ -2,7 +2,7 @@ import {TestBed} from '@angular/core/testing';
 import {Observable, Subject} from 'rxjs';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 
-import {MessageStore} from './message.store';
+import {MessageStore, withinWindow} from './message.store';
 import {MessagingService} from '../services/messaging.service';
 import {MlsService} from '../services/mls.service';
 import {MlsSyncService} from '../services/mls-sync.service';
@@ -213,5 +213,154 @@ describe('MessageStore channel paging, as it already behaves', () => {
         await settle();
 
         expect(harness.store.channelMeta()[CHANNEL]).toMatchObject({error: 503, hasMore: false});
+    });
+});
+
+describe('MessageStore anchored window', () => {
+    let harness: ReturnType<typeof setup>;
+
+    beforeEach(() => {
+        harness = setup();
+    });
+
+    /** Seeds a full first page read from the beginning. */
+    async function anchor(count = PAGE_SIZE): Promise<void> {
+        harness.store.loadChannelOldest(CHANNEL);
+        await settle();
+        harness.responses[0].next(pageOf(count));
+        await settle();
+    }
+
+    it('asks for the beginning rather than an offset', async () => {
+        harness.store.loadChannelOldest(CHANNEL);
+        await settle();
+
+        expect(harness.calls[0].cursor).toEqual({oldest: true});
+    });
+
+    it('has nothing older and something newer once seeded', async () => {
+        await anchor();
+
+        expect(harness.store.channelMeta()[CHANNEL]).toMatchObject({
+            anchored: true,
+            hasMore: false,
+            hasNewer: true,
+            loadingMore: false,
+        });
+    });
+
+    it('closes the far edge when the first page is short', async () => {
+        await anchor(4);
+
+        expect(harness.store.channelMeta()[CHANNEL]).toMatchObject({hasNewer: false});
+    });
+
+    it('pages forward from the newest message it holds', async () => {
+        await anchor();
+
+        harness.store.loadNewerForChannel(CHANNEL);
+        await settle();
+
+        expect(harness.calls[1].cursor).toEqual({after: `msg-${PAGE_SIZE - 1}`});
+    });
+
+    it('moves the far edge as it pages forward', async () => {
+        await anchor();
+
+        harness.store.loadNewerForChannel(CHANNEL);
+        await settle();
+        harness.responses[1].next(pageOf(5, PAGE_SIZE));
+        await settle();
+
+        expect(harness.store.channelMeta()[CHANNEL]).toMatchObject({
+            windowEndId: `msg-${PAGE_SIZE + 4}`,
+            hasNewer: false,
+        });
+    });
+
+    it('will not page forward twice at once', async () => {
+        await anchor();
+
+        harness.store.loadNewerForChannel(CHANNEL);
+        harness.store.loadNewerForChannel(CHANNEL);
+
+        expect(harness.calls).toHaveLength(2);
+    });
+
+    it('does not page forward from an ordinary window', async () => {
+        harness.store.loadForChannel(CHANNEL);
+        await settle();
+        harness.responses[0].next(pageOf(PAGE_SIZE));
+        await settle();
+
+        harness.store.loadNewerForChannel(CHANNEL);
+
+        expect(harness.calls).toHaveLength(1);
+    });
+
+    it('holds a live message without showing it inside the window', async () => {
+        await anchor();
+        const meta = harness.store.channelMeta()[CHANNEL];
+
+        harness.guildMessage$.next(chanMsg('msg-live', 9999));
+
+        // Stored, because leaving it out would lose it on jump-to-present; outside the window,
+        // because showing it would put turn 47 directly under turn 3.
+        expect(harness.store.entityMap()['msg-live']).toBeTruthy();
+        expect(withinWindow(meta, chanMsg('msg-live', 9999))).toBe(false);
+    });
+
+    it('keeps a message already inside the window visible', async () => {
+        await anchor();
+        const meta = harness.store.channelMeta()[CHANNEL];
+
+        expect(withinWindow(meta, chanMsg('msg-0', 0))).toBe(true);
+        expect(withinWindow(meta, chanMsg(`msg-${PAGE_SIZE - 1}`, PAGE_SIZE - 1))).toBe(true);
+    });
+
+    it('breaks a same-instant tie on the id, the way the server orders it', async () => {
+        const meta = {anchored: true, windowEndAt: '2026-01-01T00:00:00.000Z', windowEndId: 'msg-b'};
+
+        expect(withinWindow(meta, {id: 'msg-a', createdAt: '2026-01-01T00:00:00.000Z'})).toBe(true);
+        expect(withinWindow(meta, {id: 'msg-c', createdAt: '2026-01-01T00:00:00.000Z'})).toBe(false);
+    });
+
+    it('shows everything in an unanchored window', () => {
+        expect(withinWindow(undefined, chanMsg('msg-any', 5))).toBe(true);
+        expect(withinWindow({anchored: false}, chanMsg('msg-any', 5))).toBe(true);
+    });
+
+    it('drops the anchor so the next read starts at the present again', async () => {
+        await anchor();
+
+        harness.store.clearChannelAnchor(CHANNEL);
+
+        expect(harness.store.channelMeta()[CHANNEL]).toBeUndefined();
+
+        harness.store.loadForChannel(CHANNEL);
+        expect(harness.calls[1]).toMatchObject({offset: 0});
+        expect(harness.calls[1].cursor).toBeUndefined();
+    });
+
+    it('leaves an ordinary window alone when the anchor is dropped', async () => {
+        harness.store.loadForChannel(CHANNEL);
+        await settle();
+        harness.responses[0].next(pageOf(PAGE_SIZE));
+        await settle();
+
+        harness.store.clearChannelAnchor(CHANNEL);
+
+        expect(harness.store.channelMeta()[CHANNEL]).toMatchObject({offset: PAGE_SIZE});
+    });
+
+    it('records the status when reading the beginning fails', async () => {
+        harness.store.loadChannelOldest(CHANNEL);
+        await settle();
+
+        harness.responses[0].error({status: 500});
+        await settle();
+
+        expect(harness.store.channelMeta()[CHANNEL]).toMatchObject({error: 500});
+        expect(harness.store.channelMeta()[CHANNEL]?.anchored).toBeFalsy();
     });
 });

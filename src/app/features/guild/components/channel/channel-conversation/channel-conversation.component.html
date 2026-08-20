@@ -114,7 +114,9 @@
     }
     <!-- Overlay stack is absolutely positioned so it sits on top of the message list instead of adding flow height. -->
     <div class="absolute bottom-0 left-0 right-0 z-20 flex flex-col pointer-events-none">
-        @if (isViewingOlder() && showMessages() && !loadError()) {
+        <!-- Always offered while anchored: a short window read from the start can sit at its own
+             bottom without being anywhere near the present. -->
+        @if ((isViewingOlder() || anchored()) && showMessages() && !loadError()) {
             <div class="flex justify-center px-4 pb-1.5">
                 <app-jump-to-present (jump)="jumpToPresent()" class="pointer-events-auto" />
             </div>

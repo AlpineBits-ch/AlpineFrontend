@@ -107,6 +107,9 @@ function storeStub(entities: MessageDto[] = []) {
         channelSearchEntries: signal<Record<string, unknown>>({}),
         loadForChannel: vi.fn(),
         loadMoreForChannel: vi.fn(),
+        loadChannelOldest: vi.fn(),
+        loadNewerForChannel: vi.fn(),
+        clearChannelAnchor: vi.fn(),
         clearChannelError: vi.fn(),
         addMessage: vi.fn(),
         confirmMessage: vi.fn(),
@@ -117,7 +120,11 @@ function storeStub(entities: MessageDto[] = []) {
     };
 }
 
-async function setup(sendResult: 'ok' | 'fail' | 'automod' = 'ok', entities: MessageDto[] = []) {
+async function setup(
+    sendResult: 'ok' | 'fail' | 'automod' = 'ok',
+    entities: MessageDto[] = [],
+    readFromStart: string | null = null,
+) {
     TestBed.resetTestingModule();
     globalThis.ResizeObserver ??= class {
         observe() {}
@@ -165,7 +172,10 @@ async function setup(sendResult: 'ok' | 'fail' | 'automod' = 'ok', entities: Mes
             {provide: GuildService, useValue: {getOwnMember: () => of(null)}},
             {
                 provide: NavigationService,
-                useValue: {workspace: signal({type: 'server' as const, guild})},
+                useValue: {
+                    workspace: signal({type: 'server' as const, guild}),
+                    readFromStart: signal<string | null>(readFromStart),
+                },
             },
             {provide: BotCommandService, useValue: {currentGuildBots: () => []}},
             {
@@ -269,6 +279,45 @@ describe('ChannelConversationComponent send path', () => {
         expect((component as unknown as {autoModError: () => string | null}).autoModError()).toBe(
             'blocked_word',
         );
+    });
+});
+
+describe('ChannelConversationComponent read from the start', () => {
+    it('opens an ordinary channel at the present', async () => {
+        const {store} = await setup();
+
+        expect(store.loadForChannel).toHaveBeenCalledWith('chan1');
+        expect(store.loadChannelOldest).not.toHaveBeenCalled();
+    });
+
+    it('anchors at the beginning when read-from-the-start named this channel', async () => {
+        const {store} = await setup('ok', [], 'chan1');
+
+        expect(store.loadChannelOldest).toHaveBeenCalledWith('chan1');
+        expect(store.loadForChannel).not.toHaveBeenCalled();
+    });
+
+    it('ignores a request naming a different channel', async () => {
+        const {store} = await setup('ok', [], 'chan-other');
+
+        expect(store.loadForChannel).toHaveBeenCalledWith('chan1');
+        expect(store.loadChannelOldest).not.toHaveBeenCalled();
+    });
+
+    it('consumes the request, so the next open lands at the present', async () => {
+        const {store} = await setup('ok', [], 'chan1');
+        const nav = TestBed.inject(NavigationService) as unknown as {readFromStart: () => string | null};
+
+        expect(store.loadChannelOldest).toHaveBeenCalledOnce();
+        expect(nav.readFromStart()).toBeNull();
+    });
+
+    it('drops the anchor when the channel view goes away', async () => {
+        const {fixture, store} = await setup('ok', [], 'chan1');
+
+        fixture.destroy();
+
+        expect(store.clearChannelAnchor).toHaveBeenCalledWith('chan1');
     });
 });
 
