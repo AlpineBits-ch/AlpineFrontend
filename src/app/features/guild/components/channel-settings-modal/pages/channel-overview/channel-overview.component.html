@@ -52,15 +52,6 @@
     <div class="space-y-3">
         <p class="text-xs font-semibold text-text-muted uppercase tracking-widest">Channel Flags</p>
 
-        <!-- Private -->
-        <div class="flex items-center justify-between px-4 py-3 rounded-xl bg-white/[0.03]">
-            <div>
-                <p class="text-sm font-medium text-text-primary">Private Channel</p>
-                <p class="text-xs text-text-muted mt-0.5">Only members with explicit access can see this channel</p>
-            </div>
-            <p-toggleswitch (ngModelChange)="isPrivate.set($event); onChange()" [ngModel]="isPrivate()" />
-        </div>
-
         <!-- Age restricted -->
         <div class="flex items-center justify-between px-4 py-3 rounded-xl bg-white/[0.03]">
             <div>

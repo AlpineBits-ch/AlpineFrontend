@@ -37,6 +37,7 @@ export class ChannelSettingsModalComponent {
 
     readonly channel = signal<ChannelDto | null>(null);
     readonly guild = signal<GuildDto | null>(null);
+    readonly categories = computed(() => this.guild()?.categories ?? []);
 
     channelUpdated = output<ChannelDto>();
     channelDeleted = output<string>();

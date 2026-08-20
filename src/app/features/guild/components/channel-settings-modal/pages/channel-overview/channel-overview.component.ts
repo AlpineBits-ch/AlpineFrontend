@@ -19,7 +19,6 @@ export class ChannelOverviewComponent implements OnInit {
     channelUpdated = output<ChannelDto>();
     readonly name = signal('');
     readonly description = signal('');
-    readonly isPrivate = signal(false);
     readonly isAgeRestricted = signal(false);
     readonly slowModeSeconds = signal(0);
     readonly saving = signal(false);
@@ -31,7 +30,6 @@ export class ChannelOverviewComponent implements OnInit {
         const c = this.channel();
         this.name.set(c.name);
         this.description.set(c.description ?? '');
-        this.isPrivate.set(c.isPrivate);
         this.isAgeRestricted.set(c.isAgeRestricted);
         this.slowModeSeconds.set(c.slowModeSeconds);
         this.dirty.set(false);
@@ -42,7 +40,6 @@ export class ChannelOverviewComponent implements OnInit {
         this.dirty.set(
             this.name() !== c.name ||
                 this.description() !== (c.description ?? '') ||
-                this.isPrivate() !== c.isPrivate ||
                 this.isAgeRestricted() !== c.isAgeRestricted ||
                 this.slowModeSeconds() !== c.slowModeSeconds,
         );
@@ -54,7 +51,7 @@ export class ChannelOverviewComponent implements OnInit {
         const dto: UpdateChannelDto = {
             name: this.name(),
             description: this.description(),
-            isPrivate: this.isPrivate(),
+            isPrivate: this.channel().isPrivate,
             isAgeRestricted: this.isAgeRestricted(),
             slowModeSeconds: this.slowModeSeconds(),
         };

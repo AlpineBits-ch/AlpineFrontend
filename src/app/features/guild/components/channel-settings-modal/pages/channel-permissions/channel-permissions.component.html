@@ -1,1 +1,101 @@
-<app-permission-overrides [guild]="guild()" [scope]="scope()" />
+<div class="max-w-lg space-y-6">
+    <div>
+        <h2 class="text-sm font-semibold text-text-primary">{{ 'CHANNEL_PERMS.TITLE' | translate }}</h2>
+        <p class="text-xs text-text-muted mt-0.5">{{ 'CHANNEL_PERMS.SUBTITLE' | translate }}</p>
+    </div>
+
+    <!-- Private channel -->
+    <div class="flex items-center justify-between px-4 py-3 rounded-xl bg-white/[0.03]">
+        <div>
+            <p class="text-sm font-medium text-text-primary">{{ 'CHANNEL_PERMS.PRIVATE' | translate }}</p>
+            <p class="text-xs text-text-muted mt-0.5">{{ 'CHANNEL_PERMS.PRIVATE_HINT' | translate }}</p>
+        </div>
+        <p-toggleswitch (ngModelChange)="setPrivate($event)" [ngModel]="channel().isPrivate" />
+    </div>
+
+    <!-- Synced with category -->
+    @if (category(); as cat) {
+        <div [ngClass]="synced() ? 'bg-emerald-500/10' : 'bg-amber-500/10'" class="rounded-xl px-4 py-3 space-y-2">
+            <div class="flex items-center justify-between gap-3">
+                <div>
+                    @if (synced()) {
+                        <p class="text-sm font-medium text-text-primary">
+                            {{ 'CHANNEL_PERMS.SYNCED' | translate: {category: cat.name} }}
+                        </p>
+                        <p class="text-xs text-text-muted mt-0.5">{{ 'CHANNEL_PERMS.SYNCED_HINT' | translate }}</p>
+                    } @else {
+                        <p class="text-sm font-medium text-text-primary">
+                            {{ 'CHANNEL_PERMS.NOT_SYNCED' | translate: {category: cat.name} }}
+                        </p>
+                        <p class="text-xs text-text-muted mt-0.5">
+                            {{ 'CHANNEL_PERMS.NOT_SYNCED_HINT' | translate: {count: divergingCount()} }}
+                        </p>
+                    }
+                </div>
+                @if (!synced()) {
+                    <div class="flex items-center gap-2 shrink-0">
+                        <p-button
+                            (onClick)="toggleDiff()"
+                            [text]="true"
+                            [label]="'CHANNEL_PERMS.SEE_DIFFERENCE' | translate"
+                            severity="secondary"
+                            size="small"
+                        />
+                        <p-button
+                            (onClick)="resync()"
+                            [loading]="syncing()"
+                            [label]="'CHANNEL_PERMS.RESYNC' | translate"
+                            severity="primary"
+                            size="small"
+                        />
+                    </div>
+                }
+            </div>
+
+            @if (diffOpen() && !synced()) {
+                <div class="rounded-lg bg-black/20 px-3 py-2 space-y-1">
+                    <p class="text-[11px] font-semibold text-text-muted uppercase tracking-widest">
+                        {{ 'CHANNEL_PERMS.DIFF_TITLE' | translate }}
+                    </p>
+                    @for (row of diffRows(); track row.targetId + row.kind) {
+                        <p class="text-xs text-text-secondary">
+                            <span class="font-medium text-text-primary">{{ nameOf(row) }}</span>
+                            @if (row.change === 'added') {
+                                {{ 'CHANNEL_PERMS.DIFF_ADDED' | translate }}
+                            } @else if (row.change === 'removed') {
+                                {{ 'CHANNEL_PERMS.DIFF_REMOVED' | translate }}
+                            } @else {
+                                {{ 'CHANNEL_PERMS.DIFF_CHANGED' | translate }}
+                            }
+                        </p>
+                    }
+                </div>
+            }
+        </div>
+    }
+
+    <!-- Advanced permissions disclosure -->
+    <div class="rounded-xl bg-white/[0.03] overflow-hidden">
+        <button
+            (click)="toggleAdvanced()"
+            [attr.aria-expanded]="advancedOpen()"
+            class="w-full flex items-center justify-between px-4 py-3 cursor-pointer border-0 bg-transparent text-left"
+        >
+            <div>
+                <p class="text-sm font-medium text-text-primary">{{ 'CHANNEL_PERMS.ADVANCED' | translate }}</p>
+                <p class="text-xs text-text-muted mt-0.5">
+                    {{ 'CHANNEL_PERMS.ADVANCED_HINT' | translate }}
+                    &middot;
+                    {{ 'CHANNEL_PERMS.OVERRIDE_COUNT' | translate: {count: channelOverrides().length} }}
+                </p>
+            </div>
+            <i [ngClass]="advancedOpen() ? 'pi-chevron-up' : 'pi-chevron-down'" class="pi text-text-muted text-xs"></i>
+        </button>
+
+        @if (advancedOpen()) {
+            <div class="px-4 pb-4">
+                <app-permission-overrides (overridesChanged)="onOverridesChanged($event)" [guild]="guild()" [scope]="scope()" />
+            </div>
+        }
+    </div>
+</div>

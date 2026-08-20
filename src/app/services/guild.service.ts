@@ -94,11 +94,12 @@ export interface CreateChannelDto {
 }
 
 export interface UpdateChannelDto {
-    name: string;
+    name?: string;
     description?: string;
-    isAgeRestricted: boolean;
-    isPrivate: boolean;
-    slowModeSeconds: number;
+    isAgeRestricted?: boolean;
+    /** PATCH, so a lone {isPrivate} is a valid body: everything else is left as is. */
+    isPrivate?: boolean;
+    slowModeSeconds?: number;
     /** Empty string clears it back to the type default; omitting it leaves the stored value alone. */
     icon?: string;
     iconColor?: string;
