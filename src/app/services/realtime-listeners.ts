@@ -1,5 +1,4 @@
 import {InjectionToken, Provider, ProviderToken} from '@angular/core';
-import {ChoreService} from './chore.service';
 import {HomeStatusService} from './home-status.service';
 import {HouseholdAlertService} from './household-alert.service';
 import {InboxService} from './inbox.service';
@@ -8,6 +7,7 @@ import {MealService} from './meal.service';
 import {VoiceRingStateService} from './voice-ring-state.service';
 import {AbsenceStore} from '../stores/absence.store';
 import {BillStore} from '../stores/bill.store';
+import {ChoreStore} from '../stores/chore.store';
 import {ConversationStore} from '../stores/conversation.store';
 import {DecisionStore} from '../stores/decision.store';
 import {EntitlementStore} from '../stores/entitlement.store';
@@ -32,7 +32,6 @@ import {ScheduledEventStore} from '../stores/scheduled-event.store';
 export const REALTIME_LISTENER = new InjectionToken<readonly unknown[]>('REALTIME_LISTENER');
 
 const LISTENERS: ProviderToken<unknown>[] = [
-    ChoreService,
     HomeStatusService,
     // Not folded into the modules it serves: one `guild.HouseholdAlert` covers chores, decisions
     // and bills, and the dedupe behind it is per session, not per module.
@@ -44,6 +43,7 @@ const LISTENERS: ProviderToken<unknown>[] = [
     // The signal stores register in `withHooks({onInit})`, which a root store runs on first inject.
     AbsenceStore,
     BillStore,
+    ChoreStore,
     ConversationStore,
     DecisionStore,
     EntitlementStore,

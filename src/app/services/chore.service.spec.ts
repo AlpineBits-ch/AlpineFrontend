@@ -2,11 +2,14 @@ import {signal} from '@angular/core';
 import {TestBed} from '@angular/core/testing';
 import {provideHttpClient} from '@angular/common/http';
 import {HttpTestingController, provideHttpClientTesting} from '@angular/common/http/testing';
+import {Observable} from 'rxjs';
 import {afterEach, describe, expect, it, vi} from 'vitest';
 import {ChoreService} from './chore.service';
 import {ApiConfigService} from './api-config.service';
 import {ProfileService} from './profile.service';
 import {RealtimeConnectionService} from './realtime-connection.service';
+import {PayloadOf, RealtimeEvent} from './realtime-events';
+import {FakeRealtimeConnection} from '../testing/fake-realtime-connection';
 import {NotificationService} from './notification.service';
 import {TranslateService} from '@ngx-translate/core';
 import {Chore, ChoreBalanceEntry, ChoreOccurrence, occurrenceStatus} from '../dtos/response/chore.dto';
@@ -20,11 +23,21 @@ function wireBody(body: unknown): unknown {
     return JSON.parse(JSON.stringify(body));
 }
 
-/** Handlers registered on the fake hub, so a test can fire a server event by name. */
-const hubHandlers = new Map<string, ((payload: never) => void)[]>();
+/** Streams registered on the fake hub, so a test can count what the store subscribed to. */
+const hubHandlers = new Map<string, string[]>();
+
+/** {@link FakeRealtimeConnection}, with every `stream` call recorded into {@link hubHandlers}. */
+class RecordingRealtime extends FakeRealtimeConnection {
+    override stream<K extends RealtimeEvent>(event: K): Observable<PayloadOf<K>> {
+        hubHandlers.set(event, [...(hubHandlers.get(event) ?? []), event]);
+        return super.stream(event);
+    }
+}
+
+let realtime = new RecordingRealtime();
 
 function fire(event: string, payload: unknown): void {
-    for (const handler of hubHandlers.get(event) ?? []) (handler as (p: unknown) => void)(payload);
+    realtime.emitRaw(event, payload);
 }
 
 function chore(overrides: Partial<Chore> = {}): Chore {
@@ -67,6 +80,7 @@ const notifications: {title: string; message: string; extra?: Record<string, str
 
 function setup() {
     hubHandlers.clear();
+    realtime = new RecordingRealtime();
     notifications.length = 0;
     // Explicit, so one test that throws before its module is torn down does not turn every later
     // test in the file into "the test module has already been instantiated".
@@ -77,15 +91,7 @@ function setup() {
             provideHttpClientTesting(),
             {provide: ApiConfigService, useValue: {baseUrl: () => BASE}},
             {provide: ProfileService, useValue: {ownProfile: signal({userId: 'user_ben'})}},
-            {
-                provide: RealtimeConnectionService,
-                useValue: {
-                    on: (event: string, handler: (payload: never) => void) => {
-                        const existing = hubHandlers.get(event) ?? [];
-                        hubHandlers.set(event, [...existing, handler]);
-                    },
-                },
-            },
+            {provide: RealtimeConnectionService, useValue: realtime},
             {
                 provide: NotificationService,
                 useValue: {
