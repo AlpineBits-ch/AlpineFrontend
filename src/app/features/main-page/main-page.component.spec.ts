@@ -1042,7 +1042,7 @@ describe('MainPageComponent view helpers', () => {
     it('openAccountSettings forwards to the quick settings panel', async () => {
         const {component} = await setup();
         const openProfileSettings = vi.fn();
-        component.quickSettings = {openProfileSettings} as unknown as never;
+        component.quickSettings = (() => ({openProfileSettings})) as unknown as never;
 
         component.openAccountSettings();
 

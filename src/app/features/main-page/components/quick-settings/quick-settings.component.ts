@@ -1,4 +1,4 @@
-﻿import {Component, computed, effect, inject, signal, ViewChild} from '@angular/core';
+﻿import {Component, computed, effect, inject, signal, viewChild} from '@angular/core';
 import {ProfileService} from '../../../../services/profile.service';
 import {AppAvatarComponent} from '../../../../components/avatar/avatar.component';
 import {Button} from 'primeng/button';
@@ -61,8 +61,8 @@ export class QuickSettingsComponent {
 
     private settingsUi = inject(SettingsUiService);
     private switcher = inject(AccountSwitchService);
-    @ViewChild(SettingsModalComponent) private settingsModal!: SettingsModalComponent;
-    @ViewChild(SelfProfilePopoverComponent) private selfProfilePopover!: SelfProfilePopoverComponent;
+    private readonly settingsModal = viewChild(SettingsModalComponent);
+    private readonly selfProfilePopover = viewChild.required(SelfProfilePopoverComponent);
 
     constructor() {
         if (!this.profileService.ownProfile()) {
@@ -78,23 +78,23 @@ export class QuickSettingsComponent {
             const page = this.settingsUi.requestedPage();
             if (!page) return;
             this.settingsUi.consume();
-            this.settingsModal?.selectPage(page);
+            this.settingsModal()?.selectPage(page);
             this.isSettingsOpen.set(true);
         });
     }
 
     protected openSelfProfilePopover(event: Event): void {
-        this.selfProfilePopover.toggle(event);
+        this.selfProfilePopover().toggle(event);
     }
 
     public openProfileSettings(): void {
-        this.settingsModal.selectPage('profile');
+        this.settingsModal()?.selectPage('profile');
         this.isSettingsOpen.set(true);
     }
 
     /** The escape hatch at the bottom of both device menus, for everything a chevron cannot hold. */
     public openVoiceSettings(): void {
-        this.settingsModal.selectPage('voice-video');
+        this.settingsModal()?.selectPage('voice-video');
         this.isSettingsOpen.set(true);
     }
 
