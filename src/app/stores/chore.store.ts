@@ -159,9 +159,7 @@ export const ChoreStore = signalStore(
          * any load would otherwise leave the channel realtime-deaf.
          */
         const tracked = (channelId: string): boolean =>
-            store.occurrencesTracked(channelId) ||
-            channelId in store.occurrencesIds() ||
-            channelId in store.choresByChannel();
+            store.occurrencesHeld(channelId) || channelId in store.choresByChannel();
 
         const putSides: BoardSides = (channelId, chores, balance) => {
             patchState(store, {
@@ -271,7 +269,7 @@ export const ChoreStore = signalStore(
                             occurrences,
                             balance: store.balanceByChannel()[channelId] ?? NO_BALANCE,
                             loading: store.occurrencesLoading(channelId),
-                            loadedAt: store.occurrencesRequests()[channelId]?.loadedAt ?? 0,
+                            loadedAt: store.occurrencesLoadedAt(channelId),
                             error: error !== null,
                             forbidden: error === 'forbidden',
                         };
@@ -297,9 +295,7 @@ export const ChoreStore = signalStore(
              * not refetch: the reassignment usually concerns a board nobody is looking at.
              */
             invalidateAll(): void {
-                for (const channelId of Object.keys(store.occurrencesRequests())) {
-                    store.invalidateOccurrences(channelId);
-                }
+                store.invalidateAllOccurrences();
             },
 
             // ── Chore definitions ────────────────────────────────────────────

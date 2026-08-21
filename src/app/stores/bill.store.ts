@@ -127,13 +127,10 @@ export const BillStore = signalStore(
         const views = new Map<string, Signal<BillChannelState>>();
         const upcoming = new Map<string, Signal<BillOccurrence[]>>();
 
-        // `Tracked` is "a fetch was issued for this key", which is not the same as "this key holds
-        // rows": a write reaches a channel nobody fetched and leaves an id list with no request
-        // record behind it. Guarding on `Tracked` alone would make that channel realtime-deaf.
-        const holdsSchedules = (channelId: string): boolean =>
-            templates.schedulesTracked(channelId) || channelId in templates.schedulesIds();
-        const holdsBills = (channelId: string): boolean =>
-            periods.billsTracked(channelId) || channelId in periods.billsIds();
+        // `Held` and not `Tracked`: a write reaches a channel nobody fetched and leaves an id list
+        // with no request record behind it, and `Tracked` would make that channel realtime-deaf.
+        const holdsSchedules = (channelId: string): boolean => templates.schedulesHeld(channelId);
+        const holdsBills = (channelId: string): boolean => periods.billsHeld(channelId);
 
         const attachSchedule = (channelId: string, raw: RecurringExpense): void => {
             templates.attachToSchedules(channelId, normalizeRecurringExpense(raw));

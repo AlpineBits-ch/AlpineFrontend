@@ -243,16 +243,11 @@ export const MealStore = signalStore(
             const planRows = (channelId: string): MealPlanEntry[] =>
                 store.planFor(channelId)().filter(isEntry);
 
-            // A write can reach a channel no fetch ever did, and `Tracked` alone would call that
-            // channel unopened and go on ignoring every event for the rows already on screen.
-            const holdsRecipes = (channelId: string): boolean =>
-                store.recipesTracked(channelId) || channelId in store.recipesIds();
-
-            const holdsPlan = (channelId: string): boolean =>
-                store.planTracked(channelId) || channelId in store.planIds();
-
+            // A write can reach a channel no fetch ever did, so the guard is `Held` and not
+            // `Tracked`: the latter would call that channel unopened and go on ignoring every event
+            // for the rows already on screen.
             const upsertRecipe = (channelId: string, raw: Recipe, existingOnly = false): void => {
-                if (existingOnly && !holdsRecipes(channelId)) return;
+                if (existingOnly && !store.recipesHeld(channelId)) return;
                 store.attachToRecipes(channelId, wholeRecipe(raw));
             };
 
@@ -269,7 +264,7 @@ export const MealStore = signalStore(
             };
 
             const upsertEntry = (channelId: string, raw: MealPlanEntry, existingOnly = false): void => {
-                if (existingOnly && !holdsPlan(channelId)) return;
+                if (existingOnly && !store.planHeld(channelId)) return;
                 store.attachToPlan(channelId, wholeEntry(raw));
             };
 

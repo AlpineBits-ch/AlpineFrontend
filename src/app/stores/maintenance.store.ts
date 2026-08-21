@@ -240,9 +240,7 @@ export const MaintenanceStore = signalStore(
         // A write can put a row under a key nobody fetched, which leaves `Tracked` false. Realtime
         // must still reach that channel, so an id list counts as having opened it.
         const opened = (channelId: string): boolean =>
-            store.assetsTracked(channelId) ||
-            channelId in store.assetsIds() ||
-            channelId in store.recordsIds();
+            store.assetsHeld(channelId) || store.recordsHeld(channelId);
 
         const setLoadingMore = (channelId: string, value: boolean): void => {
             patchState(store, {loadingMore: {...store.loadingMore(), [channelId]: value}});

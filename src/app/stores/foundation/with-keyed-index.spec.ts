@@ -310,6 +310,81 @@ describe('withKeyedIndex', () => {
         });
     });
 
+    describe('Held, LoadedAt and invalidateAll', () => {
+        it('holds a key a write reached but no fetch did', () => {
+            const {store} = setup();
+            store.applyStock('c1', [row('a')]);
+
+            expect(store.stockTracked('c1')).toBe(false);
+            expect(store.stockHeld('c1')).toBe(true);
+        });
+
+        it('holds a key a fetch reached but no rows did', () => {
+            const {store, api} = setup();
+            store.loadStock('c1');
+            api.stockPending[0].error(new HttpErrorResponse({status: 403}));
+
+            expect(store.stockHeld('c1')).toBe(true);
+        });
+
+        it('stays false for a key nothing has touched', () => {
+            const {store} = setup();
+            expect(store.stockHeld('c1')).toBe(false);
+        });
+
+        it('stays true once the last row of a key is detached', () => {
+            const {store} = setup();
+            store.applyStock('c1', [row('a')]);
+            store.detachFromStock('c1', 'a');
+
+            expect(store.stockFor('c1')()).toEqual([]);
+            expect(store.stockHeld('c1')).toBe(true);
+        });
+
+        it('reads the last success stamp back, and zero after an invalidation', () => {
+            vi.spyOn(Date, 'now').mockReturnValue(1_000_000);
+            const {store, api} = setup();
+            store.loadStock('c1');
+            settle(api.stockPending, 0, []);
+            expect(store.stockLoadedAt('c1')).toBe(1_000_000);
+
+            store.invalidateStock('c1');
+            expect(store.stockLoadedAt('c1')).toBe(0);
+        });
+
+        it('reads zero for a key nobody fetched', () => {
+            const {store} = setup();
+            expect(store.stockLoadedAt('c1')).toBe(0);
+        });
+
+        it('invalidates every tracked key at once', () => {
+            const {store, api} = setup();
+            store.loadStock('c1');
+            settle(api.stockPending, 0, []);
+            store.loadStock('c2');
+            settle(api.stockPending, 1, []);
+
+            store.invalidateAllStock();
+            store.loadStock('c1');
+            store.loadStock('c2');
+
+            expect(api.stockCalls).toEqual(['c1', 'c2', 'c1', 'c2']);
+        });
+
+        it('leaves the other index alone', () => {
+            const {store, api} = setup();
+            store.loadStock('c1');
+            settle(api.stockPending, 0, []);
+            store.loadByOwner('c1');
+            settle(api.ownerPending, 0, []);
+
+            store.invalidateAllStock();
+            store.loadByOwner('c1');
+
+            expect(api.ownerCalls).toEqual(['c1']);
+        });
+    });
+
     describe('two indexes over one entity map', () => {
         it('keeps separate key lists and request state', () => {
             const {store, api} = setup();

@@ -43,15 +43,19 @@ type KeyedIndexInput<T> = EmptyFeatureResult & {state: EntityState<T>};
 type KeyedIndexState<C extends string> = Record<`${C}Ids`, Record<string, EntityId[]>> &
     Record<`${C}Requests`, Record<string, KeyedRequest>>;
 
-// `${C}Tracked` is "a fetch was issued for this key", `${C}Loaded` is "one came back successfully".
-// The realtime drop rule wants one or the other, never both.
+// `${C}Tracked` is "a fetch was issued for this key", `${C}Loaded` is "one came back successfully",
+// `${C}Held` is "this key has rows or a request record". A realtime drop rule wants `Held`; a
+// "have I ever fetched this" guard wants `Tracked`, and swapping the two makes a key never load.
 type KeyedIndexMethods<T, C extends string, A> = Record<`${C}For`, (key: string) => Signal<T[]>> &
     Record<`${C}Loading`, (key: string) => boolean> &
     Record<`${C}Error`, (key: string) => LoadFailure | null> &
     Record<`${C}Tracked`, (key: string) => boolean> &
     Record<`${C}Loaded`, (key: string) => boolean> &
+    Record<`${C}Held`, (key: string) => boolean> &
+    Record<`${C}LoadedAt`, (key: string) => number> &
     Record<`load${Capitalize<C>}`, (key: string, options?: LoadOptions<A>) => void> &
     Record<`invalidate${Capitalize<C>}`, (key: string) => void> &
+    Record<`invalidateAll${Capitalize<C>}`, () => void> &
     Record<`apply${Capitalize<C>}`, (key: string, items: T[]) => void> &
     Record<`attachTo${Capitalize<C>}`, (key: string, entity: T) => void> &
     Record<`detachFrom${Capitalize<C>}`, (key: string, id: EntityId) => void>;
@@ -210,14 +214,26 @@ export function withKeyedIndex<T, C extends string, A = never>(
                 patchRequest(key, {loadedAt: 0, stale: true});
             };
 
+            const invalidateAll = (): void => {
+                const all = requestsSignal();
+                const next: Record<string, KeyedRequest> = {};
+                for (const [key, request] of Object.entries(all)) {
+                    next[key] = {...request, loadedAt: 0, stale: true};
+                }
+                patchState(source, {[requestsKey]: next});
+            };
+
             return {
                 [`${collection}For`]: viewFor,
                 [`${collection}Loading`]: (key: string) => requestsSignal()[key]?.loading ?? false,
                 [`${collection}Error`]: (key: string) => requestsSignal()[key]?.error ?? null,
                 [`${collection}Tracked`]: (key: string) => key in requestsSignal(),
                 [`${collection}Loaded`]: (key: string) => (requestsSignal()[key]?.loadedAt ?? 0) > 0,
+                [`${collection}Held`]: (key: string) => key in requestsSignal() || key in idsSignal(),
+                [`${collection}LoadedAt`]: (key: string) => requestsSignal()[key]?.loadedAt ?? 0,
                 [`load${capitalized}`]: load,
                 [`invalidate${capitalized}`]: invalidate,
+                [`invalidateAll${capitalized}`]: invalidateAll,
                 [`apply${capitalized}`]: apply,
                 [`attachTo${capitalized}`]: attachTo,
                 [`detachFrom${capitalized}`]: detachFrom,

@@ -76,11 +76,6 @@ export const DecisionStore = signalStore(
 
         const rowsOf = (channelId: string): Decision[] => store.decisionsFor(channelId)();
 
-        // A create against a channel nobody has loaded still puts a row on the map, so an id list
-        // counts as tracked alongside a request record.
-        const isTracked = (channelId: string): boolean =>
-            store.decisionsTracked(channelId) || channelId in store.decisionsIds();
-
         /** Newest first, and an existing row is replaced where it stands. */
         const upsert = (channelId: string, decision: Decision): void => {
             const rows = rowsOf(channelId);
@@ -105,11 +100,11 @@ export const DecisionStore = signalStore(
                 const view = computed(
                     () => {
                         const decisions = rowsOf(channelId);
-                        if (!isTracked(channelId)) return EMPTY;
+                        if (!store.decisionsHeld(channelId)) return EMPTY;
                         return {
                             decisions,
                             loading: store.decisionsLoading(channelId),
-                            loadedAt: store.decisionsRequests()[channelId]?.loadedAt ?? 0,
+                            loadedAt: store.decisionsLoadedAt(channelId),
                             error: store.decisionsError(channelId),
                         };
                     },
@@ -156,14 +151,14 @@ export const DecisionStore = signalStore(
 
             /** Created, updated and closed all carry the whole DTO, so one handler covers them. */
             applyUpserted(event: DecisionCreated | DecisionUpdated | DecisionClosed): void {
-                if (!isTracked(event.channelId)) return;
+                if (!store.decisionsHeld(event.channelId)) return;
                 upsert(event.channelId, event.decision);
             },
 
             // The cancel broadcast carries no decision, only its id, so the status transition is
             // applied to what we already hold.
             applyCancelled(event: DecisionCancelled): void {
-                if (!isTracked(event.channelId)) return;
+                if (!store.decisionsHeld(event.channelId)) return;
                 markCancelled(event.channelId, event.decisionId);
             },
         };
