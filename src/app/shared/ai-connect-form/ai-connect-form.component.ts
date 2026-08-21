@@ -1,4 +1,4 @@
-import {Component, inject, input, output, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, inject, input, output, signal} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {Button} from 'primeng/button';
 import {TranslateModule} from '@ngx-translate/core';
@@ -124,6 +124,7 @@ import {AiPrivacyNoteComponent} from '../ai-privacy-note/ai-privacy-note.compone
             </div>
         </div>
     `,
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AiConnectFormComponent {
     readonly showBilling = input(true);
@@ -139,7 +140,7 @@ export class AiConnectFormComponent {
     /** A translation key, not a sentence - this component renders in three languages. */
     protected readonly error = signal<string | null>(null);
 
-    protected apiKey = '';
+    protected readonly apiKey = signal('');
     protected model = this.credentials.selectedProvider()
         ? this.credentials.selectedModel(AI_PROVIDER_META[this.provider()].defaultModel)
         : AI_PROVIDER_META[this.provider()].defaultModel;
@@ -157,12 +158,12 @@ export class AiConnectFormComponent {
         // The model name belongs to the provider, so carrying the previous one across would
         // send a Claude model id to OpenAI.
         this.model = AI_PROVIDER_META[id].defaultModel;
-        this.apiKey = '';
+        this.apiKey.set('');
         this.error.set(null);
     }
 
     protected async save(): Promise<void> {
-        const key = this.apiKey.trim();
+        const key = this.apiKey().trim();
         // An empty field with a key already stored means "keep the key, change the model", which
         // is a real thing to want and must not wipe the credential.
         if (!key && !this.isConfigured()) {
@@ -180,7 +181,7 @@ export class AiConnectFormComponent {
             // replaces the `configured` set and invalidates it. Saving a *key* does not need this -
             // `setKey` already updates that signal - but the model-only path is the common one.
             await this.credentials.refresh();
-            this.apiKey = '';
+            this.apiKey.set('');
             this.connected.emit();
         } catch {
             this.error.set('AI.CONNECT.ERROR_KEYCHAIN');
@@ -193,7 +194,7 @@ export class AiConnectFormComponent {
         this.busy.set(true);
         try {
             await this.credentials.clearKey(this.provider());
-            this.apiKey = '';
+            this.apiKey.set('');
         } finally {
             this.busy.set(false);
         }

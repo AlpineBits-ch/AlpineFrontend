@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import {TestBed} from '@angular/core/testing';
-import {Component, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, signal} from '@angular/core';
 import type {IconNode} from 'lucide';
 import {LucideIconComponent} from './lucide-icon.component';
 
@@ -12,6 +12,7 @@ const TWO_PATHS: IconNode = [
 @Component({
     imports: [LucideIconComponent],
     template: '<app-lucide-icon [icon]="icon()" />',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 class HostComponent {
     readonly icon = signal<IconNode>(TWO_PATHS);

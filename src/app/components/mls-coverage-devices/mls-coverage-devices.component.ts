@@ -1,4 +1,4 @@
-import {Component, computed, inject, input} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, inject, input} from '@angular/core';
 import {Button} from 'primeng/button';
 import {TranslateModule} from '@ngx-translate/core';
 import {MlsCoverageService} from '../../services/mls-coverage.service';
@@ -51,6 +51,7 @@ interface StrandedDevice {
             </div>
         }
     `,
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class MlsCoverageDevicesComponent {
     readonly contextId = input.required<string>();

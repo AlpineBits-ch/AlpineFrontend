@@ -1,4 +1,5 @@
 import {
+    ChangeDetectionStrategy,
     Component,
     computed,
     DestroyRef,
@@ -53,6 +54,7 @@ import {OsInfo} from '../../platform/ports/os-info.port';
             />
         }
     `,
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AppAvatarComponent {
     readonly userId = input<string | undefined>(undefined);

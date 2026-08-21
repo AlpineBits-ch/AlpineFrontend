@@ -1,4 +1,4 @@
-import {Component, computed, input} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, input} from '@angular/core';
 import {TranslateModule} from '@ngx-translate/core';
 import {Activity, ACTIVITY_TYPE_ICONS} from '../../models/activity.model';
 
@@ -22,6 +22,7 @@ import {Activity, ACTIVITY_TYPE_ICONS} from '../../models/activity.model';
             </span>
         }
     `,
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ActivityLineComponent {
     readonly activity = input<Activity | null | undefined>(null);

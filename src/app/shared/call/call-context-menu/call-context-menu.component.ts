@@ -1,4 +1,4 @@
-import {Component, HostListener, input, output} from '@angular/core';
+import {ChangeDetectionStrategy, Component, HostListener, input, output} from '@angular/core';
 import {TranslateModule} from '@ngx-translate/core';
 import {CallParticipantMenuData} from '../call.types';
 
@@ -8,6 +8,7 @@ import {CallParticipantMenuData} from '../call.types';
     templateUrl: './call-context-menu.component.html',
     styleUrl: './call-context-menu.component.css',
     host: {'(click)': '$event.stopPropagation()'},
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CallContextMenuComponent {
     readonly menu = input.required<CallParticipantMenuData>();

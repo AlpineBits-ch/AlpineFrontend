@@ -1,4 +1,13 @@
-import {Component, computed, inject, OnDestroy, OnInit, signal, viewChild} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    inject,
+    OnDestroy,
+    OnInit,
+    signal,
+    viewChild,
+} from '@angular/core';
 import {NavigationEnd, Router} from '@angular/router';
 import {takeUntilDestroyed, toSignal} from '@angular/core/rxjs-interop';
 import {filter} from 'rxjs';
@@ -38,6 +47,7 @@ interface TitlebarContext {
     imports: [TranslateModule, Popover, ContextMenuComponent, InboxPanelComponent],
     templateUrl: './titlebar.component.html',
     styleUrl: './titlebar.component.css',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class TitlebarComponent implements OnInit, OnDestroy {
     /** Whether to draw a window frame at all. */

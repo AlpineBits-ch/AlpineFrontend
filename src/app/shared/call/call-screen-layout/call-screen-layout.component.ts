@@ -1,4 +1,5 @@
 import {
+    ChangeDetectionStrategy,
     Component,
     computed,
     effect,
@@ -49,6 +50,7 @@ import {StreamStatsSnapshot} from '../stream-stats';
     host: {
         class: 'flex flex-col min-h-0',
     },
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CallScreenLayoutComponent implements OnDestroy {
     readonly screenShares = input.required<CallScreenShare[]>();

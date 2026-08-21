@@ -1,5 +1,6 @@
 import {
     AfterViewInit,
+    ChangeDetectionStrategy,
     Component,
     ElementRef,
     input,
@@ -14,6 +15,7 @@ import {Button} from 'primeng/button';
     selector: 'app-image-cropper',
     imports: [Button],
     templateUrl: './image-cropper.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ImageCropperComponent implements AfterViewInit, OnDestroy {
     readonly imageSrc = input.required<string>();

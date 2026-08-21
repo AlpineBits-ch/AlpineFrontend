@@ -1,4 +1,4 @@
-import {Component, inject} from '@angular/core';
+import {ChangeDetectionStrategy, Component, inject} from '@angular/core';
 import {TestBed} from '@angular/core/testing';
 import {MinuteClockService} from './minute-clock.service';
 import {ServerClockService} from './server-clock.service';
@@ -13,7 +13,7 @@ class FakeServerClock {
 }
 
 /** A retainer has to live somewhere with a DestroyRef, which in practice means a component. */
-@Component({template: ''})
+@Component({template: '', changeDetection: ChangeDetectionStrategy.OnPush})
 class HostComponent {
     readonly clock = inject(MinuteClockService);
 

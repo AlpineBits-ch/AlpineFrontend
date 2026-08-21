@@ -1,4 +1,4 @@
-import {Component, computed, inject, input} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, inject, input} from '@angular/core';
 import {DomSanitizer} from '@angular/platform-browser';
 import twemoji from 'twemoji';
 
@@ -8,6 +8,7 @@ const TWEMOJI_BASE = 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/
     selector: 'app-twemoji',
     template: `<span [innerHTML]="html()"></span>`,
     host: {style: 'display:inline-flex;align-items:center;line-height:0'},
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class TwemojiComponent {
     readonly emoji = input.required<string>();

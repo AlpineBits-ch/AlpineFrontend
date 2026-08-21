@@ -1,4 +1,4 @@
-import {Component, input} from '@angular/core';
+import {ChangeDetectionStrategy, Component, input} from '@angular/core';
 import {TranslateModule} from '@ngx-translate/core';
 
 /**
@@ -32,6 +32,7 @@ import {TranslateModule} from '@ngx-translate/core';
             </div>
         </div>
     `,
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AiPrivacyNoteComponent {
     /** The billing sentence is noise in a dialog you reached by clicking Generate. */

@@ -1,4 +1,4 @@
-import {Component, input, output} from '@angular/core';
+import {ChangeDetectionStrategy, Component, input, output} from '@angular/core';
 import {TranslateModule} from '@ngx-translate/core';
 import {SlotCount} from '../../../core/voice-limits';
 import {
@@ -26,6 +26,7 @@ const SEGMENT_BASE =
     selector: 'app-call-controls-bar',
     imports: [TranslateModule],
     templateUrl: './call-controls-bar.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CallControlsBarComponent {
     // State inputs

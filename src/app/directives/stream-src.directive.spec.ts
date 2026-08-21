@@ -1,4 +1,4 @@
-import {Component} from '@angular/core';
+import {ChangeDetectionStrategy, Component} from '@angular/core';
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {StreamSrcDirective} from './stream-src.directive';
@@ -7,6 +7,7 @@ import {StreamSrcDirective} from './stream-src.directive';
     selector: 'app-stream-src-host',
     imports: [StreamSrcDirective],
     template: `<video [appStreamSrc]="stream"></video>`,
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 class HostComponent {
     stream: MediaStream | null = null;

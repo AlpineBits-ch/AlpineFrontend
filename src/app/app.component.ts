@@ -1,5 +1,6 @@
 import {
     afterNextRender,
+    ChangeDetectionStrategy,
     Component,
     DestroyRef,
     ElementRef,
@@ -79,6 +80,7 @@ function isEditableTarget(target: EventTarget | null): boolean {
     ],
     templateUrl: './app.component.html',
     styleUrl: './app.component.css',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AppComponent implements OnInit, OnDestroy {
     protected readonly isPopup = window.location.pathname === '/toast-popup';

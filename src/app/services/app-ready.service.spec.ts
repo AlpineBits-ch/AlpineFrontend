@@ -7,13 +7,13 @@
  * splash has to stay up for however long that takes - a timer measured from a navigation that has
  * not happened yet hides nothing.</p>
  */
-import {Component, inject, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, inject, signal} from '@angular/core';
 import {TestBed} from '@angular/core/testing';
 import {provideLocationMocks} from '@angular/common/testing';
 import {CanMatchFn, provideRouter, Router} from '@angular/router';
 import {AppReadyService, SPLASH_SAFETY_NET_MS} from './app-ready.service';
 
-@Component({selector: 'app-route-stub', template: ''})
+@Component({selector: 'app-route-stub', template: '', changeDetection: ChangeDetectionStrategy.OnPush})
 class RouteStub {}
 
 /** Whether there is a session yet, controlled per test. */

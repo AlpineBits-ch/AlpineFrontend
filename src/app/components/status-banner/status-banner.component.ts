@@ -1,4 +1,4 @@
-import {Component, computed, inject} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, inject} from '@angular/core';
 import {TranslateModule} from '@ngx-translate/core';
 import {PlatformStatusService} from '../../services/platform-status.service';
 import {ExternalLinkService} from '../../services/external-link.service';
@@ -34,6 +34,7 @@ const SEVERITY_STYLES: Record<'info' | 'warning' | 'critical', SeverityStyle> = 
     selector: 'app-status-banner',
     imports: [TranslateModule],
     templateUrl: './status-banner.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class StatusBannerComponent {
     protected readonly status = inject(PlatformStatusService);

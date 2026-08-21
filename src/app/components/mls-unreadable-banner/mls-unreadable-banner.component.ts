@@ -1,4 +1,4 @@
-import {Component, computed, effect, inject, input, output} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, effect, inject, input, output} from '@angular/core';
 import {Button} from 'primeng/button';
 import {TranslateModule} from '@ngx-translate/core';
 import {MlsFailureReason, MlsHealthService} from '../../services/mls-health.service';
@@ -94,6 +94,7 @@ import {MlsCoverageService} from '../../services/mls-coverage.service';
             }
         }
     `,
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class MlsUnreadableBannerComponent {
     readonly contextId = input.required<string>();
