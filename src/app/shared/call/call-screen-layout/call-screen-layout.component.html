@@ -87,7 +87,7 @@
                         <i class="pi pi-play-circle text-lg text-text-muted"></i>
                     </span>
                 } @else if (self.stream) {
-                    <video [streamSrc]="self.stream" autoplay class="h-full w-full object-contain" muted playsinline></video>
+                    <video [appStreamSrc]="self.stream" autoplay class="h-full w-full object-contain" muted playsinline></video>
                 } @else if (self.previewSrc) {
                     <img [alt]="'CALL.YOUR_SCREEN' | translate" [src]="self.previewSrc" class="h-full w-full object-contain" />
                 } @else {
@@ -144,7 +144,7 @@
                                 [class.-scale-x-100]="p.isLocal"
                                 [class.speaking-ring]="p.isSpeaking"
                                 [muted]="p.isLocal"
-                                [streamSrc]="p.videoStream"
+                                [appStreamSrc]="p.videoStream"
                                 autoplay
                                 class="size-8 rounded-full border border-brand/30 object-cover"
                                 playsinline

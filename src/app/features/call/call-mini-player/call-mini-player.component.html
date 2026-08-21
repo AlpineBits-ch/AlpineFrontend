@@ -30,7 +30,7 @@
             <div class="relative aspect-video w-full bg-black">
                 <!-- Guarded because a CallScreenShare need not carry a MediaStream at all. -->
                 @if (share.stream; as stream) {
-                    <video [streamSrc]="stream" autoplay class="h-full w-full object-contain" muted playsinline></video>
+                    <video [appStreamSrc]="stream" autoplay class="h-full w-full object-contain" muted playsinline></video>
                 } @else {
                     <div class="flex h-full w-full items-center justify-center">
                         <i class="pi pi-desktop text-2xl text-text-faint"></i>
@@ -45,7 +45,7 @@
                 @for (p of miniature(); track p.userId) {
                     <div class="relative flex aspect-video items-center justify-center overflow-hidden rounded-lg bg-black/40">
                         @if (p.isCameraOn && p.videoStream) {
-                            <video [streamSrc]="p.videoStream" autoplay class="h-full w-full object-cover" muted playsinline></video>
+                            <video [appStreamSrc]="p.videoStream" autoplay class="h-full w-full object-cover" muted playsinline></video>
                         } @else {
                             <span
                                 [class.speaking-ring]="p.isSpeaking"

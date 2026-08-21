@@ -1,20 +1,21 @@
-import {Directive, ElementRef, Input, OnDestroy} from '@angular/core';
+import {Directive, ElementRef, inject, Input, OnDestroy} from '@angular/core';
 
 /**
  * Binds a `MediaStream` to a `<video>` (or `<audio>`) element, and pauses playback while the
  * window is hidden. Pause only: never unsubscribe, which would drop the viewer claim. A video in
  * either Picture-in-Picture route keeps playing.
  */
-@Directive({selector: '[streamSrc]', standalone: true})
+@Directive({selector: '[appStreamSrc]', standalone: true})
 export class StreamSrcDirective implements OnDestroy {
+    private readonly el = inject<ElementRef<HTMLVideoElement | HTMLAudioElement>>(ElementRef);
     private stream: MediaStream | null = null;
     private readonly onVisibilityChange = (): void => this.applyVisibility();
 
-    constructor(private el: ElementRef<HTMLVideoElement | HTMLAudioElement>) {
+    constructor() {
         document.addEventListener('visibilitychange', this.onVisibilityChange);
     }
 
-    @Input() set streamSrc(stream: MediaStream | null | undefined) {
+    @Input() set appStreamSrc(stream: MediaStream | null | undefined) {
         this.stream = stream ?? null;
         const el = this.el.nativeElement;
         el.srcObject = this.stream;
