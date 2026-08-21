@@ -11,7 +11,7 @@ import {
 } from '@ngrx/signals/entities';
 import {MessageDto, MessageFlags, MessageReaction} from '../dtos/response/message.dto';
 import {MessageEncryptionState} from '../enums/message-encryption-state.enum';
-import {MessagingService} from '../services/messaging.service';
+import {MessageCursor, MessagingService} from '../services/messaging.service';
 import {MlsReplayedMessage, MlsService} from '../services/mls.service';
 import {MlsSyncService} from '../services/mls-sync.service';
 import {MlsHealthService} from '../services/mls-health.service';
@@ -239,14 +239,25 @@ export const MessageStore = signalStore(
                 });
             }
 
-            function requestPage(ctx: MessageContext, offset: number): Observable<MessageDto[]> {
+            function requestPage(
+                ctx: MessageContext,
+                offset: number,
+                cursor?: MessageCursor,
+            ): Observable<MessageDto[]> {
+                // A cursor reaches the server only for a channel: `getMessagesForConversation` has no
+                // such parameter, so one passed with a conversation context is dropped here.
                 const page =
                     ctx.kind === 'conversation'
                         ? messagingService.getMessagesForConversation(ctx.id, offset, PAGE_SIZE)
-                        : messagingService.getMessagesForChannel(ctx.id, offset, PAGE_SIZE);
+                        : messagingService.getMessagesForChannel(ctx.id, offset, PAGE_SIZE, cursor);
                 return page.pipe(
                     switchMap(messages => from(decryptMessages(messages, mlsService, mlsSync, mlsHealth))),
                 );
+            }
+
+            /** The one place a page that is not the first reaches the entity map. */
+            function applyPage(ctx: MessageContext, messages: MessageDto[], next: ConversationMeta): void {
+                patchState(store, addEntities(messages), metaPatch(ctx, next));
             }
 
             /** Painted first, replaced on arrival. `offset` is a server-side cursor and never moves here. */
@@ -341,15 +352,11 @@ export const MessageStore = signalStore(
 
                 requestPage(ctx, meta.offset).subscribe({
                     next: messages => {
-                        patchState(
-                            store,
-                            addEntities(messages),
-                            metaPatch(ctx, {
-                                offset: meta.offset + messages.length,
-                                hasMore: messages.length === PAGE_SIZE,
-                                loadingMore: false,
-                            }),
-                        );
+                        applyPage(ctx, messages, {
+                            offset: meta.offset + messages.length,
+                            hasMore: messages.length === PAGE_SIZE,
+                            loadingMore: false,
+                        });
                     },
                     error: () => {
                         patchState(store, metaPatch(ctx, {...meta, loadingMore: false}));
@@ -641,110 +648,74 @@ export const MessageStore = signalStore(
                  * from the cache: the cache holds the newest page, which is the opposite end.
                  */
                 loadChannelOldest(channelId: string): void {
-                    const meta = store.channelMeta()[channelId];
+                    const ctx = channelContext(channelId);
+                    const meta = readMeta(ctx);
                     if (meta?.loadingMore || meta?.loadingNewer) return;
 
-                    patchState(store, {
-                        channelMeta: {
-                            ...store.channelMeta(),
-                            [channelId]: {
+                    patchState(
+                        store,
+                        metaPatch(ctx, {
+                            offset: 0,
+                            // Nothing is older than the beginning.
+                            hasMore: false,
+                            loadingMore: true,
+                            anchored: true,
+                            hasNewer: true,
+                        }),
+                    );
+
+                    requestPage(ctx, 0, {oldest: true}).subscribe({
+                        next: messages => {
+                            const end = newestOf(messages);
+                            applyPage(ctx, messages, {
                                 offset: 0,
-                                // Nothing is older than the beginning.
                                 hasMore: false,
-                                loadingMore: true,
+                                loadingMore: false,
                                 anchored: true,
-                                hasNewer: true,
-                            },
+                                hasNewer: messages.length === PAGE_SIZE,
+                                windowEndAt: end?.at,
+                                windowEndId: end?.id,
+                            });
+                        },
+                        error: (err: HttpErrorResponse) => {
+                            patchState(
+                                store,
+                                metaPatch(ctx, {
+                                    offset: 0,
+                                    hasMore: false,
+                                    loadingMore: false,
+                                    error: err.status || 0,
+                                }),
+                            );
                         },
                     });
-
-                    messagingService
-                        .getMessagesForChannel(channelId, 0, PAGE_SIZE, {oldest: true})
-                        .pipe(
-                            switchMap(messages =>
-                                from(decryptMessages(messages, mlsService, mlsSync, mlsHealth)),
-                            ),
-                        )
-                        .subscribe({
-                            next: messages => {
-                                const end = newestOf(messages);
-                                patchState(store, addEntities(messages), {
-                                    channelMeta: {
-                                        ...store.channelMeta(),
-                                        [channelId]: {
-                                            offset: 0,
-                                            hasMore: false,
-                                            loadingMore: false,
-                                            anchored: true,
-                                            hasNewer: messages.length === PAGE_SIZE,
-                                            windowEndAt: end?.at,
-                                            windowEndId: end?.id,
-                                        },
-                                    },
-                                });
-                            },
-                            error: (err: HttpErrorResponse) => {
-                                patchState(store, {
-                                    channelMeta: {
-                                        ...store.channelMeta(),
-                                        [channelId]: {
-                                            offset: 0,
-                                            hasMore: false,
-                                            loadingMore: false,
-                                            error: err.status || 0,
-                                        },
-                                    },
-                                });
-                            },
-                        });
                 },
 
                 /** Widens an anchored window forward, toward the present. */
                 loadNewerForChannel(channelId: string): void {
-                    const meta = store.channelMeta()[channelId];
+                    const ctx = channelContext(channelId);
+                    const meta = readMeta(ctx);
                     if (!meta?.anchored || meta.loadingNewer || !meta.hasNewer || !meta.windowEndId) return;
 
-                    patchState(store, {
-                        channelMeta: {
-                            ...store.channelMeta(),
-                            [channelId]: {...meta, loadingNewer: true},
+                    patchState(store, metaPatch(ctx, {...meta, loadingNewer: true}));
+
+                    requestPage(ctx, 0, {after: meta.windowEndId}).subscribe({
+                        next: messages => {
+                            const held = readMeta(ctx) ?? meta;
+                            const end = newestOf(messages);
+                            applyPage(ctx, messages, {
+                                ...held,
+                                loadingNewer: false,
+                                hasNewer: messages.length === PAGE_SIZE,
+                                windowEndAt: end?.at ?? held.windowEndAt,
+                                windowEndId: end?.id ?? held.windowEndId,
+                            });
+                        },
+                        error: () => {
+                            const held = readMeta(ctx) ?? meta;
+                            patchState(store, metaPatch(ctx, {...held, loadingNewer: false}));
                         },
                     });
-
-                    messagingService
-                        .getMessagesForChannel(channelId, 0, PAGE_SIZE, {after: meta.windowEndId})
-                        .pipe(
-                            switchMap(messages =>
-                                from(decryptMessages(messages, mlsService, mlsSync, mlsHealth)),
-                            ),
-                        )
-                        .subscribe({
-                            next: messages => {
-                                const held = store.channelMeta()[channelId] ?? meta;
-                                const end = newestOf(messages);
-                                patchState(store, addEntities(messages), {
-                                    channelMeta: {
-                                        ...store.channelMeta(),
-                                        [channelId]: {
-                                            ...held,
-                                            loadingNewer: false,
-                                            hasNewer: messages.length === PAGE_SIZE,
-                                            windowEndAt: end?.at ?? held.windowEndAt,
-                                            windowEndId: end?.id ?? held.windowEndId,
-                                        },
-                                    },
-                                });
-                            },
-                            error: () => {
-                                const held = store.channelMeta()[channelId] ?? meta;
-                                patchState(store, {
-                                    channelMeta: {
-                                        ...store.channelMeta(),
-                                        [channelId]: {...held, loadingNewer: false},
-                                    },
-                                });
-                            },
-                        });
                 },
 
                 /**
@@ -753,12 +724,9 @@ export const MessageStore = signalStore(
                  * loaded stay, so the history read so far is not thrown away.
                  */
                 clearChannelAnchor(channelId: string): void {
-                    const meta = store.channelMeta()[channelId];
-                    if (!meta?.anchored) return;
-
-                    const next = {...store.channelMeta()};
-                    delete next[channelId];
-                    patchState(store, {channelMeta: next});
+                    const ctx = channelContext(channelId);
+                    if (!readMeta(ctx)?.anchored) return;
+                    patchState(store, metaPatch(ctx, null));
                 },
 
                 loadMoreForChannel(channelId: string): void {
