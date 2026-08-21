@@ -1,4 +1,4 @@
-import {Component, computed, inject, input, output} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, inject, input, output} from '@angular/core';
 import {NgClass} from '@angular/common';
 import {Tooltip} from 'primeng/tooltip';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
@@ -46,6 +46,7 @@ const MODULE_GROUP_BY_CHANNEL: Partial<Record<ChannelType, string>> = {
     selector: 'app-permission-override-editor',
     imports: [NgClass, Tooltip, TranslateModule],
     templateUrl: './permission-override-editor.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PermissionOverrideEditorComponent {
     /** Names beyond this many are folded into a count instead of listed; ViewChannel alone has 21. */

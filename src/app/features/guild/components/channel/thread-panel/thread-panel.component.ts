@@ -1,4 +1,14 @@
-import {Component, DestroyRef, effect, inject, input, output, OnInit, signal} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    DestroyRef,
+    effect,
+    inject,
+    input,
+    OnInit,
+    output,
+    signal,
+} from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {FormsModule} from '@angular/forms';
 import {Button} from 'primeng/button';
@@ -14,6 +24,7 @@ import {RealtimeConnectionService} from '../../../../../services/realtime-connec
     selector: 'app-thread-panel',
     imports: [Button, InputText, Dialog, FormsModule, PrimeTemplate],
     templateUrl: './thread-panel.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ThreadPanelComponent implements OnInit {
     readonly parentChannelId = input.required<string>();

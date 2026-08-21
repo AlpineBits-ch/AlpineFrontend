@@ -1,4 +1,4 @@
-import {Component, computed, effect, inject, input, untracked} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, effect, inject, input, untracked} from '@angular/core';
 import {Button} from 'primeng/button';
 import {TranslateModule} from '@ngx-translate/core';
 import {ChannelDto} from '../../../../dtos/response/guild.dto';
@@ -50,6 +50,7 @@ interface AwayRow {
     selector: 'app-house-home',
     imports: [Button, TranslateModule, AwayBoardComponent],
     templateUrl: './house-home.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class HouseHomeComponent {
     readonly guildId = input.required<string>();

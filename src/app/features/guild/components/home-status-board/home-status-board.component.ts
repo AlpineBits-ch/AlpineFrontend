@@ -1,4 +1,13 @@
-import {Component, computed, effect, inject, input, signal, untracked} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    effect,
+    inject,
+    input,
+    signal,
+    untracked,
+} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {Button} from 'primeng/button';
 import {InputText} from 'primeng/inputtext';
@@ -42,6 +51,7 @@ interface BoardRow {
     selector: 'app-home-status-board',
     imports: [FormsModule, Button, InputText, Select, Tooltip, TranslateModule],
     templateUrl: './home-status-board.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class HomeStatusBoardComponent {
     readonly guild = input.required<GuildDto>();

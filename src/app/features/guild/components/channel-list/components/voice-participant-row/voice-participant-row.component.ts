@@ -1,4 +1,4 @@
-import {Component, input, output} from '@angular/core';
+import {ChangeDetectionStrategy, Component, input, output} from '@angular/core';
 import {NgClass} from '@angular/common';
 import {TranslateModule} from '@ngx-translate/core';
 import {AppAvatarComponent} from '../../../../../../components/avatar/avatar.component';
@@ -11,6 +11,7 @@ import {CallLiveBadgeComponent} from '../../../../../../shared/call/call-live-ba
     host: {class: 'contents'},
     imports: [NgClass, AppAvatarComponent, TranslateModule, CallLiveBadgeComponent],
     templateUrl: './voice-participant-row.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class VoiceParticipantRowComponent {
     readonly participant = input.required<VoiceChannelParticipant>();

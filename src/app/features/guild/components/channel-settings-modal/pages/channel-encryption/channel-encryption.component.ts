@@ -1,4 +1,4 @@
-import {Component, computed, inject, input, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, inject, input, signal} from '@angular/core';
 import {NgClass} from '@angular/common';
 import {Button} from 'primeng/button';
 import {TranslateModule} from '@ngx-translate/core';
@@ -21,6 +21,7 @@ import {MlsCoverageService} from '../../../../../../services/mls-coverage.servic
     selector: 'app-channel-encryption',
     imports: [NgClass, Button, TranslateModule, MlsCoverageDevicesComponent],
     templateUrl: './channel-encryption.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ChannelEncryptionComponent {
     readonly channel = input.required<ChannelDto>();

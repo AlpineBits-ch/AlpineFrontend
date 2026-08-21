@@ -1,4 +1,4 @@
-import {Component, computed, effect, inject, input} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, effect, inject, input} from '@angular/core';
 import {TranslateModule} from '@ngx-translate/core';
 import {EntitlementStore} from '../../../../stores/entitlement.store';
 import {entitlementRemedyCopy, moduleNotInPlanCopy} from '../../../../core/entitlement-message';
@@ -8,6 +8,7 @@ import {entitlementRemedyCopy, moduleNotInPlanCopy} from '../../../../core/entit
     selector: 'app-module-not-in-plan',
     imports: [TranslateModule],
     templateUrl: './module-not-in-plan.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ModuleNotInPlanComponent {
     /** The `GuildFeatures` name, which is what the copy is looked up by. */

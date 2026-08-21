@@ -1,4 +1,4 @@
-import {Component, inject, input, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, inject, input, signal} from '@angular/core';
 import {Button} from 'primeng/button';
 import {TranslateModule} from '@ngx-translate/core';
 import {firstValueFrom} from 'rxjs';
@@ -9,6 +9,7 @@ import {MlsJoinRequestDto, MlsJoinRequestService} from '../../../../services/mls
     selector: 'app-channel-access-banner',
     imports: [Button, TranslateModule],
     templateUrl: './channel-access-banner.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ChannelAccessBannerComponent {
     readonly channelId = input.required<string>();

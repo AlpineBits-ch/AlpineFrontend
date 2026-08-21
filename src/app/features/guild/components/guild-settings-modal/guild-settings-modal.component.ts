@@ -1,4 +1,5 @@
 import {
+    ChangeDetectionStrategy,
     Component,
     computed,
     effect,
@@ -165,6 +166,7 @@ export function buildGuildNavGroups(
     ],
     templateUrl: './guild-settings-modal.component.html',
     styleUrl: './guild-settings-modal.component.css',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class GuildSettingsModalComponent {
     readonly isVisible = model.required<boolean>();

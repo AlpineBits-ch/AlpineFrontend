@@ -1,4 +1,4 @@
-import {Component, computed, inject, input, OnInit, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, inject, input, OnInit, signal} from '@angular/core';
 import {Button} from 'primeng/button';
 import {Dialog} from 'primeng/dialog';
 import {PrimeTemplate} from 'primeng/api';
@@ -13,6 +13,7 @@ import {ToastService} from '../../../../../../services/toast.service';
     selector: 'app-discord-sync-settings',
     imports: [Button, Dialog, PrimeTemplate, TranslateModule],
     templateUrl: './discord-sync-settings.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class DiscordSyncSettingsComponent implements OnInit {
     readonly guild = input.required<GuildDto>();

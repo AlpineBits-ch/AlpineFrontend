@@ -1,6 +1,7 @@
 import {
     afterEveryRender,
     AfterViewInit,
+    ChangeDetectionStrategy,
     Component,
     computed,
     DestroyRef,
@@ -87,6 +88,7 @@ import {ViewAsService} from '../../../view-as/view-as.service';
     ],
     templateUrl: './channel-conversation.component.html',
     styleUrl: './channel-conversation.component.css',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ChannelConversationComponent implements AfterViewInit {
     public readonly channel = input.required<ChannelDto>();

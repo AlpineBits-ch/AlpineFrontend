@@ -1,4 +1,4 @@
-import {Component, computed, inject, input, OnInit, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, inject, input, OnInit, signal} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {Button} from 'primeng/button';
 import {InputText} from 'primeng/inputtext';
@@ -50,6 +50,7 @@ interface MemberRow {
         UserNameStyleDirective,
     ],
     templateUrl: './members-settings.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class MembersSettingsComponent implements OnInit {
     readonly guild = input.required<GuildDto>();

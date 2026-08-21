@@ -1,4 +1,4 @@
-import {Component, computed, inject, input, OnInit, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, inject, input, OnInit, signal} from '@angular/core';
 import {NgClass} from '@angular/common';
 import {FormsModule} from '@angular/forms';
 import {Button} from 'primeng/button';
@@ -73,6 +73,7 @@ export function inviteOrigin(apiUrl: string): string {
         FormsModule,
     ],
     templateUrl: './invites-settings.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class InvitesSettingsComponent implements OnInit {
     readonly guild = input.required<GuildDto>();

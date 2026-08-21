@@ -1,4 +1,13 @@
-import {Component, computed, ElementRef, inject, input, output, signal} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    ElementRef,
+    inject,
+    input,
+    output,
+    signal,
+} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {Button} from 'primeng/button';
 import {Dialog} from 'primeng/dialog';
@@ -29,6 +38,7 @@ const KIND_NAV_KEYS = ['ArrowDown', 'ArrowRight', 'ArrowUp', 'ArrowLeft', 'Home'
     selector: 'app-modules-settings',
     imports: [FormsModule, Button, Dialog, ToggleSwitch, PrimeTemplate, TranslateModule],
     templateUrl: './modules-settings.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ModulesSettingsComponent {
     readonly guild = input.required<GuildDto>();
