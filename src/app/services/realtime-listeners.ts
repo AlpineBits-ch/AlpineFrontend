@@ -2,7 +2,6 @@ import {InjectionToken, Provider, ProviderToken} from '@angular/core';
 import {HomeStatusService} from './home-status.service';
 import {HouseholdAlertService} from './household-alert.service';
 import {InboxService} from './inbox.service';
-import {MaintenanceService} from './maintenance.service';
 import {MealService} from './meal.service';
 import {VoiceRingStateService} from './voice-ring-state.service';
 import {AbsenceStore} from '../stores/absence.store';
@@ -14,6 +13,7 @@ import {EntitlementStore} from '../stores/entitlement.store';
 import {GuildEmojiStore} from '../stores/guild-emoji.store';
 import {LedgerStore} from '../stores/ledger.store';
 import {ListStore} from '../stores/list.store';
+import {MaintenanceStore} from '../stores/maintenance.store';
 import {MessageStore} from '../stores/message.store';
 import {PantryStore} from '../stores/pantry.store';
 import {RelationshipStore} from '../stores/relationship.store';
@@ -37,7 +37,6 @@ const LISTENERS: ProviderToken<unknown>[] = [
     // and bills, and the dedupe behind it is per session, not per module.
     HouseholdAlertService,
     InboxService,
-    MaintenanceService,
     MealService,
     VoiceRingStateService,
     // The signal stores register in `withHooks({onInit})`, which a root store runs on first inject.
@@ -50,6 +49,7 @@ const LISTENERS: ProviderToken<unknown>[] = [
     GuildEmojiStore,
     LedgerStore,
     ListStore,
+    MaintenanceStore,
     MessageStore,
     PantryStore,
     RelationshipStore,
