@@ -10,7 +10,6 @@ import {
     output,
     signal,
     viewChild,
-    ViewChild,
 } from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {Button} from 'primeng/button';
@@ -96,15 +95,15 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
     /** Tags the AI suggested and the user accepted. The rail's tag editor owns them. */
     readonly tagsSuggested = output<string[]>();
 
-    @ViewChild('editorEl') editorEl?: ElementRef<HTMLDivElement>;
-    @ViewChild('fileInputEl') fileInputEl?: ElementRef<HTMLInputElement>;
-    @ViewChild('toolbar') toolbar?: WikiToolbarComponent;
-    @ViewChild('bubbleMenu') bubbleMenu?: WikiBubbleMenuComponent;
-    @ViewChild('slashMenu') slashMenu?: WikiSlashMenuComponent;
+    readonly editorEl = viewChild<ElementRef<HTMLDivElement>>('editorEl');
+    readonly fileInputEl = viewChild<ElementRef<HTMLInputElement>>('fileInputEl');
+    readonly toolbar = viewChild<WikiToolbarComponent>('toolbar');
+    readonly bubbleMenu = viewChild<WikiBubbleMenuComponent>('bubbleMenu');
+    readonly slashMenu = viewChild<WikiSlashMenuComponent>('slashMenu');
 
-    @ViewChild('emojiMenu') emojiMenu?: WikiEmojiMenuComponent;
-    @ViewChild('mentionMenu') mentionMenu?: WikiMentionMenuComponent;
-    @ViewChild('aiInline') aiInline?: WikiAiInlineComponent;
+    readonly emojiMenu = viewChild<WikiEmojiMenuComponent>('emojiMenu');
+    readonly mentionMenu = viewChild<WikiMentionMenuComponent>('mentionMenu');
+    readonly aiInline = viewChild<WikiAiInlineComponent>('aiInline');
 
     private readonly titleEl = viewChild<ElementRef<HTMLInputElement>>('titleEl');
     private readonly linkPicker = viewChild<WikiLinkPickerComponent>('linkPicker');
@@ -186,7 +185,7 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
     private readonly suggestFloating = injectWikiFloating({
         reposition: () => this.positionSuggest(),
         close: () => this.closeMenus(),
-        contains: node => this.editorEl?.nativeElement.contains(node) ?? false,
+        contains: node => this.editorEl()?.nativeElement.contains(node) ?? false,
         // Escape reaches the menus through the editor's own keymap chain.
         escape: false,
     });
@@ -225,7 +224,7 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
             const swapped = pageId !== this.shownPageId;
             if (swapped) {
                 this.shownPageId = pageId;
-                this.aiInline?.cancel();
+                this.aiInline()?.cancel();
                 // Reset only on an actual swap: doing it on a mere refresh would throw away
                 // unsaved text in the raw buffer.
                 this.sourceMode.set(false);
@@ -271,7 +270,7 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
         effect(() => {
             const editing = this.editing();
             // Same reason: leaving edit mode mid-generation must not leave the bar holding it.
-            if (!editing) this.aiInline?.cancel();
+            if (!editing) this.aiInline()?.cancel();
             this.editor?.setEditable(editing);
             // Leaving edit mode with the textarea open would render raw markdown as the article.
             if (!editing) this.commitSourceMode();
@@ -302,10 +301,11 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
     }
 
     ngAfterViewInit(): void {
-        if (!this.editorEl) return;
+        const editorEl = this.editorEl()?.nativeElement;
+        if (!editorEl) return;
         this.suggestHandle = wikiSuggestPlugin(s => this.onSuggest(s));
         this.editor = new Editor({
-            element: this.editorEl.nativeElement,
+            element: editorEl,
             extensions: [
                 // Block node views render DOM outside Angular, where neither the translate pipe
                 // nor an injected service is reachable, so their strings are resolved once here
@@ -345,7 +345,7 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
                     editable: () => this.editing(),
                     host: {
                         toggleMarkdown: () => this.toggleSourceMode(),
-                        openLink: () => this.toolbar?.openLinkRow(),
+                        openLink: () => this.toolbar()?.openLinkRow(),
                     },
                 }),
                 Extension.create({
@@ -386,8 +386,8 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
             // Suppressed while the selection is still being dragged out, or the menu chases the
             // pointer across the paragraph.
             onSelectionUpdate: () => {
-                if (this.selecting) this.bubbleMenu?.hide();
-                else this.bubbleMenu?.sync();
+                if (this.selecting) this.bubbleMenu()?.hide();
+                else this.bubbleMenu()?.sync();
             },
         });
         this.editorInstance.set(this.editor);
@@ -414,7 +414,7 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
                     return;
             }
         };
-        this.editorEl.nativeElement.addEventListener('click', this.clickHandler);
+        editorEl.addEventListener('click', this.clickHandler);
 
         // Captured so arrow keys drive the open menu instead of moving the caret; only consumed
         // while a menu is open.
@@ -433,25 +433,25 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
             }
             if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'j') {
                 event.preventDefault();
-                this.aiInline?.askAtCaret();
+                this.aiInline()?.askAtCaret();
                 return;
             }
         };
-        this.editorEl.nativeElement.addEventListener('keydown', this.keydownHandler, true);
+        editorEl.addEventListener('keydown', this.keydownHandler, true);
 
         // pointerup is bound on the document, not the editor: a drag often ends with the pointer
         // outside it, and a missed up would leave the menu suppressed until the next click.
         this.pointerDownHandler = () => {
             this.selecting = true;
-            this.bubbleMenu?.hide();
+            this.bubbleMenu()?.hide();
         };
         this.pointerUpHandler = () => {
             if (!this.selecting) return;
             this.selecting = false;
             // After the browser has settled the selection this release produced.
-            requestAnimationFrame(() => this.bubbleMenu?.sync());
+            requestAnimationFrame(() => this.bubbleMenu()?.sync());
         };
-        this.editorEl.nativeElement.addEventListener('pointerdown', this.pointerDownHandler);
+        editorEl.addEventListener('pointerdown', this.pointerDownHandler);
         document.addEventListener('pointerup', this.pointerUpHandler);
 
         // Delayed so sweeping the pointer across a paragraph of links does not strobe a popover
@@ -468,14 +468,14 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
             clearTimeout(this.previewTimer);
             this.previewOpen.set(false);
         };
-        this.editorEl.nativeElement.addEventListener('mouseover', this.overHandler);
-        this.editorEl.nativeElement.addEventListener('mouseout', this.outHandler);
+        editorEl.addEventListener('mouseover', this.overHandler);
+        editorEl.addEventListener('mouseout', this.outHandler);
     }
 
     ngOnDestroy(): void {
         clearTimeout(this.draftTimer);
         clearTimeout(this.previewTimer);
-        const el = this.editorEl?.nativeElement;
+        const el = this.editorEl()?.nativeElement;
         if (el && this.clickHandler) el.removeEventListener('click', this.clickHandler);
         if (el && this.keydownHandler) el.removeEventListener('keydown', this.keydownHandler, true);
         if (el && this.pointerDownHandler) el.removeEventListener('pointerdown', this.pointerDownHandler);
@@ -514,7 +514,7 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
 
     /** Streams a whole-page draft from the dialog's prompt; an empty page gets its whole body, a written one gets an insertion at the caret. */
     draftWithAi(prompt: string): void {
-        this.aiInline?.draftIntoPage(prompt);
+        this.aiInline()?.draftIntoPage(prompt);
     }
 
     /** Seeds a new page from a template; the title is only suggested, never imposed, over one the user already typed. The body goes through the same replace path as manual typing (undoable, autosaves as a draft). */
@@ -541,7 +541,7 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
         // Overlays anchored to the rich surface are closed first: their document coordinates
         // stop existing once the textarea replaces it, and a leftover popup would act on a
         // selection that no longer exists.
-        this.bubbleMenu?.hide();
+        this.bubbleMenu()?.hide();
         this.closeMenus();
         this.previewOpen.set(false);
 
@@ -612,7 +612,7 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
     }
 
     protected openFilePicker(): void {
-        this.fileInputEl?.nativeElement.click();
+        this.fileInputEl()?.nativeElement.click();
     }
 
     save(): void {
@@ -789,7 +789,7 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
         // need a prompt first, so they open the dialog, which hands the prompt back to this
         // inline bar.
         if (item.aiOp) {
-            this.aiInline?.runTransform({op: item.aiOp, labelKey: item.labelKey});
+            this.aiInline()?.runTransform({op: item.aiOp, labelKey: item.labelKey});
             return;
         }
         if (item.aiGenerate) this.requestAi.emit();
@@ -946,10 +946,10 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
         // Reset only when a menu opens; resetting on every keystroke would throw the highlight
         // back to the first row as the query narrows.
         const trigger = state.trigger;
-        if (trigger === '/' && !this.slashOpen()) this.slashMenu?.reset();
+        if (trigger === '/' && !this.slashOpen()) this.slashMenu()?.reset();
         if (trigger === '[[' && !this.linkPickerOpen()) this.linkPicker()?.reset();
-        if (trigger === ':' && !this.emojiMenuOpen()) this.emojiMenu?.reset();
-        if (trigger === '@' && !this.mentionMenuOpen()) this.mentionMenu?.reset();
+        if (trigger === ':' && !this.emojiMenuOpen()) this.emojiMenu()?.reset();
+        if (trigger === '@' && !this.mentionMenuOpen()) this.mentionMenu()?.reset();
 
         this.slashOpen.set(trigger === '/');
         this.emojiMenuOpen.set(trigger === ':');
@@ -987,10 +987,10 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
     private onMenuKeyDown(event: KeyboardEvent): boolean {
         // Escape is checked ahead of the open-menu gate: the bubble bar and its AI submenu are
         // not suggest menus, and gating on those left them on screen.
-        if (event.key === 'Escape' && (this.anyMenuOpen() || this.bubbleMenu?.isVisible())) {
+        if (event.key === 'Escape' && (this.anyMenuOpen() || this.bubbleMenu()?.isVisible())) {
             this.closeMenus();
-            this.bubbleMenu?.hide();
-            this.toolbar?.closeMenu();
+            this.bubbleMenu()?.hide();
+            this.toolbar()?.closeMenu();
             // State is re-derived from the text before the caret on the next keystroke, so
             // without this the menu Escape just closed comes straight back.
             this.suggestHandle?.suppress();
@@ -999,10 +999,10 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
         if (!this.anyMenuOpen()) return false;
         // Each menu returns false while it is shut, so the chain stops at the open one.
         return !!(
-            this.slashMenu?.handleKey(event.key) ||
+            this.slashMenu()?.handleKey(event.key) ||
             this.linkPicker()?.handleKey(event) ||
-            this.emojiMenu?.handleKey(event.key) ||
-            this.mentionMenu?.handleKey(event.key)
+            this.emojiMenu()?.handleKey(event.key) ||
+            this.mentionMenu()?.handleKey(event.key)
         );
     }
 
@@ -1176,7 +1176,7 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
 
     /** Flags links whose target no longer exists; done as a DOM attribute pass rather than a schema rule since the set of valid ids changes as pages are created and deleted while stored content does not. */
     private markBrokenLinks(): void {
-        const root = this.editorEl?.nativeElement;
+        const root = this.editorEl()?.nativeElement;
         if (!root) return;
         const pages = this.wiki()?.pages ?? [];
         const known = new Set(pages.map(p => p.id));
