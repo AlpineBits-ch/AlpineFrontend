@@ -2,6 +2,7 @@ import {TestBed} from '@angular/core/testing';
 import {provideHttpClient} from '@angular/common/http';
 import {HttpTestingController, provideHttpClientTesting} from '@angular/common/http/testing';
 import {describe, expect, it} from 'vitest';
+import {Subject} from 'rxjs';
 
 import {LedgerService} from './ledger.service';
 import {ApiConfigService} from './api-config.service';
@@ -27,7 +28,7 @@ function wireBody(body: unknown): unknown {
     return JSON.parse(JSON.stringify(body));
 }
 
-/** Handlers the service registered on the fake hub, so a test can fire a server event by name. */
+/** Streams the store subscribed to on the fake hub, so a test can fire a server event by name. */
 const hubHandlers = new Map<string, (payload: unknown) => void>();
 
 function expense(overrides: Partial<Expense> = {}): Expense {
@@ -69,8 +70,11 @@ function setup() {
             {
                 provide: RealtimeConnectionService,
                 useValue: {
-                    on: (event: string, handler: (payload: unknown) => void) =>
-                        hubHandlers.set(event, handler),
+                    stream: (event: string) => {
+                        const subject = new Subject<unknown>();
+                        hubHandlers.set(event, payload => subject.next(payload));
+                        return subject.asObservable();
+                    },
                 },
             },
         ],
