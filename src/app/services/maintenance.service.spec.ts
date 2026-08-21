@@ -691,4 +691,40 @@ describe('MaintenanceService', () => {
             expect(service.stateFor(CHANNEL).records).toEqual([]);
         });
     });
+
+    // The whole row is what the answer replaces. A cleared field that comes back absent rather
+    // than null must not leave the value it cleared standing on the old row.
+    describe('clearing a field', () => {
+        it('drops a status note the new status did not carry', () => {
+            const {service, ctrl} = setup();
+            load(service, ctrl, [asset({statusNote: 'drum seized', status: AssetStatus.Broken})]);
+
+            service.setStatus(GUILD_ID, CHANNEL, 'masset_1', AssetStatus.Ok).subscribe();
+            ctrl.expectOne(`${GUILD}/maintenance-assets/masset_1/status`).flush(
+                asset({status: AssetStatus.Ok}),
+            );
+
+            expect(service.stateFor(CHANNEL).assets[0].statusNote ?? null).toBeNull();
+        });
+
+        it('drops a warranty date an edit cleared', () => {
+            const {service, ctrl} = setup();
+            load(service, ctrl, [asset({warrantyUntil: '2027-01-01T00:00:00Z'})]);
+
+            service.editAsset(GUILD_ID, CHANNEL, 'masset_1', {clearWarrantyUntil: true}).subscribe();
+            ctrl.expectOne(`${GUILD}/maintenance-assets/masset_1`).flush(asset());
+
+            expect(service.stateFor(CHANNEL).assets[0].warrantyUntil ?? null).toBeNull();
+        });
+
+        it('drops an expense link an edit cleared', () => {
+            const {service, ctrl} = setup();
+            load(service, ctrl, [], [record({expenseId: 'exp_1'})]);
+
+            service.editRecord(CHANNEL, 'mrec_1', {clearExpense: true}).subscribe();
+            ctrl.expectOne(`${GUILD}/maintenance-records/mrec_1`).flush(record());
+
+            expect(service.stateFor(CHANNEL).records[0].expenseId ?? null).toBeNull();
+        });
+    });
 });

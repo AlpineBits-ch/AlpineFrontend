@@ -7,13 +7,13 @@ import {HomeStatusService} from './home-status.service';
 import {HouseholdAlertService} from './household-alert.service';
 import {InboxService} from './inbox.service';
 import {LedgerService} from './ledger.service';
-import {MaintenanceService} from './maintenance.service';
 import {MealService} from './meal.service';
 import {VoiceRingStateService} from './voice-ring-state.service';
 import {ConversationStore} from '../stores/conversation.store';
 import {EntitlementStore} from '../stores/entitlement.store';
 import {GuildEmojiStore} from '../stores/guild-emoji.store';
 import {ListStore} from '../stores/list.store';
+import {MaintenanceStore} from '../stores/maintenance.store';
 import {MessageStore} from '../stores/message.store';
 import {PantryStore} from '../stores/pantry.store';
 import {RelationshipStore} from '../stores/relationship.store';
@@ -42,7 +42,6 @@ const LISTENERS: ProviderToken<unknown>[] = [
     HouseholdAlertService,
     InboxService,
     LedgerService,
-    MaintenanceService,
     MealService,
     VoiceRingStateService,
     // The signal stores register in `withHooks({onInit})`, which a root store runs on first inject.
@@ -50,6 +49,7 @@ const LISTENERS: ProviderToken<unknown>[] = [
     EntitlementStore,
     GuildEmojiStore,
     ListStore,
+    MaintenanceStore,
     MessageStore,
     PantryStore,
     RelationshipStore,
