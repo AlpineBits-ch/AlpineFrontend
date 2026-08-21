@@ -6,7 +6,7 @@ import {
     OnDestroy,
     output,
     signal,
-    ViewChild,
+    viewChild,
 } from '@angular/core';
 import {Button} from 'primeng/button';
 
@@ -24,7 +24,7 @@ export class ImageCropperComponent implements AfterViewInit, OnDestroy {
     confirmed = output<File>();
     cancelled = output<void>();
 
-    @ViewChild('cropCanvas') private canvasRef!: ElementRef<HTMLCanvasElement>;
+    private readonly canvasRef = viewChild.required<ElementRef<HTMLCanvasElement>>('cropCanvas');
 
     private readonly SIZE = 320;
     private readonly MAX_CROP = 240;
@@ -56,7 +56,7 @@ export class ImageCropperComponent implements AfterViewInit, OnDestroy {
     private boundTouchMove!: (e: TouchEvent) => void;
 
     ngAfterViewInit(): void {
-        const canvas = this.canvasRef.nativeElement;
+        const canvas = this.canvasRef().nativeElement;
 
         this.boundWheel = (e: WheelEvent) => {
             e.preventDefault();
@@ -101,11 +101,9 @@ export class ImageCropperComponent implements AfterViewInit, OnDestroy {
     }
 
     ngOnDestroy(): void {
-        if (this.canvasRef) {
-            const canvas = this.canvasRef.nativeElement;
-            canvas.removeEventListener('wheel', this.boundWheel);
-            canvas.removeEventListener('touchmove', this.boundTouchMove);
-        }
+        const canvas = this.canvasRef().nativeElement;
+        canvas.removeEventListener('wheel', this.boundWheel);
+        canvas.removeEventListener('touchmove', this.boundTouchMove);
     }
 
     protected onMouseDown(e: MouseEvent): void {
@@ -185,7 +183,7 @@ export class ImageCropperComponent implements AfterViewInit, OnDestroy {
     }
 
     private draw(): void {
-        const canvas = this.canvasRef.nativeElement;
+        const canvas = this.canvasRef().nativeElement;
         const ctx = canvas.getContext('2d')!;
         const S = this.SIZE;
         const w = this.img.naturalWidth * this.scale;
