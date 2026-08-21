@@ -1,6 +1,7 @@
 import {TestBed} from '@angular/core/testing';
 import {HttpTestingController, provideHttpClientTesting} from '@angular/common/http/testing';
 import {provideHttpClient} from '@angular/common/http';
+import {Subject} from 'rxjs';
 import {PantryService} from './pantry.service';
 import {ApiConfigService} from './api-config.service';
 import {RealtimeConnectionService} from './realtime-connection.service';
@@ -11,8 +12,8 @@ const GUILD = `${BASE}/api/v1/guild`;
 const CHANNEL = 'chan_pantry';
 const GUILD_ID = 'gild_1';
 
-/** Handlers the service registered on the fake hub, so a test can fire a server event. */
-let hubHandlers: Map<string, (payload: any) => void>;
+/** Streams the store subscribed to on the fake hub, so a test can fire a server event. */
+let hubHandlers: Map<string, Subject<any>>;
 /** Every registration in order, so the "registered exactly once" rule can be asserted. */
 let registrations: string[];
 
@@ -28,9 +29,11 @@ function setup() {
             {
                 provide: RealtimeConnectionService,
                 useValue: {
-                    on: (event: string, handler: (payload: any) => void) => {
+                    stream: (event: string) => {
                         registrations.push(event);
-                        hubHandlers.set(event, handler);
+                        const subject = new Subject<any>();
+                        hubHandlers.set(event, subject);
+                        return subject.asObservable();
                     },
                     off: () => undefined,
                 },
@@ -72,9 +75,9 @@ function load(service: PantryService, ctrl: HttpTestingController, items: Pantry
 }
 
 function fire(event: string, payload: unknown) {
-    const handler = hubHandlers.get(event);
-    if (!handler) throw new Error(`no handler registered for ${event}`);
-    handler(payload);
+    const subject = hubHandlers.get(event);
+    if (!subject) throw new Error(`no handler registered for ${event}`);
+    subject.next(payload);
 }
 
 describe('PantryService', () => {

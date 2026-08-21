@@ -10,6 +10,7 @@ import {ApiConfigService} from '../../../../services/api-config.service';
 import {GuildService} from '../../../../services/guild.service';
 import {ProfileService} from '../../../../services/profile.service';
 import {RealtimeConnectionService} from '../../../../services/realtime-connection.service';
+import {FakeRealtimeConnection} from '../../../../testing/fake-realtime-connection';
 import {ChannelDto, ChannelType, GuildDto} from '../../../../dtos/response/guild.dto';
 import {SelfGuildMemberDto} from '../../../../dtos/response/member.dto';
 import {PantryConfig, PantryItem} from '../../../../dtos/response/pantry.dto';
@@ -109,7 +110,7 @@ function setup(
             provideTranslateService({defaultLanguage: 'en'}),
             MessageService,
             {provide: ApiConfigService, useValue: {baseUrl: () => BASE}},
-            {provide: RealtimeConnectionService, useValue: {on: () => undefined, off: () => undefined}},
+            {provide: RealtimeConnectionService, useValue: new FakeRealtimeConnection()},
             // Stubbed rather than real: the store would put a `/features` read on the wire that this file's `verify()` counts, and what the component asks it is one question.
             {
                 provide: EntitlementStore,

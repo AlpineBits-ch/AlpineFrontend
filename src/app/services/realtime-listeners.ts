@@ -10,12 +10,12 @@ import {LedgerService} from './ledger.service';
 import {ListService} from './list.service';
 import {MaintenanceService} from './maintenance.service';
 import {MealService} from './meal.service';
-import {PantryService} from './pantry.service';
 import {VoiceRingStateService} from './voice-ring-state.service';
 import {ConversationStore} from '../stores/conversation.store';
 import {EntitlementStore} from '../stores/entitlement.store';
 import {GuildEmojiStore} from '../stores/guild-emoji.store';
 import {MessageStore} from '../stores/message.store';
+import {PantryStore} from '../stores/pantry.store';
 import {RelationshipStore} from '../stores/relationship.store';
 import {ScheduledEventStore} from '../stores/scheduled-event.store';
 
@@ -45,13 +45,13 @@ const LISTENERS: ProviderToken<unknown>[] = [
     ListService,
     MaintenanceService,
     MealService,
-    PantryService,
     VoiceRingStateService,
     // The signal stores register in `withHooks({onInit})`, which a root store runs on first inject.
     ConversationStore,
     EntitlementStore,
     GuildEmojiStore,
     MessageStore,
+    PantryStore,
     RelationshipStore,
     ScheduledEventStore,
 ];
