@@ -40,7 +40,13 @@
                 <p class="text-sm font-semibold text-text-primary m-0">{{ 'DECISIONS.MODULE_OFF_TITLE' | translate }}</p>
                 <p class="text-[0.8125rem] text-text-secondary m-0">{{ 'DECISIONS.MODULE_OFF_BODY' | translate }}</p>
             </div>
-            <p-button (onClick)="back.emit()" [label]="'COMMON.BACK' | translate" [text]="true" severity="secondary" size="small" />
+            <p-button
+                (onClick)="navService.showHome()"
+                [label]="'COMMON.BACK' | translate"
+                [text]="true"
+                severity="secondary"
+                size="small"
+            />
         </div>
     } @else {
         <div class="flex-1 min-h-0 overflow-y-auto thin-scrollbar px-3 sm:px-5 py-4">
@@ -58,7 +64,7 @@
                         </p>
                         @if (err === 'forbidden') {
                             <p-button
-                                (onClick)="back.emit()"
+                                (onClick)="navService.showHome()"
                                 [label]="'COMMON.BACK' | translate"
                                 [text]="true"
                                 severity="secondary"
