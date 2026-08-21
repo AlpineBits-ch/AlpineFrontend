@@ -10,7 +10,6 @@ import {
     output,
     signal,
     untracked,
-    ViewChild,
     viewChild,
 } from '@angular/core';
 import {DatePipe, NgClass} from '@angular/common';
@@ -210,11 +209,11 @@ export class ConversationComponent implements AfterViewInit {
     private translate = inject(TranslateService);
 
     // ── Messages ─────────────────────────────────────────────────────────────
-    @ViewChild('messageScroll') private scrollRef!: ElementRef<HTMLDivElement>;
-    @ViewChild('messageList') private messageListRef?: ElementRef<HTMLDivElement>;
+    private readonly scrollRef = viewChild<ElementRef<HTMLDivElement>>('messageScroll');
+    private readonly messageListRef = viewChild<ElementRef<HTMLDivElement>>('messageList');
 
     // ── Load state ───────────────────────────────────────────────────────────
-    @ViewChild(ComposerComponent) private composerRef?: ComposerComponent;
+    private readonly composerRef = viewChild(ComposerComponent);
     private readonly conversationMeta = computed(
         () => this.messageStore.conversationMeta()[this.conversationId()] ?? null,
     );
@@ -249,7 +248,9 @@ export class ConversationComponent implements AfterViewInit {
     }
 
     ngAfterViewInit(): void {
-        this.scroll.attach(this.scrollRef.nativeElement);
+        // Absent while the error branch is showing; `onRender` re-attaches once it comes back.
+        const el = this.scrollRef()?.nativeElement;
+        if (el) this.scroll.attach(el);
         this.scroll.scrollToBottom();
     }
 
@@ -310,7 +311,7 @@ export class ConversationComponent implements AfterViewInit {
 
     protected onReply(msg: MessageDto): void {
         this.replyingTo.set(msg);
-        setTimeout(() => this.composerRef?.focus(), 0);
+        setTimeout(() => this.composerRef()?.focus(), 0);
     }
 
     // Snapshots the first unread message ID once when each conversation's messages
@@ -443,7 +444,7 @@ export class ConversationComponent implements AfterViewInit {
     private setupComposerFocus(): void {
         effect(() => {
             const _convId = this.conversationId();
-            setTimeout(() => this.composerRef?.focus(), 0);
+            setTimeout(() => this.composerRef()?.focus(), 0);
         });
     }
 
@@ -497,7 +498,7 @@ export class ConversationComponent implements AfterViewInit {
     // cycles where Angular re-creates the #messageScroll element inside the @else block.
     private setupRenderHook(): void {
         afterEveryRender(() => {
-            this.scroll.onRender(this.messageListRef?.nativeElement, this.scrollRef?.nativeElement);
+            this.scroll.onRender(this.messageListRef()?.nativeElement, this.scrollRef()?.nativeElement);
         });
     }
 
