@@ -1,4 +1,13 @@
-import {Component, computed, effect, inject, signal, untracked, viewChild} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    effect,
+    inject,
+    signal,
+    untracked,
+    viewChild,
+} from '@angular/core';
 import {Dialog} from 'primeng/dialog';
 import {Button} from 'primeng/button';
 import {PrimeTemplate} from 'primeng/api';
@@ -45,6 +54,7 @@ type RemovalConsequence = 'only' | 'default' | 'plain';
     selector: 'app-payment-methods',
     imports: [Dialog, Button, PrimeTemplate, TranslateModule, PaymentElementComponent],
     templateUrl: './payment-methods.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PaymentMethodsComponent {
     private billing = inject(BillingService);

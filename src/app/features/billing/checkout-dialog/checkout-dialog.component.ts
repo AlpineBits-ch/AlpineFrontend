@@ -1,4 +1,5 @@
 import {
+    ChangeDetectionStrategy,
     Component,
     computed,
     effect,
@@ -32,6 +33,7 @@ type CheckoutStep = 'starting' | 'collecting' | 'confirming' | 'activating' | 'd
     selector: 'app-checkout-dialog',
     imports: [Dialog, Button, PrimeTemplate, TranslateModule, PaymentElementComponent],
     templateUrl: './checkout-dialog.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CheckoutDialogComponent {
     readonly visible = model.required<boolean>();

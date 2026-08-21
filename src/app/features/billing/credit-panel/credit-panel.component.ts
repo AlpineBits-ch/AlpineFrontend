@@ -1,4 +1,4 @@
-import {Component, computed, inject, input, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, inject, input, signal} from '@angular/core';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {CreditWalletDto} from '../../../dtos/response/credit.dto';
 import {CreditService, creditIsAbsent} from '../../../services/credit.service';
@@ -12,6 +12,7 @@ import {CreditLedgerComponent} from '../credit-ledger/credit-ledger.component';
     selector: 'app-credit-panel',
     imports: [TranslateModule, CreditCatalogueComponent, CreditLedgerComponent],
     templateUrl: './credit-panel.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CreditPanelComponent {
     readonly subject = input.required<EntitlementSubjectRef>();

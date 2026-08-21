@@ -1,4 +1,5 @@
 import {
+    ChangeDetectionStrategy,
     Component,
     DestroyRef,
     effect,
@@ -35,6 +36,7 @@ export const PAYMENT_ELEMENT_MISSING_KEY = 'BILLING.ERROR.ELEMENT_MISSING';
     selector: 'app-payment-element',
     imports: [TranslateModule],
     templateUrl: './payment-element.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PaymentElementComponent {
     /** From `POST /subscriptions` or `POST /payment-methods/setup-intent`. Never rendered. */

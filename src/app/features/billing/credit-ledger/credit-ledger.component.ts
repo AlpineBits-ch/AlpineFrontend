@@ -1,4 +1,4 @@
-import {Component, computed, inject, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, inject, signal} from '@angular/core';
 import {TranslateModule} from '@ngx-translate/core';
 import {CreditEntryDto, CreditLedgerDto} from '../../../dtos/response/credit.dto';
 import {CreditService, creditIsAbsent} from '../../../services/credit.service';
@@ -21,6 +21,7 @@ const LEDGER_LIMIT = 25;
     selector: 'app-credit-ledger',
     imports: [TranslateModule],
     templateUrl: './credit-ledger.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CreditLedgerComponent {
     private credit = inject(CreditService);

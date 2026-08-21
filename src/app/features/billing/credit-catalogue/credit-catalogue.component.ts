@@ -1,4 +1,4 @@
-import {Component, computed, inject, input, output, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, inject, input, output, signal} from '@angular/core';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {sameSubjectKind} from '../../../dtos/response/billing.dto';
 import {CreditCatalogueDto, CreditPurchaseDto, CreditSkuDto} from '../../../dtos/response/credit.dto';
@@ -21,6 +21,7 @@ interface SkuRow {
     selector: 'app-credit-catalogue',
     imports: [TranslateModule, CreditPurchaseDialogComponent],
     templateUrl: './credit-catalogue.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CreditCatalogueComponent {
     readonly subject = input.required<EntitlementSubjectRef>();
