@@ -1,5 +1,14 @@
 import {ReorderChannesDto} from '../dtos/request/reorder-channel.dto';
 import {ReorderRolesDto} from '../dtos/request/reorder-roles.dto';
+import {
+    ListCleared,
+    ListItemChecked,
+    ListItemCreated,
+    ListItemDeleted,
+    ListItemsReordered,
+    ListItemUpdated,
+} from '../dtos/response/list.dto';
+import {PantryItemCreated, PantryItemDeleted, PantryItemUpdated} from '../dtos/response/pantry.dto';
 import {WsBotModalOpen} from '../dtos/bot-component.dto';
 import {DiceRolledDto} from '../dtos/response/dice.dto';
 import {GuildDto} from '../dtos/response/guild.dto';
@@ -238,6 +247,20 @@ export interface RealtimeEventMap {
     'guild.ForumTagDeleted': WsForumTagDeleted;
     'guild.ForumTagsReordered': WsForumTagsReordered;
     'guild.ForumConfigUpdated': WsForumConfigUpdated;
+
+    // Lists. An automatic restock emits `guild.ListItemCreated` too, so the Lists side is the only
+    // registered consumer of it; picking it up in the pantry as well would double every list row.
+    'guild.ListItemCreated': ListItemCreated;
+    'guild.ListItemUpdated': ListItemUpdated;
+    'guild.ListItemChecked': ListItemChecked;
+    'guild.ListItemDeleted': ListItemDeleted;
+    'guild.ListItemsReordered': ListItemsReordered;
+    'guild.ListCleared': ListCleared;
+
+    // Pantry.
+    'guild.PantryItemCreated': PantryItemCreated;
+    'guild.PantryItemUpdated': PantryItemUpdated;
+    'guild.PantryItemDeleted': PantryItemDeleted;
 
     // Messages.
     'guild.MessageCreated': GuildMessageCreatedPayload;
