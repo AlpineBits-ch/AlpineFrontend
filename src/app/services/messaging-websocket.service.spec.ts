@@ -8,7 +8,7 @@
  * view. §L.9 forbids the first two outright.</p>
  */
 import {TestBed} from '@angular/core/testing';
-import {of, Subject} from 'rxjs';
+import {of} from 'rxjs';
 import {MessagingWebsocketService} from './messaging-websocket.service';
 import {MlsService} from './mls.service';
 import {MlsSyncService} from './mls-sync.service';

@@ -4,7 +4,7 @@ import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {TranslateModule} from '@ngx-translate/core';
 import {CallScreenLayoutComponent} from './call-screen-layout.component';
 import {CallScreenShare} from '../call.types';
-import {ShareWatchService, WatchScope} from '../../../services/share-watch.service';
+import {ShareWatchService} from '../../../services/share-watch.service';
 import {RustMediaService} from '../../../services/rust-media.service';
 
 /**

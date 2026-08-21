@@ -1,5 +1,5 @@
 import {TestBed} from '@angular/core/testing';
-import {beforeEach, describe, expect, it, vi} from 'vitest';
+import {beforeEach, describe, expect, it} from 'vitest';
 
 import {SecureStore} from '../../platform/ports/secure-store.port';
 import {DeviceIdentityService} from '../device-identity.service';

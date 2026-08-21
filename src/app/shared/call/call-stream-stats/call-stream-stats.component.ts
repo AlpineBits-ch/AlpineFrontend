@@ -52,16 +52,16 @@ interface LayerSection {
 export class CallStreamStatsComponent {
     readonly stats = input.required<StreamStatsSnapshot | null>();
 
-    close = output<void>();
+    closed = output<void>();
 
     @HostListener('document:click')
     onDocumentClick(): void {
-        this.close.emit();
+        this.closed.emit();
     }
 
     @HostListener('document:keydown.escape')
     onEscape(): void {
-        this.close.emit();
+        this.closed.emit();
     }
 
     protected readonly title = computed(() =>

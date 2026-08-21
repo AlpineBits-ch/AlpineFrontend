@@ -25,6 +25,7 @@ import {
 } from '../ports/screen-publisher.port';
 import {LocalStreamChunk, ScreenPublisherHost} from '../screen-publisher-host';
 import {outboundStatsFromReport, StreamStatsSnapshot} from '../../shared/call/stream-stats';
+import {trace} from '../../core/log';
 
 /** One track in a publish request, in the neutral vocabulary the backend and Rust both speak. */
 interface PublishTrackRef {
@@ -365,7 +366,7 @@ export class WebScreenPublisher extends ScreenPublisher implements ScreenPublish
     private watchForHostStop(video: MediaStreamTrack, shareId: string): void {
         video.onended = () => {
             if (this.live?.shareId !== shareId) return;
-            console.info('[screen] the host ended the capture; stopping the publish');
+            trace('[screen] the host ended the capture; stopping the publish');
             void this.stopLive().finally(() => this.endedSink?.());
         };
     }

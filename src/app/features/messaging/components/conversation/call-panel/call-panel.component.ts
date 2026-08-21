@@ -1,4 +1,4 @@
-import {Component, computed, effect, HostListener, inject, OnDestroy, OnInit, signal} from '@angular/core';
+import {Component, computed, HostListener, inject, OnDestroy, OnInit, signal} from '@angular/core';
 import {CallSessionService} from '../../../../../services/call-session.service';
 import {CallWebRtcService} from '../../../../../services/call-webrtc.service';
 import {RustMediaService} from '../../../../../services/rust-media.service';

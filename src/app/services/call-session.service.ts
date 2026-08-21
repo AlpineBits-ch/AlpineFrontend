@@ -17,6 +17,7 @@ import {publishOptions, useRustPublisher} from './screen-publish';
 import {ScreenPickerChoice} from './screen-picker.service';
 import {ApiConfigService} from './api-config.service';
 import {DeviceIdentityService} from './device-identity.service';
+import {trace} from '../core/log';
 
 /**
  * A direct call resolves no room ceiling, so geometry here is capped by the preset alone.
@@ -335,7 +336,7 @@ export class CallSessionService {
                     {url: connection.url, token: connection.token},
                 ),
             );
-            console.log(`[call] Rust publisher live on ${published.encoder}`, published);
+            trace(`[call] Rust publisher live on ${published.encoder}`, published);
             // The backend raises TrackPublished itself, but only an announce sets `isStreaming`
             // and opens the viewer-count scope.
             this.voiceWs.invokeScreenShareStarted(callId, shareId);

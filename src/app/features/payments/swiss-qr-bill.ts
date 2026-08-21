@@ -18,7 +18,15 @@ const REFERENCE_TYPE_NONE = 'NON';
 const TRAILER = 'EPD';
 
 /** C0 and C1 controls, plus the Unicode line and paragraph separators. */
-const CONTROL_CHARACTERS = /[\u0000-\u001F\u007F-\u009F\u2028\u2029]/;
+function hasControlCharacter(value: string): boolean {
+    for (const character of value) {
+        const code = character.codePointAt(0) ?? 0;
+        if (code <= 0x1f) return true;
+        if (code >= 0x7f && code <= 0x9f) return true;
+        if (code === 0x2028 || code === 0x2029) return true;
+    }
+    return false;
+}
 
 /** The full field count. We emit through `EPD` at line 31 and leave 32-34 off. */
 export const SPC_LINE_COUNT = 34;
@@ -236,7 +244,7 @@ function field(name: string, value: string, max: number, required: boolean): str
     if (required && !trimmed) {
         throw new SwissQrBillError(name, `The creditor ${name} is required`);
     }
-    if (CONTROL_CHARACTERS.test(trimmed)) {
+    if (hasControlCharacter(trimmed)) {
         throw new SwissQrBillError(name, `The creditor ${name} contains a line break or control character`);
     }
     if (trimmed.length > max) {

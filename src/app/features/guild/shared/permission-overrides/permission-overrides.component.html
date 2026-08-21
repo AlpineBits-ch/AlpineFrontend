@@ -26,7 +26,7 @@
     @if (activeTab() === 'roles') {
         <app-permission-overrides-panel
             (add)="onAddRole($event)"
-            (change)="onRoleChange($event.id, $event.override)"
+            (changed)="onRoleChange($event.id, $event.override)"
             (delete)="deleteRole($event)"
             (queryChange)="searchRoles($event)"
             (save)="saveRole($event)"
@@ -46,7 +46,7 @@
     @if (activeTab() === 'members') {
         <app-permission-overrides-panel
             (add)="onAddMember($event)"
-            (change)="onMemberChange($event.id, $event.override)"
+            (changed)="onMemberChange($event.id, $event.override)"
             (delete)="deleteMember($event)"
             (loadMore)="loadMoreMembers()"
             (queryChange)="onMemberQuery($event)"

@@ -10,7 +10,6 @@
 import {TestBed} from '@angular/core/testing';
 import {provideHttpClient} from '@angular/common/http';
 import {HttpTestingController, provideHttpClientTesting} from '@angular/common/http/testing';
-import {Notifier} from '../platform/ports/notifier.port';
 import {SettingsStore, SettingsStoreFactory} from '../platform/ports/settings-store.port';
 import {FakeNotifier} from '../platform/testing/fake-notifier';
 import {provideFakePlatform} from '../platform/testing/provide-fake-platform';

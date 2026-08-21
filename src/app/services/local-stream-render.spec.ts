@@ -14,6 +14,10 @@ interface DecodedChunk {
 /** The decoder the renderer under test built, so a test can drive and inspect it. */
 let live: FakeVideoDecoder | null = null;
 
+function setLive(decoder: FakeVideoDecoder): void {
+    live = decoder;
+}
+
 class FakeVideoDecoder {
     /** Codec strings this fake claims to support, newest test first. */
     static supported: string[] = ['avc1.42E034'];
@@ -30,7 +34,7 @@ class FakeVideoDecoder {
     readonly decoded: DecodedChunk[] = [];
 
     constructor(private readonly init: {output: (frame: unknown) => void; error: (e: unknown) => void}) {
-        live = this;
+        setLive(this);
     }
 
     configure(): void {

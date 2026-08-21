@@ -80,18 +80,18 @@ export class SwissQrBillComponent {
                 errorCorrectionLevel: SPC_ERROR_CORRECTION,
                 color: {dark: '#000000', light: '#ffffff'},
             })
-                .then(() => drawSwissCross(element, size))
+                .then(() => drawSwissCross(element))
                 .catch(() => this.error.set('The QR-bill could not be drawn on this device.'));
         });
     }
 }
 
 /** Paints the mandatory Swiss cross over the centre of a rendered code. */
-function drawSwissCross(canvas: HTMLCanvasElement, size: number): void {
+function drawSwissCross(canvas: HTMLCanvasElement): void {
     const context = canvas.getContext('2d');
     if (!context) return;
 
-    // The rendered canvas is `size` wide including the quiet-zone margin the encoder added, so the
+    // The rendered canvas includes the quiet-zone margin the encoder added, so the
     // cross is centred on the canvas rather than on the module grid. That is what the guide
     // specifies - the cross sits in the middle of the code as printed.
     const centre = canvas.width / 2;

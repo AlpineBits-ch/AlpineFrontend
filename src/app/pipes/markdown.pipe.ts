@@ -1,4 +1,4 @@
-import {Pipe, PipeTransform} from '@angular/core';
+import {inject, Pipe, PipeTransform} from '@angular/core';
 import {DomSanitizer, SafeHtml} from '@angular/platform-browser';
 import {marked} from 'marked';
 import DOMPurify from 'dompurify';
@@ -14,7 +14,7 @@ const CODE_BLOCK_RE = /```(\w*)\r?\n([\s\S]*?)```/g;
 
 @Pipe({name: 'markdown', standalone: true})
 export class MarkdownPipe implements PipeTransform {
-    constructor(private sanitizer: DomSanitizer) {}
+    private readonly sanitizer = inject(DomSanitizer);
 
     transform(value: string | null | undefined): SafeHtml {
         if (!value) return '';

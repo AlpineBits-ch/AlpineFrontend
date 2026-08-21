@@ -62,7 +62,7 @@ module.exports = tseslint.config(
             // (passes solo, so it looks like flake). Getters are the workaround here, not a style.
             '@typescript-eslint/class-literal-property-style': 'off',
 
-            // 197 existing call sites; a warning until a logging abstraction lands.
+            // Traces go through `core/log.ts`; warn and error stay on the console.
             'no-console': ['warn', {allow: ['warn', 'error']}],
             eqeqeq: ['error', 'always', {null: 'ignore'}],
             'prefer-const': 'error',
@@ -112,6 +112,12 @@ module.exports = tseslint.config(
                 },
             ],
         },
+    },
+    {
+        // `log.ts` owns the one `console.info` the rest of the app routes through. `debug.ts` is the
+        // dev-only window helpers `main.ts` loads behind `isDevMode()`, and printing is what it does.
+        files: ['src/app/core/log.ts', 'src/debug.ts'],
+        rules: {'no-console': 'off'},
     },
     {
         // Specs mock freely and assert on shapes the app never builds.

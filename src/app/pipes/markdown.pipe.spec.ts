@@ -1,9 +1,13 @@
+import {TestBed} from '@angular/core/testing';
 import {DomSanitizer} from '@angular/platform-browser';
 import {MarkdownPipe} from './markdown.pipe';
 
 function transform(value: string): string {
-    const sanitizer = {bypassSecurityTrustHtml: (html: string) => html} as unknown as DomSanitizer;
-    return new MarkdownPipe(sanitizer).transform(value) as unknown as string;
+    TestBed.configureTestingModule({
+        providers: [{provide: DomSanitizer, useValue: {bypassSecurityTrustHtml: (html: string) => html}}],
+    });
+    const pipe = TestBed.runInInjectionContext(() => new MarkdownPipe());
+    return pipe.transform(value) as unknown as string;
 }
 
 describe('MarkdownPipe', () => {

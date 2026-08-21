@@ -21,6 +21,7 @@ import {LiveKitRoomService} from './livekit-room.service';
 import {inboundScreenFpsByUser, InboundTrackOwner} from '../shared/call/inbound-fps';
 import {inboundStatsFor, kbpsBetween} from '../shared/call/stream-stats';
 import type {StreamStatsSample, StreamStatsSnapshot} from '../shared/call/stream-stats';
+import {trace} from '../core/log';
 
 export interface VoiceSpeakingChange {
     userId: string;
@@ -713,7 +714,7 @@ export class VoiceRTCService {
         const held = [...this.livekit.remoteTracks().values()].map(
             t => `${t.userId}/${t.publication.trackName}`,
         );
-        console.info(
+        trace(
             `[voice] video reconcile: wanted ${this.wantedVideo.size}` +
                 `, pulling ${resolved.length}${resolved.length ? ` [${resolved.join(', ')}]` : ''}` +
                 (unresolved.length ? `, no sid yet [${unresolved.join(', ')}]` : '') +
@@ -900,7 +901,7 @@ export class VoiceRTCService {
                     livekit,
                 ),
             );
-            console.log(`[voice] screen publisher live on ${published.encoder}`, published);
+            trace(`[voice] screen publisher live on ${published.encoder}`, published);
             this.screenShareId = shareId;
             this.rustPublishing = true;
             this.rustChoice = choice;
@@ -1054,7 +1055,8 @@ export class VoiceRTCService {
             void this.voiceEngine.setUserVolume(shareId, willMute ? 0 : this.getScreenVolume(userId));
         this.screenAudioMutedSignal.update(s => {
             const n = new Set(s);
-            willMute ? n.add(userId) : n.delete(userId);
+            if (willMute) n.add(userId);
+            else n.delete(userId);
             return n;
         });
     }

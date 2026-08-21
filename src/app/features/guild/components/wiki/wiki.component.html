@@ -54,7 +54,7 @@
         @if (state.wikiView() === 'page' || state.wikiView() === 'editor') {
             <app-wiki-breadcrumbs
                 (ask)="askOpen.set(true)"
-                (cancel)="state.cancelEditor()"
+                (cancelled)="state.cancelEditor()"
                 (openNav)="navDrawerOpen.set(true)"
                 (openRail)="railDrawerOpen.set(true)"
                 (deletePage)="showDeleteDialog.set(true)"

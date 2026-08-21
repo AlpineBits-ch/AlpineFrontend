@@ -73,9 +73,9 @@
                 <div class="mb-5 space-y-2">
                     @for (event of live(); track event.id) {
                         <app-event-card
-                            (cancel)="confirmCancel(event)"
+                            (cancelled)="confirmCancel(event)"
                             (edit)="openEdit(event)"
-                            (interest)="toggleInterest(event)"
+                            (interestToggled)="toggleInterest(event)"
                             (joinVoice)="joinVoice(event.voiceChannelId!)"
                             [canManage]="canManage()"
                             [event]="event"
@@ -103,9 +103,9 @@
                 <div class="mb-5 space-y-2">
                     @for (event of group.events; track event.id) {
                         <app-event-card
-                            (cancel)="confirmCancel(event)"
+                            (cancelled)="confirmCancel(event)"
                             (edit)="openEdit(event)"
-                            (interest)="toggleInterest(event)"
+                            (interestToggled)="toggleInterest(event)"
                             (joinVoice)="joinVoice(event.voiceChannelId!)"
                             [canManage]="canManage()"
                             [event]="event"

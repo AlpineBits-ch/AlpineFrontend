@@ -164,7 +164,7 @@ describe('ProfileCacheService', () => {
      * - and `revalidateAll` on an exhausted quota produces three in well under a second.
      */
     it('a rejecting cache write never escapes the write-behind hook', async () => {
-        const debug = vi.spyOn(console, 'debug').mockImplementation(() => {});
+        const traced = vi.spyOn(console, 'info').mockImplementation(() => {});
         configure();
         cache.set = () => Promise.reject(new Error('quota exceeded'));
         await subject.hydrate();
@@ -174,8 +174,8 @@ describe('ProfileCacheService', () => {
         expect(() => profiles.cachePersist!(profile('u1', 'ada'))).not.toThrow();
         await new Promise(resolve => setTimeout(resolve, 0));
 
-        expect(debug).toHaveBeenCalled();
-        debug.mockRestore();
+        expect(traced).toHaveBeenCalled();
+        traced.mockRestore();
     });
 
     it('a failed revalidation leaves the cached copy in place', async () => {

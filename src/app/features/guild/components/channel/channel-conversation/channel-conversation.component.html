@@ -179,7 +179,7 @@
     } @else {
         <app-composer
             (cancelReply)="onCancelReply()"
-            (message)="createMessage($event)"
+            (submitted)="createMessage($event)"
             (typing)="onTyping()"
             [guildId]="guildId()"
             [canUsePersonas]="canUsePersonas()"

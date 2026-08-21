@@ -303,6 +303,6 @@ export class VoiceMixer {
 
 function rms(buffer: Float32Array): number {
     let sum = 0;
-    for (let i = 0; i < buffer.length; i++) sum += buffer[i] * buffer[i];
+    for (const sample of buffer) sum += sample * sample;
     return Math.sqrt(sum / buffer.length);
 }

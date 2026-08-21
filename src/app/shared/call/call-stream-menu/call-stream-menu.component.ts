@@ -25,15 +25,15 @@ export class CallStreamMenuComponent {
 
     showStats = output<void>();
     copyStats = output<void>();
-    close = output<void>();
+    closed = output<void>();
 
     @HostListener('document:click')
     onDocumentClick(): void {
-        this.close.emit();
+        this.closed.emit();
     }
 
     @HostListener('document:keydown.escape')
     onEscape(): void {
-        this.close.emit();
+        this.closed.emit();
     }
 }

@@ -11,7 +11,7 @@ import {
 import {registerLocaleData} from '@angular/common';
 import localeDe from '@angular/common/locales/de';
 import localeFr from '@angular/common/locales/fr';
-import {provideRouter, Router, withHashLocation} from '@angular/router';
+import {provideRouter, Router} from '@angular/router';
 import {provideAnimations} from '@angular/platform-browser/animations';
 import {AuthConfig, OAuthStorage, provideOAuthClient} from 'angular-oauth2-oidc';
 import {routes} from './app.routes';

@@ -12,13 +12,7 @@ import {AccountSwitchService, ReentryTarget, reentryUrl} from './account-switch.
 import {AccountRegistryService} from './account-registry.service';
 import {DeviceIdentityService} from './device-identity.service';
 import {SessionTeardownService} from './session-teardown.service';
-import {
-    ACTIVE_SLOT_KEY,
-    activeSlotId,
-    BOOTSTRAP_SLOT_ID,
-    scopedOAuthKey,
-    setActiveSlotId,
-} from './scoped-oauth-storage';
+import {activeSlotId, BOOTSTRAP_SLOT_ID, scopedOAuthKey, setActiveSlotId} from './scoped-oauth-storage';
 
 /**
  * The registry's backing store, held across rebuilds.

@@ -363,7 +363,6 @@ export class CallStateService implements OnDestroy {
             const conv =
                 view.type === 'conversation' ? view.conversation : this.conversationStore.entities()[0];
             if (!conv) return;
-            const ownId = this.profileService.ownProfile()?.userId ?? 'me';
             // Participants = all actual members of the conversation
             this.callSession.join(
                 {

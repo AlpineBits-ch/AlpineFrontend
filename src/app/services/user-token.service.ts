@@ -6,6 +6,7 @@ import {DeviceIdentityService} from './device-identity.service';
 import {SETTINGS_FILE} from './settings-store';
 import {Notifier, PushTokenKind} from '../platform/ports/notifier.port';
 import {SettingsStore, SettingsStoreFactory} from '../platform/ports/settings-store.port';
+import {trace} from '../core/log';
 
 /**
  * Where the push token is kept.
@@ -72,7 +73,7 @@ export class UserTokenService {
                 // usable endpoint would be picked as a delivery target and drop every notification
                 // sent to it, which looks like a server fault rather than a missing feature. Sign-in
                 // is unaffected - the caller is fire-and-forget from launch either way.
-                console.info(`Push not registered: ${this.noTokenReason(token, kind)}.`);
+                trace(`Push not registered: ${this.noTokenReason(token, kind)}.`);
                 return;
             }
 

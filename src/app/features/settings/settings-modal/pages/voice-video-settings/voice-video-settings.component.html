@@ -323,7 +323,13 @@
             </div>
 
             @if (isCameraActive() && cameraStream(); as stream) {
-                <video [streamSrc]="stream" autoplay class="w-full aspect-video rounded-lg bg-black object-cover" muted playsinline></video>
+                <video
+                    [appStreamSrc]="stream"
+                    autoplay
+                    class="w-full aspect-video rounded-lg bg-black object-cover"
+                    muted
+                    playsinline
+                ></video>
             }
         </div>
     </section>

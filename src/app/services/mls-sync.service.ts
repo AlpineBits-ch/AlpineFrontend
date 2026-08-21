@@ -5,6 +5,7 @@ import {MlsReplayedMessage, MlsService} from './mls.service';
 import {MlsTransportService} from './mls-transport.service';
 import {MlsHealthService} from './mls-health.service';
 import {DeviceIdentityService} from './device-identity.service';
+import {trace} from '../core/log';
 import {
     DeviceWelcomeDto,
     MlsContextStateDto,
@@ -488,7 +489,7 @@ export class MlsSyncService {
                 // and treating it as a lost race is what used to discard a commit the group had
                 // already applied.
                 if (result.duplicate) {
-                    console.info('The first publish landed after all; keeping the staged commit', contextId);
+                    trace('The first publish landed after all; keeping the staged commit', contextId);
                 }
                 return true;
             } catch (retryErr) {

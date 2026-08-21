@@ -56,7 +56,7 @@
                 </div>
             } @else if (pictureStream(); as stream) {
                 <!-- `pictureStream()`, not `s.stream`: it keeps the last decoded frame across a resume. -->
-                <video #video [streamSrc]="stream" autoplay class="h-full w-full object-contain" muted playsinline></video>
+                <video #video [appStreamSrc]="stream" autoplay class="h-full w-full object-contain" muted playsinline></video>
             } @else if (s.previewSrc) {
                 <img [alt]="'CALL.YOUR_SCREEN' | translate" [src]="s.previewSrc" class="h-full w-full object-contain" />
             } @else {
@@ -197,12 +197,12 @@
 
     <!-- Right-click menu. Must stay `fixed` in viewport coordinates, or the tile's overflow-hidden clips it. -->
     @if (menuAt(); as at) {
-        <app-call-stream-menu (close)="menuAt.set(null)" (copyStats)="copyStats()" (showStats)="openStats()" [x]="at.x" [y]="at.y" />
+        <app-call-stream-menu (closed)="menuAt.set(null)" (copyStats)="copyStats()" (showStats)="openStats()" [x]="at.x" [y]="at.y" />
     }
 
     <!-- A sibling of the pan/zoom surface, so it is never panned or zoomed with the picture. -->
     @if (statsOpen()) {
-        <app-call-stream-stats (close)="closeStats()" [stats]="panelStats()" />
+        <app-call-stream-stats (closed)="closeStats()" [stats]="panelStats()" />
     }
 
     <!-- What "Copy raw stats" did. -->

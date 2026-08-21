@@ -6,7 +6,7 @@ import {StreamSrcDirective} from './stream-src.directive';
 @Component({
     selector: 'app-stream-src-host',
     imports: [StreamSrcDirective],
-    template: `<video [streamSrc]="stream"></video>`,
+    template: `<video [appStreamSrc]="stream"></video>`,
 })
 class HostComponent {
     stream: MediaStream | null = null;

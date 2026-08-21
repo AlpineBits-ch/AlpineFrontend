@@ -1,7 +1,6 @@
 import {inject, Injectable} from '@angular/core';
 import {EMPTY, expand, filter, Observable, switchMap, take, throwError, timer} from 'rxjs';
 import {HttpClient} from '@angular/common/http';
-import {environment} from '../../environments/environment';
 import {ApiConfigService} from './api-config.service';
 
 /** No `url` field: the server does not send one. Use {@link FileService.attachmentDownloadUrl} with the id. */
@@ -86,7 +85,7 @@ export class FileService {
                 // If not finished, wait 2 seconds and call the API again
                 return isFinished
                     ? EMPTY
-                    : timer(2000).pipe(switchMap(() => this.httpClient.get<any>(pollUrl)));
+                    : timer(2000).pipe(switchMap(() => this.httpClient.get<AttachmentDto>(pollUrl)));
             }),
             // Filter so the component only gets the final result
             filter(res => res.state === AttachmentStatus.Complete || res.state === AttachmentStatus.Failed),

@@ -11,7 +11,6 @@ import {
 import {GuildVerificationLevel} from '../dtos/response/guild-safety.dto';
 import {EffectivePermissionsDto} from '../dtos/response/effective-permissions.dto';
 import {GuildFeatureResolutionDto} from '../dtos/response/entitlement.dto';
-import {environment} from '../../environments/environment';
 import {catchError, finalize, map, Observable, of, shareReplay, Subject, tap, throwError} from 'rxjs';
 import {
     GuildMemberDto,

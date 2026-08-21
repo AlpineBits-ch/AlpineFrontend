@@ -56,11 +56,6 @@ import {createSettingsStoreFactory} from './settings-store-factory';
 import {TauriNotifier} from './tauri/notifier.tauri';
 import {WebNotifier} from './web/notifier.web';
 
-/** Placeholder for a port whose adapters have not been written yet. Throws on first injection. */
-function notWired(port: string): never {
-    throw new Error(`${port} adapter not yet wired`);
-}
-
 /**
  * The platform layer, chosen once from {@link detectHost}. Called once from `app.config.ts`.
  *

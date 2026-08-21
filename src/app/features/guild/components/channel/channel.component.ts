@@ -250,7 +250,7 @@ export class ChannelComponent {
 
         effect(() => {
             // Reset the locally-applied forum flags on channel change, so a previous post's lock/tag state can't bleed into the one now open.
-            this.channel().id;
+            this.channel();
             this.localIsLocked.set(null);
             this.localTagIds.set(null);
 
@@ -281,7 +281,8 @@ export class ChannelComponent {
         });
 
         effect(() => {
-            this.channel().id;
+            // Tracked read: the panels below belong to the channel that is open.
+            this.channel();
             this.searchQuery.set('');
             this.showThreadPanel.set(false);
             this.showPinnedPanel.set(false);

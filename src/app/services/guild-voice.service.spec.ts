@@ -1,7 +1,7 @@
 import {TestBed} from '@angular/core/testing';
 import {provideHttpClient} from '@angular/common/http';
 import {HttpTestingController, provideHttpClientTesting} from '@angular/common/http/testing';
-import {beforeEach, describe, expect, it} from 'vitest';
+import {describe, expect, it} from 'vitest';
 import {ApiConfigService} from './api-config.service';
 import {GuildVoiceService, VoiceConnectionDto, VoicePublishResponse} from './guild-voice.service';
 

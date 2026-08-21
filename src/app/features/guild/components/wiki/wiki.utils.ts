@@ -73,7 +73,7 @@ function tagTaskItems(html: string): string {
  * Widening the allowlist by exactly one internal scheme is the smaller concession: a `wiki:` href
  * navigates inside the app and can never reach the network.
  */
-const WIKI_ANSWER_URI_REGEXP = /^(?:(?:(?:f|ht)tps?|mailto|wiki):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i;
+const WIKI_ANSWER_URI_REGEXP = /^(?:(?:(?:f|ht)tps?|mailto|wiki):|[^a-z]|[a-z+.-]+(?:[^a-z+.\-:]|$))/i;
 
 /**
  * Renders an AI answer, keeping its citations clickable.

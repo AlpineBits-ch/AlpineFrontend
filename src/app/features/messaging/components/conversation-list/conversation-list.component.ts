@@ -218,7 +218,9 @@ export class ConversationListComponent {
                                                 .decode(bytes)
                                                 .replace(/@([\w\-.]+)#\w+/g, '@$1');
                                             this.decryptedPreviews.update(m => new Map(m).set(msg.id, text));
-                                        } catch {}
+                                        } catch {
+                                            // Not valid UTF-8: drop the cached preview and wait for the decrypted one.
+                                        }
                                     }
                                 }
                             }

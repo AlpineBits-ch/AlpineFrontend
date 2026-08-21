@@ -5,9 +5,9 @@ import {Directive, effect, ElementRef, inject, input, OnDestroy} from '@angular/
  * window is hidden. Pause only: never unsubscribe, which would drop the viewer claim. A video in
  * either Picture-in-Picture route keeps playing.
  */
-@Directive({selector: '[streamSrc]', standalone: true})
+@Directive({selector: '[appStreamSrc]', standalone: true})
 export class StreamSrcDirective implements OnDestroy {
-    readonly streamSrc = input<MediaStream | null | undefined>();
+    readonly appStreamSrc = input<MediaStream | null | undefined>();
 
     private readonly el = inject<ElementRef<HTMLVideoElement | HTMLAudioElement>>(ElementRef);
     private readonly onVisibilityChange = (): void => this.applyVisibility();
@@ -15,7 +15,7 @@ export class StreamSrcDirective implements OnDestroy {
     constructor() {
         document.addEventListener('visibilitychange', this.onVisibilityChange);
         effect(() => {
-            const stream = this.streamSrc() ?? null;
+            const stream = this.appStreamSrc() ?? null;
             const el = this.el.nativeElement;
             el.srcObject = stream;
             // Skip the play() call outright while hidden.
@@ -31,7 +31,7 @@ export class StreamSrcDirective implements OnDestroy {
 
     private applyVisibility(): void {
         const el = this.el.nativeElement;
-        if (!(el instanceof HTMLVideoElement) || !this.streamSrc()) return;
+        if (!(el instanceof HTMLVideoElement) || !this.appStreamSrc()) return;
         // Both PiP pop-out routes must keep playing while this window is hidden - see the class doc.
         if (document.pictureInPictureElement === el) return;
         if (el.ownerDocument !== document) return;

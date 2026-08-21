@@ -168,7 +168,7 @@ export class ComposerComponent {
     readonly sceneJoin = input<SceneJoinPrompt | null>(null);
     /** The server cannot read ciphertext, so proxy tags have to be resolved here instead. */
     readonly resolvePersonaLocally = input(false);
-    message = output<{
+    submitted = output<{
         content: string;
         attachments: string[];
         inReplyTo?: string;
@@ -921,7 +921,7 @@ export class ComposerComponent {
             if (cmd.params.length === 0) {
                 const result = cmd.execute('');
                 if (result.text)
-                    this.message.emit({
+                    this.submitted.emit({
                         content: result.text,
                         attachments: [],
                         mentions: [],
@@ -1061,7 +1061,7 @@ export class ComposerComponent {
     // ── Mention handling ──────────────────────────────────────────────────────
 
     onGifSelected(url: string): void {
-        this.message.emit({
+        this.submitted.emit({
             content: url,
             attachments: [],
             mentions: [],
@@ -1160,7 +1160,7 @@ export class ComposerComponent {
         const speaking = this.speakingAs(text);
 
         if (speaking.content || attachments.length > 0) {
-            this.message.emit({
+            this.submitted.emit({
                 content: speaking.content,
                 attachments,
                 inReplyTo: this.replyTo()?.id,

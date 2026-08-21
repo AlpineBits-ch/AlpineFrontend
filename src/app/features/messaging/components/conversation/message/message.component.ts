@@ -34,7 +34,7 @@ import {NavigationService} from '../../../../main-page/navigation.service';
 import {isKlipyGifUrl} from '../../../../../services/gif.service';
 import {EmojiDataService, getFlagCode, isRegionalIndicator} from '../../../../../services/emoji-data.service';
 import {MarkdownPipe} from '../../../../../pipes/markdown.pipe';
-import {AttachmentDto, FileService} from '../../../../../services/file.service';
+import {FileService} from '../../../../../services/file.service';
 import {
     AttachmentDownloadService,
     attachmentSavedToastKey,

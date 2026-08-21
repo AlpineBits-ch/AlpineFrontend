@@ -1,4 +1,5 @@
 import {Observable, Subscription} from 'rxjs';
+import {trace} from '../../core/log';
 
 /**
  * What happens when a browser tab is handed an account's encryption engine by a closing tab.
@@ -30,7 +31,7 @@ export interface SessionTakeoverSteps {
  * @returns the subscription, for the caller's teardown.
  */
 export function relaunchOnSessionTakeover(steps: SessionTakeoverSteps): Subscription {
-    const log = steps.log ?? ((message: string) => console.info(message));
+    const log = steps.log ?? ((message: string) => trace(message));
 
     return steps.takeovers().subscribe(() => {
         log(

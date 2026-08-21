@@ -1,9 +1,9 @@
 /** Mermaid, loaded on demand: it is the largest thing in the dependency tree by a wide margin and almost no page contains a diagram, so pulling it into the initial chunk would slow the app for everyone. A real dependency, not a CDN script, since this ships inside a Tauri shell that must work with no network at all. */
 
-type MermaidModule = {
+interface MermaidModule {
     initialize: (config: Record<string, unknown>) => void;
     render: (id: string, source: string) => Promise<{svg: string}>;
-};
+}
 
 let loading: Promise<MermaidModule> | null = null;
 let counter = 0;

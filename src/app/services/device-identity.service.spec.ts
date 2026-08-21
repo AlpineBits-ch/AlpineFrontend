@@ -2,7 +2,6 @@
 import {TestBed} from '@angular/core/testing';
 import {provideHttpClient} from '@angular/common/http';
 import {HttpTestingController, provideHttpClientTesting} from '@angular/common/http/testing';
-import {SecureStore} from '../platform/ports/secure-store.port';
 import {SettingsStore, SettingsStoreFactory} from '../platform/ports/settings-store.port';
 import {FakeSecureStore} from '../platform/testing/fake-secure-store';
 import {provideFakePlatform} from '../platform/testing/provide-fake-platform';

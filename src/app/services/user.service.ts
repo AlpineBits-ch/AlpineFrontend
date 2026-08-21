@@ -1,11 +1,11 @@
 import {inject, Injectable, signal} from '@angular/core';
 import {HttpClient, HttpErrorResponse} from '@angular/common/http';
-import {environment} from '../../environments/environment';
 import {catchError, finalize, firstValueFrom, from, map, Observable, of, shareReplay, tap} from 'rxjs';
 import {EncryptedMasterKey, UserDto} from '../dtos/response/UserDto';
 import {MlsService} from './mls.service';
 import {switchMap} from 'rxjs/operators';
 import {ApiConfigService} from './api-config.service';
+import {trace} from '../core/log';
 
 @Injectable({providedIn: 'root'})
 export class UserService {
@@ -179,7 +179,7 @@ export class UserService {
         const handle = this.mlsService.keyHandle();
 
         if (!handle) {
-            console.log('vault not unlocked, cannot replenish key count');
+            trace('vault not unlocked, cannot replenish key count');
             return of(undefined);
         }
 
