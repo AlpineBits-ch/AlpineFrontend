@@ -1,5 +1,6 @@
 import {animate, query, stagger, style, transition, trigger} from '@angular/animations';
 import {
+    ChangeDetectionStrategy,
     Component,
     computed,
     DestroyRef,
@@ -86,6 +87,7 @@ const PREVIEW_SIZE = 30;
             ]),
         ]),
     ],
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ConversationListComponent {
     public conversationSelected = output<ConversationDto>();

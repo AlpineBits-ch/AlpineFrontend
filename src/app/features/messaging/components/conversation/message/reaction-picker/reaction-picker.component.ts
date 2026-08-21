@@ -1,4 +1,14 @@
-import {Component, computed, effect, input, OnDestroy, output, signal, untracked} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    effect,
+    input,
+    OnDestroy,
+    output,
+    signal,
+    untracked,
+} from '@angular/core';
 import {inject} from '@angular/core';
 import {GuildEmojiStore} from '../../../../../../stores/guild-emoji.store';
 
@@ -12,6 +22,7 @@ export interface EmojiSelection {
     selector: 'app-reaction-picker',
     imports: [],
     templateUrl: './reaction-picker.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ReactionPickerComponent implements OnDestroy {
     emojiSelected = output<EmojiSelection>();

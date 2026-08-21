@@ -1,6 +1,7 @@
 import {
     afterEveryRender,
     AfterViewInit,
+    ChangeDetectionStrategy,
     Component,
     computed,
     effect,
@@ -92,6 +93,7 @@ import {ConversationAvatarComponent} from '../conversation-avatar/conversation-a
     ],
     templateUrl: './conversation.component.html',
     styleUrl: './conversation.component.css',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ConversationComponent implements AfterViewInit {
     public readonly conversation = input.required<ConversationDto>();

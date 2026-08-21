@@ -1,4 +1,13 @@
-import {Component, ElementRef, inject, OnDestroy, output, signal, viewChild} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    ElementRef,
+    inject,
+    OnDestroy,
+    output,
+    signal,
+    viewChild,
+} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {Button} from 'primeng/button';
 import {GifResult, GifService} from '../../../../../../services/gif.service';
@@ -10,6 +19,7 @@ import {debounceTime, distinctUntilChanged, switchMap} from 'rxjs/operators';
     imports: [Button, FormsModule],
     templateUrl: './gif-picker-button.component.html',
     styleUrl: './gif-picker-button.component.css',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class GifPickerButtonComponent implements OnDestroy {
     gifSelected = output<string>();

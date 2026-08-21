@@ -1,4 +1,13 @@
-import {Component, computed, HostListener, inject, OnDestroy, OnInit, signal} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    HostListener,
+    inject,
+    OnDestroy,
+    OnInit,
+    signal,
+} from '@angular/core';
 import {CallSessionService} from '../../../../../services/call-session.service';
 import {CallWebRtcService} from '../../../../../services/call-webrtc.service';
 import {RustMediaService} from '../../../../../services/rust-media.service';
@@ -43,6 +52,7 @@ const CHIP_BASE =
         AutoHideCallControlsDirective,
         TranslateModule,
     ],
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CallPanelComponent implements OnInit, OnDestroy {
     readonly fpsList = [5, 10, 15, 30] as const;

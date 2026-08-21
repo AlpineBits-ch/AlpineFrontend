@@ -1,7 +1,8 @@
 import {
+    ChangeDetectionStrategy,
     Component,
-    DestroyRef,
     computed,
+    DestroyRef,
     effect,
     ElementRef,
     inject,
@@ -145,6 +146,7 @@ export interface SceneTurnPrompt {
     templateUrl: './composer.component.html',
     styleUrl: './composer.component.css',
     providers: [ComposerAttachmentsService],
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ComposerComponent {
     /** Set when composing in a guild channel, drives async member search. */

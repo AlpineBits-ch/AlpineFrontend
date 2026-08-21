@@ -5,7 +5,7 @@
  * - it has to fall back to `false` the instant `@if (activeCall())` tears `CallPanelComponent` down,
  * because nothing ever resets `isFullView` explicitly.
  */
-import {Component, computed, signal, viewChild} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, signal, viewChild} from '@angular/core';
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {provideHttpClient} from '@angular/common/http';
 import {provideHttpClientTesting} from '@angular/common/http/testing';
@@ -29,6 +29,7 @@ import {provideFakePlatform} from '../../../../platform/testing/provide-fake-pla
              column, composer, and MLS banners. -->
         <div [class.hidden]="isCallFullView()" class="row"></div>
     `,
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 class FullViewHostComponent {
     /** Stands in for `ConversationComponent.activeCall()`'s truthiness - toggling this is what
