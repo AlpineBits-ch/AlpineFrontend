@@ -1,4 +1,4 @@
-import {Component, effect, input, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, effect, input, signal} from '@angular/core';
 
 const STATE_KEY_PREFIX = 'wiki-rail-section:';
 
@@ -39,6 +39,7 @@ const STATE_KEY_PREFIX = 'wiki-rail-section:';
             }
         </section>
     `,
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class WikiRailSectionComponent {
     /** Already translated by the caller - the section does not know which key it came from. */

@@ -1,4 +1,4 @@
-import {Component, HostListener, inject, input, output} from '@angular/core';
+import {ChangeDetectionStrategy, Component, HostListener, inject, input, output} from '@angular/core';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {WikiTemplate, WikiTemplateBlock, WikiTemplateChoice} from './wiki-template.model';
 import {WIKI_TEMPLATES} from './wiki-templates';
@@ -31,6 +31,7 @@ const PREVIEW_ROWS = 5;
     selector: 'app-wiki-template-picker',
     imports: [TranslateModule],
     templateUrl: './wiki-template-picker.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class WikiTemplatePickerComponent {
     readonly open = input(false);

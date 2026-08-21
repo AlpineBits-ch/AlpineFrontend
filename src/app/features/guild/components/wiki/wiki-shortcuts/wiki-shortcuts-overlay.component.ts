@@ -1,4 +1,12 @@
-import {Component, computed, HostListener, inject, input, output} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    HostListener,
+    inject,
+    input,
+    output,
+} from '@angular/core';
 import {TranslateModule} from '@ngx-translate/core';
 import {
     isMacKeyboard,
@@ -14,6 +22,7 @@ import {KeybindsService} from '../../../../../services/keybinds.service';
     selector: 'app-wiki-shortcuts-overlay',
     imports: [TranslateModule],
     templateUrl: './wiki-shortcuts-overlay.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class WikiShortcutsOverlayComponent {
     readonly open = input(false);

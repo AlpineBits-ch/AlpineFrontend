@@ -1,4 +1,13 @@
-import {Component, computed, effect, inject, input, output, signal} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    effect,
+    inject,
+    input,
+    output,
+    signal,
+} from '@angular/core';
 import {NgTemplateOutlet} from '@angular/common';
 import {Button} from 'primeng/button';
 import {Tooltip} from 'primeng/tooltip';
@@ -18,6 +27,7 @@ export type DiffLayout = 'unified' | 'split';
     selector: 'app-wiki-history',
     imports: [Button, Tooltip, TranslateModule, AppAvatarComponent, NgTemplateOutlet],
     templateUrl: './wiki-history.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class WikiHistoryComponent {
     readonly page = input.required<WikiPageDto>();

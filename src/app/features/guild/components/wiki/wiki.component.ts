@@ -1,4 +1,14 @@
-import {Component, computed, effect, HostListener, inject, input, signal, viewChild} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    effect,
+    HostListener,
+    inject,
+    input,
+    signal,
+    viewChild,
+} from '@angular/core';
 import {Button} from 'primeng/button';
 import {TranslateModule} from '@ngx-translate/core';
 import {Dialog} from 'primeng/dialog';
@@ -56,6 +66,7 @@ const NAV_WIDTH_MAX = 420;
     templateUrl: './wiki.component.html',
     styleUrl: './wiki.component.css',
     host: {class: 'relative flex flex-1 min-w-0 h-full overflow-hidden'},
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class WikiComponent {
     readonly guildId = input.required<string>();

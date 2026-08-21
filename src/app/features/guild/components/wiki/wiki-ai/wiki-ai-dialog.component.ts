@@ -1,4 +1,13 @@
-import {Component, computed, effect, inject, input, output, signal} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    effect,
+    inject,
+    input,
+    output,
+    signal,
+} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {Button} from 'primeng/button';
 import {Dialog} from 'primeng/dialog';
@@ -29,6 +38,7 @@ import {describeAiError, isMissingProvider} from './wiki-ai-shared';
     selector: 'app-wiki-ai-dialog',
     imports: [FormsModule, Button, Dialog, PrimeTemplate, TranslateModule, AiConnectFormComponent],
     templateUrl: './wiki-ai-dialog.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class WikiAiDialogComponent {
     readonly open = input(false);

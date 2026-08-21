@@ -1,4 +1,13 @@
-import {Component, computed, effect, inject, input, output, signal} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    effect,
+    inject,
+    input,
+    output,
+    signal,
+} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {NgClass} from '@angular/common';
 import {Dialog} from 'primeng/dialog';
@@ -48,6 +57,7 @@ type ShareState = 'idle' | 'sending' | 'sent';
         ChannelIconComponent,
     ],
     templateUrl: './wiki-share-dialog.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class WikiShareDialogComponent {
     readonly open = input<boolean>(false);

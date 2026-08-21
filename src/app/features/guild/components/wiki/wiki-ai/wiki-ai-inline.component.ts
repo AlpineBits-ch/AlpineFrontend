@@ -1,4 +1,5 @@
 import {
+    ChangeDetectionStrategy,
     Component,
     computed,
     effect,
@@ -208,6 +209,7 @@ const FLUSH_MS = 90;
             </div>
         }
     `,
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class WikiAiInlineComponent implements OnDestroy {
     readonly editor = input<Editor | undefined>(undefined);

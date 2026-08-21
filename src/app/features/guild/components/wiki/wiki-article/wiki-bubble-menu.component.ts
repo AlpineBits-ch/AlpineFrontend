@@ -1,4 +1,12 @@
-import {Component, ElementRef, input, output, signal, viewChild} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    ElementRef,
+    input,
+    output,
+    signal,
+    viewChild,
+} from '@angular/core';
 import {TranslateModule} from '@ngx-translate/core';
 import {Editor} from '@tiptap/core';
 import {SUPPORTED_LANGUAGES} from '../../../../../models/language.model';
@@ -143,6 +151,7 @@ const TONES: readonly {instruction: string; labelKey: string}[] = [
             </div>
         }
     `,
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class WikiBubbleMenuComponent {
     readonly editor = input<Editor | undefined>(undefined);

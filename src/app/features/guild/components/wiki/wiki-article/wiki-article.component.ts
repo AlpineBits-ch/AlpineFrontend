@@ -1,5 +1,6 @@
 import {
     AfterViewInit,
+    ChangeDetectionStrategy,
     Component,
     computed,
     effect,
@@ -70,6 +71,7 @@ import {acceleratorFromEvent, KeybindsService} from '../../../../../services/key
     templateUrl: './wiki-article.component.html',
     styleUrl: './wiki-article.component.css',
     host: {class: 'flex flex-col flex-1 min-h-0 overflow-hidden'},
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class WikiArticleComponent implements AfterViewInit, OnDestroy {
     readonly page = input<WikiPageDto | null>(null);

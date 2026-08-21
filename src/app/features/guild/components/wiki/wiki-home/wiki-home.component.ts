@@ -1,4 +1,4 @@
-import {Component, computed, input, output} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, input, output} from '@angular/core';
 import {Button} from 'primeng/button';
 import {TranslateModule} from '@ngx-translate/core';
 import {WikiCategoryDto, WikiDto, WikiPageSummaryDto} from '../../../../../dtos/response/wiki.dto';
@@ -21,6 +21,7 @@ export interface CategoryTreeNode {
     selector: 'app-wiki-home',
     imports: [Button, TranslateModule, WikiActivityFeedComponent, WikiGraphPreviewComponent],
     templateUrl: './wiki-home.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class WikiHomeComponent {
     readonly wiki = input<WikiDto | null>(null);

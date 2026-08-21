@@ -1,4 +1,14 @@
-import {Component, effect, ElementRef, inject, input, output, signal, viewChild} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    effect,
+    ElementRef,
+    inject,
+    input,
+    output,
+    signal,
+    viewChild,
+} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {TranslateModule} from '@ngx-translate/core';
 import {AiAskSource} from '../../../../../services/ai-provider';
@@ -37,6 +47,7 @@ interface AskTurn {
     selector: 'app-wiki-ai-ask',
     imports: [FormsModule, TranslateModule, AiConnectFormComponent],
     templateUrl: './wiki-ai-ask.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class WikiAiAskComponent {
     readonly open = input(false);
@@ -83,7 +94,7 @@ export class WikiAiAskComponent {
     protected readonly turns = signal<AskTurn[]>([]);
     protected readonly running = signal(false);
     protected readonly connecting = signal(false);
-    protected question = '';
+    protected readonly question = signal('');
 
     private readonly questionInput = viewChild<ElementRef<HTMLInputElement>>('questionInput');
 
@@ -118,7 +129,7 @@ export class WikiAiAskComponent {
     }
 
     protected async send(): Promise<void> {
-        const question = this.question.trim();
+        const question = this.question().trim();
         if (!question || this.running() || this.blocked()) return;
 
         const ranked = rankAskSources(this.sources(), question);
@@ -132,7 +143,7 @@ export class WikiAiAskComponent {
             complete: this.sourcesComplete(),
         };
         this.turns.update(turns => [...turns, turn]);
-        this.question = '';
+        this.question.set('');
 
         this.controller?.abort();
         const controller = new AbortController();
@@ -160,7 +171,7 @@ export class WikiAiAskComponent {
                 // The question is put back in the field rather than left as an empty turn: the
                 // user has not asked anything yet as far as the provider is concerned.
                 this.turns.update(turns => turns.slice(0, -1));
-                this.question = question;
+                this.question.set(question);
                 return;
             }
             this.failLast(describeAiError(err));

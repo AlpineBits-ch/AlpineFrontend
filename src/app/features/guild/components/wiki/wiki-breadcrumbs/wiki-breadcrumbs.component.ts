@@ -1,4 +1,4 @@
-import {Component, computed, input, output} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, input, output} from '@angular/core';
 import {Button} from 'primeng/button';
 import {Tooltip} from 'primeng/tooltip';
 import {TranslateModule} from '@ngx-translate/core';
@@ -12,6 +12,7 @@ export type SaveStatus = 'idle' | 'draft' | 'saving' | 'saved' | 'error';
     selector: 'app-wiki-breadcrumbs',
     imports: [Button, Tooltip, TranslateModule],
     templateUrl: './wiki-breadcrumbs.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class WikiBreadcrumbsComponent {
     readonly wiki = input<WikiDto | null>(null);

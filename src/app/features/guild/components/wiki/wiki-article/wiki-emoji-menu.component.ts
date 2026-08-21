@@ -1,4 +1,5 @@
 import {
+    ChangeDetectionStrategy,
     Component,
     computed,
     effect,
@@ -60,6 +61,7 @@ import {EmojiDataService, EmojiSuggestion} from '../../../../../services/emoji-d
             </div>
         }
     `,
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class WikiEmojiMenuComponent {
     readonly open = input(false);
