@@ -881,16 +881,6 @@ export const MessageStore = signalStore(
                     patchState(store, {channelMeta: meta});
                 },
 
-                removeMessagesForChannel(channelId: string): void {
-                    const ids = store
-                        .entities()
-                        .filter(m => m.channelId === channelId)
-                        .map(m => m.id);
-                    const meta = {...store.channelMeta()};
-                    delete meta[channelId];
-                    patchState(store, removeEntities(ids), {channelMeta: meta});
-                },
-
                 searchInChannel(channelId: string, query: string): void {
                     const q = query.trim().toLowerCase();
                     if (!q) {
