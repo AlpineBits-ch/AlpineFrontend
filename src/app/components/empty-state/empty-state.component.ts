@@ -1,4 +1,4 @@
-import {Component, computed, input} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, input} from '@angular/core';
 
 /** Shared icon+caption empty state. `sm` fits compact sidebar contexts, `lg` fits a full page content area. */
 @Component({
@@ -39,6 +39,7 @@ import {Component, computed, input} from '@angular/core';
             </p>
         </div>
     `,
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class EmptyStateComponent {
     readonly icon = input.required<string>();

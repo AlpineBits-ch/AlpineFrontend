@@ -1,4 +1,13 @@
-import {Component, computed, effect, inject, input, signal, untracked} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    effect,
+    inject,
+    input,
+    signal,
+    untracked,
+} from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {firstValueFrom, merge} from 'rxjs';
 import {Button} from 'primeng/button';
@@ -132,6 +141,7 @@ interface JoinRequestRow {
             </p>
         }
     `,
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class MlsJoinRequestReviewComponent {
     readonly contextId = input.required<string>();

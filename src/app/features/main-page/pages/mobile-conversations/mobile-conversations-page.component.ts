@@ -1,4 +1,4 @@
-import {Component, computed, inject, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, inject, signal} from '@angular/core';
 import {Button} from 'primeng/button';
 import {ConversationListComponent} from '../../../messaging/components/conversation-list/conversation-list.component';
 import {NavigationService} from '../../navigation.service';
@@ -13,6 +13,7 @@ import {TranslateModule} from '@ngx-translate/core';
     selector: 'app-mobile-conversations-page',
     imports: [Button, ConversationListComponent, NewConversationDialogComponent, TranslateModule],
     templateUrl: './mobile-conversations-page.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class MobileConversationsPageComponent {
     protected navService = inject(NavigationService);

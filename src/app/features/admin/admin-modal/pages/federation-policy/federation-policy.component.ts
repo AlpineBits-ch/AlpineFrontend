@@ -1,4 +1,4 @@
-import {Component, inject, OnInit, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, inject, OnInit, signal} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {NgClass} from '@angular/common';
 import {Button} from 'primeng/button';
@@ -13,6 +13,7 @@ import {
     selector: 'app-federation-policy',
     imports: [FormsModule, NgClass, Button, InputText],
     templateUrl: './federation-policy.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class FederationPolicyComponent implements OnInit {
     private svc = inject(AdminFederationService);

@@ -1,4 +1,12 @@
-import {Component, ElementRef, OnDestroy, output, signal, viewChild} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    ElementRef,
+    OnDestroy,
+    output,
+    signal,
+    viewChild,
+} from '@angular/core';
 import {Button} from 'primeng/button';
 
 @Component({
@@ -6,6 +14,7 @@ import {Button} from 'primeng/button';
     imports: [Button],
     templateUrl: './emoji-picker-button.component.html',
     styleUrl: './emoji-picker-button.component.css',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class EmojiPickerButtonComponent implements OnDestroy {
     emojiSelected = output<string>();

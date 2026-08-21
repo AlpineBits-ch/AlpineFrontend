@@ -1,4 +1,13 @@
-import {Component, computed, DestroyRef, inject, input, OnInit, signal} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    DestroyRef,
+    inject,
+    input,
+    OnInit,
+    signal,
+} from '@angular/core';
 import {DatePipe} from '@angular/common';
 import {FormsModule} from '@angular/forms';
 import {Button} from 'primeng/button';
@@ -31,6 +40,7 @@ type BanMode = 'member' | 'id';
     selector: 'app-bans-settings',
     imports: [FormsModule, Button, InputText, Dialog, TranslateModule, PrimeTemplate, DatePipe],
     templateUrl: './bans-settings.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class BansSettingsComponent implements OnInit {
     readonly guild = input.required<GuildDto>();

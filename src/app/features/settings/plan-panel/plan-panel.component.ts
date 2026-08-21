@@ -1,4 +1,4 @@
-import {Component, computed, effect, inject, input, viewChild} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, effect, inject, input, viewChild} from '@angular/core';
 import {TranslateModule} from '@ngx-translate/core';
 import {EntitlementStore, EntitlementSubjectRef} from '../../../stores/entitlement.store';
 import {entitlementRemedyCopy} from '../../../core/entitlement-message';
@@ -21,6 +21,7 @@ import {CreditPanelComponent} from '../../billing/credit-panel/credit-panel.comp
         CreditPanelComponent,
     ],
     templateUrl: './plan-panel.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PlanPanelComponent {
     readonly subject = input.required<EntitlementSubjectRef>();

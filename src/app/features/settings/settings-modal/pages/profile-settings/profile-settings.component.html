@@ -378,7 +378,7 @@
                         <i [class]="showNewPw() ? 'pi pi-eye-slash' : 'pi pi-eye'" style="font-size: 14px"></i>
                     </button>
                 </div>
-                @if (newPassword.length > 0 && newPassword.length < 8) {
+                @if (newPassword().length > 0 && newPassword().length < 8) {
                     <p class="text-[11px] text-amber-400/80">Must be at least 8 characters.</p>
                 }
             </div>
@@ -442,9 +442,9 @@
                     severity="primary"
                     size="small"
                 />
-                @if (currentPassword || newPassword || confirmPassword) {
+                @if (currentPassword() || newPassword() || confirmPassword()) {
                     <p-button
-                        (onClick)="currentPassword = ''; newPassword = ''; confirmPassword = ''; passwordResult.set(null)"
+                        (onClick)="currentPassword.set(''); newPassword.set(''); confirmPassword.set(''); passwordResult.set(null)"
                         [text]="true"
                         label="Clear"
                         severity="secondary"

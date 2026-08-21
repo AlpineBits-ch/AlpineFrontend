@@ -1,4 +1,4 @@
-import {Component, inject, OnInit, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, inject, OnInit, signal} from '@angular/core';
 import {ResizeDirection, WindowChrome} from '../platform/ports/window-chrome.port';
 
 // The titlebar (38px) owns the full top edge and its corners, so top/nw/ne handles are omitted.
@@ -62,6 +62,7 @@ import {ResizeDirection, WindowChrome} from '../platform/ports/window-chrome.por
             }
         `,
     ],
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ResizeHandlesComponent implements OnInit {
     private readonly chrome = inject(WindowChrome);

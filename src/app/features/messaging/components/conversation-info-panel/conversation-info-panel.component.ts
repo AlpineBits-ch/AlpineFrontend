@@ -1,4 +1,4 @@
-import {Component, computed, effect, inject, input} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, effect, inject, input} from '@angular/core';
 import {NgClass} from '@angular/common';
 import {MlsCoverageDevicesComponent} from '../../../../components/mls-coverage-devices/mls-coverage-devices.component';
 import {MlsCoverageService} from '../../../../services/mls-coverage.service';
@@ -24,6 +24,7 @@ import {Activity} from '../../../../models/activity.model';
     ],
     templateUrl: './conversation-info-panel.component.html',
     styleUrl: './conversation-info-panel.component.css',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ConversationInfoPanelComponent {
     readonly conversation = input.required<ConversationDto>();

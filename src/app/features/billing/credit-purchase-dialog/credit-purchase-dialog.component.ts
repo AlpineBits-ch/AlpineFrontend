@@ -1,4 +1,15 @@
-import {Component, computed, effect, inject, input, model, output, signal, untracked} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    effect,
+    inject,
+    input,
+    model,
+    output,
+    signal,
+    untracked,
+} from '@angular/core';
 import {Dialog} from 'primeng/dialog';
 import {Button} from 'primeng/button';
 import {PrimeTemplate} from 'primeng/api';
@@ -17,6 +28,7 @@ type PurchaseStep = 'confirm' | 'buying' | 'done' | 'refused';
     selector: 'app-credit-purchase-dialog',
     imports: [Dialog, Button, PrimeTemplate, TranslateModule],
     templateUrl: './credit-purchase-dialog.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CreditPurchaseDialogComponent {
     readonly visible = model.required<boolean>();

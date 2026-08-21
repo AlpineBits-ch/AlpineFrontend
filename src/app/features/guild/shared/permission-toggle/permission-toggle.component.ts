@@ -1,4 +1,4 @@
-import {Component, computed, input, output} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, input, output} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {ToggleSwitch} from 'primeng/toggleswitch';
 import {TranslateModule} from '@ngx-translate/core';
@@ -10,6 +10,7 @@ import {GuildFeatureSet} from '../../guild-features';
     selector: 'app-permission-toggle',
     imports: [ToggleSwitch, FormsModule, TranslateModule],
     templateUrl: './permission-toggle.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PermissionToggleComponent {
     readonly mask = input.required<bigint>();

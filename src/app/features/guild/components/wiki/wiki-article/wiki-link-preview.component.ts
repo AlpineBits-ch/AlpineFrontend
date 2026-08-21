@@ -1,4 +1,4 @@
-import {Component, input} from '@angular/core';
+import {ChangeDetectionStrategy, Component, input} from '@angular/core';
 import {DatePipe} from '@angular/common';
 import {TranslateModule} from '@ngx-translate/core';
 import {WikiPageSummaryDto} from '../../../../../dtos/response/wiki.dto';
@@ -29,6 +29,7 @@ import {WikiPageSummaryDto} from '../../../../../dtos/response/wiki.dto';
             </div>
         }
     `,
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class WikiLinkPreviewComponent {
     readonly open = input(false);

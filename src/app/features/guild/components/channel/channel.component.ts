@@ -1,4 +1,5 @@
 import {
+    ChangeDetectionStrategy,
     Component,
     computed,
     DestroyRef,
@@ -95,6 +96,7 @@ function decodeContent(encoded: string): string {
     ],
     templateUrl: './channel.component.html',
     styleUrl: './channel.component.css',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ChannelComponent {
     public readonly channel = input.required<ChannelDto>();

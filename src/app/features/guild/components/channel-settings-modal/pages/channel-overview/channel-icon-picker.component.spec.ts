@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import {TestBed} from '@angular/core/testing';
-import {Component, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, signal} from '@angular/core';
 import {provideTranslateService} from '@ngx-translate/core';
 import {ChannelType} from '../../../../../../dtos/response/guild.dto';
 import {ChannelIconPickerComponent} from './channel-icon-picker.component';
@@ -10,6 +10,7 @@ import {ChannelIconPickerComponent} from './channel-icon-picker.component';
     template: `
         <app-channel-icon-picker [(icon)]="icon" [(iconColor)]="iconColor" [channelType]="type()" />
     `,
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 class HostComponent {
     readonly icon = signal('');

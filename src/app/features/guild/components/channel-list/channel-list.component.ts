@@ -1,4 +1,5 @@
 import {
+    ChangeDetectionStrategy,
     Component,
     computed,
     DestroyRef,
@@ -100,6 +101,7 @@ import {RealtimeConnectionService} from '../../../../services/realtime-connectio
         TranslateModule,
     ],
     templateUrl: './channel-list.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ChannelListComponent {
     readonly guild = input.required<GuildDto>();

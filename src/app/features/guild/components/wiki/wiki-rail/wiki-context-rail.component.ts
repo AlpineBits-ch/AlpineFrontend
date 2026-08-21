@@ -1,5 +1,15 @@
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
-import {Component, computed, effect, inject, input, OnDestroy, output, signal} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    effect,
+    inject,
+    input,
+    OnDestroy,
+    output,
+    signal,
+} from '@angular/core';
 import {WikiDto, WikiPageDto, WikiPageSummaryDto} from '../../../../../dtos/response/wiki.dto';
 import {ProfileService} from '../../../../../services/profile.service';
 import {WikiService} from '../../../../../services/wiki.service';
@@ -51,6 +61,7 @@ interface MentionRow {
     ],
     templateUrl: './wiki-context-rail.component.html',
     host: {class: 'flex flex-col h-full min-h-0'},
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class WikiContextRailComponent implements OnDestroy {
     readonly page = input<WikiPageDto | null>(null);

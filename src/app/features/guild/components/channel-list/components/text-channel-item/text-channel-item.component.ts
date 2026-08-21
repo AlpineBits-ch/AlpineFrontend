@@ -1,4 +1,4 @@
-import {Component, computed, inject, input, output} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, inject, input, output} from '@angular/core';
 import {ChannelDto, isForumLike} from '../../../../../../dtos/response/guild.dto';
 import {GuildReadStateService} from '../../../../../../services/guild-read-state.service';
 import {NavigationService} from '../../../../../main-page/navigation.service';
@@ -14,6 +14,7 @@ import {ChannelIconComponent} from '../../../channel-icon/channel-icon.component
     host: {class: 'contents'},
     imports: [TranslateModule, ChannelIconComponent],
     templateUrl: './text-channel-item.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class TextChannelItemComponent {
     readonly channel = input.required<ChannelDto>();

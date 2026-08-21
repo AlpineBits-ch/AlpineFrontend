@@ -1,4 +1,4 @@
-import {Component, computed, inject, input, output} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, inject, input, output} from '@angular/core';
 import {TranslateModule} from '@ngx-translate/core';
 import {Tooltip} from 'primeng/tooltip';
 import {ChannelDto} from '../../../../../../dtos/response/guild.dto';
@@ -27,6 +27,7 @@ import {ChannelIconComponent} from '../../../channel-icon/channel-icon.component
         ChannelIconComponent,
     ],
     templateUrl: './voice-channel-item.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class VoiceChannelItemComponent {
     readonly channel = input.required<ChannelDto>();

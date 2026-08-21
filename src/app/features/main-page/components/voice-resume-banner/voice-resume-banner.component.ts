@@ -1,4 +1,4 @@
-import {Component, computed, inject} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, inject} from '@angular/core';
 import {TranslatePipe, TranslateService} from '@ngx-translate/core';
 import {VoiceResumeService} from '../../../../services/voice-resume.service';
 
@@ -7,6 +7,7 @@ import {VoiceResumeService} from '../../../../services/voice-resume.service';
     selector: 'app-voice-resume-banner',
     imports: [TranslatePipe],
     templateUrl: './voice-resume-banner.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class VoiceResumeBannerComponent {
     protected readonly resume = inject(VoiceResumeService);

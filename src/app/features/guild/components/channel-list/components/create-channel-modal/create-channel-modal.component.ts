@@ -1,4 +1,14 @@
-import {Component, computed, effect, inject, input, model, signal, untracked} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    effect,
+    inject,
+    input,
+    model,
+    signal,
+    untracked,
+} from '@angular/core';
 import {NgClass} from '@angular/common';
 import {Dialog} from 'primeng/dialog';
 import {Button} from 'primeng/button';
@@ -15,6 +25,7 @@ import {ChannelIconComponent} from '../../../channel-icon/channel-icon.component
     selector: 'app-create-channel-modal',
     imports: [NgClass, Dialog, Button, InputText, PrimeTemplate, TranslateModule, ChannelIconComponent],
     templateUrl: './create-channel-modal.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CreateChannelModalComponent {
     readonly isVisible = model.required<boolean>();

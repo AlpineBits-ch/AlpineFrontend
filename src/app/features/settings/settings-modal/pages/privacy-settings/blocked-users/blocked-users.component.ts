@@ -1,4 +1,4 @@
-import {Component, inject, OnInit, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, inject, OnInit, signal} from '@angular/core';
 import {DatePipe} from '@angular/common';
 import {Button} from 'primeng/button';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
@@ -10,6 +10,7 @@ import {ToastService} from '../../../../../../services/toast.service';
     selector: 'app-blocked-users',
     imports: [Button, DatePipe, TranslateModule],
     templateUrl: './blocked-users.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class BlockedUsersComponent implements OnInit {
     private readonly relationships = inject(RelationshipService);

@@ -1,4 +1,4 @@
-import {Component, inject, input, OnInit, output, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, inject, input, OnInit, output, signal} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {ToggleSwitch} from 'primeng/toggleswitch';
 import {Button} from 'primeng/button';
@@ -23,6 +23,7 @@ import {ChannelIconPickerComponent} from './channel-icon-picker.component';
         ChannelIconPickerComponent,
     ],
     templateUrl: './channel-overview.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ChannelOverviewComponent implements OnInit {
     readonly channel = input.required<ChannelDto>();

@@ -1,4 +1,4 @@
-import {Component, computed, inject, input, output, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, inject, input, output, signal} from '@angular/core';
 import {TranslateModule} from '@ngx-translate/core';
 import {AiMetadata} from '../../../../../services/ai-provider';
 import {AiConnectFormComponent} from '../../../../../shared/ai-connect-form/ai-connect-form.component';
@@ -157,6 +157,7 @@ import {describeAiError, isMissingProvider} from './wiki-ai-shared';
             </div>
         }
     `,
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class WikiAiMetadataComponent {
     readonly pageTitle = input('');

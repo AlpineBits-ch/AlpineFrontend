@@ -1,4 +1,4 @@
-import {Component, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, signal} from '@angular/core';
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {provideHttpClient} from '@angular/common/http';
 import {HttpTestingController, provideHttpClientTesting} from '@angular/common/http/testing';
@@ -10,6 +10,7 @@ const BASE = 'https://api.test.example';
 @Component({
     imports: [AuthImageDirective],
     template: ` <img alt="test" [appAuthSrc]="url()" />`,
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 class HostComponent {
     readonly url = signal<string | null>(null);

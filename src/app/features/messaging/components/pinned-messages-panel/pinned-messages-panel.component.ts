@@ -1,4 +1,13 @@
-import {Component, DestroyRef, effect, inject, input, output, signal} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    DestroyRef,
+    effect,
+    inject,
+    input,
+    output,
+    signal,
+} from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {DatePipe} from '@angular/common';
 import {MessageDto} from '../../../../dtos/response/message.dto';
@@ -13,6 +22,7 @@ import {RealtimeConnectionService} from '../../../../services/realtime-connectio
     selector: 'app-pinned-messages-panel',
     imports: [DatePipe],
     templateUrl: './pinned-messages-panel.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PinnedMessagesPanelComponent {
     readonly channelId = input<string>();

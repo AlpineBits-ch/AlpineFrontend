@@ -1,4 +1,4 @@
-import {Component, computed, input, output} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, input, output} from '@angular/core';
 import {ChannelDto} from '../../../../dtos/response/guild.dto';
 import {VoiceChannelParticipant} from '../../../../services/voice-channel.service';
 import {AppAvatarComponent} from '../../../../components/avatar/avatar.component';
@@ -9,6 +9,7 @@ import {TranslateModule} from '@ngx-translate/core';
     selector: 'app-voice-channel-lobby',
     imports: [AppAvatarComponent, CallLiveBadgeComponent, TranslateModule],
     templateUrl: './voice-channel-lobby.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class VoiceChannelLobbyComponent {
     readonly channel = input.required<ChannelDto>();

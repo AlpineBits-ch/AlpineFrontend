@@ -1,4 +1,5 @@
 import {
+    ChangeDetectionStrategy,
     Component,
     computed,
     effect,
@@ -329,6 +330,7 @@ export function wikiTurnIntoItems(): readonly SlashItem[] {
             </div>
         }
     `,
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class WikiSlashMenuComponent {
     readonly editor = input<Editor | undefined>(undefined);

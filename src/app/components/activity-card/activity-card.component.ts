@@ -1,4 +1,4 @@
-import {Component, computed, inject, input} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, inject, input} from '@angular/core';
 import {TranslateModule} from '@ngx-translate/core';
 import {Activity, ACTIVITY_TYPE_ICONS, ACTIVITY_TYPE_KEYS} from '../../models/activity.model';
 import {ActivityElapsedPipe} from '../../pipes/activity-elapsed.pipe';
@@ -80,6 +80,7 @@ import {BrokenImageService} from '../../services/broken-image.service';
             </div>
         }
     `,
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ActivityCardComponent {
     readonly activity = input<Activity | null | undefined>(null);

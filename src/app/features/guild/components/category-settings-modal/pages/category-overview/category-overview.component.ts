@@ -1,4 +1,4 @@
-import {Component, inject, input, OnInit, output, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, inject, input, OnInit, output, signal} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {Button} from 'primeng/button';
 import {InputText} from 'primeng/inputtext';
@@ -11,6 +11,7 @@ import {TranslateModule} from '@ngx-translate/core';
     selector: 'app-category-overview',
     imports: [FormsModule, Button, InputText, Textarea, TranslateModule],
     templateUrl: './category-overview.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CategoryOverviewComponent implements OnInit {
     readonly category = input.required<CategoryDto>();

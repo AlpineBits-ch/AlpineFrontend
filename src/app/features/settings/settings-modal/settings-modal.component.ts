@@ -1,4 +1,13 @@
-import {Component, computed, effect, inject, model, signal, untracked} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    effect,
+    inject,
+    model,
+    signal,
+    untracked,
+} from '@angular/core';
 import {NgClass} from '@angular/common';
 import {Dialog} from 'primeng/dialog';
 import {Button} from 'primeng/button';
@@ -104,6 +113,7 @@ export function visibleSettingsNavGroups(billingAvailable: boolean): SettingsNav
     ],
     templateUrl: './settings-modal.component.html',
     styleUrl: './settings-modal.component.css',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SettingsModalComponent {
     public readonly isVisible = model.required<boolean>();

@@ -1,4 +1,14 @@
-import {Component, computed, effect, inject, input, output, signal, untracked} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    effect,
+    inject,
+    input,
+    output,
+    signal,
+    untracked,
+} from '@angular/core';
 import {TranslateModule} from '@ngx-translate/core';
 import {BillingCatalogueDto, BillingPlanDto, sameSubjectKind} from '../../../dtos/response/billing.dto';
 import {BillingService} from '../../../services/billing.service';
@@ -32,6 +42,7 @@ interface ComparisonRow {
     selector: 'app-plan-picker',
     imports: [TranslateModule, CheckoutDialogComponent],
     templateUrl: './plan-picker.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PlanPickerComponent {
     readonly subject = input.required<EntitlementSubjectRef>();

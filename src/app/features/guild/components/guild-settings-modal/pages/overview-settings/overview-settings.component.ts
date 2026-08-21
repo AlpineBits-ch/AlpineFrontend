@@ -1,4 +1,15 @@
-import {Component, computed, effect, inject, input, OnDestroy, OnInit, output, signal} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    effect,
+    inject,
+    input,
+    OnDestroy,
+    OnInit,
+    output,
+    signal,
+} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {Button} from 'primeng/button';
 import {InputText} from 'primeng/inputtext';
@@ -42,6 +53,7 @@ type IconOutcome = 'none' | 'uploaded' | 'removed';
         PrimeTemplate,
     ],
     templateUrl: './overview-settings.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class OverviewSettingsComponent implements OnInit, OnDestroy {
     readonly guild = input.required<GuildDto>();

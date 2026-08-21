@@ -1,4 +1,4 @@
-import {Component, inject, input, model, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, inject, input, model, signal} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {Dialog} from 'primeng/dialog';
 import {Button} from 'primeng/button';
@@ -11,6 +11,7 @@ import {GuildService} from '../../../../../../services/guild.service';
     selector: 'app-create-category-modal',
     imports: [FormsModule, Dialog, Button, InputText, PrimeTemplate, TranslateModule],
     templateUrl: './create-category-modal.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CreateCategoryModalComponent {
     readonly isVisible = model.required<boolean>();

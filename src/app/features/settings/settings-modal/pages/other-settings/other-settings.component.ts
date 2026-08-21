@@ -1,4 +1,4 @@
-import {Component, computed, inject, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, inject, signal} from '@angular/core';
 import {ToggleSwitch} from 'primeng/toggleswitch';
 import {Select} from 'primeng/select';
 import {FormsModule} from '@angular/forms';
@@ -18,6 +18,7 @@ import {PlatformCapabilities} from '../../../../../platform/capabilities';
     imports: [ToggleSwitch, Select, FormsModule, TranslateModule, WalletPreferenceSettingComponent],
     templateUrl: './other-settings.component.html',
     styleUrl: './other-settings.component.css',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class OtherSettingsComponent {
     public readonly systemToggles = [

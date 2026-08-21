@@ -1,4 +1,4 @@
-import {Component, EventEmitter, inject, input, Output, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, EventEmitter, inject, input, Output, signal} from '@angular/core';
 import {Dialog} from 'primeng/dialog';
 import {Button} from 'primeng/button';
 import {PasswordDirective} from 'primeng/password';
@@ -20,6 +20,7 @@ type Step = 'password' | 'entropy' | 'recovery-code' | 'confirm-code' | 'process
     imports: [Dialog, Button, PasswordDirective, EntropyModalComponent, TranslateModule],
     templateUrl: './key-setup-dialog.component.html',
     styleUrl: './key-setup-dialog.component.css',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class KeySetupDialogComponent {
     readonly visible = input(false);

@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import {TestBed} from '@angular/core/testing';
-import {Component, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, signal} from '@angular/core';
 import {ChannelType} from '../../../../dtos/response/guild.dto';
 import {ChannelIconComponent} from './channel-icon.component';
 
@@ -13,6 +13,7 @@ interface Channel {
 @Component({
     imports: [ChannelIconComponent],
     template: '<app-channel-icon [channel]="channel()" />',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 class HostComponent {
     readonly channel = signal<Channel>({type: ChannelType.Text});

@@ -1,4 +1,4 @@
-import {Component, inject, output, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, inject, output, signal} from '@angular/core';
 import {DatePipe} from '@angular/common';
 import {TranslateModule} from '@ngx-translate/core';
 import {InboxMentionEntry, InboxPreview, InboxService, InboxUnreadEntry} from '../../services/inbox.service';
@@ -14,6 +14,7 @@ type InboxTab = 'unread' | 'mentions' | 'tasks';
     selector: 'app-inbox-panel',
     imports: [TranslateModule, DatePipe],
     templateUrl: './inbox-panel.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class InboxPanelComponent {
     /** Fired when a row navigates somewhere, so the popover can close itself. */

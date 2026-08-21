@@ -1,4 +1,4 @@
-import {Component, computed, inject} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, inject} from '@angular/core';
 import {Button} from 'primeng/button';
 import {TranslateModule} from '@ngx-translate/core';
 import {PlatformStatusService} from '../../../../../services/platform-status.service';
@@ -29,6 +29,7 @@ const STATUS_LABELS: Record<string, string> = {
     selector: 'app-platform-status-settings',
     imports: [Button, TranslateModule],
     templateUrl: './platform-status-settings.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PlatformStatusSettingsComponent {
     protected readonly status = inject(PlatformStatusService);

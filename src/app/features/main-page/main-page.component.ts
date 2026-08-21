@@ -1,4 +1,14 @@
-﻿import {Component, computed, effect, HostListener, inject, OnDestroy, signal, viewChild} from '@angular/core';
+﻿import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    effect,
+    HostListener,
+    inject,
+    OnDestroy,
+    signal,
+    viewChild,
+} from '@angular/core';
 import {AuthService} from '../../services/auth.service';
 import {Router} from '@angular/router';
 import {HomeComponent} from './pages/home/home.component';
@@ -114,6 +124,7 @@ import {scopeKey} from '../../services/share-watch.service';
     ],
     templateUrl: './main-page.component.html',
     styleUrl: './main-page.component.css',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class MainPageComponent implements OnDestroy {
     protected authService = inject(AuthService);

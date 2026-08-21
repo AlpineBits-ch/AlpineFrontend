@@ -1,4 +1,4 @@
-import {Component, computed, inject, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, inject, signal} from '@angular/core';
 import {Dialog} from 'primeng/dialog';
 import {Button} from 'primeng/button';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
@@ -13,6 +13,7 @@ import {ConsentRequirement, LegalDocumentType} from '../../dtos/response/UserDto
     selector: 'app-legal-consent-dialog',
     imports: [Dialog, Button, TranslateModule],
     templateUrl: './legal-consent-dialog.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class LegalConsentDialogComponent {
     private readonly legal = inject(LegalService);

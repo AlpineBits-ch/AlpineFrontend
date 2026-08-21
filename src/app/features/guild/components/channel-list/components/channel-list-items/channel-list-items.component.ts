@@ -1,4 +1,4 @@
-import {Component, computed, inject, input, output} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, inject, input, output} from '@angular/core';
 import {ChannelDto, ChannelType, isForumLike} from '../../../../../../dtos/response/guild.dto';
 import {ForumPostRowsComponent} from '../forum-post-rows/forum-post-rows.component';
 import {ThreadRowsComponent} from '../thread-rows/thread-rows.component';
@@ -25,6 +25,7 @@ import {GuildFeature, guildHasFeature} from '../../../../guild-features';
         ThreadRowsComponent,
     ],
     templateUrl: './channel-list-items.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ChannelListItemsComponent {
     readonly channels = input.required<ChannelDto[]>();

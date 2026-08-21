@@ -1,4 +1,13 @@
-import {Component, computed, inject, input, OnDestroy, OnInit, signal} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    inject,
+    input,
+    OnDestroy,
+    OnInit,
+    signal,
+} from '@angular/core';
 import {DatePipe} from '@angular/common';
 import {FormsModule} from '@angular/forms';
 import {Button} from 'primeng/button';
@@ -131,6 +140,7 @@ const TICK_INTERVAL = 60_000;
     selector: 'app-audit-log-settings',
     imports: [DatePipe, FormsModule, Button, InputText, Select, RelativeTimePipe, TranslateModule],
     templateUrl: './audit-log-settings.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AuditLogSettingsComponent implements OnInit, OnDestroy {
     readonly guild = input.required<GuildDto>();

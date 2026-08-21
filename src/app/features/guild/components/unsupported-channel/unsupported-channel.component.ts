@@ -1,4 +1,4 @@
-import {Component, computed, inject, input} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, inject, input} from '@angular/core';
 import {TranslateModule} from '@ngx-translate/core';
 import {Button} from 'primeng/button';
 import {ChannelDto} from '../../../../dtos/response/guild.dto';
@@ -10,6 +10,7 @@ import {householdChannelMeta} from '../../channel-types';
     selector: 'app-unsupported-channel',
     imports: [TranslateModule, Button],
     templateUrl: './unsupported-channel.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class UnsupportedChannelComponent {
     readonly channel = input.required<ChannelDto>();

@@ -1,5 +1,6 @@
 import {
     AfterViewInit,
+    ChangeDetectionStrategy,
     Component,
     computed,
     effect,
@@ -38,6 +39,7 @@ export type PaletteRow =
     selector: 'app-wiki-search-palette',
     imports: [FormsModule, Select, TranslateModule],
     templateUrl: './wiki-search-palette.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class WikiSearchPaletteComponent implements AfterViewInit {
     readonly open = input(false);

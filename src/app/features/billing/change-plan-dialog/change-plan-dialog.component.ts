@@ -1,4 +1,15 @@
-import {Component, computed, effect, inject, input, model, output, signal, untracked} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    effect,
+    inject,
+    input,
+    model,
+    output,
+    signal,
+    untracked,
+} from '@angular/core';
 import {Dialog} from 'primeng/dialog';
 import {Button} from 'primeng/button';
 import {PrimeTemplate} from 'primeng/api';
@@ -39,6 +50,7 @@ interface PlanOption {
     selector: 'app-change-plan-dialog',
     imports: [Dialog, Button, PrimeTemplate, TranslateModule],
     templateUrl: './change-plan-dialog.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ChangePlanDialogComponent {
     readonly visible = model.required<boolean>();

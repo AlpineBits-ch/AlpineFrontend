@@ -1,4 +1,5 @@
 import {
+    ChangeDetectionStrategy,
     Component,
     computed,
     effect,
@@ -85,6 +86,7 @@ export function parseUserHref(href: string | null | undefined): string | null {
             </div>
         }
     `,
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class WikiMentionMenuComponent {
     readonly open = input(false);

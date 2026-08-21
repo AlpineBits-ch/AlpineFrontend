@@ -1,4 +1,14 @@
-import {Component, computed, effect, inject, input, OnInit, signal, untracked} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    effect,
+    inject,
+    input,
+    OnInit,
+    signal,
+    untracked,
+} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {HttpErrorResponse} from '@angular/common/http';
 import {Button} from 'primeng/button';
@@ -48,6 +58,7 @@ interface GrantRow {
         RelativeTimePipe,
     ],
     templateUrl: './guest-access-settings.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class GuestAccessSettingsComponent implements OnInit {
     readonly guild = input.required<GuildDto>();

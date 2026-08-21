@@ -1,4 +1,4 @@
-import {Component, computed, effect, inject, input, output} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, effect, inject, input, output} from '@angular/core';
 import {TranslateModule} from '@ngx-translate/core';
 import {WikiCategoryDto, WikiPageSummaryDto} from '../../../../../dtos/response/wiki.dto';
 import {AppAvatarComponent} from '../../../../../components/avatar/avatar.component';
@@ -12,6 +12,7 @@ import {buildWikiActivity, WIKI_ACTIVITY_DEFAULT_LIMIT, WikiActivityEntry} from 
     selector: 'app-wiki-activity-feed',
     imports: [AppAvatarComponent, TranslateModule, RelativeTimePipe],
     templateUrl: './wiki-activity-feed.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class WikiActivityFeedComponent {
     readonly pages = input<readonly WikiPageSummaryDto[]>([]);

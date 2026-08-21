@@ -1,4 +1,4 @@
-import {Component, ElementRef, inject, signal, viewChild} from '@angular/core';
+import {ChangeDetectionStrategy, Component, ElementRef, inject, signal, viewChild} from '@angular/core';
 import {ToggleSwitch} from 'primeng/toggleswitch';
 import {FormsModule} from '@angular/forms';
 import {TranslateModule} from '@ngx-translate/core';
@@ -13,6 +13,7 @@ import {GuildService} from '../../../../../services/guild.service';
     imports: [ToggleSwitch, FormsModule, TranslateModule],
     templateUrl: './notification-settings.component.html',
     styleUrl: './notification-settings.component.css',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class NotificationSettingsComponent {
     protected readonly userSettings = inject(UserSettingsService);

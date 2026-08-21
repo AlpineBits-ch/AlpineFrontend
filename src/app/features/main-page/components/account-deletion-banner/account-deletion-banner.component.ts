@@ -1,4 +1,4 @@
-import {Component, computed, EventEmitter, inject, Output} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, EventEmitter, inject, Output} from '@angular/core';
 import {DatePipe} from '@angular/common';
 import {UserService} from '../../../../services/user.service';
 import {AccountStatus} from '../../../../dtos/response/UserDto';
@@ -7,6 +7,7 @@ import {AccountStatus} from '../../../../dtos/response/UserDto';
     selector: 'app-account-deletion-banner',
     imports: [DatePipe],
     templateUrl: './account-deletion-banner.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AccountDeletionBannerComponent {
     protected userService = inject(UserService);

@@ -1,4 +1,5 @@
 import {
+    ChangeDetectionStrategy,
     Component,
     computed,
     DestroyRef,
@@ -102,6 +103,7 @@ export interface MemberRoleGroup {
         CallLiveBadgeComponent,
     ],
     templateUrl: './guild-member-list.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class GuildMemberListComponent implements OnChanges {
     readonly guild = input.required<GuildDto>();

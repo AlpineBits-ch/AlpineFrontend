@@ -1,4 +1,4 @@
-import {Component, HostListener, input, output} from '@angular/core';
+import {ChangeDetectionStrategy, Component, HostListener, input, output} from '@angular/core';
 import {TranslateModule} from '@ngx-translate/core';
 
 /**
@@ -18,6 +18,7 @@ import {TranslateModule} from '@ngx-translate/core';
     imports: [TranslateModule],
     templateUrl: './call-stream-menu.component.html',
     host: {'(click)': '$event.stopPropagation()'},
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CallStreamMenuComponent {
     readonly x = input.required<number>();

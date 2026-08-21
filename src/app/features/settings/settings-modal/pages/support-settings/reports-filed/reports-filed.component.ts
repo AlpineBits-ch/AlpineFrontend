@@ -1,4 +1,4 @@
-import {Component, inject, OnInit, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, inject, OnInit, signal} from '@angular/core';
 import {DatePipe} from '@angular/common';
 import {Button} from 'primeng/button';
 import {TranslateModule} from '@ngx-translate/core';
@@ -23,6 +23,7 @@ const STATUS_CLASS: Record<ReportStatus, string> = {
     selector: 'app-reports-filed',
     imports: [Button, DatePipe, TranslateModule],
     templateUrl: './reports-filed.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ReportsFiledComponent implements OnInit {
     private readonly reports = inject(ReportService);

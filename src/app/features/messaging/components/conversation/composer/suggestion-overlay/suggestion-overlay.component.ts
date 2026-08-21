@@ -1,4 +1,4 @@
-import {Component, input, output} from '@angular/core';
+import {ChangeDetectionStrategy, Component, input, output} from '@angular/core';
 import {NgClass} from '@angular/common';
 import {Avatar} from 'primeng/avatar';
 import {ComposerCommandItem} from '../commands';
@@ -25,6 +25,7 @@ import {TranslateModule} from '@ngx-translate/core';
     ],
     templateUrl: './suggestion-overlay.component.html',
     styleUrl: './suggestion-overlay.component.css',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SuggestionOverlayComponent {
     readonly overlayType = input<'mention' | 'command' | 'emoji' | 'channel' | 'wiki' | null>(null);

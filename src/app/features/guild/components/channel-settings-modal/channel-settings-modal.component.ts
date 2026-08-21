@@ -1,4 +1,4 @@
-import {Component, computed, inject, model, output, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, inject, model, output, signal} from '@angular/core';
 import {NgClass} from '@angular/common';
 import {Dialog} from 'primeng/dialog';
 import {Button} from 'primeng/button';
@@ -31,6 +31,7 @@ interface NavItem {
         TranslateModule,
     ],
     templateUrl: './channel-settings-modal.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ChannelSettingsModalComponent {
     readonly isVisible = model.required<boolean>();

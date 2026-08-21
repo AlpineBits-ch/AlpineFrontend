@@ -1,4 +1,4 @@
-import {Component, computed, inject, model, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, inject, model, signal} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {NgClass} from '@angular/common';
 import {firstValueFrom} from 'rxjs';
@@ -33,6 +33,7 @@ import {TranslateModule} from '@ngx-translate/core';
         TranslateModule,
     ],
     templateUrl: './new-conversation-dialog.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class NewConversationDialogComponent {
     readonly visible = model.required<boolean>();

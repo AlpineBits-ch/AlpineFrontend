@@ -1,4 +1,4 @@
-import {Component, computed, effect, inject, input, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, effect, inject, input, signal} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {Select} from 'primeng/select';
 import {ToggleSwitch} from 'primeng/toggleswitch';
@@ -35,6 +35,7 @@ const TAG_MAX_COUNT = 15;
     selector: 'app-wiki-page-properties',
     imports: [FormsModule, Select, ToggleSwitch, TranslateModule],
     templateUrl: './wiki-page-properties.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class WikiPagePropertiesComponent {
     readonly page = input<WikiPageDto | null>(null);

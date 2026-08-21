@@ -1,4 +1,4 @@
-import {Component, inject} from '@angular/core';
+import {ChangeDetectionStrategy, Component, inject} from '@angular/core';
 import {Dialog} from 'primeng/dialog';
 import {Button} from 'primeng/button';
 import {UpdateService} from '../../services/update.service';
@@ -9,6 +9,7 @@ import {TranslateModule} from '@ngx-translate/core';
     selector: 'app-update-dialog',
     imports: [Dialog, Button, PrimeTemplate, TranslateModule],
     templateUrl: './update-dialog.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class UpdateDialogComponent {
     protected readonly updateService = inject(UpdateService);

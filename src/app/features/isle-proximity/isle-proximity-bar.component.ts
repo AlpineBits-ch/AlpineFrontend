@@ -1,4 +1,13 @@
-import {Component, computed, effect, inject, OnDestroy, OnInit, signal} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    effect,
+    inject,
+    OnDestroy,
+    OnInit,
+    signal,
+} from '@angular/core';
 import {NgClass} from '@angular/common';
 import {FormsModule} from '@angular/forms';
 import {TranslateModule} from '@ngx-translate/core';
@@ -24,6 +33,7 @@ type BarMode = 'linkSteam' | 'available' | 'connecting' | 'connected';
     selector: 'app-isle-proximity-bar',
     imports: [NgClass, FormsModule, TranslateModule, Slider, ToggleSwitch],
     templateUrl: './isle-proximity-bar.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class IsleProximityBarComponent implements OnInit, OnDestroy {
     protected prox = inject(IsleProximityService);

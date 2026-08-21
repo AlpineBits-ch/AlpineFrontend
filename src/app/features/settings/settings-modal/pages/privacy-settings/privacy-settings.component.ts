@@ -1,4 +1,4 @@
-import {Component, computed, inject, OnInit, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, inject, OnInit, signal} from '@angular/core';
 import {ToggleSwitch} from 'primeng/toggleswitch';
 import {RadioButton} from 'primeng/radiobutton';
 import {Select} from 'primeng/select';
@@ -63,6 +63,7 @@ interface VisibilityRow {
     ],
     templateUrl: './privacy-settings.component.html',
     styleUrl: './privacy-settings.component.css',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PrivacySettingsComponent implements OnInit {
     protected readonly privacy = inject(PrivacySettingsService);

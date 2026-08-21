@@ -1,4 +1,4 @@
-import {Component, computed, inject, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, inject, signal} from '@angular/core';
 import {TranslateModule} from '@ngx-translate/core';
 import {InvoiceDto} from '../../../dtos/response/billing.dto';
 import {BillingService} from '../../../services/billing.service';
@@ -24,6 +24,7 @@ interface InvoiceRow {
     selector: 'app-invoice-list',
     imports: [TranslateModule],
     templateUrl: './invoice-list.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class InvoiceListComponent {
     private billing = inject(BillingService);

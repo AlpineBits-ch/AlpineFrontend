@@ -1,4 +1,4 @@
-import {Component, input, output} from '@angular/core';
+import {ChangeDetectionStrategy, Component, input, output} from '@angular/core';
 import {TranslateModule} from '@ngx-translate/core';
 import {EntitlementSubjectDto} from '../../../dtos/response/entitlement.dto';
 import {VoiceLimitNotice} from '../../../services/voice-limits.service';
@@ -30,6 +30,7 @@ import {VoiceLimitNotice} from '../../../services/voice-limits.service';
     selector: 'app-voice-limit-notice',
     imports: [TranslateModule],
     templateUrl: './voice-limit-notice.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class VoiceLimitNoticeComponent {
     readonly notices = input.required<VoiceLimitNotice[]>();

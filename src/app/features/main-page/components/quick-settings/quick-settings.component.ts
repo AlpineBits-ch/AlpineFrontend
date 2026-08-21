@@ -1,4 +1,4 @@
-﻿import {Component, computed, effect, inject, signal, viewChild} from '@angular/core';
+﻿import {ChangeDetectionStrategy, Component, computed, effect, inject, signal, viewChild} from '@angular/core';
 import {ProfileService} from '../../../../services/profile.service';
 import {AppAvatarComponent} from '../../../../components/avatar/avatar.component';
 import {Button} from 'primeng/button';
@@ -36,6 +36,7 @@ import {AudioSettingsService} from '../../../../services/audio-settings.service'
     ],
     templateUrl: './quick-settings.component.html',
     styleUrl: './quick-settings.component.css',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class QuickSettingsComponent {
     public readonly isSettingsOpen = signal(false);

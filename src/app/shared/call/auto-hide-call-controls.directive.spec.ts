@@ -5,7 +5,7 @@
  * `revealed()`) rather than asserting on the directive's internal signal, so a test would fail if
  * the template binding were ever deleted - not just if the directive's own bookkeeping broke.
  */
-import {Component} from '@angular/core';
+import {ChangeDetectionStrategy, Component} from '@angular/core';
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {AutoHideCallControlsDirective, CONTROLS_IDLE_MS} from './auto-hide-call-controls.directive';
 
@@ -27,6 +27,7 @@ import {AutoHideCallControlsDirective, CONTROLS_IDLE_MS} from './auto-hide-call-
             </div>
         </div>
     `,
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 class HostComponent {}
 

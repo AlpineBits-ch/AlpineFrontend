@@ -1,4 +1,5 @@
 import {
+    ChangeDetectionStrategy,
     Component,
     computed,
     ElementRef,
@@ -54,6 +55,7 @@ interface QueuedEmoji {
     selector: 'app-emoji-settings',
     imports: [FormsModule, Button, InputText, Dialog, Tooltip, PrimeTemplate, TranslateModule],
     templateUrl: './emoji-settings.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class EmojiSettingsComponent implements OnInit, OnDestroy {
     readonly guild = input.required<GuildDto>();

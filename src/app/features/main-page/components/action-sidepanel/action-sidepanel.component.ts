@@ -1,4 +1,4 @@
-import {Component, inject} from '@angular/core';
+import {ChangeDetectionStrategy, Component, inject} from '@angular/core';
 import {DmSidepanelComponent} from '../dm-sidepanel/dm-sidepanel.component';
 import {ChannelListComponent} from '../../../guild/components/channel-list/channel-list.component';
 import {NavigationService} from '../../navigation.service';
@@ -8,6 +8,7 @@ import {NavigationService} from '../../navigation.service';
     imports: [DmSidepanelComponent, ChannelListComponent],
     templateUrl: './action-sidepanel.component.html',
     styleUrl: './action-sidepanel.component.css',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ActionSidepanelComponent {
     protected navService = inject(NavigationService);

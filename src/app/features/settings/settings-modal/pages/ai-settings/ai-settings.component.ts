@@ -1,4 +1,4 @@
-import {Component, inject} from '@angular/core';
+import {ChangeDetectionStrategy, Component, inject} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {ToggleSwitch} from 'primeng/toggleswitch';
 import {TranslateModule} from '@ngx-translate/core';
@@ -10,6 +10,7 @@ import {WikiAiService} from '../../../../guild/components/wiki/wiki-ai.service';
     selector: 'app-ai-settings',
     imports: [TranslateModule, AiConnectFormComponent, FormsModule, ToggleSwitch],
     templateUrl: './ai-settings.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AiSettingsComponent {
     /**

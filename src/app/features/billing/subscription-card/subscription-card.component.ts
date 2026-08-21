@@ -1,4 +1,14 @@
-import {Component, computed, effect, ElementRef, inject, input, signal, untracked} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    effect,
+    ElementRef,
+    inject,
+    input,
+    signal,
+    untracked,
+} from '@angular/core';
 import {Dialog} from 'primeng/dialog';
 import {Button} from 'primeng/button';
 import {PrimeTemplate} from 'primeng/api';
@@ -19,6 +29,7 @@ type Busy = 'cancel' | 'resume' | null;
     selector: 'app-subscription-card',
     imports: [Dialog, Button, PrimeTemplate, TranslateModule, ChangePlanDialogComponent],
     templateUrl: './subscription-card.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SubscriptionCardComponent {
     readonly subject = input.required<EntitlementSubjectRef>();

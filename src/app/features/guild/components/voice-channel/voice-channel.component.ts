@@ -1,4 +1,4 @@
-import {Component, computed, effect, inject, input, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, effect, inject, input, signal} from '@angular/core';
 import {firstValueFrom} from 'rxjs';
 import {ChannelDto} from '../../../../dtos/response/guild.dto';
 import {VoiceChannelParticipant, VoiceChannelService} from '../../../../services/voice-channel.service';
@@ -48,6 +48,7 @@ import {TranslateModule, TranslateService} from '@ngx-translate/core';
     host: {
         class: 'flex flex-col h-full overflow-hidden',
     },
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class VoiceChannelComponent {
     readonly channel = input.required<ChannelDto>();

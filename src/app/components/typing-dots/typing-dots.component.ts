@@ -1,4 +1,4 @@
-import {Component} from '@angular/core';
+import {ChangeDetectionStrategy, Component} from '@angular/core';
 
 /** Three animated dots indicating that someone is typing. */
 @Component({
@@ -10,5 +10,6 @@ import {Component} from '@angular/core';
             <span class="typing-dot"></span>
         </span>
     `,
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class TypingDotsComponent {}

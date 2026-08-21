@@ -1,4 +1,4 @@
-import {Component, inject, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, inject, signal} from '@angular/core';
 import {HttpClient} from '@angular/common/http';
 import {DomSanitizer, SafeHtml} from '@angular/platform-browser';
 import {Button} from 'primeng/button';
@@ -47,6 +47,7 @@ type NoticesState = 'idle' | 'loading' | 'ready' | 'error';
     imports: [Button],
     templateUrl: './about-settings.component.html',
     styleUrl: './about-settings.component.css',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AboutSettingsComponent {
     protected readonly updateService = inject(UpdateService);

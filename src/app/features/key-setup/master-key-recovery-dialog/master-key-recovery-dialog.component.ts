@@ -1,4 +1,13 @@
-import {Component, computed, EventEmitter, inject, input, Output, signal} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    EventEmitter,
+    inject,
+    input,
+    Output,
+    signal,
+} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {Dialog} from 'primeng/dialog';
 import {Button} from 'primeng/button';
@@ -52,6 +61,7 @@ type ResetStep = '' | 'confirm' | 'orphans';
     standalone: true,
     imports: [Dialog, Button, Checkbox, FormsModule, PasswordDirective],
     templateUrl: './master-key-recovery-dialog.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class MasterKeyRecoveryDialogComponent {
     readonly visible = input(false);

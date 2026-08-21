@@ -1,4 +1,4 @@
-import {Component} from '@angular/core';
+import {ChangeDetectionStrategy, Component} from '@angular/core';
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {ProfileFont} from '../dtos/response/profile.dto';
 import {UserNameStyleDirective} from './user-name-style.directive';
@@ -6,6 +6,7 @@ import {UserNameStyleDirective} from './user-name-style.directive';
 @Component({
     imports: [UserNameStyleDirective],
     template: `<span [appUserNameStyle]="profile">Name</span>`,
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 class HostComponent {
     profile: {accentColor?: string | null; font?: ProfileFont} | null = null;

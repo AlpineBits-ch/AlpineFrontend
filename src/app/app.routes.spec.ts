@@ -1,4 +1,4 @@
-import {Component} from '@angular/core';
+import {ChangeDetectionStrategy, Component} from '@angular/core';
 import {TestBed} from '@angular/core/testing';
 import {provideLocationMocks} from '@angular/common/testing';
 import {provideRouter, Router} from '@angular/router';
@@ -10,14 +10,14 @@ import {AuthService} from './services/auth.service';
 const painted: string[] = [];
 
 // Distinct selectors, or Angular derives the same component id for both and refuses (NG0912).
-@Component({selector: 'app-login-stub', template: ''})
+@Component({selector: 'app-login-stub', template: '', changeDetection: ChangeDetectionStrategy.OnPush})
 class LoginStub {
     constructor() {
         painted.push('login');
     }
 }
 
-@Component({selector: 'app-overview-stub', template: ''})
+@Component({selector: 'app-overview-stub', template: '', changeDetection: ChangeDetectionStrategy.OnPush})
 class OverviewStub {
     constructor() {
         painted.push('overview');

@@ -1,4 +1,4 @@
-import {Component, computed, input} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, input} from '@angular/core';
 import {OnlineStatus} from '../../dtos/response/profile.dto';
 
 const SIZE_CLASSES: Record<'sm' | 'md' | 'lg', string> = {
@@ -28,6 +28,7 @@ const SURFACE_BACKING: Record<string, string> = {
             </div>
         }
     `,
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class UserStatusDotComponent {
     readonly status = input.required<OnlineStatus | null>();

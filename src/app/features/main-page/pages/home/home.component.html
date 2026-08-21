@@ -90,7 +90,7 @@
                     </div>
                     <p-button
                         (onClick)="sendRequest()"
-                        [disabled]="!friendInput.trim()"
+                        [disabled]="!friendInput().trim()"
                         [label]="'HOME.ADD_FRIEND_PANEL.SEND' | translate"
                         severity="primary"
                         size="small"

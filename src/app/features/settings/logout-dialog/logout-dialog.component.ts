@@ -1,4 +1,4 @@
-import {Component, EventEmitter, inject, input, Output, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, EventEmitter, inject, input, Output, signal} from '@angular/core';
 import {Dialog} from 'primeng/dialog';
 import {Button} from 'primeng/button';
 import {PasswordDirective} from 'primeng/password';
@@ -22,6 +22,7 @@ type Step = 'export-prompt' | 'password' | 'no-export-warning' | 'export-unavail
     imports: [Dialog, Button, PasswordDirective, TranslateModule],
     templateUrl: './logout-dialog.component.html',
     styleUrl: './logout-dialog.component.css',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class LogoutDialogComponent {
     readonly visible = input(false);
