@@ -28,7 +28,7 @@ export class WikiBreadcrumbsComponent {
     readonly draftWithAi = output<void>();
     readonly edit = output<void>();
     readonly save = output<void>();
-    readonly cancel = output<void>();
+    readonly cancelled = output<void>();
     readonly history = output<void>();
     readonly deletePage = output<void>();
     readonly share = output<void>();

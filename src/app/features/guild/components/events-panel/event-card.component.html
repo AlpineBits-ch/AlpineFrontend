@@ -17,7 +17,7 @@
                 tooltipPosition="bottom"
             />
             <p-button
-                (onClick)="cancel.emit()"
+                (onClick)="cancelled.emit()"
                 [pTooltip]="'EVENTS.CANCEL_CONFIRM_HEADER' | translate"
                 [text]="true"
                 icon="pi pi-trash"
@@ -88,7 +88,7 @@
     @if (phase() !== 'past') {
         <div class="mt-3 flex items-center gap-2">
             <button
-                (click)="interest.emit()"
+                (click)="interestToggled.emit()"
                 [attr.aria-pressed]="event().isInterested"
                 [ngClass]="
                     event().isInterested

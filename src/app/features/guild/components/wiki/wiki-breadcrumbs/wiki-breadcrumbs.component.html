@@ -76,7 +76,7 @@
             />
         }
         @if (editing()) {
-            <p-button (onClick)="cancel.emit()" [label]="'COMMON.CANCEL' | translate" severity="secondary" size="small" />
+            <p-button (onClick)="cancelled.emit()" [label]="'COMMON.CANCEL' | translate" severity="secondary" size="small" />
             <p-button (onClick)="save.emit()" icon="pi pi-check" [label]="'WIKI.SAVE' | translate" severity="primary" size="small" />
         } @else {
             <!-- Read mode only: a page that has never been saved has nothing to link to. -->

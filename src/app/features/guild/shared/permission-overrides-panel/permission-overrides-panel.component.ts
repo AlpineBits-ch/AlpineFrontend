@@ -62,7 +62,7 @@ export class PermissionOverridesPanelComponent {
     readonly presets = input<readonly PermissionPreset[]>([]);
 
     add = output<string>();
-    change = output<{id: string; override: PermOverride}>();
+    changed = output<{id: string; override: PermOverride}>();
     save = output<string>();
     delete = output<string>();
     // Not named `search`: that collides with the native DOM search event and trips no-output-native.
@@ -136,7 +136,7 @@ export class PermissionOverridesPanelComponent {
     protected pickPreset(preset: PermissionPreset): void {
         const id = this.pendingPresetFor();
         if (!id) return;
-        this.change.emit({id, override: presetOverride(preset)});
+        this.changed.emit({id, override: presetOverride(preset)});
         this.pendingPresetFor.set(null);
     }
 

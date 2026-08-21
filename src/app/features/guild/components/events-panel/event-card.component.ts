@@ -23,8 +23,8 @@ export class EventCardComponent {
     readonly canManage = input.required<boolean>();
 
     readonly edit = output<void>();
-    readonly cancel = output<void>();
-    readonly interest = output<void>();
+    readonly cancelled = output<void>();
+    readonly interestToggled = output<void>();
     readonly joinVoice = output<void>();
 
     protected readonly clock = inject(MinuteClockService);

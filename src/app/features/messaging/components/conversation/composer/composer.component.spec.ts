@@ -122,7 +122,7 @@ describe('ComposerComponent', () => {
 
     it('sends without consulting the dialog when a master key exists', () => {
         const sent = vi.fn();
-        component.message.subscribe(sent);
+        component.submitted.subscribe(sent);
         type('hello');
 
         component.send();
@@ -149,7 +149,7 @@ describe('ComposerComponent', () => {
 
         it('holds the send until the upload lands, then sends with the attachment', async () => {
             const sent = vi.fn();
-            component.message.subscribe(sent);
+            component.submitted.subscribe(sent);
             type('look at this');
             attach();
 
@@ -166,7 +166,7 @@ describe('ComposerComponent', () => {
         /** Two Enters must not become two messages once the wait is over. */
         it('sends once however many times Enter is pressed while waiting', async () => {
             const sent = vi.fn();
-            component.message.subscribe(sent);
+            component.submitted.subscribe(sent);
             type('look at this');
             attach();
 
@@ -182,7 +182,7 @@ describe('ComposerComponent', () => {
         /** A second file attached during the wait is part of the message too. */
         it('waits for an upload started after Enter was pressed', async () => {
             const sent = vi.fn();
-            component.message.subscribe(sent);
+            component.submitted.subscribe(sent);
             type('look at these');
             attach('one.wav');
 
@@ -206,7 +206,7 @@ describe('ComposerComponent', () => {
          */
         it('refuses to send when an upload failed, and keeps what was typed', async () => {
             const sent = vi.fn();
-            component.message.subscribe(sent);
+            component.submitted.subscribe(sent);
             const editor = type('look at this');
             attach();
 
@@ -232,7 +232,7 @@ describe('ComposerComponent', () => {
          */
         it('emits nothing and keeps the typed message when the prompt is declined', async () => {
             const sent = vi.fn();
-            component.message.subscribe(sent);
+            component.submitted.subscribe(sent);
             const editor = type('a message worth keeping');
 
             component.send();
@@ -245,7 +245,7 @@ describe('ComposerComponent', () => {
 
         it('sends the still-typed message once setup completes', async () => {
             const sent = vi.fn();
-            component.message.subscribe(sent);
+            component.submitted.subscribe(sent);
             type('a message worth keeping');
 
             component.send();
@@ -269,7 +269,7 @@ describe('ComposerComponent', () => {
 
         it('posts a gif as the chosen character', () => {
             const sent = vi.fn();
-            component.message.subscribe(sent);
+            component.submitted.subscribe(sent);
 
             component.onGifSelected('https://gif.test.example/wave.gif');
 
@@ -280,7 +280,7 @@ describe('ComposerComponent', () => {
 
         it('posts a gif as itself once the character is cleared', () => {
             const sent = vi.fn();
-            component.message.subscribe(sent);
+            component.submitted.subscribe(sent);
             TestBed.inject(PersonaService).select('chan_1', null);
 
             component.onGifSelected('https://gif.test.example/wave.gif');

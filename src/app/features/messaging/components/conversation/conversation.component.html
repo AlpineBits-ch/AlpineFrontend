@@ -389,7 +389,7 @@
                 <app-mls-join-request-review [contextId]="conversation().id" [participantNames]="participantNames()" />
                 <app-composer
                     (cancelReply)="onCancelReply()"
-                    (message)="createMessage($event)"
+                    (submitted)="createMessage($event)"
                     (typing)="onTyping()"
                     [conversationMembers]="conversationMemberCandidates()"
                     [replyTo]="replyingTo()"

@@ -78,7 +78,7 @@ describe('CallStreamStatsComponent', () => {
     it('emits close when the close button is pressed', () => {
         const fixture = setup(snapshot());
         let closed = false;
-        fixture.componentInstance.close.subscribe(() => (closed = true));
+        fixture.componentInstance.closed.subscribe(() => (closed = true));
 
         fixture.nativeElement.querySelector('[data-testid="stats-close"]').click();
 
@@ -106,7 +106,7 @@ describe('CallStreamStatsComponent dismissal', () => {
         fixture = setup(snapshot());
         document.body.appendChild(fixture.nativeElement);
         closes = 0;
-        fixture.componentInstance.close.subscribe(() => closes++);
+        fixture.componentInstance.closed.subscribe(() => closes++);
     });
 
     afterEach(() => fixture.nativeElement.remove());

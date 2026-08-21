@@ -18,7 +18,7 @@ export class CallContextMenuComponent {
      */
     readonly moderationEnabled = input<boolean>(true);
 
-    close = output<void>();
+    closed = output<void>();
     volumeChange = output<number>();
     streamVolumeChange = output<number>();
     kick = output<void>();
@@ -27,12 +27,12 @@ export class CallContextMenuComponent {
 
     @HostListener('document:click')
     onDocumentClick(): void {
-        this.close.emit();
+        this.closed.emit();
     }
 
     @HostListener('document:keydown.escape')
     onEscape(): void {
-        this.close.emit();
+        this.closed.emit();
     }
 
     onVolumeInput(event: Event): void {

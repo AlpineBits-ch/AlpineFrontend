@@ -57,7 +57,7 @@ describe('CallStreamMenuComponent', () => {
     it('closes on a document click', () => {
         const fixture = setup();
         let closed = false;
-        fixture.componentInstance.close.subscribe(() => (closed = true));
+        fixture.componentInstance.closed.subscribe(() => (closed = true));
 
         document.dispatchEvent(new MouseEvent('click'));
 
@@ -68,7 +68,7 @@ describe('CallStreamMenuComponent', () => {
         // The host stops propagation, so a press on an item never reaches the document listener.
         const fixture = setup();
         let closed = false;
-        fixture.componentInstance.close.subscribe(() => (closed = true));
+        fixture.componentInstance.closed.subscribe(() => (closed = true));
 
         fixture.nativeElement
             .querySelector('[data-testid="menu-stats"]')
@@ -80,7 +80,7 @@ describe('CallStreamMenuComponent', () => {
     it('closes on Escape', () => {
         const fixture = setup();
         let closed = false;
-        fixture.componentInstance.close.subscribe(() => (closed = true));
+        fixture.componentInstance.closed.subscribe(() => (closed = true));
 
         document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape'}));
 
