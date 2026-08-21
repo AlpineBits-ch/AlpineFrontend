@@ -3,6 +3,7 @@ import {HttpErrorResponse} from '@angular/common/http';
 import {Observable} from 'rxjs';
 import {
     EmptyFeatureResult,
+    getState,
     patchState,
     signalStoreFeature,
     SignalStoreFeature,
@@ -27,8 +28,9 @@ import {KeyedRequest, LoadFailure} from './request-state';
  *
  * `A` is a per-call fetch argument, for an index whose request the key alone does not describe.
  * `E` names a `withEntities` collection, for a store holding more than one row type.
+ * `R` is the fetch's whole response and `S` the sibling state `onLoaded` writes alongside the rows.
  */
-export interface KeyedIndexConfig<T, C extends string, A, E extends string> {
+export interface KeyedIndexConfig<T, C extends string, A, E extends string, R, S extends object> {
     /** Names every generated member, so one store can carry two indexes over one entity map. */
     collection: C;
     /**
@@ -43,7 +45,15 @@ export interface KeyedIndexConfig<T, C extends string, A, E extends string> {
     sort?: (a: T, b: T) => number;
     selectId?: SelectEntityId<T>;
     /** Resolved once, inside the injection context. The function it returns is called per load. */
-    fetch: () => (key: string, arg?: A) => Observable<T[]>;
+    fetch: () => (key: string, arg?: A) => Observable<R>;
+    /** Pulls the rows out of the response. Omit when the response is the rows. */
+    rows?: (response: R) => T[];
+    /**
+     * Sibling state to write from the rest of the response. The patch lands in the same
+     * `patchState` as the rows and the id list, so nothing can read totals that disagree with them.
+     * Not called on a failure.
+     */
+    onLoaded?: (response: R, key: string, state: S) => Partial<S>;
 }
 
 export interface LoadOptions<A> {
@@ -80,14 +90,21 @@ type KeyedIndexOutput<T, C extends string, A> = {
 
 // `${collection}For` caches one computed per key for the life of the store, bounded by the number
 // of channels or guilds opened in a session. Indexing by message id would need eviction first.
-export function withKeyedIndex<T, C extends string, A = never>(
-    config: KeyedIndexConfig<T, C, A, never> & {entities?: undefined},
-): SignalStoreFeature<EmptyFeatureResult & {state: EntityState<T>}, KeyedIndexOutput<T, C, A>>;
-export function withKeyedIndex<T, C extends string, E extends string, A = never>(
-    config: KeyedIndexConfig<T, C, A, E> & {entities: E},
-): SignalStoreFeature<EmptyFeatureResult & {state: NamedEntityState<T, E>}, KeyedIndexOutput<T, C, A>>;
-export function withKeyedIndex<T, C extends string, A, E extends string>(
-    config: KeyedIndexConfig<T, C, A, E>,
+export function withKeyedIndex<T, C extends string, A = never, R = T[], S extends object = object>(
+    config: KeyedIndexConfig<T, C, A, never, R, S> & {entities?: undefined},
+): SignalStoreFeature<EmptyFeatureResult & {state: EntityState<T> & S}, KeyedIndexOutput<T, C, A>>;
+export function withKeyedIndex<
+    T,
+    C extends string,
+    E extends string,
+    A = never,
+    R = T[],
+    S extends object = object,
+>(
+    config: KeyedIndexConfig<T, C, A, E, R, S> & {entities: E},
+): SignalStoreFeature<EmptyFeatureResult & {state: NamedEntityState<T, E> & S}, KeyedIndexOutput<T, C, A>>;
+export function withKeyedIndex<T, C extends string, A, E extends string, R, S extends object>(
+    config: KeyedIndexConfig<T, C, A, E, R, S>,
 ): SignalStoreFeature<EmptyFeatureResult & {state: EntityState<T>}, KeyedIndexOutput<T, C, A>> {
     const collection = config.collection;
     const idsKey = `${collection}Ids`;
@@ -107,6 +124,7 @@ export function withKeyedIndex<T, C extends string, A, E extends string>(
             const requestsSignal = reader[requestsKey] as unknown as Signal<Record<string, KeyedRequest>>;
 
             const selectId = config.selectId ?? ((entity: T) => (entity as {id: EntityId}).id);
+            const rowsOf = config.rows ?? ((response: R) => response as unknown as T[]);
             const fetchOne = config.fetch();
             const views = new Map<string, Signal<T[]>>();
             // The argument the last load for a key was issued under, replayed by a queued refetch.
@@ -166,6 +184,23 @@ export function withKeyedIndex<T, C extends string, A, E extends string>(
                 writeIds(key, items.map(selectId), items);
             };
 
+            /**
+             * The load path's write. The rows, the id list, the request record and whatever
+             * `onLoaded` returns all land in one patch, so nothing renders between them.
+             */
+            const applyLoaded = (key: string, response: R, request: Partial<KeyedRequest>): void => {
+                const items = rowsOf(response);
+                const updaters: unknown[] = [
+                    upsertRows(items),
+                    {[idsKey]: {...idsSignal(), [key]: items.map(selectId)}},
+                    {[requestsKey]: {...requestsSignal(), [key]: {...requestOf(key), ...request}}},
+                ];
+                if (config.onLoaded) {
+                    updaters.push(config.onLoaded(response, key, getState(source) as unknown as S));
+                }
+                patchState(source as never, ...(updaters as never[]));
+            };
+
             const attachTo = (key: string, entity: T): void => {
                 const id = selectId(entity);
                 const ids = idsSignal()[key] ?? [];
@@ -183,9 +218,13 @@ export function withKeyedIndex<T, C extends string, A, E extends string>(
             const run = (key: string): void => {
                 patchRequest(key, {loading: true, error: null});
                 fetchOne(key, args.get(key)).subscribe({
-                    next: items => {
-                        apply(key, items);
-                        patchRequest(key, {loading: false, loadedAt: Date.now(), error: null, stale: false});
+                    next: response => {
+                        applyLoaded(key, response, {
+                            loading: false,
+                            loadedAt: Date.now(),
+                            error: null,
+                            stale: false,
+                        });
                         drain(key);
                     },
                     error: (err: unknown) => {

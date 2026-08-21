@@ -7,6 +7,7 @@ import {
     Expense,
     ExpenseCategory,
     ExpenseCreated,
+    ExpensePage,
     ExpenseDeleted,
     ExpenseUpdated,
     LedgerBalance,
@@ -136,11 +137,9 @@ interface LedgerState {
     summaries: Record<string, LedgerSummaryState>;
 }
 
-/** One first-page request: the filter it runs under, and where the cursor it answers with goes. */
+/** One first-page request: the filter it runs under. */
 interface ExpenseQuery {
     category: ExpenseCategory | null;
-    /** The index's fetch answers rows only, so the page's cursor comes back through here. */
-    settle(cursor: string | null): void;
 }
 
 /**
@@ -183,8 +182,9 @@ function sameState(a: LedgerChannelState, b: LedgerChannelState): boolean {
 export const LedgerStore = signalStore(
     {providedIn: 'root'},
     withEntities<Expense>(),
+    withState<LedgerState>({paging: {}, positions: {}, configs: {}, receiptIds: {}, summaries: {}}),
 
-    withKeyedIndex<Expense, 'expenses', ExpenseQuery>({
+    withKeyedIndex<Expense, 'expenses', ExpenseQuery, ExpensePage, LedgerState>({
         collection: 'expenses',
         sort: byOccurredAt,
         fetch: () => {
@@ -192,14 +192,21 @@ export const LedgerStore = signalStore(
             // Always the first page. Carrying a stored cursor here would append the page after the
             // one about to be discarded and leave a hole in the middle of the ledger.
             return (channelId: string, query?: ExpenseQuery) =>
-                api.listExpenses(channelId, EXPENSE_PAGE_SIZE, null, query?.category ?? null).pipe(
-                    tap(page => query?.settle(page.nextCursor ?? null)),
-                    map(page => (page.items ?? []).map(normalizeExpense)),
-                );
+                api.listExpenses(channelId, EXPENSE_PAGE_SIZE, null, query?.category ?? null);
         },
+        rows: page => (page.items ?? []).map(normalizeExpense),
+        // A first page landing supersedes whatever `loadMore` had in the air.
+        onLoaded: (page, channelId, state) => ({
+            paging: {
+                ...state.paging,
+                [channelId]: {
+                    ...(state.paging[channelId] ?? EMPTY_PAGING),
+                    nextCursor: page.nextCursor ?? null,
+                    loadingMore: false,
+                },
+            },
+        }),
     }),
-
-    withState<LedgerState>({paging: {}, positions: {}, configs: {}, receiptIds: {}, summaries: {}}),
 
     withMethods((store, api = inject(LedgerApiService)) => {
         const views = new Map<string, Signal<LedgerChannelState>>();
@@ -284,8 +291,6 @@ export const LedgerStore = signalStore(
 
         const queryFor = (channelId: string): ExpenseQuery => ({
             category: pagingOf(channelId).category,
-            // A first page landing supersedes whatever `loadMore` had in the air.
-            settle: cursor => patchPaging(channelId, {nextCursor: cursor, loadingMore: false}),
         });
 
         const refresh = (channelId: string): void => {

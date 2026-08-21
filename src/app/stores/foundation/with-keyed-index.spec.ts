@@ -2,7 +2,7 @@ import {inject, Injectable} from '@angular/core';
 import {TestBed} from '@angular/core/testing';
 import {HttpErrorResponse} from '@angular/common/http';
 import {Observable, Subject} from 'rxjs';
-import {signalStore, type} from '@ngrx/signals';
+import {signalStore, type, watchState, withState} from '@ngrx/signals';
 import {withEntities} from '@ngrx/signals/entities';
 import {withKeyedIndex} from './with-keyed-index';
 
@@ -25,15 +25,27 @@ function tag(id: string, label = id): Tag {
     return {id, label};
 }
 
+/** A response that is not the rows: what `rows` and `onLoaded` exist for. */
+interface Page {
+    items: Row[];
+    total: number;
+}
+
+interface Totals {
+    totalByKey: Record<string, number>;
+}
+
 /** Subject-backed so response timing is fully controlled and requests can be counted per collection. */
 @Injectable({providedIn: 'root'})
 class FakeApi {
     readonly stockCalls: string[] = [];
     readonly ownerCalls: string[] = [];
     readonly tagCalls: string[] = [];
+    readonly pageCalls: string[] = [];
     readonly stockPending: Subject<Row[]>[] = [];
     readonly ownerPending: Subject<Row[]>[] = [];
     readonly tagPending: Subject<Tag[]>[] = [];
+    readonly pagePending: Subject<Page>[] = [];
 
     listStock(key: string): Observable<Row[]> {
         this.stockCalls.push(key);
@@ -53,6 +65,13 @@ class FakeApi {
         this.ownerCalls.push(key);
         const subject = new Subject<Row[]>();
         this.ownerPending.push(subject);
+        return subject.asObservable();
+    }
+
+    listPage(key: string): Observable<Page> {
+        this.pageCalls.push(key);
+        const subject = new Subject<Page>();
+        this.pagePending.push(subject);
         return subject.asObservable();
     }
 }
@@ -114,9 +133,30 @@ const _WrongCollection = signalStore(
     }),
 );
 
+/** A response that carries more than the rows, and sibling state written from the rest of it. */
+const MetaStore = signalStore(
+    {providedIn: 'root'},
+    withEntities<Row>(),
+    withState<Totals>({totalByKey: {}}),
+    withKeyedIndex<Row, 'stock', never, Page, Totals>({
+        collection: 'stock',
+        fetch: () => {
+            const api = inject(FakeApi);
+            return (key: string) => api.listPage(key);
+        },
+        rows: page => page.items,
+        onLoaded: (page, key, state) => ({totalByKey: {...state.totalByKey, [key]: page.total}}),
+    }),
+);
+
 function setup() {
     TestBed.configureTestingModule({});
     return {store: TestBed.inject(TestStore), api: TestBed.inject(FakeApi)};
+}
+
+function setupMeta() {
+    TestBed.configureTestingModule({});
+    return {store: TestBed.inject(MetaStore), api: TestBed.inject(FakeApi)};
 }
 
 function setupNamed() {
@@ -409,6 +449,62 @@ describe('withKeyedIndex', () => {
                     .map(r => r.id),
             ).toEqual(['b']);
             expect(store.rowEntityMap()['a']).toBeDefined();
+        });
+    });
+
+    describe('rows and onLoaded', () => {
+        it('takes the rows out of a response that is not the rows', () => {
+            const {store, api} = setupMeta();
+            store.loadStock('c1');
+            api.pagePending[0].next({items: [row('a'), row('b')], total: 42});
+
+            expect(
+                store
+                    .stockFor('c1')()
+                    .map(r => r.id),
+            ).toEqual(['a', 'b']);
+            expect(store.totalByKey()['c1']).toBe(42);
+        });
+
+        it('lands the sibling patch in the same write as the rows', () => {
+            const {store, api} = setupMeta();
+            const seen: [number, number | undefined][] = [];
+            TestBed.runInInjectionContext(() => {
+                watchState(store, state =>
+                    seen.push([state.stockIds['c1']?.length ?? 0, state.totalByKey['c1']]),
+                );
+            });
+
+            store.loadStock('c1');
+            api.pagePending[0].next({items: [row('a'), row('b')], total: 42});
+
+            // Neither half is ever visible without the other: the rows and the total move together.
+            expect(seen).toContainEqual([2, 42]);
+            expect(seen).not.toContainEqual([2, undefined]);
+            expect(seen).not.toContainEqual([0, 42]);
+        });
+
+        it('leaves the sibling state alone on a failure', () => {
+            const {store, api} = setupMeta();
+            store.loadStock('c1');
+            api.pagePending[0].next({items: [row('a')], total: 7});
+            store.loadStock('c1', {force: true});
+            api.pagePending[1].error(new HttpErrorResponse({status: 500}));
+
+            expect(store.totalByKey()['c1']).toBe(7);
+            expect(store.stockError('c1')).toBe('failed');
+        });
+
+        it('treats the response as the rows when no reader is configured', () => {
+            const {store, api} = setup();
+            store.loadStock('c1');
+            settle(api.stockPending, 0, [row('a')]);
+
+            expect(
+                store
+                    .stockFor('c1')()
+                    .map(r => r.id),
+            ).toEqual(['a']);
         });
     });
 
