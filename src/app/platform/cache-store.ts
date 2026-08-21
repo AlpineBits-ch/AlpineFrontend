@@ -1,4 +1,4 @@
-import {Injectable} from '@angular/core';
+import {inject, Injectable} from '@angular/core';
 
 import {CacheSealService} from '../services/cache/cache-seal.service';
 import {IdbStore, IdbStoreClosedError, openStore} from './web/idb';
@@ -372,7 +372,7 @@ export class CacheStore {
 export class CacheStoreFactory {
     private readonly stores = new Map<string, CacheStore>();
 
-    constructor(private readonly seal: CacheSealService) {}
+    private readonly seal = inject(CacheSealService);
 
     open(deviceId: string): CacheStore {
         let store = this.stores.get(deviceId);
