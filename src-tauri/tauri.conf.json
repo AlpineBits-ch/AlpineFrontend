@@ -43,14 +43,7 @@
     "windows": {
       "signCommand": {
         "cmd": "powershell",
-        "args": [
-          "-NoProfile",
-          "-ExecutionPolicy",
-          "Bypass",
-          "-File",
-          "vendor/signing/sign.ps1",
-          "%1"
-        ]
+        "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "vendor/signing/sign.ps1", "%1"]
       },
       "nsis": {
         "installMode": "currentUser",
@@ -62,22 +55,18 @@
   },
   "identifier": "com.alpinebits.venta",
   "productName": "Venta",
-  "version": "3.0.221",
+  "version": "3.0.222",
   "plugins": {
     "deep-link": {
       "desktop": {
-        "schemes": [
-          "venta"
-        ]
+        "schemes": ["venta"]
       }
     },
     "updater": {
       "windows": {
         "installMode": "quiet"
       },
-      "endpoints": [
-        "https://api.venta.gg/api/v1/update/check/{{current_version}}"
-      ],
+      "endpoints": ["https://api.venta.gg/api/v1/update/check/{{current_version}}"],
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEI4OUQwRTkwQzBDOTM5MTEKUldRUk9jbkFrQTZkdUdIaTg1UmhlbHRSNVJ2Nyt2Qk1KWVA1Nk1BeCtGUTJTTkR3OC82ZnBXTisK"
     }
   }

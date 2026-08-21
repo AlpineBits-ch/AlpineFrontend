@@ -10,7 +10,8 @@ import {DeviceIdentityService} from '../services/device-identity.service';
  */
 export const deviceIdInterceptor: HttpInterceptorFn = (req, next) => {
     const apiConfig = inject(ApiConfigService);
-    if (!req.url.startsWith(apiConfig.baseUrl())) return next(req);
+    const baseUrl = apiConfig.baseUrl();
+    if (!req.url.startsWith(baseUrl) || isConfigurationRequest(req, baseUrl)) return next(req);
 
     const identity = inject(DeviceIdentityService);
 
@@ -47,6 +48,14 @@ function isUnknownDeviceId(err: unknown): boolean {
     const body: unknown = err.error;
     const text = typeof body === 'string' ? body : JSON.stringify(body ?? '');
     return text.includes('Unknown X-Device-Id');
+}
+
+/**
+ * The login card's probe. It is anonymous, and resolving the id first means a native store read
+ * stands between the screen and its own instance, with any rejection shown as an unreachable server.
+ */
+function isConfigurationRequest(req: HttpRequest<unknown>, baseUrl: string): boolean {
+    return req.url === `${baseUrl}/api/v1/configuration`;
 }
 
 /** Re-registering in response to a failed registration would be circular. */

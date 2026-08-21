@@ -162,3 +162,20 @@ it('does not attempt recovery on the device-registration endpoint itself', async
 
     expect(identity.ensureRegistered).not.toHaveBeenCalled();
 });
+
+/**
+ * The login card's first request. It is anonymous, and gating it on the device id put a native
+ * store read in front of the one screen that reports a failure as the server being unreachable.
+ */
+it('leaves the anonymous configuration probe alone', async () => {
+    const {http, ctrl, identity} = setup();
+    const url = `${BASE}/api/v1/configuration`;
+
+    http.get(url).subscribe();
+    await tick();
+
+    const req = ctrl.expectOne(url);
+    expect(req.request.headers.has('X-Device-Id')).toBe(false);
+    expect(identity.deviceId).not.toHaveBeenCalled();
+    req.flush({});
+});

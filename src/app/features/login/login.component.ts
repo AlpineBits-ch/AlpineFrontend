@@ -27,6 +27,7 @@ import {signInBlocked} from './sign-in-blocked';
 import {BlockedSignInComponent} from './blocked-sign-in/blocked-sign-in.component';
 import {SupportService} from '../../services/support.service';
 import {PlatformCapabilities} from '../../platform/capabilities';
+import {describeProbeFailure, retryTransient} from './server-config-probe';
 
 /** `qr` is a peer of `login`, not a sub-step of it: it produces its own token pair. */
 type AuthMode = 'login' | 'register' | 'qr';
@@ -375,10 +376,13 @@ export class Login {
         this.apiConfigService
             .getServerConfiguration(url)
             .pipe(
-                catchError(() => {
+                retryTransient(),
+                catchError((err: unknown) => {
+                    console.warn(`[login] ${url} did not answer: ${describeProbeFailure(err)}`);
                     this.serverConfigError.set(true);
                     return of(null);
                 }),
+                takeUntilDestroyed(this.destroyRef),
             )
             .subscribe(config => {
                 this.serverConfig.set(config);
