@@ -7,7 +7,8 @@ import {SceneService} from './scene.service';
 import {ArchiveFilter, archiveKey, SceneArchiveService} from './scene-archive.service';
 import {RoleplayApi} from './roleplay-api.service';
 import {PersonaService} from './persona.service';
-import {GuildWebsocketService} from './guild-websocket.service';
+import {RealtimeConnectionService} from './realtime-connection.service';
+import {FakeRealtimeConnection} from '../testing/fake-realtime-connection';
 import {GuildService} from './guild.service';
 import {NavigationService} from '../features/main-page/navigation.service';
 import {SceneListDto, SceneListItemDto, SceneStatus} from '../dtos/response/scene.dto';
@@ -42,16 +43,7 @@ function apiStub() {
 }
 
 function wsStub() {
-    return {
-        sceneCreatedObservable: new Subject<any>(),
-        sceneConcludedObservable: new Subject<any>(),
-        sceneTurnChangedObservable: new Subject<any>(),
-        sceneUpdatedObservable: new Subject<any>(),
-        sceneTurnNudgeObservable: new Subject<any>(),
-        sceneTagsChangedObservable: new Subject<any>(),
-        sceneJoinRequestedObservable: new Subject<any>(),
-        sceneJoinRequestResolvedObservable: new Subject<any>(),
-    };
+    return new FakeRealtimeConnection();
 }
 
 /** The guild list as the board reads it: a scene is only openable once its channel is in here. */
@@ -77,7 +69,7 @@ function setup(loaded: SceneListItemDto[] | null = [row()], channelIds = ['ch_1'
     TestBed.configureTestingModule({
         providers: [
             {provide: RoleplayApi, useValue: api},
-            {provide: GuildWebsocketService, useValue: ws},
+            {provide: RealtimeConnectionService, useValue: ws},
             {provide: PersonaService, useValue: {speakable: () => [], ensureCast: () => undefined}},
             {provide: GuildService, useValue: guilds},
             {provide: NavigationService, useValue: {updateCurrentGuild: () => undefined}},
@@ -115,7 +107,7 @@ describe('SceneService scene lifecycle events', () => {
     it('puts a created scene on a board that has been read', () => {
         const {service, ws} = setup();
 
-        ws.sceneCreatedObservable.next(CREATED);
+        ws.emit('guild.SceneCreated', CREATED);
 
         const added = service.scenes('g1').find(s => s.channelId === 'ch_2');
         expect(added?.name).toBe('A Quiet Inn');
@@ -127,7 +119,7 @@ describe('SceneService scene lifecycle events', () => {
     it('leaves a board nobody has read to its first read', () => {
         const {service, ws} = setup(null);
 
-        ws.sceneCreatedObservable.next(CREATED);
+        ws.emit('guild.SceneCreated', CREATED);
 
         expect(service.scenes('g1')).toEqual([]);
     });
@@ -135,7 +127,7 @@ describe('SceneService scene lifecycle events', () => {
     it('does not add a scene the creating window already absorbed', () => {
         const {service, ws} = setup([row({channelId: 'ch_2'})]);
 
-        ws.sceneCreatedObservable.next(CREATED);
+        ws.emit('guild.SceneCreated', CREATED);
 
         expect(service.scenes('g1').length).toBe(1);
     });
@@ -143,7 +135,7 @@ describe('SceneService scene lifecycle events', () => {
     it('reads the guild again for a scene channel it does not have', () => {
         const {ws, guilds} = setup();
 
-        ws.sceneCreatedObservable.next(CREATED);
+        ws.emit('guild.SceneCreated', CREATED);
 
         expect(guilds.reads.length).toBe(1);
         guilds.reads[0].next({id: 'g1', channels: [{id: 'ch_1'}, {id: 'ch_2'}]} as GuildDto);
@@ -153,7 +145,7 @@ describe('SceneService scene lifecycle events', () => {
     it('does not read the guild for a scene channel it already has', () => {
         const {ws, guilds} = setup([row()], ['ch_1', 'ch_2']);
 
-        ws.sceneCreatedObservable.next(CREATED);
+        ws.emit('guild.SceneCreated', CREATED);
 
         expect(guilds.reads).toEqual([]);
     });
@@ -161,7 +153,7 @@ describe('SceneService scene lifecycle events', () => {
     it('concludes the row and stops nudging on it', () => {
         const {service, ws} = setup();
 
-        ws.sceneTurnNudgeObservable.next({
+        ws.emit('guild.SceneTurnNudge', {
             guildId: 'g1',
             channelId: 'ch_1',
             personaId: 'per_1',
@@ -169,7 +161,7 @@ describe('SceneService scene lifecycle events', () => {
         });
         expect(service.nudge('ch_1')).not.toBeNull();
 
-        ws.sceneConcludedObservable.next({
+        ws.emit('guild.SceneConcluded', {
             guildId: 'g1',
             channelId: 'ch_1',
             status: SceneStatus.Concluded,
@@ -204,7 +196,7 @@ describe('SceneService turn writes', () => {
                         },
                     },
                 },
-                {provide: GuildWebsocketService, useValue: wsStub()},
+                {provide: RealtimeConnectionService, useValue: wsStub()},
                 {provide: PersonaService, useValue: {speakable: () => [], ensureCast: () => undefined}},
                 {provide: GuildService, useValue: guildStub(['ch_1'])},
                 {provide: NavigationService, useValue: {updateCurrentGuild: () => undefined}},
@@ -227,7 +219,7 @@ describe('SceneArchiveService sorting and truncation', () => {
         TestBed.configureTestingModule({
             providers: [
                 {provide: RoleplayApi, useValue: api},
-                {provide: GuildWebsocketService, useValue: wsStub()},
+                {provide: RealtimeConnectionService, useValue: wsStub()},
             ],
         });
         return {archive: TestBed.inject(SceneArchiveService), api};

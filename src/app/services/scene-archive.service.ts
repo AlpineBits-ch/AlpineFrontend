@@ -2,11 +2,10 @@ import {computed, DestroyRef, inject, Injectable, Injector, signal} from '@angul
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {map, Observable, tap} from 'rxjs';
 
-import {GuildWebsocketService} from './guild-websocket.service';
-
 import {RoleplayApi} from './roleplay-api.service';
 import {SceneListItemDto} from '../dtos/response/scene.dto';
 import {SceneListParams, SceneSort, UNFILED} from '../dtos/request/scene.dto';
+import {RealtimeConnectionService} from './realtime-connection.service';
 
 /** Which slice of a guild's scenes the archive is showing. */
 export type ArchiveStatus = 'all' | 'running' | 'finished';
@@ -104,28 +103,35 @@ export class SceneArchiveService {
     private wire(): void {
         if (this.wired) return;
         this.wired = true;
-        const ws = this.injector.get(GuildWebsocketService);
+        const realtime = this.injector.get(RealtimeConnectionService);
 
         // A new scene is unfiled until the create dialog files it, so both shelves it could land on
         // have to re-read. Inserting a row instead would guess at the page's sort position.
-        ws.sceneCreatedObservable
+        realtime
+            .stream('guild.SceneCreated')
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe(event => this.reshelve(event.guildId, null));
 
-        ws.sceneUpdatedObservable.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(event => {
-            const from = this.cachedRow(event.channelId)?.folderId ?? null;
-            const to = event.folderId === undefined ? from : event.folderId;
+        realtime
+            .stream('guild.SceneUpdated')
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe(event => {
+                const from = this.cachedRow(event.channelId)?.folderId ?? null;
+                const to = event.folderId === undefined ? from : event.folderId;
 
-            this.patch(event.channelId, {status: event.status, folderId: to});
-            if (to !== from) this.reshelve(event.guildId, from, to);
-        });
+                this.patch(event.channelId, {status: event.status, folderId: to});
+                if (to !== from) this.reshelve(event.guildId, from, to);
+            });
 
         // Concluding moves the row between the running and finished shelves, which patch cannot do.
-        ws.sceneConcludedObservable.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(event => {
-            const folderId = this.cachedRow(event.channelId)?.folderId ?? null;
-            this.patch(event.channelId, {status: event.status, concludedAt: event.concludedAt});
-            this.reshelve(event.guildId, folderId);
-        });
+        realtime
+            .stream('guild.SceneConcluded')
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe(event => {
+                const folderId = this.cachedRow(event.channelId)?.folderId ?? null;
+                this.patch(event.channelId, {status: event.status, concludedAt: event.concludedAt});
+                this.reshelve(event.guildId, folderId);
+            });
     }
 
     /**

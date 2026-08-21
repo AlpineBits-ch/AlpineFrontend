@@ -4,9 +4,9 @@ import {HttpTestingController, provideHttpClientTesting} from '@angular/common/h
 
 import {ForumStateService} from './forum-state.service';
 import {ApiConfigService} from './api-config.service';
-import {GuildWebsocketService} from './guild-websocket.service';
+import {RealtimeConnectionService} from './realtime-connection.service';
+import {FakeRealtimeConnection} from '../testing/fake-realtime-connection';
 import {ForumLayout, ForumSortOrder, ForumTag} from '../dtos/response/forum.dto';
-import {Subject} from 'rxjs';
 
 const base = 'https://api.test.example/api/v1/guild';
 
@@ -26,13 +26,7 @@ function tagFixture(overrides: Partial<ForumTag> = {}): ForumTag {
 
 /** Only the observables ForumStateService subscribes to; nothing else is touched. */
 function wsStub() {
-    return {
-        forumTagCreatedObservable: new Subject<any>(),
-        forumTagUpdatedObservable: new Subject<any>(),
-        forumTagDeletedObservable: new Subject<any>(),
-        forumTagsReorderedObservable: new Subject<any>(),
-        forumConfigUpdatedObservable: new Subject<any>(),
-    };
+    return new FakeRealtimeConnection();
 }
 
 function setup() {
@@ -42,7 +36,7 @@ function setup() {
             provideHttpClient(),
             provideHttpClientTesting(),
             {provide: ApiConfigService, useValue: {baseUrl: () => 'https://api.test.example'}},
-            {provide: GuildWebsocketService, useValue: ws},
+            {provide: RealtimeConnectionService, useValue: ws},
         ],
     });
     const service = TestBed.inject(ForumStateService);
@@ -103,7 +97,7 @@ describe('ForumStateService realtime', () => {
         service.loadFor('f1');
         flushLoad(http, [tagFixture({id: 'a', position: 0})]);
 
-        ws.forumTagCreatedObservable.next({
+        ws.emit('guild.ForumTagCreated', {
             guildId: 'g1',
             channelId: 'f1',
             tag: tagFixture({id: 'b', position: 1}),
@@ -117,7 +111,7 @@ describe('ForumStateService realtime', () => {
         service.loadFor('f1');
         flushLoad(http, [tagFixture({id: 'a', name: 'bug'})]);
 
-        ws.forumTagUpdatedObservable.next({
+        ws.emit('guild.ForumTagUpdated', {
             guildId: 'g1',
             channelId: 'f1',
             tag: tagFixture({id: 'a', name: 'confirmed bug'}),
@@ -131,7 +125,7 @@ describe('ForumStateService realtime', () => {
         service.loadFor('f1');
         flushLoad(http, [tagFixture({id: 'a'}), tagFixture({id: 'b', position: 1})]);
 
-        ws.forumTagDeletedObservable.next({guildId: 'g1', channelId: 'f1', tagId: 'a'});
+        ws.emit('guild.ForumTagDeleted', {guildId: 'g1', channelId: 'f1', tagId: 'a'});
 
         expect(service.tagsFor('f1').map(t => t.id)).toEqual(['b']);
     });
@@ -146,7 +140,7 @@ describe('ForumStateService realtime', () => {
             tagFixture({id: 'c', position: 2}),
         ]);
 
-        ws.forumTagsReorderedObservable.next({guildId: 'g1', channelId: 'f1', tagIds: ['c', 'a', 'b']});
+        ws.emit('guild.ForumTagsReordered', {guildId: 'g1', channelId: 'f1', tagIds: ['c', 'a', 'b']});
 
         expect(service.tagsFor('f1').map(t => t.id)).toEqual(['c', 'a', 'b']);
         expect(service.tagsFor('f1').map(t => t.position)).toEqual([0, 1, 2]);
@@ -159,7 +153,7 @@ describe('ForumStateService realtime', () => {
     it('ignores events for forums that were never loaded', () => {
         const {service, ws} = setup();
 
-        ws.forumTagCreatedObservable.next({guildId: 'g1', channelId: 'other', tag: tagFixture()});
+        ws.emit('guild.ForumTagCreated', {guildId: 'g1', channelId: 'other', tag: tagFixture()});
 
         expect(service.tagsFor('other')).toEqual([]);
     });

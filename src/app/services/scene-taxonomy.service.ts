@@ -3,8 +3,8 @@ import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {Observable, tap} from 'rxjs';
 
 import {RoleplayApi} from './roleplay-api.service';
-import {GuildWebsocketService} from './guild-websocket.service';
 import {SceneFolderDto, SceneTagDto, SceneTaxonomyDto} from '../dtos/response/scene.dto';
+import {RealtimeConnectionService} from './realtime-connection.service';
 import {
     CreateSceneFolderDto,
     CreateSceneTagDto,
@@ -22,7 +22,7 @@ const EMPTY_TAGS: readonly SceneTagDto[] = [];
 @Injectable({providedIn: 'root'})
 export class SceneTaxonomyService {
     private readonly api = inject(RoleplayApi);
-    private readonly ws = inject(GuildWebsocketService);
+    private readonly realtime = inject(RealtimeConnectionService);
     private readonly destroyRef = inject(DestroyRef);
 
     private readonly byGuild = signal<Record<string, SceneTaxonomyDto>>({});
@@ -121,7 +121,8 @@ export class SceneTaxonomyService {
         if (this.wired) return;
         this.wired = true;
 
-        this.ws.sceneTaxonomyChangedObservable
+        this.realtime
+            .stream('guild.SceneTaxonomyChanged')
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe(event => this.absorb(event.guildId, event));
     }

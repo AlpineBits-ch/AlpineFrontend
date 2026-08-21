@@ -23,7 +23,6 @@ import {GuildDto, RoleDto, RoleType} from '../../../../../../dtos/response/guild
 import {GuildMemberDto, RoleMemberDto} from '../../../../../../dtos/response/member.dto';
 import {ProfileDto} from '../../../../../../dtos/response/profile.dto';
 import {CreateRoleDto, GuildService, UpdateRoleDto} from '../../../../../../services/guild.service';
-import {GuildWebsocketService} from '../../../../../../services/guild-websocket.service';
 import {ProfileService} from '../../../../../../services/profile.service';
 import {BrokenImageService} from '../../../../../../services/broken-image.service';
 import {ToastService} from '../../../../../../services/toast.service';
@@ -42,6 +41,7 @@ import {RoleChannelsComponent} from './role-channels/role-channels.component';
 import {RoleRailComponent} from './role-rail/role-rail.component';
 import {injectGuildRoster} from '../../../../shared/guild-roster';
 import {countRoleOverrides, countVisibleChannels} from './role-stats';
+import {RealtimeConnectionService} from '../../../../../../services/realtime-connection.service';
 
 interface RoleMemberDisplay {
     roleMember: RoleMemberDto;
@@ -118,7 +118,7 @@ export class RolesSettingsComponent implements OnInit {
     /** True while the candidate list is just the first page, so the dialog can say so. */
     readonly addPartial = signal(false);
     private guildService = inject(GuildService);
-    private guildWsService = inject(GuildWebsocketService);
+    private realtime = inject(RealtimeConnectionService);
     private destroyRef = inject(DestroyRef);
     private profileService = inject(ProfileService);
     private brokenImages = inject(BrokenImageService);
@@ -206,7 +206,8 @@ export class RolesSettingsComponent implements OnInit {
 
     ngOnInit(): void {
         this.roles.set([...this.guild().roles].sort((a, b) => a.position - b.position));
-        this.guildWsService.rolesReorderedObservable
+        this.realtime
+            .stream('guild.RolesReordered')
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe(dto => {
                 const posMap = new Map(dto.roles.map(r => [r.roleId, r.position]));

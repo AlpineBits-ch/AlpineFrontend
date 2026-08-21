@@ -1,11 +1,11 @@
 import {signal} from '@angular/core';
 import {TestBed} from '@angular/core/testing';
-import {of, Subject, throwError} from 'rxjs';
+import {of, throwError} from 'rxjs';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {GuildVoiceActivityService} from './guild-voice-activity.service';
 import {GuildVoiceActivityDto} from '../dtos/response/guild-voice-activity.dto';
 import {GuildVoiceService} from './guild-voice.service';
-import {GuildWebsocketService} from './guild-websocket.service';
+import {FakeRealtimeConnection} from '../testing/fake-realtime-connection';
 import {ConnectionState, RealtimeConnectionService} from './realtime-connection.service';
 
 const GUILD = 'guild-1';
@@ -30,28 +30,19 @@ function activity(overrides: Partial<GuildVoiceActivityDto> = {}): GuildVoiceAct
 }
 
 function setup(options: {snapshot?: GuildVoiceActivityDto[]; fails?: boolean} = {}) {
-    const ws = {
-        userJoinedVoiceObservable: new Subject<{userId: string; channelId: string; guildId: string}>(),
-        userLeftVoiceObservable: new Subject<{userId: string; channelId: string; guildId: string}>(),
-        voiceScreenShareStartedObservable: new Subject<{
-            userId: string;
-            shareId: string;
-            channelId: string;
-        }>(),
-        voiceScreenShareStoppedObservable: new Subject<{shareId: string; channelId: string}>(),
-    };
+    const ws = new FakeRealtimeConnection();
     const guildVoice = {
         getVoiceActivity: vi.fn(() =>
             options.fails ? throwError(() => new Error('offline')) : of(options.snapshot ?? []),
         ),
     };
-    const connectionState = signal(ConnectionState.Disconnected);
+    const connectionState = ws.connectionState;
+    connectionState.set(ConnectionState.Disconnected);
 
     TestBed.configureTestingModule({
         providers: [
-            {provide: GuildWebsocketService, useValue: ws},
             {provide: GuildVoiceService, useValue: guildVoice},
-            {provide: RealtimeConnectionService, useValue: {connectionState}},
+            {provide: RealtimeConnectionService, useValue: ws},
         ],
     });
 
@@ -147,7 +138,7 @@ describe('GuildVoiceActivityService', () => {
         const {service, ws, connectionState} = setup();
         connect(connectionState);
 
-        ws.userJoinedVoiceObservable.next({userId: 'user-1', channelId: CHANNEL, guildId: GUILD});
+        ws.emit('guild.voice.UserJoinedVoice', {userId: 'user-1', channelId: CHANNEL, guildId: GUILD});
 
         expect(service.presence()[GUILD].participantCount).toBe(1);
     });
@@ -157,8 +148,8 @@ describe('GuildVoiceActivityService', () => {
         const {service, ws, connectionState} = setup();
         connect(connectionState);
 
-        ws.userJoinedVoiceObservable.next({userId: 'user-1', channelId: CHANNEL, guildId: GUILD});
-        ws.userJoinedVoiceObservable.next({userId: 'user-1', channelId: CHANNEL, guildId: GUILD});
+        ws.emit('guild.voice.UserJoinedVoice', {userId: 'user-1', channelId: CHANNEL, guildId: GUILD});
+        ws.emit('guild.voice.UserJoinedVoice', {userId: 'user-1', channelId: CHANNEL, guildId: GUILD});
 
         expect(service.presence()[GUILD].participantCount).toBe(1);
     });
@@ -167,7 +158,7 @@ describe('GuildVoiceActivityService', () => {
         const {service, ws, connectionState} = setup({snapshot: [activity()]});
         connect(connectionState);
 
-        ws.userLeftVoiceObservable.next({userId: 'user-1', channelId: CHANNEL, guildId: GUILD});
+        ws.emit('guild.voice.UserLeftVoice', {userId: 'user-1', channelId: CHANNEL, guildId: GUILD});
 
         expect(service.presence()[GUILD]).toBeUndefined();
     });
@@ -176,7 +167,7 @@ describe('GuildVoiceActivityService', () => {
         const {service, ws, connectionState} = setup({snapshot: [activity()]});
         connect(connectionState);
 
-        ws.userLeftVoiceObservable.next({userId: 'stranger', channelId: CHANNEL, guildId: GUILD});
+        ws.emit('guild.voice.UserLeftVoice', {userId: 'stranger', channelId: CHANNEL, guildId: GUILD});
 
         expect(service.presence()[GUILD].participantCount).toBe(1);
     });
@@ -185,7 +176,12 @@ describe('GuildVoiceActivityService', () => {
         const {service, ws, connectionState} = setup({snapshot: [activity()]});
         connect(connectionState);
 
-        ws.voiceScreenShareStartedObservable.next({userId: 'user-1', shareId: 's1', channelId: CHANNEL});
+        ws.emit('guild.voice.ScreenShareStarted', {
+            userId: 'user-1',
+            shareId: 's1',
+            trackName: 'screen-1',
+            channelId: CHANNEL,
+        });
 
         expect(service.presence()[GUILD].hasStream).toBe(true);
     });
@@ -193,9 +189,14 @@ describe('GuildVoiceActivityService', () => {
     it('clears it again when the share stops', () => {
         const {service, ws, connectionState} = setup({snapshot: [activity()]});
         connect(connectionState);
-        ws.voiceScreenShareStartedObservable.next({userId: 'user-1', shareId: 's1', channelId: CHANNEL});
+        ws.emit('guild.voice.ScreenShareStarted', {
+            userId: 'user-1',
+            shareId: 's1',
+            trackName: 'screen-1',
+            channelId: CHANNEL,
+        });
 
-        ws.voiceScreenShareStoppedObservable.next({shareId: 's1', channelId: CHANNEL});
+        ws.emit('guild.voice.ScreenShareStopped', {shareId: 's1', channelId: CHANNEL});
 
         expect(service.presence()[GUILD].hasStream).toBe(false);
     });
@@ -219,7 +220,7 @@ describe('GuildVoiceActivityService', () => {
         });
         connect(connectionState);
 
-        ws.userLeftVoiceObservable.next({userId: 'user-1', channelId: CHANNEL, guildId: GUILD});
+        ws.emit('guild.voice.UserLeftVoice', {userId: 'user-1', channelId: CHANNEL, guildId: GUILD});
 
         expect(service.presence()[GUILD].hasStream).toBe(false);
     });
@@ -228,7 +229,12 @@ describe('GuildVoiceActivityService', () => {
         const {service, ws, connectionState} = setup();
         connect(connectionState);
 
-        ws.voiceScreenShareStartedObservable.next({userId: 'x', shareId: 's1', channelId: 'unknown'});
+        ws.emit('guild.voice.ScreenShareStarted', {
+            userId: 'x',
+            shareId: 's1',
+            trackName: 'screen-x',
+            channelId: 'unknown',
+        });
 
         expect(service.presence()).toEqual({});
     });
@@ -256,10 +262,20 @@ describe('GuildVoiceActivityService', () => {
         });
         connect(connectionState);
 
-        ws.voiceScreenShareStartedObservable.next({userId: 'user-1', shareId: 's1', channelId: CHANNEL});
-        ws.voiceScreenShareStartedObservable.next({userId: 'user-2', shareId: 's2', channelId: CHANNEL});
+        ws.emit('guild.voice.ScreenShareStarted', {
+            userId: 'user-1',
+            shareId: 's1',
+            trackName: 'screen-1',
+            channelId: CHANNEL,
+        });
+        ws.emit('guild.voice.ScreenShareStarted', {
+            userId: 'user-2',
+            shareId: 's2',
+            trackName: 'screen-2',
+            channelId: CHANNEL,
+        });
 
-        ws.voiceScreenShareStoppedObservable.next({shareId: 's1', channelId: CHANNEL});
+        ws.emit('guild.voice.ScreenShareStopped', {shareId: 's1', channelId: CHANNEL});
 
         // Clearing the whole channel's streamer list would take the marker dark while user-2 is still sharing.
         expect(service.presence()[GUILD].hasStream).toBe(true);
@@ -288,7 +304,7 @@ describe('GuildVoiceActivityService', () => {
         connect(connectionState);
 
         // Joined mid-share: the snapshot says user-1 is live, but with no start event there is no shareId to resolve the stop against.
-        ws.voiceScreenShareStoppedObservable.next({shareId: 'never-seen', channelId: CHANNEL});
+        ws.emit('guild.voice.ScreenShareStopped', {shareId: 'never-seen', channelId: CHANNEL});
 
         expect(service.presence()[GUILD].hasStream).toBe(true);
     });
@@ -305,9 +321,14 @@ describe('GuildVoiceActivityService', () => {
         it('locates the channel a member is live in', () => {
             const {service, ws, connectionState} = setup();
             connect(connectionState);
-            ws.userJoinedVoiceObservable.next({userId: 'user-1', channelId: CHANNEL, guildId: GUILD});
+            ws.emit('guild.voice.UserJoinedVoice', {userId: 'user-1', channelId: CHANNEL, guildId: GUILD});
 
-            ws.voiceScreenShareStartedObservable.next({userId: 'user-1', shareId: 's1', channelId: CHANNEL});
+            ws.emit('guild.voice.ScreenShareStarted', {
+                userId: 'user-1',
+                shareId: 's1',
+                trackName: 'screen-1',
+                channelId: CHANNEL,
+            });
 
             expect(service.streamersIn(GUILD, CHANNEL)).toEqual(['user-1']);
             expect(service.isStreaming('user-1')).toBe(true);
@@ -319,12 +340,17 @@ describe('GuildVoiceActivityService', () => {
         it('fires once for a new streamer', () => {
             const {service, ws, connectionState} = setup();
             connect(connectionState);
-            ws.userJoinedVoiceObservable.next({userId: 'user-1', channelId: CHANNEL, guildId: GUILD});
+            ws.emit('guild.voice.UserJoinedVoice', {userId: 'user-1', channelId: CHANNEL, guildId: GUILD});
 
             const seen: {guildId: string; channelId: string; userId: string}[] = [];
             service.streamerWentLive$.subscribe(e => seen.push(e));
 
-            ws.voiceScreenShareStartedObservable.next({userId: 'user-1', shareId: 's1', channelId: CHANNEL});
+            ws.emit('guild.voice.ScreenShareStarted', {
+                userId: 'user-1',
+                shareId: 's1',
+                trackName: 'screen-1',
+                channelId: CHANNEL,
+            });
 
             expect(seen).toEqual([{guildId: GUILD, channelId: CHANNEL, userId: 'user-1'}]);
         });
@@ -356,13 +382,23 @@ describe('GuildVoiceActivityService', () => {
         it('does not fire twice for a start event redelivered on reconnect', () => {
             const {service, ws, connectionState} = setup();
             connect(connectionState);
-            ws.userJoinedVoiceObservable.next({userId: 'user-1', channelId: CHANNEL, guildId: GUILD});
+            ws.emit('guild.voice.UserJoinedVoice', {userId: 'user-1', channelId: CHANNEL, guildId: GUILD});
 
             const seen: unknown[] = [];
             service.streamerWentLive$.subscribe(e => seen.push(e));
 
-            ws.voiceScreenShareStartedObservable.next({userId: 'user-1', shareId: 's1', channelId: CHANNEL});
-            ws.voiceScreenShareStartedObservable.next({userId: 'user-1', shareId: 's1', channelId: CHANNEL});
+            ws.emit('guild.voice.ScreenShareStarted', {
+                userId: 'user-1',
+                shareId: 's1',
+                trackName: 'screen-1',
+                channelId: CHANNEL,
+            });
+            ws.emit('guild.voice.ScreenShareStarted', {
+                userId: 'user-1',
+                shareId: 's1',
+                trackName: 'screen-1',
+                channelId: CHANNEL,
+            });
 
             expect(seen.length).toBe(1);
         });

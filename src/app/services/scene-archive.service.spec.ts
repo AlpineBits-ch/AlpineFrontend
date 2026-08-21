@@ -4,15 +4,9 @@ import {describe, expect, it} from 'vitest';
 
 import {archiveKey, SceneArchiveService} from './scene-archive.service';
 import {RoleplayApi} from './roleplay-api.service';
-import {GuildWebsocketService} from './guild-websocket.service';
-import {
-    SceneConcludedDto,
-    SceneCreatedDto,
-    SceneListDto,
-    SceneListItemDto,
-    SceneStatus,
-    SceneUpdatedDto,
-} from '../dtos/response/scene.dto';
+import {RealtimeConnectionService} from './realtime-connection.service';
+import {FakeRealtimeConnection} from '../testing/fake-realtime-connection';
+import {SceneListDto, SceneListItemDto, SceneStatus} from '../dtos/response/scene.dto';
 import {SceneListParams} from '../dtos/request/scene.dto';
 
 function row(over: Partial<SceneListItemDto> = {}): SceneListItemDto {
@@ -42,16 +36,12 @@ function setup() {
             return subject;
         },
     };
-    const ws = {
-        sceneCreatedObservable: new Subject<SceneCreatedDto>(),
-        sceneUpdatedObservable: new Subject<SceneUpdatedDto>(),
-        sceneConcludedObservable: new Subject<SceneConcludedDto>(),
-    };
+    const ws = new FakeRealtimeConnection();
 
     TestBed.configureTestingModule({
         providers: [
             {provide: RoleplayApi, useValue: api},
-            {provide: GuildWebsocketService, useValue: ws},
+            {provide: RealtimeConnectionService, useValue: ws},
         ],
     });
     return {service: TestBed.inject(SceneArchiveService), calls, responses, ws};

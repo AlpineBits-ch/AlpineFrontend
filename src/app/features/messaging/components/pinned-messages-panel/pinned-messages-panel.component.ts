@@ -4,10 +4,10 @@ import {DatePipe} from '@angular/common';
 import {MessageDto} from '../../../../dtos/response/message.dto';
 import {MessagingService} from '../../../../services/messaging.service';
 import {MessagingWebsocketService} from '../../../../services/messaging-websocket.service';
-import {GuildWebsocketService} from '../../../../services/guild-websocket.service';
 import {ToastService} from '../../../../services/toast.service';
 import {MessageStore} from '../../../../stores/message.store';
 import {readableContent, UNDECRYPTABLE_SHORT} from '../../../../helpers/message-content.helper';
+import {RealtimeConnectionService} from '../../../../services/realtime-connection.service';
 
 @Component({
     selector: 'app-pinned-messages-panel',
@@ -24,7 +24,7 @@ export class PinnedMessagesPanelComponent {
 
     private messagingService = inject(MessagingService);
     private messagingWs = inject(MessagingWebsocketService);
-    private guildWs = inject(GuildWebsocketService);
+    private realtime = inject(RealtimeConnectionService);
     private toastService = inject(ToastService);
     private messageStore = inject(MessageStore);
     private destroyRef = inject(DestroyRef);
@@ -42,12 +42,18 @@ export class PinnedMessagesPanelComponent {
         this.messagingWs.messageUnpinnedObservable.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(e => {
             if (e.conversationId === this.conversationId()) this.load();
         });
-        this.guildWs.messagePinnedObservable.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(e => {
-            if (e.channelId === this.channelId()) this.load();
-        });
-        this.guildWs.messageUnpinnedObservable.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(e => {
-            if (e.channelId === this.channelId()) this.load();
-        });
+        this.realtime
+            .stream('guild.MessagePinned')
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe(e => {
+                if (e.channelId === this.channelId()) this.load();
+            });
+        this.realtime
+            .stream('guild.MessageUnpinned')
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe(e => {
+                if (e.channelId === this.channelId()) this.load();
+            });
     }
 
     load(): void {

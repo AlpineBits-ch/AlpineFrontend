@@ -5,12 +5,8 @@ import {catchError, defer, Observable, tap, throwError} from 'rxjs';
 import {ScheduledEventService} from '../services/scheduled-event.service';
 import {ScheduledEventDto} from '../dtos/response/scheduled-event.dto';
 import {CreateScheduledEventDto, UpdateScheduledEventDto} from '../dtos/request/scheduled-event.dto';
-import {
-    GuildWebsocketService,
-    WsEventCancelled,
-    WsEventCreated,
-    WsEventUpdated,
-} from '../services/guild-websocket.service';
+import {WsEventCancelled, WsEventCreated, WsEventUpdated} from '../dtos/response/guild-events.dto';
+import {RealtimeConnectionService} from '../services/realtime-connection.service';
 
 // SignalR does not replay messages across a reconnect, so a disconnect window can leave a
 // guild's list permanently stale with nothing left to invalidate it. A TTL is the backstop:
@@ -204,19 +200,19 @@ export const ScheduledEventStore = signalStore(
 
     withHooks({
         onInit(store) {
-            const guildWs = inject(GuildWebsocketService);
+            const realtime = inject(RealtimeConnectionService);
 
-            guildWs.eventCreatedObservable.subscribe((e: WsEventCreated) =>
-                store.applyRealtimeCreatedOrUpdated(e.guildId),
-            );
+            realtime
+                .stream('guild.EventCreated')
+                .subscribe((e: WsEventCreated) => store.applyRealtimeCreatedOrUpdated(e.guildId));
 
-            guildWs.eventUpdatedObservable.subscribe((e: WsEventUpdated) =>
-                store.applyRealtimeCreatedOrUpdated(e.guildId),
-            );
+            realtime
+                .stream('guild.EventUpdated')
+                .subscribe((e: WsEventUpdated) => store.applyRealtimeCreatedOrUpdated(e.guildId));
 
-            guildWs.eventCancelledObservable.subscribe((e: WsEventCancelled) =>
-                store.applyRealtimeCancelled(e.eventId),
-            );
+            realtime
+                .stream('guild.EventCancelled')
+                .subscribe((e: WsEventCancelled) => store.applyRealtimeCancelled(e.eventId));
         },
     }),
 );

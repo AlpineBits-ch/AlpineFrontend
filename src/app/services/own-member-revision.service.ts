@@ -1,8 +1,8 @@
 import {inject, Injectable, signal} from '@angular/core';
 import {merge} from 'rxjs';
-import {GuildWebsocketService} from './guild-websocket.service';
 import {GuildService} from './guild.service';
 import {ProfileService} from './profile.service';
+import {RealtimeConnectionService} from './realtime-connection.service';
 
 /**
  * "Your own member row has changed - read it again."
@@ -32,7 +32,7 @@ import {ProfileService} from './profile.service';
 export class OwnMemberRevisionService {
     private readonly _revision = signal(0);
 
-    private readonly guildWs = inject(GuildWebsocketService);
+    private readonly realtime = inject(RealtimeConnectionService);
     private readonly profiles = inject(ProfileService);
     private readonly guilds = inject(GuildService);
 
@@ -41,7 +41,7 @@ export class OwnMemberRevisionService {
         // member list renders - which listens for the event in its own right - and nothing this
         // client is allowed to do, so bumping on it would re-read `/me` once per member of a busy
         // guild for no change at all.
-        this.guildWs.memberUpdatedObservable.subscribe(event => {
+        this.realtime.stream('guild.MemberUpdated').subscribe(event => {
             if (event.userId !== this.profiles.ownProfile()?.userId) return;
             // Invalidate first, bump second. The bump is the instruction to re-read, and the hosts
             // that obey it call `getOwnMember` - which is cached now. Left populated, that cache
@@ -61,11 +61,11 @@ export class OwnMemberRevisionService {
         // removal every one of those reads is a 404; the guild view is being torn down anyway.
         // Dropping the entry is enough: whatever reads next reads the truth.
         merge(
-            this.guildWs.memberKickedObservable,
-            this.guildWs.memberBannedObservable,
-            this.guildWs.memberLeftObservable,
-            this.guildWs.memberMovedOutObservable,
-            this.guildWs.memberJoinedObservable,
+            this.realtime.stream('guild.MemberKicked'),
+            this.realtime.stream('guild.MemberBanned'),
+            this.realtime.stream('guild.MemberLeft'),
+            this.realtime.stream('guild.MemberMovedOut'),
+            this.realtime.stream('guild.MemberJoined'),
         ).subscribe(event => {
             if (event.userId !== this.profiles.ownProfile()?.userId) return;
             this.guilds.invalidateOwnMember(event.guildId);

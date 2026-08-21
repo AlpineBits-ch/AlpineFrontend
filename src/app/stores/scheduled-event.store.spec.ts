@@ -4,12 +4,8 @@ import {ScheduledEventStore} from './scheduled-event.store';
 import {ScheduledEventService} from '../services/scheduled-event.service';
 import {ScheduledEventDto, ScheduledEventStatus} from '../dtos/response/scheduled-event.dto';
 import {CreateScheduledEventDto, UpdateScheduledEventDto} from '../dtos/request/scheduled-event.dto';
-import {
-    GuildWebsocketService,
-    WsEventCancelled,
-    WsEventCreated,
-    WsEventUpdated,
-} from '../services/guild-websocket.service';
+import {RealtimeConnectionService} from '../services/realtime-connection.service';
+import {FakeRealtimeConnection} from '../testing/fake-realtime-connection';
 
 function event(id: string, overrides: Partial<ScheduledEventDto> = {}): ScheduledEventDto {
     return {
@@ -72,19 +68,13 @@ class FakeScheduledEventService {
     }
 }
 
-class FakeGuildWebsocketService {
-    eventCreatedObservable = new Subject<WsEventCreated>();
-    eventUpdatedObservable = new Subject<WsEventUpdated>();
-    eventCancelledObservable = new Subject<WsEventCancelled>();
-}
-
 function setup() {
     const api = new FakeScheduledEventService();
-    const ws = new FakeGuildWebsocketService();
+    const ws = new FakeRealtimeConnection();
     TestBed.configureTestingModule({
         providers: [
             {provide: ScheduledEventService, useValue: api},
-            {provide: GuildWebsocketService, useValue: ws},
+            {provide: RealtimeConnectionService, useValue: ws},
         ],
     });
     return {api, ws, store: TestBed.inject(ScheduledEventStore)};
@@ -181,7 +171,7 @@ describe('ScheduledEventStore', () => {
         expect(api.requestCount).toBe(1);
 
         // Someone creates an event while the original request is still in flight.
-        ws.eventCreatedObservable.next({
+        ws.emit('guild.EventCreated', {
             guildId: 'g1',
             eventId: 'e2',
             title: 'New',
@@ -206,7 +196,7 @@ describe('ScheduledEventStore', () => {
         const {api, ws, store} = setup();
 
         store.loadFor('g1');
-        ws.eventCreatedObservable.next({
+        ws.emit('guild.EventCreated', {
             guildId: 'g1',
             eventId: 'e2',
             title: 'New',
@@ -220,7 +210,7 @@ describe('ScheduledEventStore', () => {
     it('ignores realtime events for guilds that were never loaded', () => {
         const {api, ws, store} = setup();
 
-        ws.eventCreatedObservable.next({
+        ws.emit('guild.EventCreated', {
             guildId: 'other',
             eventId: 'x',
             title: 'Elsewhere',
@@ -387,7 +377,7 @@ describe('ScheduledEventStore', () => {
         api.listPending[0].complete();
         expect(api.requestCount).toBe(1);
 
-        ws.eventCreatedObservable.next({
+        ws.emit('guild.EventCreated', {
             guildId: 'g1',
             eventId: 'e2',
             title: 'New event',
@@ -411,7 +401,7 @@ describe('ScheduledEventStore', () => {
         api.listPending[0].next([event('e1'), event('e2')]);
         api.listPending[0].complete();
 
-        ws.eventCancelledObservable.next({guildId: 'g1', eventId: 'e1'});
+        ws.emit('guild.EventCancelled', {guildId: 'g1', eventId: 'e1'});
 
         expect(store.eventsForGuild('g1').map(e => e.id)).toEqual(['e2']);
     });

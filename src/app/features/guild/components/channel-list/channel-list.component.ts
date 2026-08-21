@@ -45,14 +45,13 @@ import {hasPermission, parsePermissions, Permissions} from '../../../../enums/pe
 import {memberCanManageGuild, unionMemberPermissions} from '../../guild-permissions';
 import {GuildFeature, guildFeatures, hasHouseholdModule} from '../../guild-features';
 import {
-    GuildWebsocketService,
     WsCategoryCreated,
     WsCategoryDeleted,
     WsCategoryUpdated,
     WsChannelCreated,
     WsChannelDeleted,
     WsChannelUpdated,
-} from '../../../../services/guild-websocket.service';
+} from '../../../../dtos/response/guild-channel-events.dto';
 import {GuildVoiceService} from '../../../../services/guild-voice.service';
 import {GuildUiActionsService} from '../../../../services/guild-ui-actions.service';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
@@ -72,6 +71,7 @@ import {phaseOf} from '../events-panel/event-timing';
 import {ViewAsBannerComponent} from '../../view-as/view-as-banner.component';
 import {ViewAsPickerComponent} from '../../view-as/view-as-picker.component';
 import {ViewAsService} from '../../view-as/view-as.service';
+import {RealtimeConnectionService} from '../../../../services/realtime-connection.service';
 
 @Component({
     selector: 'app-channel-list',
@@ -268,7 +268,7 @@ export class ChannelListComponent {
     private ownMemberRevision = inject(OwnMemberRevisionService);
     private guildVoiceSvc = inject(GuildVoiceService);
     private guildUiActions = inject(GuildUiActionsService);
-    private guildWsService = inject(GuildWebsocketService);
+    private realtime = inject(RealtimeConnectionService);
     private settingsUi = inject(SettingsUiService);
     private destroyRef = inject(DestroyRef);
     private translate = inject(TranslateService);
@@ -431,7 +431,8 @@ export class ChannelListComponent {
 
         this.drag.setup(() => this.guild().id, this.localChannels, this.localCategories);
 
-        this.guildWsService.channelReorderedObservable
+        this.realtime
+            .stream('guild.ChannelReordered')
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe(dto => {
                 if (dto.channels.length > 0) {
@@ -448,7 +449,8 @@ export class ChannelListComponent {
                 }
             });
 
-        this.guildWsService.channelCreatedObservable
+        this.realtime
+            .stream('guild.ChannelCreated')
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe((e: WsChannelCreated) => {
                 if (e.guildId !== this.guild().id) return;
@@ -460,7 +462,8 @@ export class ChannelListComponent {
                 });
             });
 
-        this.guildWsService.channelDeletedObservable
+        this.realtime
+            .stream('guild.ChannelDeleted')
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe((e: WsChannelDeleted) => {
                 if (e.guildId !== this.guild().id) return;
@@ -479,7 +482,8 @@ export class ChannelListComponent {
                 }
             });
 
-        this.guildWsService.channelUpdatedObservable
+        this.realtime
+            .stream('guild.ChannelUpdated')
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe((e: WsChannelUpdated) => {
                 if (e.guildId !== this.guild().id) return;
@@ -490,7 +494,8 @@ export class ChannelListComponent {
                 });
             });
 
-        this.guildWsService.categoryCreatedObservable
+        this.realtime
+            .stream('guild.CategoryCreated')
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe((e: WsCategoryCreated) => {
                 if (e.guildId !== this.guild().id) return;
@@ -503,7 +508,8 @@ export class ChannelListComponent {
             });
 
         // Re-read like ChannelUpdated: the payload only names the category, not what changed, and position may be part of it.
-        this.guildWsService.categoryUpdatedObservable
+        this.realtime
+            .stream('guild.CategoryUpdated')
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe((e: WsCategoryUpdated) => {
                 if (e.guildId !== this.guild().id) return;
@@ -519,7 +525,8 @@ export class ChannelListComponent {
                 });
             });
 
-        this.guildWsService.categoryDeletedObservable
+        this.realtime
+            .stream('guild.CategoryDeleted')
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe((e: WsCategoryDeleted) => {
                 if (e.guildId !== this.guild().id) return;

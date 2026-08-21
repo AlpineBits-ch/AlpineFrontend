@@ -18,7 +18,6 @@ import {GuildService} from '../../../../services/guild.service';
 import {OwnMemberRevisionService} from '../../../../services/own-member-revision.service';
 import {GuildVoiceService} from '../../../../services/guild-voice.service';
 import {GuildUiActionsService} from '../../../../services/guild-ui-actions.service';
-import {GuildWebsocketService} from '../../../../services/guild-websocket.service';
 import {ScheduledEventStore} from '../../../../stores/scheduled-event.store';
 import {EntitlementStore} from '../../../../stores/entitlement.store';
 import {MinuteClockService} from '../../../../services/minute-clock.service';
@@ -28,6 +27,8 @@ import {ToastService} from '../../../../services/toast.service';
 import {ChannelDto, ChannelType, GuildDto} from '../../../../dtos/response/guild.dto';
 import {WindowChrome} from '../../../../platform/ports/window-chrome.port';
 import {FakeWindowChrome} from '../../../../platform/testing/fake-window-chrome';
+import {RealtimeConnectionService} from '../../../../services/realtime-connection.service';
+import {FakeRealtimeConnection} from '../../../../testing/fake-realtime-connection';
 
 const GUILD = {
     id: 'guild-1',
@@ -87,18 +88,7 @@ function render(joinChannel: ReturnType<typeof vi.fn>): ComponentFixture<Channel
                 provide: GuildUiActionsService,
                 useValue: {openCreateChannel$: new Subject(), openCreateCategory$: new Subject()},
             },
-            {
-                provide: GuildWebsocketService,
-                useValue: {
-                    channelReorderedObservable: new Subject(),
-                    channelCreatedObservable: new Subject(),
-                    channelDeletedObservable: new Subject(),
-                    channelUpdatedObservable: new Subject(),
-                    categoryCreatedObservable: new Subject(),
-                    categoryUpdatedObservable: new Subject(),
-                    categoryDeletedObservable: new Subject(),
-                },
-            },
+            {provide: RealtimeConnectionService, useValue: new FakeRealtimeConnection()},
             // The sidebar's scenes section is a child of this template, and the creation pass builds
             // it whether or not the guild has the module.
             {provide: RoleplayApi, useValue: {listScenes: () => of({scenes: [], truncated: false})}},

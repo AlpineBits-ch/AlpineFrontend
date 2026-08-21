@@ -1,13 +1,13 @@
 import {TestBed} from '@angular/core/testing';
 import {provideHttpClient} from '@angular/common/http';
 import {HttpTestingController, provideHttpClientTesting} from '@angular/common/http/testing';
-import {Subject} from 'rxjs';
 
 import {ThreadRegistryService} from './thread-registry.service';
 import {ApiConfigService} from './api-config.service';
-import {GuildWebsocketService} from './guild-websocket.service';
 import {NavigationService} from '../features/main-page/navigation.service';
 import {ChannelDto, ChannelType} from '../dtos/response/guild.dto';
+import {RealtimeConnectionService} from './realtime-connection.service';
+import {FakeRealtimeConnection} from '../testing/fake-realtime-connection';
 
 const BASE = 'https://api.test.example';
 const GUILD_BASE = `${BASE}/api/v1/guild`;
@@ -42,14 +42,7 @@ function setup(guildChannels: ChannelDto[] = []) {
             provideHttpClient(),
             provideHttpClientTesting(),
             {provide: ApiConfigService, useValue: {baseUrl: () => BASE}},
-            {
-                provide: GuildWebsocketService,
-                useValue: {
-                    threadCreatedObservable: new Subject<unknown>(),
-                    threadUpdatedObservable: new Subject<unknown>(),
-                    messageThreadAttachedObservable: new Subject<unknown>(),
-                },
-            },
+            {provide: RealtimeConnectionService, useValue: new FakeRealtimeConnection()},
             {provide: NavigationService, useValue: nav},
         ],
     });

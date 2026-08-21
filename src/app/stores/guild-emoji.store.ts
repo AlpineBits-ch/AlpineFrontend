@@ -2,7 +2,8 @@ import {inject} from '@angular/core';
 import {patchState, signalStore, withHooks, withMethods, withState} from '@ngrx/signals';
 import {GuildEmojiService} from '../services/guild-emoji.service';
 import {GuildEmojiDto} from '../dtos/response/guild-emoji.dto';
-import {GuildWebsocketService, WsEmojiCreated, WsEmojiDeleted} from '../services/guild-websocket.service';
+import {WsEmojiCreated, WsEmojiDeleted} from '../dtos/response/guild-events.dto';
+import {RealtimeConnectionService} from '../services/realtime-connection.service';
 
 // Presigned imageUrl expires ~1h server-side; revalidate before that so no stale URL reaches the UI.
 const STALE_MS = 55 * 60 * 1000;
@@ -110,15 +111,15 @@ export const GuildEmojiStore = signalStore(
 
     withHooks({
         onInit(store) {
-            const guildWs = inject(GuildWebsocketService);
+            const realtime = inject(RealtimeConnectionService);
 
             // The realtime payload carries no presigned imageUrl, so addEmoji() alone is not enough.
-            guildWs.emojiCreatedObservable.subscribe((e: WsEmojiCreated) => {
+            realtime.stream('guild.EmojiCreated').subscribe((e: WsEmojiCreated) => {
                 store.invalidate(e.guildId);
                 store.ensureLoaded(e.guildId);
             });
 
-            guildWs.emojiDeletedObservable.subscribe((e: WsEmojiDeleted) => {
+            realtime.stream('guild.EmojiDeleted').subscribe((e: WsEmojiDeleted) => {
                 store.removeEmoji(e.guildId, e.emojiId);
             });
         },

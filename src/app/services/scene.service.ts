@@ -4,7 +4,6 @@ import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {Observable, tap} from 'rxjs';
 import {RoleplayApi} from './roleplay-api.service';
 import {PersonaService} from './persona.service';
-import {GuildWebsocketService} from './guild-websocket.service';
 import {GuildService} from './guild.service';
 import {NavigationService} from '../features/main-page/navigation.service';
 import {
@@ -31,6 +30,7 @@ import {
 } from '../dtos/request/scene.dto';
 import {ProfileService} from './profile.service';
 import {compareScenes, isWaitingOnMe, queueFromCurrent} from '../features/guild/scenes/scene-status';
+import {RealtimeConnectionService} from './realtime-connection.service';
 
 /** How often the clocks redraw. A play-by-post deadline is measured in days; this is plenty. */
 const TICK_MS = 20_000;
@@ -87,44 +87,54 @@ export class SceneService {
     private wire(): void {
         if (this.wired) return;
         this.wired = true;
-        const ws = this.injector.get(GuildWebsocketService);
+        const realtime = this.injector.get(RealtimeConnectionService);
 
-        ws.sceneCreatedObservable
+        realtime
+            .stream('guild.SceneCreated')
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe(event => this.noteCreated(event));
 
-        ws.sceneConcludedObservable.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(event => {
-            this.patch(event.guildId, event.channelId, {
-                status: event.status,
-                conclusionNote: event.conclusionNote,
-                turnNumber: event.turnNumber,
-                postCount: event.postCount,
-                concludedAt: event.concludedAt,
+        realtime
+            .stream('guild.SceneConcluded')
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe(event => {
+                this.patch(event.guildId, event.channelId, {
+                    status: event.status,
+                    conclusionNote: event.conclusionNote,
+                    turnNumber: event.turnNumber,
+                    postCount: event.postCount,
+                    concludedAt: event.concludedAt,
+                });
+                this.clearNudge(event.channelId);
             });
-            this.clearNudge(event.channelId);
-        });
 
-        ws.sceneTurnChangedObservable
+        realtime
+            .stream('guild.SceneTurnChanged')
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe(event => this.patch(event.guildId, event.channelId, event));
 
-        ws.sceneUpdatedObservable
+        realtime
+            .stream('guild.SceneUpdated')
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe(event => this.patch(event.guildId, event.channelId, event));
 
-        ws.sceneTurnNudgeObservable
+        realtime
+            .stream('guild.SceneTurnNudge')
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe(event => this.noteNudge(event));
 
-        ws.sceneTagsChangedObservable
+        realtime
+            .stream('guild.SceneTagsChanged')
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe(event => this.patch(event.guildId, event.channelId, {tagIds: event.tagIds}));
 
-        ws.sceneJoinRequestedObservable
+        realtime
+            .stream('guild.SceneJoinRequested')
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe(event => this.noteRequested(event));
 
-        ws.sceneJoinRequestResolvedObservable
+        realtime
+            .stream('guild.SceneJoinRequestResolved')
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe(event => this.noteResolved(event));
     }
@@ -304,9 +314,7 @@ export class SceneService {
 
     join(guildId: string, channelId: string, personaId: string): Observable<SceneDto> {
         this.wire();
-        return this.api
-            .join(guildId, channelId, {personaId})
-            .pipe(tap(scene => this.absorb(guildId, scene)));
+        return this.api.join(guildId, channelId, {personaId}).pipe(tap(scene => this.absorb(guildId, scene)));
     }
 
     leave(guildId: string, channelId: string, personaId: string): Observable<SceneDto> {
@@ -319,7 +327,9 @@ export class SceneService {
         dto: CreateSceneJoinRequestDto,
     ): Observable<SceneJoinRequestDto> {
         this.wire();
-        return this.api.requestJoin(guildId, channelId, dto).pipe(tap(request => this.absorbRequest(request)));
+        return this.api
+            .requestJoin(guildId, channelId, dto)
+            .pipe(tap(request => this.absorbRequest(request)));
     }
 
     approveRequest(guildId: string, channelId: string, requestId: string): Observable<SceneJoinRequestDto> {
@@ -359,8 +369,7 @@ export class SceneService {
         this.wire();
         this.requestedQueues.add(channelId);
         this.api.listJoinRequests(guildId, channelId).subscribe({
-            next: page =>
-                this.requestsByScene.update(map => ({...map, [channelId]: page.requests ?? []})),
+            next: page => this.requestsByScene.update(map => ({...map, [channelId]: page.requests ?? []})),
             // Dropped rather than retried: the banner is not worth a second call, and the events
             // keep it current from here.
             error: () => this.requestedQueues.delete(channelId),

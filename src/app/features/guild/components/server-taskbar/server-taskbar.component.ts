@@ -27,11 +27,11 @@ import {ReportDialogService} from '../../../../services/report-dialog.service';
 import {GuildSettingsModalComponent} from '../guild-settings-modal/guild-settings-modal.component';
 import {InviteType} from '../../../../dtos/response/invite.dto';
 import {ToastService} from '../../../../services/toast.service';
-import {GuildWebsocketService} from '../../../../services/guild-websocket.service';
 import {GuildVoiceActivityService} from '../../../../services/guild-voice-activity.service';
 import {ProfileService} from '../../../../services/profile.service';
 import {SelfGuildMemberDto} from '../../../../dtos/response/member.dto';
 import {memberCanManageGuild} from '../../guild-permissions';
+import {RealtimeConnectionService} from '../../../../services/realtime-connection.service';
 
 @Component({
     selector: 'app-server-taskbar',
@@ -89,7 +89,7 @@ export class ServerTaskbarComponent implements OnInit {
     });
     private guildUiActions = inject(GuildUiActionsService);
     private toastService = inject(ToastService);
-    private guildWsService = inject(GuildWebsocketService);
+    private realtime = inject(RealtimeConnectionService);
     private reportDialog = inject(ReportDialogService);
     private translate = inject(TranslateService);
     private destroyRef = inject(DestroyRef);
@@ -119,23 +119,28 @@ export class ServerTaskbarComponent implements OnInit {
             .subscribe(updated => this.guildService.upsertGuild(updated));
 
         // A guild appeared without this window doing anything (created on another device, or accepted elsewhere): `guildJoined$` only fires for a join this client performed. Not navigated to, unlike `onGuildCreated`: yanking the workspace because another device did something would be wrong here.
-        this.guildWsService.guildCreatedObservable
+        this.realtime
+            .stream('guild.GuildCreated')
             .pipe(takeUntilDestroyed(this.destroyRef))
             // The payload is the whole guild, so no round trip; but SignalR redelivers after a reconnect, and `upsertGuild` keys on id rather than appending blindly, so a redelivery is a no-op rather than a duplicate.
             .subscribe(guild => this.guildService.upsertGuild(guild));
 
-        this.guildWsService.guildDeletedObservable
+        this.realtime
+            .stream('guild.GuildDeleted')
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe(e => this.onGuildDeleted(e.guildId));
 
-        this.guildWsService.guildUpdatedObservable.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(e => {
-            this.guildService.getGuild(e.guildId).subscribe(updated => {
-                // Through the service so the reconciliation runs; this event fires for changes nothing on screen cares about.
-                this.guildService.upsertGuild(updated);
-                const current = this.guildService.guilds().find(g => g.id === e.guildId);
-                if (current) this.navService.updateCurrentGuild(current);
+        this.realtime
+            .stream('guild.GuildUpdated')
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe(e => {
+                this.guildService.getGuild(e.guildId).subscribe(updated => {
+                    // Through the service so the reconciliation runs; this event fires for changes nothing on screen cares about.
+                    this.guildService.upsertGuild(updated);
+                    const current = this.guildService.guilds().find(g => g.id === e.guildId);
+                    if (current) this.navService.updateCurrentGuild(current);
+                });
             });
-        });
     }
 
     /** Only reachable on a warm start, for the guild currently open. If the guild is gone (left on another device), falls back to DMs instead of restoring into a workspace that would 403 on every request. */

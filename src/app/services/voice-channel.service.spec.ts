@@ -5,7 +5,8 @@ import {TranslateService} from '@ngx-translate/core';
 import {of, Subject, throwError} from 'rxjs';
 import {loadStickyVoiceState, VoiceChannelService} from './voice-channel.service';
 import {GuildWebsocketService} from './guild-websocket.service';
-import {ConnectionState} from './realtime-connection.service';
+import {FakeRealtimeConnection} from '../testing/fake-realtime-connection';
+import {ConnectionState, RealtimeConnectionService} from './realtime-connection.service';
 import {GuildVoiceService} from './guild-voice.service';
 import {VoiceRTCService} from './voice-rtc.service';
 import {ProfileService} from './profile.service';
@@ -48,24 +49,7 @@ function publisher(userId: string, over: Partial<VoiceParticipantSnapshot> = {})
 }
 
 function setup(options: {inChannel?: boolean} = {}) {
-    const ws: Record<string, Subject<unknown>> = {};
-    for (const name of [
-        'userJoinedVoiceObservable',
-        'userLeftVoiceObservable',
-        'guildParticipantJoinedObservable',
-        'guildTrackPublishedObservable',
-        'guildTrackClosedObservable',
-        'voiceMuteChangedObservable',
-        'voiceDeafenChangedObservable',
-        'voiceCameraChangedObservable',
-        'voiceScreenShareStartedObservable',
-        'voiceScreenShareStoppedObservable',
-        'movedToChannelObservable',
-        'kickedByOtherDeviceObservable',
-        'voiceSnapshotObservable',
-        'voiceResyncObservable',
-    ])
-        ws[name] = new Subject();
+    const ws = new FakeRealtimeConnection();
 
     // Outbound calls: the service announces its own mute and deafen through these.
     const wsCalls: Record<string, ReturnType<typeof vi.fn>> = {};
@@ -125,7 +109,8 @@ function setup(options: {inChannel?: boolean} = {}) {
 
     TestBed.configureTestingModule({
         providers: [
-            {provide: GuildWebsocketService, useValue: {...ws, ...wsCalls, connectionState}},
+            {provide: GuildWebsocketService, useValue: {...wsCalls, connectionState}},
+            {provide: RealtimeConnectionService, useValue: ws},
             {provide: GuildVoiceService, useValue: guildVoice},
             {provide: VoiceRTCService, useValue: rtc},
             {
@@ -167,7 +152,7 @@ const tick = () => new Promise<void>(r => setTimeout(r, 0));
 it('tears down without calling leave - the server already removed us', async () => {
     const {service, ws, guildVoice, rtc, toast} = setup();
 
-    ws['kickedByOtherDeviceObservable'].next({channelId: 'chan-1', guildId: 'guild-1'});
+    ws.emit('guild.voice.KickedByOtherDevice', {channelId: 'chan-1', guildId: 'guild-1'});
     await tick();
 
     expect(rtc.teardown).toHaveBeenCalled();
@@ -180,7 +165,7 @@ it('tears down without calling leave - the server already removed us', async () 
 it('ignores a kick for a channel we are not in', async () => {
     const {service, ws, rtc} = setup();
 
-    ws['kickedByOtherDeviceObservable'].next({channelId: 'other-chan', guildId: 'guild-1'});
+    ws.emit('guild.voice.KickedByOtherDevice', {channelId: 'other-chan', guildId: 'guild-1'});
     await tick();
 
     expect(rtc.teardown).not.toHaveBeenCalled();
@@ -191,7 +176,7 @@ it('ignores a kick for a channel we are not in', async () => {
 it('does not subscribe to our own audio when the server announces us', async () => {
     const {ws, rtc} = setup();
 
-    ws['guildParticipantJoinedObservable'].next({
+    ws.emit('guild.voice.ParticipantJoined', {
         channelId: 'chan-1',
         userId: 'me',
         mediaSessionId: 'sess-mine',
@@ -205,7 +190,7 @@ it('does not subscribe to our own audio when the server announces us', async () 
 it('still subscribes when somebody else is announced', async () => {
     const {ws, rtc} = setup();
 
-    ws['guildParticipantJoinedObservable'].next({
+    ws.emit('guild.voice.ParticipantJoined', {
         channelId: 'chan-1',
         userId: 'them',
         mediaSessionId: 'sess-theirs',
@@ -294,7 +279,7 @@ describe('sticky mute and deafen', () => {
         const {service, ws} = setup();
         service.toggleMute();
 
-        ws['kickedByOtherDeviceObservable'].next({channelId: 'chan-1', guildId: 'guild-1'});
+        ws.emit('guild.voice.KickedByOtherDevice', {channelId: 'chan-1', guildId: 'guild-1'});
         await tick();
 
         expect(service.localState().isMuted).toBe(true);
@@ -568,7 +553,7 @@ describe('screen share backfill from the snapshot', () => {
     it('subscribes to a share that was already running when we arrived', async () => {
         const {ws, rtc} = setup();
 
-        ws['voiceSnapshotObservable'].next({
+        ws.emit('guild.voice.Snapshot', {
             ...emptySnapshot('chan-1'),
             participants: [
                 publisher('them', {
@@ -594,7 +579,7 @@ describe('screen share backfill from the snapshot', () => {
     it('subscribes to both halves of a share with audio', async () => {
         const {ws, rtc} = setup();
 
-        ws['voiceSnapshotObservable'].next({
+        ws.emit('guild.voice.Snapshot', {
             ...emptySnapshot('chan-1'),
             participants: [
                 publisher('them', {
@@ -633,7 +618,7 @@ describe('screen share backfill from the snapshot', () => {
     it('does not subscribe to a participant who has only opened a session', async () => {
         const {ws, rtc} = setup();
 
-        ws['voiceSnapshotObservable'].next({
+        ws.emit('guild.voice.Snapshot', {
             ...emptySnapshot('chan-1'),
             participants: [
                 publisher('them', {
@@ -652,7 +637,7 @@ describe('screen share backfill from the snapshot', () => {
     it('does not subscribe on a session id alone, even if the handles are present', async () => {
         const {ws, rtc} = setup();
 
-        ws['voiceSnapshotObservable'].next({
+        ws.emit('guild.voice.Snapshot', {
             ...emptySnapshot('chan-1'),
             participants: [publisher('them', {publishState: 'Joined'})],
         });
@@ -665,7 +650,7 @@ describe('screen share backfill from the snapshot', () => {
     it('does not subscribe to ourselves', async () => {
         const {ws, rtc} = setup();
 
-        ws['voiceSnapshotObservable'].next({
+        ws.emit('guild.voice.Snapshot', {
             ...emptySnapshot('chan-1'),
             participants: [
                 publisher('me', {
@@ -686,7 +671,7 @@ describe('screen share backfill from the snapshot', () => {
     it('subscribes to a camera that was already on when we arrived', async () => {
         const {ws, rtc} = setup();
 
-        ws['voiceSnapshotObservable'].next({
+        ws.emit('guild.voice.Snapshot', {
             ...emptySnapshot('chan-1'),
             participants: [
                 publisher('them', {
@@ -709,7 +694,7 @@ describe('screen share backfill from the snapshot', () => {
     it('marks a camera the snapshot reports as on', async () => {
         const {service, ws} = setup();
 
-        ws['voiceSnapshotObservable'].next({
+        ws.emit('guild.voice.Snapshot', {
             ...emptySnapshot('chan-1'),
             participants: [
                 publisher('them', {
@@ -731,7 +716,7 @@ describe('screen share backfill from the snapshot', () => {
     it('marks a camera whose publishing session was never recorded', async () => {
         const {service, ws} = setup();
 
-        ws['voiceSnapshotObservable'].next({
+        ws.emit('guild.voice.Snapshot', {
             ...emptySnapshot('chan-1'),
             participants: [publisher('them', {videoTracks: [{trackName: 'camera', mediaSessionId: null}]})],
         });
@@ -748,7 +733,7 @@ describe('screen share backfill from the snapshot', () => {
     it('leaves the camera mark off when the snapshot reports no video', async () => {
         const {service, ws} = setup();
 
-        ws['voiceSnapshotObservable'].next({
+        ws.emit('guild.voice.Snapshot', {
             ...emptySnapshot('chan-1'),
             participants: [publisher('them')],
         });
@@ -766,7 +751,7 @@ describe('screen share backfill from the snapshot', () => {
     it('subscribes a camera alongside a share without confusing the two', async () => {
         const {ws, rtc} = setup();
 
-        ws['voiceSnapshotObservable'].next({
+        ws.emit('guild.voice.Snapshot', {
             ...emptySnapshot('chan-1'),
             participants: [
                 publisher('them', {
@@ -800,7 +785,7 @@ describe('screen share backfill from the snapshot', () => {
     it('does not subscribe to our own camera', async () => {
         const {ws, rtc} = setup();
 
-        ws['voiceSnapshotObservable'].next({
+        ws.emit('guild.voice.Snapshot', {
             ...emptySnapshot('chan-1'),
             participants: [
                 publisher('me', {
@@ -817,7 +802,7 @@ describe('screen share backfill from the snapshot', () => {
     it('applies a snapshot from a server that does not send videoTracks', async () => {
         const {ws, rtc} = setup();
 
-        ws['voiceSnapshotObservable'].next({
+        ws.emit('guild.voice.Snapshot', {
             ...emptySnapshot('chan-1'),
             participants: [
                 publisher('them', {
@@ -843,7 +828,7 @@ describe('screen share backfill from the snapshot', () => {
     it('skips a camera whose publishing session was never recorded', async () => {
         const {ws, rtc} = setup();
 
-        ws['voiceSnapshotObservable'].next({
+        ws.emit('guild.voice.Snapshot', {
             ...emptySnapshot('chan-1'),
             participants: [
                 publisher('them', {
@@ -860,7 +845,7 @@ describe('screen share backfill from the snapshot', () => {
         const {ws, rtc} = setup();
         rtc.subscribedUserIds.mockReturnValue(['gone', 'them']);
 
-        ws['voiceSnapshotObservable'].next({
+        ws.emit('guild.voice.Snapshot', {
             ...emptySnapshot('chan-1'),
             participants: [publisher('them')],
         });
@@ -988,7 +973,7 @@ describe('screen share backfill from the snapshot', () => {
     it('ignores a snapshot for a channel we are not in', async () => {
         const {ws, rtc} = setup();
 
-        ws['voiceSnapshotObservable'].next({
+        ws.emit('guild.voice.Snapshot', {
             ...emptySnapshot('other-chan'),
             participants: [publisher('them')],
         });
@@ -1002,11 +987,11 @@ describe('version recovery', () => {
     it('refetches the snapshot when an event arrives with a gap in the version', async () => {
         const {ws, guildVoice} = setup();
 
-        ws['voiceSnapshotObservable'].next(emptySnapshot('chan-1'));
+        ws.emit('guild.voice.Snapshot', emptySnapshot('chan-1'));
         await tick();
         guildVoice.getSnapshot.mockClear();
 
-        ws['voiceMuteChangedObservable'].next({
+        ws.emit('guild.voice.MuteChanged', {
             channelId: 'chan-1',
             userId: 'them',
             isMuted: true,
@@ -1022,11 +1007,11 @@ describe('version recovery', () => {
     it('applies an event that is exactly the next one without refetching', async () => {
         const {ws, guildVoice} = setup();
 
-        ws['voiceSnapshotObservable'].next(emptySnapshot('chan-1'));
+        ws.emit('guild.voice.Snapshot', emptySnapshot('chan-1'));
         await tick();
         guildVoice.getSnapshot.mockClear();
 
-        ws['guildParticipantJoinedObservable'].next({
+        ws.emit('guild.voice.ParticipantJoined', {
             channelId: 'chan-1',
             userId: 'them',
             mediaSessionId: 'cf-them',
@@ -1043,11 +1028,11 @@ describe('version recovery', () => {
     it('refetches when the room was rebuilt under us', async () => {
         const {ws, guildVoice} = setup();
 
-        ws['voiceSnapshotObservable'].next(emptySnapshot('chan-1'));
+        ws.emit('guild.voice.Snapshot', emptySnapshot('chan-1'));
         await tick();
         guildVoice.getSnapshot.mockClear();
 
-        ws['voiceMuteChangedObservable'].next({
+        ws.emit('guild.voice.MuteChanged', {
             channelId: 'chan-1',
             userId: 'them',
             isMuted: true,
@@ -1064,7 +1049,7 @@ describe('version recovery', () => {
     it('leaves the channel locally when the room is gone', async () => {
         const {service, ws, rtc, toast} = setup();
 
-        ws['voiceResyncObservable'].next({channelId: 'chan-1', reason: 'roomGone'});
+        ws.emit('guild.voice.Resync', {channelId: 'chan-1', reason: 'roomGone'});
         await tick();
 
         expect(rtc.teardown).toHaveBeenCalled();
@@ -1075,7 +1060,7 @@ describe('version recovery', () => {
     it('refetches rather than leaving on every other resync reason', async () => {
         const {service, ws, guildVoice} = setup();
 
-        ws['voiceResyncObservable'].next({channelId: 'chan-1', reason: 'participantLeft', userId: 'them'});
+        ws.emit('guild.voice.Resync', {channelId: 'chan-1', reason: 'participantLeft', userId: 'them'});
         await tick();
 
         expect(guildVoice.getSnapshot).toHaveBeenCalled();
@@ -1088,7 +1073,7 @@ describe('a subscribe the server refuses as stale', () => {
     it('refetches the snapshot', async () => {
         const {ws, rtc, guildVoice} = setup();
 
-        ws['voiceSnapshotObservable'].next(emptySnapshot('chan-1'));
+        ws.emit('guild.voice.Snapshot', emptySnapshot('chan-1'));
         await tick();
         guildVoice.getSnapshot.mockClear();
 
@@ -1102,7 +1087,7 @@ describe('a subscribe the server refuses as stale', () => {
     it('does not read the room once per refusal', async () => {
         const {ws, rtc, guildVoice} = setup();
 
-        ws['voiceSnapshotObservable'].next(emptySnapshot('chan-1'));
+        ws.emit('guild.voice.Snapshot', emptySnapshot('chan-1'));
         await tick();
         guildVoice.getSnapshot.mockClear();
 
@@ -1120,7 +1105,7 @@ describe('heartbeat', () => {
         const {ws, rtc, wsCalls, service} = setup();
         rtc.publishedMedia = {mediaSessionId: 'cf-rust', audioTrackName: 'audio'};
 
-        ws['voiceSnapshotObservable'].next({...emptySnapshot('chan-1'), version: 7});
+        ws.emit('guild.voice.Snapshot', {...emptySnapshot('chan-1'), version: 7});
         await tick();
         (service as unknown as {sendHeartbeat(id: string): void}).sendHeartbeat('chan-1');
 
@@ -1326,7 +1311,7 @@ describe('a screen track closing', () => {
     /** Fake timers go in after the seed, not before: `tick()` is a real `setTimeout(0)`. */
     async function sharingChannel() {
         const harness = setup();
-        harness.ws['voiceSnapshotObservable'].next({
+        harness.ws.emit('guild.voice.Snapshot', {
             ...emptySnapshot('chan-1'),
             participants: [
                 publisher('them', {
@@ -1340,12 +1325,17 @@ describe('a screen track closing', () => {
         return harness;
     }
 
-    function closeScreenTrack(ws: Record<string, Subject<unknown>>): void {
-        ws['guildTrackClosedObservable'].next({channelId: 'chan-1', userId: 'them', trackName: 'screen-abc'});
+    function closeScreenTrack(ws: FakeRealtimeConnection): void {
+        ws.emit('guild.voice.TrackClosed', {channelId: 'chan-1', userId: 'them', trackName: 'screen-abc'});
     }
 
-    function announceShare(ws: Record<string, Subject<unknown>>, shareId: string): void {
-        ws['voiceScreenShareStartedObservable'].next({channelId: 'chan-1', userId: 'them', shareId});
+    function announceShare(ws: FakeRealtimeConnection, shareId: string): void {
+        ws.emit('guild.voice.ScreenShareStarted', {
+            channelId: 'chan-1',
+            userId: 'them',
+            trackName: `screen-${shareId}`,
+            shareId,
+        });
     }
 
     /** Whether the roster still has this person down as sharing, which is what the stage reads. */
@@ -1521,8 +1511,8 @@ describe('a self-addressed UserLeftVoice', () => {
         const {service, ws} = setup({inChannel: false});
 
         // The sidebar was painted from a snapshot taken before the sweep ran.
-        ws['userJoinedVoiceObservable'].next({userId: 'them', channelId: 'ghost-chan', guildId: 'guild-1'});
-        ws['userLeftVoiceObservable'].next({userId: 'me', channelId: 'ghost-chan', guildId: 'guild-1'});
+        ws.emit('guild.voice.UserJoinedVoice', {userId: 'them', channelId: 'ghost-chan', guildId: 'guild-1'});
+        ws.emit('guild.voice.UserLeftVoice', {userId: 'me', channelId: 'ghost-chan', guildId: 'guild-1'});
         await tick();
 
         expect(
@@ -1538,7 +1528,7 @@ describe('a self-addressed UserLeftVoice', () => {
         await tick();
 
         const before = service.channelParticipants().get('chan-1');
-        ws['userLeftVoiceObservable'].next({userId: 'me', channelId: 'chan-1', guildId: 'guild-1'});
+        ws.emit('guild.voice.UserLeftVoice', {userId: 'me', channelId: 'chan-1', guildId: 'guild-1'});
         await tick();
 
         expect(service.channelParticipants().get('chan-1')).toBe(before);
@@ -1550,7 +1540,7 @@ describe('a self-addressed UserLeftVoice', () => {
         const {ws, rtc} = setup();
 
         // `cleanupParticipant('me')` here would reach into the room we are actually sitting in.
-        ws['userLeftVoiceObservable'].next({userId: 'me', channelId: 'ghost-chan', guildId: 'guild-1'});
+        ws.emit('guild.voice.UserLeftVoice', {userId: 'me', channelId: 'ghost-chan', guildId: 'guild-1'});
         await tick();
 
         expect(rtc.cleanupParticipant).not.toHaveBeenCalled();
@@ -1561,7 +1551,7 @@ describe('a self-addressed UserLeftVoice', () => {
         const {ws, rtc} = setup();
 
         // They are in chan-1 with us. This event is about the seat they gave up elsewhere.
-        ws['userLeftVoiceObservable'].next({userId: 'them', channelId: 'ghost-chan', guildId: 'guild-1'});
+        ws.emit('guild.voice.UserLeftVoice', {userId: 'them', channelId: 'ghost-chan', guildId: 'guild-1'});
         await tick();
 
         expect(rtc.cleanupParticipant).not.toHaveBeenCalled();
@@ -1571,8 +1561,8 @@ describe('a self-addressed UserLeftVoice', () => {
     it('still corrects the sidebar for a channel we are not in', async () => {
         const {service, ws} = setup();
 
-        ws['userJoinedVoiceObservable'].next({userId: 'them', channelId: 'ghost-chan', guildId: 'guild-1'});
-        ws['userLeftVoiceObservable'].next({userId: 'them', channelId: 'ghost-chan', guildId: 'guild-1'});
+        ws.emit('guild.voice.UserJoinedVoice', {userId: 'them', channelId: 'ghost-chan', guildId: 'guild-1'});
+        ws.emit('guild.voice.UserLeftVoice', {userId: 'them', channelId: 'ghost-chan', guildId: 'guild-1'});
         await tick();
 
         expect(
@@ -1587,7 +1577,7 @@ describe('a self-addressed UserLeftVoice', () => {
     it('tears down a user who leaves the channel we are in', async () => {
         const {ws, rtc} = setup();
 
-        ws['userLeftVoiceObservable'].next({userId: 'them', channelId: 'chan-1', guildId: 'guild-1'});
+        ws.emit('guild.voice.UserLeftVoice', {userId: 'them', channelId: 'chan-1', guildId: 'guild-1'});
         await tick();
 
         expect(rtc.cleanupParticipant).toHaveBeenCalledWith('them');

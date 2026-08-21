@@ -14,7 +14,8 @@ import {of, Subject} from 'rxjs';
 import {signal} from '@angular/core';
 import {VoiceChannelService} from './voice-channel.service';
 import {GuildWebsocketService} from './guild-websocket.service';
-import {ConnectionState} from './realtime-connection.service';
+import {FakeRealtimeConnection} from '../testing/fake-realtime-connection';
+import {ConnectionState, RealtimeConnectionService} from './realtime-connection.service';
 import {GuildVoiceService} from './guild-voice.service';
 import {VoiceRTCService} from './voice-rtc.service';
 import {ProfileService} from './profile.service';
@@ -59,24 +60,7 @@ const VOICE_CHANNEL = {
 } as ChannelDto;
 
 function setup(options: {inChannel?: boolean; ownProfileLoaded?: boolean} = {}) {
-    const ws: Record<string, Subject<unknown>> = {};
-    for (const name of [
-        'userJoinedVoiceObservable',
-        'userLeftVoiceObservable',
-        'guildParticipantJoinedObservable',
-        'guildTrackPublishedObservable',
-        'guildTrackClosedObservable',
-        'voiceMuteChangedObservable',
-        'voiceDeafenChangedObservable',
-        'voiceCameraChangedObservable',
-        'voiceScreenShareStartedObservable',
-        'voiceScreenShareStoppedObservable',
-        'movedToChannelObservable',
-        'kickedByOtherDeviceObservable',
-        'voiceSnapshotObservable',
-        'voiceResyncObservable',
-    ])
-        ws[name] = new Subject();
+    const ws = new FakeRealtimeConnection();
 
     const wsCalls: Record<string, ReturnType<typeof vi.fn>> = {};
     for (const name of [
@@ -132,8 +116,9 @@ function setup(options: {inChannel?: boolean; ownProfileLoaded?: boolean} = {}) 
         providers: [
             {
                 provide: GuildWebsocketService,
-                useValue: {...ws, ...wsCalls, connectionState: signal(ConnectionState.Connected)},
+                useValue: {...wsCalls, connectionState: signal(ConnectionState.Connected)},
             },
+            {provide: RealtimeConnectionService, useValue: ws},
             {provide: GuildVoiceService, useValue: guildVoice},
             {provide: VoiceRTCService, useValue: rtc},
             {
@@ -250,7 +235,7 @@ describe('a user who joins while we are watching', () => {
     it('asks for the profile and names them when it lands', async () => {
         const {service, ws, profiles, resolveByUserId} = setup({inChannel: true});
 
-        ws['userJoinedVoiceObservable'].next({channelId: 'chan-1', userId: 'user_ada'});
+        ws.emit('guild.voice.UserJoinedVoice', {channelId: 'chan-1', guildId: 'guild-1', userId: 'user_ada'});
         await tick();
 
         expect(resolveByUserId).toHaveBeenCalledWith('user_ada');

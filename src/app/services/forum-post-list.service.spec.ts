@@ -3,11 +3,11 @@ import {provideHttpClient} from '@angular/common/http';
 import {HttpTestingController, provideHttpClientTesting} from '@angular/common/http/testing';
 import {provideTranslateService} from '@ngx-translate/core';
 import {MessageService} from 'primeng/api';
-import {Subject} from 'rxjs';
 
 import {ForumPostListService} from './forum-post-list.service';
 import {ApiConfigService} from './api-config.service';
-import {GuildWebsocketService} from './guild-websocket.service';
+import {RealtimeConnectionService} from './realtime-connection.service';
+import {FakeRealtimeConnection} from '../testing/fake-realtime-connection';
 import {ForumStateService} from './forum-state.service';
 import {ForumPost, ForumSortOrder} from '../dtos/response/forum.dto';
 
@@ -38,11 +38,7 @@ function postFixture(overrides: Partial<ForumPost> = {}): ForumPost {
 
 /** Only the observables the service subscribes to; nothing else is touched. */
 function wsStub() {
-    return {
-        threadCreatedObservable: new Subject<any>(),
-        threadUpdatedObservable: new Subject<any>(),
-        forumTagDeletedObservable: new Subject<any>(),
-    };
+    return new FakeRealtimeConnection();
 }
 
 function setup() {
@@ -54,7 +50,7 @@ function setup() {
             provideTranslateService({defaultLanguage: 'en'}),
             MessageService,
             {provide: ApiConfigService, useValue: {baseUrl: () => 'https://api.test.example'}},
-            {provide: GuildWebsocketService, useValue: ws},
+            {provide: RealtimeConnectionService, useValue: ws},
             {provide: ForumStateService, useValue: {sortFor: () => ForumSortOrder.LatestActivity}},
         ],
     });
@@ -232,7 +228,7 @@ describe('ForumPostListService realtime', () => {
     it('ignores a threadUpdated event for a forum with no loaded state', () => {
         const {service, ws} = setup();
 
-        ws.threadUpdatedObservable.next({
+        ws.emit('guild.ThreadUpdated', {
             guildId: 'g1',
             parentChannelId: 'never-opened',
             channelId: 'x',
@@ -244,7 +240,7 @@ describe('ForumPostListService realtime', () => {
         // The default state is indistinguishable from a conjured empty entry by value, so
         // ask the service whether it thinks the forum is open: a created post in an open
         // forum triggers a reload, and afterEach's verify() would fail on that request.
-        ws.threadCreatedObservable.next({guildId: 'g1', parentChannelId: 'never-opened', channelId: 'x'});
+        ws.emit('guild.ThreadCreated', {guildId: 'g1', parentChannelId: 'never-opened', channelId: 'x'});
     });
 
     /**
@@ -261,12 +257,12 @@ describe('ForumPostListService realtime', () => {
 
         service.setActiveForum('f1');
 
-        ws.threadCreatedObservable.next({guildId: 'g1', parentChannelId: 'f1', channelId: 'new1'});
+        ws.emit('guild.ThreadCreated', {guildId: 'g1', parentChannelId: 'f1', channelId: 'new1'});
         flushPosts(ctrl, [postFixture({id: 'p1'}), postFixture({id: 'new1'})], null, 'f1');
         expect(service.stateFor('f1').posts.map(p => p.id)).toEqual(['p1', 'new1']);
         expect(service.stateFor('f1').stale).toBe(false);
 
-        ws.threadCreatedObservable.next({guildId: 'g1', parentChannelId: 'f2', channelId: 'new2'});
+        ws.emit('guild.ThreadCreated', {guildId: 'g1', parentChannelId: 'f2', channelId: 'new2'});
         expect(service.stateFor('f2').stale).toBe(true);
         expect(service.stateFor('f2').posts.map(p => p.id)).toEqual(['p9']);
 
@@ -300,13 +296,13 @@ describe('ForumPostListService realtime', () => {
         const pane = service.setActiveForum('f1');
         service.releaseActiveForum(list);
 
-        ws.threadCreatedObservable.next({guildId: 'g1', parentChannelId: 'f1', channelId: 'new1'});
+        ws.emit('guild.ThreadCreated', {guildId: 'g1', parentChannelId: 'f1', channelId: 'new1'});
         flushPosts(ctrl, [postFixture({id: 'p1'}), postFixture({id: 'new1'})]);
         expect(service.stateFor('f1').posts.map(p => p.id)).toEqual(['p1', 'new1']);
 
         // The live claim still releases normally, leaving nothing on screen to keep current.
         service.releaseActiveForum(pane);
-        ws.threadCreatedObservable.next({guildId: 'g1', parentChannelId: 'f1', channelId: 'new2'});
+        ws.emit('guild.ThreadCreated', {guildId: 'g1', parentChannelId: 'f1', channelId: 'new2'});
         expect(service.stateFor('f1').stale).toBe(true);
     });
 
@@ -316,7 +312,7 @@ describe('ForumPostListService realtime', () => {
         service.reload('f1');
         flushPosts(ctrl, [postFixture({id: 'p1'})]);
 
-        ws.threadUpdatedObservable.next({
+        ws.emit('guild.ThreadUpdated', {
             guildId: 'g1',
             parentChannelId: 'f1',
             channelId: 'p1',
@@ -337,7 +333,7 @@ describe('ForumPostListService realtime', () => {
         expect(req.request.params.get('archived')).toBe('all');
         req.flush({posts: [postFixture({id: 'p1'})], nextCursor: null});
 
-        ws.threadUpdatedObservable.next({
+        ws.emit('guild.ThreadUpdated', {
             guildId: 'g1',
             parentChannelId: 'f1',
             channelId: 'p1',

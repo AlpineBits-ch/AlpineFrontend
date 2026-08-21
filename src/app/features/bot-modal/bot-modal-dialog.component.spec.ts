@@ -14,11 +14,10 @@ import {
 } from './bot-modal-dialog.component';
 import {BotModalDialogService} from './bot-modal-dialog.service';
 import {ApiConfigService} from '../../services/api-config.service';
-import {
-    BotComponentPayload,
-    GuildWebsocketService,
-    WsBotModalOpen,
-} from '../../services/guild-websocket.service';
+import {BotComponentPayload, WsBotModalOpen} from '../../dtos/bot-component.dto';
+import {GuildWebsocketService} from '../../services/guild-websocket.service';
+import {RealtimeConnectionService} from '../../services/realtime-connection.service';
+import {FakeRealtimeConnection} from '../../testing/fake-realtime-connection';
 import {NavigationService} from '../main-page/navigation.service';
 
 const SUBMIT_URL = 'https://api.test.example/api/v1/bots/guilds/gild_1/channels/chan_1/modal-submit';
@@ -55,14 +54,8 @@ function setup(request: WsBotModalOpen | null = modal()) {
             provideHttpClientTesting(),
             {provide: ApiConfigService, useValue: {baseUrl: () => 'https://api.test.example'}},
             {provide: BotModalDialogService, useValue: dialog},
-            {
-                provide: GuildWebsocketService,
-                useValue: {
-                    botInstalledObservable: new Subject(),
-                    botUninstalledObservable: new Subject(),
-                    messageObservable: new Subject(),
-                },
-            },
+            {provide: RealtimeConnectionService, useValue: new FakeRealtimeConnection()},
+            {provide: GuildWebsocketService, useValue: {messageObservable: new Subject()}},
             {provide: NavigationService, useValue: {workspace: signal({type: 'dms'})}},
         ],
     });

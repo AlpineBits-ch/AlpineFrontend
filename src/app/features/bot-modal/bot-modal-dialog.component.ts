@@ -6,7 +6,7 @@ import {Button} from 'primeng/button';
 import {PrimeTemplate} from 'primeng/api';
 import {BotModalDialogService} from './bot-modal-dialog.service';
 import {BotCommandService} from '../../services/bot-command.service';
-import {BotComponentPayload, BotComponentType} from '../../services/guild-websocket.service';
+import {BotComponentPayload, BotComponentType} from '../../dtos/bot-component.dto';
 
 /** Discord's text-input styles. Anything else on a `type: 4` is treated as single-line. */
 const enum TextInputStyle {

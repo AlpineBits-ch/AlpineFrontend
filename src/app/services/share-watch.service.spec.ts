@@ -5,7 +5,8 @@ import {ShareWatchService, WatchScope} from './share-watch.service';
 import {ShareViewersDto} from '../dtos/response/share-viewers.dto';
 import {GuildVoiceService} from './guild-voice.service';
 import {VoiceService} from './voice.service';
-import {GuildWebsocketService} from './guild-websocket.service';
+import {RealtimeConnectionService} from './realtime-connection.service';
+import {FakeRealtimeConnection} from '../testing/fake-realtime-connection';
 import {VoiceWebsocketService} from './voice-websocket.service';
 
 const CHANNEL_SCOPE: WatchScope = {kind: 'channel', guildId: 'guild-1', channelId: 'channel-1'};
@@ -21,7 +22,7 @@ function viewers(shareId: string, ids: string[], scope: 'channel' | 'call' = 'ch
 }
 
 function setup(options: {watchFails?: boolean} = {}) {
-    const guildEvents = new Subject<ShareViewersDto>();
+    const guildEvents = new FakeRealtimeConnection();
     const callEvents = new Subject<ShareViewersDto>();
 
     const guildVoice = {
@@ -41,7 +42,7 @@ function setup(options: {watchFails?: boolean} = {}) {
         providers: [
             {provide: GuildVoiceService, useValue: guildVoice},
             {provide: VoiceService, useValue: voiceService},
-            {provide: GuildWebsocketService, useValue: {shareViewersChangedObservable: guildEvents}},
+            {provide: RealtimeConnectionService, useValue: guildEvents},
             {provide: VoiceWebsocketService, useValue: {shareViewersChangedObservable: callEvents}},
         ],
     });
@@ -99,7 +100,7 @@ describe('ShareWatchService', () => {
     it('records the audience from the broadcast', () => {
         const {service, guildEvents} = setup();
 
-        guildEvents.next(viewers('share-1', ['a', 'b', 'c']));
+        guildEvents.emit('guild.voice.ShareViewersChanged', viewers('share-1', ['a', 'b', 'c']));
 
         expect(service.viewerCount(CHANNEL_SCOPE, 'share-1')).toBe(3);
     });
@@ -114,7 +115,7 @@ describe('ShareWatchService', () => {
         // Share ids are drawn from different spaces and a client can be in both at once.
         const {service, guildEvents, callEvents} = setup();
 
-        guildEvents.next(viewers('share-1', ['a']));
+        guildEvents.emit('guild.voice.ShareViewersChanged', viewers('share-1', ['a']));
         callEvents.next(viewers('share-1', ['x', 'y'], 'call'));
 
         expect(service.viewerCount(CHANNEL_SCOPE, 'share-1')).toBe(1);

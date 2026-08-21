@@ -4,7 +4,8 @@ import {describe, expect, it} from 'vitest';
 
 import {SceneTaxonomyService} from './scene-taxonomy.service';
 import {RoleplayApi} from './roleplay-api.service';
-import {GuildWebsocketService} from './guild-websocket.service';
+import {RealtimeConnectionService} from './realtime-connection.service';
+import {FakeRealtimeConnection} from '../testing/fake-realtime-connection';
 import {SceneFolderDto, SceneTagDto, SceneTaxonomyDto} from '../dtos/response/scene.dto';
 
 function folder(
@@ -41,17 +42,17 @@ function apiStub() {
 
 function setup(loaded: SceneTaxonomyDto | null = null) {
     const api = apiStub();
-    const taxonomyChanged = new Subject<SceneTaxonomyDto>();
+    const realtime = new FakeRealtimeConnection();
     TestBed.configureTestingModule({
         providers: [
             {provide: RoleplayApi, useValue: api},
-            {provide: GuildWebsocketService, useValue: {sceneTaxonomyChangedObservable: taxonomyChanged}},
+            {provide: RealtimeConnectionService, useValue: realtime},
         ],
     });
     const service = TestBed.inject(SceneTaxonomyService);
     service.ensureGuild('g1');
     if (loaded) api.reads[0].next(loaded);
-    return {service, api, taxonomyChanged};
+    return {service, api, realtime};
 }
 
 describe('SceneTaxonomyService', () => {
@@ -75,13 +76,17 @@ describe('SceneTaxonomyService', () => {
     });
 
     it('replaces the whole set on a taxonomy event rather than merging it', () => {
-        const {service, taxonomyChanged} = setup({
+        const {service, realtime} = setup({
             guildId: 'g1',
             folders: [folder('f1', 'Arc I')],
             tags: [tag('t1', 'ashfall')],
         });
 
-        taxonomyChanged.next({guildId: 'g1', folders: [], tags: [tag('t2', 'betrayal')]});
+        realtime.emit('guild.SceneTaxonomyChanged', {
+            guildId: 'g1',
+            folders: [],
+            tags: [tag('t2', 'betrayal')],
+        });
 
         expect(service.folders('g1')).toEqual([]);
         expect(service.tags('g1').map(t => t.id)).toEqual(['t2']);

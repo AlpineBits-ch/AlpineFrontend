@@ -1,9 +1,9 @@
 import {inject, Injectable, OnDestroy, signal} from '@angular/core';
 import {GuildVoiceService} from './guild-voice.service';
 import {VoiceService} from './voice.service';
-import {GuildWebsocketService} from './guild-websocket.service';
 import {VoiceWebsocketService} from './voice-websocket.service';
 import {ShareViewersDto} from '../dtos/response/share-viewers.dto';
+import {RealtimeConnectionService} from './realtime-connection.service';
 
 /** Where a screen share lives. Guild voice and direct calls draw share ids from different spaces. */
 export type WatchScope =
@@ -36,7 +36,7 @@ const HEARTBEAT_MS = 45_000;
 export class ShareWatchService implements OnDestroy {
     private guildVoice = inject(GuildVoiceService);
     private voiceService = inject(VoiceService);
-    private guildWs = inject(GuildWebsocketService);
+    private realtime = inject(RealtimeConnectionService);
     private voiceWs = inject(VoiceWebsocketService);
 
     /** scopeKey -> shareId -> the user ids watching it, as last reported by the server. */
@@ -48,7 +48,7 @@ export class ShareWatchService implements OnDestroy {
     private heartbeat: ReturnType<typeof setInterval> | null = null;
 
     constructor() {
-        this.guildWs.shareViewersChangedObservable.subscribe(dto => this.applyViewers(dto));
+        this.realtime.stream('guild.voice.ShareViewersChanged').subscribe(dto => this.applyViewers(dto));
         this.voiceWs.shareViewersChangedObservable.subscribe(dto => this.applyViewers(dto));
     }
 

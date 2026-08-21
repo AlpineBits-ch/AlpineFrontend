@@ -16,7 +16,8 @@ import {ChannelReadState, GuildReadStateService} from '../../../../services/guil
 import {GuildService} from '../../../../services/guild.service';
 import {GuildUiActionsService} from '../../../../services/guild-ui-actions.service';
 import {GuildVoiceActivityService} from '../../../../services/guild-voice-activity.service';
-import {GuildWebsocketService} from '../../../../services/guild-websocket.service';
+import {RealtimeConnectionService} from '../../../../services/realtime-connection.service';
+import {FakeRealtimeConnection} from '../../../../testing/fake-realtime-connection';
 import {InboxApiService} from '../../../../services/inbox-api.service';
 import {NavigationService} from '../../../main-page/navigation.service';
 import {ProfileService} from '../../../../services/profile.service';
@@ -82,7 +83,7 @@ async function setup(unreadIds: string[], markResult = of(undefined)) {
             },
             {provide: GuildVoiceActivityService, useValue: {presence: signal({})}},
             {provide: GuildUiActionsService, useValue: {}},
-            {provide: GuildWebsocketService, useValue: {}},
+            {provide: RealtimeConnectionService, useValue: new FakeRealtimeConnection()},
             {provide: ReportDialogService, useValue: {open: vi.fn()}},
             {provide: ProfileService, useValue: {ownProfile: () => ({userId: 'u1'})}},
         ],

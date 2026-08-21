@@ -2,7 +2,6 @@ import {computed, effect, inject, Injectable, signal, untracked} from '@angular/
 import {Subject} from 'rxjs';
 import {GuildVoiceActivityDto} from '../dtos/response/guild-voice-activity.dto';
 import {GuildVoiceService} from './guild-voice.service';
-import {GuildWebsocketService} from './guild-websocket.service';
 import {ConnectionState, RealtimeConnectionService} from './realtime-connection.service';
 
 /** Who just started streaming, and where - the source event for a "X is live" notification. */
@@ -22,7 +21,6 @@ export interface GuildVoicePresence {
 @Injectable({providedIn: 'root'})
 export class GuildVoiceActivityService {
     private guildVoice = inject(GuildVoiceService);
-    private guildWs = inject(GuildWebsocketService);
     private realtime = inject(RealtimeConnectionService);
 
     /** guildId -> channelId -> user ids. Keyed by user, not counted, so a duplicate cannot drift a tally. */
@@ -61,22 +59,22 @@ export class GuildVoiceActivityService {
             untracked(() => this.refresh());
         });
 
-        this.guildWs.userJoinedVoiceObservable.subscribe(e =>
-            this.addMember(e.guildId, e.channelId, e.userId),
-        );
+        this.realtime
+            .stream('guild.voice.UserJoinedVoice')
+            .subscribe(e => this.addMember(e.guildId, e.channelId, e.userId));
 
-        this.guildWs.userLeftVoiceObservable.subscribe(e =>
-            this.removeMember(e.guildId, e.channelId, e.userId),
-        );
+        this.realtime
+            .stream('guild.voice.UserLeftVoice')
+            .subscribe(e => this.removeMember(e.guildId, e.channelId, e.userId));
 
         // Screen-share events carry no guildId; it is resolved from the roster this service holds.
-        this.guildWs.voiceScreenShareStartedObservable.subscribe(e =>
-            this.addStreamer(e.channelId, e.userId, e.shareId),
-        );
+        this.realtime
+            .stream('guild.voice.ScreenShareStarted')
+            .subscribe(e => this.addStreamer(e.channelId, e.userId, e.shareId));
 
-        this.guildWs.voiceScreenShareStoppedObservable.subscribe(e =>
-            this.removeStreamerByShare(e.channelId, e.shareId),
-        );
+        this.realtime
+            .stream('guild.voice.ScreenShareStopped')
+            .subscribe(e => this.removeStreamerByShare(e.channelId, e.shareId));
     }
 
     /** Anyone currently streaming in one channel. */

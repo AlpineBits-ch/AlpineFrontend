@@ -41,7 +41,6 @@ import {MessageStore} from '../../../../stores/message.store';
 import {ProfileService} from '../../../../services/profile.service';
 import {GuildService} from '../../../../services/guild.service';
 import {OwnMemberRevisionService} from '../../../../services/own-member-revision.service';
-import {GuildWebsocketService} from '../../../../services/guild-websocket.service';
 
 import {NavigationService} from '../../../main-page/navigation.service';
 import {HighlightPipe} from '../../../../pipes/highlight.pipe';
@@ -51,6 +50,7 @@ import {FollowChannelDialogComponent} from '../follow-channel-dialog/follow-chan
 import {ChannelConversationComponent} from './channel-conversation/channel-conversation.component';
 import {ThreadSidePanelComponent} from './thread-side-panel/thread-side-panel.component';
 import {GuildFeature, guildHasFeature} from '../../guild-features';
+import {RealtimeConnectionService} from '../../../../services/realtime-connection.service';
 
 const THREAD_PANEL_WIDTH_KEY = 'alpine.threadPanel.width';
 const THREAD_PANEL_MIN_REM = 20;
@@ -237,7 +237,7 @@ export class ChannelComponent {
     private guildService = inject(GuildService);
     private ownMemberRevision = inject(OwnMemberRevisionService);
     private profileService = inject(ProfileService);
-    private guildWs = inject(GuildWebsocketService);
+    private realtime = inject(RealtimeConnectionService);
     private translate = inject(TranslateService);
     private searchSubject = new Subject<string>();
 
@@ -263,12 +263,15 @@ export class ChannelComponent {
             }
         });
 
-        this.guildWs.threadUpdatedObservable.pipe(takeUntilDestroyed(inject(DestroyRef))).subscribe(e => {
-            if (e.channelId !== this.channel().id) return;
-            // Full current state, not a patch: each present field replaces.
-            if (e.isLocked !== undefined) this.localIsLocked.set(e.isLocked);
-            if (e.tagIds !== undefined) this.localTagIds.set(e.tagIds);
-        });
+        this.realtime
+            .stream('guild.ThreadUpdated')
+            .pipe(takeUntilDestroyed(inject(DestroyRef)))
+            .subscribe(e => {
+                if (e.channelId !== this.channel().id) return;
+                // Full current state, not a patch: each present field replaces.
+                if (e.isLocked !== undefined) this.localIsLocked.set(e.isLocked);
+                if (e.tagIds !== undefined) this.localTagIds.set(e.tagIds);
+            });
 
         // The three side panels share the slot, so raising one lowers the others.
         effect(() => {

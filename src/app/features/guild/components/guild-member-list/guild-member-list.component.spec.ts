@@ -6,7 +6,6 @@ import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {MenuItem} from '../../../../shared/context-menu/context-menu.model';
 import {GuildMemberListComponent} from './guild-member-list.component';
 import {GuildService} from '../../../../services/guild.service';
-import {GuildWebsocketService} from '../../../../services/guild-websocket.service';
 import {BotInstallDialogService} from '../../../bot-install/bot-install-dialog.service';
 import {ToastService} from '../../../../services/toast.service';
 import {BrokenImageService} from '../../../../services/broken-image.service';
@@ -24,6 +23,8 @@ import {GuildDto, GuildKind} from '../../../../dtos/response/guild.dto';
 import {GuildMemberDto, SelfGuildMemberDto} from '../../../../dtos/response/member.dto';
 import {OnlineStatus} from '../../../../dtos/response/profile.dto';
 import {MemberType} from '../../../../enums/member-type.enum';
+import {RealtimeConnectionService} from '../../../../services/realtime-connection.service';
+import {FakeRealtimeConnection} from '../../../../testing/fake-realtime-connection';
 
 const GUILD_ID = 'guild-1';
 const VOICE_CHANNEL_ID = 'channel-1';
@@ -96,17 +97,7 @@ function setup(
         memberFixture(OWNER_ID, 'Owner'),
     ];
 
-    const guildWs = {
-        memberBannedObservable: new Subject(),
-        memberKickedObservable: new Subject(),
-        memberLeftObservable: new Subject(),
-        memberMovedOutObservable: new Subject(),
-        memberMutedObservable: new Subject(),
-        memberUnmutedObservable: new Subject(),
-        presenceChangedObservable: new Subject(),
-        memberJoinedObservable: new Subject(),
-        memberUpdatedObservable: new Subject(),
-    };
+    const guildWs = new FakeRealtimeConnection();
 
     // undefined -> default fixture (STREAMER_ID is live); null -> nobody is.
     const liveUserId = opts.streamingUserId === undefined ? STREAMER_ID : opts.streamingUserId;
@@ -136,7 +127,7 @@ function setup(
         providers: [
             provideTranslateService({defaultLanguage: 'en'}),
             {provide: GuildService, useValue: guildService},
-            {provide: GuildWebsocketService, useValue: guildWs},
+            {provide: RealtimeConnectionService, useValue: guildWs},
             {provide: BotInstallDialogService, useValue: {installedIntoGuild: new Subject()}},
             {
                 provide: ToastService,

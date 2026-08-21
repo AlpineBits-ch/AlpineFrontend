@@ -2,11 +2,11 @@ import {TestBed} from '@angular/core/testing';
 import {provideHttpClient} from '@angular/common/http';
 import {HttpTestingController, provideHttpClientTesting} from '@angular/common/http/testing';
 import {afterEach, describe, expect, it} from 'vitest';
-import {Subject} from 'rxjs';
 
 import {OwnMemberRevisionService} from './own-member-revision.service';
 import {GuildService} from './guild.service';
-import {GuildWebsocketService} from './guild-websocket.service';
+import {RealtimeConnectionService} from './realtime-connection.service';
+import {FakeRealtimeConnection} from '../testing/fake-realtime-connection';
 import {ApiConfigService} from './api-config.service';
 import {ProfileService} from './profile.service';
 import {SelfGuildMemberDto} from '../dtos/response/member.dto';
@@ -14,16 +14,8 @@ import {SelfGuildMemberDto} from '../dtos/response/member.dto';
 const BASE = 'https://api.test.example';
 const ME = `${BASE}/api/v1/guild/guilds/g1/me`;
 
-/** The events this service listens to, in the shape `GuildWebsocketService` publishes them. */
 function fakeWs() {
-    return {
-        memberUpdatedObservable: new Subject<{guildId: string; userId: string; nickname: string | null}>(),
-        memberKickedObservable: new Subject<{guildId: string; userId: string}>(),
-        memberBannedObservable: new Subject<{guildId: string; userId: string}>(),
-        memberLeftObservable: new Subject<{guildId: string; userId: string}>(),
-        memberMovedOutObservable: new Subject<{guildId: string; userId: string}>(),
-        memberJoinedObservable: new Subject<{guildId: string; userId: string}>(),
-    };
+    return new FakeRealtimeConnection();
 }
 
 function setup() {
@@ -33,7 +25,7 @@ function setup() {
             provideHttpClient(),
             provideHttpClientTesting(),
             {provide: ApiConfigService, useValue: {baseUrl: () => BASE}},
-            {provide: GuildWebsocketService, useValue: ws},
+            {provide: RealtimeConnectionService, useValue: ws},
             // Only our own row moves a permission gate, so the service needs an own-profile to
             // compare the event's userId against.
             {provide: ProfileService, useValue: {ownProfile: () => ({userId: 'me'})}},
@@ -71,7 +63,7 @@ describe('OwnMemberRevisionService', () => {
         const {service, ws} = setup();
         expect(service.revision()).toBe(0);
 
-        ws.memberUpdatedObservable.next({guildId: 'g1', userId: 'me', nickname: null});
+        ws.emit('guild.MemberUpdated', {guildId: 'g1', userId: 'me', nickname: null});
 
         expect(service.revision()).toBe(1);
     });
@@ -79,7 +71,7 @@ describe('OwnMemberRevisionService', () => {
     it('ignores somebody else changing - their promotion moves no gate of ours', () => {
         const {service, ws} = setup();
 
-        ws.memberUpdatedObservable.next({guildId: 'g1', userId: 'someone-else', nickname: null});
+        ws.emit('guild.MemberUpdated', {guildId: 'g1', userId: 'someone-else', nickname: null});
 
         expect(service.revision()).toBe(0);
     });
@@ -90,7 +82,7 @@ describe('OwnMemberRevisionService', () => {
         guilds.getOwnMember('g1').subscribe();
         ctrl.expectOne(ME).flush(selfMember('ManageGuild'));
 
-        ws.memberUpdatedObservable.next({guildId: 'g1', userId: 'me', nickname: null});
+        ws.emit('guild.MemberUpdated', {guildId: 'g1', userId: 'me', nickname: null});
 
         let row: SelfGuildMemberDto | undefined;
         guilds.getOwnMember('g1').subscribe(m => (row = m));
@@ -103,7 +95,7 @@ describe('OwnMemberRevisionService', () => {
         guilds.getOwnMember('g1').subscribe();
         ctrl.expectOne(ME).flush(selfMember('ManageGuild'));
 
-        ws.memberUpdatedObservable.next({guildId: 'g1', userId: 'someone-else', nickname: null});
+        ws.emit('guild.MemberUpdated', {guildId: 'g1', userId: 'someone-else', nickname: null});
 
         guilds.getOwnMember('g1').subscribe();
         ctrl.expectNone(ME);
@@ -114,7 +106,7 @@ describe('OwnMemberRevisionService', () => {
         guilds.getOwnMember('g1').subscribe();
         ctrl.expectOne(ME).flush(selfMember('ManageGuild'));
 
-        ws.memberKickedObservable.next({guildId: 'g1', userId: 'me'});
+        ws.emit('guild.MemberKicked', {guildId: 'g1', userId: 'me'});
 
         expect(service.revision()).toBe(0);
         guilds.getOwnMember('g1').subscribe();
@@ -126,7 +118,7 @@ describe('OwnMemberRevisionService', () => {
         guilds.getOwnMember('g1').subscribe();
         ctrl.expectOne(ME).flush(selfMember('ManageGuild'));
 
-        ws.memberJoinedObservable.next({guildId: 'g1', userId: 'me'});
+        ws.emit('guild.MemberJoined', {guildId: 'g1', userId: 'me'});
 
         guilds.getOwnMember('g1').subscribe();
         ctrl.expectOne(ME).flush(selfMember('ViewChannel'));
@@ -137,7 +129,7 @@ describe('OwnMemberRevisionService', () => {
         guilds.getOwnMember('g1').subscribe();
         ctrl.expectOne(ME).flush(selfMember('ManageGuild'));
 
-        ws.memberKickedObservable.next({guildId: 'g1', userId: 'someone-else'});
+        ws.emit('guild.MemberKicked', {guildId: 'g1', userId: 'someone-else'});
 
         guilds.getOwnMember('g1').subscribe();
         ctrl.expectNone(ME);

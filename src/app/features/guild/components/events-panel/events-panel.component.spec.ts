@@ -5,13 +5,14 @@ import {MessageService} from 'primeng/api';
 import {Observable, Subject} from 'rxjs';
 import {EventsPanelComponent} from './events-panel.component';
 import {ScheduledEventService} from '../../../../services/scheduled-event.service';
-import {GuildWebsocketService} from '../../../../services/guild-websocket.service';
 import {ProfileService} from '../../../../services/profile.service';
 import {VoiceChannelService} from '../../../../services/voice-channel.service';
 import {ToastService} from '../../../../services/toast.service';
 import {MinuteClockService} from '../../../../services/minute-clock.service';
 import {ScheduledEventDto, ScheduledEventStatus} from '../../../../dtos/response/scheduled-event.dto';
 import {provideFakePlatform} from '../../../../platform/testing/provide-fake-platform';
+import {RealtimeConnectionService} from '../../../../services/realtime-connection.service';
+import {FakeRealtimeConnection} from '../../../../testing/fake-realtime-connection';
 
 // Local-time components, not a UTC string: the day grouping compares local calendar days.
 const NOW = new Date(2026, 7, 1, 12, 0, 0).getTime();
@@ -45,12 +46,6 @@ class FakeScheduledEventService {
     }
 }
 
-class FakeGuildWebsocketService {
-    eventCreatedObservable = new Subject<any>();
-    eventUpdatedObservable = new Subject<any>();
-    eventCancelledObservable = new Subject<any>();
-}
-
 function setup(events: ScheduledEventDto[], memberPermissions = '') {
     const api = new FakeScheduledEventService();
     // The clock is faked rather than pinned through the component, so the split depends on a value the test owns instead of on wall time.
@@ -63,7 +58,7 @@ function setup(events: ScheduledEventDto[], memberPermissions = '') {
             provideTranslateService({defaultLanguage: 'en'}),
             MessageService,
             {provide: ScheduledEventService, useValue: api},
-            {provide: GuildWebsocketService, useValue: new FakeGuildWebsocketService()},
+            {provide: RealtimeConnectionService, useValue: new FakeRealtimeConnection()},
             {provide: ProfileService, useValue: {ownProfile: signal(undefined)}},
             {
                 provide: VoiceChannelService,

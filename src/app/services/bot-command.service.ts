@@ -18,6 +18,7 @@ import {BotCommandDto} from '../dtos/response/bot-command.dto';
 import {InvokeBotCommandDto} from '../dtos/request/invoke-bot-command.dto';
 import {SubmitModalDto} from '../dtos/request/submit-modal.dto';
 import {GuildWebsocketService} from './guild-websocket.service';
+import {RealtimeConnectionService} from './realtime-connection.service';
 import {NavigationService} from '../features/main-page/navigation.service';
 
 /** Thrown by {@link BotCommandService.awaitBotResponse} when no reply arrives from the bot in time. */
@@ -32,6 +33,7 @@ export class BotCommandService {
     private http = inject(HttpClient);
     private apiConfig = inject(ApiConfigService);
     private guildWs = inject(GuildWebsocketService);
+    private realtime = inject(RealtimeConnectionService);
     private navService = inject(NavigationService);
 
     /** Cancels any older in-flight `awaitBotResponse` wait for the same (channelId, botUserId) pair. */
@@ -50,8 +52,8 @@ export class BotCommandService {
             const ws = this.navService.workspace();
             if (ws.type === 'server') this.loadCommandsForGuild(ws.guild.id);
         });
-        this.guildWs.botInstalledObservable.subscribe(e => this.loadCommandsForGuild(e.guildId));
-        this.guildWs.botUninstalledObservable.subscribe(e => this.loadCommandsForGuild(e.guildId));
+        this.realtime.stream('guild.BotInstalled').subscribe(e => this.loadCommandsForGuild(e.guildId));
+        this.realtime.stream('guild.BotUninstalled').subscribe(e => this.loadCommandsForGuild(e.guildId));
     }
 
     private loadCommandsForGuild(guildId: string): void {

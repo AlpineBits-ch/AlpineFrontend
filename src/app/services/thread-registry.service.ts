@@ -4,8 +4,8 @@ import {catchError, map, Observable, of, throwError} from 'rxjs';
 import {ChannelDto} from '../dtos/response/guild.dto';
 import {CreateThreadDto} from '../dtos/request/create-thread.dto';
 import {GuildService} from './guild.service';
-import {GuildWebsocketService} from './guild-websocket.service';
 import {NavigationService} from '../features/main-page/navigation.service';
+import {RealtimeConnectionService} from './realtime-connection.service';
 
 /**
  * The one place a thread channel is looked up. The guild payload carries forum posts and may or may
@@ -14,7 +14,7 @@ import {NavigationService} from '../features/main-page/navigation.service';
 @Injectable({providedIn: 'root'})
 export class ThreadRegistryService {
     private readonly guildService = inject(GuildService);
-    private readonly ws = inject(GuildWebsocketService);
+    private readonly realtime = inject(RealtimeConnectionService);
     private readonly navService = inject(NavigationService);
 
     /** Fetched threads by id. The guild payload is read live and never copied in here. */
@@ -30,9 +30,9 @@ export class ThreadRegistryService {
     });
 
     constructor() {
-        this.ws.threadCreatedObservable.subscribe(e => this.ensureThread(e.channelId));
-        this.ws.messageThreadAttachedObservable.subscribe(e => this.ensureThread(e.threadId));
-        this.ws.threadUpdatedObservable.subscribe(e => {
+        this.realtime.stream('guild.ThreadCreated').subscribe(e => this.ensureThread(e.channelId));
+        this.realtime.stream('guild.MessageThreadAttached').subscribe(e => this.ensureThread(e.threadId));
+        this.realtime.stream('guild.ThreadUpdated').subscribe(e => {
             const held = this.fetched()[e.channelId];
             if (!held) return;
             // Full current state, not a patch: each present field replaces.

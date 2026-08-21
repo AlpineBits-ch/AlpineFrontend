@@ -2,7 +2,7 @@ import {DestroyRef, inject, Injectable, Injector, signal} from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {merge, Observable, tap} from 'rxjs';
 import {PersonaApi} from './persona-api.service';
-import {GuildWebsocketService, WsPersonaChanged} from './guild-websocket.service';
+import {WsPersonaChanged} from '../dtos/response/persona-events.dto';
 import {
     AutoproxyMode,
     ChannelAutoproxyDto,
@@ -20,6 +20,7 @@ import {
 } from '../dtos/request/persona.dto';
 import {UpdateWikiPageDto} from '../dtos/request/wiki.dto';
 import {WikiCategoryDto, WikiPageDto} from '../dtos/response/wiki.dto';
+import {RealtimeConnectionService} from './realtime-connection.service';
 import {
     canSpeakAs,
     identityFromCastMember,
@@ -85,111 +86,142 @@ export class PersonaService {
     private wire(): void {
         if (this.wired) return;
         this.wired = true;
-        const ws = this.injector.get(GuildWebsocketService);
+        const realtime = this.injector.get(RealtimeConnectionService);
 
-        ws.personaProfileChangedObservable.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(event => {
-            this.patchProfile(event.guildId, event.personaId, {
-                approvalState: event.approvalState,
-            });
-
-            // The event's `canSpeak` is the profile's own state, broadcast to the whole guild,
-            // so it can only be trusted to close: a true says nothing about this reader's grants.
-            if (!event.canSpeak) {
-                this.patchProfile(event.guildId, event.personaId, {canSpeak: false});
-            } else if (this.entry(event.guildId, event.personaId)) {
-                this.ensureCast(event.guildId, true);
-            }
-        });
-
-        ws.personaCreatedObservable.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(event => {
-            if (this.knows(event.personaId)) {
-                this.patchPersona(event.personaId, personaPatch(event));
-                return;
-            }
-            // A guild-owned character reaches the cast through `guild.PersonaAdopted`, which follows.
-            if (event.scope === PersonaScope.User) this.ensureOwn(true);
-        });
-
-        ws.personaUpdatedObservable.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(event => {
-            this.patchPersona(event.personaId, personaPatch(event));
-            this.refreshGuildCast(event.guildId);
-        });
-
-        ws.personaDeletedObservable.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(event => {
-            if (event.retired) this.patchPersona(event.personaId, {isRetired: true});
-            else this.forget(event.personaId);
-            this.refreshGuildCast(event.guildId);
-        });
-
-        ws.personaAdoptedObservable.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(event => {
-            // No entry can be built from this: it carries the display data, not the character.
-            if (this.entry(event.guildId, event.personaId)) {
+        realtime
+            .stream('guild.PersonaProfileChanged')
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe(event => {
                 this.patchProfile(event.guildId, event.personaId, {
                     approvalState: event.approvalState,
-                    tag: event.tag ?? null,
-                    wikiPageId: event.wikiPageId ?? null,
                 });
-            } else if (this.requestedGuilds.has(event.guildId)) {
-                this.ensureCast(event.guildId, true);
-            }
-            this.refreshGuildCast(event.guildId);
-        });
 
-        ws.personaUnadoptedObservable.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(event => {
-            this.dropEntry(event.guildId, event.personaId);
-            this.refreshGuildCast(event.guildId);
-        });
-
-        ws.personaReviewRequestedObservable.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(event => {
-            // Players get this event too, and the queue route is theirs to be refused.
-            if (this.requestedPending.has(event.guildId)) this.ensurePending(event.guildId, true);
-        });
-
-        ws.personaReviewCompletedObservable.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(event => {
-            this.patchProfile(event.guildId, event.personaId, {
-                approvalState: event.approvalState,
-                changesRequestedReason: event.approved ? null : (event.reason ?? null),
-                approvedByUserId: event.approved ? event.reviewedByUserId : null,
-                approvedAt: event.approved ? (event.reviewedAt ?? null) : null,
+                // The event's `canSpeak` is the profile's own state, broadcast to the whole guild,
+                // so it can only be trusted to close: a true says nothing about this reader's grants.
+                if (!event.canSpeak) {
+                    this.patchProfile(event.guildId, event.personaId, {canSpeak: false});
+                } else if (this.entry(event.guildId, event.personaId)) {
+                    this.ensureCast(event.guildId, true);
+                }
             });
-            // `canSpeak` is left to the guild-wide `PersonaProfileChanged` that goes out with this.
-            this.pendingByGuild.update(map => ({
-                ...map,
-                [event.guildId]: (map[event.guildId] ?? []).filter(e => e.persona.id !== event.personaId),
-            }));
-        });
 
-        merge(ws.personaGrantCreatedObservable, ws.personaGrantDeletedObservable)
+        realtime
+            .stream('guild.PersonaCreated')
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe(event => {
+                if (this.knows(event.personaId)) {
+                    this.patchPersona(event.personaId, personaPatch(event));
+                    return;
+                }
+                // A guild-owned character reaches the cast through `guild.PersonaAdopted`, which follows.
+                if (event.scope === PersonaScope.User) this.ensureOwn(true);
+            });
+
+        realtime
+            .stream('guild.PersonaUpdated')
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe(event => {
+                this.patchPersona(event.personaId, personaPatch(event));
+                this.refreshGuildCast(event.guildId);
+            });
+
+        realtime
+            .stream('guild.PersonaDeleted')
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe(event => {
+                if (event.retired) this.patchPersona(event.personaId, {isRetired: true});
+                else this.forget(event.personaId);
+                this.refreshGuildCast(event.guildId);
+            });
+
+        realtime
+            .stream('guild.PersonaAdopted')
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe(event => {
+                // No entry can be built from this: it carries the display data, not the character.
+                if (this.entry(event.guildId, event.personaId)) {
+                    this.patchProfile(event.guildId, event.personaId, {
+                        approvalState: event.approvalState,
+                        tag: event.tag ?? null,
+                        wikiPageId: event.wikiPageId ?? null,
+                    });
+                } else if (this.requestedGuilds.has(event.guildId)) {
+                    this.ensureCast(event.guildId, true);
+                }
+                this.refreshGuildCast(event.guildId);
+            });
+
+        realtime
+            .stream('guild.PersonaUnadopted')
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe(event => {
+                this.dropEntry(event.guildId, event.personaId);
+                this.refreshGuildCast(event.guildId);
+            });
+
+        realtime
+            .stream('guild.PersonaReviewRequested')
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe(event => {
+                // Players get this event too, and the queue route is theirs to be refused.
+                if (this.requestedPending.has(event.guildId)) this.ensurePending(event.guildId, true);
+            });
+
+        realtime
+            .stream('guild.PersonaReviewCompleted')
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe(event => {
+                this.patchProfile(event.guildId, event.personaId, {
+                    approvalState: event.approvalState,
+                    changesRequestedReason: event.approved ? null : (event.reason ?? null),
+                    approvedByUserId: event.approved ? event.reviewedByUserId : null,
+                    approvedAt: event.approved ? (event.reviewedAt ?? null) : null,
+                });
+                // `canSpeak` is left to the guild-wide `PersonaProfileChanged` that goes out with this.
+                this.pendingByGuild.update(map => ({
+                    ...map,
+                    [event.guildId]: (map[event.guildId] ?? []).filter(e => e.persona.id !== event.personaId),
+                }));
+            });
+
+        merge(realtime.stream('guild.PersonaGrantCreated'), realtime.stream('guild.PersonaGrantDeleted'))
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe(event => {
                 // A grant decides `canSpeak`, which is resolved per reader. Only a re-read answers it.
                 if (this.requestedGuilds.has(event.guildId)) this.ensureCast(event.guildId, true);
             });
 
-        ws.personaPageCreatedObservable
+        realtime
+            .stream('guild.PersonaPageCreated')
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe(event =>
                 this.patchProfile(event.guildId, event.personaId, {wikiPageId: event.pageId}),
             );
 
-        ws.personaPagePulledObservable.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(event => {
-            this.patchProfile(event.guildId, event.personaId, {
-                upstreamState: event.upstreamState,
-                upstreamRevisionNumber: event.upstreamRevisionNumber ?? null,
+        realtime
+            .stream('guild.PersonaPagePulled')
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe(event => {
+                this.patchProfile(event.guildId, event.personaId, {
+                    upstreamState: event.upstreamState,
+                    upstreamRevisionNumber: event.upstreamRevisionNumber ?? null,
+                });
+                this.pageVersions.update(map => ({...map, [event.pageId]: (map[event.pageId] ?? 0) + 1}));
             });
-            this.pageVersions.update(map => ({...map, [event.pageId]: (map[event.pageId] ?? 0) + 1}));
-        });
 
-        ws.autoproxyChangedObservable.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(event => {
-            this.autoproxyByChannel.update(map => ({
-                ...map,
-                [event.channelId]: {
-                    channelId: event.channelId,
-                    mode: event.mode,
-                    personaId: event.personaId ?? null,
-                },
-            }));
-        });
+        realtime
+            .stream('guild.AutoproxyChanged')
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe(event => {
+                this.autoproxyByChannel.update(map => ({
+                    ...map,
+                    [event.channelId]: {
+                        channelId: event.channelId,
+                        mode: event.mode,
+                        personaId: event.personaId ?? null,
+                    },
+                }));
+            });
     }
 
     // ── Reads ───────────────────────────────────────────────────────────────

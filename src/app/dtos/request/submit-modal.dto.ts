@@ -1,4 +1,4 @@
-import {BotComponentPayload} from '../../services/guild-websocket.service';
+import {BotComponentPayload} from '../bot-component.dto';
 
 /**
  * The answer to a `guild.ModalOpen`, as

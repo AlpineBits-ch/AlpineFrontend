@@ -7,6 +7,8 @@ import {MlsSyncService} from '../services/mls-sync.service';
 import {MlsHealthService} from '../services/mls-health.service';
 import {MessageUpdatedEvent, MessagingWebsocketService} from '../services/messaging-websocket.service';
 import {GuildWebsocketService} from '../services/guild-websocket.service';
+import {RealtimeConnectionService} from '../services/realtime-connection.service';
+import {FakeRealtimeConnection} from '../testing/fake-realtime-connection';
 import {ProfileService} from '../services/profile.service';
 import {MessageCacheService} from '../services/cache/message-cache.service';
 import {MessageEncryptionState} from '../enums/message-encryption-state.enum';
@@ -91,12 +93,8 @@ function setup() {
 
     // Handed back so a test can push a channel edit or bulk delete through the real socket wiring.
     const guildMessageUpdated = new Subject<MessageUpdatedEvent>();
-    const guildMessagesBulkDeleted = new Subject<{
-        guildId: string;
-        channelId: string;
-        messageIds: string[];
-        actorUserId: string;
-    }>();
+
+    const realtime = new FakeRealtimeConnection();
 
     TestBed.configureTestingModule({
         providers: [
@@ -123,16 +121,11 @@ function setup() {
                 provide: GuildWebsocketService,
                 useValue: {
                     messageObservable: new Subject(),
-                    reactionAddedObservable: new Subject(),
-                    reactionRemovedObservable: new Subject(),
-                    messagePinnedObservable: new Subject(),
-                    messageUnpinnedObservable: new Subject(),
                     messageUpdatedObservable: guildMessageUpdated,
-                    messageDeletedObservable: new Subject(),
-                    messagesBulkDeletedObservable: guildMessagesBulkDeleted,
                     ephemeralMessageObservable: new Subject(),
                 },
             },
+            {provide: RealtimeConnectionService, useValue: realtime},
             {provide: ProfileService, useValue: {ownProfile: () => ({userId: 'user-1'})}},
         ],
     });
@@ -143,7 +136,7 @@ function setup() {
         sync,
         messaging,
         guildMessageUpdated,
-        guildMessagesBulkDeleted,
+        realtime,
         health: TestBed.inject(MlsHealthService),
     };
 }
@@ -250,12 +243,12 @@ describe('MessageStore.applyRemoteUpdate', () => {
     });
 
     it('removes every id in a bulk delete, in one update', () => {
-        const {store, guildMessagesBulkDeleted} = setup();
+        const {store, realtime} = setup();
         store.addMessage(encryptedMessage({id: 'msg-1'}));
         store.addMessage(encryptedMessage({id: 'msg-2'}));
         store.addMessage(encryptedMessage({id: 'msg-3'}));
 
-        guildMessagesBulkDeleted.next({
+        realtime.emit('guild.MessagesBulkDeleted', {
             guildId: 'guil-1',
             channelId: 'chan-1',
             messageIds: ['msg-1', 'msg-3'],

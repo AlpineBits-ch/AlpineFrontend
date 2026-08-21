@@ -62,7 +62,6 @@ import {ProfileService} from '../../../../../services/profile.service';
 import {TranslateModule} from '@ngx-translate/core';
 import {userNameStyle} from '../../../../../models/profile-font.model';
 import {BotCommandService} from '../../../../../services/bot-command.service';
-import {GuildWebsocketService} from '../../../../../services/guild-websocket.service';
 import {BotCommandDialogService} from '../../../../../features/bot-command/bot-command-dialog.service';
 import {readableContent, UNDECRYPTABLE_SHORT} from '../../../../../helpers/message-content.helper';
 import {WikiService} from '../../../../../services/wiki.service';
@@ -83,6 +82,7 @@ import {parseDiceExpression} from '../../../../guild/dice/dice-notation';
 import {RelativeTimePipe} from '../../../../../pipes/relative-time.pipe';
 import {FileService} from '../../../../../services/file.service';
 import {inlineAttachmentIds, inlineAttachmentPattern} from '../../../inline-attachment';
+import {RealtimeConnectionService} from '../../../../../services/realtime-connection.service';
 
 const TWEMOJI_BASE = 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/';
 
@@ -303,7 +303,7 @@ export class ComposerComponent {
     // ── Bot slash commands (per-guild, fetched once per guild transition) ────────
     private readonly botCommandService = inject(BotCommandService);
     private readonly botCommandDialogService = inject(BotCommandDialogService);
-    private readonly guildWsService = inject(GuildWebsocketService);
+    private readonly realtime = inject(RealtimeConnectionService);
     private readonly messageStore = inject(MessageStore);
     private readonly destroyRef = inject(DestroyRef);
     private readonly socialGate = inject(SocialKeyGateService);
@@ -423,10 +423,14 @@ export class ComposerComponent {
                 });
         });
 
-        this.guildWsService.botInstalledObservable.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(e => {
-            if (e.guildId === this.guildId()) this.refetchBotCommands();
-        });
-        this.guildWsService.botUninstalledObservable
+        this.realtime
+            .stream('guild.BotInstalled')
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe(e => {
+                if (e.guildId === this.guildId()) this.refetchBotCommands();
+            });
+        this.realtime
+            .stream('guild.BotUninstalled')
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe(e => {
                 if (e.guildId === this.guildId()) this.refetchBotCommands();

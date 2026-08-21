@@ -11,7 +11,8 @@ import {TranslateService} from '@ngx-translate/core';
 import {of, Subject} from 'rxjs';
 import {VoiceChannelService} from './voice-channel.service';
 import {GuildWebsocketService} from './guild-websocket.service';
-import {ConnectionState} from './realtime-connection.service';
+import {FakeRealtimeConnection} from '../testing/fake-realtime-connection';
+import {ConnectionState, RealtimeConnectionService} from './realtime-connection.service';
 import {GuildVoiceService} from './guild-voice.service';
 import {VoiceRTCService} from './voice-rtc.service';
 import {ProfileService} from './profile.service';
@@ -60,24 +61,7 @@ function streamer(
 }
 
 function setup() {
-    const ws: Record<string, Subject<unknown>> = {};
-    for (const name of [
-        'userJoinedVoiceObservable',
-        'userLeftVoiceObservable',
-        'guildParticipantJoinedObservable',
-        'guildTrackPublishedObservable',
-        'guildTrackClosedObservable',
-        'voiceMuteChangedObservable',
-        'voiceDeafenChangedObservable',
-        'voiceCameraChangedObservable',
-        'voiceScreenShareStartedObservable',
-        'voiceScreenShareStoppedObservable',
-        'movedToChannelObservable',
-        'kickedByOtherDeviceObservable',
-        'voiceSnapshotObservable',
-        'voiceResyncObservable',
-    ])
-        ws[name] = new Subject();
+    const ws = new FakeRealtimeConnection();
 
     const wsCalls: Record<string, ReturnType<typeof vi.fn>> = {};
     for (const name of [
@@ -130,8 +114,9 @@ function setup() {
         providers: [
             {
                 provide: GuildWebsocketService,
-                useValue: {...ws, ...wsCalls, connectionState: signal(ConnectionState.Connected)},
+                useValue: {...wsCalls, connectionState: signal(ConnectionState.Connected)},
             },
+            {provide: RealtimeConnectionService, useValue: ws},
             {provide: GuildVoiceService, useValue: guildVoice},
             {provide: VoiceRTCService, useValue: rtc},
             {
@@ -201,7 +186,7 @@ describe('which session a screen share is pulled from', () => {
     it('pulls a share from the session the snapshot says it is published on', async () => {
         const {ws, rtc} = setup();
 
-        ws['voiceSnapshotObservable'].next({
+        ws.emit('guild.voice.Snapshot', {
             ...emptySnapshot('chan-1'),
             participants: [
                 streamer([
@@ -237,7 +222,7 @@ describe('which session a screen share is pulled from', () => {
     it("never pulls a share from the publisher's microphone session", async () => {
         const {ws, rtc} = setup();
 
-        ws['voiceSnapshotObservable'].next({
+        ws.emit('guild.voice.Snapshot', {
             ...emptySnapshot('chan-1'),
             participants: [
                 streamer([
@@ -259,7 +244,7 @@ describe('which session a screen share is pulled from', () => {
         const {ws, rtc} = setup();
 
         // Announced live, carrying the session the publish actually happened on.
-        ws['guildTrackPublishedObservable'].next({
+        ws.emit('guild.voice.TrackPublished', {
             channelId: 'chan-1',
             userId: 'them',
             mediaSessionId: SHARE_SESSION,
@@ -267,7 +252,7 @@ describe('which session a screen share is pulled from', () => {
             kind: 'screen',
             shareId: 'abc',
         });
-        ws['guildTrackPublishedObservable'].next({
+        ws.emit('guild.voice.TrackPublished', {
             channelId: 'chan-1',
             userId: 'them',
             mediaSessionId: SHARE_SESSION,
@@ -277,7 +262,7 @@ describe('which session a screen share is pulled from', () => {
         });
         await tick();
 
-        ws['voiceSnapshotObservable'].next({
+        ws.emit('guild.voice.Snapshot', {
             ...emptySnapshot('chan-1'),
             participants: [
                 streamer([

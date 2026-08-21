@@ -1,14 +1,12 @@
 import {TestBed} from '@angular/core/testing';
-import {signal} from '@angular/core';
 import {HttpErrorResponse} from '@angular/common/http';
 import {provideTranslateService} from '@ngx-translate/core';
-import {Subject} from 'rxjs';
 import {of, throwError} from 'rxjs';
 import {vi} from 'vitest';
 import {refusalMessageKey, VoiceRingStateService} from './voice-ring-state.service';
 import {VoiceRingService} from './voice-ring.service';
-import {GuildWebsocketService} from './guild-websocket.service';
 import {ConnectionState, RealtimeConnectionService} from './realtime-connection.service';
+import {FakeRealtimeConnection} from '../testing/fake-realtime-connection';
 import {DeviceIdentityService} from './device-identity.service';
 import {GuildService} from './guild.service';
 import {ProfileService} from './profile.service';
@@ -21,8 +19,6 @@ import {
     VoiceRingRefusalReason,
     VoiceRingStatus,
     WsVoiceRing,
-    WsVoiceRingDismissed,
-    WsVoiceRingResolved,
 } from '../dtos/response/voice-ring.dto';
 
 const OWN_DEVICE = 'device_here';
@@ -78,12 +74,7 @@ interface SetupOptions {
 }
 
 function setup(options: SetupOptions = {}) {
-    const ws = {
-        voiceRingIncomingObservable: new Subject<WsVoiceRing>(),
-        voiceRingSentObservable: new Subject<WsVoiceRing>(),
-        voiceRingResolvedObservable: new Subject<WsVoiceRingResolved>(),
-        voiceRingDismissedObservable: new Subject<WsVoiceRingDismissed>(),
-    };
+    const ws = new FakeRealtimeConnection();
     const rings = {
         ring: options.ring ?? vi.fn(() => of(ringDto({expiresInSeconds: 60}))),
         pending: options.pending ?? vi.fn(() => of([] as VoiceRingDto[])),
@@ -93,14 +84,14 @@ function setup(options: SetupOptions = {}) {
     };
     const joinChannel = vi.fn();
     const toast = {info: vi.fn(), error: vi.fn(), success: vi.fn(), warn: vi.fn(), httpError: vi.fn()};
-    const connectionState = signal(ConnectionState.Disconnected);
+    const connectionState = ws.connectionState;
+    connectionState.set(ConnectionState.Disconnected);
 
     TestBed.configureTestingModule({
         providers: [
             provideTranslateService({defaultLanguage: 'en'}),
-            {provide: GuildWebsocketService, useValue: ws},
+            {provide: RealtimeConnectionService, useValue: ws},
             {provide: VoiceRingService, useValue: rings},
-            {provide: RealtimeConnectionService, useValue: {connectionState}},
             {provide: DeviceIdentityService, useValue: {deviceId: () => Promise.resolve(OWN_DEVICE)}},
             {provide: VoiceChannelService, useValue: {joinChannel, joinedChannelId: () => null}},
             {provide: GuildService, useValue: {getGuild: vi.fn(() => of(guildWithVoiceChannel()))}},
@@ -118,7 +109,7 @@ describe('VoiceRingStateService incoming', () => {
     it('stacks a ring that arrives over the hub', () => {
         const {service, ws} = setup();
 
-        ws.voiceRingIncomingObservable.next(ringEvent());
+        ws.emit('guild.VoiceRingIncoming', ringEvent());
 
         expect(service.hasIncoming()).toBe(true);
         expect(service.incoming()[0].secondsLeft).toBe(60);
@@ -127,8 +118,9 @@ describe('VoiceRingStateService incoming', () => {
     it('shows two different people at once, newest first', () => {
         const {service, ws} = setup();
 
-        ws.voiceRingIncomingObservable.next(ringEvent());
-        ws.voiceRingIncomingObservable.next(
+        ws.emit('guild.VoiceRingIncoming', ringEvent());
+        ws.emit(
+            'guild.VoiceRingIncoming',
             ringEvent({
                 ringId: 'ring_2',
                 inviterId: 'user_bo',
@@ -142,8 +134,8 @@ describe('VoiceRingStateService incoming', () => {
     it('never shows two cards from the same face - the newer supersedes the older', () => {
         const {service, ws} = setup();
 
-        ws.voiceRingIncomingObservable.next(ringEvent());
-        ws.voiceRingIncomingObservable.next(ringEvent({ringId: 'ring_2', channelId: 'chan_2'}));
+        ws.emit('guild.VoiceRingIncoming', ringEvent());
+        ws.emit('guild.VoiceRingIncoming', ringEvent({ringId: 'ring_2', channelId: 'chan_2'}));
 
         expect(service.incoming().map(i => i.ring.ringId)).toEqual(['ring_2']);
     });
@@ -152,7 +144,7 @@ describe('VoiceRingStateService incoming', () => {
         // A push that outlived the invitation: drawing it would draw one nobody can accept.
         const {service, ws} = setup();
 
-        ws.voiceRingIncomingObservable.next(ringEvent({expiresInSeconds: 0}));
+        ws.emit('guild.VoiceRingIncoming', ringEvent({expiresInSeconds: 0}));
 
         expect(service.hasIncoming()).toBe(false);
     });
@@ -183,9 +175,9 @@ describe('VoiceRingStateService resolution', () => {
         [VoiceRingStatus.Expired, VoiceRingReason.TimedOut],
     ] as const)('takes the card down on %s / %s', (status, reason) => {
         const {service, ws} = setup();
-        ws.voiceRingIncomingObservable.next(ringEvent());
+        ws.emit('guild.VoiceRingIncoming', ringEvent());
 
-        ws.voiceRingResolvedObservable.next({
+        ws.emit('guild.VoiceRingResolved', {
             ringId: 'ring_1',
             guildId: 'g1',
             channelId: 'chan_1',
@@ -202,9 +194,9 @@ describe('VoiceRingStateService resolution', () => {
 
     it('survives a status it has never heard of', () => {
         const {service, ws} = setup();
-        ws.voiceRingIncomingObservable.next(ringEvent());
+        ws.emit('guild.VoiceRingIncoming', ringEvent());
 
-        ws.voiceRingResolvedObservable.next({
+        ws.emit('guild.VoiceRingResolved', {
             ringId: 'ring_1',
             guildId: 'g1',
             channelId: 'chan_1',
@@ -226,7 +218,7 @@ describe('VoiceRingStateService resolution', () => {
         await Promise.resolve();
 
         // Resolved by us: re-announcing would tell somebody they declined a second after they did.
-        ws.voiceRingResolvedObservable.next({
+        ws.emit('guild.VoiceRingResolved', {
             ringId: 'ring_1',
             guildId: 'g1',
             channelId: 'chan_1',
@@ -244,10 +236,10 @@ describe('VoiceRingStateService resolution', () => {
 
     it('takes the card down on a dismissal addressed to this device alone', () => {
         const {service, ws} = setup();
-        ws.voiceRingIncomingObservable.next(ringEvent());
+        ws.emit('guild.VoiceRingIncoming', ringEvent());
 
         // The ordinary multi-device outcome: the phone answered a second before the laptop.
-        ws.voiceRingDismissedObservable.next({
+        ws.emit('guild.VoiceRingDismissed', {
             ringId: 'ring_1',
             deviceId: OWN_DEVICE,
             status: VoiceRingStatus.Accepted,
@@ -263,7 +255,7 @@ describe('VoiceRingStateService accept', () => {
 
     it('accepts and then joins - two calls, in that order, and no second join path', () => {
         const {service, ws, rings, joinChannel} = setup();
-        ws.voiceRingIncomingObservable.next(ringEvent());
+        ws.emit('guild.VoiceRingIncoming', ringEvent());
 
         service.accept('ring_1');
 
@@ -276,7 +268,7 @@ describe('VoiceRingStateService accept', () => {
     it('treats a 409 on accept as the normal multi-device outcome, not an error', () => {
         const accept = vi.fn(() => throwError(() => new HttpErrorResponse({status: 409})));
         const {service, ws, toast, joinChannel} = setup({accept});
-        ws.voiceRingIncomingObservable.next(ringEvent());
+        ws.emit('guild.VoiceRingIncoming', ringEvent());
 
         service.accept('ring_1');
 
@@ -289,7 +281,7 @@ describe('VoiceRingStateService accept', () => {
             throwError(() => new HttpErrorResponse({status: 410, error: {reason: 'ChannelGone'}})),
         );
         const {service, ws, toast, joinChannel} = setup({accept});
-        ws.voiceRingIncomingObservable.next(ringEvent());
+        ws.emit('guild.VoiceRingIncoming', ringEvent());
 
         service.accept('ring_1');
 
@@ -299,7 +291,7 @@ describe('VoiceRingStateService accept', () => {
 
     it('declining takes the card down and tells the server, which is what locks the inviter out', () => {
         const {service, ws, rings} = setup();
-        ws.voiceRingIncomingObservable.next(ringEvent());
+        ws.emit('guild.VoiceRingIncoming', ringEvent());
 
         service.decline('ring_1');
 
@@ -309,7 +301,7 @@ describe('VoiceRingStateService accept', () => {
 
     it("dropping a card is not declining it, and carries none of a decline's weight", () => {
         const {service, ws, rings} = setup();
-        ws.voiceRingIncomingObservable.next(ringEvent());
+        ws.emit('guild.VoiceRingIncoming', ringEvent());
 
         service.dropIncoming('ring_1');
 
@@ -333,7 +325,7 @@ describe('VoiceRingStateService sending', () => {
     it('mirrors a ring sent from another window without re-sending it', () => {
         const {service, ws, rings} = setup();
 
-        ws.voiceRingSentObservable.next(ringEvent({targetUserId: 'user_bo'}));
+        ws.emit('guild.VoiceRingSent', ringEvent({targetUserId: 'user_bo'}));
 
         expect(service.outgoingFor('g1', 'chan_1')?.targetUserId).toBe('user_bo');
         expect(rings.ring).not.toHaveBeenCalled();

@@ -39,7 +39,6 @@ import {guildAbilities} from '../../guild-permissions';
 import {GuildFeature, guildHasFeature} from '../../guild-features';
 import {ToastService} from '../../../../services/toast.service';
 import {
-    GuildWebsocketService,
     WsMemberBanned,
     WsMemberJoined,
     WsMemberKicked,
@@ -49,7 +48,7 @@ import {
     WsMemberUnmuted,
     WsMemberUpdated,
     WsPresenceChanged,
-} from '../../../../services/guild-websocket.service';
+} from '../../../../dtos/response/guild-member-events.dto';
 import {UserStatusDotComponent} from '../../../../components/user-status-dot/user-status-dot.component';
 import {UserNameStyleDirective} from '../../../../directives/user-name-style.directive';
 import {UserNameStyleInput} from '../../../../models/profile-font.model';
@@ -67,6 +66,7 @@ import {CallFocusService} from '../../../../services/call-focus.service';
 import {scopeKey} from '../../../../services/share-watch.service';
 import {NavigationService} from '../../../main-page/navigation.service';
 import {CallLiveBadgeComponent} from '../../../../shared/call/call-live-badge/call-live-badge.component';
+import {RealtimeConnectionService} from '../../../../services/realtime-connection.service';
 
 /** Durations the timeout submenu offers, in minutes. */
 const TIMEOUT_CHOICES: readonly {minutes: number; key: string}[] = [
@@ -134,7 +134,7 @@ export class GuildMemberListComponent implements OnChanges {
     protected readonly contextMember = signal<GuildMemberDto | null>(null);
     private readonly ownMember = signal<SelfGuildMemberDto | null>(null);
     private guildService = inject(GuildService);
-    private guildWsService = inject(GuildWebsocketService);
+    private realtime = inject(RealtimeConnectionService);
     private botInstallDialogService = inject(BotInstallDialogService);
     private toastService = inject(ToastService);
     private brokenImages = inject(BrokenImageService);
@@ -152,26 +152,33 @@ export class GuildMemberListComponent implements OnChanges {
     private nextSkip = 0;
 
     constructor() {
-        this.guildWsService.memberBannedObservable
+        this.realtime
+            .stream('guild.MemberBanned')
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe((e: WsMemberBanned) => this.removeIfCurrentGuild(e.guildId, e.userId));
-        this.guildWsService.memberKickedObservable
+        this.realtime
+            .stream('guild.MemberKicked')
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe((e: WsMemberKicked) => this.removeIfCurrentGuild(e.guildId, e.userId));
-        this.guildWsService.memberLeftObservable
+        this.realtime
+            .stream('guild.MemberLeft')
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe((e: WsMemberLeft) => this.removeIfCurrentGuild(e.guildId, e.userId));
         // A household's only removal event: there is no kick to fire guild.MemberKicked instead.
-        this.guildWsService.memberMovedOutObservable
+        this.realtime
+            .stream('guild.MemberMovedOut')
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe((e: WsMemberMovedOut) => this.removeIfCurrentGuild(e.guildId, e.userId));
-        this.guildWsService.memberMutedObservable
+        this.realtime
+            .stream('guild.MemberMuted')
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe((e: WsMemberMuted) => this.notifyOwnMuteState(e.guildId, e.userId, e.mutedUntil));
-        this.guildWsService.memberUnmutedObservable
+        this.realtime
+            .stream('guild.MemberUnmuted')
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe((e: WsMemberUnmuted) => this.notifyOwnMuteState(e.guildId, e.userId, null));
-        this.guildWsService.presenceChangedObservable
+        this.realtime
+            .stream('guild.PresenceChanged')
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe((e: WsPresenceChanged) => {
                 if (e.guildId !== this.guild().id) return;
@@ -179,7 +186,8 @@ export class GuildMemberListComponent implements OnChanges {
                     list.map(m => (m.userId === e.userId ? {...m, status: e.status} : m)),
                 );
             });
-        this.guildWsService.memberJoinedObservable
+        this.realtime
+            .stream('guild.MemberJoined')
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe((e: WsMemberJoined) => {
                 if (e.guildId !== this.guild().id) return;
@@ -188,7 +196,8 @@ export class GuildMemberListComponent implements OnChanges {
                 this.fetchPage(this.guild().id);
             });
         // Payload carries neither new roles nor the member row, so the page is re-read rather than patched; scoped to a member already on screen (or ourselves) so a rename in a 5000-member guild doesn't refetch a list nobody is looking at.
-        this.guildWsService.memberUpdatedObservable
+        this.realtime
+            .stream('guild.MemberUpdated')
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe((e: WsMemberUpdated) => {
                 if (e.guildId !== this.guild().id) return;

@@ -14,7 +14,6 @@ import {
 import {ConnectionState, RealtimeConnectionService} from './realtime-connection.service';
 import {DeviceIdentityService} from './device-identity.service';
 import {GuildService} from './guild.service';
-import {GuildWebsocketService} from './guild-websocket.service';
 import {ProfileService} from './profile.service';
 import {ToastService} from './toast.service';
 import {VoiceChannelService} from './voice-channel.service';
@@ -78,7 +77,6 @@ export class VoiceRingStateService implements OnDestroy {
     readonly hasIncoming = computed(() => this.incoming().length > 0);
 
     private readonly rings = inject(VoiceRingService);
-    private readonly ws = inject(GuildWebsocketService);
     private readonly realtime = inject(RealtimeConnectionService);
     private readonly deviceIdentity = inject(DeviceIdentityService);
     private readonly voiceChannels = inject(VoiceChannelService);
@@ -98,10 +96,10 @@ export class VoiceRingStateService implements OnDestroy {
             .then(id => (this.ownDeviceId = id))
             .catch(() => undefined);
 
-        this.ws.voiceRingIncomingObservable.subscribe(ring => this.addIncoming(ring));
-        this.ws.voiceRingSentObservable.subscribe(ring => this.trackOutgoing(ring));
+        this.realtime.stream('guild.VoiceRingIncoming').subscribe(ring => this.addIncoming(ring));
+        this.realtime.stream('guild.VoiceRingSent').subscribe(ring => this.trackOutgoing(ring));
 
-        this.ws.voiceRingResolvedObservable.subscribe(event => {
+        this.realtime.stream('guild.VoiceRingResolved').subscribe(event => {
             this.dropIncoming(event.ringId);
             this.dropOutgoing(event.ringId);
 
@@ -113,7 +111,7 @@ export class VoiceRingStateService implements OnDestroy {
 
         // Addressed to one device, and never an error: it is the ordinary outcome of answering on
         // the laptop a second after the phone. The ring itself is untouched.
-        this.ws.voiceRingDismissedObservable.subscribe(event => this.dropIncoming(event.ringId));
+        this.realtime.stream('guild.VoiceRingDismissed').subscribe(event => this.dropIncoming(event.ringId));
 
         // The realtime event is never replayed, so a reconnect is exactly the gap this read fills.
         effect(() => {

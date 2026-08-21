@@ -5,8 +5,8 @@ import {
     mapGuildMessageCreatedPayload,
     mapGuildMessageUpdatedPayload,
     normalizeWireContent,
-    toChannelJoinRequestEvent,
-} from './guild-websocket.service';
+} from '../dtos/response/guild-message-events.dto';
+import {toChannelJoinRequestEvent} from '../dtos/response/guild-channel-events.dto';
 import {MessageType} from '../enums/message-type.enum';
 import {MessageEncryptionState} from '../enums/message-encryption-state.enum';
 import {fromBase64} from '../helpers/base64.helper';

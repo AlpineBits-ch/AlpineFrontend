@@ -6,9 +6,9 @@ import {InputText} from 'primeng/inputtext';
 import {Dialog} from 'primeng/dialog';
 import {ChannelDto} from '../../../../../dtos/response/guild.dto';
 import {GuildService} from '../../../../../services/guild.service';
-import {GuildWebsocketService} from '../../../../../services/guild-websocket.service';
 import {ToastService} from '../../../../../services/toast.service';
 import {PrimeTemplate} from 'primeng/api';
+import {RealtimeConnectionService} from '../../../../../services/realtime-connection.service';
 
 @Component({
     selector: 'app-thread-panel',
@@ -25,7 +25,7 @@ export class ThreadPanelComponent implements OnInit {
     readonly creating = signal(false);
     readonly archivingId = signal<string | null>(null);
     private guildService = inject(GuildService);
-    private guildWsService = inject(GuildWebsocketService);
+    private realtime = inject(RealtimeConnectionService);
     private toastService = inject(ToastService);
     private destroyRef = inject(DestroyRef);
 
@@ -37,10 +37,13 @@ export class ThreadPanelComponent implements OnInit {
     }
 
     ngOnInit(): void {
-        this.guildWsService.threadCreatedObservable.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(e => {
-            if (e.parentChannelId !== this.parentChannelId()) return;
-            this.load();
-        });
+        this.realtime
+            .stream('guild.ThreadCreated')
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe(e => {
+                if (e.parentChannelId !== this.parentChannelId()) return;
+                this.load();
+            });
     }
 
     load(): void {

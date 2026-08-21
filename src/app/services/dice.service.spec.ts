@@ -1,17 +1,18 @@
 import {TestBed} from '@angular/core/testing';
-import {Subject} from 'rxjs';
 import {describe, expect, it} from 'vitest';
 
 import {DiceService} from './dice.service';
 import {RoleplayApi} from './roleplay-api.service';
-import {GuildWebsocketService} from './guild-websocket.service';
+import {RealtimeConnectionService} from './realtime-connection.service';
+import {FakeRealtimeConnection} from '../testing/fake-realtime-connection';
+import {DiceRolledDto} from '../dtos/response/dice.dto';
 
 function setup() {
-    const ws = {diceRolledObservable: new Subject<any>()};
+    const ws = new FakeRealtimeConnection();
     TestBed.configureTestingModule({
         providers: [
             {provide: RoleplayApi, useValue: {}},
-            {provide: GuildWebsocketService, useValue: ws},
+            {provide: RealtimeConnectionService, useValue: ws},
         ],
     });
     const service = TestBed.inject(DiceService);
@@ -20,7 +21,7 @@ function setup() {
     return {service, ws};
 }
 
-function rolled(over: Record<string, unknown> = {}) {
+function rolled(over: Partial<DiceRolledDto> = {}): DiceRolledDto {
     return {
         guildId: 'g1',
         channelId: 'c1',
@@ -30,7 +31,7 @@ function rolled(over: Record<string, unknown> = {}) {
         expression: '4d6kh3',
         total: 14,
         breakdown: '[5, 4, ~1, 5]',
-        visibility: 'Public',
+        visibility: 'Public' as const,
         createdAt: '2026-08-18T10:00:00Z',
         ...over,
     };
@@ -40,7 +41,7 @@ describe('DiceService roll history', () => {
     it('offers back what the table rolled, not only this window', () => {
         const {service, ws} = setup();
 
-        ws.diceRolledObservable.next(rolled());
+        ws.emit('guild.DiceRolled', rolled());
 
         expect(service.recent('c1')).toEqual(['4d6kh3']);
     });
@@ -48,7 +49,7 @@ describe('DiceService roll history', () => {
     it('keeps the history per channel', () => {
         const {service, ws} = setup();
 
-        ws.diceRolledObservable.next(rolled({channelId: 'c2', expression: '1d20'}));
+        ws.emit('guild.DiceRolled', rolled({channelId: 'c2', expression: '1d20'}));
 
         expect(service.recent('c1')).toEqual([]);
         expect(service.recent('c2')).toEqual(['1d20']);
@@ -57,9 +58,9 @@ describe('DiceService roll history', () => {
     it('moves a repeated expression back to the front rather than doubling it', () => {
         const {service, ws} = setup();
 
-        ws.diceRolledObservable.next(rolled({expression: '1d20'}));
-        ws.diceRolledObservable.next(rolled({expression: '2d6'}));
-        ws.diceRolledObservable.next(rolled({expression: '1d20'}));
+        ws.emit('guild.DiceRolled', rolled({expression: '1d20'}));
+        ws.emit('guild.DiceRolled', rolled({expression: '2d6'}));
+        ws.emit('guild.DiceRolled', rolled({expression: '1d20'}));
 
         expect(service.recent('c1')).toEqual(['1d20', '2d6']);
     });

@@ -24,6 +24,7 @@ import {
     ReactionEvent,
 } from '../services/messaging-websocket.service';
 import {GuildWebsocketService} from '../services/guild-websocket.service';
+import {RealtimeConnectionService} from '../services/realtime-connection.service';
 import {ProfileService} from '../services/profile.service';
 import {HttpErrorResponse} from '@angular/common/http';
 import {catchError, firstValueFrom, from, Observable, of, switchMap, tap} from 'rxjs';
@@ -970,6 +971,7 @@ export const MessageStore = signalStore(
         onInit(store) {
             const wsService = inject(MessagingWebsocketService);
             const guildWsService = inject(GuildWebsocketService);
+            const realtime = inject(RealtimeConnectionService);
             const profileService = inject(ProfileService);
             const mlsSync = inject(MlsSyncService);
 
@@ -993,14 +995,14 @@ export const MessageStore = signalStore(
             );
 
             // A guild message deleted by somebody else. Without this it stays on screen until reload.
-            guildWsService.messageDeletedObservable.subscribe(event =>
-                patchState(store, removeEntity(event.messageId)),
-            );
+            realtime
+                .stream('guild.MessageDeleted')
+                .subscribe(event => patchState(store, removeEntity(event.messageId)));
 
             // One patch, not one per id: `removeEntity` in a loop re-renders the list every time.
-            guildWsService.messagesBulkDeletedObservable.subscribe(event =>
-                patchState(store, removeEntities(event.messageIds)),
-            );
+            realtime
+                .stream('guild.MessagesBulkDeleted')
+                .subscribe(event => patchState(store, removeEntities(event.messageIds)));
 
             // Ephemeral bot replies, never counted into `channelMeta.offset`: it is a history cursor.
             guildWsService.ephemeralMessageObservable.subscribe(msg => patchState(store, upsertEntity(msg)));
@@ -1032,13 +1034,13 @@ export const MessageStore = signalStore(
 
             wsService.reactionAddedObservable.subscribe(event => store.applyReactionAdded(event));
             wsService.reactionRemovedObservable.subscribe(event => store.applyReactionRemoved(event));
-            guildWsService.reactionAddedObservable.subscribe(event => store.applyReactionAdded(event));
-            guildWsService.reactionRemovedObservable.subscribe(event => store.applyReactionRemoved(event));
+            realtime.stream('guild.ReactionCreated').subscribe(event => store.applyReactionAdded(event));
+            realtime.stream('guild.ReactionRemoved').subscribe(event => store.applyReactionRemoved(event));
 
             wsService.messagePinnedObservable.subscribe(event => store.applyPinned(event));
             wsService.messageUnpinnedObservable.subscribe(event => store.applyUnpinned(event));
-            guildWsService.messagePinnedObservable.subscribe(event => store.applyPinned(event));
-            guildWsService.messageUnpinnedObservable.subscribe(event => store.applyUnpinned(event));
+            realtime.stream('guild.MessagePinned').subscribe(event => store.applyPinned(event));
+            realtime.stream('guild.MessageUnpinned').subscribe(event => store.applyUnpinned(event));
         },
     }),
 );

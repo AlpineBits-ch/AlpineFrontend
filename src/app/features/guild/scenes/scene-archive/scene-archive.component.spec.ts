@@ -7,7 +7,6 @@ import {beforeAll, beforeEach, describe, expect, it, vi} from 'vitest';
 import {SceneArchiveComponent} from './scene-archive.component';
 import {RoleplayApi} from '../../../../services/roleplay-api.service';
 import {SceneArchiveService} from '../../../../services/scene-archive.service';
-import {GuildWebsocketService} from '../../../../services/guild-websocket.service';
 import {SceneTaxonomyService} from '../../../../services/scene-taxonomy.service';
 import {SceneService} from '../../../../services/scene.service';
 import {GuildService} from '../../../../services/guild.service';
@@ -15,6 +14,8 @@ import {ToastService} from '../../../../services/toast.service';
 import {MainView, NavigationService} from '../../../main-page/navigation.service';
 import {SceneDto, SceneFolderDto, SceneListDto, SceneStatus} from '../../../../dtos/response/scene.dto';
 import {SceneListParams} from '../../../../dtos/request/scene.dto';
+import {RealtimeConnectionService} from '../../../../services/realtime-connection.service';
+import {FakeRealtimeConnection} from '../../../../testing/fake-realtime-connection';
 
 // This runner's `localStorage` global has no methods, so anything reading it would silently see
 // nothing stored. Same Map-backed stand-in `scene-rail-state.service.spec.ts` uses.
@@ -64,14 +65,7 @@ function setup(folders: SceneFolderDto[]) {
             provideTranslateService(),
             {provide: RoleplayApi, useValue: api},
             // The archive service follows the scene events to keep its shelves honest.
-            {
-                provide: GuildWebsocketService,
-                useValue: {
-                    sceneCreatedObservable: new Subject<never>(),
-                    sceneUpdatedObservable: new Subject<never>(),
-                    sceneConcludedObservable: new Subject<never>(),
-                },
-            },
+            {provide: RealtimeConnectionService, useValue: new FakeRealtimeConnection()},
             {
                 provide: SceneTaxonomyService,
                 useValue: {

@@ -20,6 +20,8 @@ import {ApiConfigService} from '../../../../../services/api-config.service';
 import {MessageStore} from '../../../../../stores/message.store';
 import {MessagingService} from '../../../../../services/messaging.service';
 import {GuildWebsocketService} from '../../../../../services/guild-websocket.service';
+import {RealtimeConnectionService} from '../../../../../services/realtime-connection.service';
+import {FakeRealtimeConnection} from '../../../../../testing/fake-realtime-connection';
 import {GuildService} from '../../../../../services/guild.service';
 import {GuildReadStateService} from '../../../../../services/guild-read-state.service';
 import {MlsService} from '../../../../../services/mls.service';
@@ -210,9 +212,6 @@ export async function setup(
         }),
     };
     const guildWs = {
-        threadCreatedObservable: new Subject<unknown>(),
-        threadUpdatedObservable: new Subject<unknown>(),
-        messageThreadAttachedObservable: new Subject<unknown>(),
         updateLastReadMessageByChannel: vi.fn(async () => {}),
         invokeStartTyping: vi.fn(),
     };
@@ -235,6 +234,7 @@ export async function setup(
             {provide: MessageStore, useValue: store},
             {provide: MessagingService, useValue: messaging},
             {provide: GuildWebsocketService, useValue: guildWs},
+            {provide: RealtimeConnectionService, useValue: new FakeRealtimeConnection()},
             {provide: GuildReadStateService, useValue: readState},
             {provide: GuildService, useValue: {getOwnMember: () => of(null)}},
             {provide: NavigationService, useValue: nav},

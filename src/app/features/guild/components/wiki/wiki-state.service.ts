@@ -2,7 +2,6 @@ import {computed, inject, Injectable, Signal, signal} from '@angular/core';
 import {WikiDto, WikiPageDto, WikiPageSummaryDto} from '../../../../dtos/response/wiki.dto';
 import {WikiService} from '../../../../services/wiki.service';
 import {WikiView} from './wiki.types';
-import {GuildWebsocketService} from '../../../../services/guild-websocket.service';
 import {WikiContentCacheService} from './wiki-content-cache.service';
 import {WikiGraphSourceService} from './wiki-graph/wiki-graph-source.service';
 import {WikiDraftsService} from './wiki-drafts.service';
@@ -11,6 +10,7 @@ import {guildAbilities} from '../../guild-permissions';
 import {SelfGuildMemberDto} from '../../../../dtos/response/member.dto';
 import {GuildService} from '../../../../services/guild.service';
 import {ProfileService} from '../../../../services/profile.service';
+import {RealtimeConnectionService} from '../../../../services/realtime-connection.service';
 
 @Injectable({providedIn: 'root'})
 export class WikiStateService {
@@ -27,7 +27,7 @@ export class WikiStateService {
     /** True when the tree fetch failed. Without it an errored load is indistinguishable from an empty wiki. */
     readonly wikiLoadFailed = signal(false);
     private readonly wikiService = inject(WikiService);
-    private readonly ws = inject(GuildWebsocketService);
+    private readonly realtime = inject(RealtimeConnectionService);
     private readonly contentCache = inject(WikiContentCacheService);
     private readonly graphSource = inject(WikiGraphSourceService);
     private readonly drafts = inject(WikiDraftsService);
@@ -54,13 +54,13 @@ export class WikiStateService {
     private suppressNextPageRefresh = false;
 
     constructor() {
-        this.ws.wikiPageCreatedObservable.subscribe(e => {
+        this.realtime.stream('guild.WikiPageCreated').subscribe(e => {
             if (e.guildId !== this.guildId()) return;
             this.loadWiki(this.guildId());
             this.graphChanged();
         });
 
-        this.ws.wikiPageUpdatedObservable.subscribe(e => {
+        this.realtime.stream('guild.WikiPageUpdated').subscribe(e => {
             if (e.guildId !== this.guildId()) return;
             this.loadWiki(this.guildId());
             // A cache nothing invalidates goes stale, and stale bodies produce a backlink index pointing at links that are no longer there.
@@ -80,12 +80,12 @@ export class WikiStateService {
 
         // A character page is an ordinary wiki page, but neither its creation nor a pull into it
         // sends a wiki event: only these two say the tree and the body moved.
-        this.ws.personaPageCreatedObservable.subscribe(e => {
+        this.realtime.stream('guild.PersonaPageCreated').subscribe(e => {
             if (e.guildId !== this.guildId()) return;
             this.loadWiki(this.guildId());
         });
 
-        this.ws.personaPagePulledObservable.subscribe(e => {
+        this.realtime.stream('guild.PersonaPagePulled').subscribe(e => {
             if (e.guildId !== this.guildId()) return;
             this.loadWiki(this.guildId());
             this.contentCache.invalidate(e.pageId);
@@ -93,7 +93,7 @@ export class WikiStateService {
             this.rereadOpenPage(e.pageId);
         });
 
-        this.ws.wikiPageDeletedObservable.subscribe(e => {
+        this.realtime.stream('guild.WikiPageDeleted').subscribe(e => {
             if (e.guildId !== this.guildId()) return;
             this.contentCache.invalidate(e.pageId);
             this.graphChanged();
@@ -109,17 +109,17 @@ export class WikiStateService {
             this.loadWiki(this.guildId());
         });
 
-        this.ws.wikiCategoryCreatedObservable.subscribe(e => {
+        this.realtime.stream('guild.WikiCategoryCreated').subscribe(e => {
             if (e.guildId !== this.guildId()) return;
             this.loadWiki(this.guildId());
         });
 
-        this.ws.wikiCategoryUpdatedObservable.subscribe(e => {
+        this.realtime.stream('guild.WikiCategoryUpdated').subscribe(e => {
             if (e.guildId !== this.guildId()) return;
             this.loadWiki(this.guildId());
         });
 
-        this.ws.wikiCategoryDeletedObservable.subscribe(e => {
+        this.realtime.stream('guild.WikiCategoryDeleted').subscribe(e => {
             if (e.guildId !== this.guildId()) return;
             this.loadWiki(this.guildId());
         });

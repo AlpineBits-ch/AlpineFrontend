@@ -3,8 +3,8 @@ import {TranslateService} from '@ngx-translate/core';
 import {ForumPost, ForumSortOrder} from '../dtos/response/forum.dto';
 import {ForumService} from './forum.service';
 import {ForumStateService} from './forum-state.service';
-import {GuildWebsocketService} from './guild-websocket.service';
 import {ToastService} from './toast.service';
+import {RealtimeConnectionService} from './realtime-connection.service';
 
 const PAGE_SIZE = 25;
 
@@ -74,12 +74,12 @@ export class ForumPostListService {
 
     private forumService = inject(ForumService);
     private forumState = inject(ForumStateService);
-    private ws = inject(GuildWebsocketService);
+    private realtime = inject(RealtimeConnectionService);
     private toastService = inject(ToastService);
     private translate = inject(TranslateService);
 
     constructor() {
-        this.ws.threadCreatedObservable.subscribe(e => {
+        this.realtime.stream('guild.ThreadCreated').subscribe(e => {
             if (!this.stateByForum()[e.parentChannelId]) return;
             // State outlives the components reading it, so every forum opened this session
             // would otherwise refetch on every post created in it. Only the one on screen
@@ -94,12 +94,12 @@ export class ForumPostListService {
             this.reload(e.parentChannelId);
         });
 
-        this.ws.threadUpdatedObservable.subscribe(e =>
-            this.applyThreadUpdate(e.parentChannelId, e.channelId, e),
-        );
+        this.realtime
+            .stream('guild.ThreadUpdated')
+            .subscribe(e => this.applyThreadUpdate(e.parentChannelId, e.channelId, e));
 
         // A deleted tag isn't accompanied by per-post updates, so strip it locally.
-        this.ws.forumTagDeletedObservable.subscribe(e => {
+        this.realtime.stream('guild.ForumTagDeleted').subscribe(e => {
             const state = this.stateByForum()[e.channelId];
             if (!state) return;
             this.updateLoaded(e.channelId, s => ({

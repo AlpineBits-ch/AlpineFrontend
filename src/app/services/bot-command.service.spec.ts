@@ -6,6 +6,8 @@ import {Subject} from 'rxjs';
 import {BotCommandService} from './bot-command.service';
 import {ApiConfigService} from './api-config.service';
 import {GuildWebsocketService} from './guild-websocket.service';
+import {RealtimeConnectionService} from './realtime-connection.service';
+import {FakeRealtimeConnection} from '../testing/fake-realtime-connection';
 import {NavigationService} from '../features/main-page/navigation.service';
 
 const BASE = 'https://api.test.example/api/v1/bots';
@@ -16,14 +18,8 @@ function setup() {
             provideHttpClient(),
             provideHttpClientTesting(),
             {provide: ApiConfigService, useValue: {baseUrl: () => 'https://api.test.example'}},
-            {
-                provide: GuildWebsocketService,
-                useValue: {
-                    botInstalledObservable: new Subject(),
-                    botUninstalledObservable: new Subject(),
-                    messageObservable: new Subject(),
-                },
-            },
+            {provide: GuildWebsocketService, useValue: {messageObservable: new Subject()}},
+            {provide: RealtimeConnectionService, useValue: new FakeRealtimeConnection()},
             // A DM workspace so the roster effect has no guild to fetch commands for - this spec is
             // about the modal-submit call, and a stray discovery GET would fail `verify()`.
             {provide: NavigationService, useValue: {workspace: signal({type: 'dms'})}},

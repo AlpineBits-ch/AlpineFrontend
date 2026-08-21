@@ -2,7 +2,7 @@ import {DestroyRef, inject, Injectable, Injector, signal} from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {Observable, tap} from 'rxjs';
 import {RoleplayApi} from './roleplay-api.service';
-import {GuildWebsocketService} from './guild-websocket.service';
+import {RealtimeConnectionService} from './realtime-connection.service';
 import {DiceRollDto} from '../dtos/response/dice.dto';
 import {RollDiceDto} from '../dtos/request/dice.dto';
 
@@ -34,8 +34,9 @@ export class DiceService {
         if (this.wired) return;
         this.wired = true;
         this.injector
-            .get(GuildWebsocketService)
-            .diceRolledObservable.pipe(takeUntilDestroyed(this.destroyRef))
+            .get(RealtimeConnectionService)
+            .stream('guild.DiceRolled')
+            .pipe(takeUntilDestroyed(this.destroyRef))
             // The table's history, not this window's: an expression somebody else rolled here is
             // the one most worth offering back.
             .subscribe(event => this.remember(event.channelId, event.expression));

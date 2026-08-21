@@ -2,7 +2,8 @@ import {TestBed} from '@angular/core/testing';
 import {Observable, Subject} from 'rxjs';
 import {GuildEmojiStore} from './guild-emoji.store';
 import {GuildEmojiService} from '../services/guild-emoji.service';
-import {GuildWebsocketService, WsEmojiCreated, WsEmojiDeleted} from '../services/guild-websocket.service';
+import {RealtimeConnectionService} from '../services/realtime-connection.service';
+import {FakeRealtimeConnection} from '../testing/fake-realtime-connection';
 import {GuildEmojiDto} from '../dtos/response/guild-emoji.dto';
 
 function emoji(id: string, imageUrl = `https://cdn/${id}?sig=1`): GuildEmojiDto {
@@ -32,18 +33,13 @@ class FakeGuildEmojiService {
     }
 }
 
-class FakeGuildWebsocketService {
-    emojiCreatedObservable = new Subject<WsEmojiCreated>();
-    emojiDeletedObservable = new Subject<WsEmojiDeleted>();
-}
-
 function setup() {
     const api = new FakeGuildEmojiService();
-    const ws = new FakeGuildWebsocketService();
+    const ws = new FakeRealtimeConnection();
     TestBed.configureTestingModule({
         providers: [
             {provide: GuildEmojiService, useValue: api},
-            {provide: GuildWebsocketService, useValue: ws},
+            {provide: RealtimeConnectionService, useValue: ws},
         ],
     });
     return {api, ws, store: TestBed.inject(GuildEmojiStore)};
@@ -95,7 +91,7 @@ describe('GuildEmojiStore', () => {
         const {api, ws, store} = setup();
 
         store.ensureLoaded('g1');
-        ws.emojiCreatedObservable.next({guildId: 'g1', emojiId: 'e2', name: 'e2', animated: false});
+        ws.emit('guild.EmojiCreated', {guildId: 'g1', emojiId: 'e2', name: 'e2', animated: false});
 
         // The loading flag from the superseded fetch must not block the new one.
         expect(api.requestCount).toBe(2);
@@ -116,7 +112,7 @@ describe('GuildEmojiStore', () => {
         // Force a revalidation, then delete an emoji while it is in flight.
         store.invalidate('g1');
         store.ensureLoaded('g1');
-        ws.emojiDeletedObservable.next({guildId: 'g1', emojiId: 'e1'});
+        ws.emit('guild.EmojiDeleted', {guildId: 'g1', emojiId: 'e1'});
         expect(store.getEmojis('g1').map(e => e.id)).toEqual(['e2']);
 
         // A superseded request failing must not write anything back.

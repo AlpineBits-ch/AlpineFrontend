@@ -6,7 +6,6 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 
 import {SceneNavComponent} from './scene-nav.component';
 import {SceneService} from '../../../../../../services/scene.service';
-import {GuildWebsocketService} from '../../../../../../services/guild-websocket.service';
 import {SceneTaxonomyService} from '../../../../../../services/scene-taxonomy.service';
 import {GuildService} from '../../../../../../services/guild.service';
 import {ProfileService} from '../../../../../../services/profile.service';
@@ -22,6 +21,8 @@ import {installMemoryStorage} from '../../../../../../testing/memory-storage';
 import {RoleplayApi} from '../../../../../../services/roleplay-api.service';
 import {SceneRailStateService} from '../../../../../../services/scene-rail-state.service';
 import {SceneListParams} from '../../../../../../dtos/request/scene.dto';
+import {RealtimeConnectionService} from '../../../../../../services/realtime-connection.service';
+import {FakeRealtimeConnection} from '../../../../../../testing/fake-realtime-connection';
 
 function scene(over: Partial<SceneListItemDto> = {}): SceneListItemDto {
     return {channelId: 'ch_1', name: 'Scene', status: SceneStatus.Active, ...over};
@@ -94,14 +95,7 @@ function setup(options: Options = {}) {
             provideTranslateService(),
             {provide: RoleplayApi, useValue: api},
             // The archive service follows the scene events to keep its shelves honest.
-            {
-                provide: GuildWebsocketService,
-                useValue: {
-                    sceneCreatedObservable: new Subject<never>(),
-                    sceneUpdatedObservable: new Subject<never>(),
-                    sceneConcludedObservable: new Subject<never>(),
-                },
-            },
+            {provide: RealtimeConnectionService, useValue: new FakeRealtimeConnection()},
             {
                 provide: SceneService,
                 useValue: {

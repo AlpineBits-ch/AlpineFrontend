@@ -9,6 +9,8 @@ import {MlsSyncService} from '../services/mls-sync.service';
 import {MlsHealthService} from '../services/mls-health.service';
 import {MessagingWebsocketService} from '../services/messaging-websocket.service';
 import {GuildWebsocketService} from '../services/guild-websocket.service';
+import {RealtimeConnectionService} from '../services/realtime-connection.service';
+import {FakeRealtimeConnection} from '../testing/fake-realtime-connection';
 import {ProfileService} from '../services/profile.service';
 import {MessageCacheService, messageContextKey} from '../services/cache/message-cache.service';
 import {MessageEncryptionState} from '../enums/message-encryption-state.enum';
@@ -67,6 +69,8 @@ function setup() {
     const wsMessage$ = new Subject<MessageDto>();
     const guildMessage$ = new Subject<MessageDto>();
 
+    const realtime = new FakeRealtimeConnection();
+
     TestBed.configureTestingModule({
         providers: [
             {provide: MessagingService, useValue: messaging},
@@ -113,16 +117,11 @@ function setup() {
                 provide: GuildWebsocketService,
                 useValue: {
                     messageObservable: guildMessage$,
-                    reactionAddedObservable: new Subject(),
-                    reactionRemovedObservable: new Subject(),
-                    messagePinnedObservable: new Subject(),
-                    messageUnpinnedObservable: new Subject(),
                     messageUpdatedObservable: new Subject(),
-                    messageDeletedObservable: new Subject(),
-                    messagesBulkDeletedObservable: new Subject(),
                     ephemeralMessageObservable: new Subject(),
                 },
             },
+            {provide: RealtimeConnectionService, useValue: realtime},
             {provide: ProfileService, useValue: {ownProfile: () => ({userId: 'user-1'})}},
         ],
     });

@@ -1,7 +1,7 @@
 import {inject, Injectable, signal} from '@angular/core';
 import {ForumConfig, ForumLayout, ForumSortOrder, ForumTag} from '../dtos/response/forum.dto';
 import {ForumService} from './forum.service';
-import {GuildWebsocketService} from './guild-websocket.service';
+import {RealtimeConnectionService} from './realtime-connection.service';
 
 /**
  * Per-forum tag list and config, shared by the forum view and the moderator tag
@@ -24,28 +24,32 @@ export class ForumStateService {
     private readonly requested = new Set<string>();
 
     private forumService = inject(ForumService);
-    private ws = inject(GuildWebsocketService);
+    private realtime = inject(RealtimeConnectionService);
 
     constructor() {
-        this.ws.forumTagCreatedObservable.subscribe(e =>
-            this.replaceTags(e.channelId, list =>
-                this.sorted([...list.filter(t => t.id !== e.tag.id), e.tag]),
-            ),
-        );
+        this.realtime
+            .stream('guild.ForumTagCreated')
+            .subscribe(e =>
+                this.replaceTags(e.channelId, list =>
+                    this.sorted([...list.filter(t => t.id !== e.tag.id), e.tag]),
+                ),
+            );
 
-        this.ws.forumTagUpdatedObservable.subscribe(e =>
-            this.replaceTags(e.channelId, list =>
-                this.sorted(list.map(t => (t.id === e.tag.id ? e.tag : t))),
-            ),
-        );
+        this.realtime
+            .stream('guild.ForumTagUpdated')
+            .subscribe(e =>
+                this.replaceTags(e.channelId, list =>
+                    this.sorted(list.map(t => (t.id === e.tag.id ? e.tag : t))),
+                ),
+            );
 
-        this.ws.forumTagDeletedObservable.subscribe(e =>
-            this.replaceTags(e.channelId, list => list.filter(t => t.id !== e.tagId)),
-        );
+        this.realtime
+            .stream('guild.ForumTagDeleted')
+            .subscribe(e => this.replaceTags(e.channelId, list => list.filter(t => t.id !== e.tagId)));
 
         // The event carries the full ordered list, so positions are re-derived from
         // the array index rather than trusting whatever each cached tag last held.
-        this.ws.forumTagsReorderedObservable.subscribe(e =>
+        this.realtime.stream('guild.ForumTagsReordered').subscribe(e =>
             this.replaceTags(e.channelId, list =>
                 e.tagIds
                     .map((id, position) => {
@@ -56,9 +60,9 @@ export class ForumStateService {
             ),
         );
 
-        this.ws.forumConfigUpdatedObservable.subscribe(e =>
-            this.configByForum.update(m => ({...m, [e.channelId]: e.config})),
-        );
+        this.realtime
+            .stream('guild.ForumConfigUpdated')
+            .subscribe(e => this.configByForum.update(m => ({...m, [e.channelId]: e.config})));
     }
 
     tagsFor(forumId: string): ForumTag[] {

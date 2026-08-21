@@ -46,6 +46,7 @@ import {ProfileService} from '../../../../../services/profile.service';
 import {GuildService} from '../../../../../services/guild.service';
 import {OwnMemberRevisionService} from '../../../../../services/own-member-revision.service';
 import {GuildWebsocketService} from '../../../../../services/guild-websocket.service';
+import {RealtimeConnectionService} from '../../../../../services/realtime-connection.service';
 import {GuildReadStateService} from '../../../../../services/guild-read-state.service';
 import {TypingService} from '../../../../../services/typing.service';
 import {BotCommandService} from '../../../../../services/bot-command.service';
@@ -340,6 +341,7 @@ export class ChannelConversationComponent implements AfterViewInit {
     private personaService = inject(PersonaService);
     private profileService = inject(ProfileService);
     private guildWs = inject(GuildWebsocketService);
+    private realtime = inject(RealtimeConnectionService);
     private readStateService = inject(GuildReadStateService);
     private typingService = inject(TypingService);
     private toastService = inject(ToastService);
@@ -468,7 +470,8 @@ export class ChannelConversationComponent implements AfterViewInit {
     }
 
     private watchThreadAttachments(): void {
-        this.guildWs.messageThreadAttachedObservable
+        this.realtime
+            .stream('guild.MessageThreadAttached')
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe(e => {
                 if (e.channelId !== untracked(() => this.channel().id)) return;

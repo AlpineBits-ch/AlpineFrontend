@@ -4,7 +4,8 @@ import {describe, expect, it} from 'vitest';
 
 import {PersonaService} from './persona.service';
 import {PersonaApi} from './persona-api.service';
-import {GuildWebsocketService} from './guild-websocket.service';
+import {RealtimeConnectionService} from './realtime-connection.service';
+import {FakeRealtimeConnection} from '../testing/fake-realtime-connection';
 import {
     AutoproxyMode,
     GuildPersonaDto,
@@ -80,21 +81,7 @@ function apiStub() {
 }
 
 function wsStub() {
-    return {
-        personaProfileChangedObservable: new Subject<any>(),
-        personaCreatedObservable: new Subject<any>(),
-        personaUpdatedObservable: new Subject<any>(),
-        personaDeletedObservable: new Subject<any>(),
-        personaAdoptedObservable: new Subject<any>(),
-        personaUnadoptedObservable: new Subject<any>(),
-        personaReviewRequestedObservable: new Subject<any>(),
-        personaReviewCompletedObservable: new Subject<any>(),
-        personaGrantCreatedObservable: new Subject<any>(),
-        personaGrantDeletedObservable: new Subject<any>(),
-        personaPageCreatedObservable: new Subject<any>(),
-        personaPagePulledObservable: new Subject<any>(),
-        autoproxyChangedObservable: new Subject<any>(),
-    };
+    return new FakeRealtimeConnection();
 }
 
 /**
@@ -107,7 +94,7 @@ function withCast(rows: GuildPersonaDto[] = [entry()]) {
     TestBed.configureTestingModule({
         providers: [
             {provide: PersonaApi, useValue: api},
-            {provide: GuildWebsocketService, useValue: ws},
+            {provide: RealtimeConnectionService, useValue: ws},
         ],
     });
     const service = TestBed.inject(PersonaService);
@@ -120,7 +107,7 @@ describe('PersonaService character events', () => {
     it('patches every field PersonaUpdated now carries, not only the name', () => {
         const {service, ws} = withCast();
 
-        ws.personaUpdatedObservable.next({
+        ws.emit('guild.PersonaUpdated', {
             guildId: 'g1',
             personaId: 'per_1',
             scope: PersonaScope.User,
@@ -143,7 +130,7 @@ describe('PersonaService character events', () => {
     it('reads the account list for a personal character it has never seen', () => {
         const {api, ws} = withCast();
 
-        ws.personaCreatedObservable.next({
+        ws.emit('guild.PersonaCreated', {
             personaId: 'per_9',
             scope: PersonaScope.User,
             name: 'Marek',
@@ -156,7 +143,7 @@ describe('PersonaService character events', () => {
     it('leaves a guild-owned character to the adoption that follows it', () => {
         const {api, ws} = withCast();
 
-        ws.personaCreatedObservable.next({
+        ws.emit('guild.PersonaCreated', {
             guildId: 'g1',
             personaId: 'per_9',
             scope: PersonaScope.Guild,
@@ -171,10 +158,10 @@ describe('PersonaService character events', () => {
     it('retires rather than forgets when the character had already spoken', () => {
         const {service, ws} = withCast();
 
-        ws.personaDeletedObservable.next({guildId: 'g1', personaId: 'per_1', retired: true});
+        ws.emit('guild.PersonaDeleted', {guildId: 'g1', personaId: 'per_1', retired: true});
         expect(service.entry('g1', 'per_1')?.persona.isRetired).toBe(true);
 
-        ws.personaDeletedObservable.next({guildId: 'g1', personaId: 'per_1', retired: false});
+        ws.emit('guild.PersonaDeleted', {guildId: 'g1', personaId: 'per_1', retired: false});
         expect(service.entry('g1', 'per_1')).toBeNull();
     });
 });
@@ -183,7 +170,7 @@ describe('PersonaService adoption events', () => {
     it('reads the cast again for a character it does not hold', () => {
         const {api, ws} = withCast([]);
 
-        ws.personaAdoptedObservable.next({
+        ws.emit('guild.PersonaAdopted', {
             guildId: 'g1',
             personaId: 'per_2',
             name: 'Marek',
@@ -197,7 +184,7 @@ describe('PersonaService adoption events', () => {
     it('patches in place for a character it already holds', () => {
         const {service, api, ws} = withCast();
 
-        ws.personaAdoptedObservable.next({
+        ws.emit('guild.PersonaAdopted', {
             guildId: 'g1',
             personaId: 'per_1',
             name: 'Alanna',
@@ -215,7 +202,7 @@ describe('PersonaService adoption events', () => {
     it('drops the entry the guild no longer adopts', () => {
         const {service, ws} = withCast();
 
-        ws.personaUnadoptedObservable.next({guildId: 'g1', personaId: 'per_1'});
+        ws.emit('guild.PersonaUnadopted', {guildId: 'g1', personaId: 'per_1'});
 
         expect(service.cast('g1')).toEqual([]);
     });
@@ -223,13 +210,13 @@ describe('PersonaService adoption events', () => {
     it('reads the cast again when a grant moves, since canSpeak is per reader', () => {
         const {api, ws} = withCast();
 
-        ws.personaGrantCreatedObservable.next({
+        ws.emit('guild.PersonaGrantCreated', {
             guildId: 'g1',
             personaId: 'per_1',
             grantId: 'pg_1',
             userId: 'u2',
         });
-        ws.personaGrantDeletedObservable.next({
+        ws.emit('guild.PersonaGrantDeleted', {
             guildId: 'g1',
             personaId: 'per_1',
             grantId: 'pg_1',
@@ -244,7 +231,7 @@ describe('PersonaService review queue', () => {
     it('stays quiet for a player who never loaded the queue', () => {
         const {api, ws} = withCast();
 
-        ws.personaReviewRequestedObservable.next({
+        ws.emit('guild.PersonaReviewRequested', {
             guildId: 'g1',
             personaId: 'per_1',
             name: 'Alanna',
@@ -260,7 +247,7 @@ describe('PersonaService review queue', () => {
         service.ensurePending('g1');
         api.pending[0].next([]);
 
-        ws.personaReviewRequestedObservable.next({
+        ws.emit('guild.PersonaReviewRequested', {
             guildId: 'g1',
             personaId: 'per_1',
             name: 'Alanna',
@@ -276,7 +263,7 @@ describe('PersonaService review queue', () => {
         service.ensurePending('g1');
         api.pending[0].next([entry({approvalState: PersonaApprovalState.Submitted})]);
 
-        ws.personaReviewCompletedObservable.next({
+        ws.emit('guild.PersonaReviewCompleted', {
             guildId: 'g1',
             personaId: 'per_1',
             name: 'Alanna',
@@ -295,7 +282,7 @@ describe('PersonaService review queue', () => {
     it('clears the reason again once the character is approved', () => {
         const {service, ws} = withCast([entry({changesRequestedReason: 'Needs a shorter bio.'})]);
 
-        ws.personaReviewCompletedObservable.next({
+        ws.emit('guild.PersonaReviewCompleted', {
             guildId: 'g1',
             personaId: 'per_1',
             name: 'Alanna',
@@ -316,7 +303,7 @@ describe('PersonaService review queue', () => {
         api.pending[0].next([entry()]);
 
         service.forgetPending('g1');
-        ws.personaReviewRequestedObservable.next({
+        ws.emit('guild.PersonaReviewRequested', {
             guildId: 'g1',
             personaId: 'per_1',
             name: 'Alanna',
@@ -333,7 +320,7 @@ describe('PersonaService page and autoproxy events', () => {
     it('links the page a character just gained', () => {
         const {service, ws} = withCast();
 
-        ws.personaPageCreatedObservable.next({
+        ws.emit('guild.PersonaPageCreated', {
             guildId: 'g1',
             personaId: 'per_1',
             pageId: 'wp_7',
@@ -346,7 +333,7 @@ describe('PersonaService page and autoproxy events', () => {
     it('bumps the page version a pull rewrote', () => {
         const {service, ws} = withCast([entry({wikiPageId: 'wp_7'})]);
 
-        ws.personaPagePulledObservable.next({
+        ws.emit('guild.PersonaPagePulled', {
             guildId: 'g1',
             personaId: 'per_1',
             pageId: 'wp_7',
@@ -362,7 +349,7 @@ describe('PersonaService page and autoproxy events', () => {
     it('takes the channel autoproxy another window set', () => {
         const {service, ws} = withCast();
 
-        ws.autoproxyChangedObservable.next({
+        ws.emit('guild.AutoproxyChanged', {
             guildId: 'g1',
             channelId: 'c1',
             mode: AutoproxyMode.Sticky,
@@ -419,7 +406,7 @@ describe('PersonaService guild cast', () => {
         service.ensureGuildCast('g1');
         api.guildCast[0].next([member()]);
 
-        ws.personaAdoptedObservable.next({
+        ws.emit('guild.PersonaAdopted', {
             guildId: 'g1',
             personaId: 'per_3',
             name: 'Wren',
@@ -428,14 +415,14 @@ describe('PersonaService guild cast', () => {
         });
         expect(api.guildCast.length).toBe(2);
 
-        ws.personaUnadoptedObservable.next({guildId: 'g1', personaId: 'per_3'});
+        ws.emit('guild.PersonaUnadopted', {guildId: 'g1', personaId: 'per_3'});
         expect(api.guildCast.length).toBe(3);
     });
 
     it('stays quiet for a guild whose cast nothing has asked for', () => {
         const {api, ws} = withCast();
 
-        ws.personaAdoptedObservable.next({
+        ws.emit('guild.PersonaAdopted', {
             guildId: 'g1',
             personaId: 'per_3',
             name: 'Wren',

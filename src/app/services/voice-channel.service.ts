@@ -7,12 +7,12 @@ import {VoiceLimitsService} from './voice-limits.service';
 import {ProfileService} from './profile.service';
 import {ProfileDto} from '../dtos/response/profile.dto';
 import {GuildVoiceService} from './guild-voice.service';
+import {GuildWebsocketService} from './guild-websocket.service';
 import {
-    GuildWebsocketService,
     WsGuildParticipantJoined,
-    WsKickedByOtherDevice,
     WsGuildTrackClosed,
     WsGuildTrackPublished,
+    WsKickedByOtherDevice,
     WsMovedToChannel,
     WsUserJoinedVoice,
     WsUserLeftVoice,
@@ -20,13 +20,13 @@ import {
     WsVoiceDeafenChanged,
     WsVoiceMuteChanged,
     WsVoiceScreenShareStarted,
-} from './guild-websocket.service';
+} from '../dtos/response/guild-voice-events.dto';
 import {SoundSettingsService} from './sound-settings.service';
 import {VoiceRTCService} from './voice-rtc.service';
 import {StreamPreset} from '../models/stream-preset';
 import {VoiceEngineService} from './voice-engine.service';
 import {ToastService} from './toast.service';
-import {ConnectionState} from './realtime-connection.service';
+import {ConnectionState, RealtimeConnectionService} from './realtime-connection.service';
 import {ScreenResumeTracker} from '../shared/call/screen-resume';
 import {
     describeTrack,
@@ -104,6 +104,7 @@ export class VoiceChannelService {
     private profileService = inject(ProfileService);
     private guildVoiceSvc = inject(GuildVoiceService);
     private guildWsSvc = inject(GuildWebsocketService);
+    private realtime = inject(RealtimeConnectionService);
     private soundSettings = inject(SoundSettingsService);
     private voiceEngine = inject(VoiceEngineService);
     /** What this room's plan allows and what it has already reduced, held for the life of the call. */
@@ -230,23 +231,25 @@ export class VoiceChannelService {
             if (this.localState().isScreenSharing) void this.toggleScreenShare();
         });
 
-        this.guildWsSvc.userJoinedVoiceObservable.subscribe(e => this.onUserJoinedVoice(e));
-        this.guildWsSvc.userLeftVoiceObservable.subscribe(e => this.onUserLeftVoice(e));
-        this.guildWsSvc.guildParticipantJoinedObservable.subscribe(e => this.onParticipantJoined(e));
-        this.guildWsSvc.guildTrackPublishedObservable.subscribe(e => this.onTrackPublished(e));
-        this.guildWsSvc.guildTrackClosedObservable.subscribe(e => this.onTrackClosed(e));
-        this.guildWsSvc.voiceMuteChangedObservable.subscribe(e => this.onMuteChanged(e));
-        this.guildWsSvc.voiceDeafenChangedObservable.subscribe(e => this.onDeafenChanged(e));
-        this.guildWsSvc.voiceCameraChangedObservable.subscribe(e => this.onCameraChanged(e));
-        this.guildWsSvc.voiceScreenShareStartedObservable.subscribe(e => this.onScreenShareStarted(e));
-        this.guildWsSvc.voiceScreenShareStoppedObservable.subscribe(() => {
+        this.realtime.stream('guild.voice.UserJoinedVoice').subscribe(e => this.onUserJoinedVoice(e));
+        this.realtime.stream('guild.voice.UserLeftVoice').subscribe(e => this.onUserLeftVoice(e));
+        this.realtime.stream('guild.voice.ParticipantJoined').subscribe(e => this.onParticipantJoined(e));
+        this.realtime.stream('guild.voice.TrackPublished').subscribe(e => this.onTrackPublished(e));
+        this.realtime.stream('guild.voice.TrackClosed').subscribe(e => this.onTrackClosed(e));
+        this.realtime.stream('guild.voice.MuteChanged').subscribe(e => this.onMuteChanged(e));
+        this.realtime.stream('guild.voice.DeafenChanged').subscribe(e => this.onDeafenChanged(e));
+        this.realtime.stream('guild.voice.CameraChanged').subscribe(e => this.onCameraChanged(e));
+        this.realtime.stream('guild.voice.ScreenShareStarted').subscribe(e => this.onScreenShareStarted(e));
+        this.realtime.stream('guild.voice.ScreenShareStopped').subscribe(() => {
             /* TrackClosed handles cleanup */
         });
-        this.guildWsSvc.movedToChannelObservable.subscribe(e => void this.onMovedToChannel(e));
-        this.guildWsSvc.kickedByOtherDeviceObservable.subscribe(e => void this.onKickedByOtherDevice(e));
+        this.realtime.stream('guild.voice.MovedToChannel').subscribe(e => void this.onMovedToChannel(e));
+        this.realtime
+            .stream('guild.voice.KickedByOtherDevice')
+            .subscribe(e => void this.onKickedByOtherDevice(e));
 
-        this.guildWsSvc.voiceSnapshotObservable.subscribe(s => void this.applySnapshot(s));
-        this.guildWsSvc.voiceResyncObservable.subscribe(e => void this.onResync(e));
+        this.realtime.stream('guild.voice.Snapshot').subscribe(s => void this.applySnapshot(s));
+        this.realtime.stream('guild.voice.Resync').subscribe(e => void this.onResync(e));
 
         // A publish the server refused outright: the toast acknowledges that the button did nothing.
         this.limits.refused$.subscribe(notice => this.toast.error(this.translate.instant(notice.messageKey)));

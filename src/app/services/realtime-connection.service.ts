@@ -1,8 +1,10 @@
 import {inject, Injectable, signal} from '@angular/core';
 import * as signalR from '@microsoft/signalr';
+import {Observable, Subject} from 'rxjs';
 import {AuthService} from './auth.service';
 import {ApiConfigService} from './api-config.service';
 import {DeviceIdentityService} from './device-identity.service';
+import {PayloadOf, RealtimeEvent} from './realtime-events';
 
 export enum ConnectionState {
     Connected,
@@ -71,6 +73,7 @@ export class RealtimeConnectionService {
     private readonly authService = inject(AuthService);
     private readonly apiConfig = inject(ApiConfigService);
     private readonly deviceIdentity = inject(DeviceIdentityService);
+    private readonly streams = new Map<string, Subject<any>>();
     private starting?: Promise<void>;
 
     /** Register a server → client event handler. Safe to call before or after {@link start}. */
@@ -82,9 +85,28 @@ export class RealtimeConnectionService {
         this.pendingHandlers.push({event, handler});
     }
 
+    /**
+     * The typed way to consume a server event: one {@link RealtimeEventMap} entry, one subscription.
+     *
+     * The underlying {@link on} registration happens once per event name however many subscribers
+     * there are, and is never torn down. `on` does not deduplicate, so a per-subscriber registration
+     * would deliver each payload once per subscriber, and {@link off} removes every handler for the
+     * name including ones this service did not add.
+     */
+    stream<K extends RealtimeEvent>(event: K): Observable<PayloadOf<K>> {
+        const existing = this.streams.get(event);
+        if (existing) return existing.asObservable();
+
+        const subject = new Subject<PayloadOf<K>>();
+        this.streams.set(event, subject);
+        this.on(event, (payload: PayloadOf<K>) => subject.next(payload));
+        return subject.asObservable();
+    }
+
     /** Remove all handlers for an event. */
     off(event: string): void {
         this.pendingHandlers = this.pendingHandlers.filter(h => h.event !== event);
+        this.streams.delete(event);
         this.hubConnection?.off(event);
     }
 
