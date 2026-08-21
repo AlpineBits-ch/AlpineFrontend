@@ -2,7 +2,7 @@ import {inject, Injectable} from '@angular/core';
 import {TestBed} from '@angular/core/testing';
 import {HttpErrorResponse} from '@angular/common/http';
 import {Observable, Subject} from 'rxjs';
-import {signalStore} from '@ngrx/signals';
+import {signalStore, type} from '@ngrx/signals';
 import {withEntities} from '@ngrx/signals/entities';
 import {withKeyedIndex} from './with-keyed-index';
 
@@ -11,8 +11,18 @@ interface Row {
     name: string;
 }
 
+/** A second row type, so the named-collection store holds two shapes that share no fields. */
+interface Tag {
+    id: string;
+    label: string;
+}
+
 function row(id: string, name = id): Row {
     return {id, name};
+}
+
+function tag(id: string, label = id): Tag {
+    return {id, label};
 }
 
 /** Subject-backed so response timing is fully controlled and requests can be counted per collection. */
@@ -20,13 +30,22 @@ function row(id: string, name = id): Row {
 class FakeApi {
     readonly stockCalls: string[] = [];
     readonly ownerCalls: string[] = [];
+    readonly tagCalls: string[] = [];
     readonly stockPending: Subject<Row[]>[] = [];
     readonly ownerPending: Subject<Row[]>[] = [];
+    readonly tagPending: Subject<Tag[]>[] = [];
 
     listStock(key: string): Observable<Row[]> {
         this.stockCalls.push(key);
         const subject = new Subject<Row[]>();
         this.stockPending.push(subject);
+        return subject.asObservable();
+    }
+
+    listTags(key: string): Observable<Tag[]> {
+        this.tagCalls.push(key);
+        const subject = new Subject<Tag[]>();
+        this.tagPending.push(subject);
         return subject.asObservable();
     }
 
@@ -59,9 +78,50 @@ const TestStore = signalStore(
     }),
 );
 
+/** Two row types in one store, each with its own named entity collection and its own index. */
+const NamedStore = signalStore(
+    {providedIn: 'root'},
+    withEntities<Row, 'row'>({entity: type<Row>(), collection: 'row'}),
+    withEntities<Tag, 'tag'>({entity: type<Tag>(), collection: 'tag'}),
+    withKeyedIndex<Row, 'stock', 'row'>({
+        collection: 'stock',
+        entities: 'row',
+        sort: (a, b) => a.name.localeCompare(b.name),
+        fetch: () => {
+            const api = inject(FakeApi);
+            return (key: string) => api.listStock(key);
+        },
+    }),
+    withKeyedIndex<Tag, 'tags', 'tag'>({
+        collection: 'tags',
+        entities: 'tag',
+        fetch: () => {
+            const api = inject(FakeApi);
+            return (key: string) => api.listTags(key);
+        },
+    }),
+);
+
+// A collection name the store never declared. The error lands on `signalStore(`, not on the
+// `withKeyedIndex(` argument, so a directive inside the argument list suppresses nothing.
+// @ts-expect-error - 'nope' names no entity collection on this store.
+const _WrongCollection = signalStore(
+    withEntities<Row, 'row'>({entity: type<Row>(), collection: 'row'}),
+    withKeyedIndex<Row, 'stock', 'nope'>({
+        collection: 'stock',
+        entities: 'nope',
+        fetch: () => (key: string) => new Subject<Row[]>().asObservable(),
+    }),
+);
+
 function setup() {
     TestBed.configureTestingModule({});
     return {store: TestBed.inject(TestStore), api: TestBed.inject(FakeApi)};
+}
+
+function setupNamed() {
+    TestBed.configureTestingModule({});
+    return {store: TestBed.inject(NamedStore), api: TestBed.inject(FakeApi)};
 }
 
 function settle(pending: Subject<Row[]>[], index: number, rows: Row[]): void {
@@ -307,6 +367,48 @@ describe('withKeyedIndex', () => {
                     .map(r => r.id),
             ).toEqual(['b']);
             expect(store.entityMap()['a']).toBeDefined();
+        });
+    });
+
+    describe('named entity collections', () => {
+        it('reads and writes the collection it was pointed at', () => {
+            const {store, api} = setupNamed();
+            store.loadStock('c1');
+            settle(api.stockPending, 0, [row('a', 'Butter')]);
+
+            expect(
+                store
+                    .stockFor('c1')()
+                    .map(r => r.name),
+            ).toEqual(['Butter']);
+            expect(store.rowEntityMap()['a']).toBeDefined();
+            expect(store.tagEntityMap()['a']).toBeUndefined();
+        });
+
+        it('keeps two row types apart under the same id', () => {
+            const {store, api} = setupNamed();
+            store.loadStock('c1');
+            settle(api.stockPending, 0, [row('shared', 'Butter')]);
+            store.loadTags('c1');
+            api.tagPending[0].next([tag('shared', 'Dairy')]);
+            api.tagPending[0].complete();
+
+            expect(store.stockFor('c1')()[0].name).toBe('Butter');
+            expect(store.tagsFor('c1')()[0].label).toBe('Dairy');
+        });
+
+        it('attaches and detaches against the named map', () => {
+            const {store} = setupNamed();
+            store.applyStock('c1', [row('a')]);
+            store.attachToStock('c1', row('b'));
+            store.detachFromStock('c1', 'a');
+
+            expect(
+                store
+                    .stockFor('c1')()
+                    .map(r => r.id),
+            ).toEqual(['b']);
+            expect(store.rowEntityMap()['a']).toBeDefined();
         });
     });
 

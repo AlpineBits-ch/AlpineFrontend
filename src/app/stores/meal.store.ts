@@ -1,6 +1,6 @@
 import {computed, inject, InjectionToken, signal, Signal, WritableSignal} from '@angular/core';
 import {map, Observable, tap} from 'rxjs';
-import {patchState, signalStore, withHooks, withMethods, withState} from '@ngrx/signals';
+import {patchState, signalStore, type, withHooks, withMethods, withState} from '@ngrx/signals';
 import {removeEntity, withEntities} from '@ngrx/signals/entities';
 import {
     addPlanDays,
@@ -48,17 +48,6 @@ export interface MealChannelState {
     /** A `403` - the house has no Meals module. Render nothing, never a denial. */
     forbidden: boolean;
     failed: boolean;
-}
-
-/** Recipes and plan entries share one entity map, so the indexes over it share one row type. */
-type MealEntity = Recipe | MealPlanEntry;
-
-function isRecipe(row: MealEntity): row is Recipe {
-    return 'title' in row;
-}
-
-function isEntry(row: MealEntity): row is MealPlanEntry {
-    return 'slot' in row;
 }
 
 function byTitle(a: Recipe, b: Recipe): number {
@@ -151,10 +140,13 @@ interface MealScopedState {
  */
 export const MealStore = signalStore(
     {providedIn: 'root'},
-    withEntities<MealEntity>(),
+    withEntities<Recipe, 'recipe'>({entity: type<Recipe>(), collection: 'recipe'}),
+    withEntities<MealPlanEntry, 'entry'>({entity: type<MealPlanEntry>(), collection: 'entry'}),
 
-    withKeyedIndex<MealEntity, 'recipes'>({
+    withKeyedIndex<Recipe, 'recipes', 'recipe'>({
         collection: 'recipes',
+        entities: 'recipe',
+        sort: byTitle,
         // The socket replays nothing across a reconnect, so a board left open through a drop has
         // nothing left to invalidate it. Two minutes, checked when the channel is opened again.
         staleMs: 120_000,
@@ -172,8 +164,10 @@ export const MealStore = signalStore(
         },
     }),
 
-    withKeyedIndex<MealEntity, 'plan', string>({
+    withKeyedIndex<MealPlanEntry, 'plan', 'entry', string>({
         collection: 'plan',
+        entities: 'entry',
+        sort: byPlanOrder,
         staleMs: 120_000,
         fetch: () => {
             const api = inject(MealApiService);
@@ -240,8 +234,7 @@ export const MealStore = signalStore(
                 reload(channelId, true);
             };
 
-            const planRows = (channelId: string): MealPlanEntry[] =>
-                store.planFor(channelId)().filter(isEntry);
+            const planRows = (channelId: string): MealPlanEntry[] => store.planFor(channelId)();
 
             // A write can reach a channel no fetch ever did, so the guard is `Held` and not
             // `Tracked`: the latter would call that channel unopened and go on ignoring every event
@@ -258,9 +251,9 @@ export const MealStore = signalStore(
                 for (const entry of planRows(channelId)) {
                     if (entry.recipeId !== recipeId) continue;
                     store.detachFromPlan(channelId, entry.id);
-                    patchState(store, removeEntity(entry.id));
+                    patchState(store, removeEntity(entry.id, {collection: 'entry'}));
                 }
-                patchState(store, removeEntity(recipeId));
+                patchState(store, removeEntity(recipeId, {collection: 'recipe'}));
             };
 
             const upsertEntry = (channelId: string, raw: MealPlanEntry, existingOnly = false): void => {
@@ -270,7 +263,7 @@ export const MealStore = signalStore(
 
             const dropEntry = (channelId: string, entryId: string): void => {
                 store.detachFromPlan(channelId, entryId);
-                patchState(store, removeEntity(entryId));
+                patchState(store, removeEntity(entryId, {collection: 'entry'}));
             };
 
             return {
@@ -288,11 +281,9 @@ export const MealStore = signalStore(
                             const forbidden = recipesError === 'forbidden' || planError === 'forbidden';
 
                             return {
-                                recipes: store.recipesFor(channelId)().filter(isRecipe).sort(byTitle),
+                                recipes: store.recipesFor(channelId)(),
                                 recipesCursor: cursors()[channelId] ?? null,
-                                plan: planRows(channelId)
-                                    .filter(entry => isInWeek(weekStart, entry.date))
-                                    .sort(byPlanOrder),
+                                plan: planRows(channelId).filter(entry => isInWeek(weekStart, entry.date)),
                                 weekStart,
                                 config: store.configByChannel()[channelId] ?? null,
                                 loading,
@@ -323,7 +314,6 @@ export const MealStore = signalStore(
                     return (
                         store
                             .recipesFor(channelId)()
-                            .filter(isRecipe)
                             .find(recipe => recipe.id === recipeId) ?? null
                     );
                 },

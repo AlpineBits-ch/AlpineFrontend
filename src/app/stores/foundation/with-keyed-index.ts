@@ -11,7 +11,14 @@ import {
     withState,
     WritableStateSource,
 } from '@ngrx/signals';
-import {EntityId, EntityMap, EntityState, SelectEntityId, upsertEntities} from '@ngrx/signals/entities';
+import {
+    EntityId,
+    EntityMap,
+    EntityState,
+    NamedEntityState,
+    SelectEntityId,
+    upsertEntities,
+} from '@ngrx/signals/entities';
 import {KeyedRequest, LoadFailure} from './request-state';
 
 /**
@@ -19,10 +26,17 @@ import {KeyedRequest, LoadFailure} from './request-state';
  * state. Compose it more than once to hold one entity under two differently keyed lists.
  *
  * `A` is a per-call fetch argument, for an index whose request the key alone does not describe.
+ * `E` names a `withEntities` collection, for a store holding more than one row type.
  */
-export interface KeyedIndexConfig<T, C extends string, A> {
+export interface KeyedIndexConfig<T, C extends string, A, E extends string> {
     /** Names every generated member, so one store can carry two indexes over one entity map. */
     collection: C;
+    /**
+     * The `withEntities` collection this index reads. Omit for a store with one unnamed entity map.
+     * That store must spell its type arguments: `withEntities<Row, 'row'>({entity: type<Row>(), collection: 'row'})`,
+     * because the inferred form collapses this feature's input to `object` and the store stops typechecking.
+     */
+    entities?: E;
     /** Omit for an index only a realtime invalidation makes stale. A number literal here, never an imported const. */
     staleMs?: number;
     /** Applied when a key's list is read, so a row attached by a realtime event lands in the right place. */
@@ -37,8 +51,6 @@ export interface LoadOptions<A> {
     /** Refetches however fresh the key is. */
     force?: boolean;
 }
-
-type KeyedIndexInput<T> = EmptyFeatureResult & {state: EntityState<T>};
 
 type KeyedIndexState<C extends string> = Record<`${C}Ids`, Record<string, EntityId[]>> &
     Record<`${C}Requests`, Record<string, KeyedRequest>>;
@@ -60,29 +72,36 @@ type KeyedIndexMethods<T, C extends string, A> = Record<`${C}For`, (key: string)
     Record<`attachTo${Capitalize<C>}`, (key: string, entity: T) => void> &
     Record<`detachFrom${Capitalize<C>}`, (key: string, id: EntityId) => void>;
 
+type KeyedIndexOutput<T, C extends string, A> = {
+    state: KeyedIndexState<C>;
+    props: EmptyFeatureResult['props'];
+    methods: KeyedIndexMethods<T, C, A>;
+};
+
 // `${collection}For` caches one computed per key for the life of the store, bounded by the number
 // of channels or guilds opened in a session. Indexing by message id would need eviction first.
 export function withKeyedIndex<T, C extends string, A = never>(
-    config: KeyedIndexConfig<T, C, A>,
-): SignalStoreFeature<
-    KeyedIndexInput<T>,
-    {
-        state: KeyedIndexState<C>;
-        props: EmptyFeatureResult['props'];
-        methods: KeyedIndexMethods<T, C, A>;
-    }
-> {
+    config: KeyedIndexConfig<T, C, A, never> & {entities?: undefined},
+): SignalStoreFeature<EmptyFeatureResult & {state: EntityState<T>}, KeyedIndexOutput<T, C, A>>;
+export function withKeyedIndex<T, C extends string, E extends string, A = never>(
+    config: KeyedIndexConfig<T, C, A, E> & {entities: E},
+): SignalStoreFeature<EmptyFeatureResult & {state: NamedEntityState<T, E>}, KeyedIndexOutput<T, C, A>>;
+export function withKeyedIndex<T, C extends string, A, E extends string>(
+    config: KeyedIndexConfig<T, C, A, E>,
+): SignalStoreFeature<EmptyFeatureResult & {state: EntityState<T>}, KeyedIndexOutput<T, C, A>> {
     const collection = config.collection;
     const idsKey = `${collection}Ids`;
     const requestsKey = `${collection}Requests`;
     const capitalized = collection.charAt(0).toUpperCase() + collection.slice(1);
+    const entities = config.entities;
+    const entityMapKey = entities === undefined ? 'entityMap' : `${entities}EntityMap`;
 
     const feature = signalStoreFeature(
         {state: type<EntityState<T>>()},
         withState({[idsKey]: {}, [requestsKey]: {}}),
         withMethods(store => {
             const source = store as unknown as WritableStateSource<Record<string, unknown>>;
-            const entityMap = (store as unknown as {entityMap: Signal<EntityMap<T>>}).entityMap;
+            const entityMap = (store as unknown as Record<string, Signal<EntityMap<T>>>)[entityMapKey];
             const reader = store as unknown as Record<string, Signal<Record<string, never>>>;
             const idsSignal = reader[idsKey] as unknown as Signal<Record<string, EntityId[]>>;
             const requestsSignal = reader[requestsKey] as unknown as Signal<Record<string, KeyedRequest>>;
@@ -132,12 +151,15 @@ export function withKeyedIndex<T, C extends string, A = never>(
                 return view;
             };
 
-            const writeIds = (key: string, ids: EntityId[], entities: T[]): void => {
-                patchState(
-                    source as never,
-                    upsertEntities<T>(entities, {selectId}) as never,
-                    {[idsKey]: {...idsSignal(), [key]: ids}} as never,
-                );
+            const upsertRows = (rows: T[]) =>
+                (entities === undefined
+                    ? upsertEntities<T>(rows, {selectId})
+                    : upsertEntities<T, string>(rows, {collection: entities, selectId})) as never;
+
+            const writeIds = (key: string, ids: EntityId[], rows: T[]): void => {
+                patchState(source as never, upsertRows(rows), {
+                    [idsKey]: {...idsSignal(), [key]: ids},
+                } as never);
             };
 
             const apply = (key: string, items: T[]): void => {
@@ -242,11 +264,7 @@ export function withKeyedIndex<T, C extends string, A = never>(
     );
 
     return feature as unknown as SignalStoreFeature<
-        KeyedIndexInput<T>,
-        {
-            state: KeyedIndexState<C>;
-            props: EmptyFeatureResult['props'];
-            methods: KeyedIndexMethods<T, C, A>;
-        }
+        EmptyFeatureResult & {state: EntityState<T>},
+        KeyedIndexOutput<T, C, A>
     >;
 }
