@@ -4,7 +4,6 @@ import {of, throwError} from 'rxjs';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {ComposerAttachmentsService} from './composer-attachments.service';
 import {FileService} from '../../../../../services/file.service';
-import {EntitlementStore} from '../../../../../stores/entitlement.store';
 
 function fileOf(bytes: number, name = 'clip.mp4'): File {
     const file = new File(['x'], name, {type: 'video/mp4'});
@@ -16,17 +15,14 @@ function fileOf(bytes: number, name = 'clip.mp4'): File {
 
 function setup(ceiling: number | null = null) {
     const uploadFile = vi.fn(() => of({id: 'attachment-1'}));
-    const uploadCeilingBytes = vi.fn(() => ceiling);
 
     TestBed.configureTestingModule({
-        providers: [
-            ComposerAttachmentsService,
-            {provide: FileService, useValue: {uploadFile}},
-            {provide: EntitlementStore, useValue: {uploadCeilingBytes}},
-        ],
+        providers: [ComposerAttachmentsService, {provide: FileService, useValue: {uploadFile}}],
     });
 
-    return {service: TestBed.inject(ComposerAttachmentsService), uploadFile, uploadCeilingBytes};
+    const service = TestBed.inject(ComposerAttachmentsService);
+    service.uploadCeiling.set(ceiling);
+    return {service, uploadFile};
 }
 
 beforeEach(() => {
@@ -66,14 +62,15 @@ describe('the ceiling from the snapshot', () => {
         expect(uploadFile).toHaveBeenCalled();
     });
 
-    /** A guild upload and a DM upload are capped by different keys. */
-    it('asks about the scope the composer is writing into', () => {
-        const {service, uploadCeilingBytes} = setup(null);
-        service.guildId.set('guild-1');
+    /** The host resolves the scope and pushes the ceiling in, so a set that loads late still counts. */
+    it('takes the ceiling the host last set', () => {
+        const {service, uploadFile} = setup(null);
+        service.uploadCeiling.set(8 * 1024 * 1024);
 
-        service.attach(fileOf(1024));
+        service.attach(fileOf(200 * 1024 * 1024));
 
-        expect(uploadCeilingBytes).toHaveBeenCalledWith('guild-1');
+        expect(uploadFile).not.toHaveBeenCalled();
+        expect(service.files()[0].uploadFailed).toBe(true);
     });
 
     /** One oversized file in a batch is refused on its own. The rest still go. */

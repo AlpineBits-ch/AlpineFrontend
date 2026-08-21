@@ -70,6 +70,37 @@ module.exports = tseslint.config(
         },
     },
     {
+        // Services must not import stores. The reverse edge is legal and is 30 inject sites.
+        // `ignores` is a shrinking list. Do not add to it.
+        files: ['**/*.service.ts'],
+        ignores: [
+            'src/app/services/call-session.service.ts',
+            'src/app/services/call-state.service.ts',
+            'src/app/services/direct-message.service.ts',
+            'src/app/services/go-live-notification.service.ts',
+            'src/app/services/inbox.service.ts',
+            'src/app/services/stripe-loader.service.ts',
+            'src/app/services/voice-limits.service.ts',
+            'src/app/features/guild/components/channel/channel-conversation/channel-send.service.ts',
+            'src/app/features/main-page/navigation.service.ts',
+            'src/app/features/messaging/components/conversation/conversation-search.service.ts',
+        ],
+        rules: {
+            'no-restricted-imports': [
+                'error',
+                {
+                    patterns: [
+                        {
+                            group: ['**/stores/*.store'],
+                            message:
+                                'A service must not import a store. Move the shared state into the store, or take the value as an argument.',
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    {
         // Specs mock freely and assert on shapes the app never builds.
         files: ['**/*.spec.ts'],
         rules: {

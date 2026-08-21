@@ -396,16 +396,19 @@ export class ComposerComponent {
             });
         });
 
-        // The attachment service is told the scope rather than reaching for a route. Must stay
-        // untracked: `ensureLoaded` reads the cache it also writes, so tracking it would re-run this
-        // on every set the store takes for any subject in the app.
+        // Must stay untracked: `ensureLoaded` reads the cache it also writes, so tracking it would
+        // re-run this on every set the store takes for any subject in the app.
         effect(() => {
             const gid = this.guildId();
             untracked(() => {
-                this.attachments.guildId.set(gid);
                 this.entitlements.ensureLoaded(MY_ENTITLEMENTS);
                 if (gid) this.entitlements.ensureLoaded({kind: 'guild', id: gid});
             });
+        });
+
+        // Tracked, unlike the one above: the ceiling arrives after the set it lives in has loaded.
+        effect(() => {
+            this.attachments.uploadCeiling.set(this.entitlements.uploadCeilingBytes(this.guildId()));
         });
 
         effect(() => {

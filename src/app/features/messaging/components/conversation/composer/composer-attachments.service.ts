@@ -1,7 +1,6 @@
 import {computed, inject, Injectable, OnDestroy, signal} from '@angular/core';
 import {uploadFailureKey} from '../../../../../core/entitlement-message';
 import {FileService} from '../../../../../services/file.service';
-import {EntitlementStore} from '../../../../../stores/entitlement.store';
 
 export interface AttachedFile {
     /** Absent on a file adopted from a draft: that one was uploaded by an earlier session. */
@@ -26,10 +25,11 @@ export class ComposerAttachmentsService implements OnDestroy {
     readonly files = signal<AttachedFile[]>([]);
     readonly isDraggingOver = signal(false);
     /**
-     * The guild the composer is writing into, or null in a DM. It selects which upload ceiling
-     * applies: `storage.upload_max_bytes` inside a guild, `user.upload_max_bytes` outside one.
+     * The biggest file the server would take here, in bytes, or null when nothing caps it. Set by
+     * the host, which is what knows the scope: `storage.upload_max_bytes` inside a guild,
+     * `user.upload_max_bytes` outside one.
      */
-    readonly guildId = signal<string | null>(null);
+    readonly uploadCeiling = signal<number | null>(null);
     /** True while at least one attachment has no id yet, so a send now would go without it. */
     readonly isUploading = computed(() => this.files().some(f => f.isUploading));
     /** True once an upload has given up, so a send now would go without that file for good. */
@@ -43,7 +43,6 @@ export class ComposerAttachmentsService implements OnDestroy {
             .filter((id): id is string => !!id),
     );
     private fileService = inject(FileService);
-    private entitlements = inject(EntitlementStore);
     private dragCounter = 0;
     /** Resolvers parked by {@link settled}, released together the moment nothing is in flight. */
     private settleWaiters: (() => void)[] = [];
@@ -53,7 +52,7 @@ export class ComposerAttachmentsService implements OnDestroy {
         const isImage = file.type.startsWith('image/');
         const previewUrl = URL.createObjectURL(file);
 
-        const ceiling = this.entitlements.uploadCeilingBytes(this.guildId());
+        const ceiling = this.uploadCeiling();
         if (ceiling !== null && file.size > ceiling) {
             this.files.update(prev => [
                 ...prev,
