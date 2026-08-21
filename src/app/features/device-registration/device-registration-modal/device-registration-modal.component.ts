@@ -1,4 +1,4 @@
-import {Component, EventEmitter, inject, Input, Output, signal} from '@angular/core';
+import {Component, EventEmitter, inject, input, Output, signal} from '@angular/core';
 import {Dialog} from 'primeng/dialog';
 import {Button} from 'primeng/button';
 import {InputText} from 'primeng/inputtext';
@@ -20,7 +20,7 @@ type Step = 'input' | 'processing' | 'done';
     styleUrl: './device-registration-modal.component.css',
 })
 export class DeviceRegistrationModalComponent {
-    @Input() visible = false;
+    readonly visible = input(false);
     /** Emits the opaque key handle once the device is registered and keys are persisted. */
     @Output() registered = new EventEmitter<string>();
 
