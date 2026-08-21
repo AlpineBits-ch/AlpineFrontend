@@ -6,7 +6,6 @@ import {of, Subject, throwError} from 'rxjs';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 
 import {MainPageComponent} from './main-page.component';
-import {ChannelType} from '../../dtos/response/guild.dto';
 import {AuthService} from '../../services/auth.service';
 import {NavigationService} from './navigation.service';
 import {ProfilePopoutService} from '../../services/profile-popout.service';
@@ -337,7 +336,7 @@ function configure(fakes: Fakes): void {
         ],
     });
 
-    // The 34 child components are irrelevant to the orchestration under test and each drags in its
+    // The child components are irrelevant to the orchestration under test and each drags in its
     // own dependency graph.
     TestBed.overrideComponent(MainPageComponent, {set: {template: '', imports: []}});
 }
@@ -1033,11 +1032,9 @@ describe('MainPageComponent view helpers', () => {
     beforeEach(() => TestBed.resetTestingModule());
     afterEach(() => vi.restoreAllMocks());
 
-    it('exposes the channel view resolver and defaults onboarding off outside a server', async () => {
+    it('defaults onboarding off outside a server', async () => {
         const {component} = await setup();
 
-        expect(component.channelViewFor(ChannelType.Voice)).toBe('voice');
-        expect(component.channelViewFor('nonsense' as ChannelType)).toBe('unsupported');
         expect(component.onboardingEnabled()).toBe(false);
         expect(component.openPostForum()).toBeNull();
     });

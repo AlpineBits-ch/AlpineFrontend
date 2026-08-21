@@ -7,10 +7,8 @@ import {OAuthService} from 'angular-oauth2-oidc';
 import {MessagingWebsocketService} from '../../services/messaging-websocket.service';
 import {ActionSidepanelComponent} from './components/action-sidepanel/action-sidepanel.component';
 import {ConversationComponent} from '../messaging/components/conversation/conversation.component';
-import {ChannelComponent} from '../guild/components/channel/channel.component';
-import {VoiceChannelComponent} from '../guild/components/voice-channel/voice-channel.component';
-import {ForumChannelComponent} from '../guild/components/forum-channel/forum-channel.component';
 import {ForumPostListComponent} from '../guild/components/forum-channel/forum-post-list.component';
+import {ChannelHostComponent} from '../guild/components/channel-host/channel-host.component';
 import {forumParentOf} from '../guild/components/channel/channel-utils';
 import {stringifyPermissions} from '../../enums/permissions.enum';
 import {unionMemberPermissions} from '../guild/guild-permissions';
@@ -29,16 +27,6 @@ import {QuickSettingsComponent} from './components/quick-settings/quick-settings
 import {AccountDeletionBannerComponent} from './components/account-deletion-banner/account-deletion-banner.component';
 import {VoiceResumeBannerComponent} from './components/voice-resume-banner/voice-resume-banner.component';
 import {VoiceStatusBarComponent} from './components/voice-status-bar/voice-status-bar.component';
-import {channelViewFor} from '../guild/channel-types';
-import {UnsupportedChannelComponent} from '../guild/components/unsupported-channel/unsupported-channel.component';
-// The five household channel views.
-import {ListChannelComponent} from '../guild/components/list-channel/list-channel.component';
-import {ChoresChannelComponent} from '../guild/components/chores-channel/chores-channel.component';
-import {LedgerChannelComponent} from '../guild/components/ledger-channel/ledger-channel.component';
-import {PantryChannelComponent} from '../guild/components/pantry-channel/pantry-channel.component';
-import {DecisionsChannelComponent} from '../guild/components/decisions-channel/decisions-channel.component';
-import {MealsChannelComponent} from '../guild/components/meals-channel/meals-channel.component';
-import {MaintenanceChannelComponent} from '../guild/components/maintenance-channel/maintenance-channel.component';
 import {HouseHomeComponent} from '../guild/components/house-home/house-home.component';
 import {GuildMemberListComponent} from '../guild/components/guild-member-list/guild-member-list.component';
 import {UserTokenService} from '../../services/user-token.service';
@@ -98,17 +86,7 @@ import {scopeKey} from '../../services/share-watch.service';
         MobileConversationsPageComponent,
         ActionSidepanelComponent,
         ConversationComponent,
-        ChannelComponent,
-        VoiceChannelComponent,
-        ForumChannelComponent,
-        UnsupportedChannelComponent,
-        ListChannelComponent,
-        ChoresChannelComponent,
-        LedgerChannelComponent,
-        PantryChannelComponent,
-        DecisionsChannelComponent,
-        MealsChannelComponent,
-        MaintenanceChannelComponent,
+        ChannelHostComponent,
         HouseHomeComponent,
         ServerTaskbarComponent,
         ActivityFeedComponent,
@@ -141,8 +119,6 @@ export class MainPageComponent implements OnDestroy {
     protected oAuthService = inject(OAuthService);
     protected navService = inject(NavigationService);
     protected profilePopout = inject(ProfilePopoutService);
-    /** Routing is an allowlist: an unrecognised type resolves to 'unsupported', never 'message'. */
-    protected readonly channelViewFor = channelViewFor;
     /** The rules gate, prompts and welcome screen all belong to the Onboarding module. */
     protected readonly onboardingEnabled = computed(() => {
         const ws = this.navService.workspace();

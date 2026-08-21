@@ -57,43 +57,7 @@
                     />
                 }
                 @case ('channel') {
-                    <!-- An allowlist, deliberately. The previous @else sent every
-                         unrecognised type to the message view, composer and all. -->
-                    @switch (channelViewFor(view.channel.type)) {
-                        @case ('voice') {
-                            <app-voice-channel [channel]="view.channel" />
-                        }
-                        @case ('forum') {
-                            <app-forum-channel (back)="navService.showHome()" [channel]="view.channel" />
-                        }
-                        @case ('message') {
-                            <app-channel (back)="navService.showHome()" [channel]="view.channel" />
-                        }
-                        @case ('list') {
-                            <app-list-channel (back)="navService.showHome()" [channel]="view.channel" />
-                        }
-                        @case ('chores') {
-                            <app-chores-channel (back)="navService.showHome()" [channel]="view.channel" />
-                        }
-                        @case ('ledger') {
-                            <app-ledger-channel (back)="navService.showHome()" [channel]="view.channel" />
-                        }
-                        @case ('pantry') {
-                            <app-pantry-channel (back)="navService.showHome()" [channel]="view.channel" />
-                        }
-                        @case ('decisions') {
-                            <app-decisions-channel (back)="navService.showHome()" [channel]="view.channel" />
-                        }
-                        @case ('meals') {
-                            <app-meals-channel (back)="navService.showHome()" [channel]="view.channel" />
-                        }
-                        @case ('maintenance') {
-                            <app-maintenance-channel (back)="navService.showHome()" [channel]="view.channel" />
-                        }
-                        @default {
-                            <app-unsupported-channel [channel]="view.channel" />
-                        }
-                    }
+                    <app-channel-host [channel]="view.channel" />
                 }
                 @case ('wiki') {
                     <app-wiki [guildId]="view.guildId" />
