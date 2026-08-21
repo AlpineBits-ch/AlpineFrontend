@@ -1,6 +1,7 @@
 import {TestBed} from '@angular/core/testing';
 import {provideHttpClient} from '@angular/common/http';
 import {HttpTestingController, provideHttpClientTesting} from '@angular/common/http/testing';
+import {Subject} from 'rxjs';
 import {DecisionService} from './decision.service';
 import {ApiConfigService} from './api-config.service';
 import {RealtimeConnectionService} from './realtime-connection.service';
@@ -52,10 +53,14 @@ function setup() {
             {
                 provide: RealtimeConnectionService,
                 useValue: {
-                    on: (event: string, handler: (payload: never) => void) => {
+                    // The real `stream` registers one hub handler per event and fans it out to
+                    // subscribers, so the registration count stays one per event.
+                    stream: (event: string) => {
+                        const subject = new Subject<never>();
                         const list = hubHandlers.get(event) ?? [];
-                        list.push(handler);
+                        list.push(payload => subject.next(payload));
                         hubHandlers.set(event, list);
+                        return subject.asObservable();
                     },
                     off: () => undefined,
                 },
