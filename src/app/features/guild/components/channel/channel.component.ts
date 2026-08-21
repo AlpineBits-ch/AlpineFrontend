@@ -5,7 +5,6 @@ import {
     effect,
     inject,
     input,
-    output,
     signal,
     untracked,
     viewChild,
@@ -99,7 +98,6 @@ function decodeContent(encoded: string): string {
 })
 export class ChannelComponent {
     public readonly channel = input.required<ChannelDto>();
-    public back = output();
     protected navService = inject(NavigationService);
     protected readonly guildId = computed(() => this.channel().guildId);
     protected readonly guildRoles = computed(() => {

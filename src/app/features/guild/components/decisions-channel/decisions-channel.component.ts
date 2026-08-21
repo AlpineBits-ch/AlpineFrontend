@@ -6,7 +6,6 @@ import {
     inject,
     input,
     OnDestroy,
-    output,
     signal,
     untracked,
 } from '@angular/core';
@@ -97,7 +96,6 @@ interface BlockTarget {
 export class DecisionsChannelComponent implements OnDestroy {
     readonly channel = input.required<ChannelDto>();
     /** Emitted from the dead ends: a guild without the module, or a channel we may not read. */
-    back = output();
 
     protected navService = inject(NavigationService);
     private decisions = inject(DecisionService);

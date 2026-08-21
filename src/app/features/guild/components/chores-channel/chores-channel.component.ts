@@ -5,7 +5,6 @@ import {
     effect,
     inject,
     input,
-    output,
     signal,
     untracked,
 } from '@angular/core';
@@ -80,7 +79,6 @@ const MEMBER_PAGE = 200;
 })
 export class ChoresChannelComponent {
     readonly channel = input.required<ChannelDto>();
-    back = output();
 
     protected navService = inject(NavigationService);
     private choreService = inject(ChoreService);

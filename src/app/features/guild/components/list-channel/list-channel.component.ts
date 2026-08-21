@@ -5,7 +5,6 @@ import {
     effect,
     inject,
     input,
-    output,
     signal,
     untracked,
 } from '@angular/core';
@@ -44,7 +43,6 @@ interface ListSection {
 export class ListChannelComponent {
     readonly channel = input.required<ChannelDto>();
     /** Emitted by the mobile back affordance; the shell decides what "back" means. */
-    back = output();
 
     protected readonly maxTextLength = LIST_LIMITS.textMaxLength;
     protected readonly maxItems = LIST_LIMITS.maxItems;

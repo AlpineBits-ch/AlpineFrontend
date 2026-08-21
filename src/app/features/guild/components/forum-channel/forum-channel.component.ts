@@ -1,4 +1,4 @@
-import {ChangeDetectionStrategy, Component, computed, inject, input, output} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, inject, input} from '@angular/core';
 import {Button} from 'primeng/button';
 import {ChannelDto, ChannelType} from '../../../../dtos/response/guild.dto';
 import {NavigationService} from '../../../main-page/navigation.service';
@@ -14,7 +14,6 @@ import {ChannelIconComponent} from '../channel-icon/channel-icon.component';
 })
 export class ForumChannelComponent {
     readonly channel = input.required<ChannelDto>();
-    back = output();
 
     protected navService = inject(NavigationService);
 

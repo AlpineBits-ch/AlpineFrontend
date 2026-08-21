@@ -5,7 +5,6 @@ import {
     effect,
     inject,
     input,
-    output,
     signal,
     untracked,
 } from '@angular/core';
@@ -107,7 +106,6 @@ interface SuggestionRow {
 export class LedgerChannelComponent {
     readonly channel = input.required<ChannelDto>();
     /** Bound by main-page, in common with every other full-page channel view. */
-    back = output();
 
     protected navService = inject(NavigationService);
     private ledger = inject(LedgerService);

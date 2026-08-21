@@ -6,7 +6,6 @@ import {
     inject,
     input,
     OnDestroy,
-    output,
     signal,
     untracked,
 } from '@angular/core';
@@ -79,7 +78,6 @@ const EXPIRING_WINDOWS = [3, 7, 14, 30] as const;
 export class PantryChannelComponent implements OnDestroy {
     readonly channel = input.required<ChannelDto>();
     /** Mobile "leave this channel", bound by main-page like every other channel view; unused in the template on purpose, the header's hamburger is how nav is reached here. */
-    back = output();
 
     protected readonly EXPIRING_WINDOWS = EXPIRING_WINDOWS;
     protected readonly minWarningDays = EXPIRY_WARNING_DAYS_MIN;
