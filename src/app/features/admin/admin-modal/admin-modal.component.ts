@@ -1,4 +1,4 @@
-import {Component, effect, model, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, effect, model, signal} from '@angular/core';
 import {NgClass} from '@angular/common';
 import {Dialog} from 'primeng/dialog';
 import {Button} from 'primeng/button';
@@ -44,6 +44,7 @@ export const ADMIN_NAV_GROUPS: readonly AdminNavGroup[] = [
     ],
     templateUrl: './admin-modal.component.html',
     styleUrl: './admin-modal.component.css',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AdminModalComponent {
     public readonly isVisible = model.required<boolean>();

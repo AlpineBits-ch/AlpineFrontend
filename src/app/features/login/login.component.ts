@@ -1,4 +1,4 @@
-import {Component, computed, DestroyRef, inject, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, DestroyRef, inject, signal} from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {InputText} from 'primeng/inputtext';
 import {PasswordDirective} from 'primeng/password';
@@ -59,6 +59,7 @@ interface RegisterModel {
     ],
     templateUrl: './login.component.html',
     styleUrl: './login.component.css',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class Login {
     /** Abandons the add and goes back to an account that is already signed in. */

@@ -1,4 +1,4 @@
-import {Component, computed, inject, OnInit, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, inject, OnInit, signal} from '@angular/core';
 import {Router} from '@angular/router';
 import {catchError, EMPTY, tap} from 'rxjs';
 import {Dialog} from 'primeng/dialog';
@@ -19,6 +19,7 @@ import {PrimeTemplate} from 'primeng/api';
     selector: 'app-email-verification-dialog',
     imports: [Dialog, Button, InputOtp, FormsModule, PrimeTemplate, TranslateModule],
     templateUrl: './email-verification-dialog.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class EmailVerificationDialogComponent implements OnInit {
     protected verificationService = inject(EmailVerificationService);

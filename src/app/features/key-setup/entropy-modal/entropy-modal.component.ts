@@ -1,5 +1,6 @@
 import {
     AfterViewInit,
+    ChangeDetectionStrategy,
     Component,
     ElementRef,
     EventEmitter,
@@ -22,6 +23,7 @@ interface GridCell {
     imports: [Button, TranslateModule],
     templateUrl: './entropy-modal.component.html',
     styleUrl: './entropy-modal.component.css',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class EntropyModalComponent implements AfterViewInit, OnDestroy {
     readonly canvasRef = viewChild.required<ElementRef<HTMLCanvasElement>>('entropyCanvas');

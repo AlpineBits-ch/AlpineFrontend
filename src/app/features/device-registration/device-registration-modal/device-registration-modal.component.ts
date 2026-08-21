@@ -1,4 +1,4 @@
-import {Component, EventEmitter, inject, input, Output, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, EventEmitter, inject, input, Output, signal} from '@angular/core';
 import {Dialog} from 'primeng/dialog';
 import {Button} from 'primeng/button';
 import {InputText} from 'primeng/inputtext';
@@ -18,6 +18,7 @@ type Step = 'input' | 'processing' | 'done';
     imports: [Dialog, Button, InputText, TranslateModule],
     templateUrl: './device-registration-modal.component.html',
     styleUrl: './device-registration-modal.component.css',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class DeviceRegistrationModalComponent {
     readonly visible = input(false);

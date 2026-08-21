@@ -1,4 +1,4 @@
-import {Component, inject, OnInit, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, inject, OnInit, signal} from '@angular/core';
 import {NgClass} from '@angular/common';
 import {Button} from 'primeng/button';
 import {
@@ -13,6 +13,7 @@ type FilterTab = 'All' | FederationStatus;
     selector: 'app-federation-instances',
     imports: [NgClass, Button],
     templateUrl: './federation-instances.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class FederationInstancesComponent implements OnInit {
     private svc = inject(AdminFederationService);
