@@ -1,11 +1,10 @@
 # Venta
 
-A desktop chat and household client. Angular 21 in a Tauri 2 shell, with audio capture, WebRTC and
-the MLS crypto living in Rust under `src-tauri/`.
+A desktop chat client. Angular 21 in a Tauri 2 shell, with audio capture, WebRTC and the MLS crypto
+living in Rust under `src-tauri/`.
 
-If you have used Discord the shape is familiar: servers, channels, voice, DMs. The part that is not
-familiar is that a server can also run household modules, so a channel might be a chore rota, a
-shared ledger or a pantry rather than a message list.
+Servers with text and voice channels, direct messages, video and screen sharing, and a per-server
+wiki. Conversations can be end-to-end encrypted with MLS.
 
 ## Run it
 
@@ -14,9 +13,9 @@ bun install
 bun run tauri dev
 ```
 
-That wants Rust, MSVC, meson and a few other things first. The full list, and the four ways this
-build goes wrong, are in [docs/building.md](docs/building.md). Read it before you file a bug about
-audio or about a release build behaving differently from `dev`, because both have a known cause.
+You need Rust, MSVC, meson and a few other things first. The full list, and the ways this build goes
+wrong, are in [docs/building.md](docs/building.md). Read that before filing a bug about audio or
+about a release build behaving differently from `dev`. Both have known causes.
 
 ```bash
 bun run test                                  # Angular tests
@@ -25,83 +24,93 @@ bun run lint
 bun run ng build --configuration development
 ```
 
-Always go through the Angular CLI via bun. Bare `vitest` and `npx ng` both fail here in ways that
-look like your code is broken when it is not.
+Always go through the Angular CLI via bun. Bare `vitest` and `npx ng` both fail here, and they fail
+in ways that look like a problem in your code.
 
 ## How the app fits together
 
-Four ideas carry most of it. If you understand these you can find your way around the rest.
+Four things carry most of the architecture.
 
-### 1. One socket, and one place events arrive
+### Events arrive in one place
 
 There is a single SignalR connection to `/api/v1/ws/hub`, owned by `RealtimeConnectionService`. Every
-domain shares it, which is why event names are prefixed: `guild.*`, `conversation.*`, `call.*`,
-`presence.*`.
+domain shares it, so event names are prefixed: `guild.*`, `conversation.*`, `call.*`, `presence.*`.
 
-`services/realtime-events.ts` maps every event name to its payload type. You subscribe by name and
-get the right type back:
+`services/realtime-events.ts` maps each event name to its payload type. Subscribe by name and the
+type comes with it:
 
 ```ts
-private realtime = inject(RealtimeConnectionService);
+export class ChannelStore {
+    private realtime = inject(RealtimeConnectionService);
 
-this.realtime.stream('guild.ChoreCreated').subscribe(d => this.upsert(d.channelId, d.chore));
+    constructor() {
+        this.realtime.stream('guild.ChannelCreated').subscribe(c => this.upsert(c.guildId, c));
+    }
+}
 ```
 
-Whatever listens has to be on the `LISTENERS` array in `services/realtime-listeners.ts`. That array
-is resolved once when the app starts. This matters more than it looks: an Angular service is not
-constructed until something injects it, so a listener that is not on the list does not start
-listening until a user happens to open the view that uses it, and every event before that is lost.
+Anything that listens belongs on the `LISTENERS` array in `services/realtime-listeners.ts`, which is
+resolved once at startup. This one matters more than it looks. Angular does not construct a service
+until something injects it, so a listener left off that array stays asleep until a user opens the
+view that happens to use it, and every event before that moment is gone.
 
-Components should not subscribe to events at all. State reacts to events, components read state. A
-handful of older components still break this rule and are being cleaned up.
+Components read state. Stores react to events. A few older components still subscribe directly and
+are being cleaned up.
 
-### 2. State goes in one of three places
+### Where state lives
 
-Server state goes in a store. Device state goes in a service. View state stays in the component.
-The full rule, including the case where the tests collide, is under "Where state goes" in
-`CLAUDE.md`. It is short and it is worth reading before you add a signal anywhere.
+Server state goes in a store under `src/app/stores/`. Device and session state goes in a service.
+View state stays in the component.
 
-The rough version: if another user's action can change it, it belongs in a store.
+Two questions settle most cases:
 
-### 3. A store is assembled, not hand written
+- Does it arrive many times a second and stop mattering a moment later, like someone speaking or
+  typing? Put it in a plain signal on a service. It never becomes entity state, however server-owned
+  the row it decorates.
+- Can another user's action change it, and could a second screen want to read it? Store.
 
-Stores live in `src/app/stores/` and are built from `@ngrx/signals` plus two local features in
-`src/app/stores/foundation/`:
+Ask per field. One service often holds all three kinds: a voice channel's seats are server state, the
+speaking flag hanging off a seat is transient, and which channel this window joined belongs to the
+device.
 
-- `withKeyedIndex` gives you one entity map partitioned by a key such as a channel id, with loading
-  state, error state, staleness and in flight coalescing per key.
-- `withOptimisticEntities` gives you a write that applies immediately and returns both its undo and
-  its settle.
+### Stores are assembled from two features
 
-Between them you get almost everything a server backed module needs without writing it. `pantry.store.ts`
-and `list.store.ts` are the two worked examples. Read those before writing a third.
+Stores use `@ngrx/signals` plus two local features in `src/app/stores/foundation/`:
 
-HTTP stays out of the store. Each module has a `*-api.service.ts` that does nothing but build
-requests, and the store calls it.
+- `withKeyedIndex` gives you one entity map partitioned by a key such as a channel id, along with
+  loading state, error state, staleness and in-flight coalescing for each key.
+- `withOptimisticEntities` gives you a write that applies immediately and hands back both its undo
+  and its settle.
 
-A few older services still hold their own `signal<Record<string, T>>` state instead. They are being
-moved. If you land in one, move it rather than adding to it.
+Together they cover most of what a server-backed module needs. `pantry.store.ts` and `list.store.ts`
+are the two worked examples. Read them before writing a third.
 
-### 4. Channel types are a table, not a switch
+HTTP stays out of the store. Each module has a `*-api.service.ts` that only builds requests, and the
+store calls it.
 
-Adding a channel type means adding a row to `CHANNEL_META` in `features/guild/channel-types.ts` and
-an entry in `features/guild/channel-views.ts`. The compiler makes you do the second once you have
-done the first. No template edits, and nothing in `main-page.component.ts`.
+Some older services still keep their own `signal<Record<string, T>>` state. Those are being moved. If
+you land in one, move it.
 
-`channelViewFor()` is an allowlist on purpose. A type with no row renders as unsupported rather than
-falling through to a message view with a composer.
+### Channel types live in a table
+
+To add a channel type, add a row to `CHANNEL_META` in `features/guild/channel-types.ts` and an entry
+in `features/guild/channel-views.ts`. The compiler makes you do the second once you have done the
+first. No template edits, and nothing in `main-page.component.ts`.
+
+`channelViewFor()` is an allowlist. A type with no row renders as unsupported, so a channel from a
+newer server can never land in a message view with a composer attached.
 
 ## Adding the usual things
 
 **A realtime event.** Add the name and payload to `realtime-events.ts`. Handle it in the store that
-owns that state. Make sure that store is on `LISTENERS`.
+owns that state. Put that store on `LISTENERS`.
 
-**A server backed module.** A `*-api.service.ts` for the HTTP, a store built on the two features, and
-one line in `LISTENERS`. Copy the shape from Pantry or Lists.
+**A server-backed module.** A `*-api.service.ts` for the HTTP, a store built on the two features, and
+one line in `LISTENERS`. Copy the shape from `pantry.store.ts` or `list.store.ts`.
 
 **A channel type.** One row in `CHANNEL_META`, one entry in `CHANNEL_VIEW_COMPONENTS`, one component.
 
-**A string.** `src/assets/i18n/locales`, flat dot separated keys. Prefer an existing key.
+**A string.** `src/assets/i18n/locales`, flat dot-separated keys. Look for an existing key first.
 
 ## Where things live
 
@@ -109,47 +118,30 @@ one line in `LISTENERS`. Copy the shape from Pantry or Lists.
 src/app/
   stores/        server state. foundation/ holds the two store features
   services/      device and session state, HTTP clients, the realtime connection
-  features/      screens, grouped by area (guild, messaging, settings, login, call)
-  dtos/          wire types, request/ and response/
+  features/      screens, grouped by area: guild, messaging, settings, login, call
+  dtos/          wire types, split into request/ and response/
   core/          small pure modules with tests. money, entitlements, error copy
   helpers/       small pure functions
   platform/      the desktop and web splits behind one interface
   theme/         the PrimeNG preset and Tailwind tokens
 src-tauri/       the Rust shell. audio capture, screen capture, WebRTC publish, presence
-crates/          venta-crypto, the MLS and device certificate code, shared with the web build
+crates/          venta-crypto. MLS and device certificates, shared with the web build
 ```
 
 ## Things that will catch you
 
-Money is stored and passed as whole minor units and formatted only at display. See
+Money is stored and passed as whole minor units, and formatted only at display. See
 `helpers/money.helper.ts`.
 
-`bun run format` runs prettier over the entire repository, so it will rewrite files you never
-touched. Format your own files instead: `bunx prettier --write path/to/file.ts`.
+`bun run format` runs prettier over the whole repository and will rewrite files you never touched.
+Format your own: `bunx prettier --write path/to/file.ts`.
 
-Adding a spec file changes how Vitest batches files across workers, which can make a test fail in a
-file you did not touch. That is usually a known pre existing bug, not your change. `CLAUDE.md`
-explains it under "Tests".
+Adding a spec file changes how Vitest batches files across workers, which can turn a test red in a
+file you never opened. Check whether your change actually touches that file before digging.
 
-`bun run lint` currently exits non zero on a backlog of pre existing findings. Compare against the
-baseline rather than expecting green.
+`bun run lint` exits non-zero on a backlog of existing findings. Compare your count against the
+baseline.
 
-## Further reading
-
-`CLAUDE.md` holds the working rules: how to write, how to commit, the state rule, the testing traps.
-It is the first thing to read after this file.
-
-Server contracts, written from the client's side:
-
-- [docs/api/household-modules-frontend-guide.md](docs/api/household-modules-frontend-guide.md), the
-  chores, ledger, pantry, meals, maintenance and decisions endpoints
-- [docs/api/inbox-frontend-guide.md](docs/api/inbox-frontend-guide.md)
-- [docs/contracts/entitlements-client-requirements.md](docs/contracts/entitlements-client-requirements.md),
-  what the client must enforce about plans and limits
-- [docs/contracts/voice-client-notes.md](docs/contracts/voice-client-notes.md)
-- [docs/contracts/web-push-frontend-guide.md](docs/contracts/web-push-frontend-guide.md)
-- [docs/specs/channel-permissions-ux.md](docs/specs/channel-permissions-ux.md)
-
-`docs/superpowers/` holds design notes and implementation plans for features that have already
-shipped. They are kept for the reasoning, not as documentation, and some of them describe code that
-has since changed. Treat the source as the truth and those as history.
+Before putting `OnPush` on an older component, look for a plain field written from a `subscribe`,
+`then`, `await` or `setTimeout` and read by the template. That is the case `OnPush` breaks, and it
+breaks silently. Make the field a signal.
