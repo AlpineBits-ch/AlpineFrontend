@@ -319,7 +319,8 @@ export function scrollStub(geometry: Partial<Omit<ScrollElementStub, 'scrollTo'>
 
 /** The component's non-public scroll surface, which the scroll specs drive directly. */
 export interface ScrollInnards {
-    scrollRef: {nativeElement: ScrollElementStub};
+    /** A signal query on the component, so the stub stands in as a function. */
+    scrollRef: () => {nativeElement: ScrollElementStub} | undefined;
     scroll: MessageScrollService;
     onScroll: () => void;
     jumpToPresent: () => void;
@@ -329,13 +330,22 @@ export function scrollInnards(component: ChannelConversationComponent): ScrollIn
     return component as unknown as ScrollInnards;
 }
 
+/** Puts a stub container behind the component's `scrollRef` query. */
+export function stubScrollRef(
+    component: ChannelConversationComponent,
+    geometry: Partial<Omit<ScrollElementStub, 'scrollTo'>> = {},
+): {nativeElement: ScrollElementStub} {
+    const ref = scrollStub(geometry);
+    scrollInnards(component).scrollRef = () => ref;
+    return ref;
+}
+
 /** Hands the component's own scroll service a stub container, the way ngAfterViewInit hands it the real one. */
 export function attachScroll(
     component: ChannelConversationComponent,
     geometry: Partial<Omit<ScrollElementStub, 'scrollTo'>> = {},
 ): ScrollElementStub {
-    const inner = scrollInnards(component);
-    inner.scrollRef = scrollStub(geometry);
-    inner.scroll.attach(inner.scrollRef.nativeElement as unknown as HTMLDivElement);
-    return inner.scrollRef.nativeElement;
+    const ref = stubScrollRef(component, geometry);
+    scrollInnards(component).scroll.attach(ref.nativeElement as unknown as HTMLDivElement);
+    return ref.nativeElement;
 }
