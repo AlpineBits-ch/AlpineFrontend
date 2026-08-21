@@ -1,7 +1,7 @@
 import {computed, inject, Signal} from '@angular/core';
 import {map, Observable, tap} from 'rxjs';
-import {signalStore, withHooks, withMethods} from '@ngrx/signals';
-import {withEntities} from '@ngrx/signals/entities';
+import {patchState, signalStore, type, withHooks, withMethods} from '@ngrx/signals';
+import {removeEntities, removeEntity, withEntities} from '@ngrx/signals/entities';
 import {
     BillOccurrence,
     BillOccurrenceCreated,
@@ -73,39 +73,11 @@ function isSettled(loaded: boolean, error: LoadFailure | null): boolean {
 }
 
 /**
- * The templates. Its own entity map, because a schedule and the periods it generates are different
- * rows: one is an arrangement that has no due date of its own, the other is a dated obligation.
- */
-const ScheduleIndex = signalStore(
-    {providedIn: 'root'},
-    withEntities<RecurringExpense>(),
-    withKeyedIndex<RecurringExpense, 'schedules'>({
-        collection: 'schedules',
-        sort: byNextDue,
-        fetch: () => {
-            const api = inject(BillApiService);
-            return (channelId: string) =>
-                api.listSchedules(channelId).pipe(map(rows => rows.map(normalizeRecurringExpense)));
-        },
-    }),
-);
-
-/** The periods. `BillOccurrence.recurringExpenseId` is the only link back to {@link ScheduleIndex}. */
-const OccurrenceIndex = signalStore(
-    {providedIn: 'root'},
-    withEntities<BillOccurrence>(),
-    withKeyedIndex<BillOccurrence, 'bills'>({
-        collection: 'bills',
-        sort: byDueDate,
-        fetch: () => {
-            const api = inject(BillApiService);
-            return (channelId: string) => api.listBills(channelId).pipe(map(rows => rows.map(normalizeBill)));
-        },
-    }),
-);
-
-/**
  * Bills: the schedules a ledger channel holds and the periods they have generated.
+ *
+ * Two entity collections, because a schedule and the periods it generates are different rows: one
+ * is an arrangement that has no due date of its own, the other is a dated obligation.
+ * `BillOccurrence.recurringExpenseId` is the only link between them.
  *
  * Kept apart from the ledger, and not because the endpoints are separate. A bill is an obligation
  * before it is an expense. Expenses are history, money that moved, and balances are derived from
@@ -117,43 +89,75 @@ const OccurrenceIndex = signalStore(
  */
 export const BillStore = signalStore(
     {providedIn: 'root'},
+    withEntities<RecurringExpense, 'schedule'>({
+        entity: type<RecurringExpense>(),
+        collection: 'schedule',
+    }),
+    withEntities<BillOccurrence, 'bill'>({entity: type<BillOccurrence>(), collection: 'bill'}),
 
-    withMethods(() => {
+    withKeyedIndex<RecurringExpense, 'schedules', 'schedule'>({
+        collection: 'schedules',
+        entities: 'schedule',
+        sort: byNextDue,
+        fetch: () => {
+            const api = inject(BillApiService);
+            return (channelId: string) =>
+                api.listSchedules(channelId).pipe(map(rows => rows.map(normalizeRecurringExpense)));
+        },
+    }),
+
+    withKeyedIndex<BillOccurrence, 'bills', 'bill'>({
+        collection: 'bills',
+        entities: 'bill',
+        sort: byDueDate,
+        fetch: () => {
+            const api = inject(BillApiService);
+            return (channelId: string) => api.listBills(channelId).pipe(map(rows => rows.map(normalizeBill)));
+        },
+    }),
+
+    withMethods(store => {
         const api = inject(BillApiService);
         const ledger = inject(LedgerService);
-        const templates = inject(ScheduleIndex);
-        const periods = inject(OccurrenceIndex);
 
         const views = new Map<string, Signal<BillChannelState>>();
         const upcoming = new Map<string, Signal<BillOccurrence[]>>();
 
-        // `Tracked` is "a fetch was issued for this key", which is not the same as "this key holds
-        // rows": a write reaches a channel nobody fetched and leaves an id list with no request
-        // record behind it. Guarding on `Tracked` alone would make that channel realtime-deaf.
-        const holdsSchedules = (channelId: string): boolean =>
-            templates.schedulesTracked(channelId) || channelId in templates.schedulesIds();
-        const holdsBills = (channelId: string): boolean =>
-            periods.billsTracked(channelId) || channelId in periods.billsIds();
+        // `Held` and not `Tracked`: a write reaches a channel nobody fetched and leaves an id list
+        // with no request record behind it, and `Tracked` would make that channel realtime-deaf.
+        const holdsSchedules = (channelId: string): boolean => store.schedulesHeld(channelId);
+        const holdsBills = (channelId: string): boolean => store.billsHeld(channelId);
 
         const attachSchedule = (channelId: string, raw: RecurringExpense): void => {
-            templates.attachToSchedules(channelId, normalizeRecurringExpense(raw));
+            store.attachToSchedules(channelId, normalizeRecurringExpense(raw));
         };
 
         /** Re-reads the periods only. The schedules are unchanged by anything that calls this. */
         const reloadBills = (channelId: string): void => {
             if (!holdsBills(channelId)) return;
-            periods.loadBills(channelId, {force: true});
+            store.loadBills(channelId, {force: true});
         };
 
         const dropSchedule = (channelId: string, templateId: string): void => {
             if (!holdsSchedules(channelId)) return;
-            templates.detachFromSchedules(channelId, templateId);
+            store.detachFromSchedules(channelId, templateId);
+            patchState(store, removeEntity(templateId, {collection: 'schedule'}));
+
             // Pending periods go with the schedule. Posted ones are expenses now and stay.
-            periods.applyBills(
+            const held = store.billsFor(channelId)();
+            const doomed = held.filter(
+                row => row.recurringExpenseId === templateId && isBillOutstanding(row),
+            );
+            store.applyBills(
                 channelId,
-                periods
-                    .billsFor(channelId)()
-                    .filter(row => row.recurringExpenseId !== templateId || !isBillOutstanding(row)),
+                held.filter(row => !doomed.includes(row)),
+            );
+            patchState(
+                store,
+                removeEntities(
+                    doomed.map(row => row.id),
+                    {collection: 'bill'},
+                ),
             );
         };
 
@@ -167,16 +171,16 @@ export const BillStore = signalStore(
 
                 const view = computed(
                     () => {
-                        const scheduleError = templates.schedulesError(channelId);
-                        const billError = periods.billsError(channelId);
+                        const scheduleError = store.schedulesError(channelId);
+                        const billError = store.billsError(channelId);
                         const forbidden = scheduleError === 'forbidden' || billError === 'forbidden';
                         return {
-                            schedules: templates.schedulesFor(channelId)(),
-                            bills: periods.billsFor(channelId)(),
-                            loading: templates.schedulesLoading(channelId) || periods.billsLoading(channelId),
+                            schedules: store.schedulesFor(channelId)(),
+                            bills: store.billsFor(channelId)(),
+                            loading: store.schedulesLoading(channelId) || store.billsLoading(channelId),
                             loaded:
-                                isSettled(templates.schedulesLoaded(channelId), scheduleError) &&
-                                isSettled(periods.billsLoaded(channelId), billError),
+                                isSettled(store.schedulesLoaded(channelId), scheduleError) &&
+                                isSettled(store.billsLoaded(channelId), billError),
                             // One half refusing is enough: a 403 on either route is the module being off.
                             forbidden,
                             // Both halves, or the useful one still rendered under a banner saying nothing loaded.
@@ -195,7 +199,7 @@ export const BillStore = signalStore(
                 const cached = upcoming.get(channelId);
                 if (cached) return cached;
 
-                const view = computed(() => periods.billsFor(channelId)().filter(isBillOutstanding), {
+                const view = computed(() => store.billsFor(channelId)().filter(isBillOutstanding), {
                     equal: sameRows,
                 });
 
@@ -206,7 +210,7 @@ export const BillStore = signalStore(
             /** The template a period came from. The payer lives here, not on the occurrence. */
             scheduleFor(channelId: string, templateId: string): RecurringExpense | null {
                 return (
-                    templates
+                    store
                         .schedulesFor(channelId)()
                         .find(row => row.id === templateId) ?? null
                 );
@@ -216,8 +220,8 @@ export const BillStore = signalStore(
 
             /** Idempotent per channel for the session; call it on every open. */
             loadFor(channelId: string): void {
-                templates.loadSchedules(channelId);
-                periods.loadBills(channelId);
+                store.loadSchedules(channelId);
+                store.loadBills(channelId);
             },
 
             /**
@@ -226,8 +230,8 @@ export const BillStore = signalStore(
              * and it does not need the templates to render.
              */
             refresh(channelId: string): void {
-                templates.loadSchedules(channelId, {force: true});
-                periods.loadBills(channelId, {force: true});
+                store.loadSchedules(channelId, {force: true});
+                store.loadBills(channelId, {force: true});
             },
 
             // ── Writes ───────────────────────────────────────────────────────
@@ -273,7 +277,7 @@ export const BillStore = signalStore(
             skipBill(channelId: string, billId: string, body: SkipBillDto = {}): Observable<BillOccurrence> {
                 return api
                     .skipBill(billId, body)
-                    .pipe(tap(row => periods.attachToBills(channelId, normalizeBill(row))));
+                    .pipe(tap(row => store.attachToBills(channelId, normalizeBill(row))));
             },
 
             // ── Realtime ─────────────────────────────────────────────────────
@@ -296,7 +300,7 @@ export const BillStore = signalStore(
 
             applyBillUpserted({channelId, bill}: BillOccurrenceCreated | BillOccurrenceUpdated): void {
                 if (!holdsBills(channelId)) return;
-                periods.attachToBills(channelId, normalizeBill(bill));
+                store.attachToBills(channelId, normalizeBill(bill));
             },
         };
     }),

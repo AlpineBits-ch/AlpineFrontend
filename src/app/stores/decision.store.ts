@@ -62,6 +62,8 @@ export const DecisionStore = signalStore(
 
     withKeyedIndex<Decision, 'decisions'>({
         collection: 'decisions',
+        // Newest first, and there is no sort: the list endpoint already answers in that order.
+        insertAt: 'start',
         // SignalR replays nothing across a reconnect, so a socket that dropped for a minute leaves
         // a list permanently stale with nothing left to invalidate it.
         staleMs: 2 * 60 * 1000,
@@ -75,21 +77,6 @@ export const DecisionStore = signalStore(
         const views = new Map<string, Signal<ChannelDecisionState>>();
 
         const rowsOf = (channelId: string): Decision[] => store.decisionsFor(channelId)();
-
-        // A create against a channel nobody has loaded still puts a row on the map, so an id list
-        // counts as tracked alongside a request record.
-        const isTracked = (channelId: string): boolean =>
-            store.decisionsTracked(channelId) || channelId in store.decisionsIds();
-
-        /** Newest first, and an existing row is replaced where it stands. */
-        const upsert = (channelId: string, decision: Decision): void => {
-            const rows = rowsOf(channelId);
-            const index = rows.findIndex(row => row.id === decision.id);
-            store.applyDecisions(
-                channelId,
-                index === -1 ? [decision, ...rows] : rows.map((row, i) => (i === index ? decision : row)),
-            );
-        };
 
         const markCancelled = (channelId: string, decisionId: string): void => {
             if (!rowsOf(channelId).some(row => row.id === decisionId)) return;
@@ -105,11 +92,11 @@ export const DecisionStore = signalStore(
                 const view = computed(
                     () => {
                         const decisions = rowsOf(channelId);
-                        if (!isTracked(channelId)) return EMPTY;
+                        if (!store.decisionsHeld(channelId)) return EMPTY;
                         return {
                             decisions,
                             loading: store.decisionsLoading(channelId),
-                            loadedAt: store.decisionsRequests()[channelId]?.loadedAt ?? 0,
+                            loadedAt: store.decisionsLoadedAt(channelId),
                             error: store.decisionsError(channelId),
                         };
                     },
@@ -127,19 +114,19 @@ export const DecisionStore = signalStore(
 
             async create(channelId: string, dto: CreateDecisionDto): Promise<Decision> {
                 const created = await firstValueFrom(api.create(channelId, dto));
-                upsert(channelId, created);
+                store.attachToDecisions(channelId, created);
                 return created;
             },
 
             async vote(channelId: string, decisionId: string, dto: DecisionVoteDto): Promise<Decision> {
                 const updated = await firstValueFrom(api.vote(decisionId, dto));
-                upsert(channelId, updated);
+                store.attachToDecisions(channelId, updated);
                 return updated;
             },
 
             async close(channelId: string, decisionId: string): Promise<Decision> {
                 const closed = await firstValueFrom(api.close(decisionId));
-                upsert(channelId, closed);
+                store.attachToDecisions(channelId, closed);
                 return closed;
             },
 
@@ -156,14 +143,14 @@ export const DecisionStore = signalStore(
 
             /** Created, updated and closed all carry the whole DTO, so one handler covers them. */
             applyUpserted(event: DecisionCreated | DecisionUpdated | DecisionClosed): void {
-                if (!isTracked(event.channelId)) return;
-                upsert(event.channelId, event.decision);
+                if (!store.decisionsHeld(event.channelId)) return;
+                store.attachToDecisions(event.channelId, event.decision);
             },
 
             // The cancel broadcast carries no decision, only its id, so the status transition is
             // applied to what we already hold.
             applyCancelled(event: DecisionCancelled): void {
-                if (!isTracked(event.channelId)) return;
+                if (!store.decisionsHeld(event.channelId)) return;
                 markCancelled(event.channelId, event.decisionId);
             },
         };

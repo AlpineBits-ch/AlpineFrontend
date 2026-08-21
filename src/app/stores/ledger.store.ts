@@ -1,12 +1,13 @@
 import {computed, inject, Signal} from '@angular/core';
 import {HttpErrorResponse} from '@angular/common/http';
-import {catchError, forkJoin, map, Observable, of, tap} from 'rxjs';
+import {catchError, forkJoin, Observable, of, tap} from 'rxjs';
 import {patchState, signalStore, withHooks, withMethods, withState} from '@ngrx/signals';
 import {removeEntity, withEntities} from '@ngrx/signals/entities';
 import {
     Expense,
     ExpenseCategory,
     ExpenseCreated,
+    ExpensePage,
     ExpenseDeleted,
     ExpenseUpdated,
     LedgerBalance,
@@ -99,14 +100,12 @@ const EMPTY_SUMMARY_STATE: LedgerSummaryState = {
     failed: false,
 };
 
-/** What the loaded pages mean: the filter they ran under, and where the one behind them starts. */
+/** What the loaded pages mean. The cursor and `loadingMore` are the index's; this is the filter. */
 interface ExpensePaging {
-    nextCursor: string | null;
-    loadingMore: boolean;
     category: ExpenseCategory | null;
 }
 
-const EMPTY_PAGING: ExpensePaging = {nextCursor: null, loadingMore: false, category: null};
+const EMPTY_PAGING: ExpensePaging = {category: null};
 
 /**
  * The money side of a ledger channel. A balance and a transfer suggestion carry no id at all, and a
@@ -136,11 +135,9 @@ interface LedgerState {
     summaries: Record<string, LedgerSummaryState>;
 }
 
-/** One first-page request: the filter it runs under, and where the cursor it answers with goes. */
+/** One first-page request: the filter it runs under. */
 interface ExpenseQuery {
     category: ExpenseCategory | null;
-    /** The index's fetch answers rows only, so the page's cursor comes back through here. */
-    settle(cursor: string | null): void;
 }
 
 /**
@@ -183,8 +180,9 @@ function sameState(a: LedgerChannelState, b: LedgerChannelState): boolean {
 export const LedgerStore = signalStore(
     {providedIn: 'root'},
     withEntities<Expense>(),
+    withState<LedgerState>({paging: {}, positions: {}, configs: {}, receiptIds: {}, summaries: {}}),
 
-    withKeyedIndex<Expense, 'expenses', ExpenseQuery>({
+    withKeyedIndex<Expense, 'expenses', ExpenseQuery, ExpensePage, LedgerState>({
         collection: 'expenses',
         sort: byOccurredAt,
         fetch: () => {
@@ -192,14 +190,18 @@ export const LedgerStore = signalStore(
             // Always the first page. Carrying a stored cursor here would append the page after the
             // one about to be discarded and leave a hole in the middle of the ledger.
             return (channelId: string, query?: ExpenseQuery) =>
-                api.listExpenses(channelId, EXPENSE_PAGE_SIZE, null, query?.category ?? null).pipe(
-                    tap(page => query?.settle(page.nextCursor ?? null)),
-                    map(page => (page.items ?? []).map(normalizeExpense)),
-                );
+                api.listExpenses(channelId, EXPENSE_PAGE_SIZE, null, query?.category ?? null);
+        },
+        rows: page => (page.items ?? []).map(normalizeExpense),
+        paging: {
+            cursorOf: page => page.nextCursor ?? null,
+            fetch: () => {
+                const api = inject(LedgerApiService);
+                return (channelId: string, cursor: string, query?: ExpenseQuery) =>
+                    api.listExpenses(channelId, EXPENSE_PAGE_SIZE, cursor, query?.category ?? null);
+            },
         },
     }),
-
-    withState<LedgerState>({paging: {}, positions: {}, configs: {}, receiptIds: {}, summaries: {}}),
 
     withMethods((store, api = inject(LedgerApiService)) => {
         const views = new Map<string, Signal<LedgerChannelState>>();
@@ -284,8 +286,6 @@ export const LedgerStore = signalStore(
 
         const queryFor = (channelId: string): ExpenseQuery => ({
             category: pagingOf(channelId).category,
-            // A first page landing supersedes whatever `loadMore` had in the air.
-            settle: cursor => patchPaging(channelId, {nextCursor: cursor, loadingMore: false}),
         });
 
         const refresh = (channelId: string): void => {
@@ -346,16 +346,6 @@ export const LedgerStore = signalStore(
             });
         };
 
-        /**
-         * Adds the rows this channel does not already hold, and keeps the ones it does. What is held
-         * wins the clash: a page is a snapshot from when the request was sent, and this only runs for
-         * `loadMore`, which reaches backwards into pages the client has never seen.
-         */
-        const mergeById = (existing: Expense[], incoming: Expense[]): Expense[] => {
-            const held = new Set(existing.map(e => e.id));
-            return [...existing, ...incoming.filter(e => !held.has(e.id))];
-        };
-
         const stateView = (channelId: string): Signal<LedgerChannelState> => {
             const cached = views.get(channelId);
             if (cached) return cached;
@@ -373,8 +363,8 @@ export const LedgerStore = signalStore(
                     const error = store.expensesError(channelId);
                     return {
                         expenses: store.expensesFor(channelId)(),
-                        nextCursor: page.nextCursor,
-                        loadingMore: page.loadingMore,
+                        nextCursor: store.expensesCursor(channelId),
+                        loadingMore: store.expensesLoadingMore(channelId),
                         balances: held.balances,
                         suggestions: held.suggestions,
                         recentSettlements: held.recentSettlements,
@@ -428,44 +418,13 @@ export const LedgerStore = signalStore(
             refresh,
 
             /**
-             * Appends the next page. A no-op when there is nothing behind what is loaded or a page is
-             * already in the air, so the button can be bound straight to it.
-             *
-             * A failure keeps the pages already loaded and the cursor, and deliberately does not set
-             * `failed`: that flag blanks the whole panel, and losing the ledger you were reading
-             * because its next page timed out is a far worse answer than a second press.
+             * Appends the next page. A failure keeps the pages already loaded and the cursor, and
+             * deliberately does not set `failed`: that flag blanks the whole panel, and losing the
+             * ledger you were reading because its next page timed out is a worse answer than a
+             * second press.
              */
             loadMore(channelId: string): void {
-                const paging = pagingOf(channelId);
-                if (!paging.nextCursor || paging.loadingMore || store.expensesLoading(channelId)) return;
-
-                const cursor = paging.nextCursor;
-                patchPaging(channelId, {loadingMore: true});
-
-                api.listExpenses(channelId, EXPENSE_PAGE_SIZE, cursor, paging.category).subscribe({
-                    next: page => {
-                        // A refresh that landed while this was in the air threw away everything these
-                        // rows sit behind and moved the cursor back to the top. Taking them would
-                        // leave a hole, and the cursor would then point past it forever.
-                        if (pagingOf(channelId).nextCursor !== cursor) {
-                            patchPaging(channelId, {loadingMore: false});
-                            return;
-                        }
-
-                        // Merged by id rather than concatenated: an expense added while the page was
-                        // in flight arrives over the socket too, and a cursor page can legitimately
-                        // re-send a row the client already holds.
-                        store.applyExpenses(
-                            channelId,
-                            mergeById(
-                                store.expensesFor(channelId)(),
-                                (page.items ?? []).map(normalizeExpense),
-                            ),
-                        );
-                        patchPaging(channelId, {nextCursor: page.nextCursor ?? null, loadingMore: false});
-                    },
-                    error: () => patchPaging(channelId, {loadingMore: false}),
-                });
+                store.loadMoreExpenses(channelId);
             },
 
             /**
@@ -476,7 +435,7 @@ export const LedgerStore = signalStore(
              */
             setCategory(channelId: string, category: ExpenseCategory | null): void {
                 if (pagingOf(channelId).category === category) return;
-                patchPaging(channelId, {category, nextCursor: null});
+                patchPaging(channelId, {category});
                 refresh(channelId);
             },
 

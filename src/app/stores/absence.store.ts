@@ -86,12 +86,6 @@ export const AbsenceStore = signalStore(
 
         const rowsOf = (guildId: string): Absence[] => store.absencesFor(guildId)();
 
-        // A guild the client holds a row list for. Wider than `absencesTracked`: declaring an
-        // absence in a guild whose board was never opened writes ids but no request record, and a
-        // realtime event for it must still land.
-        const held = (guildId: string): boolean =>
-            store.absencesTracked(guildId) || guildId in store.absencesIds();
-
         const drop = (guildId: string, absenceId: string): void => {
             store.detachFromAbsences(guildId, absenceId);
             patchState(store, removeEntity(absenceId));
@@ -179,7 +173,9 @@ export const AbsenceStore = signalStore(
             applySaved(event: AbsenceCreated | AbsenceUpdated): void {
                 // Guilds nobody holds anything for are dropped rather than seeded with a single row
                 // that the board would then render as the whole answer.
-                if (held(event.guildId)) store.attachToAbsences(event.guildId, event.absence);
+                if (store.absencesHeld(event.guildId)) {
+                    store.attachToAbsences(event.guildId, event.absence);
+                }
                 if (event.choresReassigned > 0) chores.invalidateAll();
             },
 

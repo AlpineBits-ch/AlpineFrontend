@@ -1,6 +1,6 @@
-import {computed, inject, Injectable, Signal, signal} from '@angular/core';
+import {computed, inject, Signal} from '@angular/core';
 import {map, Observable, tap} from 'rxjs';
-import {patchState, signalStore, withHooks, withMethods, withState} from '@ngrx/signals';
+import {patchState, signalStore, type, withHooks, withMethods} from '@ngrx/signals';
 import {removeEntity, upsertEntity, withEntities} from '@ngrx/signals/entities';
 import {
     AssetStatus,
@@ -12,6 +12,7 @@ import {
     MaintenanceRecord,
     MaintenanceRecordCreated,
     MaintenanceRecordDeleted,
+    MaintenanceRecordPage,
     MaintenanceRecordUpdated,
     normalizeAsset,
     normalizeRecord,
@@ -68,28 +69,13 @@ const EMPTY_ATTENTION: AttentionState = Object.freeze({
     forbidden: false,
 });
 
-/** A board row, given an id so it can sit in the same entity map as assets and records. */
+/** A board row, given an id so it can sit in an entity map. It keys on the asset it is about. */
 interface AttentionEntry extends MaintenanceAttentionEntry {
     id: string;
 }
 
-// Prefixed because a board row keys on the asset it is about, and the asset itself is in the same map.
-const ATTENTION_ID_PREFIX = 'attn:';
-
-type MaintenanceEntity = MaintenanceAsset | MaintenanceRecord | AttentionEntry;
-
 function toAttentionEntry(entry: MaintenanceAttentionEntry): AttentionEntry {
-    return {...entry, id: `${ATTENTION_ID_PREFIX}${entry.asset.id}`};
-}
-
-/** Per-channel `nextCursor` off the log's last page: the fetch writes it, `loadMoreRecords` reads it. */
-@Injectable({providedIn: 'root'})
-class RecordCursors {
-    readonly byChannel = signal<Record<string, string | null>>({});
-
-    set(channelId: string, cursor: string | null): void {
-        this.byChannel.update(all => ({...all, [channelId]: cursor}));
-    }
+    return {...entry, id: entry.asset.id};
 }
 
 // `upsertEntities` merges rather than replaces, so a field the server drops to clear it would
@@ -192,11 +178,14 @@ function sameAttention(a: AttentionState, b: AttentionState): boolean {
  */
 export const MaintenanceStore = signalStore(
     {providedIn: 'root'},
-    withEntities<MaintenanceEntity>(),
+    withEntities<MaintenanceAsset, 'asset'>({entity: type<MaintenanceAsset>(), collection: 'asset'}),
+    withEntities<MaintenanceRecord, 'record'>({entity: type<MaintenanceRecord>(), collection: 'record'}),
+    withEntities<AttentionEntry, 'attn'>({entity: type<AttentionEntry>(), collection: 'attn'}),
 
-    withKeyedIndex<MaintenanceEntity, 'assets'>({
+    withKeyedIndex<MaintenanceAsset, 'assets', 'asset'>({
         collection: 'assets',
-        sort: (a, b) => byUrgency(a as MaintenanceAsset, b as MaintenanceAsset),
+        entities: 'asset',
+        sort: byUrgency,
         fetch: () => {
             const api = inject(MaintenanceApiService);
             return (channelId: string) =>
@@ -204,23 +193,28 @@ export const MaintenanceStore = signalStore(
         },
     }),
 
-    withKeyedIndex<MaintenanceEntity, 'records'>({
+    withKeyedIndex<MaintenanceRecord, 'records', 'record', never, MaintenanceRecordPage>({
         collection: 'records',
-        sort: (a, b) => byNewest(a as MaintenanceRecord, b as MaintenanceRecord),
+        entities: 'record',
+        sort: byNewest,
         fetch: () => {
             const api = inject(MaintenanceApiService);
-            const cursors = inject(RecordCursors);
-            return (channelId: string) =>
-                api.listRecords(channelId).pipe(
-                    tap(page => cursors.set(channelId, page.nextCursor ?? null)),
-                    map(page => page.items.map(wholeRecord)),
-                );
+            return (channelId: string) => api.listRecords(channelId);
+        },
+        rows: page => page.items.map(wholeRecord),
+        paging: {
+            cursorOf: page => page.nextCursor ?? null,
+            fetch: () => {
+                const api = inject(MaintenanceApiService);
+                return (channelId: string, cursor: string) => api.listRecords(channelId, {cursor});
+            },
         },
     }),
 
-    withKeyedIndex<MaintenanceEntity, 'attention'>({
+    withKeyedIndex<AttentionEntry, 'attention', 'attn'>({
         collection: 'attention',
-        sort: (a, b) => byReason(a as AttentionEntry, b as AttentionEntry),
+        entities: 'attn',
+        sort: byReason,
         fetch: () => {
             const api = inject(MaintenanceApiService);
             return (guildId: string) =>
@@ -228,35 +222,26 @@ export const MaintenanceStore = signalStore(
         },
     }),
 
-    withState<{loadingMore: Record<string, boolean>}>({loadingMore: {}}),
-
-    withMethods((store, api = inject(MaintenanceApiService), cursors = inject(RecordCursors)) => {
+    withMethods((store, api = inject(MaintenanceApiService)) => {
         const channelViews = new Map<string, Signal<MaintenanceChannelState>>();
         const boardViews = new Map<string, Signal<AttentionState>>();
 
-        const assetsIn = (channelId: string) => store.assetsFor(channelId)() as MaintenanceAsset[];
-        const recordsIn = (channelId: string) => store.recordsFor(channelId)() as MaintenanceRecord[];
+        const assetsIn = (channelId: string) => store.assetsFor(channelId)();
+        const recordsIn = (channelId: string) => store.recordsFor(channelId)();
 
         // A write can put a row under a key nobody fetched, which leaves `Tracked` false. Realtime
         // must still reach that channel, so an id list counts as having opened it.
         const opened = (channelId: string): boolean =>
-            store.assetsTracked(channelId) ||
-            channelId in store.assetsIds() ||
-            channelId in store.recordsIds();
-
-        const setLoadingMore = (channelId: string, value: boolean): void => {
-            patchState(store, {loadingMore: {...store.loadingMore(), [channelId]: value}});
-        };
+            store.assetsHeld(channelId) || store.recordsHeld(channelId);
 
         /**
          * Keeps a loaded board's copy of one asset current. It never adds a row: whether an asset
          * belongs there is the server's judgement, made against cutoffs this client does not carry.
          */
         const patchBoardAsset = (asset: MaintenanceAsset): void => {
-            const id = `${ATTENTION_ID_PREFIX}${asset.id}`;
-            const held = store.entityMap()[id] as AttentionEntry | undefined;
+            const held = store.attnEntityMap()[asset.id];
             if (!held) return;
-            patchState(store, upsertEntity<MaintenanceEntity>({...held, asset}));
+            patchState(store, upsertEntity({...held, asset}, {collection: 'attn'}));
         };
 
         const upsertAsset = (channelId: string, raw: MaintenanceAsset, existingOnly = false): void => {
@@ -296,8 +281,8 @@ export const MaintenanceStore = signalStore(
                         return {
                             assets,
                             records,
-                            recordsCursor: cursors.byChannel()[channelId] ?? null,
-                            loadingMore: store.loadingMore()[channelId] ?? false,
+                            recordsCursor: store.recordsCursor(channelId),
+                            loadingMore: store.recordsLoadingMore(channelId),
                             loading,
                             loaded: tracked && store.recordsTracked(channelId) && !loading,
                             forbidden,
@@ -317,7 +302,7 @@ export const MaintenanceStore = signalStore(
 
                 const view = computed(
                     () => {
-                        const entries = store.attentionFor(guildId)() as AttentionEntry[];
+                        const entries = store.attentionFor(guildId)();
                         if (!store.attentionTracked(guildId) && entries.length === 0) {
                             return EMPTY_ATTENTION;
                         }
@@ -344,35 +329,6 @@ export const MaintenanceStore = signalStore(
             },
 
             refresh,
-
-            loadMoreRecords(channelId: string): void {
-                const cursor = cursors.byChannel()[channelId] ?? null;
-                if (
-                    !cursor ||
-                    store.loadingMore()[channelId] ||
-                    store.assetsLoading(channelId) ||
-                    store.recordsLoading(channelId)
-                ) {
-                    return;
-                }
-
-                setLoadingMore(channelId, true);
-                api.listRecords(channelId, {cursor}).subscribe({
-                    next: page => {
-                        setLoadingMore(channelId, false);
-                        // A refresh that landed while this was in the air threw away everything the
-                        // page sits behind; appending it would leave a hole in the middle of the log.
-                        if ((cursors.byChannel()[channelId] ?? null) !== cursor) return;
-
-                        const held = new Set(recordsIn(channelId).map(r => r.id));
-                        for (const raw of page.items) {
-                            if (!held.has(raw.id)) upsertRecord(channelId, raw);
-                        }
-                        cursors.set(channelId, page.nextCursor ?? null);
-                    },
-                    error: () => setLoadingMore(channelId, false),
-                });
-            },
 
             // ── Writes ───────────────────────────────────────────────────────
 
@@ -407,7 +363,7 @@ export const MaintenanceStore = signalStore(
                 return api.deleteAsset(assetId).pipe(
                     tap(() => {
                         store.detachFromAssets(channelId, assetId);
-                        patchState(store, removeEntity(assetId));
+                        patchState(store, removeEntity(assetId, {collection: 'asset'}));
                         store.invalidateAttention(guildId);
                     }),
                 );
@@ -460,7 +416,7 @@ export const MaintenanceStore = signalStore(
                 return api.deleteRecord(recordId).pipe(
                     tap(() => {
                         store.detachFromRecords(channelId, recordId);
-                        patchState(store, removeEntity(recordId));
+                        patchState(store, removeEntity(recordId, {collection: 'record'}));
                     }),
                 );
             },
@@ -476,13 +432,12 @@ export const MaintenanceStore = signalStore(
                 store.invalidateAttention(event.guildId);
                 if (opened(event.channelId)) {
                     store.detachFromAssets(event.channelId, event.assetId);
-                    patchState(store, removeEntity(event.assetId));
+                    patchState(store, removeEntity(event.assetId, {collection: 'asset'}));
                 }
                 // Records keep their `assetId` server-side or lose it; either way the log entries
                 // stay, because what was done to a machine outlives the catalogue row.
-                const boardId = `${ATTENTION_ID_PREFIX}${event.assetId}`;
-                store.detachFromAttention(event.guildId, boardId);
-                patchState(store, removeEntity(boardId));
+                store.detachFromAttention(event.guildId, event.assetId);
+                patchState(store, removeEntity(event.assetId, {collection: 'attn'}));
             },
 
             applyRecordUpserted(event: MaintenanceRecordCreated | MaintenanceRecordUpdated): void {
@@ -493,7 +448,7 @@ export const MaintenanceStore = signalStore(
             applyRecordDeleted(event: MaintenanceRecordDeleted): void {
                 if (!opened(event.channelId)) return;
                 store.detachFromRecords(event.channelId, event.recordId);
-                patchState(store, removeEntity(event.recordId));
+                patchState(store, removeEntity(event.recordId, {collection: 'record'}));
             },
         };
     }),

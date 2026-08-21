@@ -1,5 +1,5 @@
 import {computed, inject, Signal} from '@angular/core';
-import {catchError, defer, forkJoin, map, Observable, tap, throwError} from 'rxjs';
+import {catchError, defer, forkJoin, Observable, tap, throwError} from 'rxjs';
 import {patchState, signalStore, withHooks, withMethods, withState} from '@ngrx/signals';
 import {removeEntities, withEntities} from '@ngrx/signals/entities';
 import {
@@ -81,8 +81,12 @@ function sameState(a: ChoreChannelState, b: ChoreChannelState): boolean {
     );
 }
 
-/** The two halves of a board fetch that are not occurrences. Handed to the loader as its per-key argument. */
-type BoardSides = (channelId: string, chores: Chore[], balance: ChoreBalanceEntry[]) => void;
+/** One board fetch: the occurrences the index indexes, plus the two halves it does not. */
+interface ChoreBoard {
+    chores: Chore[];
+    occurrences: ChoreOccurrence[];
+    balance: ChoreBalanceEntry[];
+}
 
 // The entity writes merge rather than replace, so an omitted stamp would leave the old one standing:
 // an un-complete that sends no `completedAt` would read as still done.
@@ -117,7 +121,7 @@ export const ChoreStore = signalStore(
     withEntities<ChoreOccurrence>(),
     withState<ChoreBoardState>({choresByChannel: {}, balanceByChannel: {}}),
 
-    withKeyedIndex<ChoreOccurrence, 'occurrences', BoardSides>({
+    withKeyedIndex<ChoreOccurrence, 'occurrences', never, ChoreBoard, ChoreBoardState>({
         collection: 'occurrences',
         // SignalR replays nothing across a reconnect, so a disconnect window leaves a board
         // permanently stale with nothing left to invalidate it. Re-entering past this refetches.
@@ -126,7 +130,7 @@ export const ChoreStore = signalStore(
             const api = inject(ChoreApiService);
             // All three go together: the board is chores by occurrences with the balance panel at
             // its head, so landing them one at a time draws totals that disagree with the rows.
-            return (channelId: string, sides?: BoardSides) => {
+            return (channelId: string) => {
                 const now = Date.now();
                 const from = new Date(now - WINDOW_BACK_DAYS * 86_400_000).toISOString();
                 const to = new Date(now + WINDOW_FORWARD_DAYS * 86_400_000).toISOString();
@@ -135,12 +139,14 @@ export const ChoreStore = signalStore(
                     chores: api.listChores(channelId),
                     occurrences: api.listOccurrences(channelId, from, to),
                     balance: api.balance(channelId, CHORE_LIMITS.balanceDefaultDays),
-                }).pipe(
-                    tap(({chores, balance}) => sides?.(channelId, chores, balance)),
-                    map(({occurrences}) => occurrences.map(wholeRow)),
-                );
+                });
             };
         },
+        rows: board => board.occurrences.map(wholeRow),
+        onLoaded: (board, channelId, state) => ({
+            choresByChannel: {...state.choresByChannel, [channelId]: board.chores},
+            balanceByChannel: {...state.balanceByChannel, [channelId]: board.balance},
+        }),
     }),
 
     withOptimisticEntities<ChoreOccurrence>(),
@@ -159,16 +165,7 @@ export const ChoreStore = signalStore(
          * any load would otherwise leave the channel realtime-deaf.
          */
         const tracked = (channelId: string): boolean =>
-            store.occurrencesTracked(channelId) ||
-            channelId in store.occurrencesIds() ||
-            channelId in store.choresByChannel();
-
-        const putSides: BoardSides = (channelId, chores, balance) => {
-            patchState(store, {
-                choresByChannel: {...store.choresByChannel(), [channelId]: chores},
-                balanceByChannel: {...store.balanceByChannel(), [channelId]: balance},
-            });
-        };
+            store.occurrencesHeld(channelId) || channelId in store.choresByChannel();
 
         const putBalance = (channelId: string, balance: ChoreBalanceEntry[]): void => {
             patchState(store, {balanceByChannel: {...store.balanceByChannel(), [channelId]: balance}});
@@ -271,7 +268,7 @@ export const ChoreStore = signalStore(
                             occurrences,
                             balance: store.balanceByChannel()[channelId] ?? NO_BALANCE,
                             loading: store.occurrencesLoading(channelId),
-                            loadedAt: store.occurrencesRequests()[channelId]?.loadedAt ?? 0,
+                            loadedAt: store.occurrencesLoadedAt(channelId),
                             error: error !== null,
                             forbidden: error === 'forbidden',
                         };
@@ -285,7 +282,7 @@ export const ChoreStore = signalStore(
 
             /** Loads, or refreshes, one channel's board. */
             loadFor(channelId: string, force = false): void {
-                store.loadOccurrences(channelId, {arg: putSides, force});
+                store.loadOccurrences(channelId, {force});
             },
 
             /**
@@ -297,9 +294,7 @@ export const ChoreStore = signalStore(
              * not refetch: the reassignment usually concerns a board nobody is looking at.
              */
             invalidateAll(): void {
-                for (const channelId of Object.keys(store.occurrencesRequests())) {
-                    store.invalidateOccurrences(channelId);
-                }
+                store.invalidateAllOccurrences();
             },
 
             // ── Chore definitions ────────────────────────────────────────────
