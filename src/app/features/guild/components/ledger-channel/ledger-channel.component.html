@@ -401,13 +401,16 @@
 
     <div class="flex flex-col gap-4">
         <div class="flex flex-col gap-1.5">
-            <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'LEDGER.DESCRIPTION' | translate }}</label>
+            <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="ledger-expense-description">{{
+                'LEDGER.DESCRIPTION' | translate
+            }}</label>
             <input
                 (keydown.enter)="submitExpense()"
                 (ngModelChange)="formDescription.set($event)"
                 [maxlength]="descriptionMaxLength"
                 [ngModel]="formDescription()"
                 [placeholder]="'LEDGER.DESCRIPTION_PLACEHOLDER' | translate"
+                id="ledger-expense-description"
                 pInputText
                 type="text"
             />
@@ -415,7 +418,7 @@
 
         <div class="flex gap-3">
             <div class="flex flex-col gap-1.5 flex-1 min-w-0">
-                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">
+                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="ledger-expense-amount">
                     {{ 'LEDGER.AMOUNT' | translate: {currency: currency()} }}
                 </label>
                 <!-- inputmode="decimal", but a text input: the value travels as a string and becomes whole minor units via parseMinor. -->
@@ -424,6 +427,7 @@
                     (ngModelChange)="formAmount.set($event)"
                     [ngModel]="formAmount()"
                     [placeholder]="'LEDGER.AMOUNT_PLACEHOLDER' | translate"
+                    id="ledger-expense-amount"
                     inputmode="decimal"
                     pInputText
                     type="text"
@@ -436,19 +440,30 @@
             </div>
 
             <div class="flex flex-col gap-1.5 w-40">
-                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'LEDGER.DATE' | translate }}</label>
-                <input (ngModelChange)="formOccurredAt.set($event)" [ngModel]="formOccurredAt()" pInputText type="date" />
+                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="ledger-expense-date">{{
+                    'LEDGER.DATE' | translate
+                }}</label>
+                <input
+                    (ngModelChange)="formOccurredAt.set($event)"
+                    [ngModel]="formOccurredAt()"
+                    id="ledger-expense-date"
+                    pInputText
+                    type="date"
+                />
             </div>
         </div>
 
         <div class="flex flex-col gap-1.5">
-            <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'LEDGER.PAID_BY_LABEL' | translate }}</label>
+            <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="ledger-expense-payer">{{
+                'LEDGER.PAID_BY_LABEL' | translate
+            }}</label>
             <p-select
                 (ngModelChange)="formPayerUserId.set($event)"
                 [disabled]="!canNamePayer()"
                 [filter]="true"
                 [ngModel]="formPayerUserId()"
                 [options]="memberOptions()"
+                inputId="ledger-expense-payer"
                 optionLabel="label"
                 optionValue="value"
                 styleClass="w-full"
@@ -464,11 +479,14 @@
 
         <!-- Left at Uncategorized rather than guessed: a defaulted "Groceries" would quietly file the rent under food. -->
         <div class="flex flex-col gap-1.5">
-            <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'LEDGER.CATEGORY' | translate }}</label>
+            <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="ledger-expense-category">{{
+                'LEDGER.CATEGORY' | translate
+            }}</label>
             <p-select
                 (ngModelChange)="formCategory.set($event)"
                 [ngModel]="formCategory()"
                 [options]="categoryOptions()"
+                inputId="ledger-expense-category"
                 optionLabel="label"
                 optionValue="value"
                 styleClass="w-full"
@@ -477,7 +495,7 @@
 
         <!-- Split. Exact is deliberately absent: the client must never decide who eats the remainder; the server already has, and will disagree. -->
         <div class="flex flex-col gap-2">
-            <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'LEDGER.SPLIT' | translate }}</label>
+            <span class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'LEDGER.SPLIT' | translate }}</span>
             <div class="flex items-center rounded-lg border border-border-subtle p-0.5 self-start">
                 <button
                     (click)="setSplitKind(SplitKind.Equal)"
@@ -587,24 +605,30 @@
 
         <div class="flex gap-3">
             <div class="flex flex-col gap-1.5 flex-1 min-w-0">
-                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'LEDGER.FROM' | translate }}</label>
+                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="ledger-settle-from">{{
+                    'LEDGER.FROM' | translate
+                }}</label>
                 <p-select
                     (ngModelChange)="settleFromUserId.set($event)"
                     [filter]="true"
                     [ngModel]="settleFromUserId()"
                     [options]="memberOptions()"
+                    inputId="ledger-settle-from"
                     optionLabel="label"
                     optionValue="value"
                     styleClass="w-full"
                 />
             </div>
             <div class="flex flex-col gap-1.5 flex-1 min-w-0">
-                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'LEDGER.TO' | translate }}</label>
+                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="ledger-settle-to">{{
+                    'LEDGER.TO' | translate
+                }}</label>
                 <p-select
                     (ngModelChange)="settleToUserId.set($event)"
                     [filter]="true"
                     [ngModel]="settleToUserId()"
                     [options]="memberOptions()"
+                    inputId="ledger-settle-to"
                     optionLabel="label"
                     optionValue="value"
                     styleClass="w-full"
@@ -613,13 +637,14 @@
         </div>
 
         <div class="flex flex-col gap-1.5">
-            <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">
+            <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="ledger-settle-amount">
                 {{ 'LEDGER.AMOUNT' | translate: {currency: currency()} }}
             </label>
             <input
                 (keydown.enter)="submitSettlement()"
                 (ngModelChange)="settleAmount.set($event)"
                 [ngModel]="settleAmount()"
+                id="ledger-settle-amount"
                 inputmode="decimal"
                 pInputText
                 type="text"
@@ -677,13 +702,16 @@
 
     <div class="flex flex-col gap-4">
         <div class="flex flex-col gap-1.5">
-            <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'LEDGER.CURRENCY_CODE' | translate }}</label>
+            <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="ledger-currency-code">{{
+                'LEDGER.CURRENCY_CODE' | translate
+            }}</label>
             <input
                 (keydown.enter)="submitCurrency()"
                 (ngModelChange)="currencyDraft.set($event)"
                 [maxlength]="3"
                 [ngModel]="currencyDraft()"
                 class="uppercase"
+                id="ledger-currency-code"
                 pInputText
                 placeholder="CHF"
                 type="text"

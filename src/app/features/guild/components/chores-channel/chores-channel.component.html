@@ -508,13 +508,14 @@
 
         <div class="grid grid-cols-2 gap-3">
             <div class="flex flex-col gap-1.5">
-                <label class="text-[0.75rem] text-text-secondary">{{ 'CHORES.FORM_INTERVAL' | translate }}</label>
+                <label class="text-[0.75rem] text-text-secondary" for="chore-interval">{{ 'CHORES.FORM_INTERVAL' | translate }}</label>
                 <p-inputnumber
                     [ngModel]="formIntervalDays()"
                     (ngModelChange)="formIntervalDays.set($event)"
                     [min]="limits.intervalDaysMin"
                     [max]="limits.intervalDaysMax"
                     [showButtons]="true"
+                    inputId="chore-interval"
                     styleClass="w-full"
                 />
                 @if (showValidation() && !intervalValid()) {
@@ -525,13 +526,14 @@
             </div>
 
             <div class="flex flex-col gap-1.5">
-                <label class="text-[0.75rem] text-text-secondary">{{ 'CHORES.FORM_EFFORT' | translate }}</label>
+                <label class="text-[0.75rem] text-text-secondary" for="chore-effort">{{ 'CHORES.FORM_EFFORT' | translate }}</label>
                 <p-inputnumber
                     [ngModel]="formEffortMinutes()"
                     (ngModelChange)="formEffortMinutes.set($event)"
                     [min]="limits.effortMinutesMin"
                     [max]="limits.effortMinutesMax"
                     [showButtons]="true"
+                    inputId="chore-effort"
                     styleClass="w-full"
                 />
                 <span class="text-[0.6875rem] text-text-muted leading-relaxed">{{ 'CHORES.FORM_EFFORT_HINT' | translate }}</span>
@@ -547,7 +549,7 @@
             <!-- Create only: the server's UpdateChoreDto carries no anchor, so an editable one here would look like a rota re-phase and do nothing at all. -->
             @if (!editing()) {
                 <div class="flex flex-col gap-1.5">
-                    <label class="text-[0.75rem] text-text-secondary">{{ 'CHORES.FORM_ANCHOR' | translate }}</label>
+                    <label class="text-[0.75rem] text-text-secondary" for="chore-anchor">{{ 'CHORES.FORM_ANCHOR' | translate }}</label>
                     <p-datepicker
                         [ngModel]="formAnchorAt()"
                         (ngModelChange)="formAnchorAt.set($event)"
@@ -556,26 +558,28 @@
                         appendTo="body"
                         dateFormat="d M yy"
                         hourFormat="24"
+                        inputId="chore-anchor"
                         styleClass="w-full"
                     />
                     <span class="text-[0.6875rem] text-text-muted leading-relaxed">{{ 'CHORES.FORM_ANCHOR_HINT' | translate }}</span>
                 </div>
             } @else {
                 <div class="flex flex-col gap-1.5">
-                    <label class="text-[0.75rem] text-text-secondary">{{ 'CHORES.FORM_ANCHOR' | translate }}</label>
+                    <span class="text-[0.75rem] text-text-secondary">{{ 'CHORES.FORM_ANCHOR' | translate }}</span>
                     <p class="text-[0.8125rem] text-text-secondary m-0 pt-1.5">{{ formAnchorAt() | date: 'd MMM y, HH:mm' }}</p>
                     <span class="text-[0.6875rem] text-text-muted leading-relaxed">{{ 'CHORES.FORM_ANCHOR_FIXED' | translate }}</span>
                 </div>
             }
 
             <div class="flex flex-col gap-1.5">
-                <label class="text-[0.75rem] text-text-secondary">{{ 'CHORES.FORM_GRACE' | translate }}</label>
+                <label class="text-[0.75rem] text-text-secondary" for="chore-grace">{{ 'CHORES.FORM_GRACE' | translate }}</label>
                 <p-inputnumber
                     [ngModel]="formGraceHours()"
                     (ngModelChange)="formGraceHours.set($event)"
                     [min]="limits.graceHoursMin"
                     [max]="limits.graceHoursMax"
                     [showButtons]="true"
+                    inputId="chore-grace"
                     styleClass="w-full"
                 />
                 <span class="text-[0.6875rem] text-text-muted leading-relaxed">{{ 'CHORES.FORM_GRACE_HINT' | translate }}</span>

@@ -349,16 +349,21 @@
     <div class="flex flex-col gap-4">
         <div class="flex gap-3">
             <div class="flex flex-col gap-1.5 flex-1 min-w-0">
-                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MEALS.DATE' | translate }}</label>
+                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="meal-entry-date">{{
+                    'MEALS.DATE' | translate
+                }}</label>
                 <!-- A plain date input, and the string it produces goes to the server unchanged: "Thursday dinner" is Thursday dinner wherever the phone is. -->
-                <input (ngModelChange)="entryDate.set($event)" [ngModel]="entryDate()" pInputText type="date" />
+                <input (ngModelChange)="entryDate.set($event)" [ngModel]="entryDate()" id="meal-entry-date" pInputText type="date" />
             </div>
             <div class="flex flex-col gap-1.5 w-36">
-                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MEALS.SLOT' | translate }}</label>
+                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="meal-entry-slot">{{
+                    'MEALS.SLOT' | translate
+                }}</label>
                 <p-select
                     (ngModelChange)="entrySlot.set($event)"
                     [ngModel]="entrySlot()"
                     [options]="slotOptions()"
+                    inputId="meal-entry-slot"
                     optionLabel="label"
                     optionValue="value"
                     styleClass="w-full"
@@ -367,7 +372,9 @@
         </div>
 
         <div class="flex flex-col gap-1.5">
-            <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MEALS.RECIPE' | translate }}</label>
+            <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="meal-entry-recipe">{{
+                'MEALS.RECIPE' | translate
+            }}</label>
             <p-select
                 (ngModelChange)="entryRecipeId.set($event)"
                 [filter]="true"
@@ -375,6 +382,7 @@
                 [options]="recipeOptions()"
                 [placeholder]="'MEALS.RECIPE_NONE' | translate"
                 [showClear]="true"
+                inputId="meal-entry-recipe"
                 optionLabel="label"
                 optionValue="value"
                 styleClass="w-full"
@@ -382,19 +390,24 @@
         </div>
 
         <div class="flex flex-col gap-1.5">
-            <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MEALS.FREE_TEXT' | translate }}</label>
+            <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="meal-entry-free-text">{{
+                'MEALS.FREE_TEXT' | translate
+            }}</label>
             <!-- Most of a real week is "leftovers", so this is the common case, and it is why an entry needs only one of the two. -->
             <input
                 (ngModelChange)="entryFreeText.set($event)"
                 [ngModel]="entryFreeText()"
                 [placeholder]="'MEALS.FREE_TEXT_PLACEHOLDER' | translate"
+                id="meal-entry-free-text"
                 pInputText
                 type="text"
             />
         </div>
 
         <div class="flex flex-col gap-1.5">
-            <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MEALS.COOK' | translate }}</label>
+            <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="meal-entry-cook">{{
+                'MEALS.COOK' | translate
+            }}</label>
             <p-select
                 (ngModelChange)="entryCookUserId.set($event)"
                 [filter]="true"
@@ -402,6 +415,7 @@
                 [options]="memberOptions()"
                 [placeholder]="'MEALS.COOK_NOBODY' | translate"
                 [showClear]="true"
+                inputId="meal-entry-cook"
                 optionLabel="label"
                 optionValue="value"
                 styleClass="w-full"
@@ -439,12 +453,15 @@
 
     <div class="flex flex-col gap-4">
         <div class="flex flex-col gap-1.5">
-            <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MEALS.TITLE' | translate }}</label>
+            <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="meal-recipe-title">{{
+                'MEALS.TITLE' | translate
+            }}</label>
             <input
                 (ngModelChange)="recipeTitle.set($event)"
                 [maxlength]="titleMaxLength"
                 [ngModel]="recipeTitle()"
                 [placeholder]="'MEALS.TITLE_PLACEHOLDER' | translate"
+                id="meal-recipe-title"
                 pInputText
                 type="text"
             />
@@ -452,33 +469,56 @@
 
         <div class="flex gap-3">
             <div class="flex flex-col gap-1.5 w-28">
-                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MEALS.SERVINGS_LABEL' | translate }}</label>
-                <input (ngModelChange)="recipeServings.set(+$event)" [ngModel]="recipeServings()" min="1" pInputText type="number" />
+                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="meal-recipe-servings">{{
+                    'MEALS.SERVINGS_LABEL' | translate
+                }}</label>
+                <input
+                    (ngModelChange)="recipeServings.set(+$event)"
+                    [ngModel]="recipeServings()"
+                    id="meal-recipe-servings"
+                    min="1"
+                    pInputText
+                    type="number"
+                />
             </div>
             <div class="flex flex-col gap-1.5 w-32">
-                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MEALS.PREP_LABEL' | translate }}</label>
+                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="meal-recipe-prep">{{
+                    'MEALS.PREP_LABEL' | translate
+                }}</label>
                 <input
                     (ngModelChange)="recipePrepMinutes.set($event ? +$event : null)"
                     [ngModel]="recipePrepMinutes()"
+                    id="meal-recipe-prep"
                     min="1"
                     pInputText
                     type="number"
                 />
             </div>
             <div class="flex flex-col gap-1.5 flex-1 min-w-0">
-                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MEALS.SOURCE_URL' | translate }}</label>
-                <input (ngModelChange)="recipeSourceUrl.set($event)" [ngModel]="recipeSourceUrl()" pInputText type="url" />
+                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="meal-recipe-source-url">{{
+                    'MEALS.SOURCE_URL' | translate
+                }}</label>
+                <input
+                    (ngModelChange)="recipeSourceUrl.set($event)"
+                    [ngModel]="recipeSourceUrl()"
+                    id="meal-recipe-source-url"
+                    pInputText
+                    type="url"
+                />
             </div>
         </div>
 
         <div class="flex flex-col gap-1.5">
-            <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MEALS.INGREDIENTS' | translate }}</label>
+            <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="meal-recipe-ingredients">{{
+                'MEALS.INGREDIENTS' | translate
+            }}</label>
             <!-- One line each, as the cook would write them on a shopping list; edited as a block, which is also how the endpoint takes them. -->
             <textarea
                 (ngModelChange)="recipeIngredients.set($event)"
                 [ngModel]="recipeIngredients()"
                 [placeholder]="'MEALS.INGREDIENTS_PLACEHOLDER' | translate"
                 class="w-full rounded-lg bg-card border border-border px-3 py-2 text-[0.8125rem] text-text-primary min-h-32 thin-scrollbar"
+                id="meal-recipe-ingredients"
                 rows="8"
             ></textarea>
             <span class="text-[0.625rem] text-text-muted">
@@ -520,13 +560,16 @@
         <p class="text-[0.6875rem] text-text-muted m-0">{{ 'MEALS.SHOPPING_EXPLAINER' | translate }}</p>
 
         <div class="flex flex-col gap-1.5">
-            <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MEALS.SHOPPING_TARGET' | translate }}</label>
+            <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="meal-shopping-target">{{
+                'MEALS.SHOPPING_TARGET' | translate
+            }}</label>
             <p-select
                 (ngModelChange)="shoppingListChannelId.set($event)"
                 [ngModel]="shoppingListChannelId()"
                 [options]="listChannelOptions()"
                 [placeholder]="'MEALS.SHOPPING_TARGET_DEFAULT' | translate"
                 [showClear]="true"
+                inputId="meal-shopping-target"
                 optionLabel="label"
                 optionValue="value"
                 styleClass="w-full"

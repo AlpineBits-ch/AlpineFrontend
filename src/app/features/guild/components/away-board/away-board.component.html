@@ -104,22 +104,28 @@
     <div class="flex flex-col gap-4">
         <div class="flex gap-3">
             <div class="flex flex-col gap-1.5 flex-1 min-w-0">
-                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'AWAY.FROM' | translate }}</label>
+                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="away-from">{{
+                    'AWAY.FROM' | translate
+                }}</label>
                 <p-datepicker
                     (ngModelChange)="draftStart.set($event)"
                     [ngModel]="draftStart()"
                     [showIcon]="true"
+                    inputId="away-from"
                     appendTo="body"
                     dateFormat="d M yy"
                     styleClass="w-full"
                 />
             </div>
             <div class="flex flex-col gap-1.5 flex-1 min-w-0">
-                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'AWAY.UNTIL' | translate }}</label>
+                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="away-until">{{
+                    'AWAY.UNTIL' | translate
+                }}</label>
                 <p-datepicker
                     (ngModelChange)="draftEnd.set($event)"
                     [ngModel]="draftEnd()"
                     [showIcon]="true"
+                    inputId="away-until"
                     appendTo="body"
                     dateFormat="d M yy"
                     styleClass="w-full"
@@ -134,12 +140,13 @@
         }
 
         <div class="flex flex-col gap-1.5">
-            <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'AWAY.NOTE' | translate }}</label>
+            <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="away-note">{{ 'AWAY.NOTE' | translate }}</label>
             <input
                 (ngModelChange)="draftNote.set($event)"
                 [maxlength]="noteMaxLength"
                 [ngModel]="draftNote()"
                 [placeholder]="'AWAY.NOTE_PLACEHOLDER' | translate"
+                id="away-note"
                 pInputText
                 type="text"
             />
