@@ -84,6 +84,19 @@ module.exports = tseslint.config(
             'src/app/features/guild/components/channel/channel-conversation/channel-send.service.ts',
             'src/app/features/main-page/navigation.service.ts',
             'src/app/features/messaging/components/conversation/conversation-search.service.ts',
+
+            // Facades over exactly one store of the same name, left in place so components keep
+            // their existing call sites. A growing list, unlike the one above: one entry per
+            // migrated module. Delete an entry when its components move onto the store directly.
+            'src/app/services/pantry.service.ts',
+            'src/app/services/list.service.ts',
+            'src/app/services/chore.service.ts',
+            'src/app/services/ledger.service.ts',
+            'src/app/services/bill.service.ts',
+            'src/app/services/decision.service.ts',
+            'src/app/services/meal.service.ts',
+            'src/app/services/maintenance.service.ts',
+            'src/app/services/absence.service.ts',
         ],
         rules: {
             'no-restricted-imports': [

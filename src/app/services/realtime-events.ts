@@ -110,6 +110,51 @@ import {
     WsWikiPageUpdated,
 } from '../dtos/response/wiki-events.dto';
 import {MessagePinnedEvent, MessageUnpinnedEvent, ReactionEvent} from './messaging-websocket.service';
+import {
+    ChoreCreated,
+    ChoreDeleted,
+    ChoreOccurrenceCreated,
+    ChoreOccurrenceNudged,
+    ChoreOccurrenceUpdated,
+    ChoreUpdated,
+} from '../dtos/response/chore.dto';
+import {
+    ExpenseCreated,
+    ExpenseDeleted,
+    ExpenseUpdated,
+    SettlementRecorded,
+} from '../dtos/response/ledger.dto';
+import {ExpenseReceiptAdded, ExpenseReceiptDeleted} from '../dtos/response/ledger-insight.dto';
+import {
+    BillOccurrenceCreated,
+    BillOccurrenceUpdated,
+    RecurringExpenseCreated,
+    RecurringExpenseDeleted,
+    RecurringExpenseUpdated,
+} from '../dtos/response/bill.dto';
+import {
+    DecisionCancelled,
+    DecisionClosed,
+    DecisionCreated,
+    DecisionUpdated,
+} from '../dtos/response/decision.dto';
+import {
+    MealPlanEntryCreated,
+    MealPlanEntryDeleted,
+    MealPlanEntryUpdated,
+    RecipeCreated,
+    RecipeDeleted,
+    RecipeUpdated,
+} from '../dtos/response/meal.dto';
+import {
+    MaintenanceAssetCreated,
+    MaintenanceAssetDeleted,
+    MaintenanceAssetUpdated,
+    MaintenanceRecordCreated,
+    MaintenanceRecordDeleted,
+    MaintenanceRecordUpdated,
+} from '../dtos/response/maintenance.dto';
+import {AbsenceCreated, AbsenceDeleted, AbsenceUpdated} from '../dtos/response/absence.dto';
 
 /**
  * Every server → client event this client subscribes to through
@@ -261,6 +306,56 @@ export interface RealtimeEventMap {
     'guild.PantryItemCreated': PantryItemCreated;
     'guild.PantryItemUpdated': PantryItemUpdated;
     'guild.PantryItemDeleted': PantryItemDeleted;
+
+    // Chores. Occurrences are server-generated from a cadence, never synthesized here.
+    'guild.ChoreCreated': ChoreCreated;
+    'guild.ChoreUpdated': ChoreUpdated;
+    'guild.ChoreDeleted': ChoreDeleted;
+    'guild.ChoreOccurrenceCreated': ChoreOccurrenceCreated;
+    'guild.ChoreOccurrenceUpdated': ChoreOccurrenceUpdated;
+    'guild.ChoreOccurrenceNudged': ChoreOccurrenceNudged;
+
+    // Ledger. Receipts carry their own DTO file.
+    'guild.ExpenseCreated': ExpenseCreated;
+    'guild.ExpenseUpdated': ExpenseUpdated;
+    'guild.ExpenseDeleted': ExpenseDeleted;
+    'guild.SettlementRecorded': SettlementRecorded;
+    'guild.ExpenseReceiptAdded': ExpenseReceiptAdded;
+    'guild.ExpenseReceiptDeleted': ExpenseReceiptDeleted;
+
+    // Bills. A recurring expense is the template, an occurrence is one due instance.
+    'guild.RecurringExpenseCreated': RecurringExpenseCreated;
+    'guild.RecurringExpenseUpdated': RecurringExpenseUpdated;
+    'guild.RecurringExpenseDeleted': RecurringExpenseDeleted;
+    'guild.BillOccurrenceCreated': BillOccurrenceCreated;
+    'guild.BillOccurrenceUpdated': BillOccurrenceUpdated;
+
+    // Decisions.
+    'guild.DecisionCreated': DecisionCreated;
+    'guild.DecisionUpdated': DecisionUpdated;
+    'guild.DecisionClosed': DecisionClosed;
+    'guild.DecisionCancelled': DecisionCancelled;
+
+    // Meals.
+    'guild.RecipeCreated': RecipeCreated;
+    'guild.RecipeUpdated': RecipeUpdated;
+    'guild.RecipeDeleted': RecipeDeleted;
+    'guild.MealPlanEntryCreated': MealPlanEntryCreated;
+    'guild.MealPlanEntryUpdated': MealPlanEntryUpdated;
+    'guild.MealPlanEntryDeleted': MealPlanEntryDeleted;
+
+    // Maintenance.
+    'guild.MaintenanceAssetCreated': MaintenanceAssetCreated;
+    'guild.MaintenanceAssetUpdated': MaintenanceAssetUpdated;
+    'guild.MaintenanceAssetDeleted': MaintenanceAssetDeleted;
+    'guild.MaintenanceRecordCreated': MaintenanceRecordCreated;
+    'guild.MaintenanceRecordUpdated': MaintenanceRecordUpdated;
+    'guild.MaintenanceRecordDeleted': MaintenanceRecordDeleted;
+
+    // Absences.
+    'guild.AbsenceCreated': AbsenceCreated;
+    'guild.AbsenceUpdated': AbsenceUpdated;
+    'guild.AbsenceDeleted': AbsenceDeleted;
 
     // Messages.
     'guild.MessageCreated': GuildMessageCreatedPayload;
