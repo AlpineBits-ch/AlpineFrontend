@@ -1,594 +1,109 @@
-import {inject, Injectable, signal} from '@angular/core';
-import {HttpErrorResponse} from '@angular/common/http';
-import {forkJoin, Observable, of, tap} from 'rxjs';
-import {catchError} from 'rxjs/operators';
-import {
-    Expense,
-    ExpenseCategory,
-    ExpenseCreated,
-    ExpenseDeleted,
-    ExpenseUpdated,
-    LedgerBalance,
-    LedgerConfig,
-    normalizeExpense,
-    Settlement,
-    SettlementRecorded,
-    TransferSuggestion,
-} from '../dtos/response/ledger.dto';
-import {
-    ExpenseReceipt,
-    ExpenseReceiptAdded,
-    ExpenseReceiptDeleted,
-    LedgerSummary,
-} from '../dtos/response/ledger-insight.dto';
+import {inject, Injectable} from '@angular/core';
+import {Observable} from 'rxjs';
+import {Expense, ExpenseCategory, LedgerConfig, Settlement} from '../dtos/response/ledger.dto';
+import {ExpenseReceipt} from '../dtos/response/ledger-insight.dto';
 import {
     CreateExpenseDto,
     RecordSettlementDto,
     UpdateExpenseDto,
     UpdateLedgerConfigDto,
 } from '../dtos/request/ledger.dto';
-import {EXPENSE_PAGE_SIZE, LedgerApiService} from './ledger-api.service';
-import {RealtimeConnectionService} from './realtime-connection.service';
+import {LedgerChannelState, LedgerStore, LedgerSummaryState} from '../stores/ledger.store';
 
-/** How many settlements to keep for the "recently settled" strip. They have no list endpoint. */
-const RECENT_SETTLEMENT_LIMIT = 10;
+export type {LedgerChannelState, LedgerSummaryState};
 
-/** What a ledger channel nobody has opened looks like, so `stateFor` never returns undefined. */
-const EMPTY_STATE: LedgerChannelState = {
-    expenses: [],
-    nextCursor: null,
-    loadingMore: false,
-    balances: [],
-    suggestions: [],
-    recentSettlements: [],
-    config: null,
-    category: null,
-    loading: false,
-    loaded: false,
-    forbidden: false,
-    failed: false,
-};
-
-export interface LedgerChannelState {
-    /** Newest first by `occurredAt`. However many pages have been asked for, not the whole ledger. */
-    expenses: Expense[];
-    /**
-     * The cursor for the next page, or `null` when there is nothing behind what is loaded.
-     *
-     * <p>`null` is the only thing that means "the end". A page shorter than the limit does not -
-     * the server may return fewer rows than asked for and still have more.</p>
-     */
-    nextCursor: string | null;
-    /** A `loadMore` is in the air. Distinct from `loading`, which blanks the list. */
-    loadingMore: boolean;
-    /** Server-computed, always summing to zero, with members at zero already dropped. */
-    balances: LedgerBalance[];
-    suggestions: TransferSuggestion[];
-    /** Only what has arrived over the socket this session - there is no settlements endpoint. */
-    recentSettlements: Settlement[];
-    config: LedgerConfig | null;
-    /**
-     * The category the loaded pages were filtered to, or `null` for everything.
-     *
-     * <p>Held in state rather than in the component because it is part of what the pages <i>mean</i>:
-     * a `nextCursor` was minted under one filter and paging it under another interleaves two
-     * different queries. {@link LedgerService.setCategory} is the only way to change it, and it
-     * re-reads from the first page.</p>
-     */
-    category: ExpenseCategory | null;
-    loading: boolean;
-    loaded: boolean;
-    /**
-     * A `403` came back.
-     *
-     * <p>Which far more often means the guild does not have the Ledger module than that this member
-     * is not allowed to see it - the owner gets the same `403` in a Community guild. Callers render
-     * *nothing* on this, never a denial: "your house doesn't do money" and "you're not allowed to
-     * see the money" are different sentences and only one of them is usually true.</p>
-     */
-    forbidden: boolean;
-    failed: boolean;
-}
-
-/** The spending rollup for one channel, plus enough to know whether it is the one being asked for. */
-export interface LedgerSummaryState {
-    summary: LedgerSummary | null;
-    /** How many months back the loaded summary covers, so a window change is detectable. */
-    months: number;
-    loading: boolean;
-    failed: boolean;
-}
-
-const EMPTY_SUMMARY_STATE: LedgerSummaryState = {
-    summary: null,
-    months: 0,
-    loading: false,
-    failed: false,
-};
-
-/**
- * Everything one household's ledger channels hold: expenses, balances, the settle-up plan and the
- * currency, kept per channel and kept live.
- *
- * <p><b>Balances are never computed here.</b> Every realtime event re-fetches them instead. The
- * temptation is obvious - the expense list is right there, the arithmetic is integer, it would be
- * one reduce - and it is wrong twice over: the list on screen is one channel's expenses and not
- * necessarily all of them, and settlements move balances without touching any expense at all. The
- * server owns the number; this owns a cache of it.</p>
- *
- * <p>Channels nobody has opened are ignored on every event. A household guild has one ledger, but a
- * guild with six would otherwise fire six balance fetches per expense anyone anywhere added.</p>
- */
+/** The view-facing shape of {@link LedgerStore}. State and realtime both live in the store. */
 @Injectable({providedIn: 'root'})
 export class LedgerService {
-    private api = inject(LedgerApiService);
-    private realtime = inject(RealtimeConnectionService);
-
-    private readonly states = signal<Record<string, LedgerChannelState>>({});
-
-    /** Channels whose first load has been kicked off, so `loadFor` is free to call on every open. */
-    private readonly requested = new Set<string>();
-
-    /**
-     * Channels with a balances round-trip in the air, and those that were invalidated while one
-     * was.
-     *
-     * <p>Two people in the same shop is the normal case, so events arrive in bursts and each one
-     * invalidates the same pair of endpoints. Without this a burst of five is ten requests whose
-     * answers race; with it, it is one round-trip and then exactly one more, which is the smallest
-     * number that can still be guaranteed to reflect the last event.</p>
-     */
-    private readonly balancesInFlight = new Set<string>();
-    private readonly balancesDirty = new Set<string>();
-
-    /**
-     * Which receipts each expense has, as bare ids keyed by expense id.
-     *
-     * <p><b>Ids, deliberately - never the receipts themselves.</b> A receipt's `url` is presigned per
-     * request and carries an expiry, so a cache of them is a cache of things that start 403ing at an
-     * unpredictable moment and look exactly like lost files. An id list is enough for the paperclip
-     * on a row, and the gallery re-lists every time it opens.</p>
-     *
-     * <p>Ids rather than a plain count for one reason: every write is applied twice, once from the
-     * caller's own response and once from the socket echo of that same write. Adding and removing by
-     * id is idempotent, where `count + 1` twice puts a paperclip and a "2" on an expense with one
-     * photo on it.</p>
-     */
-    private readonly receiptIds = signal<Record<string, string[]>>({});
-
-    /** One summary per channel, with the window it was fetched for. */
-    private readonly summaries = signal<Record<string, LedgerSummaryState>>({});
-
-    constructor() {
-        // Registered once, here, in a root singleton: `RealtimeConnectionService.on` does not
-        // deduplicate, so a second registration delivers every expense twice - and a double-counted
-        // expense in a shared ledger is the kind of bug flatmates argue about. Safe before `start`;
-        // handlers queued now are replayed onto the connection when it is built.
-        this.realtime.on('guild.ExpenseCreated', (d: ExpenseCreated) => this.onExpenseCreated(d));
-        this.realtime.on('guild.ExpenseUpdated', (d: ExpenseUpdated) => this.onExpenseUpdated(d));
-        this.realtime.on('guild.ExpenseDeleted', (d: ExpenseDeleted) => this.onExpenseDeleted(d));
-        this.realtime.on('guild.SettlementRecorded', (d: SettlementRecorded) => this.onSettlementRecorded(d));
-        // Counts only - see `receiptCounts`. Nothing holds a receipt URL between requests.
-        this.realtime.on('guild.ExpenseReceiptAdded', (d: ExpenseReceiptAdded) => this.onReceiptAdded(d));
-        this.realtime.on('guild.ExpenseReceiptDeleted', (d: ExpenseReceiptDeleted) =>
-            this.onReceiptDeleted(d),
-        );
-    }
+    private store = inject(LedgerStore);
 
     // ── Reads ────────────────────────────────────────────────────────────────
 
     stateFor(channelId: string): LedgerChannelState {
-        return this.states()[channelId] ?? EMPTY_STATE;
+        return this.store.stateFor(channelId)();
     }
 
-    /**
-     * The currency to format this channel's amounts in.
-     *
-     * <p>The config is the answer; the newest expense is the stand-in for the moment before it
-     * lands, because every expense carries the currency it was written under. `CHF` last, so a
-     * cold, empty ledger renders numbers rather than a blank space - it is replaced the instant the
-     * config request answers.</p>
-     */
+    /** The currency to format this channel's amounts in. */
     currencyFor(channelId: string): string {
-        const state = this.stateFor(channelId);
-        return state.config?.currency ?? state.expenses[0]?.currency ?? 'CHF';
+        return this.store.currencyFor(channelId);
     }
 
     /** How many receipts an expense is known to have. `0` also covers "nobody has looked yet". */
     receiptCountFor(expenseId: string): number {
-        return this.receiptIds()[expenseId]?.length ?? 0;
+        return this.store.receiptCountFor(expenseId);
     }
 
     summaryFor(channelId: string): LedgerSummaryState {
-        return this.summaries()[channelId] ?? EMPTY_SUMMARY_STATE;
+        return this.store.summaryFor(channelId);
     }
 
     // ── Loading ──────────────────────────────────────────────────────────────
 
     /** Idempotent per channel for the session; call it on every open. */
     loadFor(channelId: string): void {
-        if (this.requested.has(channelId)) return;
-        this.requested.add(channelId);
-        this.refresh(channelId);
+        this.store.loadFor(channelId);
     }
 
     refresh(channelId: string): void {
-        this.patch(channelId, state => ({...state, loading: true, failed: false}));
-
-        // No cursor: a refresh re-reads the *first* page and replaces what was held. Carrying the
-        // stored cursor over would append the page after the one that is about to be discarded and
-        // leave a hole in the middle of the ledger.
-        this.api
-            .listExpenses(channelId, EXPENSE_PAGE_SIZE, null, this.stateFor(channelId).category)
-            .subscribe({
-                next: page =>
-                    this.patch(channelId, state => ({
-                        ...state,
-                        expenses: this.sorted((page.items ?? []).map(normalizeExpense)),
-                        nextCursor: page.nextCursor ?? null,
-                        loading: false,
-                        loadingMore: false,
-                        loaded: true,
-                    })),
-                error: err => this.onLoadError(channelId, err),
-            });
-
-        this.api.getConfig(channelId).subscribe({
-            // A missing config is survivable - `currencyFor` falls back to the expenses - so this
-            // does not flag the channel as failed and does not block the rest of the view.
-            next: config => this.patch(channelId, state => ({...state, config})),
-            error: () => undefined,
-        });
-
-        this.refreshBalances(channelId);
+        this.store.refresh(channelId);
     }
 
-    /**
-     * Appends the next page of expenses.
-     *
-     * <p>No-op when there is nothing behind what is loaded (`nextCursor === null`) or a page is
-     * already in the air - the button can be bound straight to this without guarding either.</p>
-     *
-     * <p>A failure leaves the pages already loaded alone and keeps the cursor, so the button simply
-     * comes back and can be pressed again. It deliberately does not set `failed`: that flag blanks
-     * the whole panel, and losing the ledger you were reading because its <i>next</i> page timed
-     * out is a far worse answer than one that says "load more" a second time.</p>
-     */
+    /** Appends the next page of expenses. A no-op at the end of the ledger or while one is in the air. */
     loadMore(channelId: string): void {
-        const state = this.stateFor(channelId);
-        if (!state.nextCursor || state.loadingMore || state.loading) return;
-
-        const cursor = state.nextCursor;
-        this.patch(channelId, current => ({...current, loadingMore: true}));
-
-        this.api.listExpenses(channelId, EXPENSE_PAGE_SIZE, cursor, state.category).subscribe({
-            next: page =>
-                this.patch(channelId, current => {
-                    // A `refresh` that landed while this page was in the air threw away everything this
-                    // page sits behind, and moved the cursor back to the top of the ledger. Applying
-                    // the page anyway would append rows from further down than the ones now held -
-                    // leaving a hole in the middle - and then point the cursor past it, so nothing
-                    // would ever fetch what was skipped. Dropping it costs one wasted request.
-                    if (current.nextCursor !== cursor) return {...current, loadingMore: false};
-
-                    return {
-                        ...current,
-                        // Merged by id rather than concatenated: an expense added while the page was in
-                        // flight arrives over the socket too, and a cursor page can legitimately
-                        // re-send a row the client already holds.
-                        expenses: this.sorted(
-                            this.mergeById(current.expenses, (page.items ?? []).map(normalizeExpense)),
-                        ),
-                        nextCursor: page.nextCursor ?? null,
-                        loadingMore: false,
-                    };
-                }),
-            error: () => this.patch(channelId, current => ({...current, loadingMore: false})),
-        });
+        this.store.loadMore(channelId);
     }
 
-    /**
-     * Narrows the expense list to one category, or to everything with `null`.
-     *
-     * <p>Re-reads from the first page rather than filtering what is held: the filter has to reach
-     * past the fifty rows on screen, and the stored cursor was minted under the old filter, so
-     * paging it would interleave two different queries. Balances are deliberately untouched - the
-     * house's position is not a property of what the reader is currently looking at.</p>
-     */
+    /** Narrows the expense list to one category, or to everything with `null`. Re-reads from page one. */
     setCategory(channelId: string, category: ExpenseCategory | null): void {
-        if (this.stateFor(channelId).category === category) return;
-        this.patch(channelId, state => ({...state, category, nextCursor: null}));
-        this.refresh(channelId);
+        this.store.setCategory(channelId, category);
     }
 
-    /**
-     * Loads the spending rollup for the last `months` months.
-     *
-     * <p>Always fetched, never served stale from a different window: the two questions "what did we
-     * spend this quarter" and "this year" are different questions, and answering one with the other
-     * silently is worse than a spinner.</p>
-     */
+    /** Loads the spending rollup for the last `months` months. Never served from a different window. */
     loadSummary(channelId: string, months: number): void {
-        const current = this.summaryFor(channelId);
-        if (current.loading && current.months === months) return;
-
-        this.patchSummary(channelId, state => ({...state, months, loading: true, failed: false}));
-
-        const from = new Date();
-        from.setMonth(from.getMonth() - months);
-
-        this.api.summary(channelId, {from: from.toISOString()}).subscribe({
-            next: summary =>
-                this.patchSummary(channelId, state =>
-                    // Dropped if the window moved on while this was in the air - the answer is for a
-                    // question nobody is asking any more, and applying it would relabel the picker.
-                    state.months === months ? {...state, summary, loading: false} : state,
-                ),
-            error: () =>
-                this.patchSummary(channelId, state =>
-                    state.months === months ? {...state, loading: false, failed: true} : state,
-                ),
-        });
+        this.store.loadSummary(channelId, months);
     }
 
     // ── Receipts ─────────────────────────────────────────────────────────────
 
-    /**
-     * The receipts on one expense, freshly presigned.
-     *
-     * <p>Passes straight through with no caching, on purpose - see {@link receiptCounts}. What it
-     * does keep is the count, so the paperclip on the row is right the moment the gallery has been
-     * opened once.</p>
-     */
+    /** The receipts on one expense, freshly presigned. Uncached; only the count is kept. */
     listReceipts(expenseId: string): Observable<ExpenseReceipt[]> {
-        return this.api.listReceipts(expenseId).pipe(
-            tap(receipts =>
-                this.setReceiptIds(
-                    expenseId,
-                    receipts.map(r => r.id),
-                ),
-            ),
-        );
+        return this.store.listReceipts(expenseId);
     }
 
     uploadReceipt(expenseId: string, file: File): Observable<ExpenseReceipt> {
-        return this.api
-            .uploadReceipt(expenseId, file)
-            .pipe(tap(receipt => this.addReceiptId(expenseId, receipt.id)));
+        return this.store.uploadReceipt(expenseId, file);
     }
 
     removeReceipt(expenseId: string, receiptId: string): Observable<void> {
-        return this.api.deleteReceipt(receiptId).pipe(tap(() => this.dropReceiptId(expenseId, receiptId)));
+        return this.store.removeReceipt(expenseId, receiptId);
     }
 
-    /**
-     * Re-reads balances and the settle-up plan together.
-     *
-     * <p>The plan is derived from the balances, so refreshing one without the other puts "Anna pays
-     * Marco 42.00" next to a balance sheet that no longer says 42.00.</p>
-     */
+    /** Re-reads balances and the settle-up plan together; the plan is derived from the balances. */
     refreshBalances(channelId: string): void {
-        if (!this.states()[channelId]) return;
-
-        if (this.balancesInFlight.has(channelId)) {
-            this.balancesDirty.add(channelId);
-            return;
-        }
-        this.balancesInFlight.add(channelId);
-
-        forkJoin({
-            // Failures are folded to null rather than allowed to collapse the pair: a settle
-            // suggestion that 500s must not also blank out the balances that did arrive.
-            balances: this.api
-                .balances(channelId)
-                .pipe(catchError((err: unknown) => this.swallow<LedgerBalance[]>(channelId, err))),
-            suggestions: this.api
-                .settleSuggestion(channelId)
-                .pipe(catchError((err: unknown) => this.swallow<TransferSuggestion[]>(channelId, err))),
-        }).subscribe(({balances, suggestions}) => {
-            this.patch(channelId, state => ({
-                ...state,
-                balances: balances ?? state.balances,
-                suggestions: suggestions ?? state.suggestions,
-            }));
-
-            this.balancesInFlight.delete(channelId);
-            if (this.balancesDirty.delete(channelId)) this.refreshBalances(channelId);
-        });
+        this.store.refreshBalances(channelId);
     }
 
     // ── Writes ───────────────────────────────────────────────────────────────
-    //
-    // Each applies its own response locally and then re-fetches balances, rather than waiting for
-    // the socket echo. The echo still arrives and is still applied - both paths are keyed on the
-    // expense id, so applying the same expense twice is a no-op.
 
     addExpense(channelId: string, body: CreateExpenseDto): Observable<Expense> {
-        return this.api.createExpense(channelId, body).pipe(
-            tap(expense => {
-                this.upsertExpense(channelId, expense);
-                this.refreshBalances(channelId);
-            }),
-        );
+        return this.store.addExpense(channelId, body);
     }
 
     editExpense(channelId: string, expenseId: string, body: UpdateExpenseDto): Observable<Expense> {
-        return this.api.updateExpense(expenseId, body).pipe(
-            tap(expense => {
-                this.upsertExpense(channelId, expense);
-                this.refreshBalances(channelId);
-            }),
-        );
+        return this.store.editExpense(channelId, expenseId, body);
     }
 
     removeExpense(channelId: string, expenseId: string): Observable<void> {
-        return this.api.deleteExpense(expenseId).pipe(
-            tap(() => {
-                this.dropExpense(channelId, expenseId);
-                this.refreshBalances(channelId);
-            }),
-        );
+        return this.store.removeExpense(channelId, expenseId);
     }
 
     /** Records that a payment happened. Nothing moves; the balances just stop saying it is owed. */
     recordSettlement(channelId: string, body: RecordSettlementDto): Observable<Settlement> {
-        return this.api.recordSettlement(channelId, body).pipe(
-            tap(settlement => {
-                this.rememberSettlement(channelId, settlement);
-                this.refreshBalances(channelId);
-            }),
-        );
+        return this.store.recordSettlement(channelId, body);
     }
 
-    /**
-     * Writes the ledger's currency.
-     *
-     * <p>Relabelling only: every stored `amountMinor` keeps its digits, so a ledger flipped from CHF
-     * to EUR still says 1234 and now calls it €12.34. Callers must have said so out loud before
-     * getting here.</p>
-     */
+    /** Relabelling only: every stored `amountMinor` keeps its digits. Callers must have said so first. */
     saveConfig(channelId: string, body: UpdateLedgerConfigDto): Observable<LedgerConfig> {
-        return this.api
-            .updateConfig(channelId, body)
-            .pipe(tap(config => this.patch(channelId, state => ({...state, config}))));
-    }
-
-    // ── Realtime ─────────────────────────────────────────────────────────────
-
-    private onExpenseCreated(event: ExpenseCreated): void {
-        this.upsertExpense(event.channelId, event.expense);
-        this.refreshBalances(event.channelId);
-    }
-
-    private onExpenseUpdated(event: ExpenseUpdated): void {
-        this.upsertExpense(event.channelId, event.expense);
-        this.refreshBalances(event.channelId);
-    }
-
-    private onExpenseDeleted(event: ExpenseDeleted): void {
-        this.dropExpense(event.channelId, event.expenseId);
-        this.refreshBalances(event.channelId);
-    }
-
-    /**
-     * A settlement touches no expense at all - which is exactly why balances have to be re-fetched
-     * rather than derived. Nothing else on screen would have changed.
-     */
-    private onSettlementRecorded(event: SettlementRecorded): void {
-        this.rememberSettlement(event.channelId, event.settlement);
-        this.refreshBalances(event.channelId);
-    }
-
-    /**
-     * Only the id is kept. The event carries the whole receipt, presigned URL and all, and storing
-     * that URL is exactly the mistake this shape exists to avoid - by the time anybody clicked it,
-     * it would have expired.
-     */
-    private onReceiptAdded(event: ExpenseReceiptAdded): void {
-        this.addReceiptId(event.expenseId, event.receipt?.id);
-    }
-
-    private onReceiptDeleted(event: ExpenseReceiptDeleted): void {
-        this.dropReceiptId(event.expenseId, event.receiptId);
-    }
-
-    // ── State plumbing ───────────────────────────────────────────────────────
-
-    private upsertExpense(channelId: string, raw: Expense): void {
-        const expense = normalizeExpense(raw);
-        this.patchExisting(channelId, state => ({
-            ...state,
-            expenses: this.sorted([...state.expenses.filter(e => e.id !== expense.id), expense]),
-        }));
-    }
-
-    private dropExpense(channelId: string, expenseId: string): void {
-        this.patchExisting(channelId, state => ({
-            ...state,
-            expenses: state.expenses.filter(e => e.id !== expenseId),
-        }));
-    }
-
-    private rememberSettlement(channelId: string, settlement: Settlement): void {
-        this.patchExisting(channelId, state => ({
-            ...state,
-            recentSettlements: [
-                settlement,
-                ...state.recentSettlements.filter(s => s.id !== settlement.id),
-            ].slice(0, RECENT_SETTLEMENT_LIMIT),
-        }));
-    }
-
-    /**
-     * Adds the rows this channel does not already hold, and keeps the ones it does.
-     *
-     * <p>What is held wins the clash deliberately. A page is a snapshot from when the request was
-     * sent, so an expense edited over the socket while it was in flight comes back stale in it -
-     * and this only ever runs for {@link loadMore}, which reaches *backwards* into pages the client
-     * has never seen. Overlap is the rare case; a page silently reverting an edit is not worth
-     * paying for it.</p>
-     */
-    private mergeById(existing: Expense[], incoming: Expense[]): Expense[] {
-        const held = new Set(existing.map(e => e.id));
-        return [...existing, ...incoming.filter(e => !held.has(e.id))];
-    }
-
-    /**
-     * Newest first.
-     *
-     * <p>`occurredAt` and not the id: an expense is dated by when the shop happened, not when
-     * someone got round to typing it in, and ids only sort by creation time if they were minted
-     * after the ULID change. The id is the tiebreak purely so two same-day expenses hold a stable
-     * order between renders.</p>
-     */
-    private sorted(expenses: Expense[]): Expense[] {
-        return [...expenses].sort(
-            (a, b) => b.occurredAt.localeCompare(a.occurredAt) || b.id.localeCompare(a.id),
-        );
-    }
-
-    /** A fresh listing is authoritative and replaces whatever the events had accumulated. */
-    private setReceiptIds(expenseId: string, ids: string[]): void {
-        this.receiptIds.update(all => ({...all, [expenseId]: ids}));
-    }
-
-    private addReceiptId(expenseId: string, receiptId: string | undefined): void {
-        if (!receiptId) return;
-        this.receiptIds.update(all => {
-            const held = all[expenseId] ?? [];
-            return held.includes(receiptId) ? all : {...all, [expenseId]: [...held, receiptId]};
-        });
-    }
-
-    private dropReceiptId(expenseId: string, receiptId: string): void {
-        this.receiptIds.update(all => {
-            const held = all[expenseId];
-            return held ? {...all, [expenseId]: held.filter(id => id !== receiptId)} : all;
-        });
-    }
-
-    private patch(channelId: string, fn: (state: LedgerChannelState) => LedgerChannelState): void {
-        this.states.update(all => ({...all, [channelId]: fn(all[channelId] ?? EMPTY_STATE)}));
-    }
-
-    private patchSummary(channelId: string, fn: (state: LedgerSummaryState) => LedgerSummaryState): void {
-        this.summaries.update(all => ({...all, [channelId]: fn(all[channelId] ?? EMPTY_SUMMARY_STATE)}));
-    }
-
-    /** As {@link patch}, but silently drops events for channels nobody has opened. */
-    private patchExisting(channelId: string, fn: (state: LedgerChannelState) => LedgerChannelState): void {
-        this.states.update(all => (all[channelId] ? {...all, [channelId]: fn(all[channelId])} : all));
-    }
-
-    private onLoadError(channelId: string, err: unknown): void {
-        const forbidden = err instanceof HttpErrorResponse && err.status === 403;
-        this.patch(channelId, state => ({...state, loading: false, forbidden, failed: !forbidden}));
-    }
-
-    private swallow<T>(channelId: string, err: unknown): Observable<T | null> {
-        if (err instanceof HttpErrorResponse && err.status === 403) {
-            this.patch(channelId, state => ({...state, forbidden: true, loading: false}));
-        }
-        return of(null);
+        return this.store.saveConfig(channelId, body);
     }
 }

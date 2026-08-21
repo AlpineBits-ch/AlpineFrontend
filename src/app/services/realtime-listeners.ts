@@ -4,7 +4,6 @@ import {ChoreService} from './chore.service';
 import {HomeStatusService} from './home-status.service';
 import {HouseholdAlertService} from './household-alert.service';
 import {InboxService} from './inbox.service';
-import {LedgerService} from './ledger.service';
 import {MaintenanceService} from './maintenance.service';
 import {MealService} from './meal.service';
 import {VoiceRingStateService} from './voice-ring-state.service';
@@ -13,6 +12,7 @@ import {ConversationStore} from '../stores/conversation.store';
 import {DecisionStore} from '../stores/decision.store';
 import {EntitlementStore} from '../stores/entitlement.store';
 import {GuildEmojiStore} from '../stores/guild-emoji.store';
+import {LedgerStore} from '../stores/ledger.store';
 import {ListStore} from '../stores/list.store';
 import {MessageStore} from '../stores/message.store';
 import {PantryStore} from '../stores/pantry.store';
@@ -39,7 +39,6 @@ const LISTENERS: ProviderToken<unknown>[] = [
     // and bills, and the dedupe behind it is per session, not per module.
     HouseholdAlertService,
     InboxService,
-    LedgerService,
     MaintenanceService,
     MealService,
     VoiceRingStateService,
@@ -49,6 +48,7 @@ const LISTENERS: ProviderToken<unknown>[] = [
     DecisionStore,
     EntitlementStore,
     GuildEmojiStore,
+    LedgerStore,
     ListStore,
     MessageStore,
     PantryStore,
