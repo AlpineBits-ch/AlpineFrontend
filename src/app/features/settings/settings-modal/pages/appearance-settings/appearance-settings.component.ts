@@ -1,4 +1,4 @@
-import {Component, computed, inject, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, inject, signal} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {NgClass} from '@angular/common';
 import {Button} from 'primeng/button';
@@ -10,6 +10,7 @@ import {COLOR_GROUPS, COLOR_LABELS, ThemeColors} from '../../../../../models/the
     imports: [FormsModule, NgClass, Button],
     templateUrl: './appearance-settings.component.html',
     styleUrl: './appearance-settings.component.css',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AppearanceSettingsComponent {
     readonly themeService = inject(ThemeService);

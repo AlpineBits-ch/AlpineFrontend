@@ -1,4 +1,4 @@
-import {Component, computed, inject, OnInit} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, inject, OnInit} from '@angular/core';
 import {ToggleSwitch} from 'primeng/toggleswitch';
 import {FormsModule} from '@angular/forms';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
@@ -24,6 +24,7 @@ interface GameRow {
     selector: 'app-activity-settings',
     imports: [ToggleSwitch, FormsModule, TranslateModule],
     templateUrl: './activity-settings.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ActivitySettingsComponent implements OnInit {
     protected readonly privacy = inject(PrivacySettingsService);

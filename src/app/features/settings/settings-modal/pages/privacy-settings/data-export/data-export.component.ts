@@ -1,4 +1,4 @@
-import {Component, computed, inject, OnDestroy, OnInit, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, inject, OnDestroy, OnInit, signal} from '@angular/core';
 import {DatePipe} from '@angular/common';
 import {Button} from 'primeng/button';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
@@ -33,6 +33,7 @@ function retryAfterHours(err: HttpErrorResponse): number | null {
     selector: 'app-data-export',
     imports: [Button, DatePipe, TranslateModule],
     templateUrl: './data-export.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class DataExportComponent implements OnInit, OnDestroy {
     private readonly exports = inject(DataExportService);

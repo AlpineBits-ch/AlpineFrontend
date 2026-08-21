@@ -1,4 +1,14 @@
-import {Component, computed, effect, ElementRef, inject, OnInit, signal, viewChild} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    effect,
+    ElementRef,
+    inject,
+    OnInit,
+    signal,
+    viewChild,
+} from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {Button} from 'primeng/button';
 import {Dialog} from 'primeng/dialog';
@@ -35,6 +45,7 @@ import {AccountPhoneComponent} from '../../../components/account-phone.component
     ],
     templateUrl: './profile-settings.component.html',
     styleUrl: './profile-settings.component.css',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ProfileSettingsComponent implements OnInit {
     protected readonly user = signal<UserDto | undefined>(undefined);
@@ -68,9 +79,9 @@ export class ProfileSettingsComponent implements OnInit {
     protected readonly cancelDeleteVisible = signal(false);
     protected readonly cancellingDeletion = signal(false);
     // Password change
-    protected currentPassword = '';
-    protected newPassword = '';
-    protected confirmPassword = '';
+    protected readonly currentPassword = signal('');
+    protected readonly newPassword = signal('');
+    protected readonly confirmPassword = signal('');
     protected readonly showCurrentPw = signal(false);
     protected readonly showNewPw = signal(false);
     protected readonly showConfirmPw = signal(false);
@@ -123,17 +134,17 @@ export class ProfileSettingsComponent implements OnInit {
 
     protected get passwordMismatch(): boolean {
         return (
-            this.newPassword.length > 0 &&
-            this.confirmPassword.length > 0 &&
-            this.newPassword !== this.confirmPassword
+            this.newPassword().length > 0 &&
+            this.confirmPassword().length > 0 &&
+            this.newPassword() !== this.confirmPassword()
         );
     }
 
     protected get passwordFormValid(): boolean {
         return (
-            this.currentPassword.length > 0 &&
-            this.newPassword.length >= 8 &&
-            this.newPassword === this.confirmPassword
+            this.currentPassword().length > 0 &&
+            this.newPassword().length >= 8 &&
+            this.newPassword() === this.confirmPassword()
         );
     }
 
@@ -300,16 +311,16 @@ export class ProfileSettingsComponent implements OnInit {
         this.passwordChanging.set(true);
         this.passwordResult.set(null);
         this.userService
-            .changePassword(this.currentPassword, this.newPassword)
+            .changePassword(this.currentPassword(), this.newPassword())
             .pipe(take(1))
             .subscribe({
                 next: ({code}) => {
                     this.passwordChanging.set(false);
                     this.passwordResult.set({code, message: this.passwordCodeMessage(code)});
                     if (code >= 200 && code < 300) {
-                        this.currentPassword = '';
-                        this.newPassword = '';
-                        this.confirmPassword = '';
+                        this.currentPassword.set('');
+                        this.newPassword.set('');
+                        this.confirmPassword.set('');
                     }
                 },
             });

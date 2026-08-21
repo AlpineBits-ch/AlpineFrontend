@@ -1,4 +1,4 @@
-import {Component, computed, inject, OnInit, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, inject, OnInit, signal} from '@angular/core';
 import {ToggleSwitch} from 'primeng/toggleswitch';
 import {FormsModule} from '@angular/forms';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
@@ -13,6 +13,7 @@ import {DirectMessagePolicy} from '../../../../../../models/privacy-settings.mod
     selector: 'app-guild-dm-overrides',
     imports: [ToggleSwitch, FormsModule, TranslateModule],
     templateUrl: './guild-dm-overrides.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class GuildDmOverridesComponent implements OnInit {
     private readonly guildPrivacy = inject(GuildPrivacyService);
