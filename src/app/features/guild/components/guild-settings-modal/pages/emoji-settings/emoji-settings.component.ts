@@ -7,7 +7,7 @@ import {
     OnDestroy,
     OnInit,
     signal,
-    ViewChild,
+    viewChild,
 } from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {Button} from 'primeng/button';
@@ -102,7 +102,7 @@ export class EmojiSettingsComponent implements OnInit, OnDestroy {
     protected readonly uploadedCount = computed(() => this.queue().filter(r => r.status === 'done').length);
     protected readonly failedCount = computed(() => this.queue().filter(r => r.status === 'error').length);
 
-    @ViewChild('fileInput') private fileInputRef?: ElementRef<HTMLInputElement>;
+    private readonly fileInputRef = viewChild<ElementRef<HTMLInputElement>>('fileInput');
 
     private guildService = inject(GuildService);
     private guildEmojiService = inject(GuildEmojiService);
@@ -145,7 +145,7 @@ export class EmojiSettingsComponent implements OnInit, OnDestroy {
     }
 
     openFilePicker(): void {
-        this.fileInputRef?.nativeElement.click();
+        this.fileInputRef()?.nativeElement.click();
     }
 
     onFileSelected(event: Event): void {

@@ -8,7 +8,7 @@ import {
     output,
     signal,
     untracked,
-    ViewChild,
+    viewChild,
 } from '@angular/core';
 import {NgClass} from '@angular/common';
 import {Popover} from 'primeng/popover';
@@ -80,7 +80,7 @@ export class PermissionOverridesPanelComponent {
     /** The entry whose preset row is showing, cleared once one is picked or dismissed. */
     protected readonly pendingPresetFor = signal<string | null>(null);
 
-    @ViewChild('addPopover') private addPopoverRef!: Popover;
+    private readonly addPopoverRef = viewChild.required<Popover>('addPopover');
 
     private brokenImages = inject(BrokenImageService);
 
@@ -118,11 +118,11 @@ export class PermissionOverridesPanelComponent {
     }
 
     toggleAddPopover(event: Event): void {
-        this.addPopoverRef.toggle(event);
+        this.addPopoverRef().toggle(event);
     }
 
     onAdd(id: string): void {
-        this.addPopoverRef.hide();
+        this.addPopoverRef().hide();
         this.selectedId.set(id);
         this.add.emit(id);
         this.pendingPresetFor.set(id);
