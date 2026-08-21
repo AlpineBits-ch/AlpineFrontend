@@ -109,6 +109,10 @@ function contextKey(ctx: MessageContext): string {
         : messageContextKey({channelId: ctx.id});
 }
 
+function inContext(message: MessageDto, ctx: MessageContext): boolean {
+    return ctx.kind === 'conversation' ? message.conversationId === ctx.id : message.channelId === ctx.id;
+}
+
 interface MessageState {
     conversationMeta: Record<string, ConversationMeta>;
     searchEntries: Record<string, SearchEntry>;
@@ -180,6 +184,59 @@ export const MessageStore = signalStore(
                 if (next) record[ctx.id] = next;
                 else delete record[ctx.id];
                 return ctx.kind === 'conversation' ? {conversationMeta: record} : {channelMeta: record};
+            }
+
+            function searchRecord(ctx: MessageContext): Record<string, SearchEntry> {
+                return ctx.kind === 'conversation' ? store.searchEntries() : store.channelSearchEntries();
+            }
+
+            function searchPatch(ctx: MessageContext, next: SearchEntry | null): Partial<MessageState> {
+                const record = {...searchRecord(ctx)};
+                if (next) record[ctx.id] = next;
+                else delete record[ctx.id];
+                return ctx.kind === 'conversation' ? {searchEntries: record} : {channelSearchEntries: record};
+            }
+
+            function runSearch(ctx: MessageContext, query: string): void {
+                const q = query.trim().toLowerCase();
+                if (!q) {
+                    patchState(store, searchPatch(ctx, null));
+                    return;
+                }
+
+                const localResults = store
+                    .entities()
+                    .filter(m => inContext(m, ctx) && !m.isPending && !m.isFailed)
+                    .filter(m => messageMatchesQuery(m, q));
+
+                const needsRemote = readMeta(ctx)?.hasMore ?? true;
+
+                patchState(
+                    store,
+                    searchPatch(ctx, {query: q, results: localResults, searching: needsRemote}),
+                );
+
+                if (!needsRemote) return;
+
+                const remote =
+                    ctx.kind === 'conversation'
+                        ? messagingService.searchMessagesForConversation(ctx.id, q)
+                        : messagingService.searchMessagesForChannel(ctx.id, q);
+
+                remote.subscribe({
+                    next: remoteResults => {
+                        patchState(store, addEntities(remoteResults));
+                        const localIds = new Set(localResults.map(m => m.id));
+                        const merged = [
+                            ...localResults,
+                            ...remoteResults.filter(r => !localIds.has(r.id)),
+                        ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+                        patchState(store, searchPatch(ctx, {query: q, results: merged, searching: false}));
+                    },
+                    error: () => {
+                        patchState(store, searchPatch(ctx, {...searchRecord(ctx)[ctx.id], searching: false}));
+                    },
+                });
             }
 
             function requestPage(ctx: MessageContext, offset: number): Observable<MessageDto[]> {
@@ -310,9 +367,7 @@ export const MessageStore = signalStore(
                 },
 
                 clearConversationError(conversationId: string): void {
-                    const meta = {...store.conversationMeta()};
-                    delete meta[conversationId];
-                    patchState(store, {conversationMeta: meta});
+                    patchState(store, metaPatch(conversationContext(conversationId), null));
                 },
 
                 addMessage(msg: MessageDto): void {
@@ -561,76 +616,20 @@ export const MessageStore = signalStore(
                 },
 
                 removeMessagesForConversation(conversationId: string): void {
+                    const ctx = conversationContext(conversationId);
                     const ids = store
                         .entities()
-                        .filter(m => m.conversationId === conversationId)
+                        .filter(m => inContext(m, ctx))
                         .map(m => m.id);
-                    const meta = {...store.conversationMeta()};
-                    delete meta[conversationId];
-                    patchState(store, removeEntities(ids), {conversationMeta: meta});
+                    patchState(store, removeEntities(ids), metaPatch(ctx, null));
                 },
 
                 searchInConversation(conversationId: string, query: string): void {
-                    const q = query.trim().toLowerCase();
-                    if (!q) {
-                        const entries = {...store.searchEntries()};
-                        delete entries[conversationId];
-                        patchState(store, {searchEntries: entries});
-                        return;
-                    }
-
-                    const localResults = store
-                        .entities()
-                        .filter(m => m.conversationId === conversationId && !m.isPending && !m.isFailed)
-                        .filter(m => messageMatchesQuery(m, q));
-
-                    const meta = store.conversationMeta()[conversationId];
-                    const needsRemote = meta?.hasMore ?? true;
-
-                    patchState(store, {
-                        searchEntries: {
-                            ...store.searchEntries(),
-                            [conversationId]: {query: q, results: localResults, searching: needsRemote},
-                        },
-                    });
-
-                    if (!needsRemote) return;
-
-                    messagingService.searchMessagesForConversation(conversationId, q).subscribe({
-                        next: remoteResults => {
-                            patchState(store, addEntities(remoteResults));
-                            const localIds = new Set(localResults.map(m => m.id));
-                            const merged = [
-                                ...localResults,
-                                ...remoteResults.filter(r => !localIds.has(r.id)),
-                            ].sort(
-                                (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-                            );
-                            patchState(store, {
-                                searchEntries: {
-                                    ...store.searchEntries(),
-                                    [conversationId]: {query: q, results: merged, searching: false},
-                                },
-                            });
-                        },
-                        error: () => {
-                            patchState(store, {
-                                searchEntries: {
-                                    ...store.searchEntries(),
-                                    [conversationId]: {
-                                        ...store.searchEntries()[conversationId],
-                                        searching: false,
-                                    },
-                                },
-                            });
-                        },
-                    });
+                    runSearch(conversationContext(conversationId), query);
                 },
 
                 clearSearch(conversationId: string): void {
-                    const entries = {...store.searchEntries()};
-                    delete entries[conversationId];
-                    patchState(store, {searchEntries: entries});
+                    patchState(store, searchPatch(conversationContext(conversationId), null));
                 },
 
                 loadForChannel(channelId: string): void {
@@ -767,67 +766,15 @@ export const MessageStore = signalStore(
                 },
 
                 clearChannelError(channelId: string): void {
-                    const meta = {...store.channelMeta()};
-                    delete meta[channelId];
-                    patchState(store, {channelMeta: meta});
+                    patchState(store, metaPatch(channelContext(channelId), null));
                 },
 
                 searchInChannel(channelId: string, query: string): void {
-                    const q = query.trim().toLowerCase();
-                    if (!q) {
-                        const entries = {...store.channelSearchEntries()};
-                        delete entries[channelId];
-                        patchState(store, {channelSearchEntries: entries});
-                        return;
-                    }
-                    const localResults = store
-                        .entities()
-                        .filter(m => m.channelId === channelId && !m.isPending && !m.isFailed)
-                        .filter(m => messageMatchesQuery(m, q));
-                    const meta = store.channelMeta()[channelId];
-                    const needsRemote = meta?.hasMore ?? true;
-                    patchState(store, {
-                        channelSearchEntries: {
-                            ...store.channelSearchEntries(),
-                            [channelId]: {query: q, results: localResults, searching: needsRemote},
-                        },
-                    });
-                    if (!needsRemote) return;
-                    messagingService.searchMessagesForChannel(channelId, q).subscribe({
-                        next: remoteResults => {
-                            patchState(store, addEntities(remoteResults));
-                            const localIds = new Set(localResults.map(m => m.id));
-                            const merged = [
-                                ...localResults,
-                                ...remoteResults.filter(r => !localIds.has(r.id)),
-                            ].sort(
-                                (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-                            );
-                            patchState(store, {
-                                channelSearchEntries: {
-                                    ...store.channelSearchEntries(),
-                                    [channelId]: {query: q, results: merged, searching: false},
-                                },
-                            });
-                        },
-                        error: () => {
-                            patchState(store, {
-                                channelSearchEntries: {
-                                    ...store.channelSearchEntries(),
-                                    [channelId]: {
-                                        ...store.channelSearchEntries()[channelId],
-                                        searching: false,
-                                    },
-                                },
-                            });
-                        },
-                    });
+                    runSearch(channelContext(channelId), query);
                 },
 
                 clearChannelSearch(channelId: string): void {
-                    const entries = {...store.channelSearchEntries()};
-                    delete entries[channelId];
-                    patchState(store, {channelSearchEntries: entries});
+                    patchState(store, searchPatch(channelContext(channelId), null));
                 },
 
                 getOrFetchMessage(
