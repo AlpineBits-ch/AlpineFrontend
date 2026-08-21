@@ -1,7 +1,6 @@
 import {InjectionToken, Provider, ProviderToken} from '@angular/core';
 import {AbsenceService} from './absence.service';
 import {BillService} from './bill.service';
-import {ChoreService} from './chore.service';
 import {DecisionService} from './decision.service';
 import {HomeStatusService} from './home-status.service';
 import {HouseholdAlertService} from './household-alert.service';
@@ -10,6 +9,7 @@ import {LedgerService} from './ledger.service';
 import {MaintenanceService} from './maintenance.service';
 import {MealService} from './meal.service';
 import {VoiceRingStateService} from './voice-ring-state.service';
+import {ChoreStore} from '../stores/chore.store';
 import {ConversationStore} from '../stores/conversation.store';
 import {EntitlementStore} from '../stores/entitlement.store';
 import {GuildEmojiStore} from '../stores/guild-emoji.store';
@@ -34,7 +34,6 @@ export const REALTIME_LISTENER = new InjectionToken<readonly unknown[]>('REALTIM
 const LISTENERS: ProviderToken<unknown>[] = [
     AbsenceService,
     BillService,
-    ChoreService,
     DecisionService,
     HomeStatusService,
     // Not folded into the modules it serves: one `guild.HouseholdAlert` covers chores, decisions
@@ -46,6 +45,7 @@ const LISTENERS: ProviderToken<unknown>[] = [
     MealService,
     VoiceRingStateService,
     // The signal stores register in `withHooks({onInit})`, which a root store runs on first inject.
+    ChoreStore,
     ConversationStore,
     EntitlementStore,
     GuildEmojiStore,
