@@ -156,7 +156,7 @@ export function detectTrigger(editor: HTMLElement): TriggerDetection {
     // before the single-character triggers because a page title may contain any of them - `[[a:b`
     // is a page query, not an emoji shortcode - and the two-character opener cannot be reached by
     // accident the way a bare colon can.
-    const wikiMatch = textBefore.match(/\[\[([^\[\]\n]{0,64})$/);
+    const wikiMatch = textBefore.match(/\[\[([^[\]\n]{0,64})$/);
     if (wikiMatch) {
         const openPos = textBefore.lastIndexOf('[[');
         const r = document.createRange();
@@ -174,7 +174,7 @@ export function detectTrigger(editor: HTMLElement): TriggerDetection {
         return {type: 'mention', query: mentionMatch[1], range: r};
     }
 
-    const channelMatch = textBefore.match(/(?:^|[\s ])#([\w-]*)$/);
+    const channelMatch = textBefore.match(/(?:^|[\s\u00a0])#([\w-]*)$/);
     if (channelMatch) {
         const hashPos = textBefore.lastIndexOf('#');
         const r = document.createRange();
