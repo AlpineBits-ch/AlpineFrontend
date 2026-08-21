@@ -69,20 +69,20 @@ const KEEP_ALIVE_INTERVAL_MS = 30_000;
 export class RealtimeConnectionService {
     public readonly connectionState = signal(ConnectionState.Disconnected);
     private hubConnection: signalR.HubConnection | null = null;
-    private pendingHandlers: {event: string; handler: (...args: any[]) => void}[] = [];
+    private pendingHandlers: {event: string; register: (connection: signalR.HubConnection) => void}[] = [];
     private readonly authService = inject(AuthService);
     private readonly apiConfig = inject(ApiConfigService);
     private readonly deviceIdentity = inject(DeviceIdentityService);
-    private readonly streams = new Map<string, Subject<any>>();
+    private readonly streams = new Map<string, Subject<unknown>>();
     private starting?: Promise<void>;
 
     /** Register a server → client event handler. Safe to call before or after {@link start}. */
-    on(event: string, handler: (...args: any[]) => void): void {
+    on<T = unknown>(event: string, handler: (payload: T) => void): void {
         if (this.hubConnection) {
             this.hubConnection.on(event, handler);
             return;
         }
-        this.pendingHandlers.push({event, handler});
+        this.pendingHandlers.push({event, register: connection => connection.on(event, handler)});
     }
 
     /**
@@ -95,10 +95,11 @@ export class RealtimeConnectionService {
      */
     stream<K extends RealtimeEvent>(event: K): Observable<PayloadOf<K>> {
         const existing = this.streams.get(event);
-        if (existing) return existing.asObservable();
+        // The event name decides the payload type. The map cannot carry that, so it is restored here.
+        if (existing) return existing.asObservable() as Observable<PayloadOf<K>>;
 
         const subject = new Subject<PayloadOf<K>>();
-        this.streams.set(event, subject);
+        this.streams.set(event, subject as Subject<unknown>);
         this.on(event, (payload: PayloadOf<K>) => subject.next(payload));
         return subject.asObservable();
     }
@@ -168,7 +169,7 @@ export class RealtimeConnectionService {
         this.hubConnection = connection;
         this.wireLifecycle(connection);
 
-        for (const {event, handler} of this.pendingHandlers) connection.on(event, handler);
+        for (const {register} of this.pendingHandlers) register(connection);
         this.pendingHandlers = [];
 
         return connection;

@@ -1,4 +1,5 @@
 import {Injectable, signal} from '@angular/core';
+import type {EmojiMartData} from '@emoji-mart/data';
 
 export function getFlagCode(ch1: string, ch2?: string): string | null {
     const cp1 = ch1.codePointAt(0);
@@ -24,11 +25,14 @@ export interface EmojiSuggestion {
 
 @Injectable({providedIn: 'root'})
 export class EmojiDataService {
-    private readonly _data = signal<any>(null);
+    private readonly _data = signal<EmojiMartData | null>(null);
 
     constructor() {
-        import('@emoji-mart/data').then(mod => {
-            this._data.set((mod as any).default ?? mod);
+        void import('@emoji-mart/data').then(mod => {
+            // The package ships a JSON file plus type-only declarations, so the module has no
+            // value-level typing and the default export is not visible to the compiler.
+            const loaded = mod as unknown as EmojiMartData & {default?: EmojiMartData};
+            this._data.set(loaded.default ?? loaded);
         });
     }
 
@@ -67,10 +71,10 @@ export class EmojiDataService {
                 }
             }
         }
-        for (const [id, emoji] of Object.entries<any>(data.emojis ?? {})) {
-            if (id.includes(q) && !seen.has(id) && (emoji as any)?.skins?.[0]?.native) {
+        for (const [id, emoji] of Object.entries(data.emojis ?? {})) {
+            if (id.includes(q) && !seen.has(id) && emoji?.skins?.[0]?.native) {
                 seen.add(id);
-                results.push({id, native: (emoji as any).skins[0].native, name: (emoji as any).name});
+                results.push({id, native: emoji.skins[0].native, name: emoji.name});
             }
         }
         return results.slice(0, 12);

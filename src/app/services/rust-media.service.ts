@@ -295,7 +295,9 @@ export class RustMediaService {
         // An opening value only: `applyScreenEncoding` sets the governing hint from the share's content mode on this same track once the sender exists.
         try {
             (track as {contentHint?: string}).contentHint = 'detail';
-        } catch {}
+        } catch {
+            // Not every engine exposes contentHint; the sender-side hint is applied regardless.
+        }
         return track;
     }
 
@@ -674,7 +676,9 @@ export class RustMediaService {
                 }
                 ctx.drawImage(bitmap, (c.width - dw) / 2, (c.height - dh) / 2, dw, dh);
                 // Signal a new frame to the video track (captureStream(0) only captures on demand).
-                (this.screenStream?.getVideoTracks()[0] as any)?.requestFrame?.();
+                (
+                    this.screenStream?.getVideoTracks()[0] as CanvasCaptureMediaStreamTrack | undefined
+                )?.requestFrame();
                 this.renderedFrameCount++;
                 bitmap.close();
                 this.decodingFrame = false;

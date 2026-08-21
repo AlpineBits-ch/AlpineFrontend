@@ -3,7 +3,7 @@ import {AuthService} from '../../services/auth.service';
 import {Router} from '@angular/router';
 import {HomeComponent} from './pages/home/home.component';
 import {MobileConversationsPageComponent} from './pages/mobile-conversations/mobile-conversations-page.component';
-import {OAuthService} from 'angular-oauth2-oidc';
+import {OAuthEvent, OAuthService} from 'angular-oauth2-oidc';
 import {MessagingWebsocketService} from '../../services/messaging-websocket.service';
 import {ActionSidepanelComponent} from './components/action-sidepanel/action-sidepanel.component';
 import {ConversationComponent} from '../messaging/components/conversation/conversation.component';
@@ -60,6 +60,7 @@ import {AccountGateBlock, hydrateThenReveal, revealAfterAccountGateBlock} from '
 import {MlsJoinRequestService} from '../../services/mls-join-request.service';
 import {ConversationEncryption} from '../../enums/conversation-encryption.enum';
 import {AccountOnboardingComponent} from '../onboarding/account-onboarding.component';
+import {trace} from '../../core/log';
 import {UserDto} from '../../dtos/response/UserDto';
 import {OnboardingService} from '../../services/onboarding.service';
 import {SocialKeyGateService} from '../../services/social-key-gate.service';
@@ -216,7 +217,11 @@ export class MainPageComponent implements OnDestroy {
                     void this.authService.ensureValidToken().catch(() => {});
                 }
                 if (e.type === 'token_refresh_error' || e.type === 'silent_refresh_error') {
-                    const reason = (e as any)?.reason;
+                    // `reason` is declared only on OAuthErrorEvent and typed there as bare `object`.
+                    // A refresh failure carries the HttpErrorResponse, sometimes wrapped one deep.
+                    const {reason} = e as OAuthEvent & {
+                        reason?: {status?: number; error?: {status?: number}};
+                    };
                     const status = reason?.status ?? reason?.error?.status;
                     if (status === 403) {
                         this.emailVerification.show(this.resolveEmail(), {action: 'navigate-login'});
@@ -543,7 +548,7 @@ export class MainPageComponent implements OnDestroy {
         );
 
         if (outcome.probed > 0) {
-            console.info('MLS admission sweep', outcome);
+            trace('MLS admission sweep', outcome);
         }
     }
 

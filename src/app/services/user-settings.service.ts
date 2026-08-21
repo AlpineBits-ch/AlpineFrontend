@@ -51,6 +51,13 @@ interface SettingsPayload {
     activity: ActivitySettings;
 }
 
+/** What comes back out of the opaque server-side JSON column. Nothing here has been verified. */
+interface RawSettings {
+    notifications?: Partial<NotificationSettings>;
+    activity?: Partial<ActivitySettings>;
+    autostart?: boolean;
+}
+
 const DEFAULTS: SettingsPayload = {
     notifications: {
         enabled: true,
@@ -179,7 +186,7 @@ export class UserSettingsService {
     }
 
     private parse(raw: unknown): SettingsPayload {
-        const obj = typeof raw === 'object' && raw !== null ? (raw as Record<string, any>) : {};
+        const obj: RawSettings = typeof raw === 'object' && raw !== null ? (raw as RawSettings) : {};
         const n = obj['notifications'];
         const a = obj['activity'];
         return {
