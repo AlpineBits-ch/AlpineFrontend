@@ -104,17 +104,25 @@ export function withKeyedIndex<T, C extends string, A = never>(
                 });
             };
 
+            // Row-for-row identity, so a write to some other key's entity does not hand this key a
+            // fresh array and churn every `@for` reading it.
+            const sameRows = (a: T[], b: T[]): boolean =>
+                a.length === b.length && a.every((row, index) => row === b[index]);
+
             const viewFor = (key: string): Signal<T[]> => {
                 const cached = views.get(key);
                 if (cached) return cached;
 
-                const view = computed(() => {
-                    const ids = idsSignal()[key];
-                    if (!ids) return [] as T[];
-                    const map = entityMap();
-                    const rows = ids.map(id => map[id]).filter((row): row is T => row != null);
-                    return config.sort ? [...rows].sort(config.sort) : rows;
-                });
+                const view = computed(
+                    () => {
+                        const ids = idsSignal()[key];
+                        if (!ids) return [] as T[];
+                        const map = entityMap();
+                        const rows = ids.map(id => map[id]).filter((row): row is T => row != null);
+                        return config.sort ? [...rows].sort(config.sort) : rows;
+                    },
+                    {equal: sameRows},
+                );
 
                 views.set(key, view);
                 return view;

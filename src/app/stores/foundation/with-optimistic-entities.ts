@@ -10,18 +10,20 @@ import {
 } from '@ngrx/signals';
 import {EntityId, EntityMap, EntityState, updateEntity, upsertEntity} from '@ngrx/signals/entities';
 
+/** One in-flight optimistic write. Both halves are inert once a newer write for the same entity has been issued. */
+export interface OptimisticWrite<T> {
+    /** Puts the fields this write changed back the way it found them. */
+    rollback(): void;
+    /** Replaces the row with the server's answer. */
+    settle(entity: T): void;
+}
+
 export interface OptimisticEntities<T> {
-    /**
-     * Applies `changes` now and hands back the undo. The undo is inert once a newer mutation for
-     * the same entity has been issued, so a late rollback cannot resurrect a value the user has
-     * already moved past.
-     */
-    optimistic(id: EntityId, changes: Partial<T>): () => void;
+    /** Applies `changes` now and hands back the undo and the settle for the response. */
+    optimistic(id: EntityId, changes: Partial<T>): OptimisticWrite<T>;
     /** Marks every response already in flight for this entity as stale, and returns the new generation. */
     bumpGeneration(id: EntityId): number;
     isCurrentGeneration(id: EntityId, generation: number): boolean;
-    /** Writes a settled server row, unless a newer local mutation was issued after `generation`. */
-    settleEntity(id: EntityId, generation: number, entity: T): void;
 }
 
 /**
@@ -62,25 +64,27 @@ export function withOptimisticEntities<T>(
                 bumpGeneration,
                 isCurrentGeneration,
 
-                optimistic(id: EntityId, changes: Partial<T>): () => void {
+                optimistic(id: EntityId, changes: Partial<T>): OptimisticWrite<T> {
                     const before = entityMap()[id];
-                    if (!before) return () => undefined;
-
                     const generation = bumpGeneration(id);
+                    if (!before) {
+                        return {rollback: () => undefined, settle: () => undefined};
+                    }
+
                     const restore: Partial<T> = {};
                     for (const field of Object.keys(changes) as (keyof T)[]) restore[field] = before[field];
-
                     write(id, changes);
 
-                    return () => {
-                        if (!isCurrentGeneration(id, generation)) return;
-                        write(id, restore);
+                    return {
+                        rollback: () => {
+                            if (!isCurrentGeneration(id, generation)) return;
+                            write(id, restore);
+                        },
+                        settle: (entity: T) => {
+                            if (!isCurrentGeneration(id, generation)) return;
+                            patchState(source as never, upsertEntity<T>(entity, {selectId}) as never);
+                        },
                     };
-                },
-
-                settleEntity(id: EntityId, generation: number, entity: T): void {
-                    if (!isCurrentGeneration(id, generation)) return;
-                    patchState(source as never, upsertEntity<T>(entity, {selectId}) as never);
                 },
             };
         }),

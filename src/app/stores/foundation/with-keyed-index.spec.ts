@@ -332,6 +332,18 @@ describe('withKeyedIndex', () => {
             expect(store.byOwnerLoaded('c1')).toBe(false);
         });
 
+        it("keeps one key's array reference across a write to another key", () => {
+            const {store, api} = setup();
+            store.loadStock('c1');
+            settle(api.stockPending, 0, [row('a')]);
+            const before = store.stockFor('c1')();
+
+            store.applyStock('c2', [row('b')]);
+            store.attachToStock('c2', row('c'));
+
+            expect(store.stockFor('c1')()).toBe(before);
+        });
+
         it('shows an entity written through one index in the other', () => {
             const {store, api} = setup();
             store.loadStock('c1');

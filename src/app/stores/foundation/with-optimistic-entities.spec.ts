@@ -27,51 +27,62 @@ describe('withOptimisticEntities', () => {
     it('applies the change at once and undoes exactly the fields it touched', () => {
         const store = setup([row('a', {text: 'Milk', checked: false})]);
 
-        const rollback = store.optimistic('a', {checked: true});
+        const write = store.optimistic('a', {checked: true});
         expect(store.entityMap()['a'].checked).toBe(true);
 
-        rollback();
+        write.rollback();
         expect(store.entityMap()['a'].checked).toBe(false);
         expect(store.entityMap()['a'].text).toBe('Milk');
     });
 
     it('hands back an inert undo for an id it does not hold', () => {
         const store = setup();
-        expect(() => store.optimistic('ghost', {checked: true})()).not.toThrow();
+        expect(() => store.optimistic('ghost', {checked: true}).rollback()).not.toThrow();
     });
 
     it('lets the newest write win when two rollbacks race', () => {
         const store = setup([row('a', {checked: false})]);
 
-        const undoFirst = store.optimistic('a', {checked: true});
-        const undoSecond = store.optimistic('a', {checked: false});
+        const first = store.optimistic('a', {checked: true});
+        const second = store.optimistic('a', {checked: false});
 
         // The first request fails last. Its rollback would put the row back to ticked, which is
         // not what was asked for most recently.
-        undoFirst();
+        first.rollback();
         expect(store.entityMap()['a'].checked).toBe(false);
 
-        undoSecond();
+        second.rollback();
         expect(store.entityMap()['a'].checked).toBe(true);
     });
 
     it('discards a settled response issued under a superseded generation', () => {
-        const store = setup([row('a', {text: 'Milk'})]);
+        const store = setup([row('a', {text: 'Milk', checked: false})]);
 
-        const generation = store.bumpGeneration('a');
-        store.bumpGeneration('a');
-        store.settleEntity('a', generation, row('a', {text: 'Stale'}));
+        const first = store.optimistic('a', {checked: true});
+        store.optimistic('a', {checked: false});
+        first.settle(row('a', {text: 'Stale', checked: true}));
 
         expect(store.entityMap()['a'].text).toBe('Milk');
+        expect(store.entityMap()['a'].checked).toBe(false);
     });
 
     it('applies a settled response still on the current generation', () => {
         const store = setup([row('a', {text: 'Milk'})]);
 
-        const generation = store.bumpGeneration('a');
-        store.settleEntity('a', generation, row('a', {text: 'Oat milk'}));
+        const write = store.optimistic('a', {checked: true});
+        write.settle(row('a', {text: 'Oat milk', checked: true}));
 
         expect(store.entityMap()['a'].text).toBe('Oat milk');
+    });
+
+    it('is superseded by a bare generation bump, which is how a realtime echo cancels a response', () => {
+        const store = setup([row('a', {text: 'Milk'})]);
+
+        const write = store.optimistic('a', {checked: true});
+        store.bumpGeneration('a');
+        write.settle(row('a', {text: 'Stale'}));
+
+        expect(store.entityMap()['a'].text).toBe('Milk');
     });
 
     it('counts generations per entity, so one row does not stale another', () => {
