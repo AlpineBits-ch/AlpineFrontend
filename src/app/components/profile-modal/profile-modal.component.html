@@ -1,5 +1,5 @@
 @if (popoutSvc.modal()) {
-    <div (click)="close()" class="fixed inset-0 z-[9995] flex items-center justify-center bg-black/60 p-4">
+    <div (click)="close()" role="presentation" class="fixed inset-0 z-[9995] flex items-center justify-center bg-black/60 p-4">
         <div
             (click)="$event.stopPropagation()"
             (keydown)="onKeydown($event)"

@@ -24,7 +24,7 @@
         <div (mousedown)="startResize($event)" class="hidden lg:block wiki-resize-handle shrink-0"></div>
     }
     @if (navDrawerOpen()) {
-        <div (click)="navDrawerOpen.set(false)" class="fixed inset-0 z-40 bg-black/60 lg:hidden"></div>
+        <div (click)="navDrawerOpen.set(false)" role="presentation" class="fixed inset-0 z-40 bg-black/60 lg:hidden"></div>
     }
 
     <!-- Article column -->
@@ -145,7 +145,7 @@
          right-hand drawer rather than something the narrow window simply does without. -->
     @if (state.wikiView() === 'page' || state.wikiView() === 'editor') {
         @if (railDrawerOpen()) {
-            <div (click)="railDrawerOpen.set(false)" class="fixed inset-0 z-40 bg-black/60 xl:hidden"></div>
+            <div (click)="railDrawerOpen.set(false)" role="presentation" class="fixed inset-0 z-40 bg-black/60 xl:hidden"></div>
         }
         <div
             [class.is-open]="railDrawerOpen()"

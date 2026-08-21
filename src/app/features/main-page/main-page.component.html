@@ -6,7 +6,7 @@
     <div class="flex flex-1 min-h-0 overflow-hidden">
         <!-- Mobile drawer backdrop -->
         @if (navService.mobileNavOpen()) {
-            <div (click)="navService.mobileNavOpen.set(false)" class="fixed inset-0 z-40 bg-black/60 lg:hidden"></div>
+            <div (click)="navService.mobileNavOpen.set(false)" role="presentation" class="fixed inset-0 z-40 bg-black/60 lg:hidden"></div>
         }
 
         <!-- Left panel: [server rail | sidebar] with profile spanning bottom -->
