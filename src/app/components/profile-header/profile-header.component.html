@@ -9,7 +9,15 @@
 
         <!-- Avatar (overlapping banner/body boundary) -->
         <div class="absolute left-4 z-10" style="top: 56px">
-            <div (click)="onAvatarClick()" [class.cursor-pointer]="p.avatarUrl && !avatarError()" class="relative">
+            <div
+                (click)="onAvatarClick()"
+                (keydown.enter)="onAvatarClick()"
+                (keydown.space)="$event.preventDefault(); onAvatarClick()"
+                [attr.role]="p.avatarUrl && !avatarError() ? 'button' : null"
+                [attr.tabindex]="p.avatarUrl && !avatarError() ? 0 : null"
+                [class.cursor-pointer]="p.avatarUrl && !avatarError()"
+                class="relative"
+            >
                 @if (p.avatarUrl && !avatarError()) {
                     <img
                         (error)="onAvatarError()"

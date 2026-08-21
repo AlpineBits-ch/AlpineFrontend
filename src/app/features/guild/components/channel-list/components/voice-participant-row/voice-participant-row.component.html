@@ -6,6 +6,7 @@
     data-testid="voice-participant"
     [attr.data-user-id]="p.userId"
     class="chan-row"
+    role="presentation"
 >
     <!-- chan-avatar, not a bare flex wrapper: the whole chain needs to be declared flex so the avatar sits on the row's centre line rather than its baseline (see styles.css). -->
     <div class="chan-avatar">
@@ -17,7 +18,15 @@
             "
         />
     </div>
-    <span [ngClass]="p.isSpeaking ? 'text-online/85' : ''" class="chan-label">
+    <span
+        (click)="$event.stopPropagation(); open.emit()"
+        (keydown.enter)="open.emit()"
+        (keydown.space)="$event.preventDefault(); open.emit()"
+        [ngClass]="p.isSpeaking ? 'text-online/85' : ''"
+        class="chan-label"
+        role="button"
+        tabindex="0"
+    >
         {{ p.displayName }}
     </span>
     @if (p.isCameraOn) {

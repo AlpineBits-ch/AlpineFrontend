@@ -21,9 +21,13 @@
                 <app-persona-avatar [avatarUrl]="who.avatarUrl" [color]="who.color" [name]="who.name" />
             </button>
         } @else {
-            <div (click)="profilePopout.open(message().authorId)" class="cursor-pointer shrink-0 mt-0.5">
+            <button
+                (click)="profilePopout.open(message().authorId)"
+                class="cursor-pointer shrink-0 mt-0.5 border-0 bg-transparent p-0"
+                type="button"
+            >
                 <app-avatar [userId]="message().authorId" />
-            </div>
+            </button>
         }
     } @else {
         <div class="shrink-0 w-8 flex items-start justify-center mt-0.5">
@@ -38,7 +42,11 @@
         @if (message().inReplyTo) {
             <div
                 (click)="jumpTo.emit(message().inReplyTo!)"
+                (keydown.enter)="jumpTo.emit(message().inReplyTo!)"
+                (keydown.space)="$event.preventDefault(); jumpTo.emit(message().inReplyTo!)"
                 class="flex items-center gap-1.5 mb-1 min-w-0 cursor-pointer group/reply select-none"
+                role="button"
+                tabindex="0"
             >
                 <i class="pi pi-reply text-[10px] text-text-muted shrink-0 scale-x-[-1]"></i>
                 @if (replyMessage()) {
@@ -74,8 +82,12 @@
                              one click from their profile. Nothing here is a badge. -->
                         <span
                             (click)="openCharacter()"
+                            (keydown.enter)="openCharacter()"
+                            (keydown.space)="$event.preventDefault(); openCharacter()"
                             [style.color]="who.color ?? 'var(--color-text-primary)'"
                             class="text-sm font-bold cursor-pointer hover:brightness-125 transition-[filter]"
+                            role="button"
+                            tabindex="0"
                         >
                             {{ who.name }}
                         </span>
@@ -98,7 +110,11 @@
                     } @else if (botName(message().authorId); as bName) {
                         <span
                             (click)="profilePopout.open(message().authorId)"
+                            (keydown.enter)="profilePopout.open(message().authorId)"
+                            (keydown.space)="$event.preventDefault(); profilePopout.open(message().authorId)"
                             class="text-sm font-bold text-[var(--color-text-primary)] cursor-pointer hover:text-white transition-colors"
+                            role="button"
+                            tabindex="0"
                         >
                             {{ bName }}
                         </span>
@@ -109,8 +125,12 @@
                         @let user = getProfile() | async;
                         <span
                             (click)="profilePopout.open(message().authorId)"
+                            (keydown.enter)="profilePopout.open(message().authorId)"
+                            (keydown.space)="$event.preventDefault(); profilePopout.open(message().authorId)"
                             [appUserNameStyle]="user"
                             class="text-sm font-bold text-[var(--color-text-primary)] cursor-pointer hover:text-white transition-colors"
+                            role="button"
+                            tabindex="0"
                         >
                             {{ user ? user.userName : message().authorId }}
                         </span>
@@ -243,6 +263,7 @@
                     message().isFailed ? 'text-rose-300' : message().isPending ? 'text-text-muted' : 'text-[var(--color-text-primary)]'
                 "
                 class="text-[15px] leading-relaxed m-0 break-words"
+                role="presentation"
             >
                 @if (isOnlyEmoji()) {
                     <div class="flex items-center justify-start p-2 leading-none">
@@ -260,7 +281,11 @@
                         } @else if (seg.type === 'mention') {
                             <span
                                 (click)="seg.refId && profilePopout.open(seg.refId)"
+                                (keydown.enter)="seg.refId && profilePopout.open(seg.refId)"
+                                (keydown.space)="$event.preventDefault(); seg.refId && profilePopout.open(seg.refId)"
                                 [appUserNameStyle]="seg.refId ? mentionedProfile(seg.refId) : null"
+                                [attr.role]="seg.refId ? 'button' : null"
+                                [attr.tabindex]="seg.refId ? 0 : null"
                                 [class.cursor-pointer]="seg.refId"
                                 class="mention-chip"
                                 >{{ seg.value }}</span
@@ -270,8 +295,12 @@
                                  reachable from here, names the account behind them. -->
                             <span
                                 (click)="openMentionedCharacter(seg.refId)"
+                                (keydown.enter)="openMentionedCharacter(seg.refId)"
+                                (keydown.space)="$event.preventDefault(); openMentionedCharacter(seg.refId)"
                                 [style.--persona-mention-color]="seg.color"
                                 class="mention-chip mention-chip-persona cursor-pointer"
+                                role="button"
+                                tabindex="0"
                                 >{{ seg.value }}</span
                             >
                         } @else if (seg.type === 'role') {
@@ -283,9 +312,15 @@
                         } @else if (seg.type === 'everyone' || seg.type === 'here') {
                             <span class="mention-chip mention-chip-special">{{ seg.value }}</span>
                         } @else if (seg.type === 'channel') {
-                            <span (click)="onChannelMentionClick(seg.refId!)" class="mention-chip mention-chip-channel cursor-pointer">{{
-                                seg.value
-                            }}</span>
+                            <span
+                                (click)="onChannelMentionClick(seg.refId!)"
+                                (keydown.enter)="onChannelMentionClick(seg.refId!)"
+                                (keydown.space)="$event.preventDefault(); onChannelMentionClick(seg.refId!)"
+                                class="mention-chip mention-chip-channel cursor-pointer"
+                                role="button"
+                                tabindex="0"
+                                >{{ seg.value }}</span
+                            >
                         } @else if (seg.type === 'flag') {
                             <app-twemoji [emoji]="seg.value" size="1.25em" />
                         } @else if (seg.type === 'emoji') {
@@ -295,10 +330,14 @@
                                 @if (att.contentType.startsWith('image/')) {
                                     <img
                                         (click)="openLightbox(att)"
+                                        (keydown.enter)="openLightbox(att)"
+                                        (keydown.space)="$event.preventDefault(); openLightbox(att)"
                                         [alt]="att.fileName"
                                         [appAuthSrc]="thumbnailSrc(att)"
                                         class="inline-attachment cursor-zoom-in"
                                         loading="lazy"
+                                        role="button"
+                                        tabindex="0"
                                     />
                                 } @else {
                                     <button (click)="download(att)" class="inline-attachment-file" type="button">
@@ -319,12 +358,17 @@
             <div class="flex flex-wrap gap-2 mt-2">
                 @for (att of galleryAttachments(); track att.id) {
                     @if (att.contentType.startsWith('image/')) {
-                        <div (click)="openLightbox(att)" class="relative inline-block group/img cursor-zoom-in">
+                        <div class="relative inline-block group/img cursor-zoom-in">
                             <img
+                                (click)="openLightbox(att)"
+                                (keydown.enter)="openLightbox(att)"
+                                (keydown.space)="$event.preventDefault(); openLightbox(att)"
                                 [alt]="att.fileName"
                                 [appAuthSrc]="thumbnailSrc(att)"
                                 class="max-h-60 max-w-sm rounded-xl border border-white/10 object-contain block"
                                 loading="lazy"
+                                role="button"
+                                tabindex="0"
                             />
                             <div class="absolute top-1.5 right-1.5 flex gap-1 opacity-0 group-hover/img:opacity-100 transition-opacity">
                                 <button
@@ -503,7 +547,7 @@
 
 <!-- Mobile long-press action sheet, the ephemeral exclusion above applies here too -->
 @if (longPressMenu() && !message().isEphemeral) {
-    <div (click)="longPressMenu.set(false)" class="fixed inset-0 z-40 bg-black/50"></div>
+    <div (click)="longPressMenu.set(false)" class="fixed inset-0 z-40 bg-black/50" role="presentation"></div>
     <div
         class="fixed bottom-0 left-0 right-0 z-50 bg-sidebar border-t border-white/[0.08] rounded-t-2xl"
         style="padding-bottom: max(env(safe-area-inset-bottom), 1rem)"

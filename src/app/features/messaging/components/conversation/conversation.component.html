@@ -12,11 +12,15 @@
             styleClass="mr-1"
         />
 
+        @let partner = convUtils.getPartnerMember(conversation());
+
         <div
-            (click)="
-                convUtils.getPartnerMember(conversation())?.userId && profilePopout.open(convUtils.getPartnerMember(conversation())!.userId)
-            "
-            [class.cursor-pointer]="convUtils.getPartnerMember(conversation())"
+            (click)="partner?.userId && profilePopout.open(partner!.userId)"
+            (keydown.enter)="partner?.userId && profilePopout.open(partner!.userId)"
+            (keydown.space)="$event.preventDefault(); partner?.userId && profilePopout.open(partner!.userId)"
+            [attr.role]="partner ? 'button' : null"
+            [attr.tabindex]="partner ? 0 : null"
+            [class.cursor-pointer]="partner"
             class="flex items-center gap-2 sm:gap-3"
         >
             <div class="relative">
