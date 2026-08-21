@@ -6,6 +6,7 @@ import {CacheStore, CacheStoreFactory} from '../../platform/cache-store';
 import {DeviceIdentityService} from '../device-identity.service';
 import {ProfileService} from '../profile.service';
 import {RevalidationQueue} from './revalidation-queue';
+import {trace} from '../../core/log';
 
 /** Four at a time, 50ms apart. Slow enough to stay behind the app's own requests. */
 const REVALIDATE_CONCURRENCY = 4;
@@ -65,7 +66,7 @@ export class ProfileCacheService {
      */
     private persist(profile: ProfileDto): void {
         void this.remember(profile).catch((err: unknown) => {
-            console.debug('Profile not cached; the cache is full or unavailable', err);
+            trace('Profile not cached; the cache is full or unavailable', err);
         });
     }
 

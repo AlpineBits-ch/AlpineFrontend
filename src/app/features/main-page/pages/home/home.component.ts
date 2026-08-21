@@ -126,14 +126,12 @@ export class HomeComponent {
         this.relationshipStore.revoke(id).subscribe();
     }
 
-    public block(id: string): void {
-        // TODO: wire up block endpoint when available
-        console.log('Block user relationship:', id);
+    public block(_id: string): void {
+        // TODO(dominic): wire up block endpoint when available
     }
 
-    public unblock(id: string): void {
-        // TODO: wire up unblock endpoint when available
-        console.log('Unblock user relationship:', id);
+    public unblock(_id: string): void {
+        // TODO(dominic): wire up unblock endpoint when available
     }
 
     public openOrCreateDm(targetUserId: string): void {

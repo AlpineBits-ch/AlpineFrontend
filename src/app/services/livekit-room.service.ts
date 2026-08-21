@@ -1,5 +1,6 @@
 import {inject, Injectable, InjectionToken, signal} from '@angular/core';
 import type {RemoteParticipant, RoomEventCallbacks} from 'livekit-client';
+import {trace} from '../core/log';
 import {
     ConnectionState,
     RemoteTrackPublication,
@@ -235,7 +236,7 @@ export class LiveKitRoomService {
         // The moment a subscription becomes media, which is the one event that separates "the SFU
         // took our subscribe" from "the SFU is sending". Asking for a track and receiving one are
         // different things, and only this says the second happened.
-        console.info(
+        trace(
             `[livekit] track arrived: ${publication.trackName} (${publication.kind}/${publication.source})` +
                 ` from ${participant.identity}, mediaStreamTrack=${!!publication.track?.mediaStreamTrack}`,
         );
@@ -245,7 +246,7 @@ export class LiveKitRoomService {
         if (!this.remoteTracks().has(trackSid)) return;
         // The other end of `track arrived`. A picture that appears and then goes is either this or a
         // rebuild that found nothing, and the two have completely different causes.
-        console.info(
+        trace(
             `[livekit] track gone: ${this.remoteTracks().get(trackSid)?.publication.trackName} (${trackSid})`,
         );
         const next = new Map(this.remoteTracks());

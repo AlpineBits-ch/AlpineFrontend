@@ -281,14 +281,12 @@ export class MessagingWebsocketService {
         });
 
         this.realtime.on('conversation.ConversationDeleted', async (data: ConversationRemoved) => {
-            console.log('Conversation removed:', data);
             this.conversationRemovedObservable.next(data);
         });
         this.realtime.on('conversation.ConversationUpdated', (data: ConversationUpdated) => {
             this.conversationUpdatedObservable.next(data);
         });
         this.realtime.on('conversation.MemberLeft', async (data: ConversationMemberRemoved) => {
-            console.log('Conversation member removed:', data);
             this.conversationMemberRemovedObservable.next(data);
         });
 
@@ -315,7 +313,6 @@ export class MessagingWebsocketService {
         });
 
         this.realtime.on('conversation.ConversationCreated', (conversationId: string) => {
-            console.log('ConversationCreated:', conversationId);
             this.conversationCreatedObservable.next(conversationId);
         });
 
@@ -344,7 +341,6 @@ export class MessagingWebsocketService {
         });
 
         this.realtime.on('conversation.Welcome', (conversationId: string) => {
-            console.log('Welcome for conversation:', conversationId);
             this.welcomeObservable.next(conversationId);
         });
 

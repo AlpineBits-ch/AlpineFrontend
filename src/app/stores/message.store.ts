@@ -27,10 +27,11 @@ import {GuildWebsocketService} from '../services/guild-websocket.service';
 import {RealtimeConnectionService} from '../services/realtime-connection.service';
 import {ProfileService} from '../services/profile.service';
 import {HttpErrorResponse} from '@angular/common/http';
-import {catchError, firstValueFrom, from, Observable, of, switchMap, tap} from 'rxjs';
+import {catchError, from, Observable, of, switchMap, tap} from 'rxjs';
 import {fromBase64} from '../helpers/base64.helper';
 import {decryptMessages} from '../helpers/message-decrypt';
 import {MessageCacheService, messageContextKey} from '../services/cache/message-cache.service';
+import {trace} from '../core/log';
 
 const PAGE_SIZE = 30;
 
@@ -234,9 +235,7 @@ export const MessageStore = signalStore(
                                 // which reloads the window after three in five seconds.
                                 void messageCache
                                     .remember(messageContextKey({conversationId}), messages)
-                                    .catch((err: unknown) =>
-                                        console.debug('Conversation page not cached', err),
-                                    );
+                                    .catch((err: unknown) => trace('Conversation page not cached', err));
                             },
                             error: (err: HttpErrorResponse) => {
                                 conversationCachePaint.delete(conversationId);
@@ -691,7 +690,7 @@ export const MessageStore = signalStore(
                                 // Swallowed: an unavailable cache must never reach the global error handler.
                                 void messageCache
                                     .remember(messageContextKey({channelId}), messages)
-                                    .catch((err: unknown) => console.debug('Channel page not cached', err));
+                                    .catch((err: unknown) => trace('Channel page not cached', err));
                             },
                             error: (err: HttpErrorResponse) => {
                                 channelCachePaint.delete(channelId);

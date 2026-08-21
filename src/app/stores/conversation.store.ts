@@ -13,6 +13,7 @@ import {ConversationService} from '../services/conversation.service';
 import {MessagingWebsocketService} from '../services/messaging-websocket.service';
 import {ProfileService} from '../services/profile.service';
 import {ConversationCacheService} from '../services/cache/conversation-cache.service';
+import {trace} from '../core/log';
 
 const PAGE_SIZE = 20;
 
@@ -154,7 +155,7 @@ export const ConversationStore = signalStore(
                     // Swallowed: CacheStore.set rejects on a full or unavailable cache, which is an
                     // expected state, and an unhandled rejection here reaches GlobalErrorHandler.
                     void cache.remember(latest).catch((err: unknown) => {
-                        console.debug('Conversations not cached; the cache is full or unavailable', err);
+                        trace('Conversations not cached; the cache is full or unavailable', err);
                     });
                 }, PERSIST_WINDOW_MS);
             });
