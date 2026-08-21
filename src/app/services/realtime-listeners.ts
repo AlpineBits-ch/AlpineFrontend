@@ -7,13 +7,13 @@ import {HomeStatusService} from './home-status.service';
 import {HouseholdAlertService} from './household-alert.service';
 import {InboxService} from './inbox.service';
 import {LedgerService} from './ledger.service';
-import {ListService} from './list.service';
 import {MaintenanceService} from './maintenance.service';
 import {MealService} from './meal.service';
 import {VoiceRingStateService} from './voice-ring-state.service';
 import {ConversationStore} from '../stores/conversation.store';
 import {EntitlementStore} from '../stores/entitlement.store';
 import {GuildEmojiStore} from '../stores/guild-emoji.store';
+import {ListStore} from '../stores/list.store';
 import {MessageStore} from '../stores/message.store';
 import {PantryStore} from '../stores/pantry.store';
 import {RelationshipStore} from '../stores/relationship.store';
@@ -42,7 +42,6 @@ const LISTENERS: ProviderToken<unknown>[] = [
     HouseholdAlertService,
     InboxService,
     LedgerService,
-    ListService,
     MaintenanceService,
     MealService,
     VoiceRingStateService,
@@ -50,6 +49,7 @@ const LISTENERS: ProviderToken<unknown>[] = [
     ConversationStore,
     EntitlementStore,
     GuildEmojiStore,
+    ListStore,
     MessageStore,
     PantryStore,
     RelationshipStore,

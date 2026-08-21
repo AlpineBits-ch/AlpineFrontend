@@ -4,6 +4,8 @@ import {HttpTestingController, provideHttpClientTesting, TestRequest} from '@ang
 import {provideTranslateService} from '@ngx-translate/core';
 import {MessageService} from 'primeng/api';
 
+import {Observable, Subject} from 'rxjs';
+
 import {ListService} from './list.service';
 import {ApiConfigService} from './api-config.service';
 import {ProfileService} from './profile.service';
@@ -34,21 +36,21 @@ function itemFixture(id: string, overrides: Partial<ListItem> = {}): ListItem {
     };
 }
 
-/** Captures the handlers registered in the constructor so the spec can push events at them. */
+/** Captures the streams subscribed to at startup so the spec can push events at them. */
 class FakeRealtime {
-    readonly handlers = new Map<string, ((payload: unknown) => void)[]>();
+    readonly handlers = new Map<string, Subject<any>[]>();
 
-    on(event: string, handler: (payload: unknown) => void): void {
-        const existing = this.handlers.get(event) ?? [];
-        existing.push(handler);
-        this.handlers.set(event, existing);
+    stream(event: string): Observable<unknown> {
+        const subject = new Subject<any>();
+        this.handlers.set(event, [...(this.handlers.get(event) ?? []), subject]);
+        return subject.asObservable();
     }
 
     emit(event: string, payload: unknown): void {
-        for (const handler of this.handlers.get(event) ?? []) handler(payload);
+        for (const subject of this.handlers.get(event) ?? []) subject.next(payload);
     }
 
-    /** How many handlers a name got - registering twice would deliver every event twice. */
+    /** How many subscriptions a name got - registering twice would deliver every event twice. */
     countFor(event: string): number {
         return (this.handlers.get(event) ?? []).length;
     }
